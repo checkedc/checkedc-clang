@@ -73,6 +73,8 @@ namespace clang {
     TST_auto_type,        // __auto_type extension
     TST_unknown_anytype,  // __unknown_anytype extension
     TST_atomic,           // C11 _Atomic
+    TST_plainPtr,     // Checked C ptr type
+    TST_arrayPtr,     // Checked C array_ptr type
     TST_error         // erroneous type
   };
   

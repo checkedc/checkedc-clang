@@ -1461,6 +1461,18 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     }
     break;
   }
+  case DeclSpec::TST_plainPtr:
+  case DeclSpec::TST_arrayPtr: {
+      Result = S.GetTypeFromParser(DS.getRepAsType());
+      assert(!Result.isNull() && "Didn't get a type for ptr or array_ptr?");
+      // The name we're declaring, if any.
+      DeclarationName Name;
+      if (declarator.getIdentifier())
+          Name = declarator.getIdentifier();
+
+      Result = S.BuildPointerType(Result, DS.getTypeSpecTypeLoc(), Name);
+      break;
+  }
   case DeclSpec::TST_decltype: {
     Expr *E = DS.getRepAsExpr();
     assert(E && "Didn't get an expression for decltype?");
