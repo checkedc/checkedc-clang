@@ -5247,12 +5247,13 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
   }
 
   case TYPE_POINTER: {
-    if (Record.size() != 1) {
+    if (Record.size() != 2) {
       Error("Incorrect encoding of pointer type");
       return QualType();
     }
     QualType PointeeType = readType(*Loc.F, Record, Idx);
-    return Context.getPointerType(PointeeType);
+    unsigned kind = Record[1];
+    return Context.getPointerType(PointeeType, (PointerKind) kind);
   }
 
   case TYPE_DECAYED: {
@@ -5767,7 +5768,9 @@ void TypeLocReader::VisitComplexTypeLoc(ComplexTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation(Record, Idx));
 }
 void TypeLocReader::VisitPointerTypeLoc(PointerTypeLoc TL) {
-  TL.setStarLoc(ReadSourceLocation(Record, Idx));
+    TL.setKWLoc(ReadSourceLocation(Record, Idx));
+    TL.setLeftSymLoc(ReadSourceLocation(Record, Idx));
+    TL.setRightSymLoc(ReadSourceLocation(Record, Idx));
 }
 void TypeLocReader::VisitDecayedTypeLoc(DecayedTypeLoc TL) {
   // nothing to do

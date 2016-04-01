@@ -8369,4 +8369,11 @@ def warn_objc_redundant_qualified_class_type : Warning<
   "parameterized class %0 already conforms to the protocols listed; did you "
   "forget a '*'?">, InGroup<ObjCProtocolQualifiers>;
 
+// Checked C diagonstic messages
+def err_typecheck_ptr_subscript : Error<
+  "subscript of %0">;
+
+def err_typecheck_cond_incompatible_safe_pointer : Error<
+  "pointer type mismatch%diff{ ($ and $)|}0,1">;
+
 } // end of sema component.

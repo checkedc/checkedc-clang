@@ -4342,6 +4342,11 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
   } else if (const PointerType *PTy = LHSTy->getAs<PointerType>()) {
     BaseExpr = LHSExp;
     IndexExpr = RHSExp;
+    // Array subscripting not allowed on ptr<T> values
+    if (PTy->getKind() == PointerKind::Plain) {
+        return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
+            << LHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
+    }
     ResultType = PTy->getPointeeType();
   } else if (const ObjCObjectPointerType *PTy =
                LHSTy->getAs<ObjCObjectPointerType>()) {
@@ -4359,6 +4364,11 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
      // Handle the uncommon case of "123[Ptr]".
     BaseExpr = RHSExp;
     IndexExpr = LHSExp;
+    // Array subscripting not allowed on ptr<T> values
+    if (PTy->getKind() == PointerKind::Plain) {
+        return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
+            << RHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
+    }
     ResultType = PTy->getPointeeType();
   } else if (const ObjCObjectPointerType *PTy =
                RHSTy->getAs<ObjCObjectPointerType>()) {
@@ -6179,14 +6189,57 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
 
   QualType CompositeTy = S.Context.mergeTypes(lhptee, rhptee);
 
+  PointerKind resultKind = PointerKind::Unsafe;
+  bool incompatibleSafePointer = false;
+  if (!IsBlockPointer) {
+      // Check the compatibility of the pointer kind and compute the resulting
+      // pointer kind.  For safe pointers, enforce that pointees merge too.
+     PointerKind lhsKind = LHSTy->castAs<PointerType>()->getKind();
+     PointerKind rhsKind = RHSTy->castAs<PointerType>()->getKind();
+     if (lhsKind == rhsKind) {
+       resultKind = lhsKind;
+       // For safe pointers, the pointee types must merge.
+       incompatibleSafePointer = resultKind != PointerKind::Unsafe && CompositeTy.isNull();
+     }
+     else if (lhsKind == PointerKind::Unsafe) {
+       // One pointer is an unsafe pointer and the other is a safe pointer
+       // Implicit conversion of unsafe to safe is allowed, provided that
+       // the pointee types merge.
+       resultKind = rhsKind;
+       incompatibleSafePointer = CompositeTy.isNull();
+     }
+     else if (rhsKind == PointerKind::Unsafe) {
+       // Same as above
+       resultKind = lhsKind;
+       incompatibleSafePointer = CompositeTy.isNull();
+     }
+     else {
+       // Must have different kinds of safe pointers (ptr vs. array_ptr).
+       // Implicit conversions between the different kinds are not allowed.
+       incompatibleSafePointer = true;
+       //  array_ptr is less likely to cause spurious downstream warnings.
+       resultKind = PointerKind::Array;
+     }
+
+     if (incompatibleSafePointer) {
+         S.Diag(Loc, diag::err_typecheck_cond_incompatible_safe_pointer)
+             << LHSTy << RHSTy << LHS.get()->getSourceRange()
+             << RHS.get()->getSourceRange();
+     }
+  }
+
   if (CompositeTy.isNull()) {
-    S.Diag(Loc, diag::ext_typecheck_cond_incompatible_pointers)
-      << LHSTy << RHSTy << LHS.get()->getSourceRange()
-      << RHS.get()->getSourceRange();
+    // If the safe pointers were incompatible, we already issued an 
+    // error message. Don't give a warning too.
+    if (!incompatibleSafePointer) {       
+      S.Diag(Loc, diag::ext_typecheck_cond_incompatible_pointers)
+        << LHSTy << RHSTy << LHS.get()->getSourceRange()
+        << RHS.get()->getSourceRange();
+    }
     // In this situation, we assume void* type. No especially good
     // reason, but this is what gcc does, and we do have to pick
     // to get a consistent AST.
-    QualType incompatTy = S.Context.getPointerType(S.Context.VoidTy);
+    QualType incompatTy = S.Context.getPointerType(S.Context.VoidTy, resultKind);
     LHS = S.ImpCastExprToType(LHS.get(), incompatTy, CK_BitCast);
     RHS = S.ImpCastExprToType(RHS.get(), incompatTy, CK_BitCast);
     return incompatTy;
@@ -6197,7 +6250,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
   if (IsBlockPointer)
     ResultTy = S.Context.getBlockPointerType(ResultTy);
   else
-    ResultTy = S.Context.getPointerType(ResultTy);
+    ResultTy = S.Context.getPointerType(ResultTy, resultKind);
 
   LHS = S.ImpCastExprToType(LHS.get(), ResultTy, CK_BitCast);
   RHS = S.ImpCastExprToType(RHS.get(), ResultTy, CK_BitCast);
@@ -6239,25 +6292,31 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
   QualType RHSTy = RHS.get()->getType();
 
   // get the "pointed to" types
-  QualType lhptee = LHSTy->getAs<PointerType>()->getPointeeType();
-  QualType rhptee = RHSTy->getAs<PointerType>()->getPointeeType();
+  const PointerType *lhpt = LHSTy->getAs<PointerType>();
+  const PointerType *rhpt = RHSTy->getAs<PointerType>();
+  QualType lhptee = lhpt->getPointeeType();
+  QualType rhptee = rhpt->getPointeeType();
+  PointerKind lhkind = lhpt->getKind();
+  PointerKind rhkind = rhpt->getKind();
 
   // ignore qualifiers on void (C99 6.5.15p3, clause 6)
-  if (lhptee->isVoidType() && rhptee->isIncompleteOrObjectType()) {
+  if (lhptee->isVoidType() && rhptee->isIncompleteOrObjectType() && 
+      (lhkind == rhkind || rhkind == PointerKind::Unsafe)) {
     // Figure out necessary qualifiers (C99 6.5.15p6)
     QualType destPointee
       = S.Context.getQualifiedType(lhptee, rhptee.getQualifiers());
-    QualType destType = S.Context.getPointerType(destPointee);
+    QualType destType = S.Context.getPointerType(destPointee, lhkind);
     // Add qualifiers if necessary.
     LHS = S.ImpCastExprToType(LHS.get(), destType, CK_NoOp);
     // Promote to void*.
     RHS = S.ImpCastExprToType(RHS.get(), destType, CK_BitCast);
     return destType;
   }
-  if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType()) {
+  if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType() &&
+     (lhkind == rhkind || lhkind == PointerKind::Unsafe)) {
     QualType destPointee
       = S.Context.getQualifiedType(rhptee, lhptee.getQualifiers());
-    QualType destType = S.Context.getPointerType(destPointee);
+    QualType destType = S.Context.getPointerType(destPointee, lhkind);
     // Add qualifiers if necessary.
     RHS = S.ImpCastExprToType(RHS.get(), destType, CK_NoOp);
     // Promote to void*.

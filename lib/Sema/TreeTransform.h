@@ -664,7 +664,7 @@ public:
   ///
   /// By default, performs semantic analysis when building the pointer type.
   /// Subclasses may override this routine to provide different behavior.
-  QualType RebuildPointerType(QualType PointeeType, SourceLocation Sigil);
+  QualType RebuildPointerType(QualType PointeeType, PointerKind kind, SourceLocation Sigil);
 
   /// \brief Build a new block pointer type given its pointee type.
   ///
@@ -4160,7 +4160,7 @@ QualType TreeTransform<Derived>::TransformPointerType(TypeLocBuilder &TLB,
 
   if (getDerived().AlwaysRebuild() ||
       PointeeType != TL.getPointeeLoc().getType()) {
-    Result = getDerived().RebuildPointerType(PointeeType, TL.getSigilLoc());
+    Result = getDerived().RebuildPointerType(PointeeType, TL.getKind(), TL.getKWLoc());
     if (Result.isNull())
       return QualType();
   }
@@ -4170,7 +4170,9 @@ QualType TreeTransform<Derived>::TransformPointerType(TypeLocBuilder &TLB,
   TLB.TypeWasModifiedSafely(Result->getPointeeType());
 
   PointerTypeLoc NewT = TLB.push<PointerTypeLoc>(Result);
-  NewT.setSigilLoc(TL.getSigilLoc());
+  NewT.setLeftSymLoc(TL.getLeftSymLoc());
+  NewT.setRightSymLoc(TL.getRightSymLoc());
+  NewT.setKWLoc(TL.getKWLoc());
   return Result;
 }
 
@@ -11243,8 +11245,9 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
 
 template<typename Derived>
 QualType TreeTransform<Derived>::RebuildPointerType(QualType PointeeType,
+                                                    PointerKind kind,
                                                     SourceLocation Star) {
-  return SemaRef.BuildPointerType(PointeeType, Star,
+  return SemaRef.BuildPointerType(PointeeType, kind, Star,
                                   getDerived().getBaseEntity());
 }
 

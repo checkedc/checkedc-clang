@@ -1468,9 +1468,14 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       // The name we're declaring, if any.
       DeclarationName Name;
       if (declarator.getIdentifier())
-          Name = declarator.getIdentifier();
-
-      Result = S.BuildPointerType(Result, DS.getTypeSpecTypeLoc(), Name);
+        Name = declarator.getIdentifier();
+      PointerKind kind;
+      if (DS.getTypeSpecType() == DeclSpec::TST_plainPtr) {
+        kind = PointerKind::Plain;
+      } else {
+        kind = PointerKind::Array;
+      }
+      Result = S.BuildPointerType(Result, kind, DS.getTypeSpecTypeLoc(), Name);
       break;
   }
   case DeclSpec::TST_decltype: {
@@ -1868,7 +1873,7 @@ static bool checkQualifiedFunction(Sema &S, QualType T, SourceLocation Loc,
 ///
 /// \returns A suitable pointer type, if there are no
 /// errors. Otherwise, returns a NULL type.
-QualType Sema::BuildPointerType(QualType T,
+QualType Sema::BuildPointerType(QualType T, PointerKind kind,
                                 SourceLocation Loc, DeclarationName Entity) {
   if (T->isReferenceType()) {
     // C++ 8.3.2p4: There shall be no ... pointers to references ...
@@ -1887,7 +1892,7 @@ QualType Sema::BuildPointerType(QualType T,
     T = inferARCLifetimeForPointee(*this, T, Loc, /*reference*/ false);
 
   // Build the pointer type.
-  return Context.getPointerType(T);
+  return Context.getPointerType(T, kind);
 }
 
 /// \brief Build a reference type.
@@ -3764,7 +3769,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
         break;
       }
-      T = S.BuildPointerType(T, DeclType.Loc, Name);
+      T = S.BuildPointerType(T, PointerKind::Unsafe, DeclType.Loc, Name);
       if (DeclType.Ptr.TypeQuals)
         T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
       break;
