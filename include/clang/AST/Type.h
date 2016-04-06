@@ -2206,6 +2206,8 @@ public:
            otherQuals.isAddressSpaceSupersetOf(thisQuals);
   }
 
+  bool isSafe() const { return getKind() != PointerKind::Unsafe; }
+  bool isUnsafe() const { return getKind() == PointerKind::Unsafe; }
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 

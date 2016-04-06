@@ -7720,8 +7720,13 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   case Type::Pointer:
   {
     // Merge two pointer types, while trying to preserve typedef info
-    QualType LHSPointee = LHS->getAs<PointerType>()->getPointeeType();
-    QualType RHSPointee = RHS->getAs<PointerType>()->getPointeeType();
+    const PointerType *LHSptr = LHS->getAs<PointerType>();
+    const PointerType *RHSptr = RHS->getAs<PointerType>();
+    QualType LHSPointee = LHSptr->getPointeeType();
+    QualType RHSPointee = RHSptr->getPointeeType();
+
+    if (LHSptr->getKind() != RHSptr->getKind()) return QualType();
+
     if (Unqualified) {
       LHSPointee = LHSPointee.getUnqualifiedType();
       RHSPointee = RHSPointee.getUnqualifiedType();

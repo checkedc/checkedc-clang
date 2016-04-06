@@ -103,6 +103,11 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
           isNullPointerConstant(S.Context, Expr::NPC_ValueDependentIsNotNull))
         return false;
 
+      // Do not suggest dereferencing a safe pointer to integer.   This is
+      // more likely an invalid conversion of a safe pointer to an integer.
+      if (FromPtrTy->isSafe() && FromPtrTy->getPointeeType()->isIntegerType())
+        return false;
+
       if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(Expr)) {
         if (UO->getOpcode() == UO_AddrOf) {
           FixKind = OFIK_RemoveTakeAddress;
@@ -125,7 +130,7 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
 
   // Check if the pointer to the argument needs to be passed:
   //   (type -> type *) or (type & -> type *).
-  if (isa<PointerType>(ToQTy)) {
+  if (const PointerType *ToPtrTy = dyn_cast<PointerType>(ToQTy)) {
     bool CanConvert = false;
     OverloadFixItKind FixKind = OFIK_TakeAddress;
 
@@ -136,6 +141,11 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
     CanConvert = CompareTypes(S.Context.getPointerType(FromQTy), ToQTy,
                               S, Begin, VK_RValue);
     if (CanConvert) {
+      // Do not suggest taking the address of an integer variable to produce
+      // a safe pointer to an integer.  This is more likely an invalid
+      // conversion of an integer to a safe pointer.
+      if (ToPtrTy->isSafe() && ToPtrTy->getPointeeType()->isIntegerType())
+        return false;
 
       if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(Expr)) {
         if (UO->getOpcode() == UO_Deref) {

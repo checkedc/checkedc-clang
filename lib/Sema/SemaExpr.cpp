@@ -6328,13 +6328,18 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
 }
 
 /// \brief Return false if the first expression is not an integer and the second
-/// expression is not a pointer, true otherwise.
-static bool checkPointerIntegerMismatch(Sema &S, ExprResult &Int,
+/// expression is not an unsafe pointer, true otherwise.
+static bool checkUnsafePointerIntegerMismatch(Sema &S, ExprResult &Int,
                                         Expr* PointerExpr, SourceLocation Loc,
                                         bool IsIntFirstExpr) {
   if (!PointerExpr->getType()->isPointerType() ||
       !Int.get()->getType()->isIntegerType())
     return false;
+
+  const PointerType *ptrTy = PointerExpr->getType()->getAs<PointerType>();
+  if (ptrTy->isSafe()) {
+     return false;
+  }
 
   Expr *Expr1 = IsIntFirstExpr ? Int.get() : PointerExpr;
   Expr *Expr2 = IsIntFirstExpr ? PointerExpr : Int.get();
@@ -6647,10 +6652,10 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
 
   // GCC compatibility: soften pointer/integer mismatch.  Note that
   // null pointers have been filtered out by this point.
-  if (checkPointerIntegerMismatch(*this, LHS, RHS.get(), QuestionLoc,
+  if (checkUnsafePointerIntegerMismatch(*this, LHS, RHS.get(), QuestionLoc,
       /*isIntFirstExpr=*/true))
     return RHSTy;
-  if (checkPointerIntegerMismatch(*this, RHS, LHS.get(), QuestionLoc,
+  if (checkUnsafePointerIntegerMismatch(*this, RHS, LHS.get(), QuestionLoc,
       /*isIntFirstExpr=*/false))
     return LHSTy;
 
@@ -7035,6 +7040,9 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   std::tie(rhptee, rhq) =
       cast<PointerType>(RHSType)->getPointeeType().split().asPair();
 
+  PointerKind lhkind = cast<PointerType>(LHSType)->getKind();
+  PointerKind rhkind = cast<PointerType>(RHSType)->getKind();
+
   Sema::AssignConvertType ConvTy = Sema::Compatible;
 
   // C99 6.5.16.1p1: This following citation is common to constraints
@@ -7074,7 +7082,11 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // C99 6.5.16.1p1 (constraint 4): If one operand is a pointer to an object or
   // incomplete type and the other is a pointer to a qualified or unqualified
   // version of void...
-  if (lhptee->isVoidType()) {
+
+  // Allow conversion from any unsafe pointer to any kind of void pointer,
+  // including void *.  In Checked C, conversions from safe pointers to void
+  // pointers are allowed only for matching pointer kinds.
+  if (lhptee->isVoidType() && (rhkind == PointerKind::Unsafe || lhkind == rhkind)) {
     if (rhptee->isIncompleteOrObjectType())
       return ConvTy;
 
@@ -7083,7 +7095,10 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     return Sema::FunctionVoidPointer;
   }
 
-  if (rhptee->isVoidType()) {
+  // Only void * can be converted implicitly to another pointer type. In
+  // Checked C, ptr<void> and array_ptr<void> cannot be converted implicitly
+  // to other pointer types.
+  if (rhptee->isVoidType() && rhkind == PointerKind::Unsafe) {
     if (lhptee->isIncompleteOrObjectType())
       return ConvTy;
 
@@ -7092,10 +7107,22 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     return Sema::FunctionVoidPointer;
   }
 
+  // Pointer kinds must match.  If they do not, this is an implicit conversion
+  // between safe and unsafe pointers or between different kinds of safe
+  // pointers. Only implicit conversions between unsafe pointers or from
+  // unsafe to safe pointers are allowed.
+  if (lhkind != rhkind && rhkind != PointerKind::Unsafe)
+    return Sema::Incompatible;
+
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
   // unqualified versions of compatible types, ...
   QualType ltrans = QualType(lhptee, 0), rtrans = QualType(rhptee, 0);
   if (!S.Context.typesAreCompatible(ltrans, rtrans)) {
+     // For safe pointers, the pointers MUST have compatible pointee types.
+     // No extensions are allowed.
+     if (lhkind != PointerKind::Unsafe || rhkind != PointerKind::Unsafe) {
+       return Sema::Incompatible;
+     }
     // Check if the pointee types are compatible ignoring the sign.
     // We explicitly check for char so that we catch "char" vs
     // "unsigned char" on systems where "char" is unsigned.
@@ -7340,7 +7367,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     }
 
     // int -> T*
-    if (RHSType->isIntegerType()) {
+    if (RHSType->isIntegerType() && LHSPointer->isUnsafe()) {
       Kind = CK_IntegralToPointer; // FIXME: null?
       return IntToPointer;
     }
@@ -7460,7 +7487,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
   }
 
   // Conversions from pointers that are not covered by the above.
-  if (isa<PointerType>(RHSType)) {
+  if (const PointerType *RHSPointer = dyn_cast<PointerType>(RHSType)) {
     // T* -> _Bool
     if (LHSType == Context.BoolTy) {
       Kind = CK_PointerToBoolean;
@@ -7468,7 +7495,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     }
 
     // T* -> int
-    if (LHSType->isIntegerType()) {
+    if (LHSType->isIntegerType() && RHSPointer->isUnsafe()) {
       Kind = CK_PointerToIntegral;
       return PointerToInt;
     }
