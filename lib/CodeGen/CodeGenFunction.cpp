@@ -13,9 +13,9 @@
 
 #include "CodeGenFunction.h"
 #include "CGBlocks.h"
-#include "CGCleanup.h"
 #include "CGCUDARuntime.h"
 #include "CGCXXABI.h"
+#include "CGCleanup.h"
 #include "CGDebugInfo.h"
 #include "CGOpenMPRuntime.h"
 #include "CodeGenModule.h"
@@ -26,14 +26,15 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
-#include "clang/Frontend/CodeGenOptions.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Operator.h"
+
 using namespace clang;
 using namespace CodeGen;
 
@@ -711,6 +712,10 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
       Fn->addFnAttr(llvm::Attribute::NoInline);
   }
 
+  // Add no-jump-tables value.
+  Fn->addFnAttr("no-jump-tables",
+                llvm::toStringRef(CGM.getCodeGenOpts().NoUseJumpTables));
+
   if (getLangOpts().OpenCL) {
     // Add metadata for a kernel function.
     if (const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D))
@@ -823,10 +828,22 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
       MD->getParent()->getCaptureFields(LambdaCaptureFields,
                                         LambdaThisCaptureField);
       if (LambdaThisCaptureField) {
-        // If this lambda captures this, load it.
-        LValue ThisLValue = EmitLValueForLambdaField(LambdaThisCaptureField);
-        CXXThisValue = EmitLoadOfLValue(ThisLValue,
-                                        SourceLocation()).getScalarVal();
+        // If the lambda captures the object referred to by '*this' - either by
+        // value or by reference, make sure CXXThisValue points to the correct
+        // object.
+
+        // Get the lvalue for the field (which is a copy of the enclosing object
+        // or contains the address of the enclosing object).
+        LValue ThisFieldLValue = EmitLValueForLambdaField(LambdaThisCaptureField);
+        if (!LambdaThisCaptureField->getType()->isPointerType()) {
+          // If the enclosing object was captured by value, just use its address.
+          CXXThisValue = ThisFieldLValue.getAddress().getPointer();
+        } else {
+          // Load the lvalue pointed to by the field, since '*this' was captured
+          // by reference.
+          CXXThisValue =
+              EmitLoadOfLValue(ThisFieldLValue, SourceLocation()).getScalarVal();
+        }
       }
       for (auto *FD : MD->getParent()->fields()) {
         if (FD->hasCapturedVLAType()) {
@@ -904,7 +921,7 @@ void CodeGenFunction::EmitBlockWithFallThrough(llvm::BasicBlock *BB,
 static void TryMarkNoThrow(llvm::Function *F) {
   // LLVM treats 'nounwind' on a function as part of the type, so we
   // can't do this on functions that can be overwritten.
-  if (F->mayBeOverridden()) return;
+  if (F->isInterposable()) return;
 
   for (llvm::BasicBlock &BB : *F)
     for (llvm::Instruction &I : BB)

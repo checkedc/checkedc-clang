@@ -1633,10 +1633,15 @@ TEST(Matcher, Argument) {
 
 TEST(Matcher, AnyArgument) {
   StatementMatcher CallArgumentY = callExpr(
-      hasAnyArgument(declRefExpr(to(varDecl(hasName("y"))))));
+      hasAnyArgument(
+          ignoringParenImpCasts(declRefExpr(to(varDecl(hasName("y")))))));
   EXPECT_TRUE(matches("void x(int, int) { int y; x(1, y); }", CallArgumentY));
   EXPECT_TRUE(matches("void x(int, int) { int y; x(y, 42); }", CallArgumentY));
   EXPECT_TRUE(notMatches("void x(int, int) { x(1, 2); }", CallArgumentY));
+  
+  StatementMatcher ImplicitCastedArgument = callExpr(
+      hasAnyArgument(implicitCastExpr()));
+  EXPECT_TRUE(matches("void x(long) { int y; x(y); }", ImplicitCastedArgument));
 }
 
 TEST(ForEachArgumentWithParam, ReportsNoFalsePositives) {
@@ -3000,6 +3005,9 @@ TEST(Matcher, HasAnyName) {
   EXPECT_TRUE(notMatches(Code, recordDecl(hasAnyName("::C", "::b::C"))));
   EXPECT_TRUE(
       matches(Code, recordDecl(hasAnyName("::C", "::b::C", "::a::b::C"))));
+
+  std::vector<StringRef> Names = {"::C", "::b::C", "::a::b::C"};
+  EXPECT_TRUE(matches(Code, recordDecl(hasAnyName(Names))));
 }
 
 TEST(Matcher, IsDefinition) {
@@ -5486,6 +5494,12 @@ TEST(NullPointerConstants, Basic) {
   EXPECT_TRUE(matches("char *cp = (char *)0;", expr(nullPointerConstant())));
   EXPECT_TRUE(matches("int *ip = 0;", expr(nullPointerConstant())));
   EXPECT_TRUE(notMatches("int i = 0;", expr(nullPointerConstant())));
+}
+
+TEST(StatementMatcher, HasReturnValue) {
+  StatementMatcher RetVal = returnStmt(hasReturnValue(binaryOperator()));
+  EXPECT_TRUE(matches("int F() { int a, b; return a + b; }", RetVal));
+  EXPECT_FALSE(matches("int F() { int a; return a; }", RetVal));
 }
 
 } // end namespace ast_matchers

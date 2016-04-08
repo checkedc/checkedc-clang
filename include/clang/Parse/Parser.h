@@ -137,6 +137,9 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "strict".
   IdentifierInfo *Ident_strict;
 
+  /// \brief Identifier for "replacement".
+  IdentifierInfo *Ident_replacement;
+
   /// C++0x contextual keywords.
   mutable IdentifierInfo *Ident_final;
   mutable IdentifierInfo *Ident_override;
@@ -2426,7 +2429,7 @@ private:
       ParsingDeclRAIIObject *DiagsFromTParams = nullptr);
   DeclGroupPtrTy ParseCXXClassMemberDeclarationWithPragmas(
       AccessSpecifier &AS, ParsedAttributesWithRange &AccessAttrs,
-      DeclSpec::TST TagType, Decl *TagDecl);
+      DeclSpec::TST TagType, Decl *Tag);
   void ParseConstructorInitializer(Decl *ConstructorDecl);
   MemInitResult ParseMemInitializer(Decl *ConstructorDecl);
   void HandleMemberFunctionDeclDelays(Declarator& DeclaratorInfo,
@@ -2454,8 +2457,15 @@ private:
 
   //===--------------------------------------------------------------------===//
   // OpenMP: Directives and clauses.
+  /// Parse clauses for '#pragma omp declare simd'.
+  DeclGroupPtrTy ParseOMPDeclareSimdClauses(DeclGroupPtrTy Ptr,
+                                            CachedTokens &Toks,
+                                            SourceLocation Loc);
   /// \brief Parses declarative OpenMP directives.
-  DeclGroupPtrTy ParseOpenMPDeclarativeDirective(AccessSpecifier AS);
+  DeclGroupPtrTy ParseOpenMPDeclarativeDirectiveWithExtDecl(
+      AccessSpecifier &AS, ParsedAttributesWithRange &Attrs,
+      DeclSpec::TST TagType = DeclSpec::TST_unspecified,
+      Decl *TagDecl = nullptr);
   /// \brief Parse 'omp declare reduction' construct.
   DeclGroupPtrTy ParseOpenMPDeclareReductionDirective(AccessSpecifier AS);
   /// \brief Parses simple list of variables.
@@ -2515,6 +2525,10 @@ private:
                                       OpenMPClauseKind Kind);
 
 public:
+  /// Parses simple expression in parens for single-expression clauses of OpenMP
+  /// constructs.
+  /// \param RLoc Returned location of right paren.
+  ExprResult ParseOpenMPParensExpr(StringRef ClauseName, SourceLocation &RLoc);
   bool ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
                           bool AllowDestructorName,
                           bool AllowConstructorName,

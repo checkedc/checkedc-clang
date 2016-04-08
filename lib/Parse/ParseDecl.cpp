@@ -833,7 +833,8 @@ VersionTuple Parser::ParseVersionTuple(SourceRange &Range) {
 /// \brief Parse the contents of the "availability" attribute.
 ///
 /// availability-attribute:
-///   'availability' '(' platform ',' opt-strict version-arg-list, opt-message')'
+///   'availability' '(' platform ',' opt-strict version-arg-list,
+///                      opt-replacement, opt-message')'
 ///
 /// platform:
 ///   identifier
@@ -850,6 +851,8 @@ VersionTuple Parser::ParseVersionTuple(SourceRange &Range) {
 ///   'deprecated' '=' version
 ///   'obsoleted' = version
 ///   'unavailable'
+/// opt-replacement:
+///   'replacement' '=' <string>
 /// opt-message:
 ///   'message' '=' <string>
 void Parser::ParseAvailabilityAttribute(IdentifierInfo &Availability,
@@ -861,7 +864,7 @@ void Parser::ParseAvailabilityAttribute(IdentifierInfo &Availability,
                                         AttributeList::Syntax Syntax) {
   enum { Introduced, Deprecated, Obsoleted, Unknown };
   AvailabilityChange Changes[Unknown];
-  ExprResult MessageExpr;
+  ExprResult MessageExpr, ReplacementExpr;
 
   // Opening '('.
   BalancedDelimiterTracker T(*this, tok::l_paren);
@@ -893,9 +896,10 @@ void Parser::ParseAvailabilityAttribute(IdentifierInfo &Availability,
     Ident_unavailable = PP.getIdentifierInfo("unavailable");
     Ident_message = PP.getIdentifierInfo("message");
     Ident_strict = PP.getIdentifierInfo("strict");
+    Ident_replacement = PP.getIdentifierInfo("replacement");
   }
 
-  // Parse the optional "strict" and the set of
+  // Parse the optional "strict", the optional "replacement" and the set of
   // introductions/deprecations/removals.
   SourceLocation UnavailableLoc, StrictLoc;
   do {
@@ -931,14 +935,17 @@ void Parser::ParseAvailabilityAttribute(IdentifierInfo &Availability,
       return;
     }
     ConsumeToken();
-    if (Keyword == Ident_message) {
+    if (Keyword == Ident_message || Keyword == Ident_replacement) {
       if (Tok.isNot(tok::string_literal)) {
         Diag(Tok, diag::err_expected_string_literal)
           << /*Source='availability attribute'*/2;
         SkipUntil(tok::r_paren, StopAtSemi);
         return;
       }
-      MessageExpr = ParseStringLiteralExpression();
+      if (Keyword == Ident_message)
+        MessageExpr = ParseStringLiteralExpression();
+      else
+        ReplacementExpr = ParseStringLiteralExpression();
       // Also reject wide string literals.
       if (StringLiteral *MessageStringLiteral =
               cast_or_null<StringLiteral>(MessageExpr.get())) {
@@ -950,7 +957,10 @@ void Parser::ParseAvailabilityAttribute(IdentifierInfo &Availability,
           return;
         }
       }
-      break;
+      if (Keyword == Ident_message)
+        break;
+      else
+        continue;
     }
 
     // Special handling of 'NA' only when applied to introduced or
@@ -1037,7 +1047,7 @@ void Parser::ParseAvailabilityAttribute(IdentifierInfo &Availability,
                Changes[Deprecated],
                Changes[Obsoleted],
                UnavailableLoc, MessageExpr.get(),
-               Syntax, StrictLoc);
+               Syntax, StrictLoc, ReplacementExpr.get());
 }
 
 /// \brief Parse the contents of the "objc_bridge_related" attribute.
@@ -3353,6 +3363,12 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       }
       isInvalid = DS.SetTypePipe(true, Loc, PrevSpec, DiagID, Policy);
       break;
+#define GENERIC_IMAGE_TYPE(ImgType, Id) \
+  case tok::kw_##ImgType##_t: \
+    isInvalid = DS.SetTypeSpecType(DeclSpec::TST_##ImgType##_t, Loc, PrevSpec, \
+                                   DiagID, Policy); \
+    break;
+#include "clang/AST/OpenCLImageTypes.def"
     case tok::kw___unknown_anytype:
       isInvalid = DS.SetTypeSpecType(TST_unknown_anytype, Loc,
                                      PrevSpec, DiagID, Policy);
@@ -3649,8 +3665,10 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
 
     if (Tok.is(tok::annot_pragma_openmp)) {
-      // There may be declared reduction operator inside structure/union.
-      (void)ParseOpenMPDeclarativeDirective(AS_public);
+      // Result can be ignored, because it must be always empty.
+      AccessSpecifier AS = AS_none;
+      ParsedAttributesWithRange Attrs(AttrFactory);
+      (void)ParseOpenMPDeclarativeDirectiveWithExtDecl(AS, Attrs);
       continue;
     }
 
@@ -4293,6 +4311,8 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw__Decimal64:
   case tok::kw__Decimal128:
   case tok::kw___vector:
+#define GENERIC_IMAGE_TYPE(ImgType, Id) case tok::kw_##ImgType##_t:
+#include "clang/AST/OpenCLImageTypes.def"
 
     // struct-or-union-specifier (C99) or class-specifier (C++)
   case tok::kw_class:
@@ -4370,6 +4390,8 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw__Decimal64:
   case tok::kw__Decimal128:
   case tok::kw___vector:
+#define GENERIC_IMAGE_TYPE(ImgType, Id) case tok::kw_##ImgType##_t:
+#include "clang/AST/OpenCLImageTypes.def"
 
     // struct-or-union-specifier (C99) or class-specifier (C++)
   case tok::kw_class:
@@ -4614,6 +4636,8 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw___read_only:
   case tok::kw___read_write:
   case tok::kw___write_only:
+#define GENERIC_IMAGE_TYPE(ImgType, Id) case tok::kw_##ImgType##_t:
+#include "clang/AST/OpenCLImageTypes.def"
 
     return true;
   }

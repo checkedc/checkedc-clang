@@ -30,23 +30,6 @@ def warn_redundant_loop_iteration : Warning<
   InGroup<ForLoopAnalysis>, DefaultIgnore;
 def note_loop_iteration_here : Note<"%select{decremented|incremented}0 here">;
 
-def warn_for_range_const_reference_copy : Warning<
-  "loop variable %0 "
-  "%diff{has type $ but is initialized with type $"
-  "| is initialized with a value of a different type}1,2 resulting in a copy">,
-  InGroup<RangeLoopAnalysis>, DefaultIgnore;
-def note_use_type_or_non_reference : Note<
-  "use non-reference type %0 to keep the copy or type %1 to prevent copying">;
-def warn_for_range_variable_always_copy : Warning<
-  "loop variable %0 is always a copy because the range of type %1 does not "
-  "return a reference">,
-  InGroup<RangeLoopAnalysis>, DefaultIgnore;
-def note_use_non_reference_type : Note<"use non-reference type %0">;
-def warn_for_range_copy : Warning<
-  "loop variable %0 of type %1 creates a copy from type %2">,
-  InGroup<RangeLoopAnalysis>, DefaultIgnore;
-def note_use_reference_type : Note<"use reference type %0 to prevent copying">;
-
 def warn_duplicate_enum_values : Warning<
   "element %0 has been implicitly assigned %1 which another element has "
   "been assigned">, InGroup<DiagGroup<"duplicate-enum">>, DefaultIgnore;
@@ -732,6 +715,12 @@ def err_objc_root_class_subclass : Error<
 def warn_objc_root_class_missing : Warning<
   "class %0 defined without specifying a base class">,
   InGroup<ObjCRootClass>;
+def err_objc_runtime_visible_category : Error<
+  "cannot implement a category for class %0 that is only visible via the "
+  "Objective-C runtime">;
+def err_objc_runtime_visible_subclass : Error<
+  "cannot implement subclass %0 of a superclass %1 that is only visible via the "
+  "Objective-C runtime">;
 def note_objc_needs_superclass : Note<
   "add a super class to fix this problem">;
 def warn_dup_category_def : Warning<
@@ -1920,8 +1909,12 @@ def err_for_range_iter_deduction_failure : Error<
   "cannot use type %0 as an iterator">;
 def err_for_range_member_begin_end_mismatch : Error<
   "range type %0 has '%select{begin|end}1' member but no '%select{end|begin}1' member">;
-def err_for_range_begin_end_types_differ : Error<
-  "'begin' and 'end' must return the same type (got %0 and %1)">;
+def ext_for_range_begin_end_types_differ : ExtWarn<
+  "'begin' and 'end' returning different types (%0 and %1) is a C++1z extension">,
+  InGroup<CXX1z>;
+def warn_for_range_begin_end_types_differ : Warning<
+  "'begin' and 'end' returning different types (%0 and %1) is incompatible "
+  "with C++ standards before C++1z">, InGroup<CXXPre1zCompat>, DefaultIgnore;
 def note_in_for_range: Note<
   "when looking up '%select{begin|end}0' function for range expression "
   "of type %1">;
@@ -1938,6 +1931,22 @@ def note_for_range_invalid_iterator : Note <
   "in implicit call to 'operator%select{!=|*|++}0' for iterator of type %1">;
 def note_for_range_begin_end : Note<
   "selected '%select{begin|end}0' %select{function|template }1%2 with iterator type %3">;
+def warn_for_range_const_reference_copy : Warning<
+  "loop variable %0 "
+  "%diff{has type $ but is initialized with type $"
+  "| is initialized with a value of a different type}1,2 resulting in a copy">,
+  InGroup<RangeLoopAnalysis>, DefaultIgnore;
+def note_use_type_or_non_reference : Note<
+  "use non-reference type %0 to keep the copy or type %1 to prevent copying">;
+def warn_for_range_variable_always_copy : Warning<
+  "loop variable %0 is always a copy because the range of type %1 does not "
+  "return a reference">,
+  InGroup<RangeLoopAnalysis>, DefaultIgnore;
+def note_use_non_reference_type : Note<"use non-reference type %0">;
+def warn_for_range_copy : Warning<
+  "loop variable %0 of type %1 creates a copy from type %2">,
+  InGroup<RangeLoopAnalysis>, DefaultIgnore;
+def note_use_reference_type : Note<"use reference type %0 to prevent copying">;
 
 // C++11 constexpr
 def warn_cxx98_compat_constexpr : Warning<
@@ -2126,7 +2135,7 @@ def err_attribute_bad_neon_vector_size : Error<
 def err_attribute_requires_positive_integer : Error<
   "%0 attribute requires a positive integral compile time constant expression">;
 def err_attribute_requires_opencl_version : Error<
-  "%0 attribute requires OpenCL version %1 or above">;
+  "%0 attribute requires OpenCL version %1%select{| or above}2">;
 def warn_unsupported_target_attribute
     : Warning<"Ignoring unsupported '%0' in the target attribute string">,
     InGroup<IgnoredAttributes>;
@@ -3567,8 +3576,8 @@ def note_template_unnamed_type_here : Note<
   "unnamed type used in template argument was declared here">;
 def err_template_arg_overload_type : Error<
   "template argument is the type of an unresolved overloaded function">;
-def err_template_arg_not_class_template : Error<
-  "template argument does not refer to a class template or template "
+def err_template_arg_not_valid_template : Error<
+  "template argument does not refer to a class or alias template, or template "
   "template parameter">;
 def note_template_arg_refers_here_func : Note<
   "template argument refers to function template %0, here">;
@@ -4313,7 +4322,7 @@ def err_redefinition_different_typedef : Error<
   "%select{typedef|type alias|type alias template}0 "
   "redefinition with different types%diff{ ($ vs $)|}1,2">;
 def err_tag_reference_non_tag : Error<
-  "elaborated type refers to %select{a non-tag type|a typedef|a type alias|a template|a type alias template}0">;
+  "elaborated type refers to %select{a non-tag type|a typedef|a type alias|a template|a type alias template|a template template argument}0">;
 def err_tag_reference_conflict : Error<
   "implicit declaration introduced by elaborated type conflicts with "
   "%select{a declaration|a typedef|a type alias|a template}0 of the same name">;
@@ -5988,6 +5997,13 @@ let CategoryName = "Lambda Issue" in {
     "cannot deduce type for lambda capture %0 from initializer of type %2">;
   def err_init_capture_deduction_failure_from_init_list : Error<
     "cannot deduce type for lambda capture %0 from initializer list">;
+
+  // C++1z '*this' captures.
+  def warn_cxx14_compat_star_this_lambda_capture : Warning<
+    "by value capture of '*this' is incompatible with C++ standards before C++1z">,
+     InGroup<CXXPre1zCompat>, DefaultIgnore;
+  def ext_star_this_lambda_capture_cxx1z : ExtWarn<
+    "capture of '*this' by copy is a C++1z extension">, InGroup<CXX1z>;
 }
 
 def err_return_in_captured_stmt : Error<
@@ -6481,6 +6497,12 @@ def err_variadic_device_fn : Error<
 def err_va_arg_in_device : Error<
   "CUDA device code does not support va_arg">;
 def err_alias_not_supported_on_nvptx : Error<"CUDA does not support aliases">;
+def err_cuda_unattributed_constexpr_cannot_overload_device : Error<
+  "constexpr function '%0' without __host__ or __device__ attributes cannot "
+  "overload __device__ function with same signature.  Add a __host__ "
+  "attribute, or build with -fno-cuda-host-device-constexpr.">;
+def note_cuda_conflicting_device_function_declared_here : Note<
+  "conflicting __device__ function declared here">;
 def err_dynamic_var_init : Error<
     "dynamic initialization is not supported for "
     "__device__, __constant__, and __shared__ variables.">;
@@ -7152,6 +7174,8 @@ def warn_scanf_scanlist_incomplete : Warning<
 def note_format_string_defined : Note<"format string is defined here">;
 def note_format_fix_specifier : Note<"did you mean to use '%0'?">;
 def note_printf_c_str: Note<"did you mean to call the %0 method?">;
+def note_format_security_fixit: Note<
+  "treat the string as an argument to avoid this">;
 
 def warn_null_arg : Warning<
   "null passed to a callee that requires a non-null argument">,
@@ -7757,6 +7781,9 @@ def err_opencl_pointer_to_type : Error<
   "pointer to type %0 is invalid in OpenCL">;
 def err_opencl_type_can_only_be_used_as_function_parameter : Error <
   "type %0 can only be used as a function parameter in OpenCL">;
+def warn_opencl_attr_deprecated_ignored : Warning <
+  "%0 attribute is deprecated and ignored in OpenCL version %1">,
+  InGroup<IgnoredAttributes>;
 
 // OpenCL v2.0 s6.13.6 -- Builtin Pipe Functions
 def err_opencl_builtin_pipe_first_arg : Error<
@@ -7764,7 +7791,7 @@ def err_opencl_builtin_pipe_first_arg : Error<
 def err_opencl_builtin_pipe_arg_num : Error<
   "invalid number of arguments to function: %0">;
 def err_opencl_builtin_pipe_invalid_arg : Error<
-  "invalid argument type to function %0 (expecting %1)">;
+  "invalid argument type to function %0 (expecting %1 having %2)">;
 def err_opencl_builtin_pipe_invalid_access_modifier : Error<
   "invalid pipe access modifier (expecting %0)">;
 
@@ -7801,6 +7828,8 @@ def err_omp_global_var_arg : Error<
   "arguments of '#pragma omp %0' must have %select{global storage|static storage duration}1">;
 def err_omp_ref_type_arg : Error<
   "arguments of '#pragma omp %0' cannot be of reference type %1">;
+def err_omp_region_not_file_context : Error<
+  "directive must be at file or namespace scope">;
 def err_omp_var_scope : Error<
   "'#pragma omp %0' must appear in the scope of the %q1 variable declaration">;
 def err_omp_var_used : Error<
@@ -7876,6 +7905,8 @@ def err_omp_negative_expression_in_clause : Error<
 def err_omp_not_integral : Error<
   "expression must have integral or unscoped enumeration "
   "type, not %0">;
+def err_omp_threadprivate_in_target : Error<
+  "threadprivate variables cannot be used in target constructs">;
 def err_omp_incomplete_type : Error<
   "expression has incomplete class type %0">;
 def err_omp_explicit_conversion : Error<
@@ -7902,6 +7933,11 @@ def warn_omp_linear_step_zero : Warning<
 def warn_omp_alignment_not_power_of_two : Warning<
   "aligned clause will be ignored because the requested alignment is not a power of 2">,
   InGroup<OpenMPClauses>;
+def err_omp_enclosed_declare_target : Error<
+  "declare target region may not be enclosed within another declare target region">;
+def warn_omp_not_in_target_context : Warning<
+  "declaration is not declared in any declare target region">,
+  InGroup<OpenMPTarget>;
 def err_omp_aligned_expected_array_or_ptr : Error<
   "argument of aligned clause should be array"
   "%select{ or pointer|, pointer, reference to array or reference to pointer}1"
@@ -7940,7 +7976,10 @@ def warn_omp_loop_64_bit_var : Warning<
   "OpenMP loop iteration variable cannot have more than 64 bits size and will be narrowed">,
   InGroup<OpenMPLoopForm>;
 def err_omp_unknown_reduction_identifier : Error<
-  "incorrect reduction identifier, expected one of '+', '-', '*', '&', '|', '^', '&&', '||', 'min' or 'max'">;
+  "incorrect reduction identifier, expected one of '+', '-', '*', '&', '|', '^', "
+  "'&&', '||', 'min' or 'max' or declare reduction for type %0">;
+def err_omp_not_resolved_reduction_identifier : Error<
+  "unable to resolve declare reduction construct for type %0">;
 def err_omp_reduction_ref_type_arg : Error<
   "argument of OpenMP clause 'reduction' must reference the same object in all threads">;
 def err_omp_clause_not_arithmetic_type_arg : Error<
@@ -8024,6 +8063,10 @@ def err_omp_single_copyprivate_with_nowait : Error<
   "the 'copyprivate' clause must not be used with the 'nowait' clause">;
 def note_omp_nowait_clause_here : Note<
   "'nowait' clause is here">;
+def err_omp_single_decl_in_declare_simd : Error<
+  "single declaration is expected after 'declare simd' directive">;
+def err_omp_function_expected : Error<
+  "'#pragma omp declare simd' can only be applied to functions">;
 def err_omp_wrong_cancel_region : Error<
   "one of 'for', 'parallel', 'sections' or 'taskgroup' is expected">;
 def err_omp_parent_cancel_region_nowait : Error<
@@ -8128,6 +8171,8 @@ def err_omp_schedule_nonmonotonic_ordered : Error<
   "'schedule' clause with 'nonmonotonic' modifier cannot be specified if an 'ordered' clause is specified">;
 def err_omp_ordered_simd : Error<
   "'ordered' clause with a parameter can not be specified in '#pragma omp %0' directive">;
+def err_omp_variable_in_map_and_dsa : Error<
+  "%0 variable cannot be in a map clause in '#pragma omp %1' directive">; 
 } // end of OpenMP category
 
 let CategoryName = "Related Result Type Issue" in {

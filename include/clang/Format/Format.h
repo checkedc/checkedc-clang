@@ -16,6 +16,7 @@
 #define LLVM_CLANG_FORMAT_FORMAT_H
 
 #include "clang/Basic/LangOptions.h"
+#include "clang/Basic/VirtualFileSystem.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/ArrayRef.h"
 #include <system_error>
@@ -401,6 +402,19 @@ struct FormatStyle {
   /// \endcode
   std::vector<IncludeCategory> IncludeCategories;
 
+  /// \brief Specify a regular expression of suffixes that are allowed in the
+  /// file-to-main-include mapping.
+  ///
+  /// When guessing whether a #include is the "main" include (to assign
+  /// category 0, see above), use this regex of allowed suffixes to the header
+  /// stem. A partial match is done, so that:
+  /// - "" means "arbitrary suffix"
+  /// - "$" means "no suffix"
+  ///
+  /// For example, if configured to "(_test)?$", then a header a.h would be seen
+  /// as the "main" include in both a.cc and a_test.cc.
+  std::string IncludeIsMainRegex;
+
   /// \brief Indent case labels one level from the switch statement.
   ///
   /// When ``false``, use the same indentation level as for the switch statement.
@@ -752,22 +766,6 @@ tooling::Replacements formatReplacements(StringRef Code,
                                          const tooling::Replacements &Replaces,
                                          const FormatStyle &Style);
 
-/// \brief In addition to applying all replacements in \p Replaces to \p Code,
-/// this function also reformats the changed code after applying replacements.
-///
-/// \pre Replacements must be for the same file and conflict-free.
-///
-/// Replacement applications happen independently of the success of
-/// other applications.
-///
-/// \returns the changed code with all replacements applied and formatted, if
-/// successful. An empty string otherwise.
-///
-/// See also "include/clang/Tooling/Core/Replacements.h".
-std::string applyAllReplacementsAndFormat(StringRef Code,
-                                          const tooling::Replacements &Replaces,
-                                          const FormatStyle &Style);
-
 /// \brief Reformats the given \p Ranges in the file \p ID.
 ///
 /// Each range is extended on either end to its next bigger logic unit, i.e.
@@ -819,11 +817,13 @@ extern const char *StyleOptionHelpDescription;
 /// == "file".
 /// \param[in] FallbackStyle The name of a predefined style used to fallback to
 /// in case the style can't be determined from \p StyleName.
+/// \param[in] FS The underlying file system, in which the file resides. By
+/// default, the file system is the real file system.
 ///
 /// \returns FormatStyle as specified by ``StyleName``. If no style could be
 /// determined, the default is LLVM Style (see ``getLLVMStyle()``).
 FormatStyle getStyle(StringRef StyleName, StringRef FileName,
-                     StringRef FallbackStyle);
+                     StringRef FallbackStyle, vfs::FileSystem *FS = nullptr);
 
 } // end namespace format
 } // end namespace clang

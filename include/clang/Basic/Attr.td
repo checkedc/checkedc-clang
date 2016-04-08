@@ -239,6 +239,7 @@ def MicrosoftExt : LangOpt<"MicrosoftExt">;
 def Borland : LangOpt<"Borland">;
 def CUDA : LangOpt<"CUDA">;
 def COnly : LangOpt<"CPlusPlus", 1>;
+def OpenCL : LangOpt<"OpenCL">;
 
 // Defines targets for target-specific attributes. The list of strings should
 // specify architectures for which the target applies, based off the ArchType
@@ -467,7 +468,7 @@ def Availability : InheritableAttr {
   let Args = [IdentifierArgument<"platform">, VersionArgument<"introduced">,
               VersionArgument<"deprecated">, VersionArgument<"obsoleted">,
               BoolArgument<"unavailable">, StringArgument<"message">,
-              BoolArgument<"strict">];
+              BoolArgument<"strict">, StringArgument<"replacement">];
   let AdditionalMembers =
 [{static llvm::StringRef getPrettyPlatformName(llvm::StringRef Platform) {
     return llvm::StringSwitch<llvm::StringRef>(Platform)
@@ -719,11 +720,22 @@ def OpenCLGenericAddressSpace : TypeAttr {
   let Documentation = [OpenCLAddressSpaceGenericDocs];
 }
 
+def OpenCLNoSVM : Attr {
+  let Spellings = [GNU<"nosvm">];
+  let Subjects = SubjectList<[Var]>;
+  let Documentation = [OpenCLNoSVMDocs];
+  let LangOpts = [OpenCL];
+  let ASTNode = 0;
+}
+
 def Deprecated : InheritableAttr {
   let Spellings = [GCC<"deprecated">, Declspec<"deprecated">,
                    CXX11<"","deprecated", 201309>];
-  let Args = [StringArgument<"Message", 1>];
-  let Documentation = [Undocumented];
+  let Args = [StringArgument<"Message", 1>,
+              // An optional string argument that enables us to provide a
+              // Fix-It.
+              StringArgument<"Replacement", 1>];
+  let Documentation = [DeprecatedDocs];
 }
 
 def Destructor : InheritableAttr {
@@ -1229,6 +1241,12 @@ def ObjCRuntimeName : Attr {
   let Documentation = [ObjCRuntimeNameDocs];
 }
 
+def ObjCRuntimeVisible : Attr {
+  let Spellings = [GNU<"objc_runtime_visible">];
+  let Subjects = SubjectList<[ObjCInterface], ErrorDiag>;
+  let Documentation = [ObjCRuntimeVisibleDocs];
+}
+
 def ObjCBoxable : Attr {
   let Spellings = [GNU<"objc_boxable">];
   let Subjects = SubjectList<[Record], ErrorDiag, "ExpectedStructOrUnion">;
@@ -1397,6 +1415,16 @@ def Pascal : InheritableAttr {
   let Spellings = [GNU<"pascal">, Keyword<"__pascal">, Keyword<"_pascal">];
 //  let Subjects = [Function, ObjCMethod];
   let Documentation = [Undocumented];
+}
+
+def PreserveMost : InheritableAttr {
+  let Spellings = [GNU<"preserve_most">];
+  let Documentation = [PreserveMostDocs];
+}
+
+def PreserveAll : InheritableAttr {
+  let Spellings = [GNU<"preserve_all">];
+  let Documentation = [PreserveAllDocs];
 }
 
 def Target : InheritableAttr {
@@ -2229,6 +2257,41 @@ def OMPCaptureNoInit : InheritableAttr {
   let Spellings = [];
   let SemaHandler = 0;
   let Documentation = [Undocumented];
+}
+
+def OMPDeclareSimdDecl : Attr {
+  let Spellings = [Pragma<"omp", "declare simd">];
+  let Subjects = SubjectList<[Function]>;
+  let SemaHandler = 0;
+  let HasCustomParsing = 1;
+  let Documentation = [OMPDeclareSimdDocs];
+  let Args = [
+    EnumArgument<"BranchState", "BranchStateTy",
+                 [ "", "inbranch", "notinbranch" ],
+                 [ "BS_Undefined", "BS_Inbranch", "BS_Notinbranch" ]>,
+    ExprArgument<"Simdlen">
+  ];
+  let AdditionalMembers = [{
+    void printPrettyPragma(raw_ostream & OS, const PrintingPolicy &Policy)
+        const {
+      if (getBranchState() != BS_Undefined)
+        OS << ConvertBranchStateTyToStr(getBranchState()) << " ";
+      if (auto *E = getSimdlen()) {
+        OS << "simdlen(";
+        E->printPretty(OS, nullptr, Policy);
+        OS << ") ";
+      }
+    }
+  }];
+}
+
+def OMPDeclareTargetDecl : Attr {
+  let Spellings = [Pragma<"omp", "declare target">];
+  let SemaHandler = 0;
+  let Documentation = [OMPDeclareTargetDocs];
+  let AdditionalMembers = [{
+    void printPrettyPragma(raw_ostream &OS, const PrintingPolicy &Policy) const {}
+  }];
 }
 
 def InternalLinkage : InheritableAttr {

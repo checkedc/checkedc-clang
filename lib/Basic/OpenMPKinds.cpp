@@ -485,6 +485,8 @@ bool clang::isAllowedClauseForDirective(OpenMPDirectiveKind DKind,
       break;
     }
     break;
+  case OMPD_declare_simd:
+    break;
   case OMPD_cancel:
     switch (CKind) {
 #define OPENMP_CANCEL_CLAUSE(Name)                                             \
@@ -545,6 +547,8 @@ bool clang::isAllowedClauseForDirective(OpenMPDirectiveKind DKind,
       break;
     }
     break;
+  case OMPD_declare_target:
+  case OMPD_end_declare_target:
   case OMPD_unknown:
   case OMPD_threadprivate:
   case OMPD_section:

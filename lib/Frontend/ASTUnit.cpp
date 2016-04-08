@@ -1058,7 +1058,8 @@ bool ASTUnit::Parse(std::shared_ptr<PCHContainerOperations> PCHContainerOps,
   
   // Create the target instance.
   Clang->setTarget(TargetInfo::CreateTargetInfo(
-      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
+      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts,
+      Clang->getInvocation().getCodeGenOpts()));
   if (!Clang->hasTarget())
     return true;
 
@@ -1138,11 +1139,9 @@ bool ASTUnit::Parse(std::shared_ptr<PCHContainerOperations> PCHContainerOps,
   if (!Act->BeginSourceFile(*Clang.get(), Clang->getFrontendOpts().Inputs[0]))
     goto error;
 
-  if (SavedMainFileBuffer) {
-    std::string ModName = getPreambleFile(this);
+  if (SavedMainFileBuffer)
     TranslateStoredDiagnostics(getFileManager(), getSourceManager(),
                                PreambleDiagnostics, StoredDiagnostics);
-  }
 
   if (!Act->Execute())
     goto error;
@@ -1520,7 +1519,8 @@ ASTUnit::getMainBufferWithPrecompiledPreamble(
   
   // Create the target instance.
   Clang->setTarget(TargetInfo::CreateTargetInfo(
-      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
+      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts,
+      Clang->getInvocation().getCodeGenOpts()));
   if (!Clang->hasTarget()) {
     llvm::sys::fs::remove(FrontendOpts.OutputFile);
     Preamble.clear();
@@ -1783,7 +1783,8 @@ ASTUnit *ASTUnit::LoadFromCompilerInvocationAction(
   
   // Create the target instance.
   Clang->setTarget(TargetInfo::CreateTargetInfo(
-      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
+      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts,
+      Clang->getInvocation().getCodeGenOpts()));
   if (!Clang->hasTarget())
     return nullptr;
 
@@ -2366,7 +2367,8 @@ void ASTUnit::CodeComplete(
   
   // Create the target instance.
   Clang->setTarget(TargetInfo::CreateTargetInfo(
-      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
+      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts,
+      Clang->getInvocation().getCodeGenOpts()));
   if (!Clang->hasTarget()) {
     Clang->setInvocation(nullptr);
     return;

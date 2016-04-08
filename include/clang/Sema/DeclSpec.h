@@ -301,6 +301,9 @@ public:
   static const TST TST_atomic = clang::TST_atomic;
   static const TST TST_plainPtr = clang::TST_plainPtr;
   static const TST TST_arrayPtr = clang::TST_arrayPtr;
+#define GENERIC_IMAGE_TYPE(ImgType, Id) \
+  static const TST TST_##ImgType##_t = clang::TST_##ImgType##_t;
+#include "clang/AST/OpenCLImageTypes.def"
   static const TST TST_error = clang::TST_error;
 
   // type-qualifiers

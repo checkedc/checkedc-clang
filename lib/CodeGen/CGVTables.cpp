@@ -16,13 +16,14 @@
 #include "CodeGenModule.h"
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/RecordLayout.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
-#include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+
 #include <algorithm>
 #include <cstdio>
 
@@ -607,6 +608,8 @@ llvm::Constant *CodeGenVTables::CreateVTableInitializer(
             llvm::FunctionType::get(CGM.VoidTy, /*isVarArg=*/false);
           StringRef PureCallName = CGM.getCXXABI().GetPureVirtualCallName();
           PureVirtualFn = CGM.CreateRuntimeFunction(Ty, PureCallName);
+          if (auto *F = dyn_cast<llvm::Function>(PureVirtualFn))
+            F->setUnnamedAddr(true);
           PureVirtualFn = llvm::ConstantExpr::getBitCast(PureVirtualFn,
                                                          CGM.Int8PtrTy);
         }
@@ -618,6 +621,8 @@ llvm::Constant *CodeGenVTables::CreateVTableInitializer(
           StringRef DeletedCallName =
             CGM.getCXXABI().GetDeletedVirtualCallName();
           DeletedVirtualFn = CGM.CreateRuntimeFunction(Ty, DeletedCallName);
+          if (auto *F = dyn_cast<llvm::Function>(DeletedVirtualFn))
+            F->setUnnamedAddr(true);
           DeletedVirtualFn = llvm::ConstantExpr::getBitCast(DeletedVirtualFn,
                                                          CGM.Int8PtrTy);
         }

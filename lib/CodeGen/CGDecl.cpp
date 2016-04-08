@@ -23,10 +23,10 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclOpenMP.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
-#include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Intrinsics.h"
@@ -1388,7 +1388,7 @@ void CodeGenFunction::EmitAutoVarCleanups(const AutoVarEmission &emission) {
   // Make sure we call @llvm.lifetime.end.  This needs to happen
   // *last*, so the cleanup needs to be pushed *first*.
   if (emission.useLifetimeMarkers()) {
-    EHStack.pushCleanup<CallLifetimeEnd>(NormalCleanup,
+    EHStack.pushCleanup<CallLifetimeEnd>(NormalAndEHCleanup,
                                          emission.getAllocatedAddress(),
                                          emission.getSizeForLifetimeMarkers());
     EHCleanupScope &cleanup = cast<EHCleanupScope>(*EHStack.begin());

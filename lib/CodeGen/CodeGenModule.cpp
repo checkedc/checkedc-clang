@@ -36,12 +36,12 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
-#include "clang/Frontend/CodeGenOptions.h"
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/Triple.h"
@@ -332,7 +332,7 @@ void CodeGenModule::checkAliases() {
     // to its aliasee's aliasee. We also warn, since the user is probably
     // expecting the link to be weak.
     if (auto GA = dyn_cast<llvm::GlobalAlias>(AliaseeGV)) {
-      if (GA->mayBeOverridden()) {
+      if (GA->isInterposable()) {
         Diags.Report(AA->getLocation(), diag::warn_alias_to_weak_alias)
             << GV->getName() << GA->getName();
         Aliasee = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
@@ -396,6 +396,7 @@ void CodeGenModule::Release() {
       AddGlobalCtor(OpenMPRegistrationFunction, 0);
   if (PGOReader) {
     getModule().setMaximumFunctionCount(PGOReader->getMaximumFunctionCount());
+    getModule().setProfileSummary(PGOReader->getSummary().getMD(VMContext));
     if (PGOStats.hasDiagnostics())
       PGOStats.reportDiagnostics(getDiags(), getCodeGenOpts().MainFileName);
   }
@@ -469,6 +470,14 @@ void CodeGenModule::Release() {
   if (CodeGenOpts.SanitizeCfiCrossDso) {
     // Indicate that we want cross-DSO control flow integrity checks.
     getModule().addModuleFlag(llvm::Module::Override, "Cross-DSO CFI", 1);
+  }
+
+  if (LangOpts.CUDAIsDevice && getTarget().getTriple().isNVPTX()) {
+    // Indicate whether __nvvm_reflect should be configured to flush denormal
+    // floating point values to 0.  (This corresponds to its "__CUDA_FTZ"
+    // property.)
+    getModule().addModuleFlag(llvm::Module::Override, "nvvm-reflect-ftz",
+                              LangOpts.CUDADeviceFlushDenormalsToZero ? 1 : 0);
   }
 
   if (uint32_t PLevel = Context.getLangOpts().PICLevel) {
@@ -906,12 +915,6 @@ void CodeGenModule::SetLLVMFunctionAttributesForDefinition(const Decl *D,
     F->removeFnAttr(llvm::Attribute::InlineHint);
   }
 
-  if (isa<CXXConstructorDecl>(D) || isa<CXXDestructorDecl>(D))
-    F->setUnnamedAddr(true);
-  else if (const auto *MD = dyn_cast<CXXMethodDecl>(D))
-    if (MD->isVirtual())
-      F->setUnnamedAddr(true);
-
   unsigned alignment = D->getMaxAlignment() / Context.getCharWidth();
   if (alignment)
     F->setAlignment(alignment);
@@ -1073,11 +1076,27 @@ void CodeGenModule::SetFunctionAttributes(GlobalDecl GD, llvm::Function *F,
   if (const SectionAttr *SA = FD->getAttr<SectionAttr>())
     F->setSection(SA->getName());
 
-  // A replaceable global allocation function does not act like a builtin by
-  // default, only if it is invoked by a new-expression or delete-expression.
-  if (FD->isReplaceableGlobalAllocationFunction())
+  if (FD->isReplaceableGlobalAllocationFunction()) {
+    // A replaceable global allocation function does not act like a builtin by
+    // default, only if it is invoked by a new-expression or delete-expression.
     F->addAttribute(llvm::AttributeSet::FunctionIndex,
                     llvm::Attribute::NoBuiltin);
+
+    // A sane operator new returns a non-aliasing pointer.
+    // FIXME: Also add NonNull attribute to the return value
+    // for the non-nothrow forms?
+    auto Kind = FD->getDeclName().getCXXOverloadedOperator();
+    if (getCodeGenOpts().AssumeSaneOperatorNew &&
+        (Kind == OO_New || Kind == OO_Array_New))
+      F->addAttribute(llvm::AttributeSet::ReturnIndex,
+                      llvm::Attribute::NoAlias);
+  }
+
+  if (isa<CXXConstructorDecl>(FD) || isa<CXXDestructorDecl>(FD))
+    F->setUnnamedAddr(true);
+  else if (const auto *MD = dyn_cast<CXXMethodDecl>(FD))
+    if (MD->isVirtual())
+      F->setUnnamedAddr(true);
 
   CreateFunctionBitSetEntry(FD, F);
 }
@@ -1453,12 +1472,12 @@ ConstantAddress CodeGenModule::GetAddrOfUuidDescriptor(
     const CXXUuidofExpr* E) {
   // Sema has verified that IIDSource has a __declspec(uuid()), and that its
   // well-formed.
-  StringRef Uuid = E->getUuidAsStringRef(Context);
+  StringRef Uuid = E->getUuidStr();
   std::string Name = "_GUID_" + Uuid.lower();
   std::replace(Name.begin(), Name.end(), '-', '_');
 
-  // Contains a 32-bit field.
-  CharUnits Alignment = CharUnits::fromQuantity(4);
+  // The UUID descriptor should be pointer aligned.
+  CharUnits Alignment = CharUnits::fromQuantity(PointerAlignInBytes);
 
   // Look for an existing global.
   if (llvm::GlobalVariable *GV = getModule().getNamedGlobal(Name))

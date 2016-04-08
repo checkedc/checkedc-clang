@@ -18,14 +18,16 @@
 #include "CGValue.h"
 #include "CodeGenFunction.h"
 #include "clang/AST/RecordLayout.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
-#include "clang/Frontend/CodeGenOptions.h"
+#include "clang/CodeGen/SwiftCallingConv.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Type.h"
 #include "llvm/Support/raw_ostream.h"
-#include <algorithm>    // std::sort
+
+#include <algorithm> // std::sort
 
 using namespace clang;
 using namespace CodeGen;
@@ -67,6 +69,46 @@ Address ABIInfo::EmitMSVAArg(CodeGenFunction &CGF, Address VAListAddr,
 }
 
 ABIInfo::~ABIInfo() {}
+
+/// Does the given lowering require more than the given number of
+/// registers when expanded?
+///
+/// This is intended to be the basis of a reasonable basic implementation
+/// of should{Pass,Return}IndirectlyForSwift.
+///
+/// For most targets, a limit of four total registers is reasonable; this
+/// limits the amount of code required in order to move around the value
+/// in case it wasn't produced immediately prior to the call by the caller
+/// (or wasn't produced in exactly the right registers) or isn't used
+/// immediately within the callee.  But some targets may need to further
+/// limit the register count due to an inability to support that many
+/// return registers.
+static bool occupiesMoreThan(CodeGenTypes &cgt,
+                             ArrayRef<llvm::Type*> scalarTypes,
+                             unsigned maxAllRegisters) {
+  unsigned intCount = 0, fpCount = 0;
+  for (llvm::Type *type : scalarTypes) {
+    if (type->isPointerTy()) {
+      intCount++;
+    } else if (auto intTy = dyn_cast<llvm::IntegerType>(type)) {
+      auto ptrWidth = cgt.getTarget().getPointerWidth(0);
+      intCount += (intTy->getBitWidth() + ptrWidth - 1) / ptrWidth;
+    } else {
+      assert(type->isVectorTy() || type->isFloatingPointTy());
+      fpCount++;
+    }
+  }
+
+  return (intCount + fpCount > maxAllRegisters);
+}
+
+bool SwiftABIInfo::isLegalVectorTypeForSwift(CharUnits vectorSize,
+                                             llvm::Type *eltTy,
+                                             unsigned numElts) const {
+  // The default implementation of this assumes that the target guarantees
+  // 128-bit SIMD support but nothing more.
+  return (vectorSize.getQuantity() > 8 && vectorSize.getQuantity() <= 16);
+}
 
 static CGCXXABI::RecordArgABI getRecordArgABI(const RecordType *RT,
                                               CGCXXABI &CXXABI) {
@@ -866,7 +908,7 @@ struct CCState {
 };
 
 /// X86_32ABIInfo - The X86-32 ABI information.
-class X86_32ABIInfo : public ABIInfo {
+class X86_32ABIInfo : public SwiftABIInfo {
   enum Class {
     Integer,
     Float
@@ -935,12 +977,22 @@ public:
   X86_32ABIInfo(CodeGen::CodeGenTypes &CGT, bool DarwinVectorABI,
                 bool RetSmallStructInRegABI, bool Win32StructABI,
                 unsigned NumRegisterParameters, bool SoftFloatABI)
-    : ABIInfo(CGT), IsDarwinVectorABI(DarwinVectorABI),
+    : SwiftABIInfo(CGT), IsDarwinVectorABI(DarwinVectorABI),
       IsRetSmallStructInRegABI(RetSmallStructInRegABI), 
       IsWin32StructABI(Win32StructABI),
       IsSoftFloatABI(SoftFloatABI),
       IsMCUABI(CGT.getTarget().getTriple().isOSIAMCU()),
       DefaultNumRegisterParameters(NumRegisterParameters) {}
+
+  bool shouldPassIndirectlyForSwift(CharUnits totalSize,
+                                    ArrayRef<llvm::Type*> scalars,
+                                    bool asReturnValue) const override {
+    // LLVM's x86-32 lowering currently only assigns up to three
+    // integer registers and three fp registers.  Oddly, it'll use up to
+    // four vector registers for vectors, but those can overlap with the
+    // scalar registers.
+    return occupiesMoreThan(CGT, scalars, /*total*/ 3);
+  }  
 };
 
 class X86_32TargetCodeGenInfo : public TargetCodeGenInfo {
@@ -1758,7 +1810,7 @@ static unsigned getNativeVectorSizeForAVXABI(X86AVXABILevel AVXLevel) {
 }
 
 /// X86_64ABIInfo - The X86_64 ABI information.
-class X86_64ABIInfo : public ABIInfo {
+class X86_64ABIInfo : public SwiftABIInfo {
   enum Class {
     Integer = 0,
     SSE,
@@ -1880,7 +1932,7 @@ class X86_64ABIInfo : public ABIInfo {
 
 public:
   X86_64ABIInfo(CodeGen::CodeGenTypes &CGT, X86AVXABILevel AVXLevel) :
-      ABIInfo(CGT), AVXLevel(AVXLevel),
+      SwiftABIInfo(CGT), AVXLevel(AVXLevel),
       Has64BitPointers(CGT.getDataLayout().getPointerSize(0) == 8) {
   }
 
@@ -1907,6 +1959,12 @@ public:
   bool has64BitPointers() const {
     return Has64BitPointers;
   }
+
+  bool shouldPassIndirectlyForSwift(CharUnits totalSize,
+                                    ArrayRef<llvm::Type*> scalars,
+                                    bool asReturnValue) const override {
+    return occupiesMoreThan(CGT, scalars, /*total*/ 4);
+  }  
 };
 
 /// WinX86_64ABIInfo - The Windows X86_64 ABI information.
@@ -4338,7 +4396,7 @@ PPC64TargetCodeGenInfo::initDwarfEHRegSizeTable(CodeGen::CodeGenFunction &CGF,
 
 namespace {
 
-class AArch64ABIInfo : public ABIInfo {
+class AArch64ABIInfo : public SwiftABIInfo {
 public:
   enum ABIKind {
     AAPCS = 0,
@@ -4349,7 +4407,8 @@ private:
   ABIKind Kind;
 
 public:
-  AArch64ABIInfo(CodeGenTypes &CGT, ABIKind Kind) : ABIInfo(CGT), Kind(Kind) {}
+  AArch64ABIInfo(CodeGenTypes &CGT, ABIKind Kind)
+    : SwiftABIInfo(CGT), Kind(Kind) {}
 
 private:
   ABIKind getABIKind() const { return Kind; }
@@ -4381,6 +4440,12 @@ private:
                     QualType Ty) const override {
     return isDarwinPCS() ? EmitDarwinVAArg(VAListAddr, Ty, CGF)
                          : EmitAAPCSVAArg(VAListAddr, Ty, CGF);
+  }
+
+  bool shouldPassIndirectlyForSwift(CharUnits totalSize,
+                                    ArrayRef<llvm::Type*> scalars,
+                                    bool asReturnValue) const override {
+    return occupiesMoreThan(CGT, scalars, /*total*/ 4);
   }
 };
 
@@ -4856,7 +4921,7 @@ Address AArch64ABIInfo::EmitDarwinVAArg(Address VAListAddr, QualType Ty,
 
 namespace {
 
-class ARMABIInfo : public ABIInfo {
+class ARMABIInfo : public SwiftABIInfo {
 public:
   enum ABIKind {
     APCS = 0,
@@ -4869,7 +4934,8 @@ private:
   ABIKind Kind;
 
 public:
-  ARMABIInfo(CodeGenTypes &CGT, ABIKind _Kind) : ABIInfo(CGT), Kind(_Kind) {
+  ARMABIInfo(CodeGenTypes &CGT, ABIKind _Kind)
+      : SwiftABIInfo(CGT), Kind(_Kind) {
     setCCs();
   }
 
@@ -4915,6 +4981,12 @@ private:
   llvm::CallingConv::ID getLLVMDefaultCC() const;
   llvm::CallingConv::ID getABIDefaultCC() const;
   void setCCs();
+
+  bool shouldPassIndirectlyForSwift(CharUnits totalSize,
+                                    ArrayRef<llvm::Type*> scalars,
+                                    bool asReturnValue) const override {
+    return occupiesMoreThan(CGT, scalars, /*total*/ 4);
+  }
 };
 
 class ARMTargetCodeGenInfo : public TargetCodeGenInfo {
@@ -5106,7 +5178,7 @@ ABIArgInfo ARMABIInfo::classifyArgumentType(QualType Ty,
   // __fp16 gets passed as if it were an int or float, but with the top 16 bits
   // unspecified. This is not done for OpenCL as it handles the half type
   // natively, and does not need to interwork with AAPCS code.
-  if (Ty->isHalfType() && !getContext().getLangOpts().OpenCL) {
+  if (Ty->isHalfType() && !getContext().getLangOpts().NativeHalfArgsAndReturns) {
     llvm::Type *ResType = IsEffectivelyAAPCS_VFP ?
       llvm::Type::getFloatTy(getVMContext()) :
       llvm::Type::getInt32Ty(getVMContext());
@@ -5298,7 +5370,7 @@ ABIArgInfo ARMABIInfo::classifyReturnType(QualType RetTy,
   // __fp16 gets returned as if it were an int or float, but with the top 16
   // bits unspecified. This is not done for OpenCL as it handles the half type
   // natively, and does not need to interwork with AAPCS code.
-  if (RetTy->isHalfType() && !getContext().getLangOpts().OpenCL) {
+  if (RetTy->isHalfType() && !getContext().getLangOpts().NativeHalfArgsAndReturns) {
     llvm::Type *ResType = IsEffectivelyAAPCS_VFP ?
       llvm::Type::getFloatTy(getVMContext()) :
       llvm::Type::getInt32Ty(getVMContext());
@@ -6583,6 +6655,80 @@ Address HexagonABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 }
 
 //===----------------------------------------------------------------------===//
+// Lanai ABI Implementation
+//===----------------------------------------------------------------------===//
+
+namespace {
+class LanaiABIInfo : public DefaultABIInfo {
+public:
+  LanaiABIInfo(CodeGen::CodeGenTypes &CGT) : DefaultABIInfo(CGT) {}
+
+  bool shouldUseInReg(QualType Ty, CCState &State) const;
+
+  void computeInfo(CGFunctionInfo &FI) const override {
+    CCState State(FI.getCallingConvention());
+    // Lanai uses 4 registers to pass arguments unless the function has the
+    // regparm attribute set.
+    if (FI.getHasRegParm()) {
+      State.FreeRegs = FI.getRegParm();
+    } else {
+      State.FreeRegs = 4;
+    }
+
+    if (!getCXXABI().classifyReturnType(FI))
+      FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
+    for (auto &I : FI.arguments())
+      I.info = classifyArgumentType(I.type, State);
+  }
+
+  ABIArgInfo classifyArgumentType(QualType RetTy, CCState &State) const;
+};
+} // end anonymous namespace
+
+bool LanaiABIInfo::shouldUseInReg(QualType Ty, CCState &State) const {
+  unsigned Size = getContext().getTypeSize(Ty);
+  unsigned SizeInRegs = llvm::alignTo(Size, 32U) / 32U;
+
+  if (SizeInRegs == 0)
+    return false;
+
+  if (SizeInRegs > State.FreeRegs) {
+    State.FreeRegs = 0;
+    return false;
+  }
+
+  State.FreeRegs -= SizeInRegs;
+
+  return true;
+}
+
+ABIArgInfo LanaiABIInfo::classifyArgumentType(QualType Ty,
+                                              CCState &State) const {
+  if (isAggregateTypeForABI(Ty))
+    return getNaturalAlignIndirect(Ty);
+
+  // Treat an enum type as its underlying type.
+  if (const auto *EnumTy = Ty->getAs<EnumType>())
+    Ty = EnumTy->getDecl()->getIntegerType();
+
+  if (shouldUseInReg(Ty, State))
+    return ABIArgInfo::getDirectInReg();
+
+  if (Ty->isPromotableIntegerType())
+    return ABIArgInfo::getExtend();
+
+  return ABIArgInfo::getDirect();
+}
+
+namespace {
+class LanaiTargetCodeGenInfo : public TargetCodeGenInfo {
+public:
+  LanaiTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
+      : TargetCodeGenInfo(new LanaiABIInfo(CGT)) {}
+};
+}
+
+//===----------------------------------------------------------------------===//
 // AMDGPU ABI Implementation
 //===----------------------------------------------------------------------===//
 
@@ -7217,6 +7363,47 @@ void XCoreTargetCodeGenInfo::emitTargetMD(const Decl *D, llvm::GlobalValue *GV,
   }
 }
 
+//===----------------------------------------------------------------------===//
+// SPIR ABI Implementation
+//===----------------------------------------------------------------------===//
+
+namespace {
+class SPIRTargetCodeGenInfo : public TargetCodeGenInfo {
+public:
+  SPIRTargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
+    : TargetCodeGenInfo(new DefaultABIInfo(CGT)) {}
+  void emitTargetMD(const Decl *D, llvm::GlobalValue *GV,
+                    CodeGen::CodeGenModule &M) const override;
+};
+} // End anonymous namespace.
+
+/// Emit SPIR specific metadata: OpenCL and SPIR version.
+void SPIRTargetCodeGenInfo::emitTargetMD(const Decl *D, llvm::GlobalValue *GV,
+                                         CodeGen::CodeGenModule &CGM) const {
+  assert(CGM.getLangOpts().OpenCL && "SPIR is only for OpenCL");
+  llvm::LLVMContext &Ctx = CGM.getModule().getContext();
+  llvm::Type *Int32Ty = llvm::Type::getInt32Ty(Ctx);
+  llvm::Module &M = CGM.getModule();
+  // SPIR v2.0 s2.12 - The SPIR version used by the module is stored in the
+  // opencl.spir.version named metadata.
+  llvm::Metadata *SPIRVerElts[] = {
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 2)),
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(Int32Ty, 0))};
+  llvm::NamedMDNode *SPIRVerMD =
+      M.getOrInsertNamedMetadata("opencl.spir.version");
+  SPIRVerMD->addOperand(llvm::MDNode::get(Ctx, SPIRVerElts));
+  // SPIR v2.0 s2.13 - The OpenCL version used by the module is stored in the
+  // opencl.ocl.version named metadata node.
+  llvm::Metadata *OCLVerElts[] = {
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+          Int32Ty, CGM.getLangOpts().OpenCLVersion / 100)),
+      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+          Int32Ty, (CGM.getLangOpts().OpenCLVersion % 100) / 10))};
+  llvm::NamedMDNode *OCLVerMD =
+      M.getOrInsertNamedMetadata("opencl.ocl.version");
+  OCLVerMD->addOperand(llvm::MDNode::get(Ctx, OCLVerElts));
+}
+
 static bool appendType(SmallStringEnc &Enc, QualType QType,
                        const CodeGen::CodeGenModule &CGM,
                        TypeStringCache &TSC);
@@ -7699,6 +7886,8 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
   }
   case llvm::Triple::hexagon:
     return *(TheTargetCodeGenInfo = new HexagonTargetCodeGenInfo(Types));
+  case llvm::Triple::lanai:
+    return *(TheTargetCodeGenInfo = new LanaiTargetCodeGenInfo(Types));
   case llvm::Triple::r600:
     return *(TheTargetCodeGenInfo = new AMDGPUTargetCodeGenInfo(Types));
   case llvm::Triple::amdgcn:
@@ -7707,5 +7896,8 @@ const TargetCodeGenInfo &CodeGenModule::getTargetCodeGenInfo() {
     return *(TheTargetCodeGenInfo = new SparcV9TargetCodeGenInfo(Types));
   case llvm::Triple::xcore:
     return *(TheTargetCodeGenInfo = new XCoreTargetCodeGenInfo(Types));
+  case llvm::Triple::spir:
+  case llvm::Triple::spir64:
+    return *(TheTargetCodeGenInfo = new SPIRTargetCodeGenInfo(Types));
   }
 }

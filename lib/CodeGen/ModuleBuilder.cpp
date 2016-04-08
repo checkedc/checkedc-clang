@@ -17,14 +17,16 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/Expr.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
-#include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+
 #include <memory>
+
 using namespace clang;
 
 namespace {
@@ -64,8 +66,9 @@ namespace {
                       CoverageSourceInfo *CoverageInfo = nullptr)
         : Diags(diags), Ctx(nullptr), HeaderSearchOpts(HSO),
           PreprocessorOpts(PPO), CodeGenOpts(CGO), HandlingTopLevelDecls(0),
-          CoverageInfo(CoverageInfo),
-          M(new llvm::Module(ModuleName, C)) {}
+          CoverageInfo(CoverageInfo), M(new llvm::Module(ModuleName, C)) {
+      C.setDiscardValueNames(CGO.DiscardValueNames);
+    }
 
     ~CodeGeneratorImpl() override {
       // There should normally not be any leftover inline method definitions.
@@ -142,11 +145,22 @@ namespace {
       DeferredInlineMethodDefinitions.clear();
     }
 
-    void HandleInlineMethodDefinition(CXXMethodDecl *D) override {
+    void HandleInlineFunctionDefinition(FunctionDecl *D) override {
       if (Diags.hasErrorOccurred())
         return;
 
       assert(D->doesThisDeclarationHaveABody());
+
+      // Handle friend functions.
+      if (D->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend)) {
+        if (Ctx->getTargetInfo().getCXXABI().isMicrosoft()
+            && !D->getLexicalDeclContext()->isDependentContext())
+          Builder->EmitTopLevelDecl(D);
+        return;
+      }
+
+      // Otherwise, must be a method.
+      auto MD = cast<CXXMethodDecl>(D);
 
       // We may want to emit this definition. However, that decision might be
       // based on computing the linkage, and we have to defer that in case we
@@ -156,13 +170,13 @@ namespace {
       //     void bar();
       //     void foo() { bar(); }
       //   } A;
-      DeferredInlineMethodDefinitions.push_back(D);
+      DeferredInlineMethodDefinitions.push_back(MD);
 
       // Provide some coverage mapping even for methods that aren't emitted.
       // Don't do this for templated classes though, as they may not be
       // instantiable.
-      if (!D->getParent()->getDescribedClassTemplate())
-        Builder->AddDeferredUnusedCoverageMapping(D);
+      if (!MD->getParent()->getDescribedClassTemplate())
+        Builder->AddDeferredUnusedCoverageMapping(MD);
     }
 
     /// HandleTagDeclDefinition - This callback is invoked each time a TagDecl

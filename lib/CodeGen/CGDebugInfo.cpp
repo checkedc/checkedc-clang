@@ -23,10 +23,10 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecordLayout.h"
+#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/Version.h"
-#include "clang/Frontend/CodeGenOptions.h"
 #include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/ModuleMap.h"
 #include "clang/Lex/PreprocessorOptions.h"
@@ -403,8 +403,8 @@ void CGDebugInfo::CreateCompileUnit() {
       Producer, LO.Optimize, CGM.getCodeGenOpts().DwarfDebugFlags, RuntimeVers,
       CGM.getCodeGenOpts().SplitDwarfFile,
       DebugKind <= codegenoptions::DebugLineTablesOnly
-          ? llvm::DIBuilder::LineTablesOnly
-          : llvm::DIBuilder::FullDebug,
+          ? llvm::DICompileUnit::LineTablesOnly
+          : llvm::DICompileUnit::FullDebug,
       0 /* DWOid */, DebugKind != codegenoptions::LocTrackingOnly);
 }
 
@@ -463,39 +463,11 @@ llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
     return SelTy;
   }
 
-  case BuiltinType::OCLImage1d:
-    return getOrCreateStructPtrType("opencl_image1d_t", OCLImage1dDITy);
-  case BuiltinType::OCLImage1dArray:
-    return getOrCreateStructPtrType("opencl_image1d_array_t",
-                                    OCLImage1dArrayDITy);
-  case BuiltinType::OCLImage1dBuffer:
-    return getOrCreateStructPtrType("opencl_image1d_buffer_t",
-                                    OCLImage1dBufferDITy);
-  case BuiltinType::OCLImage2d:
-    return getOrCreateStructPtrType("opencl_image2d_t", OCLImage2dDITy);
-  case BuiltinType::OCLImage2dArray:
-    return getOrCreateStructPtrType("opencl_image2d_array_t",
-                                    OCLImage2dArrayDITy);
-  case BuiltinType::OCLImage2dDepth:
-    return getOrCreateStructPtrType("opencl_image2d_depth_t",
-                                    OCLImage2dDepthDITy);
-  case BuiltinType::OCLImage2dArrayDepth:
-    return getOrCreateStructPtrType("opencl_image2d_array_depth_t",
-                                    OCLImage2dArrayDepthDITy);
-  case BuiltinType::OCLImage2dMSAA:
-    return getOrCreateStructPtrType("opencl_image2d_msaa_t",
-                                    OCLImage2dMSAADITy);
-  case BuiltinType::OCLImage2dArrayMSAA:
-    return getOrCreateStructPtrType("opencl_image2d_array_msaa_t",
-                                    OCLImage2dArrayMSAADITy);
-  case BuiltinType::OCLImage2dMSAADepth:
-    return getOrCreateStructPtrType("opencl_image2d_msaa_depth_t",
-                                    OCLImage2dMSAADepthDITy);
-  case BuiltinType::OCLImage2dArrayMSAADepth:
-    return getOrCreateStructPtrType("opencl_image2d_array_msaa_depth_t",
-                                    OCLImage2dArrayMSAADepthDITy);
-  case BuiltinType::OCLImage3d:
-    return getOrCreateStructPtrType("opencl_image3d_t", OCLImage3dDITy);
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
+  case BuiltinType::Id: \
+    return getOrCreateStructPtrType("opencl_" #ImgType "_" #Suffix "_t", \
+                                    SingletonId);
+#include "clang/AST/OpenCLImageTypes.def"
   case BuiltinType::OCLSampler:
     return DBuilder.createBasicType(
         "opencl_sampler_t", CGM.getContext().getTypeSize(BT),
@@ -1746,7 +1718,7 @@ CGDebugInfo::getOrCreateModuleRef(ExternalASTSource::ASTSourceDescriptor Mod,
     DIB.createCompileUnit(TheCU->getSourceLanguage(), Mod.getModuleName(),
                           Mod.getPath(), TheCU->getProducer(), true,
                           StringRef(), 0, Mod.getASTFile(),
-                          llvm::DIBuilder::FullDebug, Signature);
+                          llvm::DICompileUnit::FullDebug, Signature);
     DIB.finalize();
   }
   llvm::DIModule *Parent =

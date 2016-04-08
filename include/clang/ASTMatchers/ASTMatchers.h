@@ -1990,8 +1990,8 @@ inline internal::Matcher<NamedDecl> hasName(const std::string &Name) {
 /// \code
 ///     anyOf(hasName(a), hasName(b), hasName(c))
 /// \endcode
-const llvm::VariadicFunction<internal::Matcher<NamedDecl>, StringRef,
-                             internal::hasAnyNameFunc>
+const internal::VariadicFunction<internal::Matcher<NamedDecl>, StringRef,
+                                 internal::hasAnyNameFunc>
     hasAnyName = {};
 
 /// \brief Matches NamedDecl nodes whose fully qualified names contain
@@ -2989,18 +2989,13 @@ AST_MATCHER(CXXCtorInitializer, isMemberInitializer) {
 ///   matches x(1, y, 42)
 /// with hasAnyArgument(...)
 ///   matching y
-///
-/// FIXME: Currently this will ignore parentheses and implicit casts on
-/// the argument before applying the inner matcher. We'll want to remove
-/// this to allow for greater control by the user once \c ignoreImplicit()
-/// has been implemented.
 AST_POLYMORPHIC_MATCHER_P(hasAnyArgument,
                           AST_POLYMORPHIC_SUPPORTED_TYPES(CallExpr,
                                                           CXXConstructExpr),
                           internal::Matcher<Expr>, InnerMatcher) {
   for (const Expr *Arg : Node.arguments()) {
     BoundNodesTreeBuilder Result(*Builder);
-    if (InnerMatcher.matches(*Arg->IgnoreParenImpCasts(), Finder, &Result)) {
+    if (InnerMatcher.matches(*Arg, Finder, &Result)) {
       *Builder = std::move(Result);
       return true;
     }
@@ -5007,6 +5002,22 @@ AST_MATCHER_P(Decl, hasAttr, attr::Kind, AttrKind) {
   }
   return false;
 }
+
+/// \brief Matches the return value expression of a return statement
+///
+/// Given
+/// \code
+///   return a + b;
+/// \endcode
+/// hasReturnValue(binaryOperator())
+///   matches 'return a + b'
+/// with binaryOperator()
+///   matching 'a + b'
+AST_MATCHER_P(ReturnStmt, hasReturnValue, internal::Matcher<Expr>, 
+              InnerMatcher) {
+  return InnerMatcher.matches(*Node.getRetValue(), Finder, Builder);
+}
+
 
 /// \brief Matches CUDA kernel call expression.
 ///
