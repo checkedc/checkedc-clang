@@ -5258,7 +5258,7 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     }
     QualType PointeeType = readType(*Loc.F, Record, Idx);
     unsigned kind = Record[1];
-    return Context.getPointerType(PointeeType, (PointerKind) kind);
+    return Context.getPointerType(PointeeType, (CheckedPointerKind) kind);
   }
 
   case TYPE_DECAYED: {

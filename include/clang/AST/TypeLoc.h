@@ -1132,7 +1132,7 @@ public:
 struct PointerTypeLocInfo {
   /// There are unsafe and safe pointer types.  They need different location
   /// information because unsafe pointer types use * and safe pointer types use
-  /// tmeplate-like syntax.
+  /// template-like syntax.
   ///
   /// For unsafe pointer types, we initialize RightLoc and KWLoc to LeftLoc 
   /// so that all members are initialized.  This allows other code such as
@@ -1210,7 +1210,7 @@ public:
       return this->getTypePtr()->getPointeeType();
   }
 
-  PointerKind getKind() const {
+  CheckedPointerKind getKind() const {
       return this->getTypePtr()->getKind();
   }
 };

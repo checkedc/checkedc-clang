@@ -103,8 +103,13 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
           isNullPointerConstant(S.Context, Expr::NPC_ValueDependentIsNotNull))
         return false;
 
-      // Do not suggest dereferencing a safe pointer to integer.   This is
-      // more likely an invalid conversion of a safe pointer to an integer.
+      // Do not suggest dereferencing a safe pointer to an integer. For unsafe
+      // pointers, clang allows implicit conversions from unsafe pointers to 
+      // integers and generates warnings. If the code is converted to use 
+      // safe pointers, clang does not allow these implicit conversions. It 
+      // instead ends up going down the fixit path. It would be incorrect
+      // advice to suggest dereferencing the pointer in this situation. It is 
+      // better to stay silent and not give misleading advice.
       if (FromPtrTy->isSafe() && FromPtrTy->getPointeeType()->isIntegerType())
         return false;
 
@@ -142,8 +147,13 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
                               S, Begin, VK_RValue);
     if (CanConvert) {
       // Do not suggest taking the address of an integer variable to produce
-      // a safe pointer to an integer.  This is more likely an invalid
-      // conversion of an integer to a safe pointer.
+      // a safe pointer to an integer.  clang allows implicit conversions 
+      // from integers to unsafe pointers and generates warnings. If the 
+      // code is converted to use safe pointers, clang does not allow these
+      // implicit conversions. It instead ends up going down the fixit path.
+      // It would be incorrect advice to suggest taking the address of the
+      // pointer in this situation. It is better to stay silent and not give
+      // misleading advice.
       if (ToPtrTy->isSafe() && ToPtrTy->getPointeeType()->isIntegerType())
         return false;
 
