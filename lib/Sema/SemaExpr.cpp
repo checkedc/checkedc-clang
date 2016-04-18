@@ -8091,7 +8091,7 @@ static void diagnoseArithmeticOnPtrPointerType(Sema &S, SourceLocation Loc,
     Expr *Pointer) {
     assert(Pointer->getType()->isPtrPointerType());
     S.Diag(Loc, diag::err_typecheck_ptr_arithmetic)
-        << Pointer->getType() << Pointer->getSourceRange();
+        << Pointer->getSourceRange();
 }
 
 /// \brief Emit error if Operand is incomplete pointer type
