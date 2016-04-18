@@ -500,6 +500,8 @@ def fbootclasspath_EQ : Joined<["-"], "fbootclasspath=">, Group<f_Group>;
 def fborland_extensions : Flag<["-"], "fborland-extensions">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Accept non-standard constructs supported by the Borland compiler">;
 def fbuiltin : Flag<["-"], "fbuiltin">, Group<f_Group>;
+def fcheckedc_extension : Flag<["-"], "fcheckedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Accept Checked C extension">;
 def fcaret_diagnostics : Flag<["-"], "fcaret-diagnostics">, Group<f_Group>;
 def fclasspath_EQ : Joined<["-"], "fclasspath=">, Group<f_Group>;
 def fcolor_diagnostics : Flag<["-"], "fcolor-diagnostics">, Group<f_Group>,

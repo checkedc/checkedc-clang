@@ -140,6 +140,7 @@ void ASTTypeWriter::VisitComplexType(const ComplexType *T) {
 
 void ASTTypeWriter::VisitPointerType(const PointerType *T) {
   Record.AddTypeRef(T->getPointeeType());
+  Record.push_back((unsigned)T->getKind());
   Code = TYPE_POINTER;
 }
 
@@ -517,7 +518,9 @@ void TypeLocWriter::VisitComplexTypeLoc(ComplexTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 void TypeLocWriter::VisitPointerTypeLoc(PointerTypeLoc TL) {
-  Record.AddSourceLocation(TL.getStarLoc());
+  Record.AddSourceLocation(TL.getKWLoc());
+  Record.AddSourceLocation(TL.getLeftSymLoc());
+  Record.AddSourceLocation(TL.getRightSymLoc());
 }
 void TypeLocWriter::VisitDecayedTypeLoc(DecayedTypeLoc TL) {
   // nothing to do

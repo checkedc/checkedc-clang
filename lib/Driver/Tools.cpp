@@ -5229,6 +5229,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    options::OPT_fno_borland_extensions, false))
     CmdArgs.push_back("-fborland-extensions");
 
+  Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_extension);
+
   // -fno-declspec is default, except for PS4.
   if (Args.hasFlag(options::OPT_fdeclspec, options::OPT_fno_declspec,
                    getToolChain().getTriple().isPS4()))

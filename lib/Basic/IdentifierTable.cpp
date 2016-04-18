@@ -113,7 +113,8 @@ namespace {
     KEYOBJC2    = 0x20000,
     KEYZVECTOR  = 0x40000,
     KEYCOROUTINES = 0x80000,
-    KEYALL = (0xfffff & ~KEYNOMS18 &
+    KEYCHECKEDC =  0x100000,
+    KEYALL = (0x1fffff & ~KEYNOMS18 &
               ~KEYNOOPENCL) // KEYNOMS18 and KEYNOOPENCL are used to exclude.
   };
 
@@ -151,6 +152,7 @@ static KeywordStatus getKeywordStatus(const LangOptions &LangOpts,
   if (LangOpts.ObjC2 && (Flags & KEYOBJC2)) return KS_Enabled;
   if (LangOpts.Coroutines && (Flags & KEYCOROUTINES)) return KS_Enabled;
   if (LangOpts.CPlusPlus && (Flags & KEYCXX11)) return KS_Future;
+  if (LangOpts.CheckedC && (Flags & KEYCHECKEDC)) return KS_Enabled;
   return KS_Disabled;
 }
 

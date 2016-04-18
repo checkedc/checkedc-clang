@@ -1226,6 +1226,25 @@ enum class AutoTypeKeyword {
   GNUAutoType
 };
 
+/// Checked C generalizes pointer types to 3 different kinds of
+/// pointers.  Each has different static and dynamic checking
+/// to detect programming errors:
+///   1. Unsafe C pointers: these have no checking
+///   2. Checked C ptr types: these have null checks before
+///      memory accesses.  No pointer arithmetic is allowed.
+///   3. Checked C array_ptr types: these have null checks
+///      and bounds checks before memory accesses. Bounds
+///      expressions must be statically specified.  Pointer
+///     arithmetic.  It has overflow checking.
+enum class CheckedPointerKind {
+  /// \brief Unsafe C pointer.
+  Unsafe = 0,
+  /// \brief Checked C ptr type. Has null checks before memory.
+  Ptr,
+  /// \brief Checked C array_ptr type.
+  Array
+};
+
 /// The base class of the type hierarchy.
 ///
 /// A central concept with types is that each type always has a canonical
@@ -1318,6 +1337,12 @@ private:
 protected:
   // These classes allow subclasses to somewhat cleanly pack bitfields
   // into Type.
+  class PointerTypeBitfields {
+    friend class PointerType;
+
+    unsigned : NumTypeBits;
+    unsigned CheckedPointerKind : 2;
+  };
 
   class ArrayTypeBitfields {
     friend class ArrayType;
@@ -1451,6 +1476,7 @@ protected:
 
   union {
     TypeBitfields TypeBits;
+    PointerTypeBitfields PointerTypeBits;
     ArrayTypeBitfields ArrayTypeBits;
     AttributedTypeBitfields AttributedTypeBits;
     AutoTypeBitfields AutoTypeBits;
@@ -1635,6 +1661,7 @@ public:
   bool isFunctionNoProtoType() const { return getAs<FunctionNoProtoType>(); }
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
   bool isPointerType() const;
+  bool isCheckedPointerType() const;
   bool isAnyPointerType() const;   // Any C pointer or ObjC object pointer
   bool isBlockPointerType() const;
   bool isVoidPointerType() const;
@@ -2148,18 +2175,21 @@ public:
 class PointerType : public Type, public llvm::FoldingSetNode {
   QualType PointeeType;
 
-  PointerType(QualType Pointee, QualType CanonicalPtr) :
+  PointerType(QualType Pointee, QualType CanonicalPtr, CheckedPointerKind ptrKind) :
     Type(Pointer, CanonicalPtr, Pointee->isDependentType(),
          Pointee->isInstantiationDependentType(),
          Pointee->isVariablyModifiedType(),
          Pointee->containsUnexpandedParameterPack()),
     PointeeType(Pointee) {
+      PointerTypeBits.CheckedPointerKind = (unsigned)ptrKind;
   }
   friend class ASTContext;  // ASTContext creates these.
 
 public:
 
   QualType getPointeeType() const { return PointeeType; }
+
+  CheckedPointerKind getKind() const { return CheckedPointerKind(PointerTypeBits.CheckedPointerKind); }
 
   /// Returns true if address spaces of pointers overlap.
   /// OpenCL v2.0 defines conversion rules for pointers to different
@@ -2177,14 +2207,17 @@ public:
            otherQuals.isAddressSpaceSupersetOf(thisQuals);
   }
 
+  bool isSafe() const { return getKind() != CheckedPointerKind::Unsafe; }
+  bool isUnsafe() const { return getKind() == CheckedPointerKind::Unsafe; }
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getPointeeType());
+    Profile(ID, getPointeeType(), getKind());
   }
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Pointee) {
-    ID.AddPointer(Pointee.getAsOpaquePtr());
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType Pointee, CheckedPointerKind kind) {
+      ID.AddPointer(Pointee.getAsOpaquePtr());
+      ID.AddInteger((unsigned)kind);
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == Pointer; }
@@ -5439,6 +5472,12 @@ inline bool Type::isFunctionType() const {
 }
 inline bool Type::isPointerType() const {
   return isa<PointerType>(CanonicalType);
+}
+inline bool Type::isCheckedPointerType() const {
+    if (const PointerType *T = getAs<PointerType>()) {
+      return T->getKind() != CheckedPointerKind::Unsafe;
+    }
+    return false;
 }
 inline bool Type::isAnyPointerType() const {
   return isPointerType() || isObjCObjectPointerType();

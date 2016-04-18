@@ -3374,6 +3374,12 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                      PrevSpec, DiagID, Policy);
       break;
 
+    case tok::kw_ptr:
+    case tok::kw_array_ptr: {
+      ParseCheckedPointerSpecifiers(DS);
+      // continue to keep the current token from being consumed.
+      continue; 
+    }
     // class-specifier:
     case tok::kw_class:
     case tok::kw_struct:
@@ -3457,7 +3463,6 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     // OpenCL qualifiers:
     case tok::kw___generic:
       // generic address space is introduced only in OpenCL v2.0
-      // see OpenCL C Spec v2.0 s6.5.5
       if (Actions.getLangOpts().OpenCLVersion < 200) {
         DiagID = diag::err_opencl_unknown_type_specifier;
         PrevSpec = Tok.getIdentifierInfo()->getNameStart();
@@ -4319,6 +4324,11 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
 
     // typedef-name
   case tok::annot_typename:
+
+  // Checked C pointer types
+  case tok::kw_array_ptr:
+  case tok::kw_ptr:
+
     return true;
   }
 }
@@ -4432,6 +4442,10 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw___read_only:
   case tok::kw___read_write:
   case tok::kw___write_only:
+
+  // Checked C pointer types
+  case tok::kw_ptr:
+  case tok::kw_array_ptr:
 
     return true;
 
@@ -4578,6 +4592,10 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
 
     // C11 _Atomic
   case tok::kw__Atomic:
+
+  // Checked C new pointer types
+  case tok::kw_ptr:
+  case tok::kw_array_ptr:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
@@ -6324,6 +6342,57 @@ void Parser::ParseAtomicSpecifier(DeclSpec &DS) {
                          DiagID, Result.get(),
                          Actions.getASTContext().getPrintingPolicy()))
     Diag(StartLoc, DiagID) << PrevSpec;
+}
+
+/// [Checked C]  new pointer types:
+///           pptr &lt type name &gt
+///           array_ptr &lt type name &gt
+void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
+    assert((Tok.is(tok::kw_ptr) || Tok.is(tok::kw_array_ptr)) &&
+           "Not a checked pointer specifier");
+
+    tok::TokenKind Kind = Tok.getKind();
+    SourceLocation StartLoc = ConsumeToken();
+    if (ExpectAndConsume(tok::less)) {
+        return;
+    }
+
+    TypeResult Result = ParseTypeName();
+    if (Result.isInvalid()) {
+        SkipUntil(tok::greater, StopAtSemi);
+        return;
+    }
+
+     // The starting location of the last token in the type
+    SourceLocation EndLoc = Tok.getLocation();
+
+    // Match the '>'
+    if (Tok.getKind() == tok::greater) {
+       ConsumeToken();
+    }
+    else if (Tok.getKind() == tok::greatergreater) {
+        Tok.setKind(tok::greater);
+        Tok.setLocation(Tok.getLocation().getLocWithOffset(1));    
+    }
+    else if (Tok.getKind() == tok::greatergreaterequal) {
+        Tok.setKind(tok::greaterequal);
+        Tok.setLocation(Tok.getLocation().getLocWithOffset(1));
+    }
+    else {
+        // we know this will fail and generate a diagnostic
+        ExpectAndConsume(tok::greater);
+        return;      
+    }
+
+    DS.SetRangeEnd(EndLoc);
+
+    const char *PrevSpec = nullptr;
+    unsigned DiagID;
+    auto pointerKind = (Kind == tok::kw_ptr) ? TST_plainPtr : TST_arrayPtr;
+    if (DS.SetTypeSpecType(pointerKind, StartLoc, PrevSpec,
+        DiagID, Result.get(),
+        Actions.getASTContext().getPrintingPolicy()))
+        Diag(StartLoc, DiagID) << PrevSpec;
 }
 
 /// TryAltiVecVectorTokenOutOfLine - Out of line body that should only be called

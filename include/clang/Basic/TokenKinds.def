@@ -618,6 +618,13 @@ ALIAS("_uuidof"          , __uuidof   , KEYMS | KEYBORLAND)
 ALIAS("_inline"          , inline     , KEYMS)
 ALIAS("_declspec"        , __declspec , KEYMS)
 
+// Checked C Extension
+KEYWORD(array_ptr                  , KEYCHECKEDC)
+KEYWORD(ptr                        , KEYCHECKEDC)
+KEYWORD(where                      , KEYCHECKEDC)
+KEYWORD(checked                    , KEYCHECKEDC)
+KEYWORD(unchecked                  , KEYCHECKEDC)
+
 // Borland Extensions which should be disabled in strict conformance mode.
 ALIAS("_pascal"      , __pascal   , KEYBORLAND)
 

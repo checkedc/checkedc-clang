@@ -328,22 +328,39 @@ void TypePrinter::printComplexAfter(const ComplexType *T, raw_ostream &OS) {
 
 void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
-  printBefore(T->getPointeeType(), OS);
-  // Handle things like 'int (*A)[4];' correctly.
-  // FIXME: this should include vectors, but vectors use attributes I guess.
-  if (isa<ArrayType>(T->getPointeeType()))
-    OS << '(';
-  OS << '*';
+  CheckedPointerKind kind = T->getKind();
+  if (kind == CheckedPointerKind::Unsafe) {
+    SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+    printBefore(T->getPointeeType(), OS);
+    // Handle things like 'int (*A)[4];' correctly.
+    // FIXME: this should include vectors, but vectors use attributes I guess.
+    if (isa<ArrayType>(T->getPointeeType()))
+      OS << '(';
+    OS << '*';
+  }
+  else {
+    if (T->getKind() == CheckedPointerKind::Ptr) {
+      OS << "ptr<";
+    }
+    else {
+      OS << "array_ptr<";
+    }
+    print(T->getPointeeType(), OS, StringRef());
+    OS << '>';
+    spaceBeforePlaceHolder(OS);
+  }
 }
+
 void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
-  IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
-  // Handle things like 'int (*A)[4];' correctly.
-  // FIXME: this should include vectors, but vectors use attributes I guess.
-  if (isa<ArrayType>(T->getPointeeType()))
-    OS << ')';
-  printAfter(T->getPointeeType(), OS);
+  if (T->getKind() == CheckedPointerKind::Unsafe) {
+    IncludeStrongLifetimeRAII Strong(Policy);
+    SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+    // Handle things like 'int (*A)[4];' correctly.
+    // FIXME: this should include vectors, but vectors use attributes I guess.
+    if (isa<ArrayType>(T->getPointeeType()))
+      OS << ')';
+    printAfter(T->getPointeeType(), OS);
+  }
 }
 
 void TypePrinter::printBlockPointerBefore(const BlockPointerType *T,
