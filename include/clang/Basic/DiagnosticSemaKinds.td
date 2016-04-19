@@ -8414,7 +8414,7 @@ def warn_objc_redundant_qualified_class_type : Warning<
   "parameterized class %0 already conforms to the protocols listed; did you "
   "forget a '*'?">, InGroup<ObjCProtocolQualifiers>;
 
-// Checked C diagonstic messages
+// Checked C diagnostic messages
 def err_typecheck_ptr_subscript : Error<
   "subscript of %0">;
 

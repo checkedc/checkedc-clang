@@ -664,7 +664,7 @@ public:
   ///
   /// By default, performs semantic analysis when building the pointer type.
   /// Subclasses may override this routine to provide different behavior.
-  QualType RebuildPointerType(QualType PointeeType, PointerKind kind, SourceLocation Sigil);
+  QualType RebuildPointerType(QualType PointeeType, CheckedPointerKind kind, SourceLocation Sigil);
 
   /// \brief Build a new block pointer type given its pointee type.
   ///
@@ -11278,9 +11278,9 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
 
 template<typename Derived>
 QualType TreeTransform<Derived>::RebuildPointerType(QualType PointeeType,
-                                                    PointerKind kind,
+                                                    CheckedPointerKind Kind,
                                                     SourceLocation Star) {
-  return SemaRef.BuildPointerType(PointeeType, kind, Star,
+  return SemaRef.BuildPointerType(PointeeType, Kind, Star,
                                   getDerived().getBaseEntity());
 }
 

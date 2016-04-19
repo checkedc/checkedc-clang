@@ -6344,13 +6344,12 @@ void Parser::ParseAtomicSpecifier(DeclSpec &DS) {
     Diag(StartLoc, DiagID) << PrevSpec;
 }
 
-// [Checked C]  new pointer types:
+/// [Checked C]  new pointer types:
 ///           pptr &lt type name &gt
 ///           array_ptr &lt type name &gt
-///
 void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
     assert((Tok.is(tok::kw_ptr) || Tok.is(tok::kw_array_ptr)) &&
-           NextToken().is(tok::less) && "Not a checked pointer specifier");
+           "Not a checked pointer specifier");
 
     tok::TokenKind Kind = Tok.getKind();
     SourceLocation StartLoc = ConsumeToken();
@@ -6364,6 +6363,7 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
         return;
     }
 
+     // The starting location of the last token in the type
     SourceLocation EndLoc = Tok.getLocation();
 
     // Match the '>'

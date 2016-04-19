@@ -709,7 +709,6 @@ void TypeLocWriter::VisitAtomicTypeLoc(AtomicTypeLoc TL) {
   Record.AddSourceLocation(TL.getLParenLoc());
   Record.AddSourceLocation(TL.getRParenLoc());
 }
-
 void TypeLocWriter::VisitPipeTypeLoc(PipeTypeLoc TL) {
   Record.AddSourceLocation(TL.getKWLoc());
 }

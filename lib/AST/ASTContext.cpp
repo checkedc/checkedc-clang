@@ -2332,7 +2332,7 @@ QualType ASTContext::getComplexType(QualType T) const {
 
 /// getPointerType - Return the uniqued reference to the type for a pointer to
 /// the specified type.
-QualType ASTContext::getPointerType(QualType T, PointerKind kind) const {
+QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
   llvm::FoldingSetNodeID ID;

@@ -4343,7 +4343,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     BaseExpr = LHSExp;
     IndexExpr = RHSExp;
     // Array subscripting not allowed on ptr<T> values
-    if (PTy->getKind() == PointerKind::Plain) {
+    if (PTy->getKind() == CheckedPointerKind::Ptr) {
         return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
             << LHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
     }
@@ -4365,7 +4365,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     BaseExpr = RHSExp;
     IndexExpr = LHSExp;
     // Array subscripting not allowed on ptr<T> values
-    if (PTy->getKind() == PointerKind::Plain) {
+    if (PTy->getKind() == CheckedPointerKind::Ptr) {
         return ExprError(Diag(LLoc, diag::err_typecheck_ptr_subscript)
             << RHSTy << LHSExp->getSourceRange() << RHSExp->getSourceRange());
     }
@@ -6205,26 +6205,26 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
 
   QualType CompositeTy = S.Context.mergeTypes(lhptee, rhptee);
 
-  PointerKind resultKind = PointerKind::Unsafe;
+  CheckedPointerKind resultKind = CheckedPointerKind::Unsafe;
   bool incompatibleSafePointer = false;
   if (!IsBlockPointer) {
       // Check the compatibility of the pointer kind and compute the resulting
       // pointer kind.  For safe pointers, enforce that pointees merge too.
-     PointerKind lhsKind = LHSTy->castAs<PointerType>()->getKind();
-     PointerKind rhsKind = RHSTy->castAs<PointerType>()->getKind();
+     CheckedPointerKind lhsKind = LHSTy->castAs<PointerType>()->getKind();
+     CheckedPointerKind rhsKind = RHSTy->castAs<PointerType>()->getKind();
      if (lhsKind == rhsKind) {
        resultKind = lhsKind;
        // For safe pointers, the pointee types must merge.
-       incompatibleSafePointer = resultKind != PointerKind::Unsafe && CompositeTy.isNull();
+       incompatibleSafePointer = resultKind != CheckedPointerKind::Unsafe && CompositeTy.isNull();
      }
-     else if (lhsKind == PointerKind::Unsafe) {
+     else if (lhsKind == CheckedPointerKind::Unsafe) {
        // One pointer is an unsafe pointer and the other is a safe pointer
        // Implicit conversion of unsafe to safe is allowed, provided that
        // the pointee types merge.
        resultKind = rhsKind;
        incompatibleSafePointer = CompositeTy.isNull();
      }
-     else if (rhsKind == PointerKind::Unsafe) {
+     else if (rhsKind == CheckedPointerKind::Unsafe) {
        // Same as above
        resultKind = lhsKind;
        incompatibleSafePointer = CompositeTy.isNull();
@@ -6234,7 +6234,7 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        // Implicit conversions between the different kinds are not allowed.
        incompatibleSafePointer = true;
        //  array_ptr is less likely to cause spurious downstream warnings.
-       resultKind = PointerKind::Array;
+       resultKind = CheckedPointerKind::Array;
      }
 
      if (incompatibleSafePointer) {
@@ -6312,12 +6312,12 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
   const PointerType *rhpt = RHSTy->getAs<PointerType>();
   QualType lhptee = lhpt->getPointeeType();
   QualType rhptee = rhpt->getPointeeType();
-  PointerKind lhkind = lhpt->getKind();
-  PointerKind rhkind = rhpt->getKind();
+  CheckedPointerKind lhkind = lhpt->getKind();
+  CheckedPointerKind rhkind = rhpt->getKind();
 
   // ignore qualifiers on void (C99 6.5.15p3, clause 6)
   if (lhptee->isVoidType() && rhptee->isIncompleteOrObjectType() && 
-      (lhkind == rhkind || rhkind == PointerKind::Unsafe)) {
+      (lhkind == rhkind || rhkind == CheckedPointerKind::Unsafe)) {
     // Figure out necessary qualifiers (C99 6.5.15p6)
     QualType destPointee
       = S.Context.getQualifiedType(lhptee, rhptee.getQualifiers());
@@ -6329,7 +6329,7 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
     return destType;
   }
   if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType() &&
-     (lhkind == rhkind || lhkind == PointerKind::Unsafe)) {
+     (lhkind == rhkind || lhkind == CheckedPointerKind::Unsafe)) {
     QualType destPointee
       = S.Context.getQualifiedType(rhptee, lhptee.getQualifiers());
     QualType destType = S.Context.getPointerType(destPointee, lhkind);
@@ -7056,8 +7056,8 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   std::tie(rhptee, rhq) =
       cast<PointerType>(RHSType)->getPointeeType().split().asPair();
 
-  PointerKind lhkind = cast<PointerType>(LHSType)->getKind();
-  PointerKind rhkind = cast<PointerType>(RHSType)->getKind();
+  CheckedPointerKind lhkind = cast<PointerType>(LHSType)->getKind();
+  CheckedPointerKind rhkind = cast<PointerType>(RHSType)->getKind();
 
   Sema::AssignConvertType ConvTy = Sema::Compatible;
 
@@ -7102,7 +7102,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // Allow conversion from any unsafe pointer to any kind of void pointer,
   // including void *.  In Checked C, conversions from safe pointers to void
   // pointers are allowed only for matching pointer kinds.
-  if (lhptee->isVoidType() && (rhkind == PointerKind::Unsafe || lhkind == rhkind)) {
+  if (lhptee->isVoidType() && (rhkind == CheckedPointerKind::Unsafe || lhkind == rhkind)) {
     if (rhptee->isIncompleteOrObjectType())
       return ConvTy;
 
@@ -7114,7 +7114,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // Only void * can be converted implicitly to another pointer type. In
   // Checked C, ptr<void> and array_ptr<void> cannot be converted implicitly
   // to other pointer types.
-  if (rhptee->isVoidType() && rhkind == PointerKind::Unsafe) {
+  if (rhptee->isVoidType() && rhkind == CheckedPointerKind::Unsafe) {
     if (lhptee->isIncompleteOrObjectType())
       return ConvTy;
 
@@ -7127,7 +7127,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // between safe and unsafe pointers or between different kinds of safe
   // pointers. Only implicit conversions between unsafe pointers or from
   // unsafe to safe pointers are allowed.
-  if (lhkind != rhkind && rhkind != PointerKind::Unsafe)
+  if (lhkind != rhkind && rhkind != CheckedPointerKind::Unsafe)
     return Sema::Incompatible;
 
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
@@ -7136,7 +7136,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   if (!S.Context.typesAreCompatible(ltrans, rtrans)) {
      // For safe pointers, the pointers MUST have compatible pointee types.
      // No extensions are allowed.
-     if (lhkind != PointerKind::Unsafe || rhkind != PointerKind::Unsafe) {
+     if (lhkind != CheckedPointerKind::Unsafe || rhkind != CheckedPointerKind::Unsafe) {
        return Sema::Incompatible;
      }
     // Check if the pointee types are compatible ignoring the sign.
@@ -10493,7 +10493,7 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     return QualType();
   }
 
-  return Context.getPointerType(op->getType(), PointerKind::Unsafe);
+  return Context.getPointerType(op->getType(), CheckedPointerKind::Unsafe);
 }
 
 static void RecordModifiableNonNullParam(Sema &S, const Expr *Exp) {
@@ -11529,7 +11529,7 @@ ExprResult Sema::ActOnAddrLabel(SourceLocation OpLoc, SourceLocation LabLoc,
   TheDecl->markUsed(Context);
   // Create the AST node.  The address of a label always has type 'void*'.
   return new (Context) AddrLabelExpr(OpLoc, LabLoc, TheDecl,
-                                     Context.getPointerType(Context.VoidTy, PointerKind::Unsafe));
+                                     Context.getPointerType(Context.VoidTy, CheckedPointerKind::Unsafe));
 }
 
 /// Given the last statement in a statement-expression, check whether
