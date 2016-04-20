@@ -1663,7 +1663,7 @@ public:
   bool isPointerType() const;
   bool isCheckedPointerType() const;
   // Checked C ptr type
-  bool isPtrPointerType() const;
+  bool isCheckedPointerPtrType() const;
   bool isAnyPointerType() const;   // Any C pointer or ObjC object pointer
   bool isBlockPointerType() const;
   bool isVoidPointerType() const;
@@ -5481,7 +5481,7 @@ inline bool Type::isCheckedPointerType() const {
     }
     return false;
 }
-inline bool Type::isPtrPointerType() const {
+inline bool Type::isCheckedPointerPtrType() const {
     if (const PointerType *T = getAs<PointerType>()) {
         return T->getKind() == CheckedPointerKind::Ptr;
     }

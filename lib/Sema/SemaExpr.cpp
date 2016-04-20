@@ -8089,7 +8089,7 @@ static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on a CheckedC ptr type
 static void diagnoseArithmeticOnPtrPointerType(Sema &S, SourceLocation Loc,
     Expr *Pointer) {
-    assert(Pointer->getType()->isPtrPointerType());
+    assert(Pointer->getType()->isCheckedPointerPtrType());
     S.Diag(Loc, diag::err_typecheck_ptr_arithmetic)
         << Pointer->getSourceRange();
 }
@@ -8126,7 +8126,7 @@ static bool checkArithmeticOpPointerOperand(Sema &S, SourceLocation Loc,
 
   if (!ResType->isAnyPointerType()) return true;
 
-  if (ResType->isPtrPointerType()) {
+  if (ResType->isCheckedPointerPtrType()) {
      diagnoseArithmeticOnPtrPointerType(S, Loc, Operand);
      return false;
   }
@@ -10493,6 +10493,8 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     return QualType();
   }
 
+  // In Checked C, the address-of operator always produces an unsafe pointer
+  // type.
   return Context.getPointerType(op->getType(), CheckedPointerKind::Unsafe);
 }
 
