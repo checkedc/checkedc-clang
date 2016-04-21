@@ -8036,7 +8036,9 @@ QualType Sema::CheckRemainderOperands(
 /// \brief Diagnose invalid arithmetic on two void pointers.
 static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
                                                 Expr *LHSExpr, Expr *RHSExpr) {
-  S.Diag(Loc, S.getLangOpts().CPlusPlus
+  bool isSafePointerType = LHSExpr->getType()->isCheckedPointerType() ||
+    RHSExpr->getType()->isCheckedPointerType();
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isSafePointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
     << 1 /* two pointers */ << LHSExpr->getSourceRange()
@@ -8046,7 +8048,8 @@ static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on a void pointer.
 static void diagnoseArithmeticOnVoidPointer(Sema &S, SourceLocation Loc,
                                             Expr *Pointer) {
-  S.Diag(Loc, S.getLangOpts().CPlusPlus
+  bool isSafePointerType = Pointer->getType()->isCheckedPointerType();
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isSafePointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
     << 0 /* one pointer */ << Pointer->getSourceRange();
@@ -8057,7 +8060,9 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
                                                     Expr *LHS, Expr *RHS) {
   assert(LHS->getType()->isAnyPointerType());
   assert(RHS->getType()->isAnyPointerType());
-  S.Diag(Loc, S.getLangOpts().CPlusPlus
+  bool isSafePointerType = LHS->getType()->isCheckedPointerType() ||
+    RHS->getType()->isCheckedPointerType();
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isSafePointerType
                 ? diag::err_typecheck_pointer_arith_function_type
                 : diag::ext_gnu_ptr_func_arith)
     << 1 /* two pointers */ << LHS->getType()->getPointeeType()
@@ -8072,12 +8077,21 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
 static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
                                                 Expr *Pointer) {
   assert(Pointer->getType()->isAnyPointerType());
-  S.Diag(Loc, S.getLangOpts().CPlusPlus
+  bool isSafePointerType = Pointer->getType()->isCheckedPointerType();
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isSafePointerType
                 ? diag::err_typecheck_pointer_arith_function_type
                 : diag::ext_gnu_ptr_func_arith)
     << 0 /* one pointer */ << Pointer->getType()->getPointeeType()
     << 0 /* one pointer, so only one type */
     << Pointer->getSourceRange();
+}
+
+/// \brief Diagnose invalid arithmetic on a CheckedC ptr type
+static void diagnoseArithmeticOnPtrPointerType(Sema &S, SourceLocation Loc,
+    Expr *Pointer) {
+    assert(Pointer->getType()->isCheckedPointerPtrType());
+    S.Diag(Loc, diag::err_typecheck_ptr_arithmetic)
+        << Pointer->getSourceRange();
 }
 
 /// \brief Emit error if Operand is incomplete pointer type
@@ -8112,6 +8126,11 @@ static bool checkArithmeticOpPointerOperand(Sema &S, SourceLocation Loc,
 
   if (!ResType->isAnyPointerType()) return true;
 
+  if (ResType->isCheckedPointerPtrType()) {
+     diagnoseArithmeticOnPtrPointerType(S, Loc, Operand);
+     return false;
+  }
+
   QualType PointeeTy = ResType->getPointeeType();
   if (PointeeTy->isVoidType()) {
     diagnoseArithmeticOnVoidPointer(S, Loc, Operand);
@@ -8121,6 +8140,7 @@ static bool checkArithmeticOpPointerOperand(Sema &S, SourceLocation Loc,
     diagnoseArithmeticOnFunctionPointer(S, Loc, Operand);
     return !S.getLangOpts().CPlusPlus;
   }
+
 
   if (checkArithmeticIncompletePointerType(S, Loc, Operand)) return false;
 
@@ -10473,7 +10493,9 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     return QualType();
   }
 
-  return Context.getPointerType(op->getType());
+  // In Checked C, the address-of operator always produces an unsafe pointer
+  // type.
+  return Context.getPointerType(op->getType(), CheckedPointerKind::Unsafe);
 }
 
 static void RecordModifiableNonNullParam(Sema &S, const Expr *Exp) {
@@ -11509,7 +11531,7 @@ ExprResult Sema::ActOnAddrLabel(SourceLocation OpLoc, SourceLocation LabLoc,
   TheDecl->markUsed(Context);
   // Create the AST node.  The address of a label always has type 'void*'.
   return new (Context) AddrLabelExpr(OpLoc, LabLoc, TheDecl,
-                                     Context.getPointerType(Context.VoidTy));
+                                     Context.getPointerType(Context.VoidTy, CheckedPointerKind::Unsafe));
 }
 
 /// Given the last statement in a statement-expression, check whether

@@ -8421,4 +8421,7 @@ def err_typecheck_ptr_subscript : Error<
 def err_typecheck_cond_incompatible_safe_pointer : Error<
   "pointer type mismatch%diff{ ($ and $)|}0,1">;
 
+def err_typecheck_ptr_arithmetic : Error<
+  "arithmetic on ptr type">;
+
 } // end of sema component.
