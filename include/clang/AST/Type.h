@@ -1229,7 +1229,8 @@ enum class AutoTypeKeyword {
 /// Checked C generalizes pointer types to 3 different kinds of
 /// pointers.  Each has different static and dynamic checking
 /// to detect programming errors:
-///   1. Unsafe C pointers: these have no checking
+///   1. Unchecked C pointers: these are * pointers.  They have
+///      have no checking.
 ///   2. Checked C ptr types: these have null checks before
 ///      memory accesses.  No pointer arithmetic is allowed.
 ///   3. Checked C array_ptr types: these have null checks
@@ -1237,9 +1238,9 @@ enum class AutoTypeKeyword {
 ///      expressions must be statically specified.  Pointer
 ///     arithmetic.  It has overflow checking.
 enum class CheckedPointerKind {
-  /// \brief Unsafe C pointer.
-  Unsafe = 0,
-  /// \brief Checked C ptr type. Has null checks before memory.
+  /// \brief Unchecked C pointer.
+  Unchecked = 0,
+  /// \brief Checked C ptr type.
   Ptr,
   /// \brief Checked C array_ptr type.
   Array
@@ -2209,8 +2210,8 @@ public:
            otherQuals.isAddressSpaceSupersetOf(thisQuals);
   }
 
-  bool isSafe() const { return getKind() != CheckedPointerKind::Unsafe; }
-  bool isUnsafe() const { return getKind() == CheckedPointerKind::Unsafe; }
+  bool isChecked() const { return getKind() != CheckedPointerKind::Unchecked; }
+  bool isUnchecked() const { return getKind() == CheckedPointerKind::Unchecked; }
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
@@ -5477,7 +5478,7 @@ inline bool Type::isPointerType() const {
 }
 inline bool Type::isCheckedPointerType() const {
     if (const PointerType *T = getAs<PointerType>()) {
-      return T->getKind() != CheckedPointerKind::Unsafe;
+      return T->getKind() != CheckedPointerKind::Unchecked;
     }
     return false;
 }

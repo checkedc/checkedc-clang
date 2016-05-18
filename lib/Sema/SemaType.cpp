@@ -3807,7 +3807,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
         break;
       }
-      T = S.BuildPointerType(T, CheckedPointerKind::Unsafe, DeclType.Loc, Name);
+      T = S.BuildPointerType(T, CheckedPointerKind::Unchecked, DeclType.Loc, Name);
       if (DeclType.Ptr.TypeQuals)
         T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
       break;

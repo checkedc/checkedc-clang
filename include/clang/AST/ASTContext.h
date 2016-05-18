@@ -1049,8 +1049,8 @@ public:
 
   /// \brief Return the uniqued reference to the type for a pointer to
   /// the specified type.
-  QualType getPointerType(QualType T, CheckedPointerKind kind = CheckedPointerKind::Unsafe) const;
-  CanQualType getPointerType(CanQualType T, CheckedPointerKind kind = CheckedPointerKind::Unsafe) const {
+  QualType getPointerType(QualType T, CheckedPointerKind kind = CheckedPointerKind::Unchecked) const;
+  CanQualType getPointerType(CanQualType T, CheckedPointerKind kind = CheckedPointerKind::Unchecked) const {
     return CanQualType::CreateUnsafe(getPointerType((QualType) T, kind));
   }
 

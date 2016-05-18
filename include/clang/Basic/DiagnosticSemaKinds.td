@@ -8418,7 +8418,7 @@ def warn_objc_redundant_qualified_class_type : Warning<
 def err_typecheck_ptr_subscript : Error<
   "subscript of %0">;
 
-def err_typecheck_cond_incompatible_safe_pointer : Error<
+def err_typecheck_cond_incompatible_checked_pointer : Error<
   "pointer type mismatch%diff{ ($ and $)|}0,1">;
 
 def err_typecheck_ptr_arithmetic : Error<
