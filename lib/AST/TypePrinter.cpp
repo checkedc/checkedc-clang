@@ -329,7 +329,7 @@ void TypePrinter::printComplexAfter(const ComplexType *T, raw_ostream &OS) {
 void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
   CheckedPointerKind kind = T->getKind();
-  if (kind == CheckedPointerKind::Unsafe) {
+  if (kind == CheckedPointerKind::Unchecked) {
     SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
     printBefore(T->getPointeeType(), OS);
     // Handle things like 'int (*A)[4];' correctly.
@@ -352,7 +352,7 @@ void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
 }
 
 void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
-  if (T->getKind() == CheckedPointerKind::Unsafe) {
+  if (T->getKind() == CheckedPointerKind::Unchecked) {
     IncludeStrongLifetimeRAII Strong(Policy);
     SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
     // Handle things like 'int (*A)[4];' correctly.

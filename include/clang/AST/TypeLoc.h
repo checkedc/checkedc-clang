@@ -1130,19 +1130,19 @@ public:
 };
 
 struct PointerTypeLocInfo {
-  /// There are unsafe and safe pointer types.  They need different location
-  /// information because unsafe pointer types use * and safe pointer types use
+  /// There are unchecked and checked pointer types.  They need different location
+  /// information because unchecked pointer types use * and checked pointer types use
   /// template-like syntax.
   ///
-  /// For unsafe pointer types, we initialize RightLoc and KWLoc to LeftLoc 
+  /// For unchecked pointer types, we initialize RightLoc and KWLoc to LeftLoc
   /// so that all members are initialized.  This allows other code such as
   /// AST reading/writing to always process all fields.
   ///
   /// \brief Location of Star or Less Than symbol
   SourceLocation LeftSymLoc;
- /// \brief Location of Greater Than symbol for safe pointer type
+ /// \brief Location of Greater Than symbol for checked pointer type
   SourceLocation RightSymLoc;
-  /// \brief keyword location for safe pointer type
+  /// \brief keyword location for checked pointer type
   SourceLocation KWLoc;
 };
 

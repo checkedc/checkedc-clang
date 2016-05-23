@@ -6205,49 +6205,49 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
 
   QualType CompositeTy = S.Context.mergeTypes(lhptee, rhptee);
 
-  CheckedPointerKind resultKind = CheckedPointerKind::Unsafe;
-  bool incompatibleSafePointer = false;
+  CheckedPointerKind resultKind = CheckedPointerKind::Unchecked;
+  bool incompatibleCheckedPointer = false;
   if (!IsBlockPointer) {
       // Check the compatibility of the pointer kind and compute the resulting
-      // pointer kind.  For safe pointers, enforce that pointees merge too.
+      // pointer kind.  For checked pointers, enforce that pointees merge too.
      CheckedPointerKind lhsKind = LHSTy->castAs<PointerType>()->getKind();
      CheckedPointerKind rhsKind = RHSTy->castAs<PointerType>()->getKind();
      if (lhsKind == rhsKind) {
        resultKind = lhsKind;
-       // For safe pointers, the pointee types must merge.
-       incompatibleSafePointer = resultKind != CheckedPointerKind::Unsafe && CompositeTy.isNull();
+       // For checked pointers, the pointee types must merge.
+       incompatibleCheckedPointer = resultKind != CheckedPointerKind::Unchecked && CompositeTy.isNull();
      }
-     else if (lhsKind == CheckedPointerKind::Unsafe) {
-       // One pointer is an unsafe pointer and the other is a safe pointer
-       // Implicit conversion of unsafe to safe is allowed, provided that
+     else if (lhsKind == CheckedPointerKind::Unchecked) {
+       // One pointer is an unchecked pointer and the other is a checked pointer
+       // Implicit conversion of unchecked to checked is allowed, provided that
        // the pointee types merge.
        resultKind = rhsKind;
-       incompatibleSafePointer = CompositeTy.isNull();
+       incompatibleCheckedPointer = CompositeTy.isNull();
      }
-     else if (rhsKind == CheckedPointerKind::Unsafe) {
+     else if (rhsKind == CheckedPointerKind::Unchecked) {
        // Same as above
        resultKind = lhsKind;
-       incompatibleSafePointer = CompositeTy.isNull();
+       incompatibleCheckedPointer = CompositeTy.isNull();
      }
      else {
-       // Must have different kinds of safe pointers (ptr vs. array_ptr).
+       // Must have different kinds of checked pointers (ptr vs. array_ptr).
        // Implicit conversions between the different kinds are not allowed.
-       incompatibleSafePointer = true;
+       incompatibleCheckedPointer = true;
        //  array_ptr is less likely to cause spurious downstream warnings.
        resultKind = CheckedPointerKind::Array;
      }
 
-     if (incompatibleSafePointer) {
-         S.Diag(Loc, diag::err_typecheck_cond_incompatible_safe_pointer)
+     if (incompatibleCheckedPointer) {
+         S.Diag(Loc, diag::err_typecheck_cond_incompatible_checked_pointer)
              << LHSTy << RHSTy << LHS.get()->getSourceRange()
              << RHS.get()->getSourceRange();
      }
   }
 
   if (CompositeTy.isNull()) {
-    // If the safe pointers were incompatible, we already issued an 
+    // If the checked pointers were incompatible, we already issued an
     // error message. Don't give a warning too.
-    if (!incompatibleSafePointer) {       
+    if (!incompatibleCheckedPointer) {
       S.Diag(Loc, diag::ext_typecheck_cond_incompatible_pointers)
         << LHSTy << RHSTy << LHS.get()->getSourceRange()
         << RHS.get()->getSourceRange();
@@ -6317,7 +6317,7 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
 
   // ignore qualifiers on void (C99 6.5.15p3, clause 6)
   if (lhptee->isVoidType() && rhptee->isIncompleteOrObjectType() && 
-      (lhkind == rhkind || rhkind == CheckedPointerKind::Unsafe)) {
+      (lhkind == rhkind || rhkind == CheckedPointerKind::Unchecked)) {
     // Figure out necessary qualifiers (C99 6.5.15p6)
     QualType destPointee
       = S.Context.getQualifiedType(lhptee, rhptee.getQualifiers());
@@ -6329,7 +6329,7 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
     return destType;
   }
   if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType() &&
-     (lhkind == rhkind || lhkind == CheckedPointerKind::Unsafe)) {
+     (lhkind == rhkind || lhkind == CheckedPointerKind::Unchecked)) {
     QualType destPointee
       = S.Context.getQualifiedType(rhptee, lhptee.getQualifiers());
     QualType destType = S.Context.getPointerType(destPointee, lhkind);
@@ -6344,8 +6344,8 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
 }
 
 /// \brief Return false if the first expression is not an integer and the second
-/// expression is not an unsafe pointer, true otherwise.
-static bool checkUnsafePointerIntegerMismatch(Sema &S, ExprResult &Int,
+/// expression is not an unchecked pointer, true otherwise.
+static bool checkUncheckedPointerIntegerMismatch(Sema &S, ExprResult &Int,
                                         Expr* PointerExpr, SourceLocation Loc,
                                         bool IsIntFirstExpr) {
   if (!PointerExpr->getType()->isPointerType() ||
@@ -6353,7 +6353,7 @@ static bool checkUnsafePointerIntegerMismatch(Sema &S, ExprResult &Int,
     return false;
 
   const PointerType *ptrTy = PointerExpr->getType()->getAs<PointerType>();
-  if (ptrTy->isSafe()) {
+  if (ptrTy->isChecked()) {
      return false;
   }
 
@@ -6668,10 +6668,10 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
 
   // GCC compatibility: soften pointer/integer mismatch.  Note that
   // null pointers have been filtered out by this point.
-  if (checkUnsafePointerIntegerMismatch(*this, LHS, RHS.get(), QuestionLoc,
+  if (checkUncheckedPointerIntegerMismatch(*this, LHS, RHS.get(), QuestionLoc,
       /*isIntFirstExpr=*/true))
     return RHSTy;
-  if (checkUnsafePointerIntegerMismatch(*this, RHS, LHS.get(), QuestionLoc,
+  if (checkUncheckedPointerIntegerMismatch(*this, RHS, LHS.get(), QuestionLoc,
       /*isIntFirstExpr=*/false))
     return LHSTy;
 
@@ -7099,10 +7099,10 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // incomplete type and the other is a pointer to a qualified or unqualified
   // version of void...
 
-  // Allow conversion from any unsafe pointer to any kind of void pointer,
-  // including void *.  In Checked C, conversions from safe pointers to void
+  // Allow conversion from any unchecked pointer to any kind of void pointer,
+  // including void *.  In Checked C, conversions from checked pointers to void
   // pointers are allowed only for matching pointer kinds.
-  if (lhptee->isVoidType() && (rhkind == CheckedPointerKind::Unsafe || lhkind == rhkind)) {
+  if (lhptee->isVoidType() && (rhkind == CheckedPointerKind::Unchecked || lhkind == rhkind)) {
     if (rhptee->isIncompleteOrObjectType())
       return ConvTy;
 
@@ -7114,7 +7114,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // Only void * can be converted implicitly to another pointer type. In
   // Checked C, ptr<void> and array_ptr<void> cannot be converted implicitly
   // to other pointer types.
-  if (rhptee->isVoidType() && rhkind == CheckedPointerKind::Unsafe) {
+  if (rhptee->isVoidType() && rhkind == CheckedPointerKind::Unchecked) {
     if (lhptee->isIncompleteOrObjectType())
       return ConvTy;
 
@@ -7124,19 +7124,19 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   }
 
   // Pointer kinds must match.  If they do not, this is an implicit conversion
-  // between safe and unsafe pointers or between different kinds of safe
-  // pointers. Only implicit conversions between unsafe pointers or from
-  // unsafe to safe pointers are allowed.
-  if (lhkind != rhkind && rhkind != CheckedPointerKind::Unsafe)
+  // between checked and unchecked pointers or between different kinds of checked
+  // pointers. Only implicit conversions between unchecked pointers or from
+  // unchecked to checked pointers are allowed.
+  if (lhkind != rhkind && rhkind != CheckedPointerKind::Unchecked)
     return Sema::Incompatible;
 
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
   // unqualified versions of compatible types, ...
   QualType ltrans = QualType(lhptee, 0), rtrans = QualType(rhptee, 0);
   if (!S.Context.typesAreCompatible(ltrans, rtrans)) {
-     // For safe pointers, the pointers MUST have compatible pointee types.
+     // For checked pointers, the pointers MUST have compatible pointee types.
      // No extensions are allowed.
-     if (lhkind != CheckedPointerKind::Unsafe || rhkind != CheckedPointerKind::Unsafe) {
+     if (lhkind != CheckedPointerKind::Unchecked || rhkind != CheckedPointerKind::Unchecked) {
        return Sema::Incompatible;
      }
     // Check if the pointee types are compatible ignoring the sign.
@@ -7383,7 +7383,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     }
 
     // int -> T*
-    if (RHSType->isIntegerType() && LHSPointer->isUnsafe()) {
+    if (RHSType->isIntegerType() && LHSPointer->isUnchecked()) {
       Kind = CK_IntegralToPointer; // FIXME: null?
       return IntToPointer;
     }
@@ -7511,7 +7511,7 @@ Sema::CheckAssignmentConstraints(QualType LHSType, ExprResult &RHS,
     }
 
     // T* -> int
-    if (LHSType->isIntegerType() && RHSPointer->isUnsafe()) {
+    if (LHSType->isIntegerType() && RHSPointer->isUnchecked()) {
       Kind = CK_PointerToIntegral;
       return PointerToInt;
     }
@@ -8036,9 +8036,9 @@ QualType Sema::CheckRemainderOperands(
 /// \brief Diagnose invalid arithmetic on two void pointers.
 static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
                                                 Expr *LHSExpr, Expr *RHSExpr) {
-  bool isSafePointerType = LHSExpr->getType()->isCheckedPointerType() ||
+  bool isCheckedPointerType = LHSExpr->getType()->isCheckedPointerType() ||
     RHSExpr->getType()->isCheckedPointerType();
-  S.Diag(Loc, S.getLangOpts().CPlusPlus || isSafePointerType
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
     << 1 /* two pointers */ << LHSExpr->getSourceRange()
@@ -8048,8 +8048,8 @@ static void diagnoseArithmeticOnTwoVoidPointers(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on a void pointer.
 static void diagnoseArithmeticOnVoidPointer(Sema &S, SourceLocation Loc,
                                             Expr *Pointer) {
-  bool isSafePointerType = Pointer->getType()->isCheckedPointerType();
-  S.Diag(Loc, S.getLangOpts().CPlusPlus || isSafePointerType
+  bool isCheckedPointerType = Pointer->getType()->isCheckedPointerType();
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_void_type
                 : diag::ext_gnu_void_ptr)
     << 0 /* one pointer */ << Pointer->getSourceRange();
@@ -8060,9 +8060,9 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
                                                     Expr *LHS, Expr *RHS) {
   assert(LHS->getType()->isAnyPointerType());
   assert(RHS->getType()->isAnyPointerType());
-  bool isSafePointerType = LHS->getType()->isCheckedPointerType() ||
+  bool isCheckedPointerType = LHS->getType()->isCheckedPointerType() ||
     RHS->getType()->isCheckedPointerType();
-  S.Diag(Loc, S.getLangOpts().CPlusPlus || isSafePointerType
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_function_type
                 : diag::ext_gnu_ptr_func_arith)
     << 1 /* two pointers */ << LHS->getType()->getPointeeType()
@@ -8077,8 +8077,8 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
 static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
                                                 Expr *Pointer) {
   assert(Pointer->getType()->isAnyPointerType());
-  bool isSafePointerType = Pointer->getType()->isCheckedPointerType();
-  S.Diag(Loc, S.getLangOpts().CPlusPlus || isSafePointerType
+  bool isCheckedPointerType = Pointer->getType()->isCheckedPointerType();
+  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
                 ? diag::err_typecheck_pointer_arith_function_type
                 : diag::ext_gnu_ptr_func_arith)
     << 0 /* one pointer */ << Pointer->getType()->getPointeeType()
@@ -10493,9 +10493,9 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     return QualType();
   }
 
-  // In Checked C, the address-of operator always produces an unsafe pointer
+  // In Checked C, the address-of operator always produces an unchecked pointer
   // type.
-  return Context.getPointerType(op->getType(), CheckedPointerKind::Unsafe);
+  return Context.getPointerType(op->getType(), CheckedPointerKind::Unchecked);
 }
 
 static void RecordModifiableNonNullParam(Sema &S, const Expr *Exp) {
@@ -11531,7 +11531,7 @@ ExprResult Sema::ActOnAddrLabel(SourceLocation OpLoc, SourceLocation LabLoc,
   TheDecl->markUsed(Context);
   // Create the AST node.  The address of a label always has type 'void*'.
   return new (Context) AddrLabelExpr(OpLoc, LabLoc, TheDecl,
-                                     Context.getPointerType(Context.VoidTy, CheckedPointerKind::Unsafe));
+                                     Context.getPointerType(Context.VoidTy, CheckedPointerKind::Unchecked));
 }
 
 /// Given the last statement in a statement-expression, check whether
