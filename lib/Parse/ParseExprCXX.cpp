@@ -2830,7 +2830,7 @@ void Parser::ParseDirectNewDeclarator(Declarator &D) {
 
     D.AddTypeInfo(DeclaratorChunk::getArray(0,
                                             /*static=*/false, /*star=*/false,
-                                            /*isCheckedArray=*/false,
+                                            /*isChecked=*/false,
                                             Size.get(),
                                             T.getOpenLocation(),
                                             T.getCloseLocation()),

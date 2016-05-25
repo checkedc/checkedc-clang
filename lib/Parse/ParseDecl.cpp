@@ -6042,9 +6042,9 @@ void Parser::ParseParameterDeclarationClause(
 /// checked to indicate a checked array.
 void Parser::ParseBracketDeclarator(Declarator &D) {
   SourceLocation startLocation = Tok.getLocation();
-  bool isCheckedArray = false;
+  bool isChecked = false;
   if (Tok.is(tok::kw_checked)) {
-    isCheckedArray = true;
+    isChecked = true;
     ConsumeToken();
     if (!Tok.is(tok::l_square)) {
       Diag(Tok.getLocation(), diag::err_expected_lbracket_after) << "checked";
@@ -6066,7 +6066,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(attrs);
 
     // Remember that we parsed the empty array type.
-    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, isCheckedArray,
+    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, isChecked,
                                             nullptr, startLocation,
                                             T.getCloseLocation()),
                   attrs, T.getCloseLocation());
@@ -6082,7 +6082,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(attrs);
 
     // Remember that we parsed a array type, and remember its features.
-    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, isCheckedArray,
+    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, isChecked,
                                             ExprRes.get(),
                                             startLocation,
                                             T.getCloseLocation()),
@@ -6162,7 +6162,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
   // Remember that we parsed a array type, and remember its features.
   D.AddTypeInfo(DeclaratorChunk::getArray(DS.getTypeQualifiers(),
                                           StaticLoc.isValid(), isStar,
-                                          isCheckedArray,
+                                          isChecked,
                                           NumElements.get(),
                                           startLocation,
                                           T.getCloseLocation()),

@@ -1155,7 +1155,7 @@ struct DeclaratorChunk {
     bool isStar : 1;
 
     /// True if this is a checked array
-    bool isCheckedArray : 1;
+    bool isChecked : 1;
 
     /// This is the size of the array, or null if [] or [*] was specified.
     /// Since the parser is multi-purpose, and we don't want to impose a root
@@ -1502,7 +1502,7 @@ struct DeclaratorChunk {
   /// \brief Return a DeclaratorChunk for an array.
   static DeclaratorChunk getArray(unsigned TypeQuals,
                                   bool isStatic, bool isStar,
-                                  bool isCheckedArray, Expr *NumElts,
+                                  bool isChecked, Expr *NumElts,
                                   SourceLocation LBLoc, SourceLocation RBLoc) {
     DeclaratorChunk I;
     I.Kind          = Array;
@@ -1512,7 +1512,7 @@ struct DeclaratorChunk {
     I.Arr.TypeQuals = TypeQuals;
     I.Arr.hasStatic = isStatic;
     I.Arr.isStar    = isStar;
-    I.Arr.isCheckedArray = isCheckedArray;
+    I.Arr.isChecked = isChecked;
     I.Arr.NumElts   = NumElts;
     return I;
   }
