@@ -6214,19 +6214,43 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
      CheckedPointerKind rhsKind = RHSTy->castAs<PointerType>()->getKind();
      if (lhsKind == rhsKind) {
        resultKind = lhsKind;
+       // maybe the lhptee and rhptee did not merge because the array types
+       // differ only in whether they are checked.  See if one of the array
+       // types is more "checked" than the other and choose it as the
+       // type of the expression.  There is no danger of casting away 
+       // checkedness via the enclosing pointer because the pointer kinds are
+       // identical.
+       if (CompositeTy.isNull()) {
+         if (S.Context.pointeeTypesAreAssignable(lhptee, rhptee)) {
+          CompositeTy = lhptee;
+         } else if (S.Context.pointeeTypesAreAssignable(rhptee, lhptee)) {
+          CompositeTy = rhptee;
+         }
+       }
        // For checked pointers, the pointee types must merge.
        incompatibleCheckedPointer = resultKind != CheckedPointerKind::Unchecked && CompositeTy.isNull();
      }
      else if (lhsKind == CheckedPointerKind::Unchecked) {
        // One pointer is an unchecked pointer and the other is a checked pointer
-       // Implicit conversion of unchecked to checked is allowed, provided that
-       // the pointee types merge.
+       // Implicit conversion of unchecked to checked is allowed, provided that the
+       // pointee types are compatible or the pointee types are array types
+       // that differ in compatibility only because one is more "checked" than the
+       // other.
        resultKind = rhsKind;
+       // Again, maybe the lhptee and rhptee did not merge because the array types
+       // differ in whether they are checked. Only the rhsptee can be checked because
+       // otherwise this implicitly casts away checkedness, which is not allowed.
+       if (CompositeTy.isNull() && S.Context.pointeeTypesAreAssignable(rhptee, lhptee)) {
+         CompositeTy = rhptee;
+       }
        incompatibleCheckedPointer = CompositeTy.isNull();
      }
      else if (rhsKind == CheckedPointerKind::Unchecked) {
-       // Same as above
+       // Same as above, but reversed.
        resultKind = lhsKind;
+       if (CompositeTy.isNull() && S.Context.pointeeTypesAreAssignable(lhptee, rhptee)) {
+         CompositeTy = lhptee;
+       }
        incompatibleCheckedPointer = CompositeTy.isNull();
      }
      else {
@@ -7133,12 +7157,12 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
   // unqualified versions of compatible types, ...
   QualType ltrans = QualType(lhptee, 0), rtrans = QualType(rhptee, 0);
-  if (!S.Context.typesAreCompatible(ltrans, rtrans)) {
-     // For checked pointers, the pointers MUST have compatible pointee types.
-     // No extensions are allowed.
-     if (lhkind != CheckedPointerKind::Unchecked || rhkind != CheckedPointerKind::Unchecked) {
-       return Sema::Incompatible;
-     }
+  if (!S.Context.pointeeTypesAreAssignable(ltrans, rtrans)) {
+     // None of the language extensions below are allowed for pointers
+     // that are checked pointers or that contain checked types.
+     if (LHSType->hasCheckedType() || RHSType->hasCheckedType())
+         return Sema::Incompatible;
+
     // Check if the pointee types are compatible ignoring the sign.
     // We explicitly check for char so that we catch "char" vs
     // "unsigned char" on systems where "char" is unsigned.

@@ -2048,7 +2048,8 @@ static bool isArraySizeVLA(Sema &S, Expr *ArraySize, llvm::APSInt &SizeVal) {
 /// returns a NULL type.
 QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
                               Expr *ArraySize, unsigned Quals,
-                              SourceRange Brackets, DeclarationName Entity) {
+                              bool isChecked, SourceRange Brackets,
+                              DeclarationName Entity) {
 
   SourceLocation Loc = Brackets.getBegin();
   if (getLangOpts().CPlusPlus) {
@@ -2140,7 +2141,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     if (ASM == ArrayType::Star)
       T = Context.getVariableArrayType(T, nullptr, ASM, Quals, Brackets);
     else
-      T = Context.getIncompleteArrayType(T, ASM, Quals);
+      T = Context.getIncompleteArrayType(T, ASM, Quals, isChecked);
   } else if (ArraySize->isTypeDependent() || ArraySize->isValueDependent()) {
     T = Context.getDependentSizedArrayType(T, ArraySize, ASM, Quals, Brackets);
   } else if ((!T->isDependentType() && !T->isIncompleteType() &&
@@ -2198,7 +2199,8 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
       }
     }
 
-    T = Context.getConstantArrayType(T, ConstVal, ASM, Quals);
+    T = Context.getConstantArrayType(T, ConstVal, ASM, Quals,
+                                     isChecked);
   }
 
   // OpenCL v1.2 s6.9.d: variable length arrays are not supported.
@@ -2206,6 +2208,13 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     Diag(Loc, diag::err_opencl_vla);
     return QualType();
   }
+
+  // Checked C does not support checked variable length arrays.
+  if (getLangOpts().CheckedC && isChecked && T->isVariableArrayType()) {
+    Diag(Loc, diag::err_checked_vla);
+    return QualType();
+  }
+
   // If this is not C99, extwarn about VLA's and C99 array size modifiers.
   if (!getLangOpts().C99) {
     if (T->isVariableArrayType()) {
@@ -3445,6 +3454,36 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
     << static_cast<unsigned>(pointerKind);
 }
 
+// Propagate checked property to directly-nested array types.  Propagation
+// stops at non-array types or type defs
+static QualType makeNestedArrayChecked(ASTContext &Context, QualType T) {
+  SplitQualType split = T.split();
+  const Type *ty = split.Ty;
+  bool isConstantArrayTy = isa<ConstantArrayType>(ty);
+  bool isIncompleteArrayTy = isa<IncompleteArrayType>(ty);
+  if (isConstantArrayTy || isIncompleteArrayTy) {
+    const ArrayType *arrTy = cast<ArrayType>(ty);
+    if (!arrTy->isChecked()) {
+      QualType elemTy = makeNestedArrayChecked(Context, arrTy->getElementType());
+      if (isConstantArrayTy) {
+        const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
+        return Context.getConstantArrayType(elemTy,
+                                            constArrTy->getSize(),
+                                            constArrTy->getSizeModifier(),
+                                            T.getCVRQualifiers(),
+                                            true);
+      } else {
+        const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
+        return Context.getIncompleteArrayType(elemTy,
+                                              incArrTy->getSizeModifier(),
+                                              T.getCVRQualifiers(),
+                                              true);
+      }
+    }
+  }
+  return T;
+}
+
 static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                                                 QualType declSpecType,
                                                 TypeSourceInfo *TInfo) {
@@ -3907,7 +3946,10 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         break;
       }
 
-      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals,
+      if (ATI.isChecked) {
+        T = makeNestedArrayChecked(Context, T);
+      }
+      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals, ATI.isChecked,
                            SourceRange(DeclType.Loc, DeclType.EndLoc), Name);
       break;
     }

@@ -1358,6 +1358,9 @@ protected:
     /// 'int X[static restrict 4]'. For function parameters only.
     /// Actually an ArrayType::ArraySizeModifier.
     unsigned SizeModifier : 3;
+
+    // Is this a checked array type?
+    unsigned IsChecked : 1;
   };
 
   class BuiltinTypeBitfields {
@@ -1798,6 +1801,9 @@ public:
 
   /// \brief Whether this type is or contains a local or unnamed type.
   bool hasUnnamedOrLocalType() const;
+
+  /// \brief Whether this type is or contains a checked type
+  bool hasCheckedType() const;
 
   bool isOverloadableType() const;
 
@@ -2479,7 +2485,8 @@ protected:
   //       value-dependent,
   ArrayType(TypeClass tc, QualType et, QualType can,
             ArraySizeModifier sm, unsigned tq,
-            bool ContainsUnexpandedParameterPack)
+            bool ContainsUnexpandedParameterPack,
+            bool isChecked)
     : Type(tc, can, et->isDependentType() || tc == DependentSizedArray,
            et->isInstantiationDependentType() || tc == DependentSizedArray,
            (tc == VariableArray || et->isVariablyModifiedType()),
@@ -2487,11 +2494,15 @@ protected:
       ElementType(et) {
     ArrayTypeBits.IndexTypeQuals = tq;
     ArrayTypeBits.SizeModifier = sm;
+    ArrayTypeBits.IsChecked = isChecked;
   }
 
   friend class ASTContext;  // ASTContext creates these.
 
 public:
+  bool isChecked() const {
+      return ArrayTypeBits.IsChecked;
+  }
   QualType getElementType() const { return ElementType; }
   ArraySizeModifier getSizeModifier() const {
     return ArraySizeModifier(ArrayTypeBits.SizeModifier);
@@ -2502,6 +2513,7 @@ public:
   unsigned getIndexTypeCVRQualifiers() const {
     return ArrayTypeBits.IndexTypeQuals;
   }
+
 
   static bool classof(const Type *T) {
     return T->getTypeClass() == ConstantArray ||
@@ -2518,14 +2530,16 @@ class ConstantArrayType : public ArrayType {
   llvm::APInt Size; // Allows us to unique the type.
 
   ConstantArrayType(QualType et, QualType can, const llvm::APInt &size,
-                    ArraySizeModifier sm, unsigned tq)
+                    ArraySizeModifier sm, unsigned tq, bool chk)
     : ArrayType(ConstantArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack()),
+                et->containsUnexpandedParameterPack(), chk),
       Size(size) {}
 protected:
   ConstantArrayType(TypeClass tc, QualType et, QualType can,
-                    const llvm::APInt &size, ArraySizeModifier sm, unsigned tq)
-    : ArrayType(tc, et, can, sm, tq, et->containsUnexpandedParameterPack()),
+                    const llvm::APInt &size, ArraySizeModifier sm, unsigned tq,
+                    bool chk)
+    : ArrayType(tc, et, can, sm, tq, et->containsUnexpandedParameterPack(),
+                chk),
       Size(size) {}
   friend class ASTContext;  // ASTContext creates these.
 public:
@@ -2546,15 +2560,16 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getElementType(), getSize(),
-            getSizeModifier(), getIndexTypeCVRQualifiers());
+            getSizeModifier(), getIndexTypeCVRQualifiers(), isChecked());
   }
   static void Profile(llvm::FoldingSetNodeID &ID, QualType ET,
                       const llvm::APInt &ArraySize, ArraySizeModifier SizeMod,
-                      unsigned TypeQuals) {
+                      unsigned TypeQuals, bool IsChecked) {
     ID.AddPointer(ET.getAsOpaquePtr());
     ID.AddInteger(ArraySize.getZExtValue());
     ID.AddInteger(SizeMod);
     ID.AddInteger(TypeQuals);
+    ID.AddBoolean(IsChecked);
   }
   static bool classof(const Type *T) {
     return T->getTypeClass() == ConstantArray;
@@ -2567,9 +2582,9 @@ public:
 class IncompleteArrayType : public ArrayType {
 
   IncompleteArrayType(QualType et, QualType can,
-                      ArraySizeModifier sm, unsigned tq)
+                      ArraySizeModifier sm, unsigned tq, bool chk)
     : ArrayType(IncompleteArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack()) {}
+                et->containsUnexpandedParameterPack(), chk) {}
   friend class ASTContext;  // ASTContext creates these.
 public:
   bool isSugared() const { return false; }
@@ -2583,14 +2598,16 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getElementType(), getSizeModifier(),
-            getIndexTypeCVRQualifiers());
+            getIndexTypeCVRQualifiers(), isChecked());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, QualType ET,
-                      ArraySizeModifier SizeMod, unsigned TypeQuals) {
+                      ArraySizeModifier SizeMod, unsigned TypeQuals,
+                      bool IsChecked) {
     ID.AddPointer(ET.getAsOpaquePtr());
     ID.AddInteger(SizeMod);
     ID.AddInteger(TypeQuals);
+    ID.AddBoolean(IsChecked);
   }
 };
 
@@ -2620,7 +2637,7 @@ class VariableArrayType : public ArrayType {
                     ArraySizeModifier sm, unsigned tq,
                     SourceRange brackets)
     : ArrayType(VariableArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack()),
+                et->containsUnexpandedParameterPack(), false),
       SizeExpr((Stmt*) e), Brackets(brackets) {}
   friend class ASTContext;  // ASTContext creates these.
 

@@ -5327,25 +5327,29 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    unsigned Idx = 3;
+    bool isChecked = Record[3];
+    unsigned Idx = 4;
     llvm::APInt Size = ReadAPInt(Record, Idx);
     return Context.getConstantArrayType(ElementType, Size,
-                                         ASM, IndexTypeQuals);
+                                         ASM, IndexTypeQuals, isChecked);
   }
 
   case TYPE_INCOMPLETE_ARRAY: {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    return Context.getIncompleteArrayType(ElementType, ASM, IndexTypeQuals);
+    bool isChecked = Record[3];
+    return Context.getIncompleteArrayType(ElementType, ASM, IndexTypeQuals,
+                                          isChecked);
   }
 
   case TYPE_VARIABLE_ARRAY: {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    SourceLocation LBLoc = ReadSourceLocation(*Loc.F, Record[3]);
-    SourceLocation RBLoc = ReadSourceLocation(*Loc.F, Record[4]);
+    // skip isChecked field at Record[3]
+    SourceLocation LBLoc = ReadSourceLocation(*Loc.F, Record[4]);
+    SourceLocation RBLoc = ReadSourceLocation(*Loc.F, Record[5]);
     return Context.getVariableArrayType(ElementType, ReadExpr(*Loc.F),
                                          ASM, IndexTypeQuals,
                                          SourceRange(LBLoc, RBLoc));
@@ -5356,7 +5360,6 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
       Error("incorrect encoding of vector type in AST file");
       return QualType();
     }
-
     QualType ElementType = readType(*Loc.F, Record, Idx);
     unsigned NumElements = Record[1];
     unsigned VecKind = Record[2];
@@ -5652,6 +5655,7 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     ArrayType::ArraySizeModifier ASM
       = (ArrayType::ArraySizeModifier)Record[Idx++];
     unsigned IndexTypeQuals = Record[Idx++];
+    Idx++; // skip isChecked field
 
     // DependentSizedArrayType
     Expr *NumElts = ReadExpr(*Loc.F);

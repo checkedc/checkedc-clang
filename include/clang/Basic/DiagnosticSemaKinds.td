@@ -8424,4 +8424,7 @@ def err_typecheck_cond_incompatible_checked_pointer : Error<
 def err_typecheck_ptr_arithmetic : Error<
   "arithmetic on ptr type">;
 
+def err_checked_vla : Error<
+  "checked variable-length array not allowed">;
+
 } // end of sema component.

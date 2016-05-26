@@ -128,7 +128,7 @@ DependentSizedArrayType::DependentSizedArrayType(const ASTContext &Context,
                                                  SourceRange brackets)
     : ArrayType(DependentSizedArray, et, can, sm, tq, 
                 (et->containsUnexpandedParameterPack() ||
-                 (e && e->containsUnexpandedParameterPack()))),
+                 (e && e->containsUnexpandedParameterPack())), false),
       Context(Context), SizeExpr((Stmt*) e), Brackets(brackets) 
 {
 }
@@ -759,7 +759,8 @@ public:
 
     return Ctx.getConstantArrayType(elementType, T->getSize(),
                                     T->getSizeModifier(),
-                                    T->getIndexTypeCVRQualifiers());
+                                    T->getIndexTypeCVRQualifiers(),
+                                    T->isChecked());
   }
 
   QualType VisitVariableArrayType(const VariableArrayType *T) {
@@ -785,7 +786,8 @@ public:
       return QualType(T, 0);
 
     return Ctx.getIncompleteArrayType(elementType, T->getSizeModifier(),
-                                      T->getIndexTypeCVRQualifiers());
+                                      T->getIndexTypeCVRQualifiers(),
+                                      T->isChecked());
   }
 
   QualType VisitVectorType(const VectorType *T) { 
@@ -3747,6 +3749,44 @@ bool Type::hasSizedVLAType() const {
   }
 
   return false;
+}
+
+// hasCheckedType - check whether a type is a checked type or is a constructed
+//  type (array, pointer, function) that uses a checked type.
+bool Type::hasCheckedType() const {
+  QualType current = getCanonicalTypeInternal();
+  while (1) {
+    switch (current->getTypeClass()) {
+      default:
+        return false;
+      case Type::Pointer: {
+        const PointerType *pt = cast<PointerType>(current);
+        if (pt->isCheckedPointerType())
+          return true;
+        current = pt->getPointeeType();
+        break;
+      }
+      case Type::ConstantArray:
+      case Type::IncompleteArray: {
+        const ArrayType *at = cast<ArrayType>(current);
+        if (at->isChecked())
+          return true;
+        current = at->getElementType();
+        break;
+      }
+      case Type::FunctionProto: {
+        const FunctionProtoType *fpt = cast<FunctionProtoType>(current);
+        if (fpt->getReturnType()->hasCheckedType())
+          return true;
+        unsigned int paramCount = fpt->getNumParams();
+        for (unsigned int i = 0; i < paramCount; i++) {
+          if (fpt->getParamType(i)->hasCheckedType())
+            return true;
+        }
+        return false;
+      }
+    }
+  }
 }
 
 QualType::DestructionKind QualType::isDestructedTypeImpl(QualType type) {

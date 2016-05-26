@@ -725,6 +725,7 @@ public:
                             const llvm::APInt *Size,
                             Expr *SizeExpr,
                             unsigned IndexTypeQuals,
+                            bool isChecked,
                             SourceRange BracketsRange);
 
   /// \brief Build a new constant array type given the element type, size
@@ -736,6 +737,7 @@ public:
                                     ArrayType::ArraySizeModifier SizeMod,
                                     const llvm::APInt &Size,
                                     unsigned IndexTypeQuals,
+                                    bool isChecked,
                                     SourceRange BracketsRange);
 
   /// \brief Build a new incomplete array type given the element type, size
@@ -746,6 +748,7 @@ public:
   QualType RebuildIncompleteArrayType(QualType ElementType,
                                       ArrayType::ArraySizeModifier SizeMod,
                                       unsigned IndexTypeQuals,
+                                      bool isChecked,
                                       SourceRange BracketsRange);
 
   /// \brief Build a new variable-length array type given the element type,
@@ -4323,6 +4326,7 @@ TreeTransform<Derived>::TransformConstantArrayType(TypeLocBuilder &TLB,
                                                    T->getSizeModifier(),
                                                    T->getSize(),
                                              T->getIndexTypeCVRQualifiers(),
+                                                   T->isChecked(),
                                                    TL.getBracketsRange());
     if (Result.isNull())
       return QualType();
@@ -4363,6 +4367,7 @@ QualType TreeTransform<Derived>::TransformIncompleteArrayType(
     Result = getDerived().RebuildIncompleteArrayType(ElementType,
                                                      T->getSizeModifier(),
                                            T->getIndexTypeCVRQualifiers(),
+                                                     T->isChecked(),
                                                      TL.getBracketsRange());
     if (Result.isNull())
       return QualType();
@@ -11341,10 +11346,12 @@ TreeTransform<Derived>::RebuildArrayType(QualType ElementType,
                                          const llvm::APInt *Size,
                                          Expr *SizeExpr,
                                          unsigned IndexTypeQuals,
+                                         bool isChecked,
                                          SourceRange BracketsRange) {
   if (SizeExpr || !Size)
     return SemaRef.BuildArrayType(ElementType, SizeMod, SizeExpr,
-                                  IndexTypeQuals, BracketsRange,
+                                  IndexTypeQuals, isChecked,
+                                  BracketsRange,
                                   getDerived().getBaseEntity());
 
   QualType Types[] = {
@@ -11366,8 +11373,8 @@ TreeTransform<Derived>::RebuildArrayType(QualType ElementType,
       = IntegerLiteral::Create(SemaRef.Context, *Size, SizeType,
                                /*FIXME*/BracketsRange.getBegin());
   return SemaRef.BuildArrayType(ElementType, SizeMod, ArraySize,
-                                IndexTypeQuals, BracketsRange,
-                                getDerived().getBaseEntity());
+                                IndexTypeQuals, isChecked,
+                                BracketsRange,getDerived().getBaseEntity());
 }
 
 template<typename Derived>
@@ -11376,9 +11383,11 @@ TreeTransform<Derived>::RebuildConstantArrayType(QualType ElementType,
                                                  ArrayType::ArraySizeModifier SizeMod,
                                                  const llvm::APInt &Size,
                                                  unsigned IndexTypeQuals,
+                                                 bool IsChecked,
                                                  SourceRange BracketsRange) {
   return getDerived().RebuildArrayType(ElementType, SizeMod, &Size, nullptr,
-                                        IndexTypeQuals, BracketsRange);
+                                       IndexTypeQuals, IsChecked,
+                                       BracketsRange);
 }
 
 template<typename Derived>
@@ -11386,9 +11395,11 @@ QualType
 TreeTransform<Derived>::RebuildIncompleteArrayType(QualType ElementType,
                                           ArrayType::ArraySizeModifier SizeMod,
                                                  unsigned IndexTypeQuals,
+                                                   bool IsChecked,
                                                    SourceRange BracketsRange) {
   return getDerived().RebuildArrayType(ElementType, SizeMod, nullptr, nullptr,
-                                       IndexTypeQuals, BracketsRange);
+                                       IndexTypeQuals, IsChecked,
+                                       BracketsRange);
 }
 
 template<typename Derived>
@@ -11400,7 +11411,7 @@ TreeTransform<Derived>::RebuildVariableArrayType(QualType ElementType,
                                                  SourceRange BracketsRange) {
   return getDerived().RebuildArrayType(ElementType, SizeMod, nullptr,
                                        SizeExpr,
-                                       IndexTypeQuals, BracketsRange);
+                                       IndexTypeQuals, false, BracketsRange);
 }
 
 template<typename Derived>
@@ -11412,7 +11423,7 @@ TreeTransform<Derived>::RebuildDependentSizedArrayType(QualType ElementType,
                                                    SourceRange BracketsRange) {
   return getDerived().RebuildArrayType(ElementType, SizeMod, nullptr,
                                        SizeExpr,
-                                       IndexTypeQuals, BracketsRange);
+                                       IndexTypeQuals, false, BracketsRange);
 }
 
 template<typename Derived>

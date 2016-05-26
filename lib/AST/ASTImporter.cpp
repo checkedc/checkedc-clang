@@ -1616,7 +1616,8 @@ QualType ASTNodeImporter::VisitConstantArrayType(const ConstantArrayType *T) {
   return Importer.getToContext().getConstantArrayType(ToElementType, 
                                                       T->getSize(),
                                                       T->getSizeModifier(),
-                                               T->getIndexTypeCVRQualifiers());
+                                               T->getIndexTypeCVRQualifiers(),
+                                                      T->isChecked());
 }
 
 QualType
@@ -1627,7 +1628,8 @@ ASTNodeImporter::VisitIncompleteArrayType(const IncompleteArrayType *T) {
   
   return Importer.getToContext().getIncompleteArrayType(ToElementType, 
                                                         T->getSizeModifier(),
-                                                T->getIndexTypeCVRQualifiers());
+                                                T->getIndexTypeCVRQualifiers(),
+                                                      T->isChecked());
 }
 
 QualType ASTNodeImporter::VisitVariableArrayType(const VariableArrayType *T) {
