@@ -2048,7 +2048,7 @@ static bool isArraySizeVLA(Sema &S, Expr *ArraySize, llvm::APSInt &SizeVal) {
 /// returns a NULL type.
 QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
                               Expr *ArraySize, unsigned Quals,
-                              bool isChecked, SourceRange Brackets,
+                              bool IsChecked, SourceRange Brackets,
                               DeclarationName Entity) {
 
   SourceLocation Loc = Brackets.getBegin();
@@ -2141,7 +2141,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     if (ASM == ArrayType::Star)
       T = Context.getVariableArrayType(T, nullptr, ASM, Quals, Brackets);
     else
-      T = Context.getIncompleteArrayType(T, ASM, Quals, isChecked);
+      T = Context.getIncompleteArrayType(T, ASM, Quals, IsChecked);
   } else if (ArraySize->isTypeDependent() || ArraySize->isValueDependent()) {
     T = Context.getDependentSizedArrayType(T, ArraySize, ASM, Quals, Brackets);
   } else if ((!T->isDependentType() && !T->isIncompleteType() &&
@@ -2200,7 +2200,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     }
 
     T = Context.getConstantArrayType(T, ConstVal, ASM, Quals,
-                                     isChecked);
+                                     IsChecked);
   }
 
   // OpenCL v1.2 s6.9.d: variable length arrays are not supported.
@@ -2210,7 +2210,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
   }
 
   // Checked C does not support checked variable length arrays.
-  if (getLangOpts().CheckedC && isChecked && T->isVariableArrayType()) {
+  if (getLangOpts().CheckedC && IsChecked && T->isVariableArrayType()) {
     Diag(Loc, diag::err_checked_vla);
     return QualType();
   }

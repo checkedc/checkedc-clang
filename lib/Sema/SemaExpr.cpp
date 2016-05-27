@@ -6222,9 +6222,9 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        // identical.
        if (CompositeTy.isNull()) {
          if (S.Context.pointeeTypesAreAssignable(lhptee, rhptee)) {
-          CompositeTy = lhptee;
+           CompositeTy = lhptee;
          } else if (S.Context.pointeeTypesAreAssignable(rhptee, lhptee)) {
-          CompositeTy = rhptee;
+           CompositeTy = rhptee;
          }
        }
        // For checked pointers, the pointee types must merge.

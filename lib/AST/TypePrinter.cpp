@@ -487,6 +487,9 @@ void TypePrinter::printArrayAfter(const ArrayType *T, Qualifiers Quals, raw_ostr
 
     OS << ct->getSize().getZExtValue() << ']';
   } else {
+    // This covers VariableArray and DependentSizedArray.  These cannot be 
+    // checked arrays, so there is no state to call and the regular printAfter
+    // function can be called. 
     printAfter(T, Quals, OS);
     return;
   }

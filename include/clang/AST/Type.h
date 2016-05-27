@@ -2486,7 +2486,7 @@ protected:
   ArrayType(TypeClass tc, QualType et, QualType can,
             ArraySizeModifier sm, unsigned tq,
             bool ContainsUnexpandedParameterPack,
-            bool isChecked)
+            bool IsChecked)
     : Type(tc, can, et->isDependentType() || tc == DependentSizedArray,
            et->isInstantiationDependentType() || tc == DependentSizedArray,
            (tc == VariableArray || et->isVariablyModifiedType()),
@@ -2494,7 +2494,7 @@ protected:
       ElementType(et) {
     ArrayTypeBits.IndexTypeQuals = tq;
     ArrayTypeBits.SizeModifier = sm;
-    ArrayTypeBits.IsChecked = isChecked;
+    ArrayTypeBits.IsChecked = IsChecked;
   }
 
   friend class ASTContext;  // ASTContext creates these.
@@ -2530,16 +2530,16 @@ class ConstantArrayType : public ArrayType {
   llvm::APInt Size; // Allows us to unique the type.
 
   ConstantArrayType(QualType et, QualType can, const llvm::APInt &size,
-                    ArraySizeModifier sm, unsigned tq, bool chk)
+                    ArraySizeModifier sm, unsigned tq, bool IsChecked)
     : ArrayType(ConstantArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack(), chk),
+                et->containsUnexpandedParameterPack(), IsChecked),
       Size(size) {}
 protected:
   ConstantArrayType(TypeClass tc, QualType et, QualType can,
                     const llvm::APInt &size, ArraySizeModifier sm, unsigned tq,
-                    bool chk)
+                    bool IsChecked)
     : ArrayType(tc, et, can, sm, tq, et->containsUnexpandedParameterPack(),
-                chk),
+                IsChecked),
       Size(size) {}
   friend class ASTContext;  // ASTContext creates these.
 public:
@@ -2582,9 +2582,9 @@ public:
 class IncompleteArrayType : public ArrayType {
 
   IncompleteArrayType(QualType et, QualType can,
-                      ArraySizeModifier sm, unsigned tq, bool chk)
+                      ArraySizeModifier sm, unsigned tq, bool IsChecked)
     : ArrayType(IncompleteArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack(), chk) {}
+                et->containsUnexpandedParameterPack(), IsChecked) {}
   friend class ASTContext;  // ASTContext creates these.
 public:
   bool isSugared() const { return false; }
@@ -2637,7 +2637,7 @@ class VariableArrayType : public ArrayType {
                     ArraySizeModifier sm, unsigned tq,
                     SourceRange brackets)
     : ArrayType(VariableArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack(), false),
+                et->containsUnexpandedParameterPack(), /*isChecked=*/false),
       SizeExpr((Stmt*) e), Brackets(brackets) {}
   friend class ASTContext;  // ASTContext creates these.
 

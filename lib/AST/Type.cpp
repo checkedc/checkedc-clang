@@ -3755,10 +3755,8 @@ bool Type::hasSizedVLAType() const {
 //  type (array, pointer, function) that uses a checked type.
 bool Type::hasCheckedType() const {
   QualType current = getCanonicalTypeInternal();
-  while (1) {
+  while (true) {
     switch (current->getTypeClass()) {
-      default:
-        return false;
       case Type::Pointer: {
         const PointerType *pt = cast<PointerType>(current);
         if (pt->isCheckedPointerType())
@@ -3785,6 +3783,8 @@ bool Type::hasCheckedType() const {
         }
         return false;
       }
+      default:
+        return false;
     }
   }
 }

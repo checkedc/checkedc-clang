@@ -7418,23 +7418,25 @@ QualType ASTContext::matchArrayCheckedness(QualType LHS, QualType RHS) {
     if (!lhsTy->isChecked()) {
       return RHS;
     }
+    assert((lhsTy->isConstantArrayType() || lhsTy->isIncompleteArrayType()) && 
+           "unexpected checked array type");
     Type::TypeClass rhsTypeClass = rhsTy->getTypeClass();
-    if (rhsTypeClass == Type::ConstantArray) {
-        const ConstantArrayType *rhsca = cast<ConstantArrayType>(rhsTy);
+    if (rhsTypeClass == Type::ConstantArray || rhsTypeClass == Type::IncompleteArray) {
         QualType elemTy = matchArrayCheckedness(lhsTy->getElementType(),
                                                 rhsTy->getElementType());
-        QualType result = getConstantArrayType(elemTy, rhsca->getSize(),
-                                               rhsca->getSizeModifier(), RHS.getCVRQualifiers(),
-                                               true);
-        return result;
-    }
-    else if (rhsTypeClass == Type::IncompleteArray) {
-        const IncompleteArrayType *rhsic = cast<IncompleteArrayType>(rhsTy);
-        QualType elemTy = matchArrayCheckedness(lhsTy->getElementType(),
-                                                rhsTy->getElementType());
-        QualType result = getIncompleteArrayType(elemTy, rhsic->getSizeModifier(),
-                                                 RHS.getCVRQualifiers(), true);
-        return result;
+      if (rhsTypeClass == Type::ConstantArray) {
+          const ConstantArrayType *rhsca = cast<ConstantArrayType>(rhsTy);
+          QualType result = getConstantArrayType(elemTy, rhsca->getSize(),
+                                                 rhsca->getSizeModifier(), RHS.getCVRQualifiers(),
+                                                 true);
+          return result;
+      }
+      else if (rhsTypeClass == Type::IncompleteArray) {
+          const IncompleteArrayType *rhsic = cast<IncompleteArrayType>(rhsTy);
+          QualType result = getIncompleteArrayType(elemTy, rhsic->getSizeModifier(),
+                                                   RHS.getCVRQualifiers(), true);
+          return result;
+      }
     }
  }
  return RHS;
@@ -7848,10 +7850,10 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   }
   case Type::ConstantArray:
   {
-    const ArrayType *lhsArrayType = getAsArrayType(LHS);
-    const ArrayType *rhsArrayType = getAsArrayType(RHS);
-    bool isChecked = lhsArrayType->isChecked();
-    if (isChecked != rhsArrayType->isChecked()) {
+    const ArrayType *LHSArrayType = getAsArrayType(LHS);
+    const ArrayType *RHSArrayType = getAsArrayType(RHS);
+    bool isChecked = LHSArrayType->isChecked();
+    if (isChecked != RHSArrayType->isChecked()) {
       return QualType();
     }
 
@@ -7860,8 +7862,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     if (LCAT && RCAT && RCAT->getSize() != LCAT->getSize())
         return QualType();
 
-    QualType LHSElem = lhsArrayType->getElementType();
-    QualType RHSElem = rhsArrayType->getElementType();
+    QualType LHSElem = LHSArrayType->getElementType();
+    QualType RHSElem = RHSArrayType->getElementType();
     if (Unqualified) {
       LHSElem = LHSElem.getUnqualifiedType();
       RHSElem = RHSElem.getUnqualifiedType();

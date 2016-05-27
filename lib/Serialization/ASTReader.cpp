@@ -5327,11 +5327,11 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    bool isChecked = Record[3];
+    bool IsChecked = Record[3];
     unsigned Idx = 4;
     llvm::APInt Size = ReadAPInt(Record, Idx);
     return Context.getConstantArrayType(ElementType, Size,
-                                         ASM, IndexTypeQuals, isChecked);
+                                         ASM, IndexTypeQuals, IsChecked);
   }
 
   case TYPE_INCOMPLETE_ARRAY: {

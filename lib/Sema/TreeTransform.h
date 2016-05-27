@@ -725,7 +725,7 @@ public:
                             const llvm::APInt *Size,
                             Expr *SizeExpr,
                             unsigned IndexTypeQuals,
-                            bool isChecked,
+                            bool IsChecked,
                             SourceRange BracketsRange);
 
   /// \brief Build a new constant array type given the element type, size
@@ -737,7 +737,7 @@ public:
                                     ArrayType::ArraySizeModifier SizeMod,
                                     const llvm::APInt &Size,
                                     unsigned IndexTypeQuals,
-                                    bool isChecked,
+                                    bool IsChecked,
                                     SourceRange BracketsRange);
 
   /// \brief Build a new incomplete array type given the element type, size
@@ -748,7 +748,7 @@ public:
   QualType RebuildIncompleteArrayType(QualType ElementType,
                                       ArrayType::ArraySizeModifier SizeMod,
                                       unsigned IndexTypeQuals,
-                                      bool isChecked,
+                                      bool IsChecked,
                                       SourceRange BracketsRange);
 
   /// \brief Build a new variable-length array type given the element type,
@@ -11346,11 +11346,11 @@ TreeTransform<Derived>::RebuildArrayType(QualType ElementType,
                                          const llvm::APInt *Size,
                                          Expr *SizeExpr,
                                          unsigned IndexTypeQuals,
-                                         bool isChecked,
+                                         bool IsChecked,
                                          SourceRange BracketsRange) {
   if (SizeExpr || !Size)
     return SemaRef.BuildArrayType(ElementType, SizeMod, SizeExpr,
-                                  IndexTypeQuals, isChecked,
+                                  IndexTypeQuals, IsChecked,
                                   BracketsRange,
                                   getDerived().getBaseEntity());
 
@@ -11373,7 +11373,7 @@ TreeTransform<Derived>::RebuildArrayType(QualType ElementType,
       = IntegerLiteral::Create(SemaRef.Context, *Size, SizeType,
                                /*FIXME*/BracketsRange.getBegin());
   return SemaRef.BuildArrayType(ElementType, SizeMod, ArraySize,
-                                IndexTypeQuals, isChecked,
+                                IndexTypeQuals, IsChecked,
                                 BracketsRange,getDerived().getBaseEntity());
 }
 
