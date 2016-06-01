@@ -470,28 +470,31 @@ void TypePrinter::printArrayAfter(const ArrayType *T, Qualifiers Quals, raw_ostr
     OS << "unchecked";
   }
 
-  if (isa<IncompleteArrayType>(T)) {
-    OS << "[]";
-  }
-  else if (isa<ConstantArrayType>(T)) {
-    const ConstantArrayType *ct = cast<ConstantArrayType>(T);
-    assert(ct);
-    OS << '[';
-    if (ct->getIndexTypeQualifiers().hasQualifiers()) {
-      AppendTypeQualList(OS, ct->getIndexTypeCVRQualifiers(), Policy.LangOpts.C99);
-      OS << ' ';
+  switch (T->getTypeClass()) {
+    case Type::IncompleteArray:
+      OS << "[]";
+      break;
+    case Type::ConstantArray: {
+      const ConstantArrayType *ct = cast<ConstantArrayType>(T);
+      assert(ct);
+      OS << '[';
+      if (ct->getIndexTypeQualifiers().hasQualifiers()) {
+        AppendTypeQualList(OS, ct->getIndexTypeCVRQualifiers(), Policy.LangOpts.C99);
+        OS << ' ';
+      }
+
+      if (ct->getSizeModifier() == ArrayType::Static)
+        OS << "static ";
+
+      OS << ct->getSize().getZExtValue() << ']';
+      break;
     }
-
-    if (ct->getSizeModifier() == ArrayType::Static)
-      OS << "static ";
-
-    OS << ct->getSize().getZExtValue() << ']';
-  } else {
-    // This covers VariableArray and DependentSizedArray.  These cannot be 
-    // checked arrays, so there is no state to call and the regular printAfter
-    // function can be called. 
-    printAfter(T, Quals, OS);
-    return;
+    case Type::DependentSizedArray:
+    case Type::VariableArray:
+    default:
+      assert(!T->isChecked() && "unexpected checked array type");
+      printAfter(T, Quals, OS);
+      return;
   }
 
   const QualType qualElemType = T->getElementType();

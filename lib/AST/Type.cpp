@@ -128,7 +128,7 @@ DependentSizedArrayType::DependentSizedArrayType(const ASTContext &Context,
                                                  SourceRange brackets)
     : ArrayType(DependentSizedArray, et, can, sm, tq, 
                 (et->containsUnexpandedParameterPack() ||
-                 (e && e->containsUnexpandedParameterPack())), false),
+                 (e && e->containsUnexpandedParameterPack())), /*IsChecked=*/false),
       Context(Context), SizeExpr((Stmt*) e), Brackets(brackets) 
 {
 }
@@ -3754,38 +3754,37 @@ bool Type::hasSizedVLAType() const {
 // hasCheckedType - check whether a type is a checked type or is a constructed
 //  type (array, pointer, function) that uses a checked type.
 bool Type::hasCheckedType() const {
-  QualType current = getCanonicalTypeInternal();
-  while (true) {
-    switch (current->getTypeClass()) {
-      case Type::Pointer: {
-        const PointerType *pt = cast<PointerType>(current);
-        if (pt->isCheckedPointerType())
-          return true;
-        current = pt->getPointeeType();
-        break;
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      if (ptr->isCheckedPointerType()) {
+        return true;
       }
-      case Type::ConstantArray:
-      case Type::IncompleteArray: {
-        const ArrayType *at = cast<ArrayType>(current);
-        if (at->isChecked())
-          return true;
-        current = at->getElementType();
-        break;
-      }
-      case Type::FunctionProto: {
-        const FunctionProtoType *fpt = cast<FunctionProtoType>(current);
-        if (fpt->getReturnType()->hasCheckedType())
-          return true;
-        unsigned int paramCount = fpt->getNumParams();
-        for (unsigned int i = 0; i < paramCount; i++) {
-          if (fpt->getParamType(i)->hasCheckedType())
-            return true;
-        }
-        return false;
-      }
-      default:
-        return false;
+      return ptr->getPointeeType()->hasCheckedType();
     }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      if (arr->isChecked())
+        return true;
+      return arr->getElementType()->hasCheckedType();
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->hasCheckedType())
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->hasCheckedType())
+          return true;
+      }
+      return false;
+    }
+    default:
+      return false;
   }
 }
 

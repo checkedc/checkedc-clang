@@ -2514,7 +2514,6 @@ public:
     return ArrayTypeBits.IndexTypeQuals;
   }
 
-
   static bool classof(const Type *T) {
     return T->getTypeClass() == ConstantArray ||
            T->getTypeClass() == VariableArray ||

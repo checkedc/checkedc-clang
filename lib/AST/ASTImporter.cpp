@@ -434,6 +434,7 @@ static bool IsArrayStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return false;
   if (Array1->isChecked() != Array2->isChecked())
     return false;
+
   return true;
 }
 

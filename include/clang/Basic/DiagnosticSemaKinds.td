@@ -8427,4 +8427,7 @@ def err_typecheck_ptr_arithmetic : Error<
 def err_checked_vla : Error<
   "checked variable-length array not allowed">;
 
+def err_checked_cplusplus : Error<
+  "checked extension not supported for C++">;
+
 } // end of sema component.

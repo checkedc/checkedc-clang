@@ -2209,10 +2209,18 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     return QualType();
   }
 
-  // Checked C does not support checked variable length arrays.
-  if (getLangOpts().CheckedC && IsChecked && T->isVariableArrayType()) {
-    Diag(Loc, diag::err_checked_vla);
-    return QualType();
+  if (getLangOpts().CheckedC && IsChecked) {
+    // checked extensions are not supported for variable length arrays.
+    if (T->isVariableArrayType()) {
+      Diag(Loc, diag::err_checked_vla);
+      return QualType();
+    }
+
+    // checked extensions are not supported for C++ templates.
+    if (T->isDependentSizedArrayType()) {
+      Diag(Loc, diag::err_checked_cplusplus);
+      return QualType();
+    }
   }
 
   // If this is not C99, extwarn about VLA's and C99 array size modifiers.
@@ -3455,30 +3463,39 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
 }
 
 // Propagate checked property to directly-nested array types.  Propagation
-// stops at non-array types or type defs
+// stops at type defs, non-array types, and array types that cannot be checked.
 static QualType makeNestedArrayChecked(ASTContext &Context, QualType T) {
-  SplitQualType split = T.split();
-  const Type *ty = split.Ty;
-  bool isConstantArrayTy = isa<ConstantArrayType>(ty);
-  bool isIncompleteArrayTy = isa<IncompleteArrayType>(ty);
-  if (isConstantArrayTy || isIncompleteArrayTy) {
+  if (isa<ArrayType>(T)) {
+    SplitQualType split = T.split();
+    const Type *ty = split.Ty;
     const ArrayType *arrTy = cast<ArrayType>(ty);
-    if (!arrTy->isChecked()) {
-      QualType elemTy = makeNestedArrayChecked(Context, arrTy->getElementType());
-      if (isConstantArrayTy) {
+    QualType elemTy = makeNestedArrayChecked(Context, arrTy->getElementType());
+    switch (ty->getTypeClass()) {
+      case Type::ConstantArray: {
         const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
         return Context.getConstantArrayType(elemTy,
                                             constArrTy->getSize(),
                                             constArrTy->getSizeModifier(),
                                             T.getCVRQualifiers(),
                                             true);
-      } else {
+      }
+      case Type::IncompleteArray: {
         const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
         return Context.getIncompleteArrayType(elemTy,
                                               incArrTy->getSizeModifier(),
                                               T.getCVRQualifiers(),
                                               true);
       }
+      case Type::DependentSizedArray:
+      case Type::VariableArray: 
+        // checked versions of these arrays cannot be created. An error message
+        // is produced by BuildArrayType for the outer error type because these
+        // result in the outer array type being dependently-typed or
+        // variably-sized.
+        break;
+      default:
+         assert("unexpected array type");
+         break;
     }
   }
   return T;

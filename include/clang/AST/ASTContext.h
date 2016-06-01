@@ -2215,7 +2215,6 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// Compatibility predicates used to check assignment expressions.
-
   bool typesAreCompatible(QualType T1, QualType T2, 
                           bool CompareUnqualified = false); // C99 6.2.7p1
 
