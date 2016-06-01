@@ -2562,7 +2562,8 @@ QualType ASTContext::getMemberPointerType(QualType T, const Type *Cls) const {
 QualType ASTContext::getConstantArrayType(QualType EltTy,
                                           const llvm::APInt &ArySizeIn,
                                           ArrayType::ArraySizeModifier ASM,
-                                          unsigned IndexTypeQuals) const {
+                                          unsigned IndexTypeQuals,
+                                          bool IsChecked) const {
   assert((EltTy->isDependentType() ||
           EltTy->isIncompleteType() || EltTy->isConstantSizeType()) &&
          "Constant array of VLAs is illegal!");
@@ -2574,7 +2575,8 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
     ArySize.zextOrTrunc(Target->getPointerWidth(getTargetAddressSpace(EltTy)));
 
   llvm::FoldingSetNodeID ID;
-  ConstantArrayType::Profile(ID, EltTy, ArySize, ASM, IndexTypeQuals);
+  ConstantArrayType::Profile(ID, EltTy, ArySize, ASM, IndexTypeQuals,
+                             IsChecked);
 
   void *InsertPos = nullptr;
   if (ConstantArrayType *ATP =
@@ -2587,7 +2589,7 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
   if (!EltTy.isCanonical() || EltTy.hasLocalQualifiers()) {
     SplitQualType canonSplit = getCanonicalType(EltTy).split();
     Canon = getConstantArrayType(QualType(canonSplit.Ty, 0), ArySize,
-                                 ASM, IndexTypeQuals);
+                                 ASM, IndexTypeQuals, IsChecked);
     Canon = getQualifiedType(Canon, canonSplit.Quals);
 
     // Get the new insert position for the node we care about.
@@ -2597,7 +2599,8 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
   }
 
   ConstantArrayType *New = new(*this,TypeAlignment)
-    ConstantArrayType(EltTy, Canon, ArySize, ASM, IndexTypeQuals);
+    ConstantArrayType(EltTy, Canon, ArySize, ASM, IndexTypeQuals,
+                      IsChecked);
   ConstantArrayTypes.InsertNode(New, InsertPos);
   Types.push_back(New);
   return QualType(New, 0);
@@ -2692,7 +2695,8 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
                  getVariableArrayDecayedType(cat->getElementType()),
                                   cat->getSize(),
                                   cat->getSizeModifier(),
-                                  cat->getIndexTypeCVRQualifiers());
+                                  cat->getIndexTypeCVRQualifiers(),
+                                  cat->isChecked());
     break;
   }
 
@@ -2836,9 +2840,11 @@ QualType ASTContext::getDependentSizedArrayType(QualType elementType,
 
 QualType ASTContext::getIncompleteArrayType(QualType elementType,
                                             ArrayType::ArraySizeModifier ASM,
-                                            unsigned elementTypeQuals) const {
+                                            unsigned elementTypeQuals,
+                                            bool isChecked) const {
   llvm::FoldingSetNodeID ID;
-  IncompleteArrayType::Profile(ID, elementType, ASM, elementTypeQuals);
+  IncompleteArrayType::Profile(ID, elementType, ASM, elementTypeQuals,
+                               isChecked);
 
   void *insertPos = nullptr;
   if (IncompleteArrayType *iat =
@@ -2853,7 +2859,7 @@ QualType ASTContext::getIncompleteArrayType(QualType elementType,
   if (!elementType.isCanonical() || elementType.hasLocalQualifiers()) {
     SplitQualType canonSplit = getCanonicalType(elementType).split();
     canon = getIncompleteArrayType(QualType(canonSplit.Ty, 0),
-                                   ASM, elementTypeQuals);
+                                   ASM, elementTypeQuals, isChecked);
     canon = getQualifiedType(canon, canonSplit.Quals);
 
     // Get the new insert position for the node we care about.
@@ -2863,7 +2869,7 @@ QualType ASTContext::getIncompleteArrayType(QualType elementType,
   }
 
   IncompleteArrayType *newType = new (*this, TypeAlignment)
-    IncompleteArrayType(elementType, canon, ASM, elementTypeQuals);
+    IncompleteArrayType(elementType, canon, ASM, elementTypeQuals, isChecked);
 
   IncompleteArrayTypes.InsertNode(newType, insertPos);
   Types.push_back(newType);
@@ -4220,11 +4226,12 @@ QualType ASTContext::getUnqualifiedArrayType(QualType type,
 
   if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(AT)) {
     return getConstantArrayType(unqualElementType, CAT->getSize(),
-                                CAT->getSizeModifier(), 0);
+                                CAT->getSizeModifier(), 0, CAT->isChecked());
   }
 
   if (const IncompleteArrayType *IAT = dyn_cast<IncompleteArrayType>(AT)) {
-    return getIncompleteArrayType(unqualElementType, IAT->getSizeModifier(), 0);
+    return getIncompleteArrayType(unqualElementType, IAT->getSizeModifier(), 0,
+                                  IAT->isChecked());
   }
 
   if (const VariableArrayType *VAT = dyn_cast<VariableArrayType>(AT)) {
@@ -4524,11 +4531,13 @@ const ArrayType *ASTContext::getAsArrayType(QualType T) const {
   if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(ATy))
     return cast<ArrayType>(getConstantArrayType(NewEltTy, CAT->getSize(),
                                                 CAT->getSizeModifier(),
-                                           CAT->getIndexTypeCVRQualifiers()));
+                                           CAT->getIndexTypeCVRQualifiers(),
+                                                CAT->isChecked()));
   if (const IncompleteArrayType *IAT = dyn_cast<IncompleteArrayType>(ATy))
     return cast<ArrayType>(getIncompleteArrayType(NewEltTy,
                                                   IAT->getSizeModifier(),
-                                           IAT->getIndexTypeCVRQualifiers()));
+                                           IAT->getIndexTypeCVRQualifiers(),
+                                                  IAT->isChecked()));
 
   if (const DependentSizedArrayType *DSAT
         = dyn_cast<DependentSizedArrayType>(ATy))
@@ -4578,6 +4587,8 @@ QualType ASTContext::getExceptionObjectType(QualType T) const {
 /// this returns a pointer to a properly qualified element of the array.
 ///
 /// See C99 6.7.5.3p7 and C99 6.3.2.1p3.
+///
+/// For Checked C, a checked array type can decay to an array_ptr type.
 QualType ASTContext::getArrayDecayedType(QualType Ty) const {
   // Get the element type with 'getAsArrayType' so that we don't lose any
   // typedefs in the element type of the array.  This also handles propagation
@@ -4586,7 +4597,11 @@ QualType ASTContext::getArrayDecayedType(QualType Ty) const {
   const ArrayType *PrettyArrayType = getAsArrayType(Ty);
   assert(PrettyArrayType && "Not an array type!");
 
-  QualType PtrTy = getPointerType(PrettyArrayType->getElementType());
+  CheckedPointerKind checkedKind = PrettyArrayType->isChecked() ?
+    CheckedPointerKind::Array : CheckedPointerKind::Unchecked;
+
+  QualType PtrTy = getPointerType(PrettyArrayType->getElementType(),
+                                  checkedKind);
 
   // int x[restrict 4] ->  int *restrict
   return getQualifiedType(PtrTy, PrettyArrayType->getIndexTypeQualifiers());
@@ -7366,6 +7381,67 @@ bool ASTContext::typesAreBlockPointerCompatible(QualType LHS, QualType RHS) {
   return !mergeTypes(LHS, RHS, true).isNull();
 }
 
+/// \brief pointeeTypesAreAssignable: given a LHS pointer and a RHS pointer,
+///  determine whether the LHS pointee can be assigned to the RHS pointee.
+///
+/// The LHS pointer and the RHS pointer must be the same kind of pointer or
+/// the RHS pointer must be an unchecked pointer.  Casting away checkedness
+/// via pointer assignment is not allowed.  Callers must enforce this.
+///
+/// Usually this is just type compatibility, but there is a special case:
+/// * the LHS pointee is a checked array type and the RHS pointee is an array type,
+///   and the RHS array can be made compatible with the LHS array by "promoting" it
+///   to be checked.
+bool ASTContext::pointeeTypesAreAssignable(QualType lhsptee, QualType rhsptee) {
+  rhsptee = matchArrayCheckedness(lhsptee, rhsptee);
+  return typesAreCompatible(lhsptee, rhsptee);
+}
+
+/// matchArrayCheckedness:  Given a pointer assignment, if the LHS and RHS
+/// pointee types are arrays and the LHS pointee is checked, make the RHS
+/// pointee array checked.  To handle multi-dimensional arrays, also
+/// do this recursively for element types of the pointee arrays.
+///  Examples:
+///     LHS = int checked[10], RHS=int [10].  new RHS = int checked[10].
+///     LHS = int checked[10]checked[10], RHS=int [10][10].  new RHS =
+///           int checked[10]checked[10].
+///     LHS = int[10], RHS = int[10]: rhs does not change
+///     LHS = int checked[10]checked[10], RHS=int checked[10][10].  new RHS =
+///           int checked[10]checked[10].
+///     LHS = checked[10], RHS=int[].   new RHS=int checked[]
+QualType ASTContext::matchArrayCheckedness(QualType LHS, QualType RHS) {
+  LHS = getCanonicalType(LHS);
+  RHS = getCanonicalType(RHS);
+  if (LHS->isArrayType() && RHS->isArrayType()) {
+    const ArrayType *lhsTy = cast<ArrayType>(LHS);
+    const ArrayType *rhsTy = cast<ArrayType>(RHS);
+    if (!lhsTy->isChecked()) {
+      return RHS;
+    }
+    assert((lhsTy->isConstantArrayType() || lhsTy->isIncompleteArrayType()) && 
+           "unexpected checked array type");
+    Type::TypeClass rhsTypeClass = rhsTy->getTypeClass();
+    if (rhsTypeClass == Type::ConstantArray || rhsTypeClass == Type::IncompleteArray) {
+        QualType elemTy = matchArrayCheckedness(lhsTy->getElementType(),
+                                                rhsTy->getElementType());
+      if (rhsTypeClass == Type::ConstantArray) {
+          const ConstantArrayType *rhsca = cast<ConstantArrayType>(rhsTy);
+          QualType result = getConstantArrayType(elemTy, rhsca->getSize(),
+                                                 rhsca->getSizeModifier(), RHS.getCVRQualifiers(),
+                                                 true);
+          return result;
+      }
+      else if (rhsTypeClass == Type::IncompleteArray) {
+          const IncompleteArrayType *rhsic = cast<IncompleteArrayType>(rhsTy);
+          QualType result = getIncompleteArrayType(elemTy, rhsic->getSizeModifier(),
+                                                   RHS.getCVRQualifiers(), true);
+          return result;
+      }
+    }
+ }
+ return RHS;
+}
+
 /// mergeTransparentUnionType - if T is a transparent union type and a member
 /// of T is compatible with SubType, return the merged type, else return
 /// QualType()
@@ -7774,13 +7850,20 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   }
   case Type::ConstantArray:
   {
+    const ArrayType *LHSArrayType = getAsArrayType(LHS);
+    const ArrayType *RHSArrayType = getAsArrayType(RHS);
+    bool isChecked = LHSArrayType->isChecked();
+    if (isChecked != RHSArrayType->isChecked()) {
+      return QualType();
+    }
+
     const ConstantArrayType* LCAT = getAsConstantArrayType(LHS);
     const ConstantArrayType* RCAT = getAsConstantArrayType(RHS);
     if (LCAT && RCAT && RCAT->getSize() != LCAT->getSize())
-      return QualType();
+        return QualType();
 
-    QualType LHSElem = getAsArrayType(LHS)->getElementType();
-    QualType RHSElem = getAsArrayType(RHS)->getElementType();
+    QualType LHSElem = LHSArrayType->getElementType();
+    QualType RHSElem = RHSArrayType->getElementType();
     if (Unqualified) {
       LHSElem = LHSElem.getUnqualifiedType();
       RHSElem = RHSElem.getUnqualifiedType();
@@ -7793,9 +7876,11 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     if (RCAT && getCanonicalType(RHSElem) == getCanonicalType(ResultType))
       return RHS;
     if (LCAT) return getConstantArrayType(ResultType, LCAT->getSize(),
-                                          ArrayType::ArraySizeModifier(), 0);
+                                          ArrayType::ArraySizeModifier(), 0,
+                                          isChecked);
     if (RCAT) return getConstantArrayType(ResultType, RCAT->getSize(),
-                                          ArrayType::ArraySizeModifier(), 0);
+                                          ArrayType::ArraySizeModifier(), 0,
+                                          isChecked);
     const VariableArrayType* LVAT = getAsVariableArrayType(LHS);
     const VariableArrayType* RVAT = getAsVariableArrayType(RHS);
     if (LVAT && getCanonicalType(LHSElem) == getCanonicalType(ResultType))
@@ -7817,7 +7902,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     if (getCanonicalType(LHSElem) == getCanonicalType(ResultType)) return LHS;
     if (getCanonicalType(RHSElem) == getCanonicalType(ResultType)) return RHS;
     return getIncompleteArrayType(ResultType,
-                                  ArrayType::ArraySizeModifier(), 0);
+                                  ArrayType::ArraySizeModifier(), 0,
+                                  isChecked);
   }
   case Type::FunctionNoProto:
     return mergeFunctionTypes(LHS, RHS, OfBlockPointer, Unqualified);

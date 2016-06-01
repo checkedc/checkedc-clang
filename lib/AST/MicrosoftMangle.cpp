@@ -1484,7 +1484,8 @@ void MicrosoftCXXNameMangler::mangleArgumentType(QualType T,
     if (const auto *AT = getASTContext().getAsArrayType(OriginalType))
       OriginalType = getASTContext().getIncompleteArrayType(
           AT->getElementType(), AT->getSizeModifier(),
-          AT->getIndexTypeCVRQualifiers());
+          AT->getIndexTypeCVRQualifiers(),
+          AT->isChecked());
 
     TypePtr = OriginalType.getCanonicalType().getAsOpaquePtr();
     // If the original parameter was textually written as an array,

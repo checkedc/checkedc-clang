@@ -109,6 +109,9 @@ namespace {
     void print##CLASS##Before(const CLASS##Type *T, raw_ostream &OS); \
     void print##CLASS##After(const CLASS##Type *T, raw_ostream &OS);
 #include "clang/AST/TypeNodes.def"
+  private:
+    void printArrayAfter(const ArrayType *ty, Qualifiers qs, raw_ostream &OS,
+                         bool isInnerDimension);
   };
 }
 
@@ -452,19 +455,60 @@ void TypePrinter::printConstantArrayBefore(const ConstantArrayType *T,
   SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getElementType(), OS);
 }
-void TypePrinter::printConstantArrayAfter(const ConstantArrayType *T, 
-                                          raw_ostream &OS) {
-  OS << '[';
-  if (T->getIndexTypeQualifiers().hasQualifiers()) {
-    AppendTypeQualList(OS, T->getIndexTypeCVRQualifiers(), Policy.LangOpts.C99);
-    OS << ' ';
+
+// For multi-dimensional checked arrays, print the checked keyword once before
+// the outermost dimension.
+//
+// To avoid passing state to all print functions, create a specialized array
+// printer that recursively calls itself with the state.
+void TypePrinter::printArrayAfter(const ArrayType *T, Qualifiers Quals, raw_ostream &OS,
+                                  bool checkedOuterDimension) {
+  if (T->isChecked() && !checkedOuterDimension)
+    OS << "checked";
+  else if (checkedOuterDimension && !T->isChecked()) {
+    // This case is never supposed to happen, but print an accurate type name if it does.
+    OS << "unchecked";
   }
 
-  if (T->getSizeModifier() == ArrayType::Static)
-    OS << "static ";
+  switch (T->getTypeClass()) {
+    case Type::IncompleteArray:
+      OS << "[]";
+      break;
+    case Type::ConstantArray: {
+      const ConstantArrayType *ct = cast<ConstantArrayType>(T);
+      assert(ct);
+      OS << '[';
+      if (ct->getIndexTypeQualifiers().hasQualifiers()) {
+        AppendTypeQualList(OS, ct->getIndexTypeCVRQualifiers(), Policy.LangOpts.C99);
+        OS << ' ';
+      }
 
-  OS << T->getSize().getZExtValue() << ']';
-  printAfter(T->getElementType(), OS);
+      if (ct->getSizeModifier() == ArrayType::Static)
+        OS << "static ";
+
+      OS << ct->getSize().getZExtValue() << ']';
+      break;
+    }
+    case Type::DependentSizedArray:
+    case Type::VariableArray:
+    default:
+      assert(!T->isChecked() && "unexpected checked array type");
+      printAfter(T, Quals, OS);
+      return;
+  }
+
+  const QualType qualElemType = T->getElementType();
+  SplitQualType split = qualElemType.split();
+  if (isa<ArrayType>(split.Ty)) {
+    const ArrayType *arrayElemType = cast<ArrayType>(split.Ty);
+    printArrayAfter(arrayElemType, split.Quals, OS, T->isChecked());
+  }
+  else printAfter(split.Ty, split.Quals, OS);
+}
+
+void TypePrinter::printConstantArrayAfter(const ConstantArrayType *T,
+                                          raw_ostream &OS) {
+  printArrayAfter(T, Qualifiers(), OS, false);
 }
 
 void TypePrinter::printIncompleteArrayBefore(const IncompleteArrayType *T, 
@@ -475,8 +519,7 @@ void TypePrinter::printIncompleteArrayBefore(const IncompleteArrayType *T,
 }
 void TypePrinter::printIncompleteArrayAfter(const IncompleteArrayType *T, 
                                             raw_ostream &OS) {
-  OS << "[]";
-  printAfter(T->getElementType(), OS);
+  printArrayAfter(T, Qualifiers(), OS, false);
 }
 
 void TypePrinter::printVariableArrayBefore(const VariableArrayType *T, 

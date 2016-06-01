@@ -1143,13 +1143,15 @@ public:
   /// the specified element type.
   QualType getIncompleteArrayType(QualType EltTy,
                                   ArrayType::ArraySizeModifier ASM,
-                                  unsigned IndexTypeQuals) const;
+                                  unsigned IndexTypeQuals,
+                                  bool isChecked) const;
 
   /// \brief Return the unique reference to the type for a constant array of
   /// the specified element type.
   QualType getConstantArrayType(QualType EltTy, const llvm::APInt &ArySize,
                                 ArrayType::ArraySizeModifier ASM,
-                                unsigned IndexTypeQuals) const;
+                                unsigned IndexTypeQuals,
+                                bool isChecked = false) const;
   
   /// \brief Returns a vla type where known sizes are replaced with [*].
   QualType getVariableArrayDecayedType(QualType Ty) const;
@@ -2246,6 +2248,19 @@ public:
   QualType areCommonBaseCompatible(const ObjCObjectPointerType *LHSOPT,
                                    const ObjCObjectPointerType *RHSOPT);
   bool canBindObjCObjectType(QualType To, QualType From);
+
+  // Functions to support checking assignments in the presence of
+  // checked pointers.
+
+  /// \brief pointeeTypesAreAssignable: given a LHS pointer and a RHS pointer,
+  /// determine whether the LHS pointee can be assigned to the RHS pointee.
+  /// The pointer types must be the same kind or the RHS pointer type must
+  /// be unchecked.
+  bool pointeeTypesAreAssignable(QualType lhsptee, QualType rhsptee);
+private:
+  QualType matchArrayCheckedness(QualType LHS, QualType RHS);
+
+public:
 
   // Functions for calculating composite types
   QualType mergeTypes(QualType, QualType, bool OfBlockPointer=false,

@@ -6832,7 +6832,8 @@ InitializationSequence::Perform(Sema &S,
             *ResultType = S.Context.getConstantArrayType(
                                              IncompleteDest->getElementType(),
                                              ConstantSource->getSize(),
-                                             ArrayType::Normal, 0);
+                                             ArrayType::Normal, 0,
+                                             IncompleteDest->isChecked());
           }
         }
       }

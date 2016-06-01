@@ -2048,7 +2048,8 @@ static bool isArraySizeVLA(Sema &S, Expr *ArraySize, llvm::APSInt &SizeVal) {
 /// returns a NULL type.
 QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
                               Expr *ArraySize, unsigned Quals,
-                              SourceRange Brackets, DeclarationName Entity) {
+                              bool IsChecked, SourceRange Brackets,
+                              DeclarationName Entity) {
 
   SourceLocation Loc = Brackets.getBegin();
   if (getLangOpts().CPlusPlus) {
@@ -2140,7 +2141,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     if (ASM == ArrayType::Star)
       T = Context.getVariableArrayType(T, nullptr, ASM, Quals, Brackets);
     else
-      T = Context.getIncompleteArrayType(T, ASM, Quals);
+      T = Context.getIncompleteArrayType(T, ASM, Quals, IsChecked);
   } else if (ArraySize->isTypeDependent() || ArraySize->isValueDependent()) {
     T = Context.getDependentSizedArrayType(T, ArraySize, ASM, Quals, Brackets);
   } else if ((!T->isDependentType() && !T->isIncompleteType() &&
@@ -2198,7 +2199,8 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
       }
     }
 
-    T = Context.getConstantArrayType(T, ConstVal, ASM, Quals);
+    T = Context.getConstantArrayType(T, ConstVal, ASM, Quals,
+                                     IsChecked);
   }
 
   // OpenCL v1.2 s6.9.d: variable length arrays are not supported.
@@ -2206,6 +2208,21 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     Diag(Loc, diag::err_opencl_vla);
     return QualType();
   }
+
+  if (getLangOpts().CheckedC && IsChecked) {
+    // checked extensions are not supported for variable length arrays.
+    if (T->isVariableArrayType()) {
+      Diag(Loc, diag::err_checked_vla);
+      return QualType();
+    }
+
+    // checked extensions are not supported for C++ templates.
+    if (T->isDependentSizedArrayType()) {
+      Diag(Loc, diag::err_checked_cplusplus);
+      return QualType();
+    }
+  }
+
   // If this is not C99, extwarn about VLA's and C99 array size modifiers.
   if (!getLangOpts().C99) {
     if (T->isVariableArrayType()) {
@@ -3445,6 +3462,45 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
     << static_cast<unsigned>(pointerKind);
 }
 
+// Propagate checked property to directly-nested array types.  Propagation
+// stops at type defs, non-array types, and array types that cannot be checked.
+static QualType makeNestedArrayChecked(ASTContext &Context, QualType T) {
+  if (isa<ArrayType>(T)) {
+    SplitQualType split = T.split();
+    const Type *ty = split.Ty;
+    const ArrayType *arrTy = cast<ArrayType>(ty);
+    QualType elemTy = makeNestedArrayChecked(Context, arrTy->getElementType());
+    switch (ty->getTypeClass()) {
+      case Type::ConstantArray: {
+        const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
+        return Context.getConstantArrayType(elemTy,
+                                            constArrTy->getSize(),
+                                            constArrTy->getSizeModifier(),
+                                            T.getCVRQualifiers(),
+                                            true);
+      }
+      case Type::IncompleteArray: {
+        const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
+        return Context.getIncompleteArrayType(elemTy,
+                                              incArrTy->getSizeModifier(),
+                                              T.getCVRQualifiers(),
+                                              true);
+      }
+      case Type::DependentSizedArray:
+      case Type::VariableArray: 
+        // checked versions of these arrays cannot be created. An error message
+        // is produced by BuildArrayType for the outer error type because these
+        // result in the outer array type being dependently-typed or
+        // variably-sized.
+        break;
+      default:
+         assert("unexpected array type");
+         break;
+    }
+  }
+  return T;
+}
+
 static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                                                 QualType declSpecType,
                                                 TypeSourceInfo *TInfo) {
@@ -3907,7 +3963,10 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         break;
       }
 
-      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals,
+      if (ATI.isChecked) {
+        T = makeNestedArrayChecked(Context, T);
+      }
+      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals, ATI.isChecked,
                            SourceRange(DeclType.Loc, DeclType.EndLoc), Name);
       break;
     }

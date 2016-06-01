@@ -432,7 +432,9 @@ static bool IsArrayStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return false;
   if (Array1->getIndexTypeQualifiers() != Array2->getIndexTypeQualifiers())
     return false;
-  
+  if (Array1->isChecked() != Array2->isChecked())
+    return false;
+
   return true;
 }
 
@@ -1616,7 +1618,8 @@ QualType ASTNodeImporter::VisitConstantArrayType(const ConstantArrayType *T) {
   return Importer.getToContext().getConstantArrayType(ToElementType, 
                                                       T->getSize(),
                                                       T->getSizeModifier(),
-                                               T->getIndexTypeCVRQualifiers());
+                                               T->getIndexTypeCVRQualifiers(),
+                                                      T->isChecked());
 }
 
 QualType
@@ -1627,7 +1630,8 @@ ASTNodeImporter::VisitIncompleteArrayType(const IncompleteArrayType *T) {
   
   return Importer.getToContext().getIncompleteArrayType(ToElementType, 
                                                         T->getSizeModifier(),
-                                                T->getIndexTypeCVRQualifiers());
+                                                T->getIndexTypeCVRQualifiers(),
+                                                      T->isChecked());
 }
 
 QualType ASTNodeImporter::VisitVariableArrayType(const VariableArrayType *T) {
