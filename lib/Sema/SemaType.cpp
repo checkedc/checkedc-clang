@@ -3462,40 +3462,43 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
     << static_cast<unsigned>(pointerKind);
 }
 
-// Propagate checked property to directly-nested array types.  Propagation
-// stops at type defs, non-array types, and array types that cannot be checked.
-static QualType makeNestedArrayChecked(ASTContext &Context, QualType T) {
+// Propagate checked property to directly-nested array types.  Propgation is limited
+// to count array types.  Propagation stops at type defs, non-array types,
+// and array types that cannot be checked.
+static QualType makeNestedArrayChecked(ASTContext &Context, QualType T, int count) {
   if (isa<ArrayType>(T)) {
-    SplitQualType split = T.split();
-    const Type *ty = split.Ty;
-    const ArrayType *arrTy = cast<ArrayType>(ty);
-    QualType elemTy = makeNestedArrayChecked(Context, arrTy->getElementType());
-    switch (ty->getTypeClass()) {
-      case Type::ConstantArray: {
-        const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
-        return Context.getConstantArrayType(elemTy,
-                                            constArrTy->getSize(),
-                                            constArrTy->getSizeModifier(),
-                                            T.getCVRQualifiers(),
-                                            true);
-      }
-      case Type::IncompleteArray: {
-        const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
-        return Context.getIncompleteArrayType(elemTy,
-                                              incArrTy->getSizeModifier(),
+    if (count > 0) {
+      SplitQualType split = T.split();
+      const Type *ty = split.Ty;
+      const ArrayType *arrTy = cast<ArrayType>(ty);
+      QualType elemTy = makeNestedArrayChecked(Context, arrTy->getElementType(), count--);
+      switch (ty->getTypeClass()) {
+        case Type::ConstantArray: {
+          const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
+          return Context.getConstantArrayType(elemTy,
+                                              constArrTy->getSize(),
+                                              constArrTy->getSizeModifier(),
                                               T.getCVRQualifiers(),
                                               true);
+        }
+        case Type::IncompleteArray: {
+          const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
+          return Context.getIncompleteArrayType(elemTy,
+                                                incArrTy->getSizeModifier(),
+                                                T.getCVRQualifiers(),
+                                                true);
+        }
+        case Type::DependentSizedArray:
+        case Type::VariableArray: 
+          // checked versions of these arrays cannot be created. An error message
+          // is produced by BuildArrayType for the outer error type because these
+          // result in the outer array type being dependently-typed or
+          // variably-sized.
+          break;
+        default:
+           assert("unexpected array type");
+           break;
       }
-      case Type::DependentSizedArray:
-      case Type::VariableArray: 
-        // checked versions of these arrays cannot be created. An error message
-        // is produced by BuildArrayType for the outer error type because these
-        // result in the outer array type being dependently-typed or
-        // variably-sized.
-        break;
-      default:
-         assert("unexpected array type");
-         break;
     }
   }
   return T;
@@ -3963,10 +3966,38 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         break;
       }
 
-      if (ATI.isChecked) {
-        T = makeNestedArrayChecked(Context, T);
+      bool isChecked;
+      switch (ATI.CheckedKind) {
+        case DeclSpec::CK_Checked: {
+          // count the number of directly-enclosing array type declarators,
+          // up to the first one that is declared as unchecked.
+          unsigned x = chunkIndex + 1;
+          int count = 0;
+          for ( ; x < e; x++) {
+            const DeclaratorChunk &DC = D.getTypeObject(x);
+            if (DC.Kind == DeclaratorChunk::Paren){
+              continue;
+            }
+            else if (DC.Kind == DeclaratorChunk::Array) {
+              const DeclaratorChunk::ArrayTypeInfo &NestedInfo = DC.Arr;
+              if (NestedInfo.CheckedKind != DeclSpec::CK_Unchecked) {
+                   count++;
+                   continue;
+              }
+            }
+            break; // exit for loop
+          }
+          T = makeNestedArrayChecked(Context, T, count);
+          isChecked = true;
+          break;
+        }
+        case DeclSpec::CK_None:
+        case DeclSpec::CK_Unchecked:
+          isChecked = false;
+        default: 
+          assert("unexpected CheckedKind");
       }
-      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals, ATI.isChecked,
+      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals, isChecked,
                            SourceRange(DeclType.Loc, DeclType.EndLoc), Name);
       break;
     }
