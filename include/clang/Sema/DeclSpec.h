@@ -329,9 +329,13 @@ public:
 
   /// \brief checked kind (for array declarators)
   enum CheckedKind {
-    CK_None = 0,       // nothing declared
-    CK_Checked = 1,   
-    CK_Unchecked = 2  
+    CK_None = 0,       // Nothing declared by the programmer.  The checked
+                       // property of the array declarator depends on context.
+                       // If there is a parent declarator and it is a checked
+                       // array, this array type is checked.  Otherwise, this
+                       // array type is unchecked.
+    CK_Checked = 1,    // Checked keyword precedes the left bracket
+    CK_Unchecked = 2   // Unchecked keyword precedes the left bracket.
   };
 
 private:

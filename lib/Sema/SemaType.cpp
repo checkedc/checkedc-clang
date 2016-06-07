@@ -3462,16 +3462,20 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
     << static_cast<unsigned>(pointerKind);
 }
 
-// Propagate checked property to directly-nested array types.  Propgation is limited
-// to count array types.  Propagation stops at type defs, non-array types,
-// and array types that cannot be checked.
-static QualType makeNestedArrayChecked(ASTContext &Context, QualType T, int count) {
+// Propagate checked property to directly-nested array types.  Propagation is
+// limited to the first n nested array types, where n is specified by the count
+// argument below.  Propagation stops at type defs, non-array types, and
+// array types that cannot be checked.
+static QualType makeNestedArrayChecked(ASTContext &Context, QualType T,
+                                       int count) {
   if (isa<ArrayType>(T)) {
     if (count > 0) {
       SplitQualType split = T.split();
       const Type *ty = split.Ty;
       const ArrayType *arrTy = cast<ArrayType>(ty);
-      QualType elemTy = makeNestedArrayChecked(Context, arrTy->getElementType(), count--);
+      QualType elemTy = makeNestedArrayChecked(Context,
+                                               arrTy->getElementType(),
+                                               count - 1);
       switch (ty->getTypeClass()) {
         case Type::ConstantArray: {
           const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
@@ -3490,10 +3494,10 @@ static QualType makeNestedArrayChecked(ASTContext &Context, QualType T, int coun
         }
         case Type::DependentSizedArray:
         case Type::VariableArray: 
-          // checked versions of these arrays cannot be created. An error message
-          // is produced by BuildArrayType for the outer error type because these
-          // result in the outer array type being dependently-typed or
-          // variably-sized.
+          // checked versions of these arrays cannot be created. An error
+          // message is produced by BuildArrayType for the outer error type
+          // because these result in the outer array type being
+          // dependently-typed or variably-sized.
           break;
         default:
            assert("unexpected array type");

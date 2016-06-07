@@ -16,8 +16,10 @@ the rules described in the Checked C specification.  Runtime checks for
 bounds will be inserted during conversion to LLVM IR.
 
 There is no design for extending C++ with checking. Because there
-is no design, C++ specific code in LLVM/clang is not being 
-extended to handle checked extensions at this time.
+is no design, C++ specific code in LLVM/clang is not being extended
+to handle checked extensions at this time. LLVM/clang will only allow
+the Checked C extension to be used with C and will not allow it to
+be used with C++, Objective C, or OpenCL.
 
 ** Processing extensions to the IR
 
