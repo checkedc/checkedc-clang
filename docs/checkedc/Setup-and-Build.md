@@ -69,7 +69,7 @@ git checkout master
 
 ## Setting up a build directory
 
-1. LLVM and clang use cmake, which a meta-build system generator. It generates build systems for a specific platform. 
+1. LLVM and clang use cmake, which is a meta-build system generator. It generates build systems for a specific platform.
 2. Create a build directory that is a sibling of your llvm source tree.  For example, if llvm is in MyDir\llvm, create MyDir\llvm.obj.      
 3. Be sure to exclude the build directory from anti-virus scanning.   On Windows 10, go to Settings->Update & Security->Windows Defender->Add an exclusion.
 4. You may optionally want to create an install directory, which is the place where an installed version of LLVM can be placed. 
@@ -86,6 +86,11 @@ where llvm-path is the path to the root of your LLVM repo.
 
 You can build `clang` the usual way that it is built.   The earlier build system directions will create a Debug build,
 so `clang` will be replaced in your build directory under `Debug\bin`.
+
+Note that the first time that you build clang, it may take over an hour to build.  This is because LLVM is being
+built.   The debug build of LLVM is particularly slow because it bottlenecks on table generation. LLVM generates architecture-specific
+tables at build time that are used during code generation.  The default table generation algorithm is very slow in debug builds.
+Subsequent builds during development will be much faster (minutes, not an hour).
 
 ### On Unix
 
