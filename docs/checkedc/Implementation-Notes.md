@@ -1,9 +1,9 @@
-* Implementation Notes
+# Implementation Notes
 
 This file describes high-level design decisions in the implementation of 
 Checked C in LLVM/clang.
 
-** Implementation plan
+## Implementation plan
 
 Because Checked C is a backwards-compatible extension to C, the plan for
 implementing Checked C in LLVM/clang is straightforward.  The IR for clang
@@ -21,9 +21,9 @@ to handle checked extensions at this time. LLVM/clang will only allow
 the Checked C extension to be used with C and will not allow it to
 be used with C++, Objective C, or OpenCL.
 
-** Processing extensions to the IR
+## Processing extensions to the IR
 
-Processing of Checked C is controlled by a feature flag (-fcheckedc-extension).
+Processing of Checked C is controlled by a feature flag (`-fcheckedc-extension`).
 The feature  flag sets a language extension flag.  Lexing and parsing will 
 recognize Checked C extensions only when the language extension flag  is 
 enabled.  There is typically no need to guard logic in other phases with the
@@ -31,7 +31,7 @@ language extension flag.  Checked C is backwards-compatible with C, so the IR
 has additional information in it that represents either original C concepts or
 the Checked C extensions.  The processing uses this information.
 
-** Lexing and parsing
+## Lexing and parsing
 
 Lexing only recognizes Checked C keywords when the language extension flag is
 enabled.  Parsing of Checked C extensions currently depends on keywords being 
@@ -39,7 +39,7 @@ present.  These will not be seen when the feature flag is disabled. In the
 future, we expect to conditionalize a few places in the parsing phase to 
 recognize new syntax.
 
-** Typechecking
+## Typechecking
 
 Pointer types and array types are extended with information about whether the
 types are checked.  For pointer types, an enum is used to represent the 
