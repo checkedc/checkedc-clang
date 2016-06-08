@@ -31,7 +31,7 @@ We are now working on parsing and typechecking of the new bounds declarations.
 
 ## Compiler development
 
-The compiler is not far enough along for programmers to ``kick the tires'' on Checked C.   We do not have a
+The compiler is not far enough along for programmers to "kick the tires" on Checked C.   We do not have a
 installable version clang available yet.  If you are really interested, you can build your own copy of the compiler:
 
 - [Setup and Build](docs\CheckedC\Setup-and-Build.md) describes the organization of the code,
@@ -41,15 +41,11 @@ how to set up a development machine to build clang, and how to build clang.
 
 ## Contributing
 
-We welcome contributions to the Checked C project!  To get involved in the project, see 
-[Contributing to Checked C](https://github.Microsoft/checkedc/blob/master/CONTRIBUTING.md).   We have
+We welcome contributions to the Checked C project.  To get involved in the project, see
+[Contributing to Checked C](https://github.com/Microsoft/checkedc/blob/master/CONTRIBUTING.md).   We have
 a wish list of possible projects there.   
 
 For code contributions, we follow the standard
 [Github workflow](https://guides.github.com/introduction/flow/).  See 
-[Contributing to Checked C](https://github.Microsoft/checkedc/blob/master/CONTRIBUTING.md) for more detail.  
+[Contributing to Checked C](https://github.com/Microsoft/checkedc/blob/master/CONTRIBUTING.md) for more detail.
 You will need to sign a contributor license agreement before contributing code.
-
-
-
-
