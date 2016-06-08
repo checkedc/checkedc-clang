@@ -34,9 +34,9 @@ We are now working on parsing and typechecking of the new bounds declarations.
 The compiler is not far enough along for programmers to "kick the tires" on Checked C.   We do not have a
 installable version clang available yet.  If you are really interested, you can build your own copy of the compiler:
 
-- [Setup and Build](docs/CheckedC/Setup-and-Build.md) describes the organization of the code,
+- [Setup and Build](docs/checkedc/Setup-and-Build.md) describes the organization of the code,
 how to set up a development machine to build clang, and how to build clang.
-- The [Implementation Notes](docs/CheckedC/Implementation-Notes.md) describe the implementation of Checked C
+- The [Implementation Notes](docs/checkedc/Implementation-Notes.md) describe the implementation of Checked C
    in LLVM\clang.
 
 ## Contributing
