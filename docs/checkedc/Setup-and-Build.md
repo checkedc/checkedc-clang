@@ -32,7 +32,7 @@ LLVM uses subversion for distributed source code control.   It is mirrored by Gi
 The code for the Checked C version of LLVM/clang lives in two repositories: the [Checked C clang repo](https://github.com/Microsoft/checked-clang)
 and the [Checked C LLVM repo](https://github.com/Microsoft/checkedc-llvm).  Each repo is licensed 
 under the [University of Illinois/NCSA license](https://opensource.org/licenses/NCSA).
-See the file LICENSE.txt in either of the repos for complete details of licensing.  
+See the file LICENSE.TXT in either of the repos for complete details of licensing.  
 
 The tests live in the [Checked C repo](https://github.com/Microsoft/checkedc).These are
 language conformance tests, so they are placed with the specification, not with the compiler.

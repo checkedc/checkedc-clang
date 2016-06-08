@@ -13,7 +13,7 @@ under the [University of Illinois/NCSA license](https://opensource.org/licenses/
 The tests for Checked C live in the [Checked C repo](https://github.com/Microsoft/checkedc).  These are
 language conformance tests, so they are placed with the specification, not the compiler.
 The test code is licensed under the [MIT license](https://opensource.org/licenses/MIT).
-See the file LICENSE.txt in each repo for complete details of licensing.  
+See the file LICENSE.TXT in each repo for complete details of licensing.  
 
 ## Status
 
