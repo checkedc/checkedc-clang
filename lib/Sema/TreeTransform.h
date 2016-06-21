@@ -2288,10 +2288,24 @@ public:
                                                 ControllingExpr, Types, Exprs);
   }
 
-  ExprResult RebuildBoundsExpr(SourceLocation StartLoc,
-                               BoundsExpr::BoundsKind kind,
-                               Expr *LHS, Expr *RHS,
-                               SourceLocation RParenLoc) {
+  ExprResult RebuildCountBoundsExpr(SourceLocation StartLoc,
+                                    CountBoundsExpr::Kind Kind,
+                                    Expr * CountExpr,
+                                    SourceLocation RParenLoc) {
+    // TODO: fill in body
+    return ExprResult();
+  }
+
+  ExprResult RebuildNullaryBoundsExpr(SourceLocation StartLoc,
+                                      NullaryBoundsExpr::Kind Kind,
+                                      SourceLocation RParenLoc) {
+    // TODO: fill in body
+    return ExprResult();
+  }
+
+  ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc,
+                                    Expr *Lower, Expr *Upper,
+                                    SourceLocation RParenLoc) {
     // TODO: fill in body
     return ExprResult();
   }
@@ -11287,7 +11301,21 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
 
 template<typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformBoundsExpr(BoundsExpr *E) {
+TreeTransform<Derived>::TransformCountBoundsExpr(CountBoundsExpr *E) {
+  // TODO: fill in body
+  return ExprResult();
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformNullaryBoundsExpr(NullaryBoundsExpr *E) {
+  // TODO: fill in body
+  return ExprResult();
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
   // TODO: fill in body
   return ExprResult();
 }

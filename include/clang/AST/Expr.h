@@ -4516,41 +4516,17 @@ public:
 
 /// \brief Represents a Checked C bounds expression.
 class BoundsExpr : public Expr {
-public:
-  enum BoundsKind {
-    Any = 1,
-    None = 2,
-    Count = 3,
-    Byte_Count = 4,
-    Pair = 5,
-  };
-
 private:
-  enum { LHS, RHS, END_EXPR };
-  Stmt* SubExprs[END_EXPR];
-  BoundsKind Kind;
   SourceLocation StartLoc, RParenLoc;
 
 public:
-  BoundsExpr(BoundsKind kind, Expr *lhs, Expr *rhs, SourceLocation startloc, 
-             SourceLocation rparenloc) 
-    : Expr(BoundsExprClass, QualType(),  VK_RValue, OK_Ordinary, false,
-           false, false, false), Kind(kind), StartLoc(startloc), 
-           RParenLoc(rparenloc) {
-    SubExprs[LHS] = lhs;
-    SubExprs[RHS] = rhs;
+  BoundsExpr(StmtClass stmtclass, SourceLocation startloc, SourceLocation rparenloc)
+    : Expr(stmtclass, QualType(),  VK_RValue, OK_Ordinary, false,
+           false, false, false), StartLoc(startloc), RParenLoc(rparenloc) {
   }
 
-  explicit BoundsExpr(EmptyShell Empty) : Expr(BoundsExprClass, Empty), 
-    Kind(BoundsKind::None) {}
-
-  BoundsKind getKind() const { return Kind; }
-  void setKind(BoundsKind kind) { Kind = kind; }
-
-  Expr *getLHS() const { return cast<Expr>(SubExprs[LHS]); }
-  void setLHS(Expr *e) { SubExprs[LHS] = e; }
-  Expr *getRHS() const { return cast<Expr>(SubExprs[RHS]); }
-  void setRHS(Expr *e) { SubExprs[RHS] = e; }
+  explicit BoundsExpr(StmtClass stmtclass, EmptyShell Empty) :
+    Expr(stmtclass, Empty) {}
 
   SourceLocation getStartLoc() { return StartLoc; }
   void setStartLoc(SourceLocation loc) { StartLoc = loc; }
@@ -4559,25 +4535,94 @@ public:
 
   SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
   SourceLocation getLocEnd() const LLVM_READONLY { return RParenLoc; }
+};
 
-  /* should we have internal consistency checks?
-  bool internalConsistencyCheck() {
-    assert((kind == BoundsKind::Count || kind == BoundsKind::Byte_Count) ?
-      (lhs && !rhs) : true);
-    assert((kind == BoundsKind::Any || kind == BoundsKind::None) ?
-      (!lhs && !rhs) : true);
-    assert(kind == Pair ? (lhs && rhs) : true);
+/// \brief Represents a Checked C nullary bounds expression.
+class NullaryBoundsExpr : public BoundsExpr {
+public:
+  enum Kind {
+    Any = 0,
+    None = 1,
+  };
+
+public:
+  NullaryBoundsExpr(Kind kind, SourceLocation startloc, SourceLocation rparenloc)
+    : BoundsExpr(NullaryBoundsExprClass, startloc, rparenloc)  {
+    NullaryBoundsExprBits.Kind = kind;
   }
-  */
+
+  explicit NullaryBoundsExpr(EmptyShell Empty) :
+    BoundsExpr(NullaryBoundsExprClass, Empty) {}
+
+  Kind getKind() const { return (Kind) NullaryBoundsExprBits.Kind; }
+  void setKind(Kind kind) { NullaryBoundsExprBits.Kind = kind; }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+};
+
+/// \brief Represents a Checked C count bounds expression.
+class CountBoundsExpr : public BoundsExpr {
+public:
+  enum Kind {
+    Count = 0,
+    Byte_Count = 1,
+  };
+private:
+  Stmt* CountExpr;
+
+public:
+  CountBoundsExpr(Kind kind, Expr* countexpr, SourceLocation startloc,
+    SourceLocation rparenloc)
+    : BoundsExpr(CountBoundsExprClass, startloc, rparenloc),
+      CountExpr(countexpr) {
+    CountBoundsExprBits.Kind = kind;
+  }
+
+  explicit CountBoundsExpr(EmptyShell Empty) :
+    BoundsExpr(CountBoundsExprClass, Empty) {}
+
+  Kind getKind() const { return (Kind)CountBoundsExprBits.Kind; }
+  void setKind(Kind kind) { CountBoundsExprBits.Kind = kind; }
+
+  Expr *getCount() const { return cast<Expr>(CountExpr); }
+  void setCount(Expr *e) { CountExpr = e; }
+
+  // Iterators
+  child_range children() {
+    return child_range(&CountExpr, &CountExpr + 1);
+  }
+};
+
+/// \brief Represents a Checked C range bounds expression.
+class RangeBoundsExpr : public BoundsExpr {
+private:
+  enum { LOWER, UPPER, END_EXPR };
+  Stmt* SubExprs[END_EXPR];
+
+public:
+  RangeBoundsExpr(Expr *lower, Expr *upper, SourceLocation startloc,
+    SourceLocation rparenloc)
+    : BoundsExpr(RangeBoundsExprClass, startloc, rparenloc) {
+    SubExprs[LOWER] = lower;
+    SubExprs[UPPER] = upper;
+  }
+
+  explicit RangeBoundsExpr(EmptyShell Empty) :
+    BoundsExpr(RangeBoundsExprClass, Empty) {}
+
+  Expr *getLower() const { return cast<Expr>(SubExprs[LOWER]); }
+  void setLower(Expr *e) { SubExprs[LOWER] = e; }
+  Expr *getUpper() const { return cast<Expr>(SubExprs[UPPER]); }
+  void setUpper(Expr *e) { SubExprs[UPPER] = e; }
 
   // Iterators
   child_range children() {
     return child_range(&SubExprs[0], &SubExprs[0] + END_EXPR);
   }
-
 };
-
-
 
 //===----------------------------------------------------------------------===//
 // Clang Extensions

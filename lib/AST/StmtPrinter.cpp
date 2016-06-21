@@ -1737,36 +1737,42 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
 
 // Checked C extension
 
-void StmtPrinter::VisitBoundsExpr(BoundsExpr *Node) {
-  BoundsExpr::BoundsKind kind = Node->getKind();
-  switch (kind) {
-    case BoundsExpr::Any: {
-      OS << "bounds(any)";
-      break;
-    }
-    case BoundsExpr::None: {
-      OS << "bounds(none)";
-      break;
-    }
-    case BoundsExpr::Count: 
-    case BoundsExpr::Byte_Count: {
-      OS << (kind == BoundsExpr::Count ? "count(" : "byte_count(");
-      PrintExpr(Node->getLHS());
-      OS << ")";
-      break;
-    }
-    case BoundsExpr::Pair: {
-      OS << "bounds(";
-      PrintExpr(Node->getLHS());
-      OS << ",";
-      PrintExpr(Node->getRHS());
-      OS << ")";
-      break;
-    }
+void StmtPrinter::VisitCountBoundsExpr(CountBoundsExpr *Node) {
+  switch (Node->getKind()) {
+    case CountBoundsExpr::Kind::Count:
+      OS << "count(";
+    case CountBoundsExpr::Kind::Byte_Count:
+      OS << "byte_count(";
     default:
-      llvm_unreachable("bounds kind not covered by switch");
-      break;       
+      llvm_unreachable("count bounds kind not covered by switch");
+      break;
   }
+  PrintExpr(Node->getCount());
+  OS << ")";
+}
+
+void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
+  switch (Node->getKind()) {
+  case NullaryBoundsExpr::Any: {
+    OS << "bounds(any)";
+    break;
+  }
+  case NullaryBoundsExpr::None: {
+    OS << "bounds(none)";
+    break;
+  }
+  default:
+    llvm_unreachable("count bounds kind not covered by switch");
+    break;
+  }
+}
+
+void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
+  OS << "bounds(";
+  PrintExpr(Node->getLower());
+  OS << ",";
+  PrintExpr(Node->getUpper());
+  OS << ")";
 }
 
 // C++

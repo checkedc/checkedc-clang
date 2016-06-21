@@ -921,9 +921,18 @@ void StmtProfiler::VisitPseudoObjectExpr(const PseudoObjectExpr *S) {
       Visit(OVE->getSourceExpr());
 }
 
-void StmtProfiler::VisitBoundsExpr(const BoundsExpr *S) {
+void StmtProfiler::VisitCountBoundsExpr(const CountBoundsExpr *S) {
   VisitExpr(S);
   ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitNullaryBoundsExpr(const NullaryBoundsExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
+  VisitExpr(S);
 }
 
 

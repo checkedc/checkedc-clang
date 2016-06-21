@@ -909,14 +909,30 @@ void ASTStmtWriter::VisitAtomicExpr(AtomicExpr *E) {
   Code = serialization::EXPR_ATOMIC;
 }
 
-void ASTStmtWriter::VisitBoundsExpr(BoundsExpr *E) {
+void ASTStmtWriter::VisitCountBoundsExpr(CountBoundsExpr *E) {
   VisitExpr(E);
   Record.push_back(E->getKind());
-  VisitExpr(E->getLHS());
-  VisitExpr(E->getRHS());
+  VisitExpr(E->getCount());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getRParenLoc());
-  Code = serialization::EXPR_BOUNDS_EXPR;
+  Code = serialization::EXPR_COUNT_BOUNDS_EXPR;
+}
+
+void ASTStmtWriter::VisitNullaryBoundsExpr(NullaryBoundsExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getKind());
+  Record.AddSourceLocation(E->getStartLoc());
+  Record.AddSourceLocation(E->getRParenLoc());
+  Code = serialization::EXPR_NULLARY_BOUNDS_EXPR;
+}
+
+void ASTStmtWriter::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
+  VisitExpr(E);
+  VisitExpr(E->getLower());
+  VisitExpr(E->getUpper());
+  Record.AddSourceLocation(E->getStartLoc());
+  Record.AddSourceLocation(E->getRParenLoc());
+  Code = serialization::EXPR_RANGE_BOUNDS_EXPR;
 }
 
 //===----------------------------------------------------------------------===//

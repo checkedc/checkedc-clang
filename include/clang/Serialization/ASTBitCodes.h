@@ -1422,7 +1422,9 @@ namespace clang {
       EXPR_CUDA_KERNEL_CALL,       // CUDAKernelCallExpr      
 
       // Checked C
-      EXPR_BOUNDS_EXPR,           // BoundsExpr
+      EXPR_COUNT_BOUNDS_EXPR,      // CountBoundsExpr
+      EXPR_NULLARY_BOUNDS_EXPR,    // NullaryBoundsExpr
+      EXPR_RANGE_BOUNDS_EXPR,      // RangeBoundsExpr
 
       // OpenCL
       EXPR_ASTYPE,                 // AsTypeExpr

@@ -953,11 +953,25 @@ void ASTStmtReader::VisitAtomicExpr(AtomicExpr *E) {
   E->RParenLoc = ReadSourceLocation(Record, Idx);
 }
 
-void ASTStmtReader::VisitBoundsExpr(BoundsExpr *E) {
+void ASTStmtReader::VisitCountBoundsExpr(CountBoundsExpr *E) {
   VisitExpr(E);
-  E->setKind((BoundsExpr::BoundsKind)Record[Idx++]);
-  E->setLHS(Reader.ReadSubExpr());
-  E->setRHS(Reader.ReadSubExpr());
+  E->setKind((CountBoundsExpr::Kind)Record[Idx++]);
+  E->setCount(Reader.ReadSubExpr());
+  E->setStartLoc(ReadSourceLocation(Record, Idx));
+  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+}
+
+void ASTStmtReader::VisitNullaryBoundsExpr(NullaryBoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((NullaryBoundsExpr::Kind)Record[Idx++]);
+  E->setStartLoc(ReadSourceLocation(Record, Idx));
+  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+}
+
+void ASTStmtReader::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
+  VisitExpr(E);
+  E->setLower(Reader.ReadSubExpr());
+  E->setUpper(Reader.ReadSubExpr());
   E->setStartLoc(ReadSourceLocation(Record, Idx));
   E->setRParenLoc(ReadSourceLocation(Record, Idx));
 }
@@ -3442,8 +3456,16 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) AtomicExpr(Empty);
       break;
 
-    case EXPR_BOUNDS_EXPR:
-      S = new (Context) BoundsExpr(Empty);
+    case EXPR_COUNT_BOUNDS_EXPR:
+      S = new (Context) CountBoundsExpr(Empty);
+      break;
+
+    case EXPR_NULLARY_BOUNDS_EXPR:
+      S = new (Context) NullaryBoundsExpr(Empty);
+      break;
+
+    case EXPR_RANGE_BOUNDS_EXPR:
+      S = new (Context) RangeBoundsExpr(Empty);
       break;
         
     case EXPR_LAMBDA: {
