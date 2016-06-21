@@ -1421,6 +1421,9 @@ namespace clang {
       // CUDA
       EXPR_CUDA_KERNEL_CALL,       // CUDAKernelCallExpr      
 
+      // Checked C
+      EXPR_BOUNDS_EXPR,           // BoundsExpr
+
       // OpenCL
       EXPR_ASTYPE,                 // AsTypeExpr
 

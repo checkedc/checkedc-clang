@@ -921,6 +921,12 @@ void StmtProfiler::VisitPseudoObjectExpr(const PseudoObjectExpr *S) {
       Visit(OVE->getSourceExpr());
 }
 
+void StmtProfiler::VisitBoundsExpr(const BoundsExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+
 void StmtProfiler::VisitAtomicExpr(const AtomicExpr *S) {
   VisitExpr(S);
   ID.AddInteger(S->getOp());

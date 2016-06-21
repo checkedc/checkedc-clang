@@ -1735,6 +1735,40 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
   OS << ")";
 }
 
+// Checked C extension
+
+void StmtPrinter::VisitBoundsExpr(BoundsExpr *Node) {
+  BoundsExpr::BoundsKind kind = Node->getKind();
+  switch (kind) {
+    case BoundsExpr::Any: {
+      OS << "bounds(any)";
+      break;
+    }
+    case BoundsExpr::None: {
+      OS << "bounds(none)";
+      break;
+    }
+    case BoundsExpr::Count: 
+    case BoundsExpr::Byte_Count: {
+      OS << (kind == BoundsExpr::Count ? "count(" : "byte_count(");
+      PrintExpr(Node->getLHS());
+      OS << ")";
+      break;
+    }
+    case BoundsExpr::Pair: {
+      OS << "bounds(";
+      PrintExpr(Node->getLHS());
+      OS << ",";
+      PrintExpr(Node->getRHS());
+      OS << ")";
+      break;
+    }
+    default:
+      llvm_unreachable("bounds kind not covered by switch");
+      break;       
+  }
+}
+
 // C++
 void StmtPrinter::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *Node) {
   const char *OpStrings[NUM_OVERLOADED_OPERATORS] = {

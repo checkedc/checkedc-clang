@@ -2288,6 +2288,14 @@ public:
                                                 ControllingExpr, Types, Exprs);
   }
 
+  ExprResult RebuildBoundsExpr(SourceLocation StartLoc,
+                               BoundsExpr::BoundsKind kind,
+                               Expr *LHS, Expr *RHS,
+                               SourceLocation RParenLoc) {
+    // TODO: fill in body
+    return ExprResult();
+  }
+
   /// \brief Build a new overloaded operator call expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11275,6 +11283,13 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
 
   return getDerived().RebuildAtomicExpr(E->getBuiltinLoc(), SubExprs,
                                         RetTy, E->getOp(), E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformBoundsExpr(BoundsExpr *E) {
+  // TODO: fill in body
+  return ExprResult();
 }
 
 //===----------------------------------------------------------------------===//

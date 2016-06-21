@@ -171,6 +171,9 @@ def ObjCBridgedCastExpr : DStmt<ExplicitCastExpr>;
 // CUDA Expressions.
 def CUDAKernelCallExpr : DStmt<CallExpr>;
 
+// Checked C Expressions.
+def BoundsExpr : DStmt<Expr>;
+
 // Clang Extensions.
 def ShuffleVectorExpr : DStmt<Expr>;
 def ConvertVectorExpr : DStmt<Expr>;

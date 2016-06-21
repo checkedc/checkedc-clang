@@ -953,6 +953,15 @@ void ASTStmtReader::VisitAtomicExpr(AtomicExpr *E) {
   E->RParenLoc = ReadSourceLocation(Record, Idx);
 }
 
+void ASTStmtReader::VisitBoundsExpr(BoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::BoundsKind)Record[Idx++]);
+  E->setLHS(Reader.ReadSubExpr());
+  E->setRHS(Reader.ReadSubExpr());
+  E->setStartLoc(ReadSourceLocation(Record, Idx));
+  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+}
+
 //===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements
 
@@ -3431,6 +3440,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_ATOMIC:
       S = new (Context) AtomicExpr(Empty);
+      break;
+
+    case EXPR_BOUNDS_EXPR:
+      S = new (Context) BoundsExpr(Empty);
       break;
         
     case EXPR_LAMBDA: {
