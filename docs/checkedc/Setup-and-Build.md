@@ -7,7 +7,7 @@ on how to set up your machine.
 
 ### Developing on Windows
 
-We are doing the development work for Checked C on Windows. We have a few recommendation for developing 
+We are doing the development work for Checked C on Windows. We have a few recommendations for developing 
 clang on Windows using Visual Studio. 
  
 You will need to install the following before building: 
@@ -15,7 +15,7 @@ You will need to install the following before building:
 - Visual Studio 2013 or later, cmake, Python (version 2.7), and versions of UNIX command line tools. We
 recommend using Visual Studio 2015. 
 - For UNIX command-line tools, we recommend installing them via Cygwin because these are well-maintained. 
-Go to [http://www.cygwin.com](http://www.cygwin.com) and download the installer(put it in a known place).
+Go to [http://www.cygwin.com](http://www.cygwin.com) and download the installer (put it in a known place).
 Then run it and use the GUI to install the coreutils and diffutils packages.  Add the bin subdirectory to your system path.
 
 If you plan to use Visual Studio to build projects, lower the default number of projects that will be built in parallel. 
@@ -29,7 +29,7 @@ LLVM uses subversion for distributed source code control.   It is mirrored by Gi
 [LLVM mirror](https://github.com/llvm-mirror/llvm) and
 [clang mirror](https://github.com/llvm-mirror/clang).
 
-The code for the Checked C version of LLVM/clang lives in two repositories: the [Checked C clang repo](https://github.com/Microsoft/checked-clang)
+The code for the Checked C version of LLVM/clang lives in two repositories: the [Checked C clang repo](https://github.com/Microsoft/checkedc-clang)
 and the [Checked C LLVM repo](https://github.com/Microsoft/checkedc-llvm).  Each repo is licensed 
 under the [University of Illinois/NCSA license](https://opensource.org/licenses/NCSA).
 See the file LICENSE.TXT in either of the repos for complete details of licensing.  
@@ -43,7 +43,8 @@ The clang and LLVM repos have two branches:
 - master: the main development branch  for Checked C.   All changes committed here have been code reviewed and passed testing.
 - baseline: these are pristine copies of the Github mirrors.   Do not commit changes for Checked C to the baseline branches.
 
-Follow the directions here to update the baseline branches to newer versions of the LLVM/clang sources.
+Follow the directions [here](Update-to-latest-LLVM-sources.md) to update the baseline and master branches to newer versions of
+the LLVM/clang sources.
 
 ## Setting up sources for development
 
