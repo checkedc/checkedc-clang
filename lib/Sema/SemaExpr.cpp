@@ -11902,7 +11902,26 @@ ExprResult Sema::ActOnChooseExpr(SourceLocation BuiltinLoc,
 // Checked C Extension.
 //===----------------------------------------------------------------------===//
 
-// ExprResult Sema::BuildBoundsExpr()
+ExprResult Sema::ActOnNullaryBoundsExpr(SourceLocation BoundsKWLoc,
+                                        NullaryBoundsExpr::Kind Kind,
+                                        SourceLocation RParenLoc) {
+  return new (Context) NullaryBoundsExpr(Kind, BoundsKWLoc, RParenLoc);
+}
+
+ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
+                                      CountBoundsExpr::Kind Kind,
+                                      Expr *CountExpr,
+                                      SourceLocation RParenLoc) {
+  return new (Context) CountBoundsExpr(Kind, CountExpr, BoundsKWLoc, RParenLoc);
+}
+
+ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
+                                      Expr *LowerBound,
+                                      Expr *UpperBound,
+                                      SourceLocation RParenLoc) {
+  return new (Context) RangeBoundsExpr(LowerBound, UpperBound, BoundsKWLoc,
+                                       RParenLoc);
+}
 
 //===----------------------------------------------------------------------===//
 // Clang Extensions.

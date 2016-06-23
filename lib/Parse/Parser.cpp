@@ -494,6 +494,20 @@ void Parser::Initialize() {
   Ident_strict = nullptr;
   Ident_replacement = nullptr;
 
+  if (getLangOpts().CheckedC) {
+    Ident_any = &PP.getIdentifierTable().get("any");
+    Ident_bounds = &PP.getIdentifierTable().get("bounds");
+    Ident_byte_count = &PP.getIdentifierTable().get("byte_count");
+    Ident_count = &PP.getIdentifierTable().get("count");
+    Ident_none = &PP.getIdentifierTable().get("none");
+  } else {
+    Ident_any = nullptr;
+    Ident_bounds = nullptr;
+    Ident_byte_count = nullptr;
+    Ident_count = nullptr;
+    Ident_none = nullptr;
+  }
+
   Ident__except = nullptr;
 
   Ident__exception_code = Ident__exception_info = nullptr;
