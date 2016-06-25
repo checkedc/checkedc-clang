@@ -10868,6 +10868,30 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
   }
 }
 
+/// ActOnBoundsExpr: attach a bounds expression to a parameter declaration.
+void Sema::ActOnBoundsExpr(Decl *D, Expr *BoundsExpr) {
+  if (!D || !BoundsExpr)
+    return;
+
+  VarDecl *Var = cast<VarDecl>(D);
+  Var->setBoundsExpr(BoundsExpr);
+}
+
+void Sema::ActOnInvalidBoundsExpr(Decl *D) {
+  if (!D)
+    return;
+
+  ExprResult Result =
+    ActOnNullaryBoundsExpr(SourceLocation(),
+                           NullaryBoundsExpr::Kind::Invalid,
+                           SourceLocation());
+
+  if (!Result.isInvalid()) {
+    VarDecl *Var = cast<VarDecl>(D);
+    Var->setBoundsExpr(Result.get());
+  }
+}
+
 Decl *
 Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Declarator &D,
                               MultiTemplateParamsArg TemplateParameterLists,

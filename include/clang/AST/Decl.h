@@ -800,6 +800,15 @@ protected:
   /// C++ default argument.
   mutable InitType Init;
 
+  // TODO: like the Init member above, it wastes space to have a pointer to a
+  // BoundsExpr in every VarDecl when many of them won't have bounds
+  // declarations. We could move the Init member and the BoundsExpr to an
+  // "extension" object that is allocated on demand, at least not increasing
+  // the space usage of every single VarDecl.
+
+  /// \brief The bounds expression for the variable, if any.
+  Expr *BoundsExpr;
+
 private:
   class VarDeclBitfields {
     friend class VarDecl;
@@ -1324,6 +1333,8 @@ public:
   VarTemplateDecl *getDescribedVarTemplate() const;
 
   void setDescribedVarTemplate(VarTemplateDecl *Template);
+
+  void setBoundsExpr(Expr *E);
 
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }

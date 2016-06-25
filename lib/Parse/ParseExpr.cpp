@@ -2746,76 +2746,75 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
 
 IdentifierInfo *Parser::getBoundsExpressionStart() {
   if (Tok.getKind() == tok::identifier) {
-    IdentifierInfo *ident = Tok.getIdentifierInfo();
-    if (ident == Ident_count || ident == Ident_byte_count || ident == Ident_bounds) {
-      return ident;
+    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+    if (Ident == Ident_count || Ident == Ident_byte_count || Ident == Ident_bounds) {
+      return Ident;
     }
   }
   return nullptr;
 }
 
 ExprResult Parser::ParseBoundsExpression() {
-  IdentifierInfo *ident = getBoundsExpressionStart();
-  if (!ident) {
+  IdentifierInfo *Ident = getBoundsExpressionStart();
+  if (!Ident) {
     Diag(Tok, diag::err_expected_bounds_expr);
     return ExprError();
   }
 
-  SourceLocation boundsKWLoc = Tok.getLocation();
+  SourceLocation BoundsKWLoc = Tok.getLocation();
   ConsumeToken();
   if (ExpectAndConsume(tok::l_paren)) {
     return ExprError();
   }
 
-  ExprResult result;
-  if (ident == Ident_count || ident == Ident_byte_count) {
-    result = ParseAssignmentExpression();
-    CountBoundsExpr::Kind kind = ident == Ident_count ?
+  ExprResult Result;
+  if (Ident == Ident_count || Ident == Ident_byte_count) {
+    Result = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+    CountBoundsExpr::Kind CountKind = Ident == Ident_count ?
       CountBoundsExpr::Kind::Count : CountBoundsExpr::Kind::Byte_Count;
-    if (!result.isInvalid()) {
-      result = Actions.ActOnCountBoundsExpr(boundsKWLoc, kind, result.get(),
+    if (!Result.isInvalid()) {
+      Result = Actions.ActOnCountBoundsExpr(BoundsKWLoc, CountKind, Result.get(),
                                            Tok.getLocation());
     } else {
-      return ExprError();
+      Result = ExprError();
     }
-  } else if (ident == Ident_bounds) {
-    bool foundNullaryOperator = false;
+  } else if (Ident == Ident_bounds) {
+    bool FoundNullaryOperator = false;
 
     if (Tok.getKind() == tok::identifier) {
-      IdentifierInfo *nextIdent = Tok.getIdentifierInfo();
-      if (nextIdent == Ident_any || nextIdent == Ident_none) {
-        foundNullaryOperator = true;
+      IdentifierInfo *NextIdent = Tok.getIdentifierInfo();
+      if (NextIdent == Ident_none) {
+        FoundNullaryOperator = true;
         ConsumeToken();
-        NullaryBoundsExpr::Kind kind = nextIdent == Ident_any ?
-          NullaryBoundsExpr::Kind::Any : NullaryBoundsExpr::Kind::None;
-        result = Actions.ActOnNullaryBoundsExpr(boundsKWLoc, kind, Tok.getLocation());
+        Result = Actions.ActOnNullaryBoundsExpr(BoundsKWLoc, NullaryBoundsExpr::Kind::None, Tok.getLocation());
       }
     }
 
-    if (!foundNullaryOperator) {
-      ExprResult LowerBound = ParseAssignmentExpression();
+    if (!FoundNullaryOperator) {
+      ExprResult LowerBound = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
       if (LowerBound.isInvalid()) {
-         return ExprError();
+         Result = ExprError();
       }
       if (ExpectAndConsume(tok::comma)) {
           return ExprError();
       }
-      ExprResult UpperBound = ParseAssignmentExpression();
+      ExprResult UpperBound = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
       if (!UpperBound.isInvalid()) {
-        result = Actions.ActOnRangeBoundsExpr(boundsKWLoc, LowerBound.get(), UpperBound.get(), Tok.getLocation());
+        Result = Actions.ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound.get(), UpperBound.get(), Tok.getLocation());
       } else {
-         return ExprError();
+         Result = ExprError();
       }
     }
   } else {
-    llvm_unreachable("unexpected bounds expression identifier");
+    Diag(Tok, diag::err_expected_bounds_expr);
+    Result = ExprError();
   }
 
   if (ExpectAndConsume(tok::r_paren)) {
     return ExprError();
   }
 
-  return result;
+  return Result;
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks

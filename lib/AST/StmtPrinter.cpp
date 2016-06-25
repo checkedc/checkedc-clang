@@ -1753,8 +1753,8 @@ void StmtPrinter::VisitCountBoundsExpr(CountBoundsExpr *Node) {
 
 void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
   switch (Node->getKind()) {
-  case NullaryBoundsExpr::Any: {
-    OS << "bounds(any)";
+  case NullaryBoundsExpr::Invalid: {
+    OS << "bounds(invalid)";
     break;
   }
   case NullaryBoundsExpr::None: {

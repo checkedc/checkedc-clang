@@ -4541,8 +4541,12 @@ public:
 class NullaryBoundsExpr : public BoundsExpr {
 public:
   enum Kind {
-    Any = 0,
-    None = 1,
+    // Invalid bounds expressions are used to flag invalid bounds
+    // expressions and prevent spurious downstream error messages
+    // in bounds declaration checking.
+    Invalid = 0,
+    // bounds(none)
+    None = 1
   };
 
 public:

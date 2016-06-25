@@ -4114,6 +4114,9 @@ public:
   ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
                                   Expr *UpperBound, SourceLocation RParenLoc);
 
+  void ActOnBoundsExpr(Decl *Param, Expr *BoundsExpr);
+  void ActOnInvalidBoundsExpr(Decl *Param);
+
   //===---------------------------- Clang Extensions ----------------------===//
 
   /// __builtin_convertvector(...)

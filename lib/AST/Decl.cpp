@@ -1795,6 +1795,7 @@ VarDecl::VarDecl(Kind DK, ASTContext &C, DeclContext *DC,
                 "NonParmVarDeclBitfields too large!");
   AllBits = 0;
   VarDeclBits.SClass = SC;
+  BoundsExpr = nullptr;
   // Everything else is implicitly initialized to false.
 }
 
@@ -2326,6 +2327,10 @@ VarDecl::setInstantiationOfStaticDataMember(VarDecl *VD,
   assert(getASTContext().getTemplateOrSpecializationInfo(this).isNull() &&
          "Previous template or instantiation?");
   getASTContext().setInstantiatedFromStaticDataMember(this, VD, TSK);
+}
+
+void VarDecl::setBoundsExpr(Expr *E) {
+  BoundsExpr = E;
 }
 
 //===----------------------------------------------------------------------===//
