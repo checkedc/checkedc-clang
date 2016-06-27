@@ -2292,22 +2292,19 @@ public:
                                     CountBoundsExpr::Kind Kind,
                                     Expr * CountExpr,
                                     SourceLocation RParenLoc) {
-    // TODO: fill in body
-    return ExprResult();
+    return getSema().ActOnCountBoundsExpr(StartLoc, Kind, CountExpr, RParenLoc);
   }
 
   ExprResult RebuildNullaryBoundsExpr(SourceLocation StartLoc,
                                       NullaryBoundsExpr::Kind Kind,
                                       SourceLocation RParenLoc) {
-    // TODO: fill in body
-    return ExprResult();
+    return getSema().ActOnNullaryBoundsExpr(StartLoc, Kind, RParenLoc);
   }
 
   ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc,
                                     Expr *Lower, Expr *Upper,
                                     SourceLocation RParenLoc) {
-    // TODO: fill in body
-    return ExprResult();
+    return getSema().ActOnRangeBoundsExpr(StartLoc, Lower, Upper, RParenLoc);
   }
 
   /// \brief Build a new overloaded operator call expression.
@@ -11302,22 +11299,46 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCountBoundsExpr(CountBoundsExpr *E) {
-  // TODO: fill in body
-  return ExprResult();
+  ExprResult CountExpr = getDerived().TransformExpr(E->getCountExpr());
+  if (CountExpr.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() &&
+      CountExpr.get() == E->getCountExpr())
+    return E;
+
+  return getDerived().RebuildCountBoundsExpr(E->getStartLoc(),
+                                             E->getKind(),
+                                             CountExpr.get(),
+                                             E->getRParenLoc());
 }
 
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformNullaryBoundsExpr(NullaryBoundsExpr *E) {
-  // TODO: fill in body
-  return ExprResult();
+   return E;
 }
 
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
-  // TODO: fill in body
-  return ExprResult();
+  ExprResult LowerExpr = getDerived().TransformExpr(E->getLowerExpr());
+  if (LowerExpr.isInvalid())
+    return ExprError();
+
+  ExprResult UpperExpr = getDerived().TransformExpr(E->getUpperExpr());
+  if (UpperExpr.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() &&
+      LowerExpr.get() == E->getLowerExpr() && 
+      UpperExpr.get() == E->getUpperExpr())
+    return E;
+
+  return getDerived().RebuildRangeBoundsExpr(E->getStartLoc(),
+                                             LowerExpr.get(),
+                                             UpperExpr.get(),
+                                             E->getRParenLoc());
 }
 
 //===----------------------------------------------------------------------===//

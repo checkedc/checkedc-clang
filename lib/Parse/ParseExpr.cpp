@@ -2747,7 +2747,7 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
 IdentifierInfo *Parser::getBoundsExpressionStart() {
   if (Tok.getKind() == tok::identifier) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
-    if (Ident == Ident_count || Ident == Ident_byte_count || Ident == Ident_bounds) {
+    if (Ident == Ident_bounds || Ident == Ident_byte_count || Ident == Ident_count) {
       return Ident;
     }
   }
@@ -2768,7 +2768,7 @@ ExprResult Parser::ParseBoundsExpression() {
   }
 
   ExprResult Result;
-  if (Ident == Ident_count || Ident == Ident_byte_count) {
+  if (Ident == Ident_byte_count || Ident == Ident_count) {
     Result = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
     CountBoundsExpr::Kind CountKind = Ident == Ident_count ?
       CountBoundsExpr::Kind::Count : CountBoundsExpr::Kind::Byte_Count;

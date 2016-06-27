@@ -151,14 +151,11 @@ class Parser : public CodeCompletionHandler {
   /// and any are likely to collide.  Others are unlikely to collide, but we make
   /// them contextual for consistency.
 
-  /// \brief Identifier for "any".
-  IdentifierInfo *Ident_any;
+  /// \brief Identifier for "bounds".
+  IdentifierInfo *Ident_bounds;
 
   /// \brief Identifier for "byte_count".
   IdentifierInfo *Ident_byte_count;
-
-  /// \brief Identifier for "bounds".
-  IdentifierInfo *Ident_bounds;
 
   /// \brief Identifier for "count".
   IdentifierInfo *Ident_count;

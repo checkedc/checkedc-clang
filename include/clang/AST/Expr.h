@@ -4520,18 +4520,18 @@ private:
   SourceLocation StartLoc, RParenLoc;
 
 public:
-  BoundsExpr(StmtClass stmtclass, SourceLocation startloc, SourceLocation rparenloc)
-    : Expr(stmtclass, QualType(),  VK_RValue, OK_Ordinary, false,
-           false, false, false), StartLoc(startloc), RParenLoc(rparenloc) {
+  BoundsExpr(StmtClass StmtClass, SourceLocation StartLoc, SourceLocation RParenLoc)
+    : Expr(StmtClass, QualType(),  VK_RValue, OK_Ordinary, false,
+           false, false, false), StartLoc(StartLoc), RParenLoc(RParenLoc) {
   }
 
-  explicit BoundsExpr(StmtClass stmtclass, EmptyShell Empty) :
-    Expr(stmtclass, Empty) {}
+  explicit BoundsExpr(StmtClass StmtClass, EmptyShell Empty) :
+    Expr(StmtClass, Empty) {}
 
   SourceLocation getStartLoc() { return StartLoc; }
-  void setStartLoc(SourceLocation loc) { StartLoc = loc; }
+  void setStartLoc(SourceLocation Loc) { StartLoc = Loc; }
   SourceLocation getRParenLoc() { return RParenLoc; }
-  void setRParenLoc(SourceLocation loc) { RParenLoc = loc; }
+  void setRParenLoc(SourceLocation Loc) { RParenLoc = Loc; }
 
   SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
   SourceLocation getLocEnd() const LLVM_READONLY { return RParenLoc; }
@@ -4550,16 +4550,16 @@ public:
   };
 
 public:
-  NullaryBoundsExpr(Kind kind, SourceLocation startloc, SourceLocation rparenloc)
-    : BoundsExpr(NullaryBoundsExprClass, startloc, rparenloc)  {
-    NullaryBoundsExprBits.Kind = kind;
+  NullaryBoundsExpr(Kind Kind, SourceLocation StartLoc, SourceLocation RParenLoc)
+    : BoundsExpr(NullaryBoundsExprClass, StartLoc, RParenLoc)  {
+    NullaryBoundsExprBits.Kind = Kind;
   }
 
-  explicit NullaryBoundsExpr(EmptyShell Empty) :
-    BoundsExpr(NullaryBoundsExprClass, Empty) {}
+  explicit NullaryBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(NullaryBoundsExprClass, Empty) {}
 
   Kind getKind() const { return (Kind) NullaryBoundsExprBits.Kind; }
-  void setKind(Kind kind) { NullaryBoundsExprBits.Kind = kind; }
+  void setKind(Kind Kind) { NullaryBoundsExprBits.Kind = Kind; }
 
   // Iterators
   child_range children() {
@@ -4578,21 +4578,21 @@ private:
   Stmt* CountExpr;
 
 public:
-  CountBoundsExpr(Kind kind, Expr* countexpr, SourceLocation startloc,
-    SourceLocation rparenloc)
-    : BoundsExpr(CountBoundsExprClass, startloc, rparenloc),
-      CountExpr(countexpr) {
-    CountBoundsExprBits.Kind = kind;
+  CountBoundsExpr(Kind Kind, Expr* Count, SourceLocation StartLoc,
+    SourceLocation RParenLoc)
+    : BoundsExpr(CountBoundsExprClass, StartLoc, RParenLoc),
+      CountExpr(Count) {
+    CountBoundsExprBits.Kind = Kind;
   }
 
-  explicit CountBoundsExpr(EmptyShell Empty) :
-    BoundsExpr(CountBoundsExprClass, Empty) {}
+  explicit CountBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(CountBoundsExprClass, Empty) {}
 
   Kind getKind() const { return (Kind)CountBoundsExprBits.Kind; }
-  void setKind(Kind kind) { CountBoundsExprBits.Kind = kind; }
+  void setKind(Kind Kind) { CountBoundsExprBits.Kind = Kind; }
 
-  Expr *getCount() const { return cast<Expr>(CountExpr); }
-  void setCount(Expr *e) { CountExpr = e; }
+  Expr *getCountExpr() const { return cast<Expr>(CountExpr); }
+  void setCountExpr(Expr *E) { CountExpr = E; }
 
   // Iterators
   child_range children() {
@@ -4607,20 +4607,20 @@ private:
   Stmt* SubExprs[END_EXPR];
 
 public:
-  RangeBoundsExpr(Expr *lower, Expr *upper, SourceLocation startloc,
-    SourceLocation rparenloc)
-    : BoundsExpr(RangeBoundsExprClass, startloc, rparenloc) {
-    SubExprs[LOWER] = lower;
-    SubExprs[UPPER] = upper;
+  RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc,
+                  SourceLocation RParenLoc)
+    : BoundsExpr(RangeBoundsExprClass, StartLoc, RParenLoc) {
+    SubExprs[LOWER] = Lower;
+    SubExprs[UPPER] = Upper;
   }
 
-  explicit RangeBoundsExpr(EmptyShell Empty) :
-    BoundsExpr(RangeBoundsExprClass, Empty) {}
+  explicit RangeBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(RangeBoundsExprClass, Empty) {}
 
-  Expr *getLower() const { return cast<Expr>(SubExprs[LOWER]); }
-  void setLower(Expr *e) { SubExprs[LOWER] = e; }
-  Expr *getUpper() const { return cast<Expr>(SubExprs[UPPER]); }
-  void setUpper(Expr *e) { SubExprs[UPPER] = e; }
+  Expr *getLowerExpr() const { return cast<Expr>(SubExprs[LOWER]); }
+  void setLowerExpr(Expr *E) { SubExprs[LOWER] = E; }
+  Expr *getUpperExpr() const { return cast<Expr>(SubExprs[UPPER]); }
+  void setUpperExpr(Expr *E) { SubExprs[UPPER] = E; }
 
   // Iterators
   child_range children() {

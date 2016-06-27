@@ -1739,15 +1739,15 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
 
 void StmtPrinter::VisitCountBoundsExpr(CountBoundsExpr *Node) {
   switch (Node->getKind()) {
-    case CountBoundsExpr::Kind::Count:
-      OS << "count(";
     case CountBoundsExpr::Kind::Byte_Count:
       OS << "byte_count(";
+    case CountBoundsExpr::Kind::Count:
+      OS << "count(";
     default:
       llvm_unreachable("count bounds kind not covered by switch");
       break;
   }
-  PrintExpr(Node->getCount());
+  PrintExpr(Node->getCountExpr());
   OS << ")";
 }
 
@@ -1769,9 +1769,9 @@ void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
 
 void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
   OS << "bounds(";
-  PrintExpr(Node->getLower());
+  PrintExpr(Node->getLowerExpr());
   OS << ",";
-  PrintExpr(Node->getUpper());
+  PrintExpr(Node->getUpperExpr());
   OS << ")";
 }
 

@@ -935,7 +935,6 @@ void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
   VisitExpr(S);
 }
 
-
 void StmtProfiler::VisitAtomicExpr(const AtomicExpr *S) {
   VisitExpr(S);
   ID.AddInteger(S->getOp());
