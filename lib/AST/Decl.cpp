@@ -2010,6 +2010,20 @@ VarDecl *VarDecl::getDefinition(ASTContext &C) {
   return nullptr;
 }
 
+// Checked C bounds information
+
+bool VarDecl::hasBoundsExpr() const {
+  return BoundsExpr != nullptr;
+}
+
+Expr *VarDecl::getBoundsExpr() {
+  return BoundsExpr;
+}
+
+void VarDecl::setBoundsExpr(Expr *E) {
+  BoundsExpr = E;
+}
+
 VarDecl::DefinitionKind VarDecl::hasDefinition(ASTContext &C) const {
   DefinitionKind Kind = DeclarationOnly;
 
@@ -2022,6 +2036,9 @@ VarDecl::DefinitionKind VarDecl::hasDefinition(ASTContext &C) const {
 
   return Kind;
 }
+
+
+
 
 const Expr *VarDecl::getAnyInitializer(const VarDecl *&D) const {
   for (auto I : redecls()) {
@@ -2327,10 +2344,6 @@ VarDecl::setInstantiationOfStaticDataMember(VarDecl *VD,
   assert(getASTContext().getTemplateOrSpecializationInfo(this).isNull() &&
          "Previous template or instantiation?");
   getASTContext().setInstantiatedFromStaticDataMember(this, VD, TSK);
-}
-
-void VarDecl::setBoundsExpr(Expr *E) {
-  BoundsExpr = E;
 }
 
 //===----------------------------------------------------------------------===//

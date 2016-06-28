@@ -1129,6 +1129,19 @@ public:
     return false;
   }
 
+  /// \brief - Return true if this variable has bounds declared for it.
+  bool hasBoundsExpr() const;
+
+  const Expr *getBoundsExpr() const {
+    return const_cast<VarDecl *>(this)->getBoundsExpr();
+  }
+
+  /// \brief - The declared bounds for this variable.  Null if no
+  /// bounds have been declared.
+  Expr *getBoundsExpr();
+  
+  void setBoundsExpr(Expr *E);
+
   /// getAnyInitializer - Get the initializer for this variable, no matter which
   /// declaration it is attached to.
   const Expr *getAnyInitializer() const {
@@ -1333,8 +1346,6 @@ public:
   VarTemplateDecl *getDescribedVarTemplate() const;
 
   void setDescribedVarTemplate(VarTemplateDecl *Template);
-
-  void setBoundsExpr(Expr *E);
 
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
