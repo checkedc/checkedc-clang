@@ -2768,11 +2768,12 @@ ExprResult Parser::ParseBoundsExpression() {
     Result = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
     CountBoundsExpr::Kind CountKind = Ident == Ident_count ?
       CountBoundsExpr::Kind::ElementCount : CountBoundsExpr::Kind::ByteCount;
-    if (!Result.isInvalid())
+    if (Result.isInvalid())
+      Result = ExprError();
+    else
       Result = Actions.ActOnCountBoundsExpr(BoundsKWLoc, CountKind,
                                             Result.get(),
                                            Tok.getLocation());
-    else Result = ExprError();
   } else if (Ident == Ident_bounds) {
     // Parse bounds(none) or bounds(e1, e2)
     bool FoundNullaryOperator = false;
@@ -2793,20 +2794,20 @@ ExprResult Parser::ParseBoundsExpression() {
       // Look for e1 "," e2
       ExprResult LowerBound =
         Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
-      if (!LowerBound.isInvalid())
-        if (!ExpectAndConsume(tok::comma)) {
-          ExprResult UpperBound =
-            Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
-          if (!UpperBound.isInvalid()) {
-            Result = Actions.ActOnRangeBoundsExpr(BoundsKWLoc,
-                                                  LowerBound.get(),
-                                                  UpperBound.get(),
-                                                  Tok.getLocation());
-          }
-          else Result = ExprError();
-        }
-        else Result = ExprError();
-      else Result = ExprError();
+      if (LowerBound.isInvalid())
+        Result = ExprError();
+      else if (ExpectAndConsume(tok::comma))
+        Result = ExprError();
+      else {
+        ExprResult UpperBound =
+          Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+        if (UpperBound.isInvalid())
+          Result = ExprError();
+        else
+          Result = Actions.ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound.get(),
+                                                UpperBound.get(),
+                                                Tok.getLocation());
+      }
     } // if (!FoundNullaryOperator)
   } else {
     // The identifier is not a valid contextual keyword for the start of a
