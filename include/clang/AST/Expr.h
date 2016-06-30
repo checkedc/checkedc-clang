@@ -4571,14 +4571,14 @@ public:
 class CountBoundsExpr : public BoundsExpr {
 public:
   enum Kind {
-    Count = 0,
-    Byte_Count = 1,
+    ElementCount = 0,
+    ByteCount = 1,
   };
 private:
-  Stmt* CountExpr;
+  Stmt *CountExpr;
 
 public:
-  CountBoundsExpr(Kind Kind, Expr* Count, SourceLocation StartLoc,
+  CountBoundsExpr(Kind Kind, Expr *Count, SourceLocation StartLoc,
     SourceLocation RParenLoc)
     : BoundsExpr(CountBoundsExprClass, StartLoc, RParenLoc),
       CountExpr(Count) {
@@ -4604,7 +4604,7 @@ public:
 class RangeBoundsExpr : public BoundsExpr {
 private:
   enum { LOWER, UPPER, END_EXPR };
-  Stmt* SubExprs[END_EXPR];
+  Stmt *SubExprs[END_EXPR];
 
 public:
   RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc,

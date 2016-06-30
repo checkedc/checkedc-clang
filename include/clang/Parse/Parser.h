@@ -147,8 +147,8 @@ class Parser : public CodeCompletionHandler {
   /// Checked C contextual keywords
 
   /// These keywords are for bounds expressions.  They are contextual to avoid
-  /// collisions with existing identifiers in programs.  Some keywords like count
-  /// and any are likely to collide.  Others are unlikely to collide, but we make
+  /// collisions with existing identifiers in programs.  Some keywords like "count"
+  /// and "any" are likely to collide.  Others are unlikely to collide, but we make
   /// them contextual for consistency.
 
   /// \brief Identifier for "bounds".
@@ -1633,13 +1633,6 @@ private:
   // Checked C Expressions
 
   ExprResult ParseBoundsExpression();
-
-  private:
-  /// \brief If the current token is an identifier that is the valid start of
-  /// a bound expression, return the identifier.  Otherwise return a null pointer.
-  IdentifierInfo *getBoundsExpressionStart();
-
-  public:
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

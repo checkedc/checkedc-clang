@@ -11916,9 +11916,9 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
 }
 
 ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
-                                      Expr *LowerBound,
-                                      Expr *UpperBound,
-                                      SourceLocation RParenLoc) {
+                                            Expr *LowerBound,
+                                            Expr *UpperBound,
+                                            SourceLocation RParenLoc) {
   return new (Context) RangeBoundsExpr(LowerBound, UpperBound, BoundsKWLoc,
                                        RParenLoc);
 }

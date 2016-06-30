@@ -36,6 +36,7 @@ class CXXTemporary;
 class CompoundStmt;
 class DependentFunctionTemplateSpecializationInfo;
 class Expr;
+class BoundsExpr;
 class FunctionTemplateDecl;
 class FunctionTemplateSpecializationInfo;
 class LabelStmt;
@@ -802,12 +803,12 @@ protected:
 
   // TODO: like the Init member above, it wastes space to have a pointer to a
   // BoundsExpr in every VarDecl when many of them won't have bounds
-  // declarations. We could move the Init member and the BoundsExpr to an
+  // declarations. We could move the Init member and the Bounds to an
   // "extension" object that is allocated on demand, at least not increasing
   // the space usage of every single VarDecl.
 
   /// \brief The bounds expression for the variable, if any.
-  Expr *BoundsExpr;
+  BoundsExpr *Bounds;
 
 private:
   class VarDeclBitfields {
@@ -1129,18 +1130,20 @@ public:
     return false;
   }
 
-  /// \brief - Return true if this variable has bounds declared for it.
+  /// \brief Return true if this variable has bounds declared for it.
   bool hasBoundsExpr() const;
 
-  const Expr *getBoundsExpr() const {
+  /// \brief The declared bounds for this variable.  Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const {
     return const_cast<VarDecl *>(this)->getBoundsExpr();
   }
 
-  /// \brief - The declared bounds for this variable.  Null if no
+  /// \brief The declared bounds for this variable.  Null if no
   /// bounds have been declared.
-  Expr *getBoundsExpr();
+  BoundsExpr *getBoundsExpr();
   
-  void setBoundsExpr(Expr *E);
+  void setBoundsExpr(BoundsExpr *E);
 
   /// getAnyInitializer - Get the initializer for this variable, no matter which
   /// declaration it is attached to.

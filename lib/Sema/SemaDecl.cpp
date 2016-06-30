@@ -10869,12 +10869,12 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
 }
 
 /// ActOnBoundsExpr: attach a bounds expression to a parameter declaration.
-void Sema::ActOnBoundsExpr(Decl *D, Expr *BoundsExpr) {
-  if (!D || !BoundsExpr)
+void Sema::ActOnBoundsExpr(Decl *D, BoundsExpr *Expr) {
+  if (!D || !Expr)
     return;
 
   VarDecl *Var = cast<VarDecl>(D);
-  Var->setBoundsExpr(BoundsExpr);
+  Var->setBoundsExpr(Expr);
 }
 
 void Sema::ActOnInvalidBoundsExpr(Decl *D) {
@@ -10888,7 +10888,7 @@ void Sema::ActOnInvalidBoundsExpr(Decl *D) {
 
   if (!Result.isInvalid()) {
     VarDecl *Var = cast<VarDecl>(D);
-    Var->setBoundsExpr(Result.get());
+    Var->setBoundsExpr(cast<BoundsExpr>(Result.get()));
   }
 }
 

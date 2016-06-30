@@ -5947,12 +5947,11 @@ void Parser::ParseParameterDeclarationClause(
       // Parse the bounds expression, if any.
       if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
         ConsumeToken();
-        ExprResult BoundsExpr = ParseBoundsExpression();
-        if (BoundsExpr.isInvalid()) {
-           SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
-           Actions.ActOnInvalidBoundsExpr(Param);
-        }
-        Actions.ActOnBoundsExpr(Param, BoundsExpr.get());
+        ExprResult Bounds = ParseBoundsExpression();
+        if (Bounds.isInvalid()) {
+          SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+          Actions.ActOnInvalidBoundsExpr(Param);
+        } else Actions.ActOnBoundsExpr(Param, cast<BoundsExpr>(Bounds.get()));
       }
 
       // Parse the default argument, if any. We parse the default

@@ -1739,13 +1739,10 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
 
 void StmtPrinter::VisitCountBoundsExpr(CountBoundsExpr *Node) {
   switch (Node->getKind()) {
-    case CountBoundsExpr::Kind::Byte_Count:
+    case CountBoundsExpr::Kind::ByteCount:
       OS << "byte_count(";
-    case CountBoundsExpr::Kind::Count:
+    case CountBoundsExpr::Kind::ElementCount:
       OS << "count(";
-    default:
-      llvm_unreachable("count bounds kind not covered by switch");
-      break;
   }
   PrintExpr(Node->getCountExpr());
   OS << ")";
@@ -1753,24 +1750,21 @@ void StmtPrinter::VisitCountBoundsExpr(CountBoundsExpr *Node) {
 
 void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
   switch (Node->getKind()) {
-  case NullaryBoundsExpr::Invalid: {
-    OS << "bounds(invalid)";
-    break;
-  }
-  case NullaryBoundsExpr::None: {
-    OS << "bounds(none)";
-    break;
-  }
-  default:
-    llvm_unreachable("count bounds kind not covered by switch");
-    break;
+    case NullaryBoundsExpr::Invalid: {
+      OS << "bounds(invalid)";
+      break;
+    }
+    case NullaryBoundsExpr::None: {
+      OS << "bounds(none)";
+      break;
+    }
   }
 }
 
 void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
   OS << "bounds(";
   PrintExpr(Node->getLowerExpr());
-  OS << ",";
+  OS << ", ";
   PrintExpr(Node->getUpperExpr());
   OS << ")";
 }
