@@ -10580,7 +10580,7 @@ void Sema::ActOnDocumentableDecls(ArrayRef<Decl *> Group) {
 
 /// ActOnParamDeclarator - Called from Parser::ParseFunctionDeclarator()
 /// to introduce parameters into function prototype scope.
-Decl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
+ParmVarDecl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
   const DeclSpec &DS = D.getDeclSpec();
 
   // Verify C99 6.7.5.3p2: The only SCS allowed is 'register'.
@@ -10869,15 +10869,14 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
 }
 
 /// ActOnBoundsExpr: attach a bounds expression to a parameter declaration.
-void Sema::ActOnBoundsExpr(Decl *D, BoundsExpr *Expr) {
+void Sema::ActOnBoundsExpr(VarDecl *D, BoundsExpr *Expr) {
   if (!D || !Expr)
     return;
 
-  VarDecl *Var = cast<VarDecl>(D);
-  Var->setBoundsExpr(Expr);
+  D->setBoundsExpr(Expr);
 }
 
-void Sema::ActOnInvalidBoundsExpr(Decl *D) {
+void Sema::ActOnInvalidBoundsExpr(VarDecl *D) {
   if (!D)
     return;
 
@@ -10886,10 +10885,8 @@ void Sema::ActOnInvalidBoundsExpr(Decl *D) {
                            NullaryBoundsExpr::Kind::Invalid,
                            SourceLocation());
 
-  if (!Result.isInvalid()) {
-    VarDecl *Var = cast<VarDecl>(D);
-    Var->setBoundsExpr(cast<BoundsExpr>(Result.get()));
-  }
+  if (!Result.isInvalid())
+    D->setBoundsExpr(cast<BoundsExpr>(Result.get()));
 }
 
 Decl *

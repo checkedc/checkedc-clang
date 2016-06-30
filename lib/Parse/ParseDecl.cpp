@@ -5942,7 +5942,7 @@ void Parser::ParseParameterDeclarationClause(
 
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.
-      Decl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
+      ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
 
       // Parse the bounds expression, if any.
       if (getLangOpts().CheckedC && Tok.is(tok::colon)) {

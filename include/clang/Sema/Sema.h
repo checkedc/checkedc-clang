@@ -1695,7 +1695,7 @@ public:
                                 bool IsExplicitSpecialization);
   void CheckMain(FunctionDecl *FD, const DeclSpec &D);
   void CheckMSVCRTEntryPoint(FunctionDecl *FD);
-  Decl *ActOnParamDeclarator(Scope *S, Declarator &D);
+  ParmVarDecl *ActOnParamDeclarator(Scope *S, Declarator &D);
   ParmVarDecl *BuildParmVarDeclForTypedef(DeclContext *DC,
                                           SourceLocation Loc,
                                           QualType T);
@@ -4114,8 +4114,8 @@ public:
   ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
                                   Expr *UpperBound, SourceLocation RParenLoc);
 
-  void ActOnBoundsExpr(Decl *Param, BoundsExpr *Expr);
-  void ActOnInvalidBoundsExpr(Decl *Param);
+  void ActOnBoundsExpr(VarDecl *D, BoundsExpr *Expr);
+  void ActOnInvalidBoundsExpr(VarDecl *D);
 
   //===---------------------------- Clang Extensions ----------------------===//
 
