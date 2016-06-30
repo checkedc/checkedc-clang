@@ -5942,7 +5942,18 @@ void Parser::ParseParameterDeclarationClause(
 
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.
-      Decl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
+      ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
+
+      // Parse the bounds expression, if any.
+      if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
+        ConsumeToken();
+        ExprResult Bounds = ParseBoundsExpression();
+        if (Bounds.isInvalid()) {
+          SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+          Actions.ActOnInvalidBoundsExpr(Param);
+        } else Actions.ActOnBoundsExpr(Param, cast<BoundsExpr>(Bounds.get()));
+      }
+
       // Parse the default argument, if any. We parse the default
       // arguments in all dialects; the semantic analysis in
       // ActOnParamDefaultArgument will reject the default argument in

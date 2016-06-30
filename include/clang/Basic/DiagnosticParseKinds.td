@@ -1008,4 +1008,8 @@ def err_for_co_await_not_range_for : Error<
   "'co_await' modifier can only be applied to range-based for loop">;
 }
 
+// Checked C parsing errors
+def err_expected_bounds_expr : Error<
+  "expected bounds expression">;
+
 } // end of Parser diagnostics

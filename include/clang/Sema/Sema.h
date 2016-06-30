@@ -1695,7 +1695,7 @@ public:
                                 bool IsExplicitSpecialization);
   void CheckMain(FunctionDecl *FD, const DeclSpec &D);
   void CheckMSVCRTEntryPoint(FunctionDecl *FD);
-  Decl *ActOnParamDeclarator(Scope *S, Declarator &D);
+  ParmVarDecl *ActOnParamDeclarator(Scope *S, Declarator &D);
   ParmVarDecl *BuildParmVarDeclForTypedef(DeclContext *DC,
                                           SourceLocation Loc,
                                           QualType T);
@@ -4102,6 +4102,20 @@ public:
   /// literal was successfully completed.  ^(int x){...}
   ExprResult ActOnBlockStmtExpr(SourceLocation CaretLoc, Stmt *Body,
                                 Scope *CurScope);
+
+  //===---------------------------- Checked C Extension ----------------------===//
+
+  ExprResult ActOnNullaryBoundsExpr(SourceLocation BoundKWLoc,
+                                    NullaryBoundsExpr::Kind Kind,
+                                    SourceLocation RParenLoc);
+  ExprResult ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
+                                  CountBoundsExpr::Kind Kind, Expr *CountExpr,
+                                  SourceLocation RParenLoc);
+  ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
+                                  Expr *UpperBound, SourceLocation RParenLoc);
+
+  void ActOnBoundsExpr(VarDecl *D, BoundsExpr *Expr);
+  void ActOnInvalidBoundsExpr(VarDecl *D);
 
   //===---------------------------- Clang Extensions ----------------------===//
 

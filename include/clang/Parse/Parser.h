@@ -144,6 +144,25 @@ class Parser : public CodeCompletionHandler {
   mutable IdentifierInfo *Ident_final;
   mutable IdentifierInfo *Ident_override;
 
+  /// Checked C contextual keywords
+
+  /// These keywords are for bounds expressions.  They are contextual to avoid
+  /// collisions with existing identifiers in programs.  Some keywords like "count"
+  /// and "any" are likely to collide.  Others are unlikely to collide, but we make
+  /// them contextual for consistency.
+
+  /// \brief Identifier for "bounds".
+  IdentifierInfo *Ident_bounds;
+
+  /// \brief Identifier for "byte_count".
+  IdentifierInfo *Ident_byte_count;
+
+  /// \brief Identifier for "count".
+  IdentifierInfo *Ident_count;
+
+  /// \brief Identifier for "none".
+  IdentifierInfo *Ident_none;
+
   // C++ type trait keywords that can be reverted to identifiers and still be
   // used as type traits.
   llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertibleTypeTraits;
@@ -1609,6 +1628,11 @@ private:
   bool MayBeDesignationStart();
   ExprResult ParseBraceInitializer();
   ExprResult ParseInitializerWithPotentialDesignator();
+
+  //===--------------------------------------------------------------------===//
+  // Checked C Expressions
+
+  ExprResult ParseBoundsExpression();
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

@@ -2288,6 +2288,25 @@ public:
                                                 ControllingExpr, Types, Exprs);
   }
 
+  ExprResult RebuildCountBoundsExpr(SourceLocation StartLoc,
+                                    CountBoundsExpr::Kind Kind,
+                                    Expr * CountExpr,
+                                    SourceLocation RParenLoc) {
+    return getSema().ActOnCountBoundsExpr(StartLoc, Kind, CountExpr, RParenLoc);
+  }
+
+  ExprResult RebuildNullaryBoundsExpr(SourceLocation StartLoc,
+                                      NullaryBoundsExpr::Kind Kind,
+                                      SourceLocation RParenLoc) {
+    return getSema().ActOnNullaryBoundsExpr(StartLoc, Kind, RParenLoc);
+  }
+
+  ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc,
+                                    Expr *Lower, Expr *Upper,
+                                    SourceLocation RParenLoc) {
+    return getSema().ActOnRangeBoundsExpr(StartLoc, Lower, Upper, RParenLoc);
+  }
+
   /// \brief Build a new overloaded operator call expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11275,6 +11294,51 @@ TreeTransform<Derived>::TransformAtomicExpr(AtomicExpr *E) {
 
   return getDerived().RebuildAtomicExpr(E->getBuiltinLoc(), SubExprs,
                                         RetTy, E->getOp(), E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCountBoundsExpr(CountBoundsExpr *E) {
+  ExprResult CountExpr = getDerived().TransformExpr(E->getCountExpr());
+  if (CountExpr.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() &&
+      CountExpr.get() == E->getCountExpr())
+    return E;
+
+  return getDerived().RebuildCountBoundsExpr(E->getStartLoc(),
+                                             E->getKind(),
+                                             CountExpr.get(),
+                                             E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformNullaryBoundsExpr(NullaryBoundsExpr *E) {
+   return E;
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
+  ExprResult LowerExpr = getDerived().TransformExpr(E->getLowerExpr());
+  if (LowerExpr.isInvalid())
+    return ExprError();
+
+  ExprResult UpperExpr = getDerived().TransformExpr(E->getUpperExpr());
+  if (UpperExpr.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() &&
+      LowerExpr.get() == E->getLowerExpr() && 
+      UpperExpr.get() == E->getUpperExpr())
+    return E;
+
+  return getDerived().RebuildRangeBoundsExpr(E->getStartLoc(),
+                                             LowerExpr.get(),
+                                             UpperExpr.get(),
+                                             E->getRParenLoc());
 }
 
 //===----------------------------------------------------------------------===//

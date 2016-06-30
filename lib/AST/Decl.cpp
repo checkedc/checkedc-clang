@@ -1795,6 +1795,7 @@ VarDecl::VarDecl(Kind DK, ASTContext &C, DeclContext *DC,
                 "NonParmVarDeclBitfields too large!");
   AllBits = 0;
   VarDeclBits.SClass = SC;
+  Bounds = nullptr;
   // Everything else is implicitly initialized to false.
 }
 
@@ -2009,6 +2010,20 @@ VarDecl *VarDecl::getDefinition(ASTContext &C) {
   return nullptr;
 }
 
+// Checked C bounds information
+
+bool VarDecl::hasBoundsExpr() const {
+  return Bounds != nullptr;
+}
+
+BoundsExpr *VarDecl::getBoundsExpr() {
+  return Bounds;
+}
+
+void VarDecl::setBoundsExpr(BoundsExpr *E) {
+  Bounds = E;
+}
+
 VarDecl::DefinitionKind VarDecl::hasDefinition(ASTContext &C) const {
   DefinitionKind Kind = DeclarationOnly;
 
@@ -2021,6 +2036,9 @@ VarDecl::DefinitionKind VarDecl::hasDefinition(ASTContext &C) const {
 
   return Kind;
 }
+
+
+
 
 const Expr *VarDecl::getAnyInitializer(const VarDecl *&D) const {
   for (auto I : redecls()) {

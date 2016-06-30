@@ -36,6 +36,7 @@ class CXXTemporary;
 class CompoundStmt;
 class DependentFunctionTemplateSpecializationInfo;
 class Expr;
+class BoundsExpr;
 class FunctionTemplateDecl;
 class FunctionTemplateSpecializationInfo;
 class LabelStmt;
@@ -800,6 +801,15 @@ protected:
   /// C++ default argument.
   mutable InitType Init;
 
+  // TODO: like the Init member above, it wastes space to have a pointer to a
+  // BoundsExpr in every VarDecl when many of them won't have bounds
+  // declarations. We could move the Init member and the Bounds to an
+  // "extension" object that is allocated on demand, at least not increasing
+  // the space usage of every single VarDecl.
+
+  /// \brief The bounds expression for the variable, if any.
+  BoundsExpr *Bounds;
+
 private:
   class VarDeclBitfields {
     friend class VarDecl;
@@ -1119,6 +1129,21 @@ public:
 
     return false;
   }
+
+  /// \brief Return true if this variable has bounds declared for it.
+  bool hasBoundsExpr() const;
+
+  /// \brief The declared bounds for this variable.  Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<VarDecl *>(this)->getBoundsExpr();
+  }
+
+  /// \brief The declared bounds for this variable.  Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr();
+  
+  void setBoundsExpr(BoundsExpr *E);
 
   /// getAnyInitializer - Get the initializer for this variable, no matter which
   /// declaration it is attached to.

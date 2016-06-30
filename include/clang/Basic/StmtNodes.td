@@ -168,6 +168,12 @@ def ObjCSubscriptRefExpr : DStmt<Expr>;
 // Obj-C ARC Expressions.
 def ObjCBridgedCastExpr : DStmt<ExplicitCastExpr>;
 
+// Checked C Bounds Expressions.
+def BoundsExpr : DStmt<Expr, 1>;
+def NullaryBoundsExpr : DStmt<BoundsExpr>;
+def CountBoundsExpr : DStmt<BoundsExpr>;
+def RangeBoundsExpr : DStmt<BoundsExpr>;
+
 // CUDA Expressions.
 def CUDAKernelCallExpr : DStmt<CallExpr>;
 

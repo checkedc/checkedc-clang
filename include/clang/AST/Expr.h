@@ -4514,6 +4514,120 @@ public:
   friend class ASTStmtReader;
 };
 
+/// \brief Represents a Checked C bounds expression.
+class BoundsExpr : public Expr {
+private:
+  SourceLocation StartLoc, RParenLoc;
+
+public:
+  BoundsExpr(StmtClass StmtClass, SourceLocation StartLoc, SourceLocation RParenLoc)
+    : Expr(StmtClass, QualType(),  VK_RValue, OK_Ordinary, false,
+           false, false, false), StartLoc(StartLoc), RParenLoc(RParenLoc) {
+  }
+
+  explicit BoundsExpr(StmtClass StmtClass, EmptyShell Empty) :
+    Expr(StmtClass, Empty) {}
+
+  SourceLocation getStartLoc() { return StartLoc; }
+  void setStartLoc(SourceLocation Loc) { StartLoc = Loc; }
+  SourceLocation getRParenLoc() { return RParenLoc; }
+  void setRParenLoc(SourceLocation Loc) { RParenLoc = Loc; }
+
+  SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return RParenLoc; }
+};
+
+/// \brief Represents a Checked C nullary bounds expression.
+class NullaryBoundsExpr : public BoundsExpr {
+public:
+  enum Kind {
+    // Invalid bounds expressions are used to flag invalid bounds
+    // expressions and prevent spurious downstream error messages
+    // in bounds declaration checking.
+    Invalid = 0,
+    // bounds(none)
+    None = 1
+  };
+
+public:
+  NullaryBoundsExpr(Kind Kind, SourceLocation StartLoc, SourceLocation RParenLoc)
+    : BoundsExpr(NullaryBoundsExprClass, StartLoc, RParenLoc)  {
+    NullaryBoundsExprBits.Kind = Kind;
+  }
+
+  explicit NullaryBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(NullaryBoundsExprClass, Empty) {}
+
+  Kind getKind() const { return (Kind) NullaryBoundsExprBits.Kind; }
+  void setKind(Kind Kind) { NullaryBoundsExprBits.Kind = Kind; }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+};
+
+/// \brief Represents a Checked C count bounds expression.
+class CountBoundsExpr : public BoundsExpr {
+public:
+  enum Kind {
+    ElementCount = 0,
+    ByteCount = 1,
+  };
+private:
+  Stmt *CountExpr;
+
+public:
+  CountBoundsExpr(Kind Kind, Expr *Count, SourceLocation StartLoc,
+    SourceLocation RParenLoc)
+    : BoundsExpr(CountBoundsExprClass, StartLoc, RParenLoc),
+      CountExpr(Count) {
+    CountBoundsExprBits.Kind = Kind;
+  }
+
+  explicit CountBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(CountBoundsExprClass, Empty) {}
+
+  Kind getKind() const { return (Kind)CountBoundsExprBits.Kind; }
+  void setKind(Kind Kind) { CountBoundsExprBits.Kind = Kind; }
+
+  Expr *getCountExpr() const { return cast<Expr>(CountExpr); }
+  void setCountExpr(Expr *E) { CountExpr = E; }
+
+  // Iterators
+  child_range children() {
+    return child_range(&CountExpr, &CountExpr + 1);
+  }
+};
+
+/// \brief Represents a Checked C range bounds expression.
+class RangeBoundsExpr : public BoundsExpr {
+private:
+  enum { LOWER, UPPER, END_EXPR };
+  Stmt *SubExprs[END_EXPR];
+
+public:
+  RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc,
+                  SourceLocation RParenLoc)
+    : BoundsExpr(RangeBoundsExprClass, StartLoc, RParenLoc) {
+    SubExprs[LOWER] = Lower;
+    SubExprs[UPPER] = Upper;
+  }
+
+  explicit RangeBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(RangeBoundsExprClass, Empty) {}
+
+  Expr *getLowerExpr() const { return cast<Expr>(SubExprs[LOWER]); }
+  void setLowerExpr(Expr *E) { SubExprs[LOWER] = E; }
+  Expr *getUpperExpr() const { return cast<Expr>(SubExprs[UPPER]); }
+  void setUpperExpr(Expr *E) { SubExprs[UPPER] = E; }
+
+  // Iterators
+  child_range children() {
+    return child_range(&SubExprs[0], &SubExprs[0] + END_EXPR);
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Clang Extensions
 //===----------------------------------------------------------------------===//
