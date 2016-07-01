@@ -44,12 +44,12 @@ Then do
 
 ## Update the baseline branch on Github
 
-You will then need to build and run tests to establish test baselines.   Assuming that the tests  results are good, you can push them to your personal 
-Github forks:
+You will then need to build and run tests to establish test baselines.   Assuming that the tests  results are good, 
+you can push them to your personal Github forks:
 
 	git push origin baseline
 
-You can then issue a pull request to pull the changes into the mainline change.
+You can then issue pull requests to pull the changes into the Microsift Github repos.
 
 ## Update the master branch.
 
@@ -58,6 +58,14 @@ After you have updated the baseline branch, you can update the master branch. Ch
 	git checkout master
 	git merge baseline
 
-Then set up the build system and compile.  Fix any issues that you encounter.  Then run tests.  Once you are passing the same
-testing as the baseline branch, push this up to personal Github fork and issue a pull request.
+Set up the build system and compile.  Fix any issues that you encounter.  
 
+Then run tests.  We have added tests for Checked C to the clang master branch, so these additional tests need to be taken
+into account during testing.  Make sure the code passes the following tests:
+
+- The same tests as the baseline branch, _plus_ the Checked C specific tests for clang in the master branch.
+  See the delta on the [testing baselines](Test-Baselines.md) page.
+- The Checked C languages tests for the Checked C project.
+
+After the tests are passing, update the markdown for the testing baselines in clang/docs/CheckedC/Test-Baselines.md.
+Then push the changes up to a personal Github fork and issue a pull request.
