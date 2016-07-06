@@ -2,7 +2,8 @@
 // accepts the flag for C and rejects it when the file is
 // compiled as another language.
 //
-// RUN: %clang -c -fcheckedc-extension %s 2>&1
+// RUN: %clang -c -fcheckedc-extension %s
+// RUN: %clang_cl -c -Xclang -fcheckedc-extension %s
 //
 // Have clang compile this file as C++ file
 // RUN: not %clang -c -fcheckedc-extension -x c++ %s 2>&1 \
@@ -31,4 +32,4 @@
 // check-objcpp: error: invalid argument '-fcheckedc-extension' not allowed with 'Objective C/C++'
 
 
-extern void f() {}
+extern void f(ptr<int> p) {}
