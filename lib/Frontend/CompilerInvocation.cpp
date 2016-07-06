@@ -1702,21 +1702,24 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.VtorDispMode = getLastArgIntValue(Args, OPT_vtordisp_mode_EQ, 1, Diags);
   Opts.Borland = Args.hasArg(OPT_fborland_extensions);
   if (Args.hasArg(OPT_fcheckedc_extension)) {
-    const char *disallowed = nullptr;
+    std::string disallowed;
     if (Opts.CUDA)
       disallowed = "CUDA";
     else if (Opts.OpenCL)
       disallowed = "OpenCL";
-    else if (Opts.CPlusPlus)
+    else if (Opts.ObjC1 || Opts.ObjC2) {
+      if (Opts.CPlusPlus)
+        disallowed = "Objective C/C++";
+      else
+        disallowed = "Objective C";
+    }
+    else if (Opts.CPlusPlus) {
       disallowed = "C++";
-    else if (Opts.ObjC1 || Opts.ObjC2)
-      disallowed = "Objective C";
-    if (disallowed) {
+    }
+
+    if (disallowed.size() > 0) {
       Diags.Report(diag::err_drv_argument_not_allowed_with) <<
         "-fcheckedc-extension" << disallowed;
-    } else if (!(Opts.C99 || Opts.C11)) {
-      Diags.Report(diag::err_drv_argument_only_allowed_with) <<
-        "-fcheckedc-extension" << "C";
     } else
       Opts.CheckedC = true;
   }
