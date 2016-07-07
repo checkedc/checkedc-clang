@@ -1,6 +1,6 @@
 # Test base lines
 
-## Current baseline
+## Testing baseline for the base line branch
 
 
 Here is the current baseline for testing just clang with the x86 target (using the check-clang project)
@@ -52,7 +52,14 @@ Here is the current base line for testing LLVM + clang on all targets (check-all
            Unexpected Failures: 6
 ```
 
+## Differences in test results between branches
+
+The  master branch in the checkedc-clang repo has additional tests for
+Checked C.  It is expected that the master branch will have more
+`Expected Passes` than the baseline branch.
+
 ## In-progress baseline updates
 
-This section records the test results for an in-progress update to latest sources in the baseline branch.  It is currently empty because
-no update is in-progress.
+This section records the test results for an in-progress update to latest
+sources in the baseline branch.  It is currently empty because no update
+is in-progress.
