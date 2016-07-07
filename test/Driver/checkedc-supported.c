@@ -5,12 +5,12 @@
 // RUN: %clang -c -fcheckedc-extension %s
 // RUN: %clang_cl -c -Xclang -fcheckedc-extension %s
 //
-// Have clang compile this file as C++ file
+// Have clang compile this file as C++ file.
 // RUN: not %clang -c -fcheckedc-extension -x c++ %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=check-cpp
 // check-cpp: error: invalid argument '-fcheckedc-extension' not allowed with 'C++'
 //
-// Have clang-cl to to compile this file as a C++ file
+// Have clang-cl compile this file as a C++ file.
 // RUN: not %clang_cl -c -Xclang -fcheckedc-extension /TP %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=clcheck-cpp
 // clcheck-cpp: error: invalid argument '-fcheckedc-extension' not allowed with 'C++'

@@ -64,8 +64,6 @@ Then run tests.  We have added tests for Checked C to the clang master branch, s
 into account during testing.  Make sure the code passes the following tests:
 
 - The same tests as the baseline branch, _plus_ the Checked C specific tests for clang in the master branch.
-  See the delta on the [testing baselines](Test-Baselines.md) page.
 - The Checked C languages tests for the Checked C project.
 
-After the tests are passing, update the markdown for the testing baselines in clang/docs/CheckedC/Test-Baselines.md.
-Then push the changes up to a personal Github fork and issue a pull request.
+Once the tests are passing, push the changes up to a personal Github fork and issue a pull request.
