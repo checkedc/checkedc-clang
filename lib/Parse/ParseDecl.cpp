@@ -5859,21 +5859,30 @@ void Parser::ParseFunctionDeclaratorIdentifierList(
 ///         parameter-list ',' parameter-declaration
 ///
 ///       parameter-declaration: [C99 6.7.5]
-///         declaration-specifiers declarator
-/// [C++]   declaration-specifiers declarator '=' assignment-expression
-/// [C++11]                                       initializer-clause
-/// [GNU]   declaration-specifiers declarator attributes
-///         declaration-specifiers abstract-declarator[opt]
-/// [C++]   declaration-specifiers abstract-declarator[opt]
-///           '=' assignment-expression
-/// [GNU]   declaration-specifiers abstract-declarator[opt] attributes
-/// [C++11] attribute-specifier-seq parameter-declaration
+///             declaration-specifiers declarator
+/// [Checked C] declaration-specifiers declarator ':' bounds-expression
+/// [C++]       declaration-specifiers declarator '=' assignment-expression
+/// [C++11]                                           initializer-clause
+/// [GNU]       declaration-specifiers declarator attributes
+///             declaration-specifiers abstract-declarator[opt]
+/// [C++]       declaration-specifiers abstract-declarator[opt]
+///               '=' assignment-expression
+/// [GNU]       declaration-specifiers abstract-declarator[opt] attributes
+/// [C++11]     attribute-specifier-seq parameter-declaration
 ///
 void Parser::ParseParameterDeclarationClause(
        Declarator &D,
        ParsedAttributes &FirstArgAttrs,
        SmallVectorImpl<DeclaratorChunk::ParamInfo> &ParamInfo,
        SourceLocation &EllipsisLoc) {
+  // Delay parsing/semantic checking of bounds expressions until after the
+  // parameter list is parsed. For each variable with a bounds declaration,
+  // keep a list of tokens for the bounds expression.   Parsing/checking
+  // bounds expressions for parameters is done in a scope that includes all
+  // the parameters in the parameter list.
+  typedef std::pair<ParmVarDecl *, CachedTokens *> BoundsExprInfo;
+  // We are guessing that most functions take 4 or fewer parameters.
+  SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
   do {
     // FIXME: Issue a diagnostic if we parsed an attribute-specifier-seq
     // before deciding this was a parameter-declaration-clause.
@@ -5944,14 +5953,22 @@ void Parser::ParseParameterDeclarationClause(
       // added to the current scope.
       ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
 
-      // Parse the bounds expression, if any.
+      // Parse and store the tokens for the bounds expression, if there is one.
       if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
         ConsumeToken();
-        ExprResult Bounds = ParseBoundsExpression();
-        if (Bounds.isInvalid()) {
+        // Consume and store tokens until a bounds-like expression has been
+        // read or a parsing error has happened.  Store the tokens even if a
+        // parsing error occurs so that ParseBoundsExpression can generate the
+        // error message.  This way the error messages from parsing of bounds
+        // expressions will be the same or very similar regardless of whether
+        // parsing is deferred or not.
+        // FIXME: Can we use a smart pointer for BoundsExprTokens?
+        CachedTokens *BoundsExprTokens = new CachedTokens;
+        bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+        deferredBoundsExpressions.emplace_back(Param, BoundsExprTokens);
+        if (ParsingError) {
           SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
-          Actions.ActOnInvalidBoundsExpr(Param);
-        } else Actions.ActOnBoundsExpr(Param, cast<BoundsExpr>(Bounds.get()));
+        }
       }
 
       // Parse the default argument, if any. We parse the default
@@ -6044,6 +6061,18 @@ void Parser::ParseParameterDeclarationClause(
 
     // If the next token is a comma, consume it and keep reading arguments.
   } while (TryConsumeToken(tok::comma));
+
+  // Now parse the deferred bounds expressions
+  for (const auto &Pair : deferredBoundsExpressions) {
+    ParmVarDecl *Param = Pair.first;
+    CachedTokens *Tokens = Pair.second;
+    // DeferredParseBoundsExpression deletes Tokens
+    ExprResult Bounds = DeferredParseBoundsExpression(Tokens);
+    if (Bounds.isInvalid())
+      Actions.ActOnInvalidBoundsExpr(Param);
+    else
+      Actions.ActOnBoundsExpr(Param, cast<BoundsExpr>(Bounds.get()));
+  }
 }
 
 /// [C90]   direct-declarator '[' constant-expression[opt] ']'

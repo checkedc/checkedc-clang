@@ -2813,10 +2813,70 @@ ExprResult Parser::ParseBoundsExpression() {
     // The identifier is not a valid contextual keyword for the start of a
     // a bounds expression.
     Diag(Tok, diag::err_expected_bounds_expr);
+    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
     Result = ExprError();
   }
 
   PT.consumeClose();
+  return Result;
+}
+
+/// Consume and store tokens for an expression shaped like a bounds expression
+/// in the passed token container. Returns \c true if it reached the end of
+/// something bounds-expression shaped, \c false if a parsing error occurred,
+///
+/// Stop when the end of the expression is reached or a parsing error occurs
+/// for which ParseBoundsExpression doesn't know how to make forward progress.
+/// An expression is shaped like a bounds expression if it consists of
+///   identifier '(' sequence of tokens ')'
+/// where parentheses balance within the sequence of tokens.
+bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
+  Toks.push_back(Tok);
+  if (Tok.getKind() != tok::identifier) {
+    return false;
+  }
+  ConsumeToken();
+
+  Toks.push_back(Tok);
+  if (Tok.getKind() != tok::l_paren) {
+    return false;
+  }
+  ConsumeParen();
+
+  return ConsumeAndStoreUntil(tok::r_paren, Toks, /*StopAtSemi=*/true);
+}
+
+/// Given a list of tokens that have the same shape as a bounds
+/// expression, parse them to create a bounds expression.  Delete
+/// the list of tokens at the end.
+ExprResult Parser::DeferredParseBoundsExpression(CachedTokens *Toks) {
+  Token LastBoundsExprToken = Toks->back();
+  Token BoundsExprEnd;
+  BoundsExprEnd.startToken();
+  BoundsExprEnd.setKind(tok::eof);
+  SourceLocation OrigLoc = LastBoundsExprToken.getEndLoc();
+  BoundsExprEnd.setLocation(OrigLoc);
+  Toks->push_back(BoundsExprEnd);
+
+  Toks->push_back(Tok); // Save the current token at the end of the new tokens
+                       // so it isn't lost.
+  PP.EnterTokenStream(*Toks, true);
+  ConsumeAnyToken();   // Skip past the current token to the new tokens.
+  ExprResult Result = ParseBoundsExpression();
+
+  // There could be leftover tokens because of an error.
+  // Skip through them until we reach the eof token.
+  if (Tok.isNot(tok::eof)) {
+    assert(Result.isInvalid());
+    while (Tok.isNot(tok::eof))
+      ConsumeAnyToken();
+  }
+
+  // Clean up the remaining EOF token.
+  if (Tok.is(tok::eof) && Tok.getLocation() == OrigLoc)
+    ConsumeAnyToken();
+
+  delete Toks;
   return Result;
 }
 

@@ -1633,6 +1633,8 @@ private:
   // Checked C Expressions
 
   ExprResult ParseBoundsExpression();
+  bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
+  ExprResult DeferredParseBoundsExpression(CachedTokens *Toks);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
