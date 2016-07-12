@@ -1634,7 +1634,7 @@ private:
 
   ExprResult ParseBoundsExpression();
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
-  ExprResult DeferredParseBoundsExpression(CachedTokens &Toks);
+  ExprResult DeferredParseBoundsExpression(CachedTokens *Toks);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

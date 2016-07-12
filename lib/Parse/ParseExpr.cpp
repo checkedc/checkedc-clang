@@ -2847,19 +2847,20 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 }
 
 /// Given a list of tokens that have the same shape as a bounds
-/// expression, parse them to create a bounds expression.
-ExprResult Parser::DeferredParseBoundsExpression(CachedTokens &Toks) {
-  Token LastBoundsExprToken = Toks.back();
+/// expression, parse them to create a bounds expression.  Delete
+/// the list of tokens at the end.
+ExprResult Parser::DeferredParseBoundsExpression(CachedTokens *Toks) {
+  Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();
   BoundsExprEnd.setKind(tok::eof);
   SourceLocation OrigLoc = LastBoundsExprToken.getEndLoc();
   BoundsExprEnd.setLocation(OrigLoc);
-  Toks.push_back(BoundsExprEnd);
+  Toks->push_back(BoundsExprEnd);
 
-  Toks.push_back(Tok); // Save the current token at the end of the new tokens
+  Toks->push_back(Tok); // Save the current token at the end of the new tokens
                        // so it isn't lost.
-  PP.EnterTokenStream(Toks, true);
+  PP.EnterTokenStream(*Toks, true);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
   ExprResult Result = ParseBoundsExpression();
 
@@ -2875,6 +2876,7 @@ ExprResult Parser::DeferredParseBoundsExpression(CachedTokens &Toks) {
   if (Tok.is(tok::eof) && Tok.getLocation() == OrigLoc)
     ConsumeAnyToken();
 
+  delete Toks;
   return Result;
 }
 

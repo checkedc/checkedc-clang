@@ -5881,6 +5881,7 @@ void Parser::ParseParameterDeclarationClause(
   // bounds expressions for parameters is done in a scope that includes all
   // the parameters in the parameter list.
   typedef std::pair<ParmVarDecl *, CachedTokens *> BoundsExprInfo;
+  // We are guessing that most functions take 4 or fewer parameters.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
   do {
     // FIXME: Issue a diagnostic if we parsed an attribute-specifier-seq
@@ -5961,9 +5962,10 @@ void Parser::ParseParameterDeclarationClause(
         // error message.  This way the error messages from parsing of bounds
         // expressions will be the same or very similar regardless of whether
         // parsing is deferred or not.
+        // FIXME: Can we use a smart pointer for BoundsExprTokens?
         CachedTokens *BoundsExprTokens = new CachedTokens;
         bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-        deferredBoundsExpressions.push_back(BoundsExprInfo(Param, BoundsExprTokens));
+        deferredBoundsExpressions.emplace_back(Param, BoundsExprTokens);
         if (ParsingError) {
           SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
         }
@@ -6061,11 +6063,11 @@ void Parser::ParseParameterDeclarationClause(
   } while (TryConsumeToken(tok::comma));
 
   // Now parse the deferred bounds expressions
-  for (auto Pair : deferredBoundsExpressions) {
+  for (const auto &Pair : deferredBoundsExpressions) {
     ParmVarDecl *Param = Pair.first;
     CachedTokens *Tokens = Pair.second;
-    ExprResult Bounds = DeferredParseBoundsExpression(*Tokens);
-    delete Tokens;
+    // DeferredParseBoundsExpression deletes Tokens
+    ExprResult Bounds = DeferredParseBoundsExpression(Tokens);
     if (Bounds.isInvalid())
       Actions.ActOnInvalidBoundsExpr(Param);
     else
