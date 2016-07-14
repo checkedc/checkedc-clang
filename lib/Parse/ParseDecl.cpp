@@ -1623,7 +1623,8 @@ bool Parser::MightBeDeclarator(unsigned Context) {
       // and in block scope it's probably a label. Inside a class definition,
       // this is a bit-field.
       return Context == Declarator::MemberContext ||
-             (getLangOpts().CPlusPlus && Context == Declarator::FileContext);
+             (getLangOpts().CPlusPlus && Context == Declarator::FileContext) ||
+             getLangOpts().CheckedC;
 
     case tok::identifier: // Possible virt-specifier.
       return getLangOpts().CPlusPlus11 && isCXX11VirtSpecifier(NextToken());
@@ -1936,6 +1937,8 @@ bool Parser::ParseAsmAttributesAfterDeclarator(Declarator &D) {
 /// [GNU]   declarator simple-asm-expr[opt] attributes[opt]
 /// [GNU]   declarator simple-asm-expr[opt] attributes[opt] '=' initializer
 /// [C++]   declarator initializer[opt]
+/// [Checked C] declarator ':' bounds-expression
+/// [Checked C] declarator ':' bounds-expression '=' initializer
 ///
 /// [C++] initializer:
 /// [C++]   '=' initializer-clause
@@ -2017,6 +2020,23 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
   }
 
   bool TypeContainsAuto = D.getDeclSpec().containsPlaceholderType();
+
+  // Parse the optional Checked C bounds expression.
+  if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
+    ConsumeToken();
+    ExprResult Bounds = ParseBoundsExpression();
+    if (Bounds.isInvalid())
+      SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
+
+    VarDecl *ThisVarDecl = dyn_cast<VarDecl>(ThisDecl);
+    if (ThisVarDecl) {
+      if (Bounds.isInvalid())
+        Actions.ActOnInvalidBoundsExpr(ThisVarDecl);
+      else
+        Actions.ActOnBoundsExpr(ThisVarDecl, cast<BoundsExpr>(Bounds.get()));
+    } else
+      llvm_unreachable("Unexpected decl type");
+  }
 
   // Parse declarator '=' initializer.
   // If a '==' or '+=' is found, suggest a fixit to '='.
