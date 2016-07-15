@@ -1622,6 +1622,10 @@ bool Parser::MightBeDeclarator(unsigned Context) {
       // At namespace scope, 'identifier:' is probably a typo for 'identifier::'
       // and in block scope it's probably a label. Inside a class definition,
       // this is a bit-field.
+      //
+      // For Checked C 'identifier:' is a valid start to a declarator because
+      // it may be followed by a bounds expression declaring the bounds of
+      // identifier.
       return Context == Declarator::MemberContext ||
              (getLangOpts().CPlusPlus && Context == Declarator::FileContext) ||
              getLangOpts().CheckedC;
