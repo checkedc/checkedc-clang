@@ -2794,20 +2794,20 @@ ExprResult Parser::ParseBoundsExpression() {
       // Look for e1 "," e2
       ExprResult LowerBound =
         Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
-      if (LowerBound.isInvalid())
-        Result = ExprError();
-      else if (ExpectAndConsume(tok::comma))
-        Result = ExprError();
-      else {
-        ExprResult UpperBound =
-          Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
-        if (UpperBound.isInvalid())
-          Result = ExprError();
-        else
-          Result = Actions.ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound.get(),
-                                                UpperBound.get(),
-                                                Tok.getLocation());
-      }
+
+     if (ExpectAndConsume(tok::comma))
+       // We didn't find a comma, so don't try to parse the upper bounds expression.
+       Result = ExprError();
+     else {
+       ExprResult UpperBound =
+         Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+       if (LowerBound.isInvalid() || UpperBound.isInvalid())
+         Result = ExprError();
+       else
+         Result = Actions.ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound.get(),
+                                               UpperBound.get(),
+                                               Tok.getLocation());
+     }
     } // if (!FoundNullaryOperator)
   } else {
     // The identifier is not a valid contextual keyword for the start of a
@@ -2816,6 +2816,13 @@ ExprResult Parser::ParseBoundsExpression() {
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
     Result = ExprError();
   }
+
+  // Result could be invalid because of a syntax error or a semantic checking
+  // error.  We don't know which.  Skip tokens until a right paren is found.
+  // If this was only a semantic checking error, the input will already be at
+  // a right paren, so skipping will be do nothing.
+  if (Result.isInvalid())
+    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
 
   PT.consumeClose();
   return Result;
