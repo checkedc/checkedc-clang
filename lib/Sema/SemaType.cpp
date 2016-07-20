@@ -718,7 +718,10 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*NumExceptions=*/0,
       /*NoexceptExpr=*/nullptr,
       /*ExceptionSpecTokens=*/nullptr,
-      loc, loc, declarator));
+      loc, loc,
+      /*ReturnBoundsColon=*/NoLoc,
+      /*ReturnBoundsExpr=*/nullptr,
+      declarator));
 
   // For consistency, make sure the state still has us as processing
   // the decl spec.
@@ -4237,6 +4240,10 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         // potentially variadic.
         SmallVector<QualType, 16> ParamTys;
         ParamTys.reserve(FTI.NumParams);
+
+        // TODO: checkedc-clang issue #20: represent bounds information
+        // in function types.  The code below will need to be updated
+        // to add the bounds information to the FunctionType.
 
         SmallVector<FunctionProtoType::ExtParameterInfo, 16>
           ExtParameterInfos(FTI.NumParams);

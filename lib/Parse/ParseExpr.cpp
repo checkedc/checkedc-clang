@@ -2971,6 +2971,8 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                              /*NoexceptExpr=*/nullptr,
                                              /*ExceptionSpecTokens=*/nullptr,
                                              CaretLoc, CaretLoc,
+                                             /*ReturnBoundsColon=*/NoLoc,
+                                             /*ReturnBoundsExpr=*/nullptr,
                                              ParamInfo),
                           attrs, CaretLoc);
 

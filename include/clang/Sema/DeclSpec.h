@@ -1287,10 +1287,17 @@ struct DeclaratorChunk {
     /// \brief The end location of the exception specification, if any.
     unsigned ExceptionSpecLocEnd;
 
+    /// The location of the ':' for the return bounds expression in the source
+    unsigned ReturnBoundsColon;
+
     /// Params - This is a pointer to a new[]'d array of ParamInfo objects that
     /// describe the parameters specified by this function declarator.  null if
     /// there are no parameters specified.
     ParamInfo *Params;
+
+    /// The bounds for the value returned by the function. Null if there is
+    /// no bounds specified.
+    BoundsExpr *ReturnBounds;
 
     union {
       /// \brief Pointer to a new[]'d array of TypeAndRange objects that
@@ -1352,6 +1359,10 @@ struct DeclaratorChunk {
       return SourceLocation::getFromRawEncoding(RParenLoc);
     }
 
+    SourceLocation getReturnBoundsColon() const {
+      return SourceLocation::getFromRawEncoding(ReturnBoundsColon);
+    }
+
     SourceLocation getExceptionSpecLocBeg() const {
       return SourceLocation::getFromRawEncoding(ExceptionSpecLocBeg);
     }
@@ -1408,6 +1419,9 @@ struct DeclaratorChunk {
 
     /// \brief Get the trailing-return-type for this function declarator.
     ParsedType getTrailingReturnType() const { return TrailingReturnType; }
+
+    /// \brief The bounds expression for the return value
+    BoundsExpr *getReturnBounds() const { return ReturnBounds; }
   };
 
   struct BlockPointerTypeInfo : TypeInfoCommon {
@@ -1552,6 +1566,8 @@ struct DeclaratorChunk {
                                      CachedTokens *ExceptionSpecTokens,
                                      SourceLocation LocalRangeBegin,
                                      SourceLocation LocalRangeEnd,
+                                     SourceLocation ReturnBoundsColonLoc,
+                                     BoundsExpr *ReturnBoundsExpr,
                                      Declarator &TheDeclarator,
                                      TypeResult TrailingReturnType =
                                                     TypeResult());

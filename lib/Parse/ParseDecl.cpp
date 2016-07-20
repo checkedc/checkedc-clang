@@ -5586,6 +5586,10 @@ void Parser::ParseParenDeclarator(Declarator &D) {
 ///           dynamic-exception-specification
 ///           noexcept-specification
 ///
+/// For Checked C, after the parameter-list, it also parses the optional return
+/// bounds expression for the function declarator:
+/// [Checked C] ':' bounds-expression
+////
 void Parser::ParseFunctionDeclarator(Declarator &D,
                                      ParsedAttributes &FirstArgAttrs,
                                      BalancedDelimiterTracker &Tracker,
@@ -5626,6 +5630,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   SourceLocation LParenLoc, RParenLoc;
   LParenLoc = Tracker.getOpenLocation();
   StartLoc = LParenLoc;
+  SourceLocation BoundsColonLoc;
+  BoundsExpr *ReturnBoundsExpr = nullptr;
 
   if (isFunctionDeclaratorIdentifierList()) {
     if (RequiresArg)
@@ -5741,6 +5747,17 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     }
   }
 
+  if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
+    BoundsColonLoc = Tok.getLocation();
+    ConsumeToken();
+    ExprResult BoundsExprResult = ParseBoundsExpression();
+    if (BoundsExprResult.isInvalid()) {
+      ReturnBoundsExpr = Actions.CreateInvalidBoundsExpr();
+      SkipUntil(tok::l_brace, SkipUntilFlags::StopAtSemi | SkipUntilFlags::StopBeforeMatch);
+    } else
+      ReturnBoundsExpr = cast<BoundsExpr>(BoundsExprResult.get());
+  }
+
   // Remember that we parsed a function type, and remember the attributes.
   D.AddTypeInfo(DeclaratorChunk::getFunction(HasProto,
                                              IsAmbiguous,
@@ -5760,7 +5777,9 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
                                              NoexceptExpr.isUsable() ?
                                                NoexceptExpr.get() : nullptr,
                                              ExceptionSpecTokens,
-                                             StartLoc, LocalEndLoc, D,
+                                             StartLoc, LocalEndLoc,
+                                             BoundsColonLoc, ReturnBoundsExpr,
+                                             D,
                                              TrailingReturnType),
                 FnAttrs, EndLoc);
 }
