@@ -1221,7 +1221,10 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                                            NoexceptExpr.isUsable() ?
                                              NoexceptExpr.get() : nullptr,
                                            /*ExceptionSpecTokens*/nullptr,
-                                           LParenLoc, FunLocalRangeEnd, D,
+                                           LParenLoc, FunLocalRangeEnd,
+                                           /*ReturnBoundsColonLoc=*/NoLoc,
+                                           /*ReturnBoundsExpr=*/nullptr,
+                                           D,
                                            TrailingReturnType),
                   Attr, DeclEndLoc);
   } else if (Tok.isOneOf(tok::kw_mutable, tok::arrow, tok::kw___attribute,
@@ -1290,7 +1293,10 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                                                /*NumExceptions=*/0,
                                                /*NoexceptExpr=*/nullptr,
                                                /*ExceptionSpecTokens=*/nullptr,
-                                               DeclLoc, DeclEndLoc, D,
+                                               DeclLoc, DeclEndLoc,
+                                               /*ReturnBoundsColonLoc=*/NoLoc,
+                                               /*ReturnBoundsExpr=*/nullptr,
+                                               D,
                                                TrailingReturnType),
                   Attr, DeclEndLoc);
   }

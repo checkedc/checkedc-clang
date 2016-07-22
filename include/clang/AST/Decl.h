@@ -1584,6 +1584,8 @@ private:
   /// 'enum Y' in 'void f(enum Y {AA} x) {}'.
   ArrayRef<NamedDecl *> DeclsInPrototypeScope;
 
+  BoundsExpr *ReturnBoundsExpr;
+
   LazyDeclStmtPtr Body;
 
   // FIXME: This can be packed into the bitfields in DeclContext.
@@ -1687,7 +1689,7 @@ protected:
                      StartLoc),
       DeclContext(DK),
       redeclarable_base(C),
-      ParamInfo(nullptr), Body(),
+      ParamInfo(nullptr), ReturnBoundsExpr(nullptr), Body(),
       SClass(S),
       IsInline(isInlineSpecified), IsInlineSpecified(isInlineSpecified),
       IsVirtualAsWritten(false), IsPure(false), HasInheritedPrototype(false),
@@ -2064,6 +2066,11 @@ public:
   /// \brief Returns the storage class as written in the source. For the
   /// computed linkage of symbol, see getLinkage.
   StorageClass getStorageClass() const { return StorageClass(SClass); }
+
+  /// \brief Returns the bounds expression for the return value of this function, if
+  /// any.
+  BoundsExpr *getReturnBoundsExpr() { return ReturnBoundsExpr; }
+  void setReturnBoundsExpr(BoundsExpr *E) { ReturnBoundsExpr = E; }
 
   /// \brief Determine whether the "inline" keyword was specified for this
   /// function.

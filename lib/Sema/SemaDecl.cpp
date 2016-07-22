@@ -7973,6 +7973,14 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 
+  // TODO: clang-checked-issue #20.  Issue #20 is attaching bounds information
+  // to function types.  After it is address, we need to make sure that bounds
+  // information is propgated to newFD from the FunctionPrototype instance.
+  if (D.isFunctionDeclarator()) {
+    DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
+    NewFD->setReturnBoundsExpr(FTI.getReturnBounds());
+  }
+
   // Find all anonymous symbols defined during the declaration of this function
   // and add to NewFD. This lets us track decls such 'enum Y' in:
   //
@@ -10880,13 +10888,19 @@ void Sema::ActOnInvalidBoundsExpr(VarDecl *D) {
   if (!D)
     return;
 
+  BoundsExpr *InvalidExpr = CreateInvalidBoundsExpr();
+  D->setBoundsExpr(InvalidExpr);
+}
+
+BoundsExpr *Sema::CreateInvalidBoundsExpr() {
   ExprResult Result =
     ActOnNullaryBoundsExpr(SourceLocation(),
                            NullaryBoundsExpr::Kind::Invalid,
                            SourceLocation());
-
   if (!Result.isInvalid())
-    D->setBoundsExpr(cast<BoundsExpr>(Result.get()));
+    return cast<BoundsExpr>(Result.get());
+  else
+    return nullptr;
 }
 
 Decl *
@@ -11613,7 +11627,9 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
                                              /*NumExceptions=*/0,
                                              /*NoexceptExpr=*/nullptr,
                                              /*ExceptionSpecTokens=*/nullptr,
-                                             Loc, Loc, D),
+                                             Loc, Loc,
+                                             /*ReturnBoundsColonLoc=*/NoLoc,
+                                             /*ReturnBoundsExpr=*/nullptr, D),
                 DS.getAttributes(),
                 SourceLocation());
   D.SetIdentifier(&II, Loc);

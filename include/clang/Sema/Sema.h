@@ -4116,6 +4116,7 @@ public:
 
   void ActOnBoundsExpr(VarDecl *D, BoundsExpr *Expr);
   void ActOnInvalidBoundsExpr(VarDecl *D);
+  BoundsExpr *CreateInvalidBoundsExpr();
 
   //===---------------------------- Clang Extensions ----------------------===//
 
