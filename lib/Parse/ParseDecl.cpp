@@ -5747,6 +5747,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     }
   }
 
+  // Parse optional Checked C bounds expression with the form:
+  // ':' bounds-expression.
   if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
     BoundsColonLoc = Tok.getLocation();
     ConsumeToken();

@@ -1288,7 +1288,7 @@ struct DeclaratorChunk {
     unsigned ExceptionSpecLocEnd;
 
     /// The location of the ':' for the return bounds expression in the source
-    unsigned ReturnBoundsColon;
+    unsigned ReturnBoundsColonLoc;
 
     /// Params - This is a pointer to a new[]'d array of ParamInfo objects that
     /// describe the parameters specified by this function declarator.  null if
@@ -1359,8 +1359,8 @@ struct DeclaratorChunk {
       return SourceLocation::getFromRawEncoding(RParenLoc);
     }
 
-    SourceLocation getReturnBoundsColon() const {
-      return SourceLocation::getFromRawEncoding(ReturnBoundsColon);
+    SourceLocation getReturnBoundsColonLoc() const {
+      return SourceLocation::getFromRawEncoding(ReturnBoundsColonLoc);
     }
 
     SourceLocation getExceptionSpecLocBeg() const {

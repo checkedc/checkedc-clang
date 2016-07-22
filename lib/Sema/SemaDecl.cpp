@@ -11628,7 +11628,7 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
                                              /*NoexceptExpr=*/nullptr,
                                              /*ExceptionSpecTokens=*/nullptr,
                                              Loc, Loc,
-                                             /*ReturnBoundsColon=*/NoLoc,
+                                             /*ReturnBoundsColonLoc=*/NoLoc,
                                              /*ReturnBoundsExpr=*/nullptr, D),
                 DS.getAttributes(),
                 SourceLocation());

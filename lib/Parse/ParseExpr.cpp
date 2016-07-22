@@ -2795,10 +2795,8 @@ ExprResult Parser::ParseBoundsExpression() {
       ExprResult LowerBound =
         Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
 
-     if (ExpectAndConsume(tok::comma))
-       // We didn't find a comma, so don't try to parse the upper bounds expression.
-       Result = ExprError();
-     else {
+     if (Tok.getKind() == tok::comma) {
+       ConsumeToken();
        ExprResult UpperBound =
          Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
        if (LowerBound.isInvalid() || UpperBound.isInvalid())
@@ -2807,6 +2805,15 @@ ExprResult Parser::ParseBoundsExpression() {
          Result = Actions.ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound.get(),
                                                UpperBound.get(),
                                                Tok.getLocation());
+     } else {
+       // We didn't find a comma. Only issue an error message if the
+       // LowerBound expression is valid.  Otherwise, we already issued an
+       // error message when parsing the lower bound. Emitting an error
+       // message here could be spurious or confusing.
+       if (!LowerBound.isInvalid()) {
+         Diag(Tok, diag::err_expected) << tok::comma;
+       }
+       Result = ExprError();
      }
     } // if (!FoundNullaryOperator)
   } else {
