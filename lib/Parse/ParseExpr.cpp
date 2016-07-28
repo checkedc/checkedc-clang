@@ -451,6 +451,10 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
                                          LHS.get(), TernaryMiddle.get(),
                                          RHS.get());
       }
+      // In this case, ActOnBinOp or ActOnConditionalOp performed the
+      // CorrectDelayedTyposInExpr check.
+      if (!getLangOpts().CPlusPlus)
+        continue;
     }
     // Ensure potential typos aren't left undiagnosed.
     if (LHS.isInvalid()) {
