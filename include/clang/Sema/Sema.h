@@ -420,6 +420,11 @@ public:
   /// element type here is ExprWithCleanups::Object.
   SmallVector<BlockDecl*, 8> ExprCleanupObjects;
 
+  /// True if the current expression is a member bounds expression
+  /// for a structure.  Member bounds expressions can only reference
+  /// members and cannot reference variables.
+  bool IsMemberBoundsExpr;
+
   /// \brief Store a list of either DeclRefExprs or MemberExprs
   ///  that contain a reference to a variable (constant) that may or may not
   ///  be odr-used in this Expr, and we won't know until all lvalue-to-rvalue
@@ -4114,8 +4119,8 @@ public:
   ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
                                   Expr *UpperBound, SourceLocation RParenLoc);
 
-  void ActOnBoundsExpr(VarDecl *D, BoundsExpr *Expr);
-  void ActOnInvalidBoundsExpr(VarDecl *D);
+  void ActOnBoundsExpr(DeclaratorDecl *D, BoundsExpr *Expr);
+  void ActOnInvalidBoundsExpr(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();
 
   //===---------------------------- Clang Extensions ----------------------===//
@@ -9434,6 +9439,25 @@ public:
 
   ~EnterExpressionEvaluationContext() {
     Actions.PopExpressionEvaluationContext();
+  }
+};
+
+
+/// \brief RAII object that handles state changes for processing a member
+// bounds expressions.
+class EnterMemberBoundsExprRAII {
+  Sema &S;
+  bool SavedMemberBounds;
+
+public:
+  EnterMemberBoundsExprRAII(Sema &S)
+    : S(S), SavedMemberBounds(S.IsMemberBoundsExpr)
+  {
+    S.IsMemberBoundsExpr = true;
+  }
+
+  ~EnterMemberBoundsExprRAII() {
+    S.IsMemberBoundsExpr = SavedMemberBounds;
   }
 };
 

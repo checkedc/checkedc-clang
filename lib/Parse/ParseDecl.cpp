@@ -3575,7 +3575,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 ///
 void Parser::ParseStructDeclaration(
     ParsingDeclSpec &DS,
-    llvm::function_ref<void(ParsingFieldDeclarator &)> FieldsCallback) {
+    llvm::function_ref<void(ParsingFieldDeclarator &, CachedTokens *)> FieldsCallback) {
 
   if (Tok.is(tok::kw___extension__)) {
     // __extension__ silences extension warnings in the subexpression.
@@ -3618,19 +3618,34 @@ void Parser::ParseStructDeclaration(
     } else
       DeclaratorInfo.D.SetIdentifier(nullptr, Tok.getLocation());
 
+    CachedTokens *BoundsExprTokens = nullptr;
     if (TryConsumeToken(tok::colon)) {
-      ExprResult Res(ParseConstantExpression());
-      if (Res.isInvalid())
-        SkipUntil(tok::semi, StopBeforeMatch);
-      else
-        DeclaratorInfo.BitfieldSize = Res.get();
+      bool IsBoundsExpr = false;
+      if (getLangOpts().CheckedC && Tok.getKind() == tok::identifier) {
+        IdentifierInfo *Ident = Tok.getIdentifierInfo();
+        IsBoundsExpr = Ident == Ident_byte_count || Ident == Ident_count ||
+                       Ident == Ident_bounds;
+      }
+      if (IsBoundsExpr) {
+         BoundsExprTokens = new CachedTokens;
+         bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+         if (ParsingError) {
+           SkipUntil(tok::semi, StopBeforeMatch);
+         }
+      } else {
+        ExprResult Res(ParseConstantExpression());
+        if (Res.isInvalid())
+          SkipUntil(tok::semi, StopBeforeMatch);
+        else
+          DeclaratorInfo.BitfieldSize = Res.get();
+      }
     }
 
     // If attributes exist after the declarator, parse them.
     MaybeParseGNUAttributes(DeclaratorInfo.D);
 
     // We're done with this declarator;  invoke the callback.
-    FieldsCallback(DeclaratorInfo);
+    FieldsCallback(DeclaratorInfo, BoundsExprTokens);
 
     // If we don't have a comma, it is either the end of the list (a ';')
     // or an error, bail out.
@@ -3665,6 +3680,16 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   Actions.ActOnTagStartDefinition(getCurScope(), TagDecl);
 
   SmallVector<Decl *, 32> FieldDecls;
+
+  // Delay parsing/semantic processing of member bounds expressions until after the
+  // member list is parsed. For each member with a bounds declaration,
+  // keep a list of tokens for the bounds expression.   Parsing/processing
+  // member bounds expressions is done in a scope that includes all
+  // the members in the member list.
+  typedef std::pair<Decl *, CachedTokens *> BoundsExprInfo;
+  // We are guessing that most structure declarations have 4 or fewer members
+  // with bounds expressions on them.
+  SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
 
   // While we still have something to read, read the declarations in the struct.
   while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
@@ -3703,7 +3728,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
 
     if (!Tok.is(tok::at)) {
-      auto CFieldCallback = [&](ParsingFieldDeclarator &FD) {
+      auto CFieldCallback = [&](ParsingFieldDeclarator &FD,
+                                CachedTokens *BoundsExprTokens) {
         // Install the declarator into the current TagDecl.
         Decl *Field =
             Actions.ActOnField(getCurScope(), TagDecl,
@@ -3711,6 +3737,9 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
                                FD.D, FD.BitfieldSize);
         FieldDecls.push_back(Field);
         FD.complete(Field);
+        if (BoundsExprTokens != nullptr) {
+          deferredBoundsExpressions.emplace_back(Field, BoundsExprTokens);
+        }
       };
 
       // Parse all the comma separated declarators.
@@ -3763,6 +3792,18 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
                       RecordLoc, TagDecl, FieldDecls,
                       T.getOpenLocation(), T.getCloseLocation(),
                       attrs.getList());
+  // Parse the deferred bounds expressions
+  for (const auto &Pair : deferredBoundsExpressions) {
+    EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
+    DeclaratorDecl *FieldDecl = dyn_cast<DeclaratorDecl>(Pair.first);
+    CachedTokens *Tokens = Pair.second;
+    // DeferredParseBoundsExpression deletes Tokens
+    ExprResult Bounds = DeferredParseBoundsExpression(Tokens);
+    if (Bounds.isInvalid())
+      Actions.ActOnInvalidBoundsExpr(FieldDecl);
+    else
+      Actions.ActOnBoundsExpr(FieldDecl, cast<BoundsExpr>(Bounds.get()));
+  }
   StructScope.Exit();
   Actions.ActOnTagFinishDefinition(getCurScope(), TagDecl,
                                    T.getCloseLocation());
@@ -5926,7 +5967,8 @@ void Parser::ParseParameterDeclarationClause(
   // bounds expressions for parameters is done in a scope that includes all
   // the parameters in the parameter list.
   typedef std::pair<ParmVarDecl *, CachedTokens *> BoundsExprInfo;
-  // We are guessing that most functions take 4 or fewer parameters.
+  // We are guessing that most functions take 4 or fewer parameters with
+  // bounds expressions on them.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
   do {
     // FIXME: Issue a diagnostic if we parsed an attribute-specifier-seq

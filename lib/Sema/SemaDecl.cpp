@@ -7978,7 +7978,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // information is propgated to newFD from the FunctionPrototype instance.
   if (D.isFunctionDeclarator()) {
     DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
-    NewFD->setReturnBoundsExpr(FTI.getReturnBounds());
+    NewFD->setBoundsExpr(FTI.getReturnBounds());
   }
 
   // Find all anonymous symbols defined during the declaration of this function
@@ -10877,14 +10877,14 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
 }
 
 /// ActOnBoundsExpr: attach a bounds expression to a parameter declaration.
-void Sema::ActOnBoundsExpr(VarDecl *D, BoundsExpr *Expr) {
+void Sema::ActOnBoundsExpr(DeclaratorDecl *D, BoundsExpr *Expr) {
   if (!D || !Expr)
     return;
 
   D->setBoundsExpr(Expr);
 }
 
-void Sema::ActOnInvalidBoundsExpr(VarDecl *D) {
+void Sema::ActOnInvalidBoundsExpr(DeclaratorDecl *D) {
   if (!D)
     return;
 
@@ -13083,9 +13083,13 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
     // Handle incomplete types with specific error.
     if (RequireCompleteType(FieldLoc, FieldTy, diag::err_field_incomplete))
       return ExprError();
-    if (FieldName)
-      return Diag(FieldLoc, diag::err_not_integral_type_bitfield)
-        << FieldName << FieldTy << BitWidth->getSourceRange();
+    if (FieldName) {
+      if (getLangOpts().CheckedC && FieldTy->isPointerType())
+        return Diag(BitWidth->getExprLoc(), diag::err_expected_bounds_expr_for_member);
+      else
+        return Diag(FieldLoc, diag::err_not_integral_type_bitfield)
+          << FieldName << FieldTy << BitWidth->getSourceRange();
+    }
     return Diag(FieldLoc, diag::err_not_integral_type_anon_bitfield)
       << FieldTy << BitWidth->getSourceRange();
   } else if (DiagnoseUnexpandedParameterPack(const_cast<Expr *>(BitWidth),

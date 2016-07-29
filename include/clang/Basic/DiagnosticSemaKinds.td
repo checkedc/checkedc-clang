@@ -8430,4 +8430,8 @@ def err_checked_vla : Error<
 def err_checked_cplusplus : Error<
   "checked extension not supported for C++">;
 
+def err_undeclared_member_use : Error<"use of undeclared member %0">;
+
+def err_expected_bounds_expr_for_member : Error<
+  "expected bounds expression">;
 } // end of sema component.

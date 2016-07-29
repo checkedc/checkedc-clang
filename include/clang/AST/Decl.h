@@ -664,8 +664,11 @@ protected:
   DeclaratorDecl(Kind DK, DeclContext *DC, SourceLocation L,
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
                  SourceLocation StartL)
-    : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL) {
+    : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL),
+      Bounds(nullptr) {
   }
+
+  BoundsExpr *Bounds;
 
 public:
   TypeSourceInfo *getTypeSourceInfo() const {
@@ -731,6 +734,25 @@ public:
 
   friend class ASTDeclReader;
   friend class ASTDeclWriter;
+
+  // Checked C bounds information
+
+  /// \brief Return true if this declaration has bounds declared for it.
+  bool hasBoundsExpr() const;
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<DeclaratorDecl *>(this)->getBoundsExpr();
+  }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr();
+
+  void setBoundsExpr(BoundsExpr *E);
 };
 
 /// \brief Structure used to store a statement, the constant value to
@@ -800,15 +822,6 @@ protected:
   /// \brief The initializer for this variable or, for a ParmVarDecl, the
   /// C++ default argument.
   mutable InitType Init;
-
-  // TODO: like the Init member above, it wastes space to have a pointer to a
-  // BoundsExpr in every VarDecl when many of them won't have bounds
-  // declarations. We could move the Init member and the Bounds to an
-  // "extension" object that is allocated on demand, at least not increasing
-  // the space usage of every single VarDecl.
-
-  /// \brief The bounds expression for the variable, if any.
-  BoundsExpr *Bounds;
 
 private:
   class VarDeclBitfields {
@@ -1129,21 +1142,6 @@ public:
 
     return false;
   }
-
-  /// \brief Return true if this variable has bounds declared for it.
-  bool hasBoundsExpr() const;
-
-  /// \brief The declared bounds for this variable.  Null if no
-  /// bounds have been declared.
-  const BoundsExpr *getBoundsExpr() const {
-    return const_cast<VarDecl *>(this)->getBoundsExpr();
-  }
-
-  /// \brief The declared bounds for this variable.  Null if no
-  /// bounds have been declared.
-  BoundsExpr *getBoundsExpr();
-  
-  void setBoundsExpr(BoundsExpr *E);
 
   /// getAnyInitializer - Get the initializer for this variable, no matter which
   /// declaration it is attached to.
@@ -1584,8 +1582,6 @@ private:
   /// 'enum Y' in 'void f(enum Y {AA} x) {}'.
   ArrayRef<NamedDecl *> DeclsInPrototypeScope;
 
-  BoundsExpr *ReturnBoundsExpr;
-
   LazyDeclStmtPtr Body;
 
   // FIXME: This can be packed into the bitfields in DeclContext.
@@ -1689,7 +1685,7 @@ protected:
                      StartLoc),
       DeclContext(DK),
       redeclarable_base(C),
-      ParamInfo(nullptr), ReturnBoundsExpr(nullptr), Body(),
+      ParamInfo(nullptr), Body(),
       SClass(S),
       IsInline(isInlineSpecified), IsInlineSpecified(isInlineSpecified),
       IsVirtualAsWritten(false), IsPure(false), HasInheritedPrototype(false),
@@ -2066,11 +2062,6 @@ public:
   /// \brief Returns the storage class as written in the source. For the
   /// computed linkage of symbol, see getLinkage.
   StorageClass getStorageClass() const { return StorageClass(SClass); }
-
-  /// \brief Returns the bounds expression for the return value of this function, if
-  /// any.
-  BoundsExpr *getReturnBoundsExpr() { return ReturnBoundsExpr; }
-  void setReturnBoundsExpr(BoundsExpr *E) { ReturnBoundsExpr = E; }
 
   /// \brief Determine whether the "inline" keyword was specified for this
   /// function.
