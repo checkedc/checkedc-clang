@@ -743,7 +743,7 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
 
       bool addedToDeclSpec = false;
       auto ObjCPropertyCallback = [&](ParsingFieldDeclarator &FD,
-                                      CachedTokens *BoundsExprTokens) {
+                                      std::unique_ptr<CachedTokens> BoundsExprTokens) {
         // BoundsExprTokens are used only for Checked C.  They should be null here.
         assert(BoundsExprTokens == nullptr);
         if (FD.D.getIdentifier() == nullptr) {
@@ -1943,7 +1943,7 @@ void Parser::ParseObjCClassInstanceVariables(Decl *interfaceDecl,
     }
 
     auto ObjCIvarCallback = [&](ParsingFieldDeclarator &FD,
-                                CachedTokens *BoundsExprTokens) {
+                                std::unique_ptr<CachedTokens> BoundsExprTokens) {
       // BoundsExprTokens are used only for Checked C.  They should be null here.
       assert(BoundsExprTokens == nullptr);
       Actions.ActOnObjCContainerStartDefinition(interfaceDecl);

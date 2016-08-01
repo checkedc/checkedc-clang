@@ -446,12 +446,10 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
 
         LHS = Actions.ActOnBinOp(getCurScope(), OpToken.getLocation(),
                                  OpToken.getKind(), LHS.get(), RHS.get());
-
       } else {
         LHS = Actions.ActOnConditionalOp(OpToken.getLocation(), ColonLoc,
                                          LHS.get(), TernaryMiddle.get(),
                                          RHS.get());
-
       }
       // In this case, ActOnBinOp or ActOnConditionalOp performed the
       // CorrectDelayedTyposInExpr check.
@@ -2750,6 +2748,15 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   Actions.ActOnBlockArguments(CaretLoc, DeclaratorInfo, getCurScope());
 }
 
+bool Parser::StartsBoundsExpression(Token &tok) {
+  if (Tok.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+    return (Ident == Ident_byte_count || Ident == Ident_count ||
+            Ident == Ident_bounds);
+  }
+  return false;
+}
+
 ExprResult Parser::ParseBoundsExpression() {
   if (Tok.getKind() != tok::identifier) {
     // This can't be a contextual keyword that begins a bounds expression,
@@ -2869,7 +2876,7 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 /// Given a list of tokens that have the same shape as a bounds
 /// expression, parse them to create a bounds expression.  Delete
 /// the list of tokens at the end.
-ExprResult Parser::DeferredParseBoundsExpression(CachedTokens *Toks) {
+ExprResult Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks) {
   Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();
@@ -2896,7 +2903,6 @@ ExprResult Parser::DeferredParseBoundsExpression(CachedTokens *Toks) {
   if (Tok.is(tok::eof) && Tok.getLocation() == OrigLoc)
     ConsumeAnyToken();
 
-  delete Toks;
   return Result;
 }
 

@@ -1916,7 +1916,6 @@ Sema::DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
                                         diagnostic, diagnostic_suggest);
         },
         nullptr, CTK_ErrorRecovery);
-
     if (*Out)
       return true;
   } else if (S && (Corrected =
@@ -2122,7 +2121,7 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
     lookupKind = LookupMemberName;
   }
 
-   if (Id.getKind() == UnqualifiedId::IK_ImplicitSelfParam) {
+  if (Id.getKind() == UnqualifiedId::IK_ImplicitSelfParam) {
     lookupKind = LookupObjCImplicitSelfParam;
   }
 
@@ -2251,7 +2250,6 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
   assert(!R.empty() || ADL);
 
   // Check whether this might be a C++ implicit instance member access.
-  //
   // C++ [class.mfct.non-static]p3:
   //   When an id-expression that is not part of a class member access
   //   syntax and not used to form a pointer to member is used in the
@@ -2275,7 +2273,6 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
   // to get this right here so that we don't end up making a
   // spuriously dependent expression if we're inside a dependent
   // instance method.
-
   if (!R.empty() && (*R.begin())->isCXXClassMember() &&
       !this->IsMemberBoundsExpr) { // exclude Checked C member bounds exprs.
     bool MightBeImplicitMember;
@@ -2882,7 +2879,7 @@ ExprResult Sema::BuildDeclarationNameExpr(
 
     // For C++, fields and indirect fields that got here must be for
     // pointer-to-member expressions.  For Checked C, fields that get here
-    //  must be for member bounds expressions.  For C++, we just call them
+    // must be for member bounds expressions.  For C++, we just call them
     // l-values for internal consistency, because this  subexpression doesn't
     // really exist in the high-level semantics.  For Checked C, we treat
     // this as an lvalue.

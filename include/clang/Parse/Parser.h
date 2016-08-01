@@ -1632,9 +1632,11 @@ private:
   //===--------------------------------------------------------------------===//
   // Checked C Expressions
 
+  bool StartsBoundsExpression(Token &Tok);
   ExprResult ParseBoundsExpression();
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
-  ExprResult DeferredParseBoundsExpression(CachedTokens *Toks);
+  ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks);
+
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
@@ -1895,7 +1897,7 @@ private:
 
   void ParseStructDeclaration(
       ParsingDeclSpec &DS,
-      llvm::function_ref<void(ParsingFieldDeclarator &, CachedTokens *)> FieldsCallback);
+      llvm::function_ref<void(ParsingFieldDeclarator &, std::unique_ptr<CachedTokens>)> FieldsCallback);
 
   bool isDeclarationSpecifier(bool DisambiguatingWithExpression = false);
   bool isTypeSpecifierQualifier();

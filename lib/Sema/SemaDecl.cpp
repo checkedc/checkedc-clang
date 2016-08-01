@@ -13166,8 +13166,8 @@ ExprResult Sema::VerifyBitField(SourceLocation FieldLoc,
 
 /// ActOnField - Each field of a C struct/union is passed into this in order
 /// to create a FieldDecl object for it.
-Decl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
-                       Declarator &D, Expr *BitfieldWidth) {
+FieldDecl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
+                            Declarator &D, Expr *BitfieldWidth) {
   FieldDecl *Res = HandleField(S, cast_or_null<RecordDecl>(TagD),
                                DeclStart, D, static_cast<Expr*>(BitfieldWidth),
                                /*InitStyle=*/ICIS_NoInit, AS_public);

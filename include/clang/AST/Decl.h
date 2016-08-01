@@ -736,6 +736,7 @@ public:
   friend class ASTDeclWriter;
 
   // Checked C bounds information
+  // For function declarations, this is the return bounds of the function.
 
   /// \brief Return true if this declaration has bounds declared for it.
   bool hasBoundsExpr() const;
@@ -752,6 +753,8 @@ public:
   /// bounds have been declared.
   BoundsExpr *getBoundsExpr();
 
+  /// \brief Set the declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function.
   void setBoundsExpr(BoundsExpr *E);
 };
 

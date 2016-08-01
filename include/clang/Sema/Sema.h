@@ -1925,8 +1925,8 @@ public:
   void ActOnDefs(Scope *S, Decl *TagD, SourceLocation DeclStart,
                  IdentifierInfo *ClassName,
                  SmallVectorImpl<Decl *> &Decls);
-  Decl *ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
-                   Declarator &D, Expr *BitfieldWidth);
+  FieldDecl *ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
+                        Declarator &D, Expr *BitfieldWidth);
 
   FieldDecl *HandleField(Scope *S, RecordDecl *TagD, SourceLocation DeclStart,
                          Declarator &D, Expr *BitfieldWidth,
@@ -9441,7 +9441,6 @@ public:
     Actions.PopExpressionEvaluationContext();
   }
 };
-
 
 /// \brief RAII object that handles state changes for processing a member
 // bounds expressions.
