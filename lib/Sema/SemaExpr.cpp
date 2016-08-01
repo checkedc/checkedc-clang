@@ -2219,7 +2219,6 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
           // Clean up the state associated with the TypoExpr, since it has
           // now been diagnosed (without a call to CorrectDelayedTyposInExpr).
           clearDelayedTypo(TE);
-
           // Signal that a correction to a keyword was performed by returning a
           // valid-but-null ExprResult.
           return (Expr*)nullptr;

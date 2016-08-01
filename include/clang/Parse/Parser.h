@@ -1632,6 +1632,7 @@ private:
   //===--------------------------------------------------------------------===//
   // Checked C Expressions
 
+  /// \brief Return true if this token can start a bounds expression.
   bool StartsBoundsExpression(Token &Tok);
   ExprResult ParseBoundsExpression();
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
