@@ -1828,6 +1828,12 @@ Sema::DiagnoseEmptyLookup(Scope *S, CXXScopeSpec &SS, LookupResult &R,
     diagnostic_suggest = diag::err_undeclared_use_suggest;
   }
 
+  // Member bounds expression can only refer to members. Emit a more specific
+  // error message for the use of unknown identifers there.
+  if (IsMemberBoundsExpr) {
+    diagnostic = diag::err_undeclared_member_use;
+  }
+
   // If the original lookup was an unqualified lookup, fake an
   // unqualified lookup.  This is useful when (for example) the
   // original lookup would not have found something because it was a
@@ -2109,10 +2115,18 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
     return ActOnDependentIdExpression(SS, TemplateKWLoc, NameInfo,
                                       IsAddressOfOperand, TemplateArgs);
 
+  clang::Sema::LookupNameKind lookupKind = LookupOrdinaryName;
+  if (this->IsMemberBoundsExpr) {
+    assert(getLangOpts().CheckedC);
+    lookupKind = LookupMemberName;
+  }
+
+  if (Id.getKind() == UnqualifiedId::IK_ImplicitSelfParam) {
+    lookupKind = LookupObjCImplicitSelfParam;
+  }
+
   // Perform the required lookup.
-  LookupResult R(*this, NameInfo, 
-                 (Id.getKind() == UnqualifiedId::IK_ImplicitSelfParam) 
-                  ? LookupObjCImplicitSelfParam : LookupOrdinaryName);
+  LookupResult R(*this, NameInfo, lookupKind);
   if (TemplateArgs) {
     // Lookup the template name again to correctly establish the context in
     // which it was found. This is really unfortunate as we already did the
@@ -2258,7 +2272,8 @@ Sema::ActOnIdExpression(Scope *S, CXXScopeSpec &SS,
   // to get this right here so that we don't end up making a
   // spuriously dependent expression if we're inside a dependent
   // instance method.
-  if (!R.empty() && (*R.begin())->isCXXClassMember()) {
+  if (!R.empty() && (*R.begin())->isCXXClassMember() &&
+      !this->IsMemberBoundsExpr) { // exclude Checked C member bounds exprs.
     bool MightBeImplicitMember;
     if (!IsAddressOfOperand)
       MightBeImplicitMember = true;
@@ -2861,19 +2876,27 @@ ExprResult Sema::BuildDeclarationNameExpr(
       valueKind = VK_RValue;
       break;
 
-    // Fields and indirect fields that got here must be for
-    // pointer-to-member expressions; we just call them l-values for
-    // internal consistency, because this subexpression doesn't really
-    // exist in the high-level semantics.
+    // For C++, fields and indirect fields that got here must be for
+    // pointer-to-member expressions.  For Checked C, fields that get here
+    // must be for member bounds expressions.  For C++, we just call them
+    // l-values for internal consistency, because this  subexpression doesn't
+    // really exist in the high-level semantics.  For Checked C, we treat
+    // this as an lvalue.
     case Decl::Field:
     case Decl::IndirectField:
-      assert(getLangOpts().CPlusPlus &&
-             "building reference to field in C?");
+      if (IsMemberBoundsExpr) {
+        assert(getLangOpts().CheckedC);
+        assert(!isa<IndirectFieldDecl>(VD));
+        valueKind = VK_LValue;
+      } else {
+        assert(getLangOpts().CPlusPlus &&
+               "building reference to field in C?");
 
-      // These can't have reference type in well-formed programs, but
-      // for internal consistency we do this anyway.
-      type = type.getNonReferenceType();
-      valueKind = VK_LValue;
+        // These can't have reference type in well-formed programs, but
+        // for internal consistency we do this anyway.
+        type = type.getNonReferenceType();
+        valueKind = VK_LValue;
+      }
       break;
 
     // Non-type template parameters are either l-values or r-values

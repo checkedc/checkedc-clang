@@ -3575,7 +3575,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 ///
 void Parser::ParseStructDeclaration(
     ParsingDeclSpec &DS,
-    llvm::function_ref<void(ParsingFieldDeclarator &)> FieldsCallback) {
+    llvm::function_ref<void(ParsingFieldDeclarator &, std::unique_ptr<CachedTokens>)> FieldsCallback) {
 
   if (Tok.is(tok::kw___extension__)) {
     // __extension__ silences extension warnings in the subexpression.
@@ -3618,19 +3618,29 @@ void Parser::ParseStructDeclaration(
     } else
       DeclaratorInfo.D.SetIdentifier(nullptr, Tok.getLocation());
 
+    std::unique_ptr<CachedTokens> BoundsExprTokens;
     if (TryConsumeToken(tok::colon)) {
-      ExprResult Res(ParseConstantExpression());
-      if (Res.isInvalid())
-        SkipUntil(tok::semi, StopBeforeMatch);
-      else
-        DeclaratorInfo.BitfieldSize = Res.get();
+      if (getLangOpts().CheckedC && StartsBoundsExpression(Tok)) {
+         BoundsExprTokens.reset(new CachedTokens);
+         bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+         if (ParsingError) {
+           SkipUntil(tok::semi, StopBeforeMatch);
+         }
+      } else {
+        ExprResult Res(ParseConstantExpression());
+        if (Res.isInvalid())
+          SkipUntil(tok::semi, StopBeforeMatch);
+        else
+          DeclaratorInfo.BitfieldSize = Res.get();
+      }
     }
 
     // If attributes exist after the declarator, parse them.
     MaybeParseGNUAttributes(DeclaratorInfo.D);
 
     // We're done with this declarator;  invoke the callback.
-    FieldsCallback(DeclaratorInfo);
+
+    FieldsCallback(DeclaratorInfo, std::move(BoundsExprTokens));
 
     // If we don't have a comma, it is either the end of the list (a ';')
     // or an error, bail out.
@@ -3665,6 +3675,16 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   Actions.ActOnTagStartDefinition(getCurScope(), TagDecl);
 
   SmallVector<Decl *, 32> FieldDecls;
+
+  // Delay parsing/semantic processing of member bounds expressions until after the
+  // member list is parsed. For each member with a bounds declaration,
+  // keep a list of tokens for the bounds expression.   Parsing/processing
+  // member bounds expressions is done in a scope that includes all
+  // the members in the member list.
+  typedef std::pair<FieldDecl *, std::unique_ptr<CachedTokens>> BoundsExprInfo;
+  // We are guessing that most structure declarations have 4 or fewer members
+  // with bounds expressions on them.
+  SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
 
   // While we still have something to read, read the declarations in the struct.
   while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
@@ -3703,14 +3723,17 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
 
     if (!Tok.is(tok::at)) {
-      auto CFieldCallback = [&](ParsingFieldDeclarator &FD) {
+      auto CFieldCallback = [&](ParsingFieldDeclarator &FD,
+                                std::unique_ptr<CachedTokens> BoundsExprTokens) {
         // Install the declarator into the current TagDecl.
-        Decl *Field =
-            Actions.ActOnField(getCurScope(), TagDecl,
-                               FD.D.getDeclSpec().getSourceRange().getBegin(),
-                               FD.D, FD.BitfieldSize);
+        FieldDecl *Field =
+          Actions.ActOnField(getCurScope(), TagDecl,
+                             FD.D.getDeclSpec().getSourceRange().getBegin(),
+                             FD.D, FD.BitfieldSize);
         FieldDecls.push_back(Field);
         FD.complete(Field);
+        if (BoundsExprTokens != nullptr)
+          deferredBoundsExpressions.emplace_back(Field, std::move(BoundsExprTokens));
       };
 
       // Parse all the comma separated declarators.
@@ -3763,6 +3786,17 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
                       RecordLoc, TagDecl, FieldDecls,
                       T.getOpenLocation(), T.getCloseLocation(),
                       attrs.getList());
+  // Parse the deferred bounds expressions
+  for (auto &Pair : deferredBoundsExpressions) {
+    EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
+    FieldDecl *FieldDecl = Pair.first;
+    std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
+    ExprResult Bounds = DeferredParseBoundsExpression(std::move(Tokens));
+    if (Bounds.isInvalid())
+      Actions.ActOnInvalidBoundsExpr(FieldDecl);
+    else
+      Actions.ActOnBoundsExpr(FieldDecl, cast<BoundsExpr>(Bounds.get()));
+  }
   StructScope.Exit();
   Actions.ActOnTagFinishDefinition(getCurScope(), TagDecl,
                                    T.getCloseLocation());
@@ -5925,8 +5959,9 @@ void Parser::ParseParameterDeclarationClause(
   // keep a list of tokens for the bounds expression.   Parsing/checking
   // bounds expressions for parameters is done in a scope that includes all
   // the parameters in the parameter list.
-  typedef std::pair<ParmVarDecl *, CachedTokens *> BoundsExprInfo;
-  // We are guessing that most functions take 4 or fewer parameters.
+  typedef std::pair<ParmVarDecl *, std::unique_ptr<CachedTokens>> BoundsExprInfo;
+  // We are guessing that most functions take 4 or fewer parameters with
+  // bounds expressions on them.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
   do {
     // FIXME: Issue a diagnostic if we parsed an attribute-specifier-seq
@@ -6007,10 +6042,9 @@ void Parser::ParseParameterDeclarationClause(
         // error message.  This way the error messages from parsing of bounds
         // expressions will be the same or very similar regardless of whether
         // parsing is deferred or not.
-        // FIXME: Can we use a smart pointer for BoundsExprTokens?
-        CachedTokens *BoundsExprTokens = new CachedTokens;
+        std::unique_ptr<CachedTokens> BoundsExprTokens { new CachedTokens};
         bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-        deferredBoundsExpressions.emplace_back(Param, BoundsExprTokens);
+        deferredBoundsExpressions.emplace_back(Param, std::move(BoundsExprTokens));
         if (ParsingError) {
           SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
         }
@@ -6108,11 +6142,10 @@ void Parser::ParseParameterDeclarationClause(
   } while (TryConsumeToken(tok::comma));
 
   // Now parse the deferred bounds expressions
-  for (const auto &Pair : deferredBoundsExpressions) {
+  for (auto &Pair : deferredBoundsExpressions) {
     ParmVarDecl *Param = Pair.first;
-    CachedTokens *Tokens = Pair.second;
-    // DeferredParseBoundsExpression deletes Tokens
-    ExprResult Bounds = DeferredParseBoundsExpression(Tokens);
+    std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
+    ExprResult Bounds = DeferredParseBoundsExpression(std::move(Tokens));
     if (Bounds.isInvalid())
       Actions.ActOnInvalidBoundsExpr(Param);
     else

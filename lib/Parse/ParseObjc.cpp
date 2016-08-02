@@ -742,7 +742,10 @@ void Parser::ParseObjCInterfaceDeclList(tok::ObjCKeywordKind contextKey,
       }
 
       bool addedToDeclSpec = false;
-      auto ObjCPropertyCallback = [&](ParsingFieldDeclarator &FD) {
+      auto ObjCPropertyCallback = [&](ParsingFieldDeclarator &FD,
+                                      std::unique_ptr<CachedTokens> BoundsExprTokens) {
+        // BoundsExprTokens are used only for Checked C.  They should be null here.
+        assert(BoundsExprTokens == nullptr);
         if (FD.D.getIdentifier() == nullptr) {
           Diag(AtLoc, diag::err_objc_property_requires_field_name)
               << FD.D.getSourceRange();
@@ -1939,7 +1942,10 @@ void Parser::ParseObjCClassInstanceVariables(Decl *interfaceDecl,
       return cutOffParsing();
     }
 
-    auto ObjCIvarCallback = [&](ParsingFieldDeclarator &FD) {
+    auto ObjCIvarCallback = [&](ParsingFieldDeclarator &FD,
+                                std::unique_ptr<CachedTokens> BoundsExprTokens) {
+      // BoundsExprTokens are used only for Checked C.  They should be null here.
+      assert(BoundsExprTokens == nullptr);
       Actions.ActOnObjCContainerStartDefinition(interfaceDecl);
       // Install the declarator into the interface decl.
       FD.D.setObjCIvar(true);
