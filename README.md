@@ -26,8 +26,20 @@ extension.  We have
   including implicit conversions described in Section 5.1.4 of the Checked C specification.  The new
   types are converted to unchecked types during compilation, so they do not have any bounds checking
   yet.
+- Extended the clang IR to represent bounds expressions and to attach bounds
+  expressions to variable declarations, function declarations, and
+  struct/union members.
+- Implemented parsing of in-line bounds declarations for variables, function
+  parameters and return values, and struct/union members.  This includes
+  resolving the variables referred to by bounds expressions and resolving the
+  members referred to by structure member bounds expressions.
 
-We are now working on parsing and typechecking of the new bounds declarations.
+We are now implementing static semantics checking for programs that use `ptr`
+pointers and `array_ptr` pointers to constant-sized data.  This includes
+
+- Checking the correctness of bounds declarations for constant-sized data.
+- Checking that casts to `ptr` types from `array_ptr` types are bounds-safe.
+- Interoperation support for `ptr`.
 
 ## Compiler development
 
@@ -49,3 +61,12 @@ For code contributions, we follow the standard
 [Github workflow](https://guides.github.com/introduction/flow/).  See 
 [Contributing to Checked C](https://github.com/Microsoft/checkedc/blob/master/CONTRIBUTING.md) for more detail.
 You will need to sign a contributor license agreement before contributing code.
+
+## Code of conduct
+
+This project has adopted the
+[Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the
+[Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any
+additional questions or comments.
