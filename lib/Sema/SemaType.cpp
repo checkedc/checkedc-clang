@@ -3466,7 +3466,12 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
 }
 
 // Propagate checked property to directly-nested array types.  Stops at 
-// type defs, non-array types, and array types that cannot be checked.
+// typedefs, non-array types, and array types that cannot be checked right
+// now (such as variably-sized arrays).
+//
+// Issue an error message if the propagation stops at a typedef  thatis an 
+// unchecked array type.  Dimensions of multi-dimensional arrays must either 
+// all be checked.
 static QualType makeNestedArrayChecked(Sema &S, QualType T,
                                        SourceLocation Loc) {
   if (isa<ArrayType>(T)) {
@@ -3493,7 +3498,7 @@ static QualType makeNestedArrayChecked(Sema &S, QualType T,
       }
       case Type::DependentSizedArray:
       case Type::VariableArray: 
-        // checked versions of these arrays cannot be created. An error
+        // Checked versions of these arrays cannot be created. An error
         // message is produced by BuildArrayType for the outer error type
         // because these result in the outer array type being
         // dependently-typed or variably-sized.
@@ -3506,6 +3511,11 @@ static QualType makeNestedArrayChecked(Sema &S, QualType T,
     const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType());
     if (AT != nullptr && !AT->isChecked())
       S.Diag(Loc, diag::err_checked_array_of_unchecked_array) << TD->getDecl();
+  } else if (const ParenType *PT = dyn_cast<ParenType>(T)) {
+    assert(!T.hasLocalQualifiers());
+    QualType innerType = makeNestedArrayChecked(S, PT->getInnerType(), Loc);
+    ASTContext &Context = S.Context;
+    return Context.getParenType(innerType);
   }
 
   return T;
@@ -3983,7 +3993,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       if (const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType())) {
         if (isChecked != AT->isChecked()) {
           if (isChecked) 
-            // The new array type is checked.  Propagate this to nested types
+            // The new array type is checked. Propagate this to nested array types
             // declared as part of this declaration.
             T = makeNestedArrayChecked(S, T, DeclType.Loc);
           else {

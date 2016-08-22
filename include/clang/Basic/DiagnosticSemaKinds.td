@@ -8439,7 +8439,7 @@ def err_checked_array_of_unchecked_array : Error<
   "checked array of unchecked array not allowed (%0 is an unchecked array)">;  
 
 def err_unchecked_array_of_typedef_checked_array : Error<
-  "unchecked array of checked array not allowed (%0 is an unchecked array)">; 
+  "unchecked array of checked array not allowed (%0 is a checked array)">; 
 
 def err_unchecked_array_of_checked_array : Error<
   "unchecked array of checked array not allowed">;

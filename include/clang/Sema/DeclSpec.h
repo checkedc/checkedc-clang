@@ -1155,7 +1155,7 @@ struct DeclaratorChunk {
     bool isStar : 1;
 
     // True if this is a checked array.
-    bool isChecked: 2;
+    bool isChecked: 1;
 
     /// This is the size of the array, or null if [] or [*] was specified.
     /// Since the parser is multi-purpose, and we don't want to impose a root
