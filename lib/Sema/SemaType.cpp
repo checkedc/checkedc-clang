@@ -3466,12 +3466,12 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
 }
 
 // Propagate checked property to directly-nested array types.  Stops at 
-// typedefs, non-array types, and array types that cannot be checked right
-// now (such as variably-sized arrays).
+// typedefs, non-array types, and array types that cannot be checked array
+// types (such as variable-length array types).
 //
-// Issue an error message if the propagation stops at a typedef  thatis an 
+// Issue an error message if the propagation stops at a typedef that is an
 // unchecked array type.  Dimensions of multi-dimensional arrays must either 
-// all be checked.
+// all be checked or all be unchecked.
 static QualType makeNestedArrayChecked(Sema &S, QualType T,
                                        SourceLocation Loc) {
   if (isa<ArrayType>(T)) {
