@@ -1,0 +1,5 @@
+set(LLVM_LINK_COMPONENTS Support)
+
+add_clang_unittest(CheckedCRewriterTests ConstraintTests.cpp)
+
+target_link_libraries(CheckedCRewriterTests Constraints)
