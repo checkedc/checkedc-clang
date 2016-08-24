@@ -1,0 +1,139 @@
+//                     The LLVM Compiler Infrastructure
+//
+// This file is distributed under the University of Illinois Open Source
+// License. See LICENSE.TXT for details.
+//
+//===----------------------------------------------------------------------===//
+// This class is used to collect information for the program being analyzed.
+// The class allocates constraint variables and maps the constraint variables
+// to AST elements of the program.
+//
+// The allocation of constraint variables is a little nuanced. For a given
+// variable, there might be multiple constraint variables. For example, some
+// declaration of the form:
+//
+//  int **p = ... ;
+//
+// would be given two constraint variables, visualized like this:
+//
+//  int * q_(i+1) * q_i p = ... ; 
+//
+// The constraint variable at the "highest" or outer-most level of the type 
+// is the lowest numbered constraint variable for a given declaration.
+//===----------------------------------------------------------------------===//
+#ifndef _PROGRAM_INFO_H
+#define _PROGRAM_INFO_H
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/FrontendAction.h"
+#include "clang/Tooling/Tooling.h"
+
+#include "Constraints.h"
+#include "utils.h"
+#include "PersistentSourceLoc.h"
+
+class ProgramInfo {
+public:
+  ProgramInfo() : freeKey(0), persisted(true) {}
+
+  void dump();
+
+  Constraints &getConstraints() { return CS;  }
+  void addRecordDecl(clang::RecordDecl *R) { Records.push_front(R); }
+
+  // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with 
+  // AST data structures that correspond do the data stored in PDMap and 
+  // ReversePDMap. 
+  void enterCompilationUnit(clang::ASTContext &Context);
+
+  // Remove any references we maintain to AST data structure pointers. 
+  // After this, the Variables, VarDeclToStatement, RVariables, and DepthMap
+  // should all be empty. 
+  void exitCompilationUnit();
+
+  // For each pointer type in the declaration of D, add a variable to the 
+  // constraint system for that pointer type. 
+  bool addVariable(clang::Decl *D, clang::DeclStmt *St, clang::ASTContext *C);
+
+  bool getDeclStmtForDecl(clang::Decl *D, clang::DeclStmt *&St);
+
+  // Checks the structural type equality of two constraint variables. This is 
+  // needed if you are casting from U to V. If this returns true, then it's 
+  // safe to add an implication that if U is wild, then V is wild. However,
+  // if this returns false, then both U and V must be constrained to wild.
+  bool checkStructuralEquality(uint32_t V, uint32_t U);
+
+  // This is a bit of a hack. What we need to do is traverse the AST in a 
+  // bottom-up manner, and, for a given expression, decide which,
+  // if any, constraint variable(s) are involved in that expression. However, 
+  // in the current version of clang (3.8.1), bottom-up traversal is not 
+  // supported. So instead, we do a manual top-down traversal, considering
+  // the different cases and their meaning on the value of the constraint
+  // variable involved. This is probably incomplete, but, we're going to 
+  // go with it for now. 
+  //
+  // V is (currentVariable, baseVariable, limitVariable)
+  // E is an expression to recursively traverse.
+  //
+  // Returns true if E resolves to a constraint variable q_i and the 
+  // currentVariable field of V is that constraint variable. Returns false if 
+  // a constraint variable cannot be found.
+  bool getVariableHelper(clang::Expr *E, 
+              std::set<std::tuple<uint32_t, uint32_t, uint32_t> > &V,
+                          clang::ASTContext *C) ;
+
+  // Given some expression E, what is the top-most constraint variable that
+  // E refers to? It could be none, in which case V is empty. Otherwise, V 
+  // contains the constraint variable(s) that E refers to.
+  void getVariable(clang::Expr *E, std::set<uint32_t> &V, clang::ASTContext *C);
+
+  // The Decl version of getVariable can only return at most one variable
+  // in the set V, so you can rely on that behavior. It might seem un-necessary
+  // to have this function return a set that can contain only 0 or 1 elements,
+  // however C++ sort of forces us into this position.
+  void getVariable(clang::Decl *D, std::set<uint32_t> &V, clang::ASTContext *C);
+
+  // Given a constraint variable identifier K, find the Decl that 
+  // corresponds to that variable. Note that multiple constraint 
+  // variables map to a single decl, as in the case of 
+  // int **b; for example. In this case, there would be two variables
+  // for that Decl, read out like int * q_0 * q_1 b;
+  // Returns NULL if there is no Decl for that varabiel. 
+  clang::Decl *getDecl(uint32_t K);
+
+  VariableMap &getVarMap() { return Variables;  }
+
+private:
+  std::list<clang::RecordDecl*> Records;
+  // Next available integer to assign to a variable.
+  uint32_t freeKey;
+  // Map from a Decl to the DeclStmt that contains the Decl.
+  // I can't figure out how to go backwards from a VarDecl to a DeclStmt, so 
+  // this infrastructure is here so that the re-writer can do that to figure
+  // out how to break up variable declarations that should span lines in the
+  // new program.
+  VariableDecltoStmtMap VarDeclToStatement;
+  // Map from a Decl* to a uint32_t variable identifier, that variable 
+  // is the smallest variable for that Decl.
+  // It can be the case that |Variables| <= |PersistentVariables|, because 
+  // PersistentVariables can refer to a variable that is only visible locally
+  // within some other file that we have processed. That is fine. 
+  VariableMap Variables;
+  // Map from a uint32_t variable identifier to the Decl* for that variable.
+  ReverseVariableMap RVariables;
+  // Map from a Decl to the highest variable value in that Decl.
+  DeclMap DepthMap;
+  // Persists information in Variables.
+  std::map<PersistentSourceLoc, uint32_t> PersistentVariables;
+  // Persists information in DepthMap.
+  std::map<PersistentSourceLoc, uint32_t> PersistentDepthMap;
+  // Persists RVariables.
+  std::map<uint32_t, PersistentSourceLoc> PersistentRVariables;
+  // Constraint system.
+  Constraints CS;
+  // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
+  bool persisted;
+};
+
+#endif
