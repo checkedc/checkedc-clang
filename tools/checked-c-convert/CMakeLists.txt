@@ -15,7 +15,6 @@ add_clang_executable(checked-c-convert
   )
 
 target_link_libraries(checked-c-convert
-  Constraints
   clangAST
   clangBasic
   clangDriver
