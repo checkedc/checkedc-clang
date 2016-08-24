@@ -23,7 +23,7 @@
 #include <map>
 #include <sstream>
 
-#include "clang/Constraints/Constraints.h"
+#include "Constraints.h"
 
 #include "ConstraintBuilder.h"
 #include "NewTyp.h"

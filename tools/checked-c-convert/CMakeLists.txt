@@ -11,6 +11,7 @@ add_clang_executable(checked-c-convert
   MappingVisitor.cpp
   ConstraintBuilder.cpp
   PersistentSourceLoc.cpp
+  Constraints.cpp
   )
 
 target_link_libraries(checked-c-convert

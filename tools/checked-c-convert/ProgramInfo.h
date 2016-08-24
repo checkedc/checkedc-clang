@@ -29,7 +29,7 @@
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
 
-#include "clang/Constraints/Constraints.h"
+#include "Constraints.h"
 #include "utils.h"
 #include "PersistentSourceLoc.h"
 

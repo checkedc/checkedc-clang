@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Constraints/Constraints.h"
+#include "Constraints.h"
 #include "llvm/Support/CommandLine.h"
 #include <set>
 
