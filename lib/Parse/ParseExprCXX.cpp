@@ -2836,7 +2836,7 @@ void Parser::ParseDirectNewDeclarator(Declarator &D) {
 
     D.AddTypeInfo(DeclaratorChunk::getArray(0,
                                             /*static=*/false, /*star=*/false,
-                                            DeclSpec::CK_None,
+                                            /*isChecked=*/false,
                                             Size.get(),
                                             T.getOpenLocation(),
                                             T.getCloseLocation()),

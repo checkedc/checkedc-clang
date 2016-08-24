@@ -1606,7 +1606,6 @@ bool Parser::MightBeDeclarator(unsigned Context) {
     case tok::kw_alignas:
     case tok::kw_asm:
     case tok::kw_checked:
-    case tok::kw_unchecked:
     case tok::kw___attribute:
     case tok::l_brace:
     case tok::l_paren:
@@ -2248,9 +2247,9 @@ void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
 ///    int (x)
 ///
 static bool isValidAfterIdentifierInDeclarator(const Token &T) {
-  return T.isOneOf(tok::l_square, tok::kw_checked, tok::kw_unchecked, 
-                   tok::l_paren, tok::r_paren, tok::semi, tok::comma,
-                   tok::equal, tok::kw_asm, tok::l_brace, tok::colon);
+  return T.isOneOf(tok::l_square, tok::kw_checked, tok::l_paren, tok::r_paren,
+                   tok::semi, tok::comma, tok::equal, tok::kw_asm,
+                   tok::l_brace, tok::colon);
 }
 
 /// ParseImplicitInt - This method is called when we have an non-typename
@@ -2400,7 +2399,6 @@ bool Parser::ParseImplicitInt(DeclSpec &DS, CXXScopeSpec *SS,
     case tok::l_brace:
     case tok::l_square:
     case tok::kw_checked:
-    case tok::kw_unchecked:
     case tok::semi:
       // This looks like a variable or function declaration. The type is
       // probably missing. We're done parsing decl-specifiers.
@@ -2732,7 +2730,6 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::l_square:
     case tok::kw_alignas:
     case tok::kw_checked:
-    case tok::kw_unchecked:
       if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
         goto DoneWithDeclSpec;
 
@@ -5482,8 +5479,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       ParseFunctionDeclarator(D, attrs, T, IsAmbiguous);
       PrototypeScope.Exit();
     }
-    else if (Tok.is(tok::l_square) || Tok.is(tok::kw_checked) || 
-             Tok.is(tok::kw_unchecked)) {
+    else if (Tok.is(tok::l_square) || Tok.is(tok::kw_checked)) {
       ParseBracketDeclarator(D);
     } else {
       break;
@@ -6164,14 +6160,12 @@ void Parser::ParseParameterDeclarationClause(
 /// checked to indicate a checked array.
 void Parser::ParseBracketDeclarator(Declarator &D) {
   SourceLocation startLocation = Tok.getLocation();
-  DeclSpec::CheckedKind kind = DeclSpec::CK_None;
-  if (Tok.is(tok::kw_checked) || Tok.is(tok::kw_unchecked)) {
-    kind = Tok.is(tok::kw_checked) ? DeclSpec::CK_Checked :
-                                     DeclSpec::CK_Unchecked;
+  bool isChecked = false;
+  if (Tok.is(tok::kw_checked)) {
+    isChecked = true;
     ConsumeToken();
     if (!Tok.is(tok::l_square)) {
-      const char *tokName = (kind == DeclSpec::CK_Checked) ? "checked" : "unchecked";
-      Diag(Tok.getLocation(), diag::err_expected_lbracket_after) << tokName;
+      Diag(Tok.getLocation(), diag::err_expected_lbracket_after) << "checked";
       return;
     }
   }
@@ -6190,7 +6184,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(attrs);
 
     // Remember that we parsed the empty array type.
-    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, kind,
+    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, isChecked,
                                             nullptr, startLocation,
                                             T.getCloseLocation()),
                   attrs, T.getCloseLocation());
@@ -6206,7 +6200,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(attrs);
 
     // Remember that we parsed a array type, and remember its features.
-    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, kind,
+    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, isChecked,
                                             ExprRes.get(),
                                             startLocation,
                                             T.getCloseLocation()),
@@ -6286,7 +6280,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
   // Remember that we parsed a array type, and remember its features.
   D.AddTypeInfo(DeclaratorChunk::getArray(DS.getTypeQualifiers(),
                                           StaticLoc.isValid(), isStar,
-                                          kind,
+                                          isChecked,
                                           NumElements.get(),
                                           startLocation,
                                           T.getCloseLocation()),

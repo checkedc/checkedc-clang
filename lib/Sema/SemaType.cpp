@@ -3465,49 +3465,63 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
     << static_cast<unsigned>(pointerKind);
 }
 
-// Propagate checked property to directly-nested array types.  Propagation is
-// limited to the first n nested array types, where n is specified by the count
-// argument below.  Propagation stops at type defs, non-array types, and
-// array types that cannot be checked.
-static QualType makeNestedArrayChecked(ASTContext &Context, QualType T,
-                                       int count) {
+// Propagate checked property to directly-nested array types.  Stops at 
+// typedefs, non-array types, and array types that cannot be checked array
+// types (such as variable-length array types).
+//
+// Issue an error message if the propagation stops at a typedef that is an
+// unchecked array type.  Dimensions of multi-dimensional arrays must either 
+// all be checked or all be unchecked.
+static QualType makeNestedArrayChecked(Sema &S, QualType T,
+                                       SourceLocation Loc) {
   if (isa<ArrayType>(T)) {
-    if (count > 0) {
-      SplitQualType split = T.split();
-      const Type *ty = split.Ty;
-      const ArrayType *arrTy = cast<ArrayType>(ty);
-      QualType elemTy = makeNestedArrayChecked(Context,
-                                               arrTy->getElementType(),
-                                               count - 1);
-      switch (ty->getTypeClass()) {
-        case Type::ConstantArray: {
-          const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
-          return Context.getConstantArrayType(elemTy,
-                                              constArrTy->getSize(),
-                                              constArrTy->getSizeModifier(),
+    ASTContext &Context = S.Context;
+    SplitQualType split = T.split();
+    const Type *ty = split.Ty;
+    const ArrayType *arrTy = cast<ArrayType>(ty);
+    QualType elemTy = makeNestedArrayChecked(S, arrTy->getElementType(), Loc);
+    switch (ty->getTypeClass()) {
+      case Type::ConstantArray: {
+        const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
+        return Context.getConstantArrayType(elemTy,
+                                            constArrTy->getSize(),
+                                            constArrTy->getSizeModifier(),
+                                            T.getCVRQualifiers(),
+                                            true);
+      }
+      case Type::IncompleteArray: {
+        const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
+        return Context.getIncompleteArrayType(elemTy,
+                                              incArrTy->getSizeModifier(),
                                               T.getCVRQualifiers(),
                                               true);
-        }
-        case Type::IncompleteArray: {
-          const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
-          return Context.getIncompleteArrayType(elemTy,
-                                                incArrTy->getSizeModifier(),
-                                                T.getCVRQualifiers(),
-                                                true);
-        }
-        case Type::DependentSizedArray:
-        case Type::VariableArray: 
-          // checked versions of these arrays cannot be created. An error
-          // message is produced by BuildArrayType for the outer error type
-          // because these result in the outer array type being
-          // dependently-typed or variably-sized.
-          break;
-        default:
-           assert("unexpected array type");
-           break;
       }
+      case Type::DependentSizedArray:
+      case Type::VariableArray: 
+        // Checked versions of these arrays cannot be created. An error
+        // message is produced by BuildArrayType for the outer error type
+        // because these result in the outer array type being
+        // dependently-typed or variably-sized.
+        break;
+      default:
+          assert("unexpected array type");
+          break;
     }
+  } else if (const TypedefType *TD = dyn_cast<TypedefType>(T)) {
+    const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType());
+    if (AT != nullptr && !AT->isChecked())
+      S.Diag(Loc, diag::err_checked_array_of_unchecked_array) << TD->getDecl();
+  } else if (const ParenType *PT = dyn_cast<ParenType>(T)) {
+    assert(!T.hasLocalQualifiers());
+    QualType innerType = makeNestedArrayChecked(S, PT->getInnerType(), Loc);
+    ASTContext &Context = S.Context;
+    return Context.getParenType(innerType);
+  } else {
+     // Make sure that we're not missing some wrapper type for an array type.
+     // This checks that the canonical type for T is not an array type.
+     assert(!T->isArrayType());
   }
+
   return T;
 }
 
@@ -3973,37 +3987,50 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         break;
       }
 
-      bool isChecked;
-      switch (ATI.CheckedKind) {
-        case DeclSpec::CK_Checked: {
-          // count the number of directly-enclosing array type declarators,
-          // up to the first one that is declared as unchecked.
-          unsigned x = chunkIndex + 1;
-          int count = 0;
-          for ( ; x < e; x++) {
-            const DeclaratorChunk &DC = D.getTypeObject(x);
-            if (DC.Kind == DeclaratorChunk::Paren){
-              continue;
+      bool isChecked = ATI.isChecked;
+      // Handle multi-dimensional arrays for Checked C. A multi-dimensional
+      // array is an array of arrays, so look for a nested type that is an array.
+      // - Dimensions must either all be checked or all be unchecked.
+      // - The checked property propagates to nested array types, if the array
+      //   types are unchecked.  The nested array types must be declared as part
+      //   of this declaration.
+      if (const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType())) {
+        if (isChecked != AT->isChecked()) {
+          if (isChecked) 
+            // The new array type is checked. Propagate this to nested array types
+            // declared as part of this declaration.
+            T = makeNestedArrayChecked(S, T, DeclType.Loc);
+          else {
+            // The new array type is unchecked and the nested array type is checked,
+            // See if an enclosing array type will eventually make the new array
+            // type a checked array.
+            bool parentIsChecked = false;
+            for (unsigned x = chunkIndex; x > 0; ) {
+              x--;
+              const DeclaratorChunk &DC = D.getTypeObject(x);
+              if (DC.Kind == DeclaratorChunk::Array) {
+                const DeclaratorChunk::ArrayTypeInfo &ParentInfo = DC.Arr;
+                if (ParentInfo.isChecked) {
+                  parentIsChecked = true;
+                  break;
+                }
+              } else if (DC.Kind != DeclaratorChunk::Paren) 
+                 break;
             }
-            else if (DC.Kind == DeclaratorChunk::Array) {
-              const DeclaratorChunk::ArrayTypeInfo &NestedInfo = DC.Arr;
-              if (NestedInfo.CheckedKind != DeclSpec::CK_Unchecked) {
-                   count++;
-                   continue;
-              }
+            if (!parentIsChecked) {
+              if (const TypedefType *TD = dyn_cast<TypedefType>(T))
+                S.Diag(DeclType.Loc, 
+                       diag::err_unchecked_array_of_typedef_checked_array) <<
+                        TD->getDecl();
+              else
+                S.Diag(DeclType.Loc, 
+                       diag::err_unchecked_array_of_checked_array);
+
             }
-            break; // exit for loop
           }
-          T = makeNestedArrayChecked(Context, T, count);
-          isChecked = true;
-          break;
         }
-        case DeclSpec::CK_None:
-        case DeclSpec::CK_Unchecked:
-          isChecked = false;
-        default: 
-          assert("unexpected CheckedKind");
       }
+
       T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals, isChecked,
                            SourceRange(DeclType.Loc, DeclType.EndLoc), Name);
       break;

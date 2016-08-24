@@ -327,17 +327,6 @@ public:
     PQ_FunctionSpecifier     = 8
   };
 
-  /// \brief checked kind (for array declarators)
-  enum CheckedKind {
-    CK_None = 0,       // Nothing declared by the programmer.  The checked
-                       // property of the array declarator depends on context.
-                       // If there is a parent declarator and it is a checked
-                       // array, this array type is checked.  Otherwise, this
-                       // array type is unchecked.
-    CK_Checked = 1,    // Checked keyword precedes the left bracket
-    CK_Unchecked = 2   // Unchecked keyword precedes the left bracket.
-  };
-
 private:
   // storage-class-specifier
   /*SCS*/unsigned StorageClassSpec : 3;
@@ -1165,8 +1154,8 @@ struct DeclaratorChunk {
     /// True if this dimension was [*].  In this case, NumElts is null.
     bool isStar : 1;
 
-    // The declared checked property for the array declarator
-    unsigned CheckedKind: 2;
+    // True if this is a checked array.
+    bool isChecked: 1;
 
     /// This is the size of the array, or null if [] or [*] was specified.
     /// Since the parser is multi-purpose, and we don't want to impose a root
@@ -1527,18 +1516,18 @@ struct DeclaratorChunk {
   /// \brief Return a DeclaratorChunk for an array.
   static DeclaratorChunk getArray(unsigned TypeQuals,
                                   bool isStatic, bool isStar,
-                                  DeclSpec::CheckedKind Kind, Expr *NumElts,
+                                  bool isChecked, Expr *NumElts,
                                   SourceLocation LBLoc, SourceLocation RBLoc) {
     DeclaratorChunk I;
-    I.Kind                 = Array;
-    I.Loc                  = LBLoc;
-    I.EndLoc               = RBLoc;
-    I.Arr.AttrList         = nullptr;
-    I.Arr.TypeQuals        = TypeQuals;
-    I.Arr.hasStatic        = isStatic;
-    I.Arr.isStar           = isStar;
-    I.Arr.CheckedKind      = (unsigned) Kind;
-    I.Arr.NumElts          = NumElts;
+    I.Kind          = Array;
+    I.Loc           = LBLoc;
+    I.EndLoc        = RBLoc;
+    I.Arr.AttrList  = nullptr;
+    I.Arr.TypeQuals = TypeQuals;
+    I.Arr.hasStatic = isStatic;
+    I.Arr.isStar    = isStar;
+    I.Arr.isChecked = (unsigned) isChecked;
+    I.Arr.NumElts   = NumElts;
     return I;
   }
 
