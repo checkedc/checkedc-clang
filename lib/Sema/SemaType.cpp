@@ -3516,6 +3516,10 @@ static QualType makeNestedArrayChecked(Sema &S, QualType T,
     QualType innerType = makeNestedArrayChecked(S, PT->getInnerType(), Loc);
     ASTContext &Context = S.Context;
     return Context.getParenType(innerType);
+  } else {
+     // Make sure that we're not missing some wrapper type for an array type.
+     // This checks that the canonical type for T is not an array type.
+     assert(!T->isArrayType());
   }
 
   return T;
