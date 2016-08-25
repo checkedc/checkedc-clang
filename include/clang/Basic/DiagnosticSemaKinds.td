@@ -8444,4 +8444,9 @@ def err_unchecked_array_of_typedef_checked_array : Error<
 def err_unchecked_array_of_checked_array : Error<
   "unchecked array of checked array not allowed">;
 
+def err_typecheck_count_bounds_expr : Error<
+  "invalid argument type %0 to count expression">;
+
+def err_typecheck_byte_count_bounds_expr : Error<
+  "invalid argument type %0 to byte_count expression">;
 } // end of sema component.
