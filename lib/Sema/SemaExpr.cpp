@@ -11935,7 +11935,20 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
                                       CountBoundsExpr::Kind Kind,
                                       Expr *CountExpr,
                                       SourceLocation RParenLoc) {
-  return new (Context) CountBoundsExpr(Kind, CountExpr, BoundsKWLoc, RParenLoc);
+  ExprResult Result = UsualUnaryConversions(CountExpr);
+  if (Result.isInvalid())
+    return ExprError();
+  Expr *PromotedCountExpr = Result.get();
+  QualType ResultType = PromotedCountExpr->getType();
+  if (!ResultType->isIntegerType()) {
+    std::string CountName = (Kind == CountBoundsExpr::Kind::ElementCount)
+      ? "count" : "byte_count";
+    return ExprError(Diag(CountExpr->getLocStart(),
+                          diag::err_typecheck_count_bounds_expr)
+                       << ResultType << CountName);
+  }
+  return new (Context) CountBoundsExpr(Kind, PromotedCountExpr, BoundsKWLoc,
+                                       RParenLoc);
 }
 
 ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
