@@ -11935,7 +11935,20 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
                                       CountBoundsExpr::Kind Kind,
                                       Expr *CountExpr,
                                       SourceLocation RParenLoc) {
-  return new (Context) CountBoundsExpr(Kind, CountExpr, BoundsKWLoc, RParenLoc);
+  // Do the usual C integer promotions if necessary. 
+  ExprResult Result = UsualUnaryConversions(CountExpr);
+  if (Result.isInvalid())
+    return ExprError();
+  Expr *PromotedCountExpr = Result.get();
+  QualType ResultType = PromotedCountExpr->getType();
+  if (!ResultType->isIntegerType())
+    return ExprError(Diag(CountExpr->getLocStart(),
+                          Kind == CountBoundsExpr::Kind::ElementCount ?
+                             diag::err_typecheck_count_bounds_expr
+                           : diag::err_typecheck_byte_count_bounds_expr)
+                       << ResultType);
+  return new (Context) CountBoundsExpr(Kind, PromotedCountExpr, BoundsKWLoc,
+                                       RParenLoc);
 }
 
 ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
