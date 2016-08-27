@@ -7974,11 +7974,11 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   NewFD->setParams(Params);
 
   // TODO: clang-checked-issue #20.  Issue #20 is attaching bounds information
-  // to function types.  After it is address, we need to make sure that bounds
+  // to function types.  After it is addressed, we need to make sure that bounds
   // information is propgated to newFD from the FunctionPrototype instance.
   if (D.isFunctionDeclarator()) {
     DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
-    NewFD->setBoundsExpr(FTI.getReturnBounds());
+    ActOnBoundsDecl(NewFD, FTI.getReturnBounds(), true);
   }
 
   // Find all anonymous symbols defined during the declaration of this function
@@ -10876,15 +10876,93 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
   }
 }
 
-/// ActOnBoundsExpr: attach a bounds expression to a parameter declaration.
-void Sema::ActOnBoundsExpr(DeclaratorDecl *D, BoundsExpr *Expr) {
+// ActOnBoundsDecl: handle a Checked C bounds declaration for a declarator.
+// Check that the declarator has the right kind of type for the bounds
+// expression and attach the bounds expression to the declarator.
+//
+// If checkReturnBounds is true, check the return bounds declaration
+// for a function declarator.  The typechecking logic is the same, but
+// the error messages need are slightly different.
+void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
+                           bool checkReturnBounds) {
   if (!D || !Expr)
     return;
 
-  D->setBoundsExpr(Expr);
+  // If the bounds expression is invalid, skip type checking the declaration.
+  // TODO: add simple predicate to BoundsExpr that checks whether
+  // this is a valid bounds expressions.
+  if (NullaryBoundsExpr *NB = dyn_cast<NullaryBoundsExpr>(Expr))
+    if (NB->getKind() == NullaryBoundsExpr::Invalid)
+      return;
+
+  unsigned DiagId = 0;
+  QualType Ty = D->getType();
+
+  // If we are checking the return bounds, get the function return type.
+  // If the type for the declaration wasn't a function type, bail out.
+  if (checkReturnBounds) {
+    assert(Ty->isFunctionType());
+    const FunctionType *FuncTy = Ty->getAs<FunctionType>();
+    if (FuncTy)
+      Ty = FuncTy->getReturnType();
+    else
+      return;
+  }
+
+  CountBoundsExpr *countBounds = dyn_cast<CountBoundsExpr>(Expr);
+  // ptr types cannot have bounds expressions
+  if (Ty->isCheckedPointerPtrType())
+    DiagId = checkReturnBounds ? diag::err_typecheck_ptr_return_with_bounds
+                               : diag::err_typecheck_ptr_decl_with_bounds;
+  // Function pointer types cannot have bounds declared for them because
+  // arithmetic on function pointer types makes no sense. Check for
+  // function types too.  C allows function types to be used in some places.
+  // They are implicitly replaced with function pointer types. Guard against
+  // them not having been replaced yet.
+  else if (Ty->isFunctionPointerType() || Ty->isFunctionType()) {
+    DiagId = checkReturnBounds
+               ? diag::err_typecheck_function_pointer_return_with_bounds
+               : diag::err_typecheck_function_pointer_decl_with_bounds;
+  } else if (countBounds &&
+      countBounds->getKind() == CountBoundsExpr::Kind::ElementCount) {
+    // TODO; add simple predicate to BoundsExpr to check whether this is an
+    // element count bounds expression.
+    //
+    // element count bounds declarations have special typechecking rules
+    // because x : count(e) is just an abbreviation for x : bounds(x, x + e).
+    // The variable or return value for which the bounds is being declared has
+    // to have a pointer type (or an array type that can be converted to a
+    // pointer type) for which pointer arithmetic is valid.
+    //
+    // Note that incomplete types will be handled later at uses of the
+    // variable or function. Bounds declarations are handled analogusly to the
+    // the way pointer types are handled in declarations.  You can declare
+    // a pointer to an incomplete type, but you can't do pointer arithmetic
+    // if the type is still incomplete at the place of use.
+    if (!Ty->isPointerType() && !Ty->isArrayType()) {
+      DiagId = checkReturnBounds ? diag::err_typecheck_count_return_bounds
+                                 : diag::err_typecheck_count_bounds_decl;
+    } else if (Ty->isVoidPointerType()) {
+      DiagId = checkReturnBounds
+        ? diag::err_typecheck_void_pointer_count_return_bounds
+        : diag::err_typecheck_void_pointer_count_bounds_decl;
+    }
+  } else if (!Ty->isPointerType() && !Ty->isArrayType() &&
+             !Ty->isIntegerType())
+    // All other bounds expressions.  Integer types are allowed so that
+    // bounds can be declared for variables holding the results of casts
+    // from pointers to integers.
+    DiagId = checkReturnBounds ? diag::err_typecheck_non_count_return_bounds
+                                : diag::err_typecheck_non_count_bounds_decl;
+
+  if (DiagId) {
+    Diag(Expr->getLocStart(), DiagId) << D;
+    ActOnInvalidBoundsDecl(D);
+  } else
+    D->setBoundsExpr(Expr);
 }
 
-void Sema::ActOnInvalidBoundsExpr(DeclaratorDecl *D) {
+void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
   if (!D)
     return;
 

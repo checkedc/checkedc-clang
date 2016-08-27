@@ -8449,4 +8449,34 @@ def err_typecheck_count_bounds_expr : Error<
 
 def err_typecheck_byte_count_bounds_expr : Error<
   "invalid argument type %0 to byte_count expression">;
+
+def err_typecheck_ptr_decl_with_bounds : Error<
+  "bounds declaration not allowed because %0 has ptr type">;
+
+def err_typecheck_ptr_return_with_bounds : Error<
+  "bounds declaration not allowed because %0 has ptr return type">;
+
+def err_typecheck_function_pointer_decl_with_bounds : Error<
+  "bounds declaration not allowed because %0 has a function pointer type">;
+
+def err_typecheck_function_pointer_return_with_bounds : Error<
+  "bounds declaration not allowed because %0 returns a function pointer type">;
+
+def err_typecheck_count_bounds_decl : Error<
+  "expected %0 to have pointer or array type">;
+
+def err_typecheck_count_return_bounds : Error<
+  "expected %0 to have pointer or array return type">;
+
+def err_typecheck_void_pointer_count_bounds_decl : Error<
+  "expected %0 to have non-void pointer type">;
+
+def err_typecheck_void_pointer_count_return_bounds : Error<
+  "expected %0 to have return type that is a non-void pointer type">;
+
+def err_typecheck_non_count_bounds_decl : Error<
+  "expected %0 to have pointer, array, or integer type">;
+
+def err_typecheck_non_count_return_bounds : Error<
+  "expected %0 to have a return type that is a pointer, array, or integer type">;
 } // end of sema component.

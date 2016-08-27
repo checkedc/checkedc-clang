@@ -4119,8 +4119,8 @@ public:
   ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
                                   Expr *UpperBound, SourceLocation RParenLoc);
 
-  void ActOnBoundsExpr(DeclaratorDecl *D, BoundsExpr *Expr);
-  void ActOnInvalidBoundsExpr(DeclaratorDecl *D);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr, bool isReturnDecl=false);
+  void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();
 
   //===---------------------------- Clang Extensions ----------------------===//
