@@ -10909,6 +10909,23 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
       return;
   }
 
+  // Check for errors. Order the error messages from broader
+  // problems to more specific problems.   We don't want to suggest
+  // fixes that will not work because there's a more general problem.
+
+  if (Ty->isCheckedPointerPtrType())
+    // ptr types cannot have bounds expressions
+    DiagId = checkReturnBounds ? diag::err_typecheck_ptr_return_with_bounds
+    : diag::err_typecheck_ptr_decl_with_bounds;
+    // Function pointer types cannot have bounds declared for them because
+    // arithmetic on function pointer types makes no sense. Check for
+    // function types too.  C allows function types to be used in some places.
+    // They are implicitly replaced with function pointer types. Guard against
+    // them not having been replaced yet.
+  else if (Ty->isFunctionPointerType() || Ty->isFunctionType())
+    DiagId = checkReturnBounds
+    ? diag::err_typecheck_function_pointer_return_with_bounds
+    : diag::err_typecheck_function_pointer_decl_with_bounds;
   // Do bounds-safe interface checks. Local variables with unchecked pointer
   // or array types cannot have bounds declarations.  This reduces the chance
   // that programmers accidentally declare variables with unchecked types to
@@ -10916,7 +10933,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
   // checked.  Other declarations (parameters, globally-scoped variables, and
   // members) can have unchecked types and bounds declarations because that is
   // the way bounds-safe interfaces are declared.
-  if (VarDecl *Var = dyn_cast<VarDecl>(D)) {
+  else if (VarDecl *Var = dyn_cast<VarDecl>(D)) {
     assert(!checkReturnBounds);
     if (Var->isLocalVarDecl()) {
        if (Ty->isPointerType() && !Ty->isCheckedPointerType())
@@ -10930,21 +10947,8 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
   // to BoundsExpr to check whether a bounds expression is an element
   // count expression.
   CountBoundsExpr *countBounds = dyn_cast<CountBoundsExpr>(Expr);
-  if (DiagId) {
+  if (DiagId)
      ;  // There was already an error. Do nothing.
-  } else if (Ty->isCheckedPointerPtrType())
-    // ptr types cannot have bounds expressions
-    DiagId = checkReturnBounds ? diag::err_typecheck_ptr_return_with_bounds
-                               : diag::err_typecheck_ptr_decl_with_bounds;
-  // Function pointer types cannot have bounds declared for them because
-  // arithmetic on function pointer types makes no sense. Check for
-  // function types too.  C allows function types to be used in some places.
-  // They are implicitly replaced with function pointer types. Guard against
-  // them not having been replaced yet.
-  else if (Ty->isFunctionPointerType() || Ty->isFunctionType())
-    DiagId = checkReturnBounds
-               ? diag::err_typecheck_function_pointer_return_with_bounds
-               : diag::err_typecheck_function_pointer_decl_with_bounds;
   else if (countBounds &&
       countBounds->getKind() == CountBoundsExpr::Kind::ElementCount) {
     // TODO: add simple predicate to BoundsExpr to check whether this is an
@@ -10960,7 +10964,9 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
     // variable or function. Bounds declarations are handled analogusly to the
     // the way pointer types are handled in declarations.  You can declare
     // a pointer to an incomplete type, but you can't do pointer arithmetic
-    // if the type is still incomplete at the place of use.
+    // if the type is still incomplete at the place of use.  Simiarly, you
+    // can declare a pointer with bounds, but you can't use the pointer
+    // if the type is incomplete.
     if (!Ty->isPointerType() && !Ty->isArrayType()) {
       DiagId = checkReturnBounds ? diag::err_typecheck_count_return_bounds
                                  : diag::err_typecheck_count_bounds_decl;
