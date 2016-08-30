@@ -8415,14 +8415,6 @@ def warn_objc_redundant_qualified_class_type : Warning<
   "forget a '*'?">, InGroup<ObjCProtocolQualifiers>;
 
 // Checked C diagnostic messages
-def err_typecheck_ptr_subscript : Error<
-  "subscript of %0">;
-
-def err_typecheck_cond_incompatible_checked_pointer : Error<
-  "pointer type mismatch%diff{ ($ and $)|}0,1">;
-
-def err_typecheck_ptr_arithmetic : Error<
-  "arithmetic on ptr type">;
 
 def err_checked_vla : Error<
   "checked variable-length array not allowed">;
@@ -8443,6 +8435,21 @@ def err_unchecked_array_of_typedef_checked_array : Error<
 
 def err_unchecked_array_of_checked_array : Error<
   "unchecked array of checked array not allowed">;
+
+def err_bounds_safe_interface_unchecked_local_pointer : Error<
+  "expected local variable %0 to have array_ptr type">;
+
+def err_bounds_safe_interface_unchecked_local_array : Error<
+  "expected local variable %0 to have checked array type">;
+
+def err_typecheck_ptr_subscript : Error<
+  "subscript of %0">;
+
+def err_typecheck_cond_incompatible_checked_pointer : Error<
+  "pointer type mismatch%diff{ ($ and $)|}0,1">;
+
+def err_typecheck_ptr_arithmetic : Error<
+  "arithmetic on ptr type">;
 
 def err_typecheck_count_bounds_expr : Error<
   "invalid argument type %0 to count expression">;
