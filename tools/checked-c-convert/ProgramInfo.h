@@ -175,7 +175,7 @@ public:
   VariableMap &getVarMap() { return Variables;  }
 
 private:
-    bool ProgramInfo::declHelper(clang::Decl *D,
+    bool declHelper(clang::Decl *D,
                     std::set < std::tuple<uint32_t, uint32_t, uint32_t> > &V,
                     clang::ASTContext *C);
 
