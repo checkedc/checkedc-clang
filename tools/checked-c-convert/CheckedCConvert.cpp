@@ -244,7 +244,7 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
             raw_fd_ostream out(nFile.str(), EC, sys::fs::F_None);
 
             if (!EC) {
-              if(Verbose)
+              if (Verbose)
                 outs() << "writing out " << nFile.str() << "\n";
               B->write(out);
             }
@@ -358,11 +358,11 @@ int main(int argc, const char **argv) {
   }
 
   // 2. Solve constraints.
-  if(Verbose)
+  if (Verbose)
     outs() << "solving constraints\n";
   Constraints &CS = Info.getConstraints();
   CS.solve();
-  if(Verbose)
+  if (Verbose)
     outs() << "constraints solved\n";
   if (DumpIntermediate)
     CS.dump();

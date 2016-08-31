@@ -214,7 +214,7 @@ private:
   bool persisted;
   // Global symbol information used for mapping
   // Map of global functions for whom we don't have a body, the keys are 
-  // names of external functions, the value is whether the symbol has been
+  // names of external functions, the value is whether the body has been
   // seen before.
   std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<GlobalSymbol*> > GlobalSymbols;
