@@ -44,6 +44,11 @@ static cl::opt<bool> DumpIntermediate("dump-intermediate",
                                       cl::init(false),
                                       cl::cat(ConvertCategory));
 
+static cl::opt<bool> Verbose( "verbose",
+                              cl::desc("Print verbose information"),
+                              cl::init(false),
+                              cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten files, if "
@@ -236,7 +241,8 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
             raw_fd_ostream out(nFile.str(), EC, sys::fs::F_None);
 
             if (!EC) {
-              outs() << "writing out " << nFile.str() << "\n";
+              if(Verbose)
+                outs() << "writing out " << nFile.str() << "\n";
               B->write(out);
             }
             else
@@ -345,14 +351,18 @@ int main(int argc, const char **argv) {
 
   if (!Info.link()) {
     errs() << "Linking failed!\n";
-    return 0;
+    return 1;
   }
 
   // 2. Solve constraints.
-  outs() << "solving constraints\n";
+  if(Verbose)
+    outs() << "solving constraints\n";
   Constraints &CS = Info.getConstraints();
   CS.solve();
-  outs() << "constraints solved\n";
+  if(Verbose)
+    outs() << "constraints solved\n";
+  if (DumpIntermediate)
+    CS.dump();
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =
