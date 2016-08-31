@@ -83,6 +83,8 @@ NewTyp *NewTyp::mkTypForConstrainedType(Constraints &CS, Decl *D, DeclStmt *K,
       case Atom::A_Const:
         llvm_unreachable("bad value in environment map");
         break;
+      default:
+        llvm_unreachable("impossible");
       }
 
       curKey++;

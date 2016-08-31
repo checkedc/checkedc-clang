@@ -44,6 +44,11 @@ static cl::opt<bool> DumpIntermediate("dump-intermediate",
                                       cl::init(false),
                                       cl::cat(ConvertCategory));
 
+static cl::opt<bool> Verbose( "verbose",
+                              cl::desc("Print verbose information"),
+                              cl::init(false),
+                              cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten files, if "
@@ -196,6 +201,11 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
       if(SR.isValid())
         R.ReplaceText(SR, N->mkStr());
     }
+    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+      SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+      if (SR.isValid())
+        R.ReplaceText(SR, N->mkStr());
+    }
   }
 }
 
@@ -230,8 +240,11 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
             std::error_code EC;
             raw_fd_ostream out(nFile.str(), EC, sys::fs::F_None);
 
-            if (!EC)
+            if (!EC) {
+              if (Verbose)
+                outs() << "writing out " << nFile.str() << "\n";
               B->write(out);
+            }
             else
               errs() << "could not open file " << nFile << "\n";
             // This is awkward. What to do? Since we're iterating,
@@ -336,9 +349,20 @@ int main(int argc, const char **argv) {
   else
     llvm_unreachable("No action");
 
+  if (!Info.link()) {
+    errs() << "Linking failed!\n";
+    return 1;
+  }
+
   // 2. Solve constraints.
+  if (Verbose)
+    outs() << "solving constraints\n";
   Constraints &CS = Info.getConstraints();
   CS.solve();
+  if (Verbose)
+    outs() << "constraints solved\n";
+  if (DumpIntermediate)
+    CS.dump();
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =
