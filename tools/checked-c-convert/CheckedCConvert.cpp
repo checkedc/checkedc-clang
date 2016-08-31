@@ -71,6 +71,9 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
   std::set<NewTyp *> skip;
 
   for (const auto &N : toRewrite) {
+    if (N->anyChanges() == false)
+      continue;
+
     Decl *D = N->getDecl();
     DeclStmt *Where = N->getWhere();
 
