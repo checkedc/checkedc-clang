@@ -71,30 +71,54 @@ bool ProgramInfo::link() {
       if (J != funcs.end()) {
         std::set<uint32_t> &rVars1 = (*I)->getReturns();
         std::set<uint32_t> &rVars2 = (*J)->getReturns();
-        assert(rVars1.size() == rVars2.size());
+        if (rVars1.size() == rVars2.size()) {
 
-        for (std::set<uint32_t>::iterator V1 = rVars1.begin(), V2 = rVars2.begin();
-          V1 != rVars1.end() && V2 != rVars2.end(); ++V1, ++V2)
-          CS.addConstraint(CS.createEq(
-            CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
+          for (std::set<uint32_t>::iterator V1 = rVars1.begin(), V2 = rVars2.begin();
+            V1 != rVars1.end() && V2 != rVars2.end(); ++V1, ++V2)
+            CS.addConstraint(CS.createEq(
+              CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
+        } else {
+          // Nothing makes sense because this means that the types of two 
+          // functions with the same name is different. Constrain 
+          // everything to top.
+          for (const auto &V : rVars1)
+            CS.addConstraint(CS.createEq(
+              CS.getOrCreateVar(V), CS.getWild()));
+          for (const auto &V : rVars2)
+            CS.addConstraint(CS.createEq(
+              CS.getOrCreateVar(V), CS.getWild()));
+        }
         
         std::vector<std::set<uint32_t> > &pVars1 = (*I)->getParams();
         std::vector<std::set<uint32_t> > &pVars2 = (*J)->getParams();
-        assert(pVars1.size() == pVars2.size());
+        if (pVars1.size() == pVars2.size()) {
 
-        for (std::vector<std::set<uint32_t> >::iterator V1 = pVars1.begin(),
-          V2 = pVars2.begin();
-          V1 != pVars1.end() && V2 != pVars2.end();
-          ++V1, ++V2)
-        {
-          std::set<uint32_t> pv1 = *V1;
-          std::set<uint32_t> pv2 = *V2;
-          assert(pv1.size() == pv2.size());
+          for (std::vector<std::set<uint32_t> >::iterator V1 = pVars1.begin(),
+            V2 = pVars2.begin();
+            V1 != pVars1.end() && V2 != pVars2.end();
+            ++V1, ++V2)
+          {
+            std::set<uint32_t> pv1 = *V1;
+            std::set<uint32_t> pv2 = *V2;
+            assert(pv1.size() == pv2.size());
 
-          for (std::set<uint32_t>::iterator V1 = pv1.begin(), V2 = pv2.begin();
-            V1 != pv1.end() && V2 != pv2.end(); ++V1, ++V2)
-            CS.addConstraint(CS.createEq(
-              CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
+            for (std::set<uint32_t>::iterator V1 = pv1.begin(), V2 = pv2.begin();
+              V1 != pv1.end() && V2 != pv2.end(); ++V1, ++V2)
+              CS.addConstraint(CS.createEq(
+                CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
+          }
+        } else {
+          // Nothing makes sense because this means the parameter types of
+          // the functions are different. Constrain everything to top.
+          for (const auto &VV : pVars1)
+            for (const auto &V : VV)
+              CS.addConstraint(CS.createEq(
+                CS.getOrCreateVar(V), CS.getWild()));
+
+          for (const auto &VV : pVars2)
+            for (const auto &V : VV)
+              CS.addConstraint(CS.createEq(
+                CS.getOrCreateVar(V), CS.getWild()));
         }
       }
     }
