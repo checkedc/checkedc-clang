@@ -38,6 +38,9 @@ public:
   // insertion into the source code.
   virtual std::string mkStr() = 0;
 
+  // Whether or not NewTyp represents any change from the old type.
+  virtual bool anyChanges() = 0;
+
   clang::Decl *getDecl() { return DeclRewrite; }
   clang::DeclStmt *getWhere() { return StmtWhere; }
 
@@ -62,6 +65,8 @@ public:
     return T.getAsString();
   }
 
+  virtual bool anyChanges() { return false; }
+
 private:
   clang::QualType T;
 };
@@ -74,6 +79,8 @@ public:
   std::string mkStr() {
     return "ptr<" + ReferentTyp->mkStr() + "> ";
   }
+
+  virtual bool anyChanges() { return true || ReferentTyp->anyChanges();  }
 };
 
 // Represents a Checked C array_ptr type. Currently unused.
@@ -84,6 +91,8 @@ public:
   std::string mkStr() {
     return ReferentTyp->mkStr() + "* ";
   }
+
+  virtual bool anyChanges() { return false || ReferentTyp->anyChanges(); }
 };
 
 // Represents an unchecked pointer type.
@@ -94,5 +103,7 @@ public:
   std::string mkStr() {
     return ReferentTyp->mkStr() + "* ";
   }
+
+  virtual bool anyChanges() { return false || ReferentTyp->anyChanges(); }
 };
 #endif
