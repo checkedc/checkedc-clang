@@ -453,7 +453,7 @@ ProgramInfo::getVariableHelper(Expr *E,
     r |= getVariableHelper(CO->getLHS(), V, C);
     r |= getVariableHelper(CO->getRHS(), V, C);
     return r;
-  }  else {
+  } else {
     return false;
   }
 }
