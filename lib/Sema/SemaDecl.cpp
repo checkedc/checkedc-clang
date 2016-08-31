@@ -10882,7 +10882,7 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
 //
 // If checkReturnBounds is true, check the return bounds declaration
 // for a function declarator.  The typechecking logic is the same, but
-// the error messages need are slightly different.
+// the error messages are slightly different.
 void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
                            bool checkReturnBounds) {
   if (!D || !Expr)
@@ -10902,8 +10902,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
   // If the type for the declaration wasn't a function type, bail out.
   if (checkReturnBounds) {
     assert(Ty->isFunctionType());
-    const FunctionType *FuncTy = Ty->getAs<FunctionType>();
-    if (FuncTy)
+    if (const FunctionType *FuncTy = Ty->getAs<FunctionType>())
       Ty = FuncTy->getReturnType();
     else
       return;
