@@ -213,9 +213,10 @@ private:
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
   bool persisted;
   // Global symbol information used for mapping
-  // Set of global functions for whom we don't have a body, the set is 
-  // names of external functions.
-  std::set<std::string> ExternFunctions;
+  // Map of global functions for whom we don't have a body, the keys are 
+  // names of external functions, the value is whether the symbol has been
+  // seen before.
+  std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<GlobalSymbol*> > GlobalSymbols;
 };
 
