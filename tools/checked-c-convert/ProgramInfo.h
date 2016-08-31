@@ -131,6 +131,8 @@ public:
   // constraints where appropriate.
   bool link();
 
+  // These functions make the linker aware of function and global variables
+  // declared in the program. 
   void seeFunctionDecl(clang::FunctionDecl *, clang::ASTContext *);
   void seeGlobalDecl(clang::VarDecl *);
 
@@ -175,6 +177,8 @@ public:
   VariableMap &getVarMap() { return Variables;  }
 
 private:
+    // Helper routine for getVariableHelper, looks variables up in the 
+    // variable map based on the supplied Decl.
     bool declHelper(clang::Decl *D,
                     std::set < std::tuple<uint32_t, uint32_t, uint32_t> > &V,
                     clang::ASTContext *C);
@@ -209,7 +213,8 @@ private:
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
   bool persisted;
   // Global symbol information used for mapping
-  // Set of global functions for whom we don't have a body
+  // Set of global functions for whom we don't have a body, the set is 
+  // names of external functions.
   std::set<std::string> ExternFunctions;
   std::map<std::string, std::set<GlobalSymbol*> > GlobalSymbols;
 };
