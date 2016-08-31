@@ -8416,6 +8416,9 @@ def warn_objc_redundant_qualified_class_type : Warning<
 
 // Checked C diagnostic messages
 
+ def err_typecheck_pointer_type_expected : Error<
+   "expected expression with pointer type (it has type %0)">;
+
 def err_checked_vla : Error<
   "checked variable-length array not allowed">;
 

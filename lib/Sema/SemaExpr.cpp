@@ -11954,9 +11954,28 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
 }
 
 ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
-                                            Expr *LowerBound,
-                                            Expr *UpperBound,
-                                            SourceLocation RParenLoc) {
+                                      Expr *LowerBound,
+                                      Expr *UpperBound,
+                                      SourceLocation RParenLoc) {
+  ExprResult Result = UsualUnaryConversions(LowerBound);
+  if (Result.isInvalid())
+     return ExprError();
+  LowerBound = Result.get();
+
+  Result = UsualUnaryConversions(UpperBound);
+  if (Result.isInvalid())
+    return ExprError();
+  UpperBound = Result.get();
+
+  QualType LowerBoundType = LowerBound->getType();
+  QualType UpperBoundType = UpperBound->getType();
+  if (!LowerBoundType->isPointerType())
+    Diag(LowerBound->getLocStart(),
+         diag::err_typecheck_pointer_type_expected) << LowerBoundType;
+  if (!UpperBoundType->isPointerType())
+    Diag(UpperBound->getLocStart(),
+         diag::err_typecheck_pointer_type_expected) << UpperBoundType;
+
   return new (Context) RangeBoundsExpr(LowerBound, UpperBound, BoundsKWLoc,
                                        RParenLoc);
 }
