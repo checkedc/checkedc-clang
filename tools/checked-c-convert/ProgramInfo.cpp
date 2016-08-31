@@ -181,7 +181,7 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
     new GlobalFunctionSymbol(fn, PLoc, parameterVars, returnVars);
 
   // Track if we've seen a body for this function or not.
-  if(!ExternFunctions[fn])
+  if (!ExternFunctions[fn])
     ExternFunctions[fn] = (F->isThisDeclarationADefinition() && F->hasBody());
 
   // Add this to the map of global symbols. 
@@ -464,7 +464,7 @@ ProgramInfo::getVariableHelper(Expr *E,
     return getVariableHelper(PE->getSubExpr(), V, C);
   } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
     return getVariableHelper(CE->getCallee(), V, C);
-  } else if(ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
+  } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     // Explore the three exprs individually.
     // TODO: Do we need to give these three sub-explorations their own sets
     //       and merge them at this point?
