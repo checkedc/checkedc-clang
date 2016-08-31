@@ -109,21 +109,25 @@ bool ProgramInfo::link() {
 
   // For every global function that is an unresolved external, constrain 
   // its parameter types to be wild.
-  for (const auto &UnkSymbol : ExternFunctions) {
+  for (const auto &U : ExternFunctions) {
+    // If we've seen this symbol, but never seen a body for it, constrain
+    // everything about it.
+    if (U.second == false) {
+      std::string UnkSymbol = U.first;
+      std::map<std::string, std::set<GlobalSymbol*> >::iterator I =
+        GlobalSymbols.find(UnkSymbol);
+      assert(I != GlobalSymbols.end());
+      std::set<GlobalSymbol*> Gs = (*I).second;
 
-    std::map<std::string, std::set<GlobalSymbol*> >::iterator I = 
-      GlobalSymbols.find(UnkSymbol);
-    assert(I != GlobalSymbols.end());
-    std::set<GlobalSymbol*> Gs = (*I).second;
-
-    for (const auto &G : Gs) {
-      if (GlobalFunctionSymbol *GFS = dyn_cast<GlobalFunctionSymbol>(G)) {
-        for (const auto &V : GFS->getReturns())
-          CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
-
-        for (const auto &U : GFS->getParams())
-          for(const auto &V : U)
+      for (const auto &G : Gs) {
+        if (GlobalFunctionSymbol *GFS = dyn_cast<GlobalFunctionSymbol>(G)) {
+          for (const auto &V : GFS->getReturns())
             CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+
+          for (const auto &U : GFS->getParams())
+            for (const auto &V : U)
+              CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+        }
       }
     }
   }
@@ -152,17 +156,9 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   GlobalFunctionSymbol *GF = 
     new GlobalFunctionSymbol(fn, PLoc, parameterVars, returnVars);
 
-  if (F->isThisDeclarationADefinition() && F->hasBody()) {
-    // Check if this function has a body and if it appears in our set of 
-    // functions with no body. If it does, remove it. 
-    std::set<std::string>::iterator I = ExternFunctions.find(fn);
-    if (I != ExternFunctions.end())
-      ExternFunctions.erase(I);
-  } else {
-    // If this function has no body, add it to the set of functions that
-    // have no body.
-    ExternFunctions.insert(fn);
-  }
+  // Track if we've seen a body for this function or not.
+  if(!ExternFunctions[fn])
+    ExternFunctions[fn] = (F->isThisDeclarationADefinition() && F->hasBody());
 
   // Add this to the map of global symbols. 
   std::map<std::string, std::set<GlobalSymbol*> >::iterator it = 
