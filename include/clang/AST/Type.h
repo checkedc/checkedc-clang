@@ -1683,6 +1683,8 @@ public:
   bool isIncompleteArrayType() const;
   bool isVariableArrayType() const;
   bool isDependentSizedArrayType() const;
+  /// \brief whether this is a Checked C checked array type.
+  bool isCheckedArrayType() const;
   bool isRecordType() const;
   bool isClassType() const;
   bool isStructureType() const;
@@ -1737,6 +1739,8 @@ public:
   bool isTemplateTypeParmType() const;          // C++ template type parameter
   bool isNullPtrType() const;                   // C++0x nullptr_t
   bool isAtomicType() const;                    // C11 _Atomic()
+
+
 
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   bool is##Id##Type() const;
@@ -5554,6 +5558,12 @@ inline bool Type::isVariableArrayType() const {
 }
 inline bool Type::isDependentSizedArrayType() const {
   return isa<DependentSizedArrayType>(CanonicalType);
+}
+inline bool Type::isCheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return T->isChecked();
+  else
+    return false;
 }
 inline bool Type::isBuiltinType() const {
   return isa<BuiltinType>(CanonicalType);

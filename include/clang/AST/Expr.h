@@ -4535,6 +4535,11 @@ public:
 
   SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
   SourceLocation getLocEnd() const LLVM_READONLY { return RParenLoc; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() >= firstBoundsExprConstant &&
+           T->getStmtClass() <= lastBoundsExprConstant;
+  }
 };
 
 /// \brief Represents a Checked C nullary bounds expression.
@@ -4560,6 +4565,10 @@ public:
 
   Kind getKind() const { return (Kind) NullaryBoundsExprBits.Kind; }
   void setKind(Kind Kind) { NullaryBoundsExprBits.Kind = Kind; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == NullaryBoundsExprClass;
+  }
 
   // Iterators
   child_range children() {
@@ -4594,6 +4603,9 @@ public:
   Expr *getCountExpr() const { return cast<Expr>(CountExpr); }
   void setCountExpr(Expr *E) { CountExpr = E; }
 
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CountBoundsExprClass;
+  }
   // Iterators
   child_range children() {
     return child_range(&CountExpr, &CountExpr + 1);
@@ -4621,6 +4633,10 @@ public:
   void setLowerExpr(Expr *E) { SubExprs[LOWER] = E; }
   Expr *getUpperExpr() const { return cast<Expr>(SubExprs[UPPER]); }
   void setUpperExpr(Expr *E) { SubExprs[UPPER] = E; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == RangeBoundsExprClass;
+  }
 
   // Iterators
   child_range children() {

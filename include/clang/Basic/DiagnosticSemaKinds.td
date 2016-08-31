@@ -8415,14 +8415,6 @@ def warn_objc_redundant_qualified_class_type : Warning<
   "forget a '*'?">, InGroup<ObjCProtocolQualifiers>;
 
 // Checked C diagnostic messages
-def err_typecheck_ptr_subscript : Error<
-  "subscript of %0">;
-
-def err_typecheck_cond_incompatible_checked_pointer : Error<
-  "pointer type mismatch%diff{ ($ and $)|}0,1">;
-
-def err_typecheck_ptr_arithmetic : Error<
-  "arithmetic on ptr type">;
 
 def err_checked_vla : Error<
   "checked variable-length array not allowed">;
@@ -8444,9 +8436,54 @@ def err_unchecked_array_of_typedef_checked_array : Error<
 def err_unchecked_array_of_checked_array : Error<
   "unchecked array of checked array not allowed">;
 
+def err_bounds_safe_interface_unchecked_local_pointer : Error<
+  "expected local variable %0 to have array_ptr type">;
+
+def err_bounds_safe_interface_unchecked_local_array : Error<
+  "expected local variable %0 to have checked array type">;
+
+def err_typecheck_ptr_subscript : Error<
+  "subscript of %0">;
+
+def err_typecheck_cond_incompatible_checked_pointer : Error<
+  "pointer type mismatch%diff{ ($ and $)|}0,1">;
+
+def err_typecheck_ptr_arithmetic : Error<
+  "arithmetic on ptr type">;
+
 def err_typecheck_count_bounds_expr : Error<
   "invalid argument type %0 to count expression">;
 
 def err_typecheck_byte_count_bounds_expr : Error<
   "invalid argument type %0 to byte_count expression">;
+
+def err_typecheck_ptr_decl_with_bounds : Error<
+  "bounds declaration not allowed because %0 has a ptr type">;
+
+def err_typecheck_ptr_return_with_bounds : Error<
+  "bounds declaration not allowed because %0 has a ptr return type">;
+
+def err_typecheck_function_pointer_decl_with_bounds : Error<
+  "bounds declaration not allowed because %0 has a function pointer type">;
+
+def err_typecheck_function_pointer_return_with_bounds : Error<
+  "bounds declaration not allowed because %0 has a function pointer return type">;
+
+def err_typecheck_count_bounds_decl : Error<
+  "expected %0 to have a pointer or array type">;
+
+def err_typecheck_count_return_bounds : Error<
+  "expected %0 to have a pointer or array return type">;
+
+def err_typecheck_void_pointer_count_bounds_decl : Error<
+  "expected %0 to have a non-void pointer type">;
+
+def err_typecheck_void_pointer_count_return_bounds : Error<
+  "expected %0 to have a non-void pointer return type">;
+
+def err_typecheck_non_count_bounds_decl : Error<
+  "expected %0 to have a pointer, array, or integer type">;
+
+def err_typecheck_non_count_return_bounds : Error<
+  "expected %0 to have a pointer, array, or integer return type">;
 } // end of sema component.
