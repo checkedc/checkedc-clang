@@ -196,6 +196,11 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
       if(SR.isValid())
         R.ReplaceText(SR, N->mkStr());
     }
+    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+      SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+      if (SR.isValid())
+        R.ReplaceText(SR, N->mkStr());
+    }
   }
 }
 
@@ -230,8 +235,10 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
             std::error_code EC;
             raw_fd_ostream out(nFile.str(), EC, sys::fs::F_None);
 
-            if (!EC)
+            if (!EC) {
+              outs() << "writing out " << nFile.str() << "\n";
               B->write(out);
+            }
             else
               errs() << "could not open file " << nFile << "\n";
             // This is awkward. What to do? Since we're iterating,
@@ -336,9 +343,16 @@ int main(int argc, const char **argv) {
   else
     llvm_unreachable("No action");
 
+  if (!Info.link()) {
+    errs() << "Linking failed!\n";
+    return 0;
+  }
+
   // 2. Solve constraints.
+  outs() << "solving constraints\n";
   Constraints &CS = Info.getConstraints();
   CS.solve();
+  outs() << "constraints solved\n";
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =

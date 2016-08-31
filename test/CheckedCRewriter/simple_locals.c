@@ -150,3 +150,21 @@ void driver() {
   pullit(buf, &v, &index);
   pullit(buf, &v, &index);
 }
+
+typedef struct _sfoo {
+  int a;
+  int b;
+  struct _sfoo *next;
+} sfoo;
+//CHECK: ptr<struct _sfoo> next;
+
+int sum(sfoo *p) {
+  int a = 0;
+  while (p) {
+    a += p->a + p->b;
+    p = p->next;
+  }
+
+  return a;
+}
+//CHECK: int sum(ptr<sfoo> p) {

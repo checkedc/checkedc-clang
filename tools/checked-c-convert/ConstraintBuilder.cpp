@@ -291,30 +291,40 @@ public:
   explicit GlobalVisitor(ASTContext *Context, ProgramInfo &I)
       : Context(Context), Info(I) {}
 
-  bool VisitFunctionDecl(FunctionDecl *Declaration) {
-    if (Declaration->hasBody() && Declaration->isThisDeclarationADefinition()) {
-      Stmt *Body = Declaration->getBody();
-      FullSourceLoc FL = Context->getFullLoc(Declaration->getLocStart());
+  bool VisitVarDecl(VarDecl *G) {
+    
+    if (G->hasGlobalStorage() && G->getType()->isPointerType())
+      Info.addVariable(G, NULL, Context);
 
-      // For now, don't look at function definitions that clang
-      // identifies as in "system headers." Re-visit this at
-      // some point in the future, when "system headers" will include
-      // information relevant to our constraints.
-      if (FL.isValid() && !FL.isInSystemHeader()) {
-        FunctionVisitor FV = FunctionVisitor(Context, Info, Declaration);
+    Info.seeGlobalDecl(G);
 
-        // Add variables for each parameter declared for the function.
-        for (const auto &P : Declaration->params())
-          if (P->getType()->isPointerType())
-            Info.addVariable(P, NULL, Context);
+    return true;
+  }
 
-        // Add variables for the value returned from the function.
-        if (Declaration->getReturnType()->isPointerType())
-          Info.addVariable(Declaration, NULL, Context);
+  bool VisitFunctionDecl(FunctionDecl *D) {
+    FullSourceLoc FL = Context->getFullLoc(D->getLocStart());
+
+    if (FL.isValid()) {
+      std::string fn = D->getNameAsString();
+ 
+      // Add variables for the value returned from the function.
+      if (D->getReturnType()->isPointerType())
+        Info.addVariable(D, NULL, Context);
+
+      // Add variables for each parameter declared for the function.
+      for (const auto &P : D->params())
+        if (P->getType()->isPointerType())
+          Info.addVariable(P, NULL, Context);
+
+      if (D->hasBody() && D->isThisDeclarationADefinition()) {
+        Stmt *Body = D->getBody();
+        FunctionVisitor FV = FunctionVisitor(Context, Info, D);
 
         // Visit the body of the function and build up information.
         FV.TraverseStmt(Body);
       }
+
+      Info.seeFunctionDecl(D, Context);
     }
 
     return true;
@@ -345,7 +355,7 @@ public:
           }
 
           if (anyPointers) {
-            Info.addRecordDecl(Definition);
+            Info.addRecordDecl(Definition, Context);
           }
         }
       }
@@ -361,14 +371,14 @@ private:
 
 void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   Info.enterCompilationUnit(C);
-
+  outs() << "analyzing\n";
   GlobalVisitor GV = GlobalVisitor(&C, Info);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
     GV.TraverseDecl(D);
   }
-
+  outs() << "done analyzing\n";
   Info.exitCompilationUnit();
   return;
 }
