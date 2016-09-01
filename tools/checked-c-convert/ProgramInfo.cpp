@@ -81,6 +81,11 @@ bool ProgramInfo::link() {
           // Nothing makes sense because this means that the types of two 
           // functions with the same name is different. Constrain 
           // everything to top.
+          if (Verbose)
+            errs() << "Constraining return value for symbol " << (*I)->getName()
+            << ", " << (*J)->getName() 
+            << " to top because return value arity does not match\n";
+
           for (const auto &V : rVars1)
             CS.addConstraint(CS.createEq(
               CS.getOrCreateVar(V), CS.getWild()));
@@ -110,6 +115,11 @@ bool ProgramInfo::link() {
         } else {
           // Nothing makes sense because this means the parameter types of
           // the functions are different. Constrain everything to top.
+          if (Verbose) 
+            errs() << "Constraining parameters for symbol " << (*I)->getName()
+              << ", " << (*J)->getName()
+              << " to top because parameter arity does not match\n";
+          
           for (const auto &VV : pVars1)
             for (const auto &V : VV)
               CS.addConstraint(CS.createEq(

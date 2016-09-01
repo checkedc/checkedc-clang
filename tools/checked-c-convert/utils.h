@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #ifndef _UTILS_H
 #define _UTILS_H
+#include "llvm/Support/CommandLine.h"
 
 // Maps a Decl to the first constraint variable for the variable defined by 
 // that Decl.
@@ -19,4 +20,6 @@ typedef std::map<clang::Decl*, uint32_t> DeclMap;
 // Maps a Decl to the DeclStmt that defines the Decl.
 typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
 
+extern llvm::cl::opt<bool> Verbose;
+extern llvm::cl::opt<bool> DumpIntermediate;
 #endif

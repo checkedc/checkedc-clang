@@ -39,15 +39,15 @@ static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
 
 static cl::OptionCategory ConvertCategory("checked-c-convert options");
-static cl::opt<bool> DumpIntermediate("dump-intermediate",
-                                      cl::desc("Dump intermediate information"),
-                                      cl::init(false),
-                                      cl::cat(ConvertCategory));
+cl::opt<bool> DumpIntermediate( "dump-intermediate",
+                                cl::desc("Dump intermediate information"),
+                                cl::init(false),
+                                cl::cat(ConvertCategory));
 
-static cl::opt<bool> Verbose( "verbose",
-                              cl::desc("Print verbose information"),
-                              cl::init(false),
-                              cl::cat(ConvertCategory));
+cl::opt<bool> Verbose("verbose",
+                      cl::desc("Print verbose information"),
+                      cl::init(false),
+                      cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
