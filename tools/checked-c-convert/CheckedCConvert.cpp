@@ -266,13 +266,12 @@ public:
     Info.enterCompilationUnit(Context);
 
     std::set<NewTyp *> rewriteThese;
-    Constraints &CS = Info.getConstraints();
     for (const auto &V : Info.getVarMap()) {
       Decl *J = V.first;
       DeclStmt *K = NULL;
       Info.getDeclStmtForDecl(J, K);
 
-      NewTyp *NT = NewTyp::mkTypForConstrainedType(CS, J, K, Info.getVarMap());
+      NewTyp *NT = NewTyp::mkTypForConstrainedType(J, K, Info, &Context);
       rewriteThese.insert(NT);
     }
 
@@ -359,11 +358,11 @@ int main(int argc, const char **argv) {
 
   // 2. Solve constraints.
   if (Verbose)
-    outs() << "solving constraints\n";
+    outs() << "Solving constraints\n";
   Constraints &CS = Info.getConstraints();
   CS.solve();
   if (Verbose)
-    outs() << "constraints solved\n";
+    outs() << "Constraints solved\n";
   if (DumpIntermediate)
     CS.dump();
 

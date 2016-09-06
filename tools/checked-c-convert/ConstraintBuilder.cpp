@@ -371,14 +371,25 @@ private:
 
 void ConstraintBuilderConsumer::HandleTranslationUnit(ASTContext &C) {
   Info.enterCompilationUnit(C);
-  outs() << "analyzing\n";
+  if (Verbose) {
+    SourceManager &SM = C.getSourceManager();
+    FileID mainFileID = SM.getMainFileID();
+    const FileEntry *FE = SM.getFileEntryForID(mainFileID);
+    if (FE != NULL)
+      errs() << "Analyzing file " << FE->getName() << "\n";
+    else
+      errs() << "Analyzing\n";
+  }
   GlobalVisitor GV = GlobalVisitor(&C, Info);
   TranslationUnitDecl *TUD = C.getTranslationUnitDecl();
   // Generate constraints.
   for (const auto &D : TUD->decls()) {
     GV.TraverseDecl(D);
   }
-  outs() << "done analyzing\n";
+
+  if (Verbose)
+    outs() << "Done analyzing\n";
+
   Info.exitCompilationUnit();
   return;
 }

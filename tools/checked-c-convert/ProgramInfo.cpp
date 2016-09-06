@@ -35,6 +35,8 @@ bool ProgramInfo::link() {
 
   // For every global symbol in all the global symbols that we have found
   // go through and apply rules for whether they are functions or variables.
+  if (Verbose)
+    errs() << "Linking!\n";
 
   for (const auto &S : GlobalSymbols) {
     // First, extract out the function symbols from S. 
@@ -105,12 +107,24 @@ bool ProgramInfo::link() {
           {
             std::set<uint32_t> pv1 = *V1;
             std::set<uint32_t> pv2 = *V2;
-            assert(pv1.size() == pv2.size());
+            if (pv1.size() == pv2.size()) {
+              for (std::set<uint32_t>::iterator V1 = pv1.begin(), V2 = pv2.begin();
+                V1 != pv1.end() && V2 != pv2.end(); ++V1, ++V2)
+                CS.addConstraint(CS.createEq(
+                  CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
+            } else {
+              if(Verbose)
+                errs() << "Constraining return value for symbol " << (*I)->getName()
+                  << ", " << (*J)->getName()
+                  << " to top because return value arity does not match\n";
 
-            for (std::set<uint32_t>::iterator V1 = pv1.begin(), V2 = pv2.begin();
-              V1 != pv1.end() && V2 != pv2.end(); ++V1, ++V2)
-              CS.addConstraint(CS.createEq(
-                CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
+              for (const auto &V : pv1)
+                CS.addConstraint(CS.createEq(
+                  CS.getOrCreateVar(V), CS.getWild()));
+              for (const auto &V : pv2)
+                CS.addConstraint(CS.createEq(
+                  CS.getOrCreateVar(V), CS.getWild()));
+            }
           }
         } else {
           // Nothing makes sense because this means the parameter types of
@@ -178,8 +192,7 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   std::string fn = F->getNameAsString();
   std::set<uint32_t> returnVars;
   std::vector<std::set<uint32_t> > parameterVars(F->getNumParams());
-  PersistentSourceLoc PLoc =
-    PersistentSourceLoc::mkPSL(F->getLocation(), *C);
+  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(F, *C);
   int i = 0;
 
   getVariable(F, returnVars, C);
@@ -251,10 +264,10 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
       Stmt *S;
       Type *T;
       std::tie<Stmt *, Decl *, Type *>(S, D, T) = K->second;
-      if (D == NULL) {
+      /*if (D == NULL) {
         PL.dump();
         errs() << "\n";
-      }
+      }*/
       assert(D != NULL);
       Variables[D] = V;
     }
@@ -319,7 +332,7 @@ void ProgramInfo::exitCompilationUnit() {
 bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
   assert(persisted == false);
   PersistentSourceLoc PLoc = 
-    PersistentSourceLoc::mkPSL(D->getLocation(), *C);
+    PersistentSourceLoc::mkPSL(D, *C);
 
   assert(PLoc.valid());
 
@@ -328,20 +341,38 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
     std::map<PersistentSourceLoc, uint32_t>::iterator Itmp = 
       PersistentVariables.find(PLoc);
     if (Itmp != PersistentVariables.end()) {
+      /*errs() << "D->dump\n";
       D->dump();
+      errs() << "\n";
+      errs() << "D->getLocation().dump\n";
+      D->getLocation().dump(C->getSourceManager());
+      errs() << "\n";
       PersistentSourceLoc PSLtmp = Itmp->first;
+      errs() << "PSLtmp.dump\n";
       PSLtmp.dump();
       errs() << "\n";
+      errs() << "PLoc.dump\n";
       PLoc.dump();
       errs() << "\n";
-    }
+      Decl *Dtmp = getDecl(Itmp->second);
+      errs() << "Dtmp->dump\n";
+      Dtmp->dump();
+      errs() << "\n";
+      errs() << "Dtmp->getLocation().dump\n";
+      Dtmp->getLocation().dump(C->getSourceManager());
+      PersistentSourceLoc PSLtmp2 = PersistentSourceLoc::mkPSL(Dtmp, *C);
+      errs() << "PSLtmp2.dump\n";
+      PSLtmp2.dump();
+      errs() << "\n";*/
 
-    assert(PersistentVariables.find(PLoc) == PersistentVariables.end());
+      return true;
+    }
 
     uint32_t thisKey = freeKey;
     Variables.insert(std::pair<Decl *, uint32_t>(D, thisKey));
-    PersistentVariables[PLoc] = thisKey;
-
+    PersistentVariables.insert(std::pair<PersistentSourceLoc, uint32_t>
+      (PLoc,thisKey));
+    
     if (St && VarDeclToStatement.find(D) == VarDeclToStatement.end())
       VarDeclToStatement.insert(std::pair<Decl *, DeclStmt *>(D, St));
 
@@ -397,8 +428,7 @@ bool
 ProgramInfo::declHelper(Decl *D,
   std::set < std::tuple<uint32_t, uint32_t, uint32_t> > &V,
   ASTContext *C) {
-  PersistentSourceLoc PSL =
-    PersistentSourceLoc::mkPSL(D->getLocation(), *C);
+  PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(D, *C);
   assert(PSL.valid());
 
   VariableMap::iterator I = Variables.find(D);
@@ -414,7 +444,21 @@ ProgramInfo::declHelper(Decl *D,
     return true;
   }
   else {
-    return false;
+    // TODO: Also check if IN != end(), if it doesn't, then give back
+    //       that variable as well. This is the case where the variable
+    //       naming scheme is confused, but all of the confused variables
+    //       should alias.
+    if (IN != PersistentVariables.end()) {
+      uint32_t var = IN->second;
+      Decl *dl = getDecl(var);
+      DeclMap::iterator DI = DepthMap.find(dl);
+      assert(DI != DepthMap.end());
+      V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
+        (var, var, DI->second));
+      return true;
+    } else {
+      return false;
+    }
   }
 }
 

@@ -13,8 +13,7 @@ using namespace clang;
 using namespace llvm;
 
 bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
-  PersistentSourceLoc PSL = 
-    PersistentSourceLoc::mkPSL(S->getLocStart(), Context);
+  PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(S, Context);
 
   if (PSL.valid()) {
 
@@ -54,7 +53,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
 
 bool MappingVisitor::VisitDecl(Decl *D) {
   PersistentSourceLoc PSL = 
-    PersistentSourceLoc::mkPSL(D->getLocation(), Context);
+    PersistentSourceLoc::mkPSL(D, Context);
   if (PSL.valid()) {
     std::set<PersistentSourceLoc>::iterator I = SourceLocs.find(PSL);
     if (I != SourceLocs.end()) {
@@ -62,8 +61,12 @@ bool MappingVisitor::VisitDecl(Decl *D) {
       Stmt *S = NULL;
       Type *T = NULL;
       std::tie<Stmt *, Decl *, Type *>(S, Do, T) = PSLtoSDT[PSL];
-      assert(Do == NULL);
-      PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
+      if (Do != NULL && Verbose) 
+          errs() << "Warning, overriding something with something else\n";
+      
+      //assert(Do == NULL);
+      if(Do == NULL)
+        PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
   }
 
