@@ -51,7 +51,7 @@ void partialhelp(int *a, int b, int c) {
   *(a + b) = c;
 }
 //CHECK: void partialhelp(int *a, int b, int c) {
-//CHECK-NEXT: ptr<int> d = a;
+//CHECK-NEXT: int *d = a;
 //CHECK-NEXT: *d = 0;
 //CHECK-NEXT:  *(a + b) = c;
 //CHECK-NEXT: }
