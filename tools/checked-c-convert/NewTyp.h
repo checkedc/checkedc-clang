@@ -62,9 +62,7 @@ class BaseNonPointerTyp : public NewTyp {
 public:
   BaseNonPointerTyp(clang::QualType _T) : T(_T), NewTyp(N_BaseNonPointer) {}
 
-  std::string mkStr() {
-    return T.getAsString();
-  }
+  std::string mkStr();
 
   virtual bool anyChanges() { return false; }
 
