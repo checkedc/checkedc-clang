@@ -49,6 +49,7 @@ bool ProgramInfo::link() {
         vars.insert(V);
 
     // Then, iterate over each of the function symbols F1=F,F2=F+1 found for this 
+    // Then, pairwise-iterate over each of the function symbols found for this 
     // symbol. What we want to do is for a sequence of constraint variables on
     // F1,F2, set the constraint variables for F1(v0,vi,vN) and F2(v0,vj,vN) to
     // be equal to each other, i.e. to enter a series of constraints of the form
@@ -66,6 +67,7 @@ bool ProgramInfo::link() {
     // What we want to do is set q_0 == q_2 and q_1 == q_3. 
     // To do that, we need to get the constraints for each parmvar decl position
     // individually and set them equal.
+    // individually and set them equal, pairwise. 
     for (std::set<GlobalFunctionSymbol*>::iterator I = funcs.begin();
       I != funcs.end(); ++I) {
       std::set<GlobalFunctionSymbol*>::iterator J = I;
@@ -107,6 +109,7 @@ bool ProgramInfo::link() {
           {
             std::set<uint32_t> pv1 = *V1;
             std::set<uint32_t> pv2 = *V2;
+
             if (pv1.size() == pv2.size()) {
               for (std::set<uint32_t>::iterator V1 = pv1.begin(), V2 = pv2.begin();
                 V1 != pv1.end() && V2 != pv2.end(); ++V1, ++V2)

@@ -2034,9 +2034,9 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     VarDecl *ThisVarDecl = dyn_cast<VarDecl>(ThisDecl);
     if (ThisVarDecl) {
       if (Bounds.isInvalid())
-        Actions.ActOnInvalidBoundsExpr(ThisVarDecl);
+        Actions.ActOnInvalidBoundsDecl(ThisVarDecl);
       else
-        Actions.ActOnBoundsExpr(ThisVarDecl, cast<BoundsExpr>(Bounds.get()));
+        Actions.ActOnBoundsDecl(ThisVarDecl, cast<BoundsExpr>(Bounds.get()));
     } else
       llvm_unreachable("Unexpected decl type");
   }
@@ -3790,9 +3790,9 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
     ExprResult Bounds = DeferredParseBoundsExpression(std::move(Tokens));
     if (Bounds.isInvalid())
-      Actions.ActOnInvalidBoundsExpr(FieldDecl);
+      Actions.ActOnInvalidBoundsDecl(FieldDecl);
     else
-      Actions.ActOnBoundsExpr(FieldDecl, cast<BoundsExpr>(Bounds.get()));
+      Actions.ActOnBoundsDecl(FieldDecl, cast<BoundsExpr>(Bounds.get()));
   }
   StructScope.Exit();
   Actions.ActOnTagFinishDefinition(getCurScope(), TagDecl,
@@ -6143,9 +6143,9 @@ void Parser::ParseParameterDeclarationClause(
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
     ExprResult Bounds = DeferredParseBoundsExpression(std::move(Tokens));
     if (Bounds.isInvalid())
-      Actions.ActOnInvalidBoundsExpr(Param);
+      Actions.ActOnInvalidBoundsDecl(Param);
     else
-      Actions.ActOnBoundsExpr(Param, cast<BoundsExpr>(Bounds.get()));
+      Actions.ActOnBoundsDecl(Param, cast<BoundsExpr>(Bounds.get()));
   }
 }
 

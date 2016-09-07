@@ -244,11 +244,15 @@ protected:
 
   class CountBoundsExprBitFields {
     friend class CountBoundsExpr;
+
+    unsigned : NumExprBits;
     unsigned Kind : 1;
   };
 
   class NullaryBoundsExprBitFields {
     friend class NullaryBoundsExpr;
+
+    unsigned : NumExprBits;
     unsigned Kind : 1;
   };
 

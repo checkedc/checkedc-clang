@@ -49,6 +49,11 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
+static cl::opt<bool> Verbose( "verbose",
+                              cl::desc("Print verbose information"),
+                              cl::init(false),
+                              cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten files, if "
@@ -222,6 +227,11 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
     else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
       if (SR.isValid() && (R.getRangeSize(SR) != -1))
+        R.ReplaceText(SR, N->mkStr());
+    }
+    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+      SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+      if (SR.isValid())
         R.ReplaceText(SR, N->mkStr());
     }
   }

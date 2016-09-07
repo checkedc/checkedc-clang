@@ -11941,12 +11941,14 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
     return ExprError();
   Expr *PromotedCountExpr = Result.get();
   QualType ResultType = PromotedCountExpr->getType();
-  if (!ResultType->isIntegerType())
-    return ExprError(Diag(CountExpr->getLocStart(),
-                          Kind == CountBoundsExpr::Kind::ElementCount ?
-                             diag::err_typecheck_count_bounds_expr
-                           : diag::err_typecheck_byte_count_bounds_expr)
-                       << ResultType);
+  if (!ResultType->isIntegerType()) {
+    Diag(CountExpr->getLocStart(),
+         Kind == CountBoundsExpr::Kind::ElementCount ?
+         diag::err_typecheck_count_bounds_expr
+         : diag::err_typecheck_byte_count_bounds_expr)
+      << ResultType;
+    return ExprError();
+  }
   return new (Context) CountBoundsExpr(Kind, PromotedCountExpr, BoundsKWLoc,
                                        RParenLoc);
 }
