@@ -27,12 +27,6 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
       Stmt *So = NULL;
       Type *T = NULL;
       std::tie<Stmt *, Decl *, Type *>(So, D, T) = PSLtoSDT[PSL];
-      if (So != NULL) {
-        So->dump();
-        errs() << "\n";
-        S->dump();
-        errs() << "\n";
-      }
       assert(So == NULL);
       PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
@@ -61,10 +55,15 @@ bool MappingVisitor::VisitDecl(Decl *D) {
       Stmt *S = NULL;
       Type *T = NULL;
       std::tie<Stmt *, Decl *, Type *>(S, Do, T) = PSLtoSDT[PSL];
-      if (Do != NULL && Verbose) 
-          errs() << "Warning, overriding something with something else\n";
+      if (Do != NULL && Verbose) {
+        errs() << "Overriding ";
+        Do->dump();
+        errs() << " with ";
+        D->dump();
+        errs() << " from source location data (they are defined in";
+        errs() << " the same location";
+      }
       
-      //assert(Do == NULL);
       if(Do == NULL)
         PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
