@@ -340,33 +340,13 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
   if (Variables.find(D) == Variables.end()) {
     std::map<PersistentSourceLoc, uint32_t>::iterator Itmp = 
       PersistentVariables.find(PLoc);
-    if (Itmp != PersistentVariables.end()) {
-      /*errs() << "D->dump\n";
-      D->dump();
-      errs() << "\n";
-      errs() << "D->getLocation().dump\n";
-      D->getLocation().dump(C->getSourceManager());
-      errs() << "\n";
-      PersistentSourceLoc PSLtmp = Itmp->first;
-      errs() << "PSLtmp.dump\n";
-      PSLtmp.dump();
-      errs() << "\n";
-      errs() << "PLoc.dump\n";
-      PLoc.dump();
-      errs() << "\n";
-      Decl *Dtmp = getDecl(Itmp->second);
-      errs() << "Dtmp->dump\n";
-      Dtmp->dump();
-      errs() << "\n";
-      errs() << "Dtmp->getLocation().dump\n";
-      Dtmp->getLocation().dump(C->getSourceManager());
-      PersistentSourceLoc PSLtmp2 = PersistentSourceLoc::mkPSL(Dtmp, *C);
-      errs() << "PSLtmp2.dump\n";
-      PSLtmp2.dump();
-      errs() << "\n";*/
-
+    // We don't have the Decl in Variables, but we DO have the Decl in the
+    // PersistentVariables map. This means that this Decl and other Decls
+    // are defined in the same location in the source of the program. 
+    // We can treat them as being aliases of each other for now. 
+    if (Itmp != PersistentVariables.end()) 
       return true;
-    }
+    
 
     uint32_t thisKey = freeKey;
     Variables.insert(std::pair<Decl *, uint32_t>(D, thisKey));
