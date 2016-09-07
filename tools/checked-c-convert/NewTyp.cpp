@@ -8,8 +8,16 @@
 //===----------------------------------------------------------------------===//
 #include "NewTyp.h"
 
+
 using namespace clang;
 using namespace llvm;
+
+static const Type *getNextTy(const Type *Ty) {
+  if (const PointerType *PT = dyn_cast<PointerType>(Ty))
+    return PT->getPointeeType().getTypePtr();
+  else
+    return NULL;
+}
 
 // Given a solved set of constraints CS and a declaration D, produce a
 // NewTyp data structure that describes how the type declaration for D
@@ -18,25 +26,25 @@ using namespace llvm;
 // to be done all at once via the Rewriter.
 NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
                                         ProgramInfo &PI, ASTContext *C) {
-  TypeLoc TL;
-
+  const Type *Ty = NULL;
   if (VarDecl *VD = dyn_cast<VarDecl>(D))
-    TL = VD->getTypeSourceInfo()->getTypeLoc();
+    Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
   else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
-    TL = FD->getTypeSourceInfo()->getTypeLoc();
+    Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
   else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D))
-    TL = UD->getTypeSourceInfo()->getTypeLoc();
+    Ty = UD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
   else
     llvm_unreachable("unknown decl type");
 
-  assert(!TL.isNull());
-  
+  assert(Ty != NULL);
+  Ty = Ty->getUnqualifiedDesugaredType();
+
   // Strip off function definitions from the type.
-  while (!TL.isNull()) {
-    QualType T = TL.getType();
-    if (T->isFunctionNoProtoType() || T->isFunctionType() ||
-        T->isFunctionProtoType())
-      TL = TL.getNextTypeLoc();
+  while (Ty != NULL) {
+    if (const FunctionType *FT = dyn_cast<FunctionType>(Ty))
+      Ty = FT->getReturnType().getTypePtr();
+    else if (const FunctionNoProtoType *FNPT = dyn_cast<FunctionNoProtoType>(Ty))
+      Ty = FNPT->getReturnType().getTypePtr();
     else
       break;
   }
@@ -53,18 +61,10 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
   uint32_t curKey = baseQVKey;
   Constraints::EnvironmentMap env = PI.getConstraints().getVariables();
 
-  // What if we don't have anything to do after stripping off function
-  // definitions?
-  assert(!TL.isNull());
-
-  while (!TL.isNull()) {
-    // What should the current type be qualified as? This can be answered by
-    // looking the constraint up for the current variable.
+  while (Ty != NULL) {
+    QualType QT(Ty, 0);
     NewTyp *tmp = NULL;
-    if (TypedefTypeLoc TTL = TL.getAs<TypedefTypeLoc>()) {
-      // Skip everything for now.
-      tmp = new BaseNonPointerTyp(TTL.getType());
-    } else if (TL.getType()->isPointerType()) {
+    if (Ty->isPointerType()) {
       VarAtom toFind(curKey);
       auto I = env.find(&toFind);
       assert(I != env.end());
@@ -93,7 +93,7 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
 
       curKey++;
     } else {
-      tmp = new BaseNonPointerTyp(TL.getType());
+      tmp = new BaseNonPointerTyp(QT);
     }
 
     // If this is our first trip through the loop, update the Cur variable
@@ -119,14 +119,12 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
     if (isa<BaseNonPointerTyp>(Cur))
       break;
     else
-      TL = TL.getNextTypeLoc();
+      Ty = getNextTy(Ty);
   }
 
   assert(T != NULL);
   assert(T->ReferentTyp != NULL || T->getKind() == N_BaseNonPointer);
   return T;
-
-  return NULL;
 }
 
 std::string BaseNonPointerTyp::mkStr() {

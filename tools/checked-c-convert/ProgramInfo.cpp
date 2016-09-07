@@ -12,6 +12,13 @@
 using namespace clang;
 using namespace llvm;
 
+static const Type *getNextTy(const Type *Ty) {
+  if (const PointerType *PT = dyn_cast<PointerType>(Ty))
+    return PT->getPointeeType().getTypePtr();
+  else
+    return NULL;
+}
+
 void ProgramInfo::dump() {
   CS.dump();
   errs() << "\n";
@@ -359,22 +366,21 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
       VarDeclToStatement.insert(std::pair<Decl *, DeclStmt *>(D, St));
 
     // Get a type to tear apart piece by piece.
-    TypeLoc TL;
+    const Type *Ty = NULL;
     if (VarDecl *VD = dyn_cast<VarDecl>(D))
-      TL = VD->getTypeSourceInfo()->getTypeLoc();
-    else if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D))
-      TL = VD->getTypeSourceInfo()->getTypeLoc();
+      Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
-      TL = FD->getTypeSourceInfo()->getTypeLoc();
+      Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D))
-      TL = UD->getTypeSourceInfo()->getTypeLoc();
+      Ty = UD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     else
       llvm_unreachable("unknown decl type");
 
-    assert(!TL.isNull());
+    assert(Ty != NULL);
+    Ty = Ty->getUnqualifiedDesugaredType();
 
-    while (!TL.isNull()) {
-      if (TL.getTypePtr()->isPointerType()) {
+    while (Ty != NULL) {
+      if (Ty->isPointerType()) {
         RVariables.insert(std::pair<uint32_t, Decl *>(thisKey, D));
         PersistentRVariables[thisKey] = PLoc;
         CS.getOrCreateVar(thisKey);
@@ -382,8 +388,7 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
         thisKey++;
         freeKey++;
       }
-
-      TL = TL.getNextTypeLoc();
+      Ty = getNextTy(Ty);
     }
 
     DepthMap.insert(std::pair<Decl *, uint32_t>(D, freeKey));
