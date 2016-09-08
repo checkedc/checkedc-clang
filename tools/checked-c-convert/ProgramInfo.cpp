@@ -19,17 +19,17 @@ static const Type *getNextTy(const Type *Ty) {
     return NULL;
 }
 
-void ProgramInfo::dump() {
-  CS.dump();
-  errs() << "\n";
+void ProgramInfo::print(raw_ostream &O) const {
+  CS.print(O);
+  O << "\n";
 
-  errs() << "Constraint Variables\n";
+  O << "Constraint Variables\n";
   for (const auto &I : PersistentRVariables) {
-    VarAtom *V = CS.getOrCreateVar(I.first);
-    V->dump();
-    errs() << "=>";
-    I.second.dump();
-    errs() << "\n";
+    VarAtom *V = CS.getVar(I.first);
+    V->print(O);
+    O << "=>";
+    I.second.print(O);
+    O << "\n";
   }
 
   return;

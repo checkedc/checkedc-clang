@@ -252,7 +252,7 @@ bool Constraints::solve(void) {
   return true;
 }
 
-void Constraints::print(raw_ostream &O) {
+void Constraints::print(raw_ostream &O) const {
   O << "CONSTRAINTS: \n";
   for (const auto &C : constraints) {
     C->print(O);
@@ -268,7 +268,7 @@ void Constraints::print(raw_ostream &O) {
   }
 }
 
-void Constraints::dump(void) {
+void Constraints::dump(void) const {
   print(errs());
 }
 
@@ -283,6 +283,16 @@ VarAtom *Constraints::getOrCreateVar(uint32_t v) {
     environment[V] = getPtr();
     return V;
   }
+}
+
+VarAtom *Constraints::getVar(uint32_t v) const {
+  VarAtom tv(v);
+  EnvironmentMap::const_iterator I = environment.find(&tv);
+
+  if (I != environment.end())
+    return I->first;
+  else
+    return NULL;
 }
 
 PtrAtom *Constraints::getPtr() const {

@@ -100,8 +100,8 @@ public:
 class ProgramInfo {
 public:
   ProgramInfo() : freeKey(0), persisted(true) {}
-
-  void dump();
+  void print(llvm::raw_ostream &O) const;
+  void dump() const { print(llvm::errs()); }
 
   Constraints &getConstraints() { return CS;  }
   void addRecordDecl(clang::RecordDecl *R, clang::ASTContext *C);
