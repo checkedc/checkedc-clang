@@ -11939,8 +11939,8 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
   ExprResult Result = UsualUnaryConversions(CountExpr);
   if (Result.isInvalid())
     return ExprError();
-  Expr *PromotedCountExpr = Result.get();
-  QualType ResultType = PromotedCountExpr->getType();
+  CountExpr = Result.get();
+  QualType ResultType = CountExpr->getType();
   if (!ResultType->isIntegerType()) {
     Diag(CountExpr->getLocStart(),
          Kind == CountBoundsExpr::Kind::ElementCount ?
@@ -11949,8 +11949,35 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
       << ResultType;
     return ExprError();
   }
-  return new (Context) CountBoundsExpr(Kind, PromotedCountExpr, BoundsKWLoc,
+  return new (Context) CountBoundsExpr(Kind, CountExpr, BoundsKWLoc,
                                        RParenLoc);
+}
+
+/// \brief Validate the type of an argument expression to a bounds
+/// expression. If valid, return the unqualified pointee type.  Otherwise
+/// return null.
+const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
+  QualType ArgType = Arg->getType();
+  const Type *ArgPointerType = ArgType->getAs<PointerType>();
+  if (!ArgPointerType) {
+    Diag(Arg->getLocStart(),
+         diag::err_typecheck_pointer_type_expected) << ArgType;
+    return nullptr;
+  }
+  QualType ArgTypePointee = ArgPointerType->getPointeeType();
+  // For the Checked C extension, we don't expect to see of the clang
+  // extensions for qualifiers.  Assert if we do.
+  Qualifiers ArgTypeQuals = ArgTypePointee.getQualifiers();
+  ArgTypeQuals.removeCVRQualifiers();
+  assert(!ArgTypeQuals.hasQualifiers() &&
+         "unexpected non-CVR qualifiers on type");
+
+  if (!ArgTypePointee->isIncompleteOrObjectType()) {
+    Diag(Arg->getLocStart(), diag::err_typecheck_bounds_expr) << ArgType;
+   return nullptr;
+  }
+
+  return ArgTypePointee.getTypePtr();
 }
 
 ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
@@ -11967,14 +11994,21 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
     return ExprError();
   UpperBound = Result.get();
 
-  QualType LowerBoundType = LowerBound->getType();
-  QualType UpperBoundType = UpperBound->getType();
-  if (!LowerBoundType->isPointerType())
+  const Type *LowerBoundPointee = ValidateBoundsExprArgument(LowerBound);
+  const Type *UpperBoundPointee = ValidateBoundsExprArgument(UpperBound);
+
+  if (!LowerBoundPointee || !UpperBoundPointee)
+    return ExprError();
+
+  if (LowerBoundPointee != UpperBoundPointee &&
+      !LowerBoundPointee->isVoidType() &&
+      !UpperBoundPointee->isVoidType()) {
     Diag(LowerBound->getLocStart(),
-         diag::err_typecheck_pointer_type_expected) << LowerBoundType;
-  if (!UpperBoundType->isPointerType())
-    Diag(UpperBound->getLocStart(),
-         diag::err_typecheck_pointer_type_expected) << UpperBoundType;
+         diag::err_typecheck_bounds_expr_incompatible_pointers)
+      << LowerBound->getType() << UpperBound->getType() << LowerBound->getSourceRange()
+      << UpperBound->getSourceRange();
+    return ExprError();
+  }
 
   return new (Context) RangeBoundsExpr(LowerBound, UpperBound, BoundsKWLoc,
                                        RParenLoc);
