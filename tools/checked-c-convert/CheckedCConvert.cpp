@@ -60,6 +60,11 @@ static cl::opt<bool> RewriteHeaders(
     cl::desc("Rewrite header files as well as the specified source files"),
     cl::init(false), cl::cat(ConvertCategory));
 
+static cl::opt<bool> DumpStats( "dump-stats",
+                                cl::desc("Dump statistics"),
+                                cl::init(false),
+                                cl::cat(ConvertCategory));
+
 // Test to see if we can rewrite a given SourceRange. 
 bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
@@ -395,6 +400,9 @@ int main(int argc, const char **argv) {
     Tool.run(RewriteTool.get());
   else
     llvm_unreachable("No action");
+
+  if (DumpStats)
+    Info.dump_stats();
 
   return 0;
 }

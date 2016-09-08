@@ -102,6 +102,8 @@ public:
   ProgramInfo() : freeKey(0), persisted(true) {}
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
+  void dump_stats() { print_stats(llvm::errs()); }
+  void print_stats(llvm::raw_ostream &O);
 
   Constraints &getConstraints() { return CS;  }
   void addRecordDecl(clang::RecordDecl *R, clang::ASTContext *C);

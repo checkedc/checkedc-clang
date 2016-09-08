@@ -35,6 +35,60 @@ void ProgramInfo::print(raw_ostream &O) const {
   return;
 }
 
+// Print out statistics of constraint variables on a per-file basis.
+void ProgramInfo::print_stats(raw_ostream &O) {
+  std::map<std::string, std::tuple<int, int, int, int> > filesToVars;
+  Constraints::EnvironmentMap env = CS.getVariables();
+
+  // First, build the map and perform the aggregation.
+  for (const auto &I : PersistentRVariables) {
+    const std::string fileName = I.second.getFileName();
+    int varC = 0;
+    int pC = 0;
+    int aC = 0;
+    int wC = 0;
+
+    auto J = filesToVars.find(fileName);
+    if (J != filesToVars.end()) 
+      std::tie(varC, pC, aC, wC) = J->second;
+
+    varC += 1;
+
+    VarAtom *V = CS.getVar(I.first);
+    assert(V != NULL);
+    auto K = env.find(V);
+    assert(K != env.end());
+
+    ConstAtom *CA = K->second;
+    switch (CA->getKind()) {
+      case Atom::A_Arr:
+        aC += 1;
+        break;
+      case Atom::A_Ptr:
+        pC += 1;
+        break;
+      case Atom::A_Wild:
+        wC += 1;
+        break;
+      case Atom::A_Var:
+      case Atom::A_Const:
+        llvm_unreachable("bad constant in environment map");
+    }
+
+    filesToVars[fileName] = std::tuple<int, int, int, int>(varC, pC, aC, wC);
+  }
+
+  // Then, dump the map to output.
+
+  O << "file|#constraints|#ptr|#arr|#wild\n";
+  for (const auto &I : filesToVars) {
+    int v, p, a, w;
+    std::tie(v, p, a, w) = I.second;
+    O << I.first << "|" << v << "|" << p << "|" << a << "|" << w;
+    O << "\n";
+  }
+}
+
 bool ProgramInfo::checkStructuralEquality(uint32_t V, uint32_t U) {
   // TODO: implement structural equality checking.
   return false;
