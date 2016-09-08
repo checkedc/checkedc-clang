@@ -99,7 +99,7 @@ public:
     return ReferentTyp->mkStr() + "* ";
   }
 
-  virtual bool anyChanges() { return false || ReferentTyp->anyChanges(); }
+  virtual bool anyChanges() { return ReferentTyp->anyChanges(); }
 
   static bool classof(const NewTyp *S) {
     return S->getKind() == N_Arr;
@@ -115,7 +115,7 @@ public:
     return ReferentTyp->mkStr() + "* ";
   }
 
-  virtual bool anyChanges() { return false || ReferentTyp->anyChanges(); }
+  virtual bool anyChanges() { return ReferentTyp->anyChanges(); }
 
   static bool classof(const NewTyp *S) {
     return S->getKind() == N_Wild;

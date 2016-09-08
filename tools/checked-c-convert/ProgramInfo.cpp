@@ -49,7 +49,6 @@ bool ProgramInfo::link() {
         vars.insert(V);
 
     // Then, iterate over each of the function symbols F1=F,F2=F+1 found for this 
-    // Then, pairwise-iterate over each of the function symbols found for this 
     // symbol. What we want to do is for a sequence of constraint variables on
     // F1,F2, set the constraint variables for F1(v0,vi,vN) and F2(v0,vj,vN) to
     // be equal to each other, i.e. to enter a series of constraints of the form

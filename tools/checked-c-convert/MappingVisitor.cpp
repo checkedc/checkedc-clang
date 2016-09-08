@@ -27,6 +27,12 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
       Stmt *So = NULL;
       Type *T = NULL;
       std::tie<Stmt *, Decl *, Type *>(So, D, T) = PSLtoSDT[PSL];
+      if (So != NULL && Verbose) {
+        So->dump();
+        errs() << "\n";
+        S->dump();
+        errs() << "\n";
+      }
       assert(So == NULL);
       PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }

@@ -49,11 +49,6 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
-static cl::opt<bool> Verbose( "verbose",
-                              cl::desc("Print verbose information"),
-                              cl::init(false),
-                              cl::cat(ConvertCategory));
-
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten files, if "
@@ -64,6 +59,11 @@ static cl::opt<bool> RewriteHeaders(
     "rewrite-headers",
     cl::desc("Rewrite header files as well as the specified source files"),
     cl::init(false), cl::cat(ConvertCategory));
+
+// Test to see if we can rewrite a given SourceRange. 
+bool canRewrite(Rewriter &R, SourceRange &SR) {
+  return SR.isValid() && (R.getRangeSize(SR) != -1);
+}
 
 // Visit each Decl in toRewrite and apply the appropriate pointer type
 // to that Decl. The state of the rewrite is contained within R, which
@@ -120,7 +120,7 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
                 // list of file ID's we've touched.
                 FullSourceLoc FSL(TR.getBegin(), S);
                 Files.insert(FSL.getFileID());
-                if (R.getRangeSize(TR) != -1)
+                if (canRewrite(R, TR))
                   R.ReplaceText(TR, N->mkStr());
               }
               else {
@@ -148,7 +148,7 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
       // list of file ID's we've touched.
       FullSourceLoc FSL(TR.getBegin(), S);
       Files.insert(FSL.getFileID());
-      if (Where->isSingleDecl() && (R.getRangeSize(TR) != -1))
+      if (Where->isSingleDecl() && canRewrite(R, TR))
         R.ReplaceText(TR, N->mkStr());
       else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
         // Hack time!
@@ -221,17 +221,12 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
       //       spanning multiple files. We don't know how to re-write that,
       //       so don't.
       SourceRange SR = UD->getReturnTypeSourceRange();
-      if(SR.isValid() && (R.getRangeSize(SR) != -1))
+      if (canRewrite(R, SR))
         R.ReplaceText(SR, N->mkStr());
     }
     else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
-      if (SR.isValid() && (R.getRangeSize(SR) != -1))
-        R.ReplaceText(SR, N->mkStr());
-    }
-    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
-      SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
-      if (SR.isValid())
+      if (canRewrite(R, SR))
         R.ReplaceText(SR, N->mkStr());
     }
   }

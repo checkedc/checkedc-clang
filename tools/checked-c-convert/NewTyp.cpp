@@ -35,7 +35,7 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
   while (!TL.isNull()) {
     QualType T = TL.getType();
     if (T->isFunctionNoProtoType() || T->isFunctionType() ||
-      T->isFunctionProtoType())
+        T->isFunctionProtoType())
       TL = TL.getNextTypeLoc();
     else
       break;
