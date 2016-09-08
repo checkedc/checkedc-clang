@@ -200,3 +200,22 @@ void adsfse(void) {
 //CHECK: void adsfse(void) {
 //CHECK-NEXT: int a = 0;
 //CHECK-NEXT: int *b = &a;
+
+void dknbhd(void) {
+  int a = 0;
+  int *b = &a;
+  int **c = &b;
+  int *d = *c;
+
+  *b = 0;
+
+  **c = 1;
+
+
+  *(d + 4) = 4;
+}
+//CHECK: void dknbhd(void) {
+//CHECK-NEXT: int a = 0;
+//CHECK-NEXT: int *b = &a;
+//CHECK-NEXT: int **c = &b;
+//CHECK-NEXT: int *d = *c;

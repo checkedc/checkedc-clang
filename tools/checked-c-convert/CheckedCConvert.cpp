@@ -80,6 +80,9 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
              ASTContext &A, std::set<FileID> &Files) {
   std::set<NewTyp *> skip;
 
+  if (Verbose)
+    errs() << "Rewriting\n";
+
   for (const auto &N : toRewrite) {
     if (N->anyChanges() == false)
       continue;
@@ -143,79 +146,87 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
         llvm_unreachable("no parent function or method for decl");
 
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      assert(Where != NULL);
-      SourceRange TR = VD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+      if (Where != NULL) {
+        SourceRange TR = VD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
 
-      // Is it a variable type? This is the easy case, we can re-write it
-      // locally, at the site of the declaration.
+        // Is it a variable type? This is the easy case, we can re-write it
+        // locally, at the site of the declaration.
 
-      // Get a FullSourceLoc for the start location and add it to the
-      // list of file ID's we've touched.
-      FullSourceLoc FSL(TR.getBegin(), S);
-      Files.insert(FSL.getFileID());
-      if (Where->isSingleDecl() && canRewrite(R, TR))
-        R.ReplaceText(TR, N->mkStr());
-      else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
-        // Hack time!
-        // Sometimes, like in the case of a decl on a single line, we'll need to
-        // do multiple NewTyps at once. In that case, in the inner loop, we'll
-        // re-scan and find all of the NewTyps related to that line and do
-        // everything at once. That means sometimes we'll get NewTyps that
-        // we don't want to process twice. We'll skip them here.
+        // Get a FullSourceLoc for the start location and add it to the
+        // list of file ID's we've touched.
+        FullSourceLoc FSL(TR.getBegin(), S);
+        Files.insert(FSL.getFileID());
+        if (Where->isSingleDecl() && canRewrite(R, TR))
+          R.ReplaceText(TR, N->mkStr());
+        else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
+          // Hack time!
+          // Sometimes, like in the case of a decl on a single line, we'll need to
+          // do multiple NewTyps at once. In that case, in the inner loop, we'll
+          // re-scan and find all of the NewTyps related to that line and do
+          // everything at once. That means sometimes we'll get NewTyps that
+          // we don't want to process twice. We'll skip them here.
 
-        // Step 1: get the re-written types.
-        std::set<NewTyp *> rewritesForThisDecl;
-        auto I = toRewrite.find(N);
-        while (I != toRewrite.end()) {
-          NewTyp *tmp = *I;
-          if (tmp->getWhere() == Where)
-            rewritesForThisDecl.insert(tmp);
-          ++I;
-        }
-
-        // Step 2: remove the original line from the program.
-        SourceRange DR = Where->getSourceRange();
-        R.RemoveText(DR);
-
-        // Step 3: for each decl in the original, build up a new string
-        //         and if the original decl was re-written, write that
-        //         out instead (WITH the initializer).
-        std::string newMultiLineDeclS = "";
-        raw_string_ostream newMLDecl(newMultiLineDeclS);
-        for (const auto &DL : Where->decls()) {
-          NewTyp *N = NULL;
-          VarDecl *VDL = dyn_cast<VarDecl>(DL);
-          assert(VDL != NULL);
-
-          for (const auto &NLT : rewritesForThisDecl)
-            if (NLT->getDecl() == DL) {
-              N = NLT;
-              break;
-            }
-
-          if (N) {
-            newMLDecl << N->mkStr();
-            newMLDecl << " " << VDL->getNameAsString();
-            if (Expr *E = VDL->getInit()) {
-              newMLDecl << " = ";
-              E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
-            }
-            newMLDecl << ";\n";
-          } else {
-            DL->print(newMLDecl);
-            newMLDecl << ";\n";
+          // Step 1: get the re-written types.
+          std::set<NewTyp *> rewritesForThisDecl;
+          auto I = toRewrite.find(N);
+          while (I != toRewrite.end()) {
+            NewTyp *tmp = *I;
+            if (tmp->getWhere() == Where)
+              rewritesForThisDecl.insert(tmp);
+            ++I;
           }
+
+          // Step 2: remove the original line from the program.
+          SourceRange DR = Where->getSourceRange();
+          R.RemoveText(DR);
+
+          // Step 3: for each decl in the original, build up a new string
+          //         and if the original decl was re-written, write that
+          //         out instead (WITH the initializer).
+          std::string newMultiLineDeclS = "";
+          raw_string_ostream newMLDecl(newMultiLineDeclS);
+          for (const auto &DL : Where->decls()) {
+            NewTyp *N = NULL;
+            VarDecl *VDL = dyn_cast<VarDecl>(DL);
+            assert(VDL != NULL);
+
+            for (const auto &NLT : rewritesForThisDecl)
+              if (NLT->getDecl() == DL) {
+                N = NLT;
+                break;
+              }
+
+            if (N) {
+              newMLDecl << N->mkStr();
+              newMLDecl << " " << VDL->getNameAsString();
+              if (Expr *E = VDL->getInit()) {
+                newMLDecl << " = ";
+                E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
+              }
+              newMLDecl << ";\n";
+            }
+            else {
+              DL->print(newMLDecl);
+              newMLDecl << ";\n";
+            }
+          }
+
+          // Step 4: Write out the string built up in step 3.
+          R.InsertTextAfter(DR.getEnd(), newMLDecl.str());
+
+          // Step 5: Be sure and skip all of the NewTyps that we dealt with
+          //         during this time of hacking, by adding them to the
+          //         skip set.
+
+          for (const auto &TN : rewritesForThisDecl)
+            skip.insert(TN);
         }
-
-        // Step 4: Write out the string built up in step 3.
-        R.InsertTextAfter(DR.getEnd(), newMLDecl.str());
-
-        // Step 5: Be sure and skip all of the NewTyps that we dealt with
-        //         during this time of hacking, by adding them to the
-        //         skip set.
-
-        for (const auto &TN : rewritesForThisDecl)
-          skip.insert(TN);
+      } else {
+        if (Verbose) {
+          errs() << "Don't know where to rewrite a VarDecl! ";
+          VD->dump();
+          errs() << "\n";
+        }
       }
     } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D)) {
       // TODO: If the return type is a fully-specified function pointer, 
@@ -240,6 +251,9 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
 void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
   // Check if we are outputing to stdout or not, if we are, just output the
   // main file ID to stdout.
+  if (Verbose)
+    errs() << "Writing files out\n";
+
   SourceManager &SM = C.getSourceManager();
   if (OutputPostfix == "-") {
     if (const RewriteBuffer *B = R.getRewriteBufferFor(SM.getMainFileID()))
@@ -297,7 +311,9 @@ public:
       Info.getDeclStmtForDecl(J, K);
 
       NewTyp *NT = NewTyp::mkTypForConstrainedType(J, K, Info, &Context);
-      rewriteThese.insert(NT);
+      assert(NT != NULL);
+      if(NT)
+        rewriteThese.insert(NT);
     }
 
     Rewriter R(Context.getSourceManager(), Context.getLangOpts());

@@ -14,9 +14,9 @@ using namespace llvm;
 
 static const Type *getNextTy(const Type *Ty) {
   if (const PointerType *PT = dyn_cast<PointerType>(Ty))
-    return PT->getPointeeType().getTypePtr();
+    return PT->getPointeeType().getTypePtr()->getUnqualifiedDesugaredType();
   else
-    return NULL;
+    return Ty;
 }
 
 // Given a solved set of constraints CS and a declaration D, produce a
@@ -38,21 +38,26 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
 
   assert(Ty != NULL);
   Ty = Ty->getUnqualifiedDesugaredType();
+  assert(Ty != NULL);
 
   // Strip off function definitions from the type.
   while (Ty != NULL) {
     if (const FunctionType *FT = dyn_cast<FunctionType>(Ty))
-      Ty = FT->getReturnType().getTypePtr();
+      Ty = FT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
     else if (const FunctionNoProtoType *FNPT = dyn_cast<FunctionNoProtoType>(Ty))
-      Ty = FNPT->getReturnType().getTypePtr();
+      Ty = FNPT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
     else
       break;
   }
 
+  if (Ty == NULL)
+    return NULL;
+
   uint32_t baseQVKey;
   std::set<uint32_t> baseQVKeyS;
   PI.getVariable(D, baseQVKeyS, C);
-  assert(baseQVKeyS.size() == 1);
+  // We want the least constraint variable associated with this Decl.
+  assert(baseQVKeyS.size() > 0);
   baseQVKey = *baseQVKeyS.begin();
 
   // Now, build up a NewTyp type.
@@ -118,7 +123,7 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
 
     if (isa<BaseNonPointerTyp>(Cur))
       break;
-    else
+    else 
       Ty = getNextTy(Ty);
   }
 

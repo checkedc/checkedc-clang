@@ -14,9 +14,9 @@ using namespace llvm;
 
 static const Type *getNextTy(const Type *Ty) {
   if (const PointerType *PT = dyn_cast<PointerType>(Ty))
-    return PT->getPointeeType().getTypePtr();
+    return PT->getPointeeType().getTypePtr()->getUnqualifiedDesugaredType();
   else
-    return NULL;
+    return Ty;
 }
 
 void ProgramInfo::print(raw_ostream &O) const {
@@ -329,10 +329,6 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
       Stmt *S;
       Type *T;
       std::tie<Stmt *, Decl *, Type *>(S, D, T) = K->second;
-      /*if (D == NULL) {
-        PL.dump();
-        errs() << "\n";
-      }*/
       assert(D != NULL);
       Variables[D] = V;
     }
@@ -435,6 +431,16 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
     assert(Ty != NULL);
     Ty = Ty->getUnqualifiedDesugaredType();
 
+    // Strip off function types.
+    while (Ty != NULL) {
+      if (const FunctionType *FT = dyn_cast<FunctionType>(Ty))
+        Ty = FT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
+      else if (const FunctionNoProtoType *FNPT = dyn_cast<FunctionNoProtoType>(Ty))
+        Ty = FNPT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
+      else
+        break;
+    }
+
     while (Ty != NULL) {
       if (Ty->isPointerType()) {
         RVariables.insert(std::pair<uint32_t, Decl *>(thisKey, D));
@@ -443,7 +449,10 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
 
         thisKey++;
         freeKey++;
+      } else {
+        break;
       }
+
       Ty = getNextTy(Ty);
     }
 
@@ -596,18 +605,19 @@ void ProgramInfo::getVariable(Expr *E, std::set<uint32_t> &V, ASTContext *C) {
   return;
 }
 
-// Given a decl, return the variable for the top-most constraint of that decl.
-// Unlike the case for expressions above, this can only ever return a single
-// variable.
+// Given a decl, return the variables for the constraints of the Decl.
 void ProgramInfo::getVariable(Decl *D, std::set<uint32_t> &V, ASTContext *C) {
   assert(persisted == false);
   if (!D)
     return;
 
-  VariableMap::iterator I = Variables.find(D);
-  if (I != Variables.end()) {
-    V.insert(I->second);
-    return;
+  auto I = DepthMap.find(D);
+  auto J = Variables.find(D);
+  if (I != DepthMap.end() && J != Variables.end()) {
+    uint32_t baseVar = J->second;
+    uint32_t limVar = I->second;
+    for (; baseVar < limVar; baseVar++) 
+      V.insert(baseVar);
   }
 
   return;
