@@ -55,9 +55,14 @@ public:
   void dump() { print(llvm::errs()); }
 
   static
-    PersistentSourceLoc mkPSL(clang::SourceLocation SL, clang::ASTContext &Context);
+    PersistentSourceLoc mkPSL(clang::Decl *D, clang::ASTContext &Context);
+
+  static
+    PersistentSourceLoc mkPSL(clang::Stmt *S, clang::ASTContext &Context);
 
 private:
+  static
+    PersistentSourceLoc mkPSL(clang::SourceLocation SL, clang::ASTContext &Context);
   std::string fileName;
   uint32_t lineNo;
   uint32_t colNo;

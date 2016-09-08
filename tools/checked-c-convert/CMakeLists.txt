@@ -24,5 +24,7 @@ target_link_libraries(checked-c-convert
   clangTooling
   )
 
+add_subdirectory(unittests)
+
 install(TARGETS checked-c-convert
   RUNTIME DESTINATION bin)

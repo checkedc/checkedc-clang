@@ -33,6 +33,70 @@
 #include "utils.h"
 #include "PersistentSourceLoc.h"
 
+// A helper class used to track global information in the program. 
+class GlobalSymbol {
+public:
+  enum GlobalSymbolKind {
+    Variable,
+    Function
+  };
+
+private:
+  GlobalSymbolKind Kind;
+  std::string Name;
+  PersistentSourceLoc Loc;
+public:
+  GlobalSymbol(GlobalSymbolKind K, std::string N, PersistentSourceLoc P) 
+    : Kind(K),Name(N),Loc(P) {} 
+  GlobalSymbolKind getKind() const { return Kind; }
+
+  bool operator<(const GlobalSymbol &O) const {
+    return Loc < O.Loc;
+  }
+
+  std::string getName() { return Name; }
+};
+
+class GlobalVariableSymbol : public GlobalSymbol {
+private:
+  std::set<uint32_t> ConstraintVars;
+public:
+  GlobalVariableSymbol(std::string N, PersistentSourceLoc P, 
+    std::set<uint32_t> S) 
+    : GlobalSymbol(Variable, N, P),ConstraintVars(S) {}
+
+  std::set<uint32_t> &getVars() {
+    return ConstraintVars;
+  }
+
+  static bool classof(const GlobalSymbol *S) {
+    return S->getKind() == Variable;
+  }
+};
+
+class GlobalFunctionSymbol : public GlobalSymbol {
+private:
+  std::vector<std::set<uint32_t> > ParameterConstraintVars;
+  std::set<uint32_t> ReturnConstraintVars;
+public:
+  GlobalFunctionSymbol(std::string N, PersistentSourceLoc P, 
+    std::vector<std::set<uint32_t> > S, std::set<uint32_t> R)
+    : GlobalSymbol(Function, N, P),ParameterConstraintVars(S),
+      ReturnConstraintVars(R) {}
+
+  std::vector<std::set<uint32_t> > &getParams() { 
+    return ParameterConstraintVars;  
+  }
+
+  std::set<uint32_t> &getReturns() {
+    return ReturnConstraintVars;
+  }
+
+  static bool classof(const GlobalSymbol *S) {
+    return S->getKind() == Function;
+  }
+};
+
 class ProgramInfo {
 public:
   ProgramInfo() : freeKey(0), persisted(true) {}
@@ -40,7 +104,7 @@ public:
   void dump();
 
   Constraints &getConstraints() { return CS;  }
-  void addRecordDecl(clang::RecordDecl *R) { Records.push_front(R); }
+  void addRecordDecl(clang::RecordDecl *R, clang::ASTContext *C);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with 
   // AST data structures that correspond do the data stored in PDMap and 
@@ -63,6 +127,16 @@ public:
   // safe to add an implication that if U is wild, then V is wild. However,
   // if this returns false, then both U and V must be constrained to wild.
   bool checkStructuralEquality(uint32_t V, uint32_t U);
+
+  // Called when we are done adding constraints and visiting ASTs. 
+  // Links information about global symbols together and adds 
+  // constraints where appropriate.
+  bool link();
+
+  // These functions make the linker aware of function and global variables
+  // declared in the program. 
+  void seeFunctionDecl(clang::FunctionDecl *, clang::ASTContext *);
+  void seeGlobalDecl(clang::VarDecl *);
 
   // This is a bit of a hack. What we need to do is traverse the AST in a 
   // bottom-up manner, and, for a given expression, decide which,
@@ -105,6 +179,12 @@ public:
   VariableMap &getVarMap() { return Variables;  }
 
 private:
+    // Helper routine for getVariableHelper, looks variables up in the 
+    // variable map based on the supplied Decl.
+    bool declHelper(clang::Decl *D,
+                    std::set < std::tuple<uint32_t, uint32_t, uint32_t> > &V,
+                    clang::ASTContext *C);
+
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;
@@ -134,6 +214,12 @@ private:
   Constraints CS;
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
   bool persisted;
+  // Global symbol information used for mapping
+  // Map of global functions for whom we don't have a body, the keys are 
+  // names of external functions, the value is whether the body has been
+  // seen before.
+  std::map<std::string, bool> ExternFunctions;
+  std::map<std::string, std::set<GlobalSymbol*> > GlobalSymbols;
 };
 
 #endif

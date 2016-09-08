@@ -31,6 +31,208 @@ bool ProgramInfo::checkStructuralEquality(uint32_t V, uint32_t U) {
   return false;
 }
 
+bool ProgramInfo::link() {
+
+  // For every global symbol in all the global symbols that we have found
+  // go through and apply rules for whether they are functions or variables.
+  if (Verbose)
+    errs() << "Linking!\n";
+
+  for (const auto &S : GlobalSymbols) {
+    // First, extract out the function symbols from S. 
+    std::set<GlobalFunctionSymbol*> funcs;
+    std::set<GlobalVariableSymbol*> vars;
+    for (const auto &U : S.second)
+      if (GlobalFunctionSymbol *K = dyn_cast<GlobalFunctionSymbol>(U))
+        funcs.insert(K);
+      else if (GlobalVariableSymbol *V = dyn_cast<GlobalVariableSymbol>(U))
+        vars.insert(V);
+
+    // Then, iterate over each of the function symbols F1=F,F2=F+1 found for this 
+    // symbol. What we want to do is for a sequence of constraint variables on
+    // F1,F2, set the constraint variables for F1(v0,vi,vN) and F2(v0,vj,vN) to
+    // be equal to each other, i.e. to enter a series of constraints of the form
+    // vi == vj.
+    //
+    // For example, consider a function that has been forward declared named 
+    // d1 with the signature void d1(int **c); There will be two sets of constraint
+    // variables in the system, one at the site of forward declaration and one at
+    // the site of function definition, like this:
+    //
+    // void d1(int *q_0 * q_1 c);
+    //
+    // void d1(int *q_2 * q_3 c) { *c = 0; }
+    //
+    // What we want to do is set q_0 == q_2 and q_1 == q_3. 
+    // To do that, we need to get the constraints for each parmvar decl position
+    // individually and set them equal.
+    // individually and set them equal, pairwise. 
+    for (std::set<GlobalFunctionSymbol*>::iterator I = funcs.begin();
+      I != funcs.end(); ++I) {
+      std::set<GlobalFunctionSymbol*>::iterator J = I;
+      J++;
+      if (J != funcs.end()) {
+        std::set<uint32_t> &rVars1 = (*I)->getReturns();
+        std::set<uint32_t> &rVars2 = (*J)->getReturns();
+        if (rVars1.size() == rVars2.size()) {
+
+          for (std::set<uint32_t>::iterator V1 = rVars1.begin(), V2 = rVars2.begin();
+            V1 != rVars1.end() && V2 != rVars2.end(); ++V1, ++V2)
+            CS.addConstraint(CS.createEq(
+              CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
+        } else {
+          // Nothing makes sense because this means that the types of two 
+          // functions with the same name is different. Constrain 
+          // everything to top.
+          if (Verbose)
+            errs() << "Constraining return value for symbol " << (*I)->getName()
+            << ", " << (*J)->getName() 
+            << " to top because return value arity does not match\n";
+
+          for (const auto &V : rVars1)
+            CS.addConstraint(CS.createEq(
+              CS.getOrCreateVar(V), CS.getWild()));
+          for (const auto &V : rVars2)
+            CS.addConstraint(CS.createEq(
+              CS.getOrCreateVar(V), CS.getWild()));
+        }
+        
+        std::vector<std::set<uint32_t> > &pVars1 = (*I)->getParams();
+        std::vector<std::set<uint32_t> > &pVars2 = (*J)->getParams();
+        if (pVars1.size() == pVars2.size()) {
+
+          for (std::vector<std::set<uint32_t> >::iterator V1 = pVars1.begin(),
+            V2 = pVars2.begin();
+            V1 != pVars1.end() && V2 != pVars2.end();
+            ++V1, ++V2)
+          {
+            std::set<uint32_t> pv1 = *V1;
+            std::set<uint32_t> pv2 = *V2;
+
+            if (pv1.size() == pv2.size()) {
+              for (std::set<uint32_t>::iterator V1 = pv1.begin(), V2 = pv2.begin();
+                V1 != pv1.end() && V2 != pv2.end(); ++V1, ++V2)
+                CS.addConstraint(CS.createEq(
+                  CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
+            } else {
+              if(Verbose)
+                errs() << "Constraining return value for symbol " << (*I)->getName()
+                  << ", " << (*J)->getName()
+                  << " to top because return value arity does not match\n";
+
+              for (const auto &V : pv1)
+                CS.addConstraint(CS.createEq(
+                  CS.getOrCreateVar(V), CS.getWild()));
+              for (const auto &V : pv2)
+                CS.addConstraint(CS.createEq(
+                  CS.getOrCreateVar(V), CS.getWild()));
+            }
+          }
+        } else {
+          // Nothing makes sense because this means the parameter types of
+          // the functions are different. Constrain everything to top.
+          if (Verbose) 
+            errs() << "Constraining parameters for symbol " << (*I)->getName()
+              << ", " << (*J)->getName()
+              << " to top because parameter arity does not match\n";
+          
+          for (const auto &VV : pVars1)
+            for (const auto &V : VV)
+              CS.addConstraint(CS.createEq(
+                CS.getOrCreateVar(V), CS.getWild()));
+
+          for (const auto &VV : pVars2)
+            for (const auto &V : VV)
+              CS.addConstraint(CS.createEq(
+                CS.getOrCreateVar(V), CS.getWild()));
+        }
+      }
+    }
+
+    // Do the same as above, but in a simpler case where we only need to 
+    // constrain according to the type of the global variable. 
+    for (std::set<GlobalVariableSymbol*>::iterator I = vars.begin();
+      I != vars.end(); ++I) {
+
+    }
+  }
+
+  // For every global function that is an unresolved external, constrain 
+  // its parameter types to be wild.
+  for (const auto &U : ExternFunctions) {
+    // If we've seen this symbol, but never seen a body for it, constrain
+    // everything about it.
+    if (U.second == false) {
+      std::string UnkSymbol = U.first;
+      std::map<std::string, std::set<GlobalSymbol*> >::iterator I =
+        GlobalSymbols.find(UnkSymbol);
+      assert(I != GlobalSymbols.end());
+      std::set<GlobalSymbol*> Gs = (*I).second;
+
+      for (const auto &G : Gs) {
+        if (GlobalFunctionSymbol *GFS = dyn_cast<GlobalFunctionSymbol>(G)) {
+          for (const auto &V : GFS->getReturns())
+            CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+
+          for (const auto &U : GFS->getParams())
+            for (const auto &V : U)
+              CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
+  if (!F->isGlobal())
+    return;
+
+  // Look up the constraint variables for the return type and parameter 
+  // declarations of this function, if any.
+  std::string fn = F->getNameAsString();
+  std::set<uint32_t> returnVars;
+  std::vector<std::set<uint32_t> > parameterVars(F->getNumParams());
+  PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(F, *C);
+  int i = 0;
+
+  getVariable(F, returnVars, C);
+  for (auto &I : F->params())
+    getVariable(I, parameterVars[i++], C);
+
+  assert(PLoc.valid());
+  GlobalFunctionSymbol *GF = 
+    new GlobalFunctionSymbol(fn, PLoc, parameterVars, returnVars);
+
+  // Track if we've seen a body for this function or not.
+  if (!ExternFunctions[fn])
+    ExternFunctions[fn] = (F->isThisDeclarationADefinition() && F->hasBody());
+
+  // Add this to the map of global symbols. 
+  std::map<std::string, std::set<GlobalSymbol*> >::iterator it = 
+    GlobalSymbols.find(fn);
+  
+  if (it == GlobalSymbols.end()) {
+    std::set<GlobalSymbol*> N;
+    N.insert(GF);
+    GlobalSymbols.insert(std::pair<std::string, std::set<GlobalSymbol*> >
+      (fn, N));
+  } else {
+    (*it).second.insert(GF);
+  }
+}
+
+void ProgramInfo::seeGlobalDecl(clang::VarDecl *G) {
+
+}
+
+void ProgramInfo::addRecordDecl(clang::RecordDecl *R, ASTContext *C) {
+  for (const auto &D : R->fields()) 
+    if (D->getType()->isPointerType()) 
+      addVariable(D, NULL, C);
+}
+
 // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
 // AST data structures that correspond do the data stored in PDMap and
 // ReversePDMap.
@@ -64,10 +266,10 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
       Stmt *S;
       Type *T;
       std::tie<Stmt *, Decl *, Type *>(S, D, T) = K->second;
-      if (D == NULL) {
+      /*if (D == NULL) {
         PL.dump();
         errs() << "\n";
-      }
+      }*/
       assert(D != NULL);
       Variables[D] = V;
     }
@@ -132,7 +334,7 @@ void ProgramInfo::exitCompilationUnit() {
 bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
   assert(persisted == false);
   PersistentSourceLoc PLoc = 
-    PersistentSourceLoc::mkPSL(D->getLocation(), *C);
+    PersistentSourceLoc::mkPSL(D, *C);
 
   assert(PLoc.valid());
 
@@ -140,21 +342,19 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
   if (Variables.find(D) == Variables.end()) {
     std::map<PersistentSourceLoc, uint32_t>::iterator Itmp = 
       PersistentVariables.find(PLoc);
-    if (Itmp != PersistentVariables.end()) {
-      D->dump();
-      PersistentSourceLoc PSLtmp = Itmp->first;
-      PSLtmp.dump();
-      errs() << "\n";
-      PLoc.dump();
-      errs() << "\n";
-    }
-
-    assert(PersistentVariables.find(PLoc) == PersistentVariables.end());
+    // We don't have the Decl in Variables, but we DO have the Decl in the
+    // PersistentVariables map. This means that this Decl and other Decls
+    // are defined in the same location in the source of the program. 
+    // We can treat them as being aliases of each other for now. 
+    if (Itmp != PersistentVariables.end()) 
+      return true;
+    
 
     uint32_t thisKey = freeKey;
     Variables.insert(std::pair<Decl *, uint32_t>(D, thisKey));
-    PersistentVariables[PLoc] = thisKey;
-
+    PersistentVariables.insert(std::pair<PersistentSourceLoc, uint32_t>
+      (PLoc,thisKey));
+    
     if (St && VarDeclToStatement.find(D) == VarDeclToStatement.end())
       VarDeclToStatement.insert(std::pair<Decl *, DeclStmt *>(D, St));
 
@@ -206,6 +406,44 @@ bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
     return false;
 }
 
+bool
+ProgramInfo::declHelper(Decl *D,
+  std::set < std::tuple<uint32_t, uint32_t, uint32_t> > &V,
+  ASTContext *C) {
+  PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(D, *C);
+  assert(PSL.valid());
+
+  VariableMap::iterator I = Variables.find(D);
+  std::map<PersistentSourceLoc, uint32_t>::iterator IN =
+    PersistentVariables.find(PSL);
+
+  if (I != Variables.end()) {
+    assert(IN != PersistentVariables.end());
+    DeclMap::iterator DI = DepthMap.find(D);
+    assert(DI != DepthMap.end());
+    V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
+      (I->second, I->second, DI->second));
+    return true;
+  }
+  else {
+    // TODO: Also check if IN != end(), if it doesn't, then give back
+    //       that variable as well. This is the case where the variable
+    //       naming scheme is confused, but all of the confused variables
+    //       should alias.
+    if (IN != PersistentVariables.end()) {
+      uint32_t var = IN->second;
+      Decl *dl = getDecl(var);
+      DeclMap::iterator DI = DepthMap.find(dl);
+      assert(DI != DepthMap.end());
+      V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
+        (var, var, DI->second));
+      return true;
+    } else {
+      return false;
+    }
+  }
+}
+
 // This is a bit of a hack. What we need to do is traverse the AST in a
 // bottom-up manner, and, for a given expression, decide which singular,
 // if any, constraint variable is involved in that expression. However,
@@ -226,25 +464,9 @@ ProgramInfo::getVariableHelper(Expr *E,
                     std::set<std::tuple<uint32_t, uint32_t, uint32_t> > &V,
                     ASTContext *C) {
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-    Decl *D = DRE->getDecl();
-    PersistentSourceLoc PSL = 
-      PersistentSourceLoc::mkPSL(D->getLocation(), *C);
-    assert(PSL.valid());
-
-    VariableMap::iterator I = Variables.find(D);
-    std::map<PersistentSourceLoc, uint32_t>::iterator IN = 
-      PersistentVariables.find(PSL);
-
-    if (I != Variables.end()) {
-      assert(IN != PersistentVariables.end());
-      DeclMap::iterator DI = DepthMap.find(D);
-      assert(DI != DepthMap.end());
-      V.insert(std::tuple<uint32_t,uint32_t,uint32_t>
-        (I->second, I->second, DI->second));
-      return true;
-    } else {
-      return false;
-    }
+    return declHelper(DRE->getDecl(), V, C);
+  } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
+    return declHelper(ME->getMemberDecl(), V, C);
   } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
     return getVariableHelper(BO->getLHS(), V, C) ||
            getVariableHelper(BO->getRHS(), V, C);
@@ -278,7 +500,7 @@ ProgramInfo::getVariableHelper(Expr *E,
     return getVariableHelper(PE->getSubExpr(), V, C);
   } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
     return getVariableHelper(CE->getCallee(), V, C);
-  } else if(ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
+  } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     // Explore the three exprs individually.
     // TODO: Do we need to give these three sub-explorations their own sets
     //       and merge them at this point?
