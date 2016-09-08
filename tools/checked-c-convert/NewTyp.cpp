@@ -12,13 +12,6 @@
 using namespace clang;
 using namespace llvm;
 
-static const Type *getNextTy(const Type *Ty) {
-  if (const PointerType *PT = dyn_cast<PointerType>(Ty))
-    return PT->getPointeeType().getTypePtr()->getUnqualifiedDesugaredType();
-  else
-    return Ty;
-}
-
 // Given a solved set of constraints CS and a declaration D, produce a
 // NewTyp data structure that describes how the type declaration for D
 // might be re-written. The NewTyp data structure is needed because the
@@ -36,10 +29,8 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
   else
     llvm_unreachable("unknown decl type");
 
-  assert(Ty != NULL);
   Ty = Ty->getUnqualifiedDesugaredType();
-  assert(Ty != NULL);
-
+  
   // Strip off function definitions from the type.
   while (Ty != NULL) {
     if (const FunctionType *FT = dyn_cast<FunctionType>(Ty))
@@ -57,7 +48,10 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
   std::set<uint32_t> baseQVKeyS;
   PI.getVariable(D, baseQVKeyS, C);
   // We want the least constraint variable associated with this Decl.
-  assert(baseQVKeyS.size() > 0);
+  // If no constraint variable exists, then we just dump it on the floor and
+  // don't do any re-writing.
+  if (baseQVKeyS.size() == 0) 
+    return NULL;
   baseQVKey = *baseQVKeyS.begin();
 
   // Now, build up a NewTyp type.

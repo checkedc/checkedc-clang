@@ -65,6 +65,15 @@ static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::init(false),
                                 cl::cat(ConvertCategory));
 
+const Type *getNextTy(const Type *Ty) {
+  if (const PointerType *PT = dyn_cast<PointerType>(Ty)) {
+    QualType qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
+    return qtmp.getTypePtr()->getPointeeType().getTypePtr();
+  }
+  else
+    return Ty;
+}
+
 // Test to see if we can rewrite a given SourceRange. 
 bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
@@ -311,7 +320,6 @@ public:
       Info.getDeclStmtForDecl(J, K);
 
       NewTyp *NT = NewTyp::mkTypForConstrainedType(J, K, Info, &Context);
-      assert(NT != NULL);
       if(NT)
         rewriteThese.insert(NT);
     }

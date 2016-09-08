@@ -12,13 +12,6 @@
 using namespace clang;
 using namespace llvm;
 
-static const Type *getNextTy(const Type *Ty) {
-  if (const PointerType *PT = dyn_cast<PointerType>(Ty))
-    return PT->getPointeeType().getTypePtr()->getUnqualifiedDesugaredType();
-  else
-    return Ty;
-}
-
 void ProgramInfo::print(raw_ostream &O) const {
   CS.print(O);
   O << "\n";
