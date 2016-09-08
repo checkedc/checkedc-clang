@@ -48,11 +48,11 @@ public:
       return fileName < o.fileName;
   }
 
-  void print(llvm::raw_ostream &O) {
-    O << fileName << ":" << lineNo << ":" << colNo << "\n";
+  void print(llvm::raw_ostream &O) const {
+    O << fileName << ":" << lineNo << ":" << colNo;
   }
 
-  void dump() { print(llvm::errs()); }
+  void dump() const { print(llvm::errs()); }
 
   static
     PersistentSourceLoc mkPSL(clang::Decl *D, clang::ASTContext &Context);

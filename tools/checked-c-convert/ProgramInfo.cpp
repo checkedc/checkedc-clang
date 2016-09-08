@@ -23,11 +23,13 @@ void ProgramInfo::dump() {
   CS.dump();
   errs() << "\n";
 
-  errs() << "Variables\n";
-  for (const auto &I : Variables) {
-    I.first->dump();
-    errs() << " ==> \n";
-    errs() << I.second << "\n";
+  errs() << "Constraint Variables\n";
+  for (const auto &I : PersistentRVariables) {
+    VarAtom *V = CS.getOrCreateVar(I.first);
+    V->dump();
+    errs() << "=>";
+    I.second.dump();
+    errs() << "\n";
   }
 
   return;

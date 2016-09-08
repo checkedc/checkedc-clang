@@ -384,7 +384,7 @@ int main(int argc, const char **argv) {
   if (Verbose)
     outs() << "Constraints solved\n";
   if (DumpIntermediate)
-    CS.dump();
+    Info.dump();
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =
