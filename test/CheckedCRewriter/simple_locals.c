@@ -219,3 +219,19 @@ void dknbhd(void) {
 //CHECK-NEXT: int *b = &a;
 //CHECK-NEXT: int **c = &b;
 //CHECK-NEXT: int *d = *c;
+
+extern void dfefwefrw(int **);
+
+void cvxqqef(void) {
+  int a = 0;
+  int *b = &a;
+  int *c = &a;
+
+  *c = 1;
+
+  dfefwefrw(&b);
+}
+//CHECK: void cvxqqef(void) {
+//CHECK-NEXT: int a = 0;
+//CHECK-NEXT: int *b = &a;
+//CHECK-NEXT: ptr<int> c = &a;

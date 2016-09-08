@@ -159,14 +159,14 @@ public:
         if (i < FD->getNumParams()) {
           Info.getVariable(FD->getParamDecl(i), Ws, Context);
           if (Ws.size() > 0) {
-            assert(Ws.size() == 1);
-            uint32_t W = *Ws.begin();
 
-            std::set<uint32_t> V;
-            Info.getVariable(A, V, Context);
-            for (const auto &I : V)
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(W), CS.getOrCreateVar(I)));
+            for (const auto &W : Ws) {
+              std::set<uint32_t> V;
+              Info.getVariable(A, V, Context);
+              for (const auto &I : V)
+                CS.addConstraint(
+                  CS.createEq(CS.getOrCreateVar(W), CS.getOrCreateVar(I)));
+            }
           }
         }
         i++;
