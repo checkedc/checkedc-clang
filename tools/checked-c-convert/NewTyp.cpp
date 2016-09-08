@@ -100,12 +100,11 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
     // field of Cur. Also, if this is our first trip through the loop,
     // update T to be the value we produced.
     assert(tmp != NULL);
-    if (Cur == NULL) {
+    if (Cur == NULL) 
       Cur = tmp;
-    }
-    else {
+    else 
       Cur->ReferentTyp = tmp;
-    }
+    
 
     if (T == NULL) {
       T = Cur;

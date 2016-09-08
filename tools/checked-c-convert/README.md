@@ -1,8 +1,15 @@
 # checked-c-convert
 
 This document describes the high level design and usage of the 
-checked-c-convert tool, which automatically converts C code into Checked C
+`checked-c-convert` tool, which automatically converts C code into Checked C
 code. 
+
+`checked-c-convert` is based on the LLVM libtooling infrastructure, so the
+command line behaves very similarly to those tools. It is also a source to 
+source re-writer, and there are a few different options for how it outputs
+changed programs. For small, single-file programs, `checked-c-convert` can
+output to `stdout`. For larger, multi-file programs, `checked-c-convert` 
+can output new files with a specified file name postfix.
 
 ## Usage
 There are two different ways to use `checked-c-convert`, either on a set of 
@@ -21,6 +28,8 @@ the tool aims to be conservative and to not make radical changes to the
 structure of the program. It is hoped that the programs output from 
 `checked-c-convert` are recognizable by the authors of the input 
 programs.
+
+## Example usage
 
 ## Tests
 There are unit tests for the constraint solver and functional tests for
