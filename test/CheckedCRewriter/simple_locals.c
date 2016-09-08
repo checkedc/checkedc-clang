@@ -168,3 +168,35 @@ int sum(sfoo *p) {
   return a;
 }
 //CHECK: int sum(ptr<sfoo> p) {
+
+typedef struct _A {
+  int a;
+  int b;
+} A, *PA, **PPA;
+
+extern void adfsa(PA f);
+
+void dfnk(int a, int b) {
+  A j;
+  PA k = &j;
+  PPA u = &k;
+  j.a = a;
+  j.b = b;
+
+  adfsa(&j);
+}
+//CHECK: int dfnk(int a, int b) {
+//CHECK-NEXT: A j;
+//CHECK-NEXT: ptr<struct _A> k = &j;
+//CHECK-NEXT: ptr<ptr<struct _A> > u = &k;
+
+void adsfse(void) {
+  int a = 0;
+  int *b = &a;
+
+  b += 4;
+  *b = 0;
+}
+//CHECK: void adsfse(void) {
+//CHECK-NEXT: int a = 0;
+//CHECK-NEXT: int *b = &a;
