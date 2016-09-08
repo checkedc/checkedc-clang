@@ -4,13 +4,17 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-//
+// Implementation of the PersistentSourceLoc infrastructure.
 //===----------------------------------------------------------------------===//
 #include "PersistentSourceLoc.h"
 
 using namespace clang;
 using namespace llvm;
 
+// Given a Decl, look up the source location for that Decl and create a 
+// PersistentSourceLoc that represents the location of the Decl. 
+// For Function and Parameter Decls, use the Spelling location, while for
+// variables, use the expansion location. 
 PersistentSourceLoc
 PersistentSourceLoc::mkPSL(Decl *D, ASTContext &C) {
   SourceLocation SL = D->getLocation();
@@ -26,17 +30,22 @@ PersistentSourceLoc::mkPSL(Decl *D, ASTContext &C) {
 }
 
 
+// Create a PersistentSourceLoc for a Stmt.
 PersistentSourceLoc
 PersistentSourceLoc::mkPSL(Stmt *S, ASTContext &Context) {
   return mkPSL(S->getLocStart(), Context);
 }
 
+// Use the PresumedLoc infrastructure to get a file name and expansion
+// line and column numbers for a SourceLocation.
 PersistentSourceLoc 
 PersistentSourceLoc::mkPSL(SourceLocation SL, ASTContext &Context) {
   PresumedLoc PL = Context.getSourceManager().getPresumedLoc(SL);
-  
+
+  // If there is no PresumedLoc, create a nullary PersistentSourceLoc.  
   if (!PL.isValid())
     return PersistentSourceLoc();
+
   SourceLocation ESL = Context.getSourceManager().getExpansionLoc(SL);
   FullSourceLoc FESL = Context.getFullLoc(ESL);
   assert(FESL.isValid());
