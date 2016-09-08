@@ -7,6 +7,7 @@
 #include "clang/Tooling/Tooling.h"
 
 #include "Constraints.h"
+#include "ProgramInfo.h"
 
 #include "utils.h"
 
@@ -31,12 +32,15 @@ public:
 
   // Given a set of solved constraints CS and a declaration D, produce a 
   // new checked C type 
-  static NewTyp *mkTypForConstrainedType(Constraints &CS, clang::Decl *D,
-    clang::DeclStmt *K, VariableMap &VM);
+  static NewTyp *mkTypForConstrainedType(clang::Decl *D,
+    clang::DeclStmt *K, ProgramInfo &PI, clang::ASTContext *C);
 
   // Returns the C-formatted type declaration of the new type, suitable for 
   // insertion into the source code.
   virtual std::string mkStr() = 0;
+
+  // Whether or not NewTyp represents any change from the old type.
+  virtual bool anyChanges() = 0;
 
   clang::Decl *getDecl() { return DeclRewrite; }
   clang::DeclStmt *getWhere() { return StmtWhere; }
@@ -53,13 +57,17 @@ protected:
 };
 
 // Represents a non-pointer type, a wrapper around a QualType from the 
-// original program.
+// original program. This can have a NULL ReferentTyp. 
 class BaseNonPointerTyp : public NewTyp {
 public:
   BaseNonPointerTyp(clang::QualType _T) : T(_T), NewTyp(N_BaseNonPointer) {}
 
-  std::string mkStr() {
-    return T.getAsString();
+  std::string mkStr();
+
+  virtual bool anyChanges() { return false; }
+
+  static bool classof(const NewTyp *S) {
+    return S->getKind() == N_BaseNonPointer;
   }
 
 private:
@@ -74,6 +82,12 @@ public:
   std::string mkStr() {
     return "ptr<" + ReferentTyp->mkStr() + "> ";
   }
+
+  virtual bool anyChanges() { return true || ReferentTyp->anyChanges();  }
+
+  static bool classof(const NewTyp *S) {
+    return S->getKind() == N_Ptr;
+  }
 };
 
 // Represents a Checked C array_ptr type. Currently unused.
@@ -84,6 +98,12 @@ public:
   std::string mkStr() {
     return ReferentTyp->mkStr() + "* ";
   }
+
+  virtual bool anyChanges() { return ReferentTyp->anyChanges(); }
+
+  static bool classof(const NewTyp *S) {
+    return S->getKind() == N_Arr;
+  }
 };
 
 // Represents an unchecked pointer type.
@@ -93,6 +113,12 @@ public:
 
   std::string mkStr() {
     return ReferentTyp->mkStr() + "* ";
+  }
+
+  virtual bool anyChanges() { return ReferentTyp->anyChanges(); }
+
+  static bool classof(const NewTyp *S) {
+    return S->getKind() == N_Wild;
   }
 };
 #endif

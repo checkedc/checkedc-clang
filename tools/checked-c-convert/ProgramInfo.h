@@ -53,6 +53,8 @@ public:
   bool operator<(const GlobalSymbol &O) const {
     return Loc < O.Loc;
   }
+
+  std::string getName() { return Name; }
 };
 
 class GlobalVariableSymbol : public GlobalSymbol {

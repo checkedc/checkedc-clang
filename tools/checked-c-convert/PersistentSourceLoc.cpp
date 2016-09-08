@@ -4,42 +4,56 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-//
+// Implementation of the PersistentSourceLoc infrastructure.
 //===----------------------------------------------------------------------===//
 #include "PersistentSourceLoc.h"
 
 using namespace clang;
 using namespace llvm;
 
+// Given a Decl, look up the source location for that Decl and create a 
+// PersistentSourceLoc that represents the location of the Decl. 
+// For Function and Parameter Decls, use the Spelling location, while for
+// variables, use the expansion location. 
+PersistentSourceLoc
+PersistentSourceLoc::mkPSL(Decl *D, ASTContext &C) {
+  SourceLocation SL = D->getLocation();
+
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) 
+    SL = C.getSourceManager().getSpellingLoc(FD->getLocation());
+  else if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) 
+    SL = C.getSourceManager().getSpellingLoc(PV->getLocation());
+  else if(VarDecl *V = dyn_cast<ParmVarDecl>(D))
+    SL = C.getSourceManager().getExpansionLoc(V->getLocation());
+  
+  return mkPSL(SL, C);
+}
+
+
+// Create a PersistentSourceLoc for a Stmt.
+PersistentSourceLoc
+PersistentSourceLoc::mkPSL(Stmt *S, ASTContext &Context) {
+  return mkPSL(S->getLocStart(), Context);
+}
+
+// Use the PresumedLoc infrastructure to get a file name and expansion
+// line and column numbers for a SourceLocation.
 PersistentSourceLoc 
 PersistentSourceLoc::mkPSL(SourceLocation SL, ASTContext &Context) {
-  FullSourceLoc FSL = Context.getFullLoc(SL);
+  PresumedLoc PL = Context.getSourceManager().getPresumedLoc(SL);
 
-  if (!FSL.isValid())
+  // If there is no PresumedLoc, create a nullary PersistentSourceLoc.  
+  if (!PL.isValid())
     return PersistentSourceLoc();
 
-  assert(FSL.isValid());
-  //TODO: this should go back to being the spelling loc..??
-  //      why can you only look up the FileEntry from a spelling loc??
-  clang::FileID fID = Context.getSourceManager().getFileID(SL);
-  if (!fID.isValid()) {
-    FSL.dump();
-  }
-  assert(fID.isValid());
+  SourceLocation ESL = Context.getSourceManager().getExpansionLoc(SL);
+  FullSourceLoc FESL = Context.getFullLoc(ESL);
+  assert(FESL.isValid());
+  
+  std::string fn = sys::path::filename(PL.getFilename()).str();
 
-  const clang::FileEntry *FE = Context.getSourceManager().getFileEntryForID(fID);
-
-  std::string fn = "";
-
-  if (!FE) {
-    fn = "<built-in>";
-  }
-  else {
-    assert(FE->isValid());
-    fn = llvm::sys::path::filename(FE->getName()).str();
-  }
-
-  PersistentSourceLoc PSL(fn, FSL.getExpansionLineNumber(), FSL.getExpansionColumnNumber());
+  PersistentSourceLoc PSL(fn, 
+    FESL.getExpansionLineNumber(), FESL.getExpansionColumnNumber());
 
   return PSL;
 }

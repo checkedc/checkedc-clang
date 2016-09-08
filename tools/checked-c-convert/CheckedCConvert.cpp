@@ -39,15 +39,15 @@ static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
 
 static cl::OptionCategory ConvertCategory("checked-c-convert options");
-static cl::opt<bool> DumpIntermediate("dump-intermediate",
-                                      cl::desc("Dump intermediate information"),
-                                      cl::init(false),
-                                      cl::cat(ConvertCategory));
+cl::opt<bool> DumpIntermediate( "dump-intermediate",
+                                cl::desc("Dump intermediate information"),
+                                cl::init(false),
+                                cl::cat(ConvertCategory));
 
-static cl::opt<bool> Verbose( "verbose",
-                              cl::desc("Print verbose information"),
-                              cl::init(false),
-                              cl::cat(ConvertCategory));
+cl::opt<bool> Verbose("verbose",
+                      cl::desc("Print verbose information"),
+                      cl::init(false),
+                      cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
@@ -60,6 +60,11 @@ static cl::opt<bool> RewriteHeaders(
     cl::desc("Rewrite header files as well as the specified source files"),
     cl::init(false), cl::cat(ConvertCategory));
 
+// Test to see if we can rewrite a given SourceRange. 
+bool canRewrite(Rewriter &R, SourceRange &SR) {
+  return SR.isValid() && (R.getRangeSize(SR) != -1);
+}
+
 // Visit each Decl in toRewrite and apply the appropriate pointer type
 // to that Decl. The state of the rewrite is contained within R, which
 // is both input and output. R is initialized to point to the 'main'
@@ -71,6 +76,9 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
   std::set<NewTyp *> skip;
 
   for (const auto &N : toRewrite) {
+    if (N->anyChanges() == false)
+      continue;
+
     Decl *D = N->getDecl();
     DeclStmt *Where = N->getWhere();
 
@@ -100,17 +108,29 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
 
           for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
                toRewrite = toRewrite->getPreviousDecl()) {
-            // TODO these declarations could get us into deeper header files.
-            ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
-            assert(Rewrite != NULL);
-            SourceRange TR =
-                Rewrite->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+            if (parmIndex < toRewrite->getNumParams()) {
+              // TODO these declarations could get us into deeper header files.
+              ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
+              assert(Rewrite != NULL);
+              SourceRange TR;
+              if (TypeSourceInfo *TSI = Rewrite->getTypeSourceInfo()) {
+                TR = TSI->getTypeLoc().getSourceRange();
 
-            // Get a FullSourceLoc for the start location and add it to the
-            // list of file ID's we've touched.
-            FullSourceLoc FSL(TR.getBegin(), S);
-            Files.insert(FSL.getFileID());
-            R.ReplaceText(TR, N->mkStr());
+                // Get a FullSourceLoc for the start location and add it to the
+                // list of file ID's we've touched.
+                FullSourceLoc FSL(TR.getBegin(), S);
+                Files.insert(FSL.getFileID());
+                if (canRewrite(R, TR))
+                  R.ReplaceText(TR, N->mkStr());
+              }
+              else {
+                if (Verbose) {
+                  errs() << "Skipping rewrite for ";
+                  Rewrite->dump();
+                  errs() << " due to missing type source info\n";
+                }
+              }
+            }
           }
         } else
           llvm_unreachable("no function or method");
@@ -128,7 +148,7 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
       // list of file ID's we've touched.
       FullSourceLoc FSL(TR.getBegin(), S);
       Files.insert(FSL.getFileID());
-      if (Where->isSingleDecl())
+      if (Where->isSingleDecl() && canRewrite(R, TR))
         R.ReplaceText(TR, N->mkStr());
       else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
         // Hack time!
@@ -197,13 +217,16 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
       //       then clang will give back an invalid source range for the 
       //       return type source range. For now, check that the source
       //       range is valid. 
+      //       Additionally, a source range can be (mis) identified as 
+      //       spanning multiple files. We don't know how to re-write that,
+      //       so don't.
       SourceRange SR = UD->getReturnTypeSourceRange();
-      if(SR.isValid())
+      if (canRewrite(R, SR))
         R.ReplaceText(SR, N->mkStr());
     }
     else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
-      if (SR.isValid())
+      if (canRewrite(R, SR))
         R.ReplaceText(SR, N->mkStr());
     }
   }
@@ -263,13 +286,12 @@ public:
     Info.enterCompilationUnit(Context);
 
     std::set<NewTyp *> rewriteThese;
-    Constraints &CS = Info.getConstraints();
     for (const auto &V : Info.getVarMap()) {
       Decl *J = V.first;
       DeclStmt *K = NULL;
       Info.getDeclStmtForDecl(J, K);
 
-      NewTyp *NT = NewTyp::mkTypForConstrainedType(CS, J, K, Info.getVarMap());
+      NewTyp *NT = NewTyp::mkTypForConstrainedType(J, K, Info, &Context);
       rewriteThese.insert(NT);
     }
 
@@ -356,11 +378,11 @@ int main(int argc, const char **argv) {
 
   // 2. Solve constraints.
   if (Verbose)
-    outs() << "solving constraints\n";
+    outs() << "Solving constraints\n";
   Constraints &CS = Info.getConstraints();
   CS.solve();
   if (Verbose)
-    outs() << "constraints solved\n";
+    outs() << "Constraints solved\n";
   if (DumpIntermediate)
     CS.dump();
 
