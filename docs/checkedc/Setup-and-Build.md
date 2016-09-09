@@ -24,6 +24,15 @@ virtual memory and become unresponsive when building.  In VS 2015, go to _Debug-
 set the maximum number of parallel project builds to a fraction of the actual number processors
 (for example, number of processor cores on your machine/3).
 
+LLVM/clang have some tests that depend on using Unix line ending conventions
+(line feeds only).  This means that the sources you will be working with
+need to end with line feeds. Visual Studio preserves line endings for files, so
+this should work fine most of the time.  If you are creating a file, you will
+need to save it using line feeds only
+(go to File->Advanced Save Options to set this option before saving the file).
+Otherwise, Visual Studio will save the file with carriage return/line feed line endings.
+
+
 ## Source organization
 LLVM uses subversion for distributed source code control.   It is mirrored by Git repositories on Github: the
 [LLVM mirror](https://github.com/llvm-mirror/llvm) and
@@ -51,17 +60,45 @@ the LLVM/clang sources.
 You will need to choose a drive that has at least 20 Gbytes free.  You may need lots of space for the sources and the build.   
 You can store the sources in any directory that you want.  You should avoid spaces in parent directory names because this can confuse some tools.
 
-You will need to clone each repo and checkout the master branch from each repo.  First clone LLVM to your desired location on your machine:
+You will need to clone each repo and checkout the master branch from each repo.
+The cloning process for LLVM and clang depends on whether you are developing on
+Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
+Unix line endings.  On Windows, Git can alter line endings to match the
+Windows line ending convention,  breaking those tests.  It is important to
+prevent Git from altering the line endings.
+
+### Cloning LLVM/clang on Unix/Linux
+
+First clone LLVM to your desired location on your machine:
 ```
 git clone https://github.com/Microsoft/checkedc-llvm
 git checkout master
 ```
-Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the llvm\tools directory and clone the clang repo:
+Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the
+llvm\tools directory and clone the clang repo:
 ```
 git clone https://github.com/Microsoft/checkedc-clang
 git checkout master
 ```
-The Checked C language tests live in a project directory for LLVM.  Change to the  llvm\projects\checkedc-wrapper directory
+
+### Cloning LLVM/clang on Windows
+
+If you already have `core.autocrlf=false` set for your global Git
+configuration, you can follow the Unix/Linux directions.
+Otherwise, follow these directions:
+```
+git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-llvm
+git checkout master
+```
+Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the llvm\tools directory and clone the clang repo:
+```
+git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang
+git checkout master
+```
+
+### Cloning Checked C language tests
+
+The Checked C language tests live in a project directory for LLVM.  Change to the llvm\projects\checkedc-wrapper directory
 and clone the Checked C repo:
 ```
 git clone https://github.com/Microsoft/checkedc

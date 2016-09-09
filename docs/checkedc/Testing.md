@@ -3,11 +3,9 @@
 We have created a new LLVM test suite for the Checked C extension.  We have added a new
 target to the build system for running the test suite: check-checkedc. 
 
-The Checked C version of clang/LLVM should pass the same tests as the baseline version
-of clang/LLVM (in the baseline branch) and the Checked C specific tests.   The testing
-results for the baseline branch are recorded in [testing baselines](Test-Baselines.md).
-A developer should confirm that no new unexpected failures occur as a result of a change
-before committing a change.
+The Checked C version of clang/LLVM should pass the tests that the baseline version
+of clang/LLVM (in the baseline branch) and the Checked C specific tests.   There should
+be no unexpected test failures.  A developer should confirm this before committing a change.
 
 When testing a change, the testing should be sufficient for the type of change.  For changes
 to parsing and typechecking, it is usually sufficient to pass the Checked C and clang tests.
@@ -50,10 +48,22 @@ The clang-specific documentation on running tests appears to be out-of-date, so 
 
 		llvm-lit d:\autobahn1\llvm\tools\clang\test
 
-## Test baselines
-We have observed a few tests fail unexpectedly on Windows on a clean LLVM/clang
-enlistment.  These tests don't seem to fail on the buildbots. We have not 
-tracked down the source of the failures.  For now, we are using
-[testing baselines](Test-Baselines.md) to exclude these tests.  LLVM/clang has
-an optimistic check-in policy, so it is possible that a few tests may fail in
-the main-line repos when we update to the latest sources.
+### Unexpected test failures and line endings
+
+If you see unexpected test failures when working on Windows using unchanged
+versions of the Checked C LLVM/clang repos, you should first check that you
+have set your line end handling for Git properly, particularly if you see a
+lot of failures.  LLVM and clang have some tests that depend on line endings.
+Those tests assume that all lines end with line feeds (the Unix line ending
+convention).
+
+The LLVM/clang project uses Subversion for source code control, which does not
+alter line endings.  We are using Git for source code control, which may alter
+line endings on Windows, depending on how you have configured Git.  Git may
+alter text line endings to be carriage return/line feed (the Windows line
+ending convention).  It is important to ensure that Git does not do this for
+your LLVM/clang repositories.
+
+The configuration setting `core.autocrlf` should to be set to `false`. If you
+followed the recommended [steps](Setup-and-Build.md) for cloning your Git repos,
+it will be set to `false`.
