@@ -64,6 +64,6 @@ alter text line endings to be carriage return/line feed (the Windows line
 ending convention).  It is important to ensure that Git does not do this for
 your LLVM/clang repositories.
 
-The configuration setting `core.autocrlf` to be set to `false`. If you
-followed the recommended [steps](Setup-and-Buildmd) for cloning your Git repos,
-it should be set to `false'.
+The configuration setting `core.autocrlf` should to be set to `false`. If you
+followed the recommended [steps](Setup-and-Build.md) for cloning your Git repos,
+it will be set to `false`.
