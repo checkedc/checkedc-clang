@@ -11982,7 +11982,7 @@ const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
          "unexpected non-CVR qualifiers on type");
 
   if (!ArgTypePointee->isIncompleteOrObjectType()) {
-    Diag(Arg->getLocStart(), diag::err_typecheck_bounds_ex pr) << ArgType;
+    Diag(Arg->getLocStart(), diag::err_typecheck_bounds_expr) << ArgType;
     return nullptr;
   }
 
