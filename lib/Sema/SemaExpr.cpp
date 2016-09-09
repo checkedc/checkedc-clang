@@ -11955,7 +11955,8 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
 
 /// \brief Validate the type of an argument expression to a bounds
 /// expression. If valid, return the unqualified pointee type.  Otherwise
-/// return null.
+/// return null.  Assumes that the usual C conversions for expressions
+/// have been applied already, including array->pointer conversions.
 const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
   QualType ArgType = Arg->getType();
   const Type *ArgPointerType = ArgType->getAs<PointerType>();
@@ -11965,18 +11966,27 @@ const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
     return nullptr;
   }
   QualType ArgTypePointee = ArgPointerType->getPointeeType();
-  // For the Checked C extension, we don't expect to see of the clang
-  // extensions for qualifiers.  Assert if we do.
+  // We return the unqualified type so that we can compare
+  // types ignoring qualifier information.  For constant, volatile,
+  // and restrict, it is valid to have argument types that differ
+  // in those qualifiers.  However, clang extends qualifiers with
+  // GC qualifiers (for Objective C) and address-space qualifiers (for
+  // OpenCL).  These should not be ignored when comparing types.  For
+  // Checked C, though, we never expect to see either of those qualifiers
+  // because we restrict usage of the extension to only C. For now, we 
+  // can ignore the existence of those additional qualifiers.  Assert if
+  // we do see them.
   Qualifiers ArgTypeQuals = ArgTypePointee.getQualifiers();
   ArgTypeQuals.removeCVRQualifiers();
   assert(!ArgTypeQuals.hasQualifiers() &&
          "unexpected non-CVR qualifiers on type");
 
   if (!ArgTypePointee->isIncompleteOrObjectType()) {
-    Diag(Arg->getLocStart(), diag::err_typecheck_bounds_expr) << ArgType;
-   return nullptr;
+    Diag(Arg->getLocStart(), diag::err_typecheck_bounds_ex pr) << ArgType;
+    return nullptr;
   }
 
+  // Return the canonical unqualified pointee type.
   return ArgTypePointee.getTypePtr();
 }
 
