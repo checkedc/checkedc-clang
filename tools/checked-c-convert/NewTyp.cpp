@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 #include "NewTyp.h"
 
-
 using namespace clang;
 using namespace llvm;
 

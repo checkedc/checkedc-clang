@@ -292,7 +292,7 @@ VarAtom *Constraints::getVar(uint32_t v) const {
   if (I != environment.end())
     return I->first;
   else
-    return NULL;
+    return nullptr;
 }
 
 PtrAtom *Constraints::getPtr() const {

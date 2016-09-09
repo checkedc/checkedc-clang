@@ -320,7 +320,7 @@ public:
       Info.getDeclStmtForDecl(J, K);
 
       NewTyp *NT = NewTyp::mkTypForConstrainedType(J, K, Info, &Context);
-      if(NT)
+      if (NT)
         rewriteThese.insert(NT);
     }
 
