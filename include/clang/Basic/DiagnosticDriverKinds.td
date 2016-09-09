@@ -23,6 +23,17 @@ def err_drv_unknown_language : Error<"language not recognized: '%0'">;
 def err_drv_invalid_arch_name : Error<
   "invalid arch name '%0'">;
 def err_drv_cuda_bad_gpu_arch : Error<"Unsupported CUDA gpu architecture: %0">;
+def err_drv_no_cuda_installation : Error<
+  "cannot find CUDA installation.  Provide its path via --cuda-path, or pass "
+  "-nocudainc to build without CUDA includes.">;
+def err_drv_no_cuda_libdevice : Error<
+  "cannot find libdevice for %0. Provide path to different CUDA installation "
+  "via --cuda-path, or pass -nocudalib to build without linking with libdevice.">;
+def err_drv_cuda_version_too_low : Error<
+  "GPU arch %1 requires CUDA version at least %3, but installation at %0 is %2. "
+  "Use --cuda-path to specify a different CUDA install, or pass "
+  "--no-cuda-version-check.">;
+def err_drv_cuda_nvptx_host : Error<"unsupported use of NVPTX for host compilation.">;
 def err_drv_invalid_thread_model_for_target : Error<
   "invalid thread model '%0' in '%1' for this target">;
 def err_drv_invalid_linker_name : Error<
@@ -158,6 +169,9 @@ def warn_drv_optimization_value : Warning<"optimization level '%0' is not suppor
   InGroup<InvalidCommandLineArgument>;
 def warn_ignored_gcc_optimization : Warning<"optimization flag '%0' is not supported">,
   InGroup<IgnoredOptimizationArgument>;
+def warn_drv_unsupported_opt_for_target : Warning<
+  "optimization flag '%0' is not supported for target '%1'">,
+  InGroup<IgnoredOptimizationArgument>;
 def warn_c_kext : Warning<
   "ignoring -fapple-kext which is valid for C++ and Objective-C++ only">;
 def warn_drv_input_file_unused : Warning<
@@ -195,6 +209,8 @@ def warn_drv_pch_not_first_include : Warning<
   "precompiled header '%0' was ignored because '%1' is not first '-include'">;
 def warn_missing_sysroot : Warning<"no such sysroot directory: '%0'">,
   InGroup<DiagGroup<"missing-sysroot">>;
+def warn_incompatible_sysroot : Warning<"using sysroot for '%0' but targeting '%1'">,
+  InGroup<DiagGroup<"incompatible-sysroot">>;
 def warn_debug_compression_unavailable : Warning<"cannot compress debug sections (zlib not installed)">,
   InGroup<DiagGroup<"debug-compression-unavailable">>;
 def warn_drv_enabling_rtti_with_exceptions : Warning<
@@ -227,12 +243,20 @@ def err_test_module_file_extension_format : Error<
 def warn_drv_invoking_fallback : Warning<"falling back to %0">,
   InGroup<Fallback>;
 
+def err_drv_ropi_rwpi_incompatible_with_pic : Error<
+  "embedded and GOT-based position independence are incompatible">;
+def err_drv_ropi_incompatible_with_cxx : Error<
+  "ROPI is not compatible with c++">;
+
 def warn_target_unsupported_nan2008 : Warning<
   "ignoring '-mnan=2008' option because the '%0' architecture does not support it">,
   InGroup<UnsupportedNan>;
 def warn_target_unsupported_nanlegacy : Warning<
   "ignoring '-mnan=legacy' option because the '%0' architecture does not support it">,
   InGroup<UnsupportedNan>;
+def warn_target_unsupported_compact_branches : Warning<
+  "ignoring '-mcompact-branches=' option because the '%0' architecture does not"
+  " support it">, InGroup<UnsupportedCB>;
 
 def warn_drv_unable_to_find_directory_expected : Warning<
   "unable to find %0 directory, expected to be in '%1'">,
@@ -243,7 +267,7 @@ def warn_drv_ps4_force_pic : Warning<
   InGroup<OptionIgnored>;
 
 def warn_drv_ps4_sdk_dir : Warning<
-  "environment variable SCE_PS4_SDK_DIR is set, but points to invalid or nonexistent directory '%0'">,
+  "environment variable SCE_ORBIS_SDK_DIR is set, but points to invalid or nonexistent directory '%0'">,
   InGroup<InvalidOrNonExistentDirectory>;
 
 def err_drv_unsupported_linker : Error<"unsupported value '%0' for -linker option">;

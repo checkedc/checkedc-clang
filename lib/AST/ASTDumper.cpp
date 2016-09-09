@@ -404,6 +404,9 @@ namespace  {
     void VisitAtomicType(const AtomicType *T) {
       dumpTypeAsChild(T->getValueType());
     }
+    void VisitPipeType(const PipeType *T) {
+      dumpTypeAsChild(T->getElementType());
+    }
     void VisitAdjustedType(const AdjustedType *T) {
       dumpTypeAsChild(T->getOriginalType());
     }
@@ -425,6 +428,8 @@ namespace  {
     void VisitFunctionDecl(const FunctionDecl *D);
     void VisitFieldDecl(const FieldDecl *D);
     void VisitVarDecl(const VarDecl *D);
+    void VisitDecompositionDecl(const DecompositionDecl *D);
+    void VisitBindingDecl(const BindingDecl *D);
     void VisitFileScopeAsmDecl(const FileScopeAsmDecl *D);
     void VisitImportDecl(const ImportDecl *D);
     void VisitPragmaCommentDecl(const PragmaCommentDecl *D);
@@ -471,6 +476,7 @@ namespace  {
     void VisitUnresolvedUsingTypenameDecl(const UnresolvedUsingTypenameDecl *D);
     void VisitUnresolvedUsingValueDecl(const UnresolvedUsingValueDecl *D);
     void VisitUsingShadowDecl(const UsingShadowDecl *D);
+    void VisitConstructorUsingShadowDecl(const ConstructorUsingShadowDecl *D);
     void VisitLinkageSpecDecl(const LinkageSpecDecl *D);
     void VisitAccessSpecDecl(const AccessSpecDecl *D);
     void VisitFriendDecl(const FriendDecl *D);
@@ -710,6 +716,12 @@ void ASTDumper::dumpTypeAsChild(const Type *T) {
 }
 
 void ASTDumper::dumpBareDeclRef(const Decl *D) {
+  if (!D) {
+    ColorScope Color(*this, NullColor);
+    OS << "<<<NULL>>>";
+    return;
+  }
+
   {
     ColorScope Color(*this, DeclKindNameColor);
     OS << D->getDeclKindName();
@@ -1151,10 +1163,8 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (!D->param_begin() && D->getNumParams())
     dumpChild([=] { OS << "<<NULL params x " << D->getNumParams() << ">>"; });
   else
-    for (FunctionDecl::param_const_iterator I = D->param_begin(),
-                                            E = D->param_end();
-         I != E; ++I)
-      dumpDecl(*I);
+    for (const ParmVarDecl *Parameter : D->parameters())
+      dumpDecl(Parameter);
 
   if (const CXXConstructorDecl *C = dyn_cast<CXXConstructorDecl>(D))
     for (CXXConstructorDecl::init_const_iterator I = C->init_begin(),
@@ -1195,6 +1205,10 @@ void ASTDumper::VisitVarDecl(const VarDecl *D) {
     OS << " __module_private__";
   if (D->isNRVOVariable())
     OS << " nrvo";
+  if (D->isInline())
+    OS << " inline";
+  if (D->isConstexpr())
+    OS << " constexpr";
   if (D->hasInit()) {
     switch (D->getInitStyle()) {
     case VarDecl::CInit: OS << " cinit"; break;
@@ -1203,6 +1217,19 @@ void ASTDumper::VisitVarDecl(const VarDecl *D) {
     }
     dumpStmt(D->getInit());
   }
+}
+
+void ASTDumper::VisitDecompositionDecl(const DecompositionDecl *D) {
+  VisitVarDecl(D);
+  for (auto *B : D->bindings())
+    dumpDecl(B);
+}
+
+void ASTDumper::VisitBindingDecl(const BindingDecl *D) {
+  dumpName(D);
+  dumpType(D->getType());
+  if (auto *E = D->getBinding())
+    dumpStmt(E);
 }
 
 void ASTDumper::VisitFileScopeAsmDecl(const FileScopeAsmDecl *D) {
@@ -1486,6 +1513,31 @@ void ASTDumper::VisitUsingShadowDecl(const UsingShadowDecl *D) {
     dumpTypeAsChild(TD->getTypeForDecl());
 }
 
+void ASTDumper::VisitConstructorUsingShadowDecl(
+    const ConstructorUsingShadowDecl *D) {
+  if (D->constructsVirtualBase())
+    OS << " virtual";
+
+  dumpChild([=] {
+    OS << "target ";
+    dumpBareDeclRef(D->getTargetDecl());
+  });
+
+  dumpChild([=] {
+    OS << "nominated ";
+    dumpBareDeclRef(D->getNominatedBaseClass());
+    OS << ' ';
+    dumpBareDeclRef(D->getNominatedBaseClassShadowDecl());
+  });
+
+  dumpChild([=] {
+    OS << "constructed ";
+    dumpBareDeclRef(D->getConstructedBaseClass());
+    OS << ' ';
+    dumpBareDeclRef(D->getConstructedBaseClassShadowDecl());
+  });
+}
+
 void ASTDumper::VisitLinkageSpecDecl(const LinkageSpecDecl *D) {
   switch (D->getLanguage()) {
   case LinkageSpecDecl::lang_c: OS << " C"; break;
@@ -1545,10 +1597,8 @@ void ASTDumper::VisitObjCMethodDecl(const ObjCMethodDecl *D) {
   if (D->isThisDeclarationADefinition()) {
     dumpDeclContext(D);
   } else {
-    for (ObjCMethodDecl::param_const_iterator I = D->param_begin(),
-                                              E = D->param_end();
-         I != E; ++I)
-      dumpDecl(*I);
+    for (const ParmVarDecl *Parameter : D->parameters())
+      dumpDecl(Parameter);
   }
 
   if (D->isVariadic())
@@ -1678,7 +1728,7 @@ void ASTDumper::VisitObjCPropertyImplDecl(const ObjCPropertyImplDecl *D) {
 }
 
 void ASTDumper::VisitBlockDecl(const BlockDecl *D) {
-  for (auto I : D->params())
+  for (auto I : D->parameters())
     dumpDecl(I);
 
   if (D->isVariadic())
@@ -2174,8 +2224,10 @@ void ASTDumper::VisitObjCMessageExpr(const ObjCMessageExpr *Node) {
 
 void ASTDumper::VisitObjCBoxedExpr(const ObjCBoxedExpr *Node) {
   VisitExpr(Node);
-  OS << " selector=";
-  Node->getBoxingMethod()->getSelector().print(OS);
+  if (auto *BoxingMethod = Node->getBoxingMethod()) {
+    OS << " selector=";
+    BoxingMethod->getSelector().print(OS);
+  }
 }
 
 void ASTDumper::VisitObjCAtCatchStmt(const ObjCAtCatchStmt *Node) {

@@ -15,15 +15,14 @@
 #define LLVM_CLANG_LIB_CODEGEN_CODEGENTYPES_H
 
 #include "CGCall.h"
-#include "clang/AST/GlobalDecl.h"
+#include "clang/Basic/ABI.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "clang/Sema/Sema.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/Module.h"
-#include <vector>
 
 namespace llvm {
 class FunctionType;
-class Module;
 class DataLayout;
 class Type;
 class LLVMContext;
@@ -48,6 +47,7 @@ class TagDecl;
 class TargetInfo;
 class Type;
 typedef CanQual<Type> CanQualType;
+class GlobalDecl;
 
 namespace CodeGen {
 class ABIInfo;
@@ -164,6 +164,8 @@ class CodeGenTypes {
 
   llvm::SmallSet<const Type *, 8> RecordsWithOpaqueMemberPointers;
 
+  unsigned ClangCallConvToLLVMCallConv(CallingConv CC);
+
 public:
   CodeGenTypes(CodeGenModule &cgm);
   ~CodeGenTypes();
@@ -204,6 +206,11 @@ public:
   /// type).
   bool isFuncTypeConvertible(const FunctionType *FT);
   bool isFuncParamTypeConvertible(QualType Ty);
+
+  /// Determine if a C++ inheriting constructor should have parameters matching
+  /// those of its inherited constructor.
+  bool inheritingCtorHasParams(const InheritedConstructor &Inherited,
+                               CXXCtorType Type);
 
   /// GetFunctionTypeForVTable - Get the LLVM function type for use in a vtable,
   /// given a CXXMethodDecl. If the method to has an incomplete return type,

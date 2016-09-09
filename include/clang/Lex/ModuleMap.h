@@ -18,6 +18,7 @@
 
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Module.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/IntrusiveRefCntPtr.h"
@@ -27,7 +28,7 @@
 #include <string>
 
 namespace clang {
-  
+
 class DirectoryEntry;
 class FileEntry;
 class FileManager;
@@ -53,8 +54,15 @@ public:
 
   /// \brief Called when a header is added during module map parsing.
   ///
-  /// \param File The header file itself.
-  virtual void moduleMapAddHeader(const FileEntry &File) {}
+  /// \param Filename The header file itself.
+  virtual void moduleMapAddHeader(StringRef Filename) {}
+
+  /// \brief Called when an umbrella header is added during module map parsing.
+  ///
+  /// \param FileMgr FileManager instance
+  /// \param Header The umbrella header to collect.
+  virtual void moduleMapAddUmbrellaHeader(FileManager *FileMgr,
+                                          const FileEntry *Header) {}
 };
   
 class ModuleMap {
@@ -128,6 +136,12 @@ public:
     /// \brief Whether this header is available in the module.
     bool isAvailable() const {
       return getModule()->isAvailable();
+    }
+
+    /// \brief Whether this header is accessible from the specified module.
+    bool isAccessibleFrom(Module *M) const {
+      return !(getRole() & PrivateHeader) ||
+             (M && M->getTopLevelModule() == getModule()->getTopLevelModule());
     }
 
     // \brief Whether this known header is valid (i.e., it has an
@@ -388,6 +402,15 @@ public:
   std::pair<Module *, bool> findOrCreateModule(StringRef Name, Module *Parent,
                                                bool IsFramework,
                                                bool IsExplicit);
+
+  /// \brief Create a new module for a C++ Modules TS module interface unit.
+  /// The module must not already exist, and will be configured for the current
+  /// compilation.
+  ///
+  /// Note that this also sets the current module to the newly-created module.
+  ///
+  /// \returns The newly-created module.
+  Module *createModuleForInterfaceUnit(SourceLocation Loc, StringRef Name);
 
   /// \brief Infer the contents of a framework module map from the given
   /// framework directory.

@@ -20,11 +20,10 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/AttrKinds.h"
 #include "clang/Basic/LLVM.h"
+#include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/VersionTuple.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
@@ -50,11 +49,11 @@ protected:
   /// An index into the spelling list of an
   /// attribute defined in Attr.td file.
   unsigned SpellingListIndex : 4;
-  bool Inherited : 1;
-  bool IsPackExpansion : 1;
-  bool Implicit : 1;
-  bool IsLateParsed : 1;
-  bool DuplicatesAllowed : 1;
+  unsigned Inherited : 1;
+  unsigned IsPackExpansion : 1;
+  unsigned Implicit : 1;
+  unsigned IsLateParsed : 1;
+  unsigned DuplicatesAllowed : 1;
 
   void *operator new(size_t bytes) LLVM_NOEXCEPT {
     llvm_unreachable("Attrs cannot be allocated with regular 'new'.");

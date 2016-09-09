@@ -55,10 +55,18 @@ private:
   /// where the C code specifies const char*.
   llvm::Constant *makeConstantString(const std::string &Str,
                                      const std::string &Name = "",
+                                     const std::string &SectionName = "",
                                      unsigned Alignment = 0) {
     llvm::Constant *Zeros[] = {llvm::ConstantInt::get(SizeTy, 0),
                                llvm::ConstantInt::get(SizeTy, 0)};
     auto ConstStr = CGM.GetAddrOfConstantCString(Str, Name.c_str());
+    llvm::GlobalVariable *GV =
+        cast<llvm::GlobalVariable>(ConstStr.getPointer());
+    if (!SectionName.empty())
+      GV->setSection(SectionName);
+    if (Alignment)
+      GV->setAlignment(Alignment);
+
     return llvm::ConstantExpr::getGetElementPtr(ConstStr.getElementType(),
                                                 ConstStr.getPointer(), Zeros);
  }
@@ -98,10 +106,7 @@ CGNVCUDARuntime::CGNVCUDARuntime(CodeGenModule &CGM)
 
 llvm::Constant *CGNVCUDARuntime::getSetupArgumentFn() const {
   // cudaError_t cudaSetupArgument(void *, size_t, size_t)
-  std::vector<llvm::Type*> Params;
-  Params.push_back(VoidPtrTy);
-  Params.push_back(SizeTy);
-  Params.push_back(SizeTy);
+  llvm::Type *Params[] = {VoidPtrTy, SizeTy, SizeTy};
   return CGM.CreateRuntimeFunction(llvm::FunctionType::get(IntTy,
                                                            Params, false),
                                    "cudaSetupArgument");
@@ -121,37 +126,28 @@ void CGNVCUDARuntime::emitDeviceStub(CodeGenFunction &CGF,
 
 void CGNVCUDARuntime::emitDeviceStubBody(CodeGenFunction &CGF,
                                          FunctionArgList &Args) {
-  // Build the argument value list and the argument stack struct type.
-  SmallVector<llvm::Value *, 16> ArgValues;
-  std::vector<llvm::Type *> ArgTypes;
-  for (FunctionArgList::const_iterator I = Args.begin(), E = Args.end();
-       I != E; ++I) {
-    llvm::Value *V = CGF.GetAddrOfLocalVar(*I).getPointer();
-    ArgValues.push_back(V);
-    assert(isa<llvm::PointerType>(V->getType()) && "Arg type not PointerType");
-    ArgTypes.push_back(cast<llvm::PointerType>(V->getType())->getElementType());
-  }
-  llvm::StructType *ArgStackTy = llvm::StructType::get(Context, ArgTypes);
-
-  llvm::BasicBlock *EndBlock = CGF.createBasicBlock("setup.end");
-
-  // Emit the calls to cudaSetupArgument
+  // Emit a call to cudaSetupArgument for each arg in Args.
   llvm::Constant *cudaSetupArgFn = getSetupArgumentFn();
-  for (unsigned I = 0, E = Args.size(); I != E; ++I) {
-    llvm::Value *Args[3];
-    llvm::BasicBlock *NextBlock = CGF.createBasicBlock("setup.next");
-    Args[0] = CGF.Builder.CreatePointerCast(ArgValues[I], VoidPtrTy);
-    Args[1] = CGF.Builder.CreateIntCast(
-        llvm::ConstantExpr::getSizeOf(ArgTypes[I]),
-        SizeTy, false);
-    Args[2] = CGF.Builder.CreateIntCast(
-        llvm::ConstantExpr::getOffsetOf(ArgStackTy, I),
-        SizeTy, false);
+  llvm::BasicBlock *EndBlock = CGF.createBasicBlock("setup.end");
+  CharUnits Offset = CharUnits::Zero();
+  for (const VarDecl *A : Args) {
+    CharUnits TyWidth, TyAlign;
+    std::tie(TyWidth, TyAlign) =
+        CGM.getContext().getTypeInfoInChars(A->getType());
+    Offset = Offset.alignTo(TyAlign);
+    llvm::Value *Args[] = {
+        CGF.Builder.CreatePointerCast(CGF.GetAddrOfLocalVar(A).getPointer(),
+                                      VoidPtrTy),
+        llvm::ConstantInt::get(SizeTy, TyWidth.getQuantity()),
+        llvm::ConstantInt::get(SizeTy, Offset.getQuantity()),
+    };
     llvm::CallSite CS = CGF.EmitRuntimeCallOrInvoke(cudaSetupArgFn, Args);
     llvm::Constant *Zero = llvm::ConstantInt::get(IntTy, 0);
     llvm::Value *CSZero = CGF.Builder.CreateICmpEQ(CS.getInstruction(), Zero);
+    llvm::BasicBlock *NextBlock = CGF.createBasicBlock("setup.next");
     CGF.Builder.CreateCondBr(CSZero, NextBlock, EndBlock);
     CGF.EmitBlock(NextBlock);
+    Offset += TyWidth;
   }
 
   // Emit the call to cudaLaunch
@@ -192,7 +188,7 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
 
   // void __cudaRegisterFunction(void **, const char *, char *, const char *,
   //                             int, uint3*, uint3*, dim3*, dim3*, int*)
-  std::vector<llvm::Type *> RegisterFuncParams = {
+  llvm::Type *RegisterFuncParams[] = {
       VoidPtrPtrTy, CharPtrTy, CharPtrTy, CharPtrTy, IntTy,
       VoidPtrTy,    VoidPtrTy, VoidPtrTy, VoidPtrTy, IntTy->getPointerTo()};
   llvm::Constant *RegisterFunc = CGM.CreateRuntimeFunction(
@@ -216,9 +212,9 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
 
   // void __cudaRegisterVar(void **, char *, char *, const char *,
   //                        int, int, int, int)
-  std::vector<llvm::Type *> RegisterVarParams = {
-      VoidPtrPtrTy, CharPtrTy, CharPtrTy, CharPtrTy,
-      IntTy,        IntTy,     IntTy,     IntTy};
+  llvm::Type *RegisterVarParams[] = {VoidPtrPtrTy, CharPtrTy, CharPtrTy,
+                                     CharPtrTy,    IntTy,     IntTy,
+                                     IntTy,        IntTy};
   llvm::Constant *RegisterVar = CGM.CreateRuntimeFunction(
       llvm::FunctionType::get(IntTy, RegisterVarParams, false),
       "__cudaRegisterVar");
@@ -297,7 +293,8 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
     llvm::Constant *Values[] = {
         llvm::ConstantInt::get(IntTy, 0x466243b1), // Fatbin wrapper magic.
         llvm::ConstantInt::get(IntTy, 1),          // Fatbin version.
-        makeConstantString(GpuBinaryOrErr.get()->getBuffer(), "", 16), // Data.
+        makeConstantString(GpuBinaryOrErr.get()->getBuffer(), // Data.
+                           "", ".nv_fatbin", 8),              //
         llvm::ConstantPointerNull::get(VoidPtrTy)}; // Unused in fatbin v1.
     llvm::GlobalVariable *FatbinWrapper = new llvm::GlobalVariable(
         TheModule, FatbinWrapperTy, true, llvm::GlobalValue::InternalLinkage,

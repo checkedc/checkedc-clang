@@ -23,25 +23,26 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
-#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "clang/CodeGen/SwiftCallingConv.h"
+#include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Attributes.h"
+#include "llvm/IR/CallingConv.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Transforms/Utils/Local.h"
 using namespace clang;
 using namespace CodeGen;
 
 /***/
 
-static unsigned ClangCallConvToLLVMCallConv(CallingConv CC) {
+unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
   switch (CC) {
   default: return llvm::CallingConv::C;
   case CC_X86StdCall: return llvm::CallingConv::X86_StdCall;
@@ -57,7 +58,7 @@ static unsigned ClangCallConvToLLVMCallConv(CallingConv CC) {
   // TODO: Add support for __vectorcall to LLVM.
   case CC_X86VectorCall: return llvm::CallingConv::X86_VectorCall;
   case CC_SpirFunction: return llvm::CallingConv::SPIR_FUNC;
-  case CC_SpirKernel: return llvm::CallingConv::SPIR_KERNEL;
+  case CC_OpenCLKernel: return CGM.getTargetCodeGenInfo().getOpenCLKernelCallingConv();
   case CC_PreserveMost: return llvm::CallingConv::PreserveMost;
   case CC_PreserveAll: return llvm::CallingConv::PreserveAll;
   case CC_Swift: return llvm::CallingConv::Swift;
@@ -141,7 +142,8 @@ arrangeLLVMFunctionInfo(CodeGenTypes &CGT, bool instanceMethod,
                         CanQual<FunctionProtoType> FTP,
                         const FunctionDecl *FD) {
   SmallVector<FunctionProtoType::ExtParameterInfo, 16> paramInfos;
-  RequiredArgs required = RequiredArgs::forPrototypePlus(FTP, prefix.size());
+  RequiredArgs Required =
+      RequiredArgs::forPrototypePlus(FTP, prefix.size(), FD);
   // FIXME: Kill copy.
   appendParameterTypes(CGT, prefix, paramInfos, FTP, FD);
   CanQualType resultType = FTP->getReturnType().getUnqualifiedType();
@@ -149,7 +151,7 @@ arrangeLLVMFunctionInfo(CodeGenTypes &CGT, bool instanceMethod,
   return CGT.arrangeLLVMFunctionInfo(resultType, instanceMethod,
                                      /*chainCall=*/false, prefix,
                                      FTP->getExtInfo(), paramInfos,
-                                     required);
+                                     Required);
 }
 
 /// Arrange the argument and result information for a value of the
@@ -243,6 +245,15 @@ CodeGenTypes::arrangeCXXMethodDeclaration(const CXXMethodDecl *MD) {
   return arrangeFreeFunctionType(prototype, MD);
 }
 
+bool CodeGenTypes::inheritingCtorHasParams(
+    const InheritedConstructor &Inherited, CXXCtorType Type) {
+  // Parameters are unnecessary if we're constructing a base class subobject
+  // and the inherited constructor lives in a virtual base.
+  return Type == Ctor_Complete ||
+         !Inherited.getShadowDecl()->constructsVirtualBase() ||
+         !Target.getCXXABI().hasConstructorVariants();
+  }
+
 const CGFunctionInfo &
 CodeGenTypes::arrangeCXXStructorDeclaration(const CXXMethodDecl *MD,
                                             StructorType Type) {
@@ -251,9 +262,16 @@ CodeGenTypes::arrangeCXXStructorDeclaration(const CXXMethodDecl *MD,
   SmallVector<FunctionProtoType::ExtParameterInfo, 16> paramInfos;
   argTypes.push_back(GetThisType(Context, MD->getParent()));
 
+  bool PassParams = true;
+
   GlobalDecl GD;
   if (auto *CD = dyn_cast<CXXConstructorDecl>(MD)) {
     GD = GlobalDecl(CD, toCXXCtorType(Type));
+
+    // A base class inheriting constructor doesn't get forwarded arguments
+    // needed to construct a virtual base (or base class thereof).
+    if (auto Inherited = CD->getInheritedConstructor())
+      PassParams = inheritingCtorHasParams(Inherited, toCXXCtorType(Type));
   } else {
     auto *DD = dyn_cast<CXXDestructorDecl>(MD);
     GD = GlobalDecl(DD, toCXXDtorType(Type));
@@ -262,12 +280,14 @@ CodeGenTypes::arrangeCXXStructorDeclaration(const CXXMethodDecl *MD,
   CanQual<FunctionProtoType> FTP = GetFormalType(MD);
 
   // Add the formal parameters.
-  appendParameterTypes(*this, argTypes, paramInfos, FTP, MD);
+  if (PassParams)
+    appendParameterTypes(*this, argTypes, paramInfos, FTP, MD);
 
   TheCXXABI.buildStructorSignature(MD, Type, argTypes);
 
   RequiredArgs required =
-      (MD->isVariadic() ? RequiredArgs(argTypes.size()) : RequiredArgs::All);
+      (PassParams && MD->isVariadic() ? RequiredArgs(argTypes.size())
+                                      : RequiredArgs::All);
 
   FunctionType::ExtInfo extInfo = FTP->getExtInfo();
   CanQualType resultType = TheCXXABI.HasThisReturn(GD)
@@ -338,7 +358,7 @@ CodeGenTypes::arrangeCXXConstructorCall(const CallArgList &args,
     ArgTypes.push_back(Context.getCanonicalParamType(Arg.Ty));
 
   CanQual<FunctionProtoType> FPT = GetFormalType(D);
-  RequiredArgs Required = RequiredArgs::forPrototypePlus(FPT, 1 + ExtraArgs);
+  RequiredArgs Required = RequiredArgs::forPrototypePlus(FPT, 1 + ExtraArgs, D);
   GlobalDecl GD(D, CtorKind);
   CanQualType ResultType = TheCXXABI.HasThisReturn(GD)
                                ? ArgTypes.front()
@@ -401,7 +421,7 @@ CodeGenTypes::arrangeObjCMessageSendSignature(const ObjCMethodDecl *MD,
   argTys.push_back(Context.getCanonicalParamType(receiverType));
   argTys.push_back(Context.getCanonicalParamType(Context.getObjCSelType()));
   // FIXME: Kill copy?
-  for (const auto *I : MD->params()) {
+  for (const auto *I : MD->parameters()) {
     argTys.push_back(Context.getCanonicalParamType(I->getType()));
   }
 
@@ -555,10 +575,11 @@ CodeGenTypes::arrangeBlockFunctionDeclaration(const FunctionProtoType *proto,
   auto paramInfos = getExtParameterInfosForCall(proto, 1, params.size());
   auto argTypes = getArgTypesForDeclaration(Context, params);
 
-  return arrangeLLVMFunctionInfo(GetReturnType(proto->getReturnType()),
-                                 /*instanceMethod*/ false, /*chainCall*/ false,
-                                 argTypes, proto->getExtInfo(), paramInfos,
-                                 RequiredArgs::forPrototypePlus(proto, 1));
+  return arrangeLLVMFunctionInfo(
+      GetReturnType(proto->getReturnType()),
+      /*instanceMethod*/ false, /*chainCall*/ false, argTypes,
+      proto->getExtInfo(), paramInfos,
+      RequiredArgs::forPrototypePlus(proto, 1, nullptr));
 }
 
 const CGFunctionInfo &
@@ -948,7 +969,7 @@ void CodeGenFunction::ExpandTypeFromArgs(
     }
     for (auto FD : RExp->Fields) {
       // FIXME: What are the right qualifiers here?
-      LValue SubLV = EmitLValueForField(LV, FD);
+      LValue SubLV = EmitLValueForFieldInitialization(LV, FD);
       ExpandTypeFromArgs(FD->getType(), SubLV, AI);
     }
   } else if (isa<ComplexExpansion>(Exp.get())) {
@@ -1701,6 +1722,13 @@ void CodeGenModule::ConstructAttributeList(
 
     FuncAttrs.addAttribute("less-precise-fpmad",
                            llvm::toStringRef(CodeGenOpts.LessPreciseFPMAD));
+
+    if (!CodeGenOpts.FPDenormalMode.empty())
+      FuncAttrs.addAttribute("denormal-fp-math",
+                             CodeGenOpts.FPDenormalMode);
+
+    FuncAttrs.addAttribute("no-trapping-math",
+                           llvm::toStringRef(CodeGenOpts.NoTrappingMath));
     FuncAttrs.addAttribute("no-infs-fp-math",
                            llvm::toStringRef(CodeGenOpts.NoInfsFPMath));
     FuncAttrs.addAttribute("no-nans-fp-math",
@@ -1711,9 +1739,16 @@ void CodeGenModule::ConstructAttributeList(
                            llvm::toStringRef(CodeGenOpts.SoftFloat));
     FuncAttrs.addAttribute("stack-protector-buffer-size",
                            llvm::utostr(CodeGenOpts.SSPBufferSize));
+    FuncAttrs.addAttribute("no-signed-zeros-fp-math",
+                           llvm::toStringRef(CodeGenOpts.NoSignedZeros));
+    FuncAttrs.addAttribute(
+        "correctly-rounded-divide-sqrt-fp-math",
+        llvm::toStringRef(CodeGenOpts.CorrectlyRoundedDivSqrt));
 
     if (CodeGenOpts.StackRealignment)
       FuncAttrs.addAttribute("stackrealign");
+    if (CodeGenOpts.Backchain)
+      FuncAttrs.addAttribute("backchain");
 
     // Add target-cpu and target-features attributes to functions. If
     // we have a decl for the function and it has a target attribute then
@@ -2274,13 +2309,6 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
         if (isPromoted)
           V = emitArgumentDemotion(*this, Arg, V);
 
-        if (const CXXMethodDecl *MD =
-            dyn_cast_or_null<CXXMethodDecl>(CurCodeDecl)) {
-          if (MD->isVirtual() && Arg == CXXABIThisDecl)
-            V = CGM.getCXXABI().
-                adjustThisParameterInVirtualFunctionPrologue(*this, CurGD, V);
-        }
-
         // Because of merging of function types from multiple decls it is
         // possible for the type of an argument to not match the corresponding
         // type in the function type. Since we are codegening the callee
@@ -2440,7 +2468,7 @@ static llvm::Value *tryEmitFusedAutoreleaseOfResult(CodeGenFunction &CGF,
   // result is in a BasicBlock and is therefore an Instruction.
   llvm::Instruction *generator = cast<llvm::Instruction>(result);
 
-  SmallVector<llvm::Instruction*,4> insnsToKill;
+  SmallVector<llvm::Instruction *, 4> InstsToKill;
 
   // Look for:
   //  %generator = bitcast %type1* %generator2 to %type2*
@@ -2453,7 +2481,7 @@ static llvm::Value *tryEmitFusedAutoreleaseOfResult(CodeGenFunction &CGF,
     if (generator->getNextNode() != bitcast)
       return nullptr;
 
-    insnsToKill.push_back(bitcast);
+    InstsToKill.push_back(bitcast);
   }
 
   // Look for:
@@ -2486,27 +2514,26 @@ static llvm::Value *tryEmitFusedAutoreleaseOfResult(CodeGenFunction &CGF,
       assert(isa<llvm::CallInst>(prev));
       assert(cast<llvm::CallInst>(prev)->getCalledValue() ==
                CGF.CGM.getObjCEntrypoints().retainAutoreleasedReturnValueMarker);
-      insnsToKill.push_back(prev);
+      InstsToKill.push_back(prev);
     }
   } else {
     return nullptr;
   }
 
   result = call->getArgOperand(0);
-  insnsToKill.push_back(call);
+  InstsToKill.push_back(call);
 
   // Keep killing bitcasts, for sanity.  Note that we no longer care
   // about precise ordering as long as there's exactly one use.
   while (llvm::BitCastInst *bitcast = dyn_cast<llvm::BitCastInst>(result)) {
     if (!bitcast->hasOneUse()) break;
-    insnsToKill.push_back(bitcast);
+    InstsToKill.push_back(bitcast);
     result = bitcast->getOperand(0);
   }
 
   // Delete all the unnecessary instructions, from latest to earliest.
-  for (SmallVectorImpl<llvm::Instruction*>::iterator
-         i = insnsToKill.begin(), e = insnsToKill.end(); i != e; ++i)
-    (*i)->eraseFromParent();
+  for (auto *I : InstsToKill)
+    I->eraseFromParent();
 
   // Do the fused retain/autorelease if we were asked to.
   if (doRetainAutorelease)
@@ -2863,23 +2890,15 @@ void CodeGenFunction::EmitDelegateCallArg(CallArgList &args,
 
   QualType type = param->getType();
 
-  // For the most part, we just need to load the alloca, except:
-  // 1) aggregate r-values are actually pointers to temporaries, and
-  // 2) references to non-scalars are pointers directly to the aggregate.
-  // I don't know why references to scalars are different here.
-  if (const ReferenceType *ref = type->getAs<ReferenceType>()) {
-    if (!hasScalarEvaluationKind(ref->getPointeeType()))
-      return args.add(RValue::getAggregate(local), type);
-
-    // Locals which are references to scalars are represented
-    // with allocas holding the pointer.
-    return args.add(RValue::get(Builder.CreateLoad(local)), type);
-  }
-
   assert(!isInAllocaArgument(CGM.getCXXABI(), type) &&
          "cannot emit delegate call arguments for inalloca arguments!");
 
-  args.add(convertTempToRValue(local, type, loc), type);
+  // For the most part, we just need to load the alloca, except that
+  // aggregate r-values are actually pointers to temporaries.
+  if (type->isReferenceType())
+    args.add(RValue::get(Builder.CreateLoad(local)), type);
+  else
+    args.add(convertTempToRValue(local, type, loc), type);
 }
 
 static bool isProvablyNull(llvm::Value *addr) {
@@ -3190,10 +3209,10 @@ void CodeGenFunction::EmitCallArgs(
     size_t CallArgsStart = Args.size();
     for (int I = ArgTypes.size() - 1; I >= 0; --I) {
       CallExpr::const_arg_iterator Arg = ArgRange.begin() + I;
+      MaybeEmitImplicitObjectSize(I, *Arg);
       EmitCallArg(Args, *Arg, ArgTypes[I]);
       EmitNonNullArgCheck(Args.back().RV, ArgTypes[I], (*Arg)->getExprLoc(),
                           CalleeDecl, ParamsToSkip + I);
-      MaybeEmitImplicitObjectSize(I, *Arg);
     }
 
     // Un-reverse the arguments we just evaluated so they match up with the LLVM

@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_PARSE_PARSER_H
 #define LLVM_CLANG_PARSE_PARSER_H
 
+#include "clang/AST/Availability.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/OperatorPrecedence.h"
 #include "clang/Basic/Specifiers.h"
@@ -142,6 +143,7 @@ class Parser : public CodeCompletionHandler {
 
   /// C++0x contextual keywords.
   mutable IdentifierInfo *Ident_final;
+  mutable IdentifierInfo *Ident_GNU_final;
   mutable IdentifierInfo *Ident_override;
 
   /// Checked C contextual keywords
@@ -189,6 +191,7 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> MSCodeSeg;
   std::unique_ptr<PragmaHandler> MSSection;
   std::unique_ptr<PragmaHandler> MSRuntimeChecks;
+  std::unique_ptr<PragmaHandler> MSIntrinsic;
   std::unique_ptr<PragmaHandler> OptimizeHandler;
   std::unique_ptr<PragmaHandler> LoopHintHandler;
   std::unique_ptr<PragmaHandler> UnrollHintHandler;
@@ -295,6 +298,9 @@ public:
   ///
   void Initialize();
 
+  /// Parse the first top-level declaration in a translation unit.
+  bool ParseFirstTopLevelDecl(DeclGroupPtrTy &Result);
+
   /// ParseTopLevelDecl - Parse one top-level declaration. Returns true if
   /// the EOF was encountered.
   bool ParseTopLevelDecl(DeclGroupPtrTy &Result);
@@ -330,6 +336,10 @@ public:
       return false;
     Loc = PrevTokLocation;
     return true;
+  }
+
+  SourceLocation getEndOfPreviousToken() {
+    return PP.getLocForEndOfToken(PrevTokLocation);
   }
 
   /// Retrieve the underscored keyword (_Nonnull, _Nullable) that corresponds
@@ -666,6 +676,8 @@ private:
   /// Should only be used in Objective-C language modes.
   bool isObjCInstancetype() {
     assert(getLangOpts().ObjC1);
+    if (Tok.isAnnotation())
+      return false;
     if (!Ident_instancetype)
       Ident_instancetype = PP.getIdentifierInfo("instancetype");
     return Tok.getIdentifierInfo() == Ident_instancetype;
@@ -732,6 +744,16 @@ private:
       assert(!isActive && "Forgot to call Commit or Revert!");
     }
   };
+  /// A TentativeParsingAction that automatically reverts in its destructor.
+  /// Useful for disambiguation parses that will always be reverted.
+  class RevertingTentativeParsingAction
+      : private Parser::TentativeParsingAction {
+  public:
+    RevertingTentativeParsingAction(Parser &P)
+        : Parser::TentativeParsingAction(P) {}
+    ~RevertingTentativeParsingAction() { Revert(); }
+  };
+
   class UnannotatedTentativeParsingAction;
 
   /// ObjCDeclContextSwitch - An object used to switch context from
@@ -1605,8 +1627,9 @@ private:
 
   //===--------------------------------------------------------------------===//
   // C++ if/switch/while condition expression.
-  bool ParseCXXCondition(ExprResult &ExprResult, Decl *&DeclResult,
-                         SourceLocation Loc, bool ConvertToBoolean);
+  Sema::ConditionResult ParseCXXCondition(StmtResult *InitStmt,
+                                          SourceLocation Loc,
+                                          Sema::ConditionKind CK);
 
   //===--------------------------------------------------------------------===//
   // C++ Coroutines
@@ -1707,10 +1730,10 @@ private:
                                     unsigned ScopeFlags);
   void ParseCompoundStatementLeadingPragmas();
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
-  bool ParseParenExprOrCondition(ExprResult &ExprResult,
-                                 Decl *&DeclResult,
+  bool ParseParenExprOrCondition(StmtResult *InitStmt,
+                                 Sema::ConditionResult &CondResult,
                                  SourceLocation Loc,
-                                 bool ConvertToBoolean);
+                                 Sema::ConditionKind CK);
   StmtResult ParseIfStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseSwitchStatement(SourceLocation *TrailingElseLoc);
   StmtResult ParseWhileStatement(SourceLocation *TrailingElseLoc);
@@ -1902,7 +1925,6 @@ private:
 
   bool isDeclarationSpecifier(bool DisambiguatingWithExpression = false);
   bool isTypeSpecifierQualifier();
-  bool isTypeQualifier() const;
 
   /// isKnownToBeTypeSpecifier - Return true if we know that the specified token
   /// is definitely a type-specifier.  Return false if it isn't part of a type
@@ -2003,11 +2025,18 @@ private:
   /// the function returns true to let the declaration parsing code handle it.
   bool isCXXFunctionDeclarator(bool *IsAmbiguous = nullptr);
 
-  /// isCXXConditionDeclaration - Disambiguates between a declaration or an
-  /// expression for a condition of a if/switch/while/for statement.
-  /// If during the disambiguation process a parsing error is encountered,
-  /// the function returns true to let the declaration parsing code handle it.
-  bool isCXXConditionDeclaration();
+  struct ConditionDeclarationOrInitStatementState;
+  enum class ConditionOrInitStatement {
+    Expression,    ///< Disambiguated as an expression (either kind).
+    ConditionDecl, ///< Disambiguated as the declaration form of condition.
+    InitStmtDecl,  ///< Disambiguated as a simple-declaration init-statement.
+    Error          ///< Can't be any of the above!
+  };
+  /// \brief Disambiguates between the different kinds of things that can happen
+  /// after 'if (' or 'switch ('. This could be one of two different kinds of
+  /// declaration (depending on whether there is a ';' later) or an expression.
+  ConditionOrInitStatement
+  isCXXConditionDeclarationOrInitStatement(bool CanBeInitStmt);
 
   bool isCXXTypeId(TentativeCXXTypeIdContext Context, bool &isAmbiguous);
   bool isCXXTypeId(TentativeCXXTypeIdContext Context) {
@@ -2107,8 +2136,8 @@ private:
   void DiagnoseMisplacedCXX11Attribute(ParsedAttributesWithRange &Attrs,
                                        SourceLocation CorrectLocation);
 
-  void handleDeclspecAlignBeforeClassKey(ParsedAttributesWithRange &Attrs,
-                                         DeclSpec &DS, Sema::TagUseKind TUK);
+  void stripTypeAttributesOffDeclSpec(ParsedAttributesWithRange &Attrs,
+                                      DeclSpec &DS, Sema::TagUseKind TUK);
 
   void ProhibitAttributes(ParsedAttributesWithRange &attrs) {
     if (!attrs.Range.isValid()) return;
@@ -2120,7 +2149,8 @@ private:
   // Forbid C++11 attributes that appear on certain syntactic 
   // locations which standard permits but we don't supported yet, 
   // for example, attributes appertain to decl specifiers.
-  void ProhibitCXX11Attributes(ParsedAttributesWithRange &attrs);
+  void ProhibitCXX11Attributes(ParsedAttributesWithRange &Attrs,
+                               unsigned DiagID);
 
   /// \brief Skip C++11 attributes and return the end location of the last one.
   /// \returns SourceLocation() if there are no attributes.
@@ -2212,6 +2242,7 @@ private:
     if (getLangOpts().MicrosoftExt && Tok.is(tok::l_square))
       ParseMicrosoftAttributes(attrs, endLoc);
   }
+  void ParseMicrosoftUuidAttributeArgs(ParsedAttributes &Attrs);
   void ParseMicrosoftAttributes(ParsedAttributes &attrs,
                                 SourceLocation *endLoc = nullptr);
   void MaybeParseMicrosoftDeclSpecs(ParsedAttributes &Attrs,
@@ -2253,6 +2284,9 @@ private:
                                   IdentifierInfo *ScopeName,
                                   SourceLocation ScopeLoc,
                                   AttributeList::Syntax Syntax);
+
+  Optional<AvailabilitySpec> ParseAvailabilitySpec();
+  ExprResult ParseAvailabilityCheckExpr(SourceLocation StartLoc);
 
   void ParseObjCBridgeRelatedAttribute(IdentifierInfo &ObjCBridgeRelated,
                                        SourceLocation ObjCBridgeRelatedLoc,
@@ -2359,6 +2393,7 @@ private:
                                  bool AtomicAllowed = true,
                                  bool IdentifierRequired = false);
   void ParseDirectDeclarator(Declarator &D);
+  void ParseDecompositionDeclarator(Declarator &D);
   void ParseParenDeclarator(Declarator &D);
   void ParseFunctionDeclarator(Declarator &D,
                                ParsedAttributes &attrs,
@@ -2497,16 +2532,19 @@ private:
       Decl *TagDecl = nullptr);
   /// \brief Parse 'omp declare reduction' construct.
   DeclGroupPtrTy ParseOpenMPDeclareReductionDirective(AccessSpecifier AS);
+
   /// \brief Parses simple list of variables.
   ///
   /// \param Kind Kind of the directive.
-  /// \param [out] VarList List of referenced variables.
+  /// \param Callback Callback function to be called for the list elements.
   /// \param AllowScopeSpecifier true, if the variables can have fully
   /// qualified names.
   ///
-  bool ParseOpenMPSimpleVarList(OpenMPDirectiveKind Kind,
-                                SmallVectorImpl<Expr *> &VarList,
-                                bool AllowScopeSpecifier);
+  bool ParseOpenMPSimpleVarList(
+      OpenMPDirectiveKind Kind,
+      const llvm::function_ref<void(CXXScopeSpec &, DeclarationNameInfo)> &
+          Callback,
+      bool AllowScopeSpecifier);
   /// \brief Parses declarative or executable directive.
   ///
   /// \param Allowed ACK_Any, if any directives are allowed,
@@ -2558,6 +2596,25 @@ public:
   /// constructs.
   /// \param RLoc Returned location of right paren.
   ExprResult ParseOpenMPParensExpr(StringRef ClauseName, SourceLocation &RLoc);
+
+  /// Data used for parsing list of variables in OpenMP clauses.
+  struct OpenMPVarListDataTy {
+    Expr *TailExpr = nullptr;
+    SourceLocation ColonLoc;
+    CXXScopeSpec ReductionIdScopeSpec;
+    DeclarationNameInfo ReductionId;
+    OpenMPDependClauseKind DepKind = OMPC_DEPEND_unknown;
+    OpenMPLinearClauseKind LinKind = OMPC_LINEAR_val;
+    OpenMPMapClauseKind MapTypeModifier = OMPC_MAP_unknown;
+    OpenMPMapClauseKind MapType = OMPC_MAP_unknown;
+    bool IsMapTypeImplicit = false;
+    SourceLocation DepLinMapLoc;
+  };
+
+  /// Parses clauses with list.
+  bool ParseOpenMPVarList(OpenMPDirectiveKind DKind, OpenMPClauseKind Kind,
+                          SmallVectorImpl<Expr *> &Vars,
+                          OpenMPVarListDataTy &Data);
   bool ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
                           bool AllowDestructorName,
                           bool AllowConstructorName,
@@ -2634,6 +2691,7 @@ private:
 
   //===--------------------------------------------------------------------===//
   // Modules
+  DeclGroupPtrTy ParseModuleDecl();
   DeclGroupPtrTy ParseModuleImport(SourceLocation AtLoc);
   bool parseMisplacedModuleImport();
   bool tryParseMisplacedModuleImport() {
@@ -2643,6 +2701,11 @@ private:
       return parseMisplacedModuleImport();
     return false;
   }
+
+  bool ParseModuleName(
+      SourceLocation UseLoc,
+      SmallVectorImpl<std::pair<IdentifierInfo *, SourceLocation>> &Path,
+      bool IsImport);
 
   //===--------------------------------------------------------------------===//
   // C++11/G++: Type Traits [Type-Traits.html in the GCC manual]

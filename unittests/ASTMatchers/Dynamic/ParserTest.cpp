@@ -11,7 +11,6 @@
 #include "clang/ASTMatchers/Dynamic/Parser.h"
 #include "clang/ASTMatchers/Dynamic/Registry.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/ADT/StringMap.h"
 #include "gtest/gtest.h"
 #include <string>
 #include <vector>
@@ -320,7 +319,7 @@ TEST(ParserTest, CompletionNamedValues) {
   EXPECT_EQ("arent(", Comps[2].TypedText);
   EXPECT_EQ(
       "Matcher<Decl> "
-      "hasParent(Matcher<TemplateArgument|NestedNameSpecifierLoc|Decl|...>)",
+      "hasParent(Matcher<NestedNameSpecifierLoc|TypeLoc|Decl|...>)",
       Comps[2].MatcherDecl);
 }
 

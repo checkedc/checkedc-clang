@@ -96,13 +96,25 @@ private:
 
 /// \brief Unifies obtaining the underlying type of a regular node through
 /// `getType` and a TypedefNameDecl node through `getUnderlyingType`.
-template <typename NodeType>
-inline QualType getUnderlyingType(const NodeType &Node) {
+inline QualType getUnderlyingType(const Expr &Node) { return Node.getType(); }
+
+inline QualType getUnderlyingType(const ValueDecl &Node) {
   return Node.getType();
 }
 
-template <> inline QualType getUnderlyingType(const TypedefDecl &Node) {
+inline QualType getUnderlyingType(const TypedefNameDecl &Node) {
   return Node.getUnderlyingType();
+}
+
+/// \brief Unifies obtaining the FunctionProtoType pointer from both
+/// FunctionProtoType and FunctionDecl nodes..
+inline const FunctionProtoType *
+getFunctionProtoType(const FunctionProtoType &Node) {
+  return &Node;
+}
+
+inline const FunctionProtoType *getFunctionProtoType(const FunctionDecl &Node) {
+  return Node.getType()->getAs<FunctionProtoType>();
 }
 
 /// \brief Internal version of BoundNodes. Holds all the bound nodes.
@@ -1164,8 +1176,6 @@ public:
 /// ChildT must be an AST base type.
 template <typename T, typename ChildT>
 class HasMatcher : public WrapperMatcherInterface<T> {
-  static_assert(IsBaseType<ChildT>::value,
-                "has only accepts base type matcher");
 
 public:
   explicit HasMatcher(const Matcher<ChildT> &ChildMatcher)
@@ -1173,10 +1183,9 @@ public:
 
   bool matches(const T &Node, ASTMatchFinder *Finder,
                BoundNodesTreeBuilder *Builder) const override {
-    return Finder->matchesChildOf(
-        Node, this->InnerMatcher, Builder,
-        ASTMatchFinder::TK_IgnoreImplicitCastsAndParentheses,
-        ASTMatchFinder::BK_First);
+    return Finder->matchesChildOf(Node, this->InnerMatcher, Builder,
+                                  ASTMatchFinder::TK_AsIs,
+                                  ASTMatchFinder::BK_First);
   }
 };
 
@@ -1629,6 +1638,13 @@ getTemplateSpecializationArgs(const TemplateSpecializationType &T) {
   return llvm::makeArrayRef(T.getArgs(), T.getNumArgs());
 }
 
+inline ArrayRef<TemplateArgument>
+getTemplateSpecializationArgs(const FunctionDecl &FD) {
+  if (const auto* TemplateArgs = FD.getTemplateSpecializationArgs())
+    return TemplateArgs->asArray();
+  return ArrayRef<TemplateArgument>();
+}
+
 struct NotEqualsBoundNodePredicate {
   bool operator()(const internal::BoundNodesMap &Nodes) const {
     return Nodes.getNode(ID) != Node;
@@ -1647,6 +1663,19 @@ struct GetBodyMatcher {
 template <>
 inline const Stmt *GetBodyMatcher<FunctionDecl>::get(const FunctionDecl &Node) {
   return Node.doesThisDeclarationHaveABody() ? Node.getBody() : nullptr;
+}
+
+template <typename Ty>
+struct HasSizeMatcher {
+  static bool hasSize(const Ty &Node, unsigned int N) {
+    return Node.getSize() == N;
+  }
+};
+
+template <>
+inline bool HasSizeMatcher<StringLiteral>::hasSize(
+    const StringLiteral &Node, unsigned int N) {
+  return Node.getLength() == N;
 }
 
 template <typename Ty>

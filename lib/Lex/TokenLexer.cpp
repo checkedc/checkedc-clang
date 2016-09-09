@@ -794,6 +794,10 @@ static void updateConsecutiveMacroArgTokens(SourceManager &SM,
     // "characters" away.
     if (RelOffs < 0 || RelOffs > 50)
       break;
+
+    if (CurLoc.isMacroID() && !SM.isWrittenInSameFile(CurLoc, NextLoc))
+      break; // Token from a different macro.
+
     CurLoc = NextLoc;
   }
 

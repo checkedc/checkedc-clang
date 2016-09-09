@@ -827,7 +827,7 @@ namespace dr177 { // dr177: yes
   struct B {};
   struct A {
     A(A &); // expected-note {{not viable: expects an l-value}}
-    A(const B &);
+    A(const B &); // expected-note {{not viable: no known conversion from 'dr177::A' to}}
   };
   B b;
   A a = b; // expected-error {{no viable constructor copying variable}}
@@ -902,7 +902,11 @@ namespace dr183 { // dr183: sup 382
     typedef int X;
   };
   template<> struct A<int> {
+#if __cplusplus <= 199711
+    typename B<int>::X x; // expected-error {{'typename' occurs outside of a template}}
+#else
     typename B<int>::X x;
+#endif
   };
 }
 

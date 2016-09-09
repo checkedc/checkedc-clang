@@ -23,6 +23,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Allocator.h"
 #include <string>
+#include <utility>
 
 namespace clang {
 
@@ -517,8 +518,8 @@ class CodeCompletionTUInfo {
 
 public:
   explicit CodeCompletionTUInfo(
-                    IntrusiveRefCntPtr<GlobalCodeCompletionAllocator> Allocator)
-    : AllocatorRef(Allocator) { }
+      IntrusiveRefCntPtr<GlobalCodeCompletionAllocator> Allocator)
+      : AllocatorRef(std::move(Allocator)) {}
 
   IntrusiveRefCntPtr<GlobalCodeCompletionAllocator> getAllocatorRef() const {
     return AllocatorRef;
@@ -912,6 +913,13 @@ public:
   /// \brief Deregisters and destroys this code-completion consumer.
   virtual ~CodeCompleteConsumer();
 
+  /// \name Code-completion filtering
+  /// \brief Check if the result should be filtered out.
+  virtual bool isResultFilteredOut(StringRef Filter,
+                                   CodeCompletionResult Results) {
+    return false;
+  }
+
   /// \name Code-completion callbacks
   //@{
   /// \brief Process the finalized code-completion results.
@@ -964,6 +972,8 @@ public:
   void ProcessOverloadCandidates(Sema &S, unsigned CurrentArg,
                                  OverloadCandidate *Candidates,
                                  unsigned NumCandidates) override;
+
+  bool isResultFilteredOut(StringRef Filter, CodeCompletionResult Results) override;
 
   CodeCompletionAllocator &getAllocator() override {
     return CCTUInfo.getAllocator();

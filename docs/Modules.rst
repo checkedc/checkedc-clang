@@ -213,6 +213,9 @@ Command-line parameters
 ``-fmodule-file=<file>``
   Load the given precompiled module file.
 
+``-fprebuilt-module-path=<directory>``
+  Specify the path to the prebuilt modules. If specified, we will look for modules in this directory for a given top-level module name. We don't need a module map for loading prebuilt modules in this directory and the compiler will not try to rebuild these modules. This can be specified multiple times.
+
 Module Semantics
 ================
 
@@ -409,6 +412,12 @@ cplusplus
 
 cplusplus11
   C++11 support is available.
+
+freestanding
+  A freestanding environment is available.
+
+gnuinlineasm
+  GNU inline ASM is available.
 
 objc
   Objective-C support is available.

@@ -1,6 +1,6 @@
-=====================================
-Clang 3.9 (In-Progress) Release Notes
-=====================================
+=======================================
+Clang 4.0.0 (In-Progress) Release Notes
+=======================================
 
 .. contents::
    :local:
@@ -10,7 +10,7 @@ Written by the `LLVM Team <http://llvm.org/>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming Clang 3.9 release. You may
+   These are in-progress notes for the upcoming Clang 4.0.0 release. You may
    prefer the `Clang 3.8 Release Notes
    <http://llvm.org/releases/3.8.0/tools/clang/docs/ReleaseNotes.html>`_.
 
@@ -18,7 +18,7 @@ Introduction
 ============
 
 This document contains the release notes for the Clang C/C++/Objective-C
-frontend, part of the LLVM Compiler Infrastructure, release 3.9. Here we
+frontend, part of the LLVM Compiler Infrastructure, release 4.0.0. Here we
 describe the status of Clang in some detail, including major
 improvements from the previous release and new feature work. For the
 general LLVM release notes, see `the LLVM
@@ -36,8 +36,8 @@ main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <http://llvm.org/releases/>`_.
 
-What's New in Clang 3.9?
-========================
+What's New in Clang 4.0.0?
+==========================
 
 Some of the major new features and improvements to Clang are listed
 here. Generic improvements to Clang as a whole or to its underlying
@@ -47,14 +47,10 @@ sections with improvements to Clang's support for those languages.
 Major New Features
 ------------------
 
-- Feature1...
+-  ...
 
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Clang's diagnostics are constantly being improved to catch more issues,
-explain them more clearly, and provide more accurate source information
-about them. The improvements since the 3.7 release include:
 
 -  ...
 
@@ -69,17 +65,22 @@ New Pragmas in Clang
 
 Clang now supports the ...
 
+
+Attribute Changes in Clang
+--------------------------
+
+-  ...
+
 Windows Support
 ---------------
 
 Clang's support for building native Windows programs ...
 
-TLS is enabled for Cygwin defaults to -femulated-tls.
-
 
 C Language Changes in Clang
 ---------------------------
-The -faltivec and -maltivec flags no longer silently include altivec.h on Power platforms.
+
+- ...
 
 ...
 
@@ -91,9 +92,9 @@ C11 Feature Support
 C++ Language Changes in Clang
 -----------------------------
 
-- ...
+...
 
-C++11 Feature Support
+C++1z Feature Support
 ^^^^^^^^^^^^^^^^^^^^^
 
 ...
@@ -104,6 +105,11 @@ Objective-C Language Changes in Clang
 ...
 
 OpenCL C Language Changes in Clang
+----------------------------------
+
+...
+
+OpenMP Support in Clang
 ----------------------------------
 
 ...
@@ -120,18 +126,16 @@ this section should help get you past the largest hurdles of upgrading.
 AST Matchers
 ------------
 
-- hasAnyArgument: Matcher no longer ignores parentheses and implicit casts on
-  the argument before applying the inner matcher. The fix was done to allow for
-  greater control by the user. In all existing checkers that use this matcher
-  all instances of code ``hasAnyArgument(<inner matcher>)`` must be changed to
-  ``hasAnyArgument(ignoringParenImpCasts(<inner matcher>))``.
-
 ...
 
 libclang
 --------
 
 ...
+
+With the option --show-description, scan-build's list of defects will also
+show the description of the defects.
+
 
 Static Analyzer
 ---------------

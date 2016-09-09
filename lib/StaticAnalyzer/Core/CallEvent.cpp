@@ -177,7 +177,7 @@ ProgramStateRef CallEvent::invalidateRegions(unsigned BlockCount,
     // below for efficiency.
     if (PreserveArgs.count(Idx))
       if (const MemRegion *MR = getArgSVal(Idx).getAsRegion())
-        ETraits.setTrait(MR->StripCasts(),
+        ETraits.setTrait(MR->getBaseRegion(),
                         RegionAndSymbolInvalidationTraits::TK_PreserveContents);
         // TODO: Factor this out + handle the lower level const pointers.
 
@@ -552,7 +552,7 @@ void CXXInstanceCall::getInitialStackFrameContents(
 
       // FIXME: CallEvent maybe shouldn't be directly accessing StoreManager.
       bool Failed;
-      ThisVal = StateMgr.getStoreManager().evalDynamicCast(ThisVal, Ty, Failed);
+      ThisVal = StateMgr.getStoreManager().attemptDownCast(ThisVal, Ty, Failed);
       assert(!Failed && "Calling an incorrectly devirtualized method");
     }
 

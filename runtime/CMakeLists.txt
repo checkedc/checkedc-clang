@@ -34,13 +34,6 @@ if(NOT EXISTS ${COMPILER_RT_SRC_ROOT})
 endif()
 
 if(LLVM_BUILD_EXTERNAL_COMPILER_RT AND EXISTS ${COMPILER_RT_SRC_ROOT}/)
-  if(CMAKE_VERSION VERSION_GREATER 3.3.20150708)
-    set(cmake_3_4_USES_TERMINAL_OPTIONS
-      USES_TERMINAL_CONFIGURE 1
-      USES_TERMINAL_BUILD 1
-      USES_TERMINAL_INSTALL 1
-      )
-  endif()
 
   # Add compiler-rt as an external project.
   set(COMPILER_RT_PREFIX ${CMAKE_BINARY_DIR}/projects/compiler-rt)
@@ -77,16 +70,19 @@ if(LLVM_BUILD_EXTERNAL_COMPILER_RT AND EXISTS ${COMPILER_RT_SRC_ROOT}/)
                -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
                -DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}
                -DLLVM_CONFIG_PATH=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-config
+               -DLLVM_LIT_ARGS=${LLVM_LIT_ARGS}
                -DCOMPILER_RT_OUTPUT_DIR=${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}
                -DCOMPILER_RT_EXEC_OUTPUT_DIR=${LLVM_RUNTIME_OUTPUT_INTDIR}
                -DCOMPILER_RT_INSTALL_PATH:STRING=lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION}
                -DCOMPILER_RT_INCLUDE_TESTS=${LLVM_INCLUDE_TESTS}
                -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
-               -Dcmake_3_2_USES_TERMINAL=${cmake_3_2_USES_TERMINAL}
+               -DLLVM_LIBDIR_SUFFIX=${LLVM_LIBDIR_SUFFIX}
                ${COMPILER_RT_PASSTHROUGH_VARIABLES}
     INSTALL_COMMAND ""
     STEP_TARGETS configure build
-    ${cmake_3_4_USES_TERMINAL_OPTIONS}
+    USES_TERMINAL_CONFIGURE 1
+    USES_TERMINAL_BUILD 1
+    USES_TERMINAL_INSTALL 1
     )
 
   get_ext_project_build_command(run_clean_compiler_rt clean)
@@ -106,7 +102,8 @@ if(LLVM_BUILD_EXTERNAL_COMPILER_RT AND EXISTS ${COMPILER_RT_SRC_ROOT}/)
                     DEPENDS compiler-rt
                     COMMAND "${CMAKE_COMMAND}"
                              -DCMAKE_INSTALL_COMPONENT=compiler-rt
-                             -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+                             -P "${CMAKE_BINARY_DIR}/cmake_install.cmake"
+                    USES_TERMINAL)
 
   # Add top-level targets that build specific compiler-rt runtimes.
   set(COMPILER_RT_RUNTIMES asan builtins dfsan lsan msan profile tsan ubsan)
@@ -116,7 +113,7 @@ if(LLVM_BUILD_EXTERNAL_COMPILER_RT AND EXISTS ${COMPILER_RT_SRC_ROOT}/)
       COMMAND ${build_runtime_cmd}
       DEPENDS compiler-rt-configure
       WORKING_DIRECTORY ${BINARY_DIR}
-      VERBATIM)
+      VERBATIM USES_TERMINAL)
   endforeach()
 
   if(LLVM_INCLUDE_TESTS)
@@ -135,7 +132,7 @@ if(LLVM_BUILD_EXTERNAL_COMPILER_RT AND EXISTS ${COMPILER_RT_SRC_ROOT}/)
         DEPENDS compiler-rt-build ${COMPILER_RT_TEST_DEPENDENCIES}
         WORKING_DIRECTORY ${BINARY_DIR}
         VERBATIM
-        ${cmake_3_2_USES_TERMINAL}
+        USES_TERMINAL
         )
     endforeach()
 
@@ -145,18 +142,16 @@ if(LLVM_BUILD_EXTERNAL_COMPILER_RT AND EXISTS ${COMPILER_RT_SRC_ROOT}/)
       COMMAND ${run_check_compiler_rt}
       DEPENDS compiler-rt-build ${COMPILER_RT_TEST_DEPENDENCIES}
       WORKING_DIRECTORY ${BINARY_DIR}
-      VERBATIM)
+      VERBATIM USES_TERMINAL)
+
+    # Add special target to run all compiler-rt test suites.
+    get_ext_project_build_command(run_check_compiler_rt compiler-rt-test-depends)
+    add_custom_target(compiler-rt-test-depends
+      COMMAND ${run_check_compiler_rt}
+      DEPENDS compiler-rt-build ${COMPILER_RT_TEST_DEPENDENCIES}
+      WORKING_DIRECTORY ${BINARY_DIR}
+      VERBATIM USES_TERMINAL)
+    set_property(GLOBAL APPEND PROPERTY LLVM_ADDITIONAL_TEST_DEPENDS compiler-rt-test-depends)
+    set_property(GLOBAL APPEND PROPERTY LLVM_ADDITIONAL_TEST_TARGETS check-compiler-rt)
   endif()
 endif()
-
-set(src "${CMAKE_CURRENT_SOURCE_DIR}/vtables_blacklist.txt")
-set(dst "${LLVM_LIBRARY_OUTPUT_INTDIR}/clang/${CLANG_VERSION}/vtables_blacklist.txt")
-add_custom_command(OUTPUT ${dst}
-                   DEPENDS ${src}
-                   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${src} ${dst}
-                   COMMENT "Copying vtables blacklist")
-add_custom_target(vtables_blacklist DEPENDS ${dst})
-if(TARGET clang)
-  add_dependencies(clang vtables_blacklist)
-endif()
-install(FILES ${src} DESTINATION lib${LLVM_LIBDIR_SUFFIX}/clang/${CLANG_VERSION})

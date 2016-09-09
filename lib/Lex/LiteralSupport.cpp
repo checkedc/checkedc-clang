@@ -14,12 +14,25 @@
 
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Basic/CharInfo.h"
+#include "clang/Basic/LangOptions.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/LexDiagnostic.h"
+#include "clang/Lex/Lexer.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/Token.h"
+#include "llvm/ADT/APInt.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/ConvertUTF.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstdint> 
+#include <cstring>
+#include <string>
 
 using namespace clang;
 
@@ -134,7 +147,7 @@ static unsigned ProcessCharEscape(const char *ThisTokBegin,
       if (Diags)
         Diag(Diags, Features, Loc, ThisTokBegin, EscapeBegin, ThisTokBuf,
              diag::err_hex_escape_no_digits) << "x";
-      HadError = 1;
+      HadError = true;
       break;
     }
 
@@ -452,7 +465,6 @@ static void EncodeUCNEscape(const char *ThisTokBegin, const char *&ThisTokBuf,
   ResultBuf += bytesToWrite;
 }
 
-
 ///       integer-constant: [C99 6.4.4.1]
 ///         decimal-constant integer-suffix
 ///         octal-constant integer-suffix
@@ -525,6 +537,7 @@ NumericLiteralParser::NumericLiteralParser(StringRef TokSpelling,
   isHalf = false;
   isFloat = false;
   isImaginary = false;
+  isFloat128 = false;
   MicrosoftInteger = 0;
   hadError = false;
 
@@ -567,8 +580,16 @@ NumericLiteralParser::NumericLiteralParser(StringRef TokSpelling,
     case 'f':      // FP Suffix for "float"
     case 'F':
       if (!isFPConstant) break;  // Error for integer constant.
-      if (isHalf || isFloat || isLong) break; // HF, FF, LF invalid.
+      if (isHalf || isFloat || isLong || isFloat128)
+        break; // HF, FF, LF, QF invalid.
       isFloat = true;
+      continue;  // Success.
+    case 'q':    // FP Suffix for "__float128"
+    case 'Q':
+      if (!isFPConstant) break;  // Error for integer constant.
+      if (isHalf || isFloat || isLong || isFloat128)
+        break; // HQ, FQ, LQ, QQ invalid.
+      isFloat128 = true;
       continue;  // Success.
     case 'u':
     case 'U':
@@ -579,7 +600,7 @@ NumericLiteralParser::NumericLiteralParser(StringRef TokSpelling,
     case 'l':
     case 'L':
       if (isLong || isLongLong) break;  // Cannot be repeated.
-      if (isHalf || isFloat) break;     // LH, LF invalid.
+      if (isHalf || isFloat || isFloat128) break;     // LH, LF, LQ invalid.
 
       // Check for long long.  The L's need to be adjacent and the same case.
       if (s[1] == s[0]) {
@@ -975,7 +996,6 @@ NumericLiteralParser::GetFloatValue(llvm::APFloat &Result) {
 
   return Result.convertFromString(Str, APFloat::rmNearestTiesToEven);
 }
-
 
 /// \verbatim
 ///       user-defined-character-literal: [C++11 lex.ext]

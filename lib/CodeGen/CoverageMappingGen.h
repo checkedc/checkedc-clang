@@ -14,12 +14,11 @@
 #ifndef LLVM_CLANG_LIB_CODEGEN_COVERAGEMAPPINGGEN_H
 #define LLVM_CLANG_LIB_CODEGEN_COVERAGEMAPPINGGEN_H
 
-#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Frontend/CodeGenOptions.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/Support/raw_ostream.h"
 

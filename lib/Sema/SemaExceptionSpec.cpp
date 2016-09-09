@@ -44,7 +44,8 @@ bool Sema::isLibstdcxxEagerExceptionSpecHack(const Declarator &D) {
 
   // All the problem cases are member functions named "swap" within class
   // templates declared directly within namespace std.
-  if (!RD || RD->getEnclosingNamespaceContext() != getStdNamespace() ||
+  if (!RD || !getStdNamespace() ||
+      !RD->getEnclosingNamespaceContext()->Equals(getStdNamespace()) ||
       !RD->getIdentifier() || !RD->getDescribedClassTemplate() ||
       !D.getIdentifier() || !D.getIdentifier()->isStr("swap"))
     return false;
@@ -110,11 +111,17 @@ bool Sema::CheckSpecifiedExceptionType(QualType &T, SourceRange Range) {
   //   A type denoted in an exception-specification shall not denote a
   //   pointer or reference to an incomplete type, other than (cv) void* or a
   //   pointer or reference to a class currently being defined.
+  // In Microsoft mode, downgrade this to a warning.
+  unsigned DiagID = diag::err_incomplete_in_exception_spec;
+  bool ReturnValueOnError = true;
+  if (getLangOpts().MicrosoftExt) {
+    DiagID = diag::ext_incomplete_in_exception_spec;
+    ReturnValueOnError = false;
+  }
   if (!(PointeeT->isRecordType() &&
         PointeeT->getAs<RecordType>()->isBeingDefined()) &&
-      RequireCompleteType(Range.getBegin(), PointeeT,
-                          diag::err_incomplete_in_exception_spec, Kind, Range))
-    return true;
+      RequireCompleteType(Range.getBegin(), PointeeT, DiagID, Kind, Range))
+    return ReturnValueOnError;
 
   return false;
 }
@@ -228,7 +235,7 @@ bool Sema::CheckEquivalentExceptionSpec(FunctionDecl *Old, FunctionDecl *New) {
     //   If a declaration of a function has an implicit
     //   exception-specification, other declarations of the function shall
     //   not specify an exception-specification.
-    if (getLangOpts().CPlusPlus11 &&
+    if (getLangOpts().CPlusPlus11 && getLangOpts().CXXExceptions &&
         hasImplicitExceptionSpec(Old) != hasImplicitExceptionSpec(New)) {
       Diag(New->getLocation(), diag::ext_implicit_exception_spec_mismatch)
         << hasImplicitExceptionSpec(Old);
@@ -995,6 +1002,10 @@ CanThrowResult Sema::canThrow(const Expr *E) {
     return mergeCanThrow(CT, canSubExprsThrow(*this, E));
   }
 
+  case Expr::CXXInheritedCtorInitExprClass:
+    return canCalleeThrow(*this, E,
+                          cast<CXXInheritedCtorInitExpr>(E)->getConstructor());
+
   case Expr::LambdaExprClass: {
     const LambdaExpr *Lambda = cast<LambdaExpr>(E);
     CanThrowResult CT = CT_Cannot;
@@ -1136,6 +1147,7 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::ObjCIndirectCopyRestoreExprClass:
   case Expr::ObjCProtocolExprClass:
   case Expr::ObjCSelectorExprClass:
+  case Expr::ObjCAvailabilityCheckExprClass:
   case Expr::OffsetOfExprClass:
   case Expr::PackExpansionExprClass:
   case Expr::PseudoObjectExprClass:

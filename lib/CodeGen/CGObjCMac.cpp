@@ -22,9 +22,9 @@
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/StmtObjC.h"
-#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -236,13 +236,11 @@ public:
     CodeGen::CodeGenTypes &Types = CGM.getTypes();
     ASTContext &Ctx = CGM.getContext();
     // id objc_getProperty (id, SEL, ptrdiff_t, bool)
-    SmallVector<CanQualType,4> Params;
     CanQualType IdType = Ctx.getCanonicalParamType(Ctx.getObjCIdType());
     CanQualType SelType = Ctx.getCanonicalParamType(Ctx.getObjCSelType());
-    Params.push_back(IdType);
-    Params.push_back(SelType);
-    Params.push_back(Ctx.getPointerDiffType()->getCanonicalTypeUnqualified());
-    Params.push_back(Ctx.BoolTy);
+    CanQualType Params[] = {
+        IdType, SelType,
+        Ctx.getPointerDiffType()->getCanonicalTypeUnqualified(), Ctx.BoolTy};
     llvm::FunctionType *FTy =
         Types.GetFunctionType(
           Types.arrangeBuiltinFunctionDeclaration(IdType, Params));
@@ -253,15 +251,15 @@ public:
     CodeGen::CodeGenTypes &Types = CGM.getTypes();
     ASTContext &Ctx = CGM.getContext();
     // void objc_setProperty (id, SEL, ptrdiff_t, id, bool, bool)
-    SmallVector<CanQualType,6> Params;
     CanQualType IdType = Ctx.getCanonicalParamType(Ctx.getObjCIdType());
     CanQualType SelType = Ctx.getCanonicalParamType(Ctx.getObjCSelType());
-    Params.push_back(IdType);
-    Params.push_back(SelType);
-    Params.push_back(Ctx.getPointerDiffType()->getCanonicalTypeUnqualified());
-    Params.push_back(IdType);
-    Params.push_back(Ctx.BoolTy);
-    Params.push_back(Ctx.BoolTy);
+    CanQualType Params[] = {
+        IdType,
+        SelType,
+        Ctx.getPointerDiffType()->getCanonicalTypeUnqualified(),
+        IdType,
+        Ctx.BoolTy,
+        Ctx.BoolTy};
     llvm::FunctionType *FTy =
         Types.GetFunctionType(
           Types.arrangeBuiltinFunctionDeclaration(Ctx.VoidTy, Params));
@@ -1133,9 +1131,8 @@ private:
 
   /// EmitMethodList - Emit the method list for the given
   /// implementation. The return value has type MethodListPtrTy.
-  llvm::Constant *EmitMethodList(Twine Name,
-                                 const char *Section,
-                                 ArrayRef<llvm::Constant*> Methods);
+  llvm::Constant *EmitMethodList(Twine Name, StringRef Section,
+                                 ArrayRef<llvm::Constant *> Methods);
 
   /// EmitMethodDescList - Emit a method description list for a list of
   /// method declarations.
@@ -1148,9 +1145,8 @@ private:
   ///  - begin, end: The method list to output.
   ///
   /// The return value has type MethodDescriptionListPtrTy.
-  llvm::Constant *EmitMethodDescList(Twine Name,
-                                     const char *Section,
-                                     ArrayRef<llvm::Constant*> Methods);
+  llvm::Constant *EmitMethodDescList(Twine Name, StringRef Section,
+                                     ArrayRef<llvm::Constant *> Methods);
 
   /// GetOrEmitProtocol - Get the protocol object for the given
   /// declaration, emitting it if necessary. The return value has type
@@ -1307,9 +1303,8 @@ private:
 
   /// AddModuleClassList - Add the given list of class pointers to the
   /// module with the provided symbol and section names.
-  void AddModuleClassList(ArrayRef<llvm::GlobalValue*> Container,
-                          const char *SymbolName,
-                          const char *SectionName);
+  void AddModuleClassList(ArrayRef<llvm::GlobalValue *> Container,
+                          StringRef SymbolName, StringRef SectionName);
 
   llvm::GlobalVariable * BuildClassRoTInitializer(unsigned flags,
                                               unsigned InstanceStart,
@@ -1328,9 +1323,8 @@ private:
 
   /// EmitMethodList - Emit the method list for the given
   /// implementation. The return value has type MethodListnfABITy.
-  llvm::Constant *EmitMethodList(Twine Name,
-                                 const char *Section,
-                                 ArrayRef<llvm::Constant*> Methods);
+  llvm::Constant *EmitMethodList(Twine Name, StringRef Section,
+                                 ArrayRef<llvm::Constant *> Methods);
   /// EmitIvarList - Emit the ivar list for the given
   /// implementation. If ForClass is true the list of class ivars
   /// (i.e. metaclass ivars) is emitted, otherwise the list of
@@ -1412,13 +1406,9 @@ private:
   llvm::Constant *GetInterfaceEHType(const ObjCInterfaceDecl *ID,
                                   bool ForDefinition);
 
-  const char *getMetaclassSymbolPrefix() const {
-    return "OBJC_METACLASS_$_";
-  }
+  StringRef getMetaclassSymbolPrefix() const { return "OBJC_METACLASS_$_"; }
 
-  const char *getClassSymbolPrefix() const {
-    return "OBJC_CLASS_$_";
-  }
+  StringRef getClassSymbolPrefix() const { return "OBJC_CLASS_$_"; }
 
   void GetClassSizeInfo(const ObjCImplementationDecl *OID,
                         uint32_t &InstanceStart,
@@ -1951,7 +1941,7 @@ CGObjCCommonMac::EmitMessageSend(CodeGen::CodeGenFunction &CGF,
   // Emit a null-check if there's a consumed argument other than the receiver.
   bool RequiresNullCheck = false;
   if (ReceiverCanBeNull && CGM.getLangOpts().ObjCAutoRefCount && Method) {
-    for (const auto *ParamDecl : Method->params()) {
+    for (const auto *ParamDecl : Method->parameters()) {
       if (ParamDecl->hasAttr<NSConsumedAttr>()) {
         if (!nullReturn.NullBB)
           nullReturn.init(CGF, Arg0);
@@ -2953,6 +2943,15 @@ llvm::Constant *CGObjCCommonMac::EmitPropertyList(Twine Name,
                                        const ObjCContainerDecl *OCD,
                                        const ObjCCommonTypesHelper &ObjCTypes,
                                        bool IsClassProperty) {
+  if (IsClassProperty) {
+    // Make this entry NULL for OS X with deployment target < 10.11, for iOS
+    // with deployment target < 9.0.
+    const llvm::Triple &Triple = CGM.getTarget().getTriple();
+    if ((Triple.isMacOSX() && Triple.isMacOSXVersionLT(10, 11)) ||
+        (Triple.isiOS() && Triple.isOSVersionLT(9)))
+      return llvm::Constant::getNullValue(ObjCTypes.PropertyListPtrTy);
+  }
+
   SmallVector<llvm::Constant *, 16> Properties;
   llvm::SmallPtrSet<const IdentifierInfo*, 16> PropertySet;
 
@@ -3053,8 +3052,8 @@ CGObjCMac::GetMethodDescriptionConstant(const ObjCMethodDecl *MD) {
 }
 
 llvm::Constant *
-CGObjCMac::EmitMethodDescList(Twine Name, const char *Section,
-                              ArrayRef<llvm::Constant*> Methods) {
+CGObjCMac::EmitMethodDescList(Twine Name, StringRef Section,
+                              ArrayRef<llvm::Constant *> Methods) {
   // Return null for empty list.
   if (Methods.empty())
     return llvm::Constant::getNullValue(ObjCTypes.MethodDescriptionListPtrTy);
@@ -3597,9 +3596,8 @@ llvm::Constant *CGObjCMac::GetMethodConstant(const ObjCMethodDecl *MD) {
   return llvm::ConstantStruct::get(ObjCTypes.MethodTy, Method);
 }
 
-llvm::Constant *CGObjCMac::EmitMethodList(Twine Name,
-                                          const char *Section,
-                                          ArrayRef<llvm::Constant*> Methods) {
+llvm::Constant *CGObjCMac::EmitMethodList(Twine Name, StringRef Section,
+                                          ArrayRef<llvm::Constant *> Methods) {
   // Return null for empty list.
   if (Methods.empty())
     return llvm::Constant::getNullValue(ObjCTypes.MethodListPtrTy);
@@ -5206,9 +5204,8 @@ void CGObjCMac::FinishModule() {
 }
 
 CGObjCNonFragileABIMac::CGObjCNonFragileABIMac(CodeGen::CodeGenModule &cgm)
-  : CGObjCCommonMac(cgm),
-    ObjCTypes(cgm) {
-  ObjCEmptyCacheVar = ObjCEmptyVtableVar = nullptr;
+    : CGObjCCommonMac(cgm), ObjCTypes(cgm), ObjCEmptyCacheVar(nullptr),
+      ObjCEmptyVtableVar(nullptr) {
   ObjCABI = 2;
 }
 
@@ -5691,10 +5688,9 @@ llvm::Function *CGObjCNonFragileABIMac::ModuleInitFunction() {
   return nullptr;
 }
 
-void CGObjCNonFragileABIMac::
-AddModuleClassList(ArrayRef<llvm::GlobalValue*> Container,
-                   const char *SymbolName,
-                   const char *SectionName) {
+void CGObjCNonFragileABIMac::AddModuleClassList(
+    ArrayRef<llvm::GlobalValue *> Container, StringRef SymbolName,
+    StringRef SectionName) {
   unsigned NumClasses = Container.size();
 
   if (!NumClasses)
@@ -5955,8 +5951,9 @@ llvm::GlobalVariable *CGObjCNonFragileABIMac::BuildClassMetaData(
   GV->setSection("__DATA, __objc_data");
   GV->setAlignment(
     CGM.getDataLayout().getABITypeAlignment(ObjCTypes.ClassnfABITy));
-  if (HiddenVisibility)
-    GV->setVisibility(llvm::GlobalValue::HiddenVisibility);
+  if (!CGM.getTriple().isOSBinFormatCOFF())
+    if (HiddenVisibility)
+      GV->setVisibility(llvm::GlobalValue::HiddenVisibility);
   return GV;
 }
 
@@ -5981,49 +5978,60 @@ void CGObjCNonFragileABIMac::GetClassSizeInfo(const ObjCImplementationDecl *OID,
     InstanceStart = RL.getFieldOffset(0) / CGM.getContext().getCharWidth();
 }
 
-void CGObjCNonFragileABIMac::GenerateClass(const ObjCImplementationDecl *ID) {
-  std::string ClassName = ID->getObjCRuntimeNameAsString();
-  if (!ObjCEmptyCacheVar) {
-    ObjCEmptyCacheVar = new llvm::GlobalVariable(
-      CGM.getModule(),
-      ObjCTypes.CacheTy,
-      false,
-      llvm::GlobalValue::ExternalLinkage,
-      nullptr,
-      "_objc_empty_cache");
+static llvm::GlobalValue::DLLStorageClassTypes getStorage(CodeGenModule &CGM,
+                                                          StringRef Name) {
+  IdentifierInfo &II = CGM.getContext().Idents.get(Name);
+  TranslationUnitDecl *TUDecl = CGM.getContext().getTranslationUnitDecl();
+  DeclContext *DC = TranslationUnitDecl::castToDeclContext(TUDecl);
 
-    // Make this entry NULL for any iOS device target, any iOS simulator target,
-    // OS X with deployment target 10.9 or later.
+  const VarDecl *VD = nullptr;
+  for (const auto &Result : DC->lookup(&II))
+    if ((VD = dyn_cast<VarDecl>(Result)))
+      break;
+
+  if (!VD)
+    return llvm::GlobalValue::DLLImportStorageClass;
+  if (VD->hasAttr<DLLExportAttr>())
+    return llvm::GlobalValue::DLLExportStorageClass;
+  if (VD->hasAttr<DLLImportAttr>())
+    return llvm::GlobalValue::DLLImportStorageClass;
+  return llvm::GlobalValue::DefaultStorageClass;
+}
+
+void CGObjCNonFragileABIMac::GenerateClass(const ObjCImplementationDecl *ID) {
+  if (!ObjCEmptyCacheVar) {
+    ObjCEmptyCacheVar =
+        new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.CacheTy, false,
+                                 llvm::GlobalValue::ExternalLinkage, nullptr,
+                                 "_objc_empty_cache");
+    if (CGM.getTriple().isOSBinFormatCOFF())
+      ObjCEmptyCacheVar->setDLLStorageClass(getStorage(CGM, "_objc_empty_cache"));
+
+    // Only OS X with deployment version <10.9 use the empty vtable symbol
     const llvm::Triple &Triple = CGM.getTarget().getTriple();
-    if (Triple.isiOS() || Triple.isWatchOS() ||
-        (Triple.isMacOSX() && !Triple.isMacOSXVersionLT(10, 9)))
-      // This entry will be null.
-      ObjCEmptyVtableVar = nullptr;
-    else
-      ObjCEmptyVtableVar = new llvm::GlobalVariable(
-                                                    CGM.getModule(),
-                                                    ObjCTypes.ImpnfABITy,
-                                                    false,
-                                                    llvm::GlobalValue::ExternalLinkage,
-                                                    nullptr,
-                                                    "_objc_empty_vtable");
+    if (Triple.isMacOSX() && Triple.isMacOSXVersionLT(10, 9))
+      ObjCEmptyVtableVar =
+          new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.ImpnfABITy, false,
+                                   llvm::GlobalValue::ExternalLinkage, nullptr,
+                                   "_objc_empty_vtable");
   }
-  assert(ID->getClassInterface() &&
-         "CGObjCNonFragileABIMac::GenerateClass - class is 0");
+
   // FIXME: Is this correct (that meta class size is never computed)?
   uint32_t InstanceStart =
     CGM.getDataLayout().getTypeAllocSize(ObjCTypes.ClassnfABITy);
   uint32_t InstanceSize = InstanceStart;
   uint32_t flags = NonFragileABI_Class_Meta;
-  llvm::SmallString<64> ObjCMetaClassName(getMetaclassSymbolPrefix());
-  llvm::SmallString<64> ObjCClassName(getClassSymbolPrefix());
-  llvm::SmallString<64> TClassName;
 
   llvm::GlobalVariable *SuperClassGV, *IsAGV;
 
+  StringRef ClassName = ID->getObjCRuntimeNameAsString();
+  const auto *CI = ID->getClassInterface();
+  assert(CI && "CGObjCNonFragileABIMac::GenerateClass - class is 0");
+
   // Build the flags for the metaclass.
-  bool classIsHidden =
-    ID->getClassInterface()->getVisibility() == HiddenVisibility;
+  bool classIsHidden = (CGM.getTriple().isOSBinFormatCOFF())
+                           ? !CI->hasAttr<DLLExportAttr>()
+                           : CI->getVisibility() == HiddenVisibility;
   if (classIsHidden)
     flags |= NonFragileABI_Class_Hidden;
 
@@ -6032,45 +6040,59 @@ void CGObjCNonFragileABIMac::GenerateClass(const ObjCImplementationDecl *ID) {
   if (ID->hasNonZeroConstructors() || ID->hasDestructors()) {
     flags |= NonFragileABI_Class_HasCXXStructors;
     if (!ID->hasNonZeroConstructors())
-      flags |= NonFragileABI_Class_HasCXXDestructorOnly;  
+      flags |= NonFragileABI_Class_HasCXXDestructorOnly;
   }
 
-  if (!ID->getClassInterface()->getSuperClass()) {
+  if (!CI->getSuperClass()) {
     // class is root
     flags |= NonFragileABI_Class_Root;
-    TClassName = ObjCClassName;
-    TClassName += ClassName;
-    SuperClassGV = GetClassGlobal(TClassName.str(),
-                                  ID->getClassInterface()->isWeakImported());
-    TClassName = ObjCMetaClassName;
-    TClassName += ClassName;
-    IsAGV = GetClassGlobal(TClassName.str(),
-                           ID->getClassInterface()->isWeakImported());
+
+    SuperClassGV = GetClassGlobal((getClassSymbolPrefix() + ClassName).str(),
+                                  CI->isWeakImported());
+    if (CGM.getTriple().isOSBinFormatCOFF())
+      if (CI->hasAttr<DLLImportAttr>())
+        SuperClassGV->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+
+    IsAGV = GetClassGlobal((getMetaclassSymbolPrefix() + ClassName).str(),
+                           CI->isWeakImported());
+    if (CGM.getTriple().isOSBinFormatCOFF())
+      if (CI->hasAttr<DLLImportAttr>())
+        IsAGV->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
   } else {
     // Has a root. Current class is not a root.
     const ObjCInterfaceDecl *Root = ID->getClassInterface();
     while (const ObjCInterfaceDecl *Super = Root->getSuperClass())
       Root = Super;
-    TClassName = ObjCMetaClassName ;
-    TClassName += Root->getObjCRuntimeNameAsString();
-    IsAGV = GetClassGlobal(TClassName.str(),
+
+    const auto *Super = CI->getSuperClass();
+    StringRef RootClassName = Root->getObjCRuntimeNameAsString();
+    StringRef SuperClassName = Super->getObjCRuntimeNameAsString();
+
+    IsAGV = GetClassGlobal((getMetaclassSymbolPrefix() + RootClassName).str(),
                            Root->isWeakImported());
+    if (CGM.getTriple().isOSBinFormatCOFF())
+      if (Root->hasAttr<DLLImportAttr>())
+        IsAGV->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
 
     // work on super class metadata symbol.
-    TClassName = ObjCMetaClassName;
-    TClassName += ID->getClassInterface()->getSuperClass()->getObjCRuntimeNameAsString();
-    SuperClassGV = GetClassGlobal(
-                                  TClassName.str(),
-                                  ID->getClassInterface()->getSuperClass()->isWeakImported());
+    SuperClassGV =
+        GetClassGlobal((getMetaclassSymbolPrefix() + SuperClassName).str(),
+                       Super->isWeakImported());
+    if (CGM.getTriple().isOSBinFormatCOFF())
+      if (Super->hasAttr<DLLImportAttr>())
+        SuperClassGV->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
   }
-  llvm::GlobalVariable *CLASS_RO_GV = BuildClassRoTInitializer(flags,
-                                                               InstanceStart,
-                                                               InstanceSize,ID);
-  TClassName = ObjCMetaClassName;
-  TClassName += ClassName;
-  llvm::GlobalVariable *MetaTClass = BuildClassMetaData(
-      TClassName.str(), IsAGV, SuperClassGV, CLASS_RO_GV, classIsHidden,
-      ID->getClassInterface()->isWeakImported());
+
+  llvm::GlobalVariable *CLASS_RO_GV =
+      BuildClassRoTInitializer(flags, InstanceStart, InstanceSize, ID);
+
+  llvm::GlobalVariable *MetaTClass =
+      BuildClassMetaData((getMetaclassSymbolPrefix() + ClassName).str(), IsAGV,
+                         SuperClassGV, CLASS_RO_GV, classIsHidden,
+                         CI->isWeakImported());
+  if (CGM.getTriple().isOSBinFormatCOFF())
+    if (CI->hasAttr<DLLExportAttr>())
+      MetaTClass->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
   DefinedMetaClasses.push_back(MetaTClass);
 
   // Metadata for the class
@@ -6091,34 +6113,38 @@ void CGObjCNonFragileABIMac::GenerateClass(const ObjCImplementationDecl *ID) {
       flags |= NonFragileABI_Class_HasCXXDestructorOnly;
   }
 
-  if (hasObjCExceptionAttribute(CGM.getContext(), ID->getClassInterface()))
+  if (hasObjCExceptionAttribute(CGM.getContext(), CI))
     flags |= NonFragileABI_Class_Exception;
 
-  if (!ID->getClassInterface()->getSuperClass()) {
+  if (!CI->getSuperClass()) {
     flags |= NonFragileABI_Class_Root;
     SuperClassGV = nullptr;
   } else {
     // Has a root. Current class is not a root.
-    TClassName = ObjCClassName;
-    TClassName += ID->getClassInterface()->getSuperClass()->getObjCRuntimeNameAsString();
-    SuperClassGV = GetClassGlobal(
-                                  TClassName.str(),
-                                  ID->getClassInterface()->getSuperClass()->isWeakImported());
-  }
-  GetClassSizeInfo(ID, InstanceStart, InstanceSize);
-  CLASS_RO_GV = BuildClassRoTInitializer(flags,
-                                         InstanceStart,
-                                         InstanceSize,
-                                         ID);
+    const auto *Super = CI->getSuperClass();
+    StringRef SuperClassName = Super->getObjCRuntimeNameAsString();
 
-  TClassName = ObjCClassName;
-  TClassName += ClassName;
+    SuperClassGV =
+        GetClassGlobal((getClassSymbolPrefix() + SuperClassName).str(),
+                       Super->isWeakImported());
+    if (CGM.getTriple().isOSBinFormatCOFF())
+      if (Super->hasAttr<DLLImportAttr>())
+        SuperClassGV->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+  }
+
+  GetClassSizeInfo(ID, InstanceStart, InstanceSize);
+  CLASS_RO_GV =
+      BuildClassRoTInitializer(flags, InstanceStart, InstanceSize, ID);
+
   llvm::GlobalVariable *ClassMD =
-    BuildClassMetaData(TClassName.str(), MetaTClass, SuperClassGV, CLASS_RO_GV,
-                       classIsHidden,
-                       ID->getClassInterface()->isWeakImported());
+    BuildClassMetaData((getClassSymbolPrefix() + ClassName).str(), MetaTClass,
+                       SuperClassGV, CLASS_RO_GV, classIsHidden,
+                       CI->isWeakImported());
+  if (CGM.getTriple().isOSBinFormatCOFF())
+    if (CI->hasAttr<DLLExportAttr>())
+      ClassMD->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
   DefinedClasses.push_back(ClassMD);
-  ImplementedClasses.push_back(ID->getClassInterface());
+  ImplementedClasses.push_back(CI);
 
   // Determine if this class is also "non-lazy".
   if (ImplementationIsNonLazy(ID))
@@ -6126,7 +6152,7 @@ void CGObjCNonFragileABIMac::GenerateClass(const ObjCImplementationDecl *ID) {
 
   // Force the definition of the EHType if necessary.
   if (flags & NonFragileABI_Class_Exception)
-    GetInterfaceEHType(ID->getClassInterface(), true);
+    GetInterfaceEHType(CI, true);
   // Make sure method definition entries are all clear for next implementation.
   MethodDefinitions.clear();
 }
@@ -6303,9 +6329,8 @@ llvm::Constant *CGObjCNonFragileABIMac::GetMethodConstant(
 /// }
 ///
 llvm::Constant *
-CGObjCNonFragileABIMac::EmitMethodList(Twine Name,
-                                       const char *Section,
-                                       ArrayRef<llvm::Constant*> Methods) {
+CGObjCNonFragileABIMac::EmitMethodList(Twine Name, StringRef Section,
+                                       ArrayRef<llvm::Constant *> Methods) {
   // Return null for empty list.
   if (Methods.empty())
     return llvm::Constant::getNullValue(ObjCTypes.MethodListnfABIPtrTy);
@@ -6335,18 +6360,28 @@ CGObjCNonFragileABIMac::EmitMethodList(Twine Name,
 llvm::GlobalVariable *
 CGObjCNonFragileABIMac::ObjCIvarOffsetVariable(const ObjCInterfaceDecl *ID,
                                                const ObjCIvarDecl *Ivar) {
-    
   const ObjCInterfaceDecl *Container = Ivar->getContainingInterface();
   llvm::SmallString<64> Name("OBJC_IVAR_$_");
   Name += Container->getObjCRuntimeNameAsString();
   Name += ".";
   Name += Ivar->getName();
-  llvm::GlobalVariable *IvarOffsetGV =
-    CGM.getModule().getGlobalVariable(Name);
-  if (!IvarOffsetGV)
-    IvarOffsetGV = new llvm::GlobalVariable(
-      CGM.getModule(), ObjCTypes.IvarOffsetVarTy, false,
-      llvm::GlobalValue::ExternalLinkage, nullptr, Name.str());
+  llvm::GlobalVariable *IvarOffsetGV = CGM.getModule().getGlobalVariable(Name);
+  if (!IvarOffsetGV) {
+    IvarOffsetGV =
+        new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.IvarOffsetVarTy,
+                                 false, llvm::GlobalValue::ExternalLinkage,
+                                 nullptr, Name.str());
+    if (CGM.getTriple().isOSBinFormatCOFF()) {
+      bool IsPrivateOrPackage =
+          Ivar->getAccessControl() == ObjCIvarDecl::Private ||
+          Ivar->getAccessControl() == ObjCIvarDecl::Package;
+
+      if (ID->hasAttr<DLLExportAttr>() && !IsPrivateOrPackage)
+        IvarOffsetGV->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
+      else if (ID->hasAttr<DLLImportAttr>())
+        IvarOffsetGV->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+    }
+  }
   return IvarOffsetGV;
 }
 
@@ -6360,14 +6395,17 @@ CGObjCNonFragileABIMac::EmitIvarOffsetVar(const ObjCInterfaceDecl *ID,
   IvarOffsetGV->setAlignment(
       CGM.getDataLayout().getABITypeAlignment(ObjCTypes.IvarOffsetVarTy));
 
-  // FIXME: This matches gcc, but shouldn't the visibility be set on the use as
-  // well (i.e., in ObjCIvarOffsetVariable).
-  if (Ivar->getAccessControl() == ObjCIvarDecl::Private ||
-      Ivar->getAccessControl() == ObjCIvarDecl::Package ||
-      ID->getVisibility() == HiddenVisibility)
-    IvarOffsetGV->setVisibility(llvm::GlobalValue::HiddenVisibility);
-  else
-    IvarOffsetGV->setVisibility(llvm::GlobalValue::DefaultVisibility);
+  if (!CGM.getTriple().isOSBinFormatCOFF()) {
+    // FIXME: This matches gcc, but shouldn't the visibility be set on the use
+    // as well (i.e., in ObjCIvarOffsetVariable).
+    if (Ivar->getAccessControl() == ObjCIvarDecl::Private ||
+        Ivar->getAccessControl() == ObjCIvarDecl::Package ||
+        ID->getVisibility() == HiddenVisibility)
+      IvarOffsetGV->setVisibility(llvm::GlobalValue::HiddenVisibility);
+    else
+      IvarOffsetGV->setVisibility(llvm::GlobalValue::DefaultVisibility);
+  }
+
   IvarOffsetGV->setSection("__DATA, __objc_ivar");
   return IvarOffsetGV;
 }
@@ -6830,7 +6868,7 @@ CGObjCNonFragileABIMac::EmitVTableMessageSend(CodeGenFunction &CGF,
   
   bool requiresnullCheck = false;
   if (CGM.getLangOpts().ObjCAutoRefCount && method)
-    for (const auto *ParamDecl : method->params()) {
+    for (const auto *ParamDecl : method->parameters()) {
       if (ParamDecl->hasAttr<NSConsumedAttr>()) {
         if (!nullReturn.NullBB)
           nullReturn.init(CGF, arg0);
@@ -6902,9 +6940,8 @@ llvm::Value *CGObjCNonFragileABIMac::EmitClassRefFromId(CodeGenFunction &CGF,
   llvm::GlobalVariable *&Entry = ClassReferences[II];
   
   if (!Entry) {
-    std::string ClassName(
-      getClassSymbolPrefix() +
-      (ID ? ID->getObjCRuntimeNameAsString() : II->getName()).str());
+    StringRef Name = ID ? ID->getObjCRuntimeNameAsString() : II->getName();
+    std::string ClassName = (getClassSymbolPrefix() + Name).str();
     llvm::GlobalVariable *ClassGV = GetClassGlobal(ClassName, Weak);
     Entry = new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.ClassnfABIPtrTy,
                                      false, llvm::GlobalValue::PrivateLinkage,
@@ -7201,27 +7238,28 @@ CGObjCNonFragileABIMac::EmitSynchronizedStmt(CodeGen::CodeGenFunction &CGF,
 llvm::Constant *
 CGObjCNonFragileABIMac::GetEHType(QualType T) {
   // There's a particular fixed type info for 'id'.
-  if (T->isObjCIdType() ||
-      T->isObjCQualifiedIdType()) {
-    llvm::Constant *IDEHType =
-      CGM.getModule().getGlobalVariable("OBJC_EHTYPE_id");
-    if (!IDEHType)
+  if (T->isObjCIdType() || T->isObjCQualifiedIdType()) {
+    auto *IDEHType = CGM.getModule().getGlobalVariable("OBJC_EHTYPE_id");
+    if (!IDEHType) {
       IDEHType =
-        new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.EHTypeTy,
-                                 false,
-                                 llvm::GlobalValue::ExternalLinkage,
-                                 nullptr, "OBJC_EHTYPE_id");
+          new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.EHTypeTy, false,
+                                   llvm::GlobalValue::ExternalLinkage, nullptr,
+                                   "OBJC_EHTYPE_id");
+      if (CGM.getTriple().isOSBinFormatCOFF())
+        IDEHType->setDLLStorageClass(getStorage(CGM, "OBJC_EHTYPE_id"));
+    }
     return IDEHType;
   }
 
   // All other types should be Objective-C interface pointer types.
-  const ObjCObjectPointerType *PT =
-    T->getAs<ObjCObjectPointerType>();
+  const ObjCObjectPointerType *PT = T->getAs<ObjCObjectPointerType>();
   assert(PT && "Invalid @catch type.");
+
   const ObjCInterfaceType *IT = PT->getInterfaceType();
   assert(IT && "Invalid @catch type.");
+
   return GetInterfaceEHType(IT->getDecl(), false);
-}                                                  
+}
 
 void CGObjCNonFragileABIMac::EmitTryStmt(CodeGen::CodeGenFunction &CGF,
                                          const ObjCAtTryStmt &S) {
@@ -7254,6 +7292,7 @@ llvm::Constant *
 CGObjCNonFragileABIMac::GetInterfaceEHType(const ObjCInterfaceDecl *ID,
                                            bool ForDefinition) {
   llvm::GlobalVariable * &Entry = EHTypeReferences[ID->getIdentifier()];
+  StringRef ClassName = ID->getObjCRuntimeNameAsString();
 
   // If we don't need a definition, return the entry if found or check
   // if we use an external reference.
@@ -7263,38 +7302,43 @@ CGObjCNonFragileABIMac::GetInterfaceEHType(const ObjCInterfaceDecl *ID,
 
     // If this type (or a super class) has the __objc_exception__
     // attribute, emit an external reference.
-    if (hasObjCExceptionAttribute(CGM.getContext(), ID))
-      return Entry =
-          new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.EHTypeTy, false,
-                                   llvm::GlobalValue::ExternalLinkage,
-                                   nullptr,
-                                   ("OBJC_EHTYPE_$_" +
-                                    ID->getObjCRuntimeNameAsString()));
+    if (hasObjCExceptionAttribute(CGM.getContext(), ID)) {
+      std::string EHTypeName = ("OBJC_EHTYPE_$_" + ClassName).str();
+      Entry = new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.EHTypeTy,
+                                       false, llvm::GlobalValue::ExternalLinkage,
+                                       nullptr, EHTypeName);
+      if (CGM.getTriple().isOSBinFormatCOFF()) {
+        if (ID->hasAttr<DLLExportAttr>())
+          Entry->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
+        else if (ID->hasAttr<DLLImportAttr>())
+          Entry->setDLLStorageClass(llvm::GlobalValue::DLLImportStorageClass);
+      }
+      return Entry;
+    }
   }
 
-  // Otherwise we need to either make a new entry or fill in the
-  // initializer.
+  // Otherwise we need to either make a new entry or fill in the initializer.
   assert((!Entry || !Entry->hasInitializer()) && "Duplicate EHType definition");
-  llvm::SmallString<64> ClassName(getClassSymbolPrefix());
-  ClassName += ID->getObjCRuntimeNameAsString();
+
   std::string VTableName = "objc_ehtype_vtable";
-  llvm::GlobalVariable *VTableGV =
-    CGM.getModule().getGlobalVariable(VTableName);
-  if (!VTableGV)
-    VTableGV = new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.Int8PtrTy,
-                                        false,
-                                        llvm::GlobalValue::ExternalLinkage,
-                                        nullptr, VTableName);
+  auto *VTableGV = CGM.getModule().getGlobalVariable(VTableName);
+  if (!VTableGV) {
+    VTableGV =
+        new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.Int8PtrTy, false,
+                                 llvm::GlobalValue::ExternalLinkage, nullptr,
+                                 VTableName);
+    if (CGM.getTriple().isOSBinFormatCOFF())
+      VTableGV->setDLLStorageClass(getStorage(CGM, VTableName));
+  }
 
   llvm::Value *VTableIdx = llvm::ConstantInt::get(CGM.Int32Ty, 2);
-
   llvm::Constant *Values[] = {
       llvm::ConstantExpr::getGetElementPtr(VTableGV->getValueType(), VTableGV,
                                            VTableIdx),
       GetClassName(ID->getObjCRuntimeNameAsString()),
-      GetClassGlobal(ClassName.str())};
-  llvm::Constant *Init =
-    llvm::ConstantStruct::get(ObjCTypes.EHTypeTy, Values);
+      GetClassGlobal((getClassSymbolPrefix() + ClassName).str()),
+  };
+  llvm::Constant *Init = llvm::ConstantStruct::get(ObjCTypes.EHTypeTy, Values);
 
   llvm::GlobalValue::LinkageTypes L = ForDefinition
                                           ? llvm::GlobalValue::ExternalLinkage
@@ -7302,19 +7346,22 @@ CGObjCNonFragileABIMac::GetInterfaceEHType(const ObjCInterfaceDecl *ID,
   if (Entry) {
     Entry->setInitializer(Init);
   } else {
-    llvm::SmallString<64> EHTYPEName("OBJC_EHTYPE_$_");
-    EHTYPEName += ID->getObjCRuntimeNameAsString();
-    Entry = new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.EHTypeTy, false,
-                                     L,
-                                     Init,
-                                     EHTYPEName.str());
+    Entry =
+        new llvm::GlobalVariable(CGM.getModule(), ObjCTypes.EHTypeTy, false, L,
+                                 Init, ("OBJC_EHTYPE_$_" + ClassName).str());
+    if (CGM.getTriple().isOSBinFormatCOFF())
+      if (hasObjCExceptionAttribute(CGM.getContext(), ID))
+        if (ID->hasAttr<DLLExportAttr>())
+          Entry->setDLLStorageClass(llvm::GlobalValue::DLLExportStorageClass);
   }
   assert(Entry->getLinkage() == L);
 
-  if (ID->getVisibility() == HiddenVisibility)
-    Entry->setVisibility(llvm::GlobalValue::HiddenVisibility);
-  Entry->setAlignment(CGM.getDataLayout().getABITypeAlignment(
-      ObjCTypes.EHTypeTy));
+  if (!CGM.getTriple().isOSBinFormatCOFF())
+    if (ID->getVisibility() == HiddenVisibility)
+      Entry->setVisibility(llvm::GlobalValue::HiddenVisibility);
+
+  const auto &DL = CGM.getDataLayout();
+  Entry->setAlignment(DL.getABITypeAlignment(ObjCTypes.EHTypeTy));
 
   if (ForDefinition)
     Entry->setSection("__DATA,__objc_const");

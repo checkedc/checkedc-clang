@@ -27,9 +27,10 @@ static const LangAS::Map DefaultAddrSpaceMap = { 0 };
 TargetInfo::TargetInfo(const llvm::Triple &T) : TargetOpts(), Triple(T) {
   // Set defaults.  Defaults are set for a 32-bit RISC platform, like PPC or
   // SPARC.  These should be overridden by concrete targets as needed.
-  BigEndian = true;
+  BigEndian = !T.isLittleEndian();
   TLSSupported = true;
   NoAsmVariants = false;
+  HasFloat128 = false;
   PointerWidth = PointerAlign = 32;
   BoolWidth = BoolAlign = 8;
   IntWidth = IntAlign = 32;
@@ -46,6 +47,7 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : TargetOpts(), Triple(T) {
   DoubleAlign = 64;
   LongDoubleWidth = 64;
   LongDoubleAlign = 64;
+  Float128Align = 128;
   LargeArrayMinWidth = 0;
   LargeArrayAlign = 0;
   MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 0;
@@ -72,11 +74,13 @@ TargetInfo::TargetInfo(const llvm::Triple &T) : TargetOpts(), Triple(T) {
   FloatFormat = &llvm::APFloat::IEEEsingle;
   DoubleFormat = &llvm::APFloat::IEEEdouble;
   LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+  Float128Format = &llvm::APFloat::IEEEquad;
   MCountName = "mcount";
   RegParmMax = 0;
   SSERegParmMax = 0;
   HasAlignMac68kSupport = false;
   HasBuiltinMSVaList = false;
+  IsRenderScriptTarget = false;
 
   // Default to no types using fpret.
   RealTypeUsesObjCFPRet = 0;
@@ -223,6 +227,8 @@ TargetInfo::RealType TargetInfo::getRealTypeByWidth(unsigned BitWidth) const {
     if (&getLongDoubleFormat() == &llvm::APFloat::PPCDoubleDouble ||
         &getLongDoubleFormat() == &llvm::APFloat::IEEEquad)
       return LongDouble;
+    if (hasFloat128Type())
+      return Float128;
     break;
   }
 
@@ -275,6 +281,10 @@ void TargetInfo::adjust(const LangOptions &Opts) {
     UseBitFieldTypeAlignment = false;
   if (Opts.ShortWChar)
     WCharType = UnsignedShort;
+  if (Opts.AlignDouble) {
+    DoubleAlign = LongLongAlign = 64;
+    LongDoubleAlign = 64;
+  }
 
   if (Opts.OpenCL) {
     // OpenCL C requires specific widths for types, irrespective of
@@ -296,8 +306,9 @@ void TargetInfo::adjust(const LangOptions &Opts) {
     }
     LongDoubleWidth = LongDoubleAlign = 128;
 
-    assert(PointerWidth == 32 || PointerWidth == 64);
-    bool Is32BitArch = PointerWidth == 32;
+    unsigned MaxPointerWidth = getMaxPointerWidth();
+    assert(MaxPointerWidth == 32 || MaxPointerWidth == 64);
+    bool Is32BitArch = MaxPointerWidth == 32;
     SizeType = Is32BitArch ? UnsignedInt : UnsignedLong;
     PtrDiffType = Is32BitArch ? SignedInt : SignedLong;
     IntPtrType = Is32BitArch ? SignedInt : SignedLong;

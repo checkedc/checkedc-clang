@@ -11,12 +11,13 @@
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_H
 
 #include "Tools.h"
+#include "clang/Basic/Cuda.h"
 #include "clang/Basic/VersionTuple.h"
 #include "clang/Driver/Action.h"
 #include "clang/Driver/Multilib.h"
 #include "clang/Driver/ToolChain.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Compiler.h"
 #include <set>
 #include <vector>
@@ -158,39 +159,52 @@ protected:
   GCCInstallationDetector GCCInstallation;
 
   // \brief A class to find a viable CUDA installation
-
   class CudaInstallationDetector {
-    bool IsValid;
+  private:
     const Driver &D;
-    std::string CudaInstallPath;
-    std::string CudaBinPath;
-    std::string CudaLibPath;
-    std::string CudaLibDevicePath;
-    std::string CudaIncludePath;
-    llvm::StringMap<std::string> CudaLibDeviceMap;
+    bool IsValid = false;
+    CudaVersion Version = CudaVersion::UNKNOWN;
+    std::string InstallPath;
+    std::string BinPath;
+    std::string LibPath;
+    std::string LibDevicePath;
+    std::string IncludePath;
+    llvm::StringMap<std::string> LibDeviceMap;
+
+    // CUDA architectures for which we have raised an error in
+    // CheckCudaVersionSupportsArch.
+    mutable llvm::SmallSet<CudaArch, 4> ArchsWithVersionTooLowErrors;
 
   public:
-    CudaInstallationDetector(const Driver &D) : IsValid(false), D(D) {}
+    CudaInstallationDetector(const Driver &D) : D(D) {}
     void init(const llvm::Triple &TargetTriple, const llvm::opt::ArgList &Args);
+
+    /// \brief Emit an error if Version does not support the given Arch.
+    ///
+    /// If either Version or Arch is unknown, does not emit an error.  Emits at
+    /// most one error per Arch.
+    void CheckCudaVersionSupportsArch(CudaArch Arch) const;
 
     /// \brief Check whether we detected a valid Cuda install.
     bool isValid() const { return IsValid; }
     /// \brief Print information about the detected CUDA installation.
     void print(raw_ostream &OS) const;
 
+    /// \brief Get the detected Cuda install's version.
+    CudaVersion version() const { return Version; }
     /// \brief Get the detected Cuda installation path.
-    StringRef getInstallPath() const { return CudaInstallPath; }
+    StringRef getInstallPath() const { return InstallPath; }
     /// \brief Get the detected path to Cuda's bin directory.
-    StringRef getBinPath() const { return CudaBinPath; }
+    StringRef getBinPath() const { return BinPath; }
     /// \brief Get the detected Cuda Include path.
-    StringRef getIncludePath() const { return CudaIncludePath; }
+    StringRef getIncludePath() const { return IncludePath; }
     /// \brief Get the detected Cuda library path.
-    StringRef getLibPath() const { return CudaLibPath; }
+    StringRef getLibPath() const { return LibPath; }
     /// \brief Get the detected Cuda device library path.
-    StringRef getLibDevicePath() const { return CudaLibDevicePath; }
+    StringRef getLibDevicePath() const { return LibDevicePath; }
     /// \brief Get libdevice file for given architecture
     std::string getLibDeviceFile(StringRef Gpu) const {
-      return CudaLibDeviceMap.lookup(Gpu);
+      return LibDeviceMap.lookup(Gpu);
     }
   };
 
@@ -297,9 +311,6 @@ public:
   /// }
   /// @name ToolChain Implementation
   /// {
-
-  std::string ComputeEffectiveClangTriple(const llvm::opt::ArgList &Args,
-                                          types::ID InputType) const override;
 
   types::ID LookupTypeForExtension(const char *Ext) const override;
 
@@ -496,6 +507,8 @@ protected:
     return TargetVersion < VersionTuple(V0, V1, V2);
   }
 
+  StringRef getPlatformFamily() const;
+  static StringRef getSDKName(StringRef isysroot);
   StringRef getOSLibraryNameSuffix() const;
 
 public:
@@ -555,6 +568,8 @@ public:
 
   /// @name Apple ToolChain Implementation
   /// {
+
+  RuntimeLibType GetRuntimeLibType(const llvm::opt::ArgList &Args) const override;
 
   void AddLinkRuntimeLibArgs(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs) const override;
@@ -617,8 +632,7 @@ public:
   void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs) const override;
 
-  bool isPIEDefault() const override { return true; }
-
+  bool isPIEDefault() const override;
   SanitizerMask getSupportedSanitizers() const override;
   SanitizerMask getDefaultSanitizers() const override;
 
@@ -676,6 +690,18 @@ private:
   mutable std::unique_ptr<tools::gcc::Preprocessor> Preprocessor;
   mutable std::unique_ptr<tools::gcc::Compiler> Compiler;
   void findGccLibDir();
+};
+
+class LLVM_LIBRARY_VISIBILITY Haiku : public Generic_ELF {
+public:
+  Haiku(const Driver &D, const llvm::Triple &Triple,
+          const llvm::opt::ArgList &Args);
+
+  bool isPIEDefault() const override { return getTriple().getArch() == llvm::Triple::x86_64; }
+
+  void
+  AddClangCXXStdlibIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                              llvm::opt::ArgStringList &CC1Args) const override;
 };
 
 class LLVM_LIBRARY_VISIBILITY OpenBSD : public Generic_ELF {
@@ -806,11 +832,15 @@ public:
       llvm::opt::ArgStringList &CC1Args) const override;
   void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const override;
+  void AddIAMCUIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                           llvm::opt::ArgStringList &CC1Args) const override;
   bool isPIEDefault() const override;
   SanitizerMask getSupportedSanitizers() const override;
   void addProfileRTLibs(const llvm::opt::ArgList &Args,
                         llvm::opt::ArgStringList &CmdArgs) const override;
   virtual std::string computeSysRoot() const;
+
+  virtual std::string getDynamicLinker(const llvm::opt::ArgList &Args) const;
 
   std::vector<std::string> ExtraOpts;
 
@@ -833,6 +863,16 @@ public:
   // Never try to use the integrated assembler with CUDA; always fork out to
   // ptxas.
   bool useIntegratedAs() const override { return false; }
+
+  void AddCudaIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const override;
+
+  const Generic_GCC::CudaInstallationDetector &cudaInstallation() const {
+    return CudaInstallation;
+  }
+  Generic_GCC::CudaInstallationDetector &cudaInstallation() {
+    return CudaInstallation;
+  }
 
 protected:
   Tool *buildAssembler() const override;  // ptxas
@@ -927,6 +967,7 @@ protected:
 public:
   AMDGPUToolChain(const Driver &D, const llvm::Triple &Triple,
             const llvm::opt::ArgList &Args);
+  unsigned GetDefaultDwarfVersion() const override { return 2; }
   bool IsIntegratedAssemblerDefault() const override { return true; }
 };
 
@@ -1014,6 +1055,7 @@ public:
   bool getVisualStudioInstallDir(std::string &path) const;
   bool getVisualStudioBinariesFolder(const char *clangProgramPath,
                                      std::string &path) const;
+  VersionTuple getMSVCVersionFromExe() const override;
 
   std::string ComputeEffectiveClangTriple(const llvm::opt::ArgList &Args,
                                           types::ID InputType) const override;
@@ -1091,7 +1133,7 @@ public:
 
 /// MyriadToolChain - A tool chain using either clang or the external compiler
 /// installed by the Movidius SDK to perform all subcommands.
-class LLVM_LIBRARY_VISIBILITY MyriadToolChain : public Generic_GCC {
+class LLVM_LIBRARY_VISIBILITY MyriadToolChain : public Generic_ELF {
 public:
   MyriadToolChain(const Driver &D, const llvm::Triple &Triple,
                   const llvm::opt::ArgList &Args);

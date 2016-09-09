@@ -31,28 +31,6 @@ using namespace ento;
 // MemRegion Construction.
 //===----------------------------------------------------------------------===//
 
-template<typename RegionTy> struct MemRegionManagerTrait;
-
-template <typename RegionTy, typename A1>
-RegionTy* MemRegionManager::getRegion(const A1 a1) {
-  const typename MemRegionManagerTrait<RegionTy>::SuperRegionTy *superRegion =
-  MemRegionManagerTrait<RegionTy>::getSuperRegion(*this, a1);
-
-  llvm::FoldingSetNodeID ID;
-  RegionTy::ProfileRegion(ID, a1, superRegion);
-  void *InsertPos;
-  RegionTy* R = cast_or_null<RegionTy>(Regions.FindNodeOrInsertPos(ID,
-                                                                   InsertPos));
-
-  if (!R) {
-    R = A.Allocate<RegionTy>();
-    new (R) RegionTy(a1, superRegion);
-    Regions.InsertNode(R, InsertPos);
-  }
-
-  return R;
-}
-
 template <typename RegionTy, typename A1>
 RegionTy* MemRegionManager::getSubRegion(const A1 a1,
                                          const MemRegion *superRegion) {
@@ -65,26 +43,6 @@ RegionTy* MemRegionManager::getSubRegion(const A1 a1,
   if (!R) {
     R = A.Allocate<RegionTy>();
     new (R) RegionTy(a1, superRegion);
-    Regions.InsertNode(R, InsertPos);
-  }
-
-  return R;
-}
-
-template <typename RegionTy, typename A1, typename A2>
-RegionTy* MemRegionManager::getRegion(const A1 a1, const A2 a2) {
-  const typename MemRegionManagerTrait<RegionTy>::SuperRegionTy *superRegion =
-  MemRegionManagerTrait<RegionTy>::getSuperRegion(*this, a1, a2);
-
-  llvm::FoldingSetNodeID ID;
-  RegionTy::ProfileRegion(ID, a1, a2, superRegion);
-  void *InsertPos;
-  RegionTy* R = cast_or_null<RegionTy>(Regions.FindNodeOrInsertPos(ID,
-                                                                   InsertPos));
-
-  if (!R) {
-    R = A.Allocate<RegionTy>();
-    new (R) RegionTy(a1, a2, superRegion);
     Regions.InsertNode(R, InsertPos);
   }
 
@@ -630,6 +588,65 @@ bool CXXBaseObjectRegion::canPrintPrettyAsExpr() const {
 
 void CXXBaseObjectRegion::printPrettyAsExpr(raw_ostream &os) const {
   superRegion->printPrettyAsExpr(os);
+}
+
+std::string MemRegion::getDescriptiveName(bool UseQuotes) const {
+  std::string VariableName;
+  std::string ArrayIndices;
+  const MemRegion *R = this;
+  SmallString<50> buf;
+  llvm::raw_svector_ostream os(buf);
+
+  // Obtain array indices to add them to the variable name.
+  const ElementRegion *ER = nullptr;
+  while ((ER = R->getAs<ElementRegion>())) {
+    // Index is a ConcreteInt.
+    if (auto CI = ER->getIndex().getAs<nonloc::ConcreteInt>()) {
+      llvm::SmallString<2> Idx;
+      CI->getValue().toString(Idx);
+      ArrayIndices = (llvm::Twine("[") + Idx.str() + "]" + ArrayIndices).str();
+    }
+    // If not a ConcreteInt, try to obtain the variable
+    // name by calling 'getDescriptiveName' recursively.
+    else {
+      std::string Idx = ER->getDescriptiveName(false);
+      if (!Idx.empty()) {
+        ArrayIndices = (llvm::Twine("[") + Idx + "]" + ArrayIndices).str();
+      }
+    }
+    R = ER->getSuperRegion();
+  }
+
+  // Get variable name.
+  if (R && R->canPrintPrettyAsExpr()) {
+    R->printPrettyAsExpr(os);
+    if (UseQuotes) {
+      return (llvm::Twine("'") + os.str() + ArrayIndices + "'").str();
+    } else {
+      return (llvm::Twine(os.str()) + ArrayIndices).str();
+    }
+  }
+
+  return VariableName;
+}
+
+SourceRange MemRegion::sourceRange() const {
+  const VarRegion *const VR = dyn_cast<VarRegion>(this->getBaseRegion());
+  const FieldRegion *const FR = dyn_cast<FieldRegion>(this);
+
+  // Check for more specific regions first.
+  // FieldRegion
+  if (FR) {
+    return FR->getDecl()->getSourceRange();
+  }
+  // VarRegion
+  else if (VR) {
+    return VR->getDecl()->getSourceRange();
+  }
+  // Return invalid source range (can be checked by client).
+  else {
+    return SourceRange{};
+  }
 }
 
 //===----------------------------------------------------------------------===//

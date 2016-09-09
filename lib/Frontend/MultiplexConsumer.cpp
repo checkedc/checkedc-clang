@@ -120,12 +120,14 @@ public:
   void CompletedImplicitDefinition(const FunctionDecl *D) override;
   void StaticDataMemberInstantiated(const VarDecl *D) override;
   void DefaultArgumentInstantiated(const ParmVarDecl *D) override;
+  void DefaultMemberInitializerInstantiated(const FieldDecl *D) override;
   void AddedObjCCategoryToInterface(const ObjCCategoryDecl *CatD,
                                     const ObjCInterfaceDecl *IFD) override;
   void FunctionDefinitionInstantiated(const FunctionDecl *D) override;
   void DeclarationMarkedUsed(const Decl *D) override;
   void DeclarationMarkedOpenMPThreadPrivate(const Decl *D) override;
-  void DeclarationMarkedOpenMPDeclareTarget(const Decl *D) override;
+  void DeclarationMarkedOpenMPDeclareTarget(const Decl *D,
+                                            const Attr *Attr) override;
   void RedefinedHiddenDefinition(const NamedDecl *D, Module *M) override;
   void AddedAttributeToRecord(const Attr *Attr, 
                               const RecordDecl *Record) override;
@@ -200,6 +202,11 @@ void MultiplexASTMutationListener::DefaultArgumentInstantiated(
   for (size_t i = 0, e = Listeners.size(); i != e; ++i)
     Listeners[i]->DefaultArgumentInstantiated(D);
 }
+void MultiplexASTMutationListener::DefaultMemberInitializerInstantiated(
+                                                           const FieldDecl *D) {
+  for (size_t i = 0, e = Listeners.size(); i != e; ++i)
+    Listeners[i]->DefaultMemberInitializerInstantiated(D);
+}
 void MultiplexASTMutationListener::AddedObjCCategoryToInterface(
                                                  const ObjCCategoryDecl *CatD,
                                                  const ObjCInterfaceDecl *IFD) {
@@ -221,9 +228,9 @@ void MultiplexASTMutationListener::DeclarationMarkedOpenMPThreadPrivate(
     Listeners[i]->DeclarationMarkedOpenMPThreadPrivate(D);
 }
 void MultiplexASTMutationListener::DeclarationMarkedOpenMPDeclareTarget(
-    const Decl *D) {
+    const Decl *D, const Attr *Attr) {
   for (auto *L : Listeners)
-    L->DeclarationMarkedOpenMPDeclareTarget(D);
+    L->DeclarationMarkedOpenMPDeclareTarget(D, Attr);
 }
 void MultiplexASTMutationListener::RedefinedHiddenDefinition(const NamedDecl *D,
                                                              Module *M) {

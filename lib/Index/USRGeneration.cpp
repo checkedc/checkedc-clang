@@ -12,7 +12,6 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
 #include "clang/Lex/PreprocessingRecord.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -138,8 +137,8 @@ public:
   }
 
   /// Generate a USR fragment for an Objective-C property.
-  void GenObjCProperty(StringRef prop) {
-    generateUSRForObjCProperty(prop, Out);
+  void GenObjCProperty(StringRef prop, bool isClassProp) {
+    generateUSRForObjCProperty(prop, isClassProp, Out);
   }
 
   /// Generate a USR for an Objective-C protocol.
@@ -233,7 +232,7 @@ void USRGenerator::VisitFunctionDecl(const FunctionDecl *D) {
   }
 
   // Mangle in type information for the arguments.
-  for (auto PD : D->params()) {
+  for (auto PD : D->parameters()) {
     Out << '#';
     VisitType(PD->getType());
   }
@@ -411,7 +410,7 @@ void USRGenerator::VisitObjCPropertyDecl(const ObjCPropertyDecl *D) {
     Visit(ID);
   else
     Visit(cast<Decl>(D->getDeclContext()));
-  GenObjCProperty(D->getName());
+  GenObjCProperty(D->getName(), D->isClassProperty());
 }
 
 void USRGenerator::VisitObjCPropertyImplDecl(const ObjCPropertyImplDecl *D) {
@@ -618,6 +617,8 @@ void USRGenerator::VisitType(QualType T) {
           c = 'd'; break;
         case BuiltinType::LongDouble:
           c = 'D'; break;
+        case BuiltinType::Float128:
+          c = 'Q'; break;
         case BuiltinType::NullPtr:
           c = 'n'; break;
 #define BUILTIN_TYPE(Id, SingletonId)
@@ -626,7 +627,7 @@ void USRGenerator::VisitType(QualType T) {
         case BuiltinType::Dependent:
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
         case BuiltinType::Id:
-#include "clang/AST/OpenCLImageTypes.def"
+#include "clang/Basic/OpenCLImageTypes.def"
         case BuiltinType::OCLEvent:
         case BuiltinType::OCLClkEvent:
         case BuiltinType::OCLQueue:
@@ -862,8 +863,9 @@ void clang::index::generateUSRForObjCMethod(StringRef Sel,
   OS << (IsInstanceMethod ? "(im)" : "(cm)") << Sel;
 }
 
-void clang::index::generateUSRForObjCProperty(StringRef Prop, raw_ostream &OS) {
-  OS << "(py)" << Prop;
+void clang::index::generateUSRForObjCProperty(StringRef Prop, bool isClassProp,
+                                              raw_ostream &OS) {
+  OS << (isClassProp ? "(cpy)" : "(py)") << Prop;
 }
 
 void clang::index::generateUSRForObjCProtocol(StringRef Prot, raw_ostream &OS) {

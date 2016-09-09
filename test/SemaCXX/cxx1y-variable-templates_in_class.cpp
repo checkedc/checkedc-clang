@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -verify -fsyntax-only %s -Wno-c++11-extensions -Wno-c++1y-extensions -DPRECXX11
+// RUN: %clang_cc1 -std=c++98 -verify -fsyntax-only %s -Wno-c++11-extensions -Wno-c++1y-extensions -DPRECXX11
 // RUN: %clang_cc1 -std=c++11 -verify -fsyntax-only -Wno-c++1y-extensions %s
 // RUN: %clang_cc1 -std=c++1y -verify -fsyntax-only %s -DCPP1Y
 
@@ -26,10 +26,10 @@ namespace out_of_line {
     template<typename T, typename T0> static CONST T right = T(100);
     template<typename T> static CONST T right<T,int> = T(5);
   };
-  template<> CONST int B0::right<int,int> = 7;
-  template CONST int B0::right<int,int>;
-  template<> CONST int B0::right<int,float>;
-  template CONST int B0::right<int,float>;
+  template<> CONST int B0::right<int,int> = 7; // expected-note {{previous}}
+  template CONST int B0::right<int,int>; // expected-warning {{has no effect}}
+  template<> CONST int B0::right<int,float>; // expected-note {{previous}}
+  template CONST int B0::right<int,float>; // expected-warning {{has no effect}}
 
   class B1 {
     template<typename T, typename T0> static CONST T right;

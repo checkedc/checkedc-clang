@@ -71,7 +71,7 @@ namespace {
     Stmt *CurrentBody;
     ParentMap *PropParentMap; // created lazily.
     std::string InFileName;
-    raw_ostream* OutFile;
+    std::unique_ptr<raw_ostream> OutFile;
     std::string Preamble;
     
     TypeDecl *ProtocolTypeDecl;
@@ -190,7 +190,7 @@ namespace {
 
     void HandleTopLevelSingleDecl(Decl *D);
     void HandleDeclInMainFile(Decl *D);
-    RewriteObjC(std::string inFile, raw_ostream *OS,
+    RewriteObjC(std::string inFile, std::unique_ptr<raw_ostream> OS,
                 DiagnosticsEngine &D, const LangOptions &LOpts,
                 bool silenceMacroWarn);
 
@@ -506,11 +506,10 @@ namespace {
   
   class RewriteObjCFragileABI : public RewriteObjC {
   public:
-    RewriteObjCFragileABI(std::string inFile, raw_ostream *OS,
-                DiagnosticsEngine &D, const LangOptions &LOpts,
-                bool silenceMacroWarn) : RewriteObjC(inFile, OS,
-                                                     D, LOpts,
-                                                     silenceMacroWarn) {}
+    RewriteObjCFragileABI(std::string inFile, std::unique_ptr<raw_ostream> OS,
+                          DiagnosticsEngine &D, const LangOptions &LOpts,
+                          bool silenceMacroWarn)
+        : RewriteObjC(inFile, std::move(OS), D, LOpts, silenceMacroWarn) {}
 
     ~RewriteObjCFragileABI() override {}
     void Initialize(ASTContext &context) override;
@@ -575,11 +574,11 @@ static bool IsHeaderFile(const std::string &Filename) {
   return Ext == "h" || Ext == "hh" || Ext == "H";
 }
 
-RewriteObjC::RewriteObjC(std::string inFile, raw_ostream* OS,
+RewriteObjC::RewriteObjC(std::string inFile, std::unique_ptr<raw_ostream> OS,
                          DiagnosticsEngine &D, const LangOptions &LOpts,
                          bool silenceMacroWarn)
-      : Diags(D), LangOpts(LOpts), InFileName(inFile), OutFile(OS),
-        SilenceRewriteMacroWarning(silenceMacroWarn) {
+    : Diags(D), LangOpts(LOpts), InFileName(inFile), OutFile(std::move(OS)),
+      SilenceRewriteMacroWarning(silenceMacroWarn) {
   IsHeader = IsHeaderFile(inFile);
   RewriteFailedDiag = Diags.getCustomDiagID(DiagnosticsEngine::Warning,
                "rewriting sub-expression within a macro (may not be correct)");
@@ -590,11 +589,12 @@ RewriteObjC::RewriteObjC(std::string inFile, raw_ostream* OS,
 }
 
 std::unique_ptr<ASTConsumer>
-clang::CreateObjCRewriter(const std::string &InFile, raw_ostream *OS,
+clang::CreateObjCRewriter(const std::string &InFile,
+                          std::unique_ptr<raw_ostream> OS,
                           DiagnosticsEngine &Diags, const LangOptions &LOpts,
                           bool SilenceRewriteMacroWarning) {
-  return llvm::make_unique<RewriteObjCFragileABI>(InFile, OS, Diags, LOpts,
-                                                  SilenceRewriteMacroWarning);
+  return llvm::make_unique<RewriteObjCFragileABI>(
+      InFile, std::move(OS), Diags, LOpts, SilenceRewriteMacroWarning);
 }
 
 void RewriteObjC::InitializeCommon(ASTContext &context) {
@@ -1118,7 +1118,7 @@ void RewriteObjC::RewriteObjCMethodDecl(const ObjCInterfaceDecl *IDecl,
   ResultStr += " _cmd";
 
   // Method arguments.
-  for (const auto *PDecl : OMD->params()) {
+  for (const auto *PDecl : OMD->parameters()) {
     ResultStr += ", ";
     if (PDecl->getType()->isObjCQualifiedIdType()) {
       ResultStr += "id ";
@@ -2917,7 +2917,7 @@ Stmt *RewriteObjC::SynthMessageExpr(ObjCMessageExpr *Exp,
   ArgTypes.push_back(Context->getObjCSelType());
   if (ObjCMethodDecl *OMD = Exp->getMethodDecl()) {
     // Push any user argument types.
-    for (const auto *PI : OMD->params()) {
+    for (const auto *PI : OMD->parameters()) {
       QualType t = PI->getType()->isObjCQualifiedIdType()
                      ? Context->getObjCIdType()
                      : PI->getType();
@@ -3748,7 +3748,7 @@ Stmt *RewriteObjC::SynthesizeBlockCall(CallExpr *Exp, const Expr *BlockExp) {
                = dyn_cast<PseudoObjectExpr>(BlockExp)) {
     CPT = POE->getType()->castAs<BlockPointerType>();
   } else {
-    assert(1 && "RewriteBlockClass: Bad type");
+    assert(false && "RewriteBlockClass: Bad type");
   }
   assert(CPT && "RewriteBlockClass: Bad type");
   const FunctionType *FT = CPT->getPointeeType()->getAs<FunctionType>();

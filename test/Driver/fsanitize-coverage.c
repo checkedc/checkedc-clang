@@ -33,17 +33,20 @@
 // CHECK-SANITIZE-COVERAGE-5: error: unsupported argument '5' to option 'fsanitize-coverage='
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=thread   -fsanitize-coverage=func %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANITIZE-COVERAGE-UNUSED
-// RUN: %clang -target x86_64-linux-gnu                     -fsanitize-coverage=func %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANITIZE-COVERAGE-UNUSED
+// RUN: %clang -target x86_64-linux-gnu                     -fsanitize-coverage=func %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANITIZE-COVERAGE-FUNC
 // CHECK-SANITIZE-COVERAGE-UNUSED: argument unused during compilation: '-fsanitize-coverage=func'
+// CHECK-SANITIZE-COVERAGE-UNUSED-NOT: -fsanitize-coverage-type=1
 
 // RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-coverage=func -fno-sanitize=address %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANITIZE-COVERAGE-SAN-DISABLED
 // CHECK-SANITIZE-COVERAGE-SAN-DISABLED-NOT: argument unused
 
-// RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-coverage=edge,indirect-calls,trace-bb,trace-pc,trace-cmp,8bit-counters %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANITIZE-COVERAGE-FEATURES
+// RUN: %clang -target x86_64-linux-gnu -fsanitize=address -fsanitize-coverage=edge,indirect-calls,trace-bb,trace-pc,trace-cmp,8bit-counters,trace-div,trace-gep %s -### 2>&1 | FileCheck %s --check-prefix=CHECK-SANITIZE-COVERAGE-FEATURES
 // CHECK-SANITIZE-COVERAGE-FEATURES: -fsanitize-coverage-type=3
 // CHECK-SANITIZE-COVERAGE-FEATURES: -fsanitize-coverage-indirect-calls
 // CHECK-SANITIZE-COVERAGE-FEATURES: -fsanitize-coverage-trace-bb
 // CHECK-SANITIZE-COVERAGE-FEATURES: -fsanitize-coverage-trace-cmp
+// CHECK-SANITIZE-COVERAGE-FEATURES: -fsanitize-coverage-trace-div
+// CHECK-SANITIZE-COVERAGE-FEATURES: -fsanitize-coverage-trace-gep
 // CHECK-SANITIZE-COVERAGE-FEATURES: -fsanitize-coverage-8bit-counters
 // CHECK-SANITIZE-COVERAGE-FEATURES: -fsanitize-coverage-trace-pc
 

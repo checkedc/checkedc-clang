@@ -310,8 +310,13 @@ ArgType::matchesType(ASTContext &C, QualType argTy) const {
       return Match;
 
     case AnyCharTy: {
-      if (const EnumType *ETy = argTy->getAs<EnumType>())
+      if (const EnumType *ETy = argTy->getAs<EnumType>()) {
+        // If the enum is incomplete we know nothing about the underlying type.
+        // Assume that it's 'int'.
+        if (!ETy->getDecl()->isComplete())
+          return NoMatch;
         argTy = ETy->getDecl()->getIntegerType();
+      }
 
       if (const BuiltinType *BT = argTy->getAs<BuiltinType>())
         switch (BT->getKind()) {
@@ -327,8 +332,14 @@ ArgType::matchesType(ASTContext &C, QualType argTy) const {
     }
 
     case SpecificTy: {
-      if (const EnumType *ETy = argTy->getAs<EnumType>())
-        argTy = ETy->getDecl()->getIntegerType();
+      if (const EnumType *ETy = argTy->getAs<EnumType>()) {
+        // If the enum is incomplete we know nothing about the underlying type.
+        // Assume that it's 'int'.
+        if (!ETy->getDecl()->isComplete())
+          argTy = C.IntTy;
+        else
+          argTy = ETy->getDecl()->getIntegerType();
+      }
       argTy = C.getCanonicalType(argTy).getUnqualifiedType();
 
       if (T == argTy)
@@ -694,7 +705,7 @@ bool FormatSpecifier::hasValidLengthModifier(const TargetInfo &Target) const {
           return true;
         case ConversionSpecifier::FreeBSDrArg:
         case ConversionSpecifier::FreeBSDyArg:
-          return Target.getTriple().isOSFreeBSD();
+          return Target.getTriple().isOSFreeBSD() || Target.getTriple().isPS4();
         default:
           return false;
       }
@@ -727,7 +738,7 @@ bool FormatSpecifier::hasValidLengthModifier(const TargetInfo &Target) const {
           return true;
         case ConversionSpecifier::FreeBSDrArg:
         case ConversionSpecifier::FreeBSDyArg:
-          return Target.getTriple().isOSFreeBSD();
+          return Target.getTriple().isOSFreeBSD() || Target.getTriple().isPS4();
         default:
           return false;
       }

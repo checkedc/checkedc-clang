@@ -274,6 +274,14 @@ def ext_missing_whitespace_after_macro_name : ExtWarn<
   "whitespace required after macro name">;
 def warn_missing_whitespace_after_macro_name : Warning<
   "whitespace recommended after macro name">;
+
+class NonportablePath  : Warning<
+  "non-portable path to file '%0'; specified path differs in case from file"
+  " name on disk">;
+def pp_nonportable_path : NonportablePath,
+  InGroup<DiagGroup<"nonportable-include-path">>;
+def pp_nonportable_system_path : NonportablePath, DefaultIgnore,
+  InGroup<DiagGroup<"nonportable-system-include-path">>;
   
 def pp_pragma_once_in_main_file : Warning<"#pragma once in main file">,
   InGroup<DiagGroup<"pragma-once-outside-header">>;
@@ -409,6 +417,8 @@ def err_pp_remainder_by_zero : Error<
   "remainder by zero in preprocessor expression">;
 def err_pp_expr_bad_token_binop : Error<
   "token is not a valid binary operator in a preprocessor subexpression">;
+def err_pp_expr_bad_token_lparen : Error<
+  "function-like macro %0 is not defined">;
 def err_pp_expr_bad_token_start_expr : Error<
   "invalid token at start of a preprocessor expression">;
 def err_pp_invalid_poison : Error<"can only poison identifier tokens">;
@@ -417,8 +427,6 @@ def err_pp_used_poisoned_id : Error<"attempt to use a poisoned identifier">;
 def err_feature_check_malformed : Error<
   "builtin feature check macro requires a parenthesized identifier">;
 
-def err_warning_check_malformed : Error<
-  "builtin warning check macro requires a parenthesized string">;
 def warn_has_warning_invalid_option :
    ExtWarn<"__has_warning expected option name (e.g. \"-Wundef\")">,
    InGroup<MalformedWarningCheck>;

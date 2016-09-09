@@ -40,7 +40,7 @@ struct SA {
     #pragma omp target map(arg,a,d[:2]) // expected-error {{subscripted value is not an array or pointer}}
     {}
 
-    #pragma omp target map(to:ss) // expected-error {{threadprivate variables are not allowed in map clause}}
+    #pragma omp target map(to:ss) // expected-error {{threadprivate variables are not allowed in 'map' clause}}
     {}
 
     #pragma omp target map(to:b,e)
@@ -50,6 +50,10 @@ struct SA {
     #pragma omp target map(to:b[:2],e)
     {}
     #pragma omp target map(to:b,e[:])
+    {}
+    #pragma omp target map(b[-1:]) // expected-error {{array section must be a subset of the original array}}
+    {}
+    #pragma omp target map(b[:-1]) // expected-error {{section length is evaluated to a negative value -1}}
     {}
 
     #pragma omp target map(always, tofrom: c,f)
@@ -239,7 +243,7 @@ void SAclient(int arg) {
   {}
   #pragma omp target map(r.C, t.C)
   {}
-  #pragma omp target map(r.A)   // expected-error {{bit fields cannot be used to specify storage in a map clause}}
+  #pragma omp target map(r.A)   // expected-error {{bit fields cannot be used to specify storage in a 'map' clause}}
   {}
   #pragma omp target map(r.Arr)
   {}
@@ -283,6 +287,11 @@ void SAclient(int arg) {
     #pragma omp target map(t.D)
     {}
   }
+  }
+  #pragma omp target data map(marr[:][:][:])
+  {
+    #pragma omp target data map(marr)
+    {}
   }
 
   #pragma omp target data map(to: t)
@@ -407,7 +416,7 @@ T tmain(T argc) {
 #pragma omp target data map(S2::S2s)
 #pragma omp target data map(S2::S2sc)
 #pragma omp target data map(e, g)
-#pragma omp target data map(h) // expected-error {{threadprivate variables are not allowed in map clause}}
+#pragma omp target data map(h) // expected-error {{threadprivate variables are not allowed in 'map' clause}}
 #pragma omp target data map(k) map(k) // expected-error 2 {{variable already marked as mapped in current construct}} expected-note 2 {{used here}}
 #pragma omp target map(k), map(k[:5]) // expected-error 2 {{pointer cannot be mapped along with a section derived from itself}} expected-note 2 {{used here}}
   foo();
@@ -419,10 +428,10 @@ T tmain(T argc) {
 #pragma omp target data map(j)
 #pragma omp target map(l) map(l[:5]) // expected-error 2 {{variable already marked as mapped in current construct}} expected-note 2 {{used here}}
   foo();
-#pragma omp target data map(k[:4], j, l[:5]) // expected-note 4 {{used here}}
+#pragma omp target data map(k[:4], j, l[:5]) // expected-note 2 {{used here}}
 #pragma omp target data map(k) // expected-error 2 {{pointer cannot be mapped along with a section derived from itself}}
 #pragma omp target data map(j)
-#pragma omp target map(l) // expected-error 2 {{original storage of expression in data environment is shared but data environment do not fully contain mapped expression storage}}
+#pragma omp target map(l)
   foo();
 
 #pragma omp target data map(always, tofrom: x)
@@ -476,7 +485,7 @@ int main(int argc, char **argv) {
 #pragma omp target data map(S2::S2s)
 #pragma omp target data map(S2::S2sc)
 #pragma omp target data map(e, g)
-#pragma omp target data map(h) // expected-error {{threadprivate variables are not allowed in map clause}}
+#pragma omp target data map(h) // expected-error {{threadprivate variables are not allowed in 'map' clause}}
 #pragma omp target data map(k), map(k) // expected-error {{variable already marked as mapped in current construct}} expected-note {{used here}}
 #pragma omp target map(k), map(k[:5]) // expected-error {{pointer cannot be mapped along with a section derived from itself}} expected-note {{used here}}
   foo();
@@ -488,10 +497,10 @@ int main(int argc, char **argv) {
 #pragma omp target data map(j)
 #pragma omp target map(l) map(l[:5]) // expected-error {{variable already marked as mapped in current construct}} expected-note {{used here}}
   foo();
-#pragma omp target data map(k[:4], j, l[:5]) // expected-note 2 {{used here}}
+#pragma omp target data map(k[:4], j, l[:5]) // expected-note {{used here}}
 #pragma omp target data map(k) // expected-error {{pointer cannot be mapped along with a section derived from itself}}
 #pragma omp target data map(j)
-#pragma omp target map(l) // expected-error {{original storage of expression in data environment is shared but data environment do not fully contain mapped expression storage}}
+#pragma omp target map(l)
   foo();
 
 #pragma omp target data map(always, tofrom: x)

@@ -28,9 +28,9 @@
 #include "clang/AST/Type.h"
 #include "clang/Basic/ABI.h"
 #include "clang/Basic/CapturedStmt.h"
-#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/OpenMPKinds.h"
 #include "clang/Basic/TargetInfo.h"
+#include "clang/Frontend/CodeGenOptions.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
@@ -85,7 +85,9 @@ class BlockByrefHelpers;
 class BlockByrefInfo;
 class BlockFlags;
 class BlockFieldFlags;
+class RegionCodeGenTy;
 class TargetCodeGenInfo;
+struct OMPTaskDataTy;
 
 /// The kind of evaluation to perform on values of a particular
 /// type.  Basically, is the code in CGExprScalar, CGExprComplex, or
@@ -188,6 +190,8 @@ public:
         if (I->capturesThis())
           CXXThisFieldDecl = *Field;
         else if (I->capturesVariable())
+          CaptureFields[I->getCapturedVar()] = *Field;
+        else if (I->capturesVariableByCopy())
           CaptureFields[I->getCapturedVar()] = *Field;
       }
     }
@@ -297,6 +301,19 @@ public:
   llvm::SmallVector<const JumpDest *, 2> SEHTryEpilogueStack;
 
   llvm::Instruction *CurrentFuncletPad = nullptr;
+
+  class CallLifetimeEnd final : public EHScopeStack::Cleanup {
+    llvm::Value *Addr;
+    llvm::Value *Size;
+
+  public:
+    CallLifetimeEnd(Address addr, llvm::Value *size)
+        : Addr(addr.getPointer()), Size(size) {}
+
+    void Emit(CodeGenFunction &CGF, Flags flags) override {
+      CGF.EmitLifetimeEnd(Size, Addr);
+    }
+  };
 
   /// Header for data within LifetimeExtendedCleanupStack.
   struct LifetimeExtendedCleanupHeader {
@@ -638,6 +655,11 @@ public:
     ~OMPPrivateScope() {
       if (PerformCleanup)
         ForceCleanup();
+    }
+
+    /// Checks if the global variable is captured in current function. 
+    bool isGlobalVarCaptured(const VarDecl *VD) const {
+      return !VD->isLocalVarDeclOrParm() && CGF.LocalDeclMap.count(VD) > 0;
     }
 
   private:
@@ -1056,6 +1078,61 @@ public:
     CharUnits OldCXXThisAlignment;
   };
 
+  class InlinedInheritingConstructorScope {
+  public:
+    InlinedInheritingConstructorScope(CodeGenFunction &CGF, GlobalDecl GD)
+        : CGF(CGF), OldCurGD(CGF.CurGD), OldCurFuncDecl(CGF.CurFuncDecl),
+          OldCurCodeDecl(CGF.CurCodeDecl),
+          OldCXXABIThisDecl(CGF.CXXABIThisDecl),
+          OldCXXABIThisValue(CGF.CXXABIThisValue),
+          OldCXXThisValue(CGF.CXXThisValue),
+          OldCXXABIThisAlignment(CGF.CXXABIThisAlignment),
+          OldCXXThisAlignment(CGF.CXXThisAlignment),
+          OldReturnValue(CGF.ReturnValue), OldFnRetTy(CGF.FnRetTy),
+          OldCXXInheritedCtorInitExprArgs(
+              std::move(CGF.CXXInheritedCtorInitExprArgs)) {
+      CGF.CurGD = GD;
+      CGF.CurFuncDecl = CGF.CurCodeDecl =
+          cast<CXXConstructorDecl>(GD.getDecl());
+      CGF.CXXABIThisDecl = nullptr;
+      CGF.CXXABIThisValue = nullptr;
+      CGF.CXXThisValue = nullptr;
+      CGF.CXXABIThisAlignment = CharUnits();
+      CGF.CXXThisAlignment = CharUnits();
+      CGF.ReturnValue = Address::invalid();
+      CGF.FnRetTy = QualType();
+      CGF.CXXInheritedCtorInitExprArgs.clear();
+    }
+    ~InlinedInheritingConstructorScope() {
+      CGF.CurGD = OldCurGD;
+      CGF.CurFuncDecl = OldCurFuncDecl;
+      CGF.CurCodeDecl = OldCurCodeDecl;
+      CGF.CXXABIThisDecl = OldCXXABIThisDecl;
+      CGF.CXXABIThisValue = OldCXXABIThisValue;
+      CGF.CXXThisValue = OldCXXThisValue;
+      CGF.CXXABIThisAlignment = OldCXXABIThisAlignment;
+      CGF.CXXThisAlignment = OldCXXThisAlignment;
+      CGF.ReturnValue = OldReturnValue;
+      CGF.FnRetTy = OldFnRetTy;
+      CGF.CXXInheritedCtorInitExprArgs =
+          std::move(OldCXXInheritedCtorInitExprArgs);
+    }
+
+  private:
+    CodeGenFunction &CGF;
+    GlobalDecl OldCurGD;
+    const Decl *OldCurFuncDecl;
+    const Decl *OldCurCodeDecl;
+    ImplicitParamDecl *OldCXXABIThisDecl;
+    llvm::Value *OldCXXABIThisValue;
+    llvm::Value *OldCXXThisValue;
+    CharUnits OldCXXABIThisAlignment;
+    CharUnits OldCXXThisAlignment;
+    Address OldReturnValue;
+    QualType OldFnRetTy;
+    CallArgList OldCXXInheritedCtorInitExprArgs;
+  };
+
 private:
   /// CXXThisDecl - When generating code for a C++ member function,
   /// this will hold the implicit 'this' declaration.
@@ -1068,6 +1145,10 @@ private:
   /// The value of 'this' to use when evaluating CXXDefaultInitExprs within
   /// this expression.
   Address CXXDefaultInitExprThis = Address::invalid();
+
+  /// The values of function arguments to use when evaluating
+  /// CXXInheritedCtorInitExprs within this context.
+  CallArgList CXXInheritedCtorInitExprArgs;
 
   /// CXXStructorImplicitParamDecl - When generating code for a constructor or
   /// destructor, this will hold the implicit argument (e.g. VTT).
@@ -1292,6 +1373,8 @@ public:
 
   const BlockByrefInfo &getBlockByrefInfo(const VarDecl *var);
 
+  QualType BuildFunctionArgList(GlobalDecl GD, FunctionArgList &Args);
+
   void GenerateCode(GlobalDecl GD, llvm::Function *Fn,
                     const CGFunctionInfo &FnInfo);
   /// \brief Emit code for the start of a function.
@@ -1404,15 +1487,24 @@ public:
                                  CFITypeCheckKind TCK, SourceLocation Loc);
 
   /// EmitVTablePtrCheck - Emit a check that VTable is a valid virtual table for
-  /// RD using llvm.bitset.test.
+  /// RD using llvm.type.test.
   void EmitVTablePtrCheck(const CXXRecordDecl *RD, llvm::Value *VTable,
                           CFITypeCheckKind TCK, SourceLocation Loc);
 
   /// If whole-program virtual table optimization is enabled, emit an assumption
-  /// that VTable is a member of the type's bitset. Or, if vptr CFI is enabled,
-  /// emit a check that VTable is a member of the type's bitset.
-  void EmitBitSetCodeForVCall(const CXXRecordDecl *RD, llvm::Value *VTable,
-                              SourceLocation Loc);
+  /// that VTable is a member of RD's type identifier. Or, if vptr CFI is
+  /// enabled, emit a check that VTable is a member of RD's type identifier.
+  void EmitTypeMetadataCodeForVCall(const CXXRecordDecl *RD,
+                                    llvm::Value *VTable, SourceLocation Loc);
+
+  /// Returns whether we should perform a type checked load when loading a
+  /// virtual function for virtual calls to members of RD. This is generally
+  /// true when both vcall CFI and whole-program-vtables are enabled.
+  bool ShouldEmitVTableTypeCheckedLoad(const CXXRecordDecl *RD);
+
+  /// Emit a type checked load from the given vtable.
+  llvm::Value *EmitVTableTypeCheckedLoad(const CXXRecordDecl *RD, llvm::Value *VTable,
+                                         uint64_t VTableByteOffset);
 
   /// CanDevirtualizeMemberFunctionCalls - Checks whether virtual calls on given
   /// expr can be devirtualized.
@@ -1428,6 +1520,10 @@ public:
   /// ShouldInstrumentFunction - Return true if the current function should be
   /// instrumented with __cyg_profile_func_* calls
   bool ShouldInstrumentFunction();
+
+  /// ShouldXRayInstrument - Return true if the current function should be
+  /// instrumented with XRay nop sleds.
+  bool ShouldXRayInstrumentFunction() const;
 
   /// EmitFunctionInstrumentation - Emit LLVM code to call the specified
   /// instrumentation function with the current function and the call site, if
@@ -1856,9 +1952,31 @@ public:
   void EmitDelegatingCXXConstructorCall(const CXXConstructorDecl *Ctor,
                                         const FunctionArgList &Args);
 
+  /// Emit a call to an inheriting constructor (that is, one that invokes a
+  /// constructor inherited from a base class) by inlining its definition. This
+  /// is necessary if the ABI does not support forwarding the arguments to the
+  /// base class constructor (because they're variadic or similar).
+  void EmitInlinedInheritingCXXConstructorCall(const CXXConstructorDecl *Ctor,
+                                               CXXCtorType CtorType,
+                                               bool ForVirtualBase,
+                                               bool Delegating,
+                                               CallArgList &Args);
+
+  /// Emit a call to a constructor inherited from a base class, passing the
+  /// current constructor's arguments along unmodified (without even making
+  /// a copy).
+  void EmitInheritedCXXConstructorCall(const CXXConstructorDecl *D,
+                                       bool ForVirtualBase, Address This,
+                                       bool InheritedFromVBase,
+                                       const CXXInheritedCtorInitExpr *E);
+
   void EmitCXXConstructorCall(const CXXConstructorDecl *D, CXXCtorType Type,
                               bool ForVirtualBase, bool Delegating,
                               Address This, const CXXConstructExpr *E);
+
+  void EmitCXXConstructorCall(const CXXConstructorDecl *D, CXXCtorType Type,
+                              bool ForVirtualBase, bool Delegating,
+                              Address This, CallArgList &Args);
 
   /// Emit assumption load for all bases. Requires to be be called only on
   /// most-derived class and not under construction of the object.
@@ -1872,7 +1990,7 @@ public:
                                       const CXXConstructExpr *E);
 
   void EmitCXXAggrConstructorCall(const CXXConstructorDecl *D,
-                                  const ConstantArrayType *ArrayTy,
+                                  const ArrayType *ArrayTy,
                                   Address ArrayPtr,
                                   const CXXConstructExpr *E,
                                   bool ZeroInitialization = false);
@@ -2221,8 +2339,6 @@ public:
   llvm::Function *EmitCapturedStmt(const CapturedStmt &S, CapturedRegionKind K);
   llvm::Function *GenerateCapturedStmtFunction(const CapturedStmt &S);
   Address GenerateCapturedStmtArgument(const CapturedStmt &S);
-  llvm::Function *GenerateOpenMPCapturedStmtFunction(const CapturedStmt &S,
-                                                     QualType ReturnQTy);
   llvm::Function *GenerateOpenMPCapturedStmtFunction(const CapturedStmt &S);
   void GenerateOpenMPCapturedVars(const CapturedStmt &S,
                                   SmallVectorImpl<llvm::Value *> &CapturedVars);
@@ -2276,6 +2392,9 @@ public:
                                  OMPPrivateScope &PrivateScope);
   void EmitOMPPrivateClause(const OMPExecutableDirective &D,
                             OMPPrivateScope &PrivateScope);
+  void EmitOMPUseDevicePtrClause(
+      const OMPClause &C, OMPPrivateScope &PrivateScope,
+      const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
   /// \brief Emit code for copyin clause in \a D directive. The next code is
   /// generated at the start of outlined functions for directives:
   /// \code
@@ -2309,7 +2428,17 @@ public:
   /// it is the last iteration of the loop code in associated directive, or to
   /// 'i1 false' otherwise. If this item is nullptr, no final check is required.
   void EmitOMPLastprivateClauseFinal(const OMPExecutableDirective &D,
+                                     bool NoFinals,
                                      llvm::Value *IsLastIterCond = nullptr);
+  /// Emit initial code for linear clauses.
+  void EmitOMPLinearClause(const OMPLoopDirective &D,
+                           CodeGenFunction::OMPPrivateScope &PrivateScope);
+  /// Emit final code for linear clauses.
+  /// \param CondGen Optional conditional code for final part of codegen for
+  /// linear clause.
+  void EmitOMPLinearClauseFinal(
+      const OMPLoopDirective &D,
+      const llvm::function_ref<llvm::Value *(CodeGenFunction &)> &CondGen);
   /// \brief Emit initial code for reduction variables. Creates reduction copies
   /// and initializes them with the values according to OpenMP standard.
   ///
@@ -2329,6 +2458,14 @@ public:
   ///
   /// \param D Directive (possibly) with the 'linear' clause.
   void EmitOMPLinearClauseInit(const OMPLoopDirective &D);
+
+  typedef const llvm::function_ref<void(CodeGenFunction & /*CGF*/,
+                                        llvm::Value * /*OutlinedFn*/,
+                                        const OMPTaskDataTy & /*Data*/)>
+      TaskGenTy;
+  void EmitOMPTaskBasedDirective(const OMPExecutableDirective &S,
+                                 const RegionCodeGenTy &BodyGen,
+                                 const TaskGenTy &TaskGen, OMPTaskDataTy &Data);
 
   void EmitOMPParallelDirective(const OMPParallelDirective &S);
   void EmitOMPSimdDirective(const OMPSimdDirective &S);
@@ -2354,6 +2491,7 @@ public:
   void EmitOMPTargetDataDirective(const OMPTargetDataDirective &S);
   void EmitOMPTargetEnterDataDirective(const OMPTargetEnterDataDirective &S);
   void EmitOMPTargetExitDataDirective(const OMPTargetExitDataDirective &S);
+  void EmitOMPTargetUpdateDirective(const OMPTargetUpdateDirective &S);
   void EmitOMPTargetParallelDirective(const OMPTargetParallelDirective &S);
   void
   EmitOMPTargetParallelForDirective(const OMPTargetParallelForDirective &S);
@@ -2361,10 +2499,20 @@ public:
   void
   EmitOMPCancellationPointDirective(const OMPCancellationPointDirective &S);
   void EmitOMPCancelDirective(const OMPCancelDirective &S);
+  void EmitOMPTaskLoopBasedDirective(const OMPLoopDirective &S);
   void EmitOMPTaskLoopDirective(const OMPTaskLoopDirective &S);
   void EmitOMPTaskLoopSimdDirective(const OMPTaskLoopSimdDirective &S);
   void EmitOMPDistributeDirective(const OMPDistributeDirective &S);
   void EmitOMPDistributeLoop(const OMPDistributeDirective &S);
+  void EmitOMPDistributeParallelForDirective(
+      const OMPDistributeParallelForDirective &S);
+  void EmitOMPDistributeParallelForSimdDirective(
+      const OMPDistributeParallelForSimdDirective &S);
+  void EmitOMPDistributeSimdDirective(const OMPDistributeSimdDirective &S);
+  void EmitOMPTargetParallelForSimdDirective(
+      const OMPTargetParallelForSimdDirective &S);
+  void EmitOMPTargetSimdDirective(const OMPTargetSimdDirective &S);
+  void EmitOMPTeamsDistributeDirective(const OMPTeamsDistributeDirective &S);
 
   /// Emit outlined function for the target directive.
   static std::pair<llvm::Function * /*OutlinedFn*/,
@@ -2390,9 +2538,11 @@ public:
       const llvm::function_ref<void(CodeGenFunction &)> &PostIncGen);
 
   JumpDest getOMPCancelDestination(OpenMPDirectiveKind Kind);
+  /// Emit initial code for loop counters of loop-based directives.
+  void EmitOMPPrivateLoopCounters(const OMPLoopDirective &S,
+                                  OMPPrivateScope &LoopScope);
 
 private:
-
   /// Helpers for the OpenMP loop directives.
   void EmitOMPLoopBody(const OMPLoopDirective &D, JumpDest LoopExit);
   void EmitOMPSimdInit(const OMPLoopDirective &D, bool IsMonotonic = false);
@@ -2406,7 +2556,7 @@ private:
   void EmitOMPOuterLoop(bool IsMonotonic, bool DynamicOrOrdered,
       const OMPLoopDirective &S, OMPPrivateScope &LoopScope, bool Ordered,
       Address LB, Address UB, Address ST, Address IL, llvm::Value *Chunk);
-  void EmitOMPForOuterLoop(OpenMPScheduleClauseKind ScheduleKind,
+  void EmitOMPForOuterLoop(const OpenMPScheduleTy &ScheduleKind,
                            bool IsMonotonic, const OMPLoopDirective &S,
                            OMPPrivateScope &LoopScope, bool Ordered, Address LB,
                            Address UB, Address ST, Address IL,
@@ -2467,7 +2617,6 @@ public:
   void EmitAtomicInit(Expr *E, LValue lvalue);
 
   bool LValueIsSuitableForInlineAtomic(LValue Src);
-  bool typeIsSuitableForInlineAtomic(QualType Ty, bool IsVolatile) const;
 
   RValue EmitAtomicLoad(LValue LV, SourceLocation SL,
                         AggValueSlot Slot = AggValueSlot::ignored());
@@ -3023,13 +3172,15 @@ public:
   /// ConstantFoldsToSimpleInteger - If the specified expression does not fold
   /// to a constant, or if it does but contains a label, return false.  If it
   /// constant folds return true and set the boolean result in Result.
-  bool ConstantFoldsToSimpleInteger(const Expr *Cond, bool &Result);
+  bool ConstantFoldsToSimpleInteger(const Expr *Cond, bool &Result,
+                                    bool AllowLabels = false);
 
   /// ConstantFoldsToSimpleInteger - If the specified expression does not fold
   /// to a constant, or if it does but contains a label, return false.  If it
   /// constant folds return true and set the folded value.
-  bool ConstantFoldsToSimpleInteger(const Expr *Cond, llvm::APSInt &Result);
-  
+  bool ConstantFoldsToSimpleInteger(const Expr *Cond, llvm::APSInt &Result,
+                                    bool AllowLabels = false);
+
   /// EmitBranchOnBoolExpr - Emit a branch on a boolean condition (e.g. for an
   /// if statement) to the specified blocks.  Based on the condition, this might
   /// try to simplify the codegen of the conditional based on the branch.

@@ -24,7 +24,6 @@
 #include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Preprocessor.h"
-#include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/DelayedDiagnostic.h"
 #include "clang/Sema/Lookup.h"
@@ -738,6 +737,7 @@ static void diagnoseAndRemoveTypeQualifiers(Sema &S, const DeclSpec &DS,
   // it; they probably didn't mean to specify a redundant qualifier.
   typedef std::pair<DeclSpec::TQ, SourceLocation> QualLoc;
   for (QualLoc Qual : {QualLoc(DeclSpec::TQ_const, DS.getConstSpecLoc()),
+                       QualLoc(DeclSpec::TQ_restrict, DS.getRestrictSpecLoc()),
                        QualLoc(DeclSpec::TQ_volatile, DS.getVolatileSpecLoc()),
                        QualLoc(DeclSpec::TQ_atomic, DS.getAtomicSpecLoc())}) {
     if (!(RemoveTQs & Qual.first))
@@ -752,6 +752,47 @@ static void diagnoseAndRemoveTypeQualifiers(Sema &S, const DeclSpec &DS,
 
     TypeQuals &= ~Qual.first;
   }
+}
+
+/// Return true if this is omitted block return type. Also check type
+/// attributes and type qualifiers when returning true.
+static bool checkOmittedBlockReturnType(Sema &S, Declarator &declarator,
+                                        QualType Result) {
+  if (!isOmittedBlockReturnType(declarator))
+    return false;
+
+  // Warn if we see type attributes for omitted return type on a block literal.
+  AttributeList *&attrs =
+      declarator.getMutableDeclSpec().getAttributes().getListRef();
+  AttributeList *prev = nullptr;
+  for (AttributeList *cur = attrs; cur; cur = cur->getNext()) {
+    AttributeList &attr = *cur;
+    // Skip attributes that were marked to be invalid or non-type
+    // attributes.
+    if (attr.isInvalid() || !attr.isTypeAttr()) {
+      prev = cur;
+      continue;
+    }
+    S.Diag(attr.getLoc(),
+           diag::warn_block_literal_attributes_on_omitted_return_type)
+        << attr.getName();
+    // Remove cur from the list.
+    if (prev) {
+      prev->setNext(cur->getNext());
+      prev = cur;
+    } else {
+      attrs = cur->getNext();
+    }
+  }
+
+  // Warn if we see type qualifiers for omitted return type on a block literal.
+  const DeclSpec &DS = declarator.getDeclSpec();
+  unsigned TypeQuals = DS.getTypeQualifiers();
+  diagnoseAndRemoveTypeQualifiers(S, DS, TypeQuals, Result, (unsigned)-1,
+      diag::warn_block_literal_qualifiers_on_omitted_return_type);
+  declarator.getMutableDeclSpec().ClearTypeQualifiers();
+
+  return true;
 }
 
 /// Apply Objective-C type arguments to the given type.
@@ -1270,7 +1311,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       Result = Context.getAutoDeductType();
       break;
     } else if (declarator.getContext() == Declarator::LambdaExprContext ||
-               isOmittedBlockReturnType(declarator)) {
+               checkOmittedBlockReturnType(S, declarator,
+                                           Context.DependentTy)) {
       Result = Context.DependentTy;
       break;
     }
@@ -1358,7 +1400,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   }
   case DeclSpec::TST_int128:
     if (!S.Context.getTargetInfo().hasInt128Type())
-      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_int128_unsupported);
+      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
+        << "__int128";
     if (DS.getTypeSpecSign() == DeclSpec::TSS_unsigned)
       Result = Context.UnsignedInt128Ty;
     else
@@ -1379,6 +1422,12 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
           << Result << "cl_khr_fp64";
       declarator.setInvalidType(true);
     }
+    break;
+  case DeclSpec::TST_float128:
+    if (!S.Context.getTargetInfo().hasFloat128Type())
+      S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
+        << "__float128";
+    Result = Context.Float128Ty;
     break;
   case DeclSpec::TST_bool: Result = Context.BoolTy; break; // _Bool or bool
     break;
@@ -1600,7 +1649,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
                  .Cases("read_write", "__read_write", Context.Id##RWTy) \
                  .Default(Context.Id##ROTy); \
     break;
-#include "clang/AST/OpenCLImageTypes.def"
+#include "clang/Basic/OpenCLImageTypes.def"
 
   case DeclSpec::TST_error:
     Result = Context.IntTy;
@@ -1719,6 +1768,12 @@ QualType Sema::BuildQualifiedType(QualType T, SourceLocation Loc,
   if (T.isNull())
     return QualType();
 
+  // Ignore any attempt to form a cv-qualified reference.
+  if (T->isReferenceType()) {
+    Qs.removeConst();
+    Qs.removeVolatile();
+  }
+
   // Enforce C99 6.7.3p2: "Types other than pointer types derived from
   // object or incomplete types shall not be restrict-qualified."
   if (Qs.hasRestrict()) {
@@ -1756,12 +1811,18 @@ QualType Sema::BuildQualifiedType(QualType T, SourceLocation Loc,
 }
 
 QualType Sema::BuildQualifiedType(QualType T, SourceLocation Loc,
-                                  unsigned CVRA, const DeclSpec *DS) {
+                                  unsigned CVRAU, const DeclSpec *DS) {
   if (T.isNull())
     return QualType();
 
-  // Convert from DeclSpec::TQ to Qualifiers::TQ by just dropping TQ_atomic.
-  unsigned CVR = CVRA & ~DeclSpec::TQ_atomic;
+  // Ignore any attempt to form a cv-qualified reference.
+  if (T->isReferenceType())
+    CVRAU &=
+        ~(DeclSpec::TQ_const | DeclSpec::TQ_volatile | DeclSpec::TQ_atomic);
+
+  // Convert from DeclSpec::TQ to Qualifiers::TQ by just dropping TQ_atomic and
+  // TQ_unaligned;
+  unsigned CVR = CVRAU & ~(DeclSpec::TQ_atomic | DeclSpec::TQ_unaligned);
 
   // C11 6.7.3/5:
   //   If the same qualifier appears more than once in the same
@@ -1771,7 +1832,7 @@ QualType Sema::BuildQualifiedType(QualType T, SourceLocation Loc,
   // It's not specified what happens when the _Atomic qualifier is applied to
   // a type specified with the _Atomic specifier, but we assume that this
   // should be treated as if the _Atomic qualifier appeared multiple times.
-  if (CVRA & DeclSpec::TQ_atomic && !T->isAtomicType()) {
+  if (CVRAU & DeclSpec::TQ_atomic && !T->isAtomicType()) {
     // C11 6.7.3/5:
     //   If other qualifiers appear along with the _Atomic qualifier in a
     //   specifier-qualifier-list, the resulting type is the so-qualified
@@ -1788,7 +1849,9 @@ QualType Sema::BuildQualifiedType(QualType T, SourceLocation Loc,
     return BuildQualifiedType(T, Loc, Split.Quals);
   }
 
-  return BuildQualifiedType(T, Loc, Qualifiers::fromCVRMask(CVR), DS);
+  Qualifiers Q = Qualifiers::fromCVRMask(CVR);
+  Q.setUnaligned(CVRAU & DeclSpec::TQ_unaligned);
+  return BuildQualifiedType(T, Loc, Q, DS);
 }
 
 /// \brief Build a paren type including \p T.
@@ -2031,7 +2094,8 @@ static bool isArraySizeVLA(Sema &S, Expr *ArraySize, llvm::APSInt &SizeVal) {
   } Diagnoser;
 
   return S.VerifyIntegerConstantExpression(ArraySize, &SizeVal, Diagnoser,
-                                           S.LangOpts.GNUMode).isInvalid();
+                                           S.LangOpts.GNUMode ||
+                                           S.LangOpts.OpenCL).isInvalid();
 }
 
 /// \brief Build an array type.
@@ -2229,15 +2293,8 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
   // If this is not C99, extwarn about VLA's and C99 array size modifiers.
   if (!getLangOpts().C99) {
     if (T->isVariableArrayType()) {
-      // Prohibit the use of non-POD types in VLAs.
-      QualType BaseT = Context.getBaseElementType(T);
-      if (!T->isDependentType() && isCompleteType(Loc, BaseT) &&
-          !BaseT.isPODType(Context) && !BaseT->isObjCLifetimeType()) {
-        Diag(Loc, diag::err_vla_non_pod) << BaseT;
-        return QualType();
-      }
       // Prohibit the use of VLAs during template argument deduction.
-      else if (isSFINAEContext()) {
+      if (isSFINAEContext()) {
         Diag(Loc, diag::err_vla_in_sfinae);
         return QualType();
       }
@@ -2647,7 +2704,8 @@ void Sema::diagnoseIgnoredQualifiers(unsigned DiagID, unsigned Quals,
                                      SourceLocation ConstQualLoc,
                                      SourceLocation VolatileQualLoc,
                                      SourceLocation RestrictQualLoc,
-                                     SourceLocation AtomicQualLoc) {
+                                     SourceLocation AtomicQualLoc,
+                                     SourceLocation UnalignedQualLoc) {
   if (!Quals)
     return;
 
@@ -2655,26 +2713,27 @@ void Sema::diagnoseIgnoredQualifiers(unsigned DiagID, unsigned Quals,
     const char *Name;
     unsigned Mask;
     SourceLocation Loc;
-  } const QualKinds[4] = {
+  } const QualKinds[5] = {
     { "const", DeclSpec::TQ_const, ConstQualLoc },
     { "volatile", DeclSpec::TQ_volatile, VolatileQualLoc },
     { "restrict", DeclSpec::TQ_restrict, RestrictQualLoc },
+    { "__unaligned", DeclSpec::TQ_unaligned, UnalignedQualLoc },
     { "_Atomic", DeclSpec::TQ_atomic, AtomicQualLoc }
   };
 
   SmallString<32> QualStr;
   unsigned NumQuals = 0;
   SourceLocation Loc;
-  FixItHint FixIts[4];
+  FixItHint FixIts[5];
 
   // Build a string naming the redundant qualifiers.
-  for (unsigned I = 0; I != 4; ++I) {
-    if (Quals & QualKinds[I].Mask) {
+  for (auto &E : QualKinds) {
+    if (Quals & E.Mask) {
       if (!QualStr.empty()) QualStr += ' ';
-      QualStr += QualKinds[I].Name;
+      QualStr += E.Name;
 
       // If we have a location for the qualifier, offer a fixit.
-      SourceLocation QualLoc = QualKinds[I].Loc;
+      SourceLocation QualLoc = E.Loc;
       if (QualLoc.isValid()) {
         FixIts[NumQuals] = FixItHint::CreateRemoval(QualLoc);
         if (Loc.isInvalid() ||
@@ -2720,7 +2779,8 @@ static void diagnoseRedundantReturnTypeQualifiers(Sema &S, QualType RetTy,
           SourceLocation::getFromRawEncoding(PTI.ConstQualLoc),
           SourceLocation::getFromRawEncoding(PTI.VolatileQualLoc),
           SourceLocation::getFromRawEncoding(PTI.RestrictQualLoc),
-          SourceLocation::getFromRawEncoding(PTI.AtomicQualLoc));
+          SourceLocation::getFromRawEncoding(PTI.AtomicQualLoc),
+          SourceLocation::getFromRawEncoding(PTI.UnalignedQualLoc));
       return;
     }
 
@@ -2756,7 +2816,8 @@ static void diagnoseRedundantReturnTypeQualifiers(Sema &S, QualType RetTy,
                               D.getDeclSpec().getConstSpecLoc(),
                               D.getDeclSpec().getVolatileSpecLoc(),
                               D.getDeclSpec().getRestrictSpecLoc(),
-                              D.getDeclSpec().getAtomicSpecLoc());
+                              D.getDeclSpec().getAtomicSpecLoc(),
+                              D.getDeclSpec().getUnalignedSpecLoc());
 }
 
 static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
@@ -2870,6 +2931,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
     case Declarator::FileContext:
     case Declarator::BlockContext:
     case Declarator::ForContext:
+    case Declarator::InitStmtContext:
     case Declarator::ConditionContext:
       break;
     case Declarator::CXXNewContext:
@@ -2955,6 +3017,7 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
     case Declarator::MemberContext:
     case Declarator::BlockContext:
     case Declarator::ForContext:
+    case Declarator::InitStmtContext:
     case Declarator::BlockLiteralContext:
     case Declarator::LambdaExprContext:
       // C++11 [dcl.type]p3:
@@ -3169,15 +3232,19 @@ getCCForDeclaratorChunk(Sema &S, Declarator &D,
   CallingConv CC = S.Context.getDefaultCallingConvention(FTI.isVariadic,
                                                          IsCXXInstanceMethod);
 
-  // Attribute AT_OpenCLKernel affects the calling convention only on
-  // the SPIR target, hence it cannot be treated as a calling
+  // Attribute AT_OpenCLKernel affects the calling convention for SPIR
+  // and AMDGPU targets, hence it cannot be treated as a calling
   // convention attribute. This is the simplest place to infer
-  // "spir_kernel" for OpenCL kernels on SPIR.
-  if (CC == CC_SpirFunction) {
+  // calling convention for OpenCL kernels.
+  if (S.getLangOpts().OpenCL) {
     for (const AttributeList *Attr = D.getDeclSpec().getAttributes().getList();
          Attr; Attr = Attr->getNext()) {
       if (Attr->getKind() == AttributeList::AT_OpenCLKernel) {
-        CC = CC_SpirKernel;
+        llvm::Triple::ArchType arch = S.Context.getTargetInfo().getTriple().getArch();
+        if (arch == llvm::Triple::spir || arch == llvm::Triple::spir64 ||
+            arch == llvm::Triple::amdgcn) {
+          CC = CC_OpenCLKernel;
+        }
         break;
       }
     }
@@ -3758,6 +3825,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     case Declarator::CXXCatchContext:
     case Declarator::CXXNewContext:
     case Declarator::ForContext:
+    case Declarator::InitStmtContext:
     case Declarator::LambdaExprContext:
     case Declarator::LambdaExprParameterContext:
     case Declarator::ObjCCatchContext:
@@ -3858,15 +3926,20 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     case DeclaratorChunk::BlockPointer:
       // If blocks are disabled, emit an error.
       if (!LangOpts.Blocks)
-        S.Diag(DeclType.Loc, diag::err_blocks_disable);
+        S.Diag(DeclType.Loc, diag::err_blocks_disable) << LangOpts.OpenCL;
 
       // Handle pointer nullability.
       inferPointerNullability(SimplePointerKind::BlockPointer,
                               DeclType.Loc, DeclType.getAttrListRef());
 
       T = S.BuildBlockPointerType(T, D.getIdentifierLoc(), Name);
-      if (DeclType.Cls.TypeQuals)
+      if (DeclType.Cls.TypeQuals || LangOpts.OpenCL) {
+        // OpenCL v2.0, s6.12.5 - Block variable declarations are implicitly
+        // qualified with const.
+        if (LangOpts.OpenCL)
+          DeclType.Cls.TypeQuals |= DeclSpec::TQ_const;
         T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Cls.TypeQuals);
+      }
       break;
     case DeclaratorChunk::Pointer:
       // Verify that we're not building a pointer to pointer to function with
@@ -3887,6 +3960,18 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
         break;
       }
+
+      // OpenCL v2.0 s6.9b - Pointer to image/sampler cannot be used.
+      // OpenCL v2.0 s6.13.16.1 - Pointer to pipe cannot be used.
+      // OpenCL v2.0 s6.12.5 - Pointers to Blocks are not allowed.
+      if (LangOpts.OpenCL) {
+        if (T->isImageType() || T->isSamplerT() || T->isPipeType() ||
+            T->isBlockPointerType()) {
+          S.Diag(D.getIdentifierLoc(), diag::err_opencl_pointer_to_type) << T;
+          D.setInvalidType(true);
+        }
+      }
+
       T = S.BuildPointerType(T, CheckedPointerKind::Unchecked, DeclType.Loc, Name);
       if (DeclType.Ptr.TypeQuals)
         T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
@@ -4113,7 +4198,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
 
         // OpenCL v2.0 s6.12.5 - A block cannot be the return value of a
         // function.
-      if (LangOpts.OpenCL && T->isBlockPointerType()) {
+      if (LangOpts.OpenCL && (T->isBlockPointerType() || T->isImageType() ||
+                              T->isSamplerT() || T->isPipeType())) {
         S.Diag(D.getIdentifierLoc(), diag::err_opencl_invalid_return)
             << T << 1 /*hint off*/;
         D.setInvalidType(true);
@@ -4618,6 +4704,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     case Declarator::MemberContext:
     case Declarator::BlockContext:
     case Declarator::ForContext:
+    case Declarator::InitStmtContext:
     case Declarator::ConditionContext:
     case Declarator::CXXCatchContext:
     case Declarator::ObjCCatchContext:
@@ -5511,11 +5598,13 @@ static bool handleObjCOwnershipTypeAttr(TypeProcessingState &state,
     }
 
     // Otherwise, if the qualifiers actually conflict, pull sugar off
-    // until we reach a type that is directly qualified.
+    // and remove the ObjCLifetime qualifiers.
     if (previousLifetime != lifetime) {
-      // This should always terminate: the canonical type is
-      // qualified, so some bit of sugar must be hiding it.
-      while (!underlyingType.Quals.hasObjCLifetime()) {
+      // It's possible to have multiple local ObjCLifetime qualifiers. We
+      // can't stop after we reach a type that is directly qualified.
+      const Type *prevTy = nullptr;
+      while (!prevTy || prevTy != underlyingType.Ty) {
+        prevTy = underlyingType.Ty;
         underlyingType = underlyingType.getSingleStepDesugaredType();
       }
       underlyingType.Quals.removeObjCLifetime();
@@ -5996,10 +6085,11 @@ bool Sema::checkObjCKindOfType(QualType &type, SourceLocation loc) {
 
   // Rebuild the "equivalent" type, which pushes __kindof down into
   // the object type.
-  QualType equivType = Context.getObjCObjectType(objType->getBaseType(),
-                                                 objType->getTypeArgsAsWritten(),
-                                                 objType->getProtocols(),
-                                                 /*isKindOf=*/true);
+  // There is no need to apply kindof on an unqualified id type.
+  QualType equivType = Context.getObjCObjectType(
+      objType->getBaseType(), objType->getTypeArgsAsWritten(),
+      objType->getProtocols(),
+      /*isKindOf=*/objType->isObjCUnqualifiedId() ? false : true);
 
   // If we started with an object pointer type, rebuild it.
   if (ptrType) {
@@ -6565,11 +6655,30 @@ static void HandleNeonVectorTypeAttr(QualType& CurType,
 /// Handle OpenCL Access Qualifier Attribute.
 static void HandleOpenCLAccessAttr(QualType &CurType, const AttributeList &Attr,
                                    Sema &S) {
-  // OpenCL v2.0 s6.6 - Access qualifier can used only for image and pipe type.
+  // OpenCL v2.0 s6.6 - Access qualifier can be used only for image and pipe type.
   if (!(CurType->isImageType() || CurType->isPipeType())) {
     S.Diag(Attr.getLoc(), diag::err_opencl_invalid_access_qualifier);
     Attr.setInvalid();
     return;
+  }
+
+  if (const TypedefType* TypedefTy = CurType->getAs<TypedefType>()) {
+    QualType PointeeTy = TypedefTy->desugar();
+    S.Diag(Attr.getLoc(), diag::err_opencl_multiple_access_qualifiers);
+
+    std::string PrevAccessQual;
+    switch (cast<BuiltinType>(PointeeTy.getTypePtr())->getKind()) {
+      #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
+    case BuiltinType::Id:                                          \
+      PrevAccessQual = #Access;                                    \
+      break;
+      #include "clang/Basic/OpenCLImageTypes.def"
+    default:
+      assert(0 && "Unable to find corresponding image type.");
+    }
+
+    S.Diag(TypedefTy->getDecl()->getLocStart(),
+       diag::note_opencl_typedef_access_qualifier) << PrevAccessQual;
   }
 }
 
@@ -6909,8 +7018,8 @@ bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
       RD = Pattern;
     D = RD->getDefinition();
   } else if (auto *ED = dyn_cast<EnumDecl>(D)) {
-    while (auto *NewED = ED->getInstantiatedFromMemberEnum())
-      ED = NewED;
+    if (auto *Pattern = ED->getTemplateInstantiationPattern())
+      ED = Pattern;
     if (OnlyNeedComplete && ED->isFixed()) {
       // If the enum has a fixed underlying type, and we're only looking for a
       // complete type (not a definition), any visible declaration of it will
@@ -6926,6 +7035,10 @@ bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
       return false;
     }
     D = ED->getDefinition();
+  } else if (auto *FD = dyn_cast<FunctionDecl>(D)) {
+    if (auto *Pattern = FD->getTemplateInstantiationPattern())
+      FD = Pattern;
+    D = FD->getDefinition();
   }
   assert(D && "missing definition for pattern of instantiated definition");
 
@@ -6933,7 +7046,7 @@ bool Sema::hasVisibleDefinition(NamedDecl *D, NamedDecl **Suggested,
   if (isVisible(D))
     return true;
 
-  // The external source may have additional definitions of this type that are
+  // The external source may have additional definitions of this entity that are
   // visible, so complete the redeclaration chain now and ask again.
   if (auto *Source = Context.getExternalSource()) {
     Source->CompleteRedeclChain(D);
@@ -6997,9 +7110,16 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
     }
   }
 
-  // If we have a complete type, we're done.
   NamedDecl *Def = nullptr;
-  if (!T->isIncompleteType(&Def)) {
+  bool Incomplete = T->isIncompleteType(&Def);
+
+  // Check that any necessary explicit specializations are visible. For an
+  // enum, we just need the declaration, so don't check this.
+  if (Def && !isa<EnumDecl>(Def))
+    checkSpecializationVisibility(Loc, Def);
+
+  // If we have a complete type, we're done.
+  if (!Incomplete) {
     // If we know about the definition but it is not visible, complain.
     NamedDecl *SuggestedDef = nullptr;
     if (Def &&
@@ -7008,7 +7128,7 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
       // definition visible.
       bool TreatAsComplete = Diagnoser && !isSFINAEContext();
       if (Diagnoser)
-        diagnoseMissingImport(Loc, SuggestedDef, /*NeedDefinition*/true,
+        diagnoseMissingImport(Loc, SuggestedDef, MissingImportKind::Definition,
                               /*Recover*/TreatAsComplete);
       return !TreatAsComplete;
     }
@@ -7101,15 +7221,11 @@ bool Sema::RequireCompleteTypeImpl(SourceLocation Loc, QualType T,
     }
   }
 
+  // FIXME: If we didn't instantiate a definition because of an explicit
+  // specialization declaration, check that it's visible.
+
   if (!Diagnoser)
     return true;
-
-  // We have an incomplete type. Produce a diagnostic.
-  if (Ident___float128 &&
-      T == Context.getTypeDeclType(Context.getFloat128StubType())) {
-    Diag(Loc, diag::err_typecheck_decl_incomplete_type___float128);
-    return true;
-  }
 
   Diagnoser->diagnose(*this, Loc, T);
 

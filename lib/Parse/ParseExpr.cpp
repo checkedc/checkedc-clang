@@ -21,15 +21,14 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "clang/Parse/Parser.h"
 #include "RAIIObjectsForParser.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/Basic/PrettyStackTrace.h"
+#include "clang/Parse/Parser.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
-#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 using namespace clang;
 
@@ -446,6 +445,7 @@ Parser::ParseRHSOfBinaryExpression(ExprResult LHS, prec::Level MinPrec) {
 
         LHS = Actions.ActOnBinOp(getCurScope(), OpToken.getLocation(),
                                  OpToken.getKind(), LHS.get(), RHS.get());
+
       } else {
         LHS = Actions.ActOnConditionalOp(OpToken.getLocation(), ColonLoc,
                                          LHS.get(), TernaryMiddle.get(),
@@ -800,6 +800,7 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
           REVERTIBLE_TYPE_TRAIT(__is_abstract);
           REVERTIBLE_TYPE_TRAIT(__is_arithmetic);
           REVERTIBLE_TYPE_TRAIT(__is_array);
+          REVERTIBLE_TYPE_TRAIT(__is_assignable);
           REVERTIBLE_TYPE_TRAIT(__is_base_of);
           REVERTIBLE_TYPE_TRAIT(__is_class);
           REVERTIBLE_TYPE_TRAIT(__is_complete_type);
@@ -1008,6 +1009,8 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   case tok::kw__Generic:   // primary-expression: generic-selection [C11 6.5.1]
     Res = ParseGenericSelectionExpression();
     break;
+  case tok::kw___builtin_available:
+    return ParseAvailabilityCheckExpr(Tok.getLocation());
   case tok::kw___builtin_va_arg:
   case tok::kw___builtin_offsetof:
   case tok::kw___builtin_choose_expr:
@@ -1170,12 +1173,13 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   case tok::kw_half:
   case tok::kw_float:
   case tok::kw_double:
+  case tok::kw___float128:
   case tok::kw_void:
   case tok::kw_typename:
   case tok::kw_typeof:
   case tok::kw___vector:
 #define GENERIC_IMAGE_TYPE(ImgType, Id) case tok::kw_##ImgType##_t:
-#include "clang/AST/OpenCLImageTypes.def"
+#include "clang/Basic/OpenCLImageTypes.def"
   {
     if (!getLangOpts().CPlusPlus) {
       Diag(Tok, diag::err_expected_expression);
@@ -3026,4 +3030,118 @@ ExprResult Parser::ParseBlockLiteralExpression() {
 ExprResult Parser::ParseObjCBoolLiteral() {
   tok::TokenKind Kind = Tok.getKind();
   return Actions.ActOnObjCBoolLiteral(ConsumeToken(), Kind);
+}
+
+/// Validate availability spec list, emitting diagnostics if necessary. Returns
+/// true if invalid.
+static bool CheckAvailabilitySpecList(Parser &P,
+                                      ArrayRef<AvailabilitySpec> AvailSpecs) {
+  llvm::SmallSet<StringRef, 4> Platforms;
+  bool HasOtherPlatformSpec = false;
+  bool Valid = true;
+  for (const auto &Spec : AvailSpecs) {
+    if (Spec.isOtherPlatformSpec()) {
+      if (HasOtherPlatformSpec) {
+        P.Diag(Spec.getBeginLoc(), diag::err_availability_query_repeated_star);
+        Valid = false;
+      }
+
+      HasOtherPlatformSpec = true;
+      continue;
+    }
+
+    bool Inserted = Platforms.insert(Spec.getPlatform()).second;
+    if (!Inserted) {
+      // Rule out multiple version specs referring to the same platform.
+      // For example, we emit an error for:
+      // @available(macos 10.10, macos 10.11, *)
+      StringRef Platform = Spec.getPlatform();
+      P.Diag(Spec.getBeginLoc(), diag::err_availability_query_repeated_platform)
+          << Spec.getEndLoc() << Platform;
+      Valid = false;
+    }
+  }
+
+  if (!HasOtherPlatformSpec) {
+    SourceLocation InsertWildcardLoc = AvailSpecs.back().getEndLoc();
+    P.Diag(InsertWildcardLoc, diag::err_availability_query_wildcard_required)
+        << FixItHint::CreateInsertion(InsertWildcardLoc, ", *");
+    return true;
+  }
+
+  return !Valid;
+}
+
+/// Parse availability query specification.
+///
+///  availability-spec:
+///     '*'
+///     identifier version-tuple
+Optional<AvailabilitySpec> Parser::ParseAvailabilitySpec() {
+  if (Tok.is(tok::star)) {
+    return AvailabilitySpec(ConsumeToken());
+  } else {
+    // Parse the platform name.
+    if (Tok.isNot(tok::identifier)) {
+      Diag(Tok, diag::err_avail_query_expected_platform_name);
+      return None;
+    }
+
+    IdentifierLoc *PlatformIdentifier = ParseIdentifierLoc();
+    SourceRange VersionRange;
+    VersionTuple Version = ParseVersionTuple(VersionRange);
+
+    if (Version.empty())
+      return None;
+
+    StringRef Platform = PlatformIdentifier->Ident->getName();
+
+    if (AvailabilityAttr::getPrettyPlatformName(Platform).empty()) {
+      Diag(PlatformIdentifier->Loc,
+           diag::err_avail_query_unrecognized_platform_name)
+          << Platform;
+      return None;
+    }
+
+    return AvailabilitySpec(Version, Platform, PlatformIdentifier->Loc,
+                            VersionRange.getEnd());
+  }
+}
+
+ExprResult Parser::ParseAvailabilityCheckExpr(SourceLocation BeginLoc) {
+  assert(Tok.is(tok::kw___builtin_available) ||
+         Tok.isObjCAtKeyword(tok::objc_available));
+
+  // Eat the available or __builtin_available.
+  ConsumeToken();
+
+  BalancedDelimiterTracker Parens(*this, tok::l_paren);
+  if (Parens.expectAndConsume())
+    return ExprError();
+
+  SmallVector<AvailabilitySpec, 4> AvailSpecs;
+  bool HasError = false;
+  while (true) {
+    Optional<AvailabilitySpec> Spec = ParseAvailabilitySpec();
+    if (!Spec)
+      HasError = true;
+    else
+      AvailSpecs.push_back(*Spec);
+
+    if (!TryConsumeToken(tok::comma))
+      break;
+  }
+
+  if (HasError) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  CheckAvailabilitySpecList(*this, AvailSpecs);
+
+  if (Parens.consumeClose())
+    return ExprError();
+
+  return Actions.ActOnObjCAvailabilityCheckExpr(AvailSpecs, BeginLoc,
+                                                Parens.getCloseLocation());
 }

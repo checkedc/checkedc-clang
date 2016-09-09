@@ -10,7 +10,7 @@
 // CHECK-YC: -o
 // CHECK-YC: pchfile.pch
 // CHECK-YC: -x
-// CHECK-YC: "c++"
+// CHECK-YC: "c++-header"
 // 2. Use .pch file.
 // CHECK-YC: cc1
 // CHECK-YC: -emit-obj
@@ -158,7 +158,7 @@
 // CHECK-YCFIFIFI: -o
 // CHECK-YCFIFIFI: foo2.pch
 // CHECK-YCFIFIFI: -x
-// CHECK-YCFIFIFI: "c++"
+// CHECK-YCFIFIFI: "c++-header"
 // CHECK-YCFIFIFI: foo2.h
 // 2. Use .pch file: Inlucdes foo2.pch and foo3.h
 // CHECK-YCFIFIFI: cc1
@@ -296,7 +296,7 @@
 // CHECK-YCTC: -o
 // CHECK-YCTC: pchfile.pch
 // CHECK-YCTC: -x
-// CHECK-YCTP: "c"
+// CHECK-YCTC: "c"
 
 // Also check lower-case /Tc variant.
 // RUN: %clang_cl -Werror /Ycpchfile.h /FIpchfile.h /c -### /Tc%s 2>&1 \
@@ -307,3 +307,18 @@
 // CHECK-YCTc: pchfile.pch
 // CHECK-YCTc: -x
 // CHECK-YCTc: "c"
+
+// Don't crash when a non-source file is passed.
+// RUN: %clang_cl -Werror /Ycpchfile.h /FIpchfile.h /c -### -- %S/Inputs/file.prof 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-NoSource %s
+// CHECK-NoSource: file.prof:{{.*}}input unused
+
+// ...but if an explicit flag turns the file into a source file, handle it:
+// RUN: %clang_cl /TP -Werror /Ycpchfile.h /FIpchfile.h /c -### -- %S/Inputs/file.prof 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-NoSourceTP %s
+// CHECK-NoSourceTP: cc1
+// CHECK-NoSourceTP: -emit-pch
+// CHECK-NoSourceTP: -o
+// CHECK-NoSourceTP: pchfile.pch
+// CHECK-NoSourceTP: -x
+// CHECK-NoSourceTP: "c++"

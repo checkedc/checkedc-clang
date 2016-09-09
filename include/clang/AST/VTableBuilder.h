@@ -20,7 +20,6 @@
 #include "clang/AST/RecordLayout.h"
 #include "clang/Basic/ABI.h"
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SetVector.h"
 #include <memory>
 #include <utility>
 
@@ -219,12 +218,6 @@ private:
 class VTableLayout {
 public:
   typedef std::pair<uint64_t, ThunkInfo> VTableThunkTy;
-
-  typedef const VTableComponent *vtable_component_iterator;
-  typedef const VTableThunkTy *vtable_thunk_iterator;
-  typedef llvm::iterator_range<vtable_component_iterator>
-      vtable_component_range;
-
   typedef llvm::DenseMap<BaseSubobject, uint64_t> AddressPointsMapTy;
 
 private:
@@ -249,31 +242,12 @@ public:
                bool IsMicrosoftABI);
   ~VTableLayout();
 
-  uint64_t getNumVTableComponents() const {
-    return NumVTableComponents;
+  ArrayRef<VTableComponent> vtable_components() const {
+    return {VTableComponents.get(), size_t(NumVTableComponents)};
   }
 
-  vtable_component_range vtable_components() const {
-    return vtable_component_range(vtable_component_begin(),
-                                  vtable_component_end());
-  }
-
-  vtable_component_iterator vtable_component_begin() const {
-    return VTableComponents.get();
-  }
-
-  vtable_component_iterator vtable_component_end() const {
-    return VTableComponents.get() + NumVTableComponents;
-  }
-
-  uint64_t getNumVTableThunks() const { return NumVTableThunks; }
-
-  vtable_thunk_iterator vtable_thunk_begin() const {
-    return VTableThunks.get();
-  }
-
-  vtable_thunk_iterator vtable_thunk_end() const {
-    return VTableThunks.get() + NumVTableThunks;
+  ArrayRef<VTableThunkTy> vtable_thunks() const {
+    return {VTableThunks.get(), size_t(NumVTableThunks)};
   }
 
   uint64_t getAddressPoint(BaseSubobject Base) const {
@@ -399,20 +373,20 @@ struct VPtrInfo {
   typedef SmallVector<const CXXRecordDecl *, 1> BasePath;
 
   VPtrInfo(const CXXRecordDecl *RD)
-      : ReusingBase(RD), BaseWithVPtr(RD), NextBaseToMangle(RD) {}
+      : ObjectWithVPtr(RD), IntroducingObject(RD), NextBaseToMangle(RD) {}
 
-  /// The vtable will hold all of the virtual bases or virtual methods of
-  /// ReusingBase.  This may or may not be the same class as VPtrSubobject.Base.
-  /// A derived class will reuse the vptr of the first non-virtual base
-  /// subobject that has one.
-  const CXXRecordDecl *ReusingBase;
+  /// This is the most derived class that has this vptr at offset zero. When
+  /// single inheritance is used, this is always the most derived class. If
+  /// multiple inheritance is used, it may be any direct or indirect base.
+  const CXXRecordDecl *ObjectWithVPtr;
 
-  /// BaseWithVPtr is at this offset from its containing complete object or
+  /// This is the class that introduced the vptr by declaring new virtual
+  /// methods or virtual bases.
+  const CXXRecordDecl *IntroducingObject;
+
+  /// IntroducingObject is at this offset from its containing complete object or
   /// virtual base.
   CharUnits NonVirtualOffset;
-
-  /// The vptr is stored inside this subobject.
-  const CXXRecordDecl *BaseWithVPtr;
 
   /// The bases from the inheritance path that got used to mangle the vbtable
   /// name.  This is not really a full path like a CXXBasePath.  It holds the
@@ -432,7 +406,7 @@ struct VPtrInfo {
   /// This holds the base classes path from the complete type to the first base
   /// with the given vfptr offset, in the base-to-derived order.  Only used for
   /// vftables.
-  BasePath PathToBaseWithVPtr;
+  BasePath PathToIntroducingObject;
 
   /// Static offset from the top of the most derived class to this vfptr,
   /// including any virtual base offset.  Only used for vftables.

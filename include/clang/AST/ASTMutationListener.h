@@ -17,10 +17,12 @@ namespace clang {
   class Attr;
   class ClassTemplateDecl;
   class ClassTemplateSpecializationDecl;
+  class ConstructorUsingShadowDecl;
   class CXXDestructorDecl;
   class CXXRecordDecl;
   class Decl;
   class DeclContext;
+  class FieldDecl;
   class FunctionDecl;
   class FunctionTemplateDecl;
   class Module;
@@ -92,6 +94,9 @@ public:
   /// \brief A default argument was instantiated.
   virtual void DefaultArgumentInstantiated(const ParmVarDecl *D) {}
 
+  /// \brief A default member initializer was instantiated.
+  virtual void DefaultMemberInitializerInstantiated(const FieldDecl *D) {}
+
   /// \brief A new objc category class was added for an interface.
   virtual void AddedObjCCategoryToInterface(const ObjCCategoryDecl *CatD,
                                             const ObjCInterfaceDecl *IFD) {}
@@ -111,7 +116,9 @@ public:
   /// previously marked as declaretarget.
   ///
   /// \param D the declaration marked OpenMP declaretarget.
-  virtual void DeclarationMarkedOpenMPDeclareTarget(const Decl *D) {}
+  /// \param Attr the added attribute.
+  virtual void DeclarationMarkedOpenMPDeclareTarget(const Decl *D,
+                                                    const Attr *Attr) {}
 
   /// \brief A definition has been made visible by being redefined locally.
   ///

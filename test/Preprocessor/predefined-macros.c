@@ -1,10 +1,11 @@
 // This test verifies that the correct macros are predefined.
 //
-// RUN: %clang_cc1 %s -E -dM -triple i686-pc-win32 -fms-extensions -fms-compatibility \
-// RUN:     -fms-compatibility-version=13.00 -o - | FileCheck -match-full-lines %s --check-prefix=CHECK-MS
+// RUN: %clang_cc1 %s -x c++ -E -dM -triple i686-pc-win32 -fms-extensions -fms-compatibility \
+// RUN:     -fms-compatibility-version=19.00 -std=c++1z -o - | FileCheck -match-full-lines %s --check-prefix=CHECK-MS
 // CHECK-MS: #define _INTEGRAL_MAX_BITS 64
 // CHECK-MS: #define _MSC_EXTENSIONS 1
-// CHECK-MS: #define _MSC_VER 1300
+// CHECK-MS: #define _MSC_VER 1900
+// CHECK-MS: #define _MSVC_LANG 201403L
 // CHECK-MS: #define _M_IX86 600
 // CHECK-MS: #define _M_IX86_FP 0
 // CHECK-MS: #define _WIN32 1
@@ -13,11 +14,12 @@
 // CHECK-MS-NOT: GNU
 // CHECK-MS-NOT: GXX
 //
-// RUN: %clang_cc1 %s -E -dM -triple x86_64-pc-win32 -fms-extensions -fms-compatibility \
-// RUN:     -fms-compatibility-version=13.00 -o - | FileCheck -match-full-lines %s --check-prefix=CHECK-MS64
+// RUN: %clang_cc1 %s -x c++ -E -dM -triple x86_64-pc-win32 -fms-extensions -fms-compatibility \
+// RUN:     -fms-compatibility-version=19.00 -std=c++14 -o - | FileCheck -match-full-lines %s --check-prefix=CHECK-MS64
 // CHECK-MS64: #define _INTEGRAL_MAX_BITS 64
 // CHECK-MS64: #define _MSC_EXTENSIONS 1
-// CHECK-MS64: #define _MSC_VER 1300
+// CHECK-MS64: #define _MSC_VER 1900
+// CHECK-MS64: #define _MSVC_LANG 201402L
 // CHECK-MS64: #define _M_AMD64 100
 // CHECK-MS64: #define _M_X64 100
 // CHECK-MS64: #define _WIN64 1
@@ -146,3 +148,40 @@
 // CHECK-SYNC_CAS_MIPS: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 1
 // CHECK-SYNC_CAS_MIPS32-NOT: __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8
 // CHECK-SYNC_CAS_MIPS64: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8 1
+
+// RUN: %clang_cc1 %s -E -dM -o - -x cl \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-CL10
+// RUN: %clang_cc1 %s -E -dM -o - -x cl -cl-std=CL1.1 \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-CL11
+// RUN: %clang_cc1 %s -E -dM -o - -x cl -cl-std=CL1.2 \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-CL12
+// RUN: %clang_cc1 %s -E -dM -o - -x cl -cl-std=CL2.0 \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-CL20
+// RUN: %clang_cc1 %s -E -dM -o - -x cl -cl-fast-relaxed-math \
+// RUN:   | FileCheck -match-full-lines %s --check-prefix=CHECK-FRM
+// CHECK-CL10: #define CL_VERSION_1_0 100
+// CHECK-CL10: #define CL_VERSION_1_1 110
+// CHECK-CL10: #define CL_VERSION_1_2 120
+// CHECK-CL10: #define CL_VERSION_2_0 200
+// CHECK-CL10: #define __OPENCL_C_VERSION__ 100
+// CHECK-CL10-NOT: #define __FAST_RELAXED_MATH__ 1
+// CHECK-CL11: #define CL_VERSION_1_0 100
+// CHECK-CL11: #define CL_VERSION_1_1 110
+// CHECK-CL11: #define CL_VERSION_1_2 120
+// CHECK-CL11: #define CL_VERSION_2_0 200
+// CHECK-CL11: #define __OPENCL_C_VERSION__ 110
+// CHECK-CL11-NOT: #define __FAST_RELAXED_MATH__ 1
+// CHECK-CL12: #define CL_VERSION_1_0 100
+// CHECK-CL12: #define CL_VERSION_1_1 110
+// CHECK-CL12: #define CL_VERSION_1_2 120
+// CHECK-CL12: #define CL_VERSION_2_0 200
+// CHECK-CL12: #define __OPENCL_C_VERSION__ 120
+// CHECK-CL12-NOT: #define __FAST_RELAXED_MATH__ 1
+// CHECK-CL20: #define CL_VERSION_1_0 100
+// CHECK-CL20: #define CL_VERSION_1_1 110
+// CHECK-CL20: #define CL_VERSION_1_2 120
+// CHECK-CL20: #define CL_VERSION_2_0 200
+// CHECK-CL20: #define __OPENCL_C_VERSION__ 200
+// CHECK-CL20-NOT: #define __FAST_RELAXED_MATH__ 1
+// CHECK-FRM: #define __FAST_RELAXED_MATH__ 1
+

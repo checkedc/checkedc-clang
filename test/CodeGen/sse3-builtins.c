@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -triple=x86_64-apple-darwin -target-feature +sse3 -emit-llvm -o - -Werror | FileCheck %s
+// RUN: %clang_cc1 %s -triple=x86_64-apple-darwin -target-feature +sse3 -emit-llvm -o - -Wall -Werror | FileCheck %s
 
 // Don't include mm_malloc.h, it's system specific.
 #define __MM_MALLOC_H
@@ -52,6 +52,8 @@ __m128i test_mm_lddqu_si128(__m128i const* P) {
 __m128d test_mm_loaddup_pd(double const* P) {
   // CHECK-LABEL: test_mm_loaddup_pd
   // CHECK: load double*
+  // CHECK: insertelement <2 x double> undef, double %{{.*}}, i32 0
+  // CHECK: insertelement <2 x double> %{{.*}}, double %{{.*}}, i32 1
   return _mm_loaddup_pd(P);
 }
 

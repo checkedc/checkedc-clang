@@ -16,7 +16,6 @@
 #define LLVM_CLANG_BASIC_TARGETINFO_H
 
 #include "clang/Basic/AddressSpaces.h"
-#include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TargetCXXABI.h"
@@ -27,11 +26,9 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Triple.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/Support/DataTypes.h"
-
 #include <cassert>
 #include <string>
 #include <vector>
@@ -43,6 +40,7 @@ struct fltSemantics;
 namespace clang {
 class DiagnosticsEngine;
 class LangOptions;
+class CodeGenOptions;
 class MacroBuilder;
 class SourceLocation;
 class SourceManager;
@@ -60,13 +58,14 @@ protected:
   bool BigEndian;
   bool TLSSupported;
   bool NoAsmVariants;  // True if {|} are normal characters.
+  bool HasFloat128;
   unsigned char PointerWidth, PointerAlign;
   unsigned char BoolWidth, BoolAlign;
   unsigned char IntWidth, IntAlign;
   unsigned char HalfWidth, HalfAlign;
   unsigned char FloatWidth, FloatAlign;
   unsigned char DoubleWidth, DoubleAlign;
-  unsigned char LongDoubleWidth, LongDoubleAlign;
+  unsigned char LongDoubleWidth, LongDoubleAlign, Float128Align;
   unsigned char LargeArrayMinWidth, LargeArrayAlign;
   unsigned char LongWidth, LongAlign;
   unsigned char LongLongWidth, LongLongAlign;
@@ -80,7 +79,7 @@ protected:
   std::unique_ptr<llvm::DataLayout> DataLayout;
   const char *MCountName;
   const llvm::fltSemantics *HalfFormat, *FloatFormat, *DoubleFormat,
-    *LongDoubleFormat;
+    *LongDoubleFormat, *Float128Format;
   unsigned char RegParmMax, SSERegParmMax;
   TargetCXXABI TheCXXABI;
   const LangAS::Map *AddrSpaceMap;
@@ -93,6 +92,8 @@ protected:
   unsigned ComplexLongDoubleUsesFP2Ret : 1;
 
   unsigned HasBuiltinMSVaList : 1;
+
+  unsigned IsRenderScriptTarget : 1;
 
   // TargetInfo Constructor.  Default initializes all fields.
   TargetInfo(const llvm::Triple &T);
@@ -109,8 +110,7 @@ public:
   /// what the backend expects.
   static TargetInfo *
   CreateTargetInfo(DiagnosticsEngine &Diags,
-                   const std::shared_ptr<TargetOptions> &Opts,
-                   const CodeGenOptions &CGOpts = CodeGenOptions());
+                   const std::shared_ptr<TargetOptions> &Opts);
 
   virtual ~TargetInfo();
 
@@ -139,7 +139,8 @@ public:
     NoFloat = 255,
     Float = 0,
     Double,
-    LongDouble
+    LongDouble,
+    Float128
   };
 
   /// \brief The different kinds of __builtin_va_list types defined by
@@ -293,6 +294,11 @@ public:
     return AddrSpace == 0 ? PointerAlign : getPointerAlignV(AddrSpace);
   }
 
+  /// \brief Return the maximum width of pointers on this target.
+  virtual uint64_t getMaxPointerWidth() const {
+    return PointerWidth;
+  }
+
   /// \brief Return the size of '_Bool' and C++ 'bool' for this target, in bits.
   unsigned getBoolWidth() const { return BoolWidth; }
 
@@ -329,6 +335,9 @@ public:
   virtual bool hasInt128Type() const {
     return getPointerWidth(0) >= 64;
   } // FIXME
+
+  /// \brief Determine whether the __float128 type is supported on this target.
+  virtual bool hasFloat128Type() const { return HasFloat128; }
 
   /// \brief Return the alignment that is suitable for storing any
   /// object with a fundamental alignment requirement.
@@ -380,6 +389,14 @@ public:
   unsigned getLongDoubleAlign() const { return LongDoubleAlign; }
   const llvm::fltSemantics &getLongDoubleFormat() const {
     return *LongDoubleFormat;
+  }
+
+  /// getFloat128Width/Align/Format - Return the size/align/format of
+  /// '__float128'.
+  unsigned getFloat128Width() const { return 128; }
+  unsigned getFloat128Align() const { return Float128Align; }
+  const llvm::fltSemantics &getFloat128Format() const {
+    return *Float128Format;
   }
 
   /// \brief Return true if the 'long double' type should be mangled like
@@ -555,6 +572,9 @@ public:
   /// Returns whether or not type \c __builtin_ms_va_list type is
   /// available on this target.
   bool hasBuiltinMSVaList() const { return HasBuiltinMSVaList; }
+
+  /// Returns true for RenderScript.
+  bool isRenderScriptTarget() const { return IsRenderScriptTarget; }
 
   /// \brief Returns whether the passed in string is a valid clobber in an
   /// inline asm statement.
@@ -783,6 +803,10 @@ public:
   /// language options which change the target configuration.
   virtual void adjust(const LangOptions &Opts);
 
+  /// \brief Adjust target options based on codegen options.
+  virtual void adjustTargetOptions(const CodeGenOptions &CGOpts,
+                                   TargetOptions &TargetOpts) const {}
+
   /// \brief Initialize the map with the default set of target features for the
   /// CPU this should include all legal feature strings on the target.
   ///
@@ -915,6 +939,7 @@ public:
   VersionTuple getPlatformMinVersion() const { return PlatformMinVersion; }
 
   bool isBigEndian() const { return BigEndian; }
+  bool isLittleEndian() const { return !BigEndian; }
 
   enum CallingConvMethodType {
     CCMT_Unknown,
@@ -958,6 +983,29 @@ public:
 
   /// \brief Whether target allows to overalign ABI-specified prefered alignment
   virtual bool allowsLargerPreferedTypeAlignment() const { return true; }
+
+  /// \brief Set supported OpenCL extensions and optional core features.
+  virtual void setSupportedOpenCLOpts() {}
+
+  /// \brief Get supported OpenCL extensions and optional core features.
+  OpenCLOptions &getSupportedOpenCLOpts() {
+    return getTargetOpts().SupportedOpenCLOptions;
+  }
+
+  /// \brief Get const supported OpenCL extensions and optional core features.
+  const OpenCLOptions &getSupportedOpenCLOpts() const {
+      return getTargetOpts().SupportedOpenCLOptions;
+  }
+
+  /// \brief Get OpenCL image type address space.
+  virtual LangAS::ID getOpenCLImageAddrSpace() const {
+    return LangAS::opencl_global;
+  }
+
+  /// \brief Check the target is valid after it is fully initialized.
+  virtual bool validateTarget(DiagnosticsEngine &Diags) const {
+    return true;
+  }
 
 protected:
   virtual uint64_t getPointerWidthV(unsigned AddrSpace) const {

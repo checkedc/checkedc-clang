@@ -88,7 +88,6 @@
 // COMMON:#define __ORDER_LITTLE_ENDIAN__ 1234
 // COMMON:#define __ORDER_PDP_ENDIAN__ 3412
 // COMMON:#define __STDC_HOSTED__ 1
-// COMMON:#define __STDC_VERSION__ 201112L
 // COMMON:#define __STDC__ 1
 // COMMON:#define __VERSION__ {{.*}}
 // COMMON:#define __clang__ 1
@@ -98,7 +97,13 @@
 // COMMON:#define __clang_version__ {{.*}}
 // COMMON:#define __llvm__ 1
 //
+// RUN: %clang_cc1 -E -dM -triple=x86_64-pc-win32 < /dev/null | FileCheck -match-full-lines -check-prefix C-DEFAULT %s
+// RUN: %clang_cc1 -E -dM -triple=x86_64-pc-linux-gnu < /dev/null | FileCheck -match-full-lines -check-prefix C-DEFAULT %s
+// RUN: %clang_cc1 -E -dM -triple=x86_64-apple-darwin < /dev/null | FileCheck -match-full-lines -check-prefix C-DEFAULT %s
+// RUN: %clang_cc1 -E -dM -triple=armv7a-apple-darwin < /dev/null | FileCheck -match-full-lines -check-prefix C-DEFAULT %s
 // 
+// C-DEFAULT:#define __STDC_VERSION__ 201112L
+//
 // RUN: %clang_cc1 -ffreestanding -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix FREESTANDING %s
 // FREESTANDING:#define __STDC_HOSTED__ 0
 //
@@ -1970,6 +1975,11 @@
 // ARMEABIHARDFP:#define __arm 1
 // ARMEABIHARDFP:#define __arm__ 1
 
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=armv6-unknown-cloudabi-eabihf < /dev/null | FileCheck -match-full-lines -check-prefix ARMV6-CLOUDABI %s
+//
+// ARMV6-CLOUDABI:#define __CloudABI__ 1
+// ARMV6-CLOUDABI:#define __arm__ 1
+
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=arm-netbsd-eabi < /dev/null | FileCheck -match-full-lines -check-prefix ARM-NETBSD %s
 //
 // ARM-NETBSD-NOT:#define _LP64
@@ -2162,13 +2172,16 @@
 // ARM-NETBSD:#define __arm 1
 // ARM-NETBSD:#define __arm__ 1
 
-// RUN: %clang -target arm-apple-darwin-eabi -arch armv7s -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-DARWIN-NO-EABI %s
-// RUN: %clang -target arm-apple-darwin-eabi -arch armv6m -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-DARWIN-EABI %s
-// RUN: %clang -target arm-apple-darwin-eabi -arch armv7m -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-DARWIN-EABI %s
-// RUN: %clang -target arm-apple-darwin-eabi -arch armv7em -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-DARWIN-EABI %s
-// RUN: %clang -target thumbv7-apple-darwin-eabi -arch armv7 -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-DARWIN-NO-EABI %s
-// ARM-DARWIN-NO-EABI-NOT: #define __ARM_EABI__ 1
-// ARM-DARWIN-EABI: #define __ARM_EABI__ 1
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=arm-none-eabi < /dev/null | FileCheck -match-full-lines -check-prefix ARM-NONE-EABI %s
+// ARM-NONE-EABI: #define __ELF__ 1
+
+// No MachO targets use the full EABI, even if AAPCS is used.
+// RUN: %clang -target x86_64-apple-darwin -arch armv7s -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-MACHO-NO-EABI %s
+// RUN: %clang -target x86_64-apple-darwin -arch armv6m -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-MACHO-NO-EABI %s
+// RUN: %clang -target x86_64-apple-darwin -arch armv7m -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-MACHO-NO-EABI %s
+// RUN: %clang -target x86_64-apple-darwin -arch armv7em -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-MACHO-NO-EABI %s
+// RUN: %clang -target x86_64-apple-darwin -arch armv7 -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=ARM-MACHO-NO-EABI %s
+// ARM-MACHO-NO-EABI-NOT: #define __ARM_EABI__ 1
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=armv7-bitrig-gnueabihf < /dev/null | FileCheck -match-full-lines -check-prefix ARM-BITRIG %s
 // ARM-BITRIG:#define __ARM_DWARF_EH__ 1
@@ -5819,6 +5832,37 @@
 // PPCPOWER8:#define _ARCH_PWR7 1
 // PPCPOWER8:#define _ARCH_PWR8 1
 //
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu pwr9 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCPWR9 %s
+//
+// PPCPWR9:#define _ARCH_PPC 1
+// PPCPWR9:#define _ARCH_PPC64 1
+// PPCPWR9:#define _ARCH_PPCGR 1
+// PPCPWR9:#define _ARCH_PPCSQ 1
+// PPCPWR9:#define _ARCH_PWR4 1
+// PPCPWR9:#define _ARCH_PWR5 1
+// PPCPWR9:#define _ARCH_PWR5X 1
+// PPCPWR9:#define _ARCH_PWR6 1
+// PPCPWR9:#define _ARCH_PWR6X 1
+// PPCPWR9:#define _ARCH_PWR7 1
+// PPCPWR9:#define _ARCH_PWR9 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-cpu power9 -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPCPOWER9 %s
+//
+// PPCPOWER9:#define _ARCH_PPC 1
+// PPCPOWER9:#define _ARCH_PPC64 1
+// PPCPOWER9:#define _ARCH_PPCGR 1
+// PPCPOWER9:#define _ARCH_PPCSQ 1
+// PPCPOWER9:#define _ARCH_PWR4 1
+// PPCPOWER9:#define _ARCH_PWR5 1
+// PPCPOWER9:#define _ARCH_PWR5X 1
+// PPCPOWER9:#define _ARCH_PWR6 1
+// PPCPOWER9:#define _ARCH_PWR6X 1
+// PPCPOWER9:#define _ARCH_PWR7 1
+// PPCPOWER9:#define _ARCH_PWR9 1
+//
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +float128 -target-cpu power8 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-FLOAT128 %s
+// PPC-FLOAT128:#define __FLOAT128__ 1
+//
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-linux-gnu -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-LINUX %s
 //
 // PPC64-LINUX:#define _ARCH_PPC 1
@@ -6609,6 +6653,7 @@
 // RUN: %clang_cc1 -x cl -E -dM -ffreestanding -triple=amdgcn < /dev/null | FileCheck -match-full-lines -check-prefix AMDGCN --check-prefix AMDGPU %s
 // RUN: %clang_cc1 -x cl -E -dM -ffreestanding -triple=r600 -target-cpu caicos < /dev/null | FileCheck -match-full-lines --check-prefix AMDGPU %s
 //
+// AMDGPU:#define __ENDIAN_LITTLE__ 1
 // AMDGPU:#define cl_khr_byte_addressable_store 1
 // AMDGCN:#define cl_khr_fp64 1
 // AMDGPU:#define cl_khr_global_int32_base_atomics 1
@@ -8330,8 +8375,8 @@
 // PS4:#define __LP64__ 1
 // PS4:#define __MMX__ 1
 // PS4:#define __NO_MATH_INLINES 1
+// PS4:#define __ORBIS__ 1
 // PS4:#define __POINTER_WIDTH__ 64
-// PS4:#define __PS4__ 1
 // PS4:#define __PTRDIFF_MAX__ 9223372036854775807L
 // PS4:#define __PTRDIFF_TYPE__ long int
 // PS4:#define __PTRDIFF_WIDTH__ 64
@@ -8358,6 +8403,7 @@
 // PS4:#define __SSE2__ 1
 // PS4:#define __SSE_MATH__ 1
 // PS4:#define __SSE__ 1
+// PS4:#define __STDC_VERSION__ 199901L
 // PS4:#define __UINTMAX_TYPE__ long unsigned int
 // PS4:#define __USER_LABEL_PREFIX__
 // PS4:#define __WCHAR_MAX__ 65535
@@ -8520,10 +8566,10 @@
 // WEBASSEMBLY32-NEXT:#define __INTMAX_MAX__ 9223372036854775807LL
 // WEBASSEMBLY32-NEXT:#define __INTMAX_TYPE__ long long int
 // WEBASSEMBLY32-NEXT:#define __INTMAX_WIDTH__ 64
-// WEBASSEMBLY32-NEXT:#define __INTPTR_FMTd__ "ld"
-// WEBASSEMBLY32-NEXT:#define __INTPTR_FMTi__ "li"
-// WEBASSEMBLY32-NEXT:#define __INTPTR_MAX__ 2147483647L
-// WEBASSEMBLY32-NEXT:#define __INTPTR_TYPE__ long int
+// WEBASSEMBLY32-NEXT:#define __INTPTR_FMTd__ "d"
+// WEBASSEMBLY32-NEXT:#define __INTPTR_FMTi__ "i"
+// WEBASSEMBLY32-NEXT:#define __INTPTR_MAX__ 2147483647
+// WEBASSEMBLY32-NEXT:#define __INTPTR_TYPE__ int
 // WEBASSEMBLY32-NEXT:#define __INTPTR_WIDTH__ 32
 // WEBASSEMBLY32-NEXT:#define __INT_FAST16_FMTd__ "hd"
 // WEBASSEMBLY32-NEXT:#define __INT_FAST16_FMTi__ "hi"
@@ -8582,10 +8628,10 @@
 // WEBASSEMBLY32-NEXT:#define __ORDER_PDP_ENDIAN__ 3412
 // WEBASSEMBLY32-NEXT:#define __POINTER_WIDTH__ 32
 // WEBASSEMBLY32-NEXT:#define __PRAGMA_REDEFINE_EXTNAME 1
-// WEBASSEMBLY32-NEXT:#define __PTRDIFF_FMTd__ "ld"
-// WEBASSEMBLY32-NEXT:#define __PTRDIFF_FMTi__ "li"
-// WEBASSEMBLY32-NEXT:#define __PTRDIFF_MAX__ 2147483647L
-// WEBASSEMBLY32-NEXT:#define __PTRDIFF_TYPE__ long int
+// WEBASSEMBLY32-NEXT:#define __PTRDIFF_FMTd__ "d"
+// WEBASSEMBLY32-NEXT:#define __PTRDIFF_FMTi__ "i"
+// WEBASSEMBLY32-NEXT:#define __PTRDIFF_MAX__ 2147483647
+// WEBASSEMBLY32-NEXT:#define __PTRDIFF_TYPE__ int
 // WEBASSEMBLY32-NEXT:#define __PTRDIFF_WIDTH__ 32
 // WEBASSEMBLY32-NOT:#define __REGISTER_PREFIX__
 // WEBASSEMBLY32-NEXT:#define __SCHAR_MAX__ 127
@@ -8605,12 +8651,12 @@
 // WEBASSEMBLY32-NEXT:#define __SIZEOF_SIZE_T__ 4
 // WEBASSEMBLY32-NEXT:#define __SIZEOF_WCHAR_T__ 4
 // WEBASSEMBLY32-NEXT:#define __SIZEOF_WINT_T__ 4
-// WEBASSEMBLY32-NEXT:#define __SIZE_FMTX__ "lX"
-// WEBASSEMBLY32-NEXT:#define __SIZE_FMTo__ "lo"
-// WEBASSEMBLY32-NEXT:#define __SIZE_FMTu__ "lu"
-// WEBASSEMBLY32-NEXT:#define __SIZE_FMTx__ "lx"
-// WEBASSEMBLY32-NEXT:#define __SIZE_MAX__ 4294967295UL
-// WEBASSEMBLY32-NEXT:#define __SIZE_TYPE__ long unsigned int
+// WEBASSEMBLY32-NEXT:#define __SIZE_FMTX__ "X"
+// WEBASSEMBLY32-NEXT:#define __SIZE_FMTo__ "o"
+// WEBASSEMBLY32-NEXT:#define __SIZE_FMTu__ "u"
+// WEBASSEMBLY32-NEXT:#define __SIZE_FMTx__ "x"
+// WEBASSEMBLY32-NEXT:#define __SIZE_MAX__ 4294967295U
+// WEBASSEMBLY32-NEXT:#define __SIZE_TYPE__ unsigned int
 // WEBASSEMBLY32-NEXT:#define __SIZE_WIDTH__ 32
 // WEBASSEMBLY32-NEXT:#define __STDC_HOSTED__ 0
 // WEBASSEMBLY32-NOT:#define __STDC_MB_MIGHT_NEQ_WC__
@@ -8658,12 +8704,12 @@
 // WEBASSEMBLY32-NEXT:#define __UINTMAX_MAX__ 18446744073709551615ULL
 // WEBASSEMBLY32-NEXT:#define __UINTMAX_TYPE__ long long unsigned int
 // WEBASSEMBLY32-NEXT:#define __UINTMAX_WIDTH__ 64
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTX__ "lX"
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTo__ "lo"
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTu__ "lu"
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTx__ "lx"
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_MAX__ 4294967295UL
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_TYPE__ long unsigned int
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTX__ "X"
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTo__ "o"
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTu__ "u"
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTx__ "x"
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_MAX__ 4294967295U
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_TYPE__ unsigned int
 // WEBASSEMBLY32-NEXT:#define __UINTPTR_WIDTH__ 32
 // WEBASSEMBLY32-NEXT:#define __UINT_FAST16_FMTX__ "hX"
 // WEBASSEMBLY32-NEXT:#define __UINT_FAST16_FMTo__ "ho"

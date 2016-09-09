@@ -235,7 +235,7 @@ getGenericLambdaTemplateParameterList(LambdaScopeInfo *LSI, Sema &SemaRef) {
         /*Template kw loc*/ SourceLocation(), LAngleLoc,
         llvm::makeArrayRef((NamedDecl *const *)LSI->AutoTemplateParams.data(),
                            LSI->AutoTemplateParams.size()),
-        RAngleLoc);
+        RAngleLoc, nullptr);
   }
   return LSI->GLTemplateParameterList;
 }
@@ -415,11 +415,10 @@ CXXMethodDecl *Sema::startLambdaDefinition(CXXRecordDecl *Class,
   // Add parameters.
   if (!Params.empty()) {
     Method->setParams(Params);
-    CheckParmsForFunctionDef(const_cast<ParmVarDecl **>(Params.begin()),
-                             const_cast<ParmVarDecl **>(Params.end()),
+    CheckParmsForFunctionDef(Params,
                              /*CheckParameterNames=*/false);
-    
-    for (auto P : Method->params())
+
+    for (auto P : Method->parameters())
       P->setOwningFunction(Method);
   }
 
@@ -814,9 +813,8 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
   // The lambda-expression's closure type might be dependent even if its
   // semantic context isn't, if it appears within a default argument of a
   // function template.
-  if (Scope *TmplScope = CurScope->getTemplateParamParent())
-    if (!TmplScope->decl_empty())
-      KnownDependent = true;
+  if (CurScope->getTemplateParamParent())
+    KnownDependent = true;
 
   // Determine the signature of the call operator.
   TypeSourceInfo *MethodTyInfo;
@@ -1146,14 +1144,16 @@ void Sema::ActOnLambdaError(SourceLocation StartLoc, Scope *CurScope,
 
 /// \brief Add a lambda's conversion to function pointer, as described in
 /// C++11 [expr.prim.lambda]p6.
-static void addFunctionPointerConversion(Sema &S, 
+static void addFunctionPointerConversion(Sema &S,
                                          SourceRange IntroducerRange,
                                          CXXRecordDecl *Class,
                                          CXXMethodDecl *CallOperator) {
   // This conversion is explicitly disabled if the lambda's function has
   // pass_object_size attributes on any of its parameters.
-  if (std::any_of(CallOperator->param_begin(), CallOperator->param_end(),
-                  std::mem_fn(&ParmVarDecl::hasAttr<PassObjectSizeAttr>)))
+  auto HasPassObjectSizeAttr = [](const ParmVarDecl *P) {
+    return P->hasAttr<PassObjectSizeAttr>();
+  };
+  if (llvm::any_of(CallOperator->parameters(), HasPassObjectSizeAttr))
     return;
 
   // Add the conversion to function pointer.
@@ -1501,7 +1501,7 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
   SourceRange IntroducerRange;
   bool ExplicitParams;
   bool ExplicitResultType;
-  bool LambdaExprNeedsCleanups;
+  CleanupInfo LambdaCleanup;
   bool ContainsUnexpandedParameterPack;
   SmallVector<VarDecl *, 4> ArrayIndexVars;
   SmallVector<unsigned, 4> ArrayIndexStarts;
@@ -1511,7 +1511,7 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
     IntroducerRange = LSI->IntroducerRange;
     ExplicitParams = LSI->ExplicitParams;
     ExplicitResultType = !LSI->HasImplicitReturnType;
-    LambdaExprNeedsCleanups = LSI->ExprNeedsCleanups;
+    LambdaCleanup = LSI->Cleanup;
     ContainsUnexpandedParameterPack = LSI->ContainsUnexpandedParameterPack;
     
     CallOperator->setLexicalDeclContext(Class);
@@ -1592,9 +1592,8 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
     CheckCompletedCXXClass(Class);
   }
 
-  if (LambdaExprNeedsCleanups)
-    ExprNeedsCleanups = true;
-  
+  Cleanup.mergeFrom(LambdaCleanup);
+
   LambdaExpr *Lambda = LambdaExpr::Create(Context, Class, IntroducerRange, 
                                           CaptureDefault, CaptureDefaultLoc,
                                           Captures, 
@@ -1637,6 +1636,7 @@ ExprResult Sema::BuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
       ExprEvalContexts.back().Lambdas.push_back(Lambda);
       break;
 
+    case DiscardedStatement:
     case PotentiallyEvaluated:
     case PotentiallyEvaluatedIfUsed:
       break;
@@ -1715,7 +1715,7 @@ ExprResult Sema::BuildBlockForLambdaConversion(SourceLocation CurrentLocation,
   // Create the block literal expression.
   Expr *BuildBlock = new (Context) BlockExpr(Block, Conv->getConversionType());
   ExprCleanupObjects.push_back(Block);
-  ExprNeedsCleanups = true;
+  Cleanup.setExprNeedsCleanups(true);
 
   return BuildBlock;
 }

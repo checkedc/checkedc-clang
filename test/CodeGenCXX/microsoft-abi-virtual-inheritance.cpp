@@ -283,7 +283,7 @@ struct D : virtual Z, B, C {
 } d;
 
 D::~D() {
-  // CHECK-LABEL: define x86_thiscallcc void @"\01??1D@diamond@@UAE@XZ"(%"struct.diamond::D"*)
+  // CHECK-LABEL: define x86_thiscallcc void @"\01??1D@diamond@@UAE@XZ"(%"struct.diamond::D"*{{.*}})
   // CHECK: %[[ARG_i8:.*]] = bitcast %"struct.diamond::D"* %{{.*}} to i8*
   // CHECK: %[[THIS_i8:.*]] = getelementptr inbounds i8, i8* %[[ARG_i8]], i32 -24
   // CHECK: %[[THIS:.*]] = bitcast i8* %[[THIS_i8]] to %"struct.diamond::D"*
@@ -479,5 +479,45 @@ C::C() : B() {}
 // CHECK:   %[[B:.*]] = bitcast %"struct.test5::C"* %[[THIS]] to %"struct.test5::B"*
 // CHECK:   %[[B_i8:.*]] = bitcast %"struct.test5::B"* %[[B]] to i8*
 // CHECK:   %[[FIELD:.*]] = getelementptr inbounds i8, i8* %[[B_i8]], i32 4
+// CHECK:   call void @llvm.memset.p0i8.i32(i8* %[[FIELD]], i8 0, i32 4, i32 4, i1 false)
+}
+
+namespace pr27621 {
+// Devirtualization through a static_cast used to make us compute the 'this'
+// adjustment for B::g instead of C::g. When we directly call C::g, 'this' is a
+// B*, and the prologue of C::g will adjust it to a C*.
+struct A { virtual void f(); };
+struct B { virtual void g(); };
+struct C final : A, B {
+  virtual void h();
+  void g() override;
+};
+void callit(C *p) {
+  static_cast<B*>(p)->g();
+}
+// CHECK-LABEL: define void @"\01?callit@pr27621@@YAXPAUC@1@@Z"(%"struct.pr27621::C"* %{{.*}})
+// CHECK: %[[B_i8:.*]] = getelementptr i8, i8* %{{.*}}, i32 4
+// CHECK: call x86_thiscallcc void @"\01?g@C@pr27621@@UAEXXZ"(i8* %[[B_i8]])
+}
+
+namespace test6 {
+class A {};
+class B : virtual A {};
+class C : virtual B {
+  virtual void m_fn1();
+  float field;
+};
+class D : C {
+  D();
+};
+D::D() : C() {}
+// CHECK-LABEL: define x86_thiscallcc %"class.test6::D"* @"\01??0D@test6@@AAE@XZ"(
+// CHECK:   %[[THIS:.*]] = load %"class.test6::D"*, %"class.test6::D"**
+// CHECK:   br i1 %{{.*}}, label %[[INIT_VBASES:.*]], label %[[SKIP_VBASES:.*]]
+
+// CHECK: %[[SKIP_VBASES]]
+// CHECK:   %[[C:.*]] = bitcast %"class.test6::D"* %[[THIS]] to %"class.test6::C"*
+// CHECK:   %[[C_i8:.*]] = bitcast %"class.test6::C"* %[[C]] to i8*
+// CHECK:   %[[FIELD:.*]] = getelementptr inbounds i8, i8* %[[C_i8]], i32 8
 // CHECK:   call void @llvm.memset.p0i8.i32(i8* %[[FIELD]], i8 0, i32 4, i32 4, i1 false)
 }

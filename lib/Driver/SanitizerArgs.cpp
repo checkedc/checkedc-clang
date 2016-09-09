@@ -39,6 +39,7 @@ enum : SanitizerMask {
   TrappingSupported =
       (Undefined & ~Vptr) | UnsignedIntegerOverflow | LocalBounds | CFI,
   TrappingDefault = CFI,
+  CFIClasses = CFIVCall | CFINVCall | CFIDerivedCast | CFIUnrelatedCast,
 };
 
 enum CoverageFeature {
@@ -48,8 +49,10 @@ enum CoverageFeature {
   CoverageIndirCall = 1 << 3,
   CoverageTraceBB = 1 << 4,
   CoverageTraceCmp = 1 << 5,
-  Coverage8bitCounters = 1 << 6,
-  CoverageTracePC = 1 << 7,
+  CoverageTraceDiv = 1 << 6,
+  CoverageTraceGep = 1 << 7,
+  Coverage8bitCounters = 1 << 8,
+  CoverageTracePC = 1 << 9,
 };
 
 /// Parse a -fsanitize= or -fno-sanitize= argument's values, diagnosing any
@@ -158,11 +161,10 @@ static SanitizerMask parseSanitizeTrapArgs(const Driver &D,
 }
 
 bool SanitizerArgs::needsUbsanRt() const {
-  return (Sanitizers.Mask & NeedsUbsanRt & ~TrapSanitizers.Mask) &&
-         !Sanitizers.has(Address) &&
-         !Sanitizers.has(Memory) &&
-         !Sanitizers.has(Thread) &&
-         !CfiCrossDso;
+  return ((Sanitizers.Mask & NeedsUbsanRt & ~TrapSanitizers.Mask) ||
+          CoverageFeatures) &&
+         !Sanitizers.has(Address) && !Sanitizers.has(Memory) &&
+         !Sanitizers.has(Thread) && !Sanitizers.has(DataFlow) && !CfiCrossDso;
 }
 
 bool SanitizerArgs::needsCfiRt() const {
@@ -311,7 +313,12 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
       std::make_pair(Leak, Memory), std::make_pair(KernelAddress, Address),
       std::make_pair(KernelAddress, Leak),
       std::make_pair(KernelAddress, Thread),
-      std::make_pair(KernelAddress, Memory)};
+      std::make_pair(KernelAddress, Memory),
+      std::make_pair(Efficiency, Address),
+      std::make_pair(Efficiency, Leak),
+      std::make_pair(Efficiency, Thread),
+      std::make_pair(Efficiency, Memory),
+      std::make_pair(Efficiency, KernelAddress)};
   for (auto G : IncompatibleGroups) {
     SanitizerMask Group = G.first;
     if (Kinds & Group) {
@@ -334,11 +341,13 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
   for (const auto *Arg : Args) {
     const char *DeprecatedReplacement = nullptr;
     if (Arg->getOption().matches(options::OPT_fsanitize_recover)) {
-      DeprecatedReplacement = "-fsanitize-recover=undefined,integer";
+      DeprecatedReplacement =
+          "-fsanitize-recover=undefined,integer' or '-fsanitize-recover=all";
       RecoverableKinds |= expandSanitizerGroups(LegacyFsanitizeRecoverMask);
       Arg->claim();
     } else if (Arg->getOption().matches(options::OPT_fno_sanitize_recover)) {
-      DeprecatedReplacement = "-fno-sanitize-recover=undefined,integer";
+      DeprecatedReplacement = "-fno-sanitize-recover=undefined,integer' or "
+                              "'-fno-sanitize-recover=all";
       RecoverableKinds &= ~expandSanitizerGroups(LegacyFsanitizeRecoverMask);
       Arg->claim();
     } else if (Arg->getOption().matches(options::OPT_fsanitize_recover_EQ)) {
@@ -477,11 +486,13 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
         continue;
       }
       CoverageFeatures |= parseCoverageFeatures(D, Arg);
-      // If there is trace-pc, allow it w/o any of the sanitizers.
-      // Otherwise, require that one of the supported sanitizers is present.
-      if ((CoverageFeatures & CoverageTracePC) ||
-          (AllAddedKinds & SupportsCoverage)) {
+
+      // Disable coverage and not claim the flags if there is at least one
+      // non-supporting sanitizer.
+      if (!(AllAddedKinds & ~setGroupBits(SupportsCoverage))) {
         Arg->claim();
+      } else {
+        CoverageFeatures = 0;
       }
     } else if (Arg->getOption().matches(options::OPT_fno_sanitize_coverage)) {
       Arg->claim();
@@ -549,6 +560,14 @@ SanitizerArgs::SanitizerArgs(const ToolChain &TC,
     }
   }
 
+  AsanUseAfterScope =
+      Args.hasArg(options::OPT_fsanitize_address_use_after_scope);
+  if (AsanUseAfterScope && !(AllAddedKinds & Address)) {
+    D.Diag(clang::diag::err_drv_argument_only_allowed_with)
+        << "-fsanitize-address-use-after-scope"
+        << "-fsanitize=address";
+  }
+
   // Parse -link-cxx-sanitizer flag.
   LinkCXXRuntimes =
       Args.hasArg(options::OPT_fsanitize_link_cxx_runtime) || D.CCCIsCXX();
@@ -598,11 +617,35 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     std::make_pair(CoverageIndirCall, "-fsanitize-coverage-indirect-calls"),
     std::make_pair(CoverageTraceBB, "-fsanitize-coverage-trace-bb"),
     std::make_pair(CoverageTraceCmp, "-fsanitize-coverage-trace-cmp"),
+    std::make_pair(CoverageTraceDiv, "-fsanitize-coverage-trace-div"),
+    std::make_pair(CoverageTraceGep, "-fsanitize-coverage-trace-gep"),
     std::make_pair(Coverage8bitCounters, "-fsanitize-coverage-8bit-counters"),
     std::make_pair(CoverageTracePC, "-fsanitize-coverage-trace-pc")};
   for (auto F : CoverageFlags) {
     if (CoverageFeatures & F.first)
       CmdArgs.push_back(Args.MakeArgString(F.second));
+  }
+
+  if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
+    // Instruct the code generator to embed linker directives in the object file
+    // that cause the required runtime libraries to be linked.
+    CmdArgs.push_back(Args.MakeArgString(
+        "--dependent-lib=" + TC.getCompilerRT(Args, "ubsan_standalone")));
+    if (types::isCXX(InputType))
+      CmdArgs.push_back(Args.MakeArgString(
+          "--dependent-lib=" + TC.getCompilerRT(Args, "ubsan_standalone_cxx")));
+  }
+  if (TC.getTriple().isOSWindows() && needsStatsRt()) {
+    CmdArgs.push_back(Args.MakeArgString("--dependent-lib=" +
+                                         TC.getCompilerRT(Args, "stats_client")));
+
+    // The main executable must export the stats runtime.
+    // FIXME: Only exporting from the main executable (e.g. based on whether the
+    // translation unit defines main()) would save a little space, but having
+    // multiple copies of the runtime shouldn't hurt.
+    CmdArgs.push_back(Args.MakeArgString("--dependent-lib=" +
+                                         TC.getCompilerRT(Args, "stats")));
+    addIncludeLinkerOption(TC, Args, CmdArgs, "__sanitizer_stats_register");
   }
 
   if (Sanitizers.empty())
@@ -645,6 +688,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
     CmdArgs.push_back(Args.MakeArgString("-fsanitize-address-field-padding=" +
                                          llvm::utostr(AsanFieldPadding)));
 
+  if (AsanUseAfterScope)
+    CmdArgs.push_back(Args.MakeArgString("-fsanitize-address-use-after-scope"));
+
   // MSan: Workaround for PR16386.
   // ASan: This is mainly to help LSan with cases such as
   // https://code.google.com/p/address-sanitizer/issues/detail?id=373
@@ -653,26 +699,14 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
   if (Sanitizers.has(Memory) || Sanitizers.has(Address))
     CmdArgs.push_back(Args.MakeArgString("-fno-assume-sane-operator-new"));
 
-  if (TC.getTriple().isOSWindows() && needsUbsanRt()) {
-    // Instruct the code generator to embed linker directives in the object file
-    // that cause the required runtime libraries to be linked.
-    CmdArgs.push_back(Args.MakeArgString(
-        "--dependent-lib=" + TC.getCompilerRT(Args, "ubsan_standalone")));
-    if (types::isCXX(InputType))
-      CmdArgs.push_back(Args.MakeArgString(
-          "--dependent-lib=" + TC.getCompilerRT(Args, "ubsan_standalone_cxx")));
-  }
-  if (TC.getTriple().isOSWindows() && needsStatsRt()) {
-    CmdArgs.push_back(Args.MakeArgString("--dependent-lib=" +
-                                         TC.getCompilerRT(Args, "stats_client")));
-
-    // The main executable must export the stats runtime.
-    // FIXME: Only exporting from the main executable (e.g. based on whether the
-    // translation unit defines main()) would save a little space, but having
-    // multiple copies of the runtime shouldn't hurt.
-    CmdArgs.push_back(Args.MakeArgString("--dependent-lib=" +
-                                         TC.getCompilerRT(Args, "stats")));
-    addIncludeLinkerOption(TC, Args, CmdArgs, "__sanitizer_stats_register");
+  // Require -fvisibility= flag on non-Windows when compiling if vptr CFI is
+  // enabled.
+  if (Sanitizers.hasOneOf(CFIClasses) && !TC.getTriple().isOSWindows() &&
+      !Args.hasArg(options::OPT_fvisibility_EQ)) {
+    TC.getDriver().Diag(clang::diag::err_drv_argument_only_allowed_with)
+        << lastArgumentForMask(TC.getDriver(), Args,
+                               Sanitizers.Mask & CFIClasses)
+        << "-fvisibility=";
   }
 }
 
@@ -692,6 +726,10 @@ SanitizerMask parseArgValues(const Driver &D, const llvm::opt::Arg *A,
     // Special case: don't accept -fsanitize=all.
     if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
         0 == strcmp("all", Value))
+      Kind = 0;
+    // Similarly, don't accept -fsanitize=efficiency-all.
+    else if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
+        0 == strcmp("efficiency-all", Value))
       Kind = 0;
     else
       Kind = parseSanitizerValue(Value, /*AllowGroups=*/true);
@@ -718,6 +756,8 @@ int parseCoverageFeatures(const Driver &D, const llvm::opt::Arg *A) {
         .Case("indirect-calls", CoverageIndirCall)
         .Case("trace-bb", CoverageTraceBB)
         .Case("trace-cmp", CoverageTraceCmp)
+        .Case("trace-div", CoverageTraceDiv)
+        .Case("trace-gep", CoverageTraceGep)
         .Case("8bit-counters", Coverage8bitCounters)
         .Case("trace-pc", CoverageTracePC)
         .Default(0);

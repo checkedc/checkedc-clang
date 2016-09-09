@@ -142,7 +142,20 @@
 #pragma push_macro("__forceinline__")
 #define __forceinline__ __device__ __inline__ __attribute__((always_inline))
 #include "device_functions.hpp"
+
+// math_function.hpp uses the __USE_FAST_MATH__ macro to determine whether we
+// get the slow-but-accurate or fast-but-inaccurate versions of functions like
+// sin and exp.  This is controlled in clang by -fcuda-approx-transcendentals.
+//
+// device_functions.hpp uses __USE_FAST_MATH__ for a different purpose (fast vs.
+// slow divides), so we need to scope our define carefully here.
+#pragma push_macro("__USE_FAST_MATH__")
+#if defined(__CLANG_CUDA_APPROX_TRANSCENDENTALS__)
+#define __USE_FAST_MATH__
+#endif
 #include "math_functions.hpp"
+#pragma pop_macro("__USE_FAST_MATH__")
+
 #include "math_functions_dbl_ptx3.hpp"
 #pragma pop_macro("__forceinline__")
 
@@ -185,10 +198,14 @@ static inline __device__ void __brkpt(int __c) { __brkpt(); }
 #include "sm_20_atomic_functions.hpp"
 #include "sm_20_intrinsics.hpp"
 #include "sm_32_atomic_functions.hpp"
-// sm_30_intrinsics.h has declarations that use default argument, so
-// we have to include it and it will in turn include .hpp
-#include "sm_30_intrinsics.h"
-#include "sm_32_intrinsics.hpp"
+
+// Don't include sm_30_intrinsics.h and sm_32_intrinsics.h.  These define the
+// __shfl and __ldg intrinsics using inline (volatile) asm, but we want to
+// define them using builtins so that the optimizer can reason about and across
+// these instructions.  In particular, using intrinsics for ldg gets us the
+// [addr+imm] addressing mode, which, although it doesn't actually exist in the
+// hardware, seems to generate faster machine code because ptxas can more easily
+// reason about our code.
 
 #undef __MATH_FUNCTIONS_HPP__
 
@@ -215,16 +232,6 @@ static inline __device__ void __brkpt(int __c) { __brkpt(); }
 // Set up compiler macros expected to be seen during compilation.
 #undef __CUDABE__
 #define __CUDACC__
-
-#if defined(__CUDA_ARCH__)
-// We need to emit IR declaration for non-existing __nvvm_reflect() to
-// let backend know that it should be treated as const nothrow
-// function which is what NVVMReflect pass expects to see.
-extern "C" __device__ __attribute__((const)) int __nvvm_reflect(const void *);
-static __device__ __attribute__((used)) int __nvvm_reflect_anchor() {
-  return __nvvm_reflect("NONE");
-}
-#endif
 
 extern "C" {
 // Device-side CUDA system calls.
@@ -288,6 +295,7 @@ __device__ inline __cuda_builtin_gridDim_t::operator dim3() const {
 }
 
 #include <__clang_cuda_cmath.h>
+#include <__clang_cuda_intrinsics.h>
 
 // curand_mtgp32_kernel helpfully redeclares blockDim and threadIdx in host
 // mode, giving them their "proper" types of dim3 and uint3.  This is
@@ -302,6 +310,25 @@ __device__ inline __cuda_builtin_gridDim_t::operator dim3() const {
 #include "curand_mtgp32_kernel.h"
 #pragma pop_macro("dim3")
 #pragma pop_macro("uint3")
+#pragma pop_macro("__USE_FAST_MATH__")
+
+// Device overrides for placement new and delete.
+#pragma push_macro("CUDA_NOEXCEPT")
+#if __cplusplus >= 201103L
+#define CUDA_NOEXCEPT noexcept
+#else
+#define CUDA_NOEXCEPT
+#endif
+
+__device__ inline void *operator new(__SIZE_TYPE__, void *__ptr) CUDA_NOEXCEPT {
+  return __ptr;
+}
+__device__ inline void *operator new[](__SIZE_TYPE__, void *__ptr) CUDA_NOEXCEPT {
+  return __ptr;
+}
+__device__ inline void operator delete(void *, void *) CUDA_NOEXCEPT {}
+__device__ inline void operator delete[](void *, void *) CUDA_NOEXCEPT {}
+#pragma pop_macro("CUDA_NOEXCEPT")
 
 #endif // __CUDA__
 #endif // __CLANG_CUDA_RUNTIME_WRAPPER_H__

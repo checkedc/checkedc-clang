@@ -9,7 +9,6 @@
 
 #include "clang/Frontend/DiagnosticRenderer.h"
 #include "clang/Basic/DiagnosticOptions.h"
-#include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Edit/Commit.h"
 #include "clang/Edit/EditedSource.h"
@@ -18,7 +17,6 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 using namespace clang;
@@ -167,7 +165,8 @@ void DiagnosticRenderer::emitIncludeStack(SourceLocation Loc,
                                           PresumedLoc PLoc,
                                           DiagnosticsEngine::Level Level,
                                           const SourceManager &SM) {
-  SourceLocation IncludeLoc = PLoc.getIncludeLoc();
+  SourceLocation IncludeLoc =
+      PLoc.isInvalid() ? SourceLocation() : PLoc.getIncludeLoc();
 
   // Skip redundant include stacks altogether.
   if (LastIncludeLoc == IncludeLoc)
@@ -617,7 +616,7 @@ DiagnosticNoteRenderer::emitBuildingModuleLocation(SourceLocation Loc,
   // Generate a note indicating the include location.
   SmallString<200> MessageStorage;
   llvm::raw_svector_ostream Message(MessageStorage);
-  if (PLoc.getFilename())
+  if (PLoc.isValid())
     Message << "while building module '" << ModuleName << "' imported from "
             << PLoc.getFilename() << ':' << PLoc.getLine() << ":";
   else

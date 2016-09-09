@@ -89,11 +89,13 @@ def err_module_unavailable : Error<
 def err_module_header_missing : Error<
   "%select{|umbrella }0header '%1' not found">;
 def err_module_lock_failure : Error<
-  "could not acquire lock file for module '%0'">, DefaultFatal;
+  "could not acquire lock file for module '%0': %1">, DefaultFatal;
 def err_module_lock_timeout : Error<
   "timed out waiting to acquire lock file for module '%0'">, DefaultFatal;
 def err_module_cycle : Error<"cyclic dependency in module '%0': %1">, 
   DefaultFatal;
+def err_module_prebuilt : Error<
+  "error in loading module '%0' from prebuilt module path">, DefaultFatal;
 def note_pragma_entered_here : Note<"#pragma entered here">;  
 def note_decl_hiding_tag_type : Note<
   "%1 %0 is hidden by a non-type declaration of %0 here">;
@@ -180,6 +182,9 @@ def err_target_unknown_triple : Error<
   "unknown target triple '%0', please use -triple or -arch">;
 def err_target_unknown_cpu : Error<"unknown target CPU '%0'">;
 def err_target_unknown_abi : Error<"unknown target ABI '%0'">;
+def err_target_unsupported_abi : Error<"ABI '%0' is not supported on CPU '%1'">;
+def err_target_unsupported_abi_for_triple : Error<
+  "ABI '%0' is not supported for '%1'">;
 def err_target_unknown_fpmath : Error<"unknown FP unit '%0'">;
 def err_target_unsupported_fpmath : Error<
     "the '%0' unit is not supported with this instruction set">;

@@ -690,6 +690,9 @@ public:
     case CK_ConstructorConversion:
       return C;
 
+    case CK_IntToOCLSampler:
+      llvm_unreachable("global sampler variables are not generated");
+
     case CK_Dependent: llvm_unreachable("saw dependent cast!");
 
     case CK_BuiltinFnToFnPtr:
@@ -762,6 +765,12 @@ public:
     // No need for a DefaultInitExprScope: we don't handle 'this' in a
     // constant expression.
     return Visit(DIE->getExpr());
+  }
+
+  llvm::Constant *VisitExprWithCleanups(ExprWithCleanups *E) {
+    if (!E->cleanupsHaveSideEffects())
+      return Visit(E->getSubExpr());
+    return nullptr;
   }
 
   llvm::Constant *VisitMaterializeTemporaryExpr(MaterializeTemporaryExpr *E) {
@@ -1314,8 +1323,14 @@ llvm::Constant *CodeGenModule::EmitConstantValue(const APValue &Value,
 
       // Convert to the appropriate type; this could be an lvalue for
       // an integer.
-      if (isa<llvm::PointerType>(DestTy))
+      if (isa<llvm::PointerType>(DestTy)) {
+        // Convert the integer to a pointer-sized integer before converting it
+        // to a pointer.
+        C = llvm::ConstantExpr::getIntegerCast(
+            C, getDataLayout().getIntPtrType(DestTy),
+            /*isSigned=*/false);
         return llvm::ConstantExpr::getIntToPtr(C, DestTy);
+      }
 
       // If the types don't match this should only be a truncate.
       if (C->getType() != DestTy)

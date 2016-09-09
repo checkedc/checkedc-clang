@@ -7,6 +7,11 @@ set(LLVM_LINK_COMPONENTS
   Support
   )
 
+set(optional_deps intrinsics_gen)
+if (CLANG_BUILT_STANDALONE)
+  set(optional_deps)
+endif()
+
 add_clang_library(clangFrontend
   ASTConsumers.cpp
   ASTMerge.cpp
@@ -14,6 +19,7 @@ add_clang_library(clangFrontend
   CacheTokens.cpp
   ChainedDiagnosticConsumer.cpp
   ChainedIncludesSource.cpp
+  CodeGenOptions.cpp
   CompilerInstance.cpp
   CompilerInvocation.cpp
   CreateInvocationFromCommandLine.cpp
@@ -43,7 +49,7 @@ add_clang_library(clangFrontend
 
   DEPENDS
   ClangDriverOptions
-  intrinsics_gen
+  ${optional_deps}
 
   LINK_LIBS
   clangAST

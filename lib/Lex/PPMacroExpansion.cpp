@@ -12,25 +12,49 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "clang/Lex/Preprocessor.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/FileManager.h"
-#include "clang/Basic/SourceManager.h"
+#include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LLVM.h"
+#include "clang/Basic/LangOptions.h"
+#include "clang/Basic/ObjCRuntime.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/CodeCompletionHandler.h"
+#include "clang/Lex/DirectoryLookup.h"
 #include "clang/Lex/ExternalPreprocessorSource.h"
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Lex/MacroArgs.h"
 #include "clang/Lex/MacroInfo.h"
-#include "llvm/ADT/STLExtras.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorLexer.h"
+#include "clang/Lex/PTHLexer.h"
+#include "clang/Lex/Token.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/FoldingSet.h"
+#include "llvm/ADT/None.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
-#include <cstdio>
+#include <algorithm>
+#include <cassert>
+#include <cstddef>
+#include <cstring>
 #include <ctime>
+#include <string>
+#include <tuple>
+#include <utility>
+
 using namespace clang;
 
 MacroDirective *
@@ -286,7 +310,6 @@ static IdentifierInfo *RegisterBuiltinMacro(Preprocessor &PP, const char *Name){
   return Id;
 }
 
-
 /// RegisterBuiltinMacros - Register builtin macros, such as __LINE__ with the
 /// identifier table.
 void Preprocessor::RegisterBuiltinMacros() {
@@ -330,18 +353,11 @@ void Preprocessor::RegisterBuiltinMacros() {
   Ident__is_identifier    = RegisterBuiltinMacro(*this, "__is_identifier");
 
   // Modules.
-  if (LangOpts.Modules) {
-    Ident__building_module  = RegisterBuiltinMacro(*this, "__building_module");
-
-    // __MODULE__
-    if (!LangOpts.CurrentModule.empty())
-      Ident__MODULE__ = RegisterBuiltinMacro(*this, "__MODULE__");
-    else
-      Ident__MODULE__ = nullptr;
-  } else {
-    Ident__building_module = nullptr;
+  Ident__building_module  = RegisterBuiltinMacro(*this, "__building_module");
+  if (!LangOpts.CurrentModule.empty())
+    Ident__MODULE__ = RegisterBuiltinMacro(*this, "__MODULE__");
+  else
     Ident__MODULE__ = nullptr;
-  }
 }
 
 /// isTrivialSingleTokenExpansion - Return true if MI, which has a single token
@@ -374,9 +390,7 @@ static bool isTrivialSingleTokenExpansion(const MacroInfo *MI,
   // If this is a function-like macro invocation, it's safe to trivially expand
   // as long as the identifier is not a macro argument.
   return std::find(MI->arg_begin(), MI->arg_end(), II) == MI->arg_end();
-
 }
-
 
 /// isNextPPTokenLParen - Determine whether the next preprocessor token to be
 /// lexed is a '('.  If so, consume the token and return true, if not, this
@@ -487,7 +501,8 @@ bool Preprocessor::HandleMacroExpandedIdentifier(Token &Identifier,
     } else {
       Callbacks->MacroExpands(Identifier, M, ExpansionRange, Args);
       if (!DelayedMacroExpandsCallbacks.empty()) {
-        for (unsigned i=0, e = DelayedMacroExpandsCallbacks.size(); i!=e; ++i) {
+        for (unsigned i = 0, e = DelayedMacroExpandsCallbacks.size(); i != e;
+             ++i) {
           MacroExpandsInfo &Info = DelayedMacroExpandsCallbacks[i];
           // FIXME: We lose macro args info with delayed callback.
           Callbacks->MacroExpands(Info.Tok, Info.MD, Info.Range,
@@ -749,7 +764,7 @@ MacroArgs *Preprocessor::ReadFunctionLikeMacroArgs(Token &MacroName,
     // that we already consumed the first one.
     unsigned NumParens = 0;
 
-    while (1) {
+    while (true) {
       // Read arguments as unexpanded tokens.  This avoids issues, e.g., where
       // an argument value in a macro could expand to ',' or '(' or ')'.
       LexUnexpandedToken(Tok);
@@ -1050,7 +1065,6 @@ static void ComputeDATE_TIME(SourceLocation &DATELoc, SourceLocation &TIMELoc,
   }
 }
 
-
 /// HasFeature - Return true if we recognize and implement the feature
 /// specified by the identifier as a standard language feature.
 static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
@@ -1100,6 +1114,8 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       .Case("memory_sanitizer", LangOpts.Sanitize.has(SanitizerKind::Memory))
       .Case("thread_sanitizer", LangOpts.Sanitize.has(SanitizerKind::Thread))
       .Case("dataflow_sanitizer", LangOpts.Sanitize.has(SanitizerKind::DataFlow))
+      .Case("efficiency_sanitizer",
+            LangOpts.Sanitize.hasOneOf(SanitizerKind::Efficiency))
       // Objective-C features
       .Case("objc_arr", LangOpts.ObjCAutoRefCount) // FIXME: REMOVE?
       .Case("objc_arc", LangOpts.ObjCAutoRefCount)
@@ -1192,6 +1208,8 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       // FIXME: Should this be __has_feature or __has_extension?
       //.Case("raw_invocation_type", LangOpts.CPlusPlus)
       // Type traits
+      // N.B. Additional type traits should not be added to the following list.
+      // Instead, they should be detected by has_extension.
       .Case("has_nothrow_assign", LangOpts.CPlusPlus)
       .Case("has_nothrow_copy", LangOpts.CPlusPlus)
       .Case("has_nothrow_constructor", LangOpts.CPlusPlus)
@@ -1212,7 +1230,7 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       .Case("is_standard_layout", LangOpts.CPlusPlus)
       .Case("is_pod", LangOpts.CPlusPlus)
       .Case("is_polymorphic", LangOpts.CPlusPlus)
-      .Case("is_sealed", LangOpts.MicrosoftExt)
+      .Case("is_sealed", LangOpts.CPlusPlus && LangOpts.MicrosoftExt)
       .Case("is_trivial", LangOpts.CPlusPlus)
       .Case("is_trivially_assignable", LangOpts.CPlusPlus)
       .Case("is_trivially_constructible", LangOpts.CPlusPlus)
@@ -1698,6 +1716,7 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
           const LangOptions &LangOpts = getLangOpts();
           return llvm::StringSwitch<bool>(II->getName())
                       .Case("__make_integer_seq", LangOpts.CPlusPlus)
+                      .Case("__type_pack_element", LangOpts.CPlusPlus)
                       .Default(false);
         }
       });
@@ -1798,7 +1817,7 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
       [this](Token &Tok, bool &HasLexedNextToken) -> int {
         IdentifierInfo *II = ExpectFeatureIdentifierInfo(Tok, *this,
                                        diag::err_expected_id_building_module);
-        return getLangOpts().CompilingModule && II &&
+        return getLangOpts().isCompilingModule() && II &&
                (II->getName() == getLangOpts().CurrentModule);
       });
   } else if (II == Ident__MODULE__) {

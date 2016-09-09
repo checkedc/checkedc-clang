@@ -163,8 +163,10 @@ static void EraseUnwantedCUDAMatchesImpl(
       [&](const T &M1, const T &M2) { return GetCFP(M1) < GetCFP(M2); }));
 
   // Erase all functions with lower priority.
-  Matches.erase(llvm::remove_if(
-      Matches, [&](const T &Match) { return GetCFP(Match) < BestCFP; }));
+  Matches.erase(
+      llvm::remove_if(Matches,
+                      [&](const T &Match) { return GetCFP(Match) < BestCFP; }),
+      Matches.end());
 }
 
 void Sema::EraseUnwantedCUDAMatches(const FunctionDecl *Caller,
@@ -372,12 +374,60 @@ bool Sema::isEmptyCudaConstructor(SourceLocation Loc, CXXConstructorDecl *CD) {
     return false;
 
   // The only form of initializer allowed is an empty constructor.
-  // This will recursively checks all base classes and member initializers
+  // This will recursively check all base classes and member initializers
   if (!llvm::all_of(CD->inits(), [&](const CXXCtorInitializer *CI) {
         if (const CXXConstructExpr *CE =
                 dyn_cast<CXXConstructExpr>(CI->getInit()))
           return isEmptyCudaConstructor(Loc, CE->getConstructor());
         return false;
+      }))
+    return false;
+
+  return true;
+}
+
+bool Sema::isEmptyCudaDestructor(SourceLocation Loc, CXXDestructorDecl *DD) {
+  // No destructor -> no problem.
+  if (!DD)
+    return true;
+
+  if (!DD->isDefined() && DD->isTemplateInstantiation())
+    InstantiateFunctionDefinition(Loc, DD->getFirstDecl());
+
+  // (E.2.3.1, CUDA 7.5) A destructor for a class type is considered
+  // empty at a point in the translation unit, if it is either a
+  // trivial constructor
+  if (DD->isTrivial())
+    return true;
+
+  // ... or it satisfies all of the following conditions:
+  // The destructor function has been defined.
+  // and the function body is an empty compound statement.
+  if (!DD->hasTrivialBody())
+    return false;
+
+  const CXXRecordDecl *ClassDecl = DD->getParent();
+
+  // Its class has no virtual functions and no virtual base classes.
+  if (ClassDecl->isDynamicClass())
+    return false;
+
+  // Only empty destructors are allowed. This will recursively check
+  // destructors for all base classes...
+  if (!llvm::all_of(ClassDecl->bases(), [&](const CXXBaseSpecifier &BS) {
+        if (CXXRecordDecl *RD = BS.getType()->getAsCXXRecordDecl())
+          return isEmptyCudaDestructor(Loc, RD->getDestructor());
+        return true;
+      }))
+    return false;
+
+  // ... and member fields.
+  if (!llvm::all_of(ClassDecl->fields(), [&](const FieldDecl *Field) {
+        if (CXXRecordDecl *RD = Field->getType()
+                                    ->getBaseElementTypeUnsafe()
+                                    ->getAsCXXRecordDecl())
+          return isEmptyCudaDestructor(Loc, RD->getDestructor());
+        return true;
       }))
     return false;
 
@@ -429,4 +479,39 @@ void Sema::maybeAddCUDAHostDeviceAttrs(Scope *S, FunctionDecl *NewD,
 
   NewD->addAttr(CUDAHostAttr::CreateImplicit(Context));
   NewD->addAttr(CUDADeviceAttr::CreateImplicit(Context));
+}
+
+bool Sema::CheckCUDACall(SourceLocation Loc, FunctionDecl *Callee) {
+  assert(getLangOpts().CUDA &&
+         "Should only be called during CUDA compilation.");
+  assert(Callee && "Callee may not be null.");
+  FunctionDecl *Caller = dyn_cast<FunctionDecl>(CurContext);
+  if (!Caller)
+    return true;
+
+  Sema::CUDAFunctionPreference Pref = IdentifyCUDAPreference(Caller, Callee);
+  if (Pref == Sema::CFP_Never) {
+    Diag(Loc, diag::err_ref_bad_target) << IdentifyCUDATarget(Callee) << Callee
+                                        << IdentifyCUDATarget(Caller);
+    Diag(Callee->getLocation(), diag::note_previous_decl) << Callee;
+    return false;
+  }
+  if (Pref == Sema::CFP_WrongSide) {
+    // We have to do this odd dance to create our PartialDiagnostic because we
+    // want its storage to be allocated with operator new, not in an arena.
+    PartialDiagnostic ErrPD{PartialDiagnostic::NullDiagnostic()};
+    ErrPD.Reset(diag::err_ref_bad_target);
+    ErrPD << IdentifyCUDATarget(Callee) << Callee << IdentifyCUDATarget(Caller);
+    Caller->addDeferredDiag({Loc, std::move(ErrPD)});
+
+    PartialDiagnostic NotePD{PartialDiagnostic::NullDiagnostic()};
+    NotePD.Reset(diag::note_previous_decl);
+    NotePD << Callee;
+    Caller->addDeferredDiag({Callee->getLocation(), std::move(NotePD)});
+
+    // This is not immediately an error, so return true.  The deferred errors
+    // will be emitted if and when Caller is codegen'ed.
+    return true;
+  }
+  return true;
 }

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple arm64-apple-ios -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s
+// RUN: %clang_cc1 -triple arm64-unknown-linux -emit-llvm -o - %s | opt -S -mem2reg | FileCheck %s
 
 void f0(void *a, void *b) {
 	__clear_cache(a,b);
@@ -7,7 +7,7 @@ void f0(void *a, void *b) {
 
 void *tp (void) {
   return __builtin_thread_pointer ();
-// CHECK: call {{.*}} @llvm.aarch64.thread.pointer()
+// CHECK: call {{.*}} @llvm.thread.pointer()
 }
 
 // CHECK: call {{.*}} @llvm.aarch64.rbit.i32(i32 %a)
