@@ -30,7 +30,7 @@ need to end with line feeds. Visual Studio preserves line endings for files, so
 this should work fine most of the time.  If you are creating a file, you will
 need to save it using line feeds only
 (go to File->Advanced Save Options to set this option before saving the file).
-By default, Visual Studio will save the file with carriage return/line feed line endings.
+Otherwise, Visual Studio will save the file with carriage return/line feed line endings.
 
 
 ## Source organization
