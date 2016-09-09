@@ -16,6 +16,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 
@@ -54,11 +55,6 @@ static cl::opt<std::string>
                   cl::desc("Postfix to add to the names of rewritten files, if "
                            "not supplied writes to STDOUT"),
                   cl::init("-"), cl::cat(ConvertCategory));
-
-static cl::opt<bool> RewriteHeaders(
-    "rewrite-headers",
-    cl::desc("Rewrite header files as well as the specified source files"),
-    cl::init(false), cl::cat(ConvertCategory));
 
 static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::desc("Dump statistics"),
@@ -259,7 +255,8 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
   }
 }
 
-void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
+void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
+          std::set<std::string> &InOutFiles) {
   // Check if we are outputing to stdout or not, if we are, just output the
   // main file ID to stdout.
   if (Verbose)
@@ -288,8 +285,18 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
           StringRef stem = sys::path::stem(fileName);
           Twine nFileName = stem + "." + OutputPostfix + ext;
           Twine nFile = dirName + sys::path::get_separator() + nFileName;
+          
+          // Write this file out if it was specified as a file on the command
+          // line.
+          SmallString<254>  feAbs(FE->getName());
+          std::string feAbsS = "";
+          if (std::error_code ec = sys::fs::make_absolute(feAbs)) {
+            if (Verbose)
+              errs() << "could not make path absolote\n";
+          } else
+            feAbsS = feAbs.str();
 
-          if (ext != ".h" || (ext == ".h" && RewriteHeaders)) {
+          if (InOutFiles.count(feAbsS)) {
             std::error_code EC;
             raw_fd_ostream out(nFile.str(), EC, sys::fs::F_None);
 
@@ -310,7 +317,8 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
 
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I, ASTContext *Context) : Info(I) {}
+  explicit RewriteConsumer(ProgramInfo &I, 
+    std::set<std::string> &F, ASTContext *Context) : Info(I), InOutFiles(F) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) {
     Info.enterCompilationUnit(Context);
@@ -331,7 +339,7 @@ public:
     rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
 
     // Output files.
-    emit(R, Context, Files);
+    emit(R, Context, Files, InOutFiles);
 
     Info.exitCompilationUnit();
     return;
@@ -339,12 +347,13 @@ public:
 
 private:
   ProgramInfo &Info;
+  std::set<std::string> &InOutFiles;
 };
 
 template <typename T, typename V>
 class GenericAction : public ASTFrontendAction {
 public:
-  GenericAction(ProgramInfo &I) : Info(I) {}
+  GenericAction(V &I) : Info(I) {}
 
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
@@ -353,6 +362,22 @@ public:
 
 private:
   V &Info;
+};
+
+template <typename T, typename V, typename U>
+class GenericAction2 : public ASTFrontendAction {
+public:
+  GenericAction2(V &I, U &P) : Info(I),Files(P) {}
+
+  virtual std::unique_ptr<ASTConsumer>
+    CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
+    return std::unique_ptr<ASTConsumer>
+      (new T(Info, Files, &Compiler.getASTContext()));
+  }
+
+private:
+  V &Info;
+  U &Files;
 };
 
 template <typename T>
@@ -372,6 +397,25 @@ newFrontendActionFactoryA(ProgramInfo &I) {
       new ArgFrontendActionFactory(I));
 }
 
+template <typename T>
+std::unique_ptr<FrontendActionFactory>
+newFrontendActionFactoryB(ProgramInfo &I, std::set<std::string> &PS) {
+  class ArgFrontendActionFactory : public FrontendActionFactory {
+  public:
+    explicit ArgFrontendActionFactory(ProgramInfo &I,
+      std::set<std::string> &PS) : Info(I),Files(PS) {}
+
+    FrontendAction *create() override { return new T(Info, Files); }
+
+  private:
+    ProgramInfo &Info;
+    std::set<std::string> &Files;
+  };
+
+  return std::unique_ptr<FrontendActionFactory>(
+    new ArgFrontendActionFactory(I, PS));
+}
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
@@ -383,11 +427,22 @@ int main(int argc, const char **argv) {
 
   CommonOptionsParser OptionsParser(argc, argv, ConvertCategory);
 
-  ClangTool Tool(OptionsParser.getCompilations(),
-                 OptionsParser.getSourcePathList());
+  tooling::CommandLineArguments args = OptionsParser.getSourcePathList();
 
-  if (OutputPostfix == "-" && RewriteHeaders == true) {
-    errs() << "If rewriting headers, can't output to stdout\n";
+  ClangTool Tool(OptionsParser.getCompilations(), args);
+  std::set<std::string> inoutPaths;
+
+  for (const auto &S : args) {
+    SmallString<255> abs_path(S);
+    if (std::error_code ec = sys::fs::make_absolute(abs_path))
+      errs() << "could not make absolute\n";
+    else
+      inoutPaths.insert(abs_path.str());
+  }
+
+  //if (OutputPostfix == "-" && RewriteHeaders == true) {
+  if (OutputPostfix == "-" && inoutPaths.size() > 1) {
+    errs() << "If rewriting more than one , can't output to stdout\n";
     return 1;
   }
 
@@ -396,7 +451,7 @@ int main(int argc, const char **argv) {
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
       GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(Info);
-
+  
   if (ConstraintTool)
     Tool.run(ConstraintTool.get());
   else
@@ -419,9 +474,10 @@ int main(int argc, const char **argv) {
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =
-      newFrontendActionFactoryA<GenericAction<RewriteConsumer, ProgramInfo>>(
-          Info);
-
+      newFrontendActionFactoryB
+      <GenericAction2<RewriteConsumer, ProgramInfo, std::set<std::string>>>(
+          Info, inoutPaths);
+  
   if (RewriteTool)
     Tool.run(RewriteTool.get());
   else
