@@ -29,7 +29,7 @@ void ProgramInfo::print(raw_ostream &O) const {
 }
 
 // Print out statistics of constraint variables on a per-file basis.
-void ProgramInfo::print_stats(raw_ostream &O) {
+void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   std::map<std::string, std::tuple<int, int, int, int> > filesToVars;
   Constraints::EnvironmentMap env = CS.getVariables();
 

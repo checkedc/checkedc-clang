@@ -428,7 +428,7 @@ int main(int argc, const char **argv) {
     llvm_unreachable("No action");
 
   if (DumpStats)
-    Info.dump_stats();
+    Info.dump_stats(inoutPaths);
 
   return 0;
 }
