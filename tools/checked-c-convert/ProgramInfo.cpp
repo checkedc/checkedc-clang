@@ -12,18 +12,74 @@
 using namespace clang;
 using namespace llvm;
 
-void ProgramInfo::dump() {
-  CS.dump();
-  errs() << "\n";
+void ProgramInfo::print(raw_ostream &O) const {
+  CS.print(O);
+  O << "\n";
 
-  errs() << "Variables\n";
-  for (const auto &I : Variables) {
-    I.first->dump();
-    errs() << " ==> \n";
-    errs() << I.second << "\n";
+  O << "Constraint Variables\n";
+  for (const auto &I : PersistentRVariables) {
+    VarAtom *V = CS.getVar(I.first);
+    V->print(O);
+    O << "=>";
+    I.second.print(O);
+    O << "\n";
   }
 
   return;
+}
+
+// Print out statistics of constraint variables on a per-file basis.
+void ProgramInfo::print_stats(raw_ostream &O) {
+  std::map<std::string, std::tuple<int, int, int, int> > filesToVars;
+  Constraints::EnvironmentMap env = CS.getVariables();
+
+  // First, build the map and perform the aggregation.
+  for (const auto &I : PersistentRVariables) {
+    const std::string fileName = I.second.getFileName();
+    int varC = 0;
+    int pC = 0;
+    int aC = 0;
+    int wC = 0;
+
+    auto J = filesToVars.find(fileName);
+    if (J != filesToVars.end()) 
+      std::tie(varC, pC, aC, wC) = J->second;
+
+    varC += 1;
+
+    VarAtom *V = CS.getVar(I.first);
+    assert(V != NULL);
+    auto K = env.find(V);
+    assert(K != env.end());
+
+    ConstAtom *CA = K->second;
+    switch (CA->getKind()) {
+      case Atom::A_Arr:
+        aC += 1;
+        break;
+      case Atom::A_Ptr:
+        pC += 1;
+        break;
+      case Atom::A_Wild:
+        wC += 1;
+        break;
+      case Atom::A_Var:
+      case Atom::A_Const:
+        llvm_unreachable("bad constant in environment map");
+    }
+
+    filesToVars[fileName] = std::tuple<int, int, int, int>(varC, pC, aC, wC);
+  }
+
+  // Then, dump the map to output.
+
+  O << "file|#constraints|#ptr|#arr|#wild\n";
+  for (const auto &I : filesToVars) {
+    int v, p, a, w;
+    std::tie(v, p, a, w) = I.second;
+    O << I.first << "|" << v << "|" << p << "|" << a << "|" << w;
+    O << "\n";
+  }
 }
 
 bool ProgramInfo::checkStructuralEquality(uint32_t V, uint32_t U) {
@@ -266,10 +322,6 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
       Stmt *S;
       Type *T;
       std::tie<Stmt *, Decl *, Type *>(S, D, T) = K->second;
-      /*if (D == NULL) {
-        PL.dump();
-        errs() << "\n";
-      }*/
       assert(D != NULL);
       Variables[D] = V;
     }
@@ -359,31 +411,42 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
       VarDeclToStatement.insert(std::pair<Decl *, DeclStmt *>(D, St));
 
     // Get a type to tear apart piece by piece.
-    TypeLoc TL;
+    const Type *Ty = NULL;
     if (VarDecl *VD = dyn_cast<VarDecl>(D))
-      TL = VD->getTypeSourceInfo()->getTypeLoc();
-    else if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D))
-      TL = VD->getTypeSourceInfo()->getTypeLoc();
+      Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
-      TL = FD->getTypeSourceInfo()->getTypeLoc();
+      Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D))
-      TL = UD->getTypeSourceInfo()->getTypeLoc();
+      Ty = UD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     else
       llvm_unreachable("unknown decl type");
 
-    assert(!TL.isNull());
+    assert(Ty != NULL);
+    Ty = Ty->getUnqualifiedDesugaredType();
 
-    while (!TL.isNull()) {
-      if (TL.getTypePtr()->isPointerType()) {
+    // Strip off function types.
+    while (Ty != NULL) {
+      if (const FunctionType *FT = dyn_cast<FunctionType>(Ty))
+        Ty = FT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
+      else if (const FunctionNoProtoType *FNPT = dyn_cast<FunctionNoProtoType>(Ty))
+        Ty = FNPT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
+      else
+        break;
+    }
+
+    while (Ty != NULL) {
+      if (Ty->isPointerType()) {
         RVariables.insert(std::pair<uint32_t, Decl *>(thisKey, D));
         PersistentRVariables[thisKey] = PLoc;
         CS.getOrCreateVar(thisKey);
 
         thisKey++;
         freeKey++;
+      } else {
+        break;
       }
 
-      TL = TL.getNextTypeLoc();
+      Ty = getNextTy(Ty);
     }
 
     DepthMap.insert(std::pair<Decl *, uint32_t>(D, freeKey));
@@ -535,18 +598,19 @@ void ProgramInfo::getVariable(Expr *E, std::set<uint32_t> &V, ASTContext *C) {
   return;
 }
 
-// Given a decl, return the variable for the top-most constraint of that decl.
-// Unlike the case for expressions above, this can only ever return a single
-// variable.
+// Given a decl, return the variables for the constraints of the Decl.
 void ProgramInfo::getVariable(Decl *D, std::set<uint32_t> &V, ASTContext *C) {
   assert(persisted == false);
   if (!D)
     return;
 
-  VariableMap::iterator I = Variables.find(D);
-  if (I != Variables.end()) {
-    V.insert(I->second);
-    return;
+  auto I = DepthMap.find(D);
+  auto J = Variables.find(D);
+  if (I != DepthMap.end() && J != Variables.end()) {
+    uint32_t baseVar = J->second;
+    uint32_t limVar = I->second;
+    for (; baseVar < limVar; baseVar++) 
+      V.insert(baseVar);
   }
 
   return;

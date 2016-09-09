@@ -26,7 +26,8 @@ public:
     N_Wild
   };
 
-  NewTyp(NewTypKind K) : Kind(K), ReferentTyp(NULL), DeclRewrite(NULL) {}
+  NewTyp(NewTypKind K) : 
+    Kind(K), ReferentTyp(NULL), DeclRewrite(NULL), StmtWhere(NULL) {}
   virtual ~NewTyp() {}
   NewTypKind getKind() const { return Kind; }
 
