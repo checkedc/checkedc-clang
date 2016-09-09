@@ -4110,6 +4110,10 @@ public:
 
   //===---------------------------- Checked C Extension ----------------------===//
 
+private:
+  const Type *ValidateBoundsExprArgument(Expr *Arg);
+
+public:
   ExprResult ActOnNullaryBoundsExpr(SourceLocation BoundKWLoc,
                                     NullaryBoundsExpr::Kind Kind,
                                     SourceLocation RParenLoc);
