@@ -59,7 +59,12 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
   uint32_t curKey = baseQVKey;
   Constraints::EnvironmentMap env = PI.getConstraints().getVariables();
 
-  while (Ty != NULL) {
+  // We step through each level of the type. If the type if a pointer type,
+  // then we strip off the qualifier and do one step of de-sugaring. If it 
+  // is not a pointer type, then we leave the sugar on the type. The goal 
+  // here is to not convert types like wchar_t into unsigned short, but, 
+  // allow us to deal with structure definitions that have been typedefed.
+  while ((Cur == NULL) || !isa<BaseNonPointerTyp>(Cur)) {
     QualType QT(Ty, 0);
     NewTyp *tmp = NULL;
     if (Ty->isPointerType()) {
@@ -113,10 +118,7 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
 
     Cur = tmp;
 
-    if (isa<BaseNonPointerTyp>(Cur))
-      break;
-    else 
-      Ty = getNextTy(Ty);
+    Ty = getNextTy(Ty);
   }
 
   assert(T != NULL);

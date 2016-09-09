@@ -66,7 +66,9 @@ static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::cat(ConvertCategory));
 
 const Type *getNextTy(const Type *Ty) {
-  if (const PointerType *PT = dyn_cast<PointerType>(Ty)) {
+  if(Ty->isPointerType()) {
+    // TODO: how to keep the qualifiers around, and what qualifiers do
+    //       we want to keep?
     QualType qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
     return qtmp.getTypePtr()->getPointeeType().getTypePtr();
   }
