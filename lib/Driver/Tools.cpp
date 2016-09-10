@@ -1140,9 +1140,9 @@ void Clang::AddARMTargetArgs(const llvm::Triple &Triple, const ArgList &Args,
 // ARM tools end.
 
 /// getAArch64TargetCPU - Get the (LLVM) name of the AArch64 cpu we are
-/// targeting.
-static std::string getAArch64TargetCPU(const ArgList &Args) {
-  Arg *A;
+/// targeting. Set \p A to the Arg corresponding to the -mcpu or -mtune
+/// arguments if they are provided, or to nullptr otherwise.
+static std::string getAArch64TargetCPU(const ArgList &Args, Arg *&A) {
   std::string CPU;
   // If we have -mtune or -mcpu, use that.
   if ((A = Args.getLastArg(options::OPT_mtune_EQ))) {
@@ -1919,13 +1919,15 @@ static StringRef getWebAssemblyTargetCPU(const ArgList &Args) {
 
 static std::string getCPUName(const ArgList &Args, const llvm::Triple &T,
                               bool FromAs = false) {
+  Arg *A;
+
   switch (T.getArch()) {
   default:
     return "";
 
   case llvm::Triple::aarch64:
   case llvm::Triple::aarch64_be:
-    return getAArch64TargetCPU(Args);
+    return getAArch64TargetCPU(Args, A);
 
   case llvm::Triple::arm:
   case llvm::Triple::armeb:
@@ -2443,8 +2445,8 @@ static void getAArch64TargetFeatures(const Driver &D, const ArgList &Args,
   else if ((A = Args.getLastArg(options::OPT_mcpu_EQ)))
     success = getAArch64ArchFeaturesFromMcpu(D, A->getValue(), Args, Features);
   else if (Args.hasArg(options::OPT_arch))
-    success = getAArch64ArchFeaturesFromMcpu(D, getAArch64TargetCPU(Args), Args,
-                                             Features);
+    success = getAArch64ArchFeaturesFromMcpu(D, getAArch64TargetCPU(Args, A),
+                                             Args, Features);
 
   if (success && (A = Args.getLastArg(options::OPT_mtune_EQ)))
     success =
@@ -2452,9 +2454,9 @@ static void getAArch64TargetFeatures(const Driver &D, const ArgList &Args,
   else if (success && (A = Args.getLastArg(options::OPT_mcpu_EQ)))
     success =
         getAArch64MicroArchFeaturesFromMcpu(D, A->getValue(), Args, Features);
-  else if (Args.hasArg(options::OPT_arch))
-    success = getAArch64MicroArchFeaturesFromMcpu(D, getAArch64TargetCPU(Args),
-                                                  Args, Features);
+  else if (success && Args.hasArg(options::OPT_arch))
+    success = getAArch64MicroArchFeaturesFromMcpu(
+        D, getAArch64TargetCPU(Args, A), Args, Features);
 
   if (!success)
     D.Diag(diag::err_drv_clang_unsupported) << A->getAsString(Args);
@@ -3079,11 +3081,15 @@ static void linkSanitizerRuntimeDeps(const ToolChain &TC,
   // Force linking against the system libraries sanitizers depends on
   // (see PR15823 why this is necessary).
   CmdArgs.push_back("--no-as-needed");
-  CmdArgs.push_back("-lpthread");
-  CmdArgs.push_back("-lrt");
+  // There's no libpthread or librt on RTEMS.
+  if (TC.getTriple().getOS() != llvm::Triple::RTEMS) {
+    CmdArgs.push_back("-lpthread");
+    CmdArgs.push_back("-lrt");
+  }
   CmdArgs.push_back("-lm");
-  // There's no libdl on FreeBSD.
-  if (TC.getTriple().getOS() != llvm::Triple::FreeBSD)
+  // There's no libdl on FreeBSD or RTEMS.
+  if (TC.getTriple().getOS() != llvm::Triple::FreeBSD &&
+      TC.getTriple().getOS() != llvm::Triple::RTEMS)
     CmdArgs.push_back("-ldl");
 }
 
@@ -11055,9 +11061,12 @@ void tools::Myriad::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   TC.AddFilePathLibArgs(Args, CmdArgs);
 
+  bool NeedsSanitizerDeps = addSanitizerRuntimes(TC, Args, CmdArgs);
   AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs);
 
   if (UseDefaultLibs) {
+    if (NeedsSanitizerDeps)
+      linkSanitizerRuntimeDeps(TC, CmdArgs);
     if (C.getDriver().CCCIsCXX())
       CmdArgs.push_back("-lstdc++");
     if (T.getOS() == llvm::Triple::RTEMS) {
