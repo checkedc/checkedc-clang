@@ -312,7 +312,7 @@ public:
         Info.addVariable(D, NULL, Context);
 
       // Add variables for each parameter declared for the function.
-      for (const auto &P : D->params())
+      for (const auto &P : D->parameters())
         if (P->getType()->isPointerType())
           Info.addVariable(P, NULL, Context);
 

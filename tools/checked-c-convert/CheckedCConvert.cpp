@@ -97,7 +97,7 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
           // parameter when we find it, instead of re-discovering it here.
           int parmIndex = -1;
           int c = 0;
-          for (const auto &I : FD->params()) {
+          for (const auto &I : FD->parameters()) {
             if (I == PV) {
               parmIndex = c;
               break;
@@ -342,7 +342,7 @@ newFrontendActionFactoryA(ProgramInfo &I) {
 }
 
 int main(int argc, const char **argv) {
-  sys::PrintStackTraceOnErrorSignal();
+  sys::PrintStackTraceOnErrorSignal(argv[0]);
 
   // Initialize targets for clang module support.
   InitializeAllTargets();

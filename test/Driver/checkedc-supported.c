@@ -15,7 +15,7 @@
 // RUN:  | FileCheck %s -check-prefix=clcheck-cpp
 // clcheck-cpp: error: invalid argument '-fcheckedc-extension' not allowed with 'C++'
 //
-// RUN: not %clang -c -fcheckedc-extension -x cuda %s 2>&1 \
+// RUN: not %clang -c -fcheckedc-extension -x cuda -nocudalib -nocudainc %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=check-cuda
 // check-cuda: error: invalid argument '-fcheckedc-extension' not allowed with 'CUDA'
 //

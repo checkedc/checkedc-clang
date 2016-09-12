@@ -198,7 +198,7 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   int i = 0;
 
   getVariable(F, returnVars, C);
-  for (auto &I : F->params())
+  for (auto &I : F->parameters())
     getVariable(I, parameterVars[i++], C);
 
   assert(PLoc.valid());

@@ -6454,9 +6454,6 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
           << LHSTy << RHSTy << LHS.get()->getSourceRange()
           << RHS.get()->getSourceRange();
       }
-      S.Diag(Loc, diag::ext_typecheck_cond_incompatible_pointers)
-          << LHSTy << RHSTy << LHS.get()->getSourceRange()
-          << RHS.get()->getSourceRange();
       incompatTy = S.Context.getPointerType(S.Context.VoidTy, resultKind);
       LHS = S.ImpCastExprToType(LHS.get(), incompatTy, CK_BitCast);
       RHS = S.ImpCastExprToType(RHS.get(), incompatTy, CK_BitCast);
