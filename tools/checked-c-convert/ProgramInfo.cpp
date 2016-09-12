@@ -36,24 +36,25 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   // First, build the map and perform the aggregation.
   for (const auto &I : PersistentRVariables) {
     const std::string fileName = I.second.getFileName();
-    int varC = 0;
-    int pC = 0;
-    int aC = 0;
-    int wC = 0;
+    if (F.count(fileName)) {
+      int varC = 0;
+      int pC = 0;
+      int aC = 0;
+      int wC = 0;
 
-    auto J = filesToVars.find(fileName);
-    if (J != filesToVars.end()) 
-      std::tie(varC, pC, aC, wC) = J->second;
+      auto J = filesToVars.find(fileName);
+      if (J != filesToVars.end())
+        std::tie(varC, pC, aC, wC) = J->second;
 
-    varC += 1;
+      varC += 1;
 
-    VarAtom *V = CS.getVar(I.first);
-    assert(V != NULL);
-    auto K = env.find(V);
-    assert(K != env.end());
+      VarAtom *V = CS.getVar(I.first);
+      assert(V != NULL);
+      auto K = env.find(V);
+      assert(K != env.end());
 
-    ConstAtom *CA = K->second;
-    switch (CA->getKind()) {
+      ConstAtom *CA = K->second;
+      switch (CA->getKind()) {
       case Atom::A_Arr:
         aC += 1;
         break;
@@ -66,9 +67,10 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
       case Atom::A_Var:
       case Atom::A_Const:
         llvm_unreachable("bad constant in environment map");
-    }
+      }
 
-    filesToVars[fileName] = std::tuple<int, int, int, int>(varC, pC, aC, wC);
+      filesToVars[fileName] = std::tuple<int, int, int, int>(varC, pC, aC, wC);
+    }
   }
 
   // Then, dump the map to output.
