@@ -100,8 +100,10 @@ public:
 class ProgramInfo {
 public:
   ProgramInfo() : freeKey(0), persisted(true) {}
-
-  void dump();
+  void print(llvm::raw_ostream &O) const;
+  void dump() const { print(llvm::errs()); }
+  void dump_stats() { print_stats(llvm::errs()); }
+  void print_stats(llvm::raw_ostream &O);
 
   Constraints &getConstraints() { return CS;  }
   void addRecordDecl(clang::RecordDecl *R, clang::ASTContext *C);
@@ -161,11 +163,6 @@ public:
   // E refers to? It could be none, in which case V is empty. Otherwise, V 
   // contains the constraint variable(s) that E refers to.
   void getVariable(clang::Expr *E, std::set<uint32_t> &V, clang::ASTContext *C);
-
-  // The Decl version of getVariable can only return at most one variable
-  // in the set V, so you can rely on that behavior. It might seem un-necessary
-  // to have this function return a set that can contain only 0 or 1 elements,
-  // however C++ sort of forces us into this position.
   void getVariable(clang::Decl *D, std::set<uint32_t> &V, clang::ASTContext *C);
 
   // Given a constraint variable identifier K, find the Decl that 

@@ -30,9 +30,9 @@ protected:
   
 public:
   PersistentSourceLoc() : fileName(""), lineNo(0), colNo(0), isValid(false) {}
-  std::string getFileName() { return fileName; }
-  uint32_t getLineNo() { return lineNo; }
-  uint32_t getColNo() { return colNo; }
+  std::string getFileName() const { return fileName; }
+  uint32_t getLineNo() const { return lineNo; }
+  uint32_t getColNo() const { return colNo; }
   bool valid() { return isValid; }
 
   bool operator<(const PersistentSourceLoc &o) const {
@@ -48,11 +48,11 @@ public:
       return fileName < o.fileName;
   }
 
-  void print(llvm::raw_ostream &O) {
-    O << fileName << ":" << lineNo << ":" << colNo << "\n";
+  void print(llvm::raw_ostream &O) const {
+    O << fileName << ":" << lineNo << ":" << colNo;
   }
 
-  void dump() { print(llvm::errs()); }
+  void dump() const { print(llvm::errs()); }
 
   static
     PersistentSourceLoc mkPSL(clang::Decl *D, clang::ASTContext &Context);

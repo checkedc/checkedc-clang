@@ -22,4 +22,6 @@ typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
 
 extern llvm::cl::opt<bool> Verbose;
 extern llvm::cl::opt<bool> DumpIntermediate;
+
+const clang::Type *getNextTy(const clang::Type *Ty);
 #endif

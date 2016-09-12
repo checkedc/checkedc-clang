@@ -8751,6 +8751,15 @@ def err_typecheck_count_bounds_expr : Error<
 def err_typecheck_byte_count_bounds_expr : Error<
   "invalid argument type %0 to byte_count expression">;
 
+def err_typecheck_bounds_expr : Error<
+  "invalid argument type %0 to bounds expression">;
+
+def err_typecheck_bounds_expr_incompatible_pointers : Error<
+  "pointer type mismatch%diff{ ($ and $)|}0,1">;
+
+ def err_typecheck_pointer_type_expected : Error<
+   "expected expression with pointer type (it has type %0)">;
+
 def err_typecheck_ptr_decl_with_bounds : Error<
   "bounds declaration not allowed because %0 has a ptr type">;
 

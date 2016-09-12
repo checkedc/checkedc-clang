@@ -51,8 +51,8 @@ public:
 
   AtomKind getKind() const { return Kind; }
 
-  virtual void print(llvm::raw_ostream &) = 0;
-  virtual void dump(void) = 0;
+  virtual void print(llvm::raw_ostream &) const = 0;
+  virtual void dump(void) const = 0;
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &other) const = 0;
@@ -68,11 +68,11 @@ public:
     return S->getKind() == A_Var;
   }
 
-  void print(llvm::raw_ostream &O) {
+  void print(llvm::raw_ostream &O) const {
     O << "q_" << Loc;
   }
 
-  void dump(void) {
+  void dump(void) const {
     print(llvm::errs());
   }
 
@@ -125,11 +125,11 @@ public:
     return S->getKind() == A_Ptr;
   }
 
-  void print(llvm::raw_ostream &O) {
+  void print(llvm::raw_ostream &O) const {
     O << "PTR";
   }
 
-  void dump(void) {
+  void dump(void) const {
     print(llvm::errs());
   }
 
@@ -155,11 +155,11 @@ public:
     return S->getKind() == A_Arr;
   }
 
-  void print(llvm::raw_ostream &O) {
+  void print(llvm::raw_ostream &O) const {
     O << "ARR";
   }
 
-  void dump(void) {
+  void dump(void) const {
     print(llvm::errs());
   }
 
@@ -188,11 +188,11 @@ public:
     return S->getKind() == A_Wild;
   }
 
-  void print(llvm::raw_ostream &O) {
+  void print(llvm::raw_ostream &O) const {
     O << "WILD";
   }
 
-  void dump(void) {
+  void dump(void) const {
     print(llvm::errs());
   }
 
@@ -234,8 +234,8 @@ public:
 
   ConstraintKind getKind() const { return Kind; }
 
-  virtual void print(llvm::raw_ostream &) = 0;
-  virtual void dump(void) = 0;
+  virtual void print(llvm::raw_ostream &) const = 0;
+  virtual void dump(void) const = 0;
   virtual bool operator==(const Constraint &other) const = 0;
   virtual bool operator!=(const Constraint &other) const = 0;
   virtual bool operator<(const Constraint &other) const = 0;
@@ -252,13 +252,13 @@ public:
     return C->getKind() == C_Eq;
   }
 
-  void print(llvm::raw_ostream &O) {
+  void print(llvm::raw_ostream &O) const {
     lhs->print(O);
     O << " == ";
     rhs->print(O);
   }
 
-  void dump(void) {
+  void dump(void) const {
     print(llvm::errs());
   }
 
@@ -308,13 +308,13 @@ public:
     return C->getKind() == C_Not;
   }
 
-  void print(llvm::raw_ostream &O) {
+  void print(llvm::raw_ostream &O) const {
     O << "~(";
     body->print(O);
     O << ")";
   }
 
-  void dump(void) {
+  void dump(void) const {
     print(llvm::errs());
   }
 
@@ -363,13 +363,13 @@ public:
   Constraint *getPremise() const { return premise; }
   Constraint *getConclusion() const { return conclusion; }
 
-  void print(llvm::raw_ostream &O) {
+  void print(llvm::raw_ostream &O) const {
     premise->print(O);
     O << " => ";
     conclusion->print(O);
   }
 
-  void dump(void) {
+  void dump(void) const {
     print(llvm::errs());
   }
 
@@ -419,14 +419,15 @@ public:
   ConstraintSet getConstraints() { return constraints; }
   EnvironmentMap getVariables() { return environment; }
   bool solve(void);
-  void dump();
-  void print(llvm::raw_ostream &);
+  void dump() const;
+  void print(llvm::raw_ostream &) const;
 
   Eq *createEq(Atom *lhs, Atom *rhs);
   Not *createNot(Constraint *body);
   Implies *createImplies(Constraint *premise, Constraint *conclusion);
 
   VarAtom *getOrCreateVar(uint32_t v);
+  VarAtom *getVar(uint32_t v) const;
   PtrAtom *getPtr() const;
   ArrAtom *getArr() const;
   WildAtom *getWild() const;

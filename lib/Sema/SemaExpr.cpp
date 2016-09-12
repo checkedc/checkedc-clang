@@ -12207,8 +12207,8 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
   ExprResult Result = UsualUnaryConversions(CountExpr);
   if (Result.isInvalid())
     return ExprError();
-  Expr *PromotedCountExpr = Result.get();
-  QualType ResultType = PromotedCountExpr->getType();
+  CountExpr = Result.get();
+  QualType ResultType = CountExpr->getType();
   if (!ResultType->isIntegerType()) {
     Diag(CountExpr->getLocStart(),
          Kind == CountBoundsExpr::Kind::ElementCount ?
@@ -12217,14 +12217,77 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
       << ResultType;
     return ExprError();
   }
-  return new (Context) CountBoundsExpr(Kind, PromotedCountExpr, BoundsKWLoc,
+  return new (Context) CountBoundsExpr(Kind, CountExpr, BoundsKWLoc,
                                        RParenLoc);
 }
 
+/// \brief Validate the type of an argument expression to a bounds
+/// expression. If valid, return the unqualified pointee type.  Otherwise
+/// return null.  Assumes that the usual C conversions for expressions
+/// have been applied already, including array->pointer conversions.
+const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
+  QualType ArgType = Arg->getType();
+  const Type *ArgPointerType = ArgType->getAs<PointerType>();
+  if (!ArgPointerType) {
+    Diag(Arg->getLocStart(),
+         diag::err_typecheck_pointer_type_expected) << ArgType;
+    return nullptr;
+  }
+  QualType ArgTypePointee = ArgPointerType->getPointeeType();
+  // We return the unqualified type so that we can compare
+  // types ignoring qualifier information.  For constant, volatile,
+  // and restrict, it is valid to have argument types that differ
+  // in those qualifiers.  However, clang extends qualifiers with
+  // GC qualifiers (for Objective C) and address-space qualifiers (for
+  // OpenCL).  These should not be ignored when comparing types.  For
+  // Checked C, though, we never expect to see either of those qualifiers
+  // because we restrict usage of the extension to only C. For now, we 
+  // can ignore the existence of those additional qualifiers.  Assert if
+  // we do see them.
+  Qualifiers ArgTypeQuals = ArgTypePointee.getQualifiers();
+  ArgTypeQuals.removeCVRQualifiers();
+  assert(!ArgTypeQuals.hasQualifiers() &&
+         "unexpected non-CVR qualifiers on type");
+
+  if (!ArgTypePointee->isIncompleteOrObjectType()) {
+    Diag(Arg->getLocStart(), diag::err_typecheck_bounds_expr) << ArgType;
+    return nullptr;
+  }
+
+  // Return the canonical unqualified pointee type.
+  return ArgTypePointee.getTypePtr();
+}
+
 ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
-                                            Expr *LowerBound,
-                                            Expr *UpperBound,
-                                            SourceLocation RParenLoc) {
+                                      Expr *LowerBound,
+                                      Expr *UpperBound,
+                                      SourceLocation RParenLoc) {
+  ExprResult Result = UsualUnaryConversions(LowerBound);
+  if (Result.isInvalid())
+     return ExprError();
+  LowerBound = Result.get();
+
+  Result = UsualUnaryConversions(UpperBound);
+  if (Result.isInvalid())
+    return ExprError();
+  UpperBound = Result.get();
+
+  const Type *LowerBoundPointee = ValidateBoundsExprArgument(LowerBound);
+  const Type *UpperBoundPointee = ValidateBoundsExprArgument(UpperBound);
+
+  if (!LowerBoundPointee || !UpperBoundPointee)
+    return ExprError();
+
+  if (LowerBoundPointee != UpperBoundPointee &&
+      !LowerBoundPointee->isVoidType() &&
+      !UpperBoundPointee->isVoidType()) {
+    Diag(LowerBound->getLocStart(),
+         diag::err_typecheck_bounds_expr_incompatible_pointers)
+      << LowerBound->getType() << UpperBound->getType() << LowerBound->getSourceRange()
+      << UpperBound->getSourceRange();
+    return ExprError();
+  }
+
   return new (Context) RangeBoundsExpr(LowerBound, UpperBound, BoundsKWLoc,
                                        RParenLoc);
 }

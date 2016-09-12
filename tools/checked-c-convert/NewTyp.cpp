@@ -18,33 +18,39 @@ using namespace llvm;
 // to be done all at once via the Rewriter.
 NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
                                         ProgramInfo &PI, ASTContext *C) {
-  TypeLoc TL;
-
+  const Type *Ty = NULL;
   if (VarDecl *VD = dyn_cast<VarDecl>(D))
-    TL = VD->getTypeSourceInfo()->getTypeLoc();
+    Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
   else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
-    TL = FD->getTypeSourceInfo()->getTypeLoc();
+    Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
   else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D))
-    TL = UD->getTypeSourceInfo()->getTypeLoc();
+    Ty = UD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
   else
     llvm_unreachable("unknown decl type");
 
-  assert(!TL.isNull());
+  Ty = Ty->getUnqualifiedDesugaredType();
   
   // Strip off function definitions from the type.
-  while (!TL.isNull()) {
-    QualType T = TL.getType();
-    if (T->isFunctionNoProtoType() || T->isFunctionType() ||
-        T->isFunctionProtoType())
-      TL = TL.getNextTypeLoc();
+  while (Ty != NULL) {
+    if (const FunctionType *FT = dyn_cast<FunctionType>(Ty))
+      Ty = FT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
+    else if (const FunctionNoProtoType *FNPT = dyn_cast<FunctionNoProtoType>(Ty))
+      Ty = FNPT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
     else
       break;
   }
 
+  if (Ty == NULL)
+    return NULL;
+
   uint32_t baseQVKey;
   std::set<uint32_t> baseQVKeyS;
   PI.getVariable(D, baseQVKeyS, C);
-  assert(baseQVKeyS.size() == 1);
+  // We want the least constraint variable associated with this Decl.
+  // If no constraint variable exists, then we just dump it on the floor and
+  // don't do any re-writing.
+  if (baseQVKeyS.size() == 0) 
+    return NULL;
   baseQVKey = *baseQVKeyS.begin();
 
   // Now, build up a NewTyp type.
@@ -53,18 +59,15 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
   uint32_t curKey = baseQVKey;
   Constraints::EnvironmentMap env = PI.getConstraints().getVariables();
 
-  // What if we don't have anything to do after stripping off function
-  // definitions?
-  assert(!TL.isNull());
-
-  while (!TL.isNull()) {
-    // What should the current type be qualified as? This can be answered by
-    // looking the constraint up for the current variable.
+  // We step through each level of the type. If the type is a pointer type,
+  // then we strip off the qualifier and do one step of de-sugaring. If it 
+  // is not a pointer type, then we leave the sugar on the type. The goal 
+  // here is to not convert types like wchar_t into unsigned short, but, 
+  // allow us to deal with structure definitions that have been typedefed.
+  while ((Cur == NULL) || !isa<BaseNonPointerTyp>(Cur)) {
+    QualType QT(Ty, 0);
     NewTyp *tmp = NULL;
-    if (TypedefTypeLoc TTL = TL.getAs<TypedefTypeLoc>()) {
-      // Skip everything for now.
-      tmp = new BaseNonPointerTyp(TTL.getType());
-    } else if (TL.getType()->isPointerType()) {
+    if (Ty->isPointerType()) {
       VarAtom toFind(curKey);
       auto I = env.find(&toFind);
       assert(I != env.end());
@@ -93,7 +96,7 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
 
       curKey++;
     } else {
-      tmp = new BaseNonPointerTyp(TL.getType());
+      tmp = new BaseNonPointerTyp(QT);
     }
 
     // If this is our first trip through the loop, update the Cur variable
@@ -101,12 +104,11 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
     // field of Cur. Also, if this is our first trip through the loop,
     // update T to be the value we produced.
     assert(tmp != NULL);
-    if (Cur == NULL) {
+    if (Cur == NULL) 
       Cur = tmp;
-    }
-    else {
+    else 
       Cur->ReferentTyp = tmp;
-    }
+    
 
     if (T == NULL) {
       T = Cur;
@@ -116,17 +118,12 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
 
     Cur = tmp;
 
-    if (isa<BaseNonPointerTyp>(Cur))
-      break;
-    else
-      TL = TL.getNextTypeLoc();
+    Ty = getNextTy(Ty);
   }
 
   assert(T != NULL);
   assert(T->ReferentTyp != NULL || T->getKind() == N_BaseNonPointer);
   return T;
-
-  return NULL;
 }
 
 std::string BaseNonPointerTyp::mkStr() {

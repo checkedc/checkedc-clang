@@ -130,6 +130,11 @@ public:
   // TODO: other visitors to visit statements and expressions that we use to
   // gather constraints.
 
+  bool VisitCompoundAssignOperator(CompoundAssignOperator *O) {
+    arithBinop(O);
+    return true;
+  }
+
   bool VisitBinAssign(BinaryOperator *O) {
     Expr *LHS = O->getLHS();
     Expr *RHS = O->getRHS();
@@ -154,14 +159,14 @@ public:
         if (i < FD->getNumParams()) {
           Info.getVariable(FD->getParamDecl(i), Ws, Context);
           if (Ws.size() > 0) {
-            assert(Ws.size() == 1);
-            uint32_t W = *Ws.begin();
 
-            std::set<uint32_t> V;
-            Info.getVariable(A, V, Context);
-            for (const auto &I : V)
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(W), CS.getOrCreateVar(I)));
+            for (const auto &W : Ws) {
+              std::set<uint32_t> V;
+              Info.getVariable(A, V, Context);
+              for (const auto &I : V)
+                CS.addConstraint(
+                  CS.createEq(CS.getOrCreateVar(W), CS.getOrCreateVar(I)));
+            }
           }
         }
         i++;
@@ -241,24 +246,18 @@ public:
   }
 
   bool VisitBinAdd(BinaryOperator *O) {
-    std::set<uint32_t> V1;
-    std::set<uint32_t> V2;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getLHS(), V1, Context);
-    Info.getVariable(O->getRHS(), V2, Context);
-
-    for (const auto &I : V1)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
-    for (const auto &I : V2)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
+    arithBinop(O);
     return true;
   }
 
   bool VisitBinSub(BinaryOperator *O) {
+    arithBinop(O);
+    return true;
+  }
+
+private:
+
+  void arithBinop(BinaryOperator *O) {
     std::set<uint32_t> V1;
     std::set<uint32_t> V2;
     Constraints &CS = Info.getConstraints();
@@ -267,16 +266,13 @@ public:
 
     for (const auto &I : V1)
       CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
+        CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
 
     for (const auto &I : V2)
       CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
-    return true;
+        CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
   }
 
-private:
   ASTContext *Context;
   ProgramInfo &Info;
   FunctionDecl *Function;

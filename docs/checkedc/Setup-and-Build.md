@@ -25,11 +25,12 @@ set the maximum number of parallel project builds to a fraction of the actual nu
 (for example, number of processor cores on your machine/3).
 
 LLVM/clang have some tests that depend on using Unix line ending conventions
-(line feeds end lines).  This means that the sources you will be working with
+(line feeds only).  This means that the sources you will be working with
 need to end with line feeds. Visual Studio preserves line endings for files, so
 this should work fine most of the time.  If you are creating a file, you will
-need to save it using line feeds only to end lines
+need to save it using line feeds only
 (go to File->Advanced Save Options to set this option before saving the file).
+Otherwise, Visual Studio will save the file with carriage return/line feed line endings.
 
 ## Source organization
 LLVM uses subversion for distributed source code control.   It is mirrored by Git repositories on Github: the
@@ -59,9 +60,15 @@ You will need to choose a drive that has at least 20 Gbytes free.  You may need 
 You can store the sources in any directory that you want.  You should avoid spaces in parent directory names because this can confuse some tools.
 
 You will need to clone each repo and checkout the master branch from each repo.
+<<<<<<< HEAD
 The cloning process for LLVM and clang depends on whether you are running on
 Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
 Unix line endings.  On Windows, Git can alter line endings to matchi the
+=======
+The cloning process for LLVM and clang depends on whether you are developing on
+Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
+Unix line endings.  On Windows, Git can alter line endings to match the
+>>>>>>> d5fda60c33ee991efa1909a07fb7f931a72809fa
 Windows line ending convention,  breaking those tests.  It is important to
 prevent Git from altering the line endings.
 
