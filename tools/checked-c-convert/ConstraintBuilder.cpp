@@ -90,13 +90,16 @@ public:
             safe &= Info.checkStructuralEquality(V, I);
 
           for (const auto &I : W)
-            if (safe)
+            if (safe) {
               CS.addConstraint(CS.createImplies(
                 CS.createEq(CS.getOrCreateVar(V), CS.getWild()),
                 CS.createEq(CS.getOrCreateVar(I), CS.getWild())));
-            else
+            } else {
               CS.addConstraint(
                 CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+              CS.addConstraint(
+                CS.createEq(CS.getOrCreateVar(I), CS.getWild()));
+            }
         }
       }
     }
