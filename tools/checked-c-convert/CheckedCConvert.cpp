@@ -61,6 +61,12 @@ static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::init(false),
                                 cl::cat(ConvertCategory));
 
+static cl::opt<std::string>
+BaseDir("base-dir",
+  cl::desc("Base directory for the code we're translating"),
+  cl::init(""),
+  cl::cat(ConvertCategory));
+
 const Type *getNextTy(const Type *Ty) {
   if(Ty->isPointerType()) {
     // TODO: how to keep the qualifiers around, and what qualifiers do
@@ -255,6 +261,53 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
   }
 }
 
+static
+bool 
+canWrite(std::string filePath, std::set<std::string> &iof, std::string b) {
+  // Was this file explicitly provided on the command line?
+  if (iof.count(filePath) > 0)
+    return true;
+  // Is this file contained within the base directory?
+
+  sys::path::const_iterator baseIt = sys::path::begin(b);
+  sys::path::const_iterator pathIt = sys::path::begin(filePath);
+  sys::path::const_iterator baseEnd = sys::path::end(b);
+  sys::path::const_iterator pathEnd = sys::path::end(filePath);
+  std::string baseSoFar = (*baseIt).str() + sys::path::get_separator().str();
+  std::string pathSoFar = (*pathIt).str() + sys::path::get_separator().str();
+  ++baseIt;
+  ++pathIt;
+
+  while ((baseIt != baseEnd) && (pathIt != pathEnd)) {
+    sys::fs::file_status baseStatus;
+    sys::fs::file_status pathStatus;
+    std::string s1 = (*baseIt).str();
+    std::string s2 = (*pathIt).str();
+
+    if (std::error_code ec = sys::fs::status(baseSoFar, baseStatus))
+      return false;
+    
+    if (std::error_code ec = sys::fs::status(pathSoFar, pathStatus))
+      return false;
+
+    if (!sys::fs::equivalent(baseStatus, pathStatus))
+      break;
+
+    if (s1 != sys::path::get_separator().str())
+      baseSoFar += (s1 + sys::path::get_separator().str());
+    if (s2 != sys::path::get_separator().str())
+      pathSoFar += (s2 + sys::path::get_separator().str());
+
+    ++baseIt;
+    ++pathIt;
+  }
+
+  if (baseIt == baseEnd && baseSoFar == pathSoFar)
+    return true;
+  else
+    return false;
+}
+
 void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           std::set<std::string> &InOutFiles) {
   // Check if we are outputing to stdout or not, if we are, just output the
@@ -296,7 +349,7 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           } else
             feAbsS = feAbs.str();
 
-          if (InOutFiles.count(feAbsS)) {
+          if(canWrite(feAbsS, InOutFiles, BaseDir)) {
             std::error_code EC;
             raw_fd_ostream out(nFile.str(), EC, sys::fs::F_None);
 
@@ -424,6 +477,16 @@ int main(int argc, const char **argv) {
   InitializeAllTargetMCs();
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
+
+  if (BaseDir.size() == 0) {
+    SmallString<256>  cp;
+    if (std::error_code ec = sys::fs::current_path(cp)) {
+      errs() << "could not get current working dir\n";
+      return 1;
+    }
+
+    BaseDir = cp.str();
+  }
 
   CommonOptionsParser OptionsParser(argc, argv, ConvertCategory);
 
