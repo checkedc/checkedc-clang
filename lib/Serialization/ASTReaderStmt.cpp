@@ -958,7 +958,7 @@ void ASTStmtReader::VisitAtomicExpr(AtomicExpr *E) {
 
 void ASTStmtReader::VisitCountBoundsExpr(CountBoundsExpr *E) {
   VisitExpr(E);
-  E->setKind((CountBoundsExpr::Kind)Record[Idx++]);
+  E->setKind((BoundsExpr::Kind)Record[Idx++]);
   E->setCountExpr(Reader.ReadSubExpr());
   E->setStartLoc(ReadSourceLocation(Record, Idx));
   E->setRParenLoc(ReadSourceLocation(Record, Idx));
@@ -966,7 +966,7 @@ void ASTStmtReader::VisitCountBoundsExpr(CountBoundsExpr *E) {
 
 void ASTStmtReader::VisitNullaryBoundsExpr(NullaryBoundsExpr *E) {
   VisitExpr(E);
-  E->setKind((NullaryBoundsExpr::Kind)Record[Idx++]);
+  E->setKind((BoundsExpr::Kind)Record[Idx++]);
   E->setStartLoc(ReadSourceLocation(Record, Idx));
   E->setRParenLoc(ReadSourceLocation(Record, Idx));
 }

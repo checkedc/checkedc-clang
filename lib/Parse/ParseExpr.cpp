@@ -2762,7 +2762,8 @@ bool Parser::StartsBoundsExpression(Token &tok) {
 }
 
 ExprResult Parser::ParseBoundsExpression() {
-  if (Tok.getKind() != tok::identifier) {
+  tok::TokenKind TokKind = Tok.getKind();
+  if (TokKind != tok::identifier) {
     // This can't be a contextual keyword that begins a bounds expression,
     // so stop now.
     Diag(Tok, diag::err_expected_bounds_expr);
@@ -2783,8 +2784,8 @@ ExprResult Parser::ParseBoundsExpression() {
   if (Ident == Ident_byte_count || Ident == Ident_count) {
     // Parse byte_count(e1) or count(e1)
     Result = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
-    CountBoundsExpr::Kind CountKind = Ident == Ident_count ?
-      CountBoundsExpr::Kind::ElementCount : CountBoundsExpr::Kind::ByteCount;
+    BoundsExpr::Kind CountKind = Ident == Ident_count ?
+      BoundsExpr::Kind::ElementCount : BoundsExpr::Kind::ByteCount;
     if (Result.isInvalid())
       Result = ExprError();
     else
@@ -2802,7 +2803,7 @@ ExprResult Parser::ParseBoundsExpression() {
         FoundNullaryOperator = true;
         ConsumeToken();
         Result = Actions.ActOnNullaryBoundsExpr(BoundsKWLoc, 
-                                                NullaryBoundsExpr::Kind::None,
+                                                BoundsExpr::Kind::None,
                                                 Tok.getLocation());
       }
     }

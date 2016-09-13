@@ -11226,10 +11226,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
     return;
 
   // If the bounds expression is invalid, skip type checking the declaration.
-  // TODO: add simple predicate to BoundsExpr that checks whether
-  // this is a valid bounds expression.
-  if (NullaryBoundsExpr *NB = dyn_cast<NullaryBoundsExpr>(Expr))
-    if (NB->getKind() == NullaryBoundsExpr::Invalid)
+  if (Expr->isInvalid())
       return;
 
   unsigned DiagId = 0;
@@ -11279,18 +11276,10 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
     }
   }
 
-  // TODO: remove this declaration once we add a simple predicate
-  // to BoundsExpr to check whether a bounds expression is an element
-  // count expression.
-  CountBoundsExpr *countBounds = dyn_cast<CountBoundsExpr>(Expr);
   if (DiagId)
      ;  // There was already an error. Do nothing.
-  else if (countBounds &&
-      countBounds->getKind() == CountBoundsExpr::Kind::ElementCount) {
-    // TODO: add simple predicate to BoundsExpr to check whether this is an
-    // element count bounds expression.
-    //
-    // element count bounds declarations have special typechecking rules
+  else if (Expr->isElementCount()) {
+    // Element count bounds declarations have special typechecking rules
     // because x : count(e) is just an abbreviation for x : bounds(x, x + e).
     // The variable or return value for which the bounds is being declared has
     // to have a pointer type (or an array type that can be converted to a
@@ -11303,13 +11292,18 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
     // if the type is still incomplete at the place of use.  Simiarly, you
     // can declare a pointer with bounds, but you can't use the pointer
     // if the type is incomplete.
-    if (!Ty->isPointerType() && !Ty->isArrayType()) {
-      DiagId = checkReturnBounds ? diag::err_typecheck_count_return_bounds
-                                 : diag::err_typecheck_count_bounds_decl;
-    } else if (Ty->isVoidPointerType()) {
-      DiagId = checkReturnBounds
-        ? diag::err_typecheck_void_pointer_count_return_bounds
-        : diag::err_typecheck_void_pointer_count_bounds_decl;
+    CountBoundsExpr *countBounds = dyn_cast<CountBoundsExpr>(Expr);
+    if (countBounds == nullptr)
+      llvm_unreachable("dyn_cast to countBounds failed unexpectedly");
+    else {
+      if (!Ty->isPointerType() && !Ty->isArrayType()) {
+        DiagId = checkReturnBounds ? diag::err_typecheck_count_return_bounds
+                                   : diag::err_typecheck_count_bounds_decl;
+      } else if (Ty->isVoidPointerType()) {
+        DiagId = checkReturnBounds
+          ? diag::err_typecheck_void_pointer_count_return_bounds
+          : diag::err_typecheck_void_pointer_count_bounds_decl;
+      }
     }
   } else if (!Ty->isPointerType() && !Ty->isArrayType() &&
              !Ty->isIntegerType())
@@ -11337,7 +11331,7 @@ void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
 BoundsExpr *Sema::CreateInvalidBoundsExpr() {
   ExprResult Result =
     ActOnNullaryBoundsExpr(SourceLocation(),
-                           NullaryBoundsExpr::Kind::Invalid,
+                           BoundsExpr::Kind::Invalid,
                            SourceLocation());
   if (!Result.isInvalid())
     return cast<BoundsExpr>(Result.get());

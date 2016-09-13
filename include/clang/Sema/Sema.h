@@ -4217,14 +4217,13 @@ private:
 
 public:
   ExprResult ActOnNullaryBoundsExpr(SourceLocation BoundKWLoc,
-                                    NullaryBoundsExpr::Kind Kind,
+                                    BoundsExpr::Kind Kind,
                                     SourceLocation RParenLoc);
   ExprResult ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
-                                  CountBoundsExpr::Kind Kind, Expr *CountExpr,
+                                  BoundsExpr::Kind Kind, Expr *CountExpr,
                                   SourceLocation RParenLoc);
   ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
                                   Expr *UpperBound, SourceLocation RParenLoc);
-
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr, bool isReturnDecl=false);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();

@@ -2343,14 +2343,14 @@ public:
   }
 
   ExprResult RebuildCountBoundsExpr(SourceLocation StartLoc,
-                                    CountBoundsExpr::Kind Kind,
+                                    BoundsExpr::Kind Kind,
                                     Expr * CountExpr,
                                     SourceLocation RParenLoc) {
     return getSema().ActOnCountBoundsExpr(StartLoc, Kind, CountExpr, RParenLoc);
   }
 
   ExprResult RebuildNullaryBoundsExpr(SourceLocation StartLoc,
-                                      NullaryBoundsExpr::Kind Kind,
+                                      BoundsExpr::Kind Kind,
                                       SourceLocation RParenLoc) {
     return getSema().ActOnNullaryBoundsExpr(StartLoc, Kind, RParenLoc);
   }
