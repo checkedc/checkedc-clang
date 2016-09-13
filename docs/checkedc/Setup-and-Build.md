@@ -56,34 +56,26 @@ the LLVM/clang sources.
 
 ## Setting up sources for development
 
-You will need to choose a drive that has at least 20 Gbytes free.  You may need lots of space for the sources and the build.   
+You will need to choose a drive that has at least 20 Gbytes free.  You may need lots of space for the sources and the build.
 You can store the sources in any directory that you want.  You should avoid spaces in parent directory names because this can confuse some tools.
 
-You will need to clone each repo and checkout the master branch from each repo.
-<<<<<<< HEAD
-The cloning process for LLVM and clang depends on whether you are running on
-Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
-Unix line endings.  On Windows, Git can alter line endings to matchi the
-=======
+You will need to clone each repo.
 The cloning process for LLVM and clang depends on whether you are developing on
 Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
 Unix line endings.  On Windows, Git can alter line endings to match the
->>>>>>> d5fda60c33ee991efa1909a07fb7f931a72809fa
-Windows line ending convention,  breaking those tests.  It is important to
+Windows line ending convention.  It is important to
 prevent Git from altering the line endings.
 
 ### Cloning LLVM/clang on Unix/Linux
 
 First clone LLVM to your desired location on your machine:
 ```
-git clone https://github.com/Microsoft/checkedc-llvm
-git checkout master
+git clone https://github.com/Microsoft/checkedc-llvm llvm
 ```
 Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the
-llvm\tools directory and clone the clang repo:
+`llvm\tools` directory and clone the clang repo:
 ```
-git clone https://github.com/Microsoft/checkedc-clang
-git checkout master
+git clone https://github.com/Microsoft/checkedc-clang clang
 ```
 
 ### Cloning LLVM/clang on Windows
@@ -92,22 +84,19 @@ If you already have `core.autocrlf=false` set for your global Git
 configuration, you can follow the Unix/Linux directions.
 Otherwise, follow these directions:
 ```
-git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-llvm
-git checkout master
+git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-llvm llvm
 ```
-Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the llvm\tools directory and clone the clang repo:
+Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the `llvm\tools` directory and clone the clang repo:
 ```
-git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang
-git checkout master
+git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang clang
 ```
 
 ### Cloning Checked C language tests
 
-The Checked C language tests live in a project directory for LLVM.  Change to the llvm\projects\checkedc-wrapper directory
+The Checked C language tests live in a project directory for LLVM.  Change to the `llvm\projects\checkedc-wrapper` directory
 and clone the Checked C repo:
 ```
 git clone https://github.com/Microsoft/checkedc
-git checkout master
 ```
 
 ## Setting up a build directory
