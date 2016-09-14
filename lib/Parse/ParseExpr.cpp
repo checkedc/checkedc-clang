@@ -2765,7 +2765,7 @@ ExprResult Parser::ParseBoundsExpression() {
   tok::TokenKind TokKind = Tok.getKind();
 
   // recognize 'ptr' interop annotation
-  if (TokKind == tok::kw_ptr) {
+  if (TokKind == tok::kw__Ptr) {
     SourceLocation PtrKWLoc = Tok.getLocation();
     ConsumeToken();
     return Actions.ActOnNullaryBoundsExpr(PtrKWLoc,

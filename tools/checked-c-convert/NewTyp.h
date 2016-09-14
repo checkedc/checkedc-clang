@@ -81,7 +81,7 @@ public:
   PtrTyp() : NewTyp(N_Ptr) {}
 
   std::string mkStr() {
-    return "ptr<" + ReferentTyp->mkStr() + "> ";
+    return "_Ptr<" + ReferentTyp->mkStr() + "> ";
   }
 
   virtual bool anyChanges() { return true || ReferentTyp->anyChanges();  }

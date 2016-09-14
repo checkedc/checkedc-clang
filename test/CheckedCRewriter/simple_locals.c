@@ -13,7 +13,7 @@ void f1() {
 }
 // CHECK: void f1() {
 // CHECK-NEXT: int b = 0;
-// CHECK-NEXT: ptr<int> a = &b;
+// CHECK-NEXT: _Ptr<int> a = &b;
 
 void f2() {
     char b = 'a';
@@ -22,7 +22,7 @@ void f2() {
 }
 //CHECK: void f2() {
 //CHECK-NEXT: char b = 'a';
-//CHECK-NEXT: ptr<char> a = &b;
+//CHECK-NEXT: _Ptr<char> a = &b;
 
 typedef struct _BarRec {
   int a;
@@ -34,7 +34,7 @@ typedef struct _BarRec {
 void upd(BarRec *P, int a) {
   P->a = a;
 }
-//CHECK: void upd(ptr<BarRec> P, int a) {
+//CHECK: void upd(_Ptr<BarRec> P, int a) {
 //CHECK-NEXT: P->a = a;
 //CHECK-NEXT: }
 
@@ -62,7 +62,7 @@ void g(void) {
 }
 //CHECK: void g(void) {
 //CHECK-NEXT: int a = 0;
-//CHECK-NEXT: ptr<int> b = &a;
+//CHECK-NEXT: _Ptr<int> b = &a;
 
 void gg(void) {
   int a = 0, *b = &a, **c = &b;
@@ -72,13 +72,13 @@ void gg(void) {
 }
 //CHECK: void gg(void) {
 //CHECK-NEXT: int a = 0;
-//CHECK-NEXT: ptr<int> b = &a;
-//CHECK-NEXT: ptr<ptr<int> > c = &b;
+//CHECK-NEXT: _Ptr<int> b = &a;
+//CHECK-NEXT: _Ptr<_Ptr<int> > c = &b;
 
 #define ONE 1
 
 int goo(int *, int);
-//CHECK: int goo(ptr<int>, int);
+//CHECK: int goo(_Ptr<int>, int);
 
 struct blah {
   int a;
@@ -95,7 +95,7 @@ int foo(int a, int b) {
 }
 //CHECK: int foo(int a, int b) {
 //CHECK-NEXT: int tmp = a + ONE;
-//CHECK-NEXT: ptr<int> tmp2 = &tmp;
+//CHECK-NEXT: _Ptr<int> tmp2 = &tmp;
 //CHECK-NEXT: return tmp + b + *tmp2;
 //CHECK-NEXT: }
 
@@ -112,9 +112,9 @@ int baz(int *a, int b, int c) {
   *aa = tmp;
   return tmp;
 }
-//CHECK: int baz(ptr<int> a, int b, int c) {
+//CHECK: int baz(_Ptr<int> a, int b, int c) {
 //CHECK-NEXT: int tmp = b + c;
-//CHECK-NEXT: ptr<int> aa = a;
+//CHECK-NEXT: _Ptr<int> aa = a;
 //CHECK-NEXT: *aa = tmp;
 //CHECK-NEXT: return tmp;
 
@@ -139,7 +139,7 @@ void pullit(char *base, char *out, int *index) {
 
   return;
 }
-//CHECK: void pullit(char* base, ptr<char> out, ptr<int> index) {
+//CHECK: void pullit(char* base, _Ptr<char> out, _Ptr<int> index) {
 
 void driver() {
   char buf[10] = { 0 };
@@ -156,7 +156,7 @@ typedef struct _sfoo {
   int b;
   struct _sfoo *next;
 } sfoo;
-//CHECK: ptr<struct _sfoo> next;
+//CHECK: _Ptr<struct _sfoo> next;
 
 int sum(sfoo *p) {
   int a = 0;
@@ -167,7 +167,7 @@ int sum(sfoo *p) {
 
   return a;
 }
-//CHECK: int sum(ptr<sfoo> p) {
+//CHECK: int sum(_Ptr<sfoo> p) {
 
 typedef struct _A {
   int a;
@@ -187,8 +187,8 @@ void dfnk(int a, int b) {
 }
 //CHECK: int dfnk(int a, int b) {
 //CHECK-NEXT: A j;
-//CHECK-NEXT: ptr<struct _A> k = &j;
-//CHECK-NEXT: ptr<ptr<struct _A> > u = &k;
+//CHECK-NEXT: _Ptr<struct _A> k = &j;
+//CHECK-NEXT: _Ptr<_Ptr<struct _A> > u = &k;
 
 void adsfse(void) {
   int a = 0;
@@ -234,4 +234,4 @@ void cvxqqef(void) {
 //CHECK: void cvxqqef(void) {
 //CHECK-NEXT: int a = 0;
 //CHECK-NEXT: int *b = &a;
-//CHECK-NEXT: ptr<int> c = &a;
+//CHECK-NEXT: _Ptr<int> c = &a;
