@@ -2763,6 +2763,16 @@ bool Parser::StartsBoundsExpression(Token &tok) {
 
 ExprResult Parser::ParseBoundsExpression() {
   tok::TokenKind TokKind = Tok.getKind();
+
+  // recognize 'ptr' interop annotation
+  if (TokKind == tok::kw_ptr) {
+    SourceLocation PtrKWLoc = Tok.getLocation();
+    ConsumeToken();
+    return Actions.ActOnNullaryBoundsExpr(PtrKWLoc,
+                                          BoundsExpr::Kind::PtrInteropAnnotation,
+                                          Tok.getLocation());
+  }
+
   if (TokKind != tok::identifier) {
     // This can't be a contextual keyword that begins a bounds expression,
     // so stop now.
