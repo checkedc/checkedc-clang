@@ -155,25 +155,65 @@ public:
       return true;
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+
       Constraints &CS = Info.getConstraints();
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
-        std::set<uint32_t> Ws;
-        if (i < FD->getNumParams()) {
-          Info.getVariable(FD->getParamDecl(i), Ws, Context);
-          if (Ws.size() > 0) {
+        std::set<uint32_t> V;
+        Info.getVariable(A, V, Context);
 
-            for (const auto &W : Ws) {
-              std::set<uint32_t> V;
-              Info.getVariable(A, V, Context);
-              for (const auto &I : V)
-                CS.addConstraint(
-                  CS.createEq(CS.getOrCreateVar(W), CS.getOrCreateVar(I)));
+        if (i < FD->getNumParams()) {
+          ParmVarDecl *PVD = FD->getParamDecl(i);
+          std::set<uint32_t> Ws;
+          Info.getVariable(PVD, Ws, Context);
+          
+          if (Ws.size() == V.size()) {
+            // If there are an equal number of constraint variables for 
+            // both the parameter declaration and the expression argument,
+            // then constrain them to be position-wise equal.
+            std::set<uint32_t>::iterator I = Ws.begin();
+            std::set<uint32_t>::iterator J = V.begin();
+            while ((I != Ws.end()) && (J != V.end())) {
+              
+              CS.addConstraint(
+                CS.createEq(CS.getOrCreateVar(*I), CS.getOrCreateVar(*J)));
+
+              ++I;
+              ++J;
             }
+
+          }else {
+            if (Verbose) {
+              errs() << "arity of parameter and expr do not match!\n";
+              PVD->dump();
+              errs() << "\n";
+              errs() << "constraining everything\n";
+            }
+
+            for (const auto &A : Ws)
+              CS.addConstraint(
+                CS.createEq(CS.getOrCreateVar(A), CS.getWild()));
+
+            for (const auto &A : V)
+              CS.addConstraint(
+                CS.createEq(CS.getOrCreateVar(A), CS.getWild()));
           }
+        } else {
+          // We should constrain A to WILD since there isn't any parameter
+          // information to constrain to, i.e. this is a VARARGS function.
+          if (Verbose) {
+            errs() << "Parameter passed to a function with no constraint ";
+            errs() << "information for a parameter position\n";
+          }
+
+          for (const auto &A : V)
+            CS.addConstraint(
+              CS.createEq(CS.getOrCreateVar(A), CS.getWild()));
         }
         i++;
       }
+    } else {
+      
     }
 
     return true;

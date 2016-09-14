@@ -416,8 +416,8 @@ public:
   typedef std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > EnvironmentMap;
 
   bool addConstraint(Constraint *c);
-  ConstraintSet getConstraints() { return constraints; }
-  EnvironmentMap getVariables() { return environment; }
+  ConstraintSet &getConstraints() { return constraints; }
+  EnvironmentMap &getVariables() { return environment; }
   bool solve(void);
   void dump() const;
   void print(llvm::raw_ostream &) const;
