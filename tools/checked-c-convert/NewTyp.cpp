@@ -57,7 +57,7 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
   NewTyp *T = NULL;
   NewTyp *Cur = T;
   uint32_t curKey = baseQVKey;
-  Constraints::EnvironmentMap env = PI.getConstraints().getVariables();
+  Constraints::EnvironmentMap &env = PI.getConstraints().getVariables();
 
   // We step through each level of the type. If the type is a pointer type,
   // then we strip off the qualifier and do one step of de-sugaring. If it 

@@ -592,7 +592,8 @@ void ProgramInfo::getVariable(Expr *E, std::set<uint32_t> &V, ASTContext *C) {
     for (auto I : VandDepth) {
       uint32_t var, base, lim;
       std::tie(var, base, lim) = I;
-      V.insert(var);
+      for (; var < lim; var++)
+        V.insert(var);
     }
     return;
   }
