@@ -97,6 +97,14 @@ void FPAssign(FPC &lhs, FPC &rhs, ProgramInfo &I, ASTContext *C) {
   }
 }
 
+static
+void FPAssign(ValueDecl *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
+  FPC fplhs;
+  FPC fprhs;
+
+
+}
+
 // Given an Expr LHS which has type function pointer, propagate 
 // constraints from the RHS to the LHS for both return and parameter
 // types. RHS might be either a function or function pointer type.
@@ -107,14 +115,6 @@ void FPAssign(Expr *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
     ValueDecl *VD = DRE->getDecl();
     FPAssign(VD, RHS, I, C);
   }
-}
-
-static
-void FPAssign(ValueDecl *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
-  FPC fplhs;
-  FPC fprhs;
-
-
 }
 
 // This class visits functions and adds constraints to the
