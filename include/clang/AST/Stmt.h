@@ -252,11 +252,13 @@ protected:
     unsigned NumArgs : 32 - 8 - 1 - NumExprBits;
   };
 
+  enum { NumBoundsExprKindBits = 3 };
+
   class BoundsExprBitFields {
     friend class BoundsExpr;
 
     unsigned : NumExprBits;
-    unsigned Kind : 3;
+    unsigned Kind : NumBoundsExprKindBits;
   };
 
   union {

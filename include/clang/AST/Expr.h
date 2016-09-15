@@ -4522,9 +4522,16 @@ public:
     ByteCount = 3,
     // bounds(e1, e2)
     Range = 4,
-    // ptr interop annotation
-    PtrInteropAnnotation
+    // ptr interop annotation.  This isn't really a bounds expression.
+    // To save space and for programmng convenience, we store the 
+    // ": ptr" interop annotation as a bounds expression.
+    PtrInteropAnnotation = 5,
+
+    // Sentinel marker for maximum bounds kind.
+    MaxBoundsKind = PtrInteropAnnotation
   };
+
+  static_assert(MaxBoundsKind < (1 << NumBoundsExprKindBits), "kind field too small");
 
   BoundsExpr(StmtClass StmtClass, Kind BoundsKind, SourceLocation StartLoc,
              SourceLocation RParenLoc)
@@ -4548,8 +4555,8 @@ public:
 
   Kind getKind() const { return (Kind)BoundsExprBits.Kind; }
   void setKind(Kind Kind) {
+    assert(validateKind(Kind));
     BoundsExprBits.Kind = Kind;
-    assert(validateKind());
   }
 
   bool isInvalid() {
@@ -4584,7 +4591,7 @@ public:
 private:
   /// \brief: check that the kind is valid for the type
   /// of bounds expression.
-  bool validateKind();
+  bool validateKind(Kind kind);
 };
 
 /// \brief Represents a Checked C nullary bounds expression.
@@ -4592,6 +4599,7 @@ class NullaryBoundsExpr : public BoundsExpr {
 public:
   NullaryBoundsExpr(Kind Kind, SourceLocation StartLoc, SourceLocation RParenLoc)
     : BoundsExpr(NullaryBoundsExprClass, Kind, StartLoc, RParenLoc)  {
+    assert(Kind == Invalid || Kind == None || Kind == PtrInteropAnnotation);
   }
 
   explicit NullaryBoundsExpr(EmptyShell Empty)
@@ -4617,6 +4625,7 @@ public:
     SourceLocation RParenLoc)
     : BoundsExpr(CountBoundsExprClass, Kind, StartLoc, RParenLoc),
       CountExpr(Count) {
+    assert(Kind == Invalid || Kind == ElementCount || Kind == ByteCount);
   }
 
   explicit CountBoundsExpr(EmptyShell Empty)
