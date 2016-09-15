@@ -167,6 +167,7 @@ public:
   void constrainAssign(uint32_t V, Expr *RHS) {
     if (!RHS)
       return;
+
     Constraints &CS = Info.getConstraints();
     std::set<uint32_t> W;
     Info.getVariable(RHS, W, Context);
@@ -212,6 +213,29 @@ public:
     }
   }
 
+  void constrainAssign(Expr *LHS, Expr *RHS) {
+    if (LHS->getType()->isFunctionPointerType()) {
+      FPAssign(LHS, RHS, Info, Context);
+    } else {
+      std::set<uint32_t> V;
+      Info.getVariable(LHS, V, Context);
+      for (const auto &I : V)
+        constrainAssign(I, RHS);
+    }
+  }
+
+  void constrainAssign(ValueDecl *D, Expr *RHS) {
+    if (D->getType()->isFunctionPointerType()) {
+      FPAssign(D, RHS, Info, Context);
+    } else {
+      std::set<uint32_t> V;
+      Info.getVariable(D, V, Context);
+      if (V.size() > 0)
+        for (const auto &I : V)
+          constrainAssign(I, RHS);
+    }
+  }
+
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
     if (S->isSingleDecl()) {
@@ -227,13 +251,7 @@ public:
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         std::set<uint32_t> V;
         Expr *InitE = VD->getInit();
-        Info.getVariable(VD, V, Context);
-        if (V.size() > 0)
-          for (const auto &I : V)
-            constrainAssign(I, InitE);
-
-        if (VD->getType()->isFunctionPointerType())
-          FPAssign(VD, InitE, Info, Context);
+        constrainAssign(VD, InitE);
       }
     }
 
@@ -251,13 +269,7 @@ public:
   bool VisitBinAssign(BinaryOperator *O) {
     Expr *LHS = O->getLHS();
     Expr *RHS = O->getRHS();
-    std::set<uint32_t> V;
-    Info.getVariable(LHS, V, Context);
-    for (const auto &I : V)
-      constrainAssign(I, RHS);
-
-    if (LHS->getType()->isFunctionPointerType())
-      FPAssign(LHS, RHS, Info, Context);
+    constrainAssign(LHS, RHS);
 
     return true;
   }
@@ -294,7 +306,6 @@ public:
               ++I;
               ++J;
             }
-
           }else {
             if (Verbose) {
               errs() << "arity of parameter and expr do not match!\n";
