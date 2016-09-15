@@ -4509,13 +4509,41 @@ private:
   SourceLocation StartLoc, RParenLoc;
 
 public:
-  BoundsExpr(StmtClass StmtClass, SourceLocation StartLoc, SourceLocation RParenLoc)
+  enum Kind {
+    // Invalid bounds expressions are used to flag invalid bounds
+    // expressions and prevent spurious downstream error messages
+    // in bounds declaration checking.
+    Invalid = 0,
+    // bounds(none)
+    None = 1,
+    // count(e)
+    ElementCount = 2,
+    // byte_count(e)
+    ByteCount = 3,
+    // bounds(e1, e2)
+    Range = 4,
+    // ptr interop annotation.  This isn't really a bounds expression.
+    // To save space and for programmng convenience, we store the 
+    // ": ptr" interop annotation as a bounds expression.
+    PtrInteropAnnotation = 5,
+
+    // Sentinel marker for maximum bounds kind.
+    MaxBoundsKind = PtrInteropAnnotation
+  };
+
+  static_assert(MaxBoundsKind < (1 << NumBoundsExprKindBits), "kind field too small");
+
+  BoundsExpr(StmtClass StmtClass, Kind BoundsKind, SourceLocation StartLoc,
+             SourceLocation RParenLoc)
     : Expr(StmtClass, QualType(),  VK_RValue, OK_Ordinary, false,
            false, false, false), StartLoc(StartLoc), RParenLoc(RParenLoc) {
+    setKind(BoundsKind);
   }
 
   explicit BoundsExpr(StmtClass StmtClass, EmptyShell Empty) :
-    Expr(StmtClass, Empty) {}
+    Expr(StmtClass, Empty) {
+    setKind(Invalid);
+  }
 
   SourceLocation getStartLoc() { return StartLoc; }
   void setStartLoc(SourceLocation Loc) { StartLoc = Loc; }
@@ -4525,35 +4553,57 @@ public:
   SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
   SourceLocation getLocEnd() const LLVM_READONLY { return RParenLoc; }
 
+  Kind getKind() const { return (Kind)BoundsExprBits.Kind; }
+  void setKind(Kind Kind) {
+    assert(validateKind(Kind));
+    BoundsExprBits.Kind = Kind;
+  }
+
+  bool isInvalid() {
+    return getKind() == Invalid;
+  }
+
+  bool isNone() {
+    return getKind() == None;
+  }
+
+  bool isElementCount() {
+    return getKind() == ElementCount;
+  }
+
+  bool isByteCount() {
+    return getKind() == ByteCount;
+  }
+
+  bool isRange() {
+    return getKind() == Range;
+  }
+
+  bool isPtrInteropAnnotation() {
+    return getKind() == PtrInteropAnnotation;
+  }
+
   static bool classof(const Stmt *T) {
     return T->getStmtClass() >= firstBoundsExprConstant &&
            T->getStmtClass() <= lastBoundsExprConstant;
   }
+
+private:
+  /// \brief: check that the kind is valid for the type
+  /// of bounds expression.
+  bool validateKind(Kind kind);
 };
 
 /// \brief Represents a Checked C nullary bounds expression.
 class NullaryBoundsExpr : public BoundsExpr {
 public:
-  enum Kind {
-    // Invalid bounds expressions are used to flag invalid bounds
-    // expressions and prevent spurious downstream error messages
-    // in bounds declaration checking.
-    Invalid = 0,
-    // bounds(none)
-    None = 1
-  };
-
-public:
   NullaryBoundsExpr(Kind Kind, SourceLocation StartLoc, SourceLocation RParenLoc)
-    : BoundsExpr(NullaryBoundsExprClass, StartLoc, RParenLoc)  {
-    NullaryBoundsExprBits.Kind = Kind;
+    : BoundsExpr(NullaryBoundsExprClass, Kind, StartLoc, RParenLoc)  {
+    assert(Kind == Invalid || Kind == None || Kind == PtrInteropAnnotation);
   }
 
   explicit NullaryBoundsExpr(EmptyShell Empty)
     : BoundsExpr(NullaryBoundsExprClass, Empty) {}
-
-  Kind getKind() const { return (Kind) NullaryBoundsExprBits.Kind; }
-  void setKind(Kind Kind) { NullaryBoundsExprBits.Kind = Kind; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == NullaryBoundsExprClass;
@@ -4567,27 +4617,19 @@ public:
 
 /// \brief Represents a Checked C count bounds expression.
 class CountBoundsExpr : public BoundsExpr {
-public:
-  enum Kind {
-    ElementCount = 0,
-    ByteCount = 1,
-  };
 private:
   Stmt *CountExpr;
 
 public:
   CountBoundsExpr(Kind Kind, Expr *Count, SourceLocation StartLoc,
     SourceLocation RParenLoc)
-    : BoundsExpr(CountBoundsExprClass, StartLoc, RParenLoc),
+    : BoundsExpr(CountBoundsExprClass, Kind, StartLoc, RParenLoc),
       CountExpr(Count) {
-    CountBoundsExprBits.Kind = Kind;
+    assert(Kind == Invalid || Kind == ElementCount || Kind == ByteCount);
   }
 
   explicit CountBoundsExpr(EmptyShell Empty)
     : BoundsExpr(CountBoundsExprClass, Empty) {}
-
-  Kind getKind() const { return (Kind)CountBoundsExprBits.Kind; }
-  void setKind(Kind Kind) { CountBoundsExprBits.Kind = Kind; }
 
   Expr *getCountExpr() const { return cast<Expr>(CountExpr); }
   void setCountExpr(Expr *E) { CountExpr = E; }
@@ -4610,7 +4652,7 @@ private:
 public:
   RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc,
                   SourceLocation RParenLoc)
-    : BoundsExpr(RangeBoundsExprClass, StartLoc, RParenLoc) {
+    : BoundsExpr(RangeBoundsExprClass, Range, StartLoc, RParenLoc) {
     SubExprs[LOWER] = Lower;
     SubExprs[UPPER] = Upper;
   }

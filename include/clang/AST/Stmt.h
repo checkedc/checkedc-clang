@@ -252,18 +252,13 @@ protected:
     unsigned NumArgs : 32 - 8 - 1 - NumExprBits;
   };
 
-  class CountBoundsExprBitFields {
-    friend class CountBoundsExpr;
+  enum { NumBoundsExprKindBits = 3 };
+
+  class BoundsExprBitFields {
+    friend class BoundsExpr;
 
     unsigned : NumExprBits;
-    unsigned Kind : 1;
-  };
-
-  class NullaryBoundsExprBitFields {
-    friend class NullaryBoundsExpr;
-
-    unsigned : NumExprBits;
-    unsigned Kind : 1;
+    unsigned Kind : NumBoundsExprKindBits;
   };
 
   union {
@@ -282,8 +277,7 @@ protected:
     ObjCIndirectCopyRestoreExprBitfields ObjCIndirectCopyRestoreExprBits;
     InitListExprBitfields InitListExprBits;
     TypeTraitExprBitfields TypeTraitExprBits;
-    CountBoundsExprBitFields CountBoundsExprBits;
-    NullaryBoundsExprBitFields NullaryBoundsExprBits;
+    BoundsExprBitFields BoundsExprBits;
   };
 
   friend class ASTStmtReader;

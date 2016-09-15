@@ -1815,11 +1815,24 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
 // Checked C extension
 
 void StmtPrinter::VisitCountBoundsExpr(CountBoundsExpr *Node) {
-  switch (Node->getKind()) {
-    case CountBoundsExpr::Kind::ByteCount:
+  BoundsExpr::Kind K = Node->getKind();
+
+  // Exit early if this bounds expression is marked as invalid.
+  // The operand might be null.
+  if (K == BoundsExpr::Kind::Invalid) {
+     OS << "invalid_count()";
+     return;
+  }
+  
+  switch (K) {
+    case BoundsExpr::Kind::ByteCount:
       OS << "byte_count(";
-    case CountBoundsExpr::Kind::ElementCount:
+      break;
+    case BoundsExpr::Kind::ElementCount:
       OS << "count(";
+      break;
+    default:
+      llvm_unreachable("unexpected bounds kind for count bounds expr");
   }
   PrintExpr(Node->getCountExpr());
   OS << ")";
@@ -1827,18 +1840,34 @@ void StmtPrinter::VisitCountBoundsExpr(CountBoundsExpr *Node) {
 
 void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
   switch (Node->getKind()) {
-    case NullaryBoundsExpr::Invalid: {
-      OS << "bounds(invalid)";
+    case BoundsExpr::Invalid:
+      OS << "invalid_bounds()";
       break;
-    }
-    case NullaryBoundsExpr::None: {
+    case BoundsExpr::None:
       OS << "bounds(none)";
       break;
-    }
+    case BoundsExpr::PtrInteropAnnotation:
+      OS << "ptr";
+      break;
+    default:
+      llvm_unreachable("unexpected bounds kind for nullary bounds expr");
   }
 }
 
 void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
+  BoundsExpr::Kind K = Node->getKind();
+
+  // Exit early if this bounds expression is marked as invalid.
+  // The operands might be null.
+  if (K == BoundsExpr::Kind::Invalid) {
+    OS << "invalid_range_bounds()";
+    return;
+  }
+
+  if (K != BoundsExpr::Kind::Range) {
+    llvm_unreachable("unexpected bounds kind for range bounds expr");
+  }
+
   OS << "bounds(";
   PrintExpr(Node->getLowerExpr());
   OS << ", ";

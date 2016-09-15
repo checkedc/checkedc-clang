@@ -3814,6 +3814,22 @@ PseudoObjectExpr::PseudoObjectExpr(QualType type, ExprValueKind VK,
   }
 }
 
+bool BoundsExpr::validateKind(Kind K) {
+  if (K == Invalid)
+    return true;
+
+  switch (getStmtClass()) {
+    case NullaryBoundsExprClass:
+      return K == None || K == PtrInteropAnnotation;
+    case CountBoundsExprClass:
+      return K == ElementCount || K == ByteCount;
+    case RangeBoundsExprClass:
+      return K == Range;
+    default:
+      return false;
+  }
+}
+
 //===----------------------------------------------------------------------===//
 //  Child Iterators for iterating over subexpressions/substatements
 //===----------------------------------------------------------------------===//

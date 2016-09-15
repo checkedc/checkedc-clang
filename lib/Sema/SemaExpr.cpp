@@ -12194,13 +12194,13 @@ ExprResult Sema::ActOnChooseExpr(SourceLocation BuiltinLoc,
 //===----------------------------------------------------------------------===//
 
 ExprResult Sema::ActOnNullaryBoundsExpr(SourceLocation BoundsKWLoc,
-                                        NullaryBoundsExpr::Kind Kind,
+                                        BoundsExpr::Kind Kind,
                                         SourceLocation RParenLoc) {
   return new (Context) NullaryBoundsExpr(Kind, BoundsKWLoc, RParenLoc);
 }
 
 ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
-                                      CountBoundsExpr::Kind Kind,
+                                      BoundsExpr::Kind Kind,
                                       Expr *CountExpr,
                                       SourceLocation RParenLoc) {
   // Do the usual C integer promotions if necessary. 
@@ -12211,7 +12211,7 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
   QualType ResultType = CountExpr->getType();
   if (!ResultType->isIntegerType()) {
     Diag(CountExpr->getLocStart(),
-         Kind == CountBoundsExpr::Kind::ElementCount ?
+         Kind == BoundsExpr::Kind::ElementCount ?
          diag::err_typecheck_count_bounds_expr
          : diag::err_typecheck_byte_count_bounds_expr)
       << ResultType;
