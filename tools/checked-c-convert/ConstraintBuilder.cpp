@@ -12,6 +12,111 @@
 using namespace llvm;
 using namespace clang;
 
+// Special-case handling for decl introductions. For the moment this covers:
+//  * void-typed variables
+//  * va_list-typed variables
+//  * function pointer variables
+static
+void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
+  // Constrain everything that is void to wild.
+  Constraints &CS = Info.getConstraints();
+  if (D->getType().getAsString() == "void") {
+    std::set<uint32_t> V;
+    Info.getVariable(D, V, C);
+    for (const auto &I : V)
+      CS.addConstraint(
+        CS.createEq(CS.getOrCreateVar(I), CS.getWild()));
+  }
+
+  // Special-case for va_list, constrain to wild.
+  if (D->getType().getAsString() == "va_list") {
+    std::set<uint32_t> V;
+    Info.getVariable(D, V, C);
+    for (const auto &I : V)
+      CS.addConstraint(
+        CS.createEq(CS.getOrCreateVar(I), CS.getWild()));
+  }
+
+  // Is it a function pointer? For the moment, special case those to wild.
+  /*if (D->getType()->isFunctionPointerType()) {
+    std::set<uint32_t> V;
+    Info.getVariable(D, V, C);
+    for (const auto &I : V)
+      CS.addConstraint(
+        CS.createEq(CS.getOrCreateVar(I), CS.getWild()));
+  }*/
+}
+
+struct FPC {
+  std::set<uint32_t> ReturnVal;
+  std::vector<std::set<uint32_t>> Parameters;
+};
+
+static
+void FPAssign(FPC &lhs, FPC &rhs, ProgramInfo &I, ASTContext *C) {
+  // Constrain the return value.
+  Constraints &CS = I.getConstraints();
+  if (lhs.ReturnVal.size() == rhs.ReturnVal.size()) {
+    std::set<uint32_t>::iterator I = lhs.ReturnVal.begin();
+    std::set<uint32_t>::iterator J = rhs.ReturnVal.begin();
+
+    while ((I != lhs.ReturnVal.end()) && (J != rhs.ReturnVal.end())) {
+      CS.addConstraint(
+        CS.createEq(CS.getOrCreateVar(*I), CS.getOrCreateVar(*J)));
+      
+      ++I;
+      ++J;
+    }
+  }
+
+  // Constrain the parameters.
+  if (lhs.Parameters.size() == rhs.Parameters.size()) {
+    std::vector<std::set<uint32_t>>::iterator I = lhs.Parameters.begin();
+    std::vector<std::set<uint32_t>>::iterator J = rhs.Parameters.begin();
+
+    while ((I != lhs.Parameters.end()) && (J != rhs.Parameters.end())) {
+      std::set<uint32_t> lhsVS = *I;
+      std::set<uint32_t> rhsVS = *J;
+
+      if (lhsVS.size() == rhsVS.size()) {
+        std::set<uint32_t>::iterator K = lhsVS.begin();
+        std::set<uint32_t>::iterator L = rhsVS.begin();
+
+        while ((K != lhsVS.end()) && (L != rhsVS.end())) {
+          CS.addConstraint(
+            CS.createEq(CS.getOrCreateVar(*K), CS.getOrCreateVar(*L)));
+
+          ++K;
+          ++L;
+        }
+      }
+
+      ++I;
+      ++J;
+    }
+  }
+}
+
+// Given an Expr LHS which has type function pointer, propagate 
+// constraints from the RHS to the LHS for both return and parameter
+// types. RHS might be either a function or function pointer type.
+static
+void FPAssign(Expr *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
+  
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(LHS)) {
+    ValueDecl *VD = DRE->getDecl();
+    FPAssign(VD, RHS, I, C);
+  }
+}
+
+static
+void FPAssign(ValueDecl *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
+  FPC fplhs;
+  FPC fprhs;
+
+
+}
+
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
 // Each VisitXXX method is responsible either for looking inside statements
@@ -30,8 +135,10 @@ public:
       SourceRange SR = D->getSourceRange();
 
       if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
-          D->getType()->isPointerType()) {
+        D->getType()->isPointerType()) {
         Info.addVariable(D, S, Context);
+
+        specialCaseVarIntros(D, Info, Context);
       }
     }
 
@@ -124,6 +231,9 @@ public:
         if (V.size() > 0)
           for (const auto &I : V)
             constrainAssign(I, InitE);
+
+        if (VD->getType()->isFunctionPointerType())
+          FPAssign(VD, InitE, Info, Context);
       }
     }
 
@@ -145,6 +255,9 @@ public:
     Info.getVariable(LHS, V, Context);
     for (const auto &I : V)
       constrainAssign(I, RHS);
+
+    if (LHS->getType()->isFunctionPointerType())
+      FPAssign(LHS, RHS, Info, Context);
 
     return true;
   }
@@ -352,8 +465,10 @@ public:
 
       // Add variables for each parameter declared for the function.
       for (const auto &P : D->parameters())
-        if (P->getType()->isPointerType())
+        if (P->getType()->isPointerType()) {
           Info.addVariable(P, NULL, Context);
+          specialCaseVarIntros(P, Info, Context);
+        }
 
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
         Stmt *Body = D->getBody();
@@ -384,18 +499,11 @@ public:
           // but let's scan it and not consider any records
           // that don't have any pointers.
 
-          bool anyPointers = false;
-
-          for (const auto &F : Definition->fields()) {
-            if (F->getType()->isPointerType()) {
-              anyPointers = true;
-              break;
+          for (const auto &D : Definition->fields())
+            if (D->getType()->isPointerType()) {
+              Info.addVariable(D, NULL, Context);
+              specialCaseVarIntros(D, Info, Context);
             }
-          }
-
-          if (anyPointers) {
-            Info.addRecordDecl(Definition, Context);
-          }
         }
       }
     }

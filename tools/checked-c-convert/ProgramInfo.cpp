@@ -285,12 +285,6 @@ void ProgramInfo::seeGlobalDecl(clang::VarDecl *G) {
 
 }
 
-void ProgramInfo::addRecordDecl(clang::RecordDecl *R, ASTContext *C) {
-  for (const auto &D : R->fields()) 
-    if (D->getType()->isPointerType()) 
-      addVariable(D, NULL, C);
-}
-
 // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
 // AST data structures that correspond do the data stored in PDMap and
 // ReversePDMap.

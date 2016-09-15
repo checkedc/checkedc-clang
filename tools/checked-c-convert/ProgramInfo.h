@@ -106,7 +106,6 @@ public:
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O);
 
   Constraints &getConstraints() { return CS;  }
-  void addRecordDecl(clang::RecordDecl *R, clang::ASTContext *C);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with 
   // AST data structures that correspond do the data stored in PDMap and 
