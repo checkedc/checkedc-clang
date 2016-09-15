@@ -3814,18 +3814,20 @@ PseudoObjectExpr::PseudoObjectExpr(QualType type, ExprValueKind VK,
   }
 }
 
-bool BoundsExpr::validateKind() {
-  Kind K = getKind();
+bool BoundsExpr::validateKind(Kind K) {
   if (K == Invalid)
     return true;
-  else if (isa<NullaryBoundsExpr>(this))
-    return K == None || K == PtrInteropAnnotation;
-  else if (isa<CountBoundsExpr>(this))
-    return K == ElementCount || K == ByteCount;
-  else if (isa<RangeBoundsExpr>(this))
-    return K == Range;
 
-  return false;
+  switch (getStmtClass()) {
+    case NullaryBoundsExprClass:
+      return K == None || K == PtrInteropAnnotation;
+    case CountBoundsExprClass:
+      return K == ElementCount || K == ByteCount;
+    case RangeBoundsExprClass:
+      return K == Range;
+    default:
+      return false;
+  }
 }
 
 //===----------------------------------------------------------------------===//
