@@ -344,10 +344,10 @@ void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
   }
   else {
     if (T->getKind() == CheckedPointerKind::Ptr) {
-      OS << "ptr<";
+      OS << "_Ptr<";
     }
     else {
-      OS << "array_ptr<";
+      OS << "_Array_ptr<";
     }
     print(T->getPointeeType(), OS, StringRef());
     OS << '>';

@@ -11247,7 +11247,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
   // fixes that will not work because there's a more general problem.
 
   if (Ty->isCheckedPointerPtrType())
-    // ptr types cannot have bounds expressions
+    // _Ptr types cannot have bounds expressions
     DiagId = checkReturnBounds ? diag::err_typecheck_ptr_return_with_bounds
     : diag::err_typecheck_ptr_decl_with_bounds;
     // Function pointer types cannot have bounds declared for them because

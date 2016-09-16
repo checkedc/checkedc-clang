@@ -75,13 +75,13 @@ private:
   clang::QualType T;
 };
 
-// Represents a Checked C ptr<T> type.
+// Represents a Checked C _Ptr<T> type.
 class PtrTyp : public NewTyp {
 public:
   PtrTyp() : NewTyp(N_Ptr) {}
 
   std::string mkStr() {
-    return "ptr<" + ReferentTyp->mkStr() + "> ";
+    return "_Ptr<" + ReferentTyp->mkStr() + "> ";
   }
 
   virtual bool anyChanges() { return true || ReferentTyp->anyChanges();  }
@@ -91,7 +91,7 @@ public:
   }
 };
 
-// Represents a Checked C array_ptr type. Currently unused.
+// Represents a Checked C _Array_ptr type. Currently unused.
 class ArrTyp : public NewTyp {
 public:
   ArrTyp() : NewTyp(N_Arr) {}

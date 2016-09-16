@@ -1620,7 +1620,7 @@ bool Parser::MightBeDeclarator(unsigned Context) {
     case tok::equalequal: // Might be a typo for '='.
     case tok::kw_alignas:
     case tok::kw_asm:
-    case tok::kw_checked:
+    case tok::kw__Checked:
     case tok::kw___attribute:
     case tok::l_brace:
     case tok::l_paren:
@@ -2263,7 +2263,7 @@ void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
 ///    int (x)
 ///
 static bool isValidAfterIdentifierInDeclarator(const Token &T) {
-  return T.isOneOf(tok::l_square, tok::kw_checked, tok::l_paren, tok::r_paren,
+  return T.isOneOf(tok::l_square, tok::kw__Checked, tok::l_paren, tok::r_paren,
                    tok::semi, tok::comma, tok::equal, tok::kw_asm,
                    tok::l_brace, tok::colon);
 }
@@ -2432,7 +2432,7 @@ bool Parser::ParseImplicitInt(DeclSpec &DS, CXXScopeSpec *SS,
     case tok::kw_asm:
     case tok::l_brace:
     case tok::l_square:
-    case tok::kw_checked:
+    case tok::kw__Checked:
     case tok::semi:
       // This looks like a variable or function declaration. The type is
       // probably missing. We're done parsing decl-specifiers.
@@ -2763,7 +2763,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 
     case tok::l_square:
     case tok::kw_alignas:
-    case tok::kw_checked:
+    case tok::kw__Checked:
       if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
         goto DoneWithDeclSpec;
 
@@ -3433,8 +3433,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                      PrevSpec, DiagID, Policy);
       break;
 
-    case tok::kw_ptr:
-    case tok::kw_array_ptr: {
+    case tok::kw__Ptr:
+    case tok::kw__Array_ptr: {
       ParseCheckedPointerSpecifiers(DS);
       // continue to keep the current token from being consumed.
       continue; 
@@ -4417,8 +4417,8 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::annot_typename:
 
   // Checked C pointer types
-  case tok::kw_array_ptr:
-  case tok::kw_ptr:
+  case tok::kw__Array_ptr:
+  case tok::kw__Ptr:
 
     return true;
   }
@@ -4536,8 +4536,8 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw___write_only:
 
   // Checked C pointer types
-  case tok::kw_ptr:
-  case tok::kw_array_ptr:
+  case tok::kw__Ptr:
+  case tok::kw__Array_ptr:
 
     return true;
 
@@ -4687,8 +4687,8 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw__Atomic:
 
   // Checked C new pointer types
-  case tok::kw_ptr:
-  case tok::kw_array_ptr:
+  case tok::kw__Ptr:
+  case tok::kw__Array_ptr:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
@@ -5525,7 +5525,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       ParseFunctionDeclarator(D, attrs, T, IsAmbiguous);
       PrototypeScope.Exit();
     }
-    else if (Tok.is(tok::l_square) || Tok.is(tok::kw_checked)) {
+    else if (Tok.is(tok::l_square) || Tok.is(tok::kw__Checked)) {
       ParseBracketDeclarator(D);
     } else {
       break;
@@ -6271,7 +6271,7 @@ void Parser::ParseParameterDeclarationClause(
 void Parser::ParseBracketDeclarator(Declarator &D) {
   SourceLocation startLocation = Tok.getLocation();
   bool isChecked = false;
-  if (Tok.is(tok::kw_checked)) {
+  if (Tok.is(tok::kw__Checked)) {
     isChecked = true;
     ConsumeToken();
     if (!Tok.is(tok::l_square)) {
@@ -6591,10 +6591,10 @@ void Parser::ParseAtomicSpecifier(DeclSpec &DS) {
 }
 
 /// [Checked C]  new pointer types:
-///           pptr &lt type name &gt
-///           array_ptr &lt type name &gt
+///           _Ptr &lt type name &gt
+///           _Array_ptr &lt type name &gt
 void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
-    assert((Tok.is(tok::kw_ptr) || Tok.is(tok::kw_array_ptr)) &&
+    assert((Tok.is(tok::kw__Ptr) || Tok.is(tok::kw__Array_ptr)) &&
            "Not a checked pointer specifier");
 
     tok::TokenKind Kind = Tok.getKind();
@@ -6634,7 +6634,7 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
 
     const char *PrevSpec = nullptr;
     unsigned DiagID;
-    auto pointerKind = (Kind == tok::kw_ptr) ? TST_plainPtr : TST_arrayPtr;
+    auto pointerKind = (Kind == tok::kw__Ptr) ? TST_plainPtr : TST_arrayPtr;
     if (DS.SetTypeSpecType(pointerKind, StartLoc, PrevSpec,
         DiagID, Result.get(),
         Actions.getASTContext().getPrintingPolicy()))

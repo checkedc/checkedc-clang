@@ -32,4 +32,4 @@
 // check-objcpp: error: invalid argument '-fcheckedc-extension' not allowed with 'Objective C/C++'
 
 
-extern void f(ptr<int> p) {}
+extern void f(_Ptr<int> p) {}

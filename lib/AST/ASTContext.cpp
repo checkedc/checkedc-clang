@@ -4662,7 +4662,7 @@ QualType ASTContext::getExceptionObjectType(QualType T) const {
 ///
 /// See C99 6.7.5.3p7 and C99 6.3.2.1p3.
 ///
-/// For Checked C, a checked array type can decay to an array_ptr type.
+/// For Checked C, a checked array type can decay to an _Array_ptr type.
 QualType ASTContext::getArrayDecayedType(QualType Ty) const {
   // Get the element type with 'getAsArrayType' so that we don't lose any
   // typedefs in the element type of the array.  This also handles propagation

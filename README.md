@@ -22,7 +22,7 @@ extension.  We have
 
 - Extended LLVM/clang with a feature flag `-fcheckedc-extension`.  This flag is valid only for C programs.
   It cannot be used with C++, Objective C, or OpenCL.
-- Implemented parsing and typechecking for the new `ptr`, `array_ptr`, and `checked` array types, 
+- Implemented parsing and typechecking for the new `_Ptr`, `_Array_ptr`, and `_Checked` array types, 
   including implicit conversions described in Section 5.1.4 of the Checked C specification.  The new
   types are converted to unchecked types during compilation, so they do not have any bounds checking
   yet.
@@ -34,12 +34,12 @@ extension.  We have
   resolving the variables referred to by bounds expressions and resolving the
   members referred to by structure member bounds expressions.
 
-We are now implementing static semantics checking for programs that use `ptr`
-pointers and `array_ptr` pointers to constant-sized data.  This includes
+We are now implementing static semantics checking for programs that use `_Ptr`
+pointers and `_Array_ptr` pointers to constant-sized data.  This includes
 
 - Checking the correctness of bounds declarations for constant-sized data.
-- Checking that casts to `ptr` types from `array_ptr` types are bounds-safe.
-- Interoperation support for `ptr`.
+- Checking that casts to `_Ptr` types from `_Array_ptr` types are bounds-safe.
+- Interoperation support for `_Ptr`.
 
 ## Compiler development
 
