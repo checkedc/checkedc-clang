@@ -30,6 +30,7 @@
 #include "NewTyp.h"
 #include "PersistentSourceLoc.h"
 #include "ProgramInfo.h"
+#include "MappingVisitor.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;
@@ -376,7 +377,53 @@ public:
   virtual void HandleTranslationUnit(ASTContext &Context) {
     Info.enterCompilationUnit(Context);
 
+    // Build a map of all of the PersistentSourceLoc's back to some kind of 
+    // Stmt, Decl, or Type.
+    VariableMap &VarMap = Info.getVarMap();
+    std::set<PersistentSourceLoc> keys;
+
+    for (const auto &I : VarMap)
+      keys.insert(I.first);
+    std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> PSLMap;
+    VariableDecltoStmtMap VDLToStmtMap;
+
+    MappingVisitor V(keys, Context);
+    TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
+    for (const auto &D : TUD->decls())
+      V.TraverseDecl(D);
+
+    std::tie(PSLMap, VDLToStmtMap) = V.getResults();
+
     std::set<NewTyp *> rewriteThese;
+    for (const auto &V : Info.getVarMap()) {
+      PersistentSourceLoc PLoc = V.first;
+      std::set<ConstraintVariable*> Vars = V.second;
+      assert(Vars.size() > 0 && Vars.size() <= 2);
+
+      // PLoc specifies the location of the variable whose type it is to 
+      // re-write, but not where the actual type storage is. To get that, we
+      // need to turn PLoc into a Decl and then get the SourceRange for the 
+      // type of the Decl. Note that what we need to get is the ExpansionLoc
+      // of the type specifier, since we want where the text is printed before
+      // the variable name, not the typedef or #define that creates the 
+      // name of the type.
+
+      Stmt *S = nullptr;
+      Decl *D = nullptr;
+      Type *T = nullptr;
+
+      std::tie(S, D, T) = PSLMap[PLoc];
+
+      errs() << "to rewrite ";
+      PLoc.dump();
+      errs() << "\n";
+      if (S)
+        S->dump();
+      if (D)
+        D->dump();
+      if (T)
+        T->dump();
+    }
     /*for (const auto &V : Info.getVarMap()) {
       Decl *J = V.first;
       DeclStmt *K = NULL;

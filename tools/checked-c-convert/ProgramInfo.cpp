@@ -43,7 +43,10 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     uint32_t &K, Constraints &CS) :
   ConstraintVariable(ConstraintVariable::FunctionVariable)
-{ 
+{
+  const Type *returnType;
+  std::vector<const Type*> paramTypes;
+  size_t numParams;
   if (Ty->isFunctionPointerType()) {
     // Is this a function pointer definition?
 
@@ -384,7 +387,10 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   PersistentSourceLoc PLoc = 
     PersistentSourceLoc::mkPSL(D, *C);
   assert(PLoc.valid());
-
+  errs() << "addVariable adding " << D->getName() << "\n";
+  errs() << " at ";
+  PLoc.dump();
+  errs() << "\n";
   // What is the nature of the constraint that we should be adding? This is 
   // driven by the type of Decl. 
   //  - Decl is a pointer-type VarDecl - we will add a PVConstraint
@@ -437,74 +443,6 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     Variables[PLoc].insert(P);
 
   return true;
-
-  // Check if we already have this Decl.
-  /*if (Variables.find(D) == Variables.end()) {
-    std::map<PersistentSourceLoc, uint32_t>::iterator Itmp = 
-      PersistentVariables.find(PLoc);
-    // We don't have the Decl in Variables, but we DO have the Decl in the
-    // PersistentVariables map. This means that this Decl and other Decls
-    // are defined in the same location in the source of the program. 
-    // We can treat them as being aliases of each other for now. 
-    if (Itmp != PersistentVariables.end()) 
-      return true;
-    
-
-    uint32_t thisKey = freeKey;
-    Variables.insert(std::pair<Decl *, uint32_t>(D, thisKey));
-    PersistentVariables.insert(std::pair<PersistentSourceLoc, uint32_t>
-      (PLoc,thisKey));
-    
-    if (St && VarDeclToStatement.find(D) == VarDeclToStatement.end())
-      VarDeclToStatement.insert(std::pair<Decl *, DeclStmt *>(D, St));
-
-    // Get a type to tear apart piece by piece.
-    const Type *Ty = NULL;
-    if (VarDecl *VD = dyn_cast<VarDecl>(D))
-      Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
-      Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-    else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D))
-      Ty = UD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
-    else
-      llvm_unreachable("unknown decl type");
-
-    assert(Ty != NULL);
-    Ty = Ty->getUnqualifiedDesugaredType();
-
-    // Strip off function types.
-    while (Ty != NULL) {
-      if (const FunctionType *FT = dyn_cast<FunctionType>(Ty))
-        Ty = FT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
-      else if (const FunctionNoProtoType *FNPT = dyn_cast<FunctionNoProtoType>(Ty))
-        Ty = FNPT->getReturnType().getTypePtr()->getUnqualifiedDesugaredType();
-      else
-        break;
-    }
-
-    while (Ty != NULL) {
-      if (Ty->isPointerType()) {
-        RVariables.insert(std::pair<uint32_t, Decl *>(thisKey, D));
-        PersistentRVariables[thisKey] = PLoc;
-        CS.getOrCreateVar(thisKey);
-
-        thisKey++;
-        freeKey++;
-      } else {
-        break;
-      }
-
-      Ty = getNextTy(Ty);
-    }
-
-    DepthMap.insert(std::pair<Decl *, uint32_t>(D, freeKey));
-    PersistentDepthMap[PLoc] = freeKey;
-
-    return true;
-  } else {
-    assert(PersistentVariables.find(PLoc) != PersistentVariables.end());
-    return false;
-  }*/
 }
 
 bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
@@ -596,8 +534,11 @@ ProgramInfo::getVariableHelper(Expr *E,
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(Decl *D, ASTContext *C) {
   assert(persisted == false);
-
-  return Variables[PersistentSourceLoc::mkPSL(D, *C)];
+  VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
+  if (I != Variables.end()) 
+    return I->second;
+   else 
+    return std::set<ConstraintVariable*>();
 }
 // Given some expression E, what is the top-most constraint variable that
 // E refers to? It could be none, in which case the returned set is empty. 
