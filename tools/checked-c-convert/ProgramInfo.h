@@ -124,6 +124,10 @@ private:
 public:
   PointerVariableConstraint(CVars V) : 
     ConstraintVariable(PointerVariable),vars(V) {}
+  PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
+    Constraints &CS);
+  PointerVariableConstraint(const clang::Type *Ty, uint32_t &K,
+    Constraints &CS);
 
   const CVars &getCvars() const { return vars; }
 
@@ -142,6 +146,10 @@ public:
   FunctionVariableConstraint(std::set<ConstraintVariable*> R, 
     std::vector<std::set<ConstraintVariable*>> P) :
     ConstraintVariable(FunctionVariable), returnVars(R), paramVars(P) { }
+  FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
+    Constraints &CS);
+  FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
+    Constraints &CS);
 
   std::set<ConstraintVariable*> &
   getReturnVars() { return returnVars; }
@@ -183,7 +191,7 @@ public:
 
   // For each pointer type in the declaration of D, add a variable to the 
   // constraint system for that pointer type. 
-  bool addVariable(clang::Decl *D, clang::DeclStmt *St, clang::ASTContext *C);
+  bool addVariable(clang::DeclaratorDecl *D, clang::DeclStmt *St, clang::ASTContext *C);
 
   bool getDeclStmtForDecl(clang::Decl *D, clang::DeclStmt *&St);
 
@@ -233,10 +241,6 @@ public:
   VariableMap &getVarMap() { return Variables;  }
 
 private:
-    // Helper routine for getVariableHelper, looks variables up in the 
-    // variable map based on the supplied Decl.
-  ConstraintVariable *declHelper(clang::Decl *D, clang::ASTContext *C);
-
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;
