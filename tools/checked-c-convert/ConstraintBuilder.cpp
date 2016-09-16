@@ -20,34 +20,102 @@ static
 void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
   // Constrain everything that is void to wild.
   Constraints &CS = Info.getConstraints();
-  if (D->getType().getAsString() == "void") {
-    std::set<uint32_t> V;
-    Info.getVariable(D, V, C);
-    for (const auto &I : V)
-      CS.addConstraint(
-        CS.createEq(CS.getOrCreateVar(I), CS.getWild()));
-  }
 
   // Special-case for va_list, constrain to wild.
-  if (D->getType().getAsString() == "va_list") {
-    std::set<uint32_t> V;
-    Info.getVariable(D, V, C);
-    for (const auto &I : V)
-      CS.addConstraint(
-        CS.createEq(CS.getOrCreateVar(I), CS.getWild()));
+  if (D->getType().getAsString() == "va_list" ||
+      D->getType().getAsString() == "void") {
+    for (const auto &I : Info.getVariable(D, C))
+      if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I))
+        for (const auto &J : PVC->getCvars())
+          CS.addConstraint(
+            CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
   }
-
-  // Is it a function pointer? For the moment, special case those to wild.
-  /*if (D->getType()->isFunctionPointerType()) {
-    std::set<uint32_t> V;
-    Info.getVariable(D, V, C);
-    for (const auto &I : V)
-      CS.addConstraint(
-        CS.createEq(CS.getOrCreateVar(I), CS.getWild()));
-  }*/
 }
 
-struct FPC {
+void constrainEq(std::set<ConstraintVariable*> &RHS,
+  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);
+// Given two ConstraintVariables, do the right thing to assign 
+// constraints. 
+// If they are both PVConstraint, then do an element-wise constraint
+// generation.
+// If they are both FVConstraint, then do a return-value and parameter
+// by parameter constraint generation.
+// If they are of an unequal parameter type, constrain everything in both
+// to top.
+static
+void constrainEq(ConstraintVariable *RHS,
+  ConstraintVariable *LHS, ProgramInfo &Info) {
+  ConstraintVariable *CRHS = RHS;
+  ConstraintVariable *CLHS = LHS;
+  Constraints &CS = Info.getConstraints();
+
+  if (CRHS->getKind() == CLHS->getKind()) {
+    if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(CLHS)) {
+      if (FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS)) {
+        // Element-wise constrain the return value of FCLHS and 
+        // FCRHS to be equal. Then, again element-wise, constrain 
+        // the parameters of FCLHS and FCRHS to be equal.
+        constrainEq(FCLHS->getReturnVars(), FCRHS->getReturnVars(), Info);
+
+        // Constrain the parameters to be equal.
+        if (FCLHS->numParams() == FCRHS->numParams()) {
+          for (unsigned i = 0; i < FCLHS->numParams(); i++) {
+            std::set<ConstraintVariable*> &V1 =
+              FCLHS->getParamVar(i);
+            std::set<ConstraintVariable*> &V2 =
+              FCRHS->getParamVar(i);
+            constrainEq(V1, V2, Info);
+          }
+        }
+        else {
+          // Constrain both to be top.
+          llvm_unreachable("TODO");
+        }
+      }
+      else
+        llvm_unreachable("impossible");
+    }
+    else if (const PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
+      if (const PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
+        // Element-wise constrain PCLHS and PCRHS to be equal
+        CVars CLHS = PCLHS->getCvars();
+        CVars CRHS = PCRHS->getCvars();
+        if (CLHS.size() == CRHS.size()) {
+          CVars::iterator I = CLHS.begin();
+          CVars::iterator J = CRHS.begin();
+          while (I != CLHS.end()) {
+            CS.addConstraint(
+              CS.createEq(CS.getOrCreateVar(*I), CS.getOrCreateVar(*J)));
+            ++I;
+            ++J;
+          }
+        }
+        else {
+          // Constrain both to top.
+          llvm_unreachable("TODO");
+        }
+      }
+      else
+        llvm_unreachable("impossible");
+    }
+    else
+      llvm_unreachable("unknown kind");
+  }
+  else {
+    // Constrain everything in both to top.
+    llvm_unreachable("TODO");
+  }
+}
+
+// Given an RHS and a LHS, constrain them to be equal. 
+void constrainEq(std::set<ConstraintVariable*> &RHS,
+  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info) {
+  for (const auto &I : RHS)
+    for (const auto &J : LHS)
+      constrainEq(RHS, LHS, Info);
+}
+
+/*struct FPC {
   std::set<uint32_t> ReturnVal;
   std::vector<std::set<uint32_t>> Parameters;
 };
@@ -98,11 +166,20 @@ void FPAssign(FPC &lhs, FPC &rhs, ProgramInfo &I, ASTContext *C) {
 }
 
 static
-void FPAssign(ValueDecl *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
+void FPAssign(DeclaratorDecl *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
   FPC fplhs;
   FPC fprhs;
+  errs() << "FPAssign d!\n";
+  TypeSourceInfo *TSI = LHS->getTypeSourceInfo();
 
+  TypeLoc TL = TSI->getTypeLoc();
+  while (!TL.isNull()) {
+    TL.getTypePtr()->dump();
+    errs() << "\n";
+    TL = TL.getNextTypeLoc();
+  }
 
+  LHS->dump();
 }
 
 // Given an Expr LHS which has type function pointer, propagate 
@@ -110,12 +187,16 @@ void FPAssign(ValueDecl *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
 // types. RHS might be either a function or function pointer type.
 static
 void FPAssign(Expr *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
-  
+  errs() << "FPAssign e!\n";
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(LHS)) {
-    ValueDecl *VD = DRE->getDecl();
-    FPAssign(VD, RHS, I, C);
+    if (DeclaratorDecl *VD = dyn_cast<DeclaratorDecl>(DRE->getDecl())) {
+      FPAssign(VD, RHS, I, C);
+    } else {
+      errs() << "Not a DeclaratorDecl!\n";
+      DRE->getDecl()->dump();
+    }
   }
-}
+}*/
 
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
@@ -164,11 +245,14 @@ public:
   // In any of these cases, due to conditional expressions, the number of
   // variables on the RHS could be 0 or more. We just do the same rule
   // for each pair of q_i to q_j \forall j in variables_on_rhs.
-  void constrainAssign(uint32_t V, Expr *RHS) {
+  void constrainAssign( std::set<ConstraintVariable*> &V, 
+                        Expr *RHS) {
     if (!RHS)
       return;
 
     Constraints &CS = Info.getConstraints();
+
+    /*
     std::set<uint32_t> W;
     Info.getVariable(RHS, W, Context);
     if (W.size() > 0) {
@@ -210,30 +294,17 @@ public:
             }
         }
       }
-    }
+    }*/
   }
 
   void constrainAssign(Expr *LHS, Expr *RHS) {
-    if (LHS->getType()->isFunctionPointerType()) {
-      FPAssign(LHS, RHS, Info, Context);
-    } else {
-      std::set<uint32_t> V;
-      Info.getVariable(LHS, V, Context);
-      for (const auto &I : V)
-        constrainAssign(I, RHS);
-    }
+    std::set<ConstraintVariable*> V = Info.getVariable(LHS, Context);
+    constrainAssign(V, RHS);
   }
 
-  void constrainAssign(ValueDecl *D, Expr *RHS) {
-    if (D->getType()->isFunctionPointerType()) {
-      FPAssign(D, RHS, Info, Context);
-    } else {
-      std::set<uint32_t> V;
-      Info.getVariable(D, V, Context);
-      if (V.size() > 0)
-        for (const auto &I : V)
-          constrainAssign(I, RHS);
-    }
+  void constrainAssign(DeclaratorDecl *D, Expr *RHS) {
+    std::set<ConstraintVariable*> V = Info.getVariable(D, Context);
+    constrainAssign(V, RHS);
   }
 
   bool VisitDeclStmt(DeclStmt *S) {
@@ -281,134 +352,82 @@ public:
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
 
-      Constraints &CS = Info.getConstraints();
+      //Constraints &CS = Info.getConstraints();
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<uint32_t> V;
-        Info.getVariable(A, V, Context);
+        std::set<ConstraintVariable*> ParameterEC =
+          Info.getVariable(A, Context);
 
         if (i < FD->getNumParams()) {
           ParmVarDecl *PVD = FD->getParamDecl(i);
-          std::set<uint32_t> Ws;
-          Info.getVariable(PVD, Ws, Context);
-          
-          if (Ws.size() == V.size()) {
-            // If there are an equal number of constraint variables for 
-            // both the parameter declaration and the expression argument,
-            // then constrain them to be position-wise equal.
-            std::set<uint32_t>::iterator I = Ws.begin();
-            std::set<uint32_t>::iterator J = V.begin();
-            while ((I != Ws.end()) && (J != V.end())) {
-              
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(*I), CS.getOrCreateVar(*J)));
+          std::set<ConstraintVariable*> ParameterDC =
+            Info.getVariable(PVD, Context);
 
-              ++I;
-              ++J;
-            }
-          }else {
-            if (Verbose) {
-              errs() << "arity of parameter and expr do not match!\n";
-              PVD->dump();
-              errs() << "\n";
-              errs() << "constraining everything\n";
-            }
-
-            for (const auto &A : Ws)
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(A), CS.getWild()));
-
-            for (const auto &A : V)
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(A), CS.getWild()));
-          }
+          // Constrain ParameterEC and ParameterDC to be equal.
+          constrainEq(ParameterEC, ParameterDC, Info);
         } else {
-          // We should constrain A to WILD since there isn't any parameter
-          // information to constrain to, i.e. this is a VARARGS function.
-          if (Verbose) {
-            errs() << "Parameter passed to a function with no constraint ";
-            errs() << "information for a parameter position\n";
-          }
-
-          for (const auto &A : V)
-            CS.addConstraint(
-              CS.createEq(CS.getOrCreateVar(A), CS.getWild()));
+          // Constrain ParameterEC to wild if it is a pointer type.
+          llvm_unreachable("TODO");
         }
-        i++;
       }
-    } else {
-      
     }
-
+    
     return true;
   }
 
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
-    std::set<uint32_t> V;
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(E->getBase(), Context);
     Constraints &CS = Info.getConstraints();
-    Info.getVariable(E->getBase(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(CS.createEq(CS.getOrCreateVar(I), CS.getArr()));
+    for (const auto &C : Var) 
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) 
+        for (const auto &D : PVC->getCvars())
+          CS.addConstraint(CS.createEq(CS.getOrCreateVar(D), CS.getArr()));
+      
     return true;
   }
 
   bool VisitReturnStmt(ReturnStmt *S) {
-    std::set<uint32_t> V;
-    std::set<uint32_t> F;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(S->getRetValue(), V, Context);
-    Info.getVariable(Function, F, Context);
-    if (F.size() > 0) {
-      assert(F.size() == 1);
-      for (const auto &I : V)
-        CS.addConstraint(
-            CS.createEq(CS.getOrCreateVar(*F.begin()), CS.getOrCreateVar(I)));
-    }
+    std::set<ConstraintVariable*> Fun =
+      Info.getVariable(Function, Context);
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(S->getRetValue(), Context);
+    
+    constrainEq(Fun, Var, Info);
 
     return true;
   }
 
-  bool VisitUnaryPreInc(UnaryOperator *O) {
-    std::set<uint32_t> V;
+  void constrainExprFirst(Expr *E) {
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(E, Context);
     Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getSubExpr(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
+    for (const auto &I : Var)
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I))
+        CS.addConstraint(
+          CS.createNot(
+            CS.createEq(
+              CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
+  }
 
+  bool VisitUnaryPreInc(UnaryOperator *O) {
+    constrainExprFirst(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostInc(UnaryOperator *O) {
-    std::set<uint32_t> V;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getSubExpr(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
+    constrainExprFirst(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPreDec(UnaryOperator *O) {
-    std::set<uint32_t> V;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getSubExpr(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
+    constrainExprFirst(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostDec(UnaryOperator *O) {
-    std::set<uint32_t> V;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getSubExpr(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
+    constrainExprFirst(O->getSubExpr());
     return true;
   }
 
@@ -425,19 +444,8 @@ public:
 private:
 
   void arithBinop(BinaryOperator *O) {
-    std::set<uint32_t> V1;
-    std::set<uint32_t> V2;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getLHS(), V1, Context);
-    Info.getVariable(O->getRHS(), V2, Context);
-
-    for (const auto &I : V1)
-      CS.addConstraint(
-        CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
-    for (const auto &I : V2)
-      CS.addConstraint(
-        CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
+    constrainExprFirst(O->getLHS());
+    constrainExprFirst(O->getRHS());
   }
 
   ASTContext *Context;
