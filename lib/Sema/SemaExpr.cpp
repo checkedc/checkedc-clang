@@ -6396,10 +6396,10 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        incompatibleCheckedPointer = CompositeTy.isNull();
      }
      else {
-       // Must have different kinds of checked pointers (ptr vs. array_ptr).
+       // Must have different kinds of checked pointers (_Ptr vs. _Array_ptr).
        // Implicit conversions between the different kinds are not allowed.
        incompatibleCheckedPointer = true;
-       //  array_ptr is less likely to cause spurious downstream warnings.
+       // _Array_ptr is less likely to cause spurious downstream warnings.
        resultKind = CheckedPointerKind::Array;
      }
 
@@ -7386,7 +7386,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   }
 
   // Only void * can be converted implicitly to another pointer type. In
-  // Checked C, ptr<void> and array_ptr<void> cannot be converted implicitly
+  // Checked C, _Ptr<void> and _Array_ptr<void> cannot be converted implicitly
   // to other pointer types.
   if (rhptee->isVoidType() && rhkind == CheckedPointerKind::Unchecked) {
     if (lhptee->isIncompleteOrObjectType())
@@ -8388,7 +8388,7 @@ static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
     << Pointer->getSourceRange();
 }
 
-/// \brief Diagnose invalid arithmetic on a CheckedC ptr type
+/// \brief Diagnose invalid arithmetic on a CheckedC _Ptr type
 static void diagnoseArithmeticOnPtrPointerType(Sema &S, SourceLocation Loc,
     Expr *Pointer) {
     assert(Pointer->getType()->isCheckedPointerPtrType());

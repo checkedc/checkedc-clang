@@ -1257,18 +1257,18 @@ enum class AutoTypeKeyword {
 /// to detect programming errors:
 ///   1. Unchecked C pointers: these are * pointers.  They have
 ///      have no checking.
-///   2. Checked C ptr types: these have null checks before
+///   2. Checked C _Ptr types: these have null checks before
 ///      memory accesses.  No pointer arithmetic is allowed.
-///   3. Checked C array_ptr types: these have null checks
+///   3. Checked C _Array_ptr types: these have null checks
 ///      and bounds checks before memory accesses. Bounds
 ///      expressions must be statically specified.  Pointer
 ///     arithmetic.  It has overflow checking.
 enum class CheckedPointerKind {
   /// \brief Unchecked C pointer.
   Unchecked = 0,
-  /// \brief Checked C ptr type.
+  /// \brief Checked C _Ptr type.
   Ptr,
-  /// \brief Checked C array_ptr type.
+  /// \brief Checked C _Array_ptr type.
   Array
 };
 

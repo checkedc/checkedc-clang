@@ -6591,8 +6591,8 @@ void Parser::ParseAtomicSpecifier(DeclSpec &DS) {
 }
 
 /// [Checked C]  new pointer types:
-///           pptr &lt type name &gt
-///           array_ptr &lt type name &gt
+///           _Ptr &lt type name &gt
+///           _Array_ptr &lt type name &gt
 void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
     assert((Tok.is(tok::kw__Ptr) || Tok.is(tok::kw__Array_ptr)) &&
            "Not a checked pointer specifier");

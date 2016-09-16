@@ -8731,7 +8731,7 @@ def err_unchecked_array_of_checked_array : Error<
   "unchecked array of checked array not allowed">;
 
 def err_bounds_safe_interface_unchecked_local_pointer : Error<
-  "expected local variable %0 to have array_ptr type">;
+  "expected local variable %0 to have _Array_ptr type">;
 
 def err_bounds_safe_interface_unchecked_local_array : Error<
   "expected local variable %0 to have checked array type">;
@@ -8743,7 +8743,7 @@ def err_typecheck_cond_incompatible_checked_pointer : Error<
   "pointer type mismatch%diff{ ($ and $)|}0,1">;
 
 def err_typecheck_ptr_arithmetic : Error<
-  "arithmetic on ptr type">;
+  "arithmetic on _Ptr type">;
 
 def err_typecheck_count_bounds_expr : Error<
   "invalid argument type %0 to count expression">;
@@ -8761,10 +8761,10 @@ def err_typecheck_bounds_expr_incompatible_pointers : Error<
    "expected expression with pointer type (it has type %0)">;
 
 def err_typecheck_ptr_decl_with_bounds : Error<
-  "bounds declaration not allowed because %0 has a ptr type">;
+  "bounds declaration not allowed because %0 has a _Ptr type">;
 
 def err_typecheck_ptr_return_with_bounds : Error<
-  "bounds declaration not allowed because %0 has a ptr return type">;
+  "bounds declaration not allowed because %0 has a _Ptr return type">;
 
 def err_typecheck_function_pointer_decl_with_bounds : Error<
   "bounds declaration not allowed because %0 has a function pointer type">;
