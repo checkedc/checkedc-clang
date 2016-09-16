@@ -377,7 +377,7 @@ public:
     Info.enterCompilationUnit(Context);
 
     std::set<NewTyp *> rewriteThese;
-    for (const auto &V : Info.getVarMap()) {
+    /*for (const auto &V : Info.getVarMap()) {
       Decl *J = V.first;
       DeclStmt *K = NULL;
       Info.getDeclStmtForDecl(J, K);
@@ -385,7 +385,7 @@ public:
       NewTyp *NT = NewTyp::mkTypForConstrainedType(J, K, Info, &Context);
       if (NT)
         rewriteThese.insert(NT);
-    }
+    }*/
 
     Rewriter R(Context.getSourceManager(), Context.getLangOpts());
     std::set<FileID> Files;

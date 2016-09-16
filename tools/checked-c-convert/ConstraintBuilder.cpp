@@ -115,89 +115,6 @@ void constrainEq(std::set<ConstraintVariable*> &RHS,
       constrainEq(RHS, LHS, Info);
 }
 
-/*struct FPC {
-  std::set<uint32_t> ReturnVal;
-  std::vector<std::set<uint32_t>> Parameters;
-};
-
-static
-void FPAssign(FPC &lhs, FPC &rhs, ProgramInfo &I, ASTContext *C) {
-  // Constrain the return value.
-  Constraints &CS = I.getConstraints();
-  if (lhs.ReturnVal.size() == rhs.ReturnVal.size()) {
-    std::set<uint32_t>::iterator I = lhs.ReturnVal.begin();
-    std::set<uint32_t>::iterator J = rhs.ReturnVal.begin();
-
-    while ((I != lhs.ReturnVal.end()) && (J != rhs.ReturnVal.end())) {
-      CS.addConstraint(
-        CS.createEq(CS.getOrCreateVar(*I), CS.getOrCreateVar(*J)));
-      
-      ++I;
-      ++J;
-    }
-  }
-
-  // Constrain the parameters.
-  if (lhs.Parameters.size() == rhs.Parameters.size()) {
-    std::vector<std::set<uint32_t>>::iterator I = lhs.Parameters.begin();
-    std::vector<std::set<uint32_t>>::iterator J = rhs.Parameters.begin();
-
-    while ((I != lhs.Parameters.end()) && (J != rhs.Parameters.end())) {
-      std::set<uint32_t> lhsVS = *I;
-      std::set<uint32_t> rhsVS = *J;
-
-      if (lhsVS.size() == rhsVS.size()) {
-        std::set<uint32_t>::iterator K = lhsVS.begin();
-        std::set<uint32_t>::iterator L = rhsVS.begin();
-
-        while ((K != lhsVS.end()) && (L != rhsVS.end())) {
-          CS.addConstraint(
-            CS.createEq(CS.getOrCreateVar(*K), CS.getOrCreateVar(*L)));
-
-          ++K;
-          ++L;
-        }
-      }
-
-      ++I;
-      ++J;
-    }
-  }
-}
-
-static
-void FPAssign(DeclaratorDecl *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
-  FPC fplhs;
-  FPC fprhs;
-  errs() << "FPAssign d!\n";
-  TypeSourceInfo *TSI = LHS->getTypeSourceInfo();
-
-  TypeLoc TL = TSI->getTypeLoc();
-  while (!TL.isNull()) {
-    TL.getTypePtr()->dump();
-    errs() << "\n";
-    TL = TL.getNextTypeLoc();
-  }
-
-  LHS->dump();
-}
-
-// Given an Expr LHS which has type function pointer, propagate 
-// constraints from the RHS to the LHS for both return and parameter
-// types. RHS might be either a function or function pointer type.
-static
-void FPAssign(Expr *LHS, Expr *RHS, ProgramInfo &I, ASTContext *C) {
-  errs() << "FPAssign e!\n";
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(LHS)) {
-    if (DeclaratorDecl *VD = dyn_cast<DeclaratorDecl>(DRE->getDecl())) {
-      FPAssign(VD, RHS, I, C);
-    } else {
-      errs() << "Not a DeclaratorDecl!\n";
-      DRE->getDecl()->dump();
-    }
-  }
-}*/
-
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
 // Each VisitXXX method is responsible either for looking inside statements
@@ -245,28 +162,30 @@ public:
   // In any of these cases, due to conditional expressions, the number of
   // variables on the RHS could be 0 or more. We just do the same rule
   // for each pair of q_i to q_j \forall j in variables_on_rhs.
-  void constrainAssign( std::set<ConstraintVariable*> &V, 
+  void constrainAssign( std::set<ConstraintVariable*> V, 
                         Expr *RHS) {
     if (!RHS)
       return;
 
     Constraints &CS = Info.getConstraints();
 
-    /*
-    std::set<uint32_t> W;
-    Info.getVariable(RHS, W, Context);
+    std::set<ConstraintVariable*> W = Info.getVariable(RHS, Context);
     if (W.size() > 0) {
       // Case 1.
-      for (const auto &I : W)
-        CS.addConstraint(
-            CS.createEq(CS.getOrCreateVar(V), CS.getOrCreateVar(I)));
+      // There are constraint variables for the RHS, so, use those over
+      // anything else we could infer. 
+      constrainEq(V, W, Info);
     } else {
       // Cases 2-4.
       if (RHS->isIntegerConstantExpr(*Context)) {
         // Case 2.
         if (!RHS->isNullPointerConstant(*Context,
-                                        Expr::NPC_ValueDependentIsNotNull))
-          CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+          Expr::NPC_ValueDependentIsNotNull))
+          for (const auto &U : W)
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
+              for (const auto &J : PVC->getCvars())
+                CS.addConstraint(
+                  CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
       } else {
         // Cases 3-4.
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
@@ -274,27 +193,33 @@ public:
             // Case 3.
             // Is there anything to do here, or is it implicitly handled?
           }
-        } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
+        }
+        else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
           // Case 4.
-          Info.getVariable(C->getSubExpr(), W, Context);
-          bool safe = true;
-          for (const auto &I : W)
-            safe &= Info.checkStructuralEquality(V, I);
+          W = Info.getVariable(C->getSubExpr(), Context);
+          if (Info.checkStructuralEquality(V, W)) {
+            // This has become a little stickier to think about. 
+            // What do you do here if we determine that two things with
+            // very different arity are structurally equal? Is that even 
+            // possible? 
+            llvm_unreachable("TODO");
+          } else {
+            // Constrain everything in both to top.
+            for (const auto &A : W)
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+                for (const auto &B : PVC->getCvars())
+                  CS.addConstraint(
+                    CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
 
-          for (const auto &I : W)
-            if (safe) {
-              CS.addConstraint(CS.createImplies(
-                CS.createEq(CS.getOrCreateVar(V), CS.getWild()),
-                CS.createEq(CS.getOrCreateVar(I), CS.getWild())));
-            } else {
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(I), CS.getWild()));
-            }
+            for (const auto &A : V)
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+                for (const auto &B : PVC->getCvars())
+                  CS.addConstraint(
+                    CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+          }
         }
       }
-    }*/
+    }
   }
 
   void constrainAssign(Expr *LHS, Expr *RHS) {

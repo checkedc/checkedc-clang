@@ -191,7 +191,8 @@ public:
   // needed if you are casting from U to V. If this returns true, then it's 
   // safe to add an implication that if U is wild, then V is wild. However,
   // if this returns false, then both U and V must be constrained to wild.
-  bool checkStructuralEquality(uint32_t V, uint32_t U);
+  bool checkStructuralEquality( std::set<ConstraintVariable*> V, 
+                                std::set<ConstraintVariable*> U);
 
   // Called when we are done adding constraints and visiting ASTs. 
   // Links information about global symbols together and adds 
@@ -229,14 +230,6 @@ public:
   std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C);
 
-  // Given a constraint variable identifier K, find the Decl that 
-  // corresponds to that variable. Note that multiple constraint 
-  // variables map to a single decl, as in the case of 
-  // int **b; for example. In this case, there would be two variables
-  // for that Decl, read out like int * q_0 * q_1 b;
-  // Returns NULL if there is no Decl for that varabiel. 
-  clang::Decl *getDecl(uint32_t K);
-
   VariableMap &getVarMap() { return Variables;  }
 
 private:
@@ -253,22 +246,12 @@ private:
   // out how to break up variable declarations that should span lines in the
   // new program.
   VariableDecltoStmtMap VarDeclToStatement;
-  // Map from a Decl* to a uint32_t variable identifier, that variable 
-  // is the smallest variable for that Decl.
-  // It can be the case that |Variables| <= |PersistentVariables|, because 
-  // PersistentVariables can refer to a variable that is only visible locally
-  // within some other file that we have processed. That is fine. 
+
+  // List of all constraint variables, indexed by their location in the source.
+  // This information persists across invocations of the constraint analysis
+  // from compilation unit to compilation unit.
   VariableMap Variables;
-  // Map from a uint32_t variable identifier to the Decl* for that variable.
-  ReverseVariableMap RVariables;
-  // Map from a Decl to the highest variable value in that Decl.
-  DeclMap DepthMap;
-  // Persists information in Variables.
-  std::map<PersistentSourceLoc, uint32_t> PersistentVariables;
-  // Persists information in DepthMap.
-  std::map<PersistentSourceLoc, uint32_t> PersistentDepthMap;
-  // Persists RVariables.
-  std::map<uint32_t, PersistentSourceLoc> PersistentRVariables;
+
   // Constraint system.
   Constraints CS;
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
