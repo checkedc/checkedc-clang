@@ -12,6 +12,49 @@
 using namespace clang;
 using namespace llvm;
 
+PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
+  uint32_t &K, Constraints &CS) :
+  PointerVariableConstraint(D->getType().getTypePtr(), K, CS) { }
+
+PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
+  uint32_t &K, Constraints &CS) :
+  ConstraintVariable(ConstraintVariable::PointerVariable)
+{
+  for (const Type *Ty = _Ty;
+    Ty->isPointerType();
+    Ty = getNextTy(Ty))
+  {
+    // If we hit a function pointer type, stop. Someone else will deal with
+    // the higher order case. 
+    if (Ty->isFunctionPointerType())
+      break;
+    
+    // Allocate a new constraint variable for this level of pointer.
+    vars.insert(K);
+    CS.getOrCreateVar(K);
+    K++;
+  }
+}
+
+FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
+  uint32_t &K, Constraints &CS) :
+  FunctionVariableConstraint(D->getType().getTypePtr(), K, CS) {}
+
+FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
+    uint32_t &K, Constraints &CS) :
+  ConstraintVariable(ConstraintVariable::FunctionVariable)
+{ 
+  if (Ty->isFunctionPointerType()) {
+    // Is this a function pointer definition?
+
+  } else if(Ty->isFunctionType()) {
+    // Is this a function definition?
+
+  } else {
+    llvm_unreachable("don't know what to do");
+  }
+}
+
 void ProgramInfo::print(raw_ostream &O) const {
   CS.print(O);
   O << "\n";
@@ -248,9 +291,14 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   if (!F->isGlobal())
     return;
 
+  // Track if we've seen a body for this function or not.
+  std::string fn = F->getNameAsString();
+  if (!ExternFunctions[fn])
+    ExternFunctions[fn] = (F->isThisDeclarationADefinition() && F->hasBody());
+
   // Look up the constraint variables for the return type and parameter 
   // declarations of this function, if any.
-  std::string fn = F->getNameAsString();
+  /*
   std::set<uint32_t> returnVars;
   std::vector<std::set<uint32_t> > parameterVars(F->getNumParams());
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(F, *C);
@@ -262,6 +310,7 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   assert(PFV != NULL);
   const FVConstraint *FVC = dyn_cast<FVConstraint>(PFV);
   assert(FVC != NULL);
+
   //returnVars = FVC->getReturnVars();
   //unsigned i = 0;
   //for (unsigned i = 0; i < FVC->numParams(); i++) {
@@ -271,10 +320,6 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   assert(PLoc.valid());
   GlobalFunctionSymbol *GF = 
     new GlobalFunctionSymbol(fn, PLoc, parameterVars, returnVars);
-
-  // Track if we've seen a body for this function or not.
-  if (!ExternFunctions[fn])
-    ExternFunctions[fn] = (F->isThisDeclarationADefinition() && F->hasBody());
 
   // Add this to the map of global symbols. 
   std::map<std::string, std::set<GlobalSymbol*> >::iterator it = 
@@ -287,7 +332,7 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
       (fn, N));
   } else {
     (*it).second.insert(GF);
-  }
+  }*/
 }
 
 void ProgramInfo::seeGlobalDecl(clang::VarDecl *G) {
@@ -315,57 +360,6 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
   std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> 
     PSLtoDecl = res.first;
 
-  // Re-populate Variables.
-  /*assert(Variables.empty());
-  for (auto I : PersistentVariables) {
-    PersistentSourceLoc PL = I.first;
-    uint32_t V = I.second;
-    std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType>::iterator K = 
-      PSLtoDecl.find(PL);
-    if (K != PSLtoDecl.end()) {
-      Decl *D;
-      Stmt *S;
-      Type *T;
-      std::tie<Stmt *, Decl *, Type *>(S, D, T) = K->second;
-      assert(D != NULL);
-      Variables[D] = V;
-    }
-  }
-
-  // Re-populate RVariables.
-  assert(RVariables.empty());
-  for (auto I : PersistentRVariables) {
-    PersistentSourceLoc PL = I.second;
-    uint32_t V = I.first;
-    std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType>::iterator K = 
-      PSLtoDecl.find(PL);
-    if (K != PSLtoDecl.end()) {
-      Decl *D;
-      Stmt *S;
-      Type *T;
-      std::tie<Stmt *, Decl *, Type *>(S, D, T) = K->second;
-      assert(D != NULL);
-      RVariables[V] = D;
-    }
-  }
-
-  // Re-populate DepthMap.
-  assert(DepthMap.empty());
-  for (auto I : PersistentDepthMap) {
-    PersistentSourceLoc PL = I.first;
-    uint32_t V = I.second;
-    std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType>::iterator K = 
-      PSLtoDecl.find(PL);
-    if (K != PSLtoDecl.end()) {
-      Decl *D;
-      Stmt *S;
-      Type *T;
-      std::tie<Stmt *, Decl *, Type *>(S, D, T) = K->second;
-      assert(D != NULL);
-      DepthMap[D] = V;
-    }
-  }*/
-
   // Re-populate VarDeclToStatement.
   VarDeclToStatement = res.second;
 
@@ -378,17 +372,14 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
 // should all be empty.
 void ProgramInfo::exitCompilationUnit() {
   assert(persisted == false);
-  //Variables.clear();
   VarDeclToStatement.clear();
-  //RVariables.clear();
-  //DepthMap.clear();
   persisted = true;
   return;
 }
 
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
-bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
+bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   assert(persisted == false);
   PersistentSourceLoc PLoc = 
     PersistentSourceLoc::mkPSL(D, *C);
@@ -396,12 +387,56 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
 
   // What is the nature of the constraint that we should be adding? This is 
   // driven by the type of Decl. 
-  //  - Decl is a pointer-type VariableDecl - we will add a PVConstraint
+  //  - Decl is a pointer-type VarDecl - we will add a PVConstraint
   //  - Decl has type Function - we will add a FVConstraint
   //  If Decl is both, then we add both. If it has neither, then we add
   //  neither.
+  // We only add a PVConstraint or an FVConstraint if the set at 
+  // Variables[PLoc] does not contain one already. This allows either 
+  // PVConstraints or FVConstraints declared at the same physical location
+  // in the program to implicitly alias.
 
-  return false;
+  const Type *Ty = nullptr;
+  if (VarDecl *VD = dyn_cast<VarDecl>(D))
+    Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+  else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
+    Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+  else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D))
+    Ty = UD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+  else
+    llvm_unreachable("unknown decl type");
+  
+  FVConstraint *F = nullptr;
+  PVConstraint *P = nullptr;
+  
+  if (Ty->isPointerType()) {
+    // Create a pointer value for the type.
+    P = new PVConstraint(D, freeKey, CS);
+  }
+
+  if (Ty->isFunctionType() || Ty->isFunctionPointerType()) {
+    // Create a function value for the type.
+    F = new FVConstraint(D, freeKey, CS);
+  }
+
+  std::set<ConstraintVariable*> &S = Variables[PLoc];
+  bool found = false;
+  for (const auto &I : S)
+    if (isa<FVConstraint>(I))
+      found = true;
+
+  if (found == false && F != nullptr)
+    Variables[PLoc].insert(F);
+  found = false;
+
+  for (const auto &I : S)
+    if (isa<PVConstraint>(I))
+      found = true;
+
+  if (found == false && P != nullptr)
+    Variables[PLoc].insert(P);
+
+  return true;
 
   // Check if we already have this Decl.
   /*if (Variables.find(D) == Variables.end()) {
@@ -537,7 +572,10 @@ ProgramInfo::getVariableHelper(Expr *E,
   } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
     return getVariableHelper(PE->getSubExpr(), V, C);
   } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
-    return getVariableHelper(CE->getCallee(), V, C);
+    // Here, we need to look up the target of the call and return the
+    // constraints for the return value of that function.
+    llvm_unreachable("TODO");
+    //return getVariableHelper(CE->getCallee(), V, C);
   } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     // Explore the three exprs individually.
     std::set<ConstraintVariable*> T;

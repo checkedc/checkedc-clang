@@ -390,7 +390,7 @@ public:
   bool VisitVarDecl(VarDecl *G) {
     
     if (G->hasGlobalStorage() && G->getType()->isPointerType())
-      Info.addVariable(G, NULL, Context);
+      Info.addVariable(G, nullptr, Context);
 
     Info.seeGlobalDecl(G);
 
@@ -401,18 +401,10 @@ public:
     FullSourceLoc FL = Context->getFullLoc(D->getLocStart());
 
     if (FL.isValid()) {
-      std::string fn = D->getNameAsString();
- 
-      // Add variables for the value returned from the function.
-      if (D->getReturnType()->isPointerType())
-        Info.addVariable(D, NULL, Context);
 
-      // Add variables for each parameter declared for the function.
-      for (const auto &P : D->parameters())
-        if (P->getType()->isPointerType()) {
-          Info.addVariable(P, NULL, Context);
-          specialCaseVarIntros(P, Info, Context);
-        }
+      Info.addVariable(D, nullptr, Context);
+      // TODO: why do we do this also? What purpose does it serve?
+      Info.seeFunctionDecl(D, Context);
 
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
         Stmt *Body = D->getBody();
@@ -421,8 +413,6 @@ public:
         // Visit the body of the function and build up information.
         FV.TraverseStmt(Body);
       }
-
-      Info.seeFunctionDecl(D, Context);
     }
 
     return true;
