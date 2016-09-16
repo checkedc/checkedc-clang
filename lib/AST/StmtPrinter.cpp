@@ -1845,10 +1845,7 @@ void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
       break;
     case BoundsExpr::None:
       OS << "bounds(none)";
-      break;
-    case BoundsExpr::PtrInteropAnnotation:
-      OS << "ptr";
-      break;
+      break;;
     default:
       llvm_unreachable("unexpected bounds kind for nullary bounds expr");
   }
@@ -1873,6 +1870,19 @@ void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
   OS << ", ";
   PrintExpr(Node->getUpperExpr());
   OS << ")";
+}
+
+void StmtPrinter::VisitInteropTypeBoundsExpr(InteropTypeBoundsExpr *Node) {
+  switch (Node->getKind()) {
+  case BoundsExpr::Invalid:
+    OS << "invalid_interoptype";
+    break;
+  case BoundsExpr::InteropTypeAnnotation:
+    Node->getTypeAsWritten().print(OS, Policy);
+    break;
+  default:
+    llvm_unreachable("unexpected bounds kind for interop type bounds expr");
+  }
 }
 
 // C++

@@ -1657,6 +1657,9 @@ private:
 
   /// \brief Return true if this token can start a bounds expression.
   bool StartsBoundsExpression(Token &Tok);
+  /// \brief Return true if this token can start a interop type bounds
+  /// annotation.
+  bool StartsInteropTypeBoundsAnnotation(Token &tok);
   ExprResult ParseBoundsExpression();
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
   ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks);
@@ -1921,7 +1924,7 @@ private:
 
   void ParseStructDeclaration(
       ParsingDeclSpec &DS,
-      llvm::function_ref<void(ParsingFieldDeclarator &, std::unique_ptr<CachedTokens>)> FieldsCallback);
+      llvm::function_ref<void(ParsingFieldDeclarator &)> FieldsCallback);
 
   bool isDeclarationSpecifier(bool DisambiguatingWithExpression = false);
   bool isTypeSpecifierQualifier();

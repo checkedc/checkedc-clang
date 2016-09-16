@@ -2361,6 +2361,10 @@ public:
     return getSema().ActOnRangeBoundsExpr(StartLoc, Lower, Upper, RParenLoc);
   }
 
+  ExprResult RebuildInteropTypeBoundsExpr(ParsedType ParsedTy) {
+    return getSema().ActOnBoundsInteropType(ParsedTy);
+  }
+
   /// \brief Build a new overloaded operator call expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11533,6 +11537,12 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
                                              LowerExpr.get(),
                                              UpperExpr.get(),
                                              E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformInteropTypeBoundsExpr(InteropTypeBoundsExpr *E) {
+  return E;
 }
 
 //===----------------------------------------------------------------------===//

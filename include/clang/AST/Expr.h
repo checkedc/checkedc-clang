@@ -4505,8 +4505,8 @@ public:
 
 /// \brief Represents a Checked C bounds expression.
 class BoundsExpr : public Expr {
-private:
-  SourceLocation StartLoc, RParenLoc;
+  SourceLocation StartLoc, EndLoc;
+  friend class ASTStmtReader;
 
 public:
   enum Kind {
@@ -4525,19 +4525,24 @@ public:
     // ptr interop annotation.  This isn't really a bounds expression.
     // To save space and for programmng convenience, we store the 
     // ": ptr" interop annotation as a bounds expression.
-    PtrInteropAnnotation = 5,
+    InteropTypeAnnotation = 5,
 
     // Sentinel marker for maximum bounds kind.
-    MaxBoundsKind = PtrInteropAnnotation
+    MaxBoundsKind = InteropTypeAnnotation
   };
 
   static_assert(MaxBoundsKind < (1 << NumBoundsExprKindBits), "kind field too small");
 
-  BoundsExpr(StmtClass StmtClass, Kind BoundsKind, SourceLocation StartLoc,
-             SourceLocation RParenLoc)
-    : Expr(StmtClass, QualType(),  VK_RValue, OK_Ordinary, false,
-           false, false, false), StartLoc(StartLoc), RParenLoc(RParenLoc) {
+  BoundsExpr(StmtClass StmtClass, QualType Ty, Kind BoundsKind, SourceLocation StartLoc,
+             SourceLocation EndLoc)
+    : Expr(StmtClass, Ty, VK_RValue, OK_Ordinary, false,
+           false, false, false), StartLoc(StartLoc), EndLoc(EndLoc) {
     setKind(BoundsKind);
+  }
+
+  BoundsExpr(StmtClass StmtClass, Kind BoundsKind, SourceLocation StartLoc,
+             SourceLocation EndLoc)
+    : BoundsExpr(StmtClass, QualType(), BoundsKind, StartLoc, EndLoc) {
   }
 
   explicit BoundsExpr(StmtClass StmtClass, EmptyShell Empty) :
@@ -4545,13 +4550,13 @@ public:
     setKind(Invalid);
   }
 
+
   SourceLocation getStartLoc() { return StartLoc; }
-  void setStartLoc(SourceLocation Loc) { StartLoc = Loc; }
-  SourceLocation getRParenLoc() { return RParenLoc; }
-  void setRParenLoc(SourceLocation Loc) { RParenLoc = Loc; }
+  SourceLocation getEndLoc() { return EndLoc; }
+  SourceLocation getRParenLoc() { return EndLoc; }
 
   SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
-  SourceLocation getLocEnd() const LLVM_READONLY { return RParenLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return EndLoc; }
 
   Kind getKind() const { return (Kind)BoundsExprBits.Kind; }
   void setKind(Kind Kind) {
@@ -4579,8 +4584,8 @@ public:
     return getKind() == Range;
   }
 
-  bool isPtrInteropAnnotation() {
-    return getKind() == PtrInteropAnnotation;
+  bool isInteropTypeAnnotation() {
+    return getKind() == InteropTypeAnnotation;
   }
 
   static bool classof(const Stmt *T) {
@@ -4599,7 +4604,7 @@ class NullaryBoundsExpr : public BoundsExpr {
 public:
   NullaryBoundsExpr(Kind Kind, SourceLocation StartLoc, SourceLocation RParenLoc)
     : BoundsExpr(NullaryBoundsExprClass, Kind, StartLoc, RParenLoc)  {
-    assert(Kind == Invalid || Kind == None || Kind == PtrInteropAnnotation);
+    assert(Kind == Invalid || Kind == None);
   }
 
   explicit NullaryBoundsExpr(EmptyShell Empty)
@@ -4674,6 +4679,58 @@ public:
     return child_range(&SubExprs[0], &SubExprs[0] + END_EXPR);
   }
 };
+
+/// \brief Represents a Checked C interop bounds annotation.
+///
+/// Checked C has bounds-safe interfaces that allow global variables,
+/// functions, and members defined by unchecked code to be used in ch+ecked
+/// contexts and treated as having checked pointer types. This annotation is
+/// used to declare that a variable, parameter, or member has a bounds-safe
+//  interface that is a checked pointer type.
+///
+/// Typically this is used to declare an unchecked-pointer typed entity
+/// as having a _Ptr type.  There is no bounds expression for this.  More
+/// generally, it can declare a bounds-safe interface this is a checked
+/// pointer to a checked pointer.  This is useful for unchecked declarations
+///  such as `int **y', where y could have a bounds-safe interface that
+/// is `ptr<ptr<int>>` or `array_ptr<ptr<int>>`.
+///
+/// This is not a bounds expression.  Because we typically need bounds-safe
+/// interface information at the same points where we would need bounds
+/// information, so it is convenient to store the information as a bounds
+/// expression.  
+class InteropTypeBoundsExpr : public BoundsExpr {
+private:
+  TypeSourceInfo *TIInfo;
+public:
+  InteropTypeBoundsExpr(QualType Ty, SourceLocation StartLoc,
+                        SourceLocation EndLoc, TypeSourceInfo *tyAsWritten)
+    : BoundsExpr(InteropTypeBoundsExprClass, Ty, InteropTypeAnnotation,
+                 StartLoc, EndLoc), TIInfo(tyAsWritten) {
+  }
+
+  explicit InteropTypeBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(InteropTypeBoundsExprClass, Empty) {}
+
+  /// getTypeInfoAsWritten - Returns the type source info for the type
+  /// in the interop annotaiton
+  TypeSourceInfo *getTypeInfoAsWritten() const { return TIInfo; }
+  void setTypeInfoAsWritten(TypeSourceInfo *writtenTy) { TIInfo = writtenTy; }
+
+  /// getTypeAsWritten - Returns the type that this expression is
+  /// casting to, as written in the source code.
+  QualType getTypeAsWritten() const { return TIInfo->getType(); }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == InteropTypeBoundsExprClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+};
+
 
 //===----------------------------------------------------------------------===//
 // Clang Extensions
@@ -4792,8 +4849,7 @@ private:
   SourceLocation BuiltinLoc, RParenLoc;
 
   friend class ASTReader;
-  friend class ASTStmtReader;
-  explicit AsTypeExpr(EmptyShell Empty) : Expr(AsTypeExprClass, Empty) {}
+  friend class ASTStmtReader;  explicit AsTypeExpr(EmptyShell Empty) : Expr(AsTypeExprClass, Empty) {}
 
 public:
   AsTypeExpr(Expr* SrcExpr, QualType DstType,

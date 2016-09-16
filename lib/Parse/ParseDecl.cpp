@@ -3624,7 +3624,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 ///
 void Parser::ParseStructDeclaration(
     ParsingDeclSpec &DS,
-    llvm::function_ref<void(ParsingFieldDeclarator &, std::unique_ptr<CachedTokens>)> FieldsCallback) {
+    llvm::function_ref<void(ParsingFieldDeclarator &)> FieldsCallback) {
 
   if (Tok.is(tok::kw___extension__)) {
     // __extension__ silences extension warnings in the subexpression.
@@ -3667,13 +3667,26 @@ void Parser::ParseStructDeclaration(
     } else
       DeclaratorInfo.D.SetIdentifier(nullptr, Tok.getLocation());
 
-    std::unique_ptr<CachedTokens> BoundsExprTokens;
+
     if (TryConsumeToken(tok::colon)) {
       if (getLangOpts().CheckedC && StartsBoundsExpression(Tok)) {
-         BoundsExprTokens.reset(new CachedTokens);
-         bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-         if (ParsingError) {
-           SkipUntil(tok::semi, StopBeforeMatch);
+         if (StartsInteropTypeBoundsAnnotation(Tok)) {
+            ExprResult BoundsResult = ParseBoundsExpression();
+            if (BoundsResult.isInvalid())
+              SkipUntil(tok::semi, StopBeforeMatch);
+            else {
+              if (InteropTypeBoundsExpr *BoundsAnnotation =
+                  dyn_cast<InteropTypeBoundsExpr>(BoundsResult.get()))
+                DeclaratorInfo.BoundsAnnotation = BoundsAnnotation;
+            }
+         } else {
+           std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
+           bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+           if (ParsingError)
+             SkipUntil(tok::semi, StopBeforeMatch);
+           // always set BoundsExprTokens: the delayed parsing is what 
+           // issues any parsing error messages.
+           DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
          }
       } else {
         ExprResult Res(ParseConstantExpression());
@@ -3689,7 +3702,7 @@ void Parser::ParseStructDeclaration(
 
     // We're done with this declarator;  invoke the callback.
 
-    FieldsCallback(DeclaratorInfo, std::move(BoundsExprTokens));
+    FieldsCallback(DeclaratorInfo);
 
     // If we don't have a comma, it is either the end of the list (a ';')
     // or an error, bail out.
@@ -3772,8 +3785,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
 
     if (!Tok.is(tok::at)) {
-      auto CFieldCallback = [&](ParsingFieldDeclarator &FD,
-                                std::unique_ptr<CachedTokens> BoundsExprTokens) {
+      auto CFieldCallback = [&](ParsingFieldDeclarator &FD) {
         // Install the declarator into the current TagDecl.
         FieldDecl *Field =
           Actions.ActOnField(getCurScope(), TagDecl,
@@ -3781,8 +3793,10 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
                              FD.D, FD.BitfieldSize);
         FieldDecls.push_back(Field);
         FD.complete(Field);
-        if (BoundsExprTokens != nullptr)
-          deferredBoundsExpressions.emplace_back(Field, std::move(BoundsExprTokens));
+        if (FD.BoundsExprTokens != nullptr)
+          deferredBoundsExpressions.emplace_back(Field, std::move(FD.BoundsExprTokens));
+        if (FD.BoundsAnnotation != nullptr)
+          Field->setBoundsExpr(FD.BoundsAnnotation);
       };
 
       // Parse all the comma separated declarators.
@@ -6142,17 +6156,25 @@ void Parser::ParseParameterDeclarationClause(
       // Parse and store the tokens for the bounds expression, if there is one.
       if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
         ConsumeToken();
-        // Consume and store tokens until a bounds-like expression has been
-        // read or a parsing error has happened.  Store the tokens even if a
-        // parsing error occurs so that ParseBoundsExpression can generate the
-        // error message.  This way the error messages from parsing of bounds
-        // expressions will be the same or very similar regardless of whether
-        // parsing is deferred or not.
-        std::unique_ptr<CachedTokens> BoundsExprTokens { new CachedTokens};
-        bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-        deferredBoundsExpressions.emplace_back(Param, std::move(BoundsExprTokens));
-        if (ParsingError) {
-          SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+        if (StartsInteropTypeBoundsAnnotation(Tok)) {
+          ExprResult BoundsAnnot = ParseBoundsExpression();
+          if (BoundsAnnot.isInvalid())
+            Actions.ActOnInvalidBoundsDecl(Param);
+          else
+            Actions.ActOnBoundsDecl(Param, cast<BoundsExpr>(BoundsAnnot.get()));
+        } else {
+          // Consume and store tokens until a bounds-like expression has been
+          // read or a parsing error has happened.  Store the tokens even if a
+          // parsing error occurs so that ParseBoundsExpression can generate the
+          // error message.  This way the error messages from parsing of bounds
+          // expressions will be the same or very similar regardless of whether
+          // parsing is deferred or not.
+          std::unique_ptr<CachedTokens> BoundsExprTokens { new CachedTokens};
+          bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+          deferredBoundsExpressions.emplace_back(Param, std::move(BoundsExprTokens));
+          if (ParsingError) {
+            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+          }
         }
       }
 
