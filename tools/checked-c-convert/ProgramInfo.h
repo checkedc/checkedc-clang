@@ -97,6 +97,70 @@ public:
   }
 };
 
+typedef std::set<uint32_t> CVars;
+
+// TODO: document what these three classes do.
+class ConstraintVariable {
+public:
+  enum ConstraintVariableKind {
+    PointerVariable,
+    FunctionVariable
+  };
+
+  ConstraintVariableKind getKind() const { return Kind; }
+
+private:
+  ConstraintVariableKind Kind;
+public:
+  ConstraintVariable(ConstraintVariableKind K) : Kind(K) {}
+};
+
+class PointerVariableConstraint;
+class FunctionVariableConstraint;
+
+class PointerVariableConstraint : public ConstraintVariable {
+private:
+  CVars vars;
+public:
+  PointerVariableConstraint(CVars V) : 
+    ConstraintVariable(PointerVariable),vars(V) {}
+
+  const CVars &getCvars() const { return vars; }
+
+  static bool classof(const ConstraintVariable *S) {
+    return S->getKind() == PointerVariable;
+  }
+};
+
+typedef PointerVariableConstraint PVConstraint;
+
+class FunctionVariableConstraint : public ConstraintVariable {
+private:
+  std::set<ConstraintVariable*> returnVars;
+  std::vector<std::set<ConstraintVariable*>> paramVars;
+public:
+  FunctionVariableConstraint(std::set<ConstraintVariable*> R, 
+    std::vector<std::set<ConstraintVariable*>> P) :
+    ConstraintVariable(FunctionVariable), returnVars(R), paramVars(P) { }
+
+  std::set<ConstraintVariable*> &
+  getReturnVars() { return returnVars; }
+
+  size_t numParams() { return paramVars.size(); }
+
+  static bool classof(const ConstraintVariable *S) {
+    return S->getKind() == FunctionVariable;
+  }
+
+  std::set<ConstraintVariable*> &
+  getParamVar(unsigned i) {
+    assert(i < paramVars.size());
+    return paramVars.at(i);
+  }
+};
+
+typedef FunctionVariableConstraint FVConstraint;
+
 class ProgramInfo {
 public:
   ProgramInfo() : freeKey(0), persisted(true) {}
@@ -154,15 +218,16 @@ public:
   // Returns true if E resolves to a constraint variable q_i and the 
   // currentVariable field of V is that constraint variable. Returns false if 
   // a constraint variable cannot be found.
-  bool getVariableHelper(clang::Expr *E, 
-              std::set<std::tuple<uint32_t, uint32_t, uint32_t> > &V,
-                          clang::ASTContext *C) ;
+  std::set<ConstraintVariable *> 
+  getVariableHelper(clang::Expr *E,std::set<ConstraintVariable *>V,
+    clang::ASTContext *C);
 
   // Given some expression E, what is the top-most constraint variable that
-  // E refers to? It could be none, in which case V is empty. Otherwise, V 
-  // contains the constraint variable(s) that E refers to.
-  void getVariable(clang::Expr *E, std::set<uint32_t> &V, clang::ASTContext *C);
-  void getVariable(clang::Decl *D, std::set<uint32_t> &V, clang::ASTContext *C);
+  // E refers to? 
+  std::set<ConstraintVariable*>
+    getVariable(clang::Expr *E, clang::ASTContext *C);
+  std::set<ConstraintVariable*>
+    getVariable(clang::Decl *D, clang::ASTContext *C);
 
   // Given a constraint variable identifier K, find the Decl that 
   // corresponds to that variable. Note that multiple constraint 
@@ -177,9 +242,7 @@ public:
 private:
     // Helper routine for getVariableHelper, looks variables up in the 
     // variable map based on the supplied Decl.
-    bool declHelper(clang::Decl *D,
-                    std::set < std::tuple<uint32_t, uint32_t, uint32_t> > &V,
-                    clang::ASTContext *C);
+  ConstraintVariable *declHelper(clang::Decl *D, clang::ASTContext *C);
 
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.

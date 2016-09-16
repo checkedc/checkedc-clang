@@ -255,9 +255,17 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   PersistentSourceLoc PLoc = PersistentSourceLoc::mkPSL(F, *C);
   int i = 0;
 
-  getVariable(F, returnVars, C);
-  for (auto &I : F->parameters())
-    getVariable(I, parameterVars[i++], C);
+  std::set<ConstraintVariable*> FV = getVariable(F, C);
+  assert(FV.size() == 1);
+  const ConstraintVariable *PFV = (*(FV.begin()));
+  assert(PFV != NULL);
+  const FVConstraint *FVC = dyn_cast<FVConstraint>(PFV);
+  assert(FVC != NULL);
+  //returnVars = FVC->getReturnVars();
+  //unsigned i = 0;
+  //for (unsigned i = 0; i < FVC->numParams(); i++) {
+  //  parameterVars.push_back(FVC->getParamVar(i));
+  //}
 
   assert(PLoc.valid());
   GlobalFunctionSymbol *GF = 
@@ -465,10 +473,8 @@ bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
     return false;
 }
 
-bool
-ProgramInfo::declHelper(Decl *D,
-  std::set < std::tuple<uint32_t, uint32_t, uint32_t> > &V,
-  ASTContext *C) {
+ConstraintVariable *
+ProgramInfo::declHelper(Decl *D, ASTContext *C) {
   PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(D, *C);
   assert(PSL.valid());
 
@@ -480,9 +486,9 @@ ProgramInfo::declHelper(Decl *D,
     assert(IN != PersistentVariables.end());
     DeclMap::iterator DI = DepthMap.find(D);
     assert(DI != DepthMap.end());
-    V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
-      (I->second, I->second, DI->second));
-    return true;
+    //V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
+    //  (I->second, I->second, DI->second));
+    return nullptr;
   }
   else {
     // TODO: Also check if IN != end(), if it doesn't, then give back
@@ -494,11 +500,11 @@ ProgramInfo::declHelper(Decl *D,
       Decl *dl = getDecl(var);
       DeclMap::iterator DI = DepthMap.find(dl);
       assert(DI != DepthMap.end());
-      V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
-        (var, var, DI->second));
-      return true;
+      //V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
+      //  (var, var, DI->second));
+      return nullptr;
     } else {
-      return false;
+      return nullptr;
     }
   }
 }
@@ -518,19 +524,43 @@ ProgramInfo::declHelper(Decl *D,
 // Returns true if E resolves to a constraint variable q_i and the
 // currentVariable field of V is that constraint variable. Returns false if
 // a constraint variable cannot be found.
-bool 
-ProgramInfo::getVariableHelper(Expr *E,
-                    std::set<std::tuple<uint32_t, uint32_t, uint32_t> > &V,
-                    ASTContext *C) {
+std::set<ConstraintVariable *> 
+ProgramInfo::getVariableHelper(Expr *E, 
+  std::set<ConstraintVariable *> V, ASTContext *C) {
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-    return declHelper(DRE->getDecl(), V, C);
+    std::set<ConstraintVariable*> T;
+    ConstraintVariable *W = declHelper(DRE->getDecl(), C);
+    if (W)
+      T.insert(W);
+    return T;
   } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
-    return declHelper(ME->getMemberDecl(), V, C);
+    std::set<ConstraintVariable*> T;
+    ConstraintVariable *W = declHelper(ME->getMemberDecl(), C);
+    if (W)
+      T.insert(W);
+    return T;
   } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
-    return getVariableHelper(BO->getLHS(), V, C) ||
-           getVariableHelper(BO->getRHS(), V, C);
+    std::set<ConstraintVariable*> T1 = getVariableHelper(BO->getLHS(), V, C);
+    std::set<ConstraintVariable*> T2 = getVariableHelper(BO->getRHS(), V, C);
+    T1.insert(T2.begin(), T2.end());
+    return T1;
   } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-    if (getVariableHelper(UO->getSubExpr(), V, C)) {
+    std::set<ConstraintVariable *> T = 
+      getVariableHelper(UO->getSubExpr(), V, C);
+    std::set<ConstraintVariable*> updt;
+
+    if (UO->getOpcode() == UO_Deref) {
+      for (const auto &CV : T) {
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+
+        } else {
+          llvm_unreachable("Shouldn't dereference a function pointer!");
+        }
+      }
+    }
+
+    return T;
+    /*if (getVariableHelper(UO->getSubExpr(), V, C)) {
       if (UO->getOpcode() == UO_Deref) {
         bool b = true;
         std::set< std::tuple<uint32_t, uint32_t, uint32_t> > R;
@@ -552,7 +582,7 @@ ProgramInfo::getVariableHelper(Expr *E,
       // TODO: Should UO_AddrOf be handled here too?
       return true;
     }
-    return false;
+    return false;*/
   } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
     return getVariableHelper(IE->getSubExpr(), V, C);
   } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
@@ -562,22 +592,27 @@ ProgramInfo::getVariableHelper(Expr *E,
   } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     // Explore the three exprs individually.
     // TODO: Do we need to give these three sub-explorations their own sets
-    //       and merge them at this point?
-    bool r = false;
-    r |= getVariableHelper(CO->getCond(), V, C);
-    r |= getVariableHelper(CO->getLHS(), V, C);
-    r |= getVariableHelper(CO->getRHS(), V, C);
-    return r;
+    //       and merge them at this point? Yes. Yes we do. 
+    std::set<ConstraintVariable*> T;
+    std::set<ConstraintVariable*> R;
+    T = getVariableHelper(CO->getCond(), V, C);
+    R.insert(T.begin(), T.end());
+    T = getVariableHelper(CO->getLHS(), V, C);
+    R.insert(T.begin(), T.end());
+    T = getVariableHelper(CO->getRHS(), V, C);
+    R.insert(T.begin(), T.end());
+    return R;
   } else {
-    return false;
+    std::set<ConstraintVariable*> R;
+    return R;
   }
 }
 
 // Given some expression E, what is the top-most constraint variable that
 // E refers to? It could be none, in which case V is empty. Otherwise, V 
 // contains the constraint variable(s) that E refers to.
-void ProgramInfo::getVariable(Expr *E, std::set<uint32_t> &V, ASTContext *C) {
-  assert(persisted == false);
+/*void ProgramInfo::getVariable(Expr *E, std::set<uint32_t> &V, ASTContext *C) {
+ 
   if (!E)
     return;
 
@@ -597,7 +632,7 @@ void ProgramInfo::getVariable(Expr *E, std::set<uint32_t> &V, ASTContext *C) {
 
 // Given a decl, return the variables for the constraints of the Decl.
 void ProgramInfo::getVariable(Decl *D, std::set<uint32_t> &V, ASTContext *C) {
-  assert(persisted == false);
+  
   if (!D)
     return;
 
@@ -611,6 +646,26 @@ void ProgramInfo::getVariable(Decl *D, std::set<uint32_t> &V, ASTContext *C) {
   }
 
   return;
+}*/
+
+std::set<ConstraintVariable*>
+ProgramInfo::getVariable(Decl *D, ASTContext *C) {
+  assert(persisted == false);
+  ConstraintVariable *V = NULL;
+
+  std::set<ConstraintVariable*> R;
+
+  return R;
+}
+
+std::set<ConstraintVariable*>
+ProgramInfo::getVariable(Expr *E, ASTContext *C) {
+  assert(persisted == false);
+  ConstraintVariable *V = NULL;
+
+  std::set<ConstraintVariable*> R;
+
+  return R;
 }
 
 // Given a constraint variable identifier K, find the Decl that

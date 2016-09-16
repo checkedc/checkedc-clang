@@ -19,7 +19,7 @@ using namespace llvm;
 NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
                                         ProgramInfo &PI, ASTContext *C) {
   const Type *Ty = NULL;
-  if (VarDecl *VD = dyn_cast<VarDecl>(D))
+  /*if (VarDecl *VD = dyn_cast<VarDecl>(D))
     Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
   else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
     Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
@@ -122,8 +122,8 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
   }
 
   assert(T != NULL);
-  assert(T->ReferentTyp != NULL || T->getKind() == N_BaseNonPointer);
-  return T;
+  assert(T->ReferentTyp != NULL || T->getKind() == N_BaseNonPointer);*/
+  return NULL;
 }
 
 std::string BaseNonPointerTyp::mkStr() {
