@@ -17,13 +17,13 @@ void ProgramInfo::print(raw_ostream &O) const {
   O << "\n";
 
   O << "Constraint Variables\n";
-  for (const auto &I : PersistentRVariables) {
+  /*for (const auto &I : PersistentRVariables) {
     VarAtom *V = CS.getVar(I.first);
     V->print(O);
     O << "=>";
     I.second.print(O);
     O << "\n";
-  }
+  }*/
 
   return;
 }
@@ -34,7 +34,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   Constraints::EnvironmentMap env = CS.getVariables();
 
   // First, build the map and perform the aggregation.
-  for (const auto &I : PersistentRVariables) {
+  /*for (const auto &I : PersistentRVariables) {
     const std::string fileName = I.second.getFileName();
     if (F.count(fileName)) {
       int varC = 0;
@@ -71,7 +71,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
 
       filesToVars[fileName] = std::tuple<int, int, int, int>(varC, pC, aC, wC);
     }
-  }
+  }*/
 
   // Then, dump the map to output.
 
@@ -84,7 +84,8 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   }
 }
 
-bool ProgramInfo::checkStructuralEquality(uint32_t V, uint32_t U) {
+bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable*> V, 
+                                          std::set<ConstraintVariable*> U) {
   // TODO: implement structural equality checking.
   return false;
 }
@@ -300,8 +301,8 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
   assert(persisted == true);
   // Get a set of all of the PersistentSourceLoc's we need to fill in
   std::set<PersistentSourceLoc> P;
-  for (auto I : PersistentVariables)
-    P.insert(I.first);
+  //for (auto I : PersistentVariables)
+  //  P.insert(I.first);
 
   // Resolve the PersistentSourceLoc to one of Decl,Stmt,Type.
   MappingVisitor V(P, Context);
@@ -315,7 +316,7 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
     PSLtoDecl = res.first;
 
   // Re-populate Variables.
-  assert(Variables.empty());
+  /*assert(Variables.empty());
   for (auto I : PersistentVariables) {
     PersistentSourceLoc PL = I.first;
     uint32_t V = I.second;
@@ -363,7 +364,7 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
       assert(D != NULL);
       DepthMap[D] = V;
     }
-  }
+  }*/
 
   // Re-populate VarDeclToStatement.
   VarDeclToStatement = res.second;
@@ -377,10 +378,10 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
 // should all be empty.
 void ProgramInfo::exitCompilationUnit() {
   assert(persisted == false);
-  Variables.clear();
+  //Variables.clear();
   VarDeclToStatement.clear();
-  RVariables.clear();
-  DepthMap.clear();
+  //RVariables.clear();
+  //DepthMap.clear();
   persisted = true;
   return;
 }
@@ -391,11 +392,19 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
   assert(persisted == false);
   PersistentSourceLoc PLoc = 
     PersistentSourceLoc::mkPSL(D, *C);
-
   assert(PLoc.valid());
 
+  // What is the nature of the constraint that we should be adding? This is 
+  // driven by the type of Decl. 
+  //  - Decl is a pointer-type VariableDecl - we will add a PVConstraint
+  //  - Decl has type Function - we will add a FVConstraint
+  //  If Decl is both, then we add both. If it has neither, then we add
+  //  neither.
+
+  return false;
+
   // Check if we already have this Decl.
-  if (Variables.find(D) == Variables.end()) {
+  /*if (Variables.find(D) == Variables.end()) {
     std::map<PersistentSourceLoc, uint32_t>::iterator Itmp = 
       PersistentVariables.find(PLoc);
     // We don't have the Decl in Variables, but we DO have the Decl in the
@@ -460,7 +469,7 @@ bool ProgramInfo::addVariable(Decl *D, DeclStmt *St, ASTContext *C) {
   } else {
     assert(PersistentVariables.find(PLoc) != PersistentVariables.end());
     return false;
-  }
+  }*/
 }
 
 bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
@@ -471,42 +480,6 @@ bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
     return true;
   } else
     return false;
-}
-
-ConstraintVariable *
-ProgramInfo::declHelper(Decl *D, ASTContext *C) {
-  PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(D, *C);
-  assert(PSL.valid());
-
-  VariableMap::iterator I = Variables.find(D);
-  std::map<PersistentSourceLoc, uint32_t>::iterator IN =
-    PersistentVariables.find(PSL);
-
-  if (I != Variables.end()) {
-    assert(IN != PersistentVariables.end());
-    DeclMap::iterator DI = DepthMap.find(D);
-    assert(DI != DepthMap.end());
-    //V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
-    //  (I->second, I->second, DI->second));
-    return nullptr;
-  }
-  else {
-    // TODO: Also check if IN != end(), if it doesn't, then give back
-    //       that variable as well. This is the case where the variable
-    //       naming scheme is confused, but all of the confused variables
-    //       should alias.
-    if (IN != PersistentVariables.end()) {
-      uint32_t var = IN->second;
-      Decl *dl = getDecl(var);
-      DeclMap::iterator DI = DepthMap.find(dl);
-      assert(DI != DepthMap.end());
-      //V.insert(std::tuple<uint32_t, uint32_t, uint32_t>
-      //  (var, var, DI->second));
-      return nullptr;
-    } else {
-      return nullptr;
-    }
-  }
 }
 
 // This is a bit of a hack. What we need to do is traverse the AST in a
@@ -528,17 +501,9 @@ std::set<ConstraintVariable *>
 ProgramInfo::getVariableHelper(Expr *E, 
   std::set<ConstraintVariable *> V, ASTContext *C) {
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-    std::set<ConstraintVariable*> T;
-    ConstraintVariable *W = declHelper(DRE->getDecl(), C);
-    if (W)
-      T.insert(W);
-    return T;
+    return getVariable(DRE->getDecl(), C);
   } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
-    std::set<ConstraintVariable*> T;
-    ConstraintVariable *W = declHelper(ME->getMemberDecl(), C);
-    if (W)
-      T.insert(W);
-    return T;
+    return getVariable(ME->getMemberDecl(), C);
   } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
     std::set<ConstraintVariable*> T1 = getVariableHelper(BO->getLHS(), V, C);
     std::set<ConstraintVariable*> T2 = getVariableHelper(BO->getRHS(), V, C);
@@ -548,41 +513,25 @@ ProgramInfo::getVariableHelper(Expr *E,
     std::set<ConstraintVariable *> T = 
       getVariableHelper(UO->getSubExpr(), V, C);
     std::set<ConstraintVariable*> updt;
-
+    std::set<ConstraintVariable*> tmp;
     if (UO->getOpcode() == UO_Deref) {
       for (const auto &CV : T) {
         if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
-
+          // Subtract one from this constraint. If that generates an empty 
+          // constraint, then, don't add it 
+          std::set<uint32_t> C = PVC->getCvars();
+          assert(C.size() > 0);
+          C.erase(C.begin());
+          if (C.size() > 0)
+            T.insert(new PVConstraint(C));
         } else {
           llvm_unreachable("Shouldn't dereference a function pointer!");
         }
       }
     }
+    T.swap(tmp);
 
     return T;
-    /*if (getVariableHelper(UO->getSubExpr(), V, C)) {
-      if (UO->getOpcode() == UO_Deref) {
-        bool b = true;
-        std::set< std::tuple<uint32_t, uint32_t, uint32_t> > R;
-
-        for (std::set< std::tuple<uint32_t, uint32_t, uint32_t> >::iterator I =
-          V.begin(); I != V.end(); ++I)
-        {
-          uint32_t curVar, baseVar, limVar;
-          std::tie(curVar, baseVar, limVar) = *I;
-          uint32_t tmpVar = curVar + 1;
-          R.insert(std::tuple<uint32_t, uint32_t, uint32_t>
-            (tmpVar, baseVar, limVar));
-          b &= (tmpVar >= baseVar && tmpVar < limVar);
-        }
-
-        V.swap(R);
-        return b;
-      } 
-      // TODO: Should UO_AddrOf be handled here too?
-      return true;
-    }
-    return false;*/
   } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
     return getVariableHelper(IE->getSubExpr(), V, C);
   } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
@@ -591,8 +540,6 @@ ProgramInfo::getVariableHelper(Expr *E,
     return getVariableHelper(CE->getCallee(), V, C);
   } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     // Explore the three exprs individually.
-    // TODO: Do we need to give these three sub-explorations their own sets
-    //       and merge them at this point? Yes. Yes we do. 
     std::set<ConstraintVariable*> T;
     std::set<ConstraintVariable*> R;
     T = getVariableHelper(CO->getCond(), V, C);
@@ -603,82 +550,26 @@ ProgramInfo::getVariableHelper(Expr *E,
     R.insert(T.begin(), T.end());
     return R;
   } else {
-    std::set<ConstraintVariable*> R;
-    return R;
+    return std::set<ConstraintVariable*>();
   }
-}
-
-// Given some expression E, what is the top-most constraint variable that
-// E refers to? It could be none, in which case V is empty. Otherwise, V 
-// contains the constraint variable(s) that E refers to.
-/*void ProgramInfo::getVariable(Expr *E, std::set<uint32_t> &V, ASTContext *C) {
- 
-  if (!E)
-    return;
-
-  std::set<std::tuple<uint32_t, uint32_t, uint32_t> > VandDepth;
-  if (getVariableHelper(E, VandDepth, C)) {
-    for (auto I : VandDepth) {
-      uint32_t var, base, lim;
-      std::tie(var, base, lim) = I;
-      for (; var < lim; var++)
-        V.insert(var);
-    }
-    return;
-  }
-
-  return;
 }
 
 // Given a decl, return the variables for the constraints of the Decl.
-void ProgramInfo::getVariable(Decl *D, std::set<uint32_t> &V, ASTContext *C) {
-  
-  if (!D)
-    return;
-
-  auto I = DepthMap.find(D);
-  auto J = Variables.find(D);
-  if (I != DepthMap.end() && J != Variables.end()) {
-    uint32_t baseVar = J->second;
-    uint32_t limVar = I->second;
-    for (; baseVar < limVar; baseVar++) 
-      V.insert(baseVar);
-  }
-
-  return;
-}*/
-
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(Decl *D, ASTContext *C) {
   assert(persisted == false);
-  ConstraintVariable *V = NULL;
 
-  std::set<ConstraintVariable*> R;
-
-  return R;
+  return Variables[PersistentSourceLoc::mkPSL(D, *C)];
 }
-
+// Given some expression E, what is the top-most constraint variable that
+// E refers to? It could be none, in which case the returned set is empty. 
+// Otherwise, the returned setcontains the constraint variable(s) that E 
+// refers to.
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(Expr *E, ASTContext *C) {
   assert(persisted == false);
-  ConstraintVariable *V = NULL;
 
-  std::set<ConstraintVariable*> R;
-
-  return R;
-}
-
-// Given a constraint variable identifier K, find the Decl that
-// corresponds to that variable. Note that multiple constraint
-// variables map to a single decl, as in the case of
-// int **b; for example. In this case, there would be two variables
-// for that Decl, read out like int * q_0 * q_1 b;
-// Returns NULL if there is no Decl for that varabiel.
-Decl *ProgramInfo::getDecl(uint32_t K) {
-  assert(persisted == false);
-  auto I = RVariables.find(K);
-  if (I == RVariables.end())
-    return NULL;
-
-  return I->second;
+  // Get the constraint variables represented by this Expr
+  std::set<ConstraintVariable*> T;
+  return getVariableHelper(E, T, C);
 }
