@@ -130,7 +130,8 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
 
           for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
                toRewrite = toRewrite->getPreviousDecl()) {
-            if (parmIndex < toRewrite->getNumParams()) {
+            int U = toRewrite->getNumParams();
+            if (parmIndex < U) {
               // TODO these declarations could get us into deeper header files.
               ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
               assert(Rewrite != NULL);

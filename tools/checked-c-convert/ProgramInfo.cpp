@@ -12,13 +12,21 @@
 using namespace clang;
 using namespace llvm;
 
+static
+std::string
+tyToStr(const Type *T) {
+  QualType QT(T, 0);
+
+  return QT.getAsString();
+}
+
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS) :
   PointerVariableConstraint(D->getType().getTypePtr(), K, CS) { }
 
 PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   uint32_t &K, Constraints &CS) :
-  ConstraintVariable(ConstraintVariable::PointerVariable, _Ty)
+  ConstraintVariable(ConstraintVariable::PointerVariable, tyToStr(_Ty))
 {
   const Type *Ty = nullptr;
   for (Ty = _Ty;
@@ -40,7 +48,8 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   Ty->dump();
   errs() << "\n";
 
-  BaseType = Ty;
+  BaseType = tyToStr(Ty);
+  
 }
 
 std::string
@@ -65,9 +74,8 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
         s = s + "*";
       } else {
         assert(BaseType != nullptr);
-        QualType QT(BaseType,0);
         emittedBase = true;
-        s = s + QT.getAsString() + "*";
+        s = s + BaseType + "*";
       }
       break;
     case Atom::A_Const:
@@ -76,11 +84,9 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
       break;
     }
   }
-  errs() << "mkString base type dump\n";
-  BaseType->dump();
-  errs() << "\n";
-  QualType QT(BaseType, 0);
-  s = s + QT.getAsString();
+
+  if(emittedBase == false)
+    s = s + BaseType;
 
   for (unsigned i = 0; i < caratsToAdd; i++) {
     s = s + ">";
@@ -95,7 +101,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     uint32_t &K, Constraints &CS) :
-  ConstraintVariable(ConstraintVariable::FunctionVariable, Ty)
+  ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty))
 {
   const Type *returnType;
   std::vector<const Type*> paramTypes;
