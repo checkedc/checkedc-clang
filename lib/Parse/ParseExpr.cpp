@@ -2757,12 +2757,11 @@ bool Parser::StartsBoundsExpression(Token &tok) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
     return (Ident == Ident_byte_count || Ident == Ident_count ||
             Ident == Ident_bounds);
-  } else
-   // We lump interop bounds annotations in with bounds expressions.
-   return StartsInteropTypeBoundsAnnotation(tok);
+  }
+  return false;
 }
 
-bool Parser::StartsInteropTypeBoundsAnnotation(Token &tok) {
+bool Parser::StartsInteropTypeAnnotation(Token &tok) {
   switch (tok.getKind()) {
     case tok::kw__Ptr:
     case tok::kw__Array_ptr:
@@ -2772,15 +2771,32 @@ bool Parser::StartsInteropTypeBoundsAnnotation(Token &tok) {
   }
 }
 
-ExprResult Parser::ParseBoundsExpression() {
-  if (StartsInteropTypeBoundsAnnotation(Tok)) {
+ExprResult Parser::ParseInteropTypeAnnotation() {
+  if (StartsInteropTypeAnnotation(Tok)) {
     TypeResult Ty = ParseTypeName();
     if (Ty.isInvalid())
       return ExprError();
     return Actions.ActOnBoundsInteropType(Ty.get());
   }
 
-  if (Tok.getKind() != tok::identifier) {
+  Diag(Tok, diag::err_expected_bounds_interop_type);
+  return ExprError();
+}
+
+ExprResult Parser::ParseBoundsExpressionOrInteropType() {
+  if (StartsBoundsExpression(Tok))
+    return ParseBoundsExpression();
+
+  if (StartsInteropTypeAnnotation(Tok))
+    return ParseInteropTypeAnnotation();
+
+  Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
+  return ExprError();
+}
+
+ExprResult Parser::ParseBoundsExpression() {
+  tok::TokenKind TokKind = Tok.getKind();
+  if (TokKind != tok::identifier) {
     // This can't be a contextual keyword that begins a bounds expression,
     // so stop now.
     Diag(Tok, diag::err_expected_bounds_expr);

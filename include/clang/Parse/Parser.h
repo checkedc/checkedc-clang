@@ -1657,13 +1657,15 @@ private:
 
   /// \brief Return true if this token can start a bounds expression.
   bool StartsBoundsExpression(Token &Tok);
-  /// \brief Return true if this token can start a interop type bounds
-  /// annotation.
-  bool StartsInteropTypeBoundsAnnotation(Token &tok);
+  /// \brief Return true if this token can start a bounds-safe interface
+  /// type annotation.
+  bool StartsInteropTypeAnnotation(Token &tok);
+
   ExprResult ParseBoundsExpression();
+  ExprResult ParseInteropTypeAnnotation();
+  ExprResult ParseBoundsExpressionOrInteropType();
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
   ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks);
-
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
