@@ -417,26 +417,27 @@ public:
       errs() << "to rewrite ";
       PLoc.dump();
       errs() << "\n";
-      if (S)
-        S->dump();
-      if (D)
+      //if (S)
+        //S->dump();
+      if (D) {
         D->dump();
-      if (T)
-        T->dump();
-    }
-    /*for (const auto &V : Info.getVarMap()) {
-      Decl *J = V.first;
-      DeclStmt *K = NULL;
-      Info.getDeclStmtForDecl(J, K);
+        for (const auto &V : Vars)
+          errs() << "re-writing as " << V->mkString(Info.getConstraints().getVariables()) << "\n";
 
-      NewTyp *NT = NewTyp::mkTypForConstrainedType(J, K, Info, &Context);
-      if (NT)
-        rewriteThese.insert(NT);
-    }*/
+        /*DeclStmt *K = nullptr;
+        Info.getDeclStmtForDecl(D, K);
+        NewTyp *NT = NewTyp::mkTypForConstrainedType(D, K, Info, &Context);
+        if (NT)
+          rewriteThese.insert(NT);*/
+      }
+      //if (T)
+        //T->dump();
+    }
 
     Rewriter R(Context.getSourceManager(), Context.getLangOpts());
     std::set<FileID> Files;
-    rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
+
+    //rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
 
     // Output files.
     emit(R, Context, Files, InOutFiles);

@@ -111,8 +111,15 @@ public:
 
 private:
   ConstraintVariableKind Kind;
+protected:
+  const clang::Type *BaseType;
 public:
-  ConstraintVariable(ConstraintVariableKind K) : Kind(K) {}
+  ConstraintVariable(ConstraintVariableKind K, const clang::Type *T) : 
+    Kind(K),BaseType(T) {}
+
+  virtual std::string mkString(Constraints::EnvironmentMap &E) = 0;
+
+  const clang::Type *getTy() { return BaseType; }
 };
 
 class PointerVariableConstraint;
@@ -122,8 +129,8 @@ class PointerVariableConstraint : public ConstraintVariable {
 private:
   CVars vars;
 public:
-  PointerVariableConstraint(CVars V) : 
-    ConstraintVariable(PointerVariable),vars(V) {}
+  PointerVariableConstraint(CVars V, const clang::Type *T) : 
+    ConstraintVariable(PointerVariable, T),vars(V) {}
   PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS);
   PointerVariableConstraint(const clang::Type *Ty, uint32_t &K,
@@ -134,6 +141,8 @@ public:
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == PointerVariable;
   }
+
+  std::string mkString(Constraints::EnvironmentMap &E);
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -144,8 +153,8 @@ private:
   std::vector<std::set<ConstraintVariable*>> paramVars;
 public:
   FunctionVariableConstraint(std::set<ConstraintVariable*> R, 
-    std::vector<std::set<ConstraintVariable*>> P) :
-    ConstraintVariable(FunctionVariable), returnVars(R), paramVars(P) { }
+    std::vector<std::set<ConstraintVariable*>> P, const clang::Type *T) :
+    ConstraintVariable(FunctionVariable, T), returnVars(R), paramVars(P) { }
   FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS);
   FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
@@ -165,6 +174,8 @@ public:
     assert(i < paramVars.size());
     return paramVars.at(i);
   }
+
+  std::string mkString(Constraints::EnvironmentMap &E);
 };
 
 typedef FunctionVariableConstraint FVConstraint;

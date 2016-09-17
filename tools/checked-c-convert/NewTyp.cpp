@@ -16,9 +16,29 @@ using namespace llvm;
 // might be re-written. The NewTyp data structure is needed because the
 // replacement of the type declaration in the original source code needs
 // to be done all at once via the Rewriter.
-NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
-                                        ProgramInfo &PI, ASTContext *C) {
-  const Type *Ty = NULL;
+ 
+NewTyp *
+NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
+  std::set<ConstraintVariable*> &V) {
+  FVConstraint *F = nullptr;
+  PVConstraint *P = nullptr;
+  assert(V.size() == 1 || V.size() == 2);
+  for (const auto &I : V)
+    if (FVConstraint *T = dyn_cast<FVConstraint>(I))
+      F = T;
+    else if (PVConstraint *T = dyn_cast<PVConstraint>(I))
+      P = T;
+
+  if (P) {
+
+  }
+
+  return nullptr;
+}
+//NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
+//                                        ProgramInfo &PI, ASTContext *C) {
+//  const Type *Ty = NULL;
+
   /*if (VarDecl *VD = dyn_cast<VarDecl>(D))
     Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
   else if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
@@ -123,8 +143,8 @@ NewTyp *NewTyp::mkTypForConstrainedType(Decl *D, DeclStmt *K,
 
   assert(T != NULL);
   assert(T->ReferentTyp != NULL || T->getKind() == N_BaseNonPointer);*/
-  return NULL;
-}
+//  return NULL;
+//}
 
 std::string BaseNonPointerTyp::mkStr() {
   return T.getUnqualifiedType().getAsString();

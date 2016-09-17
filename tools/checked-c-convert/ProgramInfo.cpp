@@ -18,9 +18,10 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
 
 PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   uint32_t &K, Constraints &CS) :
-  ConstraintVariable(ConstraintVariable::PointerVariable)
+  ConstraintVariable(ConstraintVariable::PointerVariable, _Ty)
 {
-  for (const Type *Ty = _Ty;
+  const Type *Ty = nullptr;
+  for (Ty = _Ty;
     Ty->isPointerType();
     Ty = getNextTy(Ty))
   {
@@ -34,6 +35,58 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
     CS.getOrCreateVar(K);
     K++;
   }
+
+  errs() << "construct ty is\n";
+  Ty->dump();
+  errs() << "\n";
+
+  BaseType = Ty;
+}
+
+std::string
+PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
+  std::string s = "";
+  unsigned caratsToAdd = 0;
+  bool emittedBase = false;
+  for (const auto &V : vars) {
+    VarAtom VA(V);
+    ConstAtom *C = E[&VA];
+    assert(C != nullptr);
+
+    switch (C->getKind()) {
+    case Atom::A_Ptr:
+      emittedBase = false;
+      s = "_ptr<";
+      caratsToAdd++;
+      break;
+    case Atom::A_Arr:
+    case Atom::A_Wild:
+      if (emittedBase) {
+        s = s + "*";
+      } else {
+        assert(BaseType != nullptr);
+        QualType QT(BaseType,0);
+        emittedBase = true;
+        s = s + QT.getAsString() + "*";
+      }
+      break;
+    case Atom::A_Const:
+    case Atom::A_Var:
+      llvm_unreachable("impossible");
+      break;
+    }
+  }
+  errs() << "mkString base type dump\n";
+  BaseType->dump();
+  errs() << "\n";
+  QualType QT(BaseType, 0);
+  s = s + QT.getAsString();
+
+  for (unsigned i = 0; i < caratsToAdd; i++) {
+    s = s + ">";
+  }
+
+  return s;
 }
 
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
@@ -42,7 +95,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     uint32_t &K, Constraints &CS) :
-  ConstraintVariable(ConstraintVariable::FunctionVariable)
+  ConstraintVariable(ConstraintVariable::FunctionVariable, Ty)
 {
   const Type *returnType;
   std::vector<const Type*> paramTypes;
@@ -56,6 +109,19 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   } else {
     llvm_unreachable("don't know what to do");
   }
+}
+
+std::string
+FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
+  /*if (BaseType->isFunctionPointerType()) {
+
+  } else if (getTy()->isFunctionType()) {
+
+  } else {
+    llvm_unreachable("unknown type");
+  }*/
+
+  return "";
 }
 
 void ProgramInfo::print(raw_ostream &O) const {
@@ -496,7 +562,7 @@ ProgramInfo::getVariableHelper(Expr *E,
           assert(C.size() > 0);
           C.erase(C.begin());
           if (C.size() > 0)
-            T.insert(new PVConstraint(C));
+            T.insert(new PVConstraint(C, PVC->getTy()));
         } else {
           llvm_unreachable("Shouldn't dereference a function pointer!");
         }
