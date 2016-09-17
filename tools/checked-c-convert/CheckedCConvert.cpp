@@ -84,25 +84,28 @@ bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
 
+typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
+typedef std::pair<DeclNStmt, std::string> DAndReplace;
+
 // Visit each Decl in toRewrite and apply the appropriate pointer type
 // to that Decl. The state of the rewrite is contained within R, which
 // is both input and output. R is initialized to point to the 'main'
 // source file for this transformation. toRewrite contains the set of
 // declarations to rewrite. S is passed for source-level information
 // about the current compilation unit.
-void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
+void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
              ASTContext &A, std::set<FileID> &Files) {
-  std::set<NewTyp *> skip;
+  std::set<DAndReplace> skip;
 
   if (Verbose)
     errs() << "Rewriting\n";
 
   for (const auto &N : toRewrite) {
-    if (N->anyChanges() == false)
-      continue;
-
-    Decl *D = N->getDecl();
-    DeclStmt *Where = N->getWhere();
+    //if (N->anyChanges() == false)
+      //continue;
+    DeclNStmt DN = N.first;
+    Decl *D = DN.first;
+    DeclStmt *Where = DN.second;
 
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == NULL);
@@ -144,7 +147,7 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
                 FullSourceLoc FSL(TR.getBegin(), S);
                 Files.insert(FSL.getFileID());
                 if (canRewrite(R, TR))
-                  R.ReplaceText(TR, N->mkStr());
+                  R.ReplaceText(TR, N.second);
               }
               else {
                 if (Verbose) {
@@ -172,7 +175,7 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
         FullSourceLoc FSL(TR.getBegin(), S);
         Files.insert(FSL.getFileID());
         if (Where->isSingleDecl() && canRewrite(R, TR))
-          R.ReplaceText(TR, N->mkStr());
+          R.ReplaceText(TR, N.second);
         else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
           // Hack time!
           // Sometimes, like in the case of a decl on a single line, we'll need to
@@ -182,11 +185,12 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
           // we don't want to process twice. We'll skip them here.
 
           // Step 1: get the re-written types.
-          std::set<NewTyp *> rewritesForThisDecl;
+          std::set<DAndReplace> rewritesForThisDecl;
           auto I = toRewrite.find(N);
           while (I != toRewrite.end()) {
-            NewTyp *tmp = *I;
-            if (tmp->getWhere() == Where)
+            //NewTyp *tmp = *I;
+            DAndReplace tmp = *I;
+            if (tmp.first.second == Where)
               rewritesForThisDecl.insert(tmp);
             ++I;
           }
@@ -201,18 +205,20 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
           std::string newMultiLineDeclS = "";
           raw_string_ostream newMLDecl(newMultiLineDeclS);
           for (const auto &DL : Where->decls()) {
-            NewTyp *N = NULL;
+            DAndReplace N;
+            bool found = false;
             VarDecl *VDL = dyn_cast<VarDecl>(DL);
             assert(VDL != NULL);
 
             for (const auto &NLT : rewritesForThisDecl)
-              if (NLT->getDecl() == DL) {
+              if (NLT.first.first == DL) {
                 N = NLT;
+                found = true;
                 break;
               }
 
-            if (N) {
-              newMLDecl << N->mkStr();
+            if (found) {
+              newMLDecl << N.second;
               newMLDecl << " " << VDL->getNameAsString();
               if (Expr *E = VDL->getInit()) {
                 newMLDecl << " = ";
@@ -253,12 +259,12 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
       //       so don't.
       SourceRange SR = UD->getReturnTypeSourceRange();
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, N->mkStr());
+        R.ReplaceText(SR, N.second);
     }
     else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, N->mkStr());
+        R.ReplaceText(SR, N.second);
     }
   }
 }
@@ -395,7 +401,7 @@ public:
 
     std::tie(PSLMap, VDLToStmtMap) = V.getResults();
 
-    std::set<NewTyp *> rewriteThese;
+    std::set<DAndReplace> rewriteThese;
     for (const auto &V : Info.getVarMap()) {
       PersistentSourceLoc PLoc = V.first;
       std::set<ConstraintVariable*> Vars = V.second;
@@ -411,6 +417,7 @@ public:
 
       Stmt *S = nullptr;
       Decl *D = nullptr;
+      DeclStmt *DS = nullptr;
       Type *T = nullptr;
 
       std::tie(S, D, T) = PSLMap[PLoc];
@@ -421,9 +428,22 @@ public:
       //if (S)
         //S->dump();
       if (D) {
-        D->dump();
+        // We might have one Decl for multiple Vars, however, one will be a 
+        // PointerVar so we'll use that.
+        PVConstraint *PV = nullptr; 
+        FVConstraint *FV = nullptr;
         for (const auto &V : Vars)
-          errs() << "re-writing as " << V->mkString(Info.getConstraints().getVariables()) << "\n";
+          if(PVConstraint *T = dyn_cast<PVConstraint>(V))
+            PV = T;
+          else if(FVConstraint *T = dyn_cast<FVConstraint>(V))
+            FV = T;
+        VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
+        if(K != VDLToStmtMap.end())
+          DS = K->second;
+        if(PV) {
+          std::string newTy = PV->mkString(Info.getConstraints().getVariables());
+          rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
+        }
 
         /*DeclStmt *K = nullptr;
         Info.getDeclStmtForDecl(D, K);
@@ -438,7 +458,7 @@ public:
     Rewriter R(Context.getSourceManager(), Context.getLangOpts());
     std::set<FileID> Files;
 
-    //rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
+    rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
 
     // Output files.
     emit(R, Context, Files, InOutFiles);
