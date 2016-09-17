@@ -2361,7 +2361,7 @@ public:
     return getSema().ActOnRangeBoundsExpr(StartLoc, Lower, Upper, RParenLoc);
   }
 
-  ExprResult RebuildInteropTypeBoundsExpr(ParsedType ParsedTy) {
+  ExprResult RebuildInteropTypeBoundsAnnot(ParsedType ParsedTy) {
     return getSema().ActOnBoundsInteropType(ParsedTy);
   }
 
@@ -11541,7 +11541,7 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
 
 template<typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformInteropTypeBoundsExpr(InteropTypeBoundsExpr *E) {
+TreeTransform<Derived>::TransformInteropTypeBoundsAnnot(InteropTypeBoundsAnnot *E) {
   return E;
 }
 

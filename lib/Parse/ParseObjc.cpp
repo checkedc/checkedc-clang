@@ -1985,7 +1985,7 @@ void Parser::ParseObjCClassInstanceVariables(Decl *interfaceDecl,
       // BoundsExprTokens and BoundsAnnotations are used only for Checked C.  
       // They should be null here.
       assert(FD.BoundsExprTokens == nullptr);
-      assert(FD.BitfieldSize == nullptr);
+      assert(FD.BoundsAnnotation == nullptr);
       Actions.ActOnObjCContainerStartDefinition(interfaceDecl);
       // Install the declarator into the interface decl.
       FD.D.setObjCIvar(true);

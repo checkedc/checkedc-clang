@@ -1872,7 +1872,7 @@ void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
   OS << ")";
 }
 
-void StmtPrinter::VisitInteropTypeBoundsExpr(InteropTypeBoundsExpr *Node) {
+void StmtPrinter::VisitInteropTypeBoundsAnnot(InteropTypeBoundsAnnot *Node) {
   switch (Node->getKind()) {
   case BoundsExpr::Invalid:
     OS << "invalid_interoptype";

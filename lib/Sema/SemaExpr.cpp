@@ -12298,7 +12298,7 @@ ExprResult Sema::ActOnBoundsInteropType(ParsedType ParsedTy) {
   QualType QT = TypeInfo->getType();
   assert(QT->isCheckedPointerType());
   TypeLoc Loc = TypeInfo->getTypeLoc();
-  return new (Context) InteropTypeBoundsExpr(QT, Loc.getBeginLoc(),
+  return new (Context) InteropTypeBoundsAnnot(QT, Loc.getBeginLoc(),
                                              Loc.getEndLoc(), TypeInfo);
 }
 

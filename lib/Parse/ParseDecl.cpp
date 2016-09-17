@@ -3688,8 +3688,8 @@ void Parser::ParseStructDeclaration(
         if (BoundsResult.isInvalid())
           SkipUntil(tok::semi, StopBeforeMatch);
         else {
-          InteropTypeBoundsExpr *BoundsAnnotation =
-            dyn_cast<InteropTypeBoundsExpr>(BoundsResult.get());
+          InteropTypeBoundsAnnot *BoundsAnnotation =
+            dyn_cast<InteropTypeBoundsAnnot>(BoundsResult.get());
           assert(BoundsAnnotation && "dyn_cast failed");
           if (BoundsAnnotation)
             DeclaratorInfo.BoundsAnnotation = BoundsAnnotation;

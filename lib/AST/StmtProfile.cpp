@@ -1011,7 +1011,7 @@ void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
   ID.AddInteger(S->getKind());
 }
 
-void StmtProfiler::VisitInteropTypeBoundsExpr(const InteropTypeBoundsExpr *S) {
+void StmtProfiler::VisitInteropTypeBoundsAnnot(const InteropTypeBoundsAnnot *S) {
   VisitExpr(S);
   ID.AddInteger(S->getKind());
 }

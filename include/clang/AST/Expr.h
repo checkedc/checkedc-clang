@@ -4695,22 +4695,21 @@ public:
 ///  such as `int **y', where y could have a bounds-safe interface that
 /// is `ptr<ptr<int>>` or `array_ptr<ptr<int>>`.
 ///
-/// This is not a bounds expression.  Because we typically need bounds-safe
-/// interface information at the same points where we would need bounds
-/// information, so it is convenient to store the information as a bounds
-/// expression.  
-class InteropTypeBoundsExpr : public BoundsExpr {
+/// We typically need bounds-safe interface information at the same points
+/// where we need bounds information, so it is convenient to store the
+/// information as a bounds expression.
+class InteropTypeBoundsAnnot : public BoundsExpr {
 private:
   TypeSourceInfo *TIInfo;
 public:
-  InteropTypeBoundsExpr(QualType Ty, SourceLocation StartLoc,
+  InteropTypeBoundsAnnot(QualType Ty, SourceLocation StartLoc,
                         SourceLocation EndLoc, TypeSourceInfo *tyAsWritten)
-    : BoundsExpr(InteropTypeBoundsExprClass, Ty, InteropTypeAnnotation,
+    : BoundsExpr(InteropTypeBoundsAnnotClass, Ty, InteropTypeAnnotation,
                  StartLoc, EndLoc), TIInfo(tyAsWritten) {
   }
 
-  explicit InteropTypeBoundsExpr(EmptyShell Empty)
-    : BoundsExpr(InteropTypeBoundsExprClass, Empty) {}
+  explicit InteropTypeBoundsAnnot(EmptyShell Empty)
+    : BoundsExpr(InteropTypeBoundsAnnotClass, Empty) {}
 
   /// getTypeInfoAsWritten - Returns the type source info for the type
   /// in the interop annotaiton
@@ -4722,7 +4721,7 @@ public:
   QualType getTypeAsWritten() const { return TIInfo->getType(); }
 
   static bool classof(const Stmt *T) {
-    return T->getStmtClass() == InteropTypeBoundsExprClass;
+    return T->getStmtClass() == InteropTypeBoundsAnnotClass;
   }
 
   // Iterators
