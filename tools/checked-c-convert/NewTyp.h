@@ -33,8 +33,10 @@ public:
 
   // Given a set of solved constraints CS and a declaration D, produce a 
   // new checked C type 
+  //static NewTyp *mkTypForConstrainedType(clang::Decl *D,
+  //  clang::DeclStmt *K, ProgramInfo &PI, clang::ASTContext *C);
   static NewTyp *mkTypForConstrainedType(clang::Decl *D,
-    clang::DeclStmt *K, ProgramInfo &PI, clang::ASTContext *C);
+    clang::DeclStmt *K, std::set<ConstraintVariable*> &V);
 
   // Returns the C-formatted type declaration of the new type, suitable for 
   // insertion into the source code.
