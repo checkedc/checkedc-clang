@@ -118,6 +118,8 @@ public:
     Kind(K),BaseType(T) {}
 
   virtual std::string mkString(Constraints::EnvironmentMap &E) = 0;
+  virtual void print(llvm::raw_ostream &O) const = 0;
+  virtual void dump() const = 0;
 
   std::string getTy() { return BaseType; }
 };
@@ -146,6 +148,9 @@ public:
   std::string mkString(Constraints::EnvironmentMap &E);
 
   FunctionVariableConstraint *getFV() { return FV; }
+
+  void print(llvm::raw_ostream &O) const ;
+  void dump() const { print(llvm::errs()); }
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -154,6 +159,7 @@ class FunctionVariableConstraint : public ConstraintVariable {
 private:
   std::set<ConstraintVariable*> returnVars;
   std::vector<std::set<ConstraintVariable*>> paramVars;
+  std::string name;
 public:
   FunctionVariableConstraint(std::set<ConstraintVariable*> R, 
     std::vector<std::set<ConstraintVariable*>> P, std::string T) :
@@ -179,6 +185,8 @@ public:
   }
 
   std::string mkString(Constraints::EnvironmentMap &E);
+  void print(llvm::raw_ostream &O) const;
+  void dump() const { print(llvm::errs()); }
 };
 
 typedef FunctionVariableConstraint FVConstraint;
