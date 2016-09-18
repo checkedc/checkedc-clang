@@ -112,7 +112,7 @@ void constrainEq(std::set<ConstraintVariable*> &RHS,
   std::set<ConstraintVariable*> &LHS, ProgramInfo &Info) {
   for (const auto &I : RHS)
     for (const auto &J : LHS)
-      constrainEq(RHS, LHS, Info);
+      constrainEq(I, J, Info);
 }
 
 // This class visits functions and adds constraints to the
