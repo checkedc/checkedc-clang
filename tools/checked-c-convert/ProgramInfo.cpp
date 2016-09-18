@@ -532,15 +532,16 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   FVConstraint *F = nullptr;
   PVConstraint *P = nullptr;
   
-  if (Ty->isPointerType()) {
+  if (Ty->isPointerType()) 
     // Create a pointer value for the type.
     P = new PVConstraint(D, freeKey, CS);
-  }
 
-  if (Ty->isFunctionType() || Ty->isFunctionPointerType()) {
+  // Only create a function type if the type is a base Function type. The case
+  // for creating function pointers is handled above, with a PVConstraint that
+  // contains a FVConstraint.
+  if (Ty->isFunctionType()) 
     // Create a function value for the type.
     F = new FVConstraint(D, freeKey, CS);
-  }
 
   std::set<ConstraintVariable*> &S = Variables[PLoc];
   bool found = false;
@@ -558,6 +559,25 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
 
   if (found == false && P != nullptr)
     Variables[PLoc].insert(P);
+
+  // Did we create a function?
+  if (F) {
+    // If we did, then we need to add some additional stuff to Variables. 
+    //  * A mapping from the parameters PLoc to the constraint variables for
+    //    the parameters.
+    FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+    assert(FD != nullptr);
+    // We just created this, so they should be equal.
+    assert(FD->getNumParams() == F->numParams());
+    for (unsigned i = 0; i < FD->getNumParams(); i++) {
+      ParmVarDecl *PVD = FD->getParamDecl(i);
+      std::set<ConstraintVariable*> S = F->getParamVar(i); 
+      if (S.size()) {
+        PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(PVD, *C);
+        Variables[PSL].insert(S.begin(), S.end());
+      }
+    }
+  }
 
   return true;
 }
