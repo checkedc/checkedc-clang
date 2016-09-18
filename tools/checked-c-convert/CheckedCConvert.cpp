@@ -27,7 +27,6 @@
 #include "Constraints.h"
 
 #include "ConstraintBuilder.h"
-#include "NewTyp.h"
 #include "PersistentSourceLoc.h"
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
@@ -188,7 +187,6 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
           std::set<DAndReplace> rewritesForThisDecl;
           auto I = toRewrite.find(N);
           while (I != toRewrite.end()) {
-            //NewTyp *tmp = *I;
             DAndReplace tmp = *I;
             if (tmp.first.second == Where)
               rewritesForThisDecl.insert(tmp);
@@ -445,14 +443,7 @@ public:
           rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
         }
 
-        /*DeclStmt *K = nullptr;
-        Info.getDeclStmtForDecl(D, K);
-        NewTyp *NT = NewTyp::mkTypForConstrainedType(D, K, Info, &Context);
-        if (NT)
-          rewriteThese.insert(NT);*/
       }
-      //if (T)
-        //T->dump();
     }
 
     Rewriter R(Context.getSourceManager(), Context.getLangOpts());
