@@ -295,6 +295,8 @@ public:
           // Constrain ParameterEC to wild if it is a pointer type.
           llvm_unreachable("TODO");
         }
+
+        i++;
       }
     }
     
