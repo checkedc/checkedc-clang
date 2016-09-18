@@ -149,6 +149,23 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 }
 
+void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A) {
+  for (const auto &V : returnVars)
+    V->constrainTo(CS, A);
+
+  for (const auto &V : paramVars)
+    for (const auto &U : V)
+      U->constrainTo(CS, A);
+}
+
+void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A) {
+  for (const auto &V : vars)
+    CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
+
+  if (FV)
+    FV->constrainTo(CS, A);
+}
+
 void FunctionVariableConstraint::print(raw_ostream &O) const {
   O << "( ";
   for(const auto &I : returnVars)
@@ -266,13 +283,13 @@ bool ProgramInfo::link() {
 
   for (const auto &S : GlobalSymbols) {
     // First, extract out the function symbols from S. 
-    std::set<GlobalFunctionSymbol*> funcs;
+    /*std::set<GlobalFunctionSymbol*> funcs;
     std::set<GlobalVariableSymbol*> vars;
     for (const auto &U : S.second)
       if (GlobalFunctionSymbol *K = dyn_cast<GlobalFunctionSymbol>(U))
         funcs.insert(K);
       else if (GlobalVariableSymbol *V = dyn_cast<GlobalVariableSymbol>(U))
-        vars.insert(V);
+        vars.insert(V);*/
 
     // Then, iterate over each of the function symbols F1=F,F2=F+1 found for this 
     // symbol. What we want to do is for a sequence of constraint variables on
@@ -293,7 +310,7 @@ bool ProgramInfo::link() {
     // To do that, we need to get the constraints for each parmvar decl position
     // individually and set them equal.
     // individually and set them equal, pairwise. 
-    for (std::set<GlobalFunctionSymbol*>::iterator I = funcs.begin();
+    /*for (std::set<GlobalFunctionSymbol*>::iterator I = funcs.begin();
       I != funcs.end(); ++I) {
       std::set<GlobalFunctionSymbol*>::iterator J = I;
       J++;
@@ -373,14 +390,14 @@ bool ProgramInfo::link() {
                 CS.getOrCreateVar(V), CS.getWild()));
         }
       }
-    }
+    }*/
 
     // Do the same as above, but in a simpler case where we only need to 
     // constrain according to the type of the global variable. 
-    for (std::set<GlobalVariableSymbol*>::iterator I = vars.begin();
-      I != vars.end(); ++I) {
+    //for (std::set<GlobalVariableSymbol*>::iterator I = vars.begin();
+    //  I != vars.end(); ++I) {
 
-    }
+    //}
   }
 
   // For every global function that is an unresolved external, constrain 
@@ -390,20 +407,18 @@ bool ProgramInfo::link() {
     // everything about it.
     if (U.second == false) {
       std::string UnkSymbol = U.first;
-      std::map<std::string, std::set<GlobalSymbol*> >::iterator I =
+      std::map<std::string, std::set<FVConstraint*> >::iterator I =
         GlobalSymbols.find(UnkSymbol);
       assert(I != GlobalSymbols.end());
-      std::set<GlobalSymbol*> Gs = (*I).second;
+      const std::set<FVConstraint*> &Gs = (*I).second;
 
       for (const auto &G : Gs) {
-        if (GlobalFunctionSymbol *GFS = dyn_cast<GlobalFunctionSymbol>(G)) {
-          for (const auto &V : GFS->getReturns())
-            CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+        for(const auto &U : G->getReturnVars()) 
+          U->constrainTo(CS, CS.getWild());
 
-          for (const auto &U : GFS->getParams())
-            for (const auto &V : U)
-              CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
-        }
+        for(unsigned i = 0; i < G->numParams(); i++) 
+          for(const auto &U : G->getParamVar(i)) 
+            U->constrainTo(CS, CS.getWild());
       }
     }
   }
@@ -419,6 +434,25 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   std::string fn = F->getNameAsString();
   if (!ExternFunctions[fn])
     ExternFunctions[fn] = (F->isThisDeclarationADefinition() && F->hasBody());
+  
+  // Add this to the map of global symbols. 
+  std::set<FVConstraint*> toAdd;
+  std::set<ConstraintVariable*> K = getVariable(F, C);
+  for (const auto &J : K)
+    if(FVConstraint *FJ = dyn_cast<FVConstraint>(J))
+      toAdd.insert(FJ);
+
+  assert(toAdd.size() > 0);
+
+  std::map<std::string, std::set<FVConstraint*> >::iterator it = 
+    GlobalSymbols.find(fn);
+  
+  if (it == GlobalSymbols.end()) {
+    GlobalSymbols.insert(std::pair<std::string, std::set<FVConstraint*> >
+      (fn, toAdd));
+  } else {
+    (*it).second.insert(toAdd.begin(), toAdd.end());
+  }
 
   // Look up the constraint variables for the return type and parameter 
   // declarations of this function, if any.
@@ -649,7 +683,21 @@ ProgramInfo::getVariableHelper(Expr *E,
   } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
     // Here, we need to look up the target of the call and return the
     // constraints for the return value of that function.
-    llvm_unreachable("TODO");
+    Decl *D = CE->getCalleeDecl();
+    assert(D != nullptr);
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      std::set<ConstraintVariable*> CS = getVariable(FD, C);
+      std::set<ConstraintVariable*> TR;
+      FVConstraint *FVC = nullptr;
+      for (const auto &J : CS)
+        if (FVConstraint *tmp = dyn_cast<FVConstraint>(J))
+          FVC = tmp;
+      assert(FVC != nullptr); // Should have found a FVConstraint
+      TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
+      return TR;
+    } else {
+      llvm_unreachable("TODO");
+    }
     //return getVariableHelper(CE->getCallee(), V, C);
   } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     // Explore the three exprs individually.

@@ -89,19 +89,19 @@ void constrainEq(ConstraintVariable *RHS,
             ++I;
             ++J;
           }
-        }
-        else {
+        } else {
           // Constrain both to top.
           llvm_unreachable("TODO");
         }
-      }
-      else
+      } else
         llvm_unreachable("impossible");
-    }
-    else
+    } else
       llvm_unreachable("unknown kind");
-  }
-  else {
+  } else {
+    CRHS->dump();
+    errs() << "\n";
+    CLHS->dump();
+    errs() << "\n";
     // Constrain everything in both to top.
     llvm_unreachable("TODO");
   }

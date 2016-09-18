@@ -33,70 +33,6 @@
 #include "utils.h"
 #include "PersistentSourceLoc.h"
 
-// A helper class used to track global information in the program. 
-class GlobalSymbol {
-public:
-  enum GlobalSymbolKind {
-    Variable,
-    Function
-  };
-
-private:
-  GlobalSymbolKind Kind;
-  std::string Name;
-  PersistentSourceLoc Loc;
-public:
-  GlobalSymbol(GlobalSymbolKind K, std::string N, PersistentSourceLoc P) 
-    : Kind(K),Name(N),Loc(P) {} 
-  GlobalSymbolKind getKind() const { return Kind; }
-
-  bool operator<(const GlobalSymbol &O) const {
-    return Loc < O.Loc;
-  }
-
-  std::string getName() { return Name; }
-};
-
-class GlobalVariableSymbol : public GlobalSymbol {
-private:
-  std::set<uint32_t> ConstraintVars;
-public:
-  GlobalVariableSymbol(std::string N, PersistentSourceLoc P, 
-    std::set<uint32_t> S) 
-    : GlobalSymbol(Variable, N, P),ConstraintVars(S) {}
-
-  std::set<uint32_t> &getVars() {
-    return ConstraintVars;
-  }
-
-  static bool classof(const GlobalSymbol *S) {
-    return S->getKind() == Variable;
-  }
-};
-
-class GlobalFunctionSymbol : public GlobalSymbol {
-private:
-  std::vector<std::set<uint32_t> > ParameterConstraintVars;
-  std::set<uint32_t> ReturnConstraintVars;
-public:
-  GlobalFunctionSymbol(std::string N, PersistentSourceLoc P, 
-    std::vector<std::set<uint32_t> > S, std::set<uint32_t> R)
-    : GlobalSymbol(Function, N, P),ParameterConstraintVars(S),
-      ReturnConstraintVars(R) {}
-
-  std::vector<std::set<uint32_t> > &getParams() { 
-    return ParameterConstraintVars;  
-  }
-
-  std::set<uint32_t> &getReturns() {
-    return ReturnConstraintVars;
-  }
-
-  static bool classof(const GlobalSymbol *S) {
-    return S->getKind() == Function;
-  }
-};
-
 typedef std::set<uint32_t> CVars;
 
 // TODO: document what these three classes do.
@@ -120,6 +56,7 @@ public:
   virtual std::string mkString(Constraints::EnvironmentMap &E) = 0;
   virtual void print(llvm::raw_ostream &O) const = 0;
   virtual void dump() const = 0;
+  virtual void constrainTo(Constraints &CS, ConstAtom *C) = 0;
 
   std::string getTy() { return BaseType; }
 };
@@ -151,6 +88,7 @@ public:
 
   void print(llvm::raw_ostream &O) const ;
   void dump() const { print(llvm::errs()); }
+  void constrainTo(Constraints &CS, ConstAtom *C);
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -187,6 +125,7 @@ public:
   std::string mkString(Constraints::EnvironmentMap &E);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
+  void constrainTo(Constraints &CS, ConstAtom *C);
 };
 
 typedef FunctionVariableConstraint FVConstraint;
@@ -287,7 +226,7 @@ private:
   // names of external functions, the value is whether the body has been
   // seen before.
   std::map<std::string, bool> ExternFunctions;
-  std::map<std::string, std::set<GlobalSymbol*> > GlobalSymbols;
+  std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
 };
 
 #endif
