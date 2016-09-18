@@ -128,9 +128,10 @@ class FunctionVariableConstraint;
 class PointerVariableConstraint : public ConstraintVariable {
 private:
   CVars vars;
+  FunctionVariableConstraint *FV;
 public:
   PointerVariableConstraint(CVars V, std::string T) : 
-    ConstraintVariable(PointerVariable, T),vars(V) {}
+    ConstraintVariable(PointerVariable, T),vars(V),FV(nullptr) {}
   PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS);
   PointerVariableConstraint(const clang::Type *Ty, uint32_t &K,
@@ -143,6 +144,8 @@ public:
   }
 
   std::string mkString(Constraints::EnvironmentMap &E);
+
+  FunctionVariableConstraint *getFV() { return FV; }
 };
 
 typedef PointerVariableConstraint PVConstraint;
