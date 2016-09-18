@@ -55,6 +55,13 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   
 }
 
+void PointerVariableConstraint::print(raw_ostream &O) const {
+  O << "{ ";
+  for (const auto &I : vars) 
+    O << "q_" << I << " ";
+  O << " }";
+}
+
 std::string
 PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   std::string s = "";
@@ -129,7 +136,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 
   if (returnType->isPointerType())
-    this->returnVars.insert(new PVConstraint(returnType, K, CS));
+    returnVars.insert(new PVConstraint(returnType, K, CS));
 
   for (const auto &P : paramTypes) {
     std::set<ConstraintVariable*> C;
@@ -139,6 +146,20 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     } else {
       paramVars.push_back(C);
     }
+  }
+}
+
+void FunctionVariableConstraint::print(raw_ostream &O) const {
+  O << "( ";
+  for(const auto &I : returnVars)
+   I->dump(); 
+  O << " )";
+  O << " " << name << " ";
+  for(const auto &I : paramVars) {
+    O << "( ";
+    for(const auto &J : I)
+      J->dump();
+    O << " )";
   }
 }
 
@@ -160,15 +181,18 @@ void ProgramInfo::print(raw_ostream &O) const {
   O << "\n";
 
   O << "Constraint Variables\n";
-  /*for (const auto &I : PersistentRVariables) {
-    VarAtom *V = CS.getVar(I.first);
-    V->print(O);
+  for( const auto &I : Variables ) {
+    PersistentSourceLoc L = I.first;
+    const std::set<ConstraintVariable*> &S = I.second;
+    L.print(O);
     O << "=>";
-    I.second.print(O);
+    for(const auto &J : S) {
+      O << "[ ";
+      J->print(O);
+      O << " ]";
+    }
     O << "\n";
-  }*/
-
-  return;
+  }
 }
 
 // Print out statistics of constraint variables on a per-file basis.
