@@ -420,9 +420,6 @@ public:
 
       std::tie(S, D, T) = PSLMap[PLoc];
 
-      errs() << "to rewrite ";
-      PLoc.dump();
-      errs() << "\n";
       //if (S)
         //S->dump();
       if (D) {

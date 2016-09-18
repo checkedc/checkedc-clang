@@ -26,7 +26,8 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
 
 PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   uint32_t &K, Constraints &CS) :
-  ConstraintVariable(ConstraintVariable::PointerVariable, tyToStr(_Ty))
+  ConstraintVariable(ConstraintVariable::PointerVariable, tyToStr(_Ty)),
+  FV(nullptr)
 {
   const Type *Ty = nullptr;
   for (Ty = _Ty;
@@ -44,9 +45,11 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
     K++;
   }
 
-  errs() << "construct ty is\n";
-  Ty->dump();
-  errs() << "\n";
+  // If, after boiling off the pointer-ness from this type, we hit a 
+  // function, then create a base-level FVConstraint that we carry 
+  // around too.
+  if(Ty->isFunctionType())
+    FV = new FVConstraint(Ty, K, CS);
 
   BaseType = tyToStr(Ty);
   
@@ -73,7 +76,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
       if (emittedBase) {
         s = s + "*";
       } else {
-        assert(BaseType != nullptr);
+        assert(BaseType.size() > 0);
         emittedBase = true;
         s = s + BaseType + "*";
       }
@@ -92,9 +95,14 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     s = s + ">";
   }
 
+  s = s + " ";
+
   return s;
 }
 
+// This describes a function, either a function pointer or a function
+// declaration itself. Either require constraint variables for any pointer
+// types that are either return values or paraemeters for the function.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS) :
   FunctionVariableConstraint(D->getType().getTypePtr(), K, CS) {}
@@ -105,15 +113,32 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
 {
   const Type *returnType;
   std::vector<const Type*> paramTypes;
-  size_t numParams;
   if (Ty->isFunctionPointerType()) {
     // Is this a function pointer definition?
-
-  } else if(Ty->isFunctionType()) {
-    // Is this a function definition?
+    llvm_unreachable("should not hit this case");
+  } else if (Ty->isFunctionProtoType()) {
+    // Is this a function?
+    const FunctionProtoType *FT = dyn_cast<FunctionProtoType>(Ty);
+    assert(FT != nullptr); 
+    returnType = FT->getReturnType().getTypePtr();
+    for (unsigned i = 0; i < FT->getNumParams(); i++) 
+      paramTypes.push_back(FT->getParamType(i).getTypePtr());
 
   } else {
     llvm_unreachable("don't know what to do");
+  }
+
+  if (returnType->isPointerType())
+    this->returnVars.insert(new PVConstraint(returnType, K, CS));
+
+  for (const auto &P : paramTypes) {
+    std::set<ConstraintVariable*> C;
+    if (P->isPointerType()) {
+      C.insert(new PVConstraint(P, K, CS));
+      paramVars.push_back(C);
+    } else {
+      paramVars.push_back(C);
+    }
   }
 }
 
@@ -459,10 +484,6 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   PersistentSourceLoc PLoc = 
     PersistentSourceLoc::mkPSL(D, *C);
   assert(PLoc.valid());
-  errs() << "addVariable adding " << D->getName() << "\n";
-  errs() << " at ";
-  PLoc.dump();
-  errs() << "\n";
   // What is the nature of the constraint that we should be adding? This is 
   // driven by the type of Decl. 
   //  - Decl is a pointer-type VarDecl - we will add a PVConstraint
