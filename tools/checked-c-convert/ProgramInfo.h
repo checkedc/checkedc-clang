@@ -57,6 +57,7 @@ public:
   virtual void print(llvm::raw_ostream &O) const = 0;
   virtual void dump() const = 0;
   virtual void constrainTo(Constraints &CS, ConstAtom *C) = 0;
+  virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
 };
@@ -89,6 +90,7 @@ public:
   void print(llvm::raw_ostream &O) const ;
   void dump() const { print(llvm::errs()); }
   void constrainTo(Constraints &CS, ConstAtom *C);
+  bool anyChanges(Constraints::EnvironmentMap &E);
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -98,10 +100,8 @@ private:
   std::set<ConstraintVariable*> returnVars;
   std::vector<std::set<ConstraintVariable*>> paramVars;
   std::string name;
+  bool hasproto;
 public:
-  FunctionVariableConstraint(std::set<ConstraintVariable*> R, 
-    std::vector<std::set<ConstraintVariable*>> P, std::string T) :
-    ConstraintVariable(FunctionVariable, T), returnVars(R), paramVars(P) { }
   FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS);
   FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
@@ -111,6 +111,8 @@ public:
   getReturnVars() { return returnVars; }
 
   size_t numParams() { return paramVars.size(); }
+
+  bool hasProtoType() { return hasproto; }
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == FunctionVariable;
@@ -126,6 +128,7 @@ public:
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void constrainTo(Constraints &CS, ConstAtom *C);
+  bool anyChanges(Constraints::EnvironmentMap &E);
 };
 
 typedef FunctionVariableConstraint FVConstraint;

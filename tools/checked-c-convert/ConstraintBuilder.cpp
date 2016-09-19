@@ -90,8 +90,14 @@ void constrainEq(ConstraintVariable *RHS,
             ++J;
           }
         } else {
-          // Constrain both to top.
-          llvm_unreachable("TODO");
+          // There is un-even-ness in the arity of CLHS and CRHS. The 
+          // conservative thing to do would be to constrain both to 
+          // wild. We'll do one step below the conservative step, which
+          // is to constrain everything in PCLHS and PCRHS to be equal.
+          for (const auto &I : PCLHS->getCvars())
+            for (const auto &J : PCRHS->getCvars())
+              CS.addConstraint(
+                CS.createEq(CS.getOrCreateVar(I), CS.getOrCreateVar(J)));
         }
       } else
         llvm_unreachable("impossible");
@@ -168,7 +174,6 @@ public:
       return;
 
     Constraints &CS = Info.getConstraints();
-
     std::set<ConstraintVariable*> W = Info.getVariable(RHS, Context);
     if (W.size() > 0) {
       // Case 1.

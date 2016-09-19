@@ -75,7 +75,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     switch (C->getKind()) {
     case Atom::A_Ptr:
       emittedBase = false;
-      s = "_ptr<";
+      s = s + "_ptr<";
       caratsToAdd++;
       break;
     case Atom::A_Arr:
@@ -118,8 +118,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     uint32_t &K, Constraints &CS) :
   ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty))
 {
-  const Type *returnType;
+  const Type *returnType = nullptr;
   std::vector<const Type*> paramTypes;
+  hasproto = false;
   if (Ty->isFunctionPointerType()) {
     // Is this a function pointer definition?
     llvm_unreachable("should not hit this case");
@@ -130,8 +131,14 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     returnType = FT->getReturnType().getTypePtr();
     for (unsigned i = 0; i < FT->getNumParams(); i++) 
       paramTypes.push_back(FT->getParamType(i).getTypePtr());
-
+    hasproto = true;
+  }
+  else if (Ty->isFunctionNoProtoType()) {
+    const FunctionNoProtoType *FT = dyn_cast<FunctionNoProtoType>(Ty);
+    assert(FT != nullptr);
+    returnType = FT->getReturnType().getTypePtr();
   } else {
+    Ty->dump();
     llvm_unreachable("don't know what to do");
   }
 
@@ -158,12 +165,41 @@ void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A) {
       U->constrainTo(CS, A);
 }
 
+bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
+  bool f = false;
+
+  for (const auto &C : returnVars)
+    f |= C->anyChanges(E);
+
+  for (const auto &I : paramVars)
+    for (const auto &C : I)
+      f |= C->anyChanges(E);
+
+  return f;
+}
+
 void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A) {
   for (const auto &V : vars)
     CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
 
   if (FV)
     FV->constrainTo(CS, A);
+}
+
+bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
+  bool f = false;
+
+  for (const auto &C : vars) {
+    VarAtom V(C);
+    ConstAtom *CS = E[&V];
+    assert(CS != nullptr);
+    f |= isa<PtrAtom>(CS);
+  }
+
+  if (FV)
+    f |= FV->anyChanges(E);
+
+  return f;
 }
 
 void FunctionVariableConstraint::print(raw_ostream &O) const {
@@ -656,6 +692,7 @@ ProgramInfo::getVariableHelper(Expr *E,
   } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
     std::set<ConstraintVariable *> T = 
       getVariableHelper(UO->getSubExpr(), V, C);
+   
     std::set<ConstraintVariable*> updt;
     std::set<ConstraintVariable*> tmp;
     if (UO->getOpcode() == UO_Deref) {
@@ -667,13 +704,13 @@ ProgramInfo::getVariableHelper(Expr *E,
           assert(C.size() > 0);
           C.erase(C.begin());
           if (C.size() > 0)
-            T.insert(new PVConstraint(C, PVC->getTy()));
+            tmp.insert(new PVConstraint(C, PVC->getTy()));
         } else {
           llvm_unreachable("Shouldn't dereference a function pointer!");
         }
       }
+      T.swap(tmp);
     }
-    T.swap(tmp);
 
     return T;
   } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
@@ -735,5 +772,8 @@ ProgramInfo::getVariable(Expr *E, ASTContext *C) {
 
   // Get the constraint variables represented by this Expr
   std::set<ConstraintVariable*> T;
-  return getVariableHelper(E, T, C);
+  if (E)
+    return getVariableHelper(E, T, C);
+  else
+    return T;
 }

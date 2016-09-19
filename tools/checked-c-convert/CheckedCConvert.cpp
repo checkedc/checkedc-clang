@@ -183,8 +183,31 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         // list of file ID's we've touched.
         FullSourceLoc FSL(TR.getBegin(), S);
         Files.insert(FSL.getFileID());
-        if (Where->isSingleDecl() && canRewrite(R, TR)) {
-          R.ReplaceText(TR, N.second);
+        if (Where->isSingleDecl()) {
+          if (canRewrite(R, TR)) {
+            R.ReplaceText(TR, N.second);
+          } else {
+            // This can happen if SR is within a macro. If that is the case, 
+            // maybe there is still something we can do because Decl refers 
+            // to a non-macro line.
+
+            SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
+              VD->getLocation());
+
+            if (canRewrite(R, possible)) {
+              R.ReplaceText(possible, N.second);
+              std::string newStr = " " + VD->getName().str();
+              R.InsertTextAfter(VD->getLocation(), newStr);
+            } else {
+              if (Verbose) {
+                errs() << "Still don't know how to re-write VarDecl\n";
+                VD->dump();
+                errs() << "at\n";
+                Where->dump();
+                errs() << "with " << N.second << "\n";
+              }
+            }
+          }
         } else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
           // Hack time!
           // Sometimes, like in the case of a decl on a single line, we'll need to
@@ -256,18 +279,6 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
             errs() << "at\n";
             Where->dump();
             errs() << "with " << N.second << "\n";
-          }
-          // This can happen if SR is within a macro. If that is the case, 
-          // maybe there is still something we can do because Decl refers 
-          // to a non-macro line.
-
-          SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()), 
-                               VD->getLocation());
-
-          if (canRewrite(R, possible)) {
-            R.ReplaceText(possible, N.second);
-            std::string newStr = " " + VD->getName().str();
-            R.InsertTextAfter(VD->getLocation(), newStr);
           }
         }
       } else {
@@ -466,7 +477,8 @@ public:
         VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
         if(K != VDLToStmtMap.end())
           DS = K->second;
-        if(PV) {
+
+        if(PV && PV->anyChanges(Info.getConstraints().getVariables())) {
           std::string newTy = PV->mkString(Info.getConstraints().getVariables());
           rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
         }
