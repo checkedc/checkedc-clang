@@ -26,7 +26,7 @@ void a1(void) {
 //CHECK: int a = 0;
 //CHECK-NEXT: int *b = &a;
 
-// check function pointers
+// Test function pointer assignment and constraint propagation. 
 
 void *xyzzy(int *a, int b) {
   *a = b;
@@ -41,3 +41,5 @@ void xyzzy_driver(void) {
 
   xyzzy_ptr(v, u);
 }
+
+// Test function-like macros.

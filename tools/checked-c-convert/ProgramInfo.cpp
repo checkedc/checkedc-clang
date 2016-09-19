@@ -33,12 +33,7 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   for (Ty = _Ty;
     Ty->isPointerType();
     Ty = getNextTy(Ty))
-  {
-    // If we hit a function pointer type, stop. Someone else will deal with
-    // the higher order case. 
-    if (Ty->isFunctionPointerType())
-      break;
-    
+  {    
     // Allocate a new constraint variable for this level of pointer.
     vars.insert(K);
     CS.getOrCreateVar(K);
@@ -48,8 +43,9 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   // If, after boiling off the pointer-ness from this type, we hit a 
   // function, then create a base-level FVConstraint that we carry 
   // around too.
-  if(Ty->isFunctionType())
+  if (Ty->isFunctionType()) {
     FV = new FVConstraint(Ty, K, CS);
+  }
 
   BaseType = tyToStr(Ty);
   
@@ -126,8 +122,8 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     // Is this a function pointer definition?
     llvm_unreachable("should not hit this case");
   } else if (Ty->isFunctionProtoType()) {
-    // Is this a function?
-    const FunctionProtoType *FT = dyn_cast<FunctionProtoType>(Ty);
+    // Is this a function? 
+    const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     assert(FT != nullptr); 
     returnType = FT->getReturnType().getTypePtr();
     for (unsigned i = 0; i < FT->getNumParams(); i++) 
@@ -135,7 +131,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     hasproto = true;
   }
   else if (Ty->isFunctionNoProtoType()) {
-    const FunctionNoProtoType *FT = dyn_cast<FunctionNoProtoType>(Ty);
+    const FunctionNoProtoType *FT = Ty->getAs<FunctionNoProtoType>();
     assert(FT != nullptr);
     returnType = FT->getReturnType().getTypePtr();
   } else {

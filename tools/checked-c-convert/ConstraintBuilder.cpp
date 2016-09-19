@@ -43,8 +43,8 @@ void constrainEq(std::set<ConstraintVariable*> &RHS,
 // If they are of an unequal parameter type, constrain everything in both
 // to top.
 static
-void constrainEq(ConstraintVariable *RHS,
-  ConstraintVariable *LHS, ProgramInfo &Info) {
+void constrainEq(ConstraintVariable *LHS,
+  ConstraintVariable *RHS, ProgramInfo &Info) {
   ConstraintVariable *CRHS = RHS;
   ConstraintVariable *CLHS = LHS;
   Constraints &CS = Info.getConstraints();
@@ -103,13 +103,24 @@ void constrainEq(ConstraintVariable *RHS,
         llvm_unreachable("impossible");
     } else
       llvm_unreachable("unknown kind");
-  } else {
-    CRHS->dump();
-    errs() << "\n";
-    CLHS->dump();
-    errs() << "\n";
-    // Constrain everything in both to top.
-    llvm_unreachable("TODO");
+  }
+  else {
+    // Assigning from a function variable to a pointer variable?
+    PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS);
+    FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
+    if (PCLHS && FCRHS) {
+      if (FVConstraint *FCLHS = PCLHS->getFV())
+        constrainEq(FCLHS, FCRHS, Info);
+      else
+        llvm_unreachable("TODO");
+    } else {
+      CRHS->dump();
+      errs() << "\n";
+      CLHS->dump();
+      errs() << "\n";
+      // Constrain everything in both to top.
+      llvm_unreachable("TODO");
+    }
   }
 }
 
@@ -239,6 +250,7 @@ public:
 
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
+    S->dump();
     if (S->isSingleDecl()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl()))
         MyVisitVarDecl(VD, S);
