@@ -76,6 +76,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     case Atom::A_Ptr:
       emittedBase = false;
       s = s + "_Ptr<";
+
       caratsToAdd++;
       break;
     case Atom::A_Arr:

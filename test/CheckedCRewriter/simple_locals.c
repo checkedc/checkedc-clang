@@ -72,6 +72,7 @@ void gg(void) {
 }
 //CHECK: void gg(void) {
 //CHECK-NEXT: int a = 0;
+
 //CHECK-NEXT: _Ptr<int> b = &a;
 //CHECK-NEXT: _Ptr<_Ptr<int>> c = &b;
 
