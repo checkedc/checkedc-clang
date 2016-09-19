@@ -79,6 +79,8 @@ const Type *getNextTy(const Type *Ty) {
 }
 
 // Test to see if we can rewrite a given SourceRange. 
+// Note that R.getRangeSize will return -1 if SR is within
+// a macro as well. 
 bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
@@ -96,15 +98,19 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
              ASTContext &A, std::set<FileID> &Files) {
   std::set<DAndReplace> skip;
 
-  if (Verbose)
-    errs() << "Rewriting\n";
-
   for (const auto &N : toRewrite) {
     //if (N->anyChanges() == false)
       //continue;
     DeclNStmt DN = N.first;
     Decl *D = DN.first;
     DeclStmt *Where = DN.second;
+    assert(D != nullptr);
+
+    if (Verbose) {
+      errs() << "Replacing type of decl:\n";
+      D->dump();
+      errs() << "with " << N.second << "\n";
+    }
 
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == NULL);
@@ -164,6 +170,10 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
 
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       if (Where != NULL) {
+        if (Verbose) {
+          errs() << "VarDecl at:\n";
+          Where->dump();
+        }
         SourceRange TR = VD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
 
         // Is it a variable type? This is the easy case, we can re-write it
@@ -173,9 +183,9 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         // list of file ID's we've touched.
         FullSourceLoc FSL(TR.getBegin(), S);
         Files.insert(FSL.getFileID());
-        if (Where->isSingleDecl() && canRewrite(R, TR))
+        if (Where->isSingleDecl() && canRewrite(R, TR)) {
           R.ReplaceText(TR, N.second);
-        else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
+        } else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
           // Hack time!
           // Sometimes, like in the case of a decl on a single line, we'll need to
           // do multiple NewTyps at once. In that case, in the inner loop, we'll
@@ -239,6 +249,26 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
 
           for (const auto &TN : rewritesForThisDecl)
             skip.insert(TN);
+        } else {
+          if (Verbose) {
+            errs() << "Don't know how to re-write VarDecl\n";
+            VD->dump();
+            errs() << "at\n";
+            Where->dump();
+            errs() << "with " << N.second << "\n";
+          }
+          // This can happen if SR is within a macro. If that is the case, 
+          // maybe there is still something we can do because Decl refers 
+          // to a non-macro line.
+
+          SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()), 
+                               VD->getLocation());
+
+          if (canRewrite(R, possible)) {
+            R.ReplaceText(possible, N.second);
+            std::string newStr = " " + VD->getName().str();
+            R.InsertTextAfter(VD->getLocation(), newStr);
+          }
         }
       } else {
         if (Verbose) {
@@ -427,11 +457,12 @@ public:
         // PointerVar so we'll use that.
         PVConstraint *PV = nullptr; 
         FVConstraint *FV = nullptr;
-        for (const auto &V : Vars)
+        for (const auto &V : Vars) {
           if(PVConstraint *T = dyn_cast<PVConstraint>(V))
             PV = T;
           else if(FVConstraint *T = dyn_cast<FVConstraint>(V))
             FV = T;
+        }
         VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
         if(K != VDLToStmtMap.end())
           DS = K->second;
@@ -439,7 +470,6 @@ public:
           std::string newTy = PV->mkString(Info.getConstraints().getVariables());
           rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
         }
-
       }
     }
 
