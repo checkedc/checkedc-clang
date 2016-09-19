@@ -1,0 +1,43 @@
+// Tests for Checked C rewriter tool.
+//
+// Checks properties of functions.
+//
+// RUN: checked-c-convert %s -- | FileCheck %s
+// RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// expected-no-diagnostics
+
+// Have something so that we always get some output.
+void a0(void) {
+  int q = 0;
+  int *k = &q;
+  *k = 0;
+}
+//CHECK: int q = 0;
+//CHECK-NEXT: _Ptr<int> k = &q;
+
+void mut(int *);
+
+void a1(void) {
+  int a = 0;
+  int *b = &a;
+
+  mut(b);
+}
+//CHECK: int a = 0;
+//CHECK-NEXT: int *b = &a;
+
+// check function pointers
+
+void *xyzzy(int *a, int b) {
+  *a = b;
+
+  return 0;
+}
+
+void xyzzy_driver(void) {
+  void *(*xyzzy_ptr)(int*, int) = &xyzzy;
+  int u = 0;
+  int *v = &u;
+
+  xyzzy_ptr(v, u);
+}
