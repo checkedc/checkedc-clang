@@ -75,7 +75,7 @@ public:
   PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS);
   PointerVariableConstraint(const clang::Type *Ty, uint32_t &K,
-    Constraints &CS);
+    std::string N, Constraints &CS);
 
   const CVars &getCvars() const { return vars; }
 
@@ -105,7 +105,7 @@ public:
   FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS);
   FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
-    Constraints &CS);
+    std::string N, Constraints &CS);
 
   std::set<ConstraintVariable*> &
   getReturnVars() { return returnVars; }

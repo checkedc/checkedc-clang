@@ -22,10 +22,10 @@ tyToStr(const Type *T) {
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS) :
-  PointerVariableConstraint(D->getType().getTypePtr(), K, CS) { }
+  PointerVariableConstraint(D->getType().getTypePtr(), K, D->getName(), CS) { }
 
 PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
-  uint32_t &K, Constraints &CS) :
+  uint32_t &K, std::string N, Constraints &CS) :
   ConstraintVariable(ConstraintVariable::PointerVariable, tyToStr(_Ty)),
   FV(nullptr)
 {
@@ -44,7 +44,7 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   // function, then create a base-level FVConstraint that we carry 
   // around too.
   if (Ty->isFunctionType()) {
-    FV = new FVConstraint(Ty, K, CS);
+    FV = new FVConstraint(Ty, K, N, CS);
   }
 
   BaseType = tyToStr(Ty);
@@ -82,7 +82,10 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
       } else {
         assert(BaseType.size() > 0);
         emittedBase = true;
-        s = s + BaseType + "*";
+        if (FV)
+          s = s + FV->mkString(E);
+        else
+          s = s + BaseType + "*";
       }
       break;
     case Atom::A_Const:
@@ -92,8 +95,14 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     }
   }
 
-  if(emittedBase == false)
-    s = s + BaseType;
+  if(emittedBase == false) {
+    // If we have a FV pointer, then our "base" type is a function pointer
+    // type.
+    if (FV)
+      s = s + FV->mkString(E);
+    else
+      s = s + BaseType;
+  }
 
   for (unsigned i = 0; i < caratsToAdd; i++) {
     s = s + ">";
@@ -109,11 +118,11 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
 // types that are either return values or paraemeters for the function.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS) :
-  FunctionVariableConstraint(D->getType().getTypePtr(), K, CS) {}
+  FunctionVariableConstraint(D->getType().getTypePtr(), K, D->getName(), CS) {}
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
-    uint32_t &K, Constraints &CS) :
-  ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty))
+    uint32_t &K, std::string N, Constraints &CS) :
+  ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty)),name(N)
 {
   const Type *returnType = nullptr;
   std::vector<const Type*> paramTypes;
@@ -140,12 +149,12 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 
   if (returnType->isPointerType())
-    returnVars.insert(new PVConstraint(returnType, K, CS));
+    returnVars.insert(new PVConstraint(returnType, K, N, CS));
 
   for (const auto &P : paramTypes) {
     std::set<ConstraintVariable*> C;
     if (P->isPointerType()) {
-      C.insert(new PVConstraint(P, K, CS));
+      C.insert(new PVConstraint(P, K, N, CS));
       paramVars.push_back(C);
     } else {
       paramVars.push_back(C);
@@ -215,13 +224,7 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 
 std::string
 FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
-  /*if (BaseType->isFunctionPointerType()) {
-
-  } else if (getTy()->isFunctionType()) {
-
-  } else {
-    llvm_unreachable("unknown type");
-  }*/
+  assert(name.size() > 0);
 
   return "";
 }
