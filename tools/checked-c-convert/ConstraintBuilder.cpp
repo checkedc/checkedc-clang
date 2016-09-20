@@ -15,7 +15,6 @@ using namespace clang;
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
-//  * function pointer variables
 static
 void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
   // Constrain everything that is void to wild.
@@ -335,7 +334,9 @@ public:
       Info.getVariable(Function, Context);
     std::set<ConstraintVariable*> Var =
       Info.getVariable(S->getRetValue(), Context);
-   
+
+    // Constrain the value returned (if present) against the return value
+    // of the function.   
     for (const auto &F : Fun )
       if (FVConstraint *FU = dyn_cast<FVConstraint>(F))
        constrainEq(FU->getReturnVars(), Var, Info); 
@@ -422,7 +423,6 @@ public:
     if (FL.isValid()) {
 
       Info.addVariable(D, nullptr, Context);
-      // TODO: why do we do this also? What purpose does it serve?
       Info.seeFunctionDecl(D, Context);
 
       if (D->hasBody() && D->isThisDeclarationADefinition()) {

@@ -13,6 +13,7 @@
 using namespace clang;
 using namespace llvm;
 
+// Helper method to print a Type in a way that can be represented in the source.
 static
 std::string
 tyToStr(const Type *T) {
@@ -50,6 +51,7 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
 
   BaseType = tyToStr(Ty);
 
+  // Special case for void to not make _Ptr<void> pointers.
   if( BaseType == "void" ) 
     for (const auto &V : vars)
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
@@ -63,8 +65,12 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
   O << " }";
 }
 
+// Mesh resolved constraints with the PointerVariableConstraints set of 
+// variables and potentially nested function pointer declaration. Produces a 
+// string that can be replaced in the source code.
 std::string
 PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
+  // TODO: the use of 's' is inefficient, use a stringstream later.
   std::string s = "";
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
@@ -114,6 +120,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     }
   }
 
+  // Push carats onto the end of the string
   for (unsigned i = 0; i < caratsToAdd; i++) {
     s = s + ">";
   }
@@ -351,6 +358,7 @@ bool ProgramInfo::link() {
     errs() << "Linking!\n";
 
   for (const auto &S : GlobalSymbols) {
+    // TODO: turn this code back on and write tests for it.
     // First, extract out the function symbols from S. 
     /*std::set<GlobalFunctionSymbol*> funcs;
     std::set<GlobalVariableSymbol*> vars;

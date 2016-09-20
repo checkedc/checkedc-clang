@@ -34,8 +34,10 @@
 #include "PersistentSourceLoc.h"
 
 typedef std::set<uint32_t> CVars;
-
-// TODO: document what these three classes do.
+// Base class for ConstraintVariables. A ConstraintVariable can either be a 
+// PointerVariableConstraint or a FunctionVariableConstraint. The difference
+// is that FunctionVariableConstraints have constraints on the return value
+// and on each parameter.
 class ConstraintVariable {
 public:
   enum ConstraintVariableKind {
@@ -65,6 +67,9 @@ public:
 class PointerVariableConstraint;
 class FunctionVariableConstraint;
 
+// Represents an individual constraint on a pointer variable. 
+// This could contain a reference to a FunctionVariableConstraint
+// in the case of a function pointer declaration.
 class PointerVariableConstraint : public ConstraintVariable {
 private:
   CVars vars;
@@ -95,6 +100,8 @@ public:
 
 typedef PointerVariableConstraint PVConstraint;
 
+// Constraints on a function type. Also contains a 'name' parameter for 
+// when a re-write of a function pointer is needed.
 class FunctionVariableConstraint : public ConstraintVariable {
 private:
   std::set<ConstraintVariable*> returnVars;
