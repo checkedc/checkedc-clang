@@ -33,6 +33,8 @@ void *xyzzy(int *a, int b) {
 
   return 0;
 }
+//CHECK: void *xyzzy(_Ptr<int> a, int b) {
+//CHECK-NEXT: *a = b;
 
 void xyzzy_driver(void) {
   void *(*xyzzy_ptr)(int*, int) = &xyzzy;
@@ -41,5 +43,10 @@ void xyzzy_driver(void) {
 
   xyzzy_ptr(v, u);
 }
+//CHECK: void xyzzy_driver(void) {
+//CHECK-NEXT _Ptr<void* ()(_Ptr<int> , int )> xyzzy_ptr  = &xyzzy;
+//CHECK-NEXT int u = 0;
+//CHECK-NEXT _Ptr<int> v = &u;
 
 // Test function-like macros.
+
