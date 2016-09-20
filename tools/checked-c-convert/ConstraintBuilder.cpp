@@ -12,6 +12,125 @@
 using namespace llvm;
 using namespace clang;
 
+// Special-case handling for decl introductions. For the moment this covers:
+//  * void-typed variables
+//  * va_list-typed variables
+static
+void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
+  // Constrain everything that is void to wild.
+  Constraints &CS = Info.getConstraints();
+
+  // Special-case for va_list, constrain to wild.
+  if (D->getType().getAsString() == "va_list" ||
+      D->getType().getAsString() == "void") {
+    for (const auto &I : Info.getVariable(D, C))
+      if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I))
+        for (const auto &J : PVC->getCvars())
+          CS.addConstraint(
+            CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
+  }
+}
+
+void constrainEq(std::set<ConstraintVariable*> &RHS,
+  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);
+// Given two ConstraintVariables, do the right thing to assign 
+// constraints. 
+// If they are both PVConstraint, then do an element-wise constraint
+// generation.
+// If they are both FVConstraint, then do a return-value and parameter
+// by parameter constraint generation.
+// If they are of an unequal parameter type, constrain everything in both
+// to top.
+static
+void constrainEq(ConstraintVariable *LHS,
+  ConstraintVariable *RHS, ProgramInfo &Info) {
+  ConstraintVariable *CRHS = RHS;
+  ConstraintVariable *CLHS = LHS;
+  Constraints &CS = Info.getConstraints();
+
+  if (CRHS->getKind() == CLHS->getKind()) {
+    if (FVConstraint *FCLHS = dyn_cast<FVConstraint>(CLHS)) {
+      if (FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS)) {
+        // Element-wise constrain the return value of FCLHS and 
+        // FCRHS to be equal. Then, again element-wise, constrain 
+        // the parameters of FCLHS and FCRHS to be equal.
+        constrainEq(FCLHS->getReturnVars(), FCRHS->getReturnVars(), Info);
+
+        // Constrain the parameters to be equal.
+        if (FCLHS->numParams() == FCRHS->numParams()) {
+          for (unsigned i = 0; i < FCLHS->numParams(); i++) {
+            std::set<ConstraintVariable*> &V1 =
+              FCLHS->getParamVar(i);
+            std::set<ConstraintVariable*> &V2 =
+              FCRHS->getParamVar(i);
+            constrainEq(V1, V2, Info);
+          }
+        }
+        else {
+          // Constrain both to be top.
+          llvm_unreachable("TODO");
+        }
+      }
+      else
+        llvm_unreachable("impossible");
+    }
+    else if (const PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
+      if (const PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
+        // Element-wise constrain PCLHS and PCRHS to be equal
+        CVars CLHS = PCLHS->getCvars();
+        CVars CRHS = PCRHS->getCvars();
+        if (CLHS.size() == CRHS.size()) {
+          CVars::iterator I = CLHS.begin();
+          CVars::iterator J = CRHS.begin();
+          while (I != CLHS.end()) {
+            CS.addConstraint(
+              CS.createEq(CS.getOrCreateVar(*I), CS.getOrCreateVar(*J)));
+            ++I;
+            ++J;
+          }
+        } else {
+          // There is un-even-ness in the arity of CLHS and CRHS. The 
+          // conservative thing to do would be to constrain both to 
+          // wild. We'll do one step below the conservative step, which
+          // is to constrain everything in PCLHS and PCRHS to be equal.
+          for (const auto &I : PCLHS->getCvars())
+            for (const auto &J : PCRHS->getCvars())
+              CS.addConstraint(
+                CS.createEq(CS.getOrCreateVar(I), CS.getOrCreateVar(J)));
+        }
+      } else
+        llvm_unreachable("impossible");
+    } else
+      llvm_unreachable("unknown kind");
+  }
+  else {
+    // Assigning from a function variable to a pointer variable?
+    PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS);
+    FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
+    if (PCLHS && FCRHS) {
+      if (FVConstraint *FCLHS = PCLHS->getFV())
+        constrainEq(FCLHS, FCRHS, Info);
+      else
+        llvm_unreachable("TODO");
+    } else {
+      CRHS->dump();
+      errs() << "\n";
+      CLHS->dump();
+      errs() << "\n";
+      // Constrain everything in both to top.
+      llvm_unreachable("TODO");
+    }
+  }
+}
+
+// Given an RHS and a LHS, constrain them to be equal. 
+void constrainEq(std::set<ConstraintVariable*> &RHS,
+  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info) {
+  for (const auto &I : RHS)
+    for (const auto &J : LHS)
+      constrainEq(I, J, Info);
+}
+
 // This class visits functions and adds constraints to the
 // Constraints instance assigned to it.
 // Each VisitXXX method is responsible either for looking inside statements
@@ -30,8 +149,10 @@ public:
       SourceRange SR = D->getSourceRange();
 
       if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
-          D->getType()->isPointerType()) {
+        D->getType()->isPointerType()) {
         Info.addVariable(D, S, Context);
+
+        specialCaseVarIntros(D, Info, Context);
       }
     }
 
@@ -57,24 +178,29 @@ public:
   // In any of these cases, due to conditional expressions, the number of
   // variables on the RHS could be 0 or more. We just do the same rule
   // for each pair of q_i to q_j \forall j in variables_on_rhs.
-  void constrainAssign(uint32_t V, Expr *RHS) {
+  void constrainAssign( std::set<ConstraintVariable*> V, 
+                        Expr *RHS) {
     if (!RHS)
       return;
+
     Constraints &CS = Info.getConstraints();
-    std::set<uint32_t> W;
-    Info.getVariable(RHS, W, Context);
+    std::set<ConstraintVariable*> W = Info.getVariable(RHS, Context);
     if (W.size() > 0) {
       // Case 1.
-      for (const auto &I : W)
-        CS.addConstraint(
-            CS.createEq(CS.getOrCreateVar(V), CS.getOrCreateVar(I)));
+      // There are constraint variables for the RHS, so, use those over
+      // anything else we could infer. 
+      constrainEq(V, W, Info);
     } else {
       // Cases 2-4.
       if (RHS->isIntegerConstantExpr(*Context)) {
         // Case 2.
         if (!RHS->isNullPointerConstant(*Context,
-                                        Expr::NPC_ValueDependentIsNotNull))
-          CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+          Expr::NPC_ValueDependentIsNotNull))
+          for (const auto &U : W)
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
+              for (const auto &J : PVC->getCvars())
+                CS.addConstraint(
+                  CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
       } else {
         // Cases 3-4.
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
@@ -82,24 +208,43 @@ public:
             // Case 3.
             // Is there anything to do here, or is it implicitly handled?
           }
-        } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
+        }
+        else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
           // Case 4.
-          Info.getVariable(C->getSubExpr(), W, Context);
-          bool safe = true;
-          for (const auto &I : W)
-            safe &= Info.checkStructuralEquality(V, I);
+          W = Info.getVariable(C->getSubExpr(), Context);
+          if (Info.checkStructuralEquality(V, W)) {
+            // This has become a little stickier to think about. 
+            // What do you do here if we determine that two things with
+            // very different arity are structurally equal? Is that even 
+            // possible? 
+            llvm_unreachable("TODO");
+          } else {
+            // Constrain everything in both to top.
+            for (const auto &A : W)
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+                for (const auto &B : PVC->getCvars())
+                  CS.addConstraint(
+                    CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
 
-          for (const auto &I : W)
-            if (safe)
-              CS.addConstraint(CS.createImplies(
-                CS.createEq(CS.getOrCreateVar(V), CS.getWild()),
-                CS.createEq(CS.getOrCreateVar(I), CS.getWild())));
-            else
-              CS.addConstraint(
-                CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+            for (const auto &A : V)
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+                for (const auto &B : PVC->getCvars())
+                  CS.addConstraint(
+                    CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+          }
         }
       }
     }
+  }
+
+  void constrainAssign(Expr *LHS, Expr *RHS) {
+    std::set<ConstraintVariable*> V = Info.getVariable(LHS, Context);
+    constrainAssign(V, RHS);
+  }
+
+  void constrainAssign(DeclaratorDecl *D, Expr *RHS) {
+    std::set<ConstraintVariable*> V = Info.getVariable(D, Context);
+    constrainAssign(V, RHS);
   }
 
   bool VisitDeclStmt(DeclStmt *S) {
@@ -117,10 +262,7 @@ public:
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         std::set<uint32_t> V;
         Expr *InitE = VD->getInit();
-        Info.getVariable(VD, V, Context);
-        if (V.size() > 0)
-          for (const auto &I : V)
-            constrainAssign(I, InitE);
+        constrainAssign(VD, InitE);
       }
     }
 
@@ -138,10 +280,7 @@ public:
   bool VisitBinAssign(BinaryOperator *O) {
     Expr *LHS = O->getLHS();
     Expr *RHS = O->getRHS();
-    std::set<uint32_t> V;
-    Info.getVariable(LHS, V, Context);
-    for (const auto &I : V)
-      constrainAssign(I, RHS);
+    constrainAssign(LHS, RHS);
 
     return true;
   }
@@ -152,96 +291,88 @@ public:
       return true;
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      Constraints &CS = Info.getConstraints();
+
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
-        std::set<uint32_t> Ws;
-        if (i < FD->getNumParams()) {
-          Info.getVariable(FD->getParamDecl(i), Ws, Context);
-          if (Ws.size() > 0) {
+        std::set<uint32_t> V;
+        std::set<ConstraintVariable*> ParameterEC =
+          Info.getVariable(A, Context);
 
-            for (const auto &W : Ws) {
-              std::set<uint32_t> V;
-              Info.getVariable(A, V, Context);
-              for (const auto &I : V)
-                CS.addConstraint(
-                  CS.createEq(CS.getOrCreateVar(W), CS.getOrCreateVar(I)));
-            }
-          }
+        if (i < FD->getNumParams()) {
+          ParmVarDecl *PVD = FD->getParamDecl(i);
+          std::set<ConstraintVariable*> ParameterDC =
+            Info.getVariable(PVD, Context);
+
+          // Constrain ParameterEC and ParameterDC to be equal.
+          constrainEq(ParameterEC, ParameterDC, Info);
+        } else {
+          // Constrain ParameterEC to wild if it is a pointer type.
+          llvm_unreachable("TODO");
         }
+
         i++;
       }
     }
-
+    
     return true;
   }
 
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
-    std::set<uint32_t> V;
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(E->getBase(), Context);
     Constraints &CS = Info.getConstraints();
-    Info.getVariable(E->getBase(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(CS.createEq(CS.getOrCreateVar(I), CS.getArr()));
+    for (const auto &C : Var) 
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) 
+        for (const auto &D : PVC->getCvars())
+          CS.addConstraint(CS.createEq(CS.getOrCreateVar(D), CS.getArr()));
+      
     return true;
   }
 
   bool VisitReturnStmt(ReturnStmt *S) {
-    std::set<uint32_t> V;
-    std::set<uint32_t> F;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(S->getRetValue(), V, Context);
-    Info.getVariable(Function, F, Context);
-    if (F.size() > 0) {
-      assert(F.size() == 1);
-      for (const auto &I : V)
-        CS.addConstraint(
-            CS.createEq(CS.getOrCreateVar(*F.begin()), CS.getOrCreateVar(I)));
-    }
+    std::set<ConstraintVariable*> Fun =
+      Info.getVariable(Function, Context);
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(S->getRetValue(), Context);
+
+    // Constrain the value returned (if present) against the return value
+    // of the function.   
+    for (const auto &F : Fun )
+      if (FVConstraint *FU = dyn_cast<FVConstraint>(F))
+       constrainEq(FU->getReturnVars(), Var, Info); 
 
     return true;
   }
 
-  bool VisitUnaryPreInc(UnaryOperator *O) {
-    std::set<uint32_t> V;
+  void constrainExprFirst(Expr *E) {
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(E, Context);
     Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getSubExpr(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
+    for (const auto &I : Var)
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I))
+        CS.addConstraint(
+          CS.createNot(
+            CS.createEq(
+              CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
+  }
 
+  bool VisitUnaryPreInc(UnaryOperator *O) {
+    constrainExprFirst(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostInc(UnaryOperator *O) {
-    std::set<uint32_t> V;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getSubExpr(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
+    constrainExprFirst(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPreDec(UnaryOperator *O) {
-    std::set<uint32_t> V;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getSubExpr(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
+    constrainExprFirst(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostDec(UnaryOperator *O) {
-    std::set<uint32_t> V;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getSubExpr(), V, Context);
-    for (const auto &I : V)
-      CS.addConstraint(
-          CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
+    constrainExprFirst(O->getSubExpr());
     return true;
   }
 
@@ -258,19 +389,8 @@ public:
 private:
 
   void arithBinop(BinaryOperator *O) {
-    std::set<uint32_t> V1;
-    std::set<uint32_t> V2;
-    Constraints &CS = Info.getConstraints();
-    Info.getVariable(O->getLHS(), V1, Context);
-    Info.getVariable(O->getRHS(), V2, Context);
-
-    for (const auto &I : V1)
-      CS.addConstraint(
-        CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
-
-    for (const auto &I : V2)
-      CS.addConstraint(
-        CS.createNot(CS.createEq(CS.getOrCreateVar(I), CS.getPtr())));
+    constrainExprFirst(O->getLHS());
+    constrainExprFirst(O->getRHS());
   }
 
   ASTContext *Context;
@@ -290,7 +410,7 @@ public:
   bool VisitVarDecl(VarDecl *G) {
     
     if (G->hasGlobalStorage() && G->getType()->isPointerType())
-      Info.addVariable(G, NULL, Context);
+      Info.addVariable(G, nullptr, Context);
 
     Info.seeGlobalDecl(G);
 
@@ -301,16 +421,9 @@ public:
     FullSourceLoc FL = Context->getFullLoc(D->getLocStart());
 
     if (FL.isValid()) {
-      std::string fn = D->getNameAsString();
- 
-      // Add variables for the value returned from the function.
-      if (D->getReturnType()->isPointerType())
-        Info.addVariable(D, NULL, Context);
 
-      // Add variables for each parameter declared for the function.
-      for (const auto &P : D->parameters())
-        if (P->getType()->isPointerType())
-          Info.addVariable(P, NULL, Context);
+      Info.addVariable(D, nullptr, Context);
+      Info.seeFunctionDecl(D, Context);
 
       if (D->hasBody() && D->isThisDeclarationADefinition()) {
         Stmt *Body = D->getBody();
@@ -319,8 +432,6 @@ public:
         // Visit the body of the function and build up information.
         FV.TraverseStmt(Body);
       }
-
-      Info.seeFunctionDecl(D, Context);
     }
 
     return true;
@@ -341,18 +452,11 @@ public:
           // but let's scan it and not consider any records
           // that don't have any pointers.
 
-          bool anyPointers = false;
-
-          for (const auto &F : Definition->fields()) {
-            if (F->getType()->isPointerType()) {
-              anyPointers = true;
-              break;
+          for (const auto &D : Definition->fields())
+            if (D->getType()->isPointerType()) {
+              Info.addVariable(D, NULL, Context);
+              specialCaseVarIntros(D, Info, Context);
             }
-          }
-
-          if (anyPointers) {
-            Info.addRecordDecl(Definition, Context);
-          }
         }
       }
     }
