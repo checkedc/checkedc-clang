@@ -50,7 +50,7 @@ PersistentSourceLoc::mkPSL(SourceLocation SL, ASTContext &Context) {
   FullSourceLoc FESL = Context.getFullLoc(ESL);
   assert(FESL.isValid());
   
-  std::string fn = sys::path::filename(PL.getFilename()).str();
+  std::string fn = PL.getFilename();
 
   PersistentSourceLoc PSL(fn, 
     FESL.getExpansionLineNumber(), FESL.getExpansionColumnNumber());
