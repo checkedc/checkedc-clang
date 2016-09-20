@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
+#include <sstream>
 
 using namespace clang;
 using namespace llvm;
@@ -48,6 +49,10 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   }
 
   BaseType = tyToStr(Ty);
+
+  if( BaseType == "void" ) 
+    for (const auto &V : vars)
+      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
   
 }
 
@@ -63,6 +68,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   std::string s = "";
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
+  bool wroteFPtr = false;
   for (const auto &V : vars) {
     VarAtom VA(V);
     ConstAtom *C = E[&VA];
@@ -82,10 +88,12 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
       } else {
         assert(BaseType.size() > 0);
         emittedBase = true;
-        if (FV)
+        if (FV) {
           s = s + FV->mkString(E);
-        else
+          wroteFPtr = true;
+        } else {
           s = s + BaseType + "*";
+        }
       }
       break;
     case Atom::A_Const:
@@ -98,15 +106,20 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   if(emittedBase == false) {
     // If we have a FV pointer, then our "base" type is a function pointer
     // type.
-    if (FV)
+    if (FV) {
       s = s + FV->mkString(E);
-    else
+      wroteFPtr = true;
+    } else {
       s = s + BaseType;
+    }
   }
 
   for (unsigned i = 0; i < caratsToAdd; i++) {
     s = s + ">";
   }
+
+  if (FV && wroteFPtr) 
+    s = s + " " + FV->getName();
 
   s = s + " ";
 
@@ -147,18 +160,17 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     Ty->dump();
     llvm_unreachable("don't know what to do");
   }
-
-  if (returnType->isPointerType())
-    returnVars.insert(new PVConstraint(returnType, K, N, CS));
+  // This has to be a mapping for all parameter/return types, even those that 
+  // aren't pointer types. If we need to re-emit the function signature
+  // as a type, then we will need the types for all the parameters and the
+  // return values
+ 
+  returnVars.insert(new PVConstraint(returnType, K, N, CS));
 
   for (const auto &P : paramTypes) {
     std::set<ConstraintVariable*> C;
-    if (P->isPointerType()) {
-      C.insert(new PVConstraint(P, K, N, CS));
-      paramVars.push_back(C);
-    } else {
-      paramVars.push_back(C);
-    }
+    C.insert(new PVConstraint(P, K, N, CS));
+    paramVars.push_back(C);
   }
 }
 
@@ -210,14 +222,14 @@ bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
 
 void FunctionVariableConstraint::print(raw_ostream &O) const {
   O << "( ";
-  for(const auto &I : returnVars)
-   I->dump(); 
+  for (const auto &I : returnVars)
+   I->print(O); 
   O << " )";
   O << " " << name << " ";
-  for(const auto &I : paramVars) {
+  for (const auto &I : paramVars) {
     O << "( ";
-    for(const auto &J : I)
-      J->dump();
+    for (const auto &J : I)
+      J->print(O);
     O << " )";
   }
 }
@@ -225,8 +237,29 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 std::string
 FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   assert(name.size() > 0);
+  std::string s = "";
+  // TODO punting on what to do here. The right thing to do is to figure out
+  // the LUB of all of the V in returnVars.
+  assert(returnVars.size() > 0);
+  ConstraintVariable *V = *returnVars.begin();
+  s = V->mkString(E);
+  s = s + "(";
+	std::vector<std::string> parmStrs;
+  for (const auto &V : this->paramVars) {
+    // TODO likewise punting here.
+    assert(V.size() > 0);
+    parmStrs.push_back((*V.begin())->mkString(E));
+  }  
 
-  return "";
+	std::ostringstream ss;
+
+  std::copy(parmStrs.begin(), parmStrs.end() - 1, 
+       std::ostream_iterator<std::string>(ss, ", "));
+  ss << parmStrs.back();
+
+  s = s + ss.str() + ")";
+
+  return s;
 }
 
 void ProgramInfo::print(raw_ostream &O) const {
@@ -701,10 +734,11 @@ ProgramInfo::getVariableHelper(Expr *E,
           // Subtract one from this constraint. If that generates an empty 
           // constraint, then, don't add it 
           std::set<uint32_t> C = PVC->getCvars();
-          assert(C.size() > 0);
-          C.erase(C.begin());
-          if (C.size() > 0)
-            tmp.insert(new PVConstraint(C, PVC->getTy()));
+          if(C.size() > 0) {
+            C.erase(C.begin());
+            if (C.size() > 0)
+              tmp.insert(new PVConstraint(C, PVC->getTy()));
+          }
         } else {
           llvm_unreachable("Shouldn't dereference a function pointer!");
         }

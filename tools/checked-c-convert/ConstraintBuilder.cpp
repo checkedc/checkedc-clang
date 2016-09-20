@@ -250,7 +250,6 @@ public:
 
   bool VisitDeclStmt(DeclStmt *S) {
     // Introduce variables as needed.
-    S->dump();
     if (S->isSingleDecl()) {
       if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl()))
         MyVisitVarDecl(VD, S);
@@ -294,7 +293,6 @@ public:
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
 
-      //Constraints &CS = Info.getConstraints();
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<uint32_t> V;
@@ -337,8 +335,10 @@ public:
       Info.getVariable(Function, Context);
     std::set<ConstraintVariable*> Var =
       Info.getVariable(S->getRetValue(), Context);
-    
-    constrainEq(Fun, Var, Info);
+   
+    for (const auto &F : Fun )
+      if (FVConstraint *FU = dyn_cast<FVConstraint>(F))
+       constrainEq(FU->getReturnVars(), Var, Info); 
 
     return true;
   }

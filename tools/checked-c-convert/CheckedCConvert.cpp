@@ -461,24 +461,19 @@ public:
 
       std::tie(S, D, T) = PSLMap[PLoc];
 
-      //if (S)
-        //S->dump();
       if (D) {
         // We might have one Decl for multiple Vars, however, one will be a 
         // PointerVar so we'll use that.
+        VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
+        if (K != VDLToStmtMap.end())
+          DS = K->second;
+        
         PVConstraint *PV = nullptr; 
-        FVConstraint *FV = nullptr;
-        for (const auto &V : Vars) {
+        for (const auto &V : Vars) 
           if(PVConstraint *T = dyn_cast<PVConstraint>(V))
             PV = T;
-          else if(FVConstraint *T = dyn_cast<FVConstraint>(V))
-            FV = T;
-        }
-        VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
-        if(K != VDLToStmtMap.end())
-          DS = K->second;
 
-        if(PV && PV->anyChanges(Info.getConstraints().getVariables())) {
+        if (PV && PV->anyChanges(Info.getConstraints().getVariables())) {
           std::string newTy = PV->mkString(Info.getConstraints().getVariables());
           rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
         }

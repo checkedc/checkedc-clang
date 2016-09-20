@@ -111,6 +111,7 @@ public:
   getReturnVars() { return returnVars; }
 
   size_t numParams() { return paramVars.size(); }
+  std::string getName() { return name; }
 
   bool hasProtoType() { return hasproto; }
 
