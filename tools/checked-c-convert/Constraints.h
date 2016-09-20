@@ -416,6 +416,9 @@ public:
   typedef std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > EnvironmentMap;
 
   bool addConstraint(Constraint *c);
+  // It's important to return these by reference. Programs can have 
+  // 10-100-100000 constraints and variables, and copying them each time
+  // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
   EnvironmentMap &getVariables() { return environment; }
   bool solve(void);

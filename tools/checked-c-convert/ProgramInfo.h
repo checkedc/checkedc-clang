@@ -5,8 +5,8 @@
 //
 //===----------------------------------------------------------------------===//
 // This class is used to collect information for the program being analyzed.
-// The class allocates constraint variables and maps the constraint variables
-// to AST elements of the program.
+// The class allocates constraint variables and maps program locations 
+// (specified by PersistentSourceLocs) to constraint variables.
 //
 // The allocation of constraint variables is a little nuanced. For a given
 // variable, there might be multiple constraint variables. For example, some
@@ -33,7 +33,10 @@
 #include "utils.h"
 #include "PersistentSourceLoc.h"
 
+// Holds integers representing constraint variables, with semantics as 
+// defined in the comment at the top of the file.
 typedef std::set<uint32_t> CVars;
+
 // Base class for ConstraintVariables. A ConstraintVariable can either be a 
 // PointerVariableConstraint or a FunctionVariableConstraint. The difference
 // is that FunctionVariableConstraints have constraints on the return value
@@ -55,10 +58,20 @@ public:
   ConstraintVariable(ConstraintVariableKind K, std::string T) : 
     Kind(K),BaseType(T) {}
 
+  // Create a "for-rewriting" representation of this ConstraintVariable.
   virtual std::string mkString(Constraints::EnvironmentMap &E) = 0;
+
+  // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
   virtual void dump() const = 0;
+
+  // Constrain everything 'within' this ConstraintVariable to be equal to C.
   virtual void constrainTo(Constraints &CS, ConstAtom *C) = 0;
+
+  // Returns true if any of the constraint variables 'within' this instance
+  // have a binding in E other than top. E should be the EnvironmentMap that
+  // results from running unification on the set of constraints and the 
+  // environment.
   virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
@@ -104,8 +117,12 @@ typedef PointerVariableConstraint PVConstraint;
 // when a re-write of a function pointer is needed.
 class FunctionVariableConstraint : public ConstraintVariable {
 private:
+  // N constraints on the return value of the function.
   std::set<ConstraintVariable*> returnVars;
+  // A vector of K sets of N constraints on the parameter values, for 
+  // K parameters accepted by the function.
   std::vector<std::set<ConstraintVariable*>> paramVars;
+  // Name of the function or function variable. Used by mkString.
   std::string name;
   bool hasproto;
 public:

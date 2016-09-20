@@ -28,7 +28,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
       Type *T = NULL;
       std::tie<Stmt *, Decl *, Type *>(So, D, T) = PSLtoSDT[PSL];
       if (So != NULL && Verbose) {
-        errs() << "\nOverrding ";
+        errs() << "\nOverriding ";
         S->dump();
         errs() << "\n";
         errs() << "With ";

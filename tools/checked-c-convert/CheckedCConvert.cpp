@@ -80,7 +80,8 @@ const Type *getNextTy(const Type *Ty) {
 
 // Test to see if we can rewrite a given SourceRange. 
 // Note that R.getRangeSize will return -1 if SR is within
-// a macro as well. 
+// a macro as well. This means that we can't re-write any 
+// text that occurs within a macro.
 bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
