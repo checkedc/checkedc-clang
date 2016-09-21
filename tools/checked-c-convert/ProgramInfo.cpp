@@ -272,13 +272,17 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     parmStrs.push_back(U->mkString(E));
   }  
 
-	std::ostringstream ss;
+  if (parmStrs.size() > 0) {
+    std::ostringstream ss;
 
-  std::copy(parmStrs.begin(), parmStrs.end() - 1, 
-       std::ostream_iterator<std::string>(ss, ", "));
-  ss << parmStrs.back();
+    std::copy(parmStrs.begin(), parmStrs.end() - 1, 
+         std::ostream_iterator<std::string>(ss, ", "));
+    ss << parmStrs.back();
 
-  s = s + ss.str() + ")";
+    s = s + ss.str() + ")";
+  } else {
+    s = s + ")";
+  }
 
   return s;
 }
