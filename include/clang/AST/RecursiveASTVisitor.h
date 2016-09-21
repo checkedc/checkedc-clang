@@ -2425,7 +2425,7 @@ DEF_TRAVERSE_STMT(AtomicExpr, {})
 DEF_TRAVERSE_STMT(CountBoundsExpr, {})
 DEF_TRAVERSE_STMT(NullaryBoundsExpr, {})
 DEF_TRAVERSE_STMT(RangeBoundsExpr, {})
-DEF_TRAVERSE_STMT(InteropTypeBoundsAnnot, {})
+DEF_TRAVERSE_STMT(InteropTypeBoundsAnnotation, {})
 
 // For coroutines expressions, traverse either the operand
 // as written or the implied calls, depending on what the

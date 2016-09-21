@@ -12292,16 +12292,20 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
                                        RParenLoc);
 }
 
-ExprResult Sema::ActOnBoundsInteropType(ParsedType ParsedTy) {
-  TypeSourceInfo *TypeInfo;
-  (void) GetTypeFromParser(ParsedTy, &TypeInfo);
-  QualType QT = TypeInfo->getType();
-  assert(QT->isCheckedPointerType());
-  TypeLoc Loc = TypeInfo->getTypeLoc();
-  return new (Context) InteropTypeBoundsAnnot(QT, Loc.getBeginLoc(),
-                                             Loc.getEndLoc(), TypeInfo);
+ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
+                                        SourceLocation RParenLoc) {
+  TypeSourceInfo *TInfo = nullptr;
+  GetTypeFromParser(Ty, &TInfo);
+  return CreateBoundsInteropType(TypeKWLoc, TInfo, RParenLoc);
 }
 
+ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
+                                         SourceLocation RParenLoc) {
+  QualType QT = TInfo->getType();
+  assert(QT->isCheckedPointerType());
+  return new (Context) InteropTypeBoundsAnnotation(QT, TypeKWLoc, RParenLoc,
+                                                   TInfo);
+}
 
 //===----------------------------------------------------------------------===//
 // Clang Extensions.

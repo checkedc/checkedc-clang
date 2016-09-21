@@ -3825,7 +3825,7 @@ bool BoundsExpr::validateKind(Kind K) {
       return K == ElementCount || K == ByteCount;
     case RangeBoundsExprClass:
       return K == Range;
-    case InteropTypeBoundsAnnotClass:
+    case InteropTypeBoundsAnnotationClass:
       return K == InteropTypeAnnotation;
     default:
       return false;

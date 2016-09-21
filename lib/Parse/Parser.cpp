@@ -499,11 +499,13 @@ void Parser::Initialize() {
     Ident_byte_count = &PP.getIdentifierTable().get("byte_count");
     Ident_count = &PP.getIdentifierTable().get("count");
     Ident_none = &PP.getIdentifierTable().get("none");
+    Ident_type = &PP.getIdentifierTable().get("type");
   } else {
     Ident_bounds = nullptr;
     Ident_byte_count = nullptr;
     Ident_count = nullptr;
     Ident_none = nullptr;
+    Ident_type = nullptr;
   }
 
   Ident__except = nullptr;

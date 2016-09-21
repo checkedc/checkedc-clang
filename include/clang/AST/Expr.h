@@ -4505,6 +4505,7 @@ public:
 
 /// \brief Represents a Checked C bounds expression.
 class BoundsExpr : public Expr {
+private:
   SourceLocation StartLoc, EndLoc;
   friend class ASTStmtReader;
 
@@ -4683,45 +4684,51 @@ public:
 /// \brief Represents a Checked C interop bounds annotation.
 ///
 /// Checked C has bounds-safe interfaces that allow global variables,
-/// functions, and members defined by unchecked code to be used in ch+ecked
-/// contexts and treated as having checked pointer types. This annotation is
-/// used to declare that a variable, parameter, or member has a bounds-safe
-//  interface that is a checked pointer type.
+/// function parameters and return values, and members that have unchecked
+/// pointer types to be used in checked contexts and be treated as having
+/// checked pointer types. This annotation declares the checked pointer
+/// type to be used as the type of the entity in the bounds-safe interface.
 ///
-/// Typically this is used to declare an unchecked-pointer typed entity
-/// as having a _Ptr type.  There is no bounds expression for this.  More
-/// generally, it can declare a bounds-safe interface this is a checked
-/// pointer to a checked pointer.  This is useful for unchecked declarations
-///  such as `int **y', where y could have a bounds-safe interface that
-/// is `ptr<ptr<int>>` or `array_ptr<ptr<int>>`.
+/// This information is needed typically at the same points where bounds
+/// information is needed, so it is convenient to store the information as a
+/// bounds expression.
 ///
-/// We typically need bounds-safe interface information at the same points
-/// where we need bounds information, so it is convenient to store the
-/// information as a bounds expression.
-class InteropTypeBoundsAnnot : public BoundsExpr {
+/// The annotation is typically used to declare that an entity has _Ptr type
+/// as its bounds-safe interface type.  More generally, an entity can have a
+/// checked pointer type to a checked pointer type and so on as its bounds-safe
+/// interface type.  This is useful for declarations such as `int **y', where
+/// `y' might have a bounds-safe interface that is `_Ptr<_Ptr<int>>` or
+/// `_Array_ptr<_Ptr<int>>`.
+///
+/// This annotation is not necessary for entities for which a bounds expression
+/// is declared and whci do not have a referent typat this a pointer  It will be
+/// inferred that the entity has _Array_ptr type as its bounds-safe interface
+/// type. Some entities will need both this annotation and a bounds expression.
+class InteropTypeBoundsAnnotation : public BoundsExpr {
 private:
   TypeSourceInfo *TIInfo;
 public:
-  InteropTypeBoundsAnnot(QualType Ty, SourceLocation StartLoc,
-                        SourceLocation EndLoc, TypeSourceInfo *tyAsWritten)
-    : BoundsExpr(InteropTypeBoundsAnnotClass, Ty, InteropTypeAnnotation,
-                 StartLoc, EndLoc), TIInfo(tyAsWritten) {
+  InteropTypeBoundsAnnotation(QualType Ty, SourceLocation StartLoc,
+                              SourceLocation EndLoc,
+                              TypeSourceInfo *TyAsWritten)
+    : BoundsExpr(InteropTypeBoundsAnnotationClass, Ty, InteropTypeAnnotation,
+                 StartLoc, EndLoc), TIInfo(TyAsWritten) {
   }
 
-  explicit InteropTypeBoundsAnnot(EmptyShell Empty)
-    : BoundsExpr(InteropTypeBoundsAnnotClass, Empty) {}
+  explicit InteropTypeBoundsAnnotation(EmptyShell Empty)
+    : BoundsExpr(InteropTypeBoundsAnnotationClass, Empty), TIInfo(nullptr) {}
 
   /// getTypeInfoAsWritten - Returns the type source info for the type
   /// in the interop annotaiton
   TypeSourceInfo *getTypeInfoAsWritten() const { return TIInfo; }
-  void setTypeInfoAsWritten(TypeSourceInfo *writtenTy) { TIInfo = writtenTy; }
+  void setTypeInfoAsWritten(TypeSourceInfo *WrittenTy) { TIInfo = WrittenTy; }
 
   /// getTypeAsWritten - Returns the type that this expression is
   /// casting to, as written in the source code.
   QualType getTypeAsWritten() const { return TIInfo->getType(); }
 
   static bool classof(const Stmt *T) {
-    return T->getStmtClass() == InteropTypeBoundsAnnotClass;
+    return T->getStmtClass() == InteropTypeBoundsAnnotationClass;
   }
 
   // Iterators
@@ -4848,7 +4855,8 @@ private:
   SourceLocation BuiltinLoc, RParenLoc;
 
   friend class ASTReader;
-  friend class ASTStmtReader;  explicit AsTypeExpr(EmptyShell Empty) : Expr(AsTypeExprClass, Empty) {}
+  friend class ASTStmtReader;
+  explicit AsTypeExpr(EmptyShell Empty) : Expr(AsTypeExprClass, Empty) {}
 
 public:
   AsTypeExpr(Expr* SrcExpr, QualType DstType,

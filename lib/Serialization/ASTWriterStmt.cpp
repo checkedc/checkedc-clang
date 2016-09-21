@@ -937,12 +937,13 @@ void ASTStmtWriter::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   Code = serialization::EXPR_RANGE_BOUNDS_EXPR;
 }
 
-void ASTStmtWriter::VisitInteropTypeBoundsAnnot(InteropTypeBoundsAnnot *E) {
+void ASTStmtWriter::VisitInteropTypeBoundsAnnotation(
+  InteropTypeBoundsAnnotation *E) {
   VisitExpr(E);
   Record.push_back(E->getKind());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getLocEnd());
-  Code = serialization::EXPR_INTEROPTYPE_BOUNDS_ANNOT;
+  Code = serialization::EXPR_INTEROPTYPE_BOUNDS_ANNOTATION;
 }
 
 //===----------------------------------------------------------------------===//

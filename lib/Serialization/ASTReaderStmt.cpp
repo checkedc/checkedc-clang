@@ -980,7 +980,8 @@ void ASTStmtReader::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   E->EndLoc = ReadSourceLocation(Record, Idx);
 }
 
-void ASTStmtReader::VisitInteropTypeBoundsAnnot(InteropTypeBoundsAnnot *E) {
+void ASTStmtReader::VisitInteropTypeBoundsAnnotation(
+  InteropTypeBoundsAnnotation *E) {
   VisitExpr(E);
   E->setKind((BoundsExpr::Kind)Record[Idx++]);
   E->StartLoc = ReadSourceLocation(Record, Idx);
@@ -3857,8 +3858,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) RangeBoundsExpr(Empty);
       break;
 
-    case EXPR_INTEROPTYPE_BOUNDS_ANNOT:
-      S = new (Context) InteropTypeBoundsAnnot(Empty);
+    case EXPR_INTEROPTYPE_BOUNDS_ANNOTATION:
+      S = new (Context) InteropTypeBoundsAnnotation(Empty);
       break;
         
     case EXPR_LAMBDA: {

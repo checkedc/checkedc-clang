@@ -2762,21 +2762,31 @@ bool Parser::StartsBoundsExpression(Token &tok) {
 }
 
 bool Parser::StartsInteropTypeAnnotation(Token &tok) {
-  switch (tok.getKind()) {
-    case tok::kw__Ptr:
-    case tok::kw__Array_ptr:
-      return true;
-    default:
-      return false;
+  if (tok.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+    return (Ident == Ident_type);
   }
+  return false;
 }
 
 ExprResult Parser::ParseInteropTypeAnnotation() {
   if (StartsInteropTypeAnnotation(Tok)) {
-    TypeResult Ty = ParseTypeName();
-    if (Ty.isInvalid())
+    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+    SourceLocation TypeKWLoc = Tok.getLocation();
+    ConsumeToken();
+    BalancedDelimiterTracker PT(*this, tok::l_paren);
+    if (PT.expectAndConsume(diag::err_expected_lparen_after,
+                            Ident->getNameStart()))
       return ExprError();
-    return Actions.ActOnBoundsInteropType(Ty.get());
+    TypeResult Ty = ParseTypeName();
+    if (Ty.isInvalid()) {
+      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    }
+    ExprResult Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
+                                                       Tok.getLocation());
+    PT.consumeClose();
+    return Result;
   }
 
   Diag(Tok, diag::err_expected_bounds_interop_type);

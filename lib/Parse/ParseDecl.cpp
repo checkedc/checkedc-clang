@@ -3688,8 +3688,8 @@ void Parser::ParseStructDeclaration(
         if (BoundsResult.isInvalid())
           SkipUntil(tok::semi, StopBeforeMatch);
         else {
-          InteropTypeBoundsAnnot *BoundsAnnotation =
-            dyn_cast<InteropTypeBoundsAnnot>(BoundsResult.get());
+          InteropTypeBoundsAnnotation *BoundsAnnotation =
+            dyn_cast<InteropTypeBoundsAnnotation>(BoundsResult.get());
           assert(BoundsAnnotation && "dyn_cast failed");
           if (BoundsAnnotation)
             DeclaratorInfo.BoundsAnnotation = BoundsAnnotation;
@@ -3802,9 +3802,11 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
         // One or both of FD.BoundsExprTokens and FD.BoundsAnnotation must be
         // null. They cannot both be non-null at the same time, or we'll end
         // up losing/overwriting information.
-        assert(FD.BoundsExprTokens == nullptr || FD.BoundsAnnotation == nullptr);
+        assert(FD.BoundsExprTokens == nullptr ||
+               FD.BoundsAnnotation == nullptr);
         if (FD.BoundsExprTokens != nullptr)
-          deferredBoundsExpressions.emplace_back(Field, std::move(FD.BoundsExprTokens));
+          deferredBoundsExpressions.emplace_back(Field,
+            std::move(FD.BoundsExprTokens));
         if (FD.BoundsAnnotation != nullptr)
           Field->setBoundsExpr(FD.BoundsAnnotation);
       };
@@ -6183,13 +6185,13 @@ void Parser::ParseParameterDeclarationClause(
         else {
            // fall back to general code that eagerly parses a bounds expression
            // bounds-safe interface type annotation
-          ExprResult BoundsAnnot = ParseBoundsExpressionOrInteropType();
-          if (BoundsAnnot.isInvalid()) {
+          ExprResult BoundsAnnotation = ParseBoundsExpressionOrInteropType();
+          if (BoundsAnnotation.isInvalid()) {
             SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
             Actions.ActOnInvalidBoundsDecl(Param);
           }
           else
-            Actions.ActOnBoundsDecl(Param, cast<BoundsExpr>(BoundsAnnot.get()));
+            Actions.ActOnBoundsDecl(Param, cast<BoundsExpr>(BoundsAnnotation.get()));
         }
       }
 
