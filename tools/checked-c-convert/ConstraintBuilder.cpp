@@ -179,7 +179,9 @@ public:
   // for each pair of q_i to q_j \forall j in variables_on_rhs.
   //
   // V is the set of constraint variables on the left hand side that we are
-  // assigning to.
+  // assigning to. V represents constraints on a pointer variable. RHS is 
+  // an expression which might produce constraint variables, or, it might 
+  // be some expression like NULL, an integer constant or a cast.
   void constrainAssign( std::set<ConstraintVariable*> V, 
                         Expr *RHS) {
     if (!RHS)
