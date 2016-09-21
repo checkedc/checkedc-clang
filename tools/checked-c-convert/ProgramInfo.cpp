@@ -754,10 +754,18 @@ ProgramInfo::getVariableHelper(Expr *E,
             // as well.
             FVC = tmp2;
       }
-      if (FVC == nullptr)
-       FD->dump(); 
-      assert(FVC != nullptr); // Should have found a FVConstraint
-      TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
+
+      if (FVC) {
+        TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
+      } else {
+        // Our options are slim. For some reason, we have failed to find a 
+        // FVConstraint for the Decl that we are calling. This can't be good
+        // so we should constrain everything in the caller to top. We can
+        // fake this by returning a nullary-ish FVConstraint and that will
+        // make the logic above us freak out and over-constrain everything.
+        TR.insert(new FVConstraint()); 
+      }
+
       return TR;
     } else {
       // If it ISN'T, though... what to do? How could this happen?
