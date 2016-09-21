@@ -88,10 +88,17 @@ private:
   CVars vars;
   FunctionVariableConstraint *FV;
 public:
+  // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T) : 
     ConstraintVariable(PointerVariable, T),vars(V),FV(nullptr) {}
+
+  // Constructor for when we have a Decl. K is the current free
+  // constraint variable index.
   PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS);
+
+  // Constructor for when we only have a Type. Needs a string name
+  // N for the name of the variable that this represents.
   PointerVariableConstraint(const clang::Type *Ty, uint32_t &K,
     std::string N, Constraints &CS);
 
@@ -184,7 +191,7 @@ public:
 
   bool getDeclStmtForDecl(clang::Decl *D, clang::DeclStmt *&St);
 
-  // Checks the structural type equality of two constraint variables. This is 
+  // Checks the structural type equality of two constrained locations. This is 
   // needed if you are casting from U to V. If this returns true, then it's 
   // safe to add an implication that if U is wild, then V is wild. However,
   // if this returns false, then both U and V must be constrained to wild.

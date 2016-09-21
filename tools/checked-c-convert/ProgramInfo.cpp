@@ -214,6 +214,11 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A) {
 bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
   bool f = false;
 
+  // TODO: bail early if we have more than one level of pointer variable and 
+  // a FV, because we'll mangle it if we do that re-write right now.
+  if (FV && vars.size() > 1)
+    return false;
+
   for (const auto &C : vars) {
     VarAtom V(C);
     ConstAtom *CS = E[&V];

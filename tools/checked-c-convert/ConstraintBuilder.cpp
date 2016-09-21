@@ -40,7 +40,7 @@ void constrainEq(std::set<ConstraintVariable*> &RHS,
 // If they are both FVConstraint, then do a return-value and parameter
 // by parameter constraint generation.
 // If they are of an unequal parameter type, constrain everything in both
-// to top.
+// to wild.
 static
 void constrainEq(ConstraintVariable *LHS,
   ConstraintVariable *RHS, ProgramInfo &Info) {
@@ -108,17 +108,16 @@ void constrainEq(ConstraintVariable *LHS,
     PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS);
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
     if (PCLHS && FCRHS) {
-      if (FVConstraint *FCLHS = PCLHS->getFV())
+      if (FVConstraint *FCLHS = PCLHS->getFV()) {
         constrainEq(FCLHS, FCRHS, Info);
-      else
-        llvm_unreachable("TODO");
+      } else {
+        CLHS->constrainTo(CS, CS.getWild());
+        CRHS->constrainTo(CS, CS.getWild());
+      }
     } else {
-      CRHS->dump();
-      errs() << "\n";
-      CLHS->dump();
-      errs() << "\n";
-      // Constrain everything in both to top.
-      llvm_unreachable("TODO");
+      // Constrain everything in both to wild.
+      CLHS->constrainTo(CS, CS.getWild());
+      CRHS->constrainTo(CS, CS.getWild());
     }
   }
 }
@@ -178,6 +177,9 @@ public:
   // In any of these cases, due to conditional expressions, the number of
   // variables on the RHS could be 0 or more. We just do the same rule
   // for each pair of q_i to q_j \forall j in variables_on_rhs.
+  //
+  // V is the set of constraint variables on the left hand side that we are
+  // assigning to.
   void constrainAssign( std::set<ConstraintVariable*> V, 
                         Expr *RHS) {
     if (!RHS)
@@ -196,7 +198,7 @@ public:
         // Case 2.
         if (!RHS->isNullPointerConstant(*Context,
           Expr::NPC_ValueDependentIsNotNull))
-          for (const auto &U : W)
+          for (const auto &U : V)
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
               for (const auto &J : PVC->getCvars())
                 CS.addConstraint(
@@ -338,12 +340,14 @@ public:
     // Constrain the value returned (if present) against the return value
     // of the function.   
     for (const auto &F : Fun )
-      if (FVConstraint *FU = dyn_cast<FVConstraint>(F))
-       constrainEq(FU->getReturnVars(), Var, Info); 
+      if (FVConstraint *FV = dyn_cast<FVConstraint>(F))
+       constrainEq(FV->getReturnVars(), Var, Info); 
 
     return true;
   }
 
+  // Apply ~(V = Ptr) to the first 'level' constraint variable associated with 
+  // 'E'
   void constrainExprFirst(Expr *E) {
     std::set<ConstraintVariable*> Var =
       Info.getVariable(E, Context);
