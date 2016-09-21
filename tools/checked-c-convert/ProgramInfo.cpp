@@ -44,6 +44,9 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
     vars.insert(K);
     CS.getOrCreateVar(K);
     K++;
+
+    if (tyToStr(Ty) == "struct __va_list_tag *")
+      break;
   }
 
   // If, after boiling off the pointer-ness from this type, we hit a 
@@ -56,7 +59,7 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   BaseType = tyToStr(Ty);
 
   // Special case for void to not make _Ptr<void> pointers.
-  if( BaseType == "void" ) 
+  if( BaseType == "void" || BaseType == "struct __va_list_tag *" ) 
     for (const auto &V : vars)
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
   
