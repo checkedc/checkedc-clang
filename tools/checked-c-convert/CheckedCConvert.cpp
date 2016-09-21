@@ -379,13 +379,13 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           // For example \foo\bar\a.c should become \foo\bar\a.checked.c
           // if the OutputPostfix parameter is "checked" .
 
-          StringRef pfName = sys::path::filename(FE->getName());
-          StringRef dirName = sys::path::parent_path(FE->getName());
-          StringRef fileName = sys::path::remove_leading_dotslash(pfName);
-          StringRef ext = sys::path::extension(fileName);
-          StringRef stem = sys::path::stem(fileName);
-          Twine nFileName = stem + "." + OutputPostfix + ext;
-          Twine nFile = dirName + sys::path::get_separator() + nFileName;
+          std::string pfName = sys::path::filename(FE->getName()).str();
+          std::string dirName = sys::path::parent_path(FE->getName()).str();
+          std::string fileName = sys::path::remove_leading_dotslash(pfName).str();
+          std::string ext = sys::path::extension(fileName).str();
+          std::string stem = sys::path::stem(fileName).str();
+          std::string nFileName = stem + "." + OutputPostfix + ext;
+          std::string nFile = dirName + sys::path::get_separator().str() + nFileName;
           
           // Write this file out if it was specified as a file on the command
           // line.
@@ -399,11 +399,11 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
           if(canWrite(feAbsS, InOutFiles, BaseDir)) {
             std::error_code EC;
-            raw_fd_ostream out(nFile.str(), EC, sys::fs::F_None);
+            raw_fd_ostream out(nFile, EC, sys::fs::F_None);
 
             if (!EC) {
               if (Verbose)
-                outs() << "writing out " << nFile.str() << "\n";
+                outs() << "writing out " << nFile << "\n";
               B->write(out);
             }
             else
@@ -445,7 +445,11 @@ public:
     for (const auto &V : Info.getVarMap()) {
       PersistentSourceLoc PLoc = V.first;
       std::set<ConstraintVariable*> Vars = V.second;
-      assert(Vars.size() > 0 && Vars.size() <= 2);
+      // I don't think it's important that Vars have any especial size, but 
+      // at one point I did so I'm keeping this comment here. It's possible 
+      // that what we really need to do is to ensure that when we work with
+      // either PV or FV below, that they are the LUB of what is in Vars.
+      // assert(Vars.size() > 0 && Vars.size() <= 2);
 
       // PLoc specifies the location of the variable whose type it is to 
       // re-write, but not where the actual type storage is. To get that, we
@@ -470,13 +474,26 @@ public:
           DS = K->second;
         
         PVConstraint *PV = nullptr; 
-        for (const auto &V : Vars) 
-          if(PVConstraint *T = dyn_cast<PVConstraint>(V))
+        FVConstraint *FV = nullptr;
+        for (const auto &V : Vars) {
+          if (PVConstraint *T = dyn_cast<PVConstraint>(V))
             PV = T;
+          else if (FVConstraint *T = dyn_cast<FVConstraint>(V))
+            FV = T;
+        }
 
         if (PV && PV->anyChanges(Info.getConstraints().getVariables())) {
+          // Rewrite a declaration.
           std::string newTy = PV->mkString(Info.getConstraints().getVariables());
           rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
+        } else if (FV && FV->anyChanges(Info.getConstraints().getVariables())) {
+          // Rewrite a function variables return value.
+          std::set<ConstraintVariable*> V = FV->getReturnVars();
+          if (V.size() > 0) {
+            std::string newTy = 
+              (*V.begin())->mkString(Info.getConstraints().getVariables());
+            rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
+          }
         }
       }
     }
