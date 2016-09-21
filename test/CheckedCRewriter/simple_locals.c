@@ -6,7 +6,7 @@
 // RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 
-void f1() {
+void f1(void) {
     int b = 0;
     int *a = &b;
     *a = 1;
@@ -15,7 +15,7 @@ void f1() {
 // CHECK-NEXT: int b = 0;
 // CHECK-NEXT: _Ptr<int> a = &b;
 
-void f2() {
+void f2(void) {
     char b = 'a';
     char *a = &b;
     *a = 'b';
@@ -72,8 +72,9 @@ void gg(void) {
 }
 //CHECK: void gg(void) {
 //CHECK-NEXT: int a = 0;
+
 //CHECK-NEXT: _Ptr<int> b = &a;
-//CHECK-NEXT: _Ptr<_Ptr<int> > c = &b;
+//CHECK-NEXT: _Ptr<_Ptr<int>> c = &b;
 
 #define ONE 1
 

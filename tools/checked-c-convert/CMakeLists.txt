@@ -6,7 +6,6 @@ set( LLVM_LINK_COMPONENTS
 
 add_clang_executable(checked-c-convert
   CheckedCConvert.cpp
-  NewTyp.cpp
   ProgramInfo.cpp
   MappingVisitor.cpp
   ConstraintBuilder.cpp

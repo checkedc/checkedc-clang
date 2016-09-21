@@ -16,6 +16,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 
@@ -26,9 +27,9 @@
 #include "Constraints.h"
 
 #include "ConstraintBuilder.h"
-#include "NewTyp.h"
 #include "PersistentSourceLoc.h"
 #include "ProgramInfo.h"
+#include "MappingVisitor.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;
@@ -55,15 +56,16 @@ static cl::opt<std::string>
                            "not supplied writes to STDOUT"),
                   cl::init("-"), cl::cat(ConvertCategory));
 
-static cl::opt<bool> RewriteHeaders(
-    "rewrite-headers",
-    cl::desc("Rewrite header files as well as the specified source files"),
-    cl::init(false), cl::cat(ConvertCategory));
-
 static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::desc("Dump statistics"),
                                 cl::init(false),
                                 cl::cat(ConvertCategory));
+
+static cl::opt<std::string>
+BaseDir("base-dir",
+  cl::desc("Base directory for the code we're translating"),
+  cl::init(""),
+  cl::cat(ConvertCategory));
 
 const Type *getNextTy(const Type *Ty) {
   if(Ty->isPointerType()) {
@@ -77,9 +79,15 @@ const Type *getNextTy(const Type *Ty) {
 }
 
 // Test to see if we can rewrite a given SourceRange. 
+// Note that R.getRangeSize will return -1 if SR is within
+// a macro as well. This means that we can't re-write any 
+// text that occurs within a macro.
 bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
+
+typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
+typedef std::pair<DeclNStmt, std::string> DAndReplace;
 
 // Visit each Decl in toRewrite and apply the appropriate pointer type
 // to that Decl. The state of the rewrite is contained within R, which
@@ -87,19 +95,23 @@ bool canRewrite(Rewriter &R, SourceRange &SR) {
 // source file for this transformation. toRewrite contains the set of
 // declarations to rewrite. S is passed for source-level information
 // about the current compilation unit.
-void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
+void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
              ASTContext &A, std::set<FileID> &Files) {
-  std::set<NewTyp *> skip;
-
-  if (Verbose)
-    errs() << "Rewriting\n";
+  std::set<DAndReplace> skip;
 
   for (const auto &N : toRewrite) {
-    if (N->anyChanges() == false)
-      continue;
+    //if (N->anyChanges() == false)
+      //continue;
+    DeclNStmt DN = N.first;
+    Decl *D = DN.first;
+    DeclStmt *Where = DN.second;
+    assert(D != nullptr);
 
-    Decl *D = N->getDecl();
-    DeclStmt *Where = N->getWhere();
+    if (Verbose) {
+      errs() << "Replacing type of decl:\n";
+      D->dump();
+      errs() << "with " << N.second << "\n";
+    }
 
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == NULL);
@@ -127,7 +139,8 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
 
           for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
                toRewrite = toRewrite->getPreviousDecl()) {
-            if (parmIndex < toRewrite->getNumParams()) {
+            int U = toRewrite->getNumParams();
+            if (parmIndex < U) {
               // TODO these declarations could get us into deeper header files.
               ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
               assert(Rewrite != NULL);
@@ -140,7 +153,7 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
                 FullSourceLoc FSL(TR.getBegin(), S);
                 Files.insert(FSL.getFileID());
                 if (canRewrite(R, TR))
-                  R.ReplaceText(TR, N->mkStr());
+                  R.ReplaceText(TR, N.second);
               }
               else {
                 if (Verbose) {
@@ -158,6 +171,10 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
 
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       if (Where != NULL) {
+        if (Verbose) {
+          errs() << "VarDecl at:\n";
+          Where->dump();
+        }
         SourceRange TR = VD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
 
         // Is it a variable type? This is the easy case, we can re-write it
@@ -167,9 +184,32 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
         // list of file ID's we've touched.
         FullSourceLoc FSL(TR.getBegin(), S);
         Files.insert(FSL.getFileID());
-        if (Where->isSingleDecl() && canRewrite(R, TR))
-          R.ReplaceText(TR, N->mkStr());
-        else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
+        if (Where->isSingleDecl()) {
+          if (canRewrite(R, TR)) {
+            R.ReplaceText(TR, N.second);
+          } else {
+            // This can happen if SR is within a macro. If that is the case, 
+            // maybe there is still something we can do because Decl refers 
+            // to a non-macro line.
+
+            SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
+              VD->getLocation());
+
+            if (canRewrite(R, possible)) {
+              R.ReplaceText(possible, N.second);
+              std::string newStr = " " + VD->getName().str();
+              R.InsertTextAfter(VD->getLocation(), newStr);
+            } else {
+              if (Verbose) {
+                errs() << "Still don't know how to re-write VarDecl\n";
+                VD->dump();
+                errs() << "at\n";
+                Where->dump();
+                errs() << "with " << N.second << "\n";
+              }
+            }
+          }
+        } else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
           // Hack time!
           // Sometimes, like in the case of a decl on a single line, we'll need to
           // do multiple NewTyps at once. In that case, in the inner loop, we'll
@@ -178,11 +218,11 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
           // we don't want to process twice. We'll skip them here.
 
           // Step 1: get the re-written types.
-          std::set<NewTyp *> rewritesForThisDecl;
+          std::set<DAndReplace> rewritesForThisDecl;
           auto I = toRewrite.find(N);
           while (I != toRewrite.end()) {
-            NewTyp *tmp = *I;
-            if (tmp->getWhere() == Where)
+            DAndReplace tmp = *I;
+            if (tmp.first.second == Where)
               rewritesForThisDecl.insert(tmp);
             ++I;
           }
@@ -197,18 +237,20 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
           std::string newMultiLineDeclS = "";
           raw_string_ostream newMLDecl(newMultiLineDeclS);
           for (const auto &DL : Where->decls()) {
-            NewTyp *N = NULL;
+            DAndReplace N;
+            bool found = false;
             VarDecl *VDL = dyn_cast<VarDecl>(DL);
             assert(VDL != NULL);
 
             for (const auto &NLT : rewritesForThisDecl)
-              if (NLT->getDecl() == DL) {
+              if (NLT.first.first == DL) {
                 N = NLT;
+                found = true;
                 break;
               }
 
-            if (N) {
-              newMLDecl << N->mkStr();
+            if (found) {
+              newMLDecl << N.second;
               newMLDecl << " " << VDL->getNameAsString();
               if (Expr *E = VDL->getInit()) {
                 newMLDecl << " = ";
@@ -231,6 +273,14 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
 
           for (const auto &TN : rewritesForThisDecl)
             skip.insert(TN);
+        } else {
+          if (Verbose) {
+            errs() << "Don't know how to re-write VarDecl\n";
+            VD->dump();
+            errs() << "at\n";
+            Where->dump();
+            errs() << "with " << N.second << "\n";
+          }
         }
       } else {
         if (Verbose) {
@@ -249,17 +299,65 @@ void rewrite(Rewriter &R, std::set<NewTyp *> &toRewrite, SourceManager &S,
       //       so don't.
       SourceRange SR = UD->getReturnTypeSourceRange();
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, N->mkStr());
+        R.ReplaceText(SR, N.second);
     }
     else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, N->mkStr());
+        R.ReplaceText(SR, N.second);
     }
   }
 }
 
-void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
+static
+bool 
+canWrite(std::string filePath, std::set<std::string> &iof, std::string b) {
+  // Was this file explicitly provided on the command line?
+  if (iof.count(filePath) > 0)
+    return true;
+  // Is this file contained within the base directory?
+
+  sys::path::const_iterator baseIt = sys::path::begin(b);
+  sys::path::const_iterator pathIt = sys::path::begin(filePath);
+  sys::path::const_iterator baseEnd = sys::path::end(b);
+  sys::path::const_iterator pathEnd = sys::path::end(filePath);
+  std::string baseSoFar = (*baseIt).str() + sys::path::get_separator().str();
+  std::string pathSoFar = (*pathIt).str() + sys::path::get_separator().str();
+  ++baseIt;
+  ++pathIt;
+
+  while ((baseIt != baseEnd) && (pathIt != pathEnd)) {
+    sys::fs::file_status baseStatus;
+    sys::fs::file_status pathStatus;
+    std::string s1 = (*baseIt).str();
+    std::string s2 = (*pathIt).str();
+
+    if (std::error_code ec = sys::fs::status(baseSoFar, baseStatus))
+      return false;
+    
+    if (std::error_code ec = sys::fs::status(pathSoFar, pathStatus))
+      return false;
+
+    if (!sys::fs::equivalent(baseStatus, pathStatus))
+      break;
+
+    if (s1 != sys::path::get_separator().str())
+      baseSoFar += (s1 + sys::path::get_separator().str());
+    if (s2 != sys::path::get_separator().str())
+      pathSoFar += (s2 + sys::path::get_separator().str());
+
+    ++baseIt;
+    ++pathIt;
+  }
+
+  if (baseIt == baseEnd && baseSoFar == pathSoFar)
+    return true;
+  else
+    return false;
+}
+
+void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
+          std::set<std::string> &InOutFiles) {
   // Check if we are outputing to stdout or not, if we are, just output the
   // main file ID to stdout.
   if (Verbose)
@@ -288,8 +386,18 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
           StringRef stem = sys::path::stem(fileName);
           Twine nFileName = stem + "." + OutputPostfix + ext;
           Twine nFile = dirName + sys::path::get_separator() + nFileName;
+          
+          // Write this file out if it was specified as a file on the command
+          // line.
+          SmallString<254>  feAbs(FE->getName());
+          std::string feAbsS = "";
+          if (std::error_code ec = sys::fs::make_absolute(feAbs)) {
+            if (Verbose)
+              errs() << "could not make path absolote\n";
+          } else
+            feAbsS = feAbs.str();
 
-          if (ext != ".h" || (ext == ".h" && RewriteHeaders)) {
+          if(canWrite(feAbsS, InOutFiles, BaseDir)) {
             std::error_code EC;
             raw_fd_ostream out(nFile.str(), EC, sys::fs::F_None);
 
@@ -310,28 +418,76 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files) {
 
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I, ASTContext *Context) : Info(I) {}
+  explicit RewriteConsumer(ProgramInfo &I, 
+    std::set<std::string> &F, ASTContext *Context) : Info(I), InOutFiles(F) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context) {
     Info.enterCompilationUnit(Context);
 
-    std::set<NewTyp *> rewriteThese;
-    for (const auto &V : Info.getVarMap()) {
-      Decl *J = V.first;
-      DeclStmt *K = NULL;
-      Info.getDeclStmtForDecl(J, K);
+    // Build a map of all of the PersistentSourceLoc's back to some kind of 
+    // Stmt, Decl, or Type.
+    VariableMap &VarMap = Info.getVarMap();
+    std::set<PersistentSourceLoc> keys;
 
-      NewTyp *NT = NewTyp::mkTypForConstrainedType(J, K, Info, &Context);
-      if (NT)
-        rewriteThese.insert(NT);
+    for (const auto &I : VarMap)
+      keys.insert(I.first);
+    std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> PSLMap;
+    VariableDecltoStmtMap VDLToStmtMap;
+
+    MappingVisitor V(keys, Context);
+    TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
+    for (const auto &D : TUD->decls())
+      V.TraverseDecl(D);
+
+    std::tie(PSLMap, VDLToStmtMap) = V.getResults();
+
+    std::set<DAndReplace> rewriteThese;
+    for (const auto &V : Info.getVarMap()) {
+      PersistentSourceLoc PLoc = V.first;
+      std::set<ConstraintVariable*> Vars = V.second;
+      assert(Vars.size() > 0 && Vars.size() <= 2);
+
+      // PLoc specifies the location of the variable whose type it is to 
+      // re-write, but not where the actual type storage is. To get that, we
+      // need to turn PLoc into a Decl and then get the SourceRange for the 
+      // type of the Decl. Note that what we need to get is the ExpansionLoc
+      // of the type specifier, since we want where the text is printed before
+      // the variable name, not the typedef or #define that creates the 
+      // name of the type.
+
+      Stmt *S = nullptr;
+      Decl *D = nullptr;
+      DeclStmt *DS = nullptr;
+      Type *T = nullptr;
+
+      std::tie(S, D, T) = PSLMap[PLoc];
+
+      if (D) {
+        // We might have one Decl for multiple Vars, however, one will be a 
+        // PointerVar so we'll use that.
+        VariableDecltoStmtMap::iterator K = VDLToStmtMap.find(D);
+        if (K != VDLToStmtMap.end())
+          DS = K->second;
+        
+        PVConstraint *PV = nullptr; 
+        for (const auto &V : Vars) 
+          if(PVConstraint *T = dyn_cast<PVConstraint>(V))
+            PV = T;
+
+        if (PV && PV->anyChanges(Info.getConstraints().getVariables())) {
+          std::string newTy = PV->mkString(Info.getConstraints().getVariables());
+          rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
+        }
+      }
     }
 
     Rewriter R(Context.getSourceManager(), Context.getLangOpts());
     std::set<FileID> Files;
+
     rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
 
     // Output files.
-    emit(R, Context, Files);
+    emit(R, Context, Files, InOutFiles);
 
     Info.exitCompilationUnit();
     return;
@@ -339,12 +495,13 @@ public:
 
 private:
   ProgramInfo &Info;
+  std::set<std::string> &InOutFiles;
 };
 
 template <typename T, typename V>
 class GenericAction : public ASTFrontendAction {
 public:
-  GenericAction(ProgramInfo &I) : Info(I) {}
+  GenericAction(V &I) : Info(I) {}
 
   virtual std::unique_ptr<ASTConsumer>
   CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
@@ -353,6 +510,22 @@ public:
 
 private:
   V &Info;
+};
+
+template <typename T, typename V, typename U>
+class GenericAction2 : public ASTFrontendAction {
+public:
+  GenericAction2(V &I, U &P) : Info(I),Files(P) {}
+
+  virtual std::unique_ptr<ASTConsumer>
+    CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
+    return std::unique_ptr<ASTConsumer>
+      (new T(Info, Files, &Compiler.getASTContext()));
+  }
+
+private:
+  V &Info;
+  U &Files;
 };
 
 template <typename T>
@@ -372,6 +545,25 @@ newFrontendActionFactoryA(ProgramInfo &I) {
       new ArgFrontendActionFactory(I));
 }
 
+template <typename T>
+std::unique_ptr<FrontendActionFactory>
+newFrontendActionFactoryB(ProgramInfo &I, std::set<std::string> &PS) {
+  class ArgFrontendActionFactory : public FrontendActionFactory {
+  public:
+    explicit ArgFrontendActionFactory(ProgramInfo &I,
+      std::set<std::string> &PS) : Info(I),Files(PS) {}
+
+    FrontendAction *create() override { return new T(Info, Files); }
+
+  private:
+    ProgramInfo &Info;
+    std::set<std::string> &Files;
+  };
+
+  return std::unique_ptr<FrontendActionFactory>(
+    new ArgFrontendActionFactory(I, PS));
+}
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
@@ -381,13 +573,34 @@ int main(int argc, const char **argv) {
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
 
+  if (BaseDir.size() == 0) {
+    SmallString<256>  cp;
+    if (std::error_code ec = sys::fs::current_path(cp)) {
+      errs() << "could not get current working dir\n";
+      return 1;
+    }
+
+    BaseDir = cp.str();
+  }
+
   CommonOptionsParser OptionsParser(argc, argv, ConvertCategory);
 
-  ClangTool Tool(OptionsParser.getCompilations(),
-                 OptionsParser.getSourcePathList());
+  tooling::CommandLineArguments args = OptionsParser.getSourcePathList();
 
-  if (OutputPostfix == "-" && RewriteHeaders == true) {
-    errs() << "If rewriting headers, can't output to stdout\n";
+  ClangTool Tool(OptionsParser.getCompilations(), args);
+  std::set<std::string> inoutPaths;
+
+  for (const auto &S : args) {
+    SmallString<255> abs_path(S);
+    if (std::error_code ec = sys::fs::make_absolute(abs_path))
+      errs() << "could not make absolute\n";
+    else
+      inoutPaths.insert(abs_path.str());
+  }
+
+  //if (OutputPostfix == "-" && RewriteHeaders == true) {
+  if (OutputPostfix == "-" && inoutPaths.size() > 1) {
+    errs() << "If rewriting more than one , can't output to stdout\n";
     return 1;
   }
 
@@ -396,7 +609,7 @@ int main(int argc, const char **argv) {
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
       GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(Info);
-
+  
   if (ConstraintTool)
     Tool.run(ConstraintTool.get());
   else
@@ -419,16 +632,17 @@ int main(int argc, const char **argv) {
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =
-      newFrontendActionFactoryA<GenericAction<RewriteConsumer, ProgramInfo>>(
-          Info);
-
+      newFrontendActionFactoryB
+      <GenericAction2<RewriteConsumer, ProgramInfo, std::set<std::string>>>(
+          Info, inoutPaths);
+  
   if (RewriteTool)
     Tool.run(RewriteTool.get());
   else
     llvm_unreachable("No action");
 
   if (DumpStats)
-    Info.dump_stats();
+    Info.dump_stats(inoutPaths);
 
   return 0;
 }

@@ -5,8 +5,8 @@
 //
 //===----------------------------------------------------------------------===//
 // This class is used to collect information for the program being analyzed.
-// The class allocates constraint variables and maps the constraint variables
-// to AST elements of the program.
+// The class allocates constraint variables and maps program locations 
+// (specified by PersistentSourceLocs) to constraint variables.
 //
 // The allocation of constraint variables is a little nuanced. For a given
 // variable, there might be multiple constraint variables. For example, some
@@ -33,80 +33,147 @@
 #include "utils.h"
 #include "PersistentSourceLoc.h"
 
-// A helper class used to track global information in the program. 
-class GlobalSymbol {
+// Holds integers representing constraint variables, with semantics as 
+// defined in the comment at the top of the file.
+typedef std::set<uint32_t> CVars;
+
+// Base class for ConstraintVariables. A ConstraintVariable can either be a 
+// PointerVariableConstraint or a FunctionVariableConstraint. The difference
+// is that FunctionVariableConstraints have constraints on the return value
+// and on each parameter.
+class ConstraintVariable {
 public:
-  enum GlobalSymbolKind {
-    Variable,
-    Function
+  enum ConstraintVariableKind {
+    PointerVariable,
+    FunctionVariable
   };
 
+  ConstraintVariableKind getKind() const { return Kind; }
+
 private:
-  GlobalSymbolKind Kind;
-  std::string Name;
-  PersistentSourceLoc Loc;
+  ConstraintVariableKind Kind;
+protected:
+  std::string BaseType;
 public:
-  GlobalSymbol(GlobalSymbolKind K, std::string N, PersistentSourceLoc P) 
-    : Kind(K),Name(N),Loc(P) {} 
-  GlobalSymbolKind getKind() const { return Kind; }
+  ConstraintVariable(ConstraintVariableKind K, std::string T) : 
+    Kind(K),BaseType(T) {}
 
-  bool operator<(const GlobalSymbol &O) const {
-    return Loc < O.Loc;
-  }
+  // Create a "for-rewriting" representation of this ConstraintVariable.
+  virtual std::string mkString(Constraints::EnvironmentMap &E) = 0;
 
-  std::string getName() { return Name; }
+  // Debug printing of the constraint variable.
+  virtual void print(llvm::raw_ostream &O) const = 0;
+  virtual void dump() const = 0;
+
+  // Constrain everything 'within' this ConstraintVariable to be equal to C.
+  virtual void constrainTo(Constraints &CS, ConstAtom *C) = 0;
+
+  // Returns true if any of the constraint variables 'within' this instance
+  // have a binding in E other than top. E should be the EnvironmentMap that
+  // results from running unification on the set of constraints and the 
+  // environment.
+  virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
+
+  std::string getTy() { return BaseType; }
 };
 
-class GlobalVariableSymbol : public GlobalSymbol {
+class PointerVariableConstraint;
+class FunctionVariableConstraint;
+
+// Represents an individual constraint on a pointer variable. 
+// This could contain a reference to a FunctionVariableConstraint
+// in the case of a function pointer declaration.
+class PointerVariableConstraint : public ConstraintVariable {
 private:
-  std::set<uint32_t> ConstraintVars;
+  CVars vars;
+  FunctionVariableConstraint *FV;
 public:
-  GlobalVariableSymbol(std::string N, PersistentSourceLoc P, 
-    std::set<uint32_t> S) 
-    : GlobalSymbol(Variable, N, P),ConstraintVars(S) {}
+  // Constructor for when we know a CVars and a type string.
+  PointerVariableConstraint(CVars V, std::string T) : 
+    ConstraintVariable(PointerVariable, T),vars(V),FV(nullptr) {}
 
-  std::set<uint32_t> &getVars() {
-    return ConstraintVars;
+  // Constructor for when we have a Decl. K is the current free
+  // constraint variable index.
+  PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
+    Constraints &CS);
+
+  // Constructor for when we only have a Type. Needs a string name
+  // N for the name of the variable that this represents.
+  PointerVariableConstraint(const clang::Type *Ty, uint32_t &K,
+    std::string N, Constraints &CS);
+
+  const CVars &getCvars() const { return vars; }
+
+  static bool classof(const ConstraintVariable *S) {
+    return S->getKind() == PointerVariable;
   }
 
-  static bool classof(const GlobalSymbol *S) {
-    return S->getKind() == Variable;
-  }
+  std::string mkString(Constraints::EnvironmentMap &E);
+
+  FunctionVariableConstraint *getFV() { return FV; }
+
+  void print(llvm::raw_ostream &O) const ;
+  void dump() const { print(llvm::errs()); }
+  void constrainTo(Constraints &CS, ConstAtom *C);
+  bool anyChanges(Constraints::EnvironmentMap &E);
 };
 
-class GlobalFunctionSymbol : public GlobalSymbol {
+typedef PointerVariableConstraint PVConstraint;
+
+// Constraints on a function type. Also contains a 'name' parameter for 
+// when a re-write of a function pointer is needed.
+class FunctionVariableConstraint : public ConstraintVariable {
 private:
-  std::vector<std::set<uint32_t> > ParameterConstraintVars;
-  std::set<uint32_t> ReturnConstraintVars;
+  // N constraints on the return value of the function.
+  std::set<ConstraintVariable*> returnVars;
+  // A vector of K sets of N constraints on the parameter values, for 
+  // K parameters accepted by the function.
+  std::vector<std::set<ConstraintVariable*>> paramVars;
+  // Name of the function or function variable. Used by mkString.
+  std::string name;
+  bool hasproto;
 public:
-  GlobalFunctionSymbol(std::string N, PersistentSourceLoc P, 
-    std::vector<std::set<uint32_t> > S, std::set<uint32_t> R)
-    : GlobalSymbol(Function, N, P),ParameterConstraintVars(S),
-      ReturnConstraintVars(R) {}
+  FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
+    Constraints &CS);
+  FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
+    std::string N, Constraints &CS);
 
-  std::vector<std::set<uint32_t> > &getParams() { 
-    return ParameterConstraintVars;  
+  std::set<ConstraintVariable*> &
+  getReturnVars() { return returnVars; }
+
+  size_t numParams() { return paramVars.size(); }
+  std::string getName() { return name; }
+
+  bool hasProtoType() { return hasproto; }
+
+  static bool classof(const ConstraintVariable *S) {
+    return S->getKind() == FunctionVariable;
   }
 
-  std::set<uint32_t> &getReturns() {
-    return ReturnConstraintVars;
+  std::set<ConstraintVariable*> &
+  getParamVar(unsigned i) {
+    assert(i < paramVars.size());
+    return paramVars.at(i);
   }
 
-  static bool classof(const GlobalSymbol *S) {
-    return S->getKind() == Function;
-  }
+  std::string mkString(Constraints::EnvironmentMap &E);
+  void print(llvm::raw_ostream &O) const;
+  void dump() const { print(llvm::errs()); }
+  void constrainTo(Constraints &CS, ConstAtom *C);
+  bool anyChanges(Constraints::EnvironmentMap &E);
 };
+
+typedef FunctionVariableConstraint FVConstraint;
 
 class ProgramInfo {
 public:
   ProgramInfo() : freeKey(0), persisted(true) {}
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
-  void dump_stats() { print_stats(llvm::errs()); }
-  void print_stats(llvm::raw_ostream &O);
+  void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
+  void print_stats(std::set<std::string> &F, llvm::raw_ostream &O);
 
   Constraints &getConstraints() { return CS;  }
-  void addRecordDecl(clang::RecordDecl *R, clang::ASTContext *C);
 
   // Populate Variables, VarDeclToStatement, RVariables, and DepthMap with 
   // AST data structures that correspond do the data stored in PDMap and 
@@ -120,15 +187,16 @@ public:
 
   // For each pointer type in the declaration of D, add a variable to the 
   // constraint system for that pointer type. 
-  bool addVariable(clang::Decl *D, clang::DeclStmt *St, clang::ASTContext *C);
+  bool addVariable(clang::DeclaratorDecl *D, clang::DeclStmt *St, clang::ASTContext *C);
 
   bool getDeclStmtForDecl(clang::Decl *D, clang::DeclStmt *&St);
 
-  // Checks the structural type equality of two constraint variables. This is 
+  // Checks the structural type equality of two constrained locations. This is 
   // needed if you are casting from U to V. If this returns true, then it's 
   // safe to add an implication that if U is wild, then V is wild. However,
   // if this returns false, then both U and V must be constrained to wild.
-  bool checkStructuralEquality(uint32_t V, uint32_t U);
+  bool checkStructuralEquality( std::set<ConstraintVariable*> V, 
+                                std::set<ConstraintVariable*> U);
 
   // Called when we are done adding constraints and visiting ASTs. 
   // Links information about global symbols together and adds 
@@ -155,33 +223,20 @@ public:
   // Returns true if E resolves to a constraint variable q_i and the 
   // currentVariable field of V is that constraint variable. Returns false if 
   // a constraint variable cannot be found.
-  bool getVariableHelper(clang::Expr *E, 
-              std::set<std::tuple<uint32_t, uint32_t, uint32_t> > &V,
-                          clang::ASTContext *C) ;
+  std::set<ConstraintVariable *> 
+  getVariableHelper(clang::Expr *E,std::set<ConstraintVariable *>V,
+    clang::ASTContext *C);
 
   // Given some expression E, what is the top-most constraint variable that
-  // E refers to? It could be none, in which case V is empty. Otherwise, V 
-  // contains the constraint variable(s) that E refers to.
-  void getVariable(clang::Expr *E, std::set<uint32_t> &V, clang::ASTContext *C);
-  void getVariable(clang::Decl *D, std::set<uint32_t> &V, clang::ASTContext *C);
-
-  // Given a constraint variable identifier K, find the Decl that 
-  // corresponds to that variable. Note that multiple constraint 
-  // variables map to a single decl, as in the case of 
-  // int **b; for example. In this case, there would be two variables
-  // for that Decl, read out like int * q_0 * q_1 b;
-  // Returns NULL if there is no Decl for that varabiel. 
-  clang::Decl *getDecl(uint32_t K);
+  // E refers to? 
+  std::set<ConstraintVariable*>
+    getVariable(clang::Expr *E, clang::ASTContext *C);
+  std::set<ConstraintVariable*>
+    getVariable(clang::Decl *D, clang::ASTContext *C);
 
   VariableMap &getVarMap() { return Variables;  }
 
 private:
-    // Helper routine for getVariableHelper, looks variables up in the 
-    // variable map based on the supplied Decl.
-    bool declHelper(clang::Decl *D,
-                    std::set < std::tuple<uint32_t, uint32_t, uint32_t> > &V,
-                    clang::ASTContext *C);
-
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;
@@ -191,22 +246,12 @@ private:
   // out how to break up variable declarations that should span lines in the
   // new program.
   VariableDecltoStmtMap VarDeclToStatement;
-  // Map from a Decl* to a uint32_t variable identifier, that variable 
-  // is the smallest variable for that Decl.
-  // It can be the case that |Variables| <= |PersistentVariables|, because 
-  // PersistentVariables can refer to a variable that is only visible locally
-  // within some other file that we have processed. That is fine. 
+
+  // List of all constraint variables, indexed by their location in the source.
+  // This information persists across invocations of the constraint analysis
+  // from compilation unit to compilation unit.
   VariableMap Variables;
-  // Map from a uint32_t variable identifier to the Decl* for that variable.
-  ReverseVariableMap RVariables;
-  // Map from a Decl to the highest variable value in that Decl.
-  DeclMap DepthMap;
-  // Persists information in Variables.
-  std::map<PersistentSourceLoc, uint32_t> PersistentVariables;
-  // Persists information in DepthMap.
-  std::map<PersistentSourceLoc, uint32_t> PersistentDepthMap;
-  // Persists RVariables.
-  std::map<uint32_t, PersistentSourceLoc> PersistentRVariables;
+
   // Constraint system.
   Constraints CS;
   // Is the ProgramInfo persisted? Only tested in asserts. Starts at true.
@@ -216,7 +261,7 @@ private:
   // names of external functions, the value is whether the body has been
   // seen before.
   std::map<std::string, bool> ExternFunctions;
-  std::map<std::string, std::set<GlobalSymbol*> > GlobalSymbols;
+  std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
 };
 
 #endif
