@@ -260,13 +260,16 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   // the LUB of all of the V in returnVars.
   assert(returnVars.size() > 0);
   ConstraintVariable *V = *returnVars.begin();
+  assert(V != nullptr);
   s = V->mkString(E);
   s = s + "(";
 	std::vector<std::string> parmStrs;
-  for (const auto &V : this->paramVars) {
+  for (const auto &I : this->paramVars) {
     // TODO likewise punting here.
-    assert(V.size() > 0);
-    parmStrs.push_back((*V.begin())->mkString(E));
+    assert(I.size() > 0);
+    ConstraintVariable *U = *(I.begin());
+    assert(U != nullptr);
+    parmStrs.push_back(U->mkString(E));
   }  
 
 	std::ostringstream ss;
@@ -429,7 +432,8 @@ bool ProgramInfo::link() {
           // which case we don't need to constrain anything.
           if (P1->hasProtoType() && P2->hasProtoType()) {
             // Nope, we have no choice. Constrain everything to wild.
-            llvm_unreachable("TODO");
+            P1->constrainTo(CS, CS.getWild());
+            P2->constrainTo(CS, CS.getWild());
           }
         }
         ++I;
