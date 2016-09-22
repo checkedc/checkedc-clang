@@ -41,7 +41,6 @@ void constrainEq(std::set<ConstraintVariable*> &RHS,
 // by parameter constraint generation.
 // If they are of an unequal parameter type, constrain everything in both
 // to wild.
-static
 void constrainEq(ConstraintVariable *LHS,
   ConstraintVariable *RHS, ProgramInfo &Info) {
   ConstraintVariable *CRHS = RHS;

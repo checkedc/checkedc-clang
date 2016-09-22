@@ -412,9 +412,29 @@ bool ProgramInfo::link() {
   if (Verbose)
     errs() << "Linking!\n";
 
+  // Multiple Variables can be at the same PersistentSourceLoc. We should
+  // constrain that everything that is at the same location is explicitly
+  // equal.
+  for (const auto &V : Variables) {
+    std::set<ConstraintVariable*> C = V.second;
+
+    if (C.size() > 1) {
+      std::set<ConstraintVariable*>::iterator I = C.begin();
+      std::set<ConstraintVariable*>::iterator J = C.begin();
+      ++J;
+
+      while (J != C.end()) {
+        constrainEq(*I, *J, *this);
+        ++I;
+        ++J;
+      }
+    }
+  }
+
   for (const auto &S : GlobalSymbols) {
     std::string fname = S.first;
     std::set<FVConstraint*> P = S.second;
+
     if (P.size() > 1) {
       std::set<FVConstraint*>::iterator I = P.begin();
       std::set<FVConstraint*>::iterator J = P.begin();
