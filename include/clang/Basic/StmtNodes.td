@@ -175,6 +175,7 @@ def BoundsExpr : DStmt<Expr, 1>;
 def NullaryBoundsExpr : DStmt<BoundsExpr>;
 def CountBoundsExpr : DStmt<BoundsExpr>;
 def RangeBoundsExpr : DStmt<BoundsExpr>;
+def InteropTypeBoundsAnnotation : DStmt<BoundsExpr>;
 
 // CUDA Expressions.
 def CUDAKernelCallExpr : DStmt<CallExpr>;

@@ -1008,6 +1008,13 @@ void StmtProfiler::VisitNullaryBoundsExpr(const NullaryBoundsExpr *S) {
 
 void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
   VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitInteropTypeBoundsAnnotation(
+  const InteropTypeBoundsAnnotation *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
 }
 
 void StmtProfiler::VisitAtomicExpr(const AtomicExpr *S) {

@@ -1066,4 +1066,10 @@ def err_for_co_await_not_range_for : Error<
 def err_expected_bounds_expr : Error<
   "expected bounds expression">;
 
+def err_expected_bounds_interop_type : Error<
+  "expected bounds-safe interface type">;
+
+def err_expected_bounds_expr_or_interop_type : Error<
+  "expected bounds expression or bounds-safe interface type">;
+
 } // end of Parser diagnostics

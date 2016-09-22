@@ -2408,12 +2408,20 @@ public:
 };
 
 /// \brief This little struct is used to capture information about
-/// structure field declarators, which is basically just a bitfield size.
+/// structure field declarators. This is just a bitfield size, except
+/// for Checked C.  
+///
+/// For Checked C, it could be a bounds expression to be parsed later
+// or an interop type bounds annotation.
 struct FieldDeclarator {
   Declarator D;
   Expr *BitfieldSize;
+  std::unique_ptr<CachedTokens> BoundsExprTokens;
+  InteropTypeBoundsAnnotation *BoundsAnnotation;
+
   explicit FieldDeclarator(const DeclSpec &DS)
-    : D(DS, Declarator::MemberContext), BitfieldSize(nullptr) { }
+    : D(DS, Declarator::MemberContext), BitfieldSize(nullptr), BoundsExprTokens(nullptr),
+      BoundsAnnotation(nullptr) { }
 };
 
 /// \brief Represents a C++11 virt-specifier-seq.
