@@ -52,9 +52,8 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   // If, after boiling off the pointer-ness from this type, we hit a 
   // function, then create a base-level FVConstraint that we carry 
   // around too.
-  if (Ty->isFunctionType()) {
+  if (Ty->isFunctionType()) 
     FV = new FVConstraint(Ty, K, (isTypedef ? "" : N), CS);
-  }
 
   BaseType = tyToStr(Ty);
 
@@ -183,6 +182,14 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // return values
  
   returnVars.insert(new PVConstraint(returnType, K, N, CS));
+  for ( const auto &V : returnVars) {
+    if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
+      if (PVC->getFV())
+        PVC->constrainTo(CS, CS.getWild());
+    } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
+      FVC->constrainTo(CS, CS.getWild());
+    }
+  }
 
   for (const auto &P : paramTypes) {
     std::set<ConstraintVariable*> C;
@@ -205,10 +212,6 @@ bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
 
   for (const auto &C : returnVars)
     f |= C->anyChanges(E);
-
-  for (const auto &I : paramVars)
-    for (const auto &C : I)
-      f |= C->anyChanges(E);
 
   return f;
 }
