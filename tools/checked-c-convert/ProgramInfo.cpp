@@ -66,7 +66,7 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   BaseType = tyToStr(Ty);
 
   // Special case for void to not make _Ptr<void> pointers.
-  if( BaseType == "void" || BaseType == "struct __va_list_tag *" ) 
+  if( Ty->isVoidType() || BaseType == "struct __va_list_tag *" ) 
     for (const auto &V : vars)
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
   
