@@ -325,6 +325,12 @@ void ProgramInfo::print(raw_ostream &O) const {
   }
 }
 
+// Given a ConstraintVariable V, retrieve all of the unique
+// constraint variables used by V. If V is just a 
+// PointerVariableConstraint, then this is just the contents 
+// of 'vars'. If it either has a function pointer, or V is
+// a function, then recurses on the return and parameter
+// constraints.
 static
 CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
   CVars R = T;
