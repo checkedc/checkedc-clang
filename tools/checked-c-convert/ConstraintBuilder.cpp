@@ -65,14 +65,14 @@ void constrainEq(ConstraintVariable *LHS,
               FCRHS->getParamVar(i);
             constrainEq(V1, V2, Info);
           }
-        }
-        else {
+        } else {
           // Constrain both to be top.
-          llvm_unreachable("TODO");
+          CRHS->constrainTo(CS, CS.getWild());
+          CLHS->constrainTo(CS, CS.getWild());
         }
-      }
-      else
+      } else {
         llvm_unreachable("impossible");
+      }
     }
     else if (const PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
       if (const PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
@@ -195,6 +195,9 @@ public:
       // anything else we could infer. 
       constrainEq(V, W, Info);
     } else {
+      // Remove the parens from the RHS expression, this makes it easier for 
+      // us to look at the semantics.
+      RHS = RHS->IgnoreParens();
       // Cases 2-4.
       if (RHS->isIntegerConstantExpr(*Context)) {
         // Case 2.
@@ -224,6 +227,10 @@ public:
             llvm_unreachable("TODO");
           } else {
             // Constrain everything in both to top.
+            // Remove the casts from RHS and try again to get a variable
+            // from it. We want to constrain that side to wild as well.
+            RHS = RHS->IgnoreCasts(); 
+            W = Info.getVariable(RHS, Context);
             for (const auto &A : W)
               if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
                 for (const auto &B : PVC->getCvars())
@@ -295,10 +302,9 @@ public:
       return true;
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-
+      // Call of a function directly.
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
-        std::set<uint32_t> V;
         std::set<ConstraintVariable*> ParameterEC =
           Info.getVariable(A, Context);
 
@@ -311,10 +317,61 @@ public:
           constrainEq(ParameterEC, ParameterDC, Info);
         } else {
           // Constrain ParameterEC to wild if it is a pointer type.
-          llvm_unreachable("TODO");
+          Constraints &CS = Info.getConstraints();
+          for (const auto &C : ParameterEC)
+            C->constrainTo(CS, CS.getWild());
         }
 
         i++;
+      }
+    } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
+      // This could be a function pointer.
+      std::set<ConstraintVariable*> V = Info.getVariable(DD, Context);
+      assert(V.size() > 0);
+      for (const auto &C : V) {
+        FVConstraint *FV = nullptr;
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) {
+          if (FVConstraint *F = PVC->getFV()) {
+            FV = F;
+          }
+        } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(C)) {
+          FV = FVC;
+        }
+
+        if (FV) {
+          // Constrain parameters, like in the case above.
+          unsigned i = 0;
+          for (const auto &A : E->arguments()) {
+            std::set<ConstraintVariable*> ParameterEC = 
+              Info.getVariable(A, Context);
+            
+            if (i < FV->numParams()) {
+              std::set<ConstraintVariable*> ParameterDC = 
+                FV->getParamVar(i);
+              constrainEq(ParameterEC, ParameterDC, Info);
+            } else {
+              // Constrain parameter to wild since we can't match it
+              // to a parameter from the type.
+              Constraints &CS = Info.getConstraints();
+              for (const auto &V : ParameterEC) {
+                V->constrainTo(CS, CS.getWild());
+              }
+            }
+            i++;
+          }
+        } else {
+          llvm_unreachable("No FV for function pointer call");
+        }
+      }
+    } else {
+      // Constrain everything to wild. 
+      for (const auto &A : E->arguments()) {
+        std::set<ConstraintVariable*> ParameterEC = 
+          Info.getVariable(A, Context);
+        
+        Constraints &CS = Info.getConstraints();
+        for (const auto &C : ParameterEC) 
+          C->constrainTo(CS, CS.getWild());
       }
     }
     
@@ -355,11 +412,13 @@ public:
       Info.getVariable(E, Context);
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Var)
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I))
-        CS.addConstraint(
-          CS.createNot(
-            CS.createEq(
-              CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0)
+          CS.addConstraint(
+            CS.createNot(
+              CS.createEq(
+                CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
+      }
   }
 
   bool VisitUnaryPreInc(UnaryOperator *O) {
