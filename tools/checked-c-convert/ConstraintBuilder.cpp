@@ -41,7 +41,6 @@ void constrainEq(std::set<ConstraintVariable*> &RHS,
 // by parameter constraint generation.
 // If they are of an unequal parameter type, constrain everything in both
 // to wild.
-static
 void constrainEq(ConstraintVariable *LHS,
   ConstraintVariable *RHS, ProgramInfo &Info) {
   ConstraintVariable *CRHS = RHS;
@@ -327,40 +326,51 @@ public:
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
       // This could be a function pointer.
       std::set<ConstraintVariable*> V = Info.getVariable(DD, Context);
-      assert(V.size() > 0);
-      for (const auto &C : V) {
-        FVConstraint *FV = nullptr;
-        if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) {
-          if (FVConstraint *F = PVC->getFV()) {
-            FV = F;
-          }
-        } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(C)) {
-          FV = FVC;
-        }
-
-        if (FV) {
-          // Constrain parameters, like in the case above.
-          unsigned i = 0;
-          for (const auto &A : E->arguments()) {
-            std::set<ConstraintVariable*> ParameterEC = 
-              Info.getVariable(A, Context);
-            
-            if (i < FV->numParams()) {
-              std::set<ConstraintVariable*> ParameterDC = 
-                FV->getParamVar(i);
-              constrainEq(ParameterEC, ParameterDC, Info);
-            } else {
-              // Constrain parameter to wild since we can't match it
-              // to a parameter from the type.
-              Constraints &CS = Info.getConstraints();
-              for (const auto &V : ParameterEC) {
-                V->constrainTo(CS, CS.getWild());
-              }
+      if (V.size() > 0) {
+        for (const auto &C : V) {
+          FVConstraint *FV = nullptr;
+          if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) {
+            if (FVConstraint *F = PVC->getFV()) {
+              FV = F;
             }
-            i++;
+          } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(C)) {
+            FV = FVC;
           }
-        } else {
-          llvm_unreachable("No FV for function pointer call");
+
+          if (FV) {
+            // Constrain parameters, like in the case above.
+            unsigned i = 0;
+            for (const auto &A : E->arguments()) {
+              std::set<ConstraintVariable*> ParameterEC = 
+                Info.getVariable(A, Context);
+              
+              if (i < FV->numParams()) {
+                std::set<ConstraintVariable*> ParameterDC = 
+                  FV->getParamVar(i);
+                constrainEq(ParameterEC, ParameterDC, Info);
+              } else {
+                // Constrain parameter to wild since we can't match it
+                // to a parameter from the type.
+                Constraints &CS = Info.getConstraints();
+                for (const auto &V : ParameterEC) {
+                  V->constrainTo(CS, CS.getWild());
+                }
+              }
+              i++;
+            }
+          } else {
+            llvm_unreachable("No FV for function pointer call");
+          }
+        }
+      } else {
+        // Constrain everything to wild. 
+        for (const auto &A : E->arguments()) {
+          std::set<ConstraintVariable*> ParameterEC = 
+            Info.getVariable(A, Context);
+          
+          Constraints &CS = Info.getConstraints();
+          for (const auto &C : ParameterEC) 
+            C->constrainTo(CS, CS.getWild());
         }
       }
     } else {

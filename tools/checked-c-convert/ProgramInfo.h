@@ -133,6 +133,9 @@ private:
   std::string name;
   bool hasproto;
 public:
+  FunctionVariableConstraint() : 
+    ConstraintVariable(FunctionVariable, ""),name(""),hasproto(false) { }
+
   FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS);
   FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,

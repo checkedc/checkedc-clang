@@ -44,6 +44,9 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
     vars.insert(K);
     CS.getOrCreateVar(K);
     K++;
+
+    if (tyToStr(Ty) == "struct __va_list_tag *")
+      break;
   }
 
   // If, after boiling off the pointer-ness from this type, we hit a 
@@ -63,7 +66,7 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   BaseType = tyToStr(Ty);
 
   // Special case for void to not make _Ptr<void> pointers.
-  if( BaseType == "void" ) 
+  if( Ty->isVoidType() || BaseType == "struct __va_list_tag *" ) 
     for (const auto &V : vars)
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
   
@@ -190,6 +193,14 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // return values
  
   returnVars.insert(new PVConstraint(returnType, K, N, CS));
+  for ( const auto &V : returnVars) {
+    if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
+      if (PVC->getFV())
+        PVC->constrainTo(CS, CS.getWild());
+    } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
+      FVC->constrainTo(CS, CS.getWild());
+    }
+  }
 
   for (const auto &P : paramTypes) {
     std::set<ConstraintVariable*> C;
@@ -212,10 +223,6 @@ bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
 
   for (const auto &C : returnVars)
     f |= C->anyChanges(E);
-
-  for (const auto &I : paramVars)
-    for (const auto &C : I)
-      f |= C->anyChanges(E);
 
   return f;
 }
@@ -270,22 +277,29 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   // the LUB of all of the V in returnVars.
   assert(returnVars.size() > 0);
   ConstraintVariable *V = *returnVars.begin();
+  assert(V != nullptr);
   s = V->mkString(E);
   s = s + "(";
 	std::vector<std::string> parmStrs;
-  for (const auto &V : this->paramVars) {
+  for (const auto &I : this->paramVars) {
     // TODO likewise punting here.
-    assert(V.size() > 0);
-    parmStrs.push_back((*V.begin())->mkString(E));
+    assert(I.size() > 0);
+    ConstraintVariable *U = *(I.begin());
+    assert(U != nullptr);
+    parmStrs.push_back(U->mkString(E));
   }  
 
-	std::ostringstream ss;
+  if (parmStrs.size() > 0) {
+    std::ostringstream ss;
 
-  std::copy(parmStrs.begin(), parmStrs.end() - 1, 
-       std::ostream_iterator<std::string>(ss, ", "));
-  ss << parmStrs.back();
+    std::copy(parmStrs.begin(), parmStrs.end() - 1, 
+         std::ostream_iterator<std::string>(ss, ", "));
+    ss << parmStrs.back();
 
-  s = s + ss.str() + ")";
+    s = s + ss.str() + ")";
+  } else {
+    s = s + ")";
+  }
 
   return s;
 }
@@ -415,9 +429,29 @@ bool ProgramInfo::link() {
   if (Verbose)
     errs() << "Linking!\n";
 
+  // Multiple Variables can be at the same PersistentSourceLoc. We should
+  // constrain that everything that is at the same location is explicitly
+  // equal.
+  for (const auto &V : Variables) {
+    std::set<ConstraintVariable*> C = V.second;
+
+    if (C.size() > 1) {
+      std::set<ConstraintVariable*>::iterator I = C.begin();
+      std::set<ConstraintVariable*>::iterator J = C.begin();
+      ++J;
+
+      while (J != C.end()) {
+        constrainEq(*I, *J, *this);
+        ++I;
+        ++J;
+      }
+    }
+  }
+
   for (const auto &S : GlobalSymbols) {
     std::string fname = S.first;
     std::set<FVConstraint*> P = S.second;
+    
     if (P.size() > 1) {
       std::set<FVConstraint*>::iterator I = P.begin();
       std::set<FVConstraint*>::iterator J = P.begin();
@@ -445,7 +479,8 @@ bool ProgramInfo::link() {
           // which case we don't need to constrain anything.
           if (P1->hasProtoType() && P2->hasProtoType()) {
             // Nope, we have no choice. Constrain everything to wild.
-            llvm_unreachable("TODO");
+            P1->constrainTo(CS, CS.getWild());
+            P2->constrainTo(CS, CS.getWild());
           }
         }
         ++I;
@@ -770,10 +805,18 @@ ProgramInfo::getVariableHelper(Expr *E,
             // as well.
             FVC = tmp2;
       }
-      if (FVC == nullptr)
-       FD->dump(); 
-      assert(FVC != nullptr); // Should have found a FVConstraint
-      TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
+
+      if (FVC) {
+        TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
+      } else {
+        // Our options are slim. For some reason, we have failed to find a 
+        // FVConstraint for the Decl that we are calling. This can't be good
+        // so we should constrain everything in the caller to top. We can
+        // fake this by returning a nullary-ish FVConstraint and that will
+        // make the logic above us freak out and over-constrain everything.
+        TR.insert(new FVConstraint()); 
+      }
+
       return TR;
     } else {
       // If it ISN'T, though... what to do? How could this happen?

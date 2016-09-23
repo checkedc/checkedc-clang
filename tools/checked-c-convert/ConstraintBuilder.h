@@ -14,6 +14,8 @@
 
 void constrainEq(std::set<ConstraintVariable*> &RHS,
                  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);
+void constrainEq( ConstraintVariable *LHS, 
+                  ConstraintVariable *RHS, ProgramInfo &Info);
 
 class ConstraintBuilderConsumer : public clang::ASTConsumer {
 public:
