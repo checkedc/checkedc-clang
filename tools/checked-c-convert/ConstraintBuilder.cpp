@@ -301,6 +301,7 @@ public:
       return true;
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      // Call of a function directly.
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<ConstraintVariable*> ParameterEC =
