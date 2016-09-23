@@ -9,11 +9,8 @@ import subprocess
 This tool will invoke checked-c-convert on a compile_commands.json database. 
 It contains some work-arounds for cmake+nmake generated compile_commands.json 
 files, where the files are malformed. 
-
-To use, set PROG_NAME to the path where checked-c-convert.exe is built.
 """
 
-PROG_NAME = "C:\\github\\llvm.release.install\\bin\\checked-c-convert.exe"
 DEFAULT_ARGS = ["-verbose", "-dump-stats", "-extra-arg-before=--driver-mode=cl", "-output-postfix=checked"]
 
 def tryFixUp(s):
@@ -49,7 +46,7 @@ def runMain(args):
 
   print s
   args = []
-  args.append(PROG_NAME)
+  args.append(args.prog_name)
   args.extend(DEFAULT_ARGS)
   args.extend(list(s))
   f = open('bla', 'w')
@@ -62,5 +59,6 @@ def runMain(args):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser("runner")
   parser.add_argument("compile_commands", type=str)
+  parser.add_argument("prog_name", type=str)
   args = parser.parse_args()
   runMain(args)
