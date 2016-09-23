@@ -156,3 +156,25 @@ void bdriver(void) {
 //CHECK-NEXT: int a = 0;
 //CHECK-NEXT: _Ptr<int> c = &a;
 //CHECK-NEXT: _Ptr<int> d = b.foo(c, 0);
+
+// Function pointers returned aren't currently supported.
+
+// Function which returns a typedefed function pointer
+typedef int *(*ok_mut_t)(int*,int);
+
+int *ok_mut_clone(int *a, int b) {
+  *a = b;
+  return a;
+}
+//CHECK: int *ok_mut_clone(int *a, int b) {
+
+ok_mut_t get_mut_2(void) {
+  return &ok_mut_clone;
+}
+//CHECK: ok_mut_t get_mut_2(void) {
+
+// Function which returns a function pointer
+int *(*get_mut(void))(int*,int) {
+  return &ok_mut_clone;
+}
+//CHECK: int *(*get_mut(void))(int*,int) {
