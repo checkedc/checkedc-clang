@@ -165,6 +165,9 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "none".
   IdentifierInfo *Ident_none;
 
+  /// \brief Identifier for "type"
+  IdentifierInfo *Ident_type;
+
   // C++ type trait keywords that can be reverted to identifiers and still be
   // used as type traits.
   llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertibleTypeTraits;
@@ -1657,10 +1660,15 @@ private:
 
   /// \brief Return true if this token can start a bounds expression.
   bool StartsBoundsExpression(Token &Tok);
+  /// \brief Return true if this token can start a bounds-safe interface
+  /// type annotation.
+  bool StartsInteropTypeAnnotation(Token &tok);
+
   ExprResult ParseBoundsExpression();
+  ExprResult ParseInteropTypeAnnotation();
+  ExprResult ParseBoundsExpressionOrInteropType();
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
   ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks);
-
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
@@ -1921,7 +1929,7 @@ private:
 
   void ParseStructDeclaration(
       ParsingDeclSpec &DS,
-      llvm::function_ref<void(ParsingFieldDeclarator &, std::unique_ptr<CachedTokens>)> FieldsCallback);
+      llvm::function_ref<void(ParsingFieldDeclarator &)> FieldsCallback);
 
   bool isDeclarationSpecifier(bool DisambiguatingWithExpression = false);
   bool isTypeSpecifierQualifier();

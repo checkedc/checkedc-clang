@@ -2039,10 +2039,11 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 
   bool TypeContainsAuto = D.getDeclSpec().containsPlaceholderType();
 
-  // Parse the optional Checked C bounds expression.
+  // Parse the optional Checked C bounds expression or interop type
+  // annotation.
   if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
     ConsumeToken();
-    ExprResult Bounds = ParseBoundsExpression();
+    ExprResult Bounds = ParseBoundsExpressionOrInteropType();
     if (Bounds.isInvalid())
       SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
 
@@ -3624,7 +3625,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 ///
 void Parser::ParseStructDeclaration(
     ParsingDeclSpec &DS,
-    llvm::function_ref<void(ParsingFieldDeclarator &, std::unique_ptr<CachedTokens>)> FieldsCallback) {
+    llvm::function_ref<void(ParsingFieldDeclarator &)> FieldsCallback) {
 
   if (Tok.is(tok::kw___extension__)) {
     // __extension__ silences extension warnings in the subexpression.
@@ -3667,14 +3668,32 @@ void Parser::ParseStructDeclaration(
     } else
       DeclaratorInfo.D.SetIdentifier(nullptr, Tok.getLocation());
 
-    std::unique_ptr<CachedTokens> BoundsExprTokens;
+    // If there is a ':', parse one of the following after it:
+    //  a bounds expression (for Checked C)
+    //  a bounds-safe interface type (for Checked C)
+    //  a constant-expression (a bit field width)
+    // The bounds expression must be parsed in a deferred fashion because it
+    // can refer to members declared after this member.
     if (TryConsumeToken(tok::colon)) {
       if (getLangOpts().CheckedC && StartsBoundsExpression(Tok)) {
-         BoundsExprTokens.reset(new CachedTokens);
-         bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-         if (ParsingError) {
-           SkipUntil(tok::semi, StopBeforeMatch);
-         }
+        std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
+        bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+        if (ParsingError)
+          SkipUntil(tok::semi, StopBeforeMatch);
+        // always set BoundsExprTokens: the delayed parsing is what
+        // issues any parsing error messages.
+        DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
+      } else if (getLangOpts().CheckedC && StartsInteropTypeAnnotation(Tok)) {
+        ExprResult BoundsResult = ParseInteropTypeAnnotation();
+        if (BoundsResult.isInvalid())
+          SkipUntil(tok::semi, StopBeforeMatch);
+        else {
+          InteropTypeBoundsAnnotation *BoundsAnnotation =
+            dyn_cast<InteropTypeBoundsAnnotation>(BoundsResult.get());
+          assert(BoundsAnnotation && "dyn_cast failed");
+          if (BoundsAnnotation)
+            DeclaratorInfo.BoundsAnnotation = BoundsAnnotation;
+        }
       } else {
         ExprResult Res(ParseConstantExpression());
         if (Res.isInvalid())
@@ -3689,7 +3708,7 @@ void Parser::ParseStructDeclaration(
 
     // We're done with this declarator;  invoke the callback.
 
-    FieldsCallback(DeclaratorInfo, std::move(BoundsExprTokens));
+    FieldsCallback(DeclaratorInfo);
 
     // If we don't have a comma, it is either the end of the list (a ';')
     // or an error, bail out.
@@ -3772,8 +3791,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
 
     if (!Tok.is(tok::at)) {
-      auto CFieldCallback = [&](ParsingFieldDeclarator &FD,
-                                std::unique_ptr<CachedTokens> BoundsExprTokens) {
+      auto CFieldCallback = [&](ParsingFieldDeclarator &FD) {
         // Install the declarator into the current TagDecl.
         FieldDecl *Field =
           Actions.ActOnField(getCurScope(), TagDecl,
@@ -3781,8 +3799,16 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
                              FD.D, FD.BitfieldSize);
         FieldDecls.push_back(Field);
         FD.complete(Field);
-        if (BoundsExprTokens != nullptr)
-          deferredBoundsExpressions.emplace_back(Field, std::move(BoundsExprTokens));
+        // One or both of FD.BoundsExprTokens and FD.BoundsAnnotation must be
+        // null. They cannot both be non-null at the same time, or we'll end
+        // up losing/overwriting information.
+        assert(FD.BoundsExprTokens == nullptr ||
+               FD.BoundsAnnotation == nullptr);
+        if (FD.BoundsExprTokens != nullptr)
+          deferredBoundsExpressions.emplace_back(Field,
+            std::move(FD.BoundsExprTokens));
+        if (FD.BoundsAnnotation != nullptr)
+          Field->setBoundsExpr(FD.BoundsAnnotation);
       };
 
       // Parse all the comma separated declarators.
@@ -5887,12 +5913,11 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     }
   }
 
-  // Parse optional Checked C bounds expression with the form:
-  // ':' bounds-expression.
+  // Parse optional Checked C bounds expression or interop type annotation.
   if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
     BoundsColonLoc = Tok.getLocation();
     ConsumeToken();
-    ExprResult BoundsExprResult = ParseBoundsExpression();
+    ExprResult BoundsExprResult = ParseBoundsExpressionOrInteropType();
     if (BoundsExprResult.isInvalid()) {
       ReturnBoundsExpr = Actions.CreateInvalidBoundsExpr();
       SkipUntil(tok::l_brace, SkipUntilFlags::StopAtSemi | SkipUntilFlags::StopBeforeMatch);
@@ -6139,20 +6164,34 @@ void Parser::ParseParameterDeclarationClause(
       // added to the current scope.
       ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
 
-      // Parse and store the tokens for the bounds expression, if there is one.
+      // Parse an optional Checked C bounds expression or bounds-safe interface
+      // type annotation.  Bounds expressions must be delay parsed because they
+      // can refer to parameters declared after this one.
       if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
         ConsumeToken();
-        // Consume and store tokens until a bounds-like expression has been
-        // read or a parsing error has happened.  Store the tokens even if a
-        // parsing error occurs so that ParseBoundsExpression can generate the
-        // error message.  This way the error messages from parsing of bounds
-        // expressions will be the same or very similar regardless of whether
-        // parsing is deferred or not.
-        std::unique_ptr<CachedTokens> BoundsExprTokens { new CachedTokens};
-        bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-        deferredBoundsExpressions.emplace_back(Param, std::move(BoundsExprTokens));
-        if (ParsingError) {
-          SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+        if (StartsBoundsExpression(Tok)) {
+          // Consume and store tokens until a bounds-like expression has been
+          // read or a parsing error has happened.  Store the tokens even if a
+          // parsing error occurs so that ParseBoundsExpression can generate the
+          // error message.  This way the error messages from parsing of bounds
+          // expressions will be the same or very similar regardless of whether
+          // parsing is deferred or not.
+          std::unique_ptr<CachedTokens> BoundsExprTokens{ new CachedTokens };
+          bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+          deferredBoundsExpressions.emplace_back(Param, std::move(BoundsExprTokens));
+          if (ParsingError)
+            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+        }
+        else {
+           // fall back to general code that eagerly parses a bounds expression
+           // bounds-safe interface type annotation
+          ExprResult BoundsAnnotation = ParseBoundsExpressionOrInteropType();
+          if (BoundsAnnotation.isInvalid()) {
+            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+            Actions.ActOnInvalidBoundsDecl(Param);
+          }
+          else
+            Actions.ActOnBoundsDecl(Param, cast<BoundsExpr>(BoundsAnnotation.get()));
         }
       }
 

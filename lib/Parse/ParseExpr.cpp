@@ -2753,7 +2753,7 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
 }
 
 bool Parser::StartsBoundsExpression(Token &tok) {
-  if (Tok.getKind() == tok::identifier) {
+  if (tok.getKind() == tok::identifier) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
     return (Ident == Ident_byte_count || Ident == Ident_count ||
             Ident == Ident_bounds);
@@ -2761,9 +2761,51 @@ bool Parser::StartsBoundsExpression(Token &tok) {
   return false;
 }
 
+bool Parser::StartsInteropTypeAnnotation(Token &tok) {
+  if (tok.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+    return (Ident == Ident_type);
+  }
+  return false;
+}
+
+ExprResult Parser::ParseInteropTypeAnnotation() {
+  if (StartsInteropTypeAnnotation(Tok)) {
+    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+    SourceLocation TypeKWLoc = Tok.getLocation();
+    ConsumeToken();
+    BalancedDelimiterTracker PT(*this, tok::l_paren);
+    if (PT.expectAndConsume(diag::err_expected_lparen_after,
+                            Ident->getNameStart()))
+      return ExprError();
+    TypeResult Ty = ParseTypeName();
+    if (Ty.isInvalid()) {
+      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    }
+    ExprResult Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
+                                                       Tok.getLocation());
+    PT.consumeClose();
+    return Result;
+  }
+
+  Diag(Tok, diag::err_expected_bounds_interop_type);
+  return ExprError();
+}
+
+ExprResult Parser::ParseBoundsExpressionOrInteropType() {
+  if (StartsBoundsExpression(Tok))
+    return ParseBoundsExpression();
+
+  if (StartsInteropTypeAnnotation(Tok))
+    return ParseInteropTypeAnnotation();
+
+  Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
+  return ExprError();
+}
+
 ExprResult Parser::ParseBoundsExpression() {
   tok::TokenKind TokKind = Tok.getKind();
-
   if (TokKind != tok::identifier) {
     // This can't be a contextual keyword that begins a bounds expression,
     // so stop now.
@@ -2869,13 +2911,11 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
     return false;
   }
   ConsumeToken();
-
   Toks.push_back(Tok);
   if (Tok.getKind() != tok::l_paren) {
     return false;
   }
   ConsumeParen();
-
   return ConsumeAndStoreUntil(tok::r_paren, Toks, /*StopAtSemi=*/true);
 }
 

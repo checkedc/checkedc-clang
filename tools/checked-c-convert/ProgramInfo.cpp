@@ -451,7 +451,7 @@ bool ProgramInfo::link() {
   for (const auto &S : GlobalSymbols) {
     std::string fname = S.first;
     std::set<FVConstraint*> P = S.second;
-
+    
     if (P.size() > 1) {
       std::set<FVConstraint*>::iterator I = P.begin();
       std::set<FVConstraint*>::iterator J = P.begin();

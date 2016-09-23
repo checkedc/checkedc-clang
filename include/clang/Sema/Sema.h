@@ -4224,6 +4224,10 @@ public:
                                   SourceLocation RParenLoc);
   ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
                                   Expr *UpperBound, SourceLocation RParenLoc);
+  ExprResult ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
+                                    SourceLocation RParenLoc);
+  ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
+                                    SourceLocation RParenLoc);
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr, bool isReturnDecl=false);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();

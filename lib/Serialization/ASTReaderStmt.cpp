@@ -960,23 +960,32 @@ void ASTStmtReader::VisitCountBoundsExpr(CountBoundsExpr *E) {
   VisitExpr(E);
   E->setKind((BoundsExpr::Kind)Record[Idx++]);
   E->setCountExpr(Reader.ReadSubExpr());
-  E->setStartLoc(ReadSourceLocation(Record, Idx));
-  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+  E->StartLoc = ReadSourceLocation(Record, Idx);
+  E->EndLoc = ReadSourceLocation(Record, Idx);
 }
 
 void ASTStmtReader::VisitNullaryBoundsExpr(NullaryBoundsExpr *E) {
   VisitExpr(E);
   E->setKind((BoundsExpr::Kind)Record[Idx++]);
-  E->setStartLoc(ReadSourceLocation(Record, Idx));
-  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+  E->StartLoc = ReadSourceLocation(Record, Idx);
+  E->EndLoc = ReadSourceLocation(Record, Idx);
 }
 
 void ASTStmtReader::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record[Idx++]);
   E->setLowerExpr(Reader.ReadSubExpr());
   E->setUpperExpr(Reader.ReadSubExpr());
-  E->setStartLoc(ReadSourceLocation(Record, Idx));
-  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+  E->StartLoc = ReadSourceLocation(Record, Idx);
+  E->EndLoc = ReadSourceLocation(Record, Idx);
+}
+
+void ASTStmtReader::VisitInteropTypeBoundsAnnotation(
+  InteropTypeBoundsAnnotation *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record[Idx++]);
+  E->StartLoc = ReadSourceLocation(Record, Idx);
+  E->EndLoc = ReadSourceLocation(Record, Idx);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3847,6 +3856,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_RANGE_BOUNDS_EXPR:
       S = new (Context) RangeBoundsExpr(Empty);
+      break;
+
+    case EXPR_INTEROPTYPE_BOUNDS_ANNOTATION:
+      S = new (Context) InteropTypeBoundsAnnotation(Empty);
       break;
         
     case EXPR_LAMBDA: {

@@ -3820,11 +3820,13 @@ bool BoundsExpr::validateKind(Kind K) {
 
   switch (getStmtClass()) {
     case NullaryBoundsExprClass:
-      return K == None || K == PtrInteropAnnotation;
+      return K == None;
     case CountBoundsExprClass:
       return K == ElementCount || K == ByteCount;
     case RangeBoundsExprClass:
       return K == Range;
+    case InteropTypeBoundsAnnotationClass:
+      return K == InteropTypeAnnotation;
     default:
       return false;
   }

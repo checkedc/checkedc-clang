@@ -2361,6 +2361,12 @@ public:
     return getSema().ActOnRangeBoundsExpr(StartLoc, Lower, Upper, RParenLoc);
   }
 
+  ExprResult RebuildInteropTypeBoundsAnnotation(SourceLocation StartLoc,
+                                                TypeSourceInfo *Ty,
+                                                SourceLocation RParenLoc) {
+    return getSema().CreateBoundsInteropType(StartLoc, Ty, RParenLoc);
+  }
+
   /// \brief Build a new overloaded operator call expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11533,6 +11539,17 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
                                              LowerExpr.get(),
                                              UpperExpr.get(),
                                              E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformInteropTypeBoundsAnnotation(
+  InteropTypeBoundsAnnotation *E) {
+  TypeSourceInfo *TInfo =
+    getDerived().TransformType(E->getTypeInfoAsWritten());
+  return getDerived().
+    RebuildInteropTypeBoundsAnnotation(E->getStartLoc(), TInfo,
+                                       E->getRParenLoc());
 }
 
 //===----------------------------------------------------------------------===//
