@@ -8058,6 +8058,50 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   return result;
 }
 
+static QualType ExtractInteropType(const ValueDecl *Decl) {
+  const DeclaratorDecl *TargetDecl = nullptr;
+  if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl))
+     TargetDecl = Field;
+  else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
+    if (Var->hasExternalStorage() || Var->getKind() == Decl::ParmVar)
+      TargetDecl = Var;
+  }
+  if (TargetDecl) {
+    const BoundsExpr *Bounds = TargetDecl->getBoundsExpr();
+    if (Bounds && Bounds->getKind() == BoundsExpr::Kind::InteropTypeAnnotation) {
+        const InteropTypeBoundsAnnotation *Annot = dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
+        return Annot->getType();
+    }
+  }
+  return QualType();;
+}
+
+QualType Sema::CheckedCInteropType(const InitializedEntity &Entity) {
+  switch (Entity.getKind()) {
+    case InitializedEntity::EntityKind::EK_Variable:
+    case InitializedEntity::EntityKind::EK_Parameter:
+    case InitializedEntity::EntityKind::EK_Member:
+      return ExtractInteropType(Entity.getDecl());
+  }
+  return QualType();;
+}
+
+QualType Sema::CheckedCInteropType(ExprResult LHS) {
+  if (!LHS.isInvalid()) {
+    Expr *LHSExpr = LHS.get();
+    if (const MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
+      if (const FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
+        return ExtractInteropType(Field);
+    }
+    else if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
+      if (const VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
+        if (Var->hasExternalStorage())
+          return ExtractInteropType(Var);
+    }
+  }
+  return QualType();
+}
+
 QualType Sema::InvalidOperands(SourceLocation Loc, ExprResult &LHS,
                                ExprResult &RHS) {
   Diag(Loc, diag::err_typecheck_invalid_operands)

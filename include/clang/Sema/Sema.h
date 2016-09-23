@@ -8836,6 +8836,9 @@ public:
                                                      bool DiagnoseCFAudited = false,
                                                      bool ConvertRHS = true);
 
+  bool CheckedCInteropConversion(const InitializedEntity &Entity, ExprResult &RHS);
+  bool CheckedCInteropConversion(ExprResult LHS, ExprResult &RHS);  
+
   // \brief If the lhs type is a transparent union, check whether we
   // can initialize the transparent union with the given expression.
   AssignConvertType CheckTransparentUnionArgumentConstraints(QualType ArgType,
