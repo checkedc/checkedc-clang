@@ -49,9 +49,18 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   // If, after boiling off the pointer-ness from this type, we hit a 
   // function, then create a base-level FVConstraint that we carry 
   // around too.
-  if (Ty->isFunctionType()) {
+  if (Ty->isFunctionType()) 
+    // For the moment, if a type is typedefed, we don't need to print 
+    // out the name of the function pointer because it's written as
+    //   typd fvname = ...;
+    // instead of
+    //   void (*fname)(int, int) = ...;
+    //
+    //   In the second case, by re-writing the type we also re-write the
+    //   name, but not in the first case. So here we set the name to ""
+    //   to not print out the name when we're in the first case. 
+    //   There is possibly something more elegant to do.
     FV = new FVConstraint(Ty, K, (isTypedef ? "" : N), CS);
-  }
 
   BaseType = tyToStr(Ty);
 
@@ -68,8 +77,11 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
     O << "q_" << I << " ";
   O << " }";
 
-  if (FV)
+  if (FV) {
+    O << "(";
     FV->print(O);
+    O << ")";
+  }
 }
 
 // Mesh resolved constraints with the PointerVariableConstraints set of 
@@ -411,7 +423,7 @@ bool ProgramInfo::link() {
         FVConstraint *P1 = *I;
         FVConstraint *P2 = *J;
 
-        // Constraint the return values to be equal
+        // Constrain the return values to be equal
         constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this);
 
         // Constrain the parameters to be equal, if the parameter arity is
