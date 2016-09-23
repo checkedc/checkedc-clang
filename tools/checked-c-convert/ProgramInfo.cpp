@@ -53,16 +53,14 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   // function, then create a base-level FVConstraint that we carry 
   // around too.
   if (Ty->isFunctionType()) 
-    // For the moment, if a type is typedefed, we don't need to print 
-    // out the name of the function pointer because it's written as
-    //   typd fvname = ...;
-    // instead of
-    //   void (*fname)(int, int) = ...;
-    //
-    //   In the second case, by re-writing the type we also re-write the
-    //   name, but not in the first case. So here we set the name to ""
-    //   to not print out the name when we're in the first case. 
-    //   There is possibly something more elegant to do.
+    // C function-pointer type declarator syntax embeds the variable 
+    // name within the function-like syntax. For example:
+    //    void (*fname)(int, int) = ...;
+    // If a typedef'ed type name is used, the name can be omitted 
+    // because it is not embedded like that. Instead, it has the form
+    //    tn fname = ...,
+    // where tn is the typedef'ed type name.
+    // There is possibly something more elegant to do in the code here.
     FV = new FVConstraint(Ty, K, (isTypedef ? "" : N), CS);
 
   BaseType = tyToStr(Ty);
