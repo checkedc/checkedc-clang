@@ -6792,9 +6792,28 @@ InitializationSequence::Perform(Sema &S,
       // Save off the initial CurInit in case we need to emit a diagnostic
       ExprResult InitialCurInit = CurInit;
       ExprResult Result = CurInit;
+
+      QualType LHSType = Step->Type;
+      if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
+        Sema::AssignConvertType TrialConvTy =
+          S.CheckSingleAssignmentConstraints(LHSType, Result, false,
+                                              false, false);
+        if (TrialConvTy == Sema::AssignConvertType::Incompatible) {
+          QualType LHSInteropType = S.GetCheckedCInteropType(Entity);
+          if (!LHSInteropType.isNull()) {
+            TrialConvTy =
+              S.CheckSingleAssignmentConstraints(LHSInteropType, Result,
+                                                 false, false, false);
+            if (TrialConvTy != Sema::AssignConvertType::Incompatible)
+              LHSType = LHSInteropType;
+          }
+        }
+      }
+
       Sema::AssignConvertType ConvTy =
-        S.CheckSingleAssignmentConstraints(Step->Type, Result, true,
-            Entity.getKind() == InitializedEntity::EK_Parameter_CF_Audited);
+        S.CheckSingleAssignmentConstraints(LHSType, Result, true,
+           Entity.getKind() == InitializedEntity::EK_Parameter_CF_Audited);
+
       if (Result.isInvalid())
         return ExprError();
       CurInit = Result;

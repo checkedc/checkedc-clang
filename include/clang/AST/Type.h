@@ -1692,6 +1692,7 @@ public:
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
   bool isPointerType() const;
   bool isCheckedPointerType() const;
+  bool isUncheckedPointerType() const;
   // Checked C ptr type
   bool isCheckedPointerPtrType() const;
   bool isAnyPointerType() const;   // Any C pointer or ObjC object pointer
@@ -5546,6 +5547,12 @@ inline bool Type::isCheckedPointerType() const {
       return T->getKind() != CheckedPointerKind::Unchecked;
     }
     return false;
+}
+inline bool Type::isUncheckedPointerType() const {
+  if (const PointerType *T = getAs<PointerType>()) {
+    return T->getKind() == CheckedPointerKind::Unchecked;
+  }
+  return false;
 }
 inline bool Type::isCheckedPointerPtrType() const {
     if (const PointerType *T = getAs<PointerType>()) {
