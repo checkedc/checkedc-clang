@@ -8839,8 +8839,17 @@ public:
 private:
   QualType GetInteropType(const ValueDecl *Decl);
 public:
+  /// \brief Get the bounds-safe interface type for Entity.
+  /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(const InitializedEntity &Entity);
+
+  /// \brief Get the bounds-safe interface type for LHS.
+  // Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
+
+  /// \brief Chose between using LHSType or LHSInteropType for the type
+  /// of the left-hand side of a single assignment from the RHS. Try using
+  /// LHSType and if that doesn't work, try uisng LHSInteropType.
   QualType ResolveSingleAssignmentType(QualType LHSType, QualType LHSInteropType, 
                                        ExprResult &RHS);
 

@@ -10322,6 +10322,17 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
     CheckIdentityFieldAssignment(LHSExpr, RHSCheck, Loc, *this);
 
     QualType LHSTy(LHSType);
+    if (getLangOpts().CheckedC && LHSTy->isUncheckedPointerType()) {
+      // Tap-dance around the side-effecting behavior of
+      // CheckSingleAssignmentConstraints.  The call to
+      // CheckSingleAssignmentConstraints below can have side-effects where
+      // it modifies the RHS or produces diagnostic messages.  We want the
+      // side-effects to happen exactly once, so we carefully compute the
+      // right type and pass it to the call..
+      QualType LHSInteropType = GetCheckedCInteropType(LHSExpr);
+      if (!LHSInteropType.isNull())
+        LHSTy = ResolveSingleAssignmentType(LHSTy, LHSInteropType, RHS);
+    }
     ConvTy = CheckSingleAssignmentConstraints(LHSTy, RHS);
     if (RHS.isInvalid())
       return QualType();
@@ -10337,13 +10348,6 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
         LHSType->isObjCObjectType())
         Diag(Loc, diag::err_objc_object_assignment)
           << LHSType;
-
-    if (getLangOpts().CheckedC && ConvTy == Incompatible &&
-        LHSType->isUncheckedPointerType()) {
-      QualType LHSInteropType = GetCheckedCInteropType(LHSExpr);
-      if (!LHSInteropType.isNull())
-        ConvTy = CheckSingleAssignmentConstraints(LHSInteropType, RHS);
-    }
 
     // If the RHS is a unary plus or minus, check to see if they = and + are
     // right next to each other.  If so, the user may have typo'd "x =+ 4"

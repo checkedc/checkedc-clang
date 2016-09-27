@@ -6795,19 +6795,16 @@ InitializationSequence::Perform(Sema &S,
 
       QualType LHSType = Step->Type;
       if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
-        Sema::AssignConvertType TrialConvTy =
-          S.CheckSingleAssignmentConstraints(LHSType, Result, false,
-                                              false, false);
-        if (TrialConvTy == Sema::AssignConvertType::Incompatible) {
-          QualType LHSInteropType = S.GetCheckedCInteropType(Entity);
-          if (!LHSInteropType.isNull()) {
-            TrialConvTy =
-              S.CheckSingleAssignmentConstraints(LHSInteropType, Result,
-                                                 false, false, false);
-            if (TrialConvTy != Sema::AssignConvertType::Incompatible)
-              LHSType = LHSInteropType;
-          }
-        }
+        // Tap-dance around the side-effecting behavior of
+        // CheckSingleAssignmentConstraints.  The call to
+        // CheckSingleAssignmentConstraints below can have side-effects where
+        // it modifies the RHS or produces diagnostic messages.  We want the
+        // side-effects to happen exactly once, so we carefully compute the
+        // right type and pass it to the call.
+        QualType LHSInteropType = S.GetCheckedCInteropType(Entity);
+        if (!LHSInteropType.isNull())
+          LHSType = S.ResolveSingleAssignmentType(LHSType, LHSInteropType,
+                                                  Result);
       }
 
       Sema::AssignConvertType ConvTy =
