@@ -8844,13 +8844,19 @@ public:
   QualType GetCheckedCInteropType(const InitializedEntity &Entity);
 
   /// \brief Get the bounds-safe interface type for LHS.
-  // Returns a null QualType if there isn't one.
+  /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
 
-  /// \brief Chose between using LHSType or LHSInteropType for the type
-  /// of the left-hand side of a single assignment from the RHS. Try using
-  /// LHSType and if that doesn't work, try uisng LHSInteropType.
-  QualType ResolveSingleAssignmentType(QualType LHSType, QualType LHSInteropType, 
+  /// This function is part of the implementation of Checked C interoperation
+  /// support.  It chooses between using the LHSType or LHSInteropType for the
+  /// type of the left-hand side of a single assignment from the RHS.  It tries
+  /// type checking the assignment using LHSType. If that does not work, it
+  /// tries the LHSInteropType.  It returns the first type that works.  If 
+  /// neither type works, it returns the LHSType (this will cause any
+  /// diagnostic messages for the type checking failure to refer to the
+  /// LHSType).
+  QualType ResolveSingleAssignmentType(QualType LHSType, 
+                                       QualType LHSInteropType, 
                                        ExprResult &RHS);
 
   // \brief If the lhs type is a transparent union, check whether we
