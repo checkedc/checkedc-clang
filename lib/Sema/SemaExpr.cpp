@@ -8058,6 +8058,16 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   return result;
 }
 
+/// If a declaration has a Checked C bounds-safe interface
+/// attached to it, return the checked pointer type for the interface.
+/// Otherwise return an empty QualType.
+///
+/// This falls into two cases:
+/// 1. The interface is a type annotation: return the type in the
+///    annotation.
+/// 2. The interface is a bounds expression.  This implies the checked
+/// type should be _Array_ptr type.  Construct an _Array_ptr version
+/// of the unchecked ponter type for the declaration and return it.
 QualType Sema::GetInteropType(const ValueDecl *Decl) {
   const DeclaratorDecl *TargetDecl = nullptr;
   if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl))
@@ -8094,6 +8104,10 @@ QualType Sema::GetInteropType(const ValueDecl *Decl) {
   return QualType();;
 }
 
+/// Get the bounds-safe interface type for the Entity being initialized, if
+/// there is one.  Return an empty QualType otherwise. For entities being
+/// initialized, bounds-safe interface sare allowed only for global variables,
+/// parameters, and members of structures/unions.
 QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
   switch (Entity.getKind()) {
     case InitializedEntity::EntityKind::EK_Variable:
@@ -8104,6 +8118,10 @@ QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
   return QualType();
 }
 
+/// Get the bounds-safe interface type for the left-hand of an assignment.
+/// Return an empty QualType otherwise.  For the left-hand sides of
+/// assignments, only global variables, parameters, and members of
+/// structures/unions have bounds-safe interfaces.
 QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
   if (!LHS.isInvalid()) {
     Expr *LHSExpr = LHS.get();
