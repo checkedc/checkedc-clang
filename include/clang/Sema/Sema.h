@@ -8847,14 +8847,9 @@ public:
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
 
-  /// This function is part of the implementation of Checked C interoperation
-  /// support.  It chooses between using the LHSType or LHSInteropType for the
-  /// type of the left-hand side of a single assignment from the RHS.  It tries
-  /// type checking the assignment using LHSType. If that does not work, it
-  /// tries the LHSInteropType.  It returns the first type that works.  If 
-  /// neither type works, it returns the LHSType (this will cause any
-  /// diagnostic messages for the type checking failure to refer to the
-  /// LHSType).
+  /// \brief Helper function for type checking an assignment whose LHS has a
+  /// Checked C bounds-safe interface.  This function chooses which type to
+  /// use for the LHS of the assignment.
   QualType ResolveSingleAssignmentType(QualType LHSType, 
                                        QualType LHSInteropType, 
                                        ExprResult &RHS);

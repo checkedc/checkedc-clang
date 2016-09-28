@@ -8139,6 +8139,14 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
   return QualType();
 }
 
+/// Helper function for type checking an assignment whose LHS has a Checked C
+/// bounds-safe interface.  This function chooses which type to use for the LHS
+/// of the assignment: the type computed via normal C type checking (LHSType)
+/// or the Checked C interoperation type for the LHS.  It tries type checking
+/// the assignment using LHSType. If that does not work, it tries
+/// LHSInteropType.  It returns the first type that works.  If neither type
+/// works, it returns the LHSType (this will cause any diagnostic messages for
+/// the type checking failure to refer to the LHSType).
 QualType Sema::ResolveSingleAssignmentType(QualType LHSType,
                                            QualType LHSInteropType,
                                            ExprResult &RHS) {
@@ -8149,7 +8157,7 @@ QualType Sema::ResolveSingleAssignmentType(QualType LHSType,
   if (TrialConvTy == Sema::AssignConvertType::Incompatible) {
     TrialConvTy = 
       CheckSingleAssignmentConstraints(LHSInteropType, RHS,
-                                         false, false, false);
+                                       false, false, false);
     if (TrialConvTy != Sema::AssignConvertType::Incompatible)
       Result = LHSInteropType;
   }
