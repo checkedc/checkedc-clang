@@ -8120,10 +8120,10 @@ QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
   return QualType();
 }
 
-/// Get the bounds-safe interface type for the left-hand of an assignment.
-/// Return a null QualType otherwise.  For the left-hand sides of
-/// assignments, only global variables, parameters, and members of
-/// structures/unions have bounds-safe interfaces.
+/// Get the bounds-safe interface type for the left-hand side of an assignment,
+/// if the left-hand side has a bounds-safe interface. Return a null QualType
+/// otherwise.  For the left-hand sides of assignments, only global variables,
+/// parameters, and members of structures/unions have bounds-safe interfaces.
 QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
   if (!LHS.isInvalid()) {
     Expr *LHSExpr = LHS.get();
@@ -8139,11 +8139,11 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
   return QualType();
 }
 
-/// Helper function for type checking an assignment whose LHS has a Checked C
-/// bounds-safe interface.  This function chooses which type to use for the LHS
-/// of the assignment: the type computed via normal C type checking (LHSType)
-/// or the Checked C interoperation type for the LHS.  It tries type checking
-/// the assignment using LHSType. If that does not work, it tries
+/// Helper function for type checking an assignment whose left-hande side has a
+/// Checked C bounds-safe interface.  This function chooses which type to use
+/// for the LHS of the assignment: the type computed via normal C type checking
+/// (LHSType) or the Checked C interoperation type for the LHS.  It tries type
+/// checking the assignment using LHSType. If that does not work, it tries
 /// LHSInteropType.  It returns the first type that works.  If neither type
 /// works, it returns the LHSType (this will cause any diagnostic messages for
 /// the type checking failure to refer to the LHSType).
