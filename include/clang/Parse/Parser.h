@@ -165,8 +165,8 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "none".
   IdentifierInfo *Ident_none;
 
-  /// \brief Identifier for "type"
-  IdentifierInfo *Ident_type;
+  /// \brief Identifier for "itype"
+  IdentifierInfo *Ident_itype;
 
   // C++ type trait keywords that can be reverted to identifiers and still be
   // used as type traits.

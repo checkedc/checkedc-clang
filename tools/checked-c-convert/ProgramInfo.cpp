@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
+#include "ConstraintBuilder.h"
 #include <sstream>
 
 using namespace clang;
@@ -32,6 +33,9 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
   FV(nullptr)
 {
   const Type *Ty = nullptr;
+  bool isTypedef = false;
+  if (_Ty->getAs<TypedefType>())
+    isTypedef = true;
   for (Ty = _Ty;
     Ty->isPointerType();
     Ty = getNextTy(Ty))
@@ -40,19 +44,29 @@ PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
     vars.insert(K);
     CS.getOrCreateVar(K);
     K++;
+
+    if (tyToStr(Ty) == "struct __va_list_tag *")
+      break;
   }
 
   // If, after boiling off the pointer-ness from this type, we hit a 
   // function, then create a base-level FVConstraint that we carry 
   // around too.
-  if (Ty->isFunctionType()) {
-    FV = new FVConstraint(Ty, K, N, CS);
-  }
+  if (Ty->isFunctionType()) 
+    // C function-pointer type declarator syntax embeds the variable 
+    // name within the function-like syntax. For example:
+    //    void (*fname)(int, int) = ...;
+    // If a typedef'ed type name is used, the name can be omitted 
+    // because it is not embedded like that. Instead, it has the form
+    //    tn fname = ...,
+    // where tn is the typedef'ed type name.
+    // There is possibly something more elegant to do in the code here.
+    FV = new FVConstraint(Ty, K, (isTypedef ? "" : N), CS);
 
   BaseType = tyToStr(Ty);
 
   // Special case for void to not make _Ptr<void> pointers.
-  if( BaseType == "void" ) 
+  if( Ty->isVoidType() || BaseType == "struct __va_list_tag *" ) 
     for (const auto &V : vars)
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
   
@@ -63,6 +77,12 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
   for (const auto &I : vars) 
     O << "q_" << I << " ";
   O << " }";
+
+  if (FV) {
+    O << "(";
+    FV->print(O);
+    O << ")";
+  }
 }
 
 // Mesh resolved constraints with the PointerVariableConstraints set of 
@@ -173,6 +193,14 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // return values
  
   returnVars.insert(new PVConstraint(returnType, K, N, CS));
+  for ( const auto &V : returnVars) {
+    if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
+      if (PVC->getFV())
+        PVC->constrainTo(CS, CS.getWild());
+    } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
+      FVC->constrainTo(CS, CS.getWild());
+    }
+  }
 
   for (const auto &P : paramTypes) {
     std::set<ConstraintVariable*> C;
@@ -195,10 +223,6 @@ bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
 
   for (const auto &C : returnVars)
     f |= C->anyChanges(E);
-
-  for (const auto &I : paramVars)
-    for (const auto &C : I)
-      f |= C->anyChanges(E);
 
   return f;
 }
@@ -248,28 +272,34 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 
 std::string
 FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
-  assert(name.size() > 0);
   std::string s = "";
   // TODO punting on what to do here. The right thing to do is to figure out
   // the LUB of all of the V in returnVars.
   assert(returnVars.size() > 0);
   ConstraintVariable *V = *returnVars.begin();
+  assert(V != nullptr);
   s = V->mkString(E);
   s = s + "(";
 	std::vector<std::string> parmStrs;
-  for (const auto &V : this->paramVars) {
+  for (const auto &I : this->paramVars) {
     // TODO likewise punting here.
-    assert(V.size() > 0);
-    parmStrs.push_back((*V.begin())->mkString(E));
+    assert(I.size() > 0);
+    ConstraintVariable *U = *(I.begin());
+    assert(U != nullptr);
+    parmStrs.push_back(U->mkString(E));
   }  
 
-	std::ostringstream ss;
+  if (parmStrs.size() > 0) {
+    std::ostringstream ss;
 
-  std::copy(parmStrs.begin(), parmStrs.end() - 1, 
-       std::ostream_iterator<std::string>(ss, ", "));
-  ss << parmStrs.back();
+    std::copy(parmStrs.begin(), parmStrs.end() - 1, 
+         std::ostream_iterator<std::string>(ss, ", "));
+    ss << parmStrs.back();
 
-  s = s + ss.str() + ")";
+    s = s + ss.str() + ")";
+  } else {
+    s = s + ")";
+  }
 
   return s;
 }
@@ -293,14 +323,44 @@ void ProgramInfo::print(raw_ostream &O) const {
   }
 }
 
+// Given a ConstraintVariable V, retrieve all of the unique
+// constraint variables used by V. If V is just a 
+// PointerVariableConstraint, then this is just the contents 
+// of 'vars'. If it either has a function pointer, or V is
+// a function, then recurses on the return and parameter
+// constraints.
+static
+CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
+  CVars R = T;
+
+  if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
+    R.insert(PVC->getCvars().begin(), PVC->getCvars().end());
+   if (FVConstraint *FVC = PVC->getFV()) 
+     return getVarsFromConstraint(FVC, R);
+  } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
+    for (const auto &C : FVC->getReturnVars()) {
+      CVars tmp = getVarsFromConstraint(C, R);
+      R.insert(tmp.begin(), tmp.end());
+    }
+    for (unsigned i = 0; i < FVC->numParams(); i++) {
+      for (const auto &C : FVC->getParamVar(i)) {
+        CVars tmp = getVarsFromConstraint(C, R);
+        R.insert(tmp.begin(), tmp.end());
+      }
+    }
+  }
+
+  return R;
+}
+
 // Print out statistics of constraint variables on a per-file basis.
 void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   std::map<std::string, std::tuple<int, int, int, int> > filesToVars;
   Constraints::EnvironmentMap env = CS.getVariables();
 
   // First, build the map and perform the aggregation.
-  /*for (const auto &I : PersistentRVariables) {
-    const std::string fileName = I.second.getFileName();
+  for (auto &I : Variables) {
+    std::string fileName = I.first.getFileName();
     if (F.count(fileName)) {
       int varC = 0;
       int pC = 0;
@@ -311,32 +371,39 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
       if (J != filesToVars.end())
         std::tie(varC, pC, aC, wC) = J->second;
 
-      varC += 1;
+      CVars foundVars;
+      for (auto &C : I.second) {
+        CVars tmp = getVarsFromConstraint(C, foundVars);
+        foundVars.insert(tmp.begin(), tmp.end());
+        }
 
-      VarAtom *V = CS.getVar(I.first);
-      assert(V != NULL);
-      auto K = env.find(V);
-      assert(K != env.end());
+      varC += foundVars.size();
+      for (const auto &N : foundVars) {
+        VarAtom *V = CS.getVar(N);
+        assert(V != NULL);
+        auto K = env.find(V);
+        assert(K != env.end());
 
-      ConstAtom *CA = K->second;
-      switch (CA->getKind()) {
-      case Atom::A_Arr:
-        aC += 1;
-        break;
-      case Atom::A_Ptr:
-        pC += 1;
-        break;
-      case Atom::A_Wild:
-        wC += 1;
-        break;
-      case Atom::A_Var:
-      case Atom::A_Const:
-        llvm_unreachable("bad constant in environment map");
+        ConstAtom *CA = K->second;
+        switch (CA->getKind()) {
+        case Atom::A_Arr:
+          aC += 1;
+          break;
+        case Atom::A_Ptr:
+          pC += 1;
+          break;
+        case Atom::A_Wild:
+          wC += 1;
+          break;
+        case Atom::A_Var:
+        case Atom::A_Const:
+          llvm_unreachable("bad constant in environment map");
+        }
       }
 
       filesToVars[fileName] = std::tuple<int, int, int, int>(varC, pC, aC, wC);
     }
-  }*/
+  }
 
   // Then, dump the map to output.
 
@@ -362,124 +429,64 @@ bool ProgramInfo::link() {
   if (Verbose)
     errs() << "Linking!\n";
 
-  for (const auto &S : GlobalSymbols) {
-    // TODO: turn this code back on and write tests for it.
-    // First, extract out the function symbols from S. 
-    /*std::set<GlobalFunctionSymbol*> funcs;
-    std::set<GlobalVariableSymbol*> vars;
-    for (const auto &U : S.second)
-      if (GlobalFunctionSymbol *K = dyn_cast<GlobalFunctionSymbol>(U))
-        funcs.insert(K);
-      else if (GlobalVariableSymbol *V = dyn_cast<GlobalVariableSymbol>(U))
-        vars.insert(V);*/
+  // Multiple Variables can be at the same PersistentSourceLoc. We should
+  // constrain that everything that is at the same location is explicitly
+  // equal.
+  for (const auto &V : Variables) {
+    std::set<ConstraintVariable*> C = V.second;
 
-    // Then, iterate over each of the function symbols F1=F,F2=F+1 found for this 
-    // symbol. What we want to do is for a sequence of constraint variables on
-    // F1,F2, set the constraint variables for F1(v0,vi,vN) and F2(v0,vj,vN) to
-    // be equal to each other, i.e. to enter a series of constraints of the form
-    // vi == vj.
-    //
-    // For example, consider a function that has been forward declared named 
-    // d1 with the signature void d1(int **c); There will be two sets of constraint
-    // variables in the system, one at the site of forward declaration and one at
-    // the site of function definition, like this:
-    //
-    // void d1(int *q_0 * q_1 c);
-    //
-    // void d1(int *q_2 * q_3 c) { *c = 0; }
-    //
-    // What we want to do is set q_0 == q_2 and q_1 == q_3. 
-    // To do that, we need to get the constraints for each parmvar decl position
-    // individually and set them equal.
-    // individually and set them equal, pairwise. 
-    /*for (std::set<GlobalFunctionSymbol*>::iterator I = funcs.begin();
-      I != funcs.end(); ++I) {
-      std::set<GlobalFunctionSymbol*>::iterator J = I;
-      J++;
-      if (J != funcs.end()) {
-        std::set<uint32_t> &rVars1 = (*I)->getReturns();
-        std::set<uint32_t> &rVars2 = (*J)->getReturns();
-        if (rVars1.size() == rVars2.size()) {
+    if (C.size() > 1) {
+      std::set<ConstraintVariable*>::iterator I = C.begin();
+      std::set<ConstraintVariable*>::iterator J = C.begin();
+      ++J;
 
-          for (std::set<uint32_t>::iterator V1 = rVars1.begin(), V2 = rVars2.begin();
-            V1 != rVars1.end() && V2 != rVars2.end(); ++V1, ++V2)
-            CS.addConstraint(CS.createEq(
-              CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
-        } else {
-          // Nothing makes sense because this means that the types of two 
-          // functions with the same name is different. Constrain 
-          // everything to top.
-          if (Verbose)
-            errs() << "Constraining return value for symbol " << (*I)->getName()
-            << ", " << (*J)->getName() 
-            << " to top because return value arity does not match\n";
-
-          for (const auto &V : rVars1)
-            CS.addConstraint(CS.createEq(
-              CS.getOrCreateVar(V), CS.getWild()));
-          for (const auto &V : rVars2)
-            CS.addConstraint(CS.createEq(
-              CS.getOrCreateVar(V), CS.getWild()));
-        }
-        
-        std::vector<std::set<uint32_t> > &pVars1 = (*I)->getParams();
-        std::vector<std::set<uint32_t> > &pVars2 = (*J)->getParams();
-        if (pVars1.size() == pVars2.size()) {
-
-          for (std::vector<std::set<uint32_t> >::iterator V1 = pVars1.begin(),
-            V2 = pVars2.begin();
-            V1 != pVars1.end() && V2 != pVars2.end();
-            ++V1, ++V2)
-          {
-            std::set<uint32_t> pv1 = *V1;
-            std::set<uint32_t> pv2 = *V2;
-
-            if (pv1.size() == pv2.size()) {
-              for (std::set<uint32_t>::iterator V1 = pv1.begin(), V2 = pv2.begin();
-                V1 != pv1.end() && V2 != pv2.end(); ++V1, ++V2)
-                CS.addConstraint(CS.createEq(
-                  CS.getOrCreateVar(*V1), CS.getOrCreateVar(*V2)));
-            } else {
-              if(Verbose)
-                errs() << "Constraining return value for symbol " << (*I)->getName()
-                  << ", " << (*J)->getName()
-                  << " to top because return value arity does not match\n";
-
-              for (const auto &V : pv1)
-                CS.addConstraint(CS.createEq(
-                  CS.getOrCreateVar(V), CS.getWild()));
-              for (const auto &V : pv2)
-                CS.addConstraint(CS.createEq(
-                  CS.getOrCreateVar(V), CS.getWild()));
-            }
-          }
-        } else {
-          // Nothing makes sense because this means the parameter types of
-          // the functions are different. Constrain everything to top.
-          if (Verbose) 
-            errs() << "Constraining parameters for symbol " << (*I)->getName()
-              << ", " << (*J)->getName()
-              << " to top because parameter arity does not match\n";
-          
-          for (const auto &VV : pVars1)
-            for (const auto &V : VV)
-              CS.addConstraint(CS.createEq(
-                CS.getOrCreateVar(V), CS.getWild()));
-
-          for (const auto &VV : pVars2)
-            for (const auto &V : VV)
-              CS.addConstraint(CS.createEq(
-                CS.getOrCreateVar(V), CS.getWild()));
-        }
+      while (J != C.end()) {
+        constrainEq(*I, *J, *this);
+        ++I;
+        ++J;
       }
-    }*/
+    }
+  }
 
-    // Do the same as above, but in a simpler case where we only need to 
-    // constrain according to the type of the global variable. 
-    //for (std::set<GlobalVariableSymbol*>::iterator I = vars.begin();
-    //  I != vars.end(); ++I) {
+  for (const auto &S : GlobalSymbols) {
+    std::string fname = S.first;
+    std::set<FVConstraint*> P = S.second;
+    
+    if (P.size() > 1) {
+      std::set<FVConstraint*>::iterator I = P.begin();
+      std::set<FVConstraint*>::iterator J = P.begin();
+      ++J;
+      
+      while (J != P.end()) {
+        FVConstraint *P1 = *I;
+        FVConstraint *P2 = *J;
 
-    //}
+        // Constrain the return values to be equal
+        constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this);
+
+        // Constrain the parameters to be equal, if the parameter arity is
+        // the same. If it is not the same, constrain both to be wild.
+        if (P1->numParams() == P2->numParams()) {
+          for ( unsigned i = 0;
+                i < P1->numParams();
+                i++)
+          {
+            constrainEq(P1->getParamVar(i), P2->getParamVar(i), *this);
+          } 
+
+        } else {
+          // It could be the case that P1 or P2 is missing a prototype, in
+          // which case we don't need to constrain anything.
+          if (P1->hasProtoType() && P2->hasProtoType()) {
+            // Nope, we have no choice. Constrain everything to wild.
+            P1->constrainTo(CS, CS.getWild());
+            P2->constrainTo(CS, CS.getWild());
+          }
+        }
+        ++I;
+        ++J;
+      }
+    }
   }
 
   // For every global function that is an unresolved external, constrain 
@@ -695,6 +702,15 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     }
   }
 
+  // The Rewriter won't let us re-write things that are in macros. So, we 
+  // should check to see if what we just added was defined within a macro.
+  // If it was, we should constrain it to top. This is sad. Hopefully, 
+  // someday, the Rewriter will become less lame and let us re-write stuff
+  // in macros. 
+  if (!Rewriter::isRewritable(D->getLocation())) 
+    for (const auto &C : S)
+      C->constrainTo(CS, CS.getWild());
+
   return true;
 }
 
@@ -726,6 +742,7 @@ bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
 std::set<ConstraintVariable *> 
 ProgramInfo::getVariableHelper(Expr *E, 
   std::set<ConstraintVariable *> V, ASTContext *C) {
+  E = E->IgnoreParenImpCasts();
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
     return getVariable(DRE->getDecl(), C);
   } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
@@ -769,20 +786,42 @@ ProgramInfo::getVariableHelper(Expr *E,
     // constraints for the return value of that function.
     Decl *D = CE->getCalleeDecl();
     assert(D != nullptr);
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    // D could be a FunctionDecl, or a VarDecl, or a FieldDecl. 
+    // Really it could be any DeclaratorDecl. 
+    if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
       std::set<ConstraintVariable*> CS = getVariable(FD, C);
       std::set<ConstraintVariable*> TR;
       FVConstraint *FVC = nullptr;
-      for (const auto &J : CS)
+      for (const auto &J : CS) {
         if (FVConstraint *tmp = dyn_cast<FVConstraint>(J))
+          // The constraint we retrieved is a function constraint already.
+          // This happens if what is being called is a reference to a 
+          // function declaration, but it isn't all that can happen.
           FVC = tmp;
-      assert(FVC != nullptr); // Should have found a FVConstraint
-      TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
+        else if (PVConstraint *tmp = dyn_cast<PVConstraint>(J))
+          if (FVConstraint *tmp2 = tmp->getFV())
+            // Or, we could have a PVConstraint to a function pointer. 
+            // In that case, the function pointer value will work just
+            // as well.
+            FVC = tmp2;
+      }
+
+      if (FVC) {
+        TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
+      } else {
+        // Our options are slim. For some reason, we have failed to find a 
+        // FVConstraint for the Decl that we are calling. This can't be good
+        // so we should constrain everything in the caller to top. We can
+        // fake this by returning a nullary-ish FVConstraint and that will
+        // make the logic above us freak out and over-constrain everything.
+        TR.insert(new FVConstraint()); 
+      }
+
       return TR;
     } else {
+      // If it ISN'T, though... what to do? How could this happen?
       llvm_unreachable("TODO");
     }
-    //return getVariableHelper(CE->getCallee(), V, C);
   } else if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(E)) {
     // Explore the three exprs individually.
     std::set<ConstraintVariable*> T;

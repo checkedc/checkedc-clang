@@ -2764,7 +2764,7 @@ bool Parser::StartsBoundsExpression(Token &tok) {
 bool Parser::StartsInteropTypeAnnotation(Token &tok) {
   if (tok.getKind() == tok::identifier) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
-    return (Ident == Ident_type);
+    return (Ident == Ident_itype);
   }
   return false;
 }
