@@ -8058,6 +8058,50 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   return result;
 }
 
+/// Get the bounds-safe interface type for the left-hand side of an assignment,
+/// if the left-hand side has a bounds-safe interface. Return a null QualType
+/// otherwise.  For the left-hand sides of assignments, only global variables,
+/// parameters, and members of structures/unions have bounds-safe interfaces.
+QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
+  if (!LHS.isInvalid()) {
+    Expr *LHSExpr = LHS.get();
+    if (const MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
+      if (const FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
+        return GetCheckedCInteropType(Field);
+    }
+    else if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
+      if (const VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
+        return GetCheckedCInteropType(Var);
+    }
+  }
+  return QualType();
+}
+
+/// Helper function for type checking an assignment whose left-hande side has a
+/// Checked C bounds-safe interface.  This function chooses which type to use
+/// for the LHS of the assignment: the type computed via normal C type checking
+/// (LHSType) or the Checked C interoperation type for the LHS.  It tries type
+/// checking the assignment using LHSType. If that does not work, it tries
+/// LHSInteropType.  It returns the first type that works.  If neither type
+/// works, it returns the LHSType (this will cause any diagnostic messages for
+/// the type checking failure to refer to the LHSType).
+QualType Sema::ResolveSingleAssignmentType(QualType LHSType,
+                                           QualType LHSInteropType,
+                                           ExprResult &RHS) {
+  assert(!LHSType.isNull() && !LHSInteropType.isNull());
+  QualType Result = LHSType;
+  Sema::AssignConvertType TrialConvTy =
+    CheckSingleAssignmentConstraints(LHSType, RHS, false, false, false);
+  if (TrialConvTy == Sema::AssignConvertType::Incompatible) {
+    TrialConvTy = 
+      CheckSingleAssignmentConstraints(LHSInteropType, RHS,
+                                       false, false, false);
+    if (TrialConvTy != Sema::AssignConvertType::Incompatible)
+      Result = LHSInteropType;
+  }
+  return Result;
+}
+
 QualType Sema::InvalidOperands(SourceLocation Loc, ExprResult &LHS,
                                ExprResult &RHS) {
   Diag(Loc, diag::err_typecheck_invalid_operands)
@@ -10244,6 +10288,17 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
     CheckIdentityFieldAssignment(LHSExpr, RHSCheck, Loc, *this);
 
     QualType LHSTy(LHSType);
+    if (getLangOpts().CheckedC && LHSTy->isUncheckedPointerType()) {
+      // Tap-dance around the side-effecting behavior of
+      // CheckSingleAssignmentConstraints.  The call to
+      // CheckSingleAssignmentConstraints below can have side-effects where
+      // it modifies the RHS or produces diagnostic messages.  We want the
+      // side-effects to happen exactly once, so we carefully compute the
+      // right type and pass it to the call.
+      QualType LHSInteropType = GetCheckedCInteropType(LHSExpr);
+      if (!LHSInteropType.isNull())
+        LHSTy = ResolveSingleAssignmentType(LHSTy, LHSInteropType, RHS);
+    }
     ConvTy = CheckSingleAssignmentConstraints(LHSTy, RHS);
     if (RHS.isInvalid())
       return QualType();
@@ -12302,7 +12357,7 @@ ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
 ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
                                          SourceLocation RParenLoc) {
   QualType QT = TInfo->getType();
-  assert(QT->isCheckedPointerType());
+  assert(QT->isCheckedPointerType() || QT->isCheckedArrayType());
   return new (Context) InteropTypeBoundsAnnotation(QT, TypeKWLoc, RParenLoc,
                                                    TInfo);
 }
