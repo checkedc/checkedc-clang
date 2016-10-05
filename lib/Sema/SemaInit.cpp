@@ -7960,10 +7960,13 @@ Sema::PerformCopyInitialization(const InitializedEntity &Entity,
 /// parameters, and members of structures/unions.
 QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
   switch (Entity.getKind()) {
-  case InitializedEntity::EntityKind::EK_Variable:
-  case InitializedEntity::EntityKind::EK_Parameter:
-  case InitializedEntity::EntityKind::EK_Member:
-    return GetCheckedCInteropType(Entity.getDecl());
+    case InitializedEntity::EntityKind::EK_Variable:
+    case InitializedEntity::EntityKind::EK_Parameter:
+    case InitializedEntity::EntityKind::EK_Member:
+      ValueDecl *D = Entity.getDecl();
+      if (D != nullptr) 
+        return GetCheckedCInteropType(D);
+      break;
   }
   return QualType();
 }

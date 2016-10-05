@@ -3612,9 +3612,11 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
     TargetDecl = Var;
 
   QualType ResultType = QualType();
-  if (TargetDecl) {
-    if (const BoundsExpr *Bounds = TargetDecl->getBoundsExpr()) {
-      switch (Bounds->getKind()) {
+  if (!TargetDecl)
+    return ResultType;
+
+  if (const BoundsExpr *Bounds = TargetDecl->getBoundsExpr()) {
+    switch (Bounds->getKind()) {
       case BoundsExpr::Kind::InteropTypeAnnotation: {
         const InteropTypeBoundsAnnotation *Annot =
           dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
@@ -3628,7 +3630,7 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
       case BoundsExpr::Kind::Range: {
         QualType Ty;
         // The types for parameter variables that have array types are adjusted
-        // to be pointer types.  We'll work with the original array type instead.
+        // to be pointer type.  We'll work with the original array type instead.
         // For multi-dimensional array types, the nested array types need to
         // become checked array types too.
         if (const ParmVarDecl *ParmVar = dyn_cast<ParmVarDecl>(TargetDecl))
@@ -3650,7 +3652,6 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
       }
       default:
         break;
-      }
     }
   }
 
