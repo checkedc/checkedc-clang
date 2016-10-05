@@ -7953,3 +7953,17 @@ Sema::PerformCopyInitialization(const InitializedEntity &Entity,
 
   return Result;
 }
+
+/// Get the bounds-safe interface type for the Entity being initialized, if
+/// there is one.  Return a null QualType otherwise. For entities being
+/// initialized, bounds-safe interfaces are allowed only for global variables,
+/// parameters, and members of structures/unions.
+QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
+  switch (Entity.getKind()) {
+  case InitializedEntity::EntityKind::EK_Variable:
+  case InitializedEntity::EntityKind::EK_Parameter:
+  case InitializedEntity::EntityKind::EK_Member:
+    return GetCheckedCInteropType(Entity.getDecl());
+  }
+  return QualType();
+}

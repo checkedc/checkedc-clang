@@ -8058,68 +8058,6 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   return result;
 }
 
-/// If a declaration has a Checked C bounds-safe interface
-/// attached to it, return the checked pointer type for the interface.
-/// Otherwise return a null QualType.
-///
-/// This falls into two cases:
-/// 1. The interface is a type annotation: return the type in the
-///    annotation.
-/// 2. The interface is a bounds expression.  This implies the checked
-/// type should be an _Array_ptr type.  Construct an _Array_ptr version
-/// of the unchecked ponter type for the declaration and return it.
-QualType Sema::GetInteropType(const ValueDecl *Decl) {
-  const DeclaratorDecl *TargetDecl = nullptr;
-  if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl))
-    TargetDecl = Field;
-  else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl))
-    TargetDecl = Var;
-
-  if (TargetDecl) {
-    if (const BoundsExpr *Bounds = TargetDecl->getBoundsExpr()) {
-      switch (Bounds->getKind()) {
-        case BoundsExpr::Kind::InteropTypeAnnotation: {
-          const InteropTypeBoundsAnnotation *Annot =
-            dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
-          assert(Annot && "unexpected dyn_cast failure");
-          if (Annot != nullptr)
-            return Annot->getType();
-        }
-        case BoundsExpr::Kind::ByteCount:
-        case BoundsExpr::Kind::ElementCount:
-        case BoundsExpr::Kind::Range: {
-          QualType Ty = Decl->getType();
-          if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
-            if (PtrType->isUnchecked()) {
-              QualType ResultTy = Context.getPointerType(PtrType->getPointeeType(),
-                                                         CheckedPointerKind::Array);
-              ResultTy.setLocalFastQualifiers(Ty.getCVRQualifiers());
-              return ResultTy;
-            }
-          }
-        }
-        default:
-          break;
-      }
-    }
-  }
-  return QualType();
-}
-
-/// Get the bounds-safe interface type for the Entity being initialized, if
-/// there is one.  Return a null QualType otherwise. For entities being
-/// initialized, bounds-safe interfaces are allowed only for global variables,
-/// parameters, and members of structures/unions.
-QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
-  switch (Entity.getKind()) {
-    case InitializedEntity::EntityKind::EK_Variable:
-    case InitializedEntity::EntityKind::EK_Parameter:
-    case InitializedEntity::EntityKind::EK_Member:
-      return GetInteropType(Entity.getDecl());
-  }
-  return QualType();
-}
-
 /// Get the bounds-safe interface type for the left-hand side of an assignment,
 /// if the left-hand side has a bounds-safe interface. Return a null QualType
 /// otherwise.  For the left-hand sides of assignments, only global variables,
@@ -8129,11 +8067,11 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
     Expr *LHSExpr = LHS.get();
     if (const MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
       if (const FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
-        return GetInteropType(Field);
+        return GetCheckedCInteropType(Field);
     }
     else if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
       if (const VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
-        return GetInteropType(Var);
+        return GetCheckedCInteropType(Var);
     }
   }
   return QualType();
@@ -12419,7 +12357,7 @@ ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
 ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
                                          SourceLocation RParenLoc) {
   QualType QT = TInfo->getType();
-  assert(QT->isCheckedPointerType());
+  assert(QT->isCheckedPointerType() || QT->isCheckedArrayType());
   return new (Context) InteropTypeBoundsAnnotation(QT, TypeKWLoc, RParenLoc,
                                                    TInfo);
 }

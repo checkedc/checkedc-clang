@@ -3539,14 +3539,15 @@ static void checkNullabilityConsistency(TypeProcessingState &state,
 // Issue an error message if the propagation stops at a typedef that is an
 // unchecked array type.  Dimensions of multi-dimensional arrays must either 
 // all be checked or all be unchecked.
-static QualType makeNestedArrayChecked(Sema &S, QualType T,
-                                       SourceLocation Loc) {
+QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
+                                    SourceLocation Loc) {
   if (isa<ArrayType>(T)) {
-    ASTContext &Context = S.Context;
+    ASTContext &Context = this->Context;
     SplitQualType split = T.split();
     const Type *ty = split.Ty;
     const ArrayType *arrTy = cast<ArrayType>(ty);
-    QualType elemTy = makeNestedArrayChecked(S, arrTy->getElementType(), Loc);
+    QualType elemTy = MakeCheckedArrayType(arrTy->getElementType(), Diagnose,
+                                           Loc);
     switch (ty->getTypeClass()) {
       case Type::ConstantArray: {
         const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
@@ -3576,13 +3577,13 @@ static QualType makeNestedArrayChecked(Sema &S, QualType T,
     }
   } else if (const TypedefType *TD = dyn_cast<TypedefType>(T)) {
     const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType());
-    if (AT != nullptr && !AT->isChecked())
-      S.Diag(Loc, diag::err_checked_array_of_unchecked_array) << TD->getDecl();
+    if (AT != nullptr && !AT->isChecked() && Diagnose)
+      Diag(Loc, diag::err_checked_array_of_unchecked_array) << TD->getDecl();
   } else if (const ParenType *PT = dyn_cast<ParenType>(T)) {
     assert(!T.hasLocalQualifiers());
-    QualType innerType = makeNestedArrayChecked(S, PT->getInnerType(), Loc);
-    ASTContext &Context = S.Context;
-    return Context.getParenType(innerType);
+    QualType innerType = MakeCheckedArrayType(PT->getInnerType(), Diagnose,
+                                              Loc);
+    return this->Context.getParenType(innerType);
   } else {
      // Make sure that we're not missing some wrapper type for an array type.
      // This checks that the canonical type for T is not an array type.
@@ -3590,6 +3591,76 @@ static QualType makeNestedArrayChecked(Sema &S, QualType T,
   }
 
   return T;
+}
+
+/// If a declaration has a Checked C bounds-safe interface attached to it,
+/// construct and return the checked type for the interface. Otherwise
+/// return a null QualType.
+///
+/// This falls into two cases:
+/// 1. The interface is a type annotation: return the type in the
+///    annotation.
+/// 2. The interface is a bounds expression.  This implies the checked
+/// type should be an _Array_ptr type or checked Array type.  Construct
+/// the appropriate type from the unchecked type for the declaration and
+/// return it.
+QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
+  const DeclaratorDecl *TargetDecl = nullptr;
+  if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl))
+    TargetDecl = Field;
+  else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl))
+    TargetDecl = Var;
+
+  QualType ResultType = QualType();
+  if (TargetDecl) {
+    if (const BoundsExpr *Bounds = TargetDecl->getBoundsExpr()) {
+      switch (Bounds->getKind()) {
+      case BoundsExpr::Kind::InteropTypeAnnotation: {
+        const InteropTypeBoundsAnnotation *Annot =
+          dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
+        assert(Annot && "unexpected dyn_cast failure");
+        if (Annot != nullptr)
+          ResultType = Annot->getType();
+        break;
+      }
+      case BoundsExpr::Kind::ByteCount:
+      case BoundsExpr::Kind::ElementCount:
+      case BoundsExpr::Kind::Range: {
+        QualType Ty;
+        // The types for parameter variables that have array types are adjusted
+        // to be pointer types.  We'll work with the original array type instead.
+        // For multi-dimensional array types, the nested array types need to
+        // become checked array types too.
+        if (const ParmVarDecl *ParmVar = dyn_cast<ParmVarDecl>(TargetDecl))
+          Ty = ParmVar->getOriginalType();
+        else
+          Ty = Decl->getType();
+
+        if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
+          if (PtrType->isUnchecked()) {
+            ResultType = Context.getPointerType(PtrType->getPointeeType(),
+                                                CheckedPointerKind::Array);
+            ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
+          }
+        }
+        else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType()) {
+          ResultType = MakeCheckedArrayType(Ty);
+        }
+        break;
+      }
+      default:
+        break;
+      }
+    }
+  }
+
+  // When a parameter variable declaration is created, array types for parameter
+  // variables are adjusted to be pointer types.  We have to do the same here.
+  if (isa<ParmVarDecl>(TargetDecl) && !ResultType.isNull() &&
+      ResultType->isArrayType())
+    ResultType = Context.getAdjustedParameterType(ResultType);
+
+  return ResultType;
 }
 
 static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
@@ -4084,7 +4155,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           if (isChecked) 
             // The new array type is checked. Propagate this to nested array types
             // declared as part of this declaration.
-            T = makeNestedArrayChecked(S, T, DeclType.Loc);
+            T = S.MakeCheckedArrayType(T, true, DeclType.Loc);
           else {
             // The new array type is unchecked and the nested array type is checked,
             // See if an enclosing array type will eventually make the new array

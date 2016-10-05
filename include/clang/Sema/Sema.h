@@ -8837,7 +8837,7 @@ public:
                                                      bool ConvertRHS = true);
 
 private:
-  QualType GetInteropType(const ValueDecl *Decl);
+  QualType GetCheckedCInteropType(const ValueDecl *Decl);
 public:
   /// \brief Get the bounds-safe interface type for Entity.
   /// Returns a null QualType if there isn't one.
@@ -8846,6 +8846,13 @@ public:
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
+
+  /// \brief If T is an array type, create a checked array type version of T.
+  /// This includes propagating the checked property to nested array types. If
+  /// a valid checked array type cannot be constructed and Diagnose is true,
+  /// print a diagnostic message for the problem.
+  QualType MakeCheckedArrayType(QualType T, bool Diagnose = false,
+                                SourceLocation Loc = SourceLocation());
 
   /// \brief Helper function for type checking an assignment whose LHS has a
   /// Checked C bounds-safe interface.  This function chooses which type to
