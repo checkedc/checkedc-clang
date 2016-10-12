@@ -1793,6 +1793,53 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     // The C++ inline method definition case is handled elsewhere, so we only
     // need to handle the file scope definition case.
     if (Context == Declarator::FileContext) {
+
+      if (getLangOpts().CheckedC) {
+        // In Checked C, the return bounds expression is placed after the
+        // parameter list for a function and before the function body.
+        // Handle some possible parsing errors.
+
+        // Case 1: handle the simple case of a function declarator with a
+        // syntactically malformed return bounds expression that is immediately
+        // followed by a function body.  The solution is to try to skip to
+        // the start of the function body.
+        if (!isStartOfFunctionDefinition(D)) {
+          unsigned Count = D.getNumTypeObjects();
+          const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
+          if (lastChunk.Kind == DeclaratorChunk::Function) {
+            BoundsExpr *ReturnBounds = lastChunk.Fun.ReturnBounds;
+            if (ReturnBounds && ReturnBounds->isInvalid()) {
+              // TODO: this skips too much of there are separate
+              // K&R style declaration of argument types.
+              SkipUntil(tok::l_brace,
+                        SkipUntilFlags::StopAtSemi |
+                        SkipUntilFlags::StopBeforeMatch);
+            }
+          }
+        }
+
+        // Case 2: the return bounds expression is misplaced for a complex
+        // function declarator. Diagnosis this, suggest a fix, and bail out.
+        if (Tok.is(tok::colon)) {
+          Token Next = NextToken();
+          if (StartsBoundsExpression(Next) ||
+              StartsInteropTypeAnnotation(Next)) {
+            Diag(Tok.getLocation(),
+                 diag::err_unexpected_bounds_expr_after_declarator);
+            unsigned Count = D.getNumTypeObjects();
+            const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
+            if (lastChunk.Kind != DeclaratorChunk::Function && D.hasName()) {
+              SourceLocation RParen = D.getFunctionTypeInfo().getRParenLoc();
+              Diag(RParen, diag::note_place_for_return_bounds_declarator) <<
+                D.getIdentifier();
+              // bail out
+              SkipMalformedDecl();
+              return nullptr;
+            }
+          }
+        }
+      }
+
       if (isStartOfFunctionDefinition(D)) {
         if (DS.getStorageClassSpec() == DeclSpec::SCS_typedef) {
           Diag(Tok, diag::err_function_declared_typedef);
@@ -5918,10 +5965,17 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     BoundsColonLoc = Tok.getLocation();
     ConsumeToken();
     ExprResult BoundsExprResult = ParseBoundsExpressionOrInteropType();
-    if (BoundsExprResult.isInvalid()) {
+    if (BoundsExprResult.isInvalid())
+      // We don't have enough context to try to do syntactic error recovery
+      // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
+      // function declarations and function bodies. This allows us to handle
+      // the simple case where there's something wrong syntactically with a
+      // return bounds expression that is followed immediately by a function
+      // body.  Function declarators can also be nested within other
+      //declarators.  We don't have special-case code for recovering
+      // syntactically for that case.
       ReturnBoundsExpr = Actions.CreateInvalidBoundsExpr();
-      SkipUntil(tok::l_brace, SkipUntilFlags::StopAtSemi | SkipUntilFlags::StopBeforeMatch);
-    } else
+    else
       ReturnBoundsExpr = cast<BoundsExpr>(BoundsExprResult.get());
   }
 

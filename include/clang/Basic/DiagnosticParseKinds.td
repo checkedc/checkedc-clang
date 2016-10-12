@@ -1066,6 +1066,12 @@ def err_for_co_await_not_range_for : Error<
 def err_expected_bounds_expr : Error<
   "expected bounds expression">;
 
+def err_unexpected_bounds_expr_after_declarator: Error<
+  "unexpected bounds expression after declarator">;
+
+def note_place_for_return_bounds_declarator : Note<
+  "if this is a return bounds declaration for %0, place it after the ')'">;
+
 def err_expected_bounds_interop_type : Error<
   "expected bounds-safe interface type">;
 
