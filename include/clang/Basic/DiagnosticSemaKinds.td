@@ -8776,7 +8776,7 @@ def err_typecheck_count_bounds_decl : Error<
   "expected %0 to have a pointer or array type">;
 
 def err_typecheck_count_return_bounds : Error<
-  "expected %0 to have a pointer or array return type">;
+  "expected %0 to have a pointer return type">;
 
 def err_typecheck_void_pointer_count_bounds_decl : Error<
   "expected %0 to have a non-void pointer type">;
@@ -8788,6 +8788,6 @@ def err_typecheck_non_count_bounds_decl : Error<
   "expected %0 to have a pointer, array, or integer type">;
 
 def err_typecheck_non_count_return_bounds : Error<
-  "expected %0 to have a pointer, array, or integer return type">;
+  "expected %0 to have a pointer or integer return type">;
 
 } // end of sema component.
