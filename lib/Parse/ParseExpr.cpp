@@ -2752,18 +2752,18 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   Actions.ActOnBlockArguments(CaretLoc, DeclaratorInfo, getCurScope());
 }
 
-bool Parser::StartsBoundsExpression(Token &tok) {
-  if (tok.getKind() == tok::identifier) {
-    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+bool Parser::StartsBoundsExpression(Token &T) {
+  if (T.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = T.getIdentifierInfo();
     return (Ident == Ident_byte_count || Ident == Ident_count ||
             Ident == Ident_bounds);
   }
   return false;
 }
 
-bool Parser::StartsInteropTypeAnnotation(Token &tok) {
-  if (tok.getKind() == tok::identifier) {
-    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+bool Parser::StartsInteropTypeAnnotation(Token &T) {
+  if (T.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = T.getIdentifierInfo();
     return (Ident == Ident_itype);
   }
   return false;
