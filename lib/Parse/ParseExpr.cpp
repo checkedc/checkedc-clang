@@ -2769,7 +2769,7 @@ bool Parser::StartsInteropTypeAnnotation(Token &T) {
   return false;
 }
 
-ExprResult Parser::ParseInteropTypeAnnotation() {
+ExprResult Parser::ParseInteropTypeAnnotation(Declarator &D, bool IsReturn) {
   if (StartsInteropTypeAnnotation(Tok)) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
     SourceLocation TypeKWLoc = Tok.getLocation();
@@ -2778,13 +2778,21 @@ ExprResult Parser::ParseInteropTypeAnnotation() {
     if (PT.expectAndConsume(diag::err_expected_lparen_after,
                             Ident->getNameStart()))
       return ExprError();
-    TypeResult Ty = ParseTypeName();
+    // Interop type annotations for parameter declarators must be parsed in a
+    // special context.  Array types may have static or a type qualifier
+    // declared as part of the first dimension, that is,
+    //     int a[static 10] : itype(int [static 10])
+    Declarator::TheContext TypeContext = Declarator::TypeNameContext;
+    if (D.isPrototypeContext())
+       TypeContext = D.getContext();
+    TypeResult Ty = ParseTypeName(nullptr, TypeContext);
     if (Ty.isInvalid()) {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       return ExprError();
     }
     ExprResult Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
-                                                       Tok.getLocation());
+                                                       Tok.getLocation(),
+                                                       IsReturn);
     PT.consumeClose();
     return Result;
   }
@@ -2793,12 +2801,13 @@ ExprResult Parser::ParseInteropTypeAnnotation() {
   return ExprError();
 }
 
-ExprResult Parser::ParseBoundsExpressionOrInteropType() {
+ExprResult Parser::ParseBoundsExpressionOrInteropType(Declarator &D,
+                                                      bool IsReturn) {
   if (StartsBoundsExpression(Tok))
     return ParseBoundsExpression();
 
   if (StartsInteropTypeAnnotation(Tok))
-    return ParseInteropTypeAnnotation();
+    return ParseInteropTypeAnnotation(D, IsReturn);
 
   Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
   return ExprError();

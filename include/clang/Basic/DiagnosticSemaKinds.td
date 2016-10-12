@@ -8790,4 +8790,7 @@ def err_typecheck_non_count_bounds_decl : Error<
 def err_typecheck_non_count_return_bounds : Error<
   "expected %0 to have a pointer or integer return type">;
 
+def err_typecheck_bounds_type_annotation_identifier: Error<
+  "type name cannot have identifier in it">;
+
 } // end of sema component.
