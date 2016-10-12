@@ -5966,7 +5966,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
     BoundsColonLoc = Tok.getLocation();
     ConsumeToken();
-    ExprResult BoundsExprResult = ParseBoundsExpressionOrInteropType();
+    ExprResult BoundsExprResult =
+      ParseBoundsExpressionOrInteropType(D,/*IsReturn=*/true);
     if (BoundsExprResult.isInvalid())
       // We don't have enough context to try to do syntactic error recovery
       // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
