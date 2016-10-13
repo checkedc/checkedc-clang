@@ -8191,6 +8191,225 @@ QualType ASTContext::mergeObjCGCQualifiers(QualType LHS, QualType RHS) {
   return QualType();
 }
 
+//===--------------------------------------------------------------------===//
+//                    Predicates For Checked C checked types
+//===--------------------------------------------------------------------===//
+
+static bool lessThan(bool Self, bool Other) {
+  return (Self != Other && !Self);
+}
+
+bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
+  if (T1.isNull() || T2.isNull())
+    return true;
+
+  if (T1.getQualifiers() != T2.getQualifiers())
+    return false;
+
+  T1 = T1.getCanonicalType();
+  T2 = T2.getCanonicalType();
+
+  const Type *T1Type = T1.getTypePtr();
+  const Type *T2Type = T2.getTypePtr();
+
+  if (T1Type == T2Type)
+    return true;
+
+  Type::TypeClass T1TypeClass = T1->getTypeClass();
+  if (T1TypeClass != T2Type->getTypeClass())
+    return false;
+
+  switch (T1TypeClass) {
+  case Type::Pointer: {
+    const PointerType *T1PtrType = cast<PointerType>(T1Type);
+    const PointerType *T2PtrType = cast<PointerType>(T2Type);
+    if (lessThan(T1PtrType->isChecked(), T2PtrType->isChecked()))
+      return false;
+
+    QualType T1PointeeType = T1PtrType->getPointeeType();
+    QualType T2PointeeType = T2PtrType->getPointeeType();
+    if (!isAtLeastAsCheckedAs(T1PointeeType, T2PointeeType)) {
+      return false;
+    }
+
+    return true;
+  }
+  case Type::ConstantArray:
+  case Type::IncompleteArray: {
+    // check common array properties
+    const ArrayType *T1ArrayType = cast<ArrayType>(T1Type);
+    const ArrayType *T2ArrayType = cast<ArrayType>(T2Type);
+    if (T1ArrayType->getSizeModifier() != T2ArrayType->getSizeModifier())
+      return false;
+
+    if (lessThan(T1ArrayType->isChecked(),T2ArrayType->isChecked()))
+      return false;
+
+
+    QualType T1ElementType = T1ArrayType->getElementType();
+    QualType T2ElementType = T2ArrayType->getElementType();
+    if (!isAtLeastAsCheckedAs(T1ElementType, T2ElementType))
+      return false;
+
+    // check properties for specific kinds of arrays
+    if (T1TypeClass == Type::ConstantArray) {
+      const ConstantArrayType *T1ConstantArrayType =
+        cast<ConstantArrayType>(T1Type);
+      const ConstantArrayType *T2ConstantArrayType =
+        cast<ConstantArrayType>(T2Type);
+      if (!llvm::APInt::isSameValue(T1ConstantArrayType->getSize(),
+          T2ConstantArrayType->getSize()))
+        return false;
+    }
+
+    return true;
+  }
+  case Type::FunctionProto: {
+    const FunctionProtoType *T1FuncType =
+      cast<FunctionProtoType>(T1Type);
+    const FunctionProtoType *T2FuncType =
+      cast<FunctionProtoType>(T2Type);
+
+    // Check return types
+    QualType T1ReturnType = T1FuncType->getReturnType();
+    QualType T2ReturnType = T2FuncType->getReturnType();
+    if (!isAtLeastAsCheckedAs(T2ReturnType, T1ReturnType))
+      return false;
+
+    // Check parameter types and parameter-specific information.
+    unsigned int paramCount = T1FuncType->getNumParams();
+    if (paramCount != T2FuncType->getNumParams())
+      return false;
+
+    for (unsigned int i = 0; i < paramCount; i++) {
+      QualType T1ParamType = T1FuncType->getParamType(i);
+      QualType T2ParamType = T2FuncType->getParamType(i);
+      if (!isAtLeastAsCheckedAs(T1ParamType, T2ParamType))
+        return false;
+      // check additional non-type information about parameters
+      FunctionProtoType::ExtParameterInfo T1Info =
+        T1FuncType->getExtParameterInfo(i);
+      FunctionProtoType::ExtParameterInfo T2Info =
+        T2FuncType->getExtParameterInfo(i);
+      if (T1Info != T2Info)
+        return false;
+    }
+
+    // Check T2 properties of the function type.
+    if (T1FuncType->getExtInfo() != T2FuncType->getExtInfo())
+      return false;
+
+    if (T1FuncType->isVariadic() != T2FuncType->isVariadic())
+      return false;
+
+    // TODO: if we extend Checked C to C++, check C++-specific properties of
+    // function types.
+
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
+bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
+  if (T1.isNull() || T2.isNull())
+    return true;
+
+  if (T1.getQualifiers() != T2.getQualifiers())
+    return false;
+
+  T1 = T1.getCanonicalType();
+  T2 = T2.getCanonicalType();
+
+  const Type *T1Type = T1.getTypePtr();
+  const Type *T2Type = T2.getTypePtr();
+
+  if (T1Type == T2Type)
+    return true;
+
+  Type::TypeClass T1TypeClass = T1->getTypeClass();
+  if (T1TypeClass != T2Type->getTypeClass())
+    return false;
+
+  switch (T1TypeClass) {
+  case Type::Pointer: {
+    const PointerType *T1PtrType = cast<PointerType>(T1Type);
+    const PointerType *T2PtrType = cast<PointerType>(T2Type);
+    QualType T1PointeeType = T1PtrType->getPointeeType();
+    QualType T2PointeeType = T2PtrType->getPointeeType();
+    if (!isEqualIgnoringChecked(T1PointeeType, T2PointeeType)) {
+      return false;
+    }
+
+    return true;
+  }
+  case Type::ConstantArray:
+  case Type::IncompleteArray: {
+    // check common array properties
+    const ArrayType *T1ArrayType = cast<ArrayType>(T1Type);
+    const ArrayType *T2ArrayType = cast<ArrayType>(T2Type);
+    if (T1ArrayType->getSizeModifier() != T2ArrayType->getSizeModifier())
+      return false;
+
+    QualType T1ElementType = T1ArrayType->getElementType();
+    QualType T2ElementType = T2ArrayType->getElementType();
+    if (!isEqualIgnoringChecked(T1ElementType, T2ElementType))
+      return false;
+
+    // check properties for specific kinds of arrays
+    if (T1TypeClass == Type::ConstantArray) {
+      const ConstantArrayType *T1ConstantArrayType =
+        cast<ConstantArrayType>(T1Type);
+      const ConstantArrayType *T2ConstantArrayType =
+        cast<ConstantArrayType>(T2Type);
+      if (!llvm::APInt::isSameValue(T1ConstantArrayType->getSize(),
+          T2ConstantArrayType->getSize()))
+        return false;
+    }
+
+    return true;
+  }
+  case Type::FunctionProto: {
+    const FunctionProtoType *T1FuncType = cast<FunctionProtoType>(T1Type);
+    const FunctionProtoType *T2FuncType =
+      cast<FunctionProtoType>(T2Type);
+
+    // Check return types
+    QualType T1ReturnType = T1FuncType->getReturnType();
+    QualType T2ReturnType = T2FuncType->getReturnType();
+    if (!isEqualIgnoringChecked(T1ReturnType, T2ReturnType))
+      return false;
+
+    // Check parameter types and parameter-specific information.
+    unsigned int paramCount = T1FuncType->getNumParams();
+    if (paramCount != T2FuncType->getNumParams())
+      return false;
+
+    for (unsigned int i = 0; i < paramCount; i++) {
+      QualType T1ParamType = T1FuncType->getParamType(i);
+      QualType T2ParamType = T2FuncType->getParamType(i);
+      if (!isEqualIgnoringChecked(T1ParamType, T2ParamType))
+        return false;
+    }
+
+    // Check T2 properties of the function type.
+    if (T1FuncType->getExtInfo() != T2FuncType->getExtInfo())
+      return false;
+
+    if (T1FuncType->isVariadic() != T2FuncType->isVariadic())
+      return false;
+
+    // TODO: if we extend Checked C to C++, check C++-specific properties of
+    // function types.
+
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
 //===----------------------------------------------------------------------===//
 //                         Integer Predicates
 //===----------------------------------------------------------------------===//

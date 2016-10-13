@@ -869,18 +869,6 @@ public:
   /// given type, requiring exact equality for non-CVR qualifiers.
   bool isAtLeastAsQualifiedAs(QualType Other) const;
 
-  /// \brief Determine whether this pointer, array or function type
-  /// provides at least as much checking as the other type.  Return true if
-  /// it does or false if it does not or the types differ in some other way
-  /// than checkedness.
-  bool isAtLeastAsCheckedAs(QualType Other) const;
-
-  /// \brief Determine whether this pointer, array, or function type
-  /// is the same as the other pointer, array, or function type if checkedness
-  /// is ignored.  Return true if it does or false if the types differ in
-  /// some other way than checkedness.
-  bool isEqualIgnoringChecked(QualType Other) const;
-
   QualType getNonReferenceType() const;
 
   /// \brief Determine the type of a (typically non-lvalue) expression with the

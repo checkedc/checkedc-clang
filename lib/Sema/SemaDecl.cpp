@@ -11232,9 +11232,9 @@ static void checkBoundsDeclWithTypeAnnotation(Sema &S, DeclaratorDecl *D,
      AnnotTy = S.Context.getAdjustedParameterType(AnnotTy);
   }
   int DiagId = 0;
-  if (!AnnotTy.isEqualIgnoringChecked(DeclaredTy))
+  if (!S.Context.isEqualIgnoringChecked(AnnotTy, DeclaredTy))
     DiagId = diag::err_typecheck_bounds_type_annotation_incompatible;
-  else if (!AnnotTy.isAtLeastAsCheckedAs(DeclaredTy))
+  else if (!S.Context.isAtLeastAsCheckedAs(AnnotTy, DeclaredTy))
     DiagId = diag::err_bounds_type_annotation_lost_checking;
 
   if (DiagId) {
@@ -11262,7 +11262,7 @@ static void checkBoundsDeclWithBoundsExpr(Sema &S, DeclaratorDecl *D,
 
   unsigned DiagId = 0;
   QualType Ty = D->getType();
-
+ 
   // If we are checking the return bounds, get the function return type.
   // If the type for the declaration wasn't a function type, bail out.
   if (IsReturnBounds) {
