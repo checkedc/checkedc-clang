@@ -2090,7 +2090,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
   // annotation.
   if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
     ConsumeToken();
-    ExprResult Bounds = ParseBoundsExpressionOrInteropType();
+    ExprResult Bounds = ParseBoundsExpressionOrInteropType(D);
     if (Bounds.isInvalid())
       SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
 
@@ -3724,14 +3724,16 @@ void Parser::ParseStructDeclaration(
     if (TryConsumeToken(tok::colon)) {
       if (getLangOpts().CheckedC && StartsBoundsExpression(Tok)) {
         std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
-        bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+        bool ParsingError =
+          !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
         if (ParsingError)
           SkipUntil(tok::semi, StopBeforeMatch);
         // always set BoundsExprTokens: the delayed parsing is what
         // issues any parsing error messages.
         DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
       } else if (getLangOpts().CheckedC && StartsInteropTypeAnnotation(Tok)) {
-        ExprResult BoundsResult = ParseInteropTypeAnnotation();
+        ExprResult BoundsResult =
+          ParseInteropTypeAnnotation(DeclaratorInfo.D);
         if (BoundsResult.isInvalid())
           SkipUntil(tok::semi, StopBeforeMatch);
         else {
@@ -5964,7 +5966,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
     BoundsColonLoc = Tok.getLocation();
     ConsumeToken();
-    ExprResult BoundsExprResult = ParseBoundsExpressionOrInteropType();
+    ExprResult BoundsExprResult =
+      ParseBoundsExpressionOrInteropType(D, /*IsReturn=*/true);
     if (BoundsExprResult.isInvalid())
       // We don't have enough context to try to do syntactic error recovery
       // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
@@ -6226,8 +6229,8 @@ void Parser::ParseParameterDeclarationClause(
         if (StartsBoundsExpression(Tok)) {
           // Consume and store tokens until a bounds-like expression has been
           // read or a parsing error has happened.  Store the tokens even if a
-          // parsing error occurs so that ParseBoundsExpression can generate the
-          // error message.  This way the error messages from parsing of bounds
+          // parsing error occurs so that ParseBoundsExpression can generate
+          // the error message.  This way the error messages from parsing of bounds
           // expressions will be the same or very similar regardless of whether
           // parsing is deferred or not.
           std::unique_ptr<CachedTokens> BoundsExprTokens{ new CachedTokens };
@@ -6239,13 +6242,15 @@ void Parser::ParseParameterDeclarationClause(
         else {
            // fall back to general code that eagerly parses a bounds expression
            // bounds-safe interface type annotation
-          ExprResult BoundsAnnotation = ParseBoundsExpressionOrInteropType();
+          ExprResult BoundsAnnotation =
+            ParseBoundsExpressionOrInteropType(ParmDeclarator);
           if (BoundsAnnotation.isInvalid()) {
             SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
             Actions.ActOnInvalidBoundsDecl(Param);
           }
           else
-            Actions.ActOnBoundsDecl(Param, cast<BoundsExpr>(BoundsAnnotation.get()));
+            Actions.ActOnBoundsDecl(Param,
+                                    cast<BoundsExpr>(BoundsAnnotation.get()));
         }
       }
 

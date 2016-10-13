@@ -2769,7 +2769,7 @@ bool Parser::StartsInteropTypeAnnotation(Token &T) {
   return false;
 }
 
-ExprResult Parser::ParseInteropTypeAnnotation() {
+ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn) {
   if (StartsInteropTypeAnnotation(Tok)) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
     SourceLocation TypeKWLoc = Tok.getLocation();
@@ -2778,13 +2778,24 @@ ExprResult Parser::ParseInteropTypeAnnotation() {
     if (PT.expectAndConsume(diag::err_expected_lparen_after,
                             Ident->getNameStart()))
       return ExprError();
-    TypeResult Ty = ParseTypeName();
-    if (Ty.isInvalid()) {
-      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-      return ExprError();
-    }
-    ExprResult Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
-                                                       Tok.getLocation());
+    // If we are parsing interop type annotations in a declarator that contains
+    // parameter declarators, we must be careful to not use the default context
+    // for parsing type names (TypeNameContext).  We must instead use a prototype
+    // context.  We just pass along the context from the declarator in that case.
+    // Within protoype contexts, array types can have static or a type qualifier
+    // declared as part of the first dimension. For example:
+    //     int a[static 10] : itype(int [static 10])
+    // This is not allowed in other contexts.
+    Declarator::TheContext TypeContext = Declarator::TypeNameContext;
+    if (D.isPrototypeContext())
+       TypeContext = D.getContext();
+    TypeResult Ty = ParseTypeName(nullptr, TypeContext);
+    ExprResult Result;
+    if (Ty.isInvalid())
+      Result = ExprError();
+    else
+      Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
+                                             Tok.getLocation());
     PT.consumeClose();
     return Result;
   }
@@ -2793,12 +2804,13 @@ ExprResult Parser::ParseInteropTypeAnnotation() {
   return ExprError();
 }
 
-ExprResult Parser::ParseBoundsExpressionOrInteropType() {
+ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
+                                                      bool IsReturn) {
   if (StartsBoundsExpression(Tok))
     return ParseBoundsExpression();
 
   if (StartsInteropTypeAnnotation(Tok))
-    return ParseInteropTypeAnnotation();
+    return ParseInteropTypeAnnotation(D, IsReturn);
 
   Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
   return ExprError();
