@@ -2769,7 +2769,7 @@ bool Parser::StartsInteropTypeAnnotation(Token &T) {
   return false;
 }
 
-ExprResult Parser::ParseInteropTypeAnnotation(Declarator &D, bool IsReturn) {
+ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn) {
   if (StartsInteropTypeAnnotation(Tok)) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
     SourceLocation TypeKWLoc = Tok.getLocation();
@@ -2778,20 +2778,24 @@ ExprResult Parser::ParseInteropTypeAnnotation(Declarator &D, bool IsReturn) {
     if (PT.expectAndConsume(diag::err_expected_lparen_after,
                             Ident->getNameStart()))
       return ExprError();
-    // Interop type annotations for parameter declarators must be parsed in a
-    // special context.  Array types may have static or a type qualifier
-    // declared as part of the first dimension, that is,
+    // If we are parsing interop type annotations in a declarator that contains
+    // parameter declarators, we must be careful to not use the default context
+    // for parsing type names (TypeNameContext).  We must instead use a prototype
+    // context.  We just pass along the context from the declarator in that case.
+    // Within protoype contexts, array types can have static or a type qualifier
+    // declared as part of the first dimension. For example:
     //     int a[static 10] : itype(int [static 10])
+    // This is not allowed in other contexts.
     Declarator::TheContext TypeContext = Declarator::TypeNameContext;
     if (D.isPrototypeContext())
        TypeContext = D.getContext();
     TypeResult Ty = ParseTypeName(nullptr, TypeContext);
-    if (Ty.isInvalid()) {
-      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-      return ExprError();
-    }
-    ExprResult Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
-                                                       Tok.getLocation());
+    ExprResult Result;
+    if (Ty.isInvalid())
+      Result = ExprError();
+    else
+      Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
+                                             Tok.getLocation());
     PT.consumeClose();
     return Result;
   }
@@ -2800,7 +2804,7 @@ ExprResult Parser::ParseInteropTypeAnnotation(Declarator &D, bool IsReturn) {
   return ExprError();
 }
 
-ExprResult Parser::ParseBoundsExpressionOrInteropType(Declarator &D,
+ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                       bool IsReturn) {
   if (StartsBoundsExpression(Tok))
     return ParseBoundsExpression();

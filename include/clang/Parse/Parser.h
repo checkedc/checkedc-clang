@@ -1665,8 +1665,8 @@ private:
   bool StartsInteropTypeAnnotation(Token &tok);
 
   ExprResult ParseBoundsExpression();
-  ExprResult ParseInteropTypeAnnotation(Declarator &D, bool IsReturn=false);
-  ExprResult ParseBoundsExpressionOrInteropType(Declarator &D,
+  ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
+  ExprResult ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                 bool IsReturn=false);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
   ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks);
