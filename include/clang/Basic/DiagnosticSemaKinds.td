@@ -8790,7 +8790,29 @@ def err_typecheck_non_count_bounds_decl : Error<
 def err_typecheck_non_count_return_bounds : Error<
   "expected %0 to have a pointer or integer return type">;
 
+def err_typecheck_bounds_type_annotation_unchecked_pointer : Error<
+  "interoperation type must be a checked pointer type">;
+
+def err_typecheck_bounds_type_annotation_unchecked_array : Error<
+  "interoperation type must be a checked array type">;
+
+def err_typecheck_bounds_type_annotation_unexpected_type : Error<
+  "interoperation type must be a checked pointer or array type">;
+
+def err_typecheck_array_return_bounds_type_annotation : Error<
+  "array type not allowed for function return interoperation type">;
+
 def err_typecheck_bounds_type_annotation_identifier: Error<
   "type name cannot have identifier in it">;
+
+def err_typecheck_bounds_type_annotation_incompatible : Error<
+  "interoperation type "
+  "%diff{$ is not compatible with declared type $|"
+  "{ is incompatible with declared type}0,1">;
+
+def err_bounds_type_annotation_lost_checking : Error<
+  "interoperation type "
+  "%diff{$ loses checking of declared type $|"
+  "{loses checking of declared type}0,1">;
 
 } // end of sema component.

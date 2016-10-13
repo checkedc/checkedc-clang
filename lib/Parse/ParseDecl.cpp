@@ -1810,7 +1810,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
             BoundsExpr *ReturnBounds = lastChunk.Fun.ReturnBounds;
             if (ReturnBounds && ReturnBounds->isInvalid()) {
               // TODO: this skips too much of there are separate
-              // K&R style declaration of argument types.
+              // K&R style declarations of argument types.
               SkipUntil(tok::l_brace,
                         SkipUntilFlags::StopAtSemi |
                         SkipUntilFlags::StopBeforeMatch);
@@ -3853,11 +3853,18 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
         // up losing/overwriting information.
         assert(FD.BoundsExprTokens == nullptr ||
                FD.BoundsAnnotation == nullptr);
+
         if (FD.BoundsExprTokens != nullptr)
           deferredBoundsExpressions.emplace_back(Field,
             std::move(FD.BoundsExprTokens));
-        if (FD.BoundsAnnotation != nullptr)
-          Field->setBoundsExpr(FD.BoundsAnnotation);
+
+        if (InteropTypeBoundsAnnotation *BoundsAnnotation =
+            FD.BoundsAnnotation) {
+          if (BoundsAnnotation->isInvalid())
+            Actions.ActOnInvalidBoundsDecl(Field);
+          else
+            Actions.ActOnBoundsDecl(Field, BoundsAnnotation);
+        }
       };
 
       // Parse all the comma separated declarators.

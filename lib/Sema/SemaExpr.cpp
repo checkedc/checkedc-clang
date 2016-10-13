@@ -12348,11 +12348,42 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
 }
 
 ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
-                                        SourceLocation RParenLoc) {
+                                        SourceLocation RParenLoc, bool IsReturnInteropType) {
   TypeSourceInfo *TInfo = nullptr;
   GetTypeFromParser(Ty, &TInfo);
+  QualType QT = TInfo->getType();
+  SourceLocation Loc = TInfo->getTypeLoc().getBeginLoc();
+
+  if (!IsReturnInteropType) {
+    if (QT->isArrayType() && !QT->isCheckedArrayType()) {
+      Diag(Loc, diag::err_typecheck_bounds_type_annotation_unchecked_array);
+      return ExprError();
+    }
+
+    if (QT->isPointerType() && !QT->isCheckedPointerType()) {
+      Diag(Loc, diag::err_typecheck_bounds_type_annotation_unchecked_pointer);
+      return ExprError();
+    }
+
+    if (!QT->isPointerType() && !QT->isArrayType()) {
+      Diag(Loc, diag::err_typecheck_bounds_type_annotation_unexpected_type);
+      return ExprError();
+    }
+  } else {
+    if (QT->isArrayType()) {
+      Diag(Loc, diag::err_typecheck_array_return_bounds_type_annotation);
+      return ExprError();
+    }
+
+    if (!QT->isCheckedPointerType()) {
+      Diag(Loc, diag::err_typecheck_bounds_type_annotation_unchecked_pointer);
+      return ExprError();
+    }
+  }
+
   return CreateBoundsInteropType(TypeKWLoc, TInfo, RParenLoc);
 }
+
 
 ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
                                          SourceLocation RParenLoc) {
