@@ -2795,7 +2795,7 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
       Result = ExprError();
     else
       Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
-                                             Tok.getLocation(), IsReturn);
+                                              Tok.getLocation());
     PT.consumeClose();
     return Result;
   }
