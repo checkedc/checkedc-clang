@@ -11219,6 +11219,12 @@ static void checkBoundsDeclWithTypeAnnotation(Sema &S, DeclaratorDecl *D,
   assert(D != nullptr && Expr != nullptr && !Expr->isInvalid());
 
   QualType DeclaredTy = D->getType();
+  QualType AnnotTy = Expr->getType();
+  QualType OriginalAnnotTy = AnnotTy;
+
+  if (DeclaredTy.isNull() || AnnotTy.isNull())
+    return;
+
   if (IsReturnBounds) {
     assert(DeclaredTy->isFunctionType());
     if (const FunctionType *FuncTy = DeclaredTy->getAs<FunctionType>())
@@ -11226,20 +11232,62 @@ static void checkBoundsDeclWithTypeAnnotation(Sema &S, DeclaratorDecl *D,
     else
       return;
   }
-  QualType AnnotTy = Expr->getType();
 
   if (isa<ParmVarDecl>(D)) {
-     AnnotTy = S.Context.getAdjustedParameterType(AnnotTy);
+    AnnotTy = S.Context.getAdjustedParameterType(AnnotTy);
   }
+
   int DiagId = 0;
-  if (!S.Context.isEqualIgnoringChecked(AnnotTy, DeclaredTy))
-    DiagId = diag::err_typecheck_bounds_type_annotation_incompatible;
-  else if (!S.Context.isAtLeastAsCheckedAs(AnnotTy, DeclaredTy))
-    DiagId = diag::err_bounds_type_annotation_lost_checking;
+  // Check that declared type is allowed to have a bounds-safe
+  // interface type declaration.
+  if (!DeclaredTy->isPointerType() && !DeclaredTy->isArrayType()) {
+    if (IsReturnBounds)
+      DiagId =
+        diag::err_typecheck_return_bounds_type_annotation_for_illegal_type;
+    else
+      DiagId = diag::err_typecheck_bounds_type_annotation_for_illegal_type;
+    S.Diag(Expr->getStartLoc(), DiagId);
+    return;
+  }
+
+   // Check that the annotation type is allowed to appear in a bound-safe
+  // interface type declaration.
+  SourceLocation AnnotTyLoc =
+    Expr->getTypeInfoAsWritten()->getTypeLoc().getBeginLoc();
+
+  if (IsReturnBounds) {
+    if (AnnotTy->isArrayType())
+      DiagId = diag::err_typecheck_return_bounds_type_annotation_is_array;
+    else if (!AnnotTy->isPointerType())
+      DiagId =
+        diag::err_typecheck_return_bounds_type_annotation_must_be_pointer;
+  } else {
+    if (!AnnotTy->isPointerType() && !AnnotTy->isArrayType())
+      DiagId = diag::err_typecheck_bounds_type_annotation_must_be_pointer_or_array;
+  }
 
   if (DiagId) {
-    S.Diag(Expr->getTypeInfoAsWritten()->getTypeLoc().getBeginLoc(), DiagId)
-           << AnnotTy << DeclaredTy;
+    S.Diag(AnnotTyLoc, DiagId);
+    return;
+  }
+
+  // Check that the types are identical if checking is ignored.
+  if (!S.Context.isEqualIgnoringChecked(AnnotTy, DeclaredTy)) {
+    DiagId = diag::err_typecheck_bounds_type_annotation_incompatible;
+    S.Diag(AnnotTyLoc, DiagId) << AnnotTy << DeclaredTy;
+    return;
+  }
+
+  if (!AnnotTy->hasCheckedType()) {
+    S.Diag(AnnotTyLoc, diag::err_typecheck_bounds_type_annotation_must_be_checked_type);
+    return;
+  }
+
+  // Check that the annotation type does not lose checking of the declared type.
+  if (!S.Context.isAtLeastAsCheckedAs(AnnotTy, DeclaredTy)) {
+    S.Diag(AnnotTyLoc,
+            diag::err_bounds_type_annotation_lost_checking)
+      << AnnotTy << DeclaredTy;
     return;
   }
 

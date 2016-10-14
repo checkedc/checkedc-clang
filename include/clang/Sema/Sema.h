@@ -4225,7 +4225,7 @@ public:
   ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
                                   Expr *UpperBound, SourceLocation RParenLoc);
   ExprResult ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
-                                    SourceLocation RParenLoc, bool IsReturn);
+                                    SourceLocation RParenLoc);
   ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc,
                                      TypeSourceInfo *TInfo,
                                      SourceLocation RParenLoc);
