@@ -8201,7 +8201,7 @@ static bool lessThan(bool Self, bool Other) {
 
 bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
   if (T1.isNull() || T2.isNull())
-    return true;
+    return false;
 
   if (T1.getQualifiers() != T2.getQualifiers())
     return false;
@@ -8228,9 +8228,8 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
 
     QualType T1PointeeType = T1PtrType->getPointeeType();
     QualType T2PointeeType = T2PtrType->getPointeeType();
-    if (!isAtLeastAsCheckedAs(T1PointeeType, T2PointeeType)) {
+    if (!isAtLeastAsCheckedAs(T1PointeeType, T2PointeeType))
       return false;
-    }
 
     return true;
   }
@@ -8242,9 +8241,8 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
     if (T1ArrayType->getSizeModifier() != T2ArrayType->getSizeModifier())
       return false;
 
-    if (lessThan(T1ArrayType->isChecked(),T2ArrayType->isChecked()))
+    if (lessThan(T1ArrayType->isChecked(), T2ArrayType->isChecked()))
       return false;
-
 
     QualType T1ElementType = T1ArrayType->getElementType();
     QualType T2ElementType = T2ArrayType->getElementType();
@@ -8273,7 +8271,7 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
     // Check return types
     QualType T1ReturnType = T1FuncType->getReturnType();
     QualType T2ReturnType = T2FuncType->getReturnType();
-    if (!isAtLeastAsCheckedAs(T2ReturnType, T1ReturnType))
+    if (!isAtLeastAsCheckedAs(T1ReturnType, T2ReturnType))
       return false;
 
     // Check parameter types and parameter-specific information.
@@ -8314,7 +8312,7 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
 
 bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
   if (T1.isNull() || T2.isNull())
-    return true;
+    return false;
 
   if (T1.getQualifiers() != T2.getQualifiers())
     return false;
@@ -8338,9 +8336,8 @@ bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
     const PointerType *T2PtrType = cast<PointerType>(T2Type);
     QualType T1PointeeType = T1PtrType->getPointeeType();
     QualType T2PointeeType = T2PtrType->getPointeeType();
-    if (!isEqualIgnoringChecked(T1PointeeType, T2PointeeType)) {
+    if (!isEqualIgnoringChecked(T1PointeeType, T2PointeeType))
       return false;
-    }
 
     return true;
   }

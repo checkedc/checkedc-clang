@@ -11233,11 +11233,26 @@ static void checkBoundsDeclWithTypeAnnotation(Sema &S, DeclaratorDecl *D,
       return;
   }
 
-  if (isa<ParmVarDecl>(D)) {
+  if (isa<ParmVarDecl>(D))
     AnnotTy = S.Context.getAdjustedParameterType(AnnotTy);
-  }
 
   int DiagId = 0;
+
+  // Make a best effort to detect multiple errors at once.  This might help
+  // programmers avoid multiple rounds of fixing and recompiling programs.
+  //
+  // Track the kinds of errors that have occurred to avoid emitting errors
+  // implied by prior errors, using a bitmask.
+
+  enum ErrorType {
+    None = 0,
+    Declared_Illegal_Type = 1,
+    Annot_Illegal_Type = 2,
+    Annot_Unchecked = 4,
+    Incompatible = 8
+  };
+
+  int Errors = None;
   // Check that declared type is allowed to have a bounds-safe
   // interface type declaration.
   if (!DeclaredTy->isPointerType() && !DeclaredTy->isArrayType()) {
@@ -11247,7 +11262,7 @@ static void checkBoundsDeclWithTypeAnnotation(Sema &S, DeclaratorDecl *D,
     else
       DiagId = diag::err_typecheck_bounds_type_annotation_for_illegal_type;
     S.Diag(Expr->getStartLoc(), DiagId);
-    return;
+    Errors |= Declared_Illegal_Type;
   }
 
    // Check that the annotation type is allowed to appear in a bound-safe
@@ -11255,6 +11270,7 @@ static void checkBoundsDeclWithTypeAnnotation(Sema &S, DeclaratorDecl *D,
   SourceLocation AnnotTyLoc =
     Expr->getTypeInfoAsWritten()->getTypeLoc().getBeginLoc();
 
+  DiagId = 0;
   if (IsReturnBounds) {
     if (AnnotTy->isArrayType())
       DiagId = diag::err_typecheck_return_bounds_type_annotation_is_array;
@@ -11263,31 +11279,37 @@ static void checkBoundsDeclWithTypeAnnotation(Sema &S, DeclaratorDecl *D,
         diag::err_typecheck_return_bounds_type_annotation_must_be_pointer;
   } else {
     if (!AnnotTy->isPointerType() && !AnnotTy->isArrayType())
-      DiagId = diag::err_typecheck_bounds_type_annotation_must_be_pointer_or_array;
+      DiagId =
+        diag::err_typecheck_bounds_type_annotation_must_be_pointer_or_array;
   }
 
   if (DiagId) {
     S.Diag(AnnotTyLoc, DiagId);
-    return;
+    Errors |= Annot_Illegal_Type;
+  }
+
+  // Make sure that the annotation type is a checked type.
+  if (!(Errors & Annot_Illegal_Type) && !AnnotTy->hasCheckedType()) {
+    S.Diag(AnnotTyLoc,
+           diag::err_typecheck_bounds_type_annotation_must_be_checked_type);
+    Errors |= Annot_Unchecked;
   }
 
   // Check that the types are identical if checking is ignored.
-  if (!S.Context.isEqualIgnoringChecked(AnnotTy, DeclaredTy)) {
+  if (!(Errors & Declared_Illegal_Type || Errors & Annot_Illegal_Type) &&
+     !S.Context.isEqualIgnoringChecked(AnnotTy, DeclaredTy)) {
     DiagId = diag::err_typecheck_bounds_type_annotation_incompatible;
     S.Diag(AnnotTyLoc, DiagId) << AnnotTy << DeclaredTy;
-    return;
+    Errors |= Incompatible;
   }
 
-  if (!AnnotTy->hasCheckedType()) {
-    S.Diag(AnnotTyLoc, diag::err_typecheck_bounds_type_annotation_must_be_checked_type);
+  if (Errors)
     return;
-  }
 
   // Check that the annotation type does not lose checking of the declared type.
   if (!S.Context.isAtLeastAsCheckedAs(AnnotTy, DeclaredTy)) {
-    S.Diag(AnnotTyLoc,
-            diag::err_bounds_type_annotation_lost_checking)
-      << AnnotTy << DeclaredTy;
+    S.Diag(AnnotTyLoc, diag::err_bounds_type_annotation_lost_checking)
+        << AnnotTy << DeclaredTy;
     return;
   }
 

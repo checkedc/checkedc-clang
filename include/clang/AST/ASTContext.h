@@ -2323,16 +2323,16 @@ public:
   //                    Predicates For Checked C checked types
   //===--------------------------------------------------------------------===//
 
-  /// \brief Determine whether this pointer, array or function type
-  /// provides at least as much checking as the other type.  Return true if
-  /// it does or false if it does not or the types differ in some other way
-  /// than checkedness.
+  /// \brief Determine whether a pointer, array, or function type T1 provides
+  /// at least as much checking as the other type T2.  Return true if it does
+  /// or false if it does not or the types differ in some other way than
+  /// checkedness.
   bool isAtLeastAsCheckedAs(QualType T1, QualType T2) const;
 
-  /// \brief Determine whether this pointer, array, or function type
-  /// is the same as the other pointer, array, or function type if checkedness
-  /// is ignored.  Return true if it does or false if the types differ in
-  /// some other way than checkedness.
+  /// \brief Determine whether a pointer, array, or function type T1
+  /// is the same as the other pointer, array, or function type T2 if
+  /// checkedness is ignored.  Return true if does or false if the types
+  /// differ in some other way than checkedness.
   bool isEqualIgnoringChecked(QualType T1, QualType T2) const;
 
   // Methods to support checking assignments in the presence of
