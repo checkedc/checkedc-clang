@@ -11213,28 +11213,129 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
   }
 }
 
-// ActOnBoundsDecl: handle a Checked C bounds declaration for a declarator.
+static void checkBoundsDeclWithTypeAnnotation(Sema &S, DeclaratorDecl *D,
+                                             InteropTypeBoundsAnnotation *Expr,
+                                             bool IsReturnBounds) {
+  assert(D != nullptr && Expr != nullptr && !Expr->isInvalid());
+
+  QualType DeclaredTy = D->getType();
+  QualType AnnotTy = Expr->getType();
+  QualType OriginalAnnotTy = AnnotTy;
+
+  if (DeclaredTy.isNull() || AnnotTy.isNull())
+    return;
+
+  if (IsReturnBounds) {
+    assert(DeclaredTy->isFunctionType());
+    if (const FunctionType *FuncTy = DeclaredTy->getAs<FunctionType>())
+      DeclaredTy = FuncTy->getReturnType();
+    else
+      return;
+  }
+
+  if (isa<ParmVarDecl>(D))
+    AnnotTy = S.Context.getAdjustedParameterType(AnnotTy);
+
+  int DiagId = 0;
+
+  // Make a best effort to detect multiple errors at once.  This might help
+  // programmers avoid multiple rounds of fixing and recompiling programs.
+  //
+  // Track the kinds of errors that have occurred to avoid emitting errors
+  // implied by prior errors, using a bitmask.
+
+  enum ErrorType {
+    None = 0,
+    Declared_Illegal_Type = 1,
+    Annot_Illegal_Type = 2,
+    Annot_Unchecked = 4,
+    Incompatible = 8
+  };
+
+  int Errors = None;
+  // Check that declared type is allowed to have a bounds-safe
+  // interface type declaration.
+  if (!DeclaredTy->isPointerType() && !DeclaredTy->isArrayType()) {
+    if (IsReturnBounds)
+      DiagId =
+        diag::err_typecheck_return_bounds_type_annotation_for_illegal_type;
+    else
+      DiagId = diag::err_typecheck_bounds_type_annotation_for_illegal_type;
+    S.Diag(Expr->getStartLoc(), DiagId);
+    Errors |= Declared_Illegal_Type;
+  }
+
+   // Check that the annotation type is allowed to appear in a bound-safe
+  // interface type declaration.
+  SourceLocation AnnotTyLoc =
+    Expr->getTypeInfoAsWritten()->getTypeLoc().getBeginLoc();
+
+  DiagId = 0;
+  if (IsReturnBounds) {
+    if (AnnotTy->isArrayType())
+      DiagId = diag::err_typecheck_return_bounds_type_annotation_is_array;
+    else if (!AnnotTy->isPointerType())
+      DiagId =
+        diag::err_typecheck_return_bounds_type_annotation_must_be_pointer;
+  } else {
+    if (!AnnotTy->isPointerType() && !AnnotTy->isArrayType())
+      DiagId =
+        diag::err_typecheck_bounds_type_annotation_must_be_pointer_or_array;
+  }
+
+  if (DiagId) {
+    S.Diag(AnnotTyLoc, DiagId);
+    Errors |= Annot_Illegal_Type;
+  }
+
+  // Make sure that the annotation type is a checked type.
+  if (!(Errors & Annot_Illegal_Type) && !AnnotTy->hasCheckedType()) {
+    S.Diag(AnnotTyLoc,
+           diag::err_typecheck_bounds_type_annotation_must_be_checked_type);
+    Errors |= Annot_Unchecked;
+  }
+
+  // Check that the types are identical if checking is ignored.
+  if (!(Errors & Declared_Illegal_Type || Errors & Annot_Illegal_Type) &&
+     !S.Context.isEqualIgnoringChecked(AnnotTy, DeclaredTy)) {
+    DiagId = diag::err_typecheck_bounds_type_annotation_incompatible;
+    S.Diag(AnnotTyLoc, DiagId) << AnnotTy << DeclaredTy;
+    Errors |= Incompatible;
+  }
+
+  if (Errors)
+    return;
+
+  // Check that the annotation type does not lose checking of the declared type.
+  if (!S.Context.isAtLeastAsCheckedAs(AnnotTy, DeclaredTy)) {
+    S.Diag(AnnotTyLoc, diag::err_bounds_type_annotation_lost_checking)
+        << AnnotTy << DeclaredTy;
+    return;
+  }
+
+  D->setBoundsExpr(Expr);
+}
+
+// checkBoundsDeclForBoundsExpr: handle a Checked C bounds declaration for a
+// declarator, where the bounds declaration uses a bounds expression.
 // Check that the declarator has the right kind of type for the bounds
 // expression and attach the bounds expression to the declarator.
 //
-// If checkReturnBounds is true, check the return bounds declaration
+// If IsReturnBounds is true, check the return bounds declaration
 // for a function declarator.  The typechecking logic is the same, but
 // the error messages are slightly different.
-void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
-                           bool checkReturnBounds) {
-  if (!D || !Expr)
-    return;
-
-  // If the bounds expression is invalid, skip type checking the declaration.
-  if (Expr->isInvalid())
-      return;
+static void checkBoundsDeclWithBoundsExpr(Sema &S, DeclaratorDecl *D,
+                                          BoundsExpr *Expr,
+                                          bool IsReturnBounds) {
+  assert(D != nullptr && Expr != nullptr && !Expr->isInvalid() &&
+         !Expr->isInteropTypeAnnotation());
 
   unsigned DiagId = 0;
   QualType Ty = D->getType();
-
+ 
   // If we are checking the return bounds, get the function return type.
   // If the type for the declaration wasn't a function type, bail out.
-  if (checkReturnBounds) {
+  if (IsReturnBounds) {
     assert(Ty->isFunctionType());
     if (const FunctionType *FuncTy = Ty->getAs<FunctionType>())
       Ty = FuncTy->getReturnType();
@@ -11248,15 +11349,15 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
 
   if (Ty->isCheckedPointerPtrType())
     // _Ptr types cannot have bounds expressions
-    DiagId = checkReturnBounds ? diag::err_typecheck_ptr_return_with_bounds
-    : diag::err_typecheck_ptr_decl_with_bounds;
+    DiagId = IsReturnBounds ? diag::err_typecheck_ptr_return_with_bounds
+                            : diag::err_typecheck_ptr_decl_with_bounds;
     // Function pointer types cannot have bounds declared for them because
     // arithmetic on function pointer types makes no sense. Check for
     // function types too.  C allows function types to be used in some places.
     // They are implicitly replaced with function pointer types. Guard against
     // them not having been replaced yet.
   else if (Ty->isFunctionPointerType() || Ty->isFunctionType())
-    DiagId = checkReturnBounds
+    DiagId = IsReturnBounds
     ? diag::err_typecheck_function_pointer_return_with_bounds
     : diag::err_typecheck_function_pointer_decl_with_bounds;
   // Do bounds-safe interface checks. Local variables with unchecked pointer
@@ -11267,7 +11368,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
   // members) can have unchecked types and bounds declarations because that is
   // the way bounds-safe interfaces are declared.
   else if (VarDecl *Var = dyn_cast<VarDecl>(D)) {
-    assert(!checkReturnBounds);
+    assert(!IsReturnBounds);
     if (Var->isLocalVarDecl()) {
        if (Ty->isPointerType() && !Ty->isCheckedPointerType())
           DiagId = diag::err_bounds_safe_interface_unchecked_local_pointer;
@@ -11297,10 +11398,10 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
       llvm_unreachable("dyn_cast to countBounds failed unexpectedly");
     else {
       if (!Ty->isPointerType() && !Ty->isArrayType()) {
-        DiagId = checkReturnBounds ? diag::err_typecheck_count_return_bounds
-                                   : diag::err_typecheck_count_bounds_decl;
+        DiagId = IsReturnBounds ? diag::err_typecheck_count_return_bounds
+                                : diag::err_typecheck_count_bounds_decl;
       } else if (Ty->isVoidPointerType()) {
-        DiagId = checkReturnBounds
+        DiagId = IsReturnBounds
           ? diag::err_typecheck_void_pointer_count_return_bounds
           : diag::err_typecheck_void_pointer_count_bounds_decl;
       }
@@ -11310,14 +11411,34 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
     // All other bounds expressions.  Integer types are allowed so that
     // bounds can be declared for variables holding the results of casts
     // from pointers to integers.
-    DiagId = checkReturnBounds ? diag::err_typecheck_non_count_return_bounds
-                                : diag::err_typecheck_non_count_bounds_decl;
+    DiagId = IsReturnBounds ? diag::err_typecheck_non_count_return_bounds
+                            : diag::err_typecheck_non_count_bounds_decl;
 
   if (DiagId) {
-    Diag(Expr->getLocStart(), DiagId) << D;
-    ActOnInvalidBoundsDecl(D);
+    S.Diag(Expr->getLocStart(), DiagId) << D;
+    S.ActOnInvalidBoundsDecl(D);
   } else
     D->setBoundsExpr(Expr);
+}
+
+// ActOnBoundsDecl: handle a Checked C bounds declaration for a declarator.
+// Determine whether the bounds declaration involves a bounds expression
+// or a type annotation and call the appropriate method to handle it.
+void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
+                           bool IsReturnBounds) {
+  if (!D || !Expr)
+    return;
+
+  // If the bounds expression is invalid, skip type checking the declaration.
+  if (Expr->isInvalid())
+    return;
+
+  if (Expr->isInteropTypeAnnotation()) {
+    if (InteropTypeBoundsAnnotation *TypeAnnot =
+          dyn_cast<InteropTypeBoundsAnnotation>(Expr))
+    checkBoundsDeclWithTypeAnnotation(*this, D, TypeAnnot, IsReturnBounds);
+  } else
+    checkBoundsDeclWithBoundsExpr(*this, D, Expr, IsReturnBounds);
 }
 
 void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {

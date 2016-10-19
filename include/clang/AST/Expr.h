@@ -4719,7 +4719,7 @@ public:
     : BoundsExpr(InteropTypeBoundsAnnotationClass, Empty), TIInfo(nullptr) {}
 
   /// getTypeInfoAsWritten - Returns the type source info for the type
-  /// in the interop annotaiton
+  /// in the interop annotation.
   TypeSourceInfo *getTypeInfoAsWritten() const { return TIInfo; }
   void setTypeInfoAsWritten(TypeSourceInfo *WrittenTy) { TIInfo = WrittenTy; }
 

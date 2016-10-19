@@ -8793,4 +8793,32 @@ def err_typecheck_non_count_return_bounds : Error<
 def err_typecheck_bounds_type_annotation_identifier: Error<
   "type name cannot have identifier in it">;
 
+def err_typecheck_bounds_type_annotation_for_illegal_type : Error<
+  "interface type only allowed for a declaration with pointer "
+  "or array type">;
+
+def err_typecheck_return_bounds_type_annotation_for_illegal_type : Error<
+  "interface type only allowed for a pointer return type">;
+
+def err_typecheck_bounds_type_annotation_must_be_pointer_or_array : Error<
+  "type must be a pointer or array type">;
+
+def err_typecheck_return_bounds_type_annotation_must_be_pointer : Error<
+  "type must be a pointer type">;
+
+def err_typecheck_return_bounds_type_annotation_is_array : Error<
+  "array type not allowed">;
+
+def err_typecheck_bounds_type_annotation_incompatible : Error<
+  "mismatch between interface type "
+  "%diff{$ and declared type $|"
+  "and declared type}0,1">;
+
+def err_typecheck_bounds_type_annotation_must_be_checked_type : Error<
+  "type must be a checked type">;
+
+def err_bounds_type_annotation_lost_checking : Error<
+  "type %diff{$ loses checking of declared type $|"
+  "loses checking of declared type}0,1">;
+
 } // end of sema component.

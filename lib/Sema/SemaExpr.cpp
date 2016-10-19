@@ -12354,10 +12354,10 @@ ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
   return CreateBoundsInteropType(TypeKWLoc, TInfo, RParenLoc);
 }
 
+
 ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
                                          SourceLocation RParenLoc) {
   QualType QT = TInfo->getType();
-  assert(QT->isCheckedPointerType() || QT->isCheckedArrayType());
   return new (Context) InteropTypeBoundsAnnotation(QT, TypeKWLoc, RParenLoc,
                                                    TInfo);
 }
