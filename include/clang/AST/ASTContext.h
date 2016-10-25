@@ -2335,6 +2335,10 @@ public:
   /// differ in some other way than checkedness.
   bool isEqualIgnoringChecked(QualType T1, QualType T2) const;
 
+  /// \brief Return true if this type is a checked type that is not
+  /// allowed to be passed or returned from a no prototype function.
+  bool isNotAllowedForNoProtoTypeFunction(QualType T1) const;
+
   // Methods to support checking assignments in the presence of
   // checked pointers.
 

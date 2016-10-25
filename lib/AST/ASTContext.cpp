@@ -8407,6 +8407,37 @@ bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
   }
 }
 
+bool ASTContext::isNotAllowedForNoProtoTypeFunction(QualType QT) const {
+  if (const PointerType *PT = QT->getAs<PointerType>()) {
+    if (PT->isChecked())
+      return true;
+    if (PT->isFunctionPointerType())
+      return isNotAllowedForNoProtoTypeFunction(PT->getPointeeType());
+    // Unchecked pointer types are allowed
+    return false;
+  } else if (QT->isCheckedArrayType())
+    return true;
+  else if (const FunctionType *FT = QT->getAs<FunctionType>()) {
+    QualType RetType = FT->getReturnType();
+    if (isNotAllowedForNoProtoTypeFunction(RetType))
+      return true;
+    if (const FunctionProtoType *FPT = FT->getAs<FunctionProtoType>())
+      for (QualType Param : FPT->getParamTypes()) {
+        if (isNotAllowedForNoProtoTypeFunction(Param))
+          return true;
+      }
+  } else if (const RecordType *RT = QT->getAs<RecordType>()) {
+     const RecordDecl *RD = RT->getDecl();
+     if (const RecordDecl *Def = RD->getDefinition()) {
+       for (const auto *FieldDecl : Def->fields()) {
+         if (isNotAllowedForNoProtoTypeFunction(FieldDecl->getType()))
+           return true;
+       }
+    }
+  }
+  return false;
+}
+
 //===----------------------------------------------------------------------===//
 //                         Integer Predicates
 //===----------------------------------------------------------------------===//

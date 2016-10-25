@@ -8821,4 +8821,15 @@ def err_bounds_type_annotation_lost_checking : Error<
   "type %diff{$ loses checking of declared type $|"
   "loses checking of declared type}0,1">;
 
+ def err_no_prototype_function_with_checked_return_type : Error<
+   "function without prototype cannot return a checked value">;
+
+ def err_no_prototype_function_with_return_bounds : Error<
+   "function without prototype cannot have a return bounds">;
+
+ def err_no_prototype_function_redeclared_with_checked_arg : Error<
+   "redeclaring a no-prototype function with checked argument not allowed">;
+
+ def err_no_prototype_function_redeclared_with_arg_bounds : Error<
+   "redeclaring a no-prototype function with an argument bounds not allowed">;
 } // end of sema component.

@@ -3259,7 +3259,7 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
 /// the new declaration, once we know that New is in fact a
 /// redeclaration of Old.
 ///
-/// \returns false
+/// \returns true if there was an error, false otherwise.
 bool Sema::MergeCompatibleFunctionDecls(FunctionDecl *New, FunctionDecl *Old,
                                         Scope *S, bool MergeTypeWithOld) {
   // Merge the attributes
@@ -3293,6 +3293,9 @@ bool Sema::MergeCompatibleFunctionDecls(FunctionDecl *New, FunctionDecl *Old,
   if (!Merged.isNull() && MergeTypeWithOld)
     New->setType(Merged);
 
+   if (mergeFunctionDeclBounds(New, Old))
+     return true;
+
   return false;
 }
 
@@ -3316,6 +3319,41 @@ void Sema::mergeObjCMethodDecls(ObjCMethodDecl *newMethod,
     mergeParamDeclAttributes(*ni, *oi, *this);
 
   CheckObjCMethodOverride(newMethod, oldMethod);
+}
+
+bool Sema::mergeFunctionDeclBounds(FunctionDecl *New, FunctionDecl *Old) {
+  if (!getLangOpts().CheckedC)
+    return false;
+
+  if (New->hasPrototype()) {
+    bool Err = false;
+    for (FunctionDecl *Previous = Old; Previous != nullptr;
+         Previous->getPreviousDecl()) {
+      if (!Previous->hasPrototype()) {
+        unsigned int paramCount = New->getNumParams();
+        for (unsigned int i = 0; i < paramCount; i++) {
+          const ParmVarDecl *Param = New->getParamDecl(i);
+          QualType ParamType = Param->getType();
+          if (Context.isNotAllowedForNoProtoTypeFunction(ParamType)) {
+            Diag(Param->getLocation(),
+                 diag::err_no_prototype_function_redeclared_with_checked_arg);
+            Err = true;
+          } else if (!ParamType->isUncheckedPointerType() &&
+                     Param->getBoundsExpr()) {
+            Diag(Param->getBoundsExpr()->getLocStart(),
+                 diag::err_no_prototype_function_redeclared_with_arg_bounds);
+            Err = true;
+          }
+        }
+        if (Err) {
+          getNoteDiagForInvalidRedeclaration(Old, New);
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 static void diagnoseVarDeclTypeMismatch(Sema &S, VarDecl *New, VarDecl* Old) {
@@ -8931,6 +8969,22 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
         Diag(NewFD->getLocation(), diag::warn_return_value_udt) << NewFD << R;
     }
   }
+
+  if (getLangOpts().CheckedC) {
+    QualType ReturnType = NewFD->getReturnType();
+    if (Context.isNotAllowedForNoProtoTypeFunction(ReturnType)) {
+      Diag(NewFD->getLocation(),
+           diag::err_no_prototype_function_with_checked_return_type);
+      NewFD->setInvalidDecl();
+    }
+    if (!ReturnType->isUncheckedPointerType() &&
+               NewFD->getBoundsExpr()) {
+      Diag(NewFD->getBoundsExpr()->getStartLoc(),
+           diag::err_no_prototype_function_with_return_bounds);
+      NewFD->setInvalidDecl();
+    }
+  }
+
   return Redeclaration;
 }
 
