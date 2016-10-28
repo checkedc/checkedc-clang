@@ -4319,6 +4319,23 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           diagnoseRedundantReturnTypeQualifiers(S, T, D, chunkIndex);
       }
 
+      // In Checked C, no prototype functions cannot return checked types
+      // or have return bounds.  See Section 5.5 of the Checked C
+      // language extension specification.
+      if (LangOpts.CheckedC && !FTI.NumParams) {
+        if (Context.isNotAllowedForNoProtoTypeFunction(T)) {
+          S.Diag(DeclType.Loc,
+                 diag::err_no_prototype_function_with_checked_return_type);
+          D.setInvalidType(true);
+        }
+        if (!T->isUncheckedPointerType() &&
+            FTI.getReturnBounds()) {
+          SourceLocation Loc = FTI.getReturnBoundsColonLoc();
+          S.Diag(Loc, diag::err_no_prototype_function_with_return_bounds);
+          D.setInvalidType(true);
+        }
+      }
+
       // Objective-C ARC ownership qualifiers are ignored on the function
       // return type (by type canonicalization). Complain if this attribute
       // was written here.
@@ -4379,6 +4396,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         warnAboutAmbiguousFunction(S, D, DeclType, T);
 
       FunctionType::ExtInfo EI(getCCForDeclaratorChunk(S, D, FTI, chunkIndex));
+
 
       if (!FTI.NumParams && !FTI.isVariadic && !LangOpts.CPlusPlus) {
         // Simple void foo(), where the incoming T is the result type.

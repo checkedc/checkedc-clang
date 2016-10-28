@@ -3246,6 +3246,13 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
     PrevDiag = diag::note_previous_builtin_declaration;
   }
 
+  // The type compatibility rules for the Checked C language extension between
+  // no prototype functions and functions with prototypes ere different from
+  // the rules in C. Try to diagnose these failures.
+  if (getLangOpts().CheckedC &&
+      DiagnoseCheckedCFunctionCompatibility(New, Old))
+    return true;
+
   Diag(New->getLocation(), diag::err_conflicting_types) << New->getDeclName();
   Diag(OldLocation, PrevDiag) << Old << Old->getType();
   return true;
@@ -3293,7 +3300,7 @@ bool Sema::MergeCompatibleFunctionDecls(FunctionDecl *New, FunctionDecl *Old,
   if (!Merged.isNull() && MergeTypeWithOld)
     New->setType(Merged);
 
-   if (mergeFunctionDeclBounds(New, Old))
+   if (getLangOpts().CheckedC && CheckedCMergeFunctionDecls(New, Old))
      return true;
 
   return false;
@@ -3321,35 +3328,107 @@ void Sema::mergeObjCMethodDecls(ObjCMethodDecl *newMethod,
   CheckObjCMethodOverride(newMethod, oldMethod);
 }
 
-bool Sema::mergeFunctionDeclBounds(FunctionDecl *New, FunctionDecl *Old) {
-  if (!getLangOpts().CheckedC)
+/// \brief Diagnose Checked C-specific compatibility issues for function decls.
+/// Handle cases where one declaration  has no prototype and the other
+/// one has a prototype that uses a checked type or has a bounds interface
+/// (Checked C compatibility rules are decribe in Section 5.5 of the Checked C
+/// language extension specification).  Returns true if it was able to diagnose
+/// a problem, false otherwise.
+bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
+                                                 FunctionDecl *Old) {
+  bool OldHasPrototype = Old->hasPrototype();
+  bool NewHasPrototype = New->hasPrototype();
+  if (OldHasPrototype == NewHasPrototype)
     return false;
 
-  if (New->hasPrototype()) {
-    bool Err = false;
-    for (FunctionDecl *Previous = Old; Previous != nullptr;
-         Previous->getPreviousDecl()) {
-      if (!Previous->hasPrototype()) {
-        unsigned int paramCount = New->getNumParams();
-        for (unsigned int i = 0; i < paramCount; i++) {
-          const ParmVarDecl *Param = New->getParamDecl(i);
-          QualType ParamType = Param->getType();
-          if (Context.isNotAllowedForNoProtoTypeFunction(ParamType)) {
-            Diag(Param->getLocation(),
-                 diag::err_no_prototype_function_redeclared_with_checked_arg);
-            Err = true;
-          } else if (!ParamType->isUncheckedPointerType() &&
-                     Param->getBoundsExpr()) {
-            Diag(Param->getBoundsExpr()->getLocStart(),
-                 diag::err_no_prototype_function_redeclared_with_arg_bounds);
-            Err = true;
-          }
-        }
-        if (Err) {
-          getNoteDiagForInvalidRedeclaration(Old, New);
-          return true;
-        }
+  FunctionDecl *Prototype = NewHasPrototype ? New : Old;
+
+  bool Err = false;
+  unsigned int paramCount = Prototype->getNumParams();
+  for (unsigned int i = 0; i < paramCount; i++) {
+    const ParmVarDecl *Param = Prototype->getParamDecl(i);
+    QualType ParamType = Param->getType();
+    if (Context.isNotAllowedForNoProtoTypeFunction(ParamType)) {
+      Err = true;
+      if (NewHasPrototype)
+        Diag(Param->getLocation(),
+             diag::err_no_prototype_function_redeclared_with_checked_arg);
+    }
+    else if (Param->getBoundsExpr() &&
+             !ParamType->isUncheckedPointerType()) {
+      Err = true;
+      if (NewHasPrototype) {
+        const BoundsExpr *Expr = Param->getBoundsExpr();
+        SourceLocation Loc = Expr->isInvalid() ?
+          New->getLocation() : Expr->getStartLoc();
+        Diag(Loc, diag::err_no_prototype_function_redeclared_with_arg_bounds);
       }
+    }
+  }
+  if (Err) {
+    if (!NewHasPrototype)
+      Diag(New->getLocation(), diag::err_checkedc_incompatible_no_prototype_redeclaration);
+    diag::kind PrevDiag;
+    SourceLocation OldLocation;
+    std::tie(PrevDiag, OldLocation)
+      = getNoteDiagForInvalidRedeclaration(Old, New);
+    Diag(OldLocation, PrevDiag);
+  }
+
+  return Err;
+}
+
+/// \brief Test if two function declarations have compatible types and bounds.
+/// Returns true if they are not and false if they are.
+bool Sema::CheckedCFunctionDeclCompatibility(FunctionDecl *New,
+                                             FunctionDecl *Old) {
+  QualType NewType = Context.getCanonicalType(New->getType());
+  QualType OldType = Context.getCanonicalType(Old->getType());
+
+  if (!Context.typesAreCompatible(OldType, NewType))
+    return true;
+
+  // Check whether one function has a prototype that has a bounds declaration
+  // on an argument and the other one has no prototype.  These are
+  // incompatible.
+  // TODO: Github checkedc-clang issue #20.  When function types
+  // incorporate parameter bounds information, we can delete this code.
+  // It will be done as part of checking compatibility of function types.
+  bool OldHasPrototype = Old->hasPrototype();
+  bool NewHasPrototype = New->hasPrototype();
+  if (OldHasPrototype != NewHasPrototype) {
+    FunctionDecl *Prototype = NewHasPrototype ? New : Old;
+    unsigned int paramCount = Prototype->getNumParams();
+    for (unsigned int i = 0; i < paramCount; i++) {
+      const ParmVarDecl *Param = Prototype->getParamDecl(i);
+      if (!Param->getType()->isUncheckedPointerType() &&
+          Param->getBoundsExpr())
+        return true;
+    }
+  }
+
+  return false;
+}
+
+/// \brief Checked C specific merging of function declarations.  Returns true
+/// if there was an error, false otherwise.
+bool Sema::CheckedCMergeFunctionDecls(FunctionDecl *New, FunctionDecl *Old) {
+  // Check for mismatches between the new function declaration and the old
+  // function declaration where one has a prototype and one does not have
+  // a prototype.
+
+  // We need to iterate through all prior declarations of the function.
+  // The function could have started as a no prototype function
+  // and then been turned into a prototype function that was not flagged
+  // as incompatible because it uses an incomplete structure or union type.
+  // Later the structure or union type could be completed to use a checked type.
+  // The approach of merging all prior function declarations breaks down in this case,
+  // so we need to look at all prior declarations of the function.
+  for (FunctionDecl *Previous = Old; Previous != nullptr;
+        Previous = Previous->getPreviousDecl()) {
+    if (CheckedCFunctionDeclCompatibility(New, Previous)) {
+      DiagnoseCheckedCFunctionCompatibility(New, Previous);
+      return true;
     }
   }
 
@@ -8969,22 +9048,6 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
         Diag(NewFD->getLocation(), diag::warn_return_value_udt) << NewFD << R;
     }
   }
-
-  if (getLangOpts().CheckedC) {
-    QualType ReturnType = NewFD->getReturnType();
-    if (Context.isNotAllowedForNoProtoTypeFunction(ReturnType)) {
-      Diag(NewFD->getLocation(),
-           diag::err_no_prototype_function_with_checked_return_type);
-      NewFD->setInvalidDecl();
-    }
-    if (!ReturnType->isUncheckedPointerType() &&
-               NewFD->getBoundsExpr()) {
-      Diag(NewFD->getBoundsExpr()->getStartLoc(),
-           diag::err_no_prototype_function_with_return_bounds);
-      NewFD->setInvalidDecl();
-    }
-  }
-
   return Redeclaration;
 }
 

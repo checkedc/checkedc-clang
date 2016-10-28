@@ -8828,8 +8828,14 @@ def err_bounds_type_annotation_lost_checking : Error<
    "function without prototype cannot have a return bounds">;
 
  def err_no_prototype_function_redeclared_with_checked_arg : Error<
-   "redeclaring a no-prototype function with checked argument not allowed">;
+   "redeclaring a no-prototype function with checked argument is not allowed">;
 
  def err_no_prototype_function_redeclared_with_arg_bounds : Error<
-   "redeclaring a no-prototype function with an argument bounds not allowed">;
+   "redeclaring a no-prototype function with an argument bounds is not"
+   " allowed">;
+
+ def err_checkedc_incompatible_no_prototype_redeclaration : Error<
+   "redeclaring function that has a checked argument or argument "
+   "bounds as a no-prototype function is not allowed">;
+
 } // end of sema component.
