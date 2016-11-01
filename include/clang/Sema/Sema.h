@@ -2253,6 +2253,21 @@ public:
   void MergeVarDeclExceptionSpecs(VarDecl *New, VarDecl *Old);
   bool MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old, Scope *S);
 
+  // Checked C specific methods for merging function declarations.
+  bool CheckedCFunctionDeclCompatibility(FunctionDecl *New, FunctionDecl *Old);
+  bool CheckedCMergeFunctionDecls(FunctionDecl *New, FunctionDecl *Old);
+  bool DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
+                                             FunctionDecl *Old);
+
+  // used for %select in diagnostics for errors involving checked types.
+  enum class CheckedTypeClassification {
+    CCT_Any,
+    CCT_Struct,
+    CCT_Union
+  };
+
+  CheckedTypeClassification classifyForCheckedTypeDiagnostic(QualType qt);
+
   // AssignmentAction - This is used by all the assignment diagnostic functions
   // to represent what is actually causing the operation
   enum AssignmentAction {

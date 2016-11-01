@@ -4552,9 +4552,9 @@ public:
   }
 
 
-  SourceLocation getStartLoc() { return StartLoc; }
-  SourceLocation getEndLoc() { return EndLoc; }
-  SourceLocation getRParenLoc() { return EndLoc; }
+  SourceLocation getStartLoc() const { return StartLoc; }
+  SourceLocation getEndLoc() const { return EndLoc; }
+  SourceLocation getRParenLoc() const { return EndLoc; }
 
   SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
   SourceLocation getLocEnd() const LLVM_READONLY { return EndLoc; }
@@ -4565,27 +4565,27 @@ public:
     BoundsExprBits.Kind = Kind;
   }
 
-  bool isInvalid() {
+  bool isInvalid() const {
     return getKind() == Invalid;
   }
 
-  bool isNone() {
+  bool isNone() const {
     return getKind() == None;
   }
 
-  bool isElementCount() {
+  bool isElementCount() const {
     return getKind() == ElementCount;
   }
 
-  bool isByteCount() {
+  bool isByteCount() const {
     return getKind() == ByteCount;
   }
 
-  bool isRange() {
+  bool isRange() const {
     return getKind() == Range;
   }
 
-  bool isInteropTypeAnnotation() {
+  bool isInteropTypeAnnotation() const {
     return getKind() == InteropTypeAnnotation;
   }
 
