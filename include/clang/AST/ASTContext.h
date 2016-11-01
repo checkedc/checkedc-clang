@@ -2337,7 +2337,7 @@ public:
 
   /// \brief Return true if this type is a checked type that is not
   /// allowed to be passed or returned from a no prototype function.
-  bool isNotAllowedForNoProtoTypeFunction(QualType T1) const;
+  bool isNotAllowedForNoPrototypeFunction(QualType T1) const;
 
   // Methods to support checking assignments in the presence of
   // checked pointers.

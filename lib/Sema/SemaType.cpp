@@ -3664,6 +3664,15 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
   return ResultType;
 }
 
+Sema::CheckedTypeClassification Sema::classifyForCheckedTypeDiagnostic(QualType QT) {
+  if (QT->isStructureType())
+    return CheckedTypeClassification::CCT_Struct;
+  else if (QT->isUnionType())
+    return CheckedTypeClassification::CCT_Union;
+  else
+    return CheckedTypeClassification::CCT_Any;
+}
+
 static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                                                 QualType declSpecType,
                                                 TypeSourceInfo *TInfo) {
@@ -4323,9 +4332,10 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       // or have return bounds.  See Section 5.5 of the Checked C
       // language extension specification.
       if (LangOpts.CheckedC && !FTI.NumParams) {
-        if (Context.isNotAllowedForNoProtoTypeFunction(T)) {
+        if (Context.isNotAllowedForNoPrototypeFunction(T)) {
           S.Diag(DeclType.Loc,
-                 diag::err_no_prototype_function_with_checked_return_type);
+                 diag::err_no_prototype_function_with_checked_return_type)
+            << (unsigned) S.classifyForCheckedTypeDiagnostic(T);
           D.setInvalidType(true);
         }
         if (!T->isUncheckedPointerType() &&

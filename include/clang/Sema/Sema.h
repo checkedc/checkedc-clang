@@ -2259,6 +2259,15 @@ public:
   bool DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
                                              FunctionDecl *Old);
 
+  // used for %select in diagnostics for errors involving checked types.
+  enum class CheckedTypeClassification {
+    CCT_Any,
+    CCT_Struct,
+    CCT_Union
+  };
+
+  CheckedTypeClassification classifyForCheckedTypeDiagnostic(QualType qt);
+
   // AssignmentAction - This is used by all the assignment diagnostic functions
   // to represent what is actually causing the operation
   enum AssignmentAction {

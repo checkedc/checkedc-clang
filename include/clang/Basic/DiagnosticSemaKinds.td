@@ -8822,20 +8822,23 @@ def err_bounds_type_annotation_lost_checking : Error<
   "loses checking of declared type}0,1">;
 
  def err_no_prototype_function_with_checked_return_type : Error<
-   "function without prototype cannot return a checked value">;
+   "function with no prototype cannot have a return type that is a "
+   "%select{checked type|structure with a member with a checked type|"
+   "union with a member with a checked type}0">;
 
  def err_no_prototype_function_with_return_bounds : Error<
-   "function without prototype cannot have a return bounds">;
+   "function with no prototype cannot have a return bounds">;
 
  def err_no_prototype_function_redeclared_with_checked_arg : Error<
-   "redeclaring a no-prototype function with checked argument is not allowed">;
+   "cannot redeclare a function with no prototype to have an argument type that is a "
+   "%select{checked type|structure with a member with a checked type|"
+   "union with a member with a checked type}0">;
 
  def err_no_prototype_function_redeclared_with_arg_bounds : Error<
-   "redeclaring a no-prototype function with an argument bounds is not"
-   " allowed">;
+   "cannot redeclare a function with no prototype to have an argument bounds">;
 
  def err_checkedc_incompatible_no_prototype_redeclaration : Error<
-   "redeclaring function that has a checked argument or argument "
-   "bounds as a no-prototype function is not allowed">;
+   "cannot redeclare a function that has a checked argument or argument "
+   "bounds to have no prototype">;
 
 } // end of sema component.

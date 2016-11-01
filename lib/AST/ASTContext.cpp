@@ -7743,7 +7743,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
 
       // For Checked C, a no prototype function is not compatible
       // with a prototype with a checked argument.
-      if (isCheckedC && isNotAllowedForNoProtoTypeFunction(paramTy))
+      if (isCheckedC && isNotAllowedForNoPrototypeFunction(paramTy))
         return QualType();
     }
 
@@ -8417,26 +8417,26 @@ bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
 // argument or return type for a no-prototype function.   This computes the
 // set of allowed types described in Section 5.5 of the Checked C
 // specification.
-bool ASTContext::isNotAllowedForNoProtoTypeFunction(QualType QT) const {
+bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
   if (const PointerType *PT = QT->getAs<PointerType>()) {
     if (PT->isChecked())
       return true;
     if (PT->isFunctionPointerType())
-      return isNotAllowedForNoProtoTypeFunction(PT->getPointeeType());
+      return isNotAllowedForNoPrototypeFunction(PT->getPointeeType());
     // Unchecked pointer types are allowed
     return false;
   } else if (QT->isCheckedArrayType())
     return true;
   else if (const FunctionType *FT = QT->getAs<FunctionType>()) {
     QualType RetType = FT->getReturnType();
-    if (isNotAllowedForNoProtoTypeFunction(RetType))
+    if (isNotAllowedForNoPrototypeFunction(RetType))
       return true;
     if (const FunctionProtoType *FPT = FT->getAs<FunctionProtoType>())
       for (QualType Param : FPT->getParamTypes()) {
         // TODO: Github checkedc-clang issue #20.  When function types
         // incorporate parameter bounds information, check for
         // parameter bounds.
-        if (isNotAllowedForNoProtoTypeFunction(Param))
+        if (isNotAllowedForNoPrototypeFunction(Param))
           return true;
       }
   } else if (const RecordType *RT = QT->getAs<RecordType>()) {
@@ -8444,7 +8444,7 @@ bool ASTContext::isNotAllowedForNoProtoTypeFunction(QualType QT) const {
      if (const RecordDecl *Def = RD->getDefinition()) {
        for (const auto *FieldDecl : Def->fields()) {
          QualType FieldType = FieldDecl->getType();
-         if (isNotAllowedForNoProtoTypeFunction(FieldType))
+         if (isNotAllowedForNoPrototypeFunction(FieldType))
            return true;
          if (FieldDecl->getBoundsExpr() &&
              !FieldType->isUncheckedPointerType())

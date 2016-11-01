@@ -3329,9 +3329,9 @@ void Sema::mergeObjCMethodDecls(ObjCMethodDecl *newMethod,
 }
 
 /// \brief Diagnose Checked C-specific compatibility issues for function decls.
-/// Handle cases where one declaration  has no prototype and the other
+/// Handle cases where one declaration has no prototype and the other
 /// one has a prototype that uses a checked type or has a bounds interface
-/// (Checked C compatibility rules are decribe in Section 5.5 of the Checked C
+/// (Checked C compatibility rules are described in Section 5.5 of the Checked C
 /// language extension specification).  Returns true if it was able to diagnose
 /// a problem, false otherwise.
 bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
@@ -3348,11 +3348,12 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
   for (unsigned int i = 0; i < paramCount; i++) {
     const ParmVarDecl *Param = Prototype->getParamDecl(i);
     QualType ParamType = Param->getType();
-    if (Context.isNotAllowedForNoProtoTypeFunction(ParamType)) {
+    if (Context.isNotAllowedForNoPrototypeFunction(ParamType)) {
       Err = true;
       if (NewHasPrototype)
         Diag(Param->getLocation(),
-             diag::err_no_prototype_function_redeclared_with_checked_arg);
+             diag::err_no_prototype_function_redeclared_with_checked_arg)
+          << (unsigned) classifyForCheckedTypeDiagnostic(ParamType);
     }
     else if (Param->getBoundsExpr() &&
              !ParamType->isUncheckedPointerType()) {

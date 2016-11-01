@@ -11,15 +11,15 @@
 //
 // RUN: %clang_cc1 -verify -fcheckedc-extension %s
 
-char fn41() : count(5); // expected-error {{expected 'fn41' to have a pointer return type}} // expected-error {{function without prototype cannot have a return bounds}}
+char fn41() : count(5); // expected-error {{expected 'fn41' to have a pointer return type}} // expected-error {{function with no prototype cannot have a return bounds}}
 
 // Prototype of a function followed by an old-style K&R definition
-// of the function. 
+// of the function.
 
-// The Checked C specification does not allow no prototype functions
-// to return checked values. Techncally, the K& R style function 
+// The Checked C specification does not allow no prototype functions to have
+// return types that are checked types.  Technically, the K&R style function
 // definition is a no prototype function, so we could say it is illegal.
-// However, clang enforce the prototype declration at the definition of 
+// However, clang enforces the prototype declaration at the definition of
 // f100, so this seems OK to accept.
 _Ptr<int> f100(int a, int b);
 
