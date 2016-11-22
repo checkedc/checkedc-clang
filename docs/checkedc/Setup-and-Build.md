@@ -166,4 +166,4 @@ To clean the build directory:
 
 ## Testing
 
-See the [Testing](docs/checkedc/Testing.md) page for directions on how to test the compiler once you have built it.
+See the [Testing](Testing.md) page for directions on how to test the compiler once you have built it.

@@ -20,7 +20,7 @@ See the file LICENSE.TXT in each repo for complete details of licensing.
 ### Summary
 We are close to having a complete implementation of the new `_Ptr` types and the
 language features for using them.   We also have support for parsing and typechecking bounds
-expressions and bounds declarations.  We are working on interoperation support now .   To able
+expressions and bounds declarations.  We are working on interoperation support now.   To able
 to use the Checked C extension in existing code bases, we need the interoperation support,
 so we are implementing it before other features.
 
@@ -56,7 +56,7 @@ You will have to build your own copy of the compiler for now:
 
 - [Setup and Build](docs/checkedc/Setup-and-Build.md) describes the organization of the code,
 how to set up a development machine to build clang, and how to build clang.
-- [Testing](docs/checked/Testing.md) describes how to test the compiler once you have built it.
+- [Testing](docs/checkedc/Testing.md) describes how to test the compiler once you have built it.
 - The [Implementation Notes](docs/checkedc/Implementation-Notes.md) describe the implementation of Checked C
    in LLVM\clang.
 
