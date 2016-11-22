@@ -23,8 +23,8 @@ Load the solution and the open it using the Solution explorer (View->Solution Ex
 Set up the build system and then change to your new object directory.  Use the following commands to run tests:
 
 - Checked C tests: `msbuild projects\checkedc-llvm\check-checkedc.vcxproj /maxcpucount:`_number of processors_/3
-- Clang tests: `msbuild tools\clang\test\check-clang.vcxproj /maxcpucount:1number of processors/3
-- All LLVM and clang tests: `msbuild check-all.vcxproj /maxcpucount:`number of processors/3`
+- Clang tests: `msbuild tools\clang\test\check-clang.vcxproj /maxcpucount:`_number of processors_/3
+- All LLVM and clang tests: `msbuild check-all.vcxproj /maxcpucount:`_number of processors_/3
 
 ### Using make
 In your build directory,

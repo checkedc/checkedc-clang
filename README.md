@@ -17,37 +17,46 @@ See the file LICENSE.TXT in each repo for complete details of licensing.
 
 ## Status
 
-The compiler code is being shared early in the process of extending LLVM/clang to support the Checked C
-extension.  We have
+### Summary
+We are close to having a complete implementation of the new `_Ptr` types and the
+language features for using them.   We also have support for parsing and typechecking bounds
+expressions and bounds declarations.  We are working on interoperation support now .   To able
+to use the Checked C extension in existing code bases, we need the interoperation support,
+so we are implementing it before other features.
+
+### Details
+We have:
 
 - Extended LLVM/clang with a feature flag `-fcheckedc-extension`.  This flag is valid only for C programs.
-  It cannot be used with C++, Objective C, or OpenCL.
-- Implemented parsing and typechecking for the new `_Ptr`, `_Array_ptr`, and `_Checked` array types, 
-  including implicit conversions described in Section 5.1.4 of the Checked C specification.  The new
-  types are converted to unchecked types during compilation, so they do not have any bounds checking
-  yet.
-- Extended the clang IR to represent bounds expressions and to attach bounds
-  expressions to variable declarations, function declarations, and
-  struct/union members.
-- Implemented parsing of in-line bounds declarations for variables, function
-  parameters and return values, and struct/union members.  This includes
-  resolving the variables referred to by bounds expressions and resolving the
-  members referred to by structure member bounds expressions.
+   It cannot be used with C++, Objective C, or OpenCL.
+- Implemented parsing and typechecking for the new `_Ptr`, `_Array_ptr`, and `_Checked` array types,
+   including implicit conversions described in the Checked C specification.   The `_Array_ptr` and
+  `_Checked` array types do not have any runtime bounds checking yet.
+- Implemented parsing and typechecking for bounds expression and in-line bounds declarations.
+- Implemented parsing and typechecking for bounds-safe interfaces, including the implicit conversions
+  done at bounds-safe interfaces.
 
-We are now implementing static semantics checking for programs that use `_Ptr`
+We are now:
+
+- Implementing function types with bounds information.
+- Implementing type checking of redeclarations of variables and functions with bounds
+information.  When this is finished, interoperation support will be mostly done.
+Programmers will be able to redeclare existing variables and functions with additional bounds information.
+
+After that, we will begin implementing static semantics checking for programs that use `_Ptr`
 pointers and `_Array_ptr` pointers to constant-sized data.  This includes
 
 - Checking the correctness of bounds declarations for constant-sized data.
 - Checking that casts to `_Ptr` types from `_Array_ptr` types are bounds-safe.
-- Interoperation support for `_Ptr`.
 
 ## Compiler development
 
-The compiler is not far enough along for programmers to "kick the tires" on Checked C.   We do not have a
-installable version clang available yet.  If you are really interested, you can build your own copy of the compiler:
+Programmers are welcome to ``kick the tires'' on Checked C as it is being implemented.
+You will have to build your own copy of the compiler for now:
 
 - [Setup and Build](docs/checkedc/Setup-and-Build.md) describes the organization of the code,
 how to set up a development machine to build clang, and how to build clang.
+- [Testing](docs/checked/Testing.md) describes how to test the compiler once you have built it.
 - The [Implementation Notes](docs/checkedc/Implementation-Notes.md) describe the implementation of Checked C
    in LLVM\clang.
 
