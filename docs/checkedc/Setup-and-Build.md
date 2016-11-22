@@ -108,11 +108,12 @@ git clone https://github.com/Microsoft/checkedc
 An install directory is different than the build directory, which will contain the results of building LLVM.
 5. Cmake will produce a build system by default that builds all LLVM target.  This can lead to slow build and link times.  We are developing and testing
    Checked C on x86 right now, so we recommend only building only that target.  None of the changes made for Checked C are target-specific, so other targets such as
-   x64 should work too.  Use the command-line in the next item to avoid building all targets.
+   x64 should work too.  To avoid building all targets, add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
 6. Make sure that you are using whatever shell you normally do compiles in.  Cd to your build directory and invoke cmake with: 
 
-	cmake -DLLVM\_TARGETS\_TO\_BUILD="X86" -DCMAKE\_INSTALL\_PREFIX=_path to directory to install in_  _llvm-path_
-where llvm-path is the path to the root of your LLVM repo.
+    cmake -DCMAKE\_INSTALL\_PREFIX=_path-to-directory-to-install-in_   _llvm-path_
+
+where `_llvm-path_` is the path to the root of your LLVM repo.
 	
 ## Building
 
@@ -162,3 +163,7 @@ To build everything:
 To clean the build directory:
 
 	msbuild /t:clean LLVM.sln
+
+## Testing
+
+See the [Testing](docs/checkedc/Testing.md) page for directions on how to test the compiler once you have built it.
