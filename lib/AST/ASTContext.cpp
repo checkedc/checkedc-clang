@@ -3166,8 +3166,9 @@ ASTContext::getFunctionType(QualType ResultTy, ArrayRef<QualType> ArgArray,
   }
 
   // FunctionProtoType objects are allocated with extra bytes after
-  // them for three variable size arrays at the end:
+  // them for four variable size arrays at the end:
   //  - parameter types
+  //  - parameter bounds
   //  - exception types
   //  - extended parameter information
   // Instead of the exception types, there could be a noexcept
@@ -3175,6 +3176,10 @@ ASTContext::getFunctionType(QualType ResultTy, ArrayRef<QualType> ArgArray,
   // specification.
   size_t Size = sizeof(FunctionProtoType) +
                 NumArgs * sizeof(QualType);
+
+  if (EPI.ParamBounds) {
+    Size += NumArgs * sizeof(BoundsExpr *);
+  }
 
   if (EPI.ExceptionSpec.Type == EST_Dynamic) {
     Size += EPI.ExceptionSpec.Exceptions.size() * sizeof(QualType);
@@ -3185,6 +3190,7 @@ ASTContext::getFunctionType(QualType ResultTy, ArrayRef<QualType> ArgArray,
   } else if (EPI.ExceptionSpec.Type == EST_Unevaluated) {
     Size += sizeof(FunctionDecl*);
   }
+
 
   // Put the ExtParameterInfos last.  If all were equal, it would make
   // more sense to put these before the exception specification, because

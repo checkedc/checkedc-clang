@@ -90,6 +90,7 @@ namespace clang {
   class ObjCMethodDecl;
   class UnresolvedUsingTypenameDecl;
   class Expr;
+  class BoundsExpr;
   class Stmt;
   class SourceLocation;
   class StmtIteratorBase;
@@ -3227,11 +3228,13 @@ public:
   struct ExtProtoInfo {
     ExtProtoInfo()
         : Variadic(false), HasTrailingReturn(false), TypeQuals(0),
-          RefQualifier(RQ_None), ExtParameterInfos(nullptr) {}
+          RefQualifier(RQ_None), ExtParameterInfos(nullptr),
+          ParamBounds(nullptr) {}
 
     ExtProtoInfo(CallingConv CC)
         : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), TypeQuals(0),
-          RefQualifier(RQ_None), ExtParameterInfos(nullptr) {}
+          RefQualifier(RQ_None), ExtParameterInfos(nullptr),
+          ParamBounds(nullptr) {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
       ExtProtoInfo Result(*this);
@@ -3246,6 +3249,7 @@ public:
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos;
+    const BoundsExpr *const *ParamBounds;
   };
 
 private:
@@ -3281,8 +3285,15 @@ private:
   /// Whether this function has a trailing return type.
   unsigned HasTrailingReturn : 1;
 
+  /// Whether this function has bounds information for parameters.
+  unsigned HasParamBounds : 1;
+
   // ParamInfo - There is an variable size array after the class in memory that
   // holds the parameter types.
+
+  // ParamBounds - A variable size array after ParamInfo that holds the bounds
+  // expressions for parameters.  A nullptr is stored if a parameter has no
+  // bounds expression.
 
   // Exceptions - There is another variable size array after ArgInfo that
   // holds the exception types.
@@ -3357,6 +3368,7 @@ public:
     }
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
+    EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
     return EPI;
   }
 
@@ -3437,6 +3449,7 @@ public:
 
   unsigned getTypeQuals() const { return FunctionType::getTypeQuals(); }
 
+  bool hasParamBounds() const { return HasParamBounds; }
 
   /// Retrieve the ref-qualifier associated with this function type.
   RefQualifierKind getRefQualifier() const {
@@ -3456,14 +3469,33 @@ public:
     return param_type_begin() + NumParams;
   }
 
+  // Checked C parameter bounds information.
+  typedef const BoundsExpr *const *bounds_iterator;
+
+  ArrayRef<const BoundsExpr *const> parameter_bounds() const {
+    return llvm::makeArrayRef(param_bounds_begin(),
+                              param_bounds_end());
+  }
+
+  bounds_iterator param_bounds_begin() const {
+    return reinterpret_cast<bounds_iterator>(param_type_end());
+  }
+
+  bounds_iterator param_bounds_end() const {
+    if (!hasParamBounds())
+      return param_bounds_begin();
+    else
+      return param_bounds_begin() + NumParams;
+  }
+
   typedef const QualType *exception_iterator;
 
   ArrayRef<QualType> exceptions() const {
     return llvm::makeArrayRef(exception_begin(), exception_end());
   }
   exception_iterator exception_begin() const {
-    // exceptions begin where arguments end
-    return param_type_end();
+    // exceptions begin where bounds end
+    return (exception_iterator) param_bounds_end();
   }
   exception_iterator exception_end() const {
     if (getExceptionSpecType() != EST_Dynamic)
