@@ -4454,9 +4454,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         SmallVector<QualType, 16> ParamTys;
         ParamTys.reserve(FTI.NumParams);
 
-        // TODO: checkedc-clang issue #20: represent bounds information
-        // in function types.  The code below will need to be updated
-        // to add the bounds information to the FunctionType.
+        SmallVector<BoundsExpr *, 16> ParamBounds;
+        ParamBounds.reserve(FTI.NumParams);
+        bool HasAnyParameterBounds = false;
 
         SmallVector<FunctionProtoType::ExtParameterInfo, 16>
           ExtParameterInfos(FTI.NumParams);
@@ -4518,6 +4518,14 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             }
           }
 
+          // Record parameter bounds for Checked C extension.  When the
+          // Checked C extension is not enabled, Bounds will always be null
+          // and HasAnyParameterBounds will always be false.
+          BoundsExpr *Bounds = Param->getBoundsExpr();
+          ParamBounds.push_back(Bounds);
+          if (Bounds)
+            HasAnyParameterBounds = true;
+
           if (LangOpts.ObjCAutoRefCount && Param->hasAttr<NSConsumedAttr>()) {
             ExtParameterInfos[i] = ExtParameterInfos[i].withIsConsumed(true);
             HasAnyInterestingExtParameterInfos = true;
@@ -4531,6 +4539,10 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
 
           ParamTys.push_back(ParamTy);
         }
+
+        // Record parameter bounds for Checked C extension, if there are any.
+        if (HasAnyParameterBounds)
+          EPI.ParamBounds = ParamBounds.data();
 
         if (HasAnyInterestingExtParameterInfos) {
           EPI.ExtParameterInfos = ExtParameterInfos.data();
