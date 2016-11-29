@@ -334,8 +334,17 @@ namespace  {
       // FIXME: Exception specification.
       // FIXME: Consumed parameters.
       VisitFunctionType(T);
-      for (QualType PT : T->getParamTypes())
+      int numParams = T->getNumParams();
+      bool hasBounds = T->hasParamBounds();
+      for (unsigned i = 0; i < numParams; i++) {
+        QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
+        if (hasBounds)
+          if (const BoundsExpr *const Bounds = T->getParamBounds(i)) {
+            OS << " : ";
+            dumpStmt(Bounds);
+          }
+      }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
     }

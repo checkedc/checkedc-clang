@@ -3348,6 +3348,14 @@ public:
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
 
+  const BoundsExpr *const getParamBounds(unsigned i) const {
+    assert(i < NumParams && "invalid parameter index");
+    if (hasParamBounds())
+      return param_bounds_begin()[i];
+    else
+      return nullptr;
+  }
+
   ExtProtoInfo getExtProtoInfo() const {
     ExtProtoInfo EPI;
     EPI.ExtInfo = getExtInfo();
