@@ -1886,6 +1886,13 @@ void StmtPrinter::VisitInteropTypeBoundsAnnotation(
   }
 }
 
+// PositionalParameterExpr is used by the type system and should never appear directly 
+// in the AST.  Print something anyway if it does appear.
+void StmtPrinter::VisitPositionalParameterExpr(PositionalParameterExpr *E) {
+  OS << "arg #";
+  OS << (E->getIndex());
+}
+
 // C++
 void StmtPrinter::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *Node) {
   const char *OpStrings[NUM_OVERLOADED_OPERATORS] = {

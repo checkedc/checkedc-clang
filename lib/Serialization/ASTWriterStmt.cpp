@@ -946,6 +946,12 @@ void ASTStmtWriter::VisitInteropTypeBoundsAnnotation(
   Code = serialization::EXPR_INTEROPTYPE_BOUNDS_ANNOTATION;
 }
 
+void ASTStmtWriter::VisitPositionalParameterExpr(
+  PositionalParameterExpr *E) {
+  VisitExpr(E);
+  Code = serialization::EXPR_POSITIONAL_PARAMETER_EXPR;
+}
+
 //===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements.
 //===----------------------------------------------------------------------===//

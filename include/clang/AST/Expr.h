@@ -4737,6 +4737,42 @@ public:
   }
 };
 
+// Represent a parameter as its index in the parameter list.
+// This is used within canonicalized bounds expressions.
+class PositionalParameterExpr : public Expr {
+  private:
+    unsigned Index;
+    friend class ASTStmtReader;
+
+  public:
+    PositionalParameterExpr(unsigned ParameterIndex, QualType QT) : Expr(
+      PositionalParameterExprClass, QT, ExprValueKind::VK_LValue,
+      ExprObjectKind::OK_Ordinary, false, false, false, false),
+      Index(ParameterIndex) {
+    }
+
+    explicit PositionalParameterExpr(EmptyShell Empty) :
+      Expr(InteropTypeBoundsAnnotationClass, Empty) {
+    }
+
+
+    unsigned getIndex() const {
+      return Index;
+    }
+
+    SourceLocation getLocStart() const LLVM_READONLY { return SourceLocation(); }
+    SourceLocation getLocEnd() const LLVM_READONLY { return SourceLocation(); }
+
+    static bool classof(const Stmt *T) {
+      return T->getStmtClass() == PositionalParameterExprClass;
+    }
+
+    // Iterators
+    child_range children() {
+      return child_range(child_iterator(), child_iterator());
+    }
+};
+
 
 //===----------------------------------------------------------------------===//
 // Clang Extensions

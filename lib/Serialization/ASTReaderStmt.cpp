@@ -988,6 +988,13 @@ void ASTStmtReader::VisitInteropTypeBoundsAnnotation(
   E->EndLoc = ReadSourceLocation(Record, Idx);
 }
 
+void ASTStmtReader::VisitPositionalParameterExpr(
+  PositionalParameterExpr *E) {
+  VisitExpr(E);
+  E->Index = Record[Idx++];
+}
+
+
 //===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements
 
