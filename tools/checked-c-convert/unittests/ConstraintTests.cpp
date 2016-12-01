@@ -82,7 +82,7 @@ TEST(BasicConstraintTest, solve) {
   EXPECT_TRUE(CS.addConstraint(CS.createImplies(CS.createEq(CS.getOrCreateVar(3), CS.getWild()),
   CS.createEq(CS.getOrCreateVar(8), CS.getWild()))));
 
-  EXPECT_TRUE(CS.solve());
+  EXPECT_TRUE(CS.solve().second);
   Constraints::EnvironmentMap env = CS.getVariables();
 
   EXPECT_TRUE(*env[CS.getOrCreateVar(0)] == *CS.getWild());
@@ -111,7 +111,7 @@ TEST(BasicConstraintTest, equality) {
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(1), CS.getPtr())));
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getOrCreateVar(1))));
 
-  EXPECT_TRUE(CS.solve());
+  EXPECT_TRUE(CS.solve().second);
   Constraints::EnvironmentMap env = CS.getVariables();
 
   EXPECT_TRUE(*env[CS.getOrCreateVar(0)] == *CS.getWild());

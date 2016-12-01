@@ -421,7 +421,7 @@ public:
   // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
   EnvironmentMap &getVariables() { return environment; }
-  bool solve(void);
+  std::pair<ConstraintSet, bool> solve(void);
   void dump() const;
   void print(llvm::raw_ostream &) const;
 
