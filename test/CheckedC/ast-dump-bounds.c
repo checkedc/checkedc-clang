@@ -2,7 +2,7 @@
 // This makes sure that additional information appears as
 // expected.
 //
-// RUN: %clang_cc1 -ast-dumps -fcheckedc-extension %s | FileCheck %s
+// RUN: %clang_cc1 -ast-dump -fcheckedc-extension %s | FileCheck %s
 
 //===================================================================
 // Dumps of different kinds of bounds expressions on global variables
