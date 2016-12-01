@@ -641,7 +641,10 @@ int main(int argc, const char **argv) {
   if (Verbose)
     outs() << "Solving constraints\n";
   Constraints &CS = Info.getConstraints();
-  CS.solve();
+  std::pair<Constraints::ConstraintSet, bool> R = CS.solve();
+  // TODO: In the future, R.second will be false when there's a conflict, 
+  //       and the tool will need to do something about that. 
+  assert(R.second == true);
   if (Verbose)
     outs() << "Constraints solved\n";
   if (DumpIntermediate)

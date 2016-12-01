@@ -222,8 +222,9 @@ bool Constraints::step_solve(EnvironmentMap &env) {
   return (changedEnvironment == false);
 }
 
-bool Constraints::solve(void) {
+std::pair<Constraints::ConstraintSet, bool> Constraints::solve(void) {
   bool fixed = false;
+  Constraints::ConstraintSet conflicts;
 
   if (DebugSolver) {
     errs() << "constraints beginning solve\n";
@@ -249,7 +250,7 @@ bool Constraints::solve(void) {
     }
   }
 
-  return true;
+  return std::pair<Constraints::ConstraintSet, bool>(conflicts, true);
 }
 
 void Constraints::print(raw_ostream &O) const {
