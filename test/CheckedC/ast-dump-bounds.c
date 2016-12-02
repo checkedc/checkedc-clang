@@ -239,3 +239,77 @@ struct S1 {
   // CHECK: '_Ptr<int>'
 };
 
+//===================================================================
+// Dumps of bounds expressions for function types
+//===================================================================
+
+void f30(_Array_ptr<int> arr : bounds(arr, arr + len), int len);
+
+// CHECK: FunctionDecl
+// CHECK: f30
+// CHECK: 'void (_Array_ptr<int> : bounds(arg #0, arg #0 + arg #1), int)'
+// CHECK-NEXT: ParmVarDecl
+// CHECK: arr '_Array_ptr<int>'
+// CHECK-NEXT: RangeBoundsExpr
+
+void f31(int (*fn)(_Array_ptr<int> arr : bounds(arr, arr + len), int len));
+
+// CHECK: FunctionDecl
+// CHECK: f31
+// CHECK: 'void (int (*)(_Array_ptr<int> : bounds(arg #0, arg #0 + arg #1), int))'
+// CHECK: ParmVarDecl
+// CHECK: fn
+// CHECK: 'int (*)(_Array_ptr<int> : bounds(arg #0, arg #0 + arg #1), int)'
+
+typedef float fn_sum(int lower, int upper,
+                     _Array_ptr<float> arr : bounds(arr - lower, arr + upper));
+
+// CHECK: TypedefDecl
+// CHECK: fn_sum
+// CHECK: 'float (int, int, _Array_ptr<float> : bounds(arg #2 - arg #0, arg #2 + arg #1))'
+// CHECK-NEXT: FunctionProtoType
+// CHECK: 'float (int, int, _Array_ptr<float> : bounds(arg #2 - arg #0, arg #2 + arg #1))'
+// CHECK-NEXT: BuiltinType
+// CHECK: float
+// CHECK-NEXT: BuiltinType
+// CHECK: int
+// CHECK-NEXT: BuiltinType
+// CHECK: int
+// CHECK-NEXT: PointerType
+// CHECK: _Array_ptr<float>
+// CHECK-NEXT: BuiltinType
+// CHECK: float
+
+//
+// range-expression for the _Array_ptr<float> parameter
+//
+
+// CHECK-NEXT: RangeBoundsExpr
+
+// arg #2 - arg #0
+
+// CHECK-NEXT: BinaryOperator
+// CHECK: '_Array_ptr<float>'
+// CHECK: '-'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: PositionalParameterExpr
+// CHECK: arg
+// CHECK: #2
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: PositionalParameterExpr
+// CHECK: arg
+// CHECK: #0
+
+// arg #2 + arg #1
+
+// CHECK-NEXT: BinaryOperator
+// CHECK: '_Array_ptr<float>'
+// CHECK: '+'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: PositionalParameterExpr
+// CHECK: arg
+// CHECK: #2
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: PositionalParameterExpr
+// CHECK: arg
+// CHECK: #1

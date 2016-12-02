@@ -949,6 +949,7 @@ void ASTStmtWriter::VisitInteropTypeBoundsAnnotation(
 void ASTStmtWriter::VisitPositionalParameterExpr(
   PositionalParameterExpr *E) {
   VisitExpr(E);
+  Record.push_back(E->getIndex());
   Code = serialization::EXPR_POSITIONAL_PARAMETER_EXPR;
 }
 

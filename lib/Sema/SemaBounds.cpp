@@ -11,47 +11,20 @@
 //  The operations include:
 //  * Abstracting bounds expressions so that they can be used in function types.
 //    This removes extraneous details:
-//    - references to ParamVarDecl's are abstracted to positional index numbers
+//    - References to ParamVarDecl's are abstracted to positional index numbers
 //      in argument lists.
-//    - references to other VarDecls's are changed to use canonical 
+//    - References to other VarDecls's are changed to use canonical
 //      declarations.
-//    - Line number information is removed because it might be inaccurate after
-//      types with bounds expressions are converted to canonical types.
+//
+//    Line number information is lift in place for expressions, though.  It
+//    would be a lot of coding to strip it out. The canonicalization of types
+//    ignores line number information in determining if two expressions are the
+//    same.  Users of bounds expressions that have been abstracted need to be
+//    aware that line number information may be inaccurate.
 //===----------------------------------------------------------------------===//
 
 #include "TreeTransform.h"
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/ASTLambda.h"
-#include "clang/AST/ASTMutationListener.h"
-#include "clang/AST/CXXInheritance.h"
-#include "clang/AST/DeclObjC.h"
-#include "clang/AST/DeclTemplate.h"
-#include "clang/AST/EvaluatedExprVisitor.h"
-#include "clang/AST/Expr.h"
-#include "clang/AST/ExprCXX.h"
-#include "clang/AST/ExprObjC.h"
-#include "clang/AST/ExprOpenMP.h"
-#include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/AST/TypeLoc.h"
-#include "clang/Basic/PartialDiagnostic.h"
-#include "clang/Basic/SourceManager.h"
-#include "clang/Basic/TargetInfo.h"
-#include "clang/Lex/LiteralSupport.h"
-#include "clang/Lex/Preprocessor.h"
-#include "clang/Sema/AnalysisBasedWarnings.h"
-#include "clang/Sema/DeclSpec.h"
-#include "clang/Sema/DelayedDiagnostic.h"
-#include "clang/Sema/Designator.h"
-#include "clang/Sema/Initialization.h"
-#include "clang/Sema/Lookup.h"
-#include "clang/Sema/ParsedTemplate.h"
-#include "clang/Sema/Scope.h"
-#include "clang/Sema/ScopeInfo.h"
-#include "clang/Sema/SemaFixItUtils.h"
-#include "clang/Sema/SemaInternal.h"
-#include "clang/Sema/Template.h"
-#include "llvm/Support/ConvertUTF.h"
+
 using namespace clang;
 using namespace sema;
 
@@ -73,7 +46,7 @@ namespace {
           PD->getFunctionScopeIndex(),
           PD->getType());
 
-      ValueDecl *ND = 
+      ValueDecl *ND =
         dyn_cast_or_null<ValueDecl>(BaseTransform::TransformDecl(
           SourceLocation(), D));
       if (D == ND || ND == nullptr)
@@ -85,4 +58,8 @@ namespace {
       }
     }
   };
+}
+
+ExprResult Sema::AbstractForFunctionType(BoundsExpr *Expr) {
+  return AbstractBoundsExpr(*this).TransformExpr(Expr);
 }

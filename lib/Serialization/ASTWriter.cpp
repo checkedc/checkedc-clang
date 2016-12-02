@@ -286,6 +286,7 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
 
   Record.push_back(T->isVariadic());
   Record.push_back(T->hasTrailingReturn());
+  Record.push_back(T->hasParamBounds());
   Record.push_back(T->getTypeQuals());
   Record.push_back(static_cast<unsigned>(T->getRefQualifier()));
   addExceptionSpec(T, Record);
@@ -294,14 +295,18 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
   for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
     Record.AddTypeRef(T->getParamType(I));
 
+  if (T->hasParamBounds())
+    for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
+      Record.AddStmt(const_cast<BoundsExpr *>(T->getParamBounds(I)));
+
   if (T->hasExtParameterInfos()) {
     for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
       Record.push_back(T->getExtParameterInfo(I).getOpaqueValue());
   }
 
-  if (T->isVariadic() || T->hasTrailingReturn() || T->getTypeQuals() ||
-      T->getRefQualifier() || T->getExceptionSpecType() != EST_None ||
-      T->hasExtParameterInfos())
+  if (T->isVariadic() || T->hasTrailingReturn() || T->hasParamBounds() ||
+      T->getTypeQuals() ||T->getRefQualifier() ||
+      T->getExceptionSpecType() != EST_None || T->hasExtParameterInfos())
     AbbrevToUse = 0;
 
   Code = TYPE_FUNCTION_PROTO;

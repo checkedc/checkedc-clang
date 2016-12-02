@@ -4251,7 +4251,7 @@ public:
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();
 
-  ExprResult AbstractForType(BoundsExpr *Expr);
+  ExprResult AbstractForFunctionType(BoundsExpr *Expr);
 
   //===---------------------------- Clang Extensions ----------------------===//
 

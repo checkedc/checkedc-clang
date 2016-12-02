@@ -340,10 +340,8 @@ namespace  {
         QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
         if (hasBounds)
-          if (const BoundsExpr *const Bounds = T->getParamBounds(i)) {
-            OS << " : ";
+          if (const BoundsExpr *const Bounds = T->getParamBounds(i))
             dumpStmt(Bounds);
-          }
       }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
@@ -592,6 +590,7 @@ namespace  {
     void VisitInteropTypeBoundsAnnotation(
       const InteropTypeBoundsAnnotation *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
+    void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
   };
 }
 
@@ -2517,6 +2516,13 @@ void ASTDumper::VisitInteropTypeBoundsAnnotation(
   VisitExpr(Node);
   if (Node->getKind() != BoundsExpr::Kind::InteropTypeAnnotation)
     dumpBoundsKind(Node->getKind());
+}
+
+void ASTDumper::VisitPositionalParameterExpr(
+  const PositionalParameterExpr *Node) {
+  VisitExpr(Node);
+  OS << " arg #";
+  OS << Node->getIndex();
 }
 
 //===----------------------------------------------------------------------===//

@@ -4738,7 +4738,8 @@ public:
 };
 
 // Represent a parameter as its index in the parameter list.
-// This is used within canonicalized bounds expressions.
+// This is used in the representation of canonicalized bounds
+// expressions in function types.
 class PositionalParameterExpr : public Expr {
   private:
     unsigned Index;

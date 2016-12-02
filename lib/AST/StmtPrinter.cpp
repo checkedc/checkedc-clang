@@ -1886,8 +1886,14 @@ void StmtPrinter::VisitInteropTypeBoundsAnnotation(
   }
 }
 
-// PositionalParameterExpr is used by the type system and should never appear directly 
-// in the AST.  Print something anyway if it does appear.
+// PositionalParameterExpr is used in the representation of bounds
+// expressions that appear in function types.
+//
+// - If we are dumping the AST, these may appear.
+// - If we're printing C code from the AST, we should never end up printing
+//   one of these.  The printing code never directly prints the clang function
+//   type data structure to C code because important information may have been
+//   lost.
 void StmtPrinter::VisitPositionalParameterExpr(PositionalParameterExpr *E) {
   OS << "arg #";
   OS << (E->getIndex());

@@ -4522,9 +4522,18 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           // Checked C extension is not enabled, Bounds will always be null
           // and HasAnyParameterBounds will always be false.
           BoundsExpr *Bounds = Param->getBoundsExpr();
-          ParamBounds.push_back(Bounds);
-          if (Bounds)
+          if (Bounds) {
             HasAnyParameterBounds = true;
+            ExprResult AbstractedBounds = S.AbstractForFunctionType(Bounds);
+            if (AbstractedBounds.isInvalid()) {
+              llvm_unreachable("unexpected failure to abstract bounds");
+              Bounds = nullptr;
+            } else {
+               Bounds = dyn_cast<BoundsExpr>(AbstractedBounds.get());
+               assert(Bounds && "unexpected dyn_cast failure");
+            }
+          }
+          ParamBounds.push_back(Bounds);
 
           if (LangOpts.ObjCAutoRefCount && Param->hasAttr<NSConsumedAttr>()) {
             ExtParameterInfos[i] = ExtParameterInfos[i].withIsConsumed(true);

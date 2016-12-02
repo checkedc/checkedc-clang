@@ -1014,12 +1014,14 @@ void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
 void StmtProfiler::VisitInteropTypeBoundsAnnotation(
   const InteropTypeBoundsAnnotation *S) {
   VisitExpr(S);
+  VisitType(S->getTypeAsWritten());
   ID.AddInteger(S->getKind());
 }
 
 void StmtProfiler::VisitPositionalParameterExpr(
   const PositionalParameterExpr *P) {
   VisitExpr(P);
+  VisitType(P->getType());
   ID.AddInteger(P->getIndex());
 }
 
