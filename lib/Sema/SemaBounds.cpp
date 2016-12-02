@@ -16,11 +16,12 @@
 //    - References to other VarDecls's are changed to use canonical
 //      declarations.
 //
-//    Line number information is lift in place for expressions, though.  It
-//    would be a lot of coding to strip it out. The canonicalization of types
-//    ignores line number information in determining if two expressions are the
-//    same.  Users of bounds expressions that have been abstracted need to be
-//    aware that line number information may be inaccurate.
+//    Line number information is left in place for expressions, though.  It
+//    would be a lot of work to write functions to change the line numbers to
+//    the invalid line number. The canonicalization of types ignores line number
+//    information in determining if two expressions are the same.  Users of bounds
+//    expressions that have been abstracted need to be aware that line number
+//    information may be inaccurate.
 //===----------------------------------------------------------------------===//
 
 #include "TreeTransform.h"

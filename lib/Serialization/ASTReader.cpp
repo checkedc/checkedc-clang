@@ -5482,14 +5482,15 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
       SmallVector<const BoundsExpr *, 16> ParamBounds;
       for (unsigned I = 0; I != NumParams; ++I) {
         Expr *E = ReadExpr(*Loc.F);
-        BoundsExpr *B = nullptr;
+        BoundsExpr *B;
         if (E) {
           B = dyn_cast<BoundsExpr>(E);
           assert(B && "failure reading BoundsExpr");
-        }
+        } else
+          B = nullptr;
         ParamBounds.push_back(B);
-        EPI.ParamBounds = ParamBounds.data();
-     }
+      }
+      EPI.ParamBounds = ParamBounds.data();
     } else
       EPI.ParamBounds = nullptr;
 
@@ -5632,7 +5633,6 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
       = ReadDeclAs<ObjCInterfaceDecl>(*Loc.F, Record, Idx);
     return Context.getObjCInterfaceType(ItfD->getCanonicalDecl());
   }
-
   case TYPE_OBJC_OBJECT: {
     unsigned Idx = 0;
     QualType Base = readType(*Loc.F, Record, Idx);
