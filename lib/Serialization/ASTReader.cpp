@@ -5472,6 +5472,7 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     EPI.RefQualifier = static_cast<RefQualifierKind>(Record[Idx++]);
     SmallVector<QualType, 8> ExceptionStorage;
     readExceptionSpec(*Loc.F, ExceptionStorage, EPI.ExceptionSpec, Record, Idx);
+    EPI.ReturnBounds = ReadBoundsExpr(*Loc.F);
 
     unsigned NumParams = Record[Idx++];
     SmallVector<QualType, 16> ParamTypes;
@@ -5481,14 +5482,7 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     if (HasParamBounds) {
       SmallVector<const BoundsExpr *, 16> ParamBounds;
       for (unsigned I = 0; I != NumParams; ++I) {
-        Expr *E = ReadExpr(*Loc.F);
-        BoundsExpr *B;
-        if (E) {
-          B = dyn_cast<BoundsExpr>(E);
-          assert(B && "failure reading BoundsExpr");
-        } else
-          B = nullptr;
-        ParamBounds.push_back(B);
+        ParamBounds.push_back(ReadBoundsExpr(*Loc.F));
       }
       EPI.ParamBounds = ParamBounds.data();
     } else

@@ -4524,14 +4524,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           BoundsExpr *Bounds = Param->getBoundsExpr();
           if (Bounds) {
             HasAnyParameterBounds = true;
-            ExprResult AbstractedBounds = S.AbstractForFunctionType(Bounds);
-            if (AbstractedBounds.isInvalid()) {
-              llvm_unreachable("unexpected failure to abstract bounds");
-              Bounds = nullptr;
-            } else {
-               Bounds = dyn_cast<BoundsExpr>(AbstractedBounds.get());
-               assert(Bounds && "unexpected dyn_cast failure");
-            }
+            Bounds = S.AbstractForFunctionType(Bounds);
           }
           ParamBounds.push_back(Bounds);
 
@@ -4549,9 +4542,11 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
-        // Record parameter bounds for Checked C extension, if there are any.
+        // Record bounds for Checked C extension.  Only record parameter bounds array if there are
+        // parameter bounds.
         if (HasAnyParameterBounds)
           EPI.ParamBounds = ParamBounds.data();
+        EPI.ReturnBounds = S.AbstractForFunctionType(FTI.getReturnBounds());
 
         if (HasAnyInterestingExtParameterInfos) {
           EPI.ExtParameterInfos = ExtParameterInfos.data();

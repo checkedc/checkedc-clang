@@ -61,6 +61,20 @@ namespace {
   };
 }
 
-ExprResult Sema::AbstractForFunctionType(BoundsExpr *Expr) {
-  return AbstractBoundsExpr(*this).TransformExpr(Expr);
+BoundsExpr *Sema::AbstractForFunctionType(BoundsExpr *Expr) {
+  if (!Expr)
+    return Expr;
+
+  BoundsExpr *Result;
+  ExprResult AbstractedBounds = AbstractBoundsExpr(*this).TransformExpr(Expr);
+  if (AbstractedBounds.isInvalid()) {
+    llvm_unreachable("unexpected failure to abstract bounds");
+    Result = nullptr;
+  }
+  else {
+    Result = dyn_cast<BoundsExpr>(AbstractedBounds.get());
+    assert(Result && "unexpected dyn_cast failure");
+    return Result;
+  }
 }
+

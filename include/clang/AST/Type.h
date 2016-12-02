@@ -3229,12 +3229,12 @@ public:
     ExtProtoInfo()
         : Variadic(false), HasTrailingReturn(false), TypeQuals(0),
           RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr) {}
+          ParamBounds(nullptr), ReturnBounds(nullptr) {}
 
     ExtProtoInfo(CallingConv CC)
         : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), TypeQuals(0),
           RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr) {}
+          ParamBounds(nullptr), ReturnBounds(nullptr) {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
       ExtProtoInfo Result(*this);
@@ -3250,6 +3250,7 @@ public:
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos;
     const BoundsExpr *const *ParamBounds;
+    const BoundsExpr *ReturnBounds;
   };
 
 private:
@@ -3287,6 +3288,8 @@ private:
 
   /// Whether this function has bounds information for parameters.
   unsigned HasParamBounds : 1;
+
+  const BoundsExpr *const ReturnBounds;
 
   // ParamInfo - There is an variable size array after the class in memory that
   // holds the parameter types.
@@ -3377,6 +3380,7 @@ public:
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
     EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
+    EPI.ReturnBounds = getReturnBounds();
     return EPI;
   }
 
@@ -3459,6 +3463,8 @@ public:
 
   bool hasParamBounds() const { return HasParamBounds; }
 
+  bool hasReturnBounds() const { return ReturnBounds != nullptr; }
+
   /// Retrieve the ref-qualifier associated with this function type.
   RefQualifierKind getRefQualifier() const {
     return static_cast<RefQualifierKind>(FunctionTypeBits.RefQualifier);
@@ -3494,6 +3500,11 @@ public:
       return param_bounds_begin();
     else
       return param_bounds_begin() + NumParams;
+  }
+
+  // Checked C return bounds information
+  const BoundsExpr *getReturnBounds() const {
+    return ReturnBounds;
   }
 
   typedef const QualType *exception_iterator;

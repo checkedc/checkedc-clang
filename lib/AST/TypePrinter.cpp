@@ -835,6 +835,11 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
     print(T->getReturnType(), OS, StringRef());
   } else
     printAfter(T->getReturnType(), OS);
+
+  if (const BoundsExpr *ReturnBounds = T->getReturnBounds()) {
+    OS << " : ";
+    ReturnBounds->printPretty(OS, nullptr, Policy);
+  }
 }
 
 void TypePrinter::printFunctionNoProtoBefore(const FunctionNoProtoType *T, 

@@ -189,7 +189,7 @@ int *f23(void) : itype(_Ptr<int>);
 
 // CHECK: FunctionDecl
 // CHECK: f23
-// CHECK: 'int *(void)'
+// CHECK: 'int *(void) : _Ptr<int>'
 // CHECK-NEXT: InteropTypeBoundsAnnotation
 // CHECK: '_Ptr<int>'
 
@@ -240,7 +240,7 @@ struct S1 {
 };
 
 //===================================================================
-// Dumps of bounds expressions for function types
+// Dumps of bounds expressions for parameters of function types
 //===================================================================
 
 void f30(_Array_ptr<int> arr : bounds(arr, arr + len), int len);
@@ -261,7 +261,7 @@ void f31(int (*fn)(_Array_ptr<int> arr : bounds(arr, arr + len), int len));
 // CHECK: fn
 // CHECK: 'int (*)(_Array_ptr<int> : bounds(arg #0, arg #0 + arg #1), int)'
 
-typedef float fn_sum(int lower, int upper,
+typedef float fn_sum1(int lower, int upper,
                      _Array_ptr<float> arr : bounds(arr - lower, arr + upper));
 
 // CHECK: TypedefDecl
@@ -281,9 +281,10 @@ typedef float fn_sum(int lower, int upper,
 // CHECK: float
 
 //
-// range-expression for the _Array_ptr<float> parameter
+// Bounds expression for the _Array_ptr<float> parameter
 //
 
+// CHECK-NEXT: Bounds
 // CHECK-NEXT: RangeBoundsExpr
 
 // arg #2 - arg #0
@@ -313,3 +314,91 @@ typedef float fn_sum(int lower, int upper,
 // CHECK-NEXT: PositionalParameterExpr
 // CHECK: arg
 // CHECK: #1
+
+//===================================================================
+// Dumps of bounds expressions for returns of function types
+//===================================================================
+
+_Array_ptr<int> f40(int len) : count(len);
+
+// CHECK-NEXT: FunctionDecl
+// CHECK: f40
+// CHECK: '_Array_ptr<int> (int) : count(arg #0)'
+// CHECK-NEXT ParmVarDecl
+// CHECK: len
+// CHECK-NEXT: CountBoundsExpr
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: len
+// CHECK: 'int'
+
+_Array_ptr<int> f41(int len) : byte_count(4 * len);
+
+// CHECK-NEXT: FunctionDecl
+// CHECK: f41
+// CHECK: '_Array_ptr<int> (int) : byte_count(4 * arg #0)'
+// CHECK-NEXT: ParmVarDecl
+// CHECK: len
+// CHECK-NEXT: CountBoundsExpr
+// CHECK-NEXT: BinaryOperator
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 4
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: len
+
+_Array_ptr<int> f42(_Array_ptr<int> arr : count(len), int len) : bounds(arr, arr + len);
+
+// CHECK-NEXT: FunctionDecl
+// CHECK: f42
+// CHECK: '_Array_ptr<int> (_Array_ptr<int> : count(arg #1), int) : bounds(arg #0, arg #0 + arg #1)'
+// CHECK-NEXT: ParmVarDecl
+// CHECK: arr
+// CHECK-NEXT: CountBoundsExpr
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: len
+// CHECK-NEXT: ParmVarDecl
+// CHECK: len
+// CHECK-NEXT: RangeBoundsExpr
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: 'arr'
+// CHECK-NEXT: BinaryOperator
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: arr
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: len
+
+typedef _Array_ptr<float> fn_vector_add(_Array_ptr<float> vec : count(len),
+ int len, int c) : count(len);
+
+ // CHECK-NEXT: TypedefDecl
+ // CHECK: '_Array_ptr<float> (_Array_ptr<float> : count(arg #1), int, int) : count(arg #1)'
+ // CHECK-NEXT: FunctionProtoType
+ // CHECK-NEXT: PointerType
+ // CHECK: '_Array_ptr<float>'
+ // CHECK-NEXT: BuiltinType
+ // CHECK: float
+ // CHECK-NEXT: PointerType
+ // CHECK: '_Array_ptr<float>'
+ // CHECK-NEXT: BuiltinType
+ // CHECK: float
+ // CHECK-NEXT: Bounds
+ // CHECK-NEXT: CountBoundsExpr
+ // CHECK-NEXT: ImplicitCastExpr
+ // CHECK-NEXT: PositionalParameterExpr
+ // CHECK: 'int'
+ // CHECK: #1
+ // CHECK-NEXT: BuiltinType
+ // CHECK: 'int'
+ // CHECK-NEXT: BuiltinType
+ // CHECK: 'int'
+ // CHECK-NEXT: Return bounds
+ // CHECK-NEXT: CountBoundsExpr
+ // CHECK-NEXT: ImplicitCastExpr
+ // CHECK-NEXT: PositionalParameterExpr
+ // CHECK: 'int'
+ // CHECK: #1

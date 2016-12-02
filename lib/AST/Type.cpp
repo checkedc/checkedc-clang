@@ -2665,7 +2665,8 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       ExceptionSpecType(epi.ExceptionSpec.Type),
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
       Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
-      HasParamBounds(epi.ParamBounds != nullptr) {
+      HasParamBounds(epi.ParamBounds != nullptr),
+      ReturnBounds(epi.ReturnBounds) {
   assert(NumParams == params.size() && "function has too many parameters");
 
   FunctionTypeBits.TypeQuals = epi.TypeQuals;
@@ -2875,6 +2876,7 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
         ID.AddPointer(nullptr);
     }
   }
+  ID.AddPointer(epi.ReturnBounds);
 
   if (epi.ExtParameterInfos) {
     for (unsigned i = 0; i != NumParams; ++i)

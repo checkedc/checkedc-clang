@@ -341,10 +341,18 @@ namespace  {
         dumpTypeAsChild(PT);
         if (hasBounds)
           if (const BoundsExpr *const Bounds = T->getParamBounds(i))
-            dumpStmt(Bounds);
+            dumpChild([=] {
+              OS << "Bounds";
+              dumpStmt(Bounds);
+            });
       }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
+      if (EPI.ReturnBounds)
+        dumpChild([=] {
+          OS << "Return bounds";
+          dumpStmt(EPI.ReturnBounds);
+        });
     }
     void VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
       dumpDeclRef(T->getDecl());
