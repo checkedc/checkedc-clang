@@ -8437,14 +8437,17 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
     QualType RetType = FT->getReturnType();
     if (isNotAllowedForNoPrototypeFunction(RetType))
       return true;
-    if (const FunctionProtoType *FPT = FT->getAs<FunctionProtoType>())
-      for (QualType Param : FPT->getParamTypes()) {
-        // TODO: Github checkedc-clang issue #20.  When function types
-        // incorporate parameter bounds information, check for
-        // parameter bounds.
-        if (isNotAllowedForNoPrototypeFunction(Param))
+    if (const FunctionProtoType *FPT = FT->getAs<FunctionProtoType>()) {
+      if (FPT->hasReturnBounds())
+        return true;
+      unsigned NumParams = FPT->getNumParams();
+      for (unsigned I=0; I< NumParams; ++I) {
+        if (isNotAllowedForNoPrototypeFunction(FPT->getParamType(I)))
+          return true;
+        if (FPT->getParamBounds(I))
           return true;
       }
+    }
   } else if (const RecordType *RT = QT->getAs<RecordType>()) {
      const RecordDecl *RD = RT->getDecl();
      if (const RecordDecl *Def = RD->getDefinition()) {

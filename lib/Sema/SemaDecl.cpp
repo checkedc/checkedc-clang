@@ -8251,6 +8251,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Copy the parameter declarations from the declarator D to the function
   // declaration NewFD, if they are available.  First scavenge them into Params.
   SmallVector<ParmVarDecl*, 16> Params;
+  BoundsExpr *ReturnBounds = nullptr;
   if (D.isFunctionDeclarator()) {
     DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
 
@@ -8270,6 +8271,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
           NewFD->setInvalidDecl();
       }
     }
+
+    ReturnBounds = FTI.getReturnBounds();
   } else if (const FunctionProtoType *FT = R->getAs<FunctionProtoType>()) {
     // When we're declaring a function with a typedef, typeof, etc as in the
     // following example, we'll need to synthesize (unnamed)
@@ -8281,12 +8284,29 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     // @endcode
 
     // Synthesize a parameter for each argument type.
-    for (const auto &AI : FT->param_types()) {
+    unsigned NumParams = FT->getNumParams();
+    for (unsigned int I = 0; I < NumParams; ++I) {
+      QualType AI = FT->getParamType(I);
       ParmVarDecl *Param =
           BuildParmVarDeclForTypedef(NewFD, D.getIdentifierLoc(), AI);
       Param->setScopeInfo(0, Params.size());
       Params.push_back(Param);
     }
+
+    // Make the bounds for each parameter, if any, be
+    // concrete.
+    ArrayRef<ParmVarDecl *> ParamArray = Params;
+    if (FT->hasParamBounds()) {
+      for (unsigned int I = 0; I < NumParams; ++I) {
+        BoundsExpr *B = const_cast<BoundsExpr *>(FT->getParamBounds(I));
+        if (B) {
+          B = ConcretizeFromFunctionType(B, ParamArray);
+          Params[I]->setBoundsExpr(B);
+        }
+      }
+    }
+    // Make the return bounds also be concrete.
+    ReturnBounds = ConcretizeFromFunctionType(const_cast<BoundsExpr *>(FT->getReturnBounds()), ParamArray);
   } else {
     assert(R->isFunctionNoProtoType() && NewFD->getNumParams() == 0 &&
            "Should not need args for typedef of non-prototype fn");
@@ -8295,13 +8315,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 
-  // TODO: clang-checked-issue #20.  Issue #20 is attaching bounds information
-  // to function types.  After it is addressed, we need to make sure that bounds
-  // information is propgated to newFD from the FunctionPrototype instance.
-  if (D.isFunctionDeclarator()) {
-    DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
-    ActOnBoundsDecl(NewFD, FTI.getReturnBounds(), true);
-  }
+  // Install the Checked C return bounds, if there is one.
+  ActOnBoundsDecl(NewFD, ReturnBounds, true);
 
   // Find all anonymous symbols defined during the declaration of this function
   // and add to NewFD. This lets us track decls such 'enum Y' in:
