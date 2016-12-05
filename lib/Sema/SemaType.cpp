@@ -4329,19 +4329,12 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       }
 
       // In Checked C, no prototype functions cannot return checked types
-      // or have return bounds.  See Section 5.5 of the Checked C
-      // language extension specification.
+      // See Section 5.5 of the Checked C language extension specification.
       if (LangOpts.CheckedC && !FTI.NumParams) {
         if (Context.isNotAllowedForNoPrototypeFunction(T)) {
           S.Diag(DeclType.Loc,
                  diag::err_no_prototype_function_with_checked_return_type)
             << (unsigned) S.classifyForCheckedTypeDiagnostic(T);
-          D.setInvalidType(true);
-        }
-        if (!T->isUncheckedPointerType() &&
-            FTI.getReturnBounds()) {
-          SourceLocation Loc = FTI.getReturnBoundsColonLoc();
-          S.Diag(Loc, diag::err_no_prototype_function_with_return_bounds);
           D.setInvalidType(true);
         }
       }
