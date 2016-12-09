@@ -3382,11 +3382,7 @@ public:
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
     EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
-<<<<<<< HEAD
-    EPI.ReturnBounds = getReturnBounds();
-=======
     EPI.ReturnBounds = hasReturnBounds() ? getReturnBounds() : nullptr;
->>>>>>> master
     return EPI;
   }
 
