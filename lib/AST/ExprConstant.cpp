@@ -9514,6 +9514,10 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
     }
     return ICEDiag(IK_NotICE, E->getLocStart());
   }
+  case Expr::PositionalParameterExprClass: {
+    // These are parameter variables and are never constants.
+    return ICEDiag(IK_NotICE, SourceLocation());
+  }
   case Expr::UnaryOperatorClass: {
     const UnaryOperator *Exp = cast<UnaryOperator>(E);
     switch (Exp->getOpcode()) {

@@ -2367,6 +2367,10 @@ public:
     return getSema().CreateBoundsInteropType(StartLoc, Ty, RParenLoc);
   }
 
+  ExprResult RebuildPositionalParameterExpr(unsigned Index, QualType QT) {
+    return getSema().CreatePositionalParameterExpr(Index, QT);
+  }
+  \
   /// \brief Build a new overloaded operator call expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11550,6 +11554,16 @@ TreeTransform<Derived>::TransformInteropTypeBoundsAnnotation(
   return getDerived().
     RebuildInteropTypeBoundsAnnotation(E->getStartLoc(), TInfo,
                                        E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformPositionalParameterExpr(
+  PositionalParameterExpr *E) {
+  unsigned Index = E->getIndex();
+  QualType QT = getDerived().TransformType(E->getType());
+  return getDerived().
+    RebuildPositionalParameterExpr(Index, QT);
 }
 
 //===----------------------------------------------------------------------===//

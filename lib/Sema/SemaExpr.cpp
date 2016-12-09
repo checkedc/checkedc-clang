@@ -12362,6 +12362,10 @@ ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInf
                                                    TInfo);
 }
 
+ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
+  return new (Context) PositionalParameterExpr(Index, QT);
+}
+
 //===----------------------------------------------------------------------===//
 // Clang Extensions.
 //===----------------------------------------------------------------------===//

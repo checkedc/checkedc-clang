@@ -5467,15 +5467,26 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
 
     EPI.Variadic = Record[Idx++];
     EPI.HasTrailingReturn = Record[Idx++];
+    bool HasParamBounds = Record[Idx++];
     EPI.TypeQuals = Record[Idx++];
     EPI.RefQualifier = static_cast<RefQualifierKind>(Record[Idx++]);
     SmallVector<QualType, 8> ExceptionStorage;
     readExceptionSpec(*Loc.F, ExceptionStorage, EPI.ExceptionSpec, Record, Idx);
+    EPI.ReturnBounds = ReadBoundsExpr(*Loc.F);
 
     unsigned NumParams = Record[Idx++];
     SmallVector<QualType, 16> ParamTypes;
     for (unsigned I = 0; I != NumParams; ++I)
       ParamTypes.push_back(readType(*Loc.F, Record, Idx));
+
+    if (HasParamBounds) {
+      SmallVector<const BoundsExpr *, 16> ParamBounds;
+      for (unsigned I = 0; I != NumParams; ++I) {
+        ParamBounds.push_back(ReadBoundsExpr(*Loc.F));
+      }
+      EPI.ParamBounds = ParamBounds.data();
+    } else
+      EPI.ParamBounds = nullptr;
 
     SmallVector<FunctionProtoType::ExtParameterInfo, 4> ExtParameterInfos;
     if (Idx != Record.size()) {
@@ -5616,7 +5627,6 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
       = ReadDeclAs<ObjCInterfaceDecl>(*Loc.F, Record, Idx);
     return Context.getObjCInterfaceType(ItfD->getCanonicalDecl());
   }
-
   case TYPE_OBJC_OBJECT: {
     unsigned Idx = 0;
     QualType Base = readType(*Loc.F, Record, Idx);

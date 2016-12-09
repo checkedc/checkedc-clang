@@ -715,6 +715,7 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
   OS << '(';
   {
     ParamPolicyRAII ParamPolicy(Policy);
+    bool HasBounds = T->hasParamBounds();
     for (unsigned i = 0, e = T->getNumParams(); i != e; ++i) {
       if (i) OS << ", ";
 
@@ -725,6 +726,12 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
         OS << "__attribute__((" << getParameterABISpelling(ABI) << ")) ";
 
       print(T->getParamType(i), OS, StringRef());
+      if (HasBounds) {
+        if (const BoundsExpr *const Bounds = T->getParamBounds(i)) {
+          OS << " : ";
+          Bounds->printPretty(OS, nullptr, Policy);
+        }
+      }
     }
   }
   
@@ -828,6 +835,11 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
     print(T->getReturnType(), OS, StringRef());
   } else
     printAfter(T->getReturnType(), OS);
+
+  if (const BoundsExpr *ReturnBounds = T->getReturnBounds()) {
+    OS << " : ";
+    ReturnBounds->printPretty(OS, nullptr, Policy);
+  }
 }
 
 void TypePrinter::printFunctionNoProtoBefore(const FunctionNoProtoType *T, 

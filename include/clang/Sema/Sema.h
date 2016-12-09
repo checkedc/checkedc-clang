@@ -4244,10 +4244,14 @@ public:
   ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc,
                                      TypeSourceInfo *TInfo,
                                      SourceLocation RParenLoc);
+  ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
+
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
                        bool isReturnDecl=false);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();
+
+  BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr);
 
   //===---------------------------- Clang Extensions ----------------------===//
 

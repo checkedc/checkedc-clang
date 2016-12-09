@@ -334,10 +334,25 @@ namespace  {
       // FIXME: Exception specification.
       // FIXME: Consumed parameters.
       VisitFunctionType(T);
-      for (QualType PT : T->getParamTypes())
+      unsigned numParams = T->getNumParams();
+      bool hasBounds = T->hasParamBounds();
+      for (unsigned i = 0; i < numParams; i++) {
+        QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
+        if (hasBounds)
+          if (const BoundsExpr *const Bounds = T->getParamBounds(i))
+            dumpChild([=] {
+              OS << "Bounds";
+              dumpStmt(Bounds);
+            });
+      }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
+      if (EPI.ReturnBounds)
+        dumpChild([=] {
+          OS << "Return bounds";
+          dumpStmt(EPI.ReturnBounds);
+        });
     }
     void VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
       dumpDeclRef(T->getDecl());
@@ -583,6 +598,7 @@ namespace  {
     void VisitInteropTypeBoundsAnnotation(
       const InteropTypeBoundsAnnotation *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
+    void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
   };
 }
 
@@ -2508,6 +2524,13 @@ void ASTDumper::VisitInteropTypeBoundsAnnotation(
   VisitExpr(Node);
   if (Node->getKind() != BoundsExpr::Kind::InteropTypeAnnotation)
     dumpBoundsKind(Node->getKind());
+}
+
+void ASTDumper::VisitPositionalParameterExpr(
+  const PositionalParameterExpr *Node) {
+  VisitExpr(Node);
+  OS << " arg #";
+  OS << Node->getIndex();
 }
 
 //===----------------------------------------------------------------------===//

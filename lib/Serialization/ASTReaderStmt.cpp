@@ -988,6 +988,13 @@ void ASTStmtReader::VisitInteropTypeBoundsAnnotation(
   E->EndLoc = ReadSourceLocation(Record, Idx);
 }
 
+void ASTStmtReader::VisitPositionalParameterExpr(
+  PositionalParameterExpr *E) {
+  VisitExpr(E);
+  E->Index = Record[Idx++];
+}
+
+
 //===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements
 
@@ -2921,6 +2928,16 @@ Stmt *ASTReader::ReadStmt(ModuleFile &F) {
 
 Expr *ASTReader::ReadExpr(ModuleFile &F) {
   return cast_or_null<Expr>(ReadStmt(F));
+}
+
+BoundsExpr *ASTReader::ReadBoundsExpr(ModuleFile &F) {
+  Expr *E = ReadExpr(F);
+  BoundsExpr *B = nullptr;
+  if (E) {
+    B = dyn_cast<BoundsExpr>(E);
+    assert(B && "failure reading BoundsExpr");
+  }
+  return B;
 }
 
 Expr *ASTReader::ReadSubExpr() {
