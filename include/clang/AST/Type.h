@@ -3289,6 +3289,8 @@ private:
   /// Whether this function has bounds information for parameters.
   unsigned HasParamBounds : 1;
 
+  // The return bounds for a function.  Null when a function has no return
+  // bounds.
   const BoundsExpr *const ReturnBounds;
 
   // ParamInfo - There is an variable size array after the class in memory that
@@ -3380,7 +3382,7 @@ public:
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
     EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
-    EPI.ReturnBounds = getReturnBounds();
+    EPI.ReturnBounds = hasReturnBounds() ? getReturnBounds() : nullptr;
     return EPI;
   }
 
