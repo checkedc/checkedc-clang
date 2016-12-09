@@ -305,8 +305,13 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
       Record.push_back(T->getExtParameterInfo(I).getOpaqueValue());
   }
 
+  // AbbrevToUse indicates whether to compress a record in a domain-specifc
+  // way.  ASTWriter::WriteTypeAbbrevs omits these fields in the template
+  // for the compressed record for function prototypes, so disable the
+  // compression when these fields are present.  Note that, confusingly,
+  // compression of function prototypes does not appear to ever be enabled.
   if (T->isVariadic() || T->hasTrailingReturn() || T->hasParamBounds() ||
-      T->hasReturnBounds() || T->getTypeQuals() ||T->getRefQualifier() ||
+      T->hasReturnBounds() || T->getTypeQuals() || T->getRefQualifier() ||
       T->getExceptionSpecType() != EST_None || T->hasExtParameterInfos())
     AbbrevToUse = 0;
 

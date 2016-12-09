@@ -83,7 +83,7 @@ int f(_Array_ptr<int> arr : bounds(arr, arr + len), int len);
 ```
 
 `arr` is given the positional index 0 and `len` is given the positional
-index `1.
+index 1.
 
 This makes type canonicalization of function types with bounds expressions
 straightforward.  The comparion of parameters is easy: two parameters are the
