@@ -8764,31 +8764,31 @@ def err_typecheck_ptr_decl_with_bounds : Error<
   "bounds declaration not allowed because %0 has a _Ptr type">;
 
 def err_typecheck_ptr_return_with_bounds : Error<
-  "bounds declaration not allowed because %0 has a _Ptr return type">;
+  "bounds declaration not allowed for a _Ptr return type">;
 
 def err_typecheck_function_pointer_decl_with_bounds : Error<
   "bounds declaration not allowed because %0 has a function pointer type">;
 
 def err_typecheck_function_pointer_return_with_bounds : Error<
-  "bounds declaration not allowed because %0 has a function pointer return type">;
+  "bounds declaration not allowed for a function pointer return type">;
 
 def err_typecheck_count_bounds_decl : Error<
   "expected %0 to have a pointer or array type">;
 
 def err_typecheck_count_return_bounds : Error<
-  "expected %0 to have a pointer return type">;
+  "count bounds expression only allowed for pointer return type">;
 
 def err_typecheck_void_pointer_count_bounds_decl : Error<
   "expected %0 to have a non-void pointer type">;
 
 def err_typecheck_void_pointer_count_return_bounds : Error<
-  "expected %0 to have a non-void pointer return type">;
+  "count bounds expression not allowed for a void pointer return type">;
 
 def err_typecheck_non_count_bounds_decl : Error<
   "expected %0 to have a pointer, array, or integer type">;
 
 def err_typecheck_non_count_return_bounds : Error<
-  "expected %0 to have a pointer or integer return type">;
+  "bounds declaration only allowed for a pointer or integer return type">;
 
 def err_typecheck_bounds_type_annotation_identifier: Error<
   "type name cannot have identifier in it">;

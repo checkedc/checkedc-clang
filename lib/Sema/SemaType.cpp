@@ -4542,11 +4542,19 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
+        BoundsExpr *ReturnBounds = FTI.getReturnBounds();
+        if (ReturnBounds) {
+          // if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnBounds, true))
+          // ReturnBounds = S.CreateInvalidBoundsExpr();
+          // else
+            ReturnBounds = S.AbstractForFunctionType(ReturnBounds);
+        }
+
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are
         // parameter bounds.
         if (HasAnyParameterBounds)
           EPI.ParamBounds = ParamBounds.data();
-        EPI.ReturnBounds = S.AbstractForFunctionType(FTI.getReturnBounds());
+        EPI.ReturnBounds = ReturnBounds;
 
         if (HasAnyInterestingExtParameterInfos) {
           EPI.ExtParameterInfos = ExtParameterInfos.data();
