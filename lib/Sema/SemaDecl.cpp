@@ -8295,12 +8295,30 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 
-  // TODO: clang-checked-issue #20.  Issue #20 is attaching bounds information
-  // to function types.  After it is addressed, we need to make sure that bounds
-  // information is propgated to newFD from the FunctionPrototype instance.
+  // Set the return bounds information.  If the bounds expression is
+  // available from the declarator and valid for the return type, use that.
+  // Otherwise, copy it from the type.
+  //
+  // We prefer to use the declarator bounds expression because that
+  // preserves line number information.  The bounds expression from the
+  // type does not have accurate line number information.
   if (D.isFunctionDeclarator()) {
-    DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
-    ActOnBoundsDecl(NewFD, FTI.getReturnBounds(), true);
+    if (const FunctionProtoType *FT = R->getAs<FunctionProtoType>()) {
+      BoundsExpr *TypeReturnBounds =
+        const_cast<BoundsExpr *>(FT->getReturnBounds());
+      DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
+      BoundsExpr *DeclaredReturnBounds = FTI.getReturnBounds();
+      // Check the return bounds on the type to determine if the bounds
+      // expression is valid for the return type.  Construction of the function
+      // type for the declarator checked whether the return bounds was valid for
+      // the return type, and set the type return bounds to be invalid if it was
+      // not.
+      if (DeclaredReturnBounds && TypeReturnBounds &&
+          !TypeReturnBounds->isInvalid())
+        NewFD->setBoundsExpr(DeclaredReturnBounds);
+      else
+        NewFD->setBoundsExpr(TypeReturnBounds);
+    }
   }
 
   // Find all anonymous symbols defined during the declaration of this function
@@ -11331,16 +11349,30 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
   }
 }
 
+// checkBoundsDeclForBoundsExpr: check whether a bounds-safe interface
+// type can be used with type Ty.
+// * Ty is the type of a variable declaration or the return type
+//   of a function.
+// * D is the variable declaration (if any).
+// * IsReturnBounds indicates whether this is a return bounds.
+//
+// D is used to decide whether to adjust the bounds-safe interface
+// type for parameters.
+// TODO: move this adjustment earlier.
+//
+// D and IsReturnBounds are also used to generate error messages.  The error
+// messages for variables and return bounds are different.
+//
+// This method returns true if there is an error and false if there is no
+// error.
 static bool checkBoundsDeclWithTypeAnnotation(Sema &S, QualType DeclaredTy,
-                                              DeclaratorDecl *D,
                                               InteropTypeBoundsAnnotation *Expr,
+                                              DeclaratorDecl *D,
                                               bool IsReturnBounds) {
   assert(D != nullptr || IsReturnBounds);
   assert(Expr != nullptr && !Expr->isInvalid());
 
   QualType AnnotTy = Expr->getType();
-  QualType OriginalAnnotTy = AnnotTy;
-
   if (DeclaredTy.isNull() || AnnotTy.isNull())
     return true;
 
@@ -11429,11 +11461,19 @@ static bool checkBoundsDeclWithTypeAnnotation(Sema &S, QualType DeclaredTy,
 }
 
 // checkBoundsDeclForBoundsExpr: check whether a bounds expression
-// can be used with type Ty. Ty is the type of variable declaration
-// or the return type of a function.
+// can be used with type Ty.
+// * Ty is the type of a variable declaration or the return type
+//   of a function.
+// * D is the variable declaration (if any).
+// * IsReturnBounds indicates whether this is a return bounds.
+// D and IsReturnBounds are used to generate error messages.  The error
+// messages for variables and return bounds are different.
+//
+// This method returns true if there is an error and false if there is no
+// error.
 static bool checkBoundsDeclWithBoundsExpr(Sema &S, QualType Ty,
-                                          DeclaratorDecl *D,
                                           BoundsExpr *Expr,
+                                          DeclaratorDecl *D,
                                           bool IsReturnBounds) {
   assert(D != nullptr || IsReturnBounds);
   assert(Expr != nullptr && !Expr->isInvalid() &&
@@ -11458,23 +11498,6 @@ static bool checkBoundsDeclWithBoundsExpr(Sema &S, QualType Ty,
     DiagId = IsReturnBounds
     ? diag::err_typecheck_function_pointer_return_with_bounds
     : diag::err_typecheck_function_pointer_decl_with_bounds;
-  // Do bounds-safe interface checks. Local variables with unchecked pointer
-  // or array types cannot have bounds declarations.  This reduces the chance
-  // that programmers accidentally declare variables with unchecked types to
-  // have bounds declarations and think uses of the variables will be bounds
-  // checked.  Other declarations (parameters, globally-scoped variables, and
-  // members) can have unchecked types and bounds declarations because that is
-  // the way bounds-safe interfaces are declared.
-  else if (D != nullptr) 
-    if (VarDecl *Var = dyn_cast<VarDecl>(D)) {
-      assert(!IsReturnBounds);
-      if (Var->isLocalVarDecl()) {
-         if (Ty->isPointerType() && !Ty->isCheckedPointerType())
-            DiagId = diag::err_bounds_safe_interface_unchecked_local_pointer;
-         else if (Ty->isArrayType()  && !Ty->isCheckedArrayType())
-            DiagId = diag::err_bounds_safe_interface_unchecked_local_array;
-      }
-    }
 
   if (DiagId)
      ;  // There was already an error. Do nothing.
@@ -11524,13 +11547,18 @@ static bool checkBoundsDeclWithBoundsExpr(Sema &S, QualType Ty,
   return false;
 }
 
-// Check whether Expr is a valid bounds expression to use
-// with a declaration of type Ty or a return value of type Ty.
+// Check whether a bounds expression or interface type is
+// valid to use with type Ty.
+// * Ty is the type of variable declaration or the return type
+// of a function.
 // * D is the declaration that the bounds expression will be
 // attached to.   It may be null only when checking a return
 // bounds expression.
 // * IsReturnBounds is true if Expr is a return bounds
 // expression.
+//
+// D and IsReturnBounds are used to generate error messages.
+//
 // This method returns true if there is an error and false if
 // the checking succeeds.
 bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
@@ -11543,19 +11571,18 @@ bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
   if (Expr->isInteropTypeAnnotation()) {
     if (InteropTypeBoundsAnnotation *TypeAnnot =
         dyn_cast<InteropTypeBoundsAnnotation>(Expr))
-      result = checkBoundsDeclWithTypeAnnotation(*this, Ty, D, TypeAnnot,
+      result = checkBoundsDeclWithTypeAnnotation(*this, Ty, TypeAnnot, D,
                                                  IsReturnBounds);
   }
   else
-    result = checkBoundsDeclWithBoundsExpr(*this, Ty, D, Expr, IsReturnBounds);
+    result = checkBoundsDeclWithBoundsExpr(*this, Ty, Expr, D, IsReturnBounds);
   return result;
 }
 
 // ActOnBoundsDecl: handle a Checked C bounds declaration for a declarator.
 // Determine whether the bounds declaration involves a bounds expression
 // or a type annotation and call the appropriate method to handle it.
-void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
-                           bool IsReturnBounds) {
+void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
   if (!D || !Expr)
     return;
 
@@ -11563,17 +11590,37 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
   if (Ty.isNull())
     return;
 
-  // If we are checking the return bounds, get the function return type.
-  // If the type for the declaration wasn't a function type, bail out.
-  if (IsReturnBounds) {
-    assert(Ty->isFunctionType());
-    if (const FunctionType *FuncTy = Ty->getAs<FunctionType>())
-      Ty = FuncTy->getReturnType();
-    else
-      return;
+  if (VarDecl *Var = dyn_cast<VarDecl>(D)) {
+    if (Var->isLocalVarDecl()) {
+      // - Local variables cannot have bounds-safe interface type annotations.
+      // - Local variables with unchecked pointer or array types cannot have
+      // bounds declarations. For bounds declarations, this reduces the chance
+      // that programmers accidentally declare variables with unchecked types
+      // to have bounds declarations and think uses of the variables will be
+      // bounds checked.
+      //
+      // Other declarations (parameters, globally-scoped variables, and members)
+      // can have unchecked pointer or array types with bounds declarations
+      // because that is a way bounds-safe interfaces are declared.
+      int DiagId = 0;
+      if (Expr->isInteropTypeAnnotation())
+        DiagId = diag::err_bounds_safe_interface_type_annotation_local_variable;
+      else {
+        if (Ty->isPointerType() && !Ty->isCheckedPointerType())
+          DiagId = diag::err_bounds_declaration_unchecked_local_pointer;
+        else if (Ty->isArrayType() && !Ty->isCheckedArrayType())
+          DiagId = diag::err_bounds_declaration_unchecked_local_array;
+      }
+
+      if (DiagId) {
+        Diag(Expr->getLocStart(), DiagId) << D;
+        ActOnInvalidBoundsDecl(D);
+        return;
+      }
+    }
   }
 
-  if (DiagnoseBoundsDeclType(Ty, D, Expr, IsReturnBounds))
+  if (DiagnoseBoundsDeclType(Ty, D, Expr, /*IsReturnBounds=*/false))
     ActOnInvalidBoundsDecl(D);
   else
     D->setBoundsExpr(Expr);

@@ -8730,11 +8730,14 @@ def err_unchecked_array_of_typedef_checked_array : Error<
 def err_unchecked_array_of_checked_array : Error<
   "unchecked array of checked array not allowed">;
 
-def err_bounds_safe_interface_unchecked_local_pointer : Error<
-  "expected local variable %0 to have _Array_ptr type">;
+def err_bounds_declaration_unchecked_local_pointer : Error<
+  "bounds declaration not allowed for local variable with unchecked pointer type">;
 
-def err_bounds_safe_interface_unchecked_local_array : Error<
-  "expected local variable %0 to have checked array type">;
+def err_bounds_declaration_unchecked_local_array : Error<
+  "bounds declaration not allowed for local variable with unchecked array type">;
+
+def err_bounds_safe_interface_type_annotation_local_variable : Error<
+  "bounds-safe interface type annotation not allowed for local variable">;
 
 def err_typecheck_ptr_subscript : Error<
   "subscript of %0">;

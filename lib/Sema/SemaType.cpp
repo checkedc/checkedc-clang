@@ -4544,9 +4544,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
 
         BoundsExpr *ReturnBounds = FTI.getReturnBounds();
         if (ReturnBounds) {
-          // if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnBounds, true))
-          // ReturnBounds = S.CreateInvalidBoundsExpr();
-          // else
+          if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnBounds, true))
+            ReturnBounds = S.CreateInvalidBoundsExpr();
+          else
             ReturnBounds = S.AbstractForFunctionType(ReturnBounds);
         }
 

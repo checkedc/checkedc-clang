@@ -4248,8 +4248,7 @@ public:
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsExpr *Expr, bool IsReturnBounds);
-  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
-                       bool isReturnDecl=false);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
 
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();
