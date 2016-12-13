@@ -85,13 +85,6 @@ void f1() {
 // CHECK: arr3
 // CHECK-NEXT: IntegerLiteral
 // CHECK: 'int' 5
-
-  int * arr4 : itype(_Ptr<int>) = 0;
-
-// CHECK: VarDecl
-// CHECK: arr4 'int *'
-// CHECK-NEXT: InteropTypeBoundsAnnotation
-// CHECK: '_Ptr<int>'
 }
 
 //=============================================================

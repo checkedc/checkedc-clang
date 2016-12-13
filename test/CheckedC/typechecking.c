@@ -10,8 +10,7 @@
 // hints emitted as part of clang diagnostics.
 //
 // RUN: %clang_cc1 -verify -fcheckedc-extension %s
-
-char fn41() : count(5); // expected-error {{expected 'fn41' to have a pointer return type}} // expected-error {{function with no prototype cannot have a return bounds}}
+// expected-no-diagnostics
 
 // Prototype of a function followed by an old-style K&R definition
 // of the function.
@@ -25,6 +24,6 @@ _Ptr<int> f100(int a, int b);
 
 _Ptr<int> f100(a, b)
      int a;
-     int b;
-{
+     int b; {
+  return 0;
 }
