@@ -13,15 +13,10 @@
 
 class ConstraintVariable;
 
-// Maps a Decl to the first constraint variable for the variable defined by 
-// that Decl.
-//typedef std::map<clang::Decl*, uint32_t> VariableMap;
+// Maps a Decl to the set of constraint variables for that Decl.
 typedef std::map<PersistentSourceLoc, 
   std::set<ConstraintVariable*>> VariableMap;
-// Maps a constraint variable to the Decl that defines the variable the 
-// constraint variable refers to.
-//typedef std::map<uint32_t, clang::Decl*> ReverseVariableMap;
-//typedef std::map<clang::Decl*, uint32_t> DeclMap;
+
 // Maps a Decl to the DeclStmt that defines the Decl.
 typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
 

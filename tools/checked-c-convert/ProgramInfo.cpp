@@ -642,6 +642,10 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   // PVConstraints or FVConstraints declared at the same physical location
   // in the program to implicitly alias.
 
+  errs() << "!!!\n";
+  D->dump();
+  errs() << "\n";
+
   const Type *Ty = nullptr;
   if (VarDecl *VD = dyn_cast<VarDecl>(D))
     Ty = VD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
