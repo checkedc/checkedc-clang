@@ -85,15 +85,15 @@ TEST(BasicConstraintTest, solve) {
   EXPECT_TRUE(CS.solve().second);
   Constraints::EnvironmentMap env = CS.getVariables();
 
-  EXPECT_TRUE(*env[CS.getOrCreateVar(0)] == *CS.getWild());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(1)] == *CS.getWild());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(2)] == *CS.getArr());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(3)] == *CS.getArr());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(4)] == *CS.getWild());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(5)] == *CS.getWild());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(6)] == *CS.getPtr());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(7)] == *CS.getArr());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(8)] == *CS.getPtr());
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
+  EXPECT_TRUE(*env[CS.getVar(1)] == *CS.getWild());
+  EXPECT_TRUE(*env[CS.getVar(2)] == *CS.getArr());
+  EXPECT_TRUE(*env[CS.getVar(3)] == *CS.getArr());
+  EXPECT_TRUE(*env[CS.getVar(4)] == *CS.getWild());
+  EXPECT_TRUE(*env[CS.getVar(5)] == *CS.getWild());
+  EXPECT_TRUE(*env[CS.getVar(6)] == *CS.getPtr());
+  EXPECT_TRUE(*env[CS.getVar(7)] == *CS.getArr());
+  EXPECT_TRUE(*env[CS.getVar(8)] == *CS.getPtr());
 }
 
 TEST(BasicConstraintTest, equality) {
@@ -114,6 +114,24 @@ TEST(BasicConstraintTest, equality) {
   EXPECT_TRUE(CS.solve().second);
   Constraints::EnvironmentMap env = CS.getVariables();
 
-  EXPECT_TRUE(*env[CS.getOrCreateVar(0)] == *CS.getWild());
-  EXPECT_TRUE(*env[CS.getOrCreateVar(1)] == *CS.getWild());
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
+  EXPECT_TRUE(*env[CS.getVar(1)] == *CS.getWild());
+}
+
+TEST(Conflicts, test1) {
+  Constraints CS;
+
+  // q_0 = PTR
+  // q_0 != ARR
+  // q_0 != WILD
+  // q_1 = WILD
+  // q_0 = q_1
+
+  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getPtr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getArr()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(1), CS.getWild())));
+  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getOrCreateVar(1))));
+
+  EXPECT_FALSE(CS.solve().second);
 }
