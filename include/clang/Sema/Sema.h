@@ -4246,8 +4246,10 @@ public:
                                      SourceLocation RParenLoc);
   ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
 
-  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr,
-                       bool isReturnDecl=false);
+  bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
+                              BoundsExpr *Expr, bool IsReturnBounds);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
+
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();
 
