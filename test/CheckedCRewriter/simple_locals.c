@@ -2,7 +2,7 @@
 //
 // Checks very simple inference properties for local variables.
 //
-// RUN: checked-c-convert %s -- | FileCheck %s
+// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
 // RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 
@@ -11,7 +11,7 @@ void f1(void) {
     int *a = &b;
     *a = 1;
 }
-// CHECK: void f1() {
+// CHECK: void f1(void) {
 // CHECK-NEXT: int b = 0;
 // CHECK-NEXT: _Ptr<int> a = &b;
 
@@ -20,7 +20,7 @@ void f2(void) {
     char *a = &b;
     *a = 'b';
 }
-//CHECK: void f2() {
+//CHECK: void f2(void) {
 //CHECK-NEXT: char b = 'a';
 //CHECK-NEXT: _Ptr<char> a = &b;
 
@@ -72,14 +72,13 @@ void gg(void) {
 }
 //CHECK: void gg(void) {
 //CHECK-NEXT: int a = 0;
-
 //CHECK-NEXT: _Ptr<int> b = &a;
 //CHECK-NEXT: _Ptr<_Ptr<int>> c = &b;
 
 #define ONE 1
 
 int goo(int *, int);
-//CHECK: int goo(_Ptr<int>, int);
+//CHECK: int goo(int *, int);
 
 struct blah {
   int a;
@@ -140,7 +139,7 @@ void pullit(char *base, char *out, int *index) {
 
   return;
 }
-//CHECK: void pullit(char* base, _Ptr<char> out, _Ptr<int> index) {
+//CHECK: void pullit(char *base, _Ptr<char> out, _Ptr<int> index) {
 
 void driver() {
   char buf[10] = { 0 };
@@ -186,10 +185,10 @@ void dfnk(int a, int b) {
 
   adfsa(&j);
 }
-//CHECK: int dfnk(int a, int b) {
+//CHECK: void dfnk(int a, int b) {
 //CHECK-NEXT: A j;
-//CHECK-NEXT: _Ptr<struct _A> k = &j;
-//CHECK-NEXT: _Ptr<_Ptr<struct _A> > u = &k;
+//CHECK-NEXT: _Ptr<struct _A>  k = &j;
+//CHECK-NEXT: _Ptr<_Ptr<struct _A>>  u = &k;
 
 void adsfse(void) {
   int a = 0;

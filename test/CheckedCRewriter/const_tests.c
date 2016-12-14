@@ -2,7 +2,7 @@
 //
 // Checks properties of functions.
 //
-// RUN: checked-c-convert %s -- | FileCheck %s
+// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
 // RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 
