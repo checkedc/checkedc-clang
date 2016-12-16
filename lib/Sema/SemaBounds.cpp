@@ -78,3 +78,47 @@ BoundsExpr *Sema::AbstractForFunctionType(BoundsExpr *Expr) {
   }
 }
 
+namespace {
+  class ConcretizeBoundsExpr : public TreeTransform<ConcretizeBoundsExpr> {
+    typedef TreeTransform<ConcretizeBoundsExpr> BaseTransform;
+
+  private:
+    ArrayRef<ParmVarDecl *> Parameters;
+
+  public:
+    ConcretizeBoundsExpr(Sema &SemaRef, ArrayRef<ParmVarDecl *> Params) :
+      BaseTransform(SemaRef),
+      Parameters(Params) { }
+
+    ExprResult TransformPositionalParameterExpr(PositionalParameterExpr *E) {
+      unsigned index = E->getIndex();
+      if (index < Parameters.size()) {
+        ParmVarDecl *PD = Parameters[index];
+        return SemaRef.BuildDeclRefExpr(PD, E->getType(),
+          clang::ExprValueKind::VK_LValue, SourceLocation());
+      } else {
+        llvm_unreachable("out of range index for positional parameter");
+        return ExprResult();
+      }
+    }
+  };
+}
+
+BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
+                                              ArrayRef<ParmVarDecl *> Params) {
+  if (!Expr)
+    return Expr;
+
+  BoundsExpr *Result;
+  ExprResult ConcreteBounds = ConcretizeBoundsExpr(*this, Params).TransformExpr(Expr);
+  if (ConcreteBounds.isInvalid()) {
+    llvm_unreachable("unexpected failure in making bounds concrete");
+    Result = nullptr;
+  }
+  else {
+    Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
+    assert(Result && "unexpected dyn_cast failure");
+    return Result;
+  }
+}
+

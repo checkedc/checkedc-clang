@@ -2320,7 +2320,7 @@ public:
   void ResetObjCLayout(const ObjCContainerDecl *CD);
 
   //===--------------------------------------------------------------------===//
-  //                    Predicates For Checked C checked types
+  //           Predicates For Checked C checked types and bounds
   //===--------------------------------------------------------------------===//
 
   /// \brief Determine whether a pointer, array, or function type T1 provides
@@ -2351,6 +2351,7 @@ private:
   QualType matchArrayCheckedness(QualType LHS, QualType RHS);
 
 public:
+  bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
 
   //===--------------------------------------------------------------------===//
   //                    Integer Predicates

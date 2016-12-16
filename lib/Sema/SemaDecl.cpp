@@ -3247,7 +3247,7 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
   }
 
   // The type compatibility rules for the Checked C language extension between
-  // no prototype functions and functions with prototypes ere different from
+  // no prototype functions and functions with prototypes are different from
   // the rules in C. Try to diagnose these failures.
   if (getLangOpts().CheckedC &&
       DiagnoseCheckedCFunctionCompatibility(New, Old))
@@ -3355,16 +3355,6 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
              diag::err_no_prototype_function_redeclared_with_checked_arg)
           << (unsigned) classifyForCheckedTypeDiagnostic(ParamType);
     }
-    else if (Param->getBoundsExpr() &&
-             !ParamType->isUncheckedPointerType()) {
-      Err = true;
-      if (NewHasPrototype) {
-        const BoundsExpr *Expr = Param->getBoundsExpr();
-        SourceLocation Loc = Expr->isInvalid() ?
-          New->getLocation() : Expr->getStartLoc();
-        Diag(Loc, diag::err_no_prototype_function_redeclared_with_arg_bounds);
-      }
-    }
   }
   if (Err) {
     if (!NewHasPrototype)
@@ -3386,29 +3376,7 @@ bool Sema::CheckedCFunctionDeclCompatibility(FunctionDecl *New,
   QualType NewType = Context.getCanonicalType(New->getType());
   QualType OldType = Context.getCanonicalType(Old->getType());
 
-  if (!Context.typesAreCompatible(OldType, NewType))
-    return true;
-
-  // Check whether one function has a prototype that has a bounds declaration
-  // on an argument and the other one has no prototype.  These are
-  // incompatible.
-  // TODO: Github checkedc-clang issue #20.  When function types
-  // incorporate parameter bounds information, we can delete this code.
-  // It will be done as part of checking compatibility of function types.
-  bool OldHasPrototype = Old->hasPrototype();
-  bool NewHasPrototype = New->hasPrototype();
-  if (OldHasPrototype != NewHasPrototype) {
-    FunctionDecl *Prototype = NewHasPrototype ? New : Old;
-    unsigned int paramCount = Prototype->getNumParams();
-    for (unsigned int i = 0; i < paramCount; i++) {
-      const ParmVarDecl *Param = Prototype->getParamDecl(i);
-      if (!Param->getType()->isUncheckedPointerType() &&
-          Param->getBoundsExpr())
-        return true;
-    }
-  }
-
-  return false;
+  return !Context.typesAreCompatible(OldType, NewType);
 }
 
 /// \brief Checked C specific merging of function declarations.  Returns true
@@ -8281,11 +8249,26 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     // @endcode
 
     // Synthesize a parameter for each argument type.
-    for (const auto &AI : FT->param_types()) {
+    unsigned NumParams = FT->getNumParams();
+    for (unsigned int I = 0; I < NumParams; ++I) {
+      QualType AI = FT->getParamType(I);
       ParmVarDecl *Param =
           BuildParmVarDeclForTypedef(NewFD, D.getIdentifierLoc(), AI);
       Param->setScopeInfo(0, Params.size());
       Params.push_back(Param);
+    }
+
+    // Make the bounds for each parameter, if any, be
+    // concrete.
+    ArrayRef<ParmVarDecl *> ParamArray = Params;
+    if (FT->hasParamBounds()) {
+      for (unsigned int I = 0; I < NumParams; ++I) {
+        BoundsExpr *B = const_cast<BoundsExpr *>(FT->getParamBounds(I));
+        if (B) {
+          B = ConcretizeFromFunctionType(B, ParamArray);
+          Params[I]->setBoundsExpr(B);
+        }
+      }
     }
   } else {
     assert(R->isFunctionNoProtoType() && NewFD->getNumParams() == 0 &&
@@ -8316,8 +8299,11 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       if (DeclaredReturnBounds && TypeReturnBounds &&
           !TypeReturnBounds->isInvalid())
         NewFD->setBoundsExpr(DeclaredReturnBounds);
-      else
-        NewFD->setBoundsExpr(TypeReturnBounds);
+      else {
+        BoundsExpr *ReturnBounds = ConcretizeFromFunctionType(TypeReturnBounds,
+                                                              Params);
+        NewFD->setBoundsExpr(ReturnBounds);
+      }
     }
   }
 
