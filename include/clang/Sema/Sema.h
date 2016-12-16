@@ -4254,6 +4254,8 @@ public:
   BoundsExpr *CreateInvalidBoundsExpr();
 
   BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr);
+  BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
+                                         ArrayRef<ParmVarDecl *> Params);
 
   //===---------------------------- Clang Extensions ----------------------===//
 

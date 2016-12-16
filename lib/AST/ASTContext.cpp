@@ -7686,8 +7686,29 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (!doFunctionTypesMatchOnExtParameterInfos(rproto, lproto))
       return QualType();
 
+    const BoundsExpr *returnBounds = nullptr;
+    const BoundsExpr *lReturnBounds = lproto->ReturnBounds;
+    const BoundsExpr *rReturnBounds = rproto->ReturnBounds;
+    if (lReturnBounds && rReturnBounds) {
+      if (!EquivalentBounds(lReturnBounds, rReturnBounds))
+        return QualType();
+    } else if (lReturnBounds || rReturnBounds) {
+      if (retType->isCheckedPointerType())
+        return QualType();
+      if (lReturnBounds) {
+        returnBounds = lReturnBounds;
+        allRTypes = false;
+      }
+      if (rReturnBounds) {
+        returnBounds = rReturnBounds;
+        allLTypes = false;
+      }
+    }
+
     // Check parameter type compatibility
     SmallVector<QualType, 10> types;
+    SmallVector<const BoundsExpr *, 10> bounds;
+    bool hasParamBounds = lproto->hasParamBounds() || rproto->hasParamBounds();
     for (unsigned i = 0, n = lproto->getNumParams(); i < n; i++) {
       QualType lParamType = lproto->getParamType(i).getUnqualifiedType();
       QualType rParamType = rproto->getParamType(i).getUnqualifiedType();
@@ -7709,6 +7730,27 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         allLTypes = false;
       if (getCanonicalType(paramType) != getCanonicalType(rParamType))
         allRTypes = false;
+
+      if (hasParamBounds) {
+        const BoundsExpr *lBounds = lproto->getParamBounds(i);
+        const BoundsExpr *rBounds = rproto->getParamBounds(i);
+        if (lBounds && rBounds) {
+          if (!EquivalentBounds(lBounds, rBounds))
+            return QualType();
+          bounds.push_back(lBounds);
+        } else if (lBounds || rBounds) {
+          if (paramType->isCheckedPointerType())
+            return QualType();
+          if (lBounds) {
+            bounds.push_back(lBounds);
+            allRTypes = false;
+          }
+          if (rBounds) {
+            bounds.push_back(rBounds);
+            allLTypes = false;
+          }
+        }
+      }
     }
       
     if (allLTypes) return lhs;
@@ -7716,6 +7758,9 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
 
     FunctionProtoType::ExtProtoInfo EPI = lproto->getExtProtoInfo();
     EPI.ExtInfo = einfo;
+    if (hasParamBounds)
+      EPI.ParamBounds = bounds.data();
+    EPI.ReturnBounds = returnBounds;
     return getFunctionType(retType, types, EPI);
   }
 
@@ -8204,7 +8249,7 @@ QualType ASTContext::mergeObjCGCQualifiers(QualType LHS, QualType RHS) {
 }
 
 //===--------------------------------------------------------------------===//
-//                    Predicates For Checked C checked types
+//            Predicates For Checked C checked types and bounds
 //===--------------------------------------------------------------------===//
 
 static bool lessThan(bool Self, bool Other) {
@@ -8437,14 +8482,17 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
     QualType RetType = FT->getReturnType();
     if (isNotAllowedForNoPrototypeFunction(RetType))
       return true;
-    if (const FunctionProtoType *FPT = FT->getAs<FunctionProtoType>())
-      for (QualType Param : FPT->getParamTypes()) {
-        // TODO: Github checkedc-clang issue #20.  When function types
-        // incorporate parameter bounds information, check for
-        // parameter bounds.
-        if (isNotAllowedForNoPrototypeFunction(Param))
+    if (const FunctionProtoType *FPT = FT->getAs<FunctionProtoType>()) {
+      if (FPT->hasReturnBounds())
+        return true;
+      unsigned NumParams = FPT->getNumParams();
+      for (unsigned I=0; I< NumParams; ++I) {
+        if (isNotAllowedForNoPrototypeFunction(FPT->getParamType(I)))
+          return true;
+        if (FPT->getParamBounds(I))
           return true;
       }
+    }
   } else if (const RecordType *RT = QT->getAs<RecordType>()) {
      const RecordDecl *RD = RT->getDecl();
      if (const RecordDecl *Def = RD->getDefinition()) {
@@ -8459,6 +8507,14 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
     }
   }
   return false;
+}
+
+bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2) {
+  llvm::FoldingSetNodeID ID1;
+  llvm::FoldingSetNodeID ID2;
+  Expr1->Profile(ID1, *this, true);
+  Expr2->Profile(ID2, *this, true);
+  return ID1 == ID2;
 }
 
 //===----------------------------------------------------------------------===//
