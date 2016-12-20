@@ -10,7 +10,10 @@
 //  This file implements operations on bounds expressions for semantic analysis.
 //  The operations include:
 //  * Abstracting bounds expressions so that they can be used in function types.
-//    This removes extraneous details:
+//    This also checks that requirements on variable references are met and
+//    emit diagnostics if they are not.
+//
+//    The abstraction also removes extraneous details:
 //    - References to ParamVarDecl's are abstracted to positional index numbers
 //      in argument lists.
 //    - References to other VarDecls's are changed to use canonical
@@ -22,6 +25,9 @@
 //    information in determining if two expressions are the same.  Users of bounds
 //    expressions that have been abstracted need to be aware that line number
 //    information may be inaccurate.
+//  * Concretizing bounds expressions from function types.  This undoes the
+//    abstraction by substituting parameter varaibles for the positional index
+//    numbers.
 //===----------------------------------------------------------------------===//
 
 #include "TreeTransform.h"
@@ -32,9 +38,14 @@ using namespace sema;
 namespace {
   class AbstractBoundsExpr : public TreeTransform<AbstractBoundsExpr> {
     typedef TreeTransform<AbstractBoundsExpr> BaseTransform;
+    typedef ArrayRef<DeclaratorChunk::ParamInfo> ParamsInfo;
+
+  private:
+    const ParamsInfo Params;
 
   public:
-    AbstractBoundsExpr(Sema &SemaRef) : BaseTransform(SemaRef) { }
+    AbstractBoundsExpr(Sema &SemaRef, ParamsInfo Params) :
+      BaseTransform(SemaRef), Params(Params) {}
 
     Decl *TransformDecl(SourceLocation Loc, Decl *D) {
       return D->getCanonicalDecl();
@@ -42,10 +53,21 @@ namespace {
 
     ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
       ValueDecl *D = E->getDecl();
-      if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D))
-        return SemaRef.CreatePositionalParameterExpr(
-          PD->getFunctionScopeIndex(),
-          PD->getType());
+      if (VarDecl *V = dyn_cast<VarDecl>(D)) {
+        if (V->isLocalVarDecl())
+          SemaRef.Diag(E->getLocation(),
+                       diag::err_out_of_scope_function_type_local);
+        else if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
+          for (auto &ParamInfo : Params)
+            if (PD == ParamInfo.Param) {
+              return SemaRef.CreatePositionalParameterExpr(
+                PD->getFunctionScopeIndex(),
+                PD->getType());
+            }
+          SemaRef.Diag(E->getLocation(),
+                       diag::err_out_of_scope_function_type_parameter);
+        }
+      }
 
       ValueDecl *ND =
         dyn_cast_or_null<ValueDecl>(BaseTransform::TransformDecl(
@@ -55,18 +77,22 @@ namespace {
       else {
         clang::NestedNameSpecifierLoc QualifierLoc  = E->getQualifierLoc();
         clang::DeclarationNameInfo NameInfo = E->getNameInfo();
-        return getDerived().RebuildDeclRefExpr(QualifierLoc, ND, NameInfo, nullptr);
+        return getDerived().RebuildDeclRefExpr(QualifierLoc, ND, NameInfo,
+                                                nullptr);
       }
     }
   };
 }
 
-BoundsExpr *Sema::AbstractForFunctionType(BoundsExpr *Expr) {
+BoundsExpr *Sema::AbstractForFunctionType(
+  BoundsExpr *Expr,
+  ArrayRef<DeclaratorChunk::ParamInfo> Params) {
   if (!Expr)
     return Expr;
 
   BoundsExpr *Result;
-  ExprResult AbstractedBounds = AbstractBoundsExpr(*this).TransformExpr(Expr);
+  ExprResult AbstractedBounds =
+    AbstractBoundsExpr(*this, Params).TransformExpr(Expr);
   if (AbstractedBounds.isInvalid()) {
     llvm_unreachable("unexpected failure to abstract bounds");
     Result = nullptr;
