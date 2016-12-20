@@ -4253,7 +4253,8 @@ public:
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();
 
-  BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr);
+  BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr,
+                                      ArrayRef<DeclaratorChunk::ParamInfo> Params);
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
 

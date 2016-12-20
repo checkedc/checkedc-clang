@@ -37,3 +37,42 @@ void f101(void) {
   _Ptr<int> void c;       // expected-error {{cannot combine with previous '_Ptr' declaration specifier}}
   int _Ptr<int> d;        // expected-error {{cannot combine with previous 'int' declaration specifier}}
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// Typechecking of function types with bounds in clang only supports         //
+// function types with bounds expressions that refer to parameters declared  //
+// in the function declarator or global varibles.  Other forms of            //
+// dependently-typed function types are not supported.  They would require   //
+// significant changes to C typechecking                                     //
+//                                                                           //
+// There are checks that enforce these restriction  to avoid ill-defined     //
+// behavior on the part of the compiler.  Test the checks.                   //
+///////////////////////////////////////////////////////////////////////////////
+
+//
+// Test that bounds in function types can only reference
+// parameters in their parameter list or global variables
+//
+
+// Bounds for parameters reference a parameter in an enclosing parameter list.
+void f300(int i, _Array_ptr<int>(*fnptr)(_Array_ptr<int> arg : count(i)));  // expected-error {{out-of-scope variable for bounds}}
+void f301(int i, _Array_ptr<int>(*fnptr)(void) : count(i));                // expected-error {{out-of-scope variable for bounds}}
+void f302(int i, _Ptr<_Array_ptr<int>(void) : count(i)> fnptr);             // expected-error {{out-of-scope variable for bounds}}
+
+                                                                            // Bounds in function return type reference a parameter in the enclosing
+                                                                            // parameter list.  This function is similar to what we would like to have for
+                                                                            // bsearch and qsort.
+_Ptr<int(_Array_ptr<void> : byte_count(i), _Array_ptr<void> : byte_count(i))>  // expected-error 2 {{use of undeclared identifier}}
+f304(int i, _Ptr<int(_Array_ptr<void> : byte_count(i), _Array_ptr<void> : byte_count(i))> cmp); // expected-error  2 {{out-of-scope variable for bounds}}
+
+                                                                                               // Bounds in a function type reference parameters or locals.
+void f305(int i) {
+  int j = i;
+  _Ptr<_Array_ptr<int>(void) : count(i)> p = 0; // expected-error {{out-of-scope variable for bounds}}
+  _Ptr<_Array_ptr<int>(void) : count(j)> q = 0; // expected-error {{out-of-scope variable for bounds}}
+}
+
+// Global variable bounds are OK.
+int n;
+_Ptr<int(_Array_ptr<void> : byte_count(n), _Array_ptr<void> : byte_count(n))>
+fn306(_Ptr<int(_Array_ptr<void> : byte_count(n), _Array_ptr<void> : byte_count(n))> cmp);

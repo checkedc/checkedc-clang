@@ -4454,6 +4454,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         SmallVector<FunctionProtoType::ExtParameterInfo, 16>
           ExtParameterInfos(FTI.NumParams);
         bool HasAnyInterestingExtParameterInfos = false;
+        auto ParamInfo =
+          llvm::makeArrayRef<DeclaratorChunk::ParamInfo>(FTI.Params,
+                                                         FTI.NumParams);
 
         for (unsigned i = 0, e = FTI.NumParams; i != e; ++i) {
           ParmVarDecl *Param = cast<ParmVarDecl>(FTI.Params[i].Param);
@@ -4517,7 +4520,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           BoundsExpr *Bounds = Param->getBoundsExpr();
           if (Bounds) {
             HasAnyParameterBounds = true;
-            Bounds = S.AbstractForFunctionType(Bounds);
+            Bounds = S.AbstractForFunctionType(Bounds, ParamInfo);
           }
           ParamBounds.push_back(Bounds);
 
@@ -4540,7 +4543,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnBounds, true))
             ReturnBounds = S.CreateInvalidBoundsExpr();
           else
-            ReturnBounds = S.AbstractForFunctionType(ReturnBounds);
+            ReturnBounds = S.AbstractForFunctionType(ReturnBounds, ParamInfo);
         }
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are
