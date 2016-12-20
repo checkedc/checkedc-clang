@@ -8616,7 +8616,7 @@ def err_objc_type_arg_explicit_nullability : Error<
   "type argument %0 cannot explicitly specify nullability">;
 
 def err_objc_type_param_bound_explicit_nullability : Error<
-  "type parameter %0 bound %1 cannot explicitly specif nullability">;
+  "type parameter %0 bound %1 cannot explicitly specify nullability">;
 
 }
 
