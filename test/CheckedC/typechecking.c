@@ -10,6 +10,7 @@
 // hints emitted as part of clang diagnostics.
 //
 // RUN: %clang_cc1 -verify -fcheckedc-extension %s
+// expected-no-diagnostics
 
 // Prototype of a function followed by an old-style K&R definition
 // of the function.

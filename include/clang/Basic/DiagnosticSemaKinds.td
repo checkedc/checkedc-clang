@@ -8616,7 +8616,7 @@ def err_objc_type_arg_explicit_nullability : Error<
   "type argument %0 cannot explicitly specify nullability">;
 
 def err_objc_type_param_bound_explicit_nullability : Error<
-  "type parameter %0 bound %1 cannot explicitly specify nullability">;
+  "type parameter %0 bound %1 cannot explicitly specif nullability">;
 
 }
 
@@ -8841,6 +8841,28 @@ def err_bounds_type_annotation_lost_checking : Error<
    "cannot redeclare a function that has a checked argument or argument "
    "bounds to have no prototype">;
 
+ def note_previous_bounds_decl : Note<"previous bounds declaration is here">;
+ 
+ def err_conflicting_parameter_bounds : Error<
+   "function redeclaration has conflicting parameter bounds">;
+
+ def err_conflicting_return_bounds : Error<
+   "function redeclaration has conflicting return bounds">;
+
+  def err_added_bounds_for_return : Error<
+    "function redeclaration added return bounds">;
+
+  def err_missing_bounds_for_return : Error <
+    "function redeclaration dropped return bounds">;
+
+  def err_added_bounds_for_parameter : Error<
+    "function redeclaration added bounds for parameter">;
+
+  def err_missing_bounds_for_parameter : Error<
+    "function redeclaration dropped bounds for parameter">;
+
+  def err_conflicting_bounds : Error<"conflicting bounds for %0">;
+
   def err_out_of_scope_function_type_local : Error<
     "out-of-scope variable for bounds in a function type (a function type "
     "cannot reference local variables)">;
@@ -8848,5 +8870,4 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_out_of_scope_function_type_parameter : Error<
     "out-of-scope variable for bounds in a function type (a function type can "
     "only reference parameters from its own parameter list)">;
-
 } // end of sema component.

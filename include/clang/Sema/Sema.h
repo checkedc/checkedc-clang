@@ -2256,6 +2256,7 @@ public:
   // Checked C specific methods for merging function declarations.
   bool CheckedCFunctionDeclCompatibility(FunctionDecl *New, FunctionDecl *Old);
   bool CheckedCMergeFunctionDecls(FunctionDecl *New, FunctionDecl *Old);
+
   bool DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
                                              FunctionDecl *Old);
 

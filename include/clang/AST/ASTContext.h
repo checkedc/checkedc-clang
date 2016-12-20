@@ -2266,7 +2266,8 @@ public:
 
   /// Compatibility predicates used to check assignment expressions.
   bool typesAreCompatible(QualType T1, QualType T2, 
-                          bool CompareUnqualified = false); // C99 6.2.7p1
+                          bool CompareUnqualified = false, // C99 6.2.7p1
+                          bool IgnoreBounds = false);
 
   bool propertyTypesAreCompatible(QualType, QualType); 
   bool typesAreBlockPointerCompatible(QualType, QualType); 
@@ -2301,15 +2302,18 @@ public:
 
   // Functions for calculating composite types
   QualType mergeTypes(QualType, QualType, bool OfBlockPointer=false,
-                      bool Unqualified = false, bool BlockReturnType = false);
+                      bool Unqualified = false, bool BlockReturnType = false,
+                      bool IgnoreBounds = false);
   QualType mergeFunctionTypes(QualType, QualType, bool OfBlockPointer=false,
-                              bool Unqualified = false);
+                              bool Unqualified = false, bool IgnoreBounds = false);
   QualType mergeFunctionParameterTypes(QualType, QualType,
                                        bool OfBlockPointer = false,
-                                       bool Unqualified = false);
+                                       bool Unqualified = false,
+                                       bool IgnoreBounds = false);
   QualType mergeTransparentUnionType(QualType, QualType,
                                      bool OfBlockPointer=false,
-                                     bool Unqualified = false);
+                                     bool Unqualified = false,
+                                     bool IgnoreBounds = false);
   
   QualType mergeObjCGCQualifiers(QualType, QualType);
     
