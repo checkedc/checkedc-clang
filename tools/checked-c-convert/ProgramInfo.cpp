@@ -35,13 +35,11 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	QualType QTy = QT;
 	const Type *Ty = QTy.getTypePtr();
 	bool isTypedef = false;
+
 	if (Ty->getAs<TypedefType>())
 		isTypedef = true;
 
 	while (Ty->isPointerType()) {
-		if (tyToStr(Ty) == "struct __va_list_tag *")
-			break;
-
 		// Allocate a new constraint variable for this level of pointer.
 		vars.insert(K);
 		CS.getOrCreateVar(K);
@@ -50,6 +48,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 		//       indexes K to the qualification of QTy, if any.
 
 		K++;
+
+		if (tyToStr(Ty) == "va_list")
+			break;
 
 		// Iterate.
 		QTy = QTy.getSingleStepDesugaredType(C);
@@ -78,7 +79,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	}
 
 	// Special case for void to not make _Ptr<void> pointers.
-	if (Ty->isVoidType() || BaseType == "struct __va_list_tag *")
+	if (Ty->isVoidType() || BaseType == "va_list")
 		for (const auto &V : vars)
 			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 
@@ -654,10 +655,6 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   // Variables[PLoc] does not contain one already. This allows either 
   // PVConstraints or FVConstraints declared at the same physical location
   // in the program to implicitly alias.
-
-  errs() << "!!!\n";
-  D->dump();
-  errs() << "\n";
 
   const Type *Ty = nullptr;
   if (VarDecl *VD = dyn_cast<VarDecl>(D))
