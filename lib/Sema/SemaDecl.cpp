@@ -3246,12 +3246,11 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
     PrevDiag = diag::note_previous_builtin_declaration;
   }
 
-  // The type compatibility rules for the Checked C language extension between
-  // no prototype functions and functions with prototypes are different from
-  // the rules in C. Try to diagnose these failures.
-  if (getLangOpts().CheckedC &&
-      DiagnoseCheckedCFunctionCompatibility(New, Old))
-    return true;
+  // The type compatibility rules for the Checked C language extension
+  // are different from the rules in C. Try to diagnose failures that
+  // specific to Checked C.
+  if (getLangOpts().CheckedC && DiagnoseCheckedCFunctionCompatibility(New, Old))
+      return true;
 
   Diag(New->getLocation(), diag::err_conflicting_types) << New->getDeclName();
   Diag(OldLocation, PrevDiag) << Old << Old->getType();
@@ -3328,51 +3327,245 @@ void Sema::mergeObjCMethodDecls(ObjCMethodDecl *newMethod,
   CheckObjCMethodOverride(newMethod, oldMethod);
 }
 
+static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
+                                      const DeclaratorDecl *Old,
+                                      const DeclaratorDecl *New,
+                                      bool IsUncheckedPointerType,
+                                      bool IsReturn) {
+  // Emit the diagnostic, pointing at the current bounds expression
+  // if possible.  Use the new declaration if there is no bounds
+  // expression.
+  SourceLocation Loc;
+  if (New->hasBoundsExpr())
+    Loc = New->getBoundsExpr()->getStartLoc();
+  else
+    Loc = New->getLocation();
+  S.Diag(Loc, DiagId);
+
+  // Emit a note pointing to the prior declaration.  Try to point
+  // at the relevant bounds expression if possible so that the user has the
+  // right context for understanding the error.  If there isn't one, fall
+  // back to the declaration.
+
+  // First determine the prior relevant bounds expression, if there is one.
+  const BoundsExpr *PrevBoundsExpr = Old->getBoundsExpr();
+  // The bounds expression for an unchecked pointer type may have
+  // been inherited from an earlier declaration than Old that
+  // was compatible with Old.  If there's no bounds expression on Old,
+  // search for a possible earlier definition.
+  if (!PrevBoundsExpr && IsUncheckedPointerType) {
+    if (IsReturn) {
+      const FunctionDecl *Previous = dyn_cast<FunctionDecl>(Old);
+      assert(Previous);
+      do {
+        PrevBoundsExpr = Previous->getBoundsExpr();
+        Previous = Previous->getPreviousDecl();
+      } while (!PrevBoundsExpr && Previous);
+    }
+    else if (isa<ParmVarDecl>(Old)) {
+      // For parameters, this is a little more work because
+      // we can't just walk to the "prior" declaration.  We
+      // must navigate through function declarations instead.
+      const ParmVarDecl *Previous = dyn_cast<ParmVarDecl>(Old);
+      unsigned paramNumber = Previous->getFunctionScopeIndex();
+      do {
+        PrevBoundsExpr = Previous->getBoundsExpr();
+        // Move up to the function declaration, find the previous
+        // function declaration, and get the parameter declaration
+        // from that.
+        const FunctionDecl *Parent = dyn_cast<FunctionDecl>(Previous->getDeclContext());
+        assert(Parent);
+        const FunctionDecl *PreviousFuncDecl = Parent->getPreviousDecl();
+        if (PreviousFuncDecl && paramNumber < PreviousFuncDecl->getNumParams())
+           Previous = PreviousFuncDecl->getParamDecl(paramNumber);
+        else
+           Previous = nullptr;
+      } while (!PrevBoundsExpr && Previous);
+    }
+  }
+
+  if (PrevBoundsExpr) {
+      int NoteId = diag::note_previous_bounds_decl;
+      S.Diag(PrevBoundsExpr->getStartLoc(), NoteId);
+  } else if  (IsReturn) {
+    const FunctionDecl *OldDecl = dyn_cast<FunctionDecl>(Old);
+    const FunctionDecl *NewDecl = dyn_cast<FunctionDecl>(New);
+    int PrevDiag;
+    SourceLocation OldLocation;
+    std::tie(PrevDiag, OldLocation)
+      = getNoteDiagForInvalidRedeclaration(OldDecl, NewDecl);
+    S.Diag(OldLocation, PrevDiag);
+  } else {
+      int NoteId = diag::note_previous_decl;
+      S.Diag(Old->getLocation(), NoteId) << Old;
+  }
+}
+
+// Shared logic for diagnosing bounds declaration conflicts for parameters and
+// returns.   The logic is the same, but the error messages are different.
+//
+// * OldBounds and NewBounds are bounds expression from a function type.
+// It is important to use these for bounds comparisons because they've been
+// canonicalized, while the bounds on the actual declarations have not.
+// * OldDecl and NewDecl provide the declarations for use in error messages.
+// Usually these have source-level declarations of bounds with accurate line
+// number information.  They may be synthesized for typedef'ed function
+// declarations.
+// * OldType and NewType are the types of the items whoses bounds declarations
+// are being checked.  We pass them in because it is easier to compute the
+// return bounds at the caller than to to compute them here.
+// * IsReturn is whether this a return bounds.
+//
+// Return true if an error involving bounds has been diagnosed, false if not.
+static bool diagnoseBoundsError(Sema &S,
+                                const BoundsExpr *OldBounds,
+                                const BoundsExpr *NewBounds,
+                                const DeclaratorDecl *OldDecl,
+                                const DeclaratorDecl *NewDecl,
+                                QualType OldType,
+                                QualType NewType,
+                                bool IsReturn) {
+  int DiagId = 0;
+  bool IsUncheckedPointerType = OldType->isUncheckedPointerType() &&
+    NewType->isUncheckedPointerType();
+  if (OldBounds && NewBounds) {
+    if (OldBounds->isInvalid() || NewBounds->isInvalid())
+      // There must have been an earlier error involving
+      // bounds already diagnosed.
+      return true;
+
+    if (!S.Context.EquivalentBounds(OldBounds, NewBounds))
+      // Use the bounds from the declarations for error messages.
+      DiagId = IsReturn ? diag::err_conflicting_return_bounds :
+                          diag::err_conflicting_parameter_bounds;
+  } else if (OldBounds || NewBounds) {
+    if (!IsUncheckedPointerType) {
+      if (IsReturn)
+        DiagId = NewBounds ? diag::err_added_bounds_for_return :
+                             diag::err_missing_bounds_for_return;
+      else
+        DiagId = NewBounds ? diag::err_added_bounds_for_parameter :
+                             diag::err_missing_bounds_for_parameter;
+
+    }
+  }
+  if (DiagId) {
+    emitBoundsErrorDiagnostic(S, DiagId, OldDecl, NewDecl,
+                              IsUncheckedPointerType, IsReturn);
+    return true;
+  }
+  // TODO: handle parameter or return types have bounds mismatches embedded
+  // within them.
+  return false;
+}
+
 /// \brief Diagnose Checked C-specific compatibility issues for function decls.
-/// Handle cases where one declaration has no prototype and the other
-/// one has a prototype that uses a checked type or has a bounds interface
-/// (Checked C compatibility rules are described in Section 5.5 of the Checked C
-/// language extension specification).  Returns true if it was able to diagnose
-/// a problem, false otherwise.
+/// Handle cases where (1) there are mismatched bounds declarations for
+/// parameters or return types or (2) cases where one declaration has no
+/// prototype and the other one has a prototype that uses a checked type or has
+/// a bounds interface (Checked C compatibility rules are described in
+/// Section 5.5 of the Checked C language extension specification).
+////
+/// Returns true if it diagnosed a Checked C bounds-only problem or a
+/// problem involving the Checked C extensions to type compatibility.
 bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
                                                  FunctionDecl *Old) {
   bool OldHasPrototype = Old->hasPrototype();
   bool NewHasPrototype = New->hasPrototype();
-  if (OldHasPrototype == NewHasPrototype)
-    return false;
 
-  FunctionDecl *Prototype = NewHasPrototype ? New : Old;
+  if (OldHasPrototype == NewHasPrototype) {
+    bool Err = false;
+    if (!OldHasPrototype)
+      // Both don't have prototypes.
+      return false;
 
-  bool Err = false;
-  unsigned int paramCount = Prototype->getNumParams();
-  for (unsigned int i = 0; i < paramCount; i++) {
-    const ParmVarDecl *Param = Prototype->getParamDecl(i);
-    QualType ParamType = Param->getType();
-    if (Context.isNotAllowedForNoPrototypeFunction(ParamType)) {
-      Err = true;
-      if (NewHasPrototype)
-        Diag(Param->getLocation(),
-             diag::err_no_prototype_function_redeclared_with_checked_arg)
-          << (unsigned) classifyForCheckedTypeDiagnostic(ParamType);
+    const FunctionProtoType *OldType =
+      Old->getFunctionType()->getAs<FunctionProtoType>();
+    const FunctionProtoType *NewType =
+      New->getFunctionType()->getAs<FunctionProtoType>();
+    assert(OldType && NewType);
+
+    // Scan through parameters and look for mismatches
+    // in bounds.
+    unsigned OldParamCount = OldType->getNumParams();
+    unsigned NewParamCount = NewType->getNumParams();
+    // Limit the scan to parameters that are in common.
+    unsigned ParamCount =
+      OldParamCount < NewParamCount ? OldParamCount : NewParamCount;
+    for (unsigned i = 0; i < ParamCount; i++) {
+      const BoundsExpr *OldTypeBounds = OldType->getParamBounds(i);
+      const BoundsExpr *NewTypeBounds = NewType->getParamBounds(i);
+      const DeclaratorDecl *OldDecl = Old->getParamDecl(i);
+      const DeclaratorDecl *NewDecl = New->getParamDecl(i);
+      // Use the bounds from the types; they've been canonicalized,
+      // while the bounds in the declarations have not been.
+      if (diagnoseBoundsError(*this, OldTypeBounds, NewTypeBounds,
+                              OldDecl, NewDecl,
+                              OldType->getParamType(i),
+                              NewType->getParamType(i),
+                              /*IsReturn=*/false))
+        Err = true;
     }
-  }
-  if (Err) {
-    if (!NewHasPrototype)
-      Diag(New->getLocation(), diag::err_checkedc_incompatible_no_prototype_redeclaration);
+    if (diagnoseBoundsError(*this, OldType->getReturnBounds(),
+                            NewType->getReturnBounds(), Old, New,
+                            OldType->getReturnType(),
+                            NewType->getReturnType(),
+                            /*IsReturn=*/true))
+      Err = true;
+
+    // See if the types are compatible if bounds are ignored.
+    bool BoundsOnlyError =
+      Context.typesAreCompatible(Old->getType(), New->getType(),
+                                 /*CompareUnqualified=*/false,
+                                 /*IgnoreBounds=*/true);
+    // If they are, make sure an error message has been emitted.
+    if (BoundsOnlyError && !Err) {
+          Diag(New->getLocation(), diag::err_conflicting_bounds) <<
+            New->getDeclName();
+          int PrevDiag;
+          SourceLocation OldLocation;
+          std::tie(PrevDiag, OldLocation)
+            = getNoteDiagForInvalidRedeclaration(Old, New);
+          Diag(OldLocation, PrevDiag);
+    }
+    return BoundsOnlyError;
+  } else {
+    // One declaration has a prototype and the other doesn't.
+    // Look for checked parameters that are not allowed when mixing prototype
+    // and no-prototype declarations of a function.  We don't have to check
+    // restriction on return types and return bounds here. They are checked
+    // earlier.
+    FunctionDecl *Prototype = NewHasPrototype ? New : Old;
+    bool Err = false;
+    unsigned int paramCount = Prototype->getNumParams();
+    for (unsigned int i = 0; i < paramCount; i++) {
+      const ParmVarDecl *Param = Prototype->getParamDecl(i);
+      QualType ParamType = Param->getType();
+      if (Context.isNotAllowedForNoPrototypeFunction(ParamType)) {
+        Err = true;
+        if (NewHasPrototype)
+          Diag(Param->getLocation(),
+               diag::err_no_prototype_function_redeclared_with_checked_arg)
+            << (unsigned) classifyForCheckedTypeDiagnostic(ParamType);
+      }
+    }
+    if (Err && !NewHasPrototype)
+      Diag(New->getLocation(),
+           diag::err_checkedc_incompatible_no_prototype_redeclaration);
+    // Print note about prior declaration
     diag::kind PrevDiag;
     SourceLocation OldLocation;
     std::tie(PrevDiag, OldLocation)
       = getNoteDiagForInvalidRedeclaration(Old, New);
     Diag(OldLocation, PrevDiag);
+    return Err;
   }
-
-  return Err;
 }
 
 /// \brief Test if two function declarations have compatible types and bounds.
-/// Returns true if they are not and false if they are.
-bool Sema::CheckedCFunctionDeclCompatibility(FunctionDecl *New,
-                                             FunctionDecl *Old) {
+/// Returns true if they are not and false if they are
+bool Sema::CheckedCFunctionDeclCompatibility(FunctionDecl *Old,
+                                             FunctionDecl *New) {
   QualType NewType = Context.getCanonicalType(New->getType());
   QualType OldType = Context.getCanonicalType(Old->getType());
 
@@ -3391,15 +3584,17 @@ bool Sema::CheckedCMergeFunctionDecls(FunctionDecl *New, FunctionDecl *Old) {
   // and then been turned into a prototype function that was not flagged
   // as incompatible because it uses an incomplete structure or union type.
   // Later the structure or union type could be completed to use a checked type.
-  // The approach of merging all prior function declarations breaks down in this case,
-  // so we need to look at all prior declarations of the function.
+  // The approach of merging all prior function declarations breaks down in this
+  // case, so we need to look at all prior no-prototype declarations of the
+  // function.
+  if (!New->hasPrototype())
+    return false;
   for (FunctionDecl *Previous = Old; Previous != nullptr;
-        Previous = Previous->getPreviousDecl()) {
-    if (CheckedCFunctionDeclCompatibility(New, Previous)) {
-      DiagnoseCheckedCFunctionCompatibility(New, Previous);
-      return true;
-    }
-  }
+        Previous = Previous->getPreviousDecl())
+    if (!Previous->hasPrototype() &&
+        CheckedCFunctionDeclCompatibility(New, Previous))
+      if (DiagnoseCheckedCFunctionCompatibility(New, Previous))
+        return true;
 
   return false;
 }
