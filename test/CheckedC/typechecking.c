@@ -31,6 +31,7 @@ _Ptr<int> f100(a, b)
 // Test error checking for invalid combinations of declaration specifiers.   //
 // Incorrect code similar to this caused a crash in clang                    //
 ///////////////////////////////////////////////////////////////////////////////
+
 void f101(void) {
   _Array_ptr<int> void a; // expected-error {{cannot combine with previous '_ArrayPtr' declaration specifier}}
   int _Array_ptr<int> b;  // expected-error {{cannot combine with previous 'int' declaration specifier}}
