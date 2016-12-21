@@ -144,24 +144,11 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
               // TODO these declarations could get us into deeper header files.
               ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
               assert(Rewrite != NULL);
-              SourceRange TR;
-              if (TypeSourceInfo *TSI = Rewrite->getTypeSourceInfo()) {
-                TR = TSI->getTypeLoc().getSourceRange();
+              SourceRange TR = Rewrite->getSourceRange();
+              std::string sRewrite = N.second + " " + Rewrite->getNameAsString();
 
-                // Get a FullSourceLoc for the start location and add it to the
-                // list of file ID's we've touched.
-                FullSourceLoc FSL(TR.getBegin(), S);
-                Files.insert(FSL.getFileID());
-                if (canRewrite(R, TR))
-                  R.ReplaceText(TR, N.second);
-              }
-              else {
-                if (Verbose) {
-                  errs() << "Skipping rewrite for ";
-                  Rewrite->dump();
-                  errs() << " due to missing type source info\n";
-                }
-              }
+              if (canRewrite(R, TR))
+                R.ReplaceText(TR, sRewrite);
             }
           }
         } else
