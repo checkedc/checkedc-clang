@@ -6,17 +6,6 @@
 // RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 
-// Have something so that we always get some output.
-void a0(void) {
-  int q = 0;
-  int *k = &q;
-  *k = 0;
-}
-//CHECK: int q = 0;
-//CHECK-NEXT: _Ptr<int> k = &q;
-//CHECK-NEXT: *k = 0;
-//CHECK-NEXT: }
-
 void cst1(const int *a) {
   int b = *a;
 }
@@ -32,3 +21,13 @@ void cst3(const int *a, int i) {
 }
 //CHECK: void cst3(const int *a, int i) {
 //CHECK-NEXT: int c = *(a+i);
+
+void cst4(const int *b) {
+  int c = *b;
+  const int *d = b;
+  int e = *d;
+}
+//CHECK: void cst4(_Ptr<const int>  b) {
+//CHECK-NEXT: int c = *b;
+//CHECK-NEXT: _Ptr<const int>  d;
+//CHECK-NEXT: int e = *d;
