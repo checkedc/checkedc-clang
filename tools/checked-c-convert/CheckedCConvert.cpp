@@ -162,7 +162,8 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
           errs() << "VarDecl at:\n";
           Where->dump();
         }
-        SourceRange TR = VD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+        SourceRange TR = VD->getSourceRange();
+        std::string sRewrite = N.second + " " + VD->getNameAsString();
 
         // Is it a variable type? This is the easy case, we can re-write it
         // locally, at the site of the declaration.
@@ -173,7 +174,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         Files.insert(FSL.getFileID());
         if (Where->isSingleDecl()) {
           if (canRewrite(R, TR)) {
-            R.ReplaceText(TR, N.second);
+            R.ReplaceText(TR, sRewrite);
           } else {
             // This can happen if SR is within a macro. If that is the case, 
             // maybe there is still something we can do because Decl refers 
