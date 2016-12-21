@@ -84,9 +84,14 @@ class FunctionVariableConstraint;
 // This could contain a reference to a FunctionVariableConstraint
 // in the case of a function pointer declaration.
 class PointerVariableConstraint : public ConstraintVariable {
+public:
+	enum Qualification {
+		ConstQualification
+  };
 private:
   CVars vars;
   FunctionVariableConstraint *FV;
+  std::map<uint32_t, Qualification> QualMap;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T) : 
