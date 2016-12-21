@@ -2249,6 +2249,7 @@ public:
                                     Scope *S, bool MergeTypeWithOld);
   void mergeObjCMethodDecls(ObjCMethodDecl *New, ObjCMethodDecl *Old);
   void MergeVarDecl(VarDecl *New, LookupResult &Previous);
+  void MergeVarDeclBounds(VarDecl *New, VarDecl *Old);
   void MergeVarDeclTypes(VarDecl *New, VarDecl *Old, bool MergeTypeWithOld);
   void MergeVarDeclExceptionSpecs(VarDecl *New, VarDecl *Old);
   bool MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old, Scope *S);
@@ -2265,6 +2266,14 @@ public:
     CCT_Any,
     CCT_Struct,
     CCT_Union
+  };
+
+  // used for %select in diagnostics for errors involving redeclarations
+  // with bounds
+  enum class CheckedCBoundsError {
+    CCBE_Parameter,
+    CCBE_Return,
+    CCBE_Variable
   };
 
   CheckedTypeClassification classifyForCheckedTypeDiagnostic(QualType qt);

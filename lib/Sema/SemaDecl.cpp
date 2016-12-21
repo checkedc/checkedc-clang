@@ -3331,7 +3331,7 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
                                       const DeclaratorDecl *Old,
                                       const DeclaratorDecl *New,
                                       bool IsUncheckedPointerType,
-                                      bool IsReturn) {
+                                      Sema::CheckedCBoundsError Kind) {
   // Emit the diagnostic, pointing at the current bounds expression
   // if possible.  Use the new declaration if there is no bounds
   // expression.
@@ -3340,7 +3340,7 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
     Loc = New->getBoundsExpr()->getStartLoc();
   else
     Loc = New->getLocation();
-  S.Diag(Loc, DiagId);
+  S.Diag(Loc, DiagId) << (unsigned) Kind;
 
   // Emit a note pointing to the prior declaration.  Try to point
   // at the relevant bounds expression if possible so that the user has the
@@ -3354,19 +3354,16 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
   // was compatible with Old.  If there's no bounds expression on Old,
   // search for a possible earlier definition.
   if (!PrevBoundsExpr && IsUncheckedPointerType) {
-    if (IsReturn) {
-      const FunctionDecl *Previous = dyn_cast<FunctionDecl>(Old);
-      assert(Previous);
+    if (const FunctionDecl *Previous = dyn_cast<FunctionDecl>(Old)) {
       do {
         PrevBoundsExpr = Previous->getBoundsExpr();
         Previous = Previous->getPreviousDecl();
       } while (!PrevBoundsExpr && Previous);
     }
-    else if (isa<ParmVarDecl>(Old)) {
+    else if (const ParmVarDecl *Previous = dyn_cast<ParmVarDecl>(Old)) {
       // For parameters, this is a little more work because
       // we can't just walk to the "prior" declaration.  We
       // must navigate through function declarations instead.
-      const ParmVarDecl *Previous = dyn_cast<ParmVarDecl>(Old);
       unsigned paramNumber = Previous->getFunctionScopeIndex();
       do {
         PrevBoundsExpr = Previous->getBoundsExpr();
@@ -3381,40 +3378,49 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
         else
            Previous = nullptr;
       } while (!PrevBoundsExpr && Previous);
-    }
+    } else if (const VarDecl *Previous = dyn_cast<VarDecl>(Old)) {
+      do {
+        PrevBoundsExpr = Previous->getBoundsExpr();
+        Previous = Previous->getPreviousDecl();
+      } while (!PrevBoundsExpr && Previous);
+    } else
+      llvm_unreachable("unexpected declaration kind");
   }
 
   if (PrevBoundsExpr) {
       int NoteId = diag::note_previous_bounds_decl;
       S.Diag(PrevBoundsExpr->getStartLoc(), NoteId);
-  } else if  (IsReturn) {
-    const FunctionDecl *OldDecl = dyn_cast<FunctionDecl>(Old);
+  } else if  (const FunctionDecl *OldDecl = dyn_cast<FunctionDecl>(Old)) {
     const FunctionDecl *NewDecl = dyn_cast<FunctionDecl>(New);
-    int PrevDiag;
-    SourceLocation OldLocation;
-    std::tie(PrevDiag, OldLocation)
-      = getNoteDiagForInvalidRedeclaration(OldDecl, NewDecl);
-    S.Diag(OldLocation, PrevDiag);
+    if (NewDecl) {
+      int PrevDiag;
+      SourceLocation OldLocation;
+      std::tie(PrevDiag, OldLocation)
+        = getNoteDiagForInvalidRedeclaration(OldDecl, NewDecl);
+      S.Diag(OldLocation, PrevDiag);
+    } else
+      llvm_unreachable("mismatched declarations");
   } else {
       int NoteId = diag::note_previous_decl;
       S.Diag(Old->getLocation(), NoteId) << Old;
   }
 }
 
-// Shared logic for diagnosing bounds declaration conflicts for parameters and
-// returns.   The logic is the same, but the error messages are different.
+// Shared logic for diagnosing bounds declaration conflicts for parameters,
+// returns, and variables
 //
-// * OldBounds and NewBounds are bounds expression from a function type.
-// It is important to use these for bounds comparisons because they've been
-// canonicalized, while the bounds on the actual declarations have not.
+// * OldBounds and NewBounds are canoncialized bounds expressions.  For
+// parameters and returns, they are bounds expression from a function type.
+// It is important to use canonicalized bound expressions these for bounds
+// comparisons.
 // * OldDecl and NewDecl provide the declarations for use in error messages.
 // Usually these have source-level declarations of bounds with accurate line
 // number information.  They may be synthesized for typedef'ed function
 // declarations.
 // * OldType and NewType are the types of the items whoses bounds declarations
-// are being checked.  We pass them in because it is easier to compute the
-// return bounds at the caller than to to compute them here.
-// * IsReturn is whether this a return bounds.
+// are being checked.  We pass them in because it is easier to compute them at
+// the caller than than to compute them here.
+// * Kind is what is being checked.
 //
 // Return true if an error involving bounds has been diagnosed, false if not.
 static bool diagnoseBoundsError(Sema &S,
@@ -3424,7 +3430,7 @@ static bool diagnoseBoundsError(Sema &S,
                                 const DeclaratorDecl *NewDecl,
                                 QualType OldType,
                                 QualType NewType,
-                                bool IsReturn) {
+                                Sema::CheckedCBoundsError Kind) {
   int DiagId = 0;
   bool IsUncheckedPointerType = OldType->isUncheckedPointerType() &&
     NewType->isUncheckedPointerType();
@@ -3435,27 +3441,20 @@ static bool diagnoseBoundsError(Sema &S,
       return true;
 
     if (!S.Context.EquivalentBounds(OldBounds, NewBounds))
-      // Use the bounds from the declarations for error messages.
-      DiagId = IsReturn ? diag::err_conflicting_return_bounds :
-                          diag::err_conflicting_parameter_bounds;
+       DiagId = diag::err_decl_conflicting_bounds;
   } else if (OldBounds || NewBounds) {
-    if (!IsUncheckedPointerType) {
-      if (IsReturn)
-        DiagId = NewBounds ? diag::err_added_bounds_for_return :
-                             diag::err_missing_bounds_for_return;
-      else
-        DiagId = NewBounds ? diag::err_added_bounds_for_parameter :
-                             diag::err_missing_bounds_for_parameter;
-
-    }
+    if (!IsUncheckedPointerType)
+      DiagId = NewBounds ? diag::err_decl_added_bounds :
+                           diag::err_decl_dropped_bounds;
   }
   if (DiagId) {
     emitBoundsErrorDiagnostic(S, DiagId, OldDecl, NewDecl,
-                              IsUncheckedPointerType, IsReturn);
+                              IsUncheckedPointerType, Kind);
     return true;
   }
-  // TODO: handle parameter or return types have bounds mismatches embedded
-  // within them.
+  // TODO: produce better error messages when types for parameters, returns,
+  // or variables have bounds mismatches embedded within them. The current
+  // diagnostic will be "type mismatch"
   return false;
 }
 
@@ -3503,14 +3502,14 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
                               OldDecl, NewDecl,
                               OldType->getParamType(i),
                               NewType->getParamType(i),
-                              /*IsReturn=*/false))
+                              CheckedCBoundsError::CCBE_Parameter))
         Err = true;
     }
     if (diagnoseBoundsError(*this, OldType->getReturnBounds(),
                             NewType->getReturnBounds(), Old, New,
                             OldType->getReturnType(),
                             NewType->getReturnType(),
-                            /*IsReturn=*/true))
+                            CheckedCBoundsError::CCBE_Return))
       Err = true;
 
     // See if the types are compatible if bounds are ignored.
@@ -3738,6 +3737,17 @@ static bool mergeTypeWithPrevious(Sema &S, VarDecl *NewVD, VarDecl *OldVD,
   }
 }
 
+void Sema::MergeVarDeclBounds(VarDecl *New, VarDecl *Old) {
+  BoundsExpr *OldBounds = Old->getBoundsExpr();
+  BoundsExpr *NewBounds = New->getBoundsExpr();
+  if (diagnoseBoundsError(*this, OldBounds, NewBounds,
+                          Old, New, Old->getType(), New->getType(),
+                          CheckedCBoundsError::CCBE_Variable))
+    ActOnInvalidBoundsDecl(New);
+  else if (OldBounds && !NewBounds)
+    ActOnBoundsDecl(New, OldBounds);
+}
+
 /// MergeVarDecl - We just parsed a variable 'New' which has the same name
 /// and scope as a previous declaration 'Old'.  Figure out how to resolve this
 /// situation, merging decls or emitting diagnostics as appropriate.
@@ -3830,11 +3840,13 @@ void Sema::MergeVarDecl(VarDecl *New, LookupResult &Previous) {
                       mergeTypeWithPrevious(*this, New, MostRecent, Previous));
     if (New->isInvalidDecl())
       return;
+    MergeVarDeclBounds(New, MostRecent);
   }
 
   MergeVarDeclTypes(New, Old, mergeTypeWithPrevious(*this, New, Old, Previous));
   if (New->isInvalidDecl())
     return;
+  MergeVarDeclBounds(New, Old);
 
   diag::kind PrevDiag;
   SourceLocation OldLocation;
