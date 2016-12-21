@@ -46,6 +46,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 
 		// TODO: Save here if QTy is qualified or not into a map that 
 		//       indexes K to the qualification of QTy, if any.
+		if (QTy.isConstQualified()) 
+			QualMap.insert(
+				std::pair<uint32_t, Qualification>(K, ConstQualification));
 
 		K++;
 
@@ -82,7 +85,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	if (Ty->isVoidType() || BaseType == "va_list")
 		for (const auto &V : vars)
 			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
-
 }
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
@@ -113,8 +115,14 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     ConstAtom *C = E[&VA];
     assert(C != nullptr);
 
+    std::map<uint32_t, Qualification>::iterator q;
     switch (C->getKind()) {
     case Atom::A_Ptr:
+      q = QualMap.find(V);
+      if (q != QualMap.end())
+        if (q->second == ConstQualification)
+          s = s + "const ";
+
       emittedBase = false;
       s = s + "_Ptr<";
 
@@ -122,6 +130,11 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
       break;
     case Atom::A_Arr:
     case Atom::A_Wild:
+      q = QualMap.find(V);
+      if (q != QualMap.end())
+        if (q->second == ConstQualification)
+          s = s + "const ";
+
       if (emittedBase) {
         s = s + "*";
       } else {
