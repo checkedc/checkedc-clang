@@ -14,19 +14,18 @@ void a0(void) {
 }
 //CHECK: int q = 0;
 //CHECK-NEXT: _Ptr<int> k = &q;
-
-extern void use1(int);
-extern void use2(const int);
+//CHECK-NEXT: *k = 0;
+//CHECK-NEXT: }
 
 void cst1(const int *a) {
   int b = *a;
 }
-//CHECK: void cst1(_Ptr<const int> a)
+//CHECK: void cst1(_Ptr<const int>  a) {
 
 void cst2(int * const a) {
   *a = 0;
 }
-//CHECK: void cst2(_Ptr<int> a)
+//CHECK: void cst2(const _Ptr<int>  a) {
 
 void cst3(const int *a, int i) {
   int c = *(a+i);
