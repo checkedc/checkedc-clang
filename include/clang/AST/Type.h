@@ -1713,6 +1713,7 @@ public:
   bool isDependentSizedArrayType() const;
   /// \brief whether this is a Checked C checked array type.
   bool isCheckedArrayType() const;
+  bool isUncheckedArrayType() const;
   bool isRecordType() const;
   bool isClassType() const;
   bool isStructureType() const;
@@ -5667,6 +5668,12 @@ inline bool Type::isDependentSizedArrayType() const {
 inline bool Type::isCheckedArrayType() const {
   if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
     return T->isChecked();
+  else
+    return false;
+}
+inline bool Type::isUncheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return !T->isChecked();
   else
     return false;
 }

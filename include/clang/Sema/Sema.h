@@ -2267,6 +2267,14 @@ public:
     CCT_Union
   };
 
+  // used for %select in diagnostics for errors involving redeclarations
+  // with bounds
+  enum class CheckedCBoundsError {
+    CCBE_Parameter,
+    CCBE_Return,
+    CCBE_Variable
+  };
+
   CheckedTypeClassification classifyForCheckedTypeDiagnostic(QualType qt);
 
   // AssignmentAction - This is used by all the assignment diagnostic functions

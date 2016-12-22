@@ -8843,23 +8843,19 @@ def err_bounds_type_annotation_lost_checking : Error<
 
  def note_previous_bounds_decl : Note<"previous bounds declaration is here">;
  
- def err_conflicting_parameter_bounds : Error<
-   "function redeclaration has conflicting parameter bounds">;
+  def err_decl_conflicting_bounds : Error<
+    "%select{function redeclaration has conflicting parameter bounds|function "
+    "redeclaration has conflicting return bounds|variable redeclaration has "
+    "conflicting bounds}0">;
 
- def err_conflicting_return_bounds : Error<
-   "function redeclaration has conflicting return bounds">;
+  def err_decl_added_bounds : Error<
+    "%select{function redeclaration added bounds for parameter|function "
+    "redeclaration added return bounds|variable redeclaration added bounds}0">;
 
-  def err_added_bounds_for_return : Error<
-    "function redeclaration added return bounds">;
-
-  def err_missing_bounds_for_return : Error <
-    "function redeclaration dropped return bounds">;
-
-  def err_added_bounds_for_parameter : Error<
-    "function redeclaration added bounds for parameter">;
-
-  def err_missing_bounds_for_parameter : Error<
-    "function redeclaration dropped bounds for parameter">;
+  def err_decl_dropped_bounds : Error<
+    "%select{function redeclaration dropped bounds for parameter|function "
+    "redeclaration dropped return bounds|variable redeclaration dropped "
+    "bounds}0">;
 
   def err_conflicting_bounds : Error<"conflicting bounds for %0">;
 

@@ -2086,22 +2086,24 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 
   bool TypeContainsAuto = D.getDeclSpec().containsPlaceholderType();
 
-  // Parse the optional Checked C bounds expression or interop type
-  // annotation.
-  if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
-    ConsumeToken();
-    ExprResult Bounds = ParseBoundsExpressionOrInteropType(D);
-    if (Bounds.isInvalid())
-      SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
-
+  // If this is a variable declarator in Checked C, parse the bounds expression
+  // (if any) and set the bounds expression.  Function declarators are ignored
+  // here because return bounds expressions are parsed as part of function
+  // declarators already.
+  if (getLangOpts().CheckedC && isa<VarDecl>(ThisDecl)) {
     VarDecl *ThisVarDecl = dyn_cast<VarDecl>(ThisDecl);
-    if (ThisVarDecl) {
-      if (Bounds.isInvalid())
-        Actions.ActOnInvalidBoundsDecl(ThisVarDecl);
-      else
-        Actions.ActOnBoundsDecl(ThisVarDecl, cast<BoundsExpr>(Bounds.get()));
-    } else
-      llvm_unreachable("Unexpected decl type");
+    BoundsExpr *Bounds = nullptr;
+    // The optional Checked C bounds expression or interop type annotation.
+    if (Tok.is(tok::colon)) {
+      ConsumeToken();
+      ExprResult ParsedBounds = ParseBoundsExpressionOrInteropType(D);
+      if (ParsedBounds.isInvalid()) {
+        SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
+        Bounds = Actions.CreateInvalidBoundsExpr();
+      } else
+        Bounds = cast<BoundsExpr>(ParsedBounds.get());
+    }
+    Actions.ActOnBoundsDecl(ThisVarDecl, Bounds);
   }
 
   // Parse declarator '=' initializer.
