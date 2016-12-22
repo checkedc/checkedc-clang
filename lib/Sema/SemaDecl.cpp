@@ -3411,14 +3411,14 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 }
 
 // Shared logic for diagnosing bounds declaration conflicts for parameters,
-// returns, and variables
+// returns, and variables.
 //
 // * BoundsLoc is the source location of the bounds expression at which to
 // report the error.  If there is no bounds expression, this will be an invalid
 // source location. (We don't use the location from the new bounds expression
 // beacuse it is canonicalized and may not have valid line information.)
 // * OldBounds and NewBounds are canoncialized bounds expressions.  For
-// parameters and returns, they are bounds expression from a function type.
+// parameters and returns, they are bounds expressions from function types.
 // It is important to use canonicalized bound expressions these for bounds
 // comparisons.
 // * OldDecl and NewDecl provide the declarations for use in error messages.
@@ -3426,7 +3426,7 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 // may not be attached to NewDecl yet.
 // * OldType and NewType are the types of the items whoses bounds declarations
 // are being checked.  We pass them in because it is easier to compute them at
-// the caller than than to compute them here.
+// the caller than to compute them here.
 // * Kind is what is being checked.
 //
 // Return true if an error involving bounds has been diagnosed, false if not.

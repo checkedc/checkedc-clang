@@ -2088,7 +2088,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 
   // If this is a variable declarator in Checked C, parse the bounds expression
   // (if any) and set the bounds expression.  Function declarators are ignored
-  // here because return bounds expressions are/ parsed as part of function
+  // here because return bounds expressions are parsed as part of function
   // declarators already.
   if (getLangOpts().CheckedC && isa<VarDecl>(ThisDecl)) {
     VarDecl *ThisVarDecl = dyn_cast<VarDecl>(ThisDecl);
