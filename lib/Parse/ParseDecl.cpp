@@ -2086,7 +2086,6 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 
   bool TypeContainsAuto = D.getDeclSpec().containsPlaceholderType();
 
-
   // If this is a variable declarator in Checked C, parse the bounds expression
   // (if any) and set the bounds expression.  Function declarators are ignored
   // here because return bounds expressions are/ parsed as part of function

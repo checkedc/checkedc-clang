@@ -8854,7 +8854,7 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def err_decl_dropped_bounds : Error<
     "%select{function redeclaration dropped bounds for parameter|function "
-    "redeclaration dropped return bounds|variable declaration dropped "
+    "redeclaration dropped return bounds|variable redeclaration dropped "
     "bounds}0">;
 
   def err_conflicting_bounds : Error<"conflicting bounds for %0">;

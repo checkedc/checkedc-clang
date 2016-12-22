@@ -3334,7 +3334,7 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
                                       const SourceLocation BoundsLoc,
                                       const DeclaratorDecl *Old,
                                       const DeclaratorDecl *New,
-                                      bool IsUncheckedPointerType,
+                                      bool IsUncheckedType,
                                       Sema::CheckedCBoundsError Kind) {
   // Emit the diagnostic, pointing at the current bounds expression
   // if possible.  Use the new declaration if there is no bounds
@@ -3353,11 +3353,11 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 
   // First determine the prior relevant bounds expression, if there is one.
   const BoundsExpr *PrevBoundsExpr = Old->getBoundsExpr();
-  // The bounds expression for an unchecked pointer type may have
+  // The bounds expression for an unchecked pointer or array type may have
   // been inherited from an earlier declaration than Old that
   // was compatible with Old.  If there's no bounds expression on Old,
   // search for a possible earlier definition.
-  if (!PrevBoundsExpr && IsUncheckedPointerType) {
+  if (!PrevBoundsExpr && IsUncheckedType) {
     if (const FunctionDecl *Previous = dyn_cast<FunctionDecl>(Old)) {
       do {
         PrevBoundsExpr = Previous->getBoundsExpr();
@@ -3440,8 +3440,10 @@ static bool diagnoseBoundsError(Sema &S,
                                 QualType NewType,
                                 Sema::CheckedCBoundsError Kind) {
   int DiagId = 0;
-  bool IsUncheckedPointerType = OldType->isUncheckedPointerType() &&
-    NewType->isUncheckedPointerType();
+  bool IsUncheckedType =
+    (OldType->isUncheckedPointerType() && NewType->isUncheckedPointerType()) ||
+    (OldType->isUncheckedArrayType() && NewType->isUncheckedArrayType());
+
   if (OldBounds && NewBounds) {
     if (OldBounds->isInvalid() || NewBounds->isInvalid())
       // There must have been an earlier error involving
@@ -3451,13 +3453,13 @@ static bool diagnoseBoundsError(Sema &S,
     if (!S.Context.EquivalentBounds(OldBounds, NewBounds))
        DiagId = diag::err_decl_conflicting_bounds;
   } else if (OldBounds || NewBounds) {
-    if (!IsUncheckedPointerType)
+    if (!IsUncheckedType)
       DiagId = NewBounds ? diag::err_decl_added_bounds :
                            diag::err_decl_dropped_bounds;
   }
   if (DiagId) {
     emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
-                              IsUncheckedPointerType, Kind);
+                              IsUncheckedType, Kind);
     return true;
   }
   // TODO: produce better error messages when types for parameters, returns,
