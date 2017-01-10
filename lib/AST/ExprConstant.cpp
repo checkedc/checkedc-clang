@@ -9438,6 +9438,10 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXFoldExprClass:
   case Expr::CoawaitExprClass:
   case Expr::CoyieldExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
     return ICEDiag(IK_NotICE, E->getLocStart());
 
   case Expr::InitListExprClass: {

@@ -7962,10 +7962,27 @@ QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
   switch (Entity.getKind()) {
     case InitializedEntity::EntityKind::EK_Variable:
     case InitializedEntity::EntityKind::EK_Parameter:
-    case InitializedEntity::EntityKind::EK_Member:
+    case InitializedEntity::EntityKind::EK_Member: {
       ValueDecl *D = Entity.getDecl();
-      if (D != nullptr) 
+      if (D != nullptr)
         return GetCheckedCInteropType(D);
+      break;
+    }
+    case InitializedEntity::EK_ArrayElement:
+    case InitializedEntity::EK_Base:
+    case InitializedEntity::EK_Binding:
+    case InitializedEntity::EK_BlockElement:
+    case InitializedEntity::EK_ComplexElement:
+    case InitializedEntity::EK_CompoundLiteralInit:
+    case InitializedEntity::EK_Delegating:
+    case InitializedEntity::EK_Exception:
+    case InitializedEntity::EK_LambdaCapture:
+    case InitializedEntity::EK_New:
+    case InitializedEntity::EK_RelatedResult:
+    case InitializedEntity::EK_Result:
+    case InitializedEntity::EK_Temporary:
+    case InitializedEntity::EK_VectorElement:
+    case InitializedEntity::EK_Parameter_CF_Audited:
       break;
   }
   return QualType();

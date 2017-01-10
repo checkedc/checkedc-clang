@@ -2860,6 +2860,13 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case ObjCAvailabilityCheckExprClass:
   case CXXUuidofExprClass:
   case OpaqueValueExprClass:
+  case PositionalParameterExprClass:
+    // Checked C bounds expressions are not allowed to have assignments
+    // embedded within them.
+  case CountBoundsExprClass:
+  case InteropTypeBoundsAnnotationClass:
+  case NullaryBoundsExprClass:
+  case RangeBoundsExprClass:
     // These never have a side-effect.
     return false;
 

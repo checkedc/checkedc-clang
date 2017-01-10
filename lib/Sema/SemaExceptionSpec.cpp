@@ -1194,6 +1194,13 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::MSPropertySubscriptExprClass:
     llvm_unreachable("Invalid class for expression");
 
+  case Expr::PositionalParameterExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
+    llvm_unreachable("do not expect bounds expressions");
+
 #define STMT(CLASS, PARENT) case Expr::CLASS##Class:
 #define STMT_RANGE(Base, First, Last)
 #define LAST_STMT_RANGE(BASE, FIRST, LAST)

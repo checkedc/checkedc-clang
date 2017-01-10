@@ -339,6 +339,8 @@ bool Declarator::isDeclarationOfFunction() const {
     case TST_unspecified:
     case TST_void:
     case TST_wchar:
+    case TST_arrayPtr:
+    case TST_plainPtr:
 #define GENERIC_IMAGE_TYPE(ImgType, Id) case TST_##ImgType##_t:
 #include "clang/Basic/OpenCLImageTypes.def"
       return false;

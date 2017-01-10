@@ -404,8 +404,18 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
 
   case Expr::CoawaitExprClass:
     return ClassifyInternal(Ctx, cast<CoawaitExpr>(E)->getResumeExpr());
-  }
 
+  // We might need to classify positional parameters, which occur
+  // as subexpressions of bounds expressions.
+  case Expr::PositionalParameterExprClass:
+    return Cl::CL_LValue;
+
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
+    llvm_unreachable("should not classify bounds expressions");
+  }
   llvm_unreachable("unhandled expression kind in classification");
 }
 
