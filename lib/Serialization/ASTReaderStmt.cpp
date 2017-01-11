@@ -3878,7 +3878,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
     case EXPR_INTEROPTYPE_BOUNDS_ANNOTATION:
       S = new (Context) InteropTypeBoundsAnnotation(Empty);
       break;
-        
+
+    case EXPR_POSITIONAL_PARAMETER_EXPR:
+      S = new (Context) PositionalParameterExpr(Empty);
+      break;
+
     case EXPR_LAMBDA: {
       unsigned NumCaptures = Record[ASTStmtReader::NumExprFields];
       unsigned NumArrayIndexVars = Record[ASTStmtReader::NumExprFields + 1];
