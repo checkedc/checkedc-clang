@@ -3272,6 +3272,11 @@ recurse:
   case Expr::AsTypeExprClass:
   case Expr::PseudoObjectExprClass:
   case Expr::AtomicExprClass:
+  case Expr::PositionalParameterExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
   {
     if (!NullOut) {
       // As bad as this diagnostic is, it's better than crashing.

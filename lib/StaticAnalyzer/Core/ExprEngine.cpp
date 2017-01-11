@@ -1342,6 +1342,15 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
       Bldr.addNodes(Dst);
       break;
     }
+    // The static analyzer knows nothing about Checked C extensions to
+    // the AST, so we should never see these.
+    case Stmt::PositionalParameterExprClass:
+    case Stmt::CountBoundsExprClass:
+    case Stmt::InteropTypeBoundsAnnotationClass:
+    case Stmt::NullaryBoundsExprClass:
+    case Stmt::RangeBoundsExprClass:
+      llvm_unreachable("Do not expect to see Checked C extensions");
+      break;
   }
 }
 

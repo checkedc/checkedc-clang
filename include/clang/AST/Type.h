@@ -3354,7 +3354,7 @@ public:
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
 
-  const BoundsExpr *const getParamBounds(unsigned i) const {
+  const BoundsExpr *getParamBounds(unsigned i) const {
     assert(i < NumParams && "invalid parameter index");
     if (hasParamBounds())
       return param_bounds_begin()[i];

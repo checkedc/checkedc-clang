@@ -9438,6 +9438,12 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::CXXFoldExprClass:
   case Expr::CoawaitExprClass:
   case Expr::CoyieldExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::PositionalParameterExprClass:
+    // These are parameter variables and are never constants,
+  case Expr::RangeBoundsExprClass:
     return ICEDiag(IK_NotICE, E->getLocStart());
 
   case Expr::InitListExprClass: {
@@ -9513,10 +9519,6 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
       }
     }
     return ICEDiag(IK_NotICE, E->getLocStart());
-  }
-  case Expr::PositionalParameterExprClass: {
-    // These are parameter variables and are never constants.
-    return ICEDiag(IK_NotICE, SourceLocation());
   }
   case Expr::UnaryOperatorClass: {
     const UnaryOperator *Exp = cast<UnaryOperator>(E);
