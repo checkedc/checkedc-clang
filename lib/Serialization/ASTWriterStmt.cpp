@@ -913,7 +913,7 @@ void ASTStmtWriter::VisitAtomicExpr(AtomicExpr *E) {
 void ASTStmtWriter::VisitCountBoundsExpr(CountBoundsExpr *E) {
   VisitExpr(E);
   Record.push_back(E->getKind());
-  VisitExpr(E->getCountExpr());
+  Record.AddStmt(E->getCountExpr());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getRParenLoc());
   Code = serialization::EXPR_COUNT_BOUNDS_EXPR;
@@ -930,8 +930,8 @@ void ASTStmtWriter::VisitNullaryBoundsExpr(NullaryBoundsExpr *E) {
 void ASTStmtWriter::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   VisitExpr(E);
   Record.push_back(E->getKind());
-  VisitExpr(E->getLowerExpr());
-  VisitExpr(E->getUpperExpr());
+  Record.AddStmt(E->getLowerExpr());
+  Record.AddStmt(E->getUpperExpr());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getRParenLoc());
   Code = serialization::EXPR_RANGE_BOUNDS_EXPR;
@@ -941,6 +941,7 @@ void ASTStmtWriter::VisitInteropTypeBoundsAnnotation(
   InteropTypeBoundsAnnotation *E) {
   VisitExpr(E);
   Record.push_back(E->getKind());
+  Record.AddTypeSourceInfo(E->getTypeInfoAsWritten());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getLocEnd());
   Code = serialization::EXPR_INTEROPTYPE_BOUNDS_ANNOTATION;

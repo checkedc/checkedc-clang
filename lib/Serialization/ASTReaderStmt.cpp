@@ -984,6 +984,7 @@ void ASTStmtReader::VisitInteropTypeBoundsAnnotation(
   InteropTypeBoundsAnnotation *E) {
   VisitExpr(E);
   E->setKind((BoundsExpr::Kind)Record[Idx++]);
+  E->setTypeInfoAsWritten(GetTypeSourceInfo(Record, Idx));
   E->StartLoc = ReadSourceLocation(Record, Idx);
   E->EndLoc = ReadSourceLocation(Record, Idx);
 }
