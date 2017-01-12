@@ -1,4 +1,4 @@
-// This tests compiling using Pre-Compiled Headers (PCH)
+// This tests compiling a CheckedC file using Pre-Compiled Headers (PCH)
 // To do so, we compile and verify this file against a header twice, once directly, and once via PCH
 // If everything is working, both will succeed or fail together. If not, PCH is broken.
 // PCH is one of the few places where AST Deserialization is used.
