@@ -941,6 +941,7 @@ void ASTStmtWriter::VisitInteropTypeBoundsAnnotation(
   InteropTypeBoundsAnnotation *E) {
   VisitExpr(E);
   Record.push_back(E->getKind());
+  Record.AddTypeSourceInfo(E->getTypeInfoAsWritten());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getLocEnd());
   Code = serialization::EXPR_INTEROPTYPE_BOUNDS_ANNOTATION;
