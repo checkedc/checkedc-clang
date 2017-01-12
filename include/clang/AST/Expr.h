@@ -4753,7 +4753,7 @@ class PositionalParameterExpr : public Expr {
     }
 
     explicit PositionalParameterExpr(EmptyShell Empty) :
-      Expr(InteropTypeBoundsAnnotationClass, Empty) {
+      Expr(PositionalParameterExprClass, Empty) {
     }
 
 
