@@ -8866,4 +8866,8 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_out_of_scope_function_type_parameter : Error<
     "out-of-scope variable for bounds in a function type (a function type can "
     "only reference parameters from its own parameter list)">;
+
+  def err_expected_bounds : Error<
+    "expression has no bounds">;
+
 } // end of sema component.

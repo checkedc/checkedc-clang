@@ -30,6 +30,7 @@
 //    numbers.
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "TreeTransform.h"
 
 using namespace clang;
@@ -146,5 +147,112 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
     assert(Result && "unexpected dyn_cast failure");
     return Result;
   }
+}
+
+namespace {
+  class InferBoundsExpr {
+
+  private:
+    ASTContext &Context;
+
+    BoundsExpr *CreateBoundsNone() {
+      return new (Context) NullaryBoundsExpr(BoundsExpr::Kind::None,
+                                             SourceLocation(),
+                                             SourceLocation());
+    }
+
+    BoundsExpr *CreateBoundsAny() {
+      return new (Context) NullaryBoundsExpr(BoundsExpr::Kind::Any,
+                                             SourceLocation(),
+                                             SourceLocation());
+    }
+
+    BoundsExpr *RValueIntegerLiteral(IntegerLiteral *L) {
+      return CreateBoundsAny();
+    }
+    
+  public:
+    InferBoundsExpr(ASTContext &Ctx) : Context(Ctx) {
+    }
+
+    BoundsExpr *LValueBounds(Expr *E) {
+      E = E->IgnoreParens();
+      switch (E->getStmtClass()) {
+      case Expr::DeclRefExprClass:
+      case Expr::UnaryOperatorClass:
+      case Expr::ArraySubscriptExprClass:
+      case Expr::MemberExprClass:
+        return CreateBoundsAny();
+      default:
+        return CreateBoundsNone();
+      }
+    }
+
+    BoundsExpr *RValueBounds(Expr *E) {
+      E = E->IgnoreParens();
+      switch (E->getStmtClass()) {
+        case Expr::IntegerLiteralClass: {
+          IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(E);
+          if (Lit)
+            return RValueIntegerLiteral(Lit);
+          else
+            llvm_unreachable("unexpected cast failure");
+          break;
+        }                        
+        case Expr::DeclRefExprClass:
+        case Expr::UnaryOperatorClass:
+        case Expr::ArraySubscriptExprClass:
+        case Expr::BinaryOperatorClass:
+        case Expr::MemberExprClass:
+        case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass:
+        case Expr::CallExprClass:
+        case Expr::ConditionalOperatorClass:
+        case Expr::BinaryConditionalOperatorClass:
+          return CreateBoundsAny();
+        default:
+          return CreateBoundsNone();
+      }
+    }
+  };
+}
+
+BoundsExpr *Sema::InferLValueBounds(ASTContext &Ctx, Expr *E) {
+  return InferBoundsExpr(Ctx).LValueBounds(E);
+}
+
+BoundsExpr *Sema::InferRValueBounds(ASTContext &Ctx, Expr *E) {
+  return InferBoundsExpr(Ctx).RValueBounds(E);
+}
+
+namespace {
+  class CheckFunctionBodyBounds : public RecursiveASTVisitor<CheckFunctionBodyBounds> {
+  private:
+    Sema &S;
+
+  public:
+    CheckFunctionBodyBounds(Sema &S) : S(S) {}
+
+    void VisitBinaryOperator(BinaryOperator *E) {
+      Expr *LHS = E->getLHS();
+      Expr *RHS = E->getRHS();
+      // BUGBUG - this function isn't ever being called.
+      S.Diag(LHS->getLocStart(), diag::err_expected_bounds);
+      if (E->getOpcode() == BinaryOperatorKind::BO_Assign &&
+          LHS->getType()->isCheckedPointerType()) {
+        BoundsExpr *LHSBounds = S.InferRValueBounds(S.getASTContext(), LHS);
+        if (!LHSBounds->isNone()) {
+          BoundsExpr *RHSBounds = S.InferRValueBounds(S.getASTContext(), RHS);
+          if (RHSBounds->isNone())
+             S.Diag(LHS->getLocStart(), diag::err_expected_bounds);
+        }
+      }
+    }
+  };
+}
+
+
+void Sema::CheckCheckedCFunctionBody(FunctionDecl *FD, Stmt *Body) {
+  CheckFunctionBodyBounds(*this).VisitStmt(Body);
 }
 

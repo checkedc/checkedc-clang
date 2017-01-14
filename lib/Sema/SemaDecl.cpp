@@ -12264,6 +12264,9 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
   if (getLangOpts().Coroutines && !getCurFunction()->CoroutineStmts.empty())
     CheckCompletedCoroutineBody(FD, Body);
 
+  if (getLangOpts().CheckedC)
+    CheckCheckedCFunctionBody(FD, Body);
+
   if (FD) {
     FD->setBody(Body);
 
