@@ -203,6 +203,7 @@ namespace {
         case Expr::UnaryOperatorClass:
         case Expr::ArraySubscriptExprClass:
         case Expr::BinaryOperatorClass:
+        case Expr::CompoundAssignOperatorClass:
         case Expr::MemberExprClass:
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
@@ -233,11 +234,9 @@ namespace {
   public:
     CheckFunctionBodyBounds(Sema &S) : S(S) {}
 
-    void VisitBinaryOperator(BinaryOperator *E) {
+    bool VisitBinaryOperator(BinaryOperator *E) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
-      // BUGBUG - this function isn't ever being called.
-      S.Diag(LHS->getLocStart(), diag::err_expected_bounds);
       if (E->getOpcode() == BinaryOperatorKind::BO_Assign &&
           LHS->getType()->isCheckedPointerType()) {
         BoundsExpr *LHSBounds = S.InferRValueBounds(S.getASTContext(), LHS);
@@ -247,12 +246,13 @@ namespace {
              S.Diag(LHS->getLocStart(), diag::err_expected_bounds);
         }
       }
+      return true;
     }
   };
 }
 
 
 void Sema::CheckCheckedCFunctionBody(FunctionDecl *FD, Stmt *Body) {
-  CheckFunctionBodyBounds(*this).VisitStmt(Body);
+  CheckFunctionBodyBounds(*this).TraverseStmt(Body);
 }
 

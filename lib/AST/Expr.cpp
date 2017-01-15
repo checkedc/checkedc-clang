@@ -3827,7 +3827,7 @@ bool BoundsExpr::validateKind(Kind K) {
 
   switch (getStmtClass()) {
     case NullaryBoundsExprClass:
-      return K == None;
+      return (K == None || K == Any);
     case CountBoundsExprClass:
       return K == ElementCount || K == ByteCount;
     case RangeBoundsExprClass:
