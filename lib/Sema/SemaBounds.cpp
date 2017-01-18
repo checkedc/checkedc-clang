@@ -150,9 +150,40 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
 }
 
 namespace {
+  // Class for inferring bounds expressions for C expressions.
+
+  // C has an interesting semantics for expressions that differentiates between
+  // lvalue and value expressions and inserts implicit conversions from lvalues
+  // to values.  Value expressions are usually called rvalue expression.  This
+  // seantics is represented directly in the clang IR by having some
+  // expressions evaluate to lvalues and having implict conversions that convert
+  // those lvalues to rvalues.
+  //
+  // Using ths representation directly would make it clumsy to compute bounds
+  // expressions.  For an expression that evaluates to an lvalue, we would have
+  // to compute and carry along two bounds expressions: the bounds expression
+  // for the lvalue and the bounds expression for the value at which the lvalue
+  // points.
+  //
+  // We take a slightly different approach for computing bounds.  We say that
+  // depending on the context where an expression occurs, expressions in C may
+  // denote either values or location sof objects in memory (lvalues).  We then
+  // have two methods for determining the bounds expression of an expression:
+  // one for an expression that denotes an rvalue and another for an expression
+  // that denotes an lvalue.  The method to invoke depends on the context in
+  // which an expression occurs.
+  //
+  // An expression denotes an lvalue if it occurs in the following contexts:
+  // 1. As the left-hand side of an assignment operator.
+  // 2. As the operand to a postfix or prefix incrementation operators (which
+  //    implicitly do assignment).
+  // 3. As the operand of the address-of (&) operator.
+  // 4. If a member access operation e1.f denotes on lvalue, e1 denotes an lvalue.
+  // Otherwise an expression denotes an rvalue.
   class InferBoundsExpr {
 
   private:
+    // TODO: be more flexible about where bounds expression are allocated.
     ASTContext &Context;
 
     BoundsExpr *CreateBoundsNone() {
@@ -170,7 +201,7 @@ namespace {
     BoundsExpr *RValueIntegerLiteral(IntegerLiteral *L) {
       return CreateBoundsAny();
     }
-    
+
   public:
     InferBoundsExpr(ASTContext &Ctx) : Context(Ctx) {
     }
@@ -192,13 +223,10 @@ namespace {
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
         case Expr::IntegerLiteralClass: {
-          IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(E);
-          if (Lit)
+         if (IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(E))
             return RValueIntegerLiteral(Lit);
-          else
-            llvm_unreachable("unexpected cast failure");
-          break;
-        }                        
+         llvm_unreachable("unexpected cast failure");
+        }
         case Expr::DeclRefExprClass:
         case Expr::UnaryOperatorClass:
         case Expr::ArraySubscriptExprClass:
@@ -227,18 +255,20 @@ BoundsExpr *Sema::InferRValueBounds(ASTContext &Ctx, Expr *E) {
 }
 
 namespace {
-  class CheckFunctionBodyBounds : public RecursiveASTVisitor<CheckFunctionBodyBounds> {
+  class CheckBoundsDeclarations : public RecursiveASTVisitor<CheckBoundsDeclarations> {
   private:
     Sema &S;
 
   public:
-    CheckFunctionBodyBounds(Sema &S) : S(S) {}
+    CheckBoundsDeclarations(Sema &S) : S(S) {}
 
     bool VisitBinaryOperator(BinaryOperator *E) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
+      QualType LHSType = LHS->getType();
       if (E->getOpcode() == BinaryOperatorKind::BO_Assign &&
-          LHS->getType()->isCheckedPointerType()) {
+          (LHSType->isCheckedPointerType() ||
+           LHSType->isIntegralOrEnumerationType())) {
         BoundsExpr *LHSBounds = S.InferRValueBounds(S.getASTContext(), LHS);
         if (!LHSBounds->isNone()) {
           BoundsExpr *RHSBounds = S.InferRValueBounds(S.getASTContext(), RHS);
@@ -248,11 +278,70 @@ namespace {
       }
       return true;
     }
+
+    bool VisitVarDecl(VarDecl *D) {
+      if (D->isInvalidDecl())
+        return true;
+
+      if (isa<ParmVarDecl>(D))
+        return true;
+
+      VarDecl::DefinitionKind defKind = D->isThisDeclarationADefinition();
+      if (defKind == VarDecl::DefinitionKind::DeclarationOnly)
+        return true;
+
+      // D must be a tentative definition or an actual definition.
+
+      if (D->getType()->isCheckedPointerPtrType()) {
+        // Make sure that automatic variables are initialized.
+        if (D->hasLocalStorage() && !D->hasInit())
+          S.Diag(D->getLocation(), diag::err_initializer_expected_for_ptr) << D;
+
+        // Static variables are always initialized to a valid initialization
+        // value for bounds, if there is no initializer.
+        // * If this is an actual definition, the variable will be initialized
+        //   to 0 (a valid value for any bounds).
+        // * If this is a tentative definition, the variable will be initialized
+        //   to 0 or a valid value by an initializer elsewhere.
+        return true;
+     }
+
+      // Handle variables with bounds declarations
+      BoundsExpr *DeclaredBounds = D->getBoundsExpr();
+      if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
+          DeclaredBounds->isNone())
+        return true;
+
+      // If there is an initializer, check that the initializer meets the bounds
+      // requirements for the variable.
+      if (Expr *Init = D->getInit()) {
+        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
+        BoundsExpr *InitBounds = S.InferRValueBounds(S.getASTContext(), Init);
+        if (InitBounds->isNone())
+          S.Diag(Init->getLocStart(), diag::err_expected_bounds);
+        // TODO: check that it meets the bounds requirements for the variable.
+      }
+      else {
+        // Make sure that automatic variables that are not arrays are
+        // initialized.
+        if (D->hasLocalStorage() && !D->getType()->isArrayType())
+          S.Diag(D->getLocation(),
+                 diag::err_initializer_expected_with_bounds) << D;
+        // Static variables are always initialized to a valid initialization
+        // value for bounds, if there is no initializer.  See the prior comment
+        // for isCheckedPointerPtrType.
+      }
+
+      return true;
+    }
   };
 }
 
-
-void Sema::CheckCheckedCFunctionBody(FunctionDecl *FD, Stmt *Body) {
-  CheckFunctionBodyBounds(*this).TraverseStmt(Body);
+void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
+  CheckBoundsDeclarations(*this).TraverseStmt(Body);
 }
 
+void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
+  if (!D->isLocalVarDeclOrParm())
+    CheckBoundsDeclarations(*this).TraverseVarDecl(D);
+}

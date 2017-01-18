@@ -4279,10 +4279,14 @@ public:
   /// Allocate the nodes for the bounds expression in Ctx.
   BoundsExpr *InferRValueBounds(ASTContext &Ctx, Expr *E);
 
-  // CheckCheckedCFunctionBody - check bounds declarations within a function
-  // body.
-  void CheckCheckedCFunctionBody(FunctionDecl *FD, Stmt *Body);
-  
+  /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
+  /// body.
+  void CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body);
+
+  /// CheckTopLevelBoundsDecls - check bounds declarations for variable declarations
+  /// not within a function body.
+  void CheckTopLevelBoundsDecls(VarDecl *VD);
+
   //===---------------------------- Clang Extensions ----------------------===//
 
   /// __builtin_convertvector(...)

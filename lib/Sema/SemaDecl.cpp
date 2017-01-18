@@ -10801,6 +10801,9 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
                                                CurInitSegLoc));
   }
 
+  if (getLangOpts().CheckedC)
+    CheckTopLevelBoundsDecls(var);
+
   // All the following checks are C++ only.
   if (!getLangOpts().CPlusPlus) return;
 
@@ -12265,7 +12268,7 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     CheckCompletedCoroutineBody(FD, Body);
 
   if (getLangOpts().CheckedC)
-    CheckCheckedCFunctionBody(FD, Body);
+    CheckFunctionBodyBoundsDecls(FD, Body);
 
   if (FD) {
     FD->setBody(Body);

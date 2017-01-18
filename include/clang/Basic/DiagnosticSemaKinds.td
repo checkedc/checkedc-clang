@@ -8870,4 +8870,10 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_expected_bounds : Error<
     "expression has no bounds">;
 
+  def err_initializer_expected_with_bounds : Error<
+    "automatic variable %0 with bounds must have initializer">;
+
+  def err_initializer_expected_for_ptr : Error<
+    "automatic variable %0 with _Ptr type must have initializer">;
+
 } // end of sema component.
