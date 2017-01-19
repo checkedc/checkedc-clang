@@ -4,11 +4,11 @@
 // PCH is one of the few places where AST Deserialization is used.
 
 // Test this without PCH
-// R UN: %clang_cc1 -fcheckedc-extension -include %S/pch.h -fsyntax-only -verify -verify-ignore-unexpected=note %s
+// RUN: %clang_cc1 -fcheckedc-extension -include %S/pch.h -fsyntax-only -verify -verify-ignore-unexpected=note %s
 
 // Test PCH (so we know our changes to AST deserialization haven't broken it)
 // RUN: %clang_cc1 -fcheckedc-extension -emit-pch -o %t %S/pch.h
-// RUN: %clang_cc1 -fcheckedc-extension -include-pch %t -fsyntax-only -verify -verify-ignore-unexpected=note %s -ferror-limit 0
+// RUN: %clang_cc1 -fcheckedc-extension -include-pch %t -fsyntax-only -verify -verify-ignore-unexpected=note %s
 
 //
 // Bounds Expressions on global variables
