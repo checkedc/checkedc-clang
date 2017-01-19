@@ -4267,6 +4267,26 @@ public:
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
 
+  /// InferLValueBounds - infer a bounds expression for an lvalue.
+  /// The bounds determine whether the lvalue to which an
+  /// expression evaluates in in range.
+  /// Allocate the nodes for the bounds expression in Ctx.
+  BoundsExpr *InferLValueBounds(ASTContext &Ctx, Expr *E);
+
+  /// InferRVa;ieBounds - infer a bounds expression for an rvalue.
+  /// The bounds determine whether the rvalue to which an
+  /// expression evaluates is in range.
+  /// Allocate the nodes for the bounds expression in Ctx.
+  BoundsExpr *InferRValueBounds(ASTContext &Ctx, Expr *E);
+
+  /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
+  /// body.
+  void CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body);
+
+  /// CheckTopLevelBoundsDecls - check bounds declarations for variable declarations
+  /// not within a function body.
+  void CheckTopLevelBoundsDecls(VarDecl *VD);
+
   //===---------------------------- Clang Extensions ----------------------===//
 
   /// __builtin_convertvector(...)
