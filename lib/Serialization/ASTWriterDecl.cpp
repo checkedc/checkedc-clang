@@ -733,6 +733,7 @@ void ASTDeclWriter::VisitObjCIvarDecl(ObjCIvarDecl *D) {
       !D->isReferenced() &&
       !D->isModulePrivate() &&
       !D->getBitWidth() &&
+      !D->hasBoundsExpr() &&
       !D->hasExtInfo() &&
       D->getDeclName())
     AbbrevToUse = Writer.getDeclObjCIvarAbbrev();
@@ -867,6 +868,7 @@ void ASTDeclWriter::VisitFieldDecl(FieldDecl *D) {
       !D->isModulePrivate() &&
       !D->getBitWidth() &&
       !D->hasInClassInitializer() &&
+      !D->hasBoundsExpr() &&
       !D->hasExtInfo() &&
       !ObjCIvarDecl::classofKind(D->getKind()) &&
       !ObjCAtDefsFieldDecl::classofKind(D->getKind()) &&
@@ -945,6 +947,7 @@ void ASTDeclWriter::VisitVarDecl(VarDecl *D) {
       !D->isModulePrivate() &&
       !needsAnonymousDeclarationNumber(D) &&
       D->getDeclName().getNameKind() == DeclarationName::Identifier &&
+      !D->hasBoundsExpr() &&
       !D->hasExtInfo() &&
       D->getFirstDecl() == D->getMostRecentDecl() &&
       D->getInitStyle() == VarDecl::CInit &&
@@ -985,6 +988,7 @@ void ASTDeclWriter::VisitParmVarDecl(ParmVarDecl *D) {
   // know are true of all PARM_VAR_DECLs.
   if (D->getDeclContext() == D->getLexicalDeclContext() &&
       !D->hasAttrs() &&
+      !D->hasBoundsExpr() &&
       !D->hasExtInfo() &&
       !D->isImplicit() &&
       !D->isUsed(false) &&
@@ -1240,6 +1244,7 @@ void ASTDeclWriter::VisitCXXMethodDecl(CXXMethodDecl *D) {
       !D->hasAttrs() &&
       !D->isTopLevelDeclInObjCContainer() &&
       D->getDeclName().getNameKind() == DeclarationName::Identifier &&
+      !D->hasBoundsExpr() &&
       !D->hasExtInfo() &&
       !D->hasInheritedPrototype() &&
       D->hasWrittenPrototype())
@@ -1719,7 +1724,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Type
   // DeclaratorDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // InnerStartLoc
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // hasBoundsExpr
+  Abv->Add(BitCodeAbbrevOp(0));                       // hasBoundsExpr
   Abv->Add(BitCodeAbbrevOp(0));                       // hasExtInfo
   // FieldDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // isMutable
@@ -1885,7 +1890,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Type
   // DeclaratorDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // InnerStartLoc
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // hasBoundsExpr
+  Abv->Add(BitCodeAbbrevOp(0));                       // hasBoundsExpr
   Abv->Add(BitCodeAbbrevOp(0));                       // hasExtInfo
   // VarDecl
   Abv->Add(BitCodeAbbrevOp(0));                       // StorageClass
@@ -1962,7 +1967,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Type
   // DeclaratorDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // InnerStartLoc
-  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // hasBoundsExpr
+  Abv->Add(BitCodeAbbrevOp(0));                       // hasBoundsExpr
   Abv->Add(BitCodeAbbrevOp(0));                       // hasExtInfo
   // VarDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // StorageClass
