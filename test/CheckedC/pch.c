@@ -12,7 +12,7 @@
 
 
 //
-// Basic CheckedC Types
+// Basic Checked C Types
 //
 
 _Ptr<int> p1;

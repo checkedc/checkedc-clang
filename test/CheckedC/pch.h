@@ -1,7 +1,7 @@
 // Used with the pch.c test
 
 //
-// Basic CheckedC Types
+// Basic Checked C Types
 //
 
 _Ptr<int> p1;
