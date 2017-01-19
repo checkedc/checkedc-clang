@@ -746,6 +746,10 @@ void ASTDeclReader::VisitEnumConstantDecl(EnumConstantDecl *ECD) {
 void ASTDeclReader::VisitDeclaratorDecl(DeclaratorDecl *DD) {
   VisitValueDecl(DD);
   DD->setInnerLocStart(ReadSourceLocation(Record, Idx));
+
+  if (Record[Idx++]) // hasBoundExpr
+	DD->setBoundsExpr(Reader.ReadBoundsExpr(F));
+
   if (Record[Idx++]) { // hasExtInfo
     DeclaratorDecl::ExtInfo *Info
         = new (Reader.getContext()) DeclaratorDecl::ExtInfo();
@@ -781,6 +785,7 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   FD->IsLateTemplateParsed = Record[Idx++];
   FD->setCachedLinkage(Linkage(Record[Idx++]));
   FD->EndRangeLoc = ReadSourceLocation(Record, Idx);
+
 
   switch ((FunctionDecl::TemplatedKind)Record[Idx++]) {
   case FunctionDecl::TK_NonTemplate:
