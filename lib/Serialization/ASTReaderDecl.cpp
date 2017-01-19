@@ -747,7 +747,7 @@ void ASTDeclReader::VisitDeclaratorDecl(DeclaratorDecl *DD) {
   VisitValueDecl(DD);
   DD->setInnerLocStart(ReadSourceLocation(Record, Idx));
 
-  if (Record[Idx++]) // hasBoundExpr
+  if (Record[Idx++]) // hasBoundsExpr
 	DD->setBoundsExpr(Reader.ReadBoundsExpr(F));
 
   if (Record[Idx++]) { // hasExtInfo
