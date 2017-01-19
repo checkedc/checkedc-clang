@@ -180,7 +180,7 @@ namespace {
   // 3. As the operand of the address-of (&) operator.
   // 4. If a member access operation e1.f denotes on lvalue, e1 denotes an lvalue.
   // Otherwise an expression denotes an rvalue.
-  class InferBoundsExpr {
+  class BoundsInference {
 
   private:
     // TODO: be more flexible about where bounds expression are allocated.
@@ -203,7 +203,7 @@ namespace {
     }
 
   public:
-    InferBoundsExpr(ASTContext &Ctx) : Context(Ctx) {
+    BoundsInference(ASTContext &Ctx) : Context(Ctx) {
     }
 
     BoundsExpr *LValueBounds(Expr *E) {
@@ -247,11 +247,11 @@ namespace {
 }
 
 BoundsExpr *Sema::InferLValueBounds(ASTContext &Ctx, Expr *E) {
-  return InferBoundsExpr(Ctx).LValueBounds(E);
+  return BoundsInference(Ctx).LValueBounds(E);
 }
 
 BoundsExpr *Sema::InferRValueBounds(ASTContext &Ctx, Expr *E) {
-  return InferBoundsExpr(Ctx).RValueBounds(E);
+  return BoundsInference(Ctx).RValueBounds(E);
 }
 
 namespace {
