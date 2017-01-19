@@ -10,6 +10,43 @@
 // RUN: %clang_cc1 -fcheckedc-extension -emit-pch -o %t %S/pch.h
 // RUN: %clang_cc1 -fcheckedc-extension -include-pch %t -fsyntax-only -verify -verify-ignore-unexpected=note %s
 
+
+//
+// Basic Checked C Types
+//
+
+_Ptr<int> p1;
+_Ptr<int> p1 = 0;
+int* p1; // expected-error {{redefinition of 'p1' with a different type}}
+
+_Array_ptr<int> p2;
+_Array_ptr<int> p2 = 0;
+int* p2; // expected-error {{redefinition of 'p2' with a different type}}
+
+int arr1 _Checked[];
+int arr1 _Checked[] = { 1, 2, 3 };
+int* arr1; // expected-error {{redefinition of 'arr1' with a different type}}
+
+int arr2 _Checked[1];
+int arr2 _Checked[1] = { 1 };
+int arr2[]; // expected-error {{redefinition of 'arr2' with a different type}}
+int* arr2; // expected-error {{redefinition of 'arr2' with a different type}}
+
+int arr3 _Checked[][1];
+int arr3 _Checked[][1] = { { 1 } };
+int arr3[][1]; // expected-error {{redefinition of 'arr3' with a different type}}
+int** arr3; // expected-error {{redefinition of 'arr3' with a different type}}
+
+_Array_ptr<char> str;
+_Array_ptr<char> str = "foo bar";
+char* str; // expected-error {{redefinition of 'str' with a different type}}
+
+_Ptr<int(_Array_ptr<int> arr : count(i), int i)> f1;
+_Ptr<int(_Array_ptr<int> arr : count(i), int i)> f1 = 0;
+_Ptr<int(_Array_ptr<int> arr, int i)> f1; // expected-error {{redefinition of 'f1' with a different type}}
+_Ptr<int(_Array_ptr<int>, int)> f1; // expected-error {{redefinition of 'f1' with a different type}}
+int(*f1)(int* arr, int i); // expected-error {{redefinition of 'f1' with a different type}}
+
 //
 // Bounds Expressions on global variables
 //
