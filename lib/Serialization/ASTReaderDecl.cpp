@@ -786,7 +786,6 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   FD->setCachedLinkage(Linkage(Record[Idx++]));
   FD->EndRangeLoc = ReadSourceLocation(Record, Idx);
 
-
   switch ((FunctionDecl::TemplatedKind)Record[Idx++]) {
   case FunctionDecl::TK_NonTemplate:
     mergeRedeclarable(FD, Redecl);
