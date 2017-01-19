@@ -1,6 +1,22 @@
 // Used with the pch.c test
 
 //
+// Basic CheckedC Types
+//
+
+_Ptr<int> p1;
+
+_Array_ptr<int> p2;
+
+int arr1 _Checked[];
+int arr2 _Checked[1];
+int arr3 _Checked[][1];
+
+_Array_ptr<char> str;
+
+_Ptr<int(_Array_ptr<int> arr : count(i), int i)> f1;
+
+//
 // Bounds Expressions on global variables
 //
 
