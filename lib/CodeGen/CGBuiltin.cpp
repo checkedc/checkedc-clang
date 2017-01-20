@@ -2425,6 +2425,30 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     // Fall through - it's already mapped to the intrinsic by GCCBuiltin.
     break;
   }
+  case Builtin::BI_Dynamic_check: {
+    Value *V = EmitScalarExpr(E->getArg(0));
+    uint16_t VWidth = V->getType()->getIntegerBitWidth();
+
+    BasicBlock *Begin = Builder.GetInsertBlock();
+    BasicBlock *DyCkSuccess = createBasicBlock("_Dynamic_check_succeeded");
+    BasicBlock* DyCkFail = createBasicBlock("_Dynamic_check_failed", this->CurFn);
+
+    Builder.SetInsertPoint(DyCkFail);
+    llvm::CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap));
+    TrapCall->setDoesNotReturn();
+    TrapCall->setDoesNotThrow();
+    Builder.CreateUnreachable();
+
+    Builder.SetInsertPoint(Begin);
+    Value *Zero = Builder.getInt(APInt::getNullValue(VWidth));
+    Value *IsTrue = Builder.CreateICmpNE(V, Zero, "_Dynamic_check_result");
+    Builder.CreateCondBr(IsTrue, DyCkSuccess, DyCkFail);
+    // This ensures the success block comes directly after the branch
+    EmitBlock(DyCkSuccess);
+    
+    Builder.SetInsertPoint(DyCkSuccess);
+    return RValue::get(nullptr);
+  }
   }
 
   // If this is an alias for a lib function (e.g. __builtin_sin), emit
