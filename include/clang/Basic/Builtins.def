@@ -1328,7 +1328,7 @@ LANGBUILTIN(to_local, "v*v*", "tn", OCLC20_LANG)
 LANGBUILTIN(to_private, "v*v*", "tn", OCLC20_LANG)
 
 // Checked C Builtins
-BUILTIN(_Dynamic_check, "vi", "r")
+BUILTIN(_Dynamic_check, "vi", "")
 
 #undef BUILTIN
 #undef LIBBUILTIN
