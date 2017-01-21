@@ -4517,16 +4517,18 @@ public:
     Invalid = 0,
     // bounds(none)
     None = 1,
+    // bounds(any)
+    Any = 2,
     // count(e)
-    ElementCount = 2,
+    ElementCount = 3,
     // byte_count(e)
-    ByteCount = 3,
+    ByteCount = 4,
     // bounds(e1, e2)
-    Range = 4,
+    Range = 5,
     // ptr interop annotation.  This isn't really a bounds expression.
     // To save space and for programmng convenience, we store the 
     // ": ptr" interop annotation as a bounds expression.
-    InteropTypeAnnotation = 5,
+    InteropTypeAnnotation = 6,
 
     // Sentinel marker for maximum bounds kind.
     MaxBoundsKind = InteropTypeAnnotation
@@ -4573,6 +4575,10 @@ public:
     return getKind() == None;
   }
 
+  bool isAny() const {
+    return getKind() == Any;
+  }
+
   bool isElementCount() const {
     return getKind() == ElementCount;
   }
@@ -4605,7 +4611,7 @@ class NullaryBoundsExpr : public BoundsExpr {
 public:
   NullaryBoundsExpr(Kind Kind, SourceLocation StartLoc, SourceLocation RParenLoc)
     : BoundsExpr(NullaryBoundsExprClass, Kind, StartLoc, RParenLoc)  {
-    assert(Kind == Invalid || Kind == None);
+    assert(Kind == Invalid || Kind == None || Kind == Any);
   }
 
   explicit NullaryBoundsExpr(EmptyShell Empty)

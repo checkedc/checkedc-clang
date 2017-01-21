@@ -1843,6 +1843,9 @@ void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
     case BoundsExpr::Invalid:
       OS << "invalid_bounds()";
       break;
+    case BoundsExpr::Any:
+      OS << "bounds(any)";
+      break;
     case BoundsExpr::None:
       OS << "bounds(none)";
       break;
