@@ -2767,6 +2767,32 @@ llvm::CallInst *CodeGenFunction::EmitTrapCall(llvm::Intrinsic::ID IntrID) {
   return TrapCall;
 }
 
+void CodeGenFunction::EmitDynamicCheck(llvm::Value *Checked) {
+  uint16_t CheckedWidth = Checked->getType()->getIntegerBitWidth();
+
+  llvm::BasicBlock *Begin, *DyCkSuccess, *DyCkFail;
+  llvm::Value *Zero, *IsTrue;
+
+  Begin = Builder.GetInsertBlock();
+  DyCkSuccess = createBasicBlock("_Dynamic_check_succeeded");
+  DyCkFail = createBasicBlock("_Dynamic_check_failed", this->CurFn);
+
+  Builder.SetInsertPoint(DyCkFail);
+  llvm::CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::trap));
+  TrapCall->setDoesNotReturn();
+  TrapCall->setDoesNotThrow();
+  Builder.CreateUnreachable();
+
+  Builder.SetInsertPoint(Begin);
+  Zero = Builder.getInt(llvm::APInt::getNullValue(CheckedWidth));
+  IsTrue = Builder.CreateICmpNE(Checked, Zero, "_Dynamic_check_result");
+  Builder.CreateCondBr(IsTrue, DyCkSuccess, DyCkFail);
+  // This ensures the success block comes directly after the branch
+  EmitBlock(DyCkSuccess);
+
+  Builder.SetInsertPoint(DyCkSuccess);
+}
+
 Address CodeGenFunction::EmitArrayToPointerDecay(const Expr *E,
                                                  AlignmentSource *AlignSource) {
   assert(E->getType()->isArrayType() &&
