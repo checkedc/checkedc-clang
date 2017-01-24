@@ -2426,8 +2426,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     break;
   }
   case Builtin::BI_Dynamic_check: {
-    Value *V = EmitScalarExpr(E->getArg(0));
-    EmitDynamicCheck(V);
+    const Expr *CheckExpr = E->getArg(0);
+    Value *CheckVal = EvaluateExprAsBool(CheckExpr);
+    EmitDynamicCheck(CheckVal);
 
     return RValue::get(nullptr);
   }

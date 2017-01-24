@@ -2768,11 +2768,8 @@ llvm::CallInst *CodeGenFunction::EmitTrapCall(llvm::Intrinsic::ID IntrID) {
 }
 
 void CodeGenFunction::EmitDynamicCheck(llvm::Value *Checked) {
-  uint16_t CheckedWidth = Checked->getType()->getIntegerBitWidth();
 
   llvm::BasicBlock *Begin, *DyCkSuccess, *DyCkFail;
-  llvm::Value *Zero, *IsTrue;
-
   Begin = Builder.GetInsertBlock();
   DyCkSuccess = createBasicBlock("_Dynamic_check_succeeded");
   DyCkFail = createBasicBlock("_Dynamic_check_failed", this->CurFn);
@@ -2784,9 +2781,7 @@ void CodeGenFunction::EmitDynamicCheck(llvm::Value *Checked) {
   Builder.CreateUnreachable();
 
   Builder.SetInsertPoint(Begin);
-  Zero = Builder.getInt(llvm::APInt::getNullValue(CheckedWidth));
-  IsTrue = Builder.CreateICmpNE(Checked, Zero, "_Dynamic_check_result");
-  Builder.CreateCondBr(IsTrue, DyCkSuccess, DyCkFail);
+  Builder.CreateCondBr(Checked, DyCkSuccess, DyCkFail);
   // This ensures the success block comes directly after the branch
   EmitBlock(DyCkSuccess);
 

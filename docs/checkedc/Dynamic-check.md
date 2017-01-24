@@ -1,4 +1,4 @@
-# Dynamic Checks
+# Dynamic Check Operator
 
 Checked C's `_Dynamic_check` operator is implemented within the compiler,
 because we need to do static analysis on its argument to check it is a
@@ -32,32 +32,29 @@ An example function with two dynamic checks is below.
 In LLVM IR, the things to look for are `br` for branch, `icmp` for
 integer comparison, and `call` for function calls.
 
+
 ```
-define void @f1(i32* %i) #0 {
+define void @f1(i32 %i) #0 {
 entry:
-  %i.addr = alloca i32*, align 4
-  store i32* %i, i32** %i.addr, align 4
-  %0 = load i32*, i32** %i.addr, align 4
-  %cmp = icmp ne i32* %0, null
-  %conv = zext i1 %cmp to i32
-  %_Dynamic_check_result = icmp ne i32 %conv, 0
-  br i1 %_Dynamic_check_result, label %_Dynamic_check_succeeded, label %_Dynamic_check_failed
+  %i.addr = alloca i32, align 4
+  store i32 %i, i32* %i.addr, align 4
+  %0 = load i32, i32* %i.addr, align 4
+  %cmp = icmp ne i32 %0, 3
+  br i1 %cmp, label %_Dynamic_check_succeeded0, label %_Dynamic_check_failed1
 
-_Dynamic_check_succeeded:                         ; preds = %entry
-  %1 = load i32*, i32** %i.addr, align 4
-  %cmp1 = icmp eq i32* %1, null
-  %conv2 = zext i1 %cmp1 to i32
-  %_Dynamic_check_result4 = icmp ne i32 %conv2, 0
-  br i1 %_Dynamic_check_result4, label %_Dynamic_check_succeeded5, label %_Dynamic_check_failed3
+_Dynamic_check_succeeded0:                         ; preds = %entry
+  %1 = load i32, i32* %i.addr, align 4
+  %cmp1 = icmp slt i32 %1, 50
+  br i1 %cmp1, label %_Dynamic_check_succeeded3, label %_Dynamic_check_failed2
 
-_Dynamic_check_succeeded5:                        ; preds = %_Dynamic_check_succeeded
+_Dynamic_check_succeeded3:                        ; preds = %_Dynamic_check_succeeded0
   ret void
 
-_Dynamic_check_failed:                            ; preds = %entry
+_Dynamic_check_failed1:                            ; preds = %entry
   call void @llvm.trap() #1
   unreachable
 
-_Dynamic_check_failed3:                           ; preds = %_Dynamic_check_succeeded
+_Dynamic_check_failed2:                           ; preds = %_Dynamic_check_succeeded0
   call void @llvm.trap() #1
   unreachable
 }

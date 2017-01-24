@@ -26,18 +26,17 @@ void f1(void) {
 }
 
 // Function with two dynamic checks
-void f2(void) {
-  // CHECK: void @f2()
+void f2(int i) {
+  // CHECK: void @f2(i32 %i)
 
-  int i;
   _Dynamic_check(i != 3);
   // CHECK: icmp ne
-  // CHECK: br i1 %_Dynamic_check_result
+  // CHECK: br i1
   // CHECK: {{^}}_Dynamic_check_succeeded
 
   _Dynamic_check(i < 50);
   // CHECK: icmp slt
-  // CHECK: br i1 %_Dynamic_check_result
+  // CHECK: br i1
   // CHECK: {{^}}_Dynamic_check_succeeded
   // CHECK: ret void
 
