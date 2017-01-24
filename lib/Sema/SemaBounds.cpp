@@ -311,12 +311,14 @@ namespace {
           return CreateBoundsNone();
 
         // TODO: bounds for lvalues for variables.
+        // Needed for address-taken variables.
         return CreateBoundsNone();
       }
-      // TODO: fill in thse cases.
+      // TODO: fill in these cases.
       case Expr::UnaryOperatorClass:
       case Expr::ArraySubscriptExprClass:
       case Expr::MemberExprClass:
+      case Expr::CompoundLiteralExprClass:
         return CreateBoundsAny();
       default:
         return CreateBoundsNone();
