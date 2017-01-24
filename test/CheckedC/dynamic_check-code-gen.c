@@ -2,13 +2,13 @@
 // This makes sure we're generating something sensible for _Dynamic_check
 // invocations.
 //
-// RUN: %clang_cc1 -fcheckedc-extension -emit-llvm  %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fcheckedc-extension -emit-llvm -verify %s -o - | FileCheck %s
 
 
 // Function with single dynamic check
 void f1(void) {
   // CHECK: void @f1()
-  _Dynamic_check(0);
+  _Dynamic_check(0); // expected-warning {{dynamic check will always fail}}
 
   // Branch
   // CHECK: br i1
@@ -44,4 +44,13 @@ void f2(int i) {
   // CHECK: call void @llvm.trap()
   // CHECK: {{^}}_Dynamic_check_failed
   // CHECK: call void @llvm.trap()
+}
+
+void f3(void) {
+  // CHECK: void @f3()
+  _Dynamic_check(0 == 0);
+  // CHECK-NOT: br i1
+  // CHECK-NOT: _Dynamic_check
+  // CHECK: ret void
+  // CHECK-NOT: call void @llvm.trap()
 }

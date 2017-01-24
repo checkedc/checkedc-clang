@@ -8876,4 +8876,7 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_ptr : Error<
     "automatic variable %0 with _Ptr type must have initializer">;
 
+  def warn_dynamic_check_condition_fail : Warning<
+    "dynamic check will always fail">;
+
 } // end of sema component.
