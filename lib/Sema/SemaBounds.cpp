@@ -236,9 +236,9 @@ namespace {
           if (K == BoundsExpr::ByteCount) {
             ResultTy = Context.getPointerType(Context.CharTy,
                                               CheckedPointerKind::Array);
-            // Use an explicit cast so that cast appears when the bounds is
-            // pretty-printed.  This is necessary for the pretty-printed code
-            // to be correct.
+            // When bounds are pretty-printed as source code, the cast needs
+            // to appear in the source code for the code to be correct, so
+            // use an explicit cast operation.
             LowerBound =
               CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base);
           } else {
@@ -254,8 +254,8 @@ namespace {
                                           SourceLocation(),
                                           false);
           return new (Context) RangeBoundsExpr(LowerBound, UpperBound,
-                                                SourceLocation(),
-                                                SourceLocation());
+                                               SourceLocation(),
+                                               SourceLocation());
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
           return CreateBoundsNone();
@@ -290,7 +290,7 @@ namespace {
 
     // Compute bounds for an lvalue.  The bounds determine whether
     // it is valid to access memory using the lvalue.  The bounds
-    // should be the rane of an object in memory or a subrange of
+    // should be the range of an object in memory or a subrange of
     // an object.
     BoundsExpr *LValueBounds(Expr *E) {
       assert(E->isLValue());
@@ -373,6 +373,8 @@ namespace {
       }
     }
 
+    // Compute the bounds of a cast operation that produces
+    // an rvalue.
     BoundsExpr *RValueCastBounds(CastKind CK, Expr *E) {
       switch (CK) {
         case CastKind::CK_BitCast:
@@ -394,6 +396,8 @@ namespace {
       }
     }
 
+    // Compute the bounds of an expression that produces
+    // an rvalue.
     BoundsExpr *RValueBounds(Expr *E) {
       assert(E->isRValue());
       E = E->IgnoreParens();
