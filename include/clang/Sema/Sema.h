@@ -4273,6 +4273,11 @@ public:
   /// Allocate the nodes for the bounds expression in Ctx.
   BoundsExpr *InferLValueBounds(ASTContext &Ctx, Expr *E);
 
+  /// InferLValueTargetBounds - infer the bounds for the
+  /// target of an lvalue.
+  /// Allocate the nodes for the bounds expression in Ctx.
+  BoundsExpr *InferLValueTargetBounds(ASTContext &Ctx, Expr *E);
+
   /// InferRVa;ieBounds - infer a bounds expression for an rvalue.
   /// The bounds determine whether the rvalue to which an
   /// expression evaluates is in range.
