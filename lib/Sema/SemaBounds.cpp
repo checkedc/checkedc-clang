@@ -154,9 +154,9 @@ namespace {
 
   // C has an interesting semantics for expressions that differentiates between
   // lvalue and value expressions and inserts implicit conversions from lvalues
-  // to values.  Value expressions are usually called rvalue expression.  This
-  // seantics is represented directly in the clang IR by having some
-  // expressions evaluate to lvalues and having implict conversions that convert
+  // to values.  Value expressions are usually called rvalue expressions.  This
+  // semantics is represented directly in the clang IR by having some
+  // expressions evaluate to lvalues and having implicit conversions that convert
   // those lvalues to rvalues.
   //
   // Using ths representation directly would make it clumsy to compute bounds
@@ -165,20 +165,27 @@ namespace {
   // for the lvalue and the bounds expression for the value at which the lvalue
   // points.
   //
-  // We take a slightly different approach for computing bounds.  We say that
-  // depending on the context where an expression occurs, expressions in C may
-  // denote either values or location sof objects in memory (lvalues).  We then
-  // have two methods for determining the bounds expression of an expression:
-  // one for an expression that denotes an rvalue and another for an expression
-  // that denotes an lvalue.  The method to invoke depends on the context in
-  // which an expression occurs.
+  // We address this by having three methods for computing bounds.  One method
+  // (RValueBounds) computes the bounds for an rvalue expression. For lvalue
+  // expressions, we have two methods that compute the bounds.  LValueBounds
+  // computes the bounds for the lvalue produced by an expression.
+  // LValueTargetBounds computes the bounds for the target of the lvalue
+  // produced by the expression.  The method to use depends on the context in
+  // which the lvalue expression is used.
+  //
+  // There are only a few contexts where an lvalue expression can occur, so it
+  // is straightforward to determine which method to use. Also, the clang IR
+  // makes it explicit when an lvalue is converted to an rvalue by an lvalue
+  // cast operation.
   //
   // An expression denotes an lvalue if it occurs in the following contexts:
   // 1. As the left-hand side of an assignment operator.
   // 2. As the operand to a postfix or prefix incrementation operators (which
   //    implicitly do assignment).
   // 3. As the operand of the address-of (&) operator.
-  // 4. If a member access operation e1.f denotes on lvalue, e1 denotes an lvalue.
+  // 4. If a member access operation e1.f denotes on lvalue, e1 denotes an
+  //    lvalue.
+  // 5. In clang IR, as an operand to an LValueToRValue cast operation.
   // Otherwise an expression denotes an rvalue.
   class BoundsInference {
 
@@ -326,8 +333,8 @@ namespace {
     }
 
     // Compute bounds for the target of an lvalue.  Values assigned through
-    // the lvalue must meet satisfy these bounds.   Values read through the lvalue
-    // will meet these bounds.
+    // the lvalue must meet satisfy these bounds.   Values read through the
+    // lvalue will meet these bounds.
     BoundsExpr *LValueTargetBounds(Expr *E) {
       assert(E->isLValue());
       // TODO: handle side effects within E
@@ -347,7 +354,8 @@ namespace {
           if (!B || B->isNone())
             return CreateBoundsNone();
 
-           Expr *Base = CreateImplicitCast(E->getType(), CastKind::CK_LValueToRValue, E);
+           Expr *Base = CreateImplicitCast(E->getType(),
+                                           CastKind::CK_LValueToRValue, E);
            return ExpandToRange(Base, B);
         }
         case Expr::MemberExprClass: {
@@ -365,7 +373,8 @@ namespace {
           if (!B || B->isNone())
             return CreateBoundsNone();
 
-          Expr *Base = CreateImplicitCast(E->getType(), CastKind::CK_LValueToRValue, E);
+          Expr *Base = CreateImplicitCast(E->getType(),
+                                          CastKind::CK_LValueToRValue, E);
           return ExpandToRange(Base, B);
         }
         default:
