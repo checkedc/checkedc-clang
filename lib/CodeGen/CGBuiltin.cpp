@@ -2425,6 +2425,13 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     // Fall through - it's already mapped to the intrinsic by GCCBuiltin.
     break;
   }
+  case Builtin::BI_Dynamic_check: {
+    const Expr *CheckExpr = E->getArg(0);
+    Value *CheckVal = EvaluateExprAsBool(CheckExpr);
+    EmitDynamicCheck(CheckVal);
+
+    return RValue::get(nullptr);
+  }
   }
 
   // If this is an alias for a lib function (e.g. __builtin_sin), emit

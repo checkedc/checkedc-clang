@@ -3222,6 +3222,10 @@ public:
   /// "trap-func-name" if specified.
   llvm::CallInst *EmitTrapCall(llvm::Intrinsic::ID IntrID);
 
+  /// \brief Create a basic block that will call the trap intrinsic, and emit
+  /// a conditional branch to it, for Checked C _Dynamic_checks expressions.
+  void EmitDynamicCheck(llvm::Value *Checked);
+
   /// \brief Emit a cross-DSO CFI failure handling function.
   void EmitCfiCheckFail();
 
