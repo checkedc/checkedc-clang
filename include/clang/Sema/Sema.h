@@ -4289,7 +4289,7 @@ public:
 
   /// CheckNonModifyingExpr - checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1)
-  bool CheckIsNonModifyingExpr(Expr *E, Expr *Outer);
+  bool CheckIsNonModifyingExpr(Expr *E);
 
   //===---------------------------- Clang Extensions ----------------------===//
 

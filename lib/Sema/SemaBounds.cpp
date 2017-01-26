@@ -362,7 +362,7 @@ namespace {
     };
 
   public:
-    NonModifiyingExprSema(Sema &S, Expr *Outer) : S(S), Outer(Outer) {}
+    NonModifiyingExprSema(Sema &S) : S(S) {}
 
     // Assignments are of course modifying
     bool VisitBinAssign(BinaryOperator* E) {
@@ -413,7 +413,6 @@ namespace {
 
   private:
     Sema &S;
-    Expr *Outer;
 
     void addError(Expr *E, ModifyingExprKind Kind) {
       S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
@@ -423,9 +422,9 @@ namespace {
   };
 }
 
-bool Sema::CheckIsNonModifyingExpr(Expr *E, Expr *Outer) {
+bool Sema::CheckIsNonModifyingExpr(Expr *E) {
   // TraverseStmt returns 'false' if traversal exits early.
   // Traversal only ends early if we meet a modifying expression
   // So, if we end early, then we met a modifying expression
-  return NonModifiyingExprSema(*this, Outer).TraverseStmt(E);
+  return NonModifiyingExprSema(*this).TraverseStmt(E);
 }
