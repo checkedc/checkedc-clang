@@ -345,3 +345,87 @@ void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm())
     CheckBoundsDeclarations(*this).TraverseVarDecl(D);
 }
+
+
+namespace {
+  class NonModifiyingExprSema : public RecursiveASTVisitor<NonModifiyingExprSema> {
+
+  private:
+    // Represents which kind of modifying expression we have found
+    enum ModifyingExprKind {
+      MEK_Assign,
+      MEK_Increment,
+      MEK_Decrement,
+      MEK_Call,
+      MEK_Comma,
+      MEK_Volatile
+    };
+
+  public:
+    NonModifiyingExprSema(Sema &S, Expr *Outer) : S(S), Outer(Outer) {}
+
+    // Assignments are of course modifying
+    bool VisitBinAssign(BinaryOperator* E) {
+      addError(E, MEK_Assign);
+      return false;
+    }
+
+    // Assignments are of course modifying
+    bool VisitCompoundAssignOperator(CompoundAssignOperator *E) {
+      addError(E, MEK_Assign);
+      return false;
+    }
+
+    // Pre-increment/decrement, Post-increment/decrement
+    bool VisitUnaryOperator(UnaryOperator *E) {
+      if (E->isIncrementDecrementOp()) {
+        addError(E,
+          E->isIncrementOp() ? MEK_Increment : MEK_Decrement);
+        return false;
+      }
+
+      return true;
+    }
+
+    // References to volatile variables
+    bool VisitDeclRefExpr(DeclRefExpr *E) {
+      QualType RefType = E->getType();
+      if (RefType.isVolatileQualified()) {
+        addError(E, MEK_Volatile);
+        return false;
+      }
+
+      return true;
+    }
+
+    // Function Calls are defined as modifying
+    bool VisitCallExpr(CallExpr *E) {
+      addError(E, MEK_Call);
+      return false;
+    }
+
+    // Comma Expressions are defined as modifying
+    bool VisitBinComma(BinaryOperator *E) {
+      addError(E, MEK_Comma);
+      return false;
+    }
+
+
+  private:
+    Sema &S;
+    Expr *Outer;
+
+    void addError(Expr *E, ModifyingExprKind Kind) {
+      S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
+        << Kind
+        << E->getSourceRange();
+    }
+  };
+}
+
+bool Sema::CheckIsNonModifyingExpr(Expr *E, Expr *Outer) {
+  // TraverseStmt returns 'false' if traversal exits early.
+  // Traversal only ends early if we meet a modifying expression
+  // So, if we end early, then we met a modifying expression
+  return NonModifiyingExprSema(*this, Outer).TraverseStmt(E);
+}

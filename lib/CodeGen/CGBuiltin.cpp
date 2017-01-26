@@ -2426,6 +2426,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     break;
   }
   case Builtin::BI_Dynamic_check: {
+    if (!getLangOpts().CheckedC)
+      break;
+
     const Expr *CheckExpr = E->getArg(0);
     Value *CheckVal = EvaluateExprAsBool(CheckExpr);
     EmitDynamicCheck(CheckVal);
