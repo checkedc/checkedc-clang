@@ -2426,6 +2426,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     break;
   }
   case Builtin::BI_Dynamic_check: {
+    // This disables specific code generation for dynamic checks
+    // if Checked C is not enabled. Code Generation will fall-through
+    // to emitting a "Unknown Builtin" error.
     if (!getLangOpts().CheckedC)
       break;
 

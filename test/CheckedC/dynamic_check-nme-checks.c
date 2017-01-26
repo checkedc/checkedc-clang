@@ -17,42 +17,38 @@ union U1 {
 // Expressions explicitly banned by spec within Non-Modifying Expressions
 void f1(int i) {
   // Conventional Assignment is a modifying expression
-  _Dynamic_check(i = 1);       // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(0 + (i = 1)); // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
+  _Dynamic_check(i = 1);       // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(1 + (i = 1)); // expected-error {{assignment expression not allowed in dynamic check expression}}
 
   // Compound Assignment is a modifying expression
-  _Dynamic_check(i += 1);  // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i -= 1);  // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i *= 1);  // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i /= 1);  // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i %= 1);  // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i <<= 1); // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i >>= 1); // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i &= 1);  // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i ^= 1);  // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i |= 1);  // expected-error {{assignment expression not allowed within non-modifying expression in dynamic_check}}
+  _Dynamic_check(i += 1);  // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i -= 1);  // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i *= 1);  // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i /= 1);  // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i %= 1);  // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i <<= 1); // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i >>= 1); // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i &= 1);  // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i ^= 1);  // expected-error {{assignment expression not allowed in dynamic check expression}}
+  _Dynamic_check(i |= 1);  // expected-error {{assignment expression not allowed in dynamic check expression}}
 
   // Increments are modifying expressions
-  _Dynamic_check(i++); // expected-error {{increment expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(++i); // expected-error {{increment expression not allowed within non-modifying expression in dynamic_check}}
+  _Dynamic_check(i++); // expected-error {{increment expression not allowed in dynamic check expression}}
+  _Dynamic_check((i++, i)); // expected-error {{increment expression not allowed in dynamic check expression}}
+  _Dynamic_check(++i); // expected-error {{increment expression not allowed in dynamic check expression}}
+  _Dynamic_check(1 + 1 - 1 + ++i); // expected-error {{increment expression not allowed in dynamic check expression}}
 
   // Decrements are modifying expressions
-  _Dynamic_check(i--); // expected-error {{decrement expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(--i); // expected-error {{decrement expression not allowed within non-modifying expression in dynamic_check}}
+  _Dynamic_check(i--); // expected-error {{decrement expression not allowed in dynamic check expression}}
+  _Dynamic_check(--i); // expected-error {{decrement expression not allowed in dynamic check expression}}
 
   // Calls are modifying expressions
-  _Dynamic_check(f0());     // expected-error {{call expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(1 + f0()); // expected-error {{call expression not allowed within non-modifying expression in dynamic_check}}
-
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused"
-  // Commas are modifying expressions
-  _Dynamic_check((i+2, i+1000000, i)); // expected-error {{comma expression not allowed within non-modifying expression in dynamic_check}}
-#pragma clang diagnostic pop
+  _Dynamic_check(f0());     // expected-error {{call expression not allowed in dynamic check expression}}
+  _Dynamic_check(1 + f0()); // expected-error {{call expression not allowed in dynamic check expression}}
 
   volatile int j;
-  _Dynamic_check(j);     // expected-error {{volatile expression not allowed within non-modifying expression in dynamic_check}}
-  _Dynamic_check(i + j); // expected-error {{volatile expression not allowed within non-modifying expression in dynamic_check}}
+  _Dynamic_check(j);     // expected-error {{volatile expression not allowed in dynamic check expression}}
+  _Dynamic_check(i + j); // expected-error {{volatile expression not allowed in dynamic check expression}}
 }
 
 // Expressions explicitly allowed by spec within Non-Modifying Expressions

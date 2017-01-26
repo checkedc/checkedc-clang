@@ -1067,6 +1067,8 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     break;
   case Builtin::BI_Dynamic_check: {
+    // This disables any semantic analysis (in particular, errors or warnings)
+    // if Checked C is not enabled
     if (!getLangOpts().CheckedC)
       break;
 
