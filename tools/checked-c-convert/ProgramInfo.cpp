@@ -44,8 +44,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 		vars.insert(K);
 		CS.getOrCreateVar(K);
 
-		// TODO: Save here if QTy is qualified or not into a map that 
-		//       indexes K to the qualification of QTy, if any.
+		// Save here if QTy is qualified or not into a map that 
+		// indexes K to the qualification of QTy, if any.
 		if (QTy.isConstQualified()) 
 			QualMap.insert(
 				std::pair<uint32_t, Qualification>(K, ConstQualification));
