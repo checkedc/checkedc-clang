@@ -8876,4 +8876,8 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_ptr : Error<
     "automatic variable %0 with _Ptr type must have initializer">;
 
+  def err_not_non_modifying_expr : Error<
+	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed "
+	"in dynamic check expression">;
+
 } // end of sema component.

@@ -589,3 +589,88 @@ void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm())
     CheckBoundsDeclarations(*this).TraverseVarDecl(D);
 }
+
+
+namespace {
+  class NonModifiyingExprSema : public RecursiveASTVisitor<NonModifiyingExprSema> {
+
+  private:
+    // Represents which kind of modifying expression we have found
+    enum ModifyingExprKind {
+      MEK_Assign,
+      MEK_Increment,
+      MEK_Decrement,
+      MEK_Call,
+      MEK_Volatile
+    };
+
+  public:
+    NonModifiyingExprSema(Sema &S) : S(S), FoundModifyingExpr(false) {}
+
+    bool isNonModifyingExpr() { return !FoundModifyingExpr; }
+
+    // Assignments are of course modifying
+    bool VisitBinAssign(BinaryOperator* E) {
+      addError(E, MEK_Assign);
+      FoundModifyingExpr = true;
+
+      return true;
+    }
+
+    // Assignments are of course modifying
+    bool VisitCompoundAssignOperator(CompoundAssignOperator *E) {
+      addError(E, MEK_Assign);
+      FoundModifyingExpr = true;
+
+      return true;
+    }
+
+    // Pre-increment/decrement, Post-increment/decrement
+    bool VisitUnaryOperator(UnaryOperator *E) {
+      if (E->isIncrementDecrementOp()) {
+        addError(E,
+          E->isIncrementOp() ? MEK_Increment : MEK_Decrement);
+        FoundModifyingExpr = true;
+      }
+
+      return true;
+    }
+
+    // References to volatile variables
+    bool VisitDeclRefExpr(DeclRefExpr *E) {
+      QualType RefType = E->getType();
+      if (RefType.isVolatileQualified()) {
+        addError(E, MEK_Volatile);
+        FoundModifyingExpr = true;
+      }
+
+      return true;
+    }
+
+    // Function Calls are defined as modifying
+    bool VisitCallExpr(CallExpr *E) {
+      addError(E, MEK_Call);
+      FoundModifyingExpr = true;
+
+      return true;
+    }
+
+
+  private:
+    Sema &S;
+    bool FoundModifyingExpr;
+
+    void addError(Expr *E, ModifyingExprKind Kind) {
+      S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
+        << Kind
+        << E->getSourceRange();
+    }
+  };
+}
+
+bool Sema::CheckIsNonModifyingExpr(Expr *E) {
+  NonModifiyingExprSema Checker(*this);
+  Checker.TraverseStmt(E);
+
+  return Checker.isNonModifyingExpr();
+}

@@ -1065,6 +1065,17 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
   case Builtin::BIget_kernel_preferred_work_group_size_multiple:
     if (SemaOpenCLBuiltinKernelWorkGroupSize(*this, TheCall))
       return ExprError();
+    break;
+  case Builtin::BI_Dynamic_check: {
+    // This disables any semantic analysis (in particular, errors or warnings)
+    // if Checked C is not enabled
+    if (!getLangOpts().CheckedC)
+      break;
+
+    if (!CheckIsNonModifyingExpr(TheCall->getArg(0)))
+      return ExprError();
+    break;
+  }
   }
 
   // Since the target specific builtins for each arch overlap, only check those
