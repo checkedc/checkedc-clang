@@ -2445,7 +2445,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
       }
       else {
         // Dynamic Check always fails, emit warning
-        CGM.getDiags().Report(CheckExpr->getLocStart(), diag::warn_dynamic_check_condition_fail);
+        CGM.getDiags().Report(CheckExpr->getLocStart(), diag::warn_dynamic_check_condition_fail)
+          << E->getSourceRange();
       }
     }
 
