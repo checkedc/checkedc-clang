@@ -130,11 +130,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
       break;
     case Atom::A_Arr:
     case Atom::A_Wild:
-      q = QualMap.find(V);
-      if (q != QualMap.end())
-        if (q->second == ConstQualification)
-          s = s + "const ";
-
       if (emittedBase) {
         s = s + "*";
       } else {
@@ -147,6 +142,11 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
           s = s + BaseType + "*";
         }
       }
+
+      q = QualMap.find(V);
+      if (q != QualMap.end())
+        if (q->second == ConstQualification)
+          s = s + "const ";
       break;
     case Atom::A_Const:
     case Atom::A_Var:
