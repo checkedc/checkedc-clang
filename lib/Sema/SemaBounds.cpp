@@ -578,6 +578,79 @@ namespace {
 
       return true;
     }
+
+
+    bool VisitImplicitCastExpr(ImplicitCastExpr *E) {
+      if (E->getCastKind() == CK_BitCast)
+        FindDisallowedFunctionPtrCasts(E);
+
+      return true;
+    }
+
+  private:
+    // Here we're looking for places where the programmer has cast from an
+    // unchecked function pointer type to a checked function pointer type.
+    // We need to descend through all the casts below the top-level bitcast to find
+    // the eventual thing we're referring to. We then check to make sure that it is
+    // either a top-level function declaration (of either checked or unchecked type), or
+    // a local variable that has a checked function type.
+    //
+    // The only other exception we have is that we can always assign the null pointer to
+    // a checked function pointer type.
+    void FindDisallowedFunctionPtrCasts(ImplicitCastExpr *E) {
+      QualType Ty = E->getType();
+
+      // We're looking for ptrs to functions
+      if (!Ty->isCheckedPointerPtrType() ||
+        !Ty->isFunctionPointerType())
+        return;
+
+      Expr *Operand = E;
+      // This is so we can get down through all & and * operators
+      // it is modelled on the Expr::IgnoreParenCasts-like functions
+      while (true) {
+        // This takes us down to the next "interesting" thing
+        Operand = Operand->IgnoreParenCasts();
+
+        if (UnaryOperator *UOp = dyn_cast<UnaryOperator>(Operand)) {
+          switch (UOp->getOpcode())
+          {
+          case UO_AddrOf: // & operator
+                          // We may need more conditions here
+            Operand = UOp->getSubExpr();
+            continue;
+          case UO_Deref: // * operator
+                         // We may need more conditions here
+            Operand = UOp->getSubExpr();
+            continue;
+          default:
+            break;
+          }
+        }
+
+        break;
+      }
+
+      // Null Ptrs are allowed
+      if (Operand->isNullPointerConstant(S.Context, Expr::NPC_NeverValueDependent))
+        return;
+
+      if (isa<DeclRefExpr>(Operand)) {
+        // DeclRefs are allowed, only if they refer to a top-level function...
+        const DeclRefExpr *OperandDeclRef = dyn_cast<DeclRefExpr>(Operand);
+        if (isa<FunctionDecl>(OperandDeclRef->getDecl()))
+          return;
+
+        // ... or have a checked pointer type
+        QualType OTy = OperandDeclRef->getType();
+        if (OTy->isCheckedPointerPtrType())
+          return;
+      }
+
+      // Everything else is an error
+      S.Diag(E->getExprLoc(), diag::err_function_unchecked_to_checked_without_name)
+        << E->getSourceRange();
+    }
   };
 }
 
