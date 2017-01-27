@@ -52,7 +52,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 
 		K++;
 
-		if (tyToStr(Ty) == "va_list")
+		if (tyToStr(Ty) == "struct __va_list_tag *")
 			break;
 
 		// Iterate.
@@ -82,7 +82,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	}
 
 	// Special case for void to not make _Ptr<void> pointers.
-	if (Ty->isVoidType() || BaseType == "va_list")
+	if (Ty->isVoidType() || BaseType == "struct __va_list_tag *")
 		for (const auto &V : vars)
 			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }

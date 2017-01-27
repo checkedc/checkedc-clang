@@ -165,6 +165,17 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         SourceRange TR = VD->getSourceRange();
         std::string sRewrite = N.second + " " + VD->getNameAsString();
 
+        // Is there an initializer? If there is, change TR so that it points
+        // to the START of the SourceRange of the initializer text, and drop
+        // an '=' token into sRewrite.
+        if (VD->hasInit()) {
+          const Expr *E = VD->getInit();
+          E->dump();
+          SourceRange ER = E->getSourceRange();
+          TR.setEnd(ER.getBegin());
+          sRewrite = sRewrite + " = ";
+        }
+
         // Is it a variable type? This is the easy case, we can re-write it
         // locally, at the site of the declaration.
 
@@ -288,11 +299,12 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
       SourceRange SR = UD->getReturnTypeSourceRange();
       if (canRewrite(R, SR))
         R.ReplaceText(SR, N.second);
-    }
-    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
-      SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+    } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+      SourceRange SR = FD->getSourceRange();
+      std::string sRewrite = N.second + " " + FD->getNameAsString();
+
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, N.second);
+        R.ReplaceText(SR, sRewrite);
     }
   }
 }
