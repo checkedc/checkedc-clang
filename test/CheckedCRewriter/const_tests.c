@@ -1,6 +1,6 @@
 // Tests for Checked C rewriter tool.
 //
-// Checks properties of functions.
+// Checks for conversions involving const-qualified types.
 //
 // RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
 // RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
@@ -31,3 +31,16 @@ void cst4(const int *b) {
 //CHECK-NEXT: int c = *b;
 //CHECK-NEXT: _Ptr<const int>  d;
 //CHECK-NEXT: int e = *d;
+
+typedef struct _A { 
+  const int * a;
+  int b;
+} A;
+//CHECK: typedef struct _A {
+//CHECK-NEXT: _Ptr<const int>  a;
+
+void cst5(void) {
+  A a = { 0 };
+  int b = 0;
+  a.a = &b;
+}
