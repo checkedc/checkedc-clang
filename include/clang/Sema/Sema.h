@@ -4273,6 +4273,11 @@ public:
   /// Allocate the nodes for the bounds expression in Ctx.
   BoundsExpr *InferLValueBounds(ASTContext &Ctx, Expr *E);
 
+  /// InferLValueTargetBounds - infer the bounds for the
+  /// target of an lvalue.
+  /// Allocate the nodes for the bounds expression in Ctx.
+  BoundsExpr *InferLValueTargetBounds(ASTContext &Ctx, Expr *E);
+
   /// InferRVa;ieBounds - infer a bounds expression for an rvalue.
   /// The bounds determine whether the rvalue to which an
   /// expression evaluates is in range.
@@ -4286,6 +4291,10 @@ public:
   /// CheckTopLevelBoundsDecls - check bounds declarations for variable declarations
   /// not within a function body.
   void CheckTopLevelBoundsDecls(VarDecl *VD);
+
+  /// CheckNonModifyingExpr - checks whether an expression is non-modifying
+  /// (see Checked C Spec, 3.6.1)
+  bool CheckIsNonModifyingExpr(Expr *E);
 
   //===---------------------------- Clang Extensions ----------------------===//
 
