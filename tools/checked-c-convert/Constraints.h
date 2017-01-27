@@ -421,6 +421,11 @@ public:
   // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
   EnvironmentMap &getVariables() { return environment; }
+  // Solve the system of constraints. Return true in the second position if
+  // the system is solved. If the system is solved, the first position is 
+  // an empty. If the system could not be solved, the constraints in conflict
+  // are returned in the first position.
+  // TODO: this functionality is not implemented yet.
   std::pair<ConstraintSet, bool> solve(void);
   void dump() const;
   void print(llvm::raw_ostream &) const;
