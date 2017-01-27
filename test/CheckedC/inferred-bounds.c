@@ -295,3 +295,209 @@ void f31(void) {
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5]'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
 
+//---------------------------------------------------------------------------//
+// Test inference of bounds for address-of (&) expressions. The & operator  //
+// can be applied to lvalue expressions, so this includes tests of & applied //
+// dereference and array-subscriptiong expressions.                          //
+//--------------------------------------------------------==-----------------//
+
+// Address-of scalar variable.
+void f40(void) {
+  int x;
+  _Array_ptr<int> p : count(1) = &x;
+}
+
+// CHECK: Declaration:
+// CHECK:  VarDecl {{0x[0-9a-f]+}} {{.*}} p '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} <col:23, col:30> 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} <col:29> 'int' 1
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} <col:34, col:35> '_Array_ptr<int>' <BitCast>
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} <col:34, col:35> 'int *' prefix '&'
+// CHECK:     `-DeclRefExpr {{0x[0-9a-f]+}} <col:35> 'int' lvalue Var {{0x[0-9a-f]+}} 'x' 'int'
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue Var {{0x[0-9a-f]+}} 'x' 'int'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue Var {{0x[0-9a-f]+}} 'x' 'int'
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 1
+
+// Address-of array variable.
+void f41(void) {
+  int x[5];
+  _Array_ptr<int> p : count(5) = (_Array_ptr<int>) &x;
+}
+
+// CHECK: Declaration:
+// CHECK: VarDecl {{0x[0-9a-f]+}} <{{.*}} p '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} <col:23, col:30> 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} <col:29> 'int' 5
+// CHECK: `-CStyleCastExpr {{0x[0-9a-f]+}} <col:34, col:53> '_Array_ptr<int>' <BitCast>
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} <col:52, col:53> 'int (*)[5]' prefix '&'
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} <col:53> 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'x' 'int [5]'
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: Initializer Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int *':'int *' <ArrayToPointerDecay>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'x' 'int [5]'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *':'int *' '+'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int *':'int *' <ArrayToPointerDecay>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'x' 'int [5]'
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+
+// Address-of dereference of a pointer.
+void f42(void) {
+  int x;
+  _Array_ptr<int> p : count(1) = &x;
+  _Array_ptr<int> q : count(1) = &*p;
+
+// CHECK: Declaration:
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} q '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} <col:29> 'int' 1
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} <col:34, col:36> '_Array_ptr<int>' prefix '&'
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} <col:35, col:36> 'int' lvalue prefix '*'
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} <col:36> '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} <col:36> '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: Initializer Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+
+  _Array_ptr<int> r : count(1) = &p[0];
+
+// CHECK: Declaration:
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} r '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' prefix '&'
+// CHECK:     `-ArraySubscriptExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 0
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK: Initializer Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+}
+
+// Address-of multi-dimensional array access.
+// - Use assignments instead of declarations to
+//   cover inference of assignment with address-of
+//   expressions.
+void f43(void) {
+  int arr[5][5];
+  _Array_ptr<int> p : count(5) = 0;
+
+// CHECK: Declaration:
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used p '_Array_ptr<int>' cinit
+// Skip remaining details of this declaration.
+  _Array_ptr<int> r : bounds(arr, arr + 5) = 0;
+
+// CHECK: Declaration:
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used r '_Array_ptr<int>' cinit
+// Skip remaining details of this declaration.
+  p = *arr;
+
+// CHECK: Assignment:
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
+// CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <BitCast>
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int *' <ArrayToPointerDecay>
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} 'int [5]' lvalue prefix '*'
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]' <ArrayToPointerDecay>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
+// CHECK: Target Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: RHS Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' <ArrayToPointerDecay>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' '+'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' <ArrayToPointerDecay>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+
+  p = arr[0];
+
+// CHECK: Assignment:
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
+// CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <BitCast>
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int *' <ArrayToPointerDecay>
+// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'int [5]' lvalue
+// CHECK:       |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]' <ArrayToPointerDecay>
+// CHECK:       | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
+// CHECK:       `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 0
+// CHECK: Target Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: RHS Bounds:
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' <ArrayToPointerDecay>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' '+'
+// CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' <ArrayToPointerDecay>
+// CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+
+  r = &p[0];
+
+// CHECK: Assignment:
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
+// CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'r' '_Array_ptr<int>'
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <BitCast>
+// CHECK: `-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
+// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'int' lvalue
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK:       | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK:       `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 0
+// CHECK: Target Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]' <ArrayToPointerDecay>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int (*)[5]' '+'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]' <ArrayToPointerDecay>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: RHS Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+
+}

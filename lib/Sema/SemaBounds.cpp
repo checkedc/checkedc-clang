@@ -186,7 +186,7 @@ namespace {
   // 4. If a member access operation e1.f denotes on lvalue, e1 denotes an
   //    lvalue.
   // 5. In clang IR, as an operand to an LValueToRValue cast operation.
-  // Otherwise an expression denotes an rvalue.
+  // Otherwise an expression denotes an rvalue.+
   class BoundsInference {
 
   private:
@@ -216,6 +216,14 @@ namespace {
                                       SourceLocation());
     }
 
+    Expr *CreateAddressOfOperator(Expr *E) {
+      QualType Ty = Context.getPointerType(E->getType(), CheckedPointerKind::Array);
+      return new (Context) UnaryOperator(E, UnaryOperatorKind::UO_AddrOf, Ty,
+                                         ExprValueKind::VK_RValue,
+                                         ExprObjectKind::OK_Ordinary,
+                                         SourceLocation());
+    }
+
     IntegerLiteral *CreateIntegerLiteral(const llvm::APInt &I) {
       uint64_t Bits = I.getZExtValue();
       unsigned Width = Context.getIntWidth(Context.UnsignedLongLongTy);
@@ -226,6 +234,10 @@ namespace {
       return Lit;
     }
 
+    // Given a byte_count or count bounds expression for the expression Base,
+    // expand it a range bounds expression:
+    //  E : Count(C) expands to Bounds(E, E + C)
+    //  E : ByteCount(C)  exzpands to Bounds((char *) E, (char *) E + C)
     BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
       assert(Base->isRValue() && "expected rvalue expression");
       BoundsExpr::Kind K = B->getKind();
@@ -275,6 +287,7 @@ namespace {
     BoundsInference(ASTContext &Ctx) : Context(Ctx) {
     }
 
+    // Compute bounds for a variable with an array type.
     BoundsExpr *ArrayVariableBounds(DeclRefExpr *DR) {
       QualType QT = DR->getType();
       const ConstantArrayType *CAT = Context.getAsConstantArrayType(QT);
@@ -295,7 +308,7 @@ namespace {
       return ExpandToRange(Base, &CBE);
     }
 
-    // Compute bounds for an lvalue.  The bounds determine whether
+    // Infer bounds for an lvalue.  The bounds determine whether
     // it is valid to access memory using the lvalue.  The bounds
     // should be the range of an object in memory or a subrange of
     // an object.
@@ -317,13 +330,39 @@ namespace {
         if (DR->getType()->isFunctionType())
           return CreateBoundsNone();
 
-        // TODO: bounds for lvalues for variables.
-        // Needed for address-taken variables.
-        return CreateBoundsNone();
+        IntegerLiteral *One = CreateIntegerLiteral(llvm::APInt(1, 1));
+        Expr *AddrOf = CreateAddressOfOperator(DR);
+        CountBoundsExpr CBE = CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                              One, SourceLocation(),
+                                              SourceLocation());
+        return ExpandToRange(AddrOf, &CBE);
+      }
+      case Expr::UnaryOperatorClass: {
+        UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
+        if (!UO) {
+          assert("unexpected cast failure");
+          return CreateBoundsNone();
+        }
+        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
+          return RValueBounds(UO->getSubExpr());
+        else {
+          llvm_unreachable("unexpected lvalue unary operator");
+          return CreateBoundsNone();
+        }
+      }
+      case Expr::ArraySubscriptExprClass: {
+        //  e1[e2] is a synonym for *(e1 + e2).  The bounds are
+        // the bounds of e1 + e2, which reduces to the bounds
+        // of whichever subexpression has pointer type.
+        ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
+        if (!AS) {
+          assert("unexpected cast failure");
+          return CreateBoundsNone();
+        }
+        // getBase returns the pointer-typed expression.
+        return RValueBounds(AS->getBase());
       }
       // TODO: fill in these cases.
-      case Expr::UnaryOperatorClass:
-      case Expr::ArraySubscriptExprClass:
       case Expr::MemberExprClass:
       case Expr::CompoundLiteralExprClass:
         return CreateBoundsAny();
@@ -443,8 +482,21 @@ namespace {
           }
           return RValueCastBounds(CE->getCastKind(), CE->getSubExpr());
         }
+        case Expr::UnaryOperatorClass: {
+          UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
+          if (!UO) {
+            assert("unexpected cast failure");
+            return CreateBoundsNone();
+          }
+          switch (UO->getOpcode()) {
+            case UnaryOperatorKind::UO_AddrOf:
+              return LValueBounds(UO->getSubExpr());
+            default:
+              // TODO: fill in other cases
+              return CreateBoundsNone();
+          }
+        }
         // TODO: fill in these cases
-        case Expr::UnaryOperatorClass:
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
         case Expr::CallExprClass:
