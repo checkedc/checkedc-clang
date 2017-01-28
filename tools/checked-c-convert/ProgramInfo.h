@@ -84,9 +84,14 @@ class FunctionVariableConstraint;
 // This could contain a reference to a FunctionVariableConstraint
 // in the case of a function pointer declaration.
 class PointerVariableConstraint : public ConstraintVariable {
+public:
+	enum Qualification {
+		ConstQualification
+  };
 private:
   CVars vars;
   FunctionVariableConstraint *FV;
+  std::map<uint32_t, Qualification> QualMap;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T) : 
@@ -95,12 +100,12 @@ public:
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index.
   PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
-    Constraints &CS);
+    Constraints &CS, const clang::ASTContext &C);
 
   // Constructor for when we only have a Type. Needs a string name
   // N for the name of the variable that this represents.
-  PointerVariableConstraint(const clang::Type *Ty, uint32_t &K,
-    std::string N, Constraints &CS);
+  PointerVariableConstraint(const clang::QualType &QT, uint32_t &K,
+	  std::string N, Constraints &CS, const clang::ASTContext &C);
 
   const CVars &getCvars() const { return vars; }
 
@@ -137,9 +142,9 @@ public:
     ConstraintVariable(FunctionVariable, ""),name(""),hasproto(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
-    Constraints &CS);
+    Constraints &CS, const clang::ASTContext &C);
   FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
-    std::string N, Constraints &CS);
+    std::string N, Constraints &CS, const clang::ASTContext &C);
 
   std::set<ConstraintVariable*> &
   getReturnVars() { return returnVars; }

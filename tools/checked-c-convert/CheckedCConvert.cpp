@@ -144,24 +144,11 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
               // TODO these declarations could get us into deeper header files.
               ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
               assert(Rewrite != NULL);
-              SourceRange TR;
-              if (TypeSourceInfo *TSI = Rewrite->getTypeSourceInfo()) {
-                TR = TSI->getTypeLoc().getSourceRange();
+              SourceRange TR = Rewrite->getSourceRange();
+              std::string sRewrite = N.second + " " + Rewrite->getNameAsString();
 
-                // Get a FullSourceLoc for the start location and add it to the
-                // list of file ID's we've touched.
-                FullSourceLoc FSL(TR.getBegin(), S);
-                Files.insert(FSL.getFileID());
-                if (canRewrite(R, TR))
-                  R.ReplaceText(TR, N.second);
-              }
-              else {
-                if (Verbose) {
-                  errs() << "Skipping rewrite for ";
-                  Rewrite->dump();
-                  errs() << " due to missing type source info\n";
-                }
-              }
+              if (canRewrite(R, TR))
+                R.ReplaceText(TR, sRewrite);
             }
           }
         } else
@@ -175,7 +162,17 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
           errs() << "VarDecl at:\n";
           Where->dump();
         }
-        SourceRange TR = VD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+        SourceRange TR = VD->getSourceRange();
+        std::string sRewrite = N.second + " " + VD->getNameAsString();
+
+        // Is there an initializer? If there is, change TR so that it points
+        // to the START of the SourceRange of the initializer text, and drop
+        // an '=' token into sRewrite.
+        if (VD->hasInit()) {
+          SourceLocation eqLoc = VD->getInitializerStartLoc();
+          TR.setEnd(eqLoc);
+          sRewrite = sRewrite + " =";
+        }
 
         // Is it a variable type? This is the easy case, we can re-write it
         // locally, at the site of the declaration.
@@ -186,7 +183,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         Files.insert(FSL.getFileID());
         if (Where->isSingleDecl()) {
           if (canRewrite(R, TR)) {
-            R.ReplaceText(TR, N.second);
+            R.ReplaceText(TR, sRewrite);
           } else {
             // This can happen if SR is within a macro. If that is the case, 
             // maybe there is still something we can do because Decl refers 
@@ -300,11 +297,12 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
       SourceRange SR = UD->getReturnTypeSourceRange();
       if (canRewrite(R, SR))
         R.ReplaceText(SR, N.second);
-    }
-    else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
-      SourceRange SR = FD->getTypeSourceInfo()->getTypeLoc().getSourceRange();
+    } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
+      SourceRange SR = FD->getSourceRange();
+      std::string sRewrite = N.second + " " + FD->getNameAsString();
+
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, N.second);
+        R.ReplaceText(SR, sRewrite);
     }
   }
 }
@@ -641,7 +639,10 @@ int main(int argc, const char **argv) {
   if (Verbose)
     outs() << "Solving constraints\n";
   Constraints &CS = Info.getConstraints();
-  CS.solve();
+  std::pair<Constraints::ConstraintSet, bool> R = CS.solve();
+  // TODO: In the future, R.second will be false when there's a conflict, 
+  //       and the tool will need to do something about that. 
+  assert(R.second == true);
   if (Verbose)
     outs() << "Constraints solved\n";
   if (DumpIntermediate)
