@@ -169,11 +169,9 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         // to the START of the SourceRange of the initializer text, and drop
         // an '=' token into sRewrite.
         if (VD->hasInit()) {
-          const Expr *E = VD->getInit();
-          E->dump();
-          SourceRange ER = E->getSourceRange();
-          TR.setEnd(ER.getBegin());
-          sRewrite = sRewrite + " = ";
+          SourceLocation eqLoc = VD->getInitializerStartLoc();
+          TR.setEnd(eqLoc);
+          sRewrite = sRewrite + " =";
         }
 
         // Is it a variable type? This is the easy case, we can re-write it
