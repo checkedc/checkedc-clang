@@ -29,7 +29,7 @@ void cst4(const int *b) {
 }
 //CHECK: void cst4(_Ptr<const int>  b) {
 //CHECK-NEXT: int c = *b;
-//CHECK-NEXT: _Ptr<const int>  d;
+//CHECK-NEXT: _Ptr<const int>  d = b;
 //CHECK-NEXT: int e = *d;
 
 typedef struct _A { 

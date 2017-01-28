@@ -109,7 +109,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   std::string s = "";
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
-  bool wroteFPtr = false;
   for (const auto &V : vars) {
     VarAtom VA(V);
     ConstAtom *C = E[&VA];
@@ -137,7 +136,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
         emittedBase = true;
         if (FV) {
           s = s + FV->mkString(E);
-          wroteFPtr = true;
         } else {
           s = s + BaseType + "*";
         }
@@ -160,7 +158,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     // type.
     if (FV) {
       s = s + FV->mkString(E);
-      wroteFPtr = true;
     } else {
       s = s + BaseType;
     }
@@ -170,9 +167,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   for (unsigned i = 0; i < caratsToAdd; i++) {
     s = s + ">";
   }
-
-  if (FV && wroteFPtr) 
-    s = s + " " + FV->getName();
 
   s = s + " ";
 

@@ -33,7 +33,7 @@ void *xyzzy(int *a, int b) {
 
   return 0;
 }
-//CHECK: void *xyzzy(_Ptr<int> a, int b) {
+//CHECK: void *xyzzy(_Ptr<int>  a, int b) {
 //CHECK-NEXT: *a = b;
 
 void xyzzy_driver(void) {
@@ -43,7 +43,7 @@ void xyzzy_driver(void) {
   xyzzy_ptr(v, u);
 }
 //CHECK: void xyzzy_driver(void) {
-//CHECK-NEXT: _Ptr<void* (_Ptr<int> , int )> xyzzy_ptr = &xyzzy;
+//CHECK-NEXT: _Ptr<void* (_Ptr<int> , int )>  xyzzy_ptr = &xyzzy;
 //CHECK-NEXT: int u = 0;
 //CHECK-NEXT: _Ptr<int> v = &u;
 //CHECK-NEXT: xyzzy_ptr(v, u);
@@ -140,7 +140,7 @@ typedef struct _B {
   int *(*foo)(int *, int);
 } B, *PB;
 //CHECK: typedef struct _B {
-//CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> , int )> foo ;
+//CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> , int )> foo;
 //CHECK-NEXT: } B, *PB;
 
 void bdriver(void) {
