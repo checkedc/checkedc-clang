@@ -827,6 +827,8 @@ protected:
   /// C++ default argument.
   mutable InitType Init;
 
+  SourceLocation InitializerStartLoc;
+
 private:
   class VarDeclBitfields {
     friend class VarDecl;
@@ -1171,6 +1173,20 @@ public:
   Stmt **getInitAddress();
 
   void setInit(Expr *I);
+
+  /// \brief Set the location of the first token of the initializer
+  /// expression.  For C-style intializers, this is the location of
+  /// the equal token.
+  void setInitializerStartLoc(SourceLocation Loc) {
+    InitializerStartLoc = Loc;
+  }
+
+  /// \brief Get the location of the first token of the initializer
+  /// expression.  For C-style intializers, this is the location of
+  /// the equal token.
+  SourceLocation getInitializerStartLoc() {
+    return InitializerStartLoc;
+  }
 
   /// \brief Determine whether this variable's value can be used in a
   /// constant expression, according to the relevant language standard.

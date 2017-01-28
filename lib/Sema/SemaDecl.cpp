@@ -9884,7 +9884,8 @@ QualType Sema::deduceVarTypeFromInitializer(VarDecl *VDecl,
 /// declaration dcl. If DirectInit is true, this is C++ direct
 /// initialization rather than copy initialization.
 void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init,
-                                bool DirectInit, bool TypeMayContainAuto) {
+                                bool DirectInit, bool TypeMayContainAuto,
+                                SourceLocation EqualLoc) {
   // If there is no declaration, there was an error parsing it.  Just ignore
   // the initializer.
   if (!RealDecl || RealDecl->isInvalidDecl()) {
@@ -10166,6 +10167,7 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init,
 
   // Attach the initializer to the decl.
   VDecl->setInit(Init);
+  VDecl->setInitializerStartLoc(EqualLoc);
 
   if (VDecl->isLocalVarDecl()) {
     // C99 6.7.8p4: All the expressions in an initializer for an object that has
