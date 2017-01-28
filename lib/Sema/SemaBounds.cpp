@@ -186,7 +186,7 @@ namespace {
   // 4. If a member access operation e1.f denotes on lvalue, e1 denotes an
   //    lvalue.
   // 5. In clang IR, as an operand to an LValueToRValue cast operation.
-  // Otherwise an expression denotes an rvalue.+
+  // Otherwise an expression denotes an rvalue.
   class BoundsInference {
 
   private:
@@ -235,7 +235,7 @@ namespace {
     }
 
     // Given a byte_count or count bounds expression for the expression Base,
-    // expand it a range bounds expression:
+    // expand it to a range bounds expression:
     //  E : Count(C) expands to Bounds(E, E + C)
     //  E : ByteCount(C)  exzpands to Bounds((char *) E, (char *) E + C)
     BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
