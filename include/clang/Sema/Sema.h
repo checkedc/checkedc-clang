@@ -1778,7 +1778,8 @@ public:
                                SourceLocation EqualLoc);
 
   void AddInitializerToDecl(Decl *dcl, Expr *init, bool DirectInit,
-                            bool TypeMayContainAuto);
+                            bool TypeMayContainAuto, 
+                            SourceLocation EqualLoc = SourceLocation());
   void ActOnUninitializedDecl(Decl *dcl, bool TypeMayContainAuto);
   void ActOnInitializerError(Decl *Dcl);
   void ActOnPureSpecifier(Decl *D, SourceLocation PureSpecLoc);

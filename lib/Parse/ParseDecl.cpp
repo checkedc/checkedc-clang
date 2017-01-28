@@ -2165,7 +2165,8 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         Actions.ActOnInitializerError(ThisDecl);
       } else
         Actions.AddInitializerToDecl(ThisDecl, Init.get(),
-                                     /*DirectInit=*/false, TypeContainsAuto);
+                                     /*DirectInit=*/false, TypeContainsAuto,
+                                     EqualLoc);
     }
   } else if (Tok.is(tok::l_paren)) {
     // Parse C++ direct initializer: '(' expression-list ')'
