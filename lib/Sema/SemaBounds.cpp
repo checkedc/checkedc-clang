@@ -330,7 +330,9 @@ namespace {
         if (DR->getType()->isFunctionType())
           return CreateBoundsNone();
 
-        IntegerLiteral *One = CreateIntegerLiteral(llvm::APInt(1, 1));
+        // Create an unsigned integer 1
+        IntegerLiteral *One =
+          CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
         Expr *AddrOf = CreateAddressOfOperator(DR);
         CountBoundsExpr CBE = CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                               One, SourceLocation(),
