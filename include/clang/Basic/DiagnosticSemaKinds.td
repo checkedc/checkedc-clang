@@ -8876,8 +8876,21 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_ptr : Error<
     "automatic variable %0 with _Ptr type must have initializer">;
 
-  def err_function_unchecked_to_checked_without_name : Error<
-	"cannot cast an unchecked function pointer to a checked pointer unless unchecked function is named">;
+  def err_cast_to_checked_fn_ptr_must_be_named : Error<
+	"cast to checked function pointer type %0 must be from named top-level function">;
+
+  def err_cast_to_checked_fn_ptr_from_incompatible_type : Error<
+    "cast to checked function pointer type %0 from incompatible %select{type|checked pointer type}2 %1">;
+
+  def err_cast_to_checked_fn_ptr_not_value_preserving : Error<
+    "cast to checked function pointer type %0 must preserve pointer value">;
+
+  def err_cast_to_checked_fn_ptr_cannot_read_mem : Error<
+    "cast to checked function pointer type %0 may not read memory through unchecked pointers">;
+
+  def err_cast_to_checked_fn_ptr_can_only_ref_deref_functions : Error<
+    "cast to checked function pointer type %0 may only %select{dereference|take the address of} "
+	"expressions with function type">;
 
   def err_not_non_modifying_expr : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed "
