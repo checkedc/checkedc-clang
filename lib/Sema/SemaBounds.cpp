@@ -620,7 +620,7 @@ namespace {
     //
     void CheckDisallowedFunctionPtrCasts(CastExpr *E) {
       // The type of the outer value
-      QualType ToType = E->getType();
+      const QualType ToType = E->getType();
 
       // We're only looking for casts to checked function pointers
       // Checked Function Pointers are only of _Ptr<> type.
@@ -634,11 +634,10 @@ namespace {
         return;
       }
 
-      Expr *Needle = E->getSubExpr();
-      QualType NeedleTy = Needle->getType();
+      const Expr *Needle = E->getSubExpr();
       while (true) {
         Needle = Needle->IgnoreParens();
-        NeedleTy = Needle->getType();
+        QualType NeedleTy = Needle->getType();
 
         if (Needle->isNullPointerConstant(S.Context, Expr::NPC_NeverValueDependent))
           // 3a. We've got to a null pointer, so this cast is allowed, stop
@@ -664,7 +663,7 @@ namespace {
         }
 
         // If we've found a cast expression...
-        if (CastExpr *NeedleCast = dyn_cast<CastExpr>(Needle)) {
+        if (const CastExpr *NeedleCast = dyn_cast<CastExpr>(Needle)) {
           // 2. check if the cast is value preserving
           if (!CheckValuePreservingCast(NeedleCast, ToType)) {
             // it's non-value-preserving, stop
@@ -678,7 +677,7 @@ namespace {
         }
 
         // If we've found a unary operator (such as * or &)...
-        if (UnaryOperator *NeedleOp = dyn_cast<UnaryOperator>(Needle)) {
+        if (const UnaryOperator *NeedleOp = dyn_cast<UnaryOperator>(Needle)) {
           // 2. Check if the operator is value-preserving.
           //    Only addr-of (&) and deref (*) are with function pointers
           if (!CheckValuePreservingCastLikeOp(NeedleOp, ToType)) {
@@ -697,34 +696,41 @@ namespace {
         break;
       }
 
-      // This feels like a terrible hack, but it's the only way that the type compatibility check
-      // immediately below will pass
-      if (NeedleTy->isFunctionType()) {
-        NeedleTy = S.Context.getPointerType(NeedleTy, CheckedPointerKind::Ptr);
-      }
-
-      bool final_type_is_compatible = S.Context.typesAreCompatible(ToType, NeedleTy,
-                                                                   /*CompareUnqualified=*/false,
-                                                                   /*IgnoreBounds=*/false);
-      if (!final_type_is_compatible) {
-        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
-          << ToType << NeedleTy << NeedleTy->isCheckedPointerPtrType()
-          << E->getSourceRange();
+      // 3b) Is it a declref? If so, we check that it's a top-level named function and
+      //     that its type is compatible with the pointer we're looking at
+      const DeclRefExpr *NeedleDeclRef = dyn_cast<DeclRefExpr>(Needle);
+      if (!NeedleDeclRef) {
+        // Not a DeclRef. Error, stop
+        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_must_be_named)
+          << ToType << E->getSourceRange();
 
         return;
       }
 
-      // 3b) Is it a declref? If so, we check that it's a top-level named function
-      if (DeclRefExpr *NeedleDeclRef = dyn_cast<DeclRefExpr>(Needle)) {
-        if (isa<FunctionDecl>(NeedleDeclRef->getDecl())) {
-          return;
-        }
+      const FunctionDecl *NeedleFun = dyn_cast<FunctionDecl>(NeedleDeclRef->getDecl());
+      if (!NeedleFun) {
+        // Not a DeclRef to a Top-Level function. Error, stop.
+        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_must_be_named)
+          << ToType << E->getSourceRange();
+
+        return;
+      }
+      QualType NeedleFunType = NeedleFun->getType();
+
+      if (!S.Context.typesAreCompatible(
+        ToType->getPointeeType(), 
+        NeedleFunType,
+        /*CompareUnqualified=*/false,
+        /*IgnoreBounds=*/false)) {
+        // The type of the defined function is not compatible with the pointer
+        // we're trying to assign it to. Error, stop.
+
+        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
+          << ToType << NeedleFunType << false << E->getSourceRange();
+
+        return;
       }
 
-      // Everything else is an error
-      S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_must_be_named)
-        << ToType
-        << E->getSourceRange();
     }
 
     // This is used in void CheckDisallowedFunctionPtrCasts(Expr*)
@@ -734,7 +740,7 @@ namespace {
     // conservative.
     //
     // This will add the required error messages
-    bool CheckValuePreservingCast(CastExpr *E, QualType ToType) {
+    bool CheckValuePreservingCast(const CastExpr *E, const QualType ToType) {
       switch (E->getCastKind())
       {
       case CK_NoOp:
@@ -772,7 +778,7 @@ namespace {
     // conservative.
     //
     // This will add the required error messages
-    bool CheckValuePreservingCastLikeOp(UnaryOperator *E, QualType ToType) {
+    bool CheckValuePreservingCastLikeOp(const UnaryOperator *E, const QualType ToType) {
       QualType ETy = E->getType();
       QualType SETy = E->getSubExpr()->getType();
 
