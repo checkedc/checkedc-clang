@@ -8889,7 +8889,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "cast to checked function pointer type %0 may not read memory through unchecked pointers">;
 
   def err_cast_to_checked_fn_ptr_can_only_ref_deref_functions : Error<
-    "cast to checked function pointer type %0 may only %select{dereference|take the address of} "
+    "cast to checked function pointer type %0 may only %select{dereference|take the address of}1 "
 	"expressions with function type">;
 
   def err_not_non_modifying_expr : Error<
