@@ -31,6 +31,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Basic/TargetBuiltins.h"
 #include "TreeTransform.h"
 
 using namespace clang;
@@ -578,6 +579,19 @@ namespace {
 
       return true;
     }
+
+    bool VisitRangeBoundsExpr(const RangeBoundsExpr *E) {
+      S.CheckIsNonModifyingExpr(E->getLowerExpr());
+      S.CheckIsNonModifyingExpr(E->getUpperExpr());
+
+      return true;
+    }
+
+    bool VisitCountBoundsExpr(const CountBoundsExpr *E) {
+      S.CheckIsNonModifyingExpr(E->getCountExpr());
+      
+      return true;
+    }
   };
 }
 
@@ -594,6 +608,17 @@ void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
 namespace {
   class NonModifiyingExprSema : public RecursiveASTVisitor<NonModifiyingExprSema> {
 
+  public:
+    // Represents where the requirement that the checked expression is non-modifying
+    // comes from.
+    enum NonModifyingExprRequirement {
+      NMER_Unknown,
+      NMER_Dynamic_Check,
+      NMER_Bounds_Count,
+      NMER_Bounds_Byte_Count,
+      NMER_Bounds_Range
+    };
+
   private:
     // Represents which kind of modifying expression we have found
     enum ModifyingExprKind {
@@ -605,7 +630,8 @@ namespace {
     };
 
   public:
-    NonModifiyingExprSema(Sema &S) : S(S), FoundModifyingExpr(false) {}
+    NonModifiyingExprSema(Sema &S, NonModifyingExprRequirement From) : 
+      S(S), FoundModifyingExpr(false), ReqFrom(From) {}
 
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
@@ -659,17 +685,37 @@ namespace {
   private:
     Sema &S;
     bool FoundModifyingExpr;
+    NonModifyingExprRequirement ReqFrom;
 
     void addError(Expr *E, ModifyingExprKind Kind) {
       S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
-        << Kind
+        << Kind << ReqFrom
         << E->getSourceRange();
     }
   };
 }
 
 bool Sema::CheckIsNonModifyingExpr(Expr *E) {
-  NonModifiyingExprSema Checker(*this);
+  auto requirement = NonModifiyingExprSema::NMER_Unknown;
+  if (const CallExpr *Call = dyn_cast<CallExpr>(E)) {
+    if (Call->getBuiltinCallee() == Builtin::BI_Dynamic_check) {
+      requirement = NonModifiyingExprSema::NMER_Dynamic_Check;
+    }
+  }
+  else if (isa<RangeBoundsExpr>(E)) {
+    requirement = NonModifiyingExprSema::NMER_Bounds_Range;
+  }
+  else if (const CountBoundsExpr *Count = dyn_cast<CountBoundsExpr>(E)) {
+    if (Count->getKind() == BoundsExpr::ElementCount) {
+      requirement = NonModifiyingExprSema::NMER_Bounds_Count;
+    }
+    else if (Count->getKind() == BoundsExpr::ByteCount) {
+      requirement = NonModifiyingExprSema::NMER_Bounds_Byte_Count;
+    }
+  }
+
+
+  NonModifiyingExprSema Checker(*this, NonModifiyingExprSema::NMER_Unknown);
   Checker.TraverseStmt(E);
 
   return Checker.isNonModifyingExpr();
