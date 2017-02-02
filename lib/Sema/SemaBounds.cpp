@@ -590,6 +590,11 @@ namespace {
     // Here we're examining places where a programmer has cast to a
     // checked function pointer type, in order to make sure this cast is
     // safe and valid.
+    //
+    // 0. This check is only performed on:
+    //  a) Casts to function ptr<> types.
+    //  b) from the small set of value-preserving casts we allow of function pointers
+    //
     // Let's term the outer value (after the cast), E, of type ToType.
     // In the values we're examining, ToType is a ptr<> to a function type.
     //
@@ -597,38 +602,43 @@ namespace {
     // both implicit and explicit, and perhaps this sequence includes using
     // addr-of (&) or deref(*).
     //
-    // We search this chain, starting at E.
+    // We search this chain, starting at E. We descend through ParenExprs because
+    // they are only syntactic, not semantic.
     //
-    // 1. If we come across something of ptr<> function type, then one of two things
+    // 1. If the thing we're casting has a null pointer value, the cast is allowed.
+    //
+    // 2. If we come across something of ptr<> function type, then one of two things
     //    happens:
     //  a) this type is compatible with ToType, so then the cast is allowed.
     //  b) this type not compatible, so we add an error about casting between incompatible
     //     types and stop descending.
-    //    This allows calling functions with checked types, and local varibles
-    //    with checked function types.
+    //    This allows calling functions with originally-declared checked types, 
+    //    and local variables with checked function types.
     //
-    // 2. If we come across a non-value-preserving cast, then we stop and error because
+    // 3. If we come across a non-value-preserving cast, then we stop and error because
     //    we are casting between incompatible types. Non-value-preserving casts include
     //    casts that truncate values, and casts that change alignment. An LValueToRValue
     //    cast is also non-value-preserving because it reads memory.
+    //  b) we count the unary operators (&) and (*) as cast-like because when applied to a
+    //     function pointer they only change the type, not the value.
     //
-    // 3. Eventually we may get to the end of the chain of casts. This could end in many
-    //    different kinds of expressions and values, but the ones we're allowing are the
-    //    following, assuming they match the type we're looking for:
-    //  a) 0 (the null pointer)
-    //  b) DeclRefs to unchecked top-level function definitons.
+    // 4. Eventually we may get to the end of the chain of casts. This could end in many
+    //    different kinds of expressions and values, but we only allow them if they meet 
+    //    all the following reqs:
+    //  a) They're DeclRef expressions
+    //  b) The Declaration they reference is a Function declaration
+    //  c) The type of this function matches the pointee type of ToType
     //
     void CheckDisallowedFunctionPtrCasts(CastExpr *E) {
       // The type of the outer value
       const QualType ToType = E->getType();
 
-      // We're only looking for casts to checked function pointers
-      // Checked Function Pointers are only of _Ptr<> type.
+      // 0a. We're only looking for casts to checked function ptr<>s.
       if (!ToType->isCheckedPointerPtrType() ||
         !ToType->isFunctionPointerType())
         return;
 
-      // Check the top-level cast
+      // 0b. Check the top-level cast is one that is value-preserving.
       if (!CheckValuePreservingCast(E, ToType)) {
         // it's non-value-preserving, stop
         return;
@@ -640,17 +650,17 @@ namespace {
         QualType NeedleTy = Needle->getType();
 
         if (Needle->isNullPointerConstant(S.Context, Expr::NPC_NeverValueDependent))
-          // 3a. We've got to a null pointer, so this cast is allowed, stop
+          // 1. We've got to a null pointer, so this cast is allowed, stop
           return;
 
         if (NeedleTy->isCheckedPointerPtrType()) {
-          // 1. We've found something with ptr<> type, check compatibility.
+          // 2. We've found something with ptr<> type, check compatibility.
 
           bool types_are_compatible = S.Context.typesAreCompatible(ToType, NeedleTy,
                                                                    /*CompareUnqualified=*/false,
                                                                    /*IgnoreBounds=*/false);
           if (!types_are_compatible) {
-            // 1b) it is incompatible with ToType, add an error
+            // 2b) it is incompatible with ToType, add an error
             S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
               << ToType << NeedleTy << true
               << E->getSourceRange();
@@ -664,7 +674,7 @@ namespace {
 
         // If we've found a cast expression...
         if (const CastExpr *NeedleCast = dyn_cast<CastExpr>(Needle)) {
-          // 2. check if the cast is value preserving
+          // 3. check if the cast is value preserving
           if (!CheckValuePreservingCast(NeedleCast, ToType)) {
             // it's non-value-preserving, stop
             return;
@@ -678,8 +688,8 @@ namespace {
 
         // If we've found a unary operator (such as * or &)...
         if (const UnaryOperator *NeedleOp = dyn_cast<UnaryOperator>(Needle)) {
-          // 2. Check if the operator is value-preserving.
-          //    Only addr-of (&) and deref (*) are with function pointers
+          // 3b. Check if the operator is value-preserving.
+          //     Only addr-of (&) and deref (*) are with function pointers
           if (!CheckValuePreservingCastLikeOp(NeedleOp, ToType)) {
             // it's not value-preserving, stop
             return;
@@ -696,8 +706,7 @@ namespace {
         break;
       }
 
-      // 3b) Is it a declref? If so, we check that it's a top-level named function and
-      //     that its type is compatible with the pointer we're looking at
+      // 4a) Is it a DeclRef?
       const DeclRefExpr *NeedleDeclRef = dyn_cast<DeclRefExpr>(Needle);
       if (!NeedleDeclRef) {
         // Not a DeclRef. Error, stop
@@ -707,6 +716,7 @@ namespace {
         return;
       }
 
+      // 4b) Is it a DeclRef to a declared function?
       const FunctionDecl *NeedleFun = dyn_cast<FunctionDecl>(NeedleDeclRef->getDecl());
       if (!NeedleFun) {
         // Not a DeclRef to a Top-Level function. Error, stop.
@@ -715,8 +725,10 @@ namespace {
 
         return;
       }
+      
+      // 4c) Is the type of the declared referenced function compatible with the 
+      //     pointee-type of ToType
       QualType NeedleFunType = NeedleFun->getType();
-
       if (!S.Context.typesAreCompatible(
         ToType->getPointeeType(), 
         NeedleFunType,
@@ -731,6 +743,7 @@ namespace {
         return;
       }
 
+      // If we get to here, All our checks have passed!
     }
 
     // This is used in void CheckDisallowedFunctionPtrCasts(Expr*)
@@ -739,7 +752,7 @@ namespace {
     // Other operations might also be, but this algorithm is currently
     // conservative.
     //
-    // This will add the required error messages
+    // This will add the required error messages.
     bool CheckValuePreservingCast(const CastExpr *E, const QualType ToType) {
       switch (E->getCastKind())
       {
@@ -782,12 +795,10 @@ namespace {
       QualType ETy = E->getType();
       QualType SETy = E->getSubExpr()->getType();
 
-      bool between_functions = false;
-
       switch (E->getOpcode()) {
       case UO_Deref: {
-        // This may be more conservative than necessary
-        between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
+        // This may be more conservative than necessary.
+        bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
 
         if (!between_functions) {
           // Add Error Message
@@ -798,8 +809,8 @@ namespace {
         return between_functions;
       }
       case UO_AddrOf: {
-        // This may be more conservative than necessary
-        between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
+        // This may be more conservative than necessary.
+        bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
         if (!between_functions) {
           // Add Error Message
           S.Diag(E->getExprLoc(), diag::err_cast_to_checked_fn_ptr_can_only_ref_deref_functions)
