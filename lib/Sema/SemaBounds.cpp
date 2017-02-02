@@ -31,7 +31,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Basic/TargetBuiltins.h"
 #include "TreeTransform.h"
 
 using namespace clang;
