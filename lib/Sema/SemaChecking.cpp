@@ -1072,7 +1072,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (!getLangOpts().CheckedC)
       break;
 
-    if (!CheckIsNonModifyingExpr(TheCall->getArg(0)))
+    if (!CheckIsNonModifyingExpr(TheCall->getArg(0), NMER_Dynamic_Check))
       return ExprError();
     break;
   }
