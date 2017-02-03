@@ -8876,6 +8876,22 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_ptr : Error<
     "automatic variable %0 with _Ptr type must have initializer">;
 
+  def err_cast_to_checked_fn_ptr_must_be_named : Error<
+	"cast to checked function pointer type %0 must be from named top-level function">;
+
+  def err_cast_to_checked_fn_ptr_from_incompatible_type : Error<
+    "cast to checked function pointer type %0 from incompatible %select{type|checked pointer type}2 %1">;
+
+  def err_cast_to_checked_fn_ptr_not_value_preserving : Error<
+    "can only cast function names or null pointers to checked function pointer type %0">;
+
+  def err_cast_to_checked_fn_ptr_cannot_read_mem : Error<
+    "cannot guarantee operand of cast to checked function pointer type %0 is a function pointer">;
+
+  def err_cast_to_checked_fn_ptr_can_only_ref_deref_functions : Error<
+    "cast to checked function pointer type %0 may only %select{dereference|take the address of}1 "
+	"expressions with function type">;
+
   def warn_dynamic_check_condition_fail : Warning<
     "dynamic check will always fail">;
 
