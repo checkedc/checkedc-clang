@@ -37,22 +37,34 @@ LLVM uses subversion for distributed source code control.   It is mirrored by Gi
 [LLVM mirror](https://github.com/llvm-mirror/llvm) and
 [clang mirror](https://github.com/llvm-mirror/clang).
 
-The code for the Checked C version of LLVM/clang lives in two repositories: the [Checked C clang repo](https://github.com/Microsoft/checkedc-clang)
+The code for the Checked C version of LLVM/clang lives in two repositories: the
+[Checked C clang repo](https://github.com/Microsoft/checkedc-clang)
 and the [Checked C LLVM repo](https://github.com/Microsoft/checkedc-llvm).  Each repo is licensed 
 under the [University of Illinois/NCSA license](https://opensource.org/licenses/NCSA).
 See the file LICENSE.TXT in either of the repos for complete details of licensing.  
-
-The tests live in the [Checked C repo](https://github.com/Microsoft/checkedc).These are
-language conformance tests, so they are placed with the specification, not with the compiler.
-The test code is licensed under the [MIT license](https://opensource.org/licenses/MIT).  
 
 The clang and LLVM repos have two branches:
 
 - master: the main development branch  for Checked C.   All changes committed here have been code reviewed and passed testing.
 - baseline: these are pristine copies of the Github mirrors.   Do not commit changes for Checked C to the baseline branches.
 
-Follow the directions [here](Update-to-latest-LLVM-sources.md) to update the baseline and master branches to newer versions of
-the LLVM/clang sources.
+There are tests in three locations:
+the [Checked C repo](https://github.com/Microsoft/checkedc),
+the [Checked C clang repo](https://github.com/Microsoft/checkedc-clang), and
+the [Checked C LLVM Test Suite](http://github.com/Microsft/checkedc-llvm-test-suite).
+The [Checked C repo](https://github.com/Microsoft/checkedc) tests are language conformance tests,
+so they are placed with the specification, not with the compiler. The Checked C repo
+tests are licensed under the [MIT license](https://opensource.org/licenses/MIT).
+The [Checked C LLVM Test Suite](http://github.com/Microsft/checkedc-llvm-test-suite) is a fork
+of the [LLVM test suite mirror](https://github.com/llvm-mirror/test-suite).
+It will contain benchmarks that have been modified to use Checked C extensions.
+The LLVM test suite is for extended testing and includes applications and benchmarks.
+We do not recommend that developers install sources for it or the
+Checked C version by default.   The test suite is meant to be run as part of automated
+integration testing or for changes that require extensive testing, not
+as part of day-to-day development.
+For developers who need to install it, information is
+[here](https://github.com/Microsoft/checkedc-llvm-test-suite/blob/master/README.md).
 
 ## Setting up sources for development
 
@@ -110,11 +122,19 @@ An install directory is different than the build directory, which will contain t
    Checked C on x86 right now, so we recommend only building only that target.  None of the changes made for Checked C are target-specific, so other targets such as
    x64 should work too.  To avoid building all targets, add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
 6. Make sure that you are using whatever shell you normally do compiles in.  Cd to your build directory and invoke cmake with: 
+```
+    cmake -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
+```
+where `{llvm-path}` is the path to the root of your LLVM repo.
 
-    cmake -DCMAKE\_INSTALL\_PREFIX=_path-to-directory-to-install-in_   _llvm-path_
+   On Windows, by default cmake will produce a build system for x86, even for 64-bit versions of Windows.  This means that
+   clang tests will run in 32-bit compatibility mode on 64-bit versions of Windows.   To build and run tests on x64, specify
+   a different generator using the `-G` option.  For Visual Studio 2015, you can use:
+```
+    cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
+```
+`cmake --help` will list all the available generators on your platform.
 
-where `_llvm-path_` is the path to the root of your LLVM repo.
-	
 ## Building
 
 You can build `clang` the usual way that it is built.   The earlier build system directions will create a Debug build,
@@ -167,3 +187,10 @@ To clean the build directory:
 ## Testing
 
 See the [Testing](Testing.md) page for directions on how to test the compiler once you have built it.
+
+## Updating sources to the latest sources for clang/LLVM
+
+Most developers can ignore this section. We periodically update the Checked C source code
+to newer versions of the source code for clang/LLVM.  The directions for the process of updating the
+baseline and master branches to newer versions of LLVM/clang are
+[here](Update-to-latest-LLVM-sources.md).
