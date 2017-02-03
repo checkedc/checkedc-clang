@@ -659,7 +659,8 @@ namespace {
     };
 
   public:
-    NonModifiyingExprSema(Sema &S) : S(S), FoundModifyingExpr(false) {}
+    NonModifiyingExprSema(Sema &S, Sema::NonModifiyingExprRequirement From) :
+      S(S), FoundModifyingExpr(false), ReqFrom(From) {}
 
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
@@ -713,17 +714,17 @@ namespace {
   private:
     Sema &S;
     bool FoundModifyingExpr;
+    Sema::NonModifiyingExprRequirement ReqFrom;
 
     void addError(Expr *E, ModifyingExprKind Kind) {
       S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
-        << Kind
-        << E->getSourceRange();
+        << Kind << ReqFrom << E->getSourceRange();
     }
   };
 }
 
-bool Sema::CheckIsNonModifyingExpr(Expr *E) {
-  NonModifiyingExprSema Checker(*this);
+bool Sema::CheckIsNonModifyingExpr(Expr *E, Sema::NonModifiyingExprRequirement Req = Sema::NMER_Unknown) {
+  NonModifiyingExprSema Checker(*this, Req);
   Checker.TraverseStmt(E);
 
   return Checker.isNonModifyingExpr();
