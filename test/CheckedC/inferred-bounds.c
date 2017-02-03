@@ -77,9 +77,9 @@ void f3(_Array_ptr<int> c : byte_count(sizeof(int) * 5)) {
 // CHECK: |-CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
 // CHECK: | `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
 // CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'c' '_Array_ptr<int>'
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'unsigned int' '*'
-// CHECK: |-UnaryExprOrTypeTraitExpr {{0x[0-9a-f]+}} 'unsigned int' sizeof 'int'
-// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'unsigned int' <IntegralCast>
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'unsigned {{.*}}' '*'
+// CHECK: |-UnaryExprOrTypeTraitExpr {{0x[0-9a-f]+}} 'unsigned {{.*}}' sizeof 'int'
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'unsigned {{.*}}' <IntegralCast>
 // CHECK:       `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: RHS Bounds:
 // CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'Any
