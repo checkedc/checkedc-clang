@@ -8709,6 +8709,7 @@ def ext_warn_gnu_final : ExtWarn<
   InGroup<GccCompat>;
 
 // Checked C diagnostic messages
+let CategoryName = "Checked C" in {
 
 def err_checked_vla : Error<
   "checked variable-length array not allowed">;
@@ -8893,10 +8894,13 @@ def err_bounds_type_annotation_lost_checking : Error<
 	"expressions with function type">;
 
   def warn_dynamic_check_condition_fail : Warning<
-    "dynamic check will always fail">;
+    "dynamic check will always fail">,
+	InGroup<CheckedC>;
 
   def err_not_non_modifying_expr : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
 	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression}1">;
+
+} // end of Checked C Category
 
 } // end of sema component.
