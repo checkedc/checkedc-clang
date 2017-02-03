@@ -21,6 +21,7 @@
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
@@ -2433,6 +2434,24 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
       break;
 
     const Expr *CheckExpr = E->getArg(0);
+
+    bool CheckConstant;
+    if (ConstantFoldsToSimpleInteger(CheckExpr, CheckConstant, /*AllowLabels=*/false)) {
+      // Dynamic Check condition's value can be found at compile-time
+
+      if (CheckConstant) {
+        // Dynamic Check always passes, leave it out
+        return RValue::get(nullptr);
+      }
+      else {
+        // Dynamic Check always fails, emit warning
+        CGM.getDiags().Report(CheckExpr->getLocStart(), diag::warn_dynamic_check_condition_fail)
+          << E->getSourceRange();
+      }
+    }
+
+    // Dynamic Check relies on runtime behaviour (or we believe it will always fail),
+    // so emit the required check
     Value *CheckVal = EvaluateExprAsBool(CheckExpr);
     EmitDynamicCheck(CheckVal);
 
