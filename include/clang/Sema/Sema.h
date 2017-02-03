@@ -1778,7 +1778,8 @@ public:
                                SourceLocation EqualLoc);
 
   void AddInitializerToDecl(Decl *dcl, Expr *init, bool DirectInit,
-                            bool TypeMayContainAuto);
+                            bool TypeMayContainAuto, 
+                            SourceLocation EqualLoc = SourceLocation());
   void ActOnUninitializedDecl(Decl *dcl, bool TypeMayContainAuto);
   void ActOnInitializerError(Decl *Dcl);
   void ActOnPureSpecifier(Decl *D, SourceLocation PureSpecLoc);
@@ -4292,9 +4293,19 @@ public:
   /// not within a function body.
   void CheckTopLevelBoundsDecls(VarDecl *VD);
 
+  // Represents where the requirement that the checked expression is non-modifying
+  // comes from.
+  enum NonModifiyingExprRequirement {
+    NMER_Unknown,
+    NMER_Dynamic_Check,
+    NMER_Bounds_Count,
+    NMER_Bounds_Byte_Count,
+    NMER_Bounds_Range
+  };
+
   /// CheckNonModifyingExpr - checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1)
-  bool CheckIsNonModifyingExpr(Expr *E);
+  bool CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req);
 
   //===---------------------------- Clang Extensions ----------------------===//
 

@@ -8892,8 +8892,11 @@ def err_bounds_type_annotation_lost_checking : Error<
     "cast to checked function pointer type %0 may only %select{dereference|take the address of}1 "
 	"expressions with function type">;
 
+  def warn_dynamic_check_condition_fail : Warning<
+    "dynamic check will always fail">;
+
   def err_not_non_modifying_expr : Error<
-	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed "
-	"in dynamic check expression">;
+	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
+	"%select{expression|dynamic check expression|count annotation|byte count annotation|bounds annotation}1">;
 
 } // end of sema component.

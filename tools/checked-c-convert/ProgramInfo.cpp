@@ -24,52 +24,67 @@ tyToStr(const Type *T) {
 }
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
-  uint32_t &K, Constraints &CS) :
-  PointerVariableConstraint(D->getType().getTypePtr(), K, D->getName(), CS) { }
+  uint32_t &K, Constraints &CS, const ASTContext &C) :
+  PointerVariableConstraint(D->getType(), K, D->getName(), CS, C) { }
 
-PointerVariableConstraint::PointerVariableConstraint(const Type *_Ty,
-  uint32_t &K, std::string N, Constraints &CS) :
-  ConstraintVariable(ConstraintVariable::PointerVariable, tyToStr(_Ty)),
-  FV(nullptr)
-{
-  const Type *Ty = nullptr;
-  bool isTypedef = false;
-  if (_Ty->getAs<TypedefType>())
-    isTypedef = true;
-  for (Ty = _Ty;
-    Ty->isPointerType();
-    Ty = getNextTy(Ty))
-  {    
-    // Allocate a new constraint variable for this level of pointer.
-    vars.insert(K);
-    CS.getOrCreateVar(K);
-    K++;
+PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_t &K,
+	std::string N, Constraints &CS, const ASTContext &C) : 
+	ConstraintVariable(ConstraintVariable::PointerVariable, 
+					   tyToStr(QT.getTypePtr())),FV(nullptr)
+{ 
+	QualType QTy = QT;
+	const Type *Ty = QTy.getTypePtr();
+	bool isTypedef = false;
 
-    if (tyToStr(Ty) == "struct __va_list_tag *")
-      break;
-  }
+	if (Ty->getAs<TypedefType>())
+		isTypedef = true;
 
-  // If, after boiling off the pointer-ness from this type, we hit a 
-  // function, then create a base-level FVConstraint that we carry 
-  // around too.
-  if (Ty->isFunctionType()) 
-    // C function-pointer type declarator syntax embeds the variable 
-    // name within the function-like syntax. For example:
-    //    void (*fname)(int, int) = ...;
-    // If a typedef'ed type name is used, the name can be omitted 
-    // because it is not embedded like that. Instead, it has the form
-    //    tn fname = ...,
-    // where tn is the typedef'ed type name.
-    // There is possibly something more elegant to do in the code here.
-    FV = new FVConstraint(Ty, K, (isTypedef ? "" : N), CS);
+	while (Ty->isPointerType()) {
+		// Allocate a new constraint variable for this level of pointer.
+		vars.insert(K);
+		CS.getOrCreateVar(K);
 
-  BaseType = tyToStr(Ty);
+		// Save here if QTy is qualified or not into a map that 
+		// indexes K to the qualification of QTy, if any.
+		if (QTy.isConstQualified()) 
+			QualMap.insert(
+				std::pair<uint32_t, Qualification>(K, ConstQualification));
 
-  // Special case for void to not make _Ptr<void> pointers.
-  if( Ty->isVoidType() || BaseType == "struct __va_list_tag *" ) 
-    for (const auto &V : vars)
-      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
-  
+		K++;
+
+		if (tyToStr(Ty) == "struct __va_list_tag *")
+			break;
+
+		// Iterate.
+		QTy = QTy.getSingleStepDesugaredType(C);
+		QTy = QTy.getTypePtr()->getPointeeType();
+		Ty = QTy.getTypePtr();
+	}
+
+	// If, after boiling off the pointer-ness from this type, we hit a 
+	// function, then create a base-level FVConstraint that we carry 
+	// around too.
+	if (Ty->isFunctionType())
+		// C function-pointer type declarator syntax embeds the variable 
+		// name within the function-like syntax. For example:
+		//    void (*fname)(int, int) = ...;
+		// If a typedef'ed type name is used, the name can be omitted 
+		// because it is not embedded like that. Instead, it has the form
+		//    tn fname = ...,
+		// where tn is the typedef'ed type name.
+		// There is possibly something more elegant to do in the code here.
+		FV = new FVConstraint(Ty, K, (isTypedef ? "" : N), CS, C);
+
+	BaseType = tyToStr(Ty);
+
+	if (QTy.isConstQualified()) {
+		BaseType = "const " + BaseType;
+	}
+
+	// Special case for void to not make _Ptr<void> pointers.
+	if (Ty->isVoidType() || BaseType == "struct __va_list_tag *")
+		for (const auto &V : vars)
+			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
@@ -94,14 +109,19 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   std::string s = "";
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
-  bool wroteFPtr = false;
   for (const auto &V : vars) {
     VarAtom VA(V);
     ConstAtom *C = E[&VA];
     assert(C != nullptr);
 
+    std::map<uint32_t, Qualification>::iterator q;
     switch (C->getKind()) {
     case Atom::A_Ptr:
+      q = QualMap.find(V);
+      if (q != QualMap.end())
+        if (q->second == ConstQualification)
+          s = s + "const ";
+
       emittedBase = false;
       s = s + "_Ptr<";
 
@@ -116,11 +136,15 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
         emittedBase = true;
         if (FV) {
           s = s + FV->mkString(E);
-          wroteFPtr = true;
         } else {
           s = s + BaseType + "*";
         }
       }
+
+      q = QualMap.find(V);
+      if (q != QualMap.end())
+        if (q->second == ConstQualification)
+          s = s + "const ";
       break;
     case Atom::A_Const:
     case Atom::A_Var:
@@ -134,7 +158,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     // type.
     if (FV) {
       s = s + FV->mkString(E);
-      wroteFPtr = true;
     } else {
       s = s + BaseType;
     }
@@ -145,9 +168,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     s = s + ">";
   }
 
-  if (FV && wroteFPtr) 
-    s = s + " " + FV->getName();
-
   s = s + " ";
 
   return s;
@@ -157,15 +177,16 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
 // declaration itself. Either require constraint variables for any pointer
 // types that are either return values or paraemeters for the function.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
-  uint32_t &K, Constraints &CS) :
-  FunctionVariableConstraint(D->getType().getTypePtr(), K, D->getName(), CS) {}
+  uint32_t &K, Constraints &CS, const ASTContext &C) :
+  FunctionVariableConstraint(D->getType().getTypePtr(), K, D->getName(), CS, C) 
+  { }
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
-    uint32_t &K, std::string N, Constraints &CS) :
+    uint32_t &K, std::string N, Constraints &CS, const ASTContext &Ctx) :
   ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty)),name(N)
 {
-  const Type *returnType = nullptr;
-  std::vector<const Type*> paramTypes;
+  QualType returnType;
+  std::vector<QualType> paramTypes;
   hasproto = false;
   if (Ty->isFunctionPointerType()) {
     // Is this a function pointer definition?
@@ -174,15 +195,15 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     // Is this a function? 
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     assert(FT != nullptr); 
-    returnType = FT->getReturnType().getTypePtr();
+    returnType = FT->getReturnType();
     for (unsigned i = 0; i < FT->getNumParams(); i++) 
-      paramTypes.push_back(FT->getParamType(i).getTypePtr());
+      paramTypes.push_back(FT->getParamType(i));
     hasproto = true;
   }
   else if (Ty->isFunctionNoProtoType()) {
     const FunctionNoProtoType *FT = Ty->getAs<FunctionNoProtoType>();
     assert(FT != nullptr);
-    returnType = FT->getReturnType().getTypePtr();
+    returnType = FT->getReturnType();
   } else {
     Ty->dump();
     llvm_unreachable("don't know what to do");
@@ -192,7 +213,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // as a type, then we will need the types for all the parameters and the
   // return values
  
-  returnVars.insert(new PVConstraint(returnType, K, N, CS));
+  returnVars.insert(new PVConstraint(returnType, K, N, CS, Ctx));
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
       if (PVC->getFV())
@@ -202,9 +223,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     }
   }
 
-  for (const auto &P : paramTypes) {
+  for (auto &P : paramTypes) {
     std::set<ConstraintVariable*> C;
-    C.insert(new PVConstraint(P, K, N, CS));
+    C.insert(new PVConstraint(P, K, N, CS, Ctx));
     paramVars.push_back(C);
   }
 }
@@ -657,14 +678,14 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   
   if (Ty->isPointerType()) 
     // Create a pointer value for the type.
-    P = new PVConstraint(D, freeKey, CS);
+    P = new PVConstraint(D, freeKey, CS, *C);
 
   // Only create a function type if the type is a base Function type. The case
   // for creating function pointers is handled above, with a PVConstraint that
   // contains a FVConstraint.
   if (Ty->isFunctionType()) 
     // Create a function value for the type.
-    F = new FVConstraint(D, freeKey, CS);
+    F = new FVConstraint(D, freeKey, CS, *C);
 
   std::set<ConstraintVariable*> &S = Variables[PLoc];
   bool found = false;

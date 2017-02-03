@@ -9884,7 +9884,8 @@ QualType Sema::deduceVarTypeFromInitializer(VarDecl *VDecl,
 /// declaration dcl. If DirectInit is true, this is C++ direct
 /// initialization rather than copy initialization.
 void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init,
-                                bool DirectInit, bool TypeMayContainAuto) {
+                                bool DirectInit, bool TypeMayContainAuto,
+                                SourceLocation EqualLoc) {
   // If there is no declaration, there was an error parsing it.  Just ignore
   // the initializer.
   if (!RealDecl || RealDecl->isInvalidDecl()) {
@@ -10166,6 +10167,7 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init,
 
   // Attach the initializer to the decl.
   VDecl->setInit(Init);
+  VDecl->setInitializerStartLoc(EqualLoc);
 
   if (VDecl->isLocalVarDecl()) {
     // C99 6.7.8p4: All the expressions in an initializer for an object that has
@@ -11823,6 +11825,21 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
   QualType Ty = D->getType();
   if (Ty.isNull())
     return;
+
+  if (Expr) {
+    NonModifiyingExprRequirement req = NMER_Unknown;
+    if (isa<RangeBoundsExpr>(Expr)) {
+      req = NMER_Bounds_Range;
+    }
+    else if (const CountBoundsExpr *CountBounds = dyn_cast<CountBoundsExpr>(Expr)) {
+      req = CountBounds->isByteCount() ? NMER_Bounds_Byte_Count : NMER_Bounds_Count;
+    }
+
+    if (!CheckIsNonModifyingExpr(Expr, req)) {
+      ActOnInvalidBoundsDecl(D);
+      return;
+    }
+  }
 
   if (Expr && Expr->isInvalid()) {
     D->setBoundsExpr(Expr);
