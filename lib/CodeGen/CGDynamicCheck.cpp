@@ -12,16 +12,29 @@
 //===----------------------------------------------------------------------===//
 
 #include "CodeGenFunction.h"
+#include "llvm/ADT/Statistic.h"
 
 using namespace clang;
 using namespace CodeGen;
 using namespace llvm;
 
+#define DEBUG_TYPE "DynamicCheckCodeGen"
+
+STATISTIC(DynamicChecksFound, "Number of Dynamic Checks Found");
+STATISTIC(DynamicChecksElided, "Number of Dynamic Checks Elided (Due to Constant Folding)");
+STATISTIC(DynamicChecksInserted, "Number of Dynamic Checks Found");
+STATISTIC(DynamicChecksExplicit, "Number of Dynamic Checks from _Dynamic_check");
+
 void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
+  ++DynamicChecksFound;
+  ++DynamicChecksExplicit;
+
   bool ConditionConstant;
   if (ConstantFoldsToSimpleInteger(Condition, ConditionConstant, /*AllowLabels=*/false)
     && ConditionConstant) {
     // Dynamic Check will always pass, leave it out.
+
+    ++DynamicChecksElided;
 
     return;
   }
@@ -33,6 +46,8 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
 }
 
 void CodeGenFunction::EmitDynamicCheckBlocks(llvm::Value *Condition) {
+  ++DynamicChecksInserted;
+
   llvm::BasicBlock *Begin, *DyCkSuccess, *DyCkFail;
   Begin = Builder.GetInsertBlock();
   DyCkSuccess = createBasicBlock("_Dynamic_check_succeeded");
