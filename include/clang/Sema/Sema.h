@@ -4307,6 +4307,10 @@ public:
   /// (see Checked C Spec, 3.6.1)
   bool CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req);
 
+  // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check
+  // will always fail.
+  void WarnDynamicCheckAlwaysFails(const Expr *Condition);
+
   //===---------------------------- Clang Extensions ----------------------===//
 
   /// __builtin_convertvector(...)

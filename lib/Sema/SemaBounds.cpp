@@ -977,3 +977,14 @@ bool Sema::CheckIsNonModifyingExpr(Expr *E, Sema::NonModifiyingExprRequirement R
 
   return Checker.isNonModifyingExpr();
 }
+
+void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
+  bool ConditionConstant;
+  if (Condition->EvaluateAsBooleanCondition(ConditionConstant, Context)) {
+    if (!ConditionConstant) {
+      // Dynamic Check always fails, emit warning
+      Diag(Condition->getLocStart(), diag::warn_dynamic_check_condition_fail)
+        << Condition->getSourceRange();
+    }
+  }
+}

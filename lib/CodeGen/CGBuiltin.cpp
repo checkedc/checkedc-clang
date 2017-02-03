@@ -2433,27 +2433,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     if (!getLangOpts().CheckedC)
       break;
 
-    const Expr *CheckExpr = E->getArg(0);
-
-    bool CheckConstant;
-    if (ConstantFoldsToSimpleInteger(CheckExpr, CheckConstant, /*AllowLabels=*/false)) {
-      // Dynamic Check condition's value can be found at compile-time
-
-      if (CheckConstant) {
-        // Dynamic Check always passes, leave it out
-        return RValue::get(nullptr);
-      }
-      else {
-        // Dynamic Check always fails, emit warning
-        CGM.getDiags().Report(CheckExpr->getLocStart(), diag::warn_dynamic_check_condition_fail)
-          << E->getSourceRange();
-      }
-    }
-
-    // Dynamic Check relies on runtime behaviour (or we believe it will always fail),
-    // so emit the required check
-    Value *CheckVal = EvaluateExprAsBool(CheckExpr);
-    EmitDynamicCheck(CheckVal);
+    const Expr *Condition = E->getArg(0);
+    EmitExplicitDynamicCheck(Condition);
 
     return RValue::get(nullptr);
   }
