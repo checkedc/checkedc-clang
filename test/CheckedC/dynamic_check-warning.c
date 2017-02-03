@@ -2,7 +2,7 @@
 // This makes sure we're generating something sensible for _Dynamic_check
 // invocations.
 //
-// RUN: %clang_cc1 -fcheckedc-extension -verify -emit-llvm %s
+// RUN: %clang_cc1 -fcheckedc-extension -verify -emit-llvm %s -o %t
 
 void f0(void) {
   _Dynamic_check(1);
