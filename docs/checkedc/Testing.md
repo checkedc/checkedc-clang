@@ -1,16 +1,22 @@
 # Testing the Checked C version of LLVM/clang
 
-We have created a new LLVM test suite for the Checked C extension.  We have added a new
-target to the build system for running the test suite: check-checkedc. 
+LLVM/clang have two kinds of tests: developer regression tests and extended
+tests.  Developer regression tests are meant to be run by developers before any
+check-in and are quick to run.  Extended tests are run as part of continuous
+integration testing or for changes that require extensive testing.
 
-The Checked C version of clang/LLVM should pass the tests that the baseline version
-of clang/LLVM (in the baseline branch) and the Checked C specific tests.   There should
+## Developer regression tests
+
+We have created a new set of developer regression tests for the Checked C extension.
+We have added a new target to the build system for running the test suite: check-checkedc.
+The Checked C version of clang/LLVM should pass the existing clang and LLVM
+regression tests and the Checked C-specific regression tests.   There should
 be no unexpected test failures.  A developer should confirm this before committing a change.
 
 When testing a change, the testing should be sufficient for the type of change.  For changes
 to parsing and typechecking, it is usually sufficient to pass the Checked C and clang tests.
 
-## Running tests
+## Running developer regressions tests
 
 ### From Visual Studio
 Load the solution and the open it using the Solution explorer (View->Solution Explorer).  To run tests, you can right click and build the following targets:
@@ -22,7 +28,7 @@ Load the solution and the open it using the Solution explorer (View->Solution Ex
 ### From a command shell using msbuild
 Set up the build system and then change to your new object directory.  Use the following commands to run tests:
 
-- Checked C tests: `msbuild projects\checkedc-llvm\check-checkedc.vcxproj /maxcpucount:`_number of processors_/3
+- Checked C tests: `msbuild projects\checkedc-wrapper\check-checkedc.vcxproj /maxcpucount:`_number of processors_/3
 - Clang tests: `msbuild tools\clang\test\check-clang.vcxproj /maxcpucount:`_number of processors_/3
 - All LLVM and clang tests: `msbuild check-all.vcxproj /maxcpucount:`_number of processors_/3
 
@@ -67,3 +73,24 @@ your LLVM/clang repositories.
 The configuration setting `core.autocrlf` should to be set to `false`. If you
 followed the recommended [steps](Setup-and-Build.md) for cloning your Git repos,
 it will be set to `false`.
+
+## Extended testing
+
+The extended testing for LLVM/clang is somewhat complicated to set up.  It
+is oriented toward automated testing using servers and has the set-up complexity
+that comes with that. For the Checked C implementation, there are two kinds
+of extended testing that we do: testing that benchmarks that have been converted
+to Checked C work and testing that the Checked C implementation has not broken existing functionality.
+
+To run benchmarks, clone the
+[Checked C LLVM test suite repo](https://github.com/microsoft/checkedc-llvm-test-suite)
+and follow the directions in the
+[README.md file](https://github.com/Microsoft/checkedc-llvm-test-suite/blob/master/README.md).
+To test that existing functionality has not been broken,
+check out the `original` branch of the
+[Checked C LLVM test suite repo](https://github.com/microsoft/checkedc-llvm-test-suite)
+and then follow the directions in the
+[README.md file](https://github.com/Microsoft/checkedc-llvm-test-suite/blob/master/README.md).
+Note that the  `original` branch contains tests as well as benchmarks.
+It is much larger than the `master` branch.  It will use more than 2 GBytes of disk space
+and the testing will take much longer to run.
