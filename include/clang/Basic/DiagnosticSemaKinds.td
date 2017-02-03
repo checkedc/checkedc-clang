@@ -8883,10 +8883,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     "cast to checked function pointer type %0 from incompatible %select{type|checked pointer type}2 %1">;
 
   def err_cast_to_checked_fn_ptr_not_value_preserving : Error<
-    "cast to checked function pointer type %0 must preserve pointer value">;
+    "can only cast function names or null pointers to checked function pointer type %0">;
 
   def err_cast_to_checked_fn_ptr_cannot_read_mem : Error<
-    "cast to checked function pointer type %0 may not read memory through unchecked pointers">;
+    "cannot guarantee operand of cast to checked function pointer type %0 is a function pointer">;
 
   def err_cast_to_checked_fn_ptr_can_only_ref_deref_functions : Error<
     "cast to checked function pointer type %0 may only %select{dereference|take the address of}1 "
