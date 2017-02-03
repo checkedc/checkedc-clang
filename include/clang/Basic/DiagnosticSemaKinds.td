@@ -8897,6 +8897,6 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def err_not_non_modifying_expr : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
-	"%select{expression|dynamic check expression|count annotation|byte count annotation|bounds annotation}1">;
+	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression}1">;
 
 } // end of sema component.
