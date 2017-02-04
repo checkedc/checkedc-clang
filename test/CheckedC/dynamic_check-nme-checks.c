@@ -62,10 +62,10 @@ void f2(int i) {
   _Dynamic_check(3);
 
   // Cast Expressions
-  _Dynamic_check((int)'\0');
+  _Dynamic_check((int)'A');
 
   // Address-of Expressions
-  _Dynamic_check(&i == &j);
+  _Dynamic_check(&i != &j);
 
   // Unary Plus/Minus Expressions
   _Dynamic_check(+i);

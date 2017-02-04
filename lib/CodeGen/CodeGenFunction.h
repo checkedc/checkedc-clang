@@ -2284,6 +2284,8 @@ public:
   void EmitCaseStmtRange(const CaseStmt &S);
   void EmitAsmStmt(const AsmStmt &S);
 
+  void EmitExplicitDynamicCheck(const Expr *Condition);
+
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);
   void EmitObjCAtThrowStmt(const ObjCAtThrowStmt &S);
@@ -3224,7 +3226,7 @@ public:
 
   /// \brief Create a basic block that will call the trap intrinsic, and emit
   /// a conditional branch to it, for Checked C _Dynamic_checks expressions.
-  void EmitDynamicCheck(llvm::Value *Checked);
+  void EmitDynamicCheckBlocks(llvm::Value *Condition);
 
   /// \brief Emit a cross-DSO CFI failure handling function.
   void EmitCfiCheckFail();
