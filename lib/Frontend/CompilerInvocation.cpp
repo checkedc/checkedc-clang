@@ -1903,7 +1903,7 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     }
 
     if (disallowed.size() > 0) {
-      Diags.Report(diag::err_drv_argument_not_allowed_with) <<
+      Diags.Report(diag::warn_drv_checkedc_extension_notsupported) <<
         "-fcheckedc-extension" << disallowed;
     } else
       Opts.CheckedC = true;

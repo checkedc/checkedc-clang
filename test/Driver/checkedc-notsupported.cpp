@@ -1,8 +1,8 @@
 // Checked C extension is not supported for C++.   Make sure driver
-// rejects the flag.
+// warns about the -fchecked-extension and ignores it.
 //
-// RUN: not %clang -fcheckedc-extension %s 2>&1 | FileCheck %s
-// CHECK: error: invalid argument '-fcheckedc-extension' not allowed with 'C++'
+// RUN: %clang -c -fcheckedc-extension %s 2>&1 | FileCheck %s
+// CHECK: warning: Checked C extension not supported with 'C++'; ignoring '-fcheckedc-extension'
 //
 // Have clang compile this file as a C file.
 // RUN: %clang -c -fcheckedc-extension -x c %s
