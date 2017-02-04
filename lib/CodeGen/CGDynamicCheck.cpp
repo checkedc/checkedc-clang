@@ -20,21 +20,21 @@ using namespace llvm;
 
 #define DEBUG_TYPE "DynamicCheckCodeGen"
 
-STATISTIC(DynamicChecksFound, "Number of Dynamic Checks Found");
-STATISTIC(DynamicChecksElided, "Number of Dynamic Checks Elided (Due to Constant Folding)");
-STATISTIC(DynamicChecksInserted, "Number of Dynamic Checks Found");
-STATISTIC(DynamicChecksExplicit, "Number of Dynamic Checks from _Dynamic_check");
+STATISTIC(NumDynamicChecksFound,    "The # of dynamic checks found");
+STATISTIC(NumDynamicChecksElided,   "The # of dynamic checks elided (due to constant folding)");
+STATISTIC(NumDynamicChecksInserted, "The # of dynamic checks found");
+STATISTIC(NumDynamicChecksExplicit, "The # of dynamic checks from _Dynamic_check(exp)");
 
 void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
-  ++DynamicChecksFound;
-  ++DynamicChecksExplicit;
+  ++NumDynamicChecksFound;
+  ++NumDynamicChecksExplicit;
 
   bool ConditionConstant;
   if (ConstantFoldsToSimpleInteger(Condition, ConditionConstant, /*AllowLabels=*/false)
     && ConditionConstant) {
     // Dynamic Check will always pass, leave it out.
 
-    ++DynamicChecksElided;
+    ++NumDynamicChecksElided;
 
     return;
   }
@@ -46,7 +46,7 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
 }
 
 void CodeGenFunction::EmitDynamicCheckBlocks(llvm::Value *Condition) {
-  ++DynamicChecksInserted;
+  ++NumDynamicChecksInserted;
 
   llvm::BasicBlock *Begin, *DyCkSuccess, *DyCkFail;
   Begin = Builder.GetInsertBlock();
