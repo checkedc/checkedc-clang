@@ -28,21 +28,21 @@ how to set up a development machine to build clang, and how to build clang.
    in LLVM\clang.
 
 After you have built the compiler, simply add the `-fcheckedc-extension` flag to your
-command-line to enable the Checked C extensions.
+command-line to enable the Checked C extension.
 
 ## Compiler development status
 
 ### Summary
-We are implementing a subset of the Checked C extension that can be used to add bounds 
+We are implementing a subset of the Checked C extension that can be used to add bounds
 checking to real-world C programs.  After that, we will expand the implementation to include
-additional Checked C features. The subset includes the new `_Ptr`, `_Array_ptr`, and `checked` 
+additional Checked C features. The subset includes the new `ptr`, `array_ptr`, and `checked` 
 array types. It also includes in-line bounds declarations, bounds-safe
 interface annotations, the new cast operators, and checked blocks.
-The implementation of the subset will be end-to-end with the
-compiler: it will include parsing, typechecking, other static checks,
-and code generation.
+The implementation of the subset will be end-to-end within the
+compiler: it will include parsing, typechecking, other static
+semantic analysis, and code generation.
 
-At this point, we have completed most of the parsing and typechecking work
+We have completed most of the parsing and typechecking work
 for the subset. We are working on the insertion of runtime bounds checks.
 We have yet to start on implementing checked blocks, the new cast operators, 
 and checking the correctness of bounds declarations at compile time.
