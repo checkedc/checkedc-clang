@@ -51,14 +51,14 @@ and checking the correctness of bounds declarations at compile time.
 
 This table table summarizes the implementation status for the
 features of the subset.  The columns are the major phases of the compiler
-and the rows list the language features .    A `-` indicates that that a compiler
+and the rows list the language features .    A `-' indicates that that a compiler
 phase is not applicable to the language feature.
 
 |Feature                     | Parsing     | Type checking | Other semantic analysis| Code generation |
 |----                        | ---         | ---           | ---                    | ----            |
 |`ptr` type                  | Done        | Done          | -                      | Done             |
 |`array_ptr` type           | Done        | Done          | -                      | Done (excluding checks) |
-|'checked' array type        | Done        | Done          | -                      | Done (excluding checks) |
+|`checked` array type        | Done        | Done          | -                      | Done (excluding checks) |
 |In-line bounds declarations | Done        | Done          | In-progress            | -            |
 |Bounds-safe interfaces      | Done        | Done          | Done                   | -            |
 |Function types with bounds-safe interfaces|Done | Done    | -                      | -             |
@@ -66,15 +66,15 @@ phase is not applicable to the language feature.
 |Expression bounds inference | -           | -             | In-progress            | -             |
 |Insertion of bounds checks  | -           | -             | -                      | In-progress   |
 |Insertion of null checks    | -           | -             | -                      | Not started   |
-|Correctness of bounds decls | -           | -             | Not started            | -             |
-|Relative alignment of bounds declarations | Not started   | Not started | _        | -             |
-|Checked blocks              | Not started | Not started   | Not started            | -             |
+|Checking correctness of bounds declarations | -   | -     | Not started            | -             |
+|Relative alignment of bounds declarations | Not started| _| Not started            | -             |
+|Checked blocks              | Not started | -             | Not started            | -             |
 |New cast operators          | Not started | Not started   | Not started            | -             |
 
 This table describes features _not_ in the subset, in approximate order of priority of implementation.
 
 |Feature                  | Comments                             |
-|-----                    |                                      |
+|-----                    |-----                                 |
 |Null-terminated arrays   |                                      |
 |Restrict taking addresses of variables used in bounds       |   |
 |Restrict taking addresses of members used in member bounds  |   |
@@ -87,11 +87,6 @@ This table describes features _not_ in the subset, in approximate order of prior
 |Overflow checking of `array_ptr` pointer arithmetic      |   |
 |Span types                                                |Lower priority|
 |Pointers to data with `array_ptr`s                       |Design is speculative|
-
-At this pont, we have implemented the parsing and typechecking for the new `_Ptr`,
-`_Array_ptr`, and checked array types.  We also have implemented parsing and
-typechecking for in-line bounds declarations
-
 
 ## Contributing
 
