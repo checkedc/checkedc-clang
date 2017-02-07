@@ -49,9 +49,9 @@ and checking the correctness of bounds declarations at compile time.
 
 ### Details
 
-This table table summarizes the implementation status for the
+This table summarizes the implementation status for the
 features of the subset.  The columns are the major phases of the compiler
-and the rows list the language features .    A `-' indicates that that a compiler
+and the rows list the language features.    A '-' indicates that that a compiler
 phase is not applicable to the language feature.
 
 |Feature                     | Parsing     | Type checking | Other semantic analysis| Code generation |
@@ -80,13 +80,13 @@ This table describes features _not_ in the subset, in approximate order of prior
 |Restrict taking addresses of members used in member bounds  |   |
 |Flow-sensitive bounds declarations                        |   |
 |Where clauses                                             |   |
+|Checking correctness of where clauses                     |   |
 |Bundled blocks                                            |   |
-|Holds/suspend state of member bounds                      | Depends on flow-sensitive bounds declarations |
+|Holds/suspend state of member bounds                      | Depends on flow-sensitive bounds declarations. |
 |Check for undefined order of evaluation issues            |   |
-|Checking correctness of where clauses                     |    |
 |Overflow checking of `array_ptr` pointer arithmetic      |   |
 |Span types                                                |Lower priority|
-|Pointers to data with `array_ptr`s                       |Design is speculative|
+|Pointers directly to `array_ptr`s                       |Design is tentative.|
 
 ## Contributing
 
