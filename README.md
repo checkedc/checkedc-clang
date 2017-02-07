@@ -15,87 +15,83 @@ language conformance tests, so they are placed with the specification, not the c
 The test code is licensed under the [MIT license](https://opensource.org/licenses/MIT).
 See the file LICENSE.TXT in each repo for complete details of licensing.  
 
-## Status
-
-### Summary
-We are implementing a subset of the Checked C extension that can be used to add bounds 
-checking to real-world programs.  After that, we will expland the implementation to include
-additional Checked C features. The subset includes the new `_Ptr`, `_Array_ptr`, and `checked` 
-array types. It also includes in-line bounds declarations, bounds-safe
-interface annotations, the new cast operators, and checked blocks.
-The implementation of the subset will be end-to-end: it will include parsing, typechecking,
-well-formedness requirements for bounds declarations, static checking of bounds 
-declarations, and runtime checking of bounds.
-
-The following table summarizes the implementation status
-
-|Feature                     | Parsing | Type-checking | Other semantic analysis | Code generation |
-|----                        | ---     | ---           | ---                     | ----            |
-|`_Ptr` type                 | Done    | Done          | NA                      | Done             |
-|`Array_ptr` type           | Done    | Done          | NA                      | Done (excluding checks) |
-|'checked' array type        | Done     | Done         | NA                      | Done (excluding checks) |
-|In-line bounds declarations | Done     | Done         | In-progress             | NA              |
-|Bounds-safe interfaces      | Done     | Done          | Done                    | NA              |
-|Function types with bounds-safe interfaces|Done | Done | NA                      | NA              |
-|Checking of redeclarations  | NA       | NA           | Done                    
-|Expression bounds inference | NA       | NA            | In-progress             | NA              |
-|Insertion of bounds checks | NA        | NA            | NA                      | In-progress  |
-|Insertion of null checks   | NA        | NA            | NA                       | Not started |
-|Correctness of bounds decls| NA        | NA            | Not started              | NA          |
-|Checked blocks             | Not started | Not started | Not started              | NA          |
-|New cast operators         | Not started | Not started  Not stated                | Not started |
-
-
-At this point, we have implemented parsing for the entire subset,
-At this pont, we have implemented the parsing and typechecking for the new `_Ptr`,
-`_Array_ptr`, and checked array types.  We also have implemented parsing and
-typechecking for in-line bounds declarations
-
- The implementatiion of the subset will include
-all the features in 
-of all the feature in thebe end-to-end and include all features of that subset.
-program.
-We are close to having a complete implementation of the new `_Ptr` types and the
-language features for using them.   We also have support for parsing and typechecking bounds
-expressions and bounds declarations.  We are working on interoperation support now.   To able
-to use the Checked C extension in existing code bases, we need the interoperation support,
-so we are implementing it before other features.
-
-### Details
-We have:
-
-- Extended LLVM/clang with a feature flag `-fcheckedc-extension`.  This flag is valid only for C programs.
-   It cannot be used with C++, Objective C, or OpenCL.
-- Implemented parsing and typechecking for the new `_Ptr`, `_Array_ptr`, and `_Checked` array types,
-   including implicit conversions described in the Checked C specification.   The `_Array_ptr` and
-  `_Checked` array types do not have any runtime bounds checking yet.
-- Implemented parsing and typechecking for bounds expression and in-line bounds declarations.
-- Implemented parsing and typechecking for bounds-safe interfaces, including the implicit conversions
-  done at bounds-safe interfaces.
-
-We are now:
-
-- Implementing function types with bounds information.
-- Implementing type checking of redeclarations of variables and functions with bounds
-information.  When this is finished, interoperation support will be mostly done.
-Programmers will be able to redeclare existing variables and functions with additional bounds information.
-
-After that, we will begin implementing static semantics checking for programs that use `_Ptr`
-pointers and `_Array_ptr` pointers to constant-sized data.  This includes
-
-- Checking the correctness of bounds declarations for constant-sized data.
-- Checking that casts to `_Ptr` types from `_Array_ptr` types are bounds-safe.
-
-## Compiler development
+## Trying out Checked C
 
 Programmers are welcome to ``kick the tires'' on Checked C as it is being implemented.
-You will have to build your own copy of the compiler for now:
+You will have to build your own copy of the compiler for now (we are working on getting
+a nightly compiler build going):
 
 - [Setup and Build](docs/checkedc/Setup-and-Build.md) describes the organization of the code,
 how to set up a development machine to build clang, and how to build clang.
 - [Testing](docs/checkedc/Testing.md) describes how to test the compiler once you have built it.
 - The [Implementation Notes](docs/checkedc/Implementation-Notes.md) describe the implementation of Checked C
    in LLVM\clang.
+
+After you have built the compiler, simply add the `-fcheckedc-extension` flag to your
+command-line to enable the Checked C extensions.
+
+## Compiler development status
+
+### Summary
+We are implementing a subset of the Checked C extension that can be used to add bounds 
+checking to real-world C programs.  After that, we will expand the implementation to include
+additional Checked C features. The subset includes the new `_Ptr`, `_Array_ptr`, and `checked` 
+array types. It also includes in-line bounds declarations, bounds-safe
+interface annotations, the new cast operators, and checked blocks.
+The implementation of the subset will be end-to-end with the
+compiler: it will include parsing, typechecking, other static checks,
+and code generation.
+
+At this point, we have completed most of the parsing and typechecking work
+for the subset. We are working on the insertion of runtime bounds checks.
+We have yet to start on implementing checked blocks, the new cast operators, 
+and checking the correctness of bounds declarations at compile time.
+
+### Details
+
+This table table summarizes the implementation status for the
+features of the subset.  The columns are the major phases of the compiler
+and the rows list the language features .    A `-` indicates that that a compiler
+phase is not applicable to the language feature.
+
+|Feature                     | Parsing     | Type checking | Other semantic analysis| Code generation |
+|----                        | ---         | ---           | ---                    | ----            |
+|`ptr` type                  | Done        | Done          | -                      | Done             |
+|`array_ptr` type           | Done        | Done          | -                      | Done (excluding checks) |
+|'checked' array type        | Done        | Done          | -                      | Done (excluding checks) |
+|In-line bounds declarations | Done        | Done          | In-progress            | -            |
+|Bounds-safe interfaces      | Done        | Done          | Done                   | -            |
+|Function types with bounds-safe interfaces|Done | Done    | -                      | -             |
+|Checking of redeclarations  | -           | -             | Done                   |              | 
+|Expression bounds inference | -           | -             | In-progress            | -             |
+|Insertion of bounds checks  | -           | -             | -                      | In-progress   |
+|Insertion of null checks    | -           | -             | -                      | Not started   |
+|Correctness of bounds decls | -           | -             | Not started            | -             |
+|Relative alignment of bounds declarations | Not started   | Not started | _        | -             |
+|Checked blocks              | Not started | Not started   | Not started            | -             |
+|New cast operators          | Not started | Not started   | Not started            | -             |
+
+This table describes features _not_ in the subset, in approximate order of priority of implementation.
+
+|Feature                  | Comments                             |
+|-----                    |                                      |
+|Null-terminated arrays   |                                      |
+|Restrict taking addresses of variables used in bounds       |   |
+|Restrict taking addresses of members used in member bounds  |   |
+|Flow-sensitive bounds declarations                        |   |
+|Where clauses                                             |   |
+|Bundled blocks                                            |   |
+|Holds/suspend state of member bounds                      | Depends on flow-sensitive bounds declarations |
+|Check for undefined order of evaluation issues            |   |
+|Checking correctness of where clauses                     |    |
+|Overflow checking of `array_ptr` pointer arithmetic      |   |
+|Span types                                                |Lower priority|
+|Pointers to data with `array_ptr`s                       |Design is speculative|
+
+At this pont, we have implemented the parsing and typechecking for the new `_Ptr`,
+`_Array_ptr`, and checked array types.  We also have implemented parsing and
+typechecking for in-line bounds declarations
+
 
 ## Contributing
 
