@@ -15,6 +15,8 @@ using namespace clang;
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
+// TODO: Github issue #61: improve handling of types for
+// variable arguments.
 static
 void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
   // Constrain everything that is void to wild.
@@ -22,7 +24,7 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
 
   // Special-case for va_list, constrain to wild.
   if (D->getType().getAsString() == "va_list" ||
-      D->getType().getAsString() == "void") {
+      D->getType()->isVoidType()) {
     for (const auto &I : Info.getVariable(D, C))
       if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I))
         for (const auto &J : PVC->getCvars())

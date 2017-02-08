@@ -51,8 +51,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 				std::pair<uint32_t, Qualification>(K, ConstQualification));
 
 		K++;
-
-		if (tyToStr(Ty) == "struct __va_list_tag *")
+        std::string TyName = tyToStr(Ty);
+        // TODO: Github issue #61: improve handling of types for
+        // variable arguments.
+		if (TyName == "struct __va_list_tag *" || TyName == "va_list")
 			break;
 
 		// Iterate.
@@ -82,7 +84,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	}
 
 	// Special case for void to not make _Ptr<void> pointers.
-	if (Ty->isVoidType() || BaseType == "struct __va_list_tag *")
+    // TODO: Github issue #61: improve handling of types for
+    // variable arguments.
+	if (Ty->isVoidType() || BaseType == "struct __va_list_tag *" ||
+        BaseType == "va_list")
 		for (const auto &V : vars)
 			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }
