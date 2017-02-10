@@ -20,10 +20,18 @@ using namespace llvm;
 
 #define DEBUG_TYPE "DynamicCheckCodeGen"
 
-STATISTIC(NumDynamicChecksFound,    "The # of dynamic checks found");
+STATISTIC(NumDynamicChecksFound,    "The # of dynamic checks found (total)");
 STATISTIC(NumDynamicChecksElided,   "The # of dynamic checks elided (due to constant folding)");
-STATISTIC(NumDynamicChecksInserted, "The # of dynamic checks found");
-STATISTIC(NumDynamicChecksExplicit, "The # of dynamic checks from _Dynamic_check(exp)");
+STATISTIC(NumDynamicChecksInserted, "The # of dynamic checks inserted");
+
+STATISTIC(NumDynamicChecksExplicit,  "The # of dynamic checks from _Dynamic_check(exp)");
+STATISTIC(NumDynamicChecksSubscript, "The # of dynamic checks from exp[exp]");
+STATISTIC(NumDynamicChecksDeref,     "The # of dynamic checks from *exp");
+STATISTIC(NumDynamicChecksLValRead,  "The # of dynamic checks from l-value reads");
+
+STATISTIC(NumDynamicChecksRange,   "The # of dynamic bounds checks found");
+STATISTIC(NumDynamicChecksNonNull, "The # of dynamic non-null checks found");
+
 
 void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
   ++NumDynamicChecksFound;
@@ -44,6 +52,17 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
   Value *ConditionVal = EvaluateExprAsBool(Condition);
   EmitDynamicCheckBlocks(ConditionVal);
 }
+
+
+void CodeGenFunction::EmitCheckedCSubscriptCheck(const Expr *E,
+                                                 const Expr *Base,
+                                                 llvm::Value *Idx, QualType IdxTy) {
+  ++NumDynamicChecksFound;
+  ++NumDynamicChecksSubscript;
+  ++NumDynamicChecksRange;
+}
+
+
 
 void CodeGenFunction::EmitDynamicCheckBlocks(llvm::Value *Condition) {
   ++NumDynamicChecksInserted;

@@ -2880,6 +2880,9 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
   QualType IdxTy  = E->getIdx()->getType();
   bool IdxSigned = IdxTy->isSignedIntegerOrEnumerationType();
 
+  if (getLangOpts().CheckedC && Accessed)
+    EmitCheckedCSubscriptCheck(E, E->getBase(), Idx, IdxTy);
+
   if (SanOpts.has(SanitizerKind::ArrayBounds))
     EmitBoundsCheck(E, E->getBase(), Idx, IdxTy, Accessed);
 

@@ -2285,6 +2285,7 @@ public:
   void EmitAsmStmt(const AsmStmt &S);
 
   void EmitExplicitDynamicCheck(const Expr *Condition);
+  void EmitCheckedCSubscriptCheck(const Expr *E, const Expr *Base, llvm::Value *Idx, QualType IdxTy);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);
