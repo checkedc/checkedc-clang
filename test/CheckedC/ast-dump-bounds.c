@@ -143,6 +143,19 @@ void f14(int arr1 _Checked[] : count(5));
 // CHECK-NEXT: IntegerLiteral
 // CHECK 'int' 5
 
+// Parameters with checked array type have a bounds expression implicitly
+// created for them when they are retyped as a pointer type.
+void f15(int arr1 _Checked[6]);
+
+// CHECK: FunctionDecl
+// CHECK: f15
+// CHECK-NEXT: ParmVarDecl
+// CHECK: arr1 '_Array_ptr<int>'
+// CHECK-NEXT: CountBoundsExpr
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK 'int' 6
+
 //===================================================================
 // Dumps of different kinds of bounds expressions on function returns
 //===================================================================

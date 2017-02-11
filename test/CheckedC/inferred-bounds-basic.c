@@ -1,5 +1,10 @@
 // Tests of inferred bounds for expressions in assignments and declarations.
-// The goal is to check that the bounds are being inferred correctly.  
+// The goal is to check that the bounds are being inferred correctly.  This
+// file covers:
+// - Assignments to variables with _Array_ptr and declarations of
+//   variables of pointer type,
+// - where the right-hand side or intializing expression is an integer,
+//    variable, or address-of expression.
 //
 // The tests have the general form:
 // 1. Some C code.
