@@ -4254,6 +4254,7 @@ public:
   ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc,
                                      TypeSourceInfo *TInfo,
                                      SourceLocation RParenLoc);
+
   ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
@@ -4262,11 +4263,16 @@ public:
 
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
   BoundsExpr *CreateInvalidBoundsExpr();
+  BoundsExpr *CreateCountForArrayType(QualType QT);
 
   BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr,
                                       ArrayRef<DeclaratorChunk::ParamInfo> Params);
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
+
+  /// LValueIsArrayPtrDereference - determine if an lvalue expression is
+  /// a dereference of an Array_ptr (via '*" or an array subscript operator).
+  bool LValueIsArrayPtrDereference(Expr *E);
 
   /// InferLValueBounds - infer a bounds expression for an lvalue.
   /// The bounds determine whether the lvalue to which an
