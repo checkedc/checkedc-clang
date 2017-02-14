@@ -1964,10 +1964,10 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
   }
   dumpBasePath(OS, Node);
   OS << ">";
-  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+  if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
     dumpChild([=] {
       OS << "Inferred Bounds";
-      dumpStmt(Bounds);
+      dumpStmt(InferredBounds);
     });
   }
 }
@@ -2062,10 +2062,10 @@ void ASTDumper::VisitUnaryOperator(const UnaryOperator *Node) {
   VisitExpr(Node);
   OS << " " << (Node->isPostfix() ? "postfix" : "prefix")
      << " '" << UnaryOperator::getOpcodeStr(Node->getOpcode()) << "'";
-  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+  if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
     dumpChild([=] {
       OS << "Inferred Bounds";
-      dumpStmt(Bounds);
+      dumpStmt(InferredBounds);
     });
   }
 }
@@ -2095,10 +2095,10 @@ void ASTDumper::VisitMemberExpr(const MemberExpr *Node) {
   VisitExpr(Node);
   OS << " " << (Node->isArrow() ? "->" : ".") << *Node->getMemberDecl();
   dumpPointer(Node->getMemberDecl());
-  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+  if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
     dumpChild([=] {
       OS << "Inferred Bounds";
-      dumpStmt(Bounds);
+      dumpStmt(InferredBounds);
     });
   }
 }
@@ -2111,10 +2111,10 @@ void ASTDumper::VisitExtVectorElementExpr(const ExtVectorElementExpr *Node) {
 void ASTDumper::VisitBinaryOperator(const BinaryOperator *Node) {
   VisitExpr(Node);
   OS << " '" << BinaryOperator::getOpcodeStr(Node->getOpcode()) << "'";
-  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+  if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
     dumpChild([=] {
       OS << "Inferred Bounds";
-      dumpStmt(Bounds);
+      dumpStmt(InferredBounds);
     });
   }
 }
@@ -2143,10 +2143,10 @@ void ASTDumper::VisitOpaqueValueExpr(const OpaqueValueExpr *Node) {
 
 void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
   VisitExpr(Node);
-  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+  if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
     dumpChild([=] {
       OS << "Inferred Bounds";
-      dumpStmt(Bounds);
+      dumpStmt(InferredBounds);
     });
   }
 }
