@@ -1673,6 +1673,8 @@ private:
   unsigned Opc : 5;
   SourceLocation Loc;
   Stmt *Val;
+
+  BoundsExpr *Bounds;
 public:
 
   UnaryOperator(Expr *input, Opcode opc, QualType type,
@@ -1683,11 +1685,11 @@ public:
            (input->isInstantiationDependent() ||
             type->isInstantiationDependentType()),
            input->containsUnexpandedParameterPack()),
-      Opc(opc), Loc(l), Val(input) {}
+      Opc(opc), Loc(l), Val(input), Bounds(nullptr) {}
 
   /// \brief Build an empty unary operator.
   explicit UnaryOperator(EmptyShell Empty)
-    : Expr(UnaryOperatorClass, Empty), Opc(UO_AddrOf) { }
+    : Expr(UnaryOperatorClass, Empty), Opc(UO_AddrOf), Bounds(nullptr) { }
 
   Opcode getOpcode() const { return static_cast<Opcode>(Opc); }
   void setOpcode(Opcode O) { Opc = O; }
@@ -1762,6 +1764,25 @@ public:
 
   // Iterators
   child_range children() { return child_range(&Val, &Val+1); }
+
+  // Checked C bounds information
+
+  /// \brief Return true if this declaration has bounds declared for it.
+  bool hasBoundsExpr() const { return Bounds != nullptr; }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const { return const_cast<BoundsExpr*>(Bounds); }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr() { return Bounds; }
+
+  /// \brief Set the declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function.
+  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
 };
 
 /// Helper class for OffsetOfExpr.
@@ -2064,6 +2085,7 @@ class ArraySubscriptExpr : public Expr {
   enum { LHS, RHS, END_EXPR=2 };
   Stmt* SubExprs[END_EXPR];
   SourceLocation RBracketLoc;
+  BoundsExpr *Bounds;
 public:
   ArraySubscriptExpr(Expr *lhs, Expr *rhs, QualType t,
                      ExprValueKind VK, ExprObjectKind OK,
@@ -2075,14 +2097,14 @@ public:
           rhs->isInstantiationDependent()),
          (lhs->containsUnexpandedParameterPack() ||
           rhs->containsUnexpandedParameterPack())),
-    RBracketLoc(rbracketloc) {
+    RBracketLoc(rbracketloc), Bounds(nullptr) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
   }
 
   /// \brief Create an empty array subscript expression.
   explicit ArraySubscriptExpr(EmptyShell Shell)
-    : Expr(ArraySubscriptExprClass, Shell) { }
+    : Expr(ArraySubscriptExprClass, Shell), Bounds(nullptr) { }
 
   /// An array access can be written A[4] or 4[A] (both are equivalent).
   /// - getBase() and getIdx() always present the normalized view: A[4].
@@ -2137,6 +2159,25 @@ public:
   child_range children() {
     return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
   }
+
+  // Checked C bounds information
+
+  /// \brief Return true if this declaration has bounds declared for it.
+  bool hasBoundsExpr() const { return Bounds != nullptr; }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const { return const_cast<BoundsExpr*>(Bounds); }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr() { return Bounds; }
+
+  /// \brief Set the declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function.
+  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
 };
 
 /// CallExpr - Represents a function call (C99 6.5.2.2, C++ [expr.call]).
@@ -2363,6 +2404,8 @@ class MemberExpr final
     return HasTemplateKWAndArgsInfo ? 1 : 0;
   }
 
+  BoundsExpr *Bounds;
+
 public:
   MemberExpr(Expr *base, bool isarrow, SourceLocation operatorloc,
              ValueDecl *memberdecl, const DeclarationNameInfo &NameInfo,
@@ -2373,7 +2416,8 @@ public:
         Base(base), MemberDecl(memberdecl), MemberDNLoc(NameInfo.getInfo()),
         MemberLoc(NameInfo.getLoc()), OperatorLoc(operatorloc),
         IsArrow(isarrow), HasQualifierOrFoundDecl(false),
-        HasTemplateKWAndArgsInfo(false), HadMultipleCandidates(false) {
+        HasTemplateKWAndArgsInfo(false), HadMultipleCandidates(false),
+        Bounds(nullptr) {
     assert(memberdecl->getDeclName() == NameInfo.getName());
   }
 
@@ -2390,7 +2434,7 @@ public:
         Base(base), MemberDecl(memberdecl), MemberDNLoc(), MemberLoc(l),
         OperatorLoc(operatorloc), IsArrow(isarrow),
         HasQualifierOrFoundDecl(false), HasTemplateKWAndArgsInfo(false),
-        HadMultipleCandidates(false) {}
+        HadMultipleCandidates(false), Bounds(nullptr) {}
 
   static MemberExpr *Create(const ASTContext &C, Expr *base, bool isarrow,
                             SourceLocation OperatorLoc,
@@ -2555,6 +2599,25 @@ public:
   friend TrailingObjects;
   friend class ASTReader;
   friend class ASTStmtWriter;
+
+  // Checked C bounds information
+
+  /// \brief Return true if this declaration has bounds declared for it.
+  bool hasBoundsExpr() const { return Bounds != nullptr; }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const { return const_cast<BoundsExpr*>(Bounds); }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr() { return Bounds; }
+
+  /// \brief Set the declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function.
+  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
 };
 
 /// CompoundLiteralExpr - [C99 6.5.2.5]
@@ -2633,6 +2696,8 @@ class CastExpr : public Expr {
 private:
   Stmt *Op;
 
+  BoundsExpr *Bounds;
+
   bool CastConsistency() const;
 
   const CXXBaseSpecifier * const *path_buffer() const {
@@ -2663,7 +2728,7 @@ protected:
              ((SC != ImplicitCastExprClass &&
                ty->containsUnexpandedParameterPack()) ||
               (op && op->containsUnexpandedParameterPack()))),
-        Op(op) {
+        Op(op), Bounds(nullptr) {
     assert(kind != CK_Invalid && "creating cast with invalid cast kind");
     CastExprBits.Kind = kind;
     setBasePathSize(BasePathSize);
@@ -2672,7 +2737,7 @@ protected:
 
   /// \brief Construct an empty cast.
   CastExpr(StmtClass SC, EmptyShell Empty, unsigned BasePathSize)
-    : Expr(SC, Empty) {
+    : Expr(SC, Empty), Bounds(nullptr) {
     setBasePathSize(BasePathSize);
   }
 
@@ -2709,6 +2774,25 @@ public:
 
   // Iterators
   child_range children() { return child_range(&Op, &Op+1); }
+
+  // Checked C bounds information
+
+  /// \brief Return true if this declaration has bounds declared for it.
+  bool hasBoundsExpr() const { return Bounds != nullptr; }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const { return const_cast<BoundsExpr*>(Bounds); }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr() { return Bounds; }
+
+  /// \brief Set the declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function.
+  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
 };
 
 /// ImplicitCastExpr - Allows us to explicitly represent implicit type
@@ -2910,6 +2994,8 @@ private:
 
   enum { LHS, RHS, END_EXPR };
   Stmt* SubExprs[END_EXPR];
+
+  BoundsExpr *Bounds;
 public:
 
   BinaryOperator(Expr *lhs, Expr *rhs, Opcode opc, QualType ResTy,
@@ -2922,7 +3008,8 @@ public:
             rhs->isInstantiationDependent()),
            (lhs->containsUnexpandedParameterPack() ||
             rhs->containsUnexpandedParameterPack())),
-      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc) {
+      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc),
+      Bounds(nullptr) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
     assert(!isCompoundAssignmentOp() &&
@@ -2931,7 +3018,7 @@ public:
 
   /// \brief Construct an empty binary operator.
   explicit BinaryOperator(EmptyShell Empty)
-    : Expr(BinaryOperatorClass, Empty), Opc(BO_Comma) { }
+    : Expr(BinaryOperatorClass, Empty), Opc(BO_Comma), Bounds(nullptr) { }
 
   SourceLocation getExprLoc() const LLVM_READONLY { return OpLoc; }
   SourceLocation getOperatorLoc() const { return OpLoc; }
@@ -3063,6 +3150,25 @@ public:
   // operations on floating point types.
   bool isFPContractable() const { return FPContractable; }
 
+  // Checked C bounds information
+
+  /// \brief Return true if this declaration has bounds declared for it.
+  bool hasBoundsExpr() const { return Bounds != nullptr; }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const { return const_cast<BoundsExpr*>(Bounds); }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr() { return Bounds; }
+
+  /// \brief Set the declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function.
+  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
+
 protected:
   BinaryOperator(Expr *lhs, Expr *rhs, Opcode opc, QualType ResTy,
                  ExprValueKind VK, ExprObjectKind OK,
@@ -3074,13 +3180,14 @@ protected:
             rhs->isInstantiationDependent()),
            (lhs->containsUnexpandedParameterPack() ||
             rhs->containsUnexpandedParameterPack())),
-      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc) {
+      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc),
+      Bounds(nullptr) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
   }
 
   BinaryOperator(StmtClass SC, EmptyShell Empty)
-    : Expr(SC, Empty), Opc(BO_MulAssign) { }
+    : Expr(SC, Empty), Opc(BO_MulAssign), Bounds(nullptr) { }
 };
 
 /// CompoundAssignOperator - For compound assignments (e.g. +=), we keep

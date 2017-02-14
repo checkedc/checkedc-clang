@@ -541,6 +541,7 @@ namespace  {
     void VisitAddrLabelExpr(const AddrLabelExpr *Node);
     void VisitBlockExpr(const BlockExpr *Node);
     void VisitOpaqueValueExpr(const OpaqueValueExpr *Node);
+    void VisitArraySubscriptExpr(const ArraySubscriptExpr *Node);
 
     // C++
     void VisitCXXNamedCastExpr(const CXXNamedCastExpr *Node);
@@ -1963,6 +1964,12 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
   }
   dumpBasePath(OS, Node);
   OS << ">";
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Inferred Bounds";
+      dumpStmt(Bounds);
+    });
+  }
 }
 
 void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
@@ -2055,6 +2062,12 @@ void ASTDumper::VisitUnaryOperator(const UnaryOperator *Node) {
   VisitExpr(Node);
   OS << " " << (Node->isPostfix() ? "postfix" : "prefix")
      << " '" << UnaryOperator::getOpcodeStr(Node->getOpcode()) << "'";
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Inferred Bounds";
+      dumpStmt(Bounds);
+    });
+  }
 }
 
 void ASTDumper::VisitUnaryExprOrTypeTraitExpr(
@@ -2082,6 +2095,12 @@ void ASTDumper::VisitMemberExpr(const MemberExpr *Node) {
   VisitExpr(Node);
   OS << " " << (Node->isArrow() ? "->" : ".") << *Node->getMemberDecl();
   dumpPointer(Node->getMemberDecl());
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Inferred Bounds";
+      dumpStmt(Bounds);
+    });
+  }
 }
 
 void ASTDumper::VisitExtVectorElementExpr(const ExtVectorElementExpr *Node) {
@@ -2092,6 +2111,12 @@ void ASTDumper::VisitExtVectorElementExpr(const ExtVectorElementExpr *Node) {
 void ASTDumper::VisitBinaryOperator(const BinaryOperator *Node) {
   VisitExpr(Node);
   OS << " '" << BinaryOperator::getOpcodeStr(Node->getOpcode()) << "'";
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Inferred Bounds";
+      dumpStmt(Bounds);
+    });
+  }
 }
 
 void ASTDumper::VisitCompoundAssignOperator(
@@ -2114,6 +2139,16 @@ void ASTDumper::VisitOpaqueValueExpr(const OpaqueValueExpr *Node) {
 
   if (Expr *Source = Node->getSourceExpr())
     dumpStmt(Source);
+}
+
+void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
+  VisitExpr(Node);
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Inferred Bounds";
+      dumpStmt(Bounds);
+    });
+  }
 }
 
 // GNU extensions.

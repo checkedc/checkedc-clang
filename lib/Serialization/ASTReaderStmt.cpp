@@ -550,6 +550,10 @@ void ASTStmtReader::VisitUnaryOperator(UnaryOperator *E) {
   E->setSubExpr(Reader.ReadSubExpr());
   E->setOpcode((UnaryOperator::Opcode)Record[Idx++]);
   E->setOperatorLoc(ReadSourceLocation(Record, Idx));
+  bool hasBoundsExpr = Record[Idx++];
+  if (hasBoundsExpr) {
+    E->setBoundsExpr(Reader.ReadBoundsExpr(F));
+  }
 }
 
 void ASTStmtReader::VisitOffsetOfExpr(OffsetOfExpr *E) {
@@ -612,6 +616,10 @@ void ASTStmtReader::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   E->setLHS(Reader.ReadSubExpr());
   E->setRHS(Reader.ReadSubExpr());
   E->setRBracketLoc(ReadSourceLocation(Record, Idx));
+  bool hasBoundsExpr = Record[Idx++];
+  if (hasBoundsExpr) {
+    E->setBoundsExpr(Reader.ReadBoundsExpr(F));
+  }
 }
 
 void ASTStmtReader::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {
@@ -670,6 +678,10 @@ void ASTStmtReader::VisitCastExpr(CastExpr *E) {
   assert(NumBaseSpecs == E->path_size());
   E->setSubExpr(Reader.ReadSubExpr());
   E->setCastKind((CastKind)Record[Idx++]);
+  bool hasBoundsExpr = Record[Idx++];
+  if (hasBoundsExpr) {
+    E->setBoundsExpr(Reader.ReadBoundsExpr(F));
+  }
   CastExpr::path_iterator BaseI = E->path_begin();
   while (NumBaseSpecs--) {
     CXXBaseSpecifier *BaseSpec = new (Reader.getContext()) CXXBaseSpecifier;
@@ -685,6 +697,10 @@ void ASTStmtReader::VisitBinaryOperator(BinaryOperator *E) {
   E->setOpcode((BinaryOperator::Opcode)Record[Idx++]);
   E->setOperatorLoc(ReadSourceLocation(Record, Idx));
   E->setFPContractable((bool)Record[Idx++]);
+  bool hasBoundsExpr = Record[Idx++];
+  if (hasBoundsExpr) {
+    E->setBoundsExpr(Reader.ReadBoundsExpr(F));
+  }
 }
 
 void ASTStmtReader::VisitCompoundAssignOperator(CompoundAssignOperator *E) {
@@ -3197,6 +3213,12 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       bool IsArrow = Record[Idx++];
       SourceLocation OperatorLoc = ReadSourceLocation(F, Record, Idx);
 
+      bool HadBoundsExpr = Record[Idx++];
+      BoundsExpr *Bounds = nullptr;
+      if (HadBoundsExpr) {
+        Bounds = ReadBoundsExpr(F);
+      }
+
       S = MemberExpr::Create(Context, Base, IsArrow, OperatorLoc, QualifierLoc,
                              TemplateKWLoc, MemberD, FoundDecl, MemberNameInfo,
                              HasTemplateKWAndArgsInfo ? &ArgInfo : nullptr, T,
@@ -3205,6 +3227,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                              MemberD->getDeclName(), Record, Idx);
       if (HadMultipleCandidates)
         cast<MemberExpr>(S)->setHadMultipleCandidates(true);
+      if (HadBoundsExpr)
+        cast<MemberExpr>(S)->setBoundsExpr(Bounds);
       break;
     }
 
