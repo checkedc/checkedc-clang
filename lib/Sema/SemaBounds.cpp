@@ -400,8 +400,9 @@ namespace {
       E = E->IgnoreParens();
       QualType QT = E->getType();
 
-      // If the target value v is a Ptr type, it has no required bounds
-      // if it is a function pointer type.  Otherwise it has bounds(v, v + 1);
+      // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
+      // it is a function pointer type, in which case it has no required
+      // bounds.
       if (QT->isCheckedPointerPtrType()) {
          if (QT->isFunctionPointerType())
            return CreateBoundsNone();
@@ -546,62 +547,42 @@ namespace {
   };
 }
 
-bool Sema::LValueDerivedFromArrayPtr(Expr *E) {
-  while (1) {
-    assert(E->isLValue());
-    E = E->IgnoreParens();
-    switch (E->getStmtClass()) {
-      case Expr::DeclRefExprClass:
-        return E->getType()->isCheckedArrayType();
-      case Expr::UnaryOperatorClass: {
-        UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
-        if (!UO) {
-          assert("unexpected cast failure");
-          return false;
-        }
-        return (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
-                UO->getSubExpr()->getType()->isCheckedPointerArrayType());
-      }
-      case Expr::ArraySubscriptExprClass: {
-        // e1[e2] is a synonym for *(e1 + e2).  The expression is derived from
-        // _Array_ptr type if whichever subexpression has a pointer type has an
-        // _Array_ptr type.
-
-        ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
-        if (!AS) {
-          assert("unexpected cast failure");
-          return false;
-        }
-        // An important invariant for array types in Checked C is that all
-        // dimensions of multi-dimensional array are either checked or
-        // unchecked.  This ensures that the intermediate values for
-        // multi-dimensional array accesses have checked type and preserve
-        //  the "checkedness" of the outermost array.  In practical terms,
-        // we only need to look at the type.
-
-        // getBase returns the pointer-typed expression.
-        return AS->getBase()->getType()->isCheckedPointerArrayType();
-      }
-      case Expr::MemberExprClass: {
-        MemberExpr *ME = dyn_cast<MemberExpr>(E);
-        if (!ME) {
-          assert("unexpected cast failure");
-          return false;
-        }
-        // Two cases: ME->F and ME.F.  ME->F is the same as (*ME).F
-        Expr *Base = ME->getBase();
-        if (ME->isArrow())
-          return Base->getType()->isCheckedPointerArrayType();
-
-        E = Base;
-        continue;
-      }
-      case Expr::CompoundLiteralExprClass:
-        return E->getType()->isCheckedArrayType();
-      default: {
-        llvm_unreachable("unexpected lvalue expression");
+bool Sema::LValueIsArrayPtrDereference(Expr *E) {
+  assert(E->isLValue());
+  E = E->IgnoreParens();
+  switch (E->getStmtClass()) {
+    case Expr::DeclRefExprClass:
+    case Expr::MemberExprClass:
+    case Expr::CompoundLiteralExprClass:
+      return false;
+    case Expr::UnaryOperatorClass: {
+      UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
+      if (!UO) {
+        assert("unexpected cast failure");
         return false;
       }
+      return (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
+              UO->getSubExpr()->getType()->isCheckedPointerArrayType());
+    }
+    case Expr::ArraySubscriptExprClass: {
+      // e1[e2] is a synonym for *(e1 + e2).
+      ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
+      if (!AS) {
+        assert("unexpected cast failure");
+        return false;
+      }
+      // An important invariant for array types in Checked C is that all
+      // dimensions of a multi-dimensional array are either checked or
+      // unchecked.  This ensures that the intermediate values for
+      // multi-dimensional array accesses have checked type and preserve
+      //  the "checkedness" of the outermost array.
+
+      // getBase returns the pointer-typed expression.
+      return AS->getBase()->getType()->isCheckedPointerArrayType();
+    }
+    default: {
+      llvm_unreachable("unexpected lvalue expression");
+      return false;
     }
   }
 }
@@ -669,23 +650,49 @@ namespace {
 
     void DumpPtrCastBounds(raw_ostream &OS, Expr *E,
                               BoundsExpr *B) {
-      OS << "\nExpression:\n";
+      OS << "\nPtr Cast Expression:\n";
       E->dump(OS);
-      OS << "Ptr cast source bounds:\n";
+      OS << "Source bounds:\n";
       B->dump(OS);
     }
 
-    // If an lvalue is derived from a checked array ptr,
-    // compute the bounds for the lvalue and return them.
-    // Otherwise return null.
+    void DumpMemberBaseBounds(raw_ostream &OS, MemberExpr *E,
+                              BoundsExpr *B) {
+      OS << "\nMember expression:\n";
+      E->dump(OS);
+      OS << "Member base bounds:\n";
+      B->dump(OS);
+    }
+
+    // If an lvalue expression is an Array_ptr dereference, check that
+    // the resulting lvalue has bounds and return the bounds.  If
+    // it is not an Array_ptr dereference, return null.
     BoundsExpr *ValidateLValueBounds(Expr *E) {
       BoundsExpr *LValueBounds = nullptr;
-      if (S.LValueDerivedFromArrayPtr(E)) {
+      if (S.LValueIsArrayPtrDereference(E)) {
         LValueBounds = S.InferLValueBounds(S.getASTContext(), E);
         if (LValueBounds->isNone())
           S.Diag(E->getLocStart(), diag::err_expected_bounds);
       }
       return LValueBounds;
+    }
+
+    // For member references, check that the base has bounds if it is an
+    // Array_ptr dereference.  We will always check that the base is in
+    // bounds at runtime.
+    BoundsExpr *ValidateMemberBaseBounds(MemberExpr *E) {
+      Expr *Base = E->getBase();
+      // E.F
+      if (!E->isArrow())
+        return ValidateLValueBounds(Base);
+
+      // E->F.  This is equivalent to (*E).F.
+      if (Base->getType()->isCheckedPointerArrayType()){
+          BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
+          if (Bounds->isNone())
+            S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          return Bounds;
+      }
     }
 
   public:
@@ -706,6 +713,8 @@ namespace {
       // Bounds of the right-hand side of the assignment
       BoundsExpr *RHSBounds = nullptr;
 
+      // Check that the RHS of the assignment has bounds if the
+      // target of the LHS lvalue has bounds.
       if (LHSType->isCheckedPointerType() ||
           LHSType->isIntegralOrEnumerationType()) {
         LHSTargetBounds =
@@ -717,6 +726,9 @@ namespace {
 
         }
       }
+
+      // Check that the LHS lvalue of the assignment has bounds,
+      // if it is lvalue was produced by dereferencing an _Array_ptr.
       LValueBounds = ValidateLValueBounds(LHS);
       if (DumpBounds && (LValueBounds || LHSTargetBounds || RHSBounds))
         DumpAssignmentBounds(llvm::outs(), E, LValueBounds, LHSTargetBounds, RHSBounds);
@@ -744,12 +756,27 @@ namespace {
           // TODO: produce more informative error message.
           S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
 
-        if (DumpBounds)
+        if (DumpBounds && SrcBounds)
           DumpPtrCastBounds(llvm::outs(), E, SrcBounds);
         return true;
       }
       return true;
     }
+
+    // A member expression is a narrowing operator that shrinks the range of
+    // memory to which the base refers to a specific member.  We always bounds
+    // check the base.  That way we know that the lvalue produced by the
+    // member points to a valid range of memory given by
+    // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
+    // where T is the type of the member.
+    bool VisitMemberExpr(MemberExpr *E) {
+      BoundsExpr *BaseBounds = ValidateMemberBaseBounds(E);
+      if (DumpBounds && BaseBounds)
+        DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
+
+      return true;
+    }
+
     bool VisitVarDecl(VarDecl *D) {
       if (D->isInvalidDecl())
         return true;

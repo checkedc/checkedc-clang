@@ -156,6 +156,19 @@ void f15(int arr1 _Checked[6]);
 // CHECK-NEXT: IntegerLiteral
 // CHECK 'int' 6
 
+// However, any bounds declared by the programmer override a bounds implicitly
+// created based on the first dimension size.
+void f16(int arr1 _Checked[6] : count(3));
+
+// CHECK: FunctionDecl
+// CHECK: f16
+// CHECK-NEXT: ParmVarDecl
+// CHECK: arr1 '_Array_ptr<int>'
+// CHECK-NEXT: CountBoundsExpr
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK 'int' 3
+
 //===================================================================
 // Dumps of different kinds of bounds expressions on function returns
 //===================================================================

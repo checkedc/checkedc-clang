@@ -4270,10 +4270,9 @@ public:
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
 
-  /// LValueDerivedFromArrayPtr - determine if an lvalue is derived from
-  /// an _Array_ptr value and needs a bounds a bounds check when it is
-  /// read or written
-  bool LValueDerivedFromArrayPtr(Expr *E);
+  /// LValueIsArrayPtrDereference - determine if an lvalue expression is
+  /// a dereference of an Array_ptr (via '*" or an array subscript operator).
+  bool LValueIsArrayPtrDereference(Expr *E);
 
   /// InferLValueBounds - infer a bounds expression for an lvalue.
   /// The bounds determine whether the lvalue to which an
