@@ -1673,6 +1673,8 @@ private:
   unsigned Opc : 5;
   SourceLocation Loc;
   Stmt *Val;
+
+  BoundsExpr *InferredBounds;
 public:
 
   UnaryOperator(Expr *input, Opcode opc, QualType type,
@@ -1683,11 +1685,11 @@ public:
            (input->isInstantiationDependent() ||
             type->isInstantiationDependentType()),
            input->containsUnexpandedParameterPack()),
-      Opc(opc), Loc(l), Val(input) {}
+      Opc(opc), Loc(l), Val(input), InferredBounds(nullptr) {}
 
   /// \brief Build an empty unary operator.
   explicit UnaryOperator(EmptyShell Empty)
-    : Expr(UnaryOperatorClass, Empty), Opc(UO_AddrOf) { }
+    : Expr(UnaryOperatorClass, Empty), Opc(UO_AddrOf), InferredBounds(nullptr) { }
 
   Opcode getOpcode() const { return static_cast<Opcode>(Opc); }
   void setOpcode(Opcode O) { Opc = O; }
@@ -1762,6 +1764,21 @@ public:
 
   // Iterators
   child_range children() { return child_range(&Val, &Val+1); }
+
+  // Checked C bounds information
+
+  /// \brief Return true if this expression has inferred bounds we should
+  /// check its value against at runtime
+  bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
+
+  /// \brief The inferred bounds for this expression
+  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+
+  /// \brief The inferred bounds for this expression
+  BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
+
+  /// \brief Set the inferred bounds for this declaration.
+  void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 };
 
 /// Helper class for OffsetOfExpr.
@@ -2064,6 +2081,7 @@ class ArraySubscriptExpr : public Expr {
   enum { LHS, RHS, END_EXPR=2 };
   Stmt* SubExprs[END_EXPR];
   SourceLocation RBracketLoc;
+  BoundsExpr *InferredBounds;
 public:
   ArraySubscriptExpr(Expr *lhs, Expr *rhs, QualType t,
                      ExprValueKind VK, ExprObjectKind OK,
@@ -2075,14 +2093,14 @@ public:
           rhs->isInstantiationDependent()),
          (lhs->containsUnexpandedParameterPack() ||
           rhs->containsUnexpandedParameterPack())),
-    RBracketLoc(rbracketloc) {
+    RBracketLoc(rbracketloc), InferredBounds(nullptr) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
   }
 
   /// \brief Create an empty array subscript expression.
   explicit ArraySubscriptExpr(EmptyShell Shell)
-    : Expr(ArraySubscriptExprClass, Shell) { }
+    : Expr(ArraySubscriptExprClass, Shell), InferredBounds(nullptr) { }
 
   /// An array access can be written A[4] or 4[A] (both are equivalent).
   /// - getBase() and getIdx() always present the normalized view: A[4].
@@ -2137,6 +2155,21 @@ public:
   child_range children() {
     return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
   }
+
+  // Checked C bounds information
+
+  /// \brief Return true if this expression has inferred bounds we should
+  /// check its value against at runtime
+  bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
+
+  /// \brief The inferred bounds for this expression
+  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+
+  /// \brief The inferred bounds for this expression
+  BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
+
+  /// \brief Set the inferred bounds for this declaration.
+  void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 };
 
 /// CallExpr - Represents a function call (C99 6.5.2.2, C++ [expr.call]).
@@ -2363,6 +2396,8 @@ class MemberExpr final
     return HasTemplateKWAndArgsInfo ? 1 : 0;
   }
 
+  BoundsExpr *InferredBounds;
+
 public:
   MemberExpr(Expr *base, bool isarrow, SourceLocation operatorloc,
              ValueDecl *memberdecl, const DeclarationNameInfo &NameInfo,
@@ -2373,7 +2408,8 @@ public:
         Base(base), MemberDecl(memberdecl), MemberDNLoc(NameInfo.getInfo()),
         MemberLoc(NameInfo.getLoc()), OperatorLoc(operatorloc),
         IsArrow(isarrow), HasQualifierOrFoundDecl(false),
-        HasTemplateKWAndArgsInfo(false), HadMultipleCandidates(false) {
+        HasTemplateKWAndArgsInfo(false), HadMultipleCandidates(false),
+    InferredBounds(nullptr) {
     assert(memberdecl->getDeclName() == NameInfo.getName());
   }
 
@@ -2390,7 +2426,7 @@ public:
         Base(base), MemberDecl(memberdecl), MemberDNLoc(), MemberLoc(l),
         OperatorLoc(operatorloc), IsArrow(isarrow),
         HasQualifierOrFoundDecl(false), HasTemplateKWAndArgsInfo(false),
-        HadMultipleCandidates(false) {}
+        HadMultipleCandidates(false), InferredBounds(nullptr) {}
 
   static MemberExpr *Create(const ASTContext &C, Expr *base, bool isarrow,
                             SourceLocation OperatorLoc,
@@ -2555,6 +2591,21 @@ public:
   friend TrailingObjects;
   friend class ASTReader;
   friend class ASTStmtWriter;
+
+  // Checked C bounds information
+
+  /// \brief Return true if this expression has inferred bounds we should
+  /// check its value against at runtime
+  bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
+
+  /// \brief The inferred bounds for this expression
+  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+
+  /// \brief The inferred bounds for this expression
+  BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
+
+  /// \brief Set the inferred bounds for this declaration.
+  void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 };
 
 /// CompoundLiteralExpr - [C99 6.5.2.5]
@@ -2633,6 +2684,8 @@ class CastExpr : public Expr {
 private:
   Stmt *Op;
 
+  BoundsExpr *InferredBounds;
+
   bool CastConsistency() const;
 
   const CXXBaseSpecifier * const *path_buffer() const {
@@ -2663,7 +2716,7 @@ protected:
              ((SC != ImplicitCastExprClass &&
                ty->containsUnexpandedParameterPack()) ||
               (op && op->containsUnexpandedParameterPack()))),
-        Op(op) {
+        Op(op), InferredBounds(nullptr) {
     assert(kind != CK_Invalid && "creating cast with invalid cast kind");
     CastExprBits.Kind = kind;
     setBasePathSize(BasePathSize);
@@ -2672,7 +2725,7 @@ protected:
 
   /// \brief Construct an empty cast.
   CastExpr(StmtClass SC, EmptyShell Empty, unsigned BasePathSize)
-    : Expr(SC, Empty) {
+    : Expr(SC, Empty), InferredBounds(nullptr) {
     setBasePathSize(BasePathSize);
   }
 
@@ -2709,6 +2762,21 @@ public:
 
   // Iterators
   child_range children() { return child_range(&Op, &Op+1); }
+
+  // Checked C bounds information
+
+  /// \brief Return true if this expression has inferred bounds we should
+  /// check its value against at runtime
+  bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
+
+  /// \brief The inferred bounds for this expression
+  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+
+  /// \brief The inferred bounds for this expression
+  BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
+
+  /// \brief Set the inferred bounds for this declaration.
+  void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 };
 
 /// ImplicitCastExpr - Allows us to explicitly represent implicit type
@@ -2910,6 +2978,8 @@ private:
 
   enum { LHS, RHS, END_EXPR };
   Stmt* SubExprs[END_EXPR];
+
+  BoundsExpr *InferredBounds;
 public:
 
   BinaryOperator(Expr *lhs, Expr *rhs, Opcode opc, QualType ResTy,
@@ -2922,7 +2992,8 @@ public:
             rhs->isInstantiationDependent()),
            (lhs->containsUnexpandedParameterPack() ||
             rhs->containsUnexpandedParameterPack())),
-      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc) {
+      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc),
+      InferredBounds(nullptr) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
     assert(!isCompoundAssignmentOp() &&
@@ -2931,7 +3002,7 @@ public:
 
   /// \brief Construct an empty binary operator.
   explicit BinaryOperator(EmptyShell Empty)
-    : Expr(BinaryOperatorClass, Empty), Opc(BO_Comma) { }
+    : Expr(BinaryOperatorClass, Empty), Opc(BO_Comma), InferredBounds(nullptr) { }
 
   SourceLocation getExprLoc() const LLVM_READONLY { return OpLoc; }
   SourceLocation getOperatorLoc() const { return OpLoc; }
@@ -3063,6 +3134,21 @@ public:
   // operations on floating point types.
   bool isFPContractable() const { return FPContractable; }
 
+  // Checked C bounds information
+
+  /// \brief Return true if this expression has inferred bounds we should
+  /// check its value against at runtime
+  bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
+
+  /// \brief The inferred bounds for this expression
+  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+
+  /// \brief The inferred bounds for this expression
+  BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
+
+  /// \brief Set the inferred bounds for this declaration.
+  void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
+
 protected:
   BinaryOperator(Expr *lhs, Expr *rhs, Opcode opc, QualType ResTy,
                  ExprValueKind VK, ExprObjectKind OK,
@@ -3074,13 +3160,14 @@ protected:
             rhs->isInstantiationDependent()),
            (lhs->containsUnexpandedParameterPack() ||
             rhs->containsUnexpandedParameterPack())),
-      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc) {
+      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc),
+      InferredBounds(nullptr) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
   }
 
   BinaryOperator(StmtClass SC, EmptyShell Empty)
-    : Expr(SC, Empty), Opc(BO_MulAssign) { }
+    : Expr(SC, Empty), Opc(BO_MulAssign), InferredBounds(nullptr) { }
 };
 
 /// CompoundAssignOperator - For compound assignments (e.g. +=), we keep
