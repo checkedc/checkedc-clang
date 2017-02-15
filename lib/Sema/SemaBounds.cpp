@@ -671,8 +671,10 @@ namespace {
       BoundsExpr *LValueBounds = nullptr;
       if (S.LValueIsArrayPtrDereference(E)) {
         LValueBounds = S.InferLValueBounds(S.getASTContext(), E);
-        if (LValueBounds->isNone())
+        if (LValueBounds->isNone()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          LValueBounds = S.CreateInvalidBoundsExpr();
+        }
       }
       return LValueBounds;
     }
@@ -688,25 +690,19 @@ namespace {
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()){
-<<<<<<< HEAD
-          BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
-          if (Bounds->isNone())
-            S.Diag(E->getLocStart(), diag::err_expected_bounds);
-          return Bounds;
-      }
-=======
         BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
-        if (Bounds->isNone())
+        if (Bounds->isNone()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          Bounds = S.CreateInvalidBoundsExpr();
+        }
         return Bounds;
       }
 
       return nullptr;
->>>>>>> issue142
     }
 
   public:
-    CheckBoundsDeclarations(Sema &S) : S(S),V
+    CheckBoundsDeclarations(Sema &S) : S(S),
      DumpBounds(S.getLangOpts().DumpInferredBounds) {}
 
     bool VisitBinaryOperator(BinaryOperator *E) {
@@ -731,15 +727,20 @@ namespace {
           S.InferLValueTargetBounds(S.getASTContext(), LHS);
         if (!LHSTargetBounds->isNone()) {
           RHSBounds = S.InferRValueBounds(S.getASTContext(), RHS);
-          if (RHSBounds->isNone())
+          if (RHSBounds->isNone()) {
              S.Diag(RHS->getLocStart(), diag::err_expected_bounds);
-
+             RHSBounds = S.CreateInvalidBoundsExpr();
+          }
         }
       }
 
       // Check that the LHS lvalue of the assignment has bounds,
       // if it is an lvalue was produced by dereferencing an _Array_ptr.
       LValueBounds = ValidateLValueBounds(LHS);
+      if (LValueBounds) {
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(LValueBounds);
+      }
       if (DumpBounds && (LValueBounds ||
                          (LHSTargetBounds && !LHSTargetBounds->isNone()) ||
                          RHSBounds))
@@ -754,6 +755,10 @@ namespace {
       CastKind CK = E->getCastKind();
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
         BoundsExpr *B = ValidateLValueBounds(E->getSubExpr());
+        if (B) {
+          assert(!E->getInferredBoundsExpr());
+          E->setInferredBoundsExpr(B);
+        }
         if (DumpBounds && B)
           DumpPtrReadBounds(llvm::outs(), E, B);
         return true;
@@ -764,9 +769,15 @@ namespace {
           E->getType()->isCheckedPointerPtrType()) {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
-        if (SrcBounds->isNone())
+        if (SrcBounds->isNone()) {
           // TODO: produce more informative error message.
           S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          SrcBounds = S.CreateInvalidBoundsExpr();
+        }
+        if (SrcBounds) {
+          assert(!E->getInferredBoundsExpr());
+          E->setInferredBoundsExpr(SrcBounds);
+        }
 
         if (DumpBounds && SrcBounds)
           DumpPtrCastBounds(llvm::outs(), E, SrcBounds);
@@ -783,6 +794,10 @@ namespace {
     // where T is the type of the member.
     bool VisitMemberExpr(MemberExpr *E) {
       BoundsExpr *BaseBounds = ValidateMemberBaseBounds(E);
+      if (BaseBounds) {
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(BaseBounds);
+      }
       if (DumpBounds && BaseBounds)
         DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
 
@@ -828,6 +843,7 @@ namespace {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
         BoundsExpr *InitBounds = S.InferRValueBounds(S.getASTContext(), Init);
         if (InitBounds->isNone())
+          // TODO: need some place to record the initializer bounds
           S.Diag(Init->getLocStart(), diag::err_expected_bounds);
         if (DumpBounds)
           DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
@@ -998,7 +1014,7 @@ namespace {
         // The type of the defined function is not compatible with the pointer
         // we're trying to assign it to. Error, stop.
 
-        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)|
+        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
           << ToType << NeedleFunType << false << E->getSourceRange();
 
         return;
