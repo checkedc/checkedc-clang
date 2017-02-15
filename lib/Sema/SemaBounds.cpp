@@ -688,15 +688,25 @@ namespace {
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()){
+<<<<<<< HEAD
           BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
           if (Bounds->isNone())
             S.Diag(E->getLocStart(), diag::err_expected_bounds);
           return Bounds;
       }
+=======
+        BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
+        if (Bounds->isNone())
+          S.Diag(E->getLocStart(), diag::err_expected_bounds);
+        return Bounds;
+      }
+
+      return nullptr;
+>>>>>>> issue142
     }
 
   public:
-    CheckBoundsDeclarations(Sema &S) : S(S),
+    CheckBoundsDeclarations(Sema &S) : S(S),V
      DumpBounds(S.getLangOpts().DumpInferredBounds) {}
 
     bool VisitBinaryOperator(BinaryOperator *E) {
@@ -728,9 +738,11 @@ namespace {
       }
 
       // Check that the LHS lvalue of the assignment has bounds,
-      // if it is lvalue was produced by dereferencing an _Array_ptr.
+      // if it is an lvalue was produced by dereferencing an _Array_ptr.
       LValueBounds = ValidateLValueBounds(LHS);
-      if (DumpBounds && (LValueBounds || LHSTargetBounds || RHSBounds))
+      if (DumpBounds && (LValueBounds ||
+                         (LHSTargetBounds && !LHSTargetBounds->isNone()) ||
+                         RHSBounds))
         DumpAssignmentBounds(llvm::outs(), E, LValueBounds, LHSTargetBounds, RHSBounds);
       return true;
     }
@@ -748,7 +760,7 @@ namespace {
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
-      if ((CK == CK_BitCast && CK == CK_IntegralToPointer) &&
+      if ((CK == CK_BitCast || CK == CK_IntegralToPointer) &&
           E->getType()->isCheckedPointerPtrType()) {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
@@ -986,7 +998,7 @@ namespace {
         // The type of the defined function is not compatible with the pointer
         // we're trying to assign it to. Error, stop.
 
-        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
+        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)|
           << ToType << NeedleFunType << false << E->getSourceRange();
 
         return;
