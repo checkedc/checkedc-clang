@@ -766,12 +766,14 @@ namespace {
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
       if ((CK == CK_BitCast || CK == CK_IntegralToPointer) &&
-          E->getType()->isCheckedPointerPtrType()) {
+          E->getType()->isCheckedPointerPtrType() &&
+          !E->getType()->isFunctionPointerType()) {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
         if (SrcBounds->isNone()) {
           // TODO: produce more informative error message.
-          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          // TODO: Github issue 155.  Suppress error message until it is fixed.
+          // S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
           SrcBounds = S.CreateInvalidBoundsExpr();
         }
         if (SrcBounds) {
