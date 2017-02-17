@@ -671,8 +671,10 @@ namespace {
       BoundsExpr *LValueBounds = nullptr;
       if (S.LValueIsArrayPtrDereference(E)) {
         LValueBounds = S.InferLValueBounds(S.getASTContext(), E);
-        if (LValueBounds->isNone())
+        if (LValueBounds->isNone()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          LValueBounds = S.CreateInvalidBoundsExpr();
+        }
       }
       return LValueBounds;
     }
@@ -688,11 +690,15 @@ namespace {
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()){
-          BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
-          if (Bounds->isNone())
-            S.Diag(E->getLocStart(), diag::err_expected_bounds);
-          return Bounds;
+        BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
+        if (Bounds->isNone()) {
+          S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          Bounds = S.CreateInvalidBoundsExpr();
+        }
+        return Bounds;
       }
+
+      return nullptr;
     }
 
   public:
@@ -721,16 +727,23 @@ namespace {
           S.InferLValueTargetBounds(S.getASTContext(), LHS);
         if (!LHSTargetBounds->isNone()) {
           RHSBounds = S.InferRValueBounds(S.getASTContext(), RHS);
-          if (RHSBounds->isNone())
+          if (RHSBounds->isNone()) {
              S.Diag(RHS->getLocStart(), diag::err_expected_bounds);
-
+             RHSBounds = S.CreateInvalidBoundsExpr();
+          }
         }
       }
 
       // Check that the LHS lvalue of the assignment has bounds,
-      // if it is lvalue was produced by dereferencing an _Array_ptr.
+      // if it is an lvalue was produced by dereferencing an _Array_ptr.
       LValueBounds = ValidateLValueBounds(LHS);
-      if (DumpBounds && (LValueBounds || LHSTargetBounds || RHSBounds))
+      if (LValueBounds) {
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(LValueBounds);
+      }
+      if (DumpBounds && (LValueBounds ||
+                         (LHSTargetBounds && !LHSTargetBounds->isNone()) ||
+                         RHSBounds))
         DumpAssignmentBounds(llvm::outs(), E, LValueBounds, LHSTargetBounds, RHSBounds);
       return true;
     }
@@ -742,19 +755,31 @@ namespace {
       CastKind CK = E->getCastKind();
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
         BoundsExpr *B = ValidateLValueBounds(E->getSubExpr());
+        if (B) {
+          assert(!E->getInferredBoundsExpr());
+          E->setInferredBoundsExpr(B);
+        }
         if (DumpBounds && B)
           DumpPtrReadBounds(llvm::outs(), E, B);
         return true;
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
-      if ((CK == CK_BitCast && CK == CK_IntegralToPointer) &&
-          E->getType()->isCheckedPointerPtrType()) {
+      if ((CK == CK_BitCast || CK == CK_IntegralToPointer) &&
+          E->getType()->isCheckedPointerPtrType() &&
+          !E->getType()->isFunctionPointerType()) {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
-        if (SrcBounds->isNone())
+        if (SrcBounds->isNone()) {
           // TODO: produce more informative error message.
-          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          // TODO: Github issue 155.  Suppress error message until it is fixed.
+          // S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          SrcBounds = S.CreateInvalidBoundsExpr();
+        }
+        if (SrcBounds) {
+          assert(!E->getInferredBoundsExpr());
+          E->setInferredBoundsExpr(SrcBounds);
+        }
 
         if (DumpBounds && SrcBounds)
           DumpPtrCastBounds(llvm::outs(), E, SrcBounds);
@@ -771,6 +796,10 @@ namespace {
     // where T is the type of the member.
     bool VisitMemberExpr(MemberExpr *E) {
       BoundsExpr *BaseBounds = ValidateMemberBaseBounds(E);
+      if (BaseBounds) {
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(BaseBounds);
+      }
       if (DumpBounds && BaseBounds)
         DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
 
@@ -816,6 +845,7 @@ namespace {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
         BoundsExpr *InitBounds = S.InferRValueBounds(S.getASTContext(), Init);
         if (InitBounds->isNone())
+          // TODO: need some place to record the initializer bounds
           S.Diag(Init->getLocStart(), diag::err_expected_bounds);
         if (DumpBounds)
           DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
