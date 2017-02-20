@@ -772,8 +772,7 @@ namespace {
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
         if (SrcBounds->isNone()) {
           // TODO: produce more informative error message.
-          // TODO: Github issue 155.  Suppress error message until it is fixed.
-          // S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
           SrcBounds = S.CreateInvalidBoundsExpr();
         }
         if (SrcBounds) {

@@ -9551,8 +9551,20 @@ QualType Sema::CheckCompareOperands(ExprResult &LHS, ExprResult &RHS,
                                                : CK_BitCast;
       if (LHSIsNull && !RHSIsNull)
         LHS = ImpCastExprToType(LHS.get(), RHSType, Kind);
-      else
+      // Avoid introducing an implicit cast to _Ptr type. Implicit casts to
+      // _Ptr type require that the source operand have bounds large enough
+      // to hold the pointee type.  The source operand may not have those bounds.
+      else if (!LHSType->isCheckedPointerPtrType())
         RHS = ImpCastExprToType(RHS.get(), LHSType, Kind);
+      else  if (!RHSType->isCheckedPointerPtrType())
+        LHS = ImpCastExprToType(LHS.get(), RHSType, Kind);
+      else {
+        QualType TargetType =
+          Context.getPointerType(LCanPointeeTy,
+                                 CheckedPointerKind::Unchecked);
+        LHS = ImpCastExprToType(LHS.get(), TargetType, Kind);
+        RHS = ImpCastExprToType(RHS.get(), TargetType, Kind);
+      }
     }
     return ResultTy;
   }
