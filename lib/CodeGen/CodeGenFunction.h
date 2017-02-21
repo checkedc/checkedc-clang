@@ -1238,6 +1238,48 @@ public:
   const TargetInfo &getTarget() const { return Target; }
   llvm::LLVMContext &getLLVMContext() { return CGM.getLLVMContext(); }
 
+public:
+  enum BoundsCheckKind {
+    BC_None,
+    BC_Deref,
+    BC_ArraySubscript
+  };
+
+private:
+  BoundsExpr* NextBoundsExprForCheck;
+  BoundsCheckKind NextBoundsCheckKind;
+
+public:
+  BoundsExpr* GetAndClearNextBoundsCheckExpr(BoundsCheckKind Kind) {
+    if (!getLangOpts().CheckedC)
+      return nullptr;
+
+    if (NextBoundsCheckKind == BC_None)
+      return nullptr;
+
+    if (NextBoundsCheckKind != Kind)
+      return nullptr;
+
+    BoundsExpr* result = NextBoundsExprForCheck;
+    NextBoundsExprForCheck = nullptr;
+    NextBoundsCheckKind = BC_None;
+
+    return result;
+  }
+
+  void SetNextBoundsCheckExpr(BoundsExpr *Bounds, BoundsCheckKind Kind) {
+    if (!getLangOpts().CheckedC)
+      return;
+
+    assert(!Bounds->isInvalid() && "Only valid bounds checks can be checked against");
+    assert(NextBoundsCheckKind == BC_None
+           && !NextBoundsExprForCheck
+           && "Only one bounds check emmision can be in progress at a time");
+
+    NextBoundsExprForCheck = Bounds;
+    NextBoundsCheckKind = Kind;
+  }
+
   //===--------------------------------------------------------------------===//
   //                                  Cleanups
   //===--------------------------------------------------------------------===//
@@ -2285,11 +2327,10 @@ public:
   void EmitAsmStmt(const AsmStmt &S);
 
   void EmitExplicitDynamicCheck(const Expr *Condition);
-  void EmitLValueToRValueDynamicCheck(const Expr * E, const BoundsExpr * Bounds);
-  void EmitCheckedCSubscriptCheck(const ArraySubscriptExpr * E, const BoundsExpr * Bounds);
-  void EmitCheckedCDerefCheck(const UnaryOperator * E, const BoundsExpr * Bounds);
-  void EmitDynamicNonNullCheck(const Expr *CheckedPtr);
-  void EmitDynamicBoundsCheck(const Expr *CheckedPtr, const BoundsExpr *Bounds);
+  void EmitCheckedCSubscriptCheck(const LValue Addr, const BoundsExpr *Bounds);
+  void EmitCheckedCDerefCheck(const LValue Addr, const BoundsExpr *Bounds);
+  void EmitDynamicNonNullCheck(const LValue Addr);
+  void EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr *Bounds);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);

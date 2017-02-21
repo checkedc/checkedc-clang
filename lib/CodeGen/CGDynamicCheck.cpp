@@ -60,44 +60,20 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
   EmitDynamicCheckBlocks(ConditionVal);
 }
 
-void CodeGenFunction::EmitLValueToRValueDynamicCheck(const Expr *E,
-                                                     const BoundsExpr *Bounds) {
-
-  if (!Bounds || Bounds->isInvalid())
-    return;
-
-  if (const auto *SE = dyn_cast<ArraySubscriptExpr>(E)) {
-    EmitCheckedCSubscriptCheck(SE, Bounds);
-  }
-  else if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
-    switch (UO->getOpcode())
-    {
-    case UO_Deref:
-      EmitCheckedCDerefCheck(UO, Bounds);
-    default:
-      break;
-    }
-  }
-}
-
-void CodeGenFunction::EmitCheckedCSubscriptCheck(const ArraySubscriptExpr *E,
+void CodeGenFunction::EmitCheckedCSubscriptCheck(const LValue Addr,
                                                  const BoundsExpr *Bounds) {
   ++NumDynamicChecksFound;
   ++NumDynamicChecksSubscript;
 
-  // TODO: make a base + idx expr * Be careful of side effects in base/idx
-  // TODO: call EmitDynamicBoundsCheck
+  EmitDynamicBoundsCheck(Addr, Bounds);
 }
 
-void CodeGenFunction::EmitCheckedCDerefCheck(const UnaryOperator *E,
+void CodeGenFunction::EmitCheckedCDerefCheck(const LValue Addr,
                                              const BoundsExpr *Bounds) {
-
-  assert(E->getOpcode() == UO_Deref && "EmitCheckedCDerefCheck only works for deref ops");
-
   ++NumDynamicChecksFound;
   ++NumDynamicChecksDeref;
 
-  EmitDynamicBoundsCheck(E->getSubExpr(), Bounds);
+  EmitDynamicBoundsCheck(Addr, Bounds);
 }
 
 
@@ -105,66 +81,64 @@ void CodeGenFunction::EmitCheckedCDerefCheck(const UnaryOperator *E,
 // General Functions for inserting dynamic checks
 //
 
-void CodeGenFunction::EmitDynamicNonNullCheck(const Expr *CheckedPtr) {
+void CodeGenFunction::EmitDynamicNonNullCheck(const LValue Addr) {
   ++NumDynamicChecksNonNull;
 
-  if (!CheckedPtr->getType()->isCheckedPointerType())
+  if (!Addr.getType()->isCheckedPointerType())
     return;
 
   // We can't do constant evaluation here, because we can only be sure a value
   // is null, which would still need the check to be inserted.
 
-  RValue CheckedPtrVal = EmitAnyExprToTemp(CheckedPtr);
-  assert(CheckedPtrVal.isScalar() && "Values checked in non-null ptr dynamic checks should be scalars");
+  assert(Addr.isSimple() && "Values checked in non-null ptr dynamic checks should be scalars");
 
-  Value *Condition = Builder.CreateIsNotNull(CheckedPtrVal.getScalarVal(), "_Dynamic_check.non_null");
+  Value *Condition = Builder.CreateIsNotNull(Addr.getPointer(), "_Dynamic_check.non_null");
   EmitDynamicCheckBlocks(Condition);
 }
 
-void CodeGenFunction::EmitDynamicBoundsCheck(const Expr *CheckedPtr, const BoundsExpr *Bounds) {
+void CodeGenFunction::EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr *Bounds) {
   ++NumDynamicChecksRange;
 
   // We can only generate the check if we have the bounds as a range.
   assert(isa<RangeBoundsExpr>(Bounds) && "Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
   const RangeBoundsExpr *BoundsRange = dyn_cast<RangeBoundsExpr>(Bounds);
 
-  // Constant Evaluation
   bool LowerChkNeeded = true, UpperChkNeeded = true;
-  APSInt PtrConstant, LowerConstant, UpperConstant;
-  // We need Ptr to evaluate to a constant if we want to leave out any of these checks
-  if (ConstantFoldsToSimpleInteger(CheckedPtr, PtrConstant, /*AllowLabels=*/false)) {
-    // If we can find the lower bound, and it is lower than the ptr, then we don't need to do the lower bounds check
-    if (ConstantFoldsToSimpleInteger(BoundsRange->getLowerExpr(), LowerConstant, /*AllowLabels=*/false)) {
-      LowerChkNeeded = !(LowerConstant <= PtrConstant);
-    }
+  //// Constant Evaluation
+  //APSInt PtrConstant, LowerConstant, UpperConstant;
+  //// We need Ptr to evaluate to a constant if we want to leave out any of these checks
+  //if (ConstantFoldsToSimpleInteger(CheckedPtr, PtrConstant, /*AllowLabels=*/false)) {
+  //  // If we can find the lower bound, and it is lower than the ptr, then we don't need to do the lower bounds check
+  //  if (ConstantFoldsToSimpleInteger(BoundsRange->getLowerExpr(), LowerConstant, /*AllowLabels=*/false)) {
+  //    LowerChkNeeded = !(LowerConstant <= PtrConstant);
+  //  }
 
-    // If we can find the upper bound, and it is higher than the ptr, then we don't need to do the upper bounds check
-    if (ConstantFoldsToSimpleInteger(BoundsRange->getUpperExpr(), UpperConstant, /*AllowLabels=*/false)) {
-      UpperChkNeeded = !(PtrConstant < UpperConstant);
-    }
+  //  // If we can find the upper bound, and it is higher than the ptr, then we don't need to do the upper bounds check
+  //  if (ConstantFoldsToSimpleInteger(BoundsRange->getUpperExpr(), UpperConstant, /*AllowLabels=*/false)) {
+  //    UpperChkNeeded = !(PtrConstant < UpperConstant);
+  //  }
 
-    // Neither check is needed, leave both out
-    if (!LowerChkNeeded && !UpperChkNeeded) {
-      ++NumDynamicChecksElided;
-      return;
-    }
-  }
-  // End Constant Evaluation
+  //  // Neither check is needed, leave both out
+  //  if (!LowerChkNeeded && !UpperChkNeeded) {
+  //    ++NumDynamicChecksElided;
+  //    return;
+  //  }
+  //}
+  //// End Constant Evaluation
 
   // Emit the code to generate the pointer values
-  RValue PtrVal, Lower, Upper;
-  PtrVal = EmitAnyExpr(CheckedPtr);
+  RValue Lower, Upper;
   if (LowerChkNeeded)
     Lower = EmitAnyExpr(BoundsRange->getLowerExpr());
   if (UpperChkNeeded)
     Upper = EmitAnyExpr(BoundsRange->getUpperExpr());
 
-  assert(PtrVal.isScalar()
+  assert(Addr.isSimple()
          && (!LowerChkNeeded || Lower.isScalar())
          && (!UpperChkNeeded || Upper.isScalar())
          && "Values checked in range ptr dynamic checks should be scalars");
 
-  Value *PtrInt = Builder.CreatePtrToInt(PtrVal.getScalarVal(), IntPtrTy, "");
+  Value *PtrInt = Builder.CreatePtrToInt(Addr.getPointer(), IntPtrTy, "");
 
   llvm::Value *LowerChk, *UpperChk;
 

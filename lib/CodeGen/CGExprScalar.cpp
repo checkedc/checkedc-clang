@@ -1505,7 +1505,23 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");
 
     if (CE->hasInferredBoundsExpr()) {
-      CGF.EmitLValueToRValueDynamicCheck(CE->getSubExpr(), CE->getInferredBoundsExpr());
+      BoundsExpr* InferredBounds = CE->getInferredBoundsExpr();
+
+      if (InferredBounds->isInvalid())
+        break;
+
+      if (isa<ArraySubscriptExpr>(E)) {
+        CGF.SetNextBoundsCheckExpr(InferredBounds, CodeGenFunction::BC_ArraySubscript);
+      }
+      else if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+        switch (UO->getOpcode())
+        {
+        case UO_Deref:
+          CGF.SetNextBoundsCheckExpr(InferredBounds, CodeGenFunction::BC_Deref);
+        default:
+          break;
+        }
+      }
     }
 
     return Visit(const_cast<Expr*>(E));

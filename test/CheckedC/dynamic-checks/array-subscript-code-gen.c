@@ -26,9 +26,15 @@ void func(_Array_ptr<int> lp1 : count(1), _Array_ptr<int> lp3 : count(3)) {
 
   // CHECK: ret void
 
+  // We should have 10 bounds checks
   // CHECK: call void @llvm.trap
   // CHECK: call void @llvm.trap
   // CHECK: call void @llvm.trap
   // CHECK: call void @llvm.trap
-
+  // CHECK: call void @llvm.trap
+  // CHECK: call void @llvm.trap
+  // CHECK: call void @llvm.trap
+  // CHECK: call void @llvm.trap
+  // CHECK: call void @llvm.trap
+  // CHECK: call void @llvm.trap
 }
