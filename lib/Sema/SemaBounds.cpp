@@ -672,7 +672,7 @@ namespace {
     // If the lvalue expression needs a bounds check
     // - Determine the bounds and return them.
     // - If the expression has no bounds, return an invalid bounds
-    //   expression to indicate the lack of valid bounds expression.
+    //   expression to indicate the lack of a valid bounds expression.
     BoundsExpr *ValidateLValueBounds(Expr *E, bool &NeedsBoundsCheck) {
       BoundsExpr *LValueBounds = nullptr;
       if (S.LValueIsArrayPtrDereference(E)) {
@@ -694,7 +694,7 @@ namespace {
     // If the base expression does need a bound check
     // - Determine the bounds and return them.
     // - If the base expression has no bounds, return an invalid bounds
-    //   expression to indicate the lack of valid bounds expression.
+    //   expression to indicate the lack of a valid bounds expression.
     BoundsExpr *ValidateMemberBaseBounds(MemberExpr *E, 
                                          bool &NeedsBoundsCheck) {
       Expr *Base = E->getBase();
@@ -777,9 +777,10 @@ namespace {
           assert(B);
           assert(!E->getInferredBoundsExpr());
           E->setInferredBoundsExpr(B);
+          if (DumpBounds)
+            DumpPtrReadBounds(llvm::outs(), E, B);
         }
-        if (DumpBounds && NeedsBoundsCheck)
-          DumpPtrReadBounds(llvm::outs(), E, B);
+
         return true;
       }
 
@@ -819,9 +820,9 @@ namespace {
         assert(BaseBounds);
         assert(!E->getInferredBoundsExpr());
         E->setInferredBoundsExpr(BaseBounds);
+        if (DumpBounds)
+          DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
       }
-      if (DumpBounds && NeedsBoundsCheck)
-        DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
 
       return true;
     }
