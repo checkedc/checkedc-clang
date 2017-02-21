@@ -60,11 +60,44 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
   EmitDynamicCheckBlocks(ConditionVal);
 }
 
-void CodeGenFunction::EmitCheckedCSubscriptCheck(const Expr *E,
-                                                 const Expr *Base,
-                                                 Value *Idx, QualType IdxTy) {
+void CodeGenFunction::EmitLValueToRValueDynamicCheck(const Expr *E,
+                                                     const BoundsExpr *Bounds) {
+
+  if (!Bounds || Bounds->isInvalid())
+    return;
+
+  if (const auto *SE = dyn_cast<ArraySubscriptExpr>(E)) {
+    EmitCheckedCSubscriptCheck(SE, Bounds);
+  }
+  else if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+    switch (UO->getOpcode())
+    {
+    case UO_Deref:
+      EmitCheckedCDerefCheck(UO, Bounds);
+    default:
+      break;
+    }
+  }
+}
+
+void CodeGenFunction::EmitCheckedCSubscriptCheck(const ArraySubscriptExpr *E,
+                                                 const BoundsExpr *Bounds) {
   ++NumDynamicChecksFound;
   ++NumDynamicChecksSubscript;
+
+  // TODO: make a base + idx expr * Be careful of side effects in base/idx
+  // TODO: call EmitDynamicBoundsCheck
+}
+
+void CodeGenFunction::EmitCheckedCDerefCheck(const UnaryOperator *E,
+                                             const BoundsExpr *Bounds) {
+
+  assert(E->getOpcode() == UO_Deref && "EmitCheckedCDerefCheck only works for deref ops");
+
+  ++NumDynamicChecksFound;
+  ++NumDynamicChecksDeref;
+
+  EmitDynamicBoundsCheck(E->getSubExpr(), Bounds);
 }
 
 
@@ -91,13 +124,8 @@ void CodeGenFunction::EmitDynamicNonNullCheck(const Expr *CheckedPtr) {
 void CodeGenFunction::EmitDynamicBoundsCheck(const Expr *CheckedPtr, const BoundsExpr *Bounds) {
   ++NumDynamicChecksRange;
 
-  // If the bounds are invalid, we don't do the check.
-  if (Bounds->isInvalid())
-    return;
-
   // We can only generate the check if we have the bounds as a range.
-  if (!isa<RangeBoundsExpr>(Bounds))
-    return;
+  assert(isa<RangeBoundsExpr>(Bounds) && "Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
   const RangeBoundsExpr *BoundsRange = dyn_cast<RangeBoundsExpr>(Bounds);
 
   // Constant Evaluation
@@ -136,19 +164,19 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Expr *CheckedPtr, const Bound
          && (!UpperChkNeeded || Upper.isScalar())
          && "Values checked in range ptr dynamic checks should be scalars");
 
-  Value *PtrInt = Builder.CreateIntCast(PtrVal.getScalarVal(), IntPtrTy, /*isSigned=*/false);
+  Value *PtrInt = Builder.CreatePtrToInt(PtrVal.getScalarVal(), IntPtrTy, "");
 
   llvm::Value *LowerChk, *UpperChk;
 
   // Make the lower check
   if (LowerChkNeeded) {
-    Value *LowerInt = Builder.CreateIntCast(Lower.getScalarVal(), IntPtrTy, /*isSigned=*/false);
+    Value *LowerInt = Builder.CreatePtrToInt(Lower.getScalarVal(), IntPtrTy, "");
     LowerChk = Builder.CreateICmpULE(LowerInt, PtrInt, "_Dynamic_check.lower");
   }
 
   // Make the upper check
   if (UpperChkNeeded) {
-    Value* UpperInt = Builder.CreateIntCast(Upper.getScalarVal(), IntPtrTy, /*isSigned=*/false);
+    Value* UpperInt = Builder.CreatePtrToInt(Upper.getScalarVal(), IntPtrTy, "");
     UpperChk = Builder.CreateICmpULT(PtrInt, UpperInt, "_Dynamic_check.upper");
   }
 

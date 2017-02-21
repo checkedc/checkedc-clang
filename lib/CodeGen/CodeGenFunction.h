@@ -2285,10 +2285,11 @@ public:
   void EmitAsmStmt(const AsmStmt &S);
 
   void EmitExplicitDynamicCheck(const Expr *Condition);
+  void EmitLValueToRValueDynamicCheck(const Expr * E, const BoundsExpr * Bounds);
+  void EmitCheckedCSubscriptCheck(const ArraySubscriptExpr * E, const BoundsExpr * Bounds);
+  void EmitCheckedCDerefCheck(const UnaryOperator * E, const BoundsExpr * Bounds);
   void EmitDynamicNonNullCheck(const Expr *CheckedPtr);
   void EmitDynamicBoundsCheck(const Expr *CheckedPtr, const BoundsExpr *Bounds);
-  void EmitCheckedCSubscriptCheck(const Expr *E, const Expr *Base, llvm::Value *Idx, QualType IdxTy);
-
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);

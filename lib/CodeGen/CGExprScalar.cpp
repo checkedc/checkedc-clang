@@ -1503,6 +1503,11 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_LValueToRValue:
     assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");
+
+    if (CE->hasInferredBoundsExpr()) {
+      CGF.EmitLValueToRValueDynamicCheck(CE->getSubExpr(), CE->getInferredBoundsExpr());
+    }
+
     return Visit(const_cast<Expr*>(E));
 
   case CK_IntegralToPointer: {
