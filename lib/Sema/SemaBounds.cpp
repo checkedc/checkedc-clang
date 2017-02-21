@@ -664,32 +664,47 @@ namespace {
       B->dump(OS);
     }
 
-    // If an lvalue expression is an Array_ptr dereference, check that
-    // the resulting lvalue has bounds and return the bounds.  If
-    // it is not an Array_ptr dereference, return null.
-    BoundsExpr *ValidateLValueBounds(Expr *E) {
+    // Validate bounds for an lvalue expression that is used to read or write
+    // memory. Set NeedsBoundsCheck based on whether the lvalue expression
+    // needs a bounds check. The lvalue expression needs a bounds check if it is
+    // an Array_ptr dereference.
+    //
+    // If the lvalue expression needs a bounds check
+    // - Determine the bounds and return them.
+    // - If the expression has no bounds, return an invalid bounds
+    //   expression to indicate the lack of a valid bounds expression.
+    BoundsExpr *ValidateLValueBounds(Expr *E, bool &NeedsBoundsCheck) {
       BoundsExpr *LValueBounds = nullptr;
       if (S.LValueIsArrayPtrDereference(E)) {
+        NeedsBoundsCheck = true;
         LValueBounds = S.InferLValueBounds(S.getASTContext(), E);
         if (LValueBounds->isNone()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds);
           LValueBounds = S.CreateInvalidBoundsExpr();
         }
-      }
+      } else
+        NeedsBoundsCheck = false;
       return LValueBounds;
     }
 
-    // For member references, check that the base has bounds if it is an
-    // Array_ptr dereference.  We will always check that the base is in
-    // bounds at runtime.
-    BoundsExpr *ValidateMemberBaseBounds(MemberExpr *E) {
+    // Validate bounds for the base expression of a member reference  Set
+    // NeedsBoundsCheck based on whether the base needs a bounds check. The
+    //  base expression needs a bounds check if it is an Array_ptr dereference.
+    //
+    // If the base expression does need a bound check
+    // - Determine the bounds and return them.
+    // - If the base expression has no bounds, return an invalid bounds
+    //   expression to indicate the lack of a valid bounds expression.
+    BoundsExpr *ValidateMemberBaseBounds(MemberExpr *E, 
+                                         bool &NeedsBoundsCheck) {
       Expr *Base = E->getBase();
       // E.F
       if (!E->isArrow())
-        return ValidateLValueBounds(Base);
+        return ValidateLValueBounds(Base, NeedsBoundsCheck);
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()){
+        NeedsBoundsCheck = true;
         BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
         if (Bounds->isNone()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds);
@@ -736,15 +751,17 @@ namespace {
 
       // Check that the LHS lvalue of the assignment has bounds,
       // if it is an lvalue was produced by dereferencing an _Array_ptr.
-      LValueBounds = ValidateLValueBounds(LHS);
-      if (LValueBounds) {
+      bool LHSNeedsBoundsCheck = false;
+      LValueBounds = ValidateLValueBounds(LHS, LHSNeedsBoundsCheck);
+      if (LHSNeedsBoundsCheck) {
+        assert(LValueBounds);
         assert(!E->getInferredBoundsExpr());
         E->setInferredBoundsExpr(LValueBounds);
       }
-      if (DumpBounds && (LValueBounds ||
-                         (LHSTargetBounds && !LHSTargetBounds->isNone()) ||
-                         RHSBounds))
-        DumpAssignmentBounds(llvm::outs(), E, LValueBounds, LHSTargetBounds, RHSBounds);
+      if (DumpBounds && (LHSNeedsBoundsCheck ||
+                         (LHSTargetBounds && !LHSTargetBounds->isNone())))
+        DumpAssignmentBounds(llvm::outs(), E, LValueBounds, LHSTargetBounds, 
+                             RHSBounds);
       return true;
     }
 
@@ -754,13 +771,16 @@ namespace {
 
       CastKind CK = E->getCastKind();
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        BoundsExpr *B = ValidateLValueBounds(E->getSubExpr());
-        if (B) {
+        bool NeedsBoundsCheck = false;
+        BoundsExpr *B = ValidateLValueBounds(E->getSubExpr(), NeedsBoundsCheck);
+        if (NeedsBoundsCheck) {
+          assert(B);
           assert(!E->getInferredBoundsExpr());
           E->setInferredBoundsExpr(B);
+          if (DumpBounds)
+            DumpPtrReadBounds(llvm::outs(), E, B);
         }
-        if (DumpBounds && B)
-          DumpPtrReadBounds(llvm::outs(), E, B);
+
         return true;
       }
 
@@ -776,12 +796,11 @@ namespace {
           // S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
           SrcBounds = S.CreateInvalidBoundsExpr();
         }
-        if (SrcBounds) {
-          assert(!E->getInferredBoundsExpr());
-          E->setInferredBoundsExpr(SrcBounds);
-        }
+        assert(SrcBounds);
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(SrcBounds);
 
-        if (DumpBounds && SrcBounds)
+        if (DumpBounds)
           DumpPtrCastBounds(llvm::outs(), E, SrcBounds);
         return true;
       }
@@ -795,13 +814,15 @@ namespace {
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
     bool VisitMemberExpr(MemberExpr *E) {
-      BoundsExpr *BaseBounds = ValidateMemberBaseBounds(E);
-      if (BaseBounds) {
+      bool NeedsBoundsCheck = false;
+      BoundsExpr *BaseBounds = ValidateMemberBaseBounds(E, NeedsBoundsCheck);
+      if (NeedsBoundsCheck) {
+        assert(BaseBounds);
         assert(!E->getInferredBoundsExpr());
         E->setInferredBoundsExpr(BaseBounds);
+        if (DumpBounds)
+          DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
       }
-      if (DumpBounds && BaseBounds)
-        DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
 
       return true;
     }
@@ -844,9 +865,11 @@ namespace {
       if (Expr *Init = D->getInit()) {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
         BoundsExpr *InitBounds = S.InferRValueBounds(S.getASTContext(), Init);
-        if (InitBounds->isNone())
+        if (InitBounds->isNone()) {
           // TODO: need some place to record the initializer bounds
           S.Diag(Init->getLocStart(), diag::err_expected_bounds);
+          InitBounds = S.CreateInvalidBoundsExpr();
+        }
         if (DumpBounds)
           DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
         // TODO: check that it meets the bounds requirements for the variable.
