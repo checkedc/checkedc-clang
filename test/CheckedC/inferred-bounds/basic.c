@@ -153,7 +153,7 @@ void f6(_Array_ptr<int> a : bounds(a, a + 5)) {
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: RHS Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
 
 void f7(void) {
   _Array_ptr<int> d : count(5) = (_Array_ptr<int>) 5; // expected-error {{expression has no bounds}}
@@ -169,7 +169,7 @@ void f7(void) {
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
 
 //-------------------------------------------------------------------------//
 // Test assignment of variables to _Array_ptr variables.  This covers both //
@@ -225,7 +225,7 @@ void f21(_Array_ptr<int> a : count(5),
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: RHS Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
 
 // Only test declarations for the negative case (where an error is expected}
 void f22(_Array_ptr<int> b) {
@@ -242,7 +242,7 @@ void f22(_Array_ptr<int> b) {
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
 
 //-------------------------------------------------------------------------//
 // Test assignment of arrays to _Array_ptr variables with bounds           //
