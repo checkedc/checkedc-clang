@@ -175,7 +175,7 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
 // CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
-// CHECK: |-Inferred Bounds
+// CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<struct S>'
@@ -190,7 +190,7 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
 // CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
-// CHECK: |-Inferred Bounds
+// CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<struct S>'
@@ -205,7 +205,7 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
 // CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
-// CHECK: |-Inferred Bounds
+// CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<struct S>'
@@ -220,7 +220,7 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
 // CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
-// CHECK: |-Inferred Bounds
+// CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<struct S>'
@@ -235,7 +235,7 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
 // CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: |-Inferred Bounds
+// CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<struct S>'
@@ -252,7 +252,7 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
 // CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: |-Inferred Bounds
+// CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<struct S>'
@@ -269,7 +269,7 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
 // CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: |-Inferred Bounds
+// CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<struct S>'
@@ -286,7 +286,7 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
 // CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
-// CHECK: |-Inferred Bounds
+// CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'p' '_Array_ptr<struct S>'

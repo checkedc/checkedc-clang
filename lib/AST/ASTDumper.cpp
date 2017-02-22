@@ -2097,7 +2097,7 @@ void ASTDumper::VisitMemberExpr(const MemberExpr *Node) {
   dumpPointer(Node->getMemberDecl());
   if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
     dumpChild([=] {
-      OS << "Inferred Bounds";
+      OS << "Base Inferred Bounds";
       dumpStmt(InferredBounds);
     });
   }
@@ -2113,7 +2113,7 @@ void ASTDumper::VisitBinaryOperator(const BinaryOperator *Node) {
   OS << " '" << BinaryOperator::getOpcodeStr(Node->getOpcode()) << "'";
   if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
     dumpChild([=] {
-      OS << "Inferred Bounds";
+      OS << "LHS Inferred Bounds";
       dumpStmt(InferredBounds);
     });
   }
