@@ -546,10 +546,6 @@ void ASTStmtWriter::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   Record.AddStmt(E->getLHS());
   Record.AddStmt(E->getRHS());
   Record.AddSourceLocation(E->getRBracketLoc());
-  Record.push_back(E->hasInferredBoundsExpr());
-  if (E->hasInferredBoundsExpr()) {
-    Record.AddStmt(E->getInferredBoundsExpr());
-  }
   Code = serialization::EXPR_ARRAY_SUBSCRIPT;
 }
 

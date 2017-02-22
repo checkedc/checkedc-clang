@@ -1767,17 +1767,21 @@ public:
 
   // Checked C bounds information
 
-  /// \brief Return true if this expression has inferred bounds we should
-  /// check its value against at runtime
+  /// \brief Return true if the subexpression of this expression has bounds
+  /// that need to be checked against at runtime.   This expression must be
+  /// pre or post increment or decrement.  The subexpression will return an
+  /// lvalue that must be within the inferred bounds.
   bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
 
-  /// \brief The inferred bounds for this expression
-  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+  /// \brief The inferred bounds for the subexpression of this expression.
+  const BoundsExpr *getInferredBoundsExpr() const {
+    return const_cast<BoundsExpr*>(InferredBounds);
+  }
 
-  /// \brief The inferred bounds for this expression
+  /// \brief The inferred bounds for the subexpression of this expression.
   BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
 
-  /// \brief Set the inferred bounds for this declaration.
+  /// \brief Set the inferred bounds for the subexpression of this expression.
   void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 };
 
@@ -2081,7 +2085,6 @@ class ArraySubscriptExpr : public Expr {
   enum { LHS, RHS, END_EXPR=2 };
   Stmt* SubExprs[END_EXPR];
   SourceLocation RBracketLoc;
-  BoundsExpr *InferredBounds;
 public:
   ArraySubscriptExpr(Expr *lhs, Expr *rhs, QualType t,
                      ExprValueKind VK, ExprObjectKind OK,
@@ -2093,14 +2096,14 @@ public:
           rhs->isInstantiationDependent()),
          (lhs->containsUnexpandedParameterPack() ||
           rhs->containsUnexpandedParameterPack())),
-    RBracketLoc(rbracketloc), InferredBounds(nullptr) {
+    RBracketLoc(rbracketloc) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
   }
 
   /// \brief Create an empty array subscript expression.
   explicit ArraySubscriptExpr(EmptyShell Shell)
-    : Expr(ArraySubscriptExprClass, Shell), InferredBounds(nullptr) { }
+    : Expr(ArraySubscriptExprClass, Shell) { }
 
   /// An array access can be written A[4] or 4[A] (both are equivalent).
   /// - getBase() and getIdx() always present the normalized view: A[4].
@@ -2155,21 +2158,6 @@ public:
   child_range children() {
     return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
   }
-
-  // Checked C bounds information
-
-  /// \brief Return true if this expression has inferred bounds we should
-  /// check its value against at runtime
-  bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
-
-  /// \brief The inferred bounds for this expression
-  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
-
-  /// \brief The inferred bounds for this expression
-  BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
-
-  /// \brief Set the inferred bounds for this declaration.
-  void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 };
 
 /// CallExpr - Represents a function call (C99 6.5.2.2, C++ [expr.call]).
@@ -2594,17 +2582,22 @@ public:
 
   // Checked C bounds information
 
-  /// \brief Return true if this expression has inferred bounds we should
-  /// check its value against at runtime
+  /// \brief Return true if the base expression has inferred bounds.
+  /// In this case, the base expression needs to be bounds checked
+  /// at runtime.
   bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
 
   /// \brief The inferred bounds for this expression
-  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+  const BoundsExpr *getInferredBoundsExpr() const {
+    return const_cast<BoundsExpr*>(InferredBounds);
+  }
 
-  /// \brief The inferred bounds for this expression
+  /// \brief The inferred bounds for the base expression of this
+  /// member reference.
   BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
 
-  /// \brief Set the inferred bounds for this declaration.
+  /// \brief Set the inferred bounds for the base expression of this
+  /// member reference.
   void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 };
 
@@ -2662,7 +2655,7 @@ public:
     return LParenLoc;
   }
   SourceLocation getLocEnd() const LLVM_READONLY {
-    // FIXME: Init should never be null.
+    // FIXME: Init shold never be null.
     if (!Init)
       return SourceLocation();
     return Init->getLocEnd();
@@ -2765,17 +2758,26 @@ public:
 
   // Checked C bounds information
 
-  /// \brief Return true if this expression has inferred bounds we should
-  /// check its value against at runtime
+  /// \brief Return true if the subexpression of the cast has inferred
+  /// bounds.  It has inferred bounds when this the cast is an
+  /// LValueToRValueCast or a cast to _Ptr type.   in the first
+  /// case, the bounds must be checked at runtime.   In the second
+  /// case, the bound must be provably large enough at compile-time
+  /// to contain a value of the _Ptr type.
   bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
 
-  /// \brief The inferred bounds for this expression
-  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+  /// \brief The inferred bounds for the subexpression (source operand) of
+  /// this cast expression..
+  const BoundsExpr *getInferredBoundsExpr() const {
+    return const_cast<BoundsExpr*>(InferredBounds);
+  }
 
-  /// \brief The inferred bounds for this expression
+  /// \brief The inferred bounds for the subexpression (source operand) of
+  /// this cast expression.
   BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
 
-  /// \brief Set the inferred bounds for this declaration.
+  /// \brief Set the inferred bounds for the subexpression (source operand)
+  /// of this cast expression.
   void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 };
 
@@ -3136,17 +3138,21 @@ public:
 
   // Checked C bounds information
 
-  /// \brief Return true if this expression has inferred bounds we should
-  /// check its value against at runtime
+  /// \brief Return true if this expression is an assignment whose LHS
+  /// has inferred bounds.  The LHS lvalue must be checked at runtime
+  /// to be within range of the inferred bounds.
   bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
 
-  /// \brief The inferred bounds for this expression
-  const BoundsExpr *getInferredBoundsExpr() const { return const_cast<BoundsExpr*>(InferredBounds); }
+  /// \brief The inferred bounds for the LHS of an assignment expression.
+  const BoundsExpr *getInferredBoundsExpr() const {
+    return const_cast<BoundsExpr*>(InferredBounds);
+  }
 
-  /// \brief The inferred bounds for this expression
+  /// \brief The inferred bounds for the LHS of an assignment expression.
   BoundsExpr *getInferredBoundsExpr() { return InferredBounds; }
 
-  /// \brief Set the inferred bounds for this declaration.
+  /// \brief Set the inferred bounds for the LHS of an assignment
+  /// expression.
   void setInferredBoundsExpr(BoundsExpr *E) { InferredBounds = E; }
 
 protected:

@@ -2143,12 +2143,6 @@ void ASTDumper::VisitOpaqueValueExpr(const OpaqueValueExpr *Node) {
 
 void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
   VisitExpr(Node);
-  if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
-    dumpChild([=] {
-      OS << "Inferred Bounds";
-      dumpStmt(InferredBounds);
-    });
-  }
 }
 
 // GNU extensions.
