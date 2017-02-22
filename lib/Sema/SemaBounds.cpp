@@ -674,6 +674,7 @@ namespace {
     // - If the expression has no bounds, return an invalid bounds
     //   expression to indicate the lack of a valid bounds expression.
     BoundsExpr *ValidateLValueBounds(Expr *E, bool &NeedsBoundsCheck) {
+      assert(E->isLValue());
       BoundsExpr *LValueBounds = nullptr;
       if (S.LValueIsArrayPtrDereference(E)) {
         NeedsBoundsCheck = true;
@@ -823,6 +824,23 @@ namespace {
           DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
       }
 
+      return true;
+    }
+
+    bool VisitUnaryOperator(UnaryOperator *E) {
+      if (!E->isIncrementDecrementOp())
+        return true;
+
+      bool NeedsBoundsCheck = false;
+      BoundsExpr *Bounds = ValidateLValueBounds(E->getSubExpr(),
+                                                NeedsBoundsCheck);
+      if (NeedsBoundsCheck) {
+        assert(Bounds);
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(Bounds);
+        if (DumpBounds)
+          E->dump(llvm::outs());
+      }
       return true;
     }
 
