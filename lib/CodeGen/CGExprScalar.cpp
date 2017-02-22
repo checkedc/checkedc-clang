@@ -1507,20 +1507,23 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     if (CE->hasInferredBoundsExpr()) {
       BoundsExpr* InferredBounds = CE->getInferredBoundsExpr();
 
-      if (InferredBounds->isInvalid())
-        break;
-
-      if (isa<ArraySubscriptExpr>(E)) {
+      Expr *SE = E->IgnoreParens();
+      if (InferredBounds->isInvalid() || InferredBounds->isAny()) {
+        // No Checks
+      }
+      else if (isa<ArraySubscriptExpr>(SE)) {
         CGF.SetNextBoundsCheckExpr(InferredBounds, CodeGenFunction::BC_ArraySubscript);
       }
-      else if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
-        switch (UO->getOpcode())
-        {
+      else if (const auto *UO = dyn_cast<UnaryOperator>(SE)) {
+        switch (UO->getOpcode()) {
         case UO_Deref:
           CGF.SetNextBoundsCheckExpr(InferredBounds, CodeGenFunction::BC_Deref);
         default:
-          break;
+          llvm_unreachable("Unexpected Inferred Bounds found on LValueToRValue cast expression");
         }
+      }
+      else {
+        llvm_unreachable("Unexpected Inferred Bounds found on LValueToRValue cast expression");
       }
     }
 

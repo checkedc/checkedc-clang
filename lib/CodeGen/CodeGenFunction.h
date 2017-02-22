@@ -1274,7 +1274,7 @@ public:
     assert(!Bounds->isInvalid() && "Only valid bounds checks can be checked against");
     assert(NextBoundsCheckKind == BC_None
            && !NextBoundsExprForCheck
-           && "Only one bounds check emmision can be in progress at a time");
+           && "Only one bounds check emission can be in progress at a time");
 
     NextBoundsExprForCheck = Bounds;
     NextBoundsCheckKind = Kind;

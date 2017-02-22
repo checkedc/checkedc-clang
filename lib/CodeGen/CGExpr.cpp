@@ -2886,9 +2886,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
                                                bool Accessed) {
 
   BoundsExpr *CheckBounds = nullptr;
-  if (getLangOpts().CheckedC) {
+  if (getLangOpts().CheckedC)
     CheckBounds = GetAndClearNextBoundsCheckExpr(BC_ArraySubscript);
-  }
 
   // The index must always be an integer, which is not an aggregate.  Emit it.
   llvm::Value *Idx = EmitScalarExpr(E->getIdx());
@@ -2905,10 +2904,14 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     // Emit the vector as an lvalue to get its address.
     LValue LHS = EmitLValue(E->getBase());
     assert(LHS.isSimple() && "Can only subscript lvalue vectors here!");
-    // TODO: Check bounds here
-    return LValue::MakeVectorElt(LHS.getAddress(), Idx,
-                                 E->getBase()->getType(),
-                                 LHS.getAlignmentSource());
+    LValue LV =  LValue::MakeVectorElt(LHS.getAddress(), Idx,
+                                       E->getBase()->getType(),
+                                       LHS.getAlignmentSource());
+
+    if (CheckBounds)
+      EmitCheckedCSubscriptCheck(LV, CheckBounds);
+
+    return LV;
   }
 
   // All the other cases basically behave like simple offsetting.
@@ -2926,9 +2929,9 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, EltType, /*inbounds*/ true);
     LValue AddrLV = MakeAddrLValue(Addr, EltType, LV.getAlignmentSource());
 
-    if (CheckBounds) {
+    if (CheckBounds)
       EmitCheckedCSubscriptCheck(AddrLV, CheckBounds);
-    }
+
     return AddrLV;
   }
 
@@ -3016,9 +3019,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
 
   // TODO: Preserve/extend path TBAA metadata?
 
-  if (CheckBounds) {
+  if (CheckBounds)
     EmitCheckedCSubscriptCheck(LV, CheckBounds);
-  }
 
   if (getLangOpts().ObjC1 &&
       getLangOpts().getGC() != LangOptions::NonGC) {

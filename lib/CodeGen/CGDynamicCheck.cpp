@@ -103,69 +103,28 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr
   assert(isa<RangeBoundsExpr>(Bounds) && "Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
   const RangeBoundsExpr *BoundsRange = dyn_cast<RangeBoundsExpr>(Bounds);
 
-  bool LowerChkNeeded = true, UpperChkNeeded = true;
-  //// Constant Evaluation
-  //APSInt PtrConstant, LowerConstant, UpperConstant;
-  //// We need Ptr to evaluate to a constant if we want to leave out any of these checks
-  //if (ConstantFoldsToSimpleInteger(CheckedPtr, PtrConstant, /*AllowLabels=*/false)) {
-  //  // If we can find the lower bound, and it is lower than the ptr, then we don't need to do the lower bounds check
-  //  if (ConstantFoldsToSimpleInteger(BoundsRange->getLowerExpr(), LowerConstant, /*AllowLabels=*/false)) {
-  //    LowerChkNeeded = !(LowerConstant <= PtrConstant);
-  //  }
-
-  //  // If we can find the upper bound, and it is higher than the ptr, then we don't need to do the upper bounds check
-  //  if (ConstantFoldsToSimpleInteger(BoundsRange->getUpperExpr(), UpperConstant, /*AllowLabels=*/false)) {
-  //    UpperChkNeeded = !(PtrConstant < UpperConstant);
-  //  }
-
-  //  // Neither check is needed, leave both out
-  //  if (!LowerChkNeeded && !UpperChkNeeded) {
-  //    ++NumDynamicChecksElided;
-  //    return;
-  //  }
-  //}
-  //// End Constant Evaluation
-
   // Emit the code to generate the pointer values
-  RValue Lower, Upper;
-  if (LowerChkNeeded)
-    Lower = EmitAnyExpr(BoundsRange->getLowerExpr());
-  if (UpperChkNeeded)
-    Upper = EmitAnyExpr(BoundsRange->getUpperExpr());
+  RValue Lower = EmitAnyExpr(BoundsRange->getLowerExpr());
+  RValue Upper = EmitAnyExpr(BoundsRange->getUpperExpr());
 
   assert(Addr.isSimple()
-         && (!LowerChkNeeded || Lower.isScalar())
-         && (!UpperChkNeeded || Upper.isScalar())
+         && Lower.isScalar()
+         && Upper.isScalar()
          && "Values checked in range ptr dynamic checks should be scalars");
 
-  Value *PtrInt = Builder.CreatePtrToInt(Addr.getPointer(), IntPtrTy, "");
-
-  llvm::Value *LowerChk, *UpperChk;
+  // Emit the address as an int
+  Value *PtrInt = Builder.CreatePtrToInt(Addr.getPointer(), IntPtrTy, "_Dynamic_check.addr");
 
   // Make the lower check
-  if (LowerChkNeeded) {
-    Value *LowerInt = Builder.CreatePtrToInt(Lower.getScalarVal(), IntPtrTy, "");
-    LowerChk = Builder.CreateICmpULE(LowerInt, PtrInt, "_Dynamic_check.lower");
-  }
+  Value *LowerInt = Builder.CreatePtrToInt(Lower.getScalarVal(), IntPtrTy, "_Dynamic_check.lower");
+  Value *LowerChk = Builder.CreateICmpSLE(LowerInt, PtrInt, "_Dynamic_check.lower_cmp");
 
   // Make the upper check
-  if (UpperChkNeeded) {
-    Value* UpperInt = Builder.CreatePtrToInt(Upper.getScalarVal(), IntPtrTy, "");
-    UpperChk = Builder.CreateICmpULT(PtrInt, UpperInt, "_Dynamic_check.upper");
-  }
+  Value* UpperInt = Builder.CreatePtrToInt(Upper.getScalarVal(), IntPtrTy, "_Dynamic_check.upper");
+  Value* UpperChk = Builder.CreateICmpSLT(PtrInt, UpperInt, "_Dynamic_check.upper_cmp");
 
-  if (UpperChkNeeded && LowerChkNeeded) {
-    // Insert both checks
-    EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
-  }
-  else if (LowerChkNeeded && !UpperChkNeeded) {
-    // Emit only the lower check
-    EmitDynamicCheckBlocks(LowerChk);
-  }
-  else if (!LowerChkNeeded && UpperChkNeeded) {
-    // Emit only the upper check
-    EmitDynamicCheckBlocks(UpperChk);
-  }
+  // Emit both checks
+  EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
 }
 
 void CodeGenFunction::EmitDynamicCheckBlocks(Value *Condition) {

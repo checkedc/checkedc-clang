@@ -1,13 +1,10 @@
 // RUN: %clang_cc1 -fcheckedc-extension %s -emit-llvm -o - | FileCheck %s
 
-int ga1 _Checked[1] = { 0 };
-int ga3 _Checked[3] = { 0, 1, 2 };
+_Array_ptr<int> ga1 : count(1) = 0;
+_Array_ptr<int> ga3 : count(3) = 0;
 
-_Array_ptr<int> gp1 : count(1) = ga1;
-_Array_ptr<int> gp2 : bounds(&ga1, &ga1 + 1) = ga1;
-
-_Array_ptr<int> gp3 : count(3) = ga3;
-_Array_ptr<int> gp4 : bounds(&ga3[0], &ga3[2] + 1) = ga1;
+int gca1 _Checked[1] = { 1 };
+int gca3 _Checked[3] = { 0, 1, 2 };
 
 // CHECK: define void @func(
 void func(_Array_ptr<int> lp1 : count(1), _Array_ptr<int> lp3 : count(3)) {
