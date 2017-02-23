@@ -616,10 +616,6 @@ void ASTStmtReader::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   E->setLHS(Reader.ReadSubExpr());
   E->setRHS(Reader.ReadSubExpr());
   E->setRBracketLoc(ReadSourceLocation(Record, Idx));
-  bool hasInferredBoundsExpr = Record[Idx++];
-  if (hasInferredBoundsExpr) {
-    E->setInferredBoundsExpr(Reader.ReadBoundsExpr(F));
-  }
 }
 
 void ASTStmtReader::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {

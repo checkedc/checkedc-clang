@@ -611,15 +611,10 @@ namespace {
     bool DumpBounds;
 
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
-                            BoundsExpr *LValueBounds,
-                            BoundsExpr *LValueTargetBounds,
-                            BoundsExpr *RHSBounds) {
-      OS << "\nAssignment:\n";
+                              BoundsExpr *LValueTargetBounds,
+                              BoundsExpr *RHSBounds) {
+      OS << "\n";
       E->dump(OS);
-      if (LValueBounds) {
-        OS << "LValue Bounds:\n";
-        LValueBounds->dump(OS);
-      }
       if (LValueTargetBounds) {
         OS << "Target Bounds:\n";
         LValueTargetBounds->dump(OS);
@@ -632,36 +627,17 @@ namespace {
 
     void DumpInitializerBounds(raw_ostream &OS, VarDecl *D,
                                BoundsExpr *Target, BoundsExpr *B) {
-      OS << "\nDeclaration:\n";
+      OS << "\n";
       D->dump(OS);
       OS << "Declared Bounds:\n";
       Target->dump(OS);
       OS << "Initializer Bounds:\n ";
-      B->dump(OS);;
-    }
-
-    void DumpPtrReadBounds(raw_ostream &OS, Expr *E,
-                           BoundsExpr *B) {
-      OS << "\nExpression:\n";
-      E->dump(OS);
-      OS << "Bounds for memory read:\n";
       B->dump(OS);
     }
 
-    void DumpPtrCastBounds(raw_ostream &OS, Expr *E,
-                              BoundsExpr *B) {
-      OS << "\nPtr Cast Expression:\n";
+    void DumpExpression(raw_ostream &OS, Expr *E) {
+      OS << "\n";
       E->dump(OS);
-      OS << "Source bounds:\n";
-      B->dump(OS);
-    }
-
-    void DumpMemberBaseBounds(raw_ostream &OS, MemberExpr *E,
-                              BoundsExpr *B) {
-      OS << "\nMember expression:\n";
-      E->dump(OS);
-      OS << "Member base bounds:\n";
-      B->dump(OS);
     }
 
     // Validate bounds for an lvalue expression that is used to read or write
@@ -674,6 +650,7 @@ namespace {
     // - If the expression has no bounds, return an invalid bounds
     //   expression to indicate the lack of a valid bounds expression.
     BoundsExpr *ValidateLValueBounds(Expr *E, bool &NeedsBoundsCheck) {
+      assert(E->isLValue());
       BoundsExpr *LValueBounds = nullptr;
       if (S.LValueIsArrayPtrDereference(E)) {
         NeedsBoundsCheck = true;
@@ -749,8 +726,8 @@ namespace {
         }
       }
 
-      // Check that the LHS lvalue of the assignment has bounds,
-      // if it is an lvalue was produced by dereferencing an _Array_ptr.
+      // Check that the LHS lvalue of the assignment has bounds, if it is an
+      // lvalue that was produced by dereferencing an _Array_ptr.
       bool LHSNeedsBoundsCheck = false;
       LValueBounds = ValidateLValueBounds(LHS, LHSNeedsBoundsCheck);
       if (LHSNeedsBoundsCheck) {
@@ -760,8 +737,7 @@ namespace {
       }
       if (DumpBounds && (LHSNeedsBoundsCheck ||
                          (LHSTargetBounds && !LHSTargetBounds->isNone())))
-        DumpAssignmentBounds(llvm::outs(), E, LValueBounds, LHSTargetBounds, 
-                             RHSBounds);
+        DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return true;
     }
 
@@ -778,7 +754,7 @@ namespace {
           assert(!E->getInferredBoundsExpr());
           E->setInferredBoundsExpr(B);
           if (DumpBounds)
-            DumpPtrReadBounds(llvm::outs(), E, B);
+            DumpExpression(llvm::outs(), E);
         }
 
         return true;
@@ -800,7 +776,7 @@ namespace {
         E->setInferredBoundsExpr(SrcBounds);
 
         if (DumpBounds)
-          DumpPtrCastBounds(llvm::outs(), E, SrcBounds);
+          DumpExpression(llvm::outs(), E);
         return true;
       }
       return true;
@@ -820,9 +796,26 @@ namespace {
         assert(!E->getInferredBoundsExpr());
         E->setInferredBoundsExpr(BaseBounds);
         if (DumpBounds)
-          DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
+          DumpExpression(llvm::outs(), E);
       }
 
+      return true;
+    }
+
+    bool VisitUnaryOperator(UnaryOperator *E) {
+      if (!E->isIncrementDecrementOp())
+        return true;
+
+      bool NeedsBoundsCheck = false;
+      BoundsExpr *Bounds = ValidateLValueBounds(E->getSubExpr(),
+                                                NeedsBoundsCheck);
+      if (NeedsBoundsCheck) {
+        assert(Bounds);
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(Bounds);
+        if (DumpBounds)
+          DumpExpression(llvm::outs(), E);
+      }
       return true;
     }
 

@@ -28,7 +28,6 @@ void f1(_Array_ptr<int> a : bounds(a, a + 5)) {
   a = 0;
 }
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <NullToPointer>
@@ -48,7 +47,6 @@ void f2(_Array_ptr<int> b : count(5)) {
   b = 0;
 }
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <NullToPointer>
@@ -68,7 +66,6 @@ void f3(_Array_ptr<int> c : byte_count(sizeof(int) * 5)) {
   c = 0;
 }
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'c' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <NullToPointer>
@@ -100,7 +97,6 @@ void f4(_Array_ptr<int> d : count(5)) {
   d = (_Array_ptr<int>) EnumVal1;
 }
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'd' '_Array_ptr<int>'
 // CHECK: `-CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <NullToPointer>
@@ -123,7 +119,6 @@ void f5(void) {
 // Now test the non-null case.  Also test different ways of declaring the same
 // bounds for the lhs of an assignment
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} d '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
@@ -139,7 +134,6 @@ void f6(_Array_ptr<int> a : bounds(a, a + 5)) {
   a = (_Array_ptr<int>) 5; // expected-error {{expression has no bounds}}
 }
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: `-CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <IntegralToPointer>
@@ -159,7 +153,6 @@ void f7(void) {
   _Array_ptr<int> d : count(5) = (_Array_ptr<int>) 5; // expected-error {{expression has no bounds}}
 }
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} d '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
@@ -182,7 +175,6 @@ void f20(_Array_ptr<int> a : count(len),
   a = b;
 }
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
@@ -211,7 +203,6 @@ void f21(_Array_ptr<int> a : count(5),
   a = b;  // expected-error {{expression has no bounds}}
 }
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
@@ -232,7 +223,6 @@ void f22(_Array_ptr<int> b) {
   _Array_ptr<int> a : count(5) = b;  // expected-error {{expression has no bounds}}
 }
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} a '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
@@ -253,7 +243,6 @@ void f30(_Array_ptr<int> a : count(3)) {
   a = arr;
 }
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <BitCast>
@@ -281,7 +270,6 @@ void f31(void) {
   _Array_ptr<int> b : count(3) = arr;
 }
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 3
@@ -312,7 +300,6 @@ void f40(void) {
   _Array_ptr<int> p : count(1) = &x;
 }
 
-// CHECK: Declaration:
 // CHECK:  VarDecl {{0x[0-9a-f]+}} {{.*}} p '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} <col:23, col:30> 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} <col:29> 'int' 1
@@ -336,7 +323,6 @@ void f41(void) {
   _Array_ptr<int> p : count(5) = (_Array_ptr<int>) &x;
 }
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} <{{.*}} p '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} <col:23, col:30> 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} <col:29> 'int' 5
@@ -361,7 +347,6 @@ void f42(void) {
   _Array_ptr<int> p : count(1) = &x;
   _Array_ptr<int> q : count(1) = &*p;
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} q '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} <col:29> 'int' 1
@@ -383,7 +368,6 @@ void f42(void) {
 
   _Array_ptr<int> r : count(1) = &p[0];
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} r '_Array_ptr<int>' cinit
 // CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
@@ -414,17 +398,14 @@ void f43(void) {
   int arr[5][5];
   _Array_ptr<int> p : count(5) = 0;
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used p '_Array_ptr<int>' cinit
 // Skip remaining details of this declaration.
   _Array_ptr<int> r : bounds(arr, arr + 5) = 0;
 
-// CHECK: Declaration:
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used r '_Array_ptr<int>' cinit
 // Skip remaining details of this declaration.
   p = *arr;
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <BitCast>
@@ -451,7 +432,6 @@ void f43(void) {
 
   p = arr[0];
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <BitCast>
@@ -479,7 +459,6 @@ void f43(void) {
 
   r = &p[0];
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'r' '_Array_ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <BitCast>
