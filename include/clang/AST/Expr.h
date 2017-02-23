@@ -1768,8 +1768,8 @@ public:
   // Checked C bounds information
 
   /// \brief Return true if the subexpression of this expression has bounds
-  /// that need to be checked against at runtime.   This expression must be
-  /// pre or post increment or decrement.  The subexpression will return an
+  /// that need to be checked at runtime.  This expression must be a pre-
+  /// or post-increment or decrement.  The subexpression will return an
   /// lvalue that must be within the inferred bounds.
   bool hasInferredBoundsExpr() const { return InferredBounds != nullptr; }
 
@@ -2655,7 +2655,7 @@ public:
     return LParenLoc;
   }
   SourceLocation getLocEnd() const LLVM_READONLY {
-    // FIXME: Init shold never be null.
+    // FIXME: Init should never be null.
     if (!Init)
       return SourceLocation();
     return Init->getLocEnd();
