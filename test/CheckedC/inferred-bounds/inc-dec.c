@@ -173,7 +173,6 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 // lvalues produced by the member accesses are guaranteed to be in-bounds.
 //
 
-// CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
@@ -188,7 +187,6 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
   ++p->f;
 
-// CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
@@ -203,7 +201,6 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
   p->f--;
 
-// CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
@@ -218,7 +215,6 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
   --p->f;
 
-// CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
@@ -233,7 +229,6 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
   (*p).f++;
 
-// CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
@@ -250,7 +245,6 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
   ++(*p).f;
 
-// CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
@@ -267,7 +261,6 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
   (*p).f--;
 
-// CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
@@ -284,7 +277,6 @@ void f3(_Array_ptr<struct S> p : count(2)) {
 
   --(*p).f;
 
-// CHECK: Member expression:
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |-Base Inferred Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'

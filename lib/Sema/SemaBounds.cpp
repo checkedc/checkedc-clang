@@ -640,30 +640,6 @@ namespace {
       B->dump(OS);;
     }
 
-    void DumpPtrReadBounds(raw_ostream &OS, Expr *E,
-                           BoundsExpr *B) {
-      OS << "\nExpression:\n";
-      E->dump(OS);
-      OS << "Bounds for memory read:\n";
-      B->dump(OS);
-    }
-
-    void DumpPtrCastBounds(raw_ostream &OS, Expr *E,
-                              BoundsExpr *B) {
-      OS << "\nPtr Cast Expression:\n";
-      E->dump(OS);
-      OS << "Source bounds:\n";
-      B->dump(OS);
-    }
-
-    void DumpMemberBaseBounds(raw_ostream &OS, MemberExpr *E,
-                              BoundsExpr *B) {
-      OS << "\nMember expression:\n";
-      E->dump(OS);
-      OS << "Member base bounds:\n";
-      B->dump(OS);
-    }
-
     // Validate bounds for an lvalue expression that is used to read or write
     // memory. Set NeedsBoundsCheck based on whether the lvalue expression
     // needs a bounds check. The lvalue expression needs a bounds check if it is
@@ -779,7 +755,7 @@ namespace {
           assert(!E->getInferredBoundsExpr());
           E->setInferredBoundsExpr(B);
           if (DumpBounds)
-            DumpPtrReadBounds(llvm::outs(), E, B);
+            E->dump(llvm::outs());
         }
 
         return true;
@@ -801,7 +777,7 @@ namespace {
         E->setInferredBoundsExpr(SrcBounds);
 
         if (DumpBounds)
-          DumpPtrCastBounds(llvm::outs(), E, SrcBounds);
+          E->dump(llvm::outs());
         return true;
       }
       return true;
@@ -821,7 +797,7 @@ namespace {
         assert(!E->getInferredBoundsExpr());
         E->setInferredBoundsExpr(BaseBounds);
         if (DumpBounds)
-          DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
+          E->dump(llvm::outs());
       }
 
       return true;
