@@ -1516,14 +1516,12 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       }
       else if (const auto *UO = dyn_cast<UnaryOperator>(SE)) {
         switch (UO->getOpcode()) {
+        default:
+          break;
         case UO_Deref:
           CGF.SetNextBoundsCheckExpr(InferredBounds, CodeGenFunction::BC_Deref);
-        default:
-          llvm_unreachable("Unexpected Inferred Bounds found on LValueToRValue cast expression");
+          break;
         }
-      }
-      else {
-        llvm_unreachable("Unexpected Inferred Bounds found on LValueToRValue cast expression");
       }
     }
 
