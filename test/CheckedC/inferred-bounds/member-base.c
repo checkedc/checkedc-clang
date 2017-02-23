@@ -145,7 +145,6 @@ void f3(_Array_ptr<struct S> a : bounds(a, a + 7)) {
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<struct S>'
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>
@@ -183,7 +182,6 @@ void f3(_Array_ptr<struct S> a : bounds(a, a + 7)) {
   *p = 2;
   p = &(a[3].f);
   
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>
@@ -314,7 +312,6 @@ int f10(void) {
   *p = 10;
   p = &(arr->f);
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>
@@ -349,7 +346,6 @@ int f10(void) {
   *p = 11;
   p = &(arr[3].f);
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>
@@ -524,7 +520,6 @@ void f22(struct S b _Checked[9]) {
   *p = 1;
   p = &(b->f);
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>
@@ -559,7 +554,6 @@ void f22(struct S b _Checked[9]) {
   *p = 2;
   p = &(b[3].f);
 
-// CHECK: Assignment:
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Ptr<int>' '='
 // CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Ptr<int>'
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>

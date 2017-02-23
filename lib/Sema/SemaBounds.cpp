@@ -611,15 +611,10 @@ namespace {
     bool DumpBounds;
 
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
-                            BoundsExpr *LValueBounds,
-                            BoundsExpr *LValueTargetBounds,
-                            BoundsExpr *RHSBounds) {
-      OS << "\nAssignment:\n";
+                              BoundsExpr *LValueTargetBounds,
+                              BoundsExpr *RHSBounds) {
+      OS << "\n";
       E->dump(OS);
-      if (LValueBounds) {
-        OS << "LValue Bounds:\n";
-        LValueBounds->dump(OS);
-      }
       if (LValueTargetBounds) {
         OS << "Target Bounds:\n";
         LValueTargetBounds->dump(OS);
@@ -632,12 +627,17 @@ namespace {
 
     void DumpInitializerBounds(raw_ostream &OS, VarDecl *D,
                                BoundsExpr *Target, BoundsExpr *B) {
-      OS << "\nDeclaration:\n";
+      OS << "\n";
       D->dump(OS);
       OS << "Declared Bounds:\n";
       Target->dump(OS);
       OS << "Initializer Bounds:\n ";
-      B->dump(OS);;
+      B->dump(OS);
+    }
+
+    void DumpExpression(raw_ostream &OS, Expr *E) {
+      OS << "\n";
+      E->dump(OS);
     }
 
     // Validate bounds for an lvalue expression that is used to read or write
@@ -726,8 +726,8 @@ namespace {
         }
       }
 
-      // Check that the LHS lvalue of the assignment has bounds,
-      // if it is an lvalue was produced by dereferencing an _Array_ptr.
+      // Check that the LHS lvalue of the assignment has bounds, if it is an
+      // lvalue that was produced by dereferencing an _Array_ptr.
       bool LHSNeedsBoundsCheck = false;
       LValueBounds = ValidateLValueBounds(LHS, LHSNeedsBoundsCheck);
       if (LHSNeedsBoundsCheck) {
@@ -737,8 +737,7 @@ namespace {
       }
       if (DumpBounds && (LHSNeedsBoundsCheck ||
                          (LHSTargetBounds && !LHSTargetBounds->isNone())))
-        DumpAssignmentBounds(llvm::outs(), E, LValueBounds, LHSTargetBounds, 
-                             RHSBounds);
+        DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return true;
     }
 
@@ -755,7 +754,7 @@ namespace {
           assert(!E->getInferredBoundsExpr());
           E->setInferredBoundsExpr(B);
           if (DumpBounds)
-            E->dump(llvm::outs());
+            DumpExpression(llvm::outs(), E);
         }
 
         return true;
@@ -777,7 +776,7 @@ namespace {
         E->setInferredBoundsExpr(SrcBounds);
 
         if (DumpBounds)
-          E->dump(llvm::outs());
+          DumpExpression(llvm::outs(), E);
         return true;
       }
       return true;
@@ -797,7 +796,7 @@ namespace {
         assert(!E->getInferredBoundsExpr());
         E->setInferredBoundsExpr(BaseBounds);
         if (DumpBounds)
-          E->dump(llvm::outs());
+          DumpExpression(llvm::outs(), E);
       }
 
       return true;
@@ -815,7 +814,7 @@ namespace {
         assert(!E->getInferredBoundsExpr());
         E->setInferredBoundsExpr(Bounds);
         if (DumpBounds)
-          E->dump(llvm::outs());
+          DumpExpression(llvm::outs(), E);
       }
       return true;
     }
