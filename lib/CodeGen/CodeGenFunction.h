@@ -1239,6 +1239,7 @@ public:
   llvm::LLVMContext &getLLVMContext() { return CGM.getLLVMContext(); }
 
 public:
+  // Represents the kind of expression that the BoundsExpr in NextBoundsExprForCheck goes with
   enum BoundsCheckKind {
     BC_None,
     BC_Deref,
@@ -1246,19 +1247,21 @@ public:
   };
 
 private:
+  // We can't pass the next bounds to check against using parameters, so we save it into the
+  // current function context, along with a hint of what kind of expression we're aiming to check.
   BoundsExpr* NextBoundsExprForCheck;
+
+  // The kind of expression that NextBoundsExprForCheck is being stored for.
+  // If this is BC_None, NextBoundsExprForCheck should definitely be nullptr.
   BoundsCheckKind NextBoundsCheckKind;
 
 public:
+  // This retrieves the saved bounds for the next check, zeroing where they were stored
+  // This will give an assertion error if Kind does not match the previously saved kind.
   BoundsExpr* GetAndClearNextBoundsCheckExpr(BoundsCheckKind Kind) {
-    if (!getLangOpts().CheckedC)
-      return nullptr;
+    assert(getLangOpts().CheckedC && "GetAndClearNextBoundsCheckExpr requires Checked C to be enabled");
 
-    if (NextBoundsCheckKind == BC_None)
-      return nullptr;
-
-    if (NextBoundsCheckKind != Kind)
-      return nullptr;
+    assert(NextBoundsCheckKind == Kind && "Attempted to retrieve check bounds for incorrect expr kind");
 
     BoundsExpr* result = NextBoundsExprForCheck;
     NextBoundsExprForCheck = nullptr;
@@ -1267,11 +1270,13 @@ public:
     return result;
   }
 
+  // This sets the next bounds expression to perform a check against, ready to be retrieved by
+  // GetAndClearNextBoundsCheckExpr.
   void SetNextBoundsCheckExpr(BoundsExpr *Bounds, BoundsCheckKind Kind) {
-    if (!getLangOpts().CheckedC)
-      return;
+    assert(getLangOpts().CheckedC && "SetNextBoundsCheckExpr requires Checked C to be enabled");
 
-    assert(!Bounds->isInvalid() && "Only valid bounds checks can be checked against");
+    assert(Bounds && !Bounds->isInvalid() && "Only valid bounds checks can be checked against");
+
     assert(NextBoundsCheckKind == BC_None
            && !NextBoundsExprForCheck
            && "Only one bounds check emission can be in progress at a time");

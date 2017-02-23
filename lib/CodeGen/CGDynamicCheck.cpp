@@ -97,11 +97,18 @@ void CodeGenFunction::EmitDynamicNonNullCheck(const LValue Addr) {
 }
 
 void CodeGenFunction::EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr *Bounds) {
-  ++NumDynamicChecksRange;
+  if (!Bounds)
+    return;
 
   // We can only generate the check if we have the bounds as a range.
-  assert(isa<RangeBoundsExpr>(Bounds) && "Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
+  if (!isa<RangeBoundsExpr>(Bounds)) {
+    llvm_unreachable("Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
+    return;
+  }
+
   const RangeBoundsExpr *BoundsRange = dyn_cast<RangeBoundsExpr>(Bounds);
+
+  ++NumDynamicChecksRange;
 
   // Emit the code to generate the pointer values
   RValue Lower = EmitAnyExpr(BoundsRange->getLowerExpr());
