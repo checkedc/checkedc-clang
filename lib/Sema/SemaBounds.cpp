@@ -275,7 +275,7 @@ namespace {
         case BoundsExpr::Kind::ElementCount: {
           CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
           if (!BC) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           Expr *Count = BC->getCountExpr();
@@ -344,7 +344,7 @@ namespace {
       case Expr::DeclRefExprClass: {
         DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
         if (!DR) {
-          assert("unexpected cast failure");
+          llvm_unreachable("unexpected cast failure");
           return CreateBoundsNone();
         }
 
@@ -360,7 +360,7 @@ namespace {
       case Expr::UnaryOperatorClass: {
         UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
         if (!UO) {
-          assert("unexpected cast failure");
+          llvm_unreachable("unexpected cast failure");
           return CreateBoundsNone();
         }
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
@@ -376,7 +376,7 @@ namespace {
         // of whichever subexpression has pointer type.
         ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
         if (!AS) {
-          assert("unexpected cast failure");
+          llvm_unreachable("unexpected cast failure");
           return CreateBoundsNone();
         }
         // getBase returns the pointer-typed expression.
@@ -416,7 +416,7 @@ namespace {
         case Expr::DeclRefExprClass: {
           DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
           if (!DR) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           VarDecl *D = dyn_cast<VarDecl>(DR->getDecl());
@@ -433,7 +433,7 @@ namespace {
         case Expr::MemberExprClass: {
           MemberExpr *M = dyn_cast<MemberExpr>(E);
           if (!M) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
 
@@ -483,7 +483,7 @@ namespace {
         case Expr::IntegerLiteralClass: {
          IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(E);
          if (!Lit) {
-           assert("unexpected cast failure");
+           llvm_unreachable("unexpected cast failure");
            return CreateBoundsNone();
          }
          if (Lit->getValue() == 0)
@@ -494,7 +494,7 @@ namespace {
         case Expr::DeclRefExprClass: {
           DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
           if (!DR) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           EnumConstantDecl *ECD = dyn_cast<EnumConstantDecl>(DR->getDecl());
@@ -507,7 +507,7 @@ namespace {
         case Expr::CStyleCastExprClass: {
           CastExpr *CE = dyn_cast<CastExpr>(E);
           if (!E) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           return RValueCastBounds(CE->getCastKind(), CE->getSubExpr());
@@ -515,7 +515,7 @@ namespace {
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
           if (!UO) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           UnaryOperatorKind Op = UO->getOpcode();
@@ -525,7 +525,7 @@ namespace {
             if (SubExpr->getType()->isFunctionType())
               return CreateBoundsNone();
 
-              return LValueBounds(SubExpr);
+            return LValueBounds(SubExpr);
           }
 
           if (UnaryOperator::isIncrementDecrementOp(Op))
@@ -541,7 +541,7 @@ namespace {
         case Expr::CompoundAssignOperatorClass: {
           BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
           if (!BO) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           Expr *LHS = BO->getLHS();
@@ -564,8 +564,8 @@ namespace {
             return IsCompoundAssignment ?
               LValueTargetBounds(LHS) : RValueBounds(LHS);
           }
-          if (RHS->getType()->isPointerType() &&
-              LHS->getType()->isIntegerType() &&
+          if (LHS->getType()->isIntegerType() &&
+              RHS->getType()->isPointerType() &&
               BinaryOperator::isAdditiveOp(Op)) {
             assert(!IsCompoundAssignment);
             return RValueBounds(RHS);
@@ -611,7 +611,7 @@ bool Sema::LValueIsArrayPtrDereference(Expr *E) {
     case Expr::UnaryOperatorClass: {
       UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
       if (!UO) {
-        assert("unexpected cast failure");
+        llvm_unreachable("unexpected cast failure");
         return false;
       }
       return (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
@@ -621,7 +621,7 @@ bool Sema::LValueIsArrayPtrDereference(Expr *E) {
       // e1[e2] is a synonym for *(e1 + e2).
       ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
       if (!AS) {
-        assert("unexpected cast failure");
+        llvm_unreachable("unexpected cast failure");
         return false;
       }
       // An important invariant for array types in Checked C is that all
