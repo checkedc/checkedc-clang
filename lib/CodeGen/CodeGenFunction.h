@@ -1261,6 +1261,9 @@ public:
   BoundsExpr* GetAndClearNextBoundsCheckExpr(BoundsCheckKind Kind) {
     assert(getLangOpts().CheckedC && "GetAndClearNextBoundsCheckExpr requires Checked C to be enabled");
 
+    if (NextBoundsCheckKind == BC_None)
+      return nullptr;
+
     assert(NextBoundsCheckKind == Kind && "Attempted to retrieve check bounds for incorrect expr kind");
 
     BoundsExpr* result = NextBoundsExprForCheck;
