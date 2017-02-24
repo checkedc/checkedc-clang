@@ -1259,7 +1259,7 @@ public:
   // This retrieves the saved bounds for the next check, zeroing where they were stored
   // This will give an assertion error if Kind does not match the previously saved kind.
   BoundsExpr* GetAndClearNextBoundsCheckExpr(BoundsCheckKind Kind) {
-    assert(getLangOpts().CheckedC && "GetAndClearNextBoundsCheckExpr requires Checked C to be enabled");
+    assert(getLangOpts().CheckedC);
 
     if (NextBoundsCheckKind == BC_None)
       return nullptr;
@@ -1276,7 +1276,7 @@ public:
   // This sets the next bounds expression to perform a check against, ready to be retrieved by
   // GetAndClearNextBoundsCheckExpr.
   void SetNextBoundsCheckExpr(BoundsExpr *Bounds, BoundsCheckKind Kind) {
-    assert(getLangOpts().CheckedC && "SetNextBoundsCheckExpr requires Checked C to be enabled");
+    assert(getLangOpts().CheckedC);
 
     assert(Bounds && !Bounds->isInvalid() && "Only valid bounds checks can be checked against");
 
