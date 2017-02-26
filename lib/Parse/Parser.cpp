@@ -500,12 +500,14 @@ void Parser::Initialize() {
     Ident_count = &PP.getIdentifierTable().get("count");
     Ident_none = &PP.getIdentifierTable().get("none");
     Ident_itype = &PP.getIdentifierTable().get("itype");
+    Ident_rel_align = &PP.getIdentifierTable().get("rel_align");
   } else {
     Ident_bounds = nullptr;
     Ident_byte_count = nullptr;
     Ident_count = nullptr;
     Ident_none = nullptr;
     Ident_itype = nullptr;
+    Ident_rel_align = nullptr;
   }
 
   Ident__except = nullptr;

@@ -4249,6 +4249,11 @@ public:
                                   SourceLocation RParenLoc);
   ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
                                   Expr *UpperBound, SourceLocation RParenLoc);
+
+  ExprResult CreateRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
+                                   Expr *UpperBound, Expr *Relative,
+                                   SourceLocation RParenLoc);
+
   ExprResult ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
                                     SourceLocation RParenLoc);
   ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc,
@@ -4256,6 +4261,13 @@ public:
                                      SourceLocation RParenLoc);
 
   ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
+
+  ExprResult ActOnRelativeBoundsExpr(SourceLocation BoundsKWLoc, ParsedType Ty,
+                                     SourceLocation RParenLoc);
+
+  ExprResult CreateRelativeBoundsExpr(SourceLocation BoundsKWLoc,
+                                      TypeSourceInfo *TyInfo,
+                                      SourceLocation RParenLoc);
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsExpr *Expr, bool IsReturnBounds);

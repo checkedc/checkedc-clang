@@ -3276,6 +3276,7 @@ recurse:
   case Expr::CountBoundsExprClass:
   case Expr::InteropTypeBoundsAnnotationClass:
   case Expr::NullaryBoundsExprClass:
+  case Expr::RelativeBoundsExprClass:
   case Expr::RangeBoundsExprClass:
   {
     if (!NullOut) {

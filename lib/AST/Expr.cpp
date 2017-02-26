@@ -2867,6 +2867,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case NullaryBoundsExprClass:
   case PositionalParameterExprClass:
   case RangeBoundsExprClass:
+  case RelativeBoundsExprClass:
     // These never have a side-effect.
     return false;
 
@@ -3834,6 +3835,8 @@ bool BoundsExpr::validateKind(Kind K) {
       return K == Range;
     case InteropTypeBoundsAnnotationClass:
       return K == InteropTypeAnnotation;
+    case RelativeBoundsExprClass:
+      return K == Relative;
     default:
       return false;
   }

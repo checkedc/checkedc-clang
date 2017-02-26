@@ -988,6 +988,8 @@ void ASTStmtReader::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   E->setKind((BoundsExpr::Kind)Record[Idx++]);
   E->setLowerExpr(Reader.ReadSubExpr());
   E->setUpperExpr(Reader.ReadSubExpr());
+  if (E->hasRelative())
+    E->setRelativeBoundsExpr(Reader.ReadSubExpr());
   E->StartLoc = ReadSourceLocation(Record, Idx);
   E->EndLoc = ReadSourceLocation(Record, Idx);
 }
@@ -1007,6 +1009,13 @@ void ASTStmtReader::VisitPositionalParameterExpr(
   E->Index = Record[Idx++];
 }
 
+void ASTStmtReader::VisitRelativeBoundsExpr(RelativeBoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record[Idx++]);
+  E->setAlignTypeInfoAsWritten(GetTypeSourceInfo(Record, Idx));
+  E->StartLoc = ReadSourceLocation(Record, Idx);
+  E->EndLoc = ReadSourceLocation(Record, Idx);
+}
 
 //===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements
@@ -3894,6 +3903,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_RANGE_BOUNDS_EXPR:
       S = new (Context) RangeBoundsExpr(Empty);
+      break;
+
+    case EXPR_RELATIVE_BOUNDS_EXPR:
+      S = new (Context) RelativeBoundsExpr(Empty);
       break;
 
     case EXPR_INTEROPTYPE_BOUNDS_ANNOTATION:

@@ -4622,9 +4622,11 @@ public:
     // To save space and for programmng convenience, we store the 
     // ": ptr" interop annotation as a bounds expression.
     InteropTypeAnnotation = 6,
+    //rel_aling(char)
+    Relative = 7,
 
     // Sentinel marker for maximum bounds kind.
-    MaxBoundsKind = InteropTypeAnnotation
+    MaxBoundsKind = Relative
   };
 
   static_assert(MaxBoundsKind < (1 << NumBoundsExprKindBits), "kind field too small");
@@ -4683,6 +4685,8 @@ public:
   bool isRange() const {
     return getKind() == Range;
   }
+
+  bool isRelative() const { return getKind() == Relative; }
 
   bool isInteropTypeAnnotation() const {
     return getKind() == InteropTypeAnnotation;
@@ -4748,11 +4752,40 @@ public:
   }
 };
 
+class RelativeBoundsExpr : public BoundsExpr {
+private:
+  TypeSourceInfo *AlignType;
+
+public:
+  RelativeBoundsExpr(TypeSourceInfo *Align, SourceLocation StartLoc,
+                     SourceLocation RParenLoc)
+      : BoundsExpr(RelativeBoundsExprClass, Relative, StartLoc, RParenLoc),
+        AlignType(Align) {}
+
+  explicit RelativeBoundsExpr(EmptyShell Empty)
+      : BoundsExpr(RelativeBoundsExprClass, Empty), AlignType(nullptr) {}
+
+  TypeSourceInfo *getAlignTypeInfoAsWritten() const { return AlignType; }
+  void setAlignTypeInfoAsWritten(TypeSourceInfo *Ty) { AlignType = Ty; }
+  QualType getTypeAsWritten() const { return AlignType->getType(); }
+  bool hasAlignType() const { return AlignType != nullptr; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == RelativeBoundsExprClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+};
+
 /// \brief Represents a Checked C range bounds expression.
 class RangeBoundsExpr : public BoundsExpr {
 private:
   enum { LOWER, UPPER, END_EXPR };
   Stmt *SubExprs[END_EXPR];
+  Stmt *Relative;
 
 public:
   RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc,
@@ -4760,15 +4793,27 @@ public:
     : BoundsExpr(RangeBoundsExprClass, Range, StartLoc, RParenLoc) {
     SubExprs[LOWER] = Lower;
     SubExprs[UPPER] = Upper;
+    Relative = nullptr;
+  }
+
+  RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc, Expr *Rel,
+                  SourceLocation RParenLoc)
+      : BoundsExpr(RangeBoundsExprClass, Range, StartLoc, RParenLoc) {
+    SubExprs[LOWER] = Lower;
+    SubExprs[UPPER] = Upper;
+    Relative = Rel;
   }
 
   explicit RangeBoundsExpr(EmptyShell Empty)
-    : BoundsExpr(RangeBoundsExprClass, Empty) {}
+    : BoundsExpr(RangeBoundsExprClass, Empty), Relative(nullptr) {}
 
   Expr *getLowerExpr() const { return cast<Expr>(SubExprs[LOWER]); }
   void setLowerExpr(Expr *E) { SubExprs[LOWER] = E; }
   Expr *getUpperExpr() const { return cast<Expr>(SubExprs[UPPER]); }
   void setUpperExpr(Expr *E) { SubExprs[UPPER] = E; }
+  Expr *getRelative() const { return cast<Expr>(Relative); }
+  void setRelativeBoundsExpr(Expr *E) { Relative = E; }
+  bool hasRelative() const { return Relative != nullptr; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == RangeBoundsExprClass;

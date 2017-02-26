@@ -1348,6 +1348,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::CountBoundsExprClass:
     case Stmt::InteropTypeBoundsAnnotationClass:
     case Stmt::NullaryBoundsExprClass:
+    case Stmt::RelativeBoundsExprClass:
     case Stmt::RangeBoundsExprClass:
       llvm_unreachable("Do not expect to see Checked C extensions");
       break;

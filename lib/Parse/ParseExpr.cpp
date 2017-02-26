@@ -2769,6 +2769,14 @@ bool Parser::StartsInteropTypeAnnotation(Token &T) {
   return false;
 }
 
+bool Parser::StartsRelativeBoundsExpression(Token &T) {
+  if (T.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = T.getIdentifierInfo();
+    return (Ident == Ident_rel_align);
+  }
+  return false;
+}
+
 ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn) {
   if (StartsInteropTypeAnnotation(Tok)) {
     IdentifierInfo *Ident = Tok.getIdentifierInfo();
@@ -2806,8 +2814,13 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
 
 ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                       bool IsReturn) {
-  if (StartsBoundsExpression(Tok))
-    return ParseBoundsExpression();
+  if (StartsBoundsExpression(Tok)) {
+    ExprResult Results = ParseBoundsExpression();
+    if (StartsRelativeBoundsExpression(Tok)) {
+      ParseRelativeBoundsExpression(Results.get());
+    }
+    return Results;
+  }
 
   if (StartsInteropTypeAnnotation(Tok))
     return ParseInteropTypeAnnotation(D, IsReturn);
@@ -2908,6 +2921,37 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
+ExprResult Parser::ParseRelativeBoundsExpression(Expr *Expr) {
+  ExprResult Result;
+  tok::TokenKind TokKind = Tok.getKind();
+  if (TokKind != tok::identifier) {
+    Diag(Tok, diag::err_expected_bounds_expr);
+    return ExprError();
+  }
+
+  IdentifierInfo *Ident = Tok.getIdentifierInfo();
+  if (Ident != Ident_rel_align) {
+    Diag(Tok, diag::err_expected_relative_bounds_expr);
+    return ExprError();
+  }
+  SourceLocation BoundsKWLoc = Tok.getLocation();
+  ConsumeToken();
+  BalancedDelimiterTracker PT(*this, tok::l_paren);
+  if (PT.expectAndConsume(diag::err_expected_lparen_after,
+                          Ident->getNameStart()))
+    return ExprError();
+  TypeResult ResultTy = ParseTypeName();
+  Result = Actions.ActOnRelativeBoundsExpr(BoundsKWLoc, ResultTy.get(),
+                                           Tok.getLocation());
+  if (Result.isInvalid())
+    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+
+  if (Expr != nullptr && cast<BoundsExpr>(Expr)->isRange())
+    cast<RangeBoundsExpr>(Expr)->setRelativeBoundsExpr(Result.get());
+  PT.consumeClose();
+  return Result;
+}
+
 /// Consume and store tokens for an expression shaped like a bounds expression
 /// in the passed token container. Returns \c true if it reached the end of
 /// something bounds-expression shaped, \c false if a parsing error occurred,
@@ -2918,6 +2962,7 @@ ExprResult Parser::ParseBoundsExpression() {
 ///   identifier '(' sequence of tokens ')'
 /// where parentheses balance within the sequence of tokens.
 bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
+  bool result = false;
   Toks.push_back(Tok);
   if (Tok.getKind() != tok::identifier) {
     return false;
@@ -2928,7 +2973,15 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
     return false;
   }
   ConsumeParen();
-  return ConsumeAndStoreUntil(tok::r_paren, Toks, /*StopAtSemi=*/true);
+  result = ConsumeAndStoreUntil(tok::r_paren, Toks, /*StopAtSemi=*/true);
+  if (Tok.getKind() == tok::identifier) {
+    Toks.push_back(Tok);
+    ConsumeToken();
+    Toks.push_back(Tok);
+    ConsumeParen();
+    result = ConsumeAndStoreUntil(tok::r_paren, Toks, true);
+  }
+  return result;
 }
 
 /// Given a list of tokens that have the same shape as a bounds
@@ -2948,6 +3001,10 @@ ExprResult Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> T
   PP.EnterTokenStream(*Toks, true);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
   ExprResult Result = ParseBoundsExpression();
+
+  if (StartsRelativeBoundsExpression(Tok)) {
+    ParseRelativeBoundsExpression(Result.get());
+  }
 
   // There could be leftover tokens because of an error.
   // Skip through them until we reach the eof token.

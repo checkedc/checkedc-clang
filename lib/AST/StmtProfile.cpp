@@ -1008,7 +1008,14 @@ void StmtProfiler::VisitNullaryBoundsExpr(const NullaryBoundsExpr *S) {
 
 void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
   VisitExpr(S);
+  if (S->hasRelative())
+    VisitType(cast<RelativeBoundsExpr>(S->getRelative())->getTypeAsWritten());
   ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitRelativeBoundsExpr(const RelativeBoundsExpr *S) {
+  VisitExpr(S);
+  VisitType(S->getTypeAsWritten());
 }
 
 void StmtProfiler::VisitInteropTypeBoundsAnnotation(

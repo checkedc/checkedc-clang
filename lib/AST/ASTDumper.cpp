@@ -596,6 +596,7 @@ namespace  {
     void VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node);
     void VisitCountBoundsExpr(const CountBoundsExpr *Node);
     void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
+    void VisitRelativeBoundsExpr(const RelativeBoundsExpr *Node);
     void VisitInteropTypeBoundsAnnotation(
       const InteropTypeBoundsAnnotation *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
@@ -2547,6 +2548,16 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   VisitExpr(Node);
   if (Node->getKind() != BoundsExpr::Kind::Range)
     dumpBoundsKind(Node->getKind());
+  if (Node->hasRelative()) {
+    RelativeBoundsExpr *Expr = cast<RelativeBoundsExpr>(Node->getRelative());
+    OS << " rel_align : ";
+    OS << (Expr->getTypeAsWritten()).getAsString();
+  }
+}
+
+void ASTDumper::VisitRelativeBoundsExpr(const RelativeBoundsExpr *Node) {
+  VisitExpr(Node);
+  dumpBoundsKind(Node->getKind());
 }
 
 void ASTDumper::VisitInteropTypeBoundsAnnotation(
