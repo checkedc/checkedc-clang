@@ -1238,6 +1238,56 @@ public:
   const TargetInfo &getTarget() const { return Target; }
   llvm::LLVMContext &getLLVMContext() { return CGM.getLLVMContext(); }
 
+public:
+  // Represents the kind of expression that the BoundsExpr in NextBoundsExprForCheck goes with
+  enum BoundsCheckKind {
+    BC_None,
+    BC_Deref,
+    BC_ArraySubscript
+  };
+
+private:
+  // We can't pass the next bounds to check against using parameters, so we save it into the
+  // current function context, along with a hint of what kind of expression we're aiming to check.
+  BoundsExpr* NextBoundsExprForCheck;
+
+  // The kind of expression that NextBoundsExprForCheck is being stored for.
+  // If this is BC_None, NextBoundsExprForCheck should definitely be nullptr.
+  BoundsCheckKind NextBoundsCheckKind;
+
+public:
+  // This retrieves the saved bounds for the next check, zeroing where they were stored
+  // This will give an assertion error if Kind does not match the previously saved kind.
+  BoundsExpr* GetAndClearNextBoundsCheckExpr(BoundsCheckKind Kind) {
+    assert(getLangOpts().CheckedC);
+
+    if (NextBoundsCheckKind == BC_None)
+      return nullptr;
+
+    assert(NextBoundsCheckKind == Kind && "Attempted to retrieve check bounds for incorrect expr kind");
+
+    BoundsExpr* result = NextBoundsExprForCheck;
+    NextBoundsExprForCheck = nullptr;
+    NextBoundsCheckKind = BC_None;
+
+    return result;
+  }
+
+  // This sets the next bounds expression to perform a check against, ready to be retrieved by
+  // GetAndClearNextBoundsCheckExpr.
+  void SetNextBoundsCheckExpr(BoundsExpr *Bounds, BoundsCheckKind Kind) {
+    assert(getLangOpts().CheckedC);
+
+    assert(Bounds && !Bounds->isInvalid() && "Only valid bounds checks can be checked against");
+
+    assert(NextBoundsCheckKind == BC_None
+           && !NextBoundsExprForCheck
+           && "Only one bounds check emission can be in progress at a time");
+
+    NextBoundsExprForCheck = Bounds;
+    NextBoundsCheckKind = Kind;
+  }
+
   //===--------------------------------------------------------------------===//
   //                                  Cleanups
   //===--------------------------------------------------------------------===//
@@ -2285,6 +2335,10 @@ public:
   void EmitAsmStmt(const AsmStmt &S);
 
   void EmitExplicitDynamicCheck(const Expr *Condition);
+  void EmitCheckedCSubscriptCheck(const LValue Addr, const BoundsExpr *Bounds);
+  void EmitCheckedCDerefCheck(const LValue Addr, const BoundsExpr *Bounds);
+  void EmitDynamicNonNullCheck(const LValue Addr);
+  void EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr *Bounds);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);

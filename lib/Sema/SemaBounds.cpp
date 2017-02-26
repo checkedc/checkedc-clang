@@ -275,7 +275,7 @@ namespace {
         case BoundsExpr::Kind::ElementCount: {
           CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
           if (!BC) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           Expr *Count = BC->getCountExpr();
@@ -344,7 +344,7 @@ namespace {
       case Expr::DeclRefExprClass: {
         DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
         if (!DR) {
-          assert("unexpected cast failure");
+          llvm_unreachable("unexpected cast failure");
           return CreateBoundsNone();
         }
 
@@ -360,7 +360,7 @@ namespace {
       case Expr::UnaryOperatorClass: {
         UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
         if (!UO) {
-          assert("unexpected cast failure");
+          llvm_unreachable("unexpected cast failure");
           return CreateBoundsNone();
         }
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
@@ -376,7 +376,7 @@ namespace {
         // of whichever subexpression has pointer type.
         ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
         if (!AS) {
-          assert("unexpected cast failure");
+          llvm_unreachable("unexpected cast failure");
           return CreateBoundsNone();
         }
         // getBase returns the pointer-typed expression.
@@ -416,7 +416,7 @@ namespace {
         case Expr::DeclRefExprClass: {
           DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
           if (!DR) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           VarDecl *D = dyn_cast<VarDecl>(DR->getDecl());
@@ -433,7 +433,7 @@ namespace {
         case Expr::MemberExprClass: {
           MemberExpr *M = dyn_cast<MemberExpr>(E);
           if (!M) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
 
@@ -453,8 +453,7 @@ namespace {
       }
     }
 
-    // Compute the bounds of a cast operation that produces
-    // an rvalue.
+    // Compute the bounds of a cast operation that produces an rvalue.
     BoundsExpr *RValueCastBounds(CastKind CK, Expr *E) {
       switch (CK) {
         case CastKind::CK_BitCast:
@@ -476,8 +475,7 @@ namespace {
       }
     }
 
-    // Compute the bounds of an expression that produces
-    // an rvalue.
+    // Compute the bounds of an expression that produces an rvalue.
     BoundsExpr *RValueBounds(Expr *E) {
       assert(E->isRValue());
       E = E->IgnoreParens();
@@ -485,7 +483,7 @@ namespace {
         case Expr::IntegerLiteralClass: {
          IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(E);
          if (!Lit) {
-           assert("unexpected cast failure");
+           llvm_unreachable("unexpected cast failure");
            return CreateBoundsNone();
          }
          if (Lit->getValue() == 0)
@@ -496,7 +494,7 @@ namespace {
         case Expr::DeclRefExprClass: {
           DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
           if (!DR) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           EnumConstantDecl *ECD = dyn_cast<EnumConstantDecl>(DR->getDecl());
@@ -509,7 +507,7 @@ namespace {
         case Expr::CStyleCastExprClass: {
           CastExpr *CE = dyn_cast<CastExpr>(E);
           if (!E) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
           return RValueCastBounds(CE->getCastKind(), CE->getSubExpr());
@@ -517,25 +515,80 @@ namespace {
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
           if (!UO) {
-            assert("unexpected cast failure");
+            llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
-          switch (UO->getOpcode()) {
-            case UnaryOperatorKind::UO_AddrOf: {
-              Expr *SubExpr = UO->getSubExpr();
-              if (SubExpr->getType()->isFunctionType())
-                return CreateBoundsNone();
+          UnaryOperatorKind Op = UO->getOpcode();
 
-              return LValueBounds(SubExpr);
-            }
-            default:
-              // TODO: fill in other cases
+          if (Op == UnaryOperatorKind::UO_AddrOf) {
+            Expr *SubExpr = UO->getSubExpr();
+            if (SubExpr->getType()->isFunctionType())
               return CreateBoundsNone();
+
+            return LValueBounds(SubExpr);
           }
+
+          if (UnaryOperator::isIncrementDecrementOp(Op))
+            return LValueTargetBounds(UO->getSubExpr());
+
+          if (Op == UnaryOperatorKind::UO_Plus ||
+              Op == UnaryOperatorKind::UO_Minus ||
+              Op == UnaryOperatorKind::UO_Not)
+            return RValueBounds(UO->getSubExpr());
+          return CreateBoundsNone();
         }
-        // TODO: fill in these cases
         case Expr::BinaryOperatorClass:
-        case Expr::CompoundAssignOperatorClass:
+        case Expr::CompoundAssignOperatorClass: {
+          BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
+          if (!BO) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsNone();
+          }
+          Expr *LHS = BO->getLHS();
+          Expr *RHS = BO->getRHS();
+          BinaryOperatorKind Op = BO->getOpcode();
+
+          if (Op == BinaryOperatorKind::BO_Assign)
+            return RValueBounds(RHS);
+
+          bool IsCompoundAssignment = false;
+          if (BinaryOperator::isCompoundAssignmentOp(Op)) {
+            Op = BinaryOperator::getOpForCompoundAssignment(Op);
+            IsCompoundAssignment = true;
+          }
+
+          // Pointer arithmetic.
+          if (LHS->getType()->isPointerType() &&
+              RHS->getType()->isIntegerType() &&
+              BinaryOperator::isAdditiveOp(Op)) {
+            return IsCompoundAssignment ?
+              LValueTargetBounds(LHS) : RValueBounds(LHS);
+          }
+          if (LHS->getType()->isIntegerType() &&
+              RHS->getType()->isPointerType() &&
+              BinaryOperator::isAdditiveOp(Op)) {
+            assert(!IsCompoundAssignment);
+            return RValueBounds(RHS);
+          }
+
+          // Arithmetic on integers with bounds.
+          if (LHS->getType()->isIntegerType() &&
+              RHS->getType()->isIntegerType() &&
+              (BinaryOperator::isAdditiveOp(Op) ||
+               BinaryOperator::isMultiplicativeOp(Op) ||
+               BinaryOperator::isBitwiseOp(Op))) {
+            BoundsExpr *LHSBounds = IsCompoundAssignment ?
+              LValueTargetBounds(LHS) : RValueBounds(LHS);
+            BoundsExpr *RHSBounds = RValueBounds(RHS);
+            if (LHSBounds->isNone() && !RHSBounds->isNone())
+              return RHSBounds;
+            if (!LHSBounds->isNone() && RHSBounds->isNone())
+              return LHSBounds;
+            // TODO: check if both LHS and RHS have bounds and
+            // indicate cause of failure to have bounds.
+          }
+          return CreateBoundsNone();
+        }
         case Expr::CallExprClass:
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
@@ -558,7 +611,7 @@ bool Sema::LValueIsArrayPtrDereference(Expr *E) {
     case Expr::UnaryOperatorClass: {
       UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
       if (!UO) {
-        assert("unexpected cast failure");
+        llvm_unreachable("unexpected cast failure");
         return false;
       }
       return (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
@@ -568,7 +621,7 @@ bool Sema::LValueIsArrayPtrDereference(Expr *E) {
       // e1[e2] is a synonym for *(e1 + e2).
       ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
       if (!AS) {
-        assert("unexpected cast failure");
+        llvm_unreachable("unexpected cast failure");
         return false;
       }
       // An important invariant for array types in Checked C is that all
@@ -611,15 +664,10 @@ namespace {
     bool DumpBounds;
 
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
-                            BoundsExpr *LValueBounds,
-                            BoundsExpr *LValueTargetBounds,
-                            BoundsExpr *RHSBounds) {
-      OS << "\nAssignment:\n";
+                              BoundsExpr *LValueTargetBounds,
+                              BoundsExpr *RHSBounds) {
+      OS << "\n";
       E->dump(OS);
-      if (LValueBounds) {
-        OS << "LValue Bounds:\n";
-        LValueBounds->dump(OS);
-      }
       if (LValueTargetBounds) {
         OS << "Target Bounds:\n";
         LValueTargetBounds->dump(OS);
@@ -632,67 +680,70 @@ namespace {
 
     void DumpInitializerBounds(raw_ostream &OS, VarDecl *D,
                                BoundsExpr *Target, BoundsExpr *B) {
-      OS << "\nDeclaration:\n";
+      OS << "\n";
       D->dump(OS);
       OS << "Declared Bounds:\n";
       Target->dump(OS);
       OS << "Initializer Bounds:\n ";
-      B->dump(OS);;
-    }
-
-    void DumpPtrReadBounds(raw_ostream &OS, Expr *E,
-                           BoundsExpr *B) {
-      OS << "\nExpression:\n";
-      E->dump(OS);
-      OS << "Bounds for memory read:\n";
       B->dump(OS);
     }
 
-    void DumpPtrCastBounds(raw_ostream &OS, Expr *E,
-                              BoundsExpr *B) {
-      OS << "\nPtr Cast Expression:\n";
+    void DumpExpression(raw_ostream &OS, Expr *E) {
+      OS << "\n";
       E->dump(OS);
-      OS << "Source bounds:\n";
-      B->dump(OS);
     }
 
-    void DumpMemberBaseBounds(raw_ostream &OS, MemberExpr *E,
-                              BoundsExpr *B) {
-      OS << "\nMember expression:\n";
-      E->dump(OS);
-      OS << "Member base bounds:\n";
-      B->dump(OS);
-    }
-
-    // If an lvalue expression is an Array_ptr dereference, check that
-    // the resulting lvalue has bounds and return the bounds.  If
-    // it is not an Array_ptr dereference, return null.
-    BoundsExpr *ValidateLValueBounds(Expr *E) {
+    // Validate bounds for an lvalue expression that is used to read or write
+    // memory. Set NeedsBoundsCheck based on whether the lvalue expression
+    // needs a bounds check. The lvalue expression needs a bounds check if it is
+    // an Array_ptr dereference.
+    //
+    // If the lvalue expression needs a bounds check
+    // - Determine the bounds and return them.
+    // - If the expression has no bounds, return an invalid bounds
+    //   expression to indicate the lack of a valid bounds expression.
+    BoundsExpr *ValidateLValueBounds(Expr *E, bool &NeedsBoundsCheck) {
+      assert(E->isLValue());
       BoundsExpr *LValueBounds = nullptr;
       if (S.LValueIsArrayPtrDereference(E)) {
+        NeedsBoundsCheck = true;
         LValueBounds = S.InferLValueBounds(S.getASTContext(), E);
-        if (LValueBounds->isNone())
+        if (LValueBounds->isNone()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds);
-      }
+          LValueBounds = S.CreateInvalidBoundsExpr();
+        }
+      } else
+        NeedsBoundsCheck = false;
       return LValueBounds;
     }
 
-    // For member references, check that the base has bounds if it is an
-    // Array_ptr dereference.  We will always check that the base is in
-    // bounds at runtime.
-    BoundsExpr *ValidateMemberBaseBounds(MemberExpr *E) {
+    // Validate bounds for the base expression of a member reference  Set
+    // NeedsBoundsCheck based on whether the base needs a bounds check. The
+    //  base expression needs a bounds check if it is an Array_ptr dereference.
+    //
+    // If the base expression does need a bound check
+    // - Determine the bounds and return them.
+    // - If the base expression has no bounds, return an invalid bounds
+    //   expression to indicate the lack of a valid bounds expression.
+    BoundsExpr *ValidateMemberBaseBounds(MemberExpr *E, 
+                                         bool &NeedsBoundsCheck) {
       Expr *Base = E->getBase();
       // E.F
       if (!E->isArrow())
-        return ValidateLValueBounds(Base);
+        return ValidateLValueBounds(Base, NeedsBoundsCheck);
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()){
-          BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
-          if (Bounds->isNone())
-            S.Diag(E->getLocStart(), diag::err_expected_bounds);
-          return Bounds;
+        NeedsBoundsCheck = true;
+        BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
+        if (Bounds->isNone()) {
+          S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          Bounds = S.CreateInvalidBoundsExpr();
+        }
+        return Bounds;
       }
+
+      return nullptr;
     }
 
   public:
@@ -713,25 +764,36 @@ namespace {
       // Bounds of the right-hand side of the assignment
       BoundsExpr *RHSBounds = nullptr;
 
-      // Check that the RHS of the assignment has bounds if the
+      // Check that the value being assigned has bounds if the
       // target of the LHS lvalue has bounds.
       if (LHSType->isCheckedPointerType() ||
-          LHSType->isIntegralOrEnumerationType()) {
+          LHSType->isIntegerType()) {
         LHSTargetBounds =
           S.InferLValueTargetBounds(S.getASTContext(), LHS);
         if (!LHSTargetBounds->isNone()) {
-          RHSBounds = S.InferRValueBounds(S.getASTContext(), RHS);
-          if (RHSBounds->isNone())
+          if (E->isCompoundAssignmentOp())
+            RHSBounds = S.InferRValueBounds(S.Context, E);
+          else
+            RHSBounds = S.InferRValueBounds(S.Context, RHS);
+          if (RHSBounds->isNone()) {
              S.Diag(RHS->getLocStart(), diag::err_expected_bounds);
-
+             RHSBounds = S.CreateInvalidBoundsExpr();
+          }
         }
       }
 
-      // Check that the LHS lvalue of the assignment has bounds,
-      // if it is lvalue was produced by dereferencing an _Array_ptr.
-      LValueBounds = ValidateLValueBounds(LHS);
-      if (DumpBounds && (LValueBounds || LHSTargetBounds || RHSBounds))
-        DumpAssignmentBounds(llvm::outs(), E, LValueBounds, LHSTargetBounds, RHSBounds);
+      // Check that the LHS lvalue of the assignment has bounds, if it is an
+      // lvalue that was produced by dereferencing an _Array_ptr.
+      bool LHSNeedsBoundsCheck = false;
+      LValueBounds = ValidateLValueBounds(LHS, LHSNeedsBoundsCheck);
+      if (LHSNeedsBoundsCheck) {
+        assert(LValueBounds);
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(LValueBounds);
+      }
+      if (DumpBounds && (LHSNeedsBoundsCheck ||
+                         (LHSTargetBounds && !LHSTargetBounds->isNone())))
+        DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return true;
     }
 
@@ -741,23 +803,36 @@ namespace {
 
       CastKind CK = E->getCastKind();
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        BoundsExpr *B = ValidateLValueBounds(E->getSubExpr());
-        if (DumpBounds && B)
-          DumpPtrReadBounds(llvm::outs(), E, B);
+        bool NeedsBoundsCheck = false;
+        BoundsExpr *B = ValidateLValueBounds(E->getSubExpr(), NeedsBoundsCheck);
+        if (NeedsBoundsCheck) {
+          assert(B);
+          assert(!E->getInferredBoundsExpr());
+          E->setInferredBoundsExpr(B);
+          if (DumpBounds)
+            DumpExpression(llvm::outs(), E);
+        }
+
         return true;
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
-      if ((CK == CK_BitCast && CK == CK_IntegralToPointer) &&
-          E->getType()->isCheckedPointerPtrType()) {
+      if ((CK == CK_BitCast || CK == CK_IntegralToPointer) &&
+          E->getType()->isCheckedPointerPtrType() &&
+          !E->getType()->isFunctionPointerType()) {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
-        if (SrcBounds->isNone())
+        if (SrcBounds->isNone()) {
           // TODO: produce more informative error message.
           S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          SrcBounds = S.CreateInvalidBoundsExpr();
+        }
+        assert(SrcBounds);
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(SrcBounds);
 
-        if (DumpBounds && SrcBounds)
-          DumpPtrCastBounds(llvm::outs(), E, SrcBounds);
+        if (DumpBounds)
+          DumpExpression(llvm::outs(), E);
         return true;
       }
       return true;
@@ -770,10 +845,33 @@ namespace {
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
     bool VisitMemberExpr(MemberExpr *E) {
-      BoundsExpr *BaseBounds = ValidateMemberBaseBounds(E);
-      if (DumpBounds && BaseBounds)
-        DumpMemberBaseBounds(llvm::outs(), E, BaseBounds);
+      bool NeedsBoundsCheck = false;
+      BoundsExpr *BaseBounds = ValidateMemberBaseBounds(E, NeedsBoundsCheck);
+      if (NeedsBoundsCheck) {
+        assert(BaseBounds);
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(BaseBounds);
+        if (DumpBounds)
+          DumpExpression(llvm::outs(), E);
+      }
 
+      return true;
+    }
+
+    bool VisitUnaryOperator(UnaryOperator *E) {
+      if (!E->isIncrementDecrementOp())
+        return true;
+
+      bool NeedsBoundsCheck = false;
+      BoundsExpr *Bounds = ValidateLValueBounds(E->getSubExpr(),
+                                                NeedsBoundsCheck);
+      if (NeedsBoundsCheck) {
+        assert(Bounds);
+        assert(!E->getInferredBoundsExpr());
+        E->setInferredBoundsExpr(Bounds);
+        if (DumpBounds)
+          DumpExpression(llvm::outs(), E);
+      }
       return true;
     }
 
@@ -815,8 +913,11 @@ namespace {
       if (Expr *Init = D->getInit()) {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
         BoundsExpr *InitBounds = S.InferRValueBounds(S.getASTContext(), Init);
-        if (InitBounds->isNone())
+        if (InitBounds->isNone()) {
+          // TODO: need some place to record the initializer bounds
           S.Diag(Init->getLocStart(), diag::err_expected_bounds);
+          InitBounds = S.CreateInvalidBoundsExpr();
+        }
         if (DumpBounds)
           DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
         // TODO: check that it meets the bounds requirements for the variable.

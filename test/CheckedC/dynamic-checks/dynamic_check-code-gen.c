@@ -12,15 +12,15 @@ void f1(void) {
 
   // Branch
   // CHECK: br i1
-  // CHECK-SAME: label %_Dynamic_check_succeeded
-  // CHECK-SAME: label %_Dynamic_check_failed
+  // CHECK-SAME: label %_Dynamic_check.succeeded
+  // CHECK-SAME: label %_Dynamic_check.failed
 
   // Ordering of Basic Blocks
-  // CHECK: {{^}}_Dynamic_check_succeeded
+  // CHECK: {{^}}_Dynamic_check.succeeded
   // CHECK: ret void
 
   // Contents of Fail Basic Block
-  // CHECK: {{^}}_Dynamic_check_failed
+  // CHECK: {{^}}_Dynamic_check.failed
   // CHECK-NEXT: call void @llvm.trap()
   // CHECK-NEXT: unreachable
 }
@@ -32,17 +32,17 @@ void f2(int i) {
   _Dynamic_check(i != 3);
   // CHECK: icmp ne
   // CHECK: br i1
-  // CHECK: {{^}}_Dynamic_check_succeeded
+  // CHECK: {{^}}_Dynamic_check.succeeded
 
   _Dynamic_check(i < 50);
   // CHECK: icmp slt
   // CHECK: br i1
-  // CHECK: {{^}}_Dynamic_check_succeeded
+  // CHECK: {{^}}_Dynamic_check.succeeded
   // CHECK: ret void
 
-  // CHECK: {{^}}_Dynamic_check_failed
+  // CHECK: {{^}}_Dynamic_check.failed
   // CHECK: call void @llvm.trap()
-  // CHECK: {{^}}_Dynamic_check_failed
+  // CHECK: {{^}}_Dynamic_check.failed
   // CHECK: call void @llvm.trap()
 }
 
