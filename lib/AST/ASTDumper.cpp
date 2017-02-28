@@ -1964,10 +1964,10 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
   }
   dumpBasePath(OS, Node);
   OS << ">";
-  if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
     dumpChild([=] {
       OS << "Inferred Bounds";
-      dumpStmt(InferredBounds);
+      dumpStmt(Bounds);
     });
   }
 }
@@ -2111,12 +2111,6 @@ void ASTDumper::VisitExtVectorElementExpr(const ExtVectorElementExpr *Node) {
 void ASTDumper::VisitBinaryOperator(const BinaryOperator *Node) {
   VisitExpr(Node);
   OS << " '" << BinaryOperator::getOpcodeStr(Node->getOpcode()) << "'";
-  if (const BoundsExpr *InferredBounds = Node->getInferredBoundsExpr()) {
-    dumpChild([=] {
-      OS << "LHS Inferred Bounds";
-      dumpStmt(InferredBounds);
-    });
-  }
 }
 
 void ASTDumper::VisitCompoundAssignOperator(

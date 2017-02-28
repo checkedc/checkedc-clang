@@ -612,7 +612,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
       UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
       if (!UO) {
         llvm_unreachable("unexpected cast failure");
-        return false;
+        return nullptr;
       }
       if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
           UO->getSubExpr()->getType()->isCheckedPointerArrayType())
@@ -625,7 +625,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
       ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
       if (!AS) {
         llvm_unreachable("unexpected cast failure");
-        return false;
+        return nullptr;
       }
       // An important invariant for array types in Checked C is that all
       // dimensions of a multi-dimensional array are either checked or
@@ -704,7 +704,7 @@ namespace {
     // used to read or write memory.
     //
     // If the Array_ptr has unkown bounds, this is a compile-time error. 
-    // Geneerate an error message and the bounds to an invalid bounds expression.
+    // Generate an error message and the bounds to an invalid bounds expression.
     // Set the bounds to an invalid bounds.
     bool AddBoundsCheck(Expr *E) {
       assert(E->isLValue());
@@ -717,11 +717,14 @@ namespace {
           S.Diag(E->getLocStart(), diag::err_expected_bounds);
           LValueBounds = S.CreateInvalidBoundsExpr();
         }
-        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref))
+        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
+          assert(!UO->hasBoundsExpr());
           UO->setBoundsExpr(LValueBounds);
-        else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref))
-          UO->setBoundsExpr(LValueBounds);
-        else
+        }
+        else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
+          assert(!AS->hasBoundsExpr());
+          AS->setBoundsExpr(LValueBounds);
+        } else
           llvm_unreachable("unexpected expression kind");
       }
       return NeedsBoundsCheck;
@@ -762,8 +765,6 @@ namespace {
       if (!E->isAssignmentOp())
         return true;
 
-      // Bounds of the lvalue that is being assigned to
-      BoundsExpr *LValueBounds = nullptr;
       // Bounds of the target of the lvalue
       BoundsExpr *LHSTargetBounds = nullptr;
       // Bounds of the right-hand side of the assignment
@@ -1166,7 +1167,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm())
-    CheckBoundsDeclarations(*this).TraverseVarDecl(D);
+   CheckBoundsDeclarations(*this).TraverseVarDecl(D);
 }
 
 

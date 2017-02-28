@@ -2227,18 +2227,13 @@ LValue CodeGenFunction::EmitUnaryOpLValue(const UnaryOperator *E) {
     QualType T = E->getSubExpr()->getType()->getPointeeType();
     assert(!T.isNull() && "CodeGenFunction::EmitUnaryOpLValue: Illegal type");
 
-    BoundsExpr *CheckBounds = nullptr;
-    if (getLangOpts().CheckedC) {
-      CheckBounds = GetAndClearNextBoundsCheckExpr(BC_Deref);
-    }
-
     AlignmentSource AlignSource;
     Address Addr = EmitPointerWithAlignment(E->getSubExpr(), &AlignSource);
     LValue LV = MakeAddrLValue(Addr, T, AlignSource);
     LV.getQuals().setAddressSpace(ExprTy.getAddressSpace());
 
-    if (CheckBounds) {
-      EmitCheckedCDerefCheck(LV, CheckBounds);
+    if (E->hasBoundsExpr()) {
+      EmitCheckedCDerefCheck(LV, E->getBoundsExpr());
     }
 
     // We should not generate __weak write barrier on indirect reference
@@ -2884,11 +2879,6 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
 
 LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
                                                bool Accessed) {
-
-  BoundsExpr *CheckBounds = nullptr;
-  if (getLangOpts().CheckedC)
-    CheckBounds = GetAndClearNextBoundsCheckExpr(BC_ArraySubscript);
-
   // The index must always be an integer, which is not an aggregate.  Emit it.
   llvm::Value *Idx = EmitScalarExpr(E->getIdx());
   QualType IdxTy  = E->getIdx()->getType();
@@ -2908,8 +2898,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
                                        E->getBase()->getType(),
                                        LHS.getAlignmentSource());
 
-    if (CheckBounds)
-      EmitCheckedCSubscriptCheck(LV, CheckBounds);
+    if (E->hasBoundsExpr())
+      EmitCheckedCSubscriptCheck(LV, E->getBoundsExpr());
 
     return LV;
   }
@@ -2929,8 +2919,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, EltType, /*inbounds*/ true);
     LValue AddrLV = MakeAddrLValue(Addr, EltType, LV.getAlignmentSource());
 
-    if (CheckBounds)
-      EmitCheckedCSubscriptCheck(AddrLV, CheckBounds);
+    if (E->hasBoundsExpr())
+      EmitCheckedCSubscriptCheck(AddrLV, E->getBoundsExpr());=
 
     return AddrLV;
   }
@@ -3018,9 +3008,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
   LValue LV = MakeAddrLValue(Addr, E->getType(), AlignSource);
 
   // TODO: Preserve/extend path TBAA metadata?
-
-  if (CheckBounds)
-    EmitCheckedCSubscriptCheck(LV, CheckBounds);
+  if (E->hasBoundsExpr())
+    EmitCheckedCSubscriptCheck(LV, E->getBoundsExpr());
 
   if (getLangOpts().ObjC1 &&
       getLangOpts().getGC() != LangOptions::NonGC) {

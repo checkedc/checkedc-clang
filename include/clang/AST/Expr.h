@@ -2096,15 +2096,15 @@ public:
          (lhs->isInstantiationDependent() ||
           rhs->isInstantiationDependent()),
          (lhs->containsUnexpandedParameterPack() ||
-          rhs->containsUnexpandedParameterPack())), Bounds(nullptr),
-    RBracketLoc(rbracketloc) {
+          rhs->containsUnexpandedParameterPack())),
+    RBracketLoc(rbracketloc), Bounds(nullptr) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
   }
 
   /// \brief Create an empty array subscript expression.
   explicit ArraySubscriptExpr(EmptyShell Shell)
-    : Expr(ArraySubscriptExprClass, Shell) { }
+    : Expr(ArraySubscriptExprClass, Shell), Bounds(nullptr) { }
 
   /// An array access can be written A[4] or 4[A] (both are equivalent).
   /// - getBase() and getIdx() always present the normalized view: A[4].
@@ -2374,10 +2374,6 @@ class MemberExpr final
   /// This is the location of the -> or . in the expression.
   SourceLocation OperatorLoc;
 
-  /// Bounds expression to be used to bounds check the base expression X
-  /// of X->F, if a bounds check is needed.
-  BoundsExpr *Bounds;
-
   /// IsArrow - True if this is "X->F", false if this is "X.F".
   bool IsArrow : 1;
 
@@ -2406,6 +2402,9 @@ class MemberExpr final
     return HasTemplateKWAndArgsInfo ? 1 : 0;
   }
 
+  /// Bounds expression to be used to bounds check the base expression X
+  /// of X->F, if a bounds check is needed.
+  BoundsExpr *Bounds;
 
 public:
   MemberExpr(Expr *base, bool isarrow, SourceLocation operatorloc,
@@ -3161,14 +3160,13 @@ protected:
             rhs->isInstantiationDependent()),
            (lhs->containsUnexpandedParameterPack() ||
             rhs->containsUnexpandedParameterPack())),
-      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc),
-      Bounds(nullptr) {
+      Opc(opc), FPContractable(fpContractable), OpLoc(opLoc) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
   }
 
   BinaryOperator(StmtClass SC, EmptyShell Empty)
-    : Expr(SC, Empty), Opc(BO_MulAssign), Bounds(nullptr) { }
+    : Expr(SC, Empty), Opc(BO_MulAssign) { }
 };
 
 /// CompoundAssignOperator - For compound assignments (e.g. +=), we keep

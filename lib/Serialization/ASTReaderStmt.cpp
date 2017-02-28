@@ -678,9 +678,9 @@ void ASTStmtReader::VisitCastExpr(CastExpr *E) {
   assert(NumBaseSpecs == E->path_size());
   E->setSubExpr(Reader.ReadSubExpr());
   E->setCastKind((CastKind)Record[Idx++]);
-  bool hasInferredBoundsExpr = Record[Idx++];
-  if (hasInferredBoundsExpr) {
-    E->setInferredBoundsExpr(Reader.ReadBoundsExpr(F));
+  bool hasBoundsExpr = Record[Idx++];
+  if (hasBoundsExpr) {
+    E->setBoundsExpr(Reader.ReadBoundsExpr(F));
   }
   CastExpr::path_iterator BaseI = E->path_begin();
   while (NumBaseSpecs--) {
