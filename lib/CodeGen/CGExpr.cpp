@@ -2920,7 +2920,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     LValue AddrLV = MakeAddrLValue(Addr, EltType, LV.getAlignmentSource());
 
     if (E->hasBoundsExpr())
-      EmitCheckedCSubscriptCheck(AddrLV, E->getBoundsExpr());=
+      EmitCheckedCSubscriptCheck(AddrLV, E->getBoundsExpr());
 
     return AddrLV;
   }
