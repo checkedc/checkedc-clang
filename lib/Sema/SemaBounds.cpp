@@ -701,11 +701,13 @@ namespace {
 
     // Add bounds check to an lvalue expression, if it is an Array_ptr
     // dereference.  The caller has determined that the lvalue is being
-    // used to read or write memory.
+    // used in a way that requies a bounds check if the lvalue is an
+    // Array_ptr dereferences.  The lvalue uses are to read or write memory
+    // or as the base expression of a member reference.
     //
-    // If the Array_ptr has unkown bounds, this is a compile-time error. 
-    // Generate an error message and the bounds to an invalid bounds expression.
-    // Set the bounds to an invalid bounds.
+    // If the Array_ptr has unknown bounds, this is a compile-time error.
+    // Generate an error message and set the bounds to an invalid bounds
+    // expression.
     bool AddBoundsCheck(Expr *E) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
@@ -731,9 +733,9 @@ namespace {
     }
 
     // Add bounds check to the base expression of a member reference, if the
-    // base expression is an Array_ptr dereference.  Base expressions of 
-    // member references always need bounds check, even if the lvalue is only used
-    // for an address computation.
+    // base expression is an Array_ptr dereference.  Such base expressions
+    // always need bounds checka, even though their lvalues are only used for an
+    // address computation.
     bool AddMemberBaseBoundsCheck(MemberExpr *E) {
       Expr *Base = E->getBase();
       // E.F
@@ -1167,7 +1169,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm())
-   CheckBoundsDeclarations(*this).TraverseVarDecl(D);
+    CheckBoundsDeclarations(*this).TraverseVarDecl(D);
 }
 
 

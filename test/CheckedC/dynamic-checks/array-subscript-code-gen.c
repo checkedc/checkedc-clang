@@ -148,7 +148,6 @@ void f1(void) {
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3, align 4
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3, align 4
@@ -193,7 +192,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp1' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr, align 4
@@ -251,7 +249,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
@@ -281,7 +278,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
@@ -310,7 +306,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
-  
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
@@ -354,9 +349,8 @@ void f3(void) {
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int checked[1]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
 
-
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([1 x i32]* @ga1 to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds 
   // CHECK-IR-SAME: (i32, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, i32 0, i32 0),
@@ -381,7 +375,7 @@ void f3(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
 
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([1 x i32]* @ga1 to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds 
   // CHECK-IR-SAME: (i32, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, i32 0, i32 0),
@@ -405,9 +399,8 @@ void f3(void) {
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
 
-
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([3 x i32]* @ga3 to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds 
   // CHECK-IR-SAME: (i32, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 0),
@@ -431,8 +424,7 @@ void f3(void) {
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
 
-
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x i32]* @ga3 to i32), i32 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 2) to i32)),
   // CHECK-IR-SAME: i1 icmp slt (i32 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 2) to i32), 
@@ -456,9 +448,8 @@ void f3(void) {
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
 
-
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([3 x i32]* @ga3 to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds 
   // CHECK-IR-SAME: (i32, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 0),
@@ -528,7 +519,6 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr, align 4
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr, align 4
@@ -556,7 +546,6 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr, align 4
@@ -663,7 +652,7 @@ void f5() {
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint ([3 x i32]* getelementptr inbounds
   // CHECK-IR-SAME: ([3 x i32], [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
@@ -689,7 +678,7 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 2, i32 2) to i32)),
@@ -718,7 +707,7 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i64 1, i32 2) to i32)),
@@ -746,8 +735,8 @@ void f5() {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
-  
-  // The following line of LLVM IR is offensively long
+
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 2, i32 -2) to i32)),
@@ -774,9 +763,8 @@ void f5() {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
-  
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint ([3 x i32]* getelementptr inbounds
   // CHECK-IR-SAME: ([3 x i32], [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
@@ -802,7 +790,7 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 2, i32 0) to i32)),
