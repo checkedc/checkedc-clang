@@ -1503,28 +1503,6 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_LValueToRValue:
     assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");
-
-    if (CE->hasInferredBoundsExpr()) {
-      BoundsExpr* InferredBounds = CE->getInferredBoundsExpr();
-
-      Expr *SE = E->IgnoreParens();
-      if (InferredBounds->isInvalid() || InferredBounds->isAny()) {
-        // No Checks
-      }
-      else if (isa<ArraySubscriptExpr>(SE)) {
-        CGF.SetNextBoundsCheckExpr(InferredBounds, CodeGenFunction::BC_ArraySubscript);
-      }
-      else if (const auto *UO = dyn_cast<UnaryOperator>(SE)) {
-        switch (UO->getOpcode()) {
-        default:
-          break;
-        case UO_Deref:
-          CGF.SetNextBoundsCheckExpr(InferredBounds, CodeGenFunction::BC_Deref);
-          break;
-        }
-      }
-    }
-
     return Visit(const_cast<Expr*>(E));
 
   case CK_IntegralToPointer: {

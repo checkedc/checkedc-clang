@@ -485,9 +485,9 @@ void ASTStmtWriter::VisitUnaryOperator(UnaryOperator *E) {
   Record.AddStmt(E->getSubExpr());
   Record.push_back(E->getOpcode()); // FIXME: stable encoding
   Record.AddSourceLocation(E->getOperatorLoc());
-  Record.push_back(E->hasInferredBoundsExpr());
-  if (E->hasInferredBoundsExpr()) {
-    Record.AddStmt(E->getInferredBoundsExpr());
+  Record.push_back(E->hasBoundsExpr());
+  if (E->hasBoundsExpr()) {
+    Record.AddStmt(E->getBoundsExpr());
   }
   Code = serialization::EXPR_UNARY_OPERATOR;
 }
@@ -546,6 +546,10 @@ void ASTStmtWriter::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   Record.AddStmt(E->getLHS());
   Record.AddStmt(E->getRHS());
   Record.AddSourceLocation(E->getRBracketLoc());
+  Record.push_back(E->hasBoundsExpr());
+  if (E->hasBoundsExpr()) {
+    Record.AddStmt(E->getBoundsExpr());
+  }
   Code = serialization::EXPR_ARRAY_SUBSCRIPT;
 }
 
@@ -602,9 +606,9 @@ void ASTStmtWriter::VisitMemberExpr(MemberExpr *E) {
   Record.AddSourceLocation(E->getMemberLoc());
   Record.push_back(E->isArrow());
   Record.AddSourceLocation(E->getOperatorLoc());
-  Record.push_back(E->hasInferredBoundsExpr());
-  if (E->hasInferredBoundsExpr()) {
-    Record.AddStmt(E->getInferredBoundsExpr());
+  Record.push_back(E->hasBoundsExpr());
+  if (E->hasBoundsExpr()) {
+    Record.AddStmt(E->getBoundsExpr());
   }
   Record.AddDeclarationNameLoc(E->MemberDNLoc,
                                E->getMemberDecl()->getDeclName());
@@ -641,9 +645,9 @@ void ASTStmtWriter::VisitCastExpr(CastExpr *E) {
   Record.push_back(E->path_size());
   Record.AddStmt(E->getSubExpr());
   Record.push_back(E->getCastKind()); // FIXME: stable encoding
-  Record.push_back(E->hasInferredBoundsExpr());
-  if (E->hasInferredBoundsExpr()) {
-    Record.AddStmt(E->getInferredBoundsExpr());
+  Record.push_back(E->hasBoundsExpr());
+  if (E->hasBoundsExpr()) {
+    Record.AddStmt(E->getBoundsExpr());
   }
 
   for (CastExpr::path_iterator
@@ -658,10 +662,6 @@ void ASTStmtWriter::VisitBinaryOperator(BinaryOperator *E) {
   Record.push_back(E->getOpcode()); // FIXME: stable encoding
   Record.AddSourceLocation(E->getOperatorLoc());
   Record.push_back(E->isFPContractable());
-  Record.push_back(E->hasInferredBoundsExpr());
-  if (E->hasInferredBoundsExpr()) {
-    Record.AddStmt(E->getInferredBoundsExpr());
-  }
   Code = serialization::EXPR_BINARY_OPERATOR;
 }
 
@@ -698,7 +698,7 @@ ASTStmtWriter::VisitBinaryConditionalOperator(BinaryConditionalOperator *E) {
 void ASTStmtWriter::VisitImplicitCastExpr(ImplicitCastExpr *E) {
   VisitCastExpr(E);
 
-  if (E->path_size() == 0 && !E->hasInferredBoundsExpr())
+  if (E->path_size() == 0 && !E->hasBoundsExpr())
     AbbrevToUse = Writer.getExprImplicitCastAbbrev();
 
   Code = serialization::EXPR_IMPLICIT_CAST;
