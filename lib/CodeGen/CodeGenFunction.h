@@ -3321,6 +3321,13 @@ public:
 
   template<typename T>
   static bool isObjCMethodWithTypeParams(const T *) { return false; }
+
+  // Determine whether the given argument is FunctionProtoType
+  // that have parameter bounds information within it
+  static bool isFunctionProtoTypeWithTypeParams(const FunctionProtoType* FPT) { return true; }
+
+  template<typename T>
+  static bool isFunctionProtoTypeWithTypeParams(const T *) { return false; }
 #endif
 
   /// EmitCallArgs - Emit call arguments for a function.
@@ -3337,22 +3344,43 @@ public:
     if (CallArgTypeInfo) {
 #ifndef NDEBUG
       bool isGenericMethod = isObjCMethodWithTypeParams(CallArgTypeInfo);
+      bool isFunctionProtoType = isFunctionProtoTypeWithTypeParams(CallArgTypeInfo);
 #endif
 
       // First, use the argument types that the type info knows about
+      int N = 0;
       for (auto I = CallArgTypeInfo->param_type_begin() + ParamsToSkip,
                 E = CallArgTypeInfo->param_type_end();
-           I != E; ++I, ++Arg) {
+           I != E; ++I, ++Arg, ++N) {
         assert(Arg != ArgRange.end() && "Running over edge of argument list!");
+        const Type* ty1 = getContext().getCanonicalType((*I).getNonReferenceType()).getTypePtr();
+        const Type* ty2 = getContext().getCanonicalType((*Arg)->getType()).getTypePtr();
+        const Type* interop_ty1 = ty1;
+
+        // Checked C consideration
+        // In case of function prototype, it has parameter type information
+        // that involves also itype as bounds information
+        // To check interop type properly, it SHOULD consider additional bounds info
+        // likely Sema (semantic)
+        if (isFunctionProtoType) {
+            const FunctionProtoType* FPT = (const FunctionProtoType*)CallArgTypeInfo;
+            if (FPT && FPT->hasParamBounds()) {
+                const BoundsExpr* Bounds = FPT->getParamBounds(N);
+                // if it has interop type, check interop type as well as the type
+                if (Bounds && Bounds->getKind() == BoundsExpr::Kind::InteropTypeAnnotation) {
+                    const InteropTypeBoundsAnnotation* annot =
+                        dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
+                    interop_ty1 = getContext().getCanonicalType(annot->getType()).getTypePtr();
+                }
+            }
+        }
+
         assert((isGenericMethod ||
                 ((*I)->isVariablyModifiedType() ||
                  (*I).getNonReferenceType()->isObjCRetainableType() ||
-                 getContext()
-                         .getCanonicalType((*I).getNonReferenceType())
-                         .getTypePtr() ==
-                     getContext()
-                         .getCanonicalType((*Arg)->getType())
-                         .getTypePtr())) &&
+                 (ty1 == ty2) ||
+                 // interopType checking as well as original type checking is done
+                 (interop_ty1 == ty2))) &&
                "type mismatch in call argument!");
         ArgTypes.push_back(*I);
       }
