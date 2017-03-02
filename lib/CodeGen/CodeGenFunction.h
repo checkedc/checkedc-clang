@@ -3324,10 +3324,10 @@ public:
 
   // Determine whether the given argument is FunctionProtoType
   // that have parameter bounds information within it
-  static bool isFunctionProtoTypeWithTypeParams(const FunctionProtoType* FPT) { return true; }
+  static bool isFunctionProtoType(const FunctionProtoType* FPT) { return true; }
 
   template<typename T>
-  static bool isFunctionProtoTypeWithTypeParams(const T *) { return false; }
+  static bool isFunctionProtoType(const T *) { return false; }
 #endif
 
   /// EmitCallArgs - Emit call arguments for a function.
@@ -3344,7 +3344,7 @@ public:
     if (CallArgTypeInfo) {
 #ifndef NDEBUG
       bool isGenericMethod = isObjCMethodWithTypeParams(CallArgTypeInfo);
-      bool isFunctionProtoType = isFunctionProtoTypeWithTypeParams(CallArgTypeInfo);
+      bool isFunctionProto= isFunctionProtoType(CallArgTypeInfo);
 #endif
 
       // First, use the argument types that the type info knows about
@@ -3353,27 +3353,35 @@ public:
                 E = CallArgTypeInfo->param_type_end();
            I != E; ++I, ++Arg, ++N) {
         assert(Arg != ArgRange.end() && "Running over edge of argument list!");
-        const Type* ty1 = getContext().getCanonicalType((*I).getNonReferenceType()).getTypePtr();
-        const Type* ty2 = getContext().getCanonicalType((*Arg)->getType()).getTypePtr();
-        const Type* interop_ty1 = ty1;
+#ifndef NDEBUG
+        const Type *ty1 = getContext()
+                              .getCanonicalType((*I).getNonReferenceType())
+                              .getTypePtr();
+        const Type *ty2 =
+            getContext().getCanonicalType((*Arg)->getType()).getTypePtr();
+        const Type *interop_ty1 = ty1;
 
         // Checked C consideration
         // In case of function prototype, it has parameter type information
         // that involves also itype as bounds information
-        // To check interop type properly, it SHOULD consider additional bounds info
-        // likely Sema (semantic)
-        if (isFunctionProtoType) {
-            const FunctionProtoType* FPT = (const FunctionProtoType*)CallArgTypeInfo;
-            if (FPT && FPT->hasParamBounds()) {
-                const BoundsExpr* Bounds = FPT->getParamBounds(N);
-                // if it has interop type, check interop type as well as the type
-                if (Bounds && Bounds->getKind() == BoundsExpr::Kind::InteropTypeAnnotation) {
-                    const InteropTypeBoundsAnnotation* annot =
-                        dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
-                    interop_ty1 = getContext().getCanonicalType(annot->getType()).getTypePtr();
-                }
+        // To check interop type properly, it SHOULD consider additional bounds
+        // info likely Sema (semantic)
+        if (isFunctionProto) {
+          const FunctionProtoType *FPT =
+              (const FunctionProtoType *)CallArgTypeInfo;
+          if (FPT && FPT->hasParamBounds()) {
+            const BoundsExpr *Bounds = FPT->getParamBounds(N);
+            // if it has interop type, check interop type as well as the type
+            if (Bounds &&
+                Bounds->getKind() == BoundsExpr::Kind::InteropTypeAnnotation) {
+              const InteropTypeBoundsAnnotation *annot =
+                  dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
+              interop_ty1 =
+                  getContext().getCanonicalType(annot->getType()).getTypePtr();
             }
+          }
         }
+#endif
 
         assert((isGenericMethod ||
                 ((*I)->isVariablyModifiedType() ||
