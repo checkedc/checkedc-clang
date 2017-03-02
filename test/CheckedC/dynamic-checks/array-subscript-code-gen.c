@@ -2,6 +2,13 @@
 // RUN: %clang_cc1 -fcheckedc-extension -verify -verify-ignore-unexpected=note %s -ast-dump | FileCheck %s --check-prefix=CHECK-AST
 // RUN: %clang_cc1 -fcheckedc-extension -verify -verify-ignore-unexpected=note %s -emit-llvm -O0 -o - | FileCheck %s --check-prefix=CHECK-IR
 
+// In the following generated IR, we do not verify the alignment of any loads/stores
+// ie, the IR checked by line 37 might read "%1 = load i32*, i32** @gp1, align 4"
+// but we discard the "align 4" at the end. This is because alignment is type-size
+// dependent, which in turn is very platform dependent.
+// It is better to elide these checks, because we really care about the order of
+// loads, checks and stores, in these tests, not their specific alignment.
+
 _Array_ptr<int> gp1 : count(1) = 0;
 _Array_ptr<int> gp3 : count(3) = 0;
 
