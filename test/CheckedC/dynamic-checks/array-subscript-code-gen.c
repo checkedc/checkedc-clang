@@ -20,7 +20,8 @@ void f1(void) {
   int x1 = gp1[0];
   // CHECK-AST: VarDecl {{.*}} x1 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp1' '_Array_ptr<int>'
@@ -28,7 +29,7 @@ void f1(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp1' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
-  // CHECK-AST-NEXT: ArraySubscript
+
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
@@ -49,7 +50,8 @@ void f1(void) {
   int x2 = *gp1;
   // CHECK-AST: VarDecl {{.*}} x2 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp1' '_Array_ptr<int>'
@@ -57,7 +59,7 @@ void f1(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp1' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1, align 4
@@ -77,7 +79,8 @@ void f1(void) {
   int x3 = gp3[0];
   // CHECK-AST: VarDecl {{.*}} x3 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp3' '_Array_ptr<int>'
@@ -85,7 +88,6 @@ void f1(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
-  // CHECK-AST-NEXT: ArraySubscript
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
@@ -106,7 +108,8 @@ void f1(void) {
   int x4 = gp3[2];
   // CHECK-AST: VarDecl {{.*}} x4 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp3' '_Array_ptr<int>'
@@ -114,7 +117,7 @@ void f1(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
-  // CHECK-AST-NEXT: ArraySubscript
+
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 2
@@ -135,7 +138,8 @@ void f1(void) {
   int x5 = *gp3;
   // CHECK-AST: VarDecl {{.*}} x5 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp3' '_Array_ptr<int>'
@@ -143,7 +147,6 @@ void f1(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3, align 4
@@ -180,7 +183,8 @@ void f2(_Array_ptr<int> lp1 : count(1),
   int y1 = lp1[0];
   // CHECK-AST: VarDecl {{.*}} y1 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp1' '_Array_ptr<int>'
@@ -188,8 +192,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp1' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
-  // CHECK-AST-NEXT: ArraySubscript
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr, align 4
@@ -209,7 +211,8 @@ void f2(_Array_ptr<int> lp1 : count(1),
   int y2 = *lp1;
   // CHECK-AST: VarDecl {{.*}} y2 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp1' '_Array_ptr<int>'
@@ -217,7 +220,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp1' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr, align 4
@@ -237,7 +239,8 @@ void f2(_Array_ptr<int> lp1 : count(1),
   int y3 = lp3[0];
   // CHECK-AST: VarDecl {{.*}} y3 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
@@ -245,7 +248,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
-  // CHECK-AST-NEXT: ArraySubscript
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
@@ -266,7 +268,8 @@ void f2(_Array_ptr<int> lp1 : count(1),
   int y4 = lp3[0];
   // CHECK-AST: VarDecl {{.*}} y4 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
@@ -274,7 +277,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
-  // CHECK-AST-NEXT: ArraySubscript
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
@@ -295,7 +297,8 @@ void f2(_Array_ptr<int> lp1 : count(1),
   int y5 = *lp3;
   // CHECK-AST: VarDecl {{.*}} y5 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
@@ -303,8 +306,6 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lp3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr, align 4
@@ -338,7 +339,8 @@ void f3(void) {
   int x1 = ga1[0];
   // CHECK-AST: VarDecl {{.*}} x1 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int checked[1]'
@@ -346,10 +348,9 @@ void f3(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int checked[1]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
-  // CHECK-AST-NEXT: ArraySubscript
 
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([1 x i32]* @ga1 to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds 
   // CHECK-IR-SAME: (i32, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, i32 0, i32 0),
@@ -363,7 +364,8 @@ void f3(void) {
   int x2 = *ga1;
   // CHECK-AST: VarDecl {{.*}} x2 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int checked[1]'
@@ -371,10 +373,9 @@ void f3(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int checked[1]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
 
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([1 x i32]* @ga1 to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds 
   // CHECK-IR-SAME: (i32, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, i32 0, i32 0),
@@ -388,7 +389,8 @@ void f3(void) {
   int x3 = ga3[0];
   // CHECK-AST: VarDecl {{.*}} x3 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
@@ -396,10 +398,9 @@ void f3(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscript
 
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([3 x i32]* @ga3 to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds 
   // CHECK-IR-SAME: (i32, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 0),
@@ -413,7 +414,8 @@ void f3(void) {
   int x4 = ga3[2];
   // CHECK-AST: VarDecl {{.*}} x4 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
@@ -421,9 +423,8 @@ void f3(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscript
 
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x i32]* @ga3 to i32), i32 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 2) to i32)),
   // CHECK-IR-SAME: i1 icmp slt (i32 ptrtoint (i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 2) to i32), 
@@ -437,7 +438,8 @@ void f3(void) {
   int x5 = *ga3;
   // CHECK-AST: VarDecl {{.*}} x5 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
@@ -445,10 +447,9 @@ void f3(void) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
 
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([3 x i32]* @ga3 to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds 
   // CHECK-IR-SAME: (i32, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 0),
@@ -479,7 +480,8 @@ void f4(int la1 _Checked[1],
   int y1 = la1[0];
   // CHECK-AST: VarDecl {{.*}} y1 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>'
@@ -487,7 +489,7 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
-  // CHECK-AST-NEXT: ArraySubscript
+
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
@@ -508,7 +510,8 @@ void f4(int la1 _Checked[1],
   int y2 = *la1;
   // CHECK-AST: VarDecl {{.*}} y2 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>'
@@ -516,8 +519,6 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr, align 4
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr, align 4
@@ -536,7 +537,8 @@ void f4(int la1 _Checked[1],
   int y3 = la3[0];
   // CHECK-AST: VarDecl {{.*}} y3 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>'
@@ -544,8 +546,6 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscript
-
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr, align 4
@@ -565,7 +565,8 @@ void f4(int la1 _Checked[1],
   int y4 = la3[2];
   // CHECK-AST: VarDecl {{.*}} y4 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscript
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>'
@@ -573,7 +574,6 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscript
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], i32 2
@@ -594,7 +594,8 @@ void f4(int la1 _Checked[1],
   int y5 = *la3;
   // CHECK-AST: VarDecl {{.*}} y5 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>'
@@ -602,7 +603,6 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr, align 4
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr, align 4
@@ -639,7 +639,8 @@ void f5() {
   int z1 = gma[0][0];
   // CHECK-AST: VarDecl {{.*}} z1 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscriptExpr
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
@@ -647,12 +648,11 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint ([3 x i32]* getelementptr inbounds
   // CHECK-IR-SAME: ([3 x i32], [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
@@ -666,7 +666,8 @@ void f5() {
   int z2 = gma[2][2];
   // CHECK-AST: VarDecl {{.*}} z2 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscriptExpr
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
@@ -674,11 +675,10 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 2, i32 2) to i32)),
@@ -695,7 +695,8 @@ void f5() {
   int z3 = gma[0][5]; // expected-warning {{index 5 is past the end of the array}}
   // CHECK-AST: VarDecl {{.*}} z3 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscriptExpr
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
@@ -703,11 +704,10 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i64 1, i32 2) to i32)),
@@ -724,7 +724,8 @@ void f5() {
   int z4 = gma[2][-2]; // expected-warning {{index -2 is before the beginning of the array}}
   // CHECK-AST: VarDecl {{.*}} z4 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscriptExpr
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
@@ -732,11 +733,10 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 2, i32 -2) to i32)),
@@ -752,7 +752,8 @@ void f5() {
   int z5 = **gma;
   // CHECK-AST: VarDecl {{.*}} z5 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
@@ -760,12 +761,10 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
-
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
-  // The following line of LLVM IR is offensively long
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint ([3 x i32]* getelementptr inbounds
   // CHECK-IR-SAME: ([3 x i32], [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
@@ -779,7 +778,8 @@ void f5() {
   int z6 = *gma[2];
   // CHECK-AST: VarDecl {{.*}} z6 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
@@ -787,11 +787,10 @@ void f5() {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
-
-  // The following line of LLVM IR is offensively long
+  
+  // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle (i32 ptrtoint ([3 x [3 x i32]]* @gma to i32),
   // CHECK-IR-SAME: i32 ptrtoint (i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 2, i32 0) to i32)),
@@ -820,7 +819,8 @@ void f6(int lma _Checked[3][3]) {
   int z1 = lma[0][0];
   // CHECK-AST: VarDecl {{.*}} z1 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscriptExpr
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
@@ -828,7 +828,6 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
@@ -852,7 +851,8 @@ void f6(int lma _Checked[3][3]) {
   int z2 = lma[2][2];
   // CHECK-AST: VarDecl {{.*}} z2 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscriptExpr
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
@@ -860,7 +860,6 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
@@ -885,7 +884,8 @@ void f6(int lma _Checked[3][3]) {
   int z3 = lma[0][5];  // expected-warning {{index 5 is past the end of the array}}
   // CHECK-AST: VarDecl {{.*}} z3 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscriptExpr
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
@@ -893,7 +893,6 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
@@ -918,7 +917,8 @@ void f6(int lma _Checked[3][3]) {
   int z4 = lma[2][-2]; // expected-warning {{index -2 is before the beginning of the array}}
   // CHECK-AST: VarDecl {{.*}} z4 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: ArraySubscriptExpr
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
@@ -926,7 +926,6 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 
@@ -950,7 +949,8 @@ void f6(int lma _Checked[3][3]) {
   int z5 = **lma;
   // CHECK-AST: VarDecl {{.*}} z5 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
@@ -958,7 +958,6 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
 
@@ -981,7 +980,8 @@ void f6(int lma _Checked[3][3]) {
   int z6 = *lma[2];
   // CHECK-AST: VarDecl {{.*}} z6 'int' cinit
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
-  // CHECK-AST-NEXT: Inferred Bounds
+  // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
+  // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
@@ -989,7 +989,6 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int checked[3]>':'_Array_ptr<int checked[3]>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
-  // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
 

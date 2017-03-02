@@ -62,6 +62,9 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
 
 void CodeGenFunction::EmitCheckedCSubscriptCheck(const LValue Addr,
                                                  const BoundsExpr *Bounds) {
+  if (Bounds->isAny() || Bounds->isInvalid())
+    return;
+
   ++NumDynamicChecksFound;
   ++NumDynamicChecksSubscript;
 
@@ -70,6 +73,9 @@ void CodeGenFunction::EmitCheckedCSubscriptCheck(const LValue Addr,
 
 void CodeGenFunction::EmitCheckedCDerefCheck(const LValue Addr,
                                              const BoundsExpr *Bounds) {
+  if (Bounds->isAny() || Bounds->isInvalid())
+    return;
+
   ++NumDynamicChecksFound;
   ++NumDynamicChecksDeref;
 
