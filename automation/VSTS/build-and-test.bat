@@ -6,7 +6,8 @@
 @rem
 @rem  BUILD_SOURCESDIRECTORY: the directory where the LLVM source will be
 @rem                          placed.
-@rem  BUILD_BINARIES: the directory where the object directory will be placed.
+@rem  BUILD_BINARIESDIRECTORY: the directory where the object directory will
+@rem                            be placed.
 @rem  BUILDCONFIGURATION: The clang version to build.  Must be one of Debug, 
 @rem                      Release,ReleaseWithDebInfo.
 @rem  TEST_SUITE: the test suite to run.  Must be one of:
@@ -38,32 +39,32 @@
 @rem                HEAD.
 
 @setlocal
-@set OLD_DIR=%CD%
-@call .\config-vars.bat
+@set DIRNAME=%CD%
+@call %DIRNAME%\config-vars.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
 echo.Setting up files.
 
-call .\setup-files.bat
+call %DIRNAME%\setup-files.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
 echo.Running cmake
 
-call .\run-cmake.bat
+call %DIRNAME%\run-cmake.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
 echo.Building clang
 
-call .\build-clang.bat
+call %DIRNAME%\build-clang.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
 echo.Testing clang
 
-call .\test-clang.bat
+call %DIRNAME%\test-clang.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 :succeeded
