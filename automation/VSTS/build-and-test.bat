@@ -17,9 +17,10 @@
 @rem
 @rem  The following variable may be optionally set:
 @rem  BUILDOS: The OS that we building upon.  May be one of Windows or WSL.
-@rem           WSL stands for Windows Subsystem for Linux.
+@rem           WSL stands for Windows Subsystem for Linux.  Defaults to
+@rem           X86.
 @rem  TEST_TARGET_ARCH: the target architecuture on which testing will be
-@rem                    run.  May be one of X86 or AMD64.
+@rem                    run.  May be one of X86 or AMD64.  Defaults to X86.
 @rem
 @rem  Because the Checked C clang build involves 3 repositories that may
 @rem  be in varying states of consistency, the following variables can
