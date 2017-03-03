@@ -8,14 +8,14 @@ rem a script and just invoke MSBuild directly.
 
 cd %LLVM_OBJ_DIR%
 
-%MSBUILD_BIN% tools\clang\tools\driver\clang.vcxproj /maxcpucount:%MSBUILD_CPU_COUNT%
+"%MSBUILD_BIN%" tools\clang\tools\driver\clang.vcxproj /maxcpucount:%MSBUILD_CPU_COUNT%
 
 if "%TEST_SUITE%"=="CheckedC" (
   rem
 ) else if "%TEST_SUITE%"=="CheckedC_clang" (
-  %MSBUILD_BIN% tools\clang\tools\driver\clang.vcxproj /maxcpucount:%MSBUILD_CPU_COUNT%
+  "%MSBUILD_BIN%" tools\clang\tools\driver\clang.vcxproj /maxcpucount:%MSBUILD_CPU_COUNT%
 ) else if "%TEST_SUITE%"=="CheckedC_LLVM" (
-  %MSBUILD_BIN% check-all.vcxproj /maxcpucount:%MSBUILD_CPU_COUNT%
+  "%MSBUILD_BIN%" check-all.vcxproj /maxcpucount:%MSBUILD_CPU_COUNT%
 )
 
 
