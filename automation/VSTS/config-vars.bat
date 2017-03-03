@@ -35,7 +35,7 @@ if "%TEST_SUITE%"=="CheckedC" (
   echo Unknown TEST_SUITE value "%TEST_SUITE%"
 )
 
-if "%MSBUILD_BIN"=="" (
+if "%MSBUILD_BIN%"=="" (
   set MSBUILD_BIN="%programfiles(x86)%\MSBuild\14.0\Bin\MSBuild.exe"
 )
 
