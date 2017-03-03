@@ -49,11 +49,6 @@ if NOT DEFINED MSBUILD_BIN (
   set "MSBUILD_BIN=%programfiles(x86)%\MSBuild\14.0\Bin\MSBuild.exe"
 )
 
-if not exist %MSBUILD_BIN% (
-    echo Cannot find MSBuild in %MSBUILD_BIN%
-    exit /b 1;
-)
-
 if NOT DEFINED %NUMBER_OF_PROCESSORS% (
   set MSBUILD_CPU_COUNT=4
 ) else if %NUMBER_OF_PROCESSORS LSS 16 (
