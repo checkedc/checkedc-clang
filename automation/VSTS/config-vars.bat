@@ -46,10 +46,10 @@ if not exist "%MSBUILD_BIN%" (
 
 if "%NUMBER_OF_PROCESSORS%"=="" (
     set MSBUILD_CPU_COUNT=4
-) else if %NUMBER_OF_PROCESSORS LSS 12 (
+) else if %NUMBER_OF_PROCESSORS LSS 16 (
     set MSBUILD_CPU_COUNT=4
 ) else (
-    set /a "MSBUILD_CPU_COUNT=%NUMBER_OF_PROCESSORS%/3"
+    set /a "MSBUILD_CPU_COUNT=%NUMBER_OF_PROCESSORS%/4"
 )
 
 echo Configured environment variables:
