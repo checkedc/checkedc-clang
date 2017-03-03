@@ -13,7 +13,6 @@ git pull origin master
 cd %BUILD_SOURCESDIRECTORY%\llvm\tools\clang
 git pull origin master
 
-if not exist %BUILD_BINARIESDIRECTORY%\llvm.obj (
-  mkdir %BUILD_BINARIESDIRECTORY%\llvm.obj
+if not exist %LLVM_OBJ_DIR% (
+  mkdir %LLVM_OBJ_DIR%
 )
-

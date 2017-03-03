@@ -5,6 +5,7 @@ rem solution file, which does not work for CMake.   So create a
 rem a script and just invoke MSBuild directly.
 
 set MSBUILDBIN=%programfiles(x86)%\MSBuild\14.0\Bin\MSBuild.exe
-cd %BUILD_BINARIESDIRECTORY%\llvm.obj
-"%msbuildbin%" tools\clang\tools\driver\clang.vcxproj /maxcpucount:4
+cd %LLVM_OBJ_DIR%
+"%MSBUILD_BIN%" tools\clang\tools\driver\clang.vcxproj /maxcpucount:%MSBUILD_CPU_COUNT%
+
 
