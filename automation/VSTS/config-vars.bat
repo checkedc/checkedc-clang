@@ -1,23 +1,29 @@
 @echo off
 rem Create configuration variables
 
-if "%BUILDCONFIGURATION%"=="Debug" (
+if NOT DEFINED BUILDCONFIGURATION (
+  echo BUILDCONFIGURATION must be defined
+  exit /b 1
+) else if "%BUILDCONFIGURATION%"=="Debug" (
   rem
 ) else if "%BUILDCONFIGURATION%"=="Release" (
   rem
 ) else if "%BUILDCONFIGURATION%"=="ReleaseWithDebInfo" (
   rem
 ) else (
-  echo Unknown BUILDCONFIGURATION value "%BUILDCONFIGURATION%"
+  echo Unknown BUILDCONFIGURATION value %BUILDCONFIGURATION%
   exit /b 1
 )
 
-if "%BUILDOS%"=="Windows" (
+if NOT DEFINED BUILDOS (
+  echo BUILDOS must be defined
+  exit /b 1
+) else if "%BUILDOS%"=="Windows" (
   rem
-) else if "%BUILDOS"=="WSL" (
+) else if "%BUILDOS%"=="WSL" (
   rem
 ) else (
-  echo Unknown BUILDOS value "%BUILDOS%"
+  echo Unknown BUILDOS value %BUILDOS%
   exit /b 1;
 )
 
@@ -25,35 +31,40 @@ set LLVM_OBJ_DIR=%BUILD_BINARIESDIRECTORY%\LLVM-%BUILDCONFIGURATION%-%BUILDOS%.o
 
 rem Validate Test Suite configuration
 
-if "%TEST_SUITE%"=="CheckedC" (
+if NOT DEFINED TEST_SUITE (
+  echo TEST_SUITE must be defined
+  exit /b 1
+) else if "%TEST_SUITE%"=="CheckedC" (
   rem  c
 ) else if "%TEST_SUITE%"=="CheckedC_clang" (
   rem
 ) else if "%TEST_SUITE%"=="CheckedC_LLVM" (
   rem
 ) else (
-  echo Unknown TEST_SUITE value "%TEST_SUITE%"
+  echo Unknown TEST_SUITE value %TEST_SUITE%
+  exit /b 1
 )
 
-if "%MSBUILD_BIN%"=="" (
-  set MSBUILD_BIN="%programfiles(x86)%\MSBuild\14.0\Bin\MSBuild.exe"
+if NOT DEFINED MSBUILD_BIN (
+  set "MSBUILD_BIN=%programfiles(x86)%\MSBuild\14.0\Bin\MSBuild.exe"
 )
 
-if not exist "%MSBUILD_BIN%" (
-    echo Cannot find MSBuild in "%MSBUILD_BIN%"
+if not exist %MSBUILD_BIN% (
+    echo Cannot find MSBuild in %MSBUILD_BIN%
     exit /b 1;
 )
 
-if "%NUMBER_OF_PROCESSORS%"=="" (
-    set MSBUILD_CPU_COUNT=4
+if NOT DEFINED %NUMBER_OF_PROCESSORS% (
+  set MSBUILD_CPU_COUNT=4
 ) else if %NUMBER_OF_PROCESSORS LSS 16 (
-    set MSBUILD_CPU_COUNT=4
+  set MSBUILD_CPU_COUNT=4
 ) else (
-    set /a "MSBUILD_CPU_COUNT=%NUMBER_OF_PROCESSORS%/4"
+  set /a "MSBUILD_CPU_COUNT=%NUMBER_OF_PROCESSORS%/4"
 )
 
 echo Configured environment variables:
 echo.
 echo.  LLVM_OBJ_DIR: %LLVM_OBJ_DIR%
 echo.  TEST_SUITE: %TEST_SUITE%
+echo.  MSBUILD_BIN: %MSBUILD_BIN%
 echo.  MSBUILD_CPU_COUNT: %MSBUILD_CPU_COUNT%
