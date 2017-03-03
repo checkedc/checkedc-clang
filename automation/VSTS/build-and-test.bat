@@ -39,31 +39,31 @@
 
 @setlocal
 @set OLD_DIR=%CD%
-@call config-vars.bat
+@call .\config-vars.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
 echo.Setting up files.
 
-call setup-files.bat
+call .\setup-files.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
 echo.Running cmake
 
-call run-cmake.bat
+call .\run-cmake.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
 echo.Building clang
 
-call build-clang.bat
+call .\build-clang.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
 echo.Testing clang
 
-call test-clang.bat
+call .\test-clang.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 :succeeded
