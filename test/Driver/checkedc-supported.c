@@ -3,7 +3,7 @@
 // compiled as another language.
 //
 // RUN: %clang -c -fcheckedc-extension %s
-// RUN: %clang_cl -c -Xclang -fcheckedc-extension %s
+// RUN: %clang_cl -c -Xclang -fcheckedc-extension -- %s
 //
 // Have clang compile this file as C++ file.
 // RUN: not %clang -c -fcheckedc-extension -x c++ %s 2>&1 \
@@ -11,7 +11,7 @@
 // check-cpp: warning: Checked C extension not supported with 'C++'; ignoring '-fcheckedc-extension'
 //
 // Have clang-cl compile this file as a C++ file.
-// RUN: not %clang_cl -c -Xclang -fcheckedc-extension /TP %s 2>&1 \
+// RUN: not %clang_cl -c -Xclang -fcheckedc-extension /TP -- %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=clcheck-cpp
 // clcheck-cpp: warning: Checked C extension not supported with 'C++'; ignoring '-fcheckedc-extension'
 //
