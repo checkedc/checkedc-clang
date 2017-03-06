@@ -8,6 +8,6 @@
 // RUN: %clang -c -fcheckedc-extension -x c %s
 //
 // Have clang-cl compile this file as a C file.
-// RUN: %clang_cl -c -Xclang -fcheckedc-extension /TC %s
+// RUN: %clang_cl -c -Xclang -fcheckedc-extension /TC -- %s
 
 void f() {}
