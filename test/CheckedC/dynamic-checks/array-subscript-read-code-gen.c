@@ -875,7 +875,7 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} 2
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
-  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG5]], i32 3
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG5]], {{i[0-9]+}} 3
   // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint i32* [[REG3]] to {{i[0-9]+}}
   // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint [3 x i32]* [[REG4]] to {{i[0-9]+}}
   // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp sle {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
