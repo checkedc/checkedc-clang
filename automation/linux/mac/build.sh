@@ -3,7 +3,7 @@
 set -ue
 set -o pipefail
 
-local script_dir=$(cd `dirname ${BASH_SOURCE[0]}`; pwd -P)
+script_dir=$(cd `dirname ${BASH_SOURCE[0]}`; pwd -P)
 
 NPROC=$(sysctl -n hw.ncpu)
 # NPROC_LIMIT defaults to 8. Export it to control the limit
