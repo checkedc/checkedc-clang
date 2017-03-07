@@ -2355,10 +2355,11 @@ public:
     return getSema().ActOnNullaryBoundsExpr(StartLoc, Kind, RParenLoc);
   }
 
-  ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc,
-                                    Expr *Lower, Expr *Upper,
+  ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc, Expr *Lower,
+                                    Expr *Upper, RelativeBoundsClause *Relative,
                                     SourceLocation RParenLoc) {
-    return getSema().ActOnRangeBoundsExpr(StartLoc, Lower, Upper, RParenLoc);
+    return getSema().CreateRangeBoundsExpr(StartLoc, Lower, Upper, Relative,
+                                           RParenLoc);
   }
 
   ExprResult RebuildInteropTypeBoundsAnnotation(SourceLocation StartLoc,
@@ -2370,7 +2371,7 @@ public:
   ExprResult RebuildPositionalParameterExpr(unsigned Index, QualType QT) {
     return getSema().CreatePositionalParameterExpr(Index, QT);
   }
-  \
+  
   /// \brief Build a new overloaded operator call expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11526,6 +11527,7 @@ TreeTransform<Derived>::TransformNullaryBoundsExpr(NullaryBoundsExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
+  RelativeBoundsClause *Relative;
   ExprResult LowerExpr = getDerived().TransformExpr(E->getLowerExpr());
   if (LowerExpr.isInvalid())
     return ExprError();
@@ -11533,6 +11535,11 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
   ExprResult UpperExpr = getDerived().TransformExpr(E->getUpperExpr());
   if (UpperExpr.isInvalid())
     return ExprError();
+  bool HasRelative = E->hasRelativeBoundsClause();
+  if (HasRelative) 
+    Relative = E->getRelativeBoundsClause();
+  else
+    Relative = nullptr;
 
   if (!getDerived().AlwaysRebuild() &&
       LowerExpr.get() == E->getLowerExpr() && 
@@ -11542,6 +11549,7 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
   return getDerived().RebuildRangeBoundsExpr(E->getStartLoc(),
                                              LowerExpr.get(),
                                              UpperExpr.get(),
+                                             Relative,
                                              E->getRParenLoc());
 }
 
