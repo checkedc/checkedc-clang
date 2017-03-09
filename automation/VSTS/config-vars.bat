@@ -1,9 +1,3 @@
-@if not defined SYSTEM_DEBUG (
-  echo off
-)
-
-@set MSBUILD_VERBOSITY=n
-
 rem 
 rem Validate and set configuration variables.   Other scripts should only 
 rem depend on variables printed at the end of this script.
@@ -14,6 +8,8 @@ rem that environment variables set by the system have been are present. When
 rem running it manually, the variables must be set by the user.
 
 rem Create configuration variables
+
+set MSBUILD_VERBOSITY=n
 
 rem Validate build configuration
 
