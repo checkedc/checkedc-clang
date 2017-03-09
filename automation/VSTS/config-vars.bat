@@ -1,9 +1,8 @@
 @if not defined SYSTEM_DEBUG (
   echo off
-  set MSBUILD_VERBOSITY=m
-) else (
-  set MSBUILD_VERBOSITY=n
 )
+
+@set MSBUILD_VERBOSITY=n
 
 rem 
 rem Validate and set configuration variables.   Other scripts should only 
