@@ -24,8 +24,8 @@ void f1(void) {
   // Global Array_Ptrs
   //
 
-  gp1[0] = 1;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  gp1[0] += 1;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -53,10 +53,12 @@ void f1(void) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 1, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 1
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  *gp1 = 2;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  *gp1 += 2;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -82,10 +84,12 @@ void f1(void) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NECT: store i32 2, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG5]], 2
+  // CHECK-IR-NEXT: store i32 [[REG6]], i32* [[REG1]]
 
-  gp3[0] = 3;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  gp3[0] += 3;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -113,10 +117,12 @@ void f1(void) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NECT: store i32 3, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 3
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  gp3[2] = 4;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  gp3[2] += 4;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -144,10 +150,13 @@ void f1(void) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NECT: store i32 4, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 4
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  *gp3 = 5;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+
+  *gp3 += 5;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -173,7 +182,10 @@ void f1(void) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 5, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 5
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG1]]
+
 
   // CHECK-IR: ret void
   // CHECK-IR: call void @llvm.trap
@@ -191,8 +203,8 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // Local Array_Ptrs
   //
 
-  lp1[0] = 1;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  lp1[0] += 1;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -220,10 +232,13 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 1, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 1
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  *lp1 = 2;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+
+  *lp1 += 2;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -249,10 +264,13 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 2, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 2
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG1]]
 
-  lp3[0] = 3;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+
+  lp3[0] += 3;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -280,10 +298,13 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 3, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 3
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  lp3[2] = 4;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+
+  lp3[2] += 4;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -311,10 +332,13 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 4, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 4
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  *lp3 = 5;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+
+  *lp3 += 5;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -340,7 +364,10 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 5, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 5
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG1]]
+
 
   // CHECK-IR: ret void
   // CHECK-IR: call void @llvm.trap
@@ -357,8 +384,8 @@ void f3(void) {
   // Global Checked Arrays
   //
 
-  ga1[0] = 1;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  ga1[0] += 1;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -382,10 +409,13 @@ void f3(void) {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 1, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 1
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
 
-  *ga1 = 2;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+
+  *ga1 += 2;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -408,10 +438,13 @@ void f3(void) {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 2, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 2
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
 
-  ga3[0] = 3;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+
+  ga3[0] += 3;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -435,10 +468,12 @@ void f3(void) {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 3, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 3
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
 
-  ga3[2] = 4;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  ga3[2] += 4;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -463,10 +498,12 @@ void f3(void) {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 4, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 2)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32*  getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 2)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 4
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32*  getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 2)
 
-  *ga3 = 5;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  *ga3 += 5;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -489,7 +526,9 @@ void f3(void) {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 5, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 5
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
 
   // CHECK-IR: ret void
   // CHECK-IR: call void @llvm.trap
@@ -507,8 +546,8 @@ void f4(int la1 _Checked[1],
   // Local Checked Arrays
   //
 
-  la1[0] = 1;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  la1[0] += 1;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -536,10 +575,12 @@ void f4(int la1 _Checked[1],
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 1, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 1
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  *la1 = 2;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  *la1 += 2;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -565,10 +606,12 @@ void f4(int la1 _Checked[1],
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 2, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 2
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG1]]
 
-  la3[0] = 3;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  la3[0] += 3;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -596,10 +639,12 @@ void f4(int la1 _Checked[1],
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 3, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 3
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  la3[2] = 4;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  la3[2] += 4;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -627,10 +672,12 @@ void f4(int la1 _Checked[1],
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 4, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 4
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG2]]
 
-  *la3 = 5;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  *la3 += 5;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} prefix '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -656,7 +703,9 @@ void f4(int la1 _Checked[1],
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 5, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG1]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 5
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* [[REG1]]
 
   // CHECK-IR: ret void
   // CHECK-IR: call void @llvm.trap
@@ -674,8 +723,8 @@ void f5() {
   // Global Multidimensional Checked Arrays
   //
 
-  gma[0][0] = 1;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  gma[0][0] += 1;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -702,10 +751,12 @@ void f5() {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 1, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 1
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
 
-  gma[2][2] = 2;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  gma[2][2] += 2;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -733,11 +784,13 @@ void f5() {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 2, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 2)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 2)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 2
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 2)
 
   // Valid Array Access
-  gma[0][5] = 3; // expected-warning {{index 5 is past the end of the array}}
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  gma[0][5] += 3; // expected-warning {{index 5 is past the end of the array}}
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -765,11 +818,13 @@ void f5() {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 3, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 1, {{i[0-9]+}} 2)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 1, {{i[0-9]+}} 2)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 3
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 1, {{i[0-9]+}} 2)
 
   // Also Valid
-  gma[2][-2] = 4; // expected-warning {{index -2 is before the beginning of the array}}
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  gma[2][-2] += 4; // expected-warning {{index -2 is before the beginning of the array}}
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -798,10 +853,12 @@ void f5() {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 4, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} -2)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} -2)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 4
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} -2)
 
-  **gma = 5;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  **gma += 5;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -826,10 +883,12 @@ void f5() {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 5, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 5
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0)
 
-  *gma[2] = 6;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  *gma[2] += 6;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -856,7 +915,9 @@ void f5() {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 6, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = load i32, i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 0)
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG6]], 6
+  // CHECK-IR-NEXT: store i32 [[REG7]], i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 0)
 
   // CHECK-IR: ret void
   // CHECK-IR: call void @llvm.trap
@@ -871,8 +932,8 @@ void f5() {
 // CHECK-IR: define void @f6
 void f6(int lma _Checked[3][3]) {
 
-  lma[0][0] = 1;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  lma[0][0] += 1;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -904,10 +965,12 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 1, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG8:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG7]], 1
+  // CHECK-IR-NEXT: store i32 [[REG8]], i32* [[REG3]]
 
-  lma[2][2] = 2;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  lma[2][2] += 2;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -939,11 +1002,13 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 2, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG8:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG7]], 2
+  // CHECK-IR-NEXT: store i32 [[REG8]], i32* [[REG3]]
 
   // Valid Array Access
-  lma[0][5] = 3;  // expected-warning {{index 5 is past the end of the array}}
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  lma[0][5] += 3;  // expected-warning {{index 5 is past the end of the array}}
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -975,11 +1040,13 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 3, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG8:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG7]], 3
+  // CHECK-IR-NEXT: store i32 [[REG8]], i32* [[REG3]]
 
   // Also Valid
-  lma[2][-2] = 4; // expected-warning {{index -2 is before the beginning of the array}}
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  lma[2][-2] += 4; // expected-warning {{index -2 is before the beginning of the array}}
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: ArraySubscript
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -1012,10 +1079,12 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 4, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG8:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG7]], 4
+  // CHECK-IR-NEXT: store i32 [[REG8]], i32* [[REG3]]
 
-  **lma = 5;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  **lma += 5;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -1044,10 +1113,12 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 5, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG2]]
+  // CHECK-IR-NEXT: [[REG8:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG7]], 5
+  // CHECK-IR-NEXT: store i32 [[REG8]], i32* [[REG2]]
 
-  *lma[2] = 6;
-  // CHECK-AST: BinaryOperator {{.*}} 'int' '='
+  *lma[2] += 6;
+  // CHECK-AST: CompoundAssignOperator {{.*}} 'int' '+='
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
@@ -1078,7 +1149,9 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 6, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG7:%[a-zA-Z0-9.]*]] = load i32, i32* [[REG3]]
+  // CHECK-IR-NEXT: [[REG8:%[a-zA-Z0-9.]*]] = add nsw i32 [[REG7]], 6
+  // CHECK-IR-NEXT: store i32 [[REG8]], i32* [[REG3]]
 
   // CHECK-IR: ret void
   // CHECK-IR: call void @llvm.trap
