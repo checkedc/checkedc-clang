@@ -2287,6 +2287,8 @@ public:
   void EmitExplicitDynamicCheck(const Expr *Condition);
   void EmitCheckedCSubscriptCheck(const LValue Addr, const BoundsExpr *Bounds);
   void EmitCheckedCDerefCheck(const LValue Addr, const BoundsExpr *Bounds);
+  void EmitCheckedCMemberCheck(const LValue Addr, const BoundsExpr *Bounds);
+  void EmitCheckedCArrowCheck(const LValue Addr, const BoundsExpr *Bounds);
   void EmitDynamicNonNullCheck(const LValue Addr);
   void EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr *Bounds);
 
