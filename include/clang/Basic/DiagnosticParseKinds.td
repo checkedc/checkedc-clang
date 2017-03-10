@@ -1069,8 +1069,8 @@ def err_expected_bounds_expr : Error<
 def err_expected_range_bounds_expr : Error<
   "expected range bounds expression">;
 
-def err_expected_relative_bounds_clause
-    : Error<"expected relative bounds expression">;
+def err_expected_bounds_expr_before_relative_bounds_clause
+    : Error<"expected range bounds expression before relative bounds clause">;
 
 def err_unexpected_return_relative_bounds_clause
     : Error<"unexpected parsing error while relative bounds clause parsing">;

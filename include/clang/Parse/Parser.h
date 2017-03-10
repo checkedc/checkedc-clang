@@ -1672,7 +1672,10 @@ private:
 
   bool StartsRelativeBoundsClause(Token &tok);
 
-  bool ParseRelativeBoundsClause(Expr *Expr);
+  bool ParseRelativeBoundsClause(ExprResult &Expr);
+
+  void SkipInvalidExprAndParseRelativeBoundsClause(ExprResult &Result,
+                                                   bool isBoundsorItype);
 
   ExprResult ParseBoundsExpression();
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);

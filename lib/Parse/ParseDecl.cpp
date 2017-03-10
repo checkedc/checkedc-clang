@@ -3748,6 +3748,10 @@ void Parser::ParseStructDeclaration(
         }
       } else {
         ExprResult Res(ParseConstantExpression());
+
+        if (getLangOpts().CheckedC && StartsRelativeBoundsClause(Tok))
+          ParseRelativeBoundsClause(Res);
+
         if (Res.isInvalid())
           SkipUntil(tok::semi, StopBeforeMatch);
         else
