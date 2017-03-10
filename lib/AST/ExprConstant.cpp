@@ -9442,7 +9442,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::InteropTypeBoundsAnnotationClass:
   case Expr::NullaryBoundsExprClass:
   case Expr::PositionalParameterExprClass:
-    // These are parameter variables and are never constants,
+  case Expr::RelativeBoundsExprClass:
+  // These are parameter variables and are never constants,
   case Expr::RangeBoundsExprClass:
     return ICEDiag(IK_NotICE, E->getLocStart());
 

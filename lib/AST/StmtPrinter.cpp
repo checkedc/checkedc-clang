@@ -1873,6 +1873,23 @@ void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
   OS << ", ";
   PrintExpr(Node->getUpperExpr());
   OS << ")";
+  if (Node->hasRelative()) {
+    OS << "rel_align(";
+    RelativeBoundsExpr *Expr = cast<RelativeBoundsExpr>(Node->getRelative());
+    (Expr->getTypeAsWritten()).print(OS, Policy);
+    OS << ")";
+  }
+}
+
+void StmtPrinter::VisitRelativeBoundsExpr(RelativeBoundsExpr *Node) {
+  BoundsExpr::Kind K = Node->getKind();
+  if (K == BoundsExpr::Kind::Invalid) {
+    OS << "invalid_range_bounds()";
+    return;
+  }
+  OS << "rel_align(";
+  (Node->getTypeAsWritten()).print(OS, Policy);
+  OS << ")";
 }
 
 void StmtPrinter::VisitInteropTypeBoundsAnnotation(

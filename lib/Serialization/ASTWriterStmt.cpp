@@ -948,6 +948,8 @@ void ASTStmtWriter::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   Record.push_back(E->getKind());
   Record.AddStmt(E->getLowerExpr());
   Record.AddStmt(E->getUpperExpr());
+  if (E->hasRelative())
+    Record.AddStmt(E->getRelative());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getRParenLoc());
   Code = serialization::EXPR_RANGE_BOUNDS_EXPR;
@@ -968,6 +970,15 @@ void ASTStmtWriter::VisitPositionalParameterExpr(
   VisitExpr(E);
   Record.push_back(E->getIndex());
   Code = serialization::EXPR_POSITIONAL_PARAMETER_EXPR;
+}
+
+void ASTStmtWriter::VisitRelativeBoundsExpr(RelativeBoundsExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getKind());
+  Record.AddTypeSourceInfo(E->getAlignTypeInfoAsWritten());
+  Record.AddSourceLocation(E->getStartLoc());
+  Record.AddSourceLocation(E->getRParenLoc());
+  Code = serialization::EXPR_RELATIVE_BOUNDS_EXPR;
 }
 
 //===----------------------------------------------------------------------===//

@@ -2355,10 +2355,17 @@ public:
     return getSema().ActOnNullaryBoundsExpr(StartLoc, Kind, RParenLoc);
   }
 
-  ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc,
-                                    Expr *Lower, Expr *Upper,
+  ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc, Expr *Lower,
+                                    Expr *Upper, Expr *Relative,
                                     SourceLocation RParenLoc) {
-    return getSema().ActOnRangeBoundsExpr(StartLoc, Lower, Upper, RParenLoc);
+    return getSema().CreateRangeBoundsExpr(StartLoc, Lower, Upper, Relative,
+                                           RParenLoc);
+  }
+
+  ExprResult RebuildRelativeBoundsExpr(SourceLocation StartLoc,
+                                       TypeSourceInfo *Ty,
+                                       SourceLocation RParenLoc) {
+    return getSema().CreateRelativeBoundsExpr(StartLoc, Ty, RParenLoc);
   }
 
   ExprResult RebuildInteropTypeBoundsAnnotation(SourceLocation StartLoc,
@@ -11526,6 +11533,7 @@ TreeTransform<Derived>::TransformNullaryBoundsExpr(NullaryBoundsExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
+  ExprResult Relative;
   ExprResult LowerExpr = getDerived().TransformExpr(E->getLowerExpr());
   if (LowerExpr.isInvalid())
     return ExprError();
@@ -11533,6 +11541,12 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
   ExprResult UpperExpr = getDerived().TransformExpr(E->getUpperExpr());
   if (UpperExpr.isInvalid())
     return ExprError();
+
+  if (E->hasRelative()) {
+    Relative = getDerived().TransformExpr(E->getRelative());
+    if (Relative.isInvalid())
+      return ExprError();
+  }
 
   if (!getDerived().AlwaysRebuild() &&
       LowerExpr.get() == E->getLowerExpr() && 
@@ -11542,6 +11556,7 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
   return getDerived().RebuildRangeBoundsExpr(E->getStartLoc(),
                                              LowerExpr.get(),
                                              UpperExpr.get(),
+                                             Relative.get(),
                                              E->getRParenLoc());
 }
 
@@ -11554,6 +11569,15 @@ TreeTransform<Derived>::TransformInteropTypeBoundsAnnotation(
   return getDerived().
     RebuildInteropTypeBoundsAnnotation(E->getStartLoc(), TInfo,
                                        E->getRParenLoc());
+}
+
+template <typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformRelativeBoundsExpr(RelativeBoundsExpr *E) {
+  TypeSourceInfo *TInfo =
+      getDerived().TransformType(E->getAlignTypeInfoAsWritten());
+  return getDerived().RebuildRelativeBoundsExpr(E->getStartLoc(), TInfo,
+                                                E->getRParenLoc());
 }
 
 template<typename Derived>

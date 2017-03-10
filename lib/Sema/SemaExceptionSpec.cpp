@@ -1199,6 +1199,7 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::InteropTypeBoundsAnnotationClass:
   case Expr::NullaryBoundsExprClass:
   case Expr::RangeBoundsExprClass:
+  case Expr::RelativeBoundsExprClass:
     llvm_unreachable("do not expect bounds expressions");
 
 #define STMT(CLASS, PARENT) case Expr::CLASS##Class:

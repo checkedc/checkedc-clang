@@ -12359,6 +12359,26 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
                                        RParenLoc);
 }
 
+ExprResult Sema::CreateRangeBoundsExpr(SourceLocation BoundsKWLoc,
+                                       Expr *LowerBound, Expr *UpperBound,
+                                       Expr *Relative,
+                                       SourceLocation RParenLoc) {
+  RangeBoundsExpr *Range = nullptr;
+  ExprResult Result =
+      ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound, UpperBound, RParenLoc);
+  Range = cast<RangeBoundsExpr>(Result.get());
+  Range->setRelativeBoundsExpr(Relative);
+  return Result;
+}
+
+ExprResult Sema::ActOnRelativeBoundsExpr(SourceLocation BoundsKWLoc,
+                                         ParsedType Ty,
+                                         SourceLocation RParneLoc) {
+  TypeSourceInfo *TyInfo = nullptr;
+  GetTypeFromParser(Ty, &TyInfo);
+  return CreateRelativeBoundsExpr(BoundsKWLoc, TyInfo, RParneLoc);
+}
+
 ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
                                         SourceLocation RParenLoc) {
   TypeSourceInfo *TInfo = nullptr;
@@ -12372,6 +12392,12 @@ ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInf
   QualType QT = TInfo->getType();
   return new (Context) InteropTypeBoundsAnnotation(QT, TypeKWLoc, RParenLoc,
                                                    TInfo);
+}
+
+ExprResult Sema::CreateRelativeBoundsExpr(SourceLocation BoundsKWLoc,
+                                          TypeSourceInfo *TyInfo,
+                                          SourceLocation RParenLoc) {
+  return new (Context) RelativeBoundsExpr(TyInfo, BoundsKWLoc, RParenLoc);
 }
 
 ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
