@@ -5,10 +5,10 @@
 // CHECK: warning: Checked C extension not supported with 'CUDA'; ignoring '-fcheckedc-extension'
 //
 // Have clang compile this file as a C file.
-// RUN: %clang -c -fcheckedc-extension -x c %s
+// RUN: %clang -c -fcheckedc-extension -x c -o %t %s
 //
 // Have clang-cl compile this file as a C file.
-// RUN: %clang_cl -c -Xclang -fcheckedc-extension /TC -- %s
+// RUN: %clang_cl -c -Xclang -fcheckedc-extension /TC /Fo%t -- %s
 
 void f() {}
 
