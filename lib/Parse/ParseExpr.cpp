@@ -2812,19 +2812,21 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
 ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                       bool IsReturn) {
   ExprResult Result(true);
-  bool isBoundsorItype = false;
+  bool isBoundsOrItype = false;
 
   if (StartsBoundsExpression(Tok)) {
     Result = ParseBoundsExpression();
-    isBoundsorItype = true;
-  }
-
-  if (StartsInteropTypeAnnotation(Tok)) {
+    isBoundsOrItype = true;
+  } else if (StartsInteropTypeAnnotation(Tok)) {
     Result = ParseInteropTypeAnnotation(D, IsReturn);
-    isBoundsorItype = true;
+    isBoundsOrItype = true;
   }
 
-  SkipInvalidExprAndParseRelativeBoundsClause(Result, isBoundsorItype);
+  if (StartsRelativeBoundsClause(Tok))
+    ParseRelativeBoundsClause(Result);
+
+  if (!isBoundsOrItype)
+    Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
 
   return Result;
 }
@@ -2922,39 +2924,6 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
-void Parser::SkipInvalidExprAndParseRelativeBoundsClause(ExprResult &Result,
-                                                         bool isBoundsorItype) {
-  Token Next;
-  if (!isBoundsorItype) {
-    Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
-    while (1) {
-      Next = NextToken();
-      BalancedDelimiterTracker PT(*this, tok::l_paren);
-      if (Tok.getKind() == tok::l_paren) {
-        PT.consumeOpen();
-        SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-        PT.consumeClose();
-      }
-
-      if (StartsRelativeBoundsClause(Tok)) {
-        ParseRelativeBoundsClause(Result);
-        ConsumeAnyToken();
-        break;
-      }
-
-      if (Tok.isOneOf(tok::equal, tok::r_paren, tok::semi, tok::comma,
-                      tok::l_brace)) {
-        break;
-      }
-      ConsumeAnyToken();
-    }
-  } else {
-    if (StartsRelativeBoundsClause(Tok)) {
-      ParseRelativeBoundsClause(Result);
-    }
-  }
-}
-
 bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
   bool IsError = false;
   RelativeBoundsClause *RelativeClause = nullptr;
@@ -2998,11 +2967,11 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
   }
 
   if (Expr.isInvalid()) {
-    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
     IsError = true;
     Diag(Tok, diag::err_expected_bounds_expr_before_relative_bounds_clause);
     return IsError;
   }
+
   if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
     Range->setRelativeBoundsClause(RelativeClause);
   } else {
@@ -3039,6 +3008,9 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
     Toks.push_back(Tok);
     ConsumeToken();
     Toks.push_back(Tok);
+    if (Tok.getKind() != tok::l_paren) {
+      return false;
+    }
     ConsumeParen();
     result = ConsumeAndStoreUntil(tok::r_paren, Toks, true);
   }
@@ -3048,7 +3020,9 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 /// Given a list of tokens that have the same shape as a bounds
 /// expression, parse them to create a bounds expression.  Delete
 /// the list of tokens at the end.
-ExprResult Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks) {
+ExprResult
+Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
+                                      Declarator &D) {
   Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();
@@ -3061,10 +3035,7 @@ ExprResult Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> T
                        // so it isn't lost.
   PP.EnterTokenStream(*Toks, true);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
-  ExprResult Result = ParseBoundsExpression();
-
-  if (StartsRelativeBoundsClause(Tok))
-    ParseRelativeBoundsClause(Result);
+  ExprResult Result = ParseBoundsExpressionOrInteropType(D);
 
   // There could be leftover tokens because of an error.
   // Skip through them until we reach the eof token.

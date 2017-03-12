@@ -1674,15 +1674,12 @@ private:
 
   bool ParseRelativeBoundsClause(ExprResult &Expr);
 
-  void SkipInvalidExprAndParseRelativeBoundsClause(ExprResult &Result,
-                                                   bool isBoundsorItype);
-
   ExprResult ParseBoundsExpression();
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
   ExprResult ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                 bool IsReturn=false);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
-  ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks);
+  ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,  Declarator &D);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
