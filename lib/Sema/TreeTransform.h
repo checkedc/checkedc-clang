@@ -2195,6 +2195,14 @@ public:
                                          SubExpr);
   }
 
+  ExprResult RebuildBoundsCastExpr(SourceLocation LParenLoc,
+                                   TypeSourceInfo *TInfo,
+                                   SourceLocation RParenLoc, Expr *SubExpr,
+                                   Expr *CountExpr, Expr *RangeExpr, BoundsCastExpr::Kind kind) {
+    return getSema().BuildBoundsCastExpr(LParenLoc, TInfo, RParenLoc, SubExpr,
+                                         CountExpr, RangeExpr,kind);
+  }
+
   /// \brief Build a new compound literal expression.
   ///
   /// By default, performs semantic analysis to build the new expression.
@@ -11562,6 +11570,31 @@ TreeTransform<Derived>::TransformInteropTypeBoundsAnnotation(
   return getDerived().
     RebuildInteropTypeBoundsAnnotation(E->getStartLoc(), TInfo,
                                        E->getRParenLoc());
+}
+
+template <typename Derived>
+ExprResult TreeTransform<Derived>::TransformBoundsCastExpr(BoundsCastExpr *E) {
+  TypeSourceInfo *Type = getDerived().TransformType(E->getTypeInfoAsWritten());
+  if (!Type)
+    return ExprError();
+
+  ExprResult SubExpr = getDerived().TransformExpr(E->getSubExprAsWritten());
+  if (SubExpr.isInvalid())
+    return ExprError();
+
+  ExprResult CountExpr = getDerived().TransformExpr(E->getCountExpr());
+
+  ExprResult RangeExpr = getDerived().TransformExpr(E->getRangeExpr());
+
+  BoundsCastExpr::Kind kind = E->getBoundsCastKind();
+
+  if (!getDerived().AlwaysRebuild() && Type == E->getTypeInfoAsWritten() &&
+      SubExpr.get() == E->getSubExpr())
+    return E;
+
+  return getDerived().RebuildBoundsCastExpr(
+      E->getLParenLoc(), Type, E->getRParenLoc(), SubExpr.get(),
+      CountExpr.get(), RangeExpr.get(), kind);
 }
 
 template<typename Derived>

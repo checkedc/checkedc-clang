@@ -4288,6 +4288,17 @@ public:
                                                     SourceLocation BoundsKWLoc,
                                                     SourceLocation RParenLoc);
 
+  ExprResult ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
+                                 Declarator &D, ParsedType &Ty,
+                                 SourceLocation RParenLoc, Expr *CastExpr,
+                                 Expr *CountExpr, Expr *RangeExpr,
+                                 BoundsCastExpr::Kind kind);
+
+  ExprResult BuildBoundsCastExpr(SourceLocation LParenLoc, TypeSourceInfo *Ty,
+                                 SourceLocation RParenLoc, Expr *CastExpr,
+                                 Expr *CountExpr, Expr *RangeExpr,
+                                 BoundsCastExpr::Kind kind);
+
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsExpr *Expr, bool IsReturnBounds);
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);

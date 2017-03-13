@@ -1499,7 +1499,8 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_ConstructorConversion:
   case CK_ToUnion:
     llvm_unreachable("scalar cast to non-scalar value");
-
+    
+  case CK_UnCheckedToChecked:
   case CK_LValueToRValue:
     assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");

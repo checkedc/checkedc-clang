@@ -3691,7 +3691,8 @@ recurse:
     Out << "v1U" << Kind.size() << Kind;
   }
   // Fall through to mangle the cast itself.
-      
+    
+  case Expr::BoundsCastExprClass:      
   case Expr::CStyleCastExprClass:
     mangleCastExpression(E, "cv");
     break;

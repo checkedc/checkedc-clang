@@ -1445,7 +1445,7 @@ namespace clang {
       EXPR_RANGE_BOUNDS_EXPR,      // RangeBoundsExpr
       EXPR_INTEROPTYPE_BOUNDS_ANNOTATION,// InteropTypeBoundsAnnotation
       EXPR_POSITIONAL_PARAMETER_EXPR, // PositionalParameterExpr
-
+      EXPR_BOUNDS_CAST,
       // OpenCL
       EXPR_ASTYPE,                 // AsTypeExpr
 

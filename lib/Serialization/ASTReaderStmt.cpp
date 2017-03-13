@@ -741,6 +741,14 @@ void ASTStmtReader::VisitCStyleCastExpr(CStyleCastExpr *E) {
   E->setRParenLoc(ReadSourceLocation(Record, Idx));
 }
 
+void ASTStmtReader::VisitBoundsCastExpr(BoundsCastExpr *E) {
+  VisitExplicitCastExpr(E);
+  E->setLParenLoc(ReadSourceLocation(Record, Idx));
+  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+  E->setCountExpr(Reader.ReadSubExpr());
+  E->setRangeExpr(Reader.ReadSubExpr());
+}
+
 void ASTStmtReader::VisitCompoundLiteralExpr(CompoundLiteralExpr *E) {
   VisitExpr(E);
   E->setLParenLoc(ReadSourceLocation(Record, Idx));
@@ -3251,6 +3259,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_CSTYLE_CAST:
       S = CStyleCastExpr::CreateEmpty(Context,
+                       /*PathSize*/ Record[ASTStmtReader::NumExprFields]);
+      break;
+      
+    case EXPR_BOUNDS_CAST:
+      S = BoundsCastExpr::CreateEmpty(Context,
                        /*PathSize*/ Record[ASTStmtReader::NumExprFields]);
       break;
 

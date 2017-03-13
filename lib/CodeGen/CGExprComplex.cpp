@@ -428,6 +428,7 @@ ComplexPairTy ComplexExprEmitter::EmitCast(CastKind CK, Expr *Op,
   case CK_NonAtomicToAtomic:
   case CK_NoOp:
   case CK_LValueToRValue:
+  case CK_UnCheckedToChecked:    
   case CK_UserDefinedConversion:
     return Visit(Op);
 

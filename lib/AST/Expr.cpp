@@ -1575,6 +1575,7 @@ bool CastExpr::CastConsistency() const {
 
   case CK_Dependent:
   case CK_LValueToRValue:
+  case CK_UnCheckedToChecked:    
   case CK_NoOp:
   case CK_AtomicToNonAtomic:
   case CK_NonAtomicToAtomic:
@@ -1669,7 +1670,6 @@ ImplicitCastExpr *ImplicitCastExpr::CreateEmpty(const ASTContext &C,
   return new (Buffer) ImplicitCastExpr(EmptyShell(), PathSize);
 }
 
-
 CStyleCastExpr *CStyleCastExpr::Create(const ASTContext &C, QualType T,
                                        ExprValueKind VK, CastKind K, Expr *Op,
                                        const CXXCastPath *BasePath,
@@ -1690,6 +1690,31 @@ CStyleCastExpr *CStyleCastExpr::CreateEmpty(const ASTContext &C,
   void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
   return new (Buffer) CStyleCastExpr(EmptyShell(), PathSize);
 }
+
+BoundsCastExpr *BoundsCastExpr::Create(const ASTContext &C, QualType T,
+                                       ExprValueKind VK, CastKind K, Expr *Op,
+                                       const CXXCastPath *BasePath,
+                                       TypeSourceInfo *WrittenTy,
+                                       SourceLocation L, SourceLocation R,
+                                       Expr *base, Expr *count, Expr *range,
+                                       Kind boundsCastKind) {
+  unsigned PathSize = (BasePath ? BasePath->size() : 0);
+  void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
+  BoundsCastExpr *E =
+      new (Buffer) BoundsCastExpr(T, VK, K, Op, PathSize, WrittenTy, L, R, base,
+                                  count, range, boundsCastKind);
+  if (PathSize)
+    std::uninitialized_copy_n(BasePath->data(), BasePath->size(),
+                              E->getTrailingObjects<CXXBaseSpecifier *>());
+  return E;
+}
+
+BoundsCastExpr *BoundsCastExpr::CreateEmpty(const ASTContext &C,
+                                            unsigned PathSize) {
+  void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
+  return new (Buffer) BoundsCastExpr(EmptyShell(), PathSize);
+}
+
 
 /// getOpcodeStr - Turn an Opcode enum value into the punctuation char it
 /// corresponds to, e.g. "<<=".
@@ -2984,6 +3009,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   } // Fall through.
   case ImplicitCastExprClass:
   case CStyleCastExprClass:
+  case BoundsCastExprClass:    
   case CXXStaticCastExprClass:
   case CXXReinterpretCastExprClass:
   case CXXConstCastExprClass:

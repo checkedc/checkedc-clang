@@ -505,6 +505,8 @@ void Parser::Initialize() {
     Ident_itype = &PP.getIdentifierTable().get("itype");
     Ident_rel_align = &PP.getIdentifierTable().get("rel_align");
     Ident_rel_align_value = &PP.getIdentifierTable().get("rel_align_value");
+    Ident_dynamic_bounds_cast = &PP.getIdentifierTable().get("dynamic_bounds_cast");
+    Ident_assume_bounds_cast = &PP.getIdentifierTable().get("assume_bounds_cast");
   } else {
     Ident_bounds = nullptr;
     Ident_byte_count = nullptr;
@@ -513,6 +515,8 @@ void Parser::Initialize() {
     Ident_itype = nullptr;
     Ident_rel_align = nullptr;
     Ident_rel_align_value = nullptr;
+    Ident_dynamic_bounds_cast = nullptr;
+    Ident_assume_bounds_cast = nullptr;
   }
 
   Ident__except = nullptr;

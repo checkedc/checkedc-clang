@@ -1018,6 +1018,10 @@ void StmtProfiler::VisitInteropTypeBoundsAnnotation(
   ID.AddInteger(S->getKind());
 }
 
+void StmtProfiler::VisitBoundsCastExpr(const BoundsCastExpr *S) {
+  VisitExplicitCastExpr(S);
+}
+
 void StmtProfiler::VisitPositionalParameterExpr(
   const PositionalParameterExpr *P) {
   VisitExpr(P);

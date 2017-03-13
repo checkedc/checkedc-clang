@@ -1903,6 +1903,13 @@ void StmtPrinter::VisitInteropTypeBoundsAnnotation(
   }
 }
 
+void StmtPrinter::VisitBoundsCastExpr(BoundsCastExpr *Node) {
+  OS << '(';
+  Node->getTypeAsWritten().print(OS, Policy);
+  OS << ')';
+  PrintExpr(Node->getSubExpr());
+}
+
 // PositionalParameterExpr is used in the representation of bounds
 // expressions that appear in function types.
 //

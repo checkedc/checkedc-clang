@@ -3669,6 +3669,7 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
   case CK_CPointerToObjCPointerCast:
   case CK_BlockPointerToObjCPointerCast:
   case CK_NoOp:
+  case CK_UnCheckedToChecked:    
   case CK_LValueToRValue:
     return EmitLValue(E->getSubExpr());
 

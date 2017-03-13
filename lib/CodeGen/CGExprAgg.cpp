@@ -683,7 +683,7 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
     RValue rvalue = RValue::getAggregate(valueAddr, atomicSlot.isVolatile());
     return EmitFinalDestCopy(valueType, rvalue);
   }
-
+  case CK_UnCheckedToChecked:
   case CK_LValueToRValue:
     // If we're loading from a volatile type, force the destination
     // into existence.

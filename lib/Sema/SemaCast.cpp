@@ -2627,6 +2627,43 @@ ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
                               &Op.BasePath, CastTypeInfo, LPLoc, RPLoc));
 }
 
+ExprResult Sema::BuildBoundsCastExpr(SourceLocation LPLoc,
+                                     TypeSourceInfo *CastTypeInfo,
+                                     SourceLocation RPLoc, Expr *BaseExpr,
+                                     Expr *CountExpr, Expr *RangeExpr,
+                                     BoundsCastExpr::Kind kind) {
+
+  CastOperation Op(*this, CastTypeInfo->getType(), BaseExpr);
+  Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
+  Op.OpRange = SourceRange(LPLoc, BaseExpr->getLocEnd());
+
+  Op.Kind = CastKind::CK_UnCheckedToChecked;
+
+  if (Op.SrcExpr.isInvalid())
+    return ExprError();
+
+  ExprResult ResCount = CorrectDelayedTyposInExpr(CountExpr);
+  ExprResult ResRange = CorrectDelayedTyposInExpr(RangeExpr);
+
+  if (ResCount.isUsable() && !ResRange.isUsable()) {
+    ExprResult Count = UsualUnaryConversions(CountExpr);
+    if (Count.isInvalid())
+      ExprError();
+    CountExpr = Count.get();
+    QualType ResultType = CountExpr->getType();
+    if (!ResultType->isIntegerType()) {
+      Diag(CountExpr->getLocStart(), diag::err_typecheck_count_bounds_expr)
+          << ResultType;
+      return ExprError();
+    }
+  }
+
+  return Op.complete(BoundsCastExpr::Create(
+      Context, Op.ResultType, Op.ValueKind, Op.Kind, Op.SrcExpr.get(),
+      &Op.BasePath, CastTypeInfo, LPLoc, RPLoc, BaseExpr, CountExpr, RangeExpr,
+      kind));
+}
+
 ExprResult Sema::BuildCXXFunctionalCastExpr(TypeSourceInfo *CastTypeInfo,
                                             SourceLocation LPLoc,
                                             Expr *CastExpr,

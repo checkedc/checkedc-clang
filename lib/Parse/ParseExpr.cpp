@@ -874,10 +874,19 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
       }
     }
 
-    // Consume the identifier so that we can see if it is followed by a '(' or
-    // '.'.
+    // Consume the identifier so that we can see if it is followed by a '(',
+    // '.' or '<'.
     IdentifierInfo &II = *Tok.getIdentifierInfo();
     SourceLocation ILoc = ConsumeToken();
+
+    // Parsing CheckedC bounds cast expression
+    if (getLangOpts().CheckedC) {
+      if (&II == Ident_dynamic_bounds_cast || &II == Ident_assume_bounds_cast) {
+        if (Tok.is(tok::less))
+          Res = ParseBoundsCastExpression(II, ILoc);
+	break;
+      }
+    }
 
     // Support 'Class.property' and 'super.property' notation.
     if (getLangOpts().ObjC1 && Tok.is(tok::period) &&
@@ -3005,6 +3014,107 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
   }
   PT.consumeClose();
   return IsError;
+}
+
+ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
+                                             SourceLocation &ILoc) {
+  ExprResult Result(true);
+  SourceLocation StartLoc = Tok.getLocation();
+  ParsedType CastTy = nullptr;
+  BoundsCastExpr::Kind kind;
+  if(&Ident == Ident_dynamic_bounds_cast)
+    kind = BoundsCastExpr::Kind::Dynamic;
+  else if (&Ident == Ident_assume_bounds_cast)
+    kind = BoundsCastExpr::Kind::Assume;
+  else
+    kind = BoundsCastExpr::Kind::Invalid;
+
+  DeclSpec DS(AttrFactory);
+  DS.SetRangeStart(Tok.getLocation());
+  DS.SetRangeEnd(SourceLocation());
+
+  if (ExpectAndConsume(tok::less, diag::err_expected_less_after,
+                       Ident.getNameStart()))
+    return ExprError();
+
+  TypeResult Ty = ParseTypeName();
+  if (Ty.isInvalid())
+    SkipUntil(tok::greater, StopAtSemi);
+
+  // if there is rel, parsing it.
+  // if(Tok.is(tok::comma)){
+  //   ConsumeToken();
+  //   Parsing Alignment
+  //   .....
+  // }
+
+  Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
+  ParseDeclarator(DeclaratorInfo);
+
+  SourceLocation EndLoc = Tok.getLocation();
+  if (ExpectAndConsume(tok::greater))
+    return ExprError(Diag(EndLoc, diag::note_matching) << tok::less);
+
+  DS.SetRangeEnd(EndLoc);
+
+  SourceLocation LParenLoc, RParenLoc;
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+
+  if (T.expectAndConsume(diag::err_expected_lparen_after, Ident.getNameStart()))
+    return ExprError();
+  LParenLoc = T.getOpenLocation();
+
+  // Parsing e1, e2, e3
+  ExprResult CastExpr(true), CountExpr(true), RangeExpr(true);
+
+  CastExpr = ParseCastExpression(true);
+  if (CastExpr.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+    return ExprError();
+  }
+
+  if (Tok.is(tok::comma)) {
+    ConsumeToken();
+    CountExpr = ParseAssignmentExpression();
+    if (!CountExpr.isInvalid())
+      CountExpr = Actions.CorrectDelayedTyposInExpr(CountExpr.get());
+    else {
+      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    }
+  }
+
+  if (Tok.is(tok::comma)) {
+    ConsumeToken();
+    RangeExpr = ParseAssignmentExpression();
+    if (!RangeExpr.isInvalid())
+      RangeExpr = Actions.CorrectDelayedTyposInExpr(RangeExpr.get());
+    else {
+      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    }
+  }
+
+  // Match the ')'.
+  T.consumeClose();
+  RParenLoc = T.getCloseLocation();
+
+  const char *PrevSpec = nullptr;
+  unsigned DiagID;
+  auto pointerKind = (RangeExpr.isInvalid() && CountExpr.isInvalid())
+                         ? TST_plainPtr
+                         : TST_arrayPtr;
+  if (DS.SetTypeSpecType(pointerKind, StartLoc, PrevSpec, DiagID, Ty.get(),
+                         Actions.getASTContext().getPrintingPolicy()))
+    Diag(StartLoc, DiagID) << PrevSpec;
+
+  DS.Finish(Actions, Actions.getASTContext().getPrintingPolicy());
+
+  Result = Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, DeclaratorInfo,
+                                       CastTy, RParenLoc, CastExpr.get(),
+                                       CountExpr.get(), RangeExpr.get(),kind);
+
+  return Result;
 }
 
 /// Consume and store tokens for an expression shaped like a bounds expression

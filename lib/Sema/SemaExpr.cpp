@@ -12449,6 +12449,39 @@ ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
   return new (Context) PositionalParameterExpr(Index, QT);
 }
 
+ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
+                                     Declarator &D, ParsedType &Ty,
+                                     SourceLocation RParenLoc, Expr *BaseExpr,
+                                     Expr *CountExpr, Expr *RangeExpr,
+                                     BoundsCastExpr::Kind kind) {
+  assert(!D.isInvalidType() && (BaseExpr != nullptr) &&
+         "ActOnBoundsCastExpr(): missing type or expr");
+
+  TypeSourceInfo *castTInfo = GetTypeForDeclaratorCast(D, BaseExpr->getType());
+
+  if (D.isInvalidType())
+    return ExprError();
+
+  ExprResult Res = CorrectDelayedTyposInExpr(BaseExpr);
+  if (!Res.isUsable())
+    return ExprError();
+  BaseExpr = Res.get();
+
+  checkUnusedDeclAttributes(D);
+
+  QualType castType = castTInfo->getType();
+  Ty = CreateParsedType(castType, castTInfo);
+
+  CheckTollFreeBridgeCast(castType, BaseExpr);
+
+  CheckObjCBridgeRelatedCast(castType, BaseExpr);
+
+  DiscardMisalignedMemberAddress(castType.getTypePtr(), BaseExpr);
+
+  return BuildBoundsCastExpr(LParenLoc, castTInfo, RParenLoc, BaseExpr,
+                             CountExpr, RangeExpr, kind);
+}
+
 //===----------------------------------------------------------------------===//
 // Clang Extensions.
 //===----------------------------------------------------------------------===//

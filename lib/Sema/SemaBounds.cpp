@@ -466,6 +466,7 @@ namespace {
         case CastKind::CK_IntegralToBoolean:
         case CastKind::CK_BooleanToSignedIntegral:
           return RValueBounds(E);
+        case CastKind::CK_UnCheckedToChecked:
         case CastKind::CK_LValueToRValue:
           return LValueTargetBounds(E);
         case CastKind::CK_ArrayToPointerDecay:
@@ -511,6 +512,43 @@ namespace {
             return CreateBoundsNone();
           }
           return RValueCastBounds(CE->getCastKind(), CE->getSubExpr());
+        }
+        case Expr::BoundsCastExprClass: {
+          BoundsCastExpr *CE = dyn_cast<BoundsCastExpr>(E);
+          if (!E) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsNone();
+          }
+
+	  clang::BoundsCastExpr::Kind kind = CE->getBoundsCastKind();
+          if (kind == clang::BoundsCastExpr::Assume) {
+            Expr *subExpr = CE->getSubExpr();
+            assert(subExpr->isLValue());
+            QualType QT = subExpr->getType();
+            Expr *Base =
+                CreateImplicitCast(QT, CastKind::CK_LValueToRValue, subExpr);
+            CE->setSubExpr(Base);
+            BoundsExpr *Bounds;
+            if (!CE->hasCountExpr() && !CE->hasRangeExpr()) {
+              Bounds = CreateSingleElementBounds(Base);
+            } else if (CE->hasCountExpr() && !CE->hasRangeExpr()) {
+              CountBoundsExpr CBE = CountBoundsExpr(
+                  BoundsExpr::Kind::ElementCount, CE->getCountExpr(),
+                  SourceLocation(), SourceLocation());
+              Bounds = ExpandToRange(Base, &CBE);
+            } else if (CE->hasCountExpr() && CE->hasRangeExpr()) {
+              Expr *LowerBounds = CE->getCountExpr();
+              Expr *UpperBounds = CE->getRangeExpr();
+              Bounds = new (Context) RangeBoundsExpr(
+                  LowerBounds, UpperBounds, SourceLocation(), SourceLocation());
+            }
+            CE->setBoundsExpr(Bounds);
+            return Bounds;
+          } else if(kind == clang::BoundsCastExpr::Dynamic) {
+            return CreateBoundsNone();	    
+	  } else {
+            return CreateBoundsNone();	    
+	  }
         }
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
