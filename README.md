@@ -1,28 +1,26 @@
 # The Checked C clang repo
 
-This repo contains a version of clang that is being modified to support Checked C.  Checked C is
-an extension to C that adds checking to detect or prevent common programming  errors such as
+This repo contains a version of clang that is being modified to support Checked C.  Checked C 
+extends C with checking to detect or prevent common programming  errors such as
 out-of-bounds memory accesses.  The Checked C specification is available  at the 
 [Checked C repo](https://github.com/Microsoft/checkedc).
 
+## Build Status
 
-The code for the Checked C version of LLVM/clang lives in two repos: the 
-[Checked C clang repo](https://github.com/Microsoft/checked-clang)
-and the [Checked C LLVM repo](https://github.com/Microsoft/checkedc-llvm).  Each repo is licensed 
-under the [University of Illinois/NCSA license](https://opensource.org/licenses/NCSA).
-The tests for Checked C live in the [Checked C repo](https://github.com/Microsoft/checkedc).  These are
-language conformance tests, so they are placed with the specification, not the compiler.
-The test code is licensed under the [MIT license](https://opensource.org/licenses/MIT).
-See the file LICENSE.TXT in each repo for complete details of licensing.  
+|Configuration|Testing|Status|
+|--------|---------------|-------|
+|Debug X86 Windows| Checked C and clang regression tests|![Debug X86 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/211/badge)|
+|Debug X64 Windows| Checked C and clang regression tests | |![Debug X64 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/211/badge)|
+|-------|---------------|--------|
 
 ## Trying out Checked C
 
 Programmers are welcome to ``kick the tires'' on Checked C as it is being implemented.
-You will have to build your own copy of the compiler for now (we are working on getting
-a nightly compiler build going):
+You will have to build your own copy of the compiler for now.  The compiler code and tests
+are in multiple repos.
 
-- [Setup and Build](docs/checkedc/Setup-and-Build.md) describes the organization of the code,
-how to set up a development machine to build clang, and how to build clang.
+- [Setup and Build](docs/checkedc/Setup-and-Build.md) describes the organization of the code
+and tests, how to set up a development machine to build clang, and how to build clang.
 - [Testing](docs/checkedc/Testing.md) describes how to test the compiler once you have built it.
 - The [Implementation Notes](docs/checkedc/Implementation-Notes.md) describe the implementation of Checked C
    in LLVM\clang.
