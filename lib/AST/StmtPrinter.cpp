@@ -1879,9 +1879,11 @@ void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
     if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
       OS << " rel_align(";
       (cast<RelativeTypeBoundsClause>(Expr)->getType()).print(OS, Policy);
-    } else {
+    } else if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Const) {
       OS << " rel_align_value(";
       PrintExpr(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
+    } else {
+      llvm_unreachable("unexpected kind field of relative bounds clause");
     }
     OS << ")";
   }
