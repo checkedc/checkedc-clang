@@ -10,8 +10,8 @@ out-of-bounds memory accesses.  The Checked C specification is available  at the
 |Configuration|Testing|Status|
 |--------|---------------|-------|
 |Debug X86 Windows| Checked C and clang regression tests|![Debug X86 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/211/badge)|
-|Debug X64 Windows| Checked C and clang regression tests | |![Debug X64 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/211/badge)|
-|-------|---------------|--------|
+|Debug X64 Windows| Checked C and clang regression tests| ![Debug X64 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/205/badge)|
+
 
 ## Trying out Checked C
 
