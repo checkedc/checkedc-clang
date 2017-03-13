@@ -65,8 +65,8 @@ phase is not applicable to the language feature.
 |Insertion of bounds checks  | -           | -             | -                      | In-progress   |
 |Insertion of null checks    | -           | -             | -                      | Not started   |
 |Checking correctness of bounds declarations | -   | -     | Not started            | -             |
-|Relative alignment of bounds declarations | Not started| _| Not started            | -             |
-|Checked blocks              | Not started | -             | Not started            | -             |
+|Relative alignment of bounds declarations | In progress| In progress| Not started            | -             |
+|Checked blocks              | In progress | -             | Not started            | -             |
 |New cast operators          | Not started | Not started   | Not started            | -             |
 
 This table describes features _not_ in the subset, in approximate order of priority of implementation.
