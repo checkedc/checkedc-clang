@@ -3748,6 +3748,10 @@ void Parser::ParseStructDeclaration(
         }
       } else {
         ExprResult Res(ParseConstantExpression());
+
+        if (getLangOpts().CheckedC && StartsRelativeBoundsClause(Tok))
+          ParseRelativeBoundsClause(Res);
+
         if (Res.isInvalid())
           SkipUntil(tok::semi, StopBeforeMatch);
         else
@@ -3867,7 +3871,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
             Actions.ActOnInvalidBoundsDecl(Field);
           else
             Actions.ActOnBoundsDecl(Field, BoundsAnnotation);
-        }
+	 }
       };
 
       // Parse all the comma separated declarators.
@@ -3921,11 +3925,14 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
                       T.getOpenLocation(), T.getCloseLocation(),
                       attrs.getList());
   // Parse the deferred bounds expressions
+  ParsingDeclSpec DS(*this);
+  ParsingFieldDeclarator DeclaratorsInfo(*this,DS);
   for (auto &Pair : deferredBoundsExpressions) {
     EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
     FieldDecl *FieldDecl = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
-    ExprResult Bounds = DeferredParseBoundsExpression(std::move(Tokens));
+    ExprResult Bounds =
+      DeferredParseBoundsExpression(std::move(Tokens),DeclaratorsInfo.D);
     if (Bounds.isInvalid())
       Actions.ActOnInvalidBoundsDecl(FieldDecl);
     else
@@ -6359,7 +6366,7 @@ void Parser::ParseParameterDeclarationClause(
   for (auto &Pair : deferredBoundsExpressions) {
     ParmVarDecl *Param = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
-    ExprResult Bounds = DeferredParseBoundsExpression(std::move(Tokens));
+    ExprResult Bounds = DeferredParseBoundsExpression(std::move(Tokens), D);
     if (Bounds.isInvalid())
       Actions.ActOnInvalidBoundsDecl(Param);
     else
