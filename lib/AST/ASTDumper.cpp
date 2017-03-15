@@ -2547,6 +2547,19 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   VisitExpr(Node);
   if (Node->getKind() != BoundsExpr::Kind::Range)
     dumpBoundsKind(Node->getKind());
+  if (Node->hasRelativeBoundsClause()) {
+    RelativeBoundsClause *Expr =
+        cast<RelativeBoundsClause>(Node->getRelativeBoundsClause());
+    OS << " rel_align : ";
+    if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
+      QualType Ty = cast<RelativeTypeBoundsClause>(Expr)->getType();
+      dumpType(Ty);
+    } else if (Expr->getClauseKind() == RelativeTypeBoundsClause::Kind::Const) {
+      dumpStmt(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
+    } else {
+      llvm_unreachable("unexpected kind field of relative bounds clause");
+    }
+  }
 }
 
 void ASTDumper::VisitInteropTypeBoundsAnnotation(

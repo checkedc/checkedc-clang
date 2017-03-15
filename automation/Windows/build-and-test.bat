@@ -56,13 +56,7 @@ call %DIRNAME%\run-cmake.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 echo.
-echo.Building clang
-
-call %DIRNAME%\build-clang.bat
-if ERRORLEVEL 1 (goto cmdfailed)
-
-echo.
-echo.Testing clang
+echo.Building and testing clang
 
 call %DIRNAME%\test-clang.bat
 if ERRORLEVEL 1 (goto cmdfailed)
@@ -72,7 +66,7 @@ if ERRORLEVEL 1 (goto cmdfailed)
   exit /b 0
 
 :cmdfailed
-  echo.Build and test failed.
+  echo.Build or testing failed.
   cd %OLD_DIR%
   exit /b 1
 

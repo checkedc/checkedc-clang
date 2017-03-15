@@ -8752,6 +8752,9 @@ def err_typecheck_ptr_arithmetic : Error<
 def err_typecheck_count_bounds_expr : Error<
   "invalid argument type %0 to count expression">;
 
+def err_typecheck_rel_align_bounds_clause : Error<
+  "invalid argument type %0 to rel_align_value expression">;
+
 def err_typecheck_byte_count_bounds_expr : Error<
   "invalid argument type %0 to byte_count expression">;
 

@@ -12359,6 +12359,52 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
                                        RParenLoc);
 }
 
+ExprResult Sema::CreateRangeBoundsExpr(SourceLocation BoundsKWLoc,
+                                       Expr *LowerBound, Expr *UpperBound,
+                                       RelativeBoundsClause *Relative,
+                                       SourceLocation RParenLoc) {
+  RangeBoundsExpr *Range = nullptr;
+  ExprResult Result =
+      ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound, UpperBound, RParenLoc);
+  if (Result.isInvalid())
+    return ExprError();
+  Range = cast<RangeBoundsExpr>(Result.get());
+  Range->setRelativeBoundsClause(Relative);
+  return Result;
+}
+
+RelativeBoundsClause* Sema::ActOnRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                         ParsedType Ty,
+                                         SourceLocation RParenLoc) {
+  TypeSourceInfo *TyInfo = nullptr;
+  GetTypeFromParser(Ty, &TyInfo);
+  return CreateRelativeTypeBoundsClause(BoundsKWLoc, TyInfo, RParenLoc);
+}
+
+RelativeBoundsClause *
+Sema::CreateRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                     TypeSourceInfo *TyInfo,
+                                     SourceLocation RParenLoc) {
+  QualType QT = TyInfo->getType();
+  return new (Context) RelativeTypeBoundsClause(QT, BoundsKWLoc, RParenLoc);
+}
+
+RelativeBoundsClause *
+Sema::ActOnRelativeConstExprClause(Expr *ConstExpr, SourceLocation BoundsKWLoc,
+                                   SourceLocation RParenLoc) {
+  ExprResult Result = UsualUnaryConversions(ConstExpr);
+  if (Result.isInvalid())
+    return nullptr;
+  ConstExpr = Result.get();
+  QualType ResultType = ConstExpr->getType();
+  if (!ResultType->isIntegerType()) {
+    Diag(ConstExpr->getLocStart(), diag::err_typecheck_rel_align_bounds_clause)<< ResultType;
+    return nullptr;
+  }
+  return new (Context)
+      RelativeConstExprBoundsClause(ConstExpr, BoundsKWLoc, RParenLoc);
+}
+
 ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
                                         SourceLocation RParenLoc) {
   TypeSourceInfo *TInfo = nullptr;
