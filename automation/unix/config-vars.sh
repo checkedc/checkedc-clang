@@ -8,8 +8,11 @@
 # that environment variables set by the system have been are present. When
 # running it manually, the variables must be set by the user.
 
-set -e
-set -o pipefail
+# This script has to be run in the context of the parent bash environment
+# to export envioronment variables, so set a status result instead of exiting 
+# if something goes wrong.
+
+CHECKEDC_CONFIG_STATUS="passed"
 
 # Create configuration variables
 
@@ -17,11 +20,11 @@ set -o pipefail
 
 if [ -z "$BUILDCONFIGURATION" ]; then
   echo "BUILDCONFIGURATION not set: must be set to set to one of Debug, Release, ReleaseWithDebInfo"
-  exit 1
+  CHECKEDC_CONFIG_STATUS="error"  
 elif [ "$BUILDCONFIGURATION" != "Debug" -a "$BUILDCONFIGURATION" != "Release" -a \
        "$BUILDCONFIGURATION" != "ReleaseWithDebInfo" ]; then
   echo "Unknown BUILDCONFIGURATION value $BUILDCONFIGURATION: must be one of Debug, Release, ReleaseWithDebInfo"
-  exit 1
+  CHECKEDC_CONFIG_STATUS="error" 
 fi
 
 # Validate build OS
@@ -30,7 +33,7 @@ if [ -z "$BUILDOS" ]; then
   export BUILDOS="Linux"
 elif [ "$BUILDOS" != "Linux" -a "$BUILDOS" != "WSL" ]; then
   echo "Unknown BUILDOS value $BUILDOS: must be Linux or WSL"
-  exit 1
+  CHECKEDC_CONFIG_STATUS="error" 
 fi
 
 # Validate or set target architecture for testing.
@@ -39,17 +42,17 @@ if [ -z "$TEST_TARGET_ARCH" ]; then
   export TEST_TARGET_ARCH="X86"
 elif [ "$TEST_TARGET_ARCH" != "X86" -a "$TEST_TARGET_ARCH" != "AMD64" ]; then
   echo "Unknown TEST_TARGET_ARCH value $TEST_TARGET_ARCH: must be X86 or AMD64"
-  exit 1
+  CHECKEDC_CONFIG_STATUS="error" 
 fi
 
 if [ -z $BUILD_BINARIESDIRECTORY ]; then
   echo "BUILD_BINARIESDIRECTORY not set.  Set it the directory that will contain the object directory."
-  exit 1
+  CHECKEDC_CONFIG_STATUS="error" 
 fi
 
 if [ -z $BUILD_SOURCESDIRECTORY ]; then
-   echo "BUILD_SOURCESDIRECTORY not set.  Set it the directory that will contain the sources directory."
-   exit 1
+  echo "BUILD_SOURCESDIRECTORY not set.  Set it the directory that will contain the sources directory."
+  CHECKEDC_CONFIG_STATUS="error" 
 fi
 
 export LLVM_OBJ_DIR="${BUILD_BINARIESDIRECTORY}/LLVM-${BUILDCONFIGURATION}-${TEST_TARGET_ARCH}-${BUILDOS}.obj"
@@ -58,11 +61,11 @@ export LLVM_OBJ_DIR="${BUILD_BINARIESDIRECTORY}/LLVM-${BUILDCONFIGURATION}-${TES
 
 if [ -z "$TEST_SUITE" ]; then
   echo "TEST_SUITE not set: must be set to one of CheckedC, CheckedC_clang, or CheckedC_LLVM"
-  exit 1
+  CHECKEDC_CONFIG_STATUS="error" 
 elif [ "$TEST_SUITE" != "CheckedC" -a "$TEST_SUITE" != "CheckedC_clang" -a \
        "$TEST_SUITE" != "CheckedC_LLVM" ]; then
   echo "Unknown TEST_SUITE value $TEST_SUITE: must be one of CheckedC, CheckedC_clang, or CheckedC_LLVM"
-  exit 1
+  CHECKEDC_CONFIG_STATUS="error" 
 fi
 
 # set up branch names
@@ -96,25 +99,28 @@ if [ -z "$BUILD_CPU_COUNT" ]; then
   export BUILD_CPU_COUNT=$(($NPROC/2))
 fi
 
-echo "Configured environment variables:"
-echo
-echo " BUILDCONFIGURATION: $BUILDCONFIGURATION"
-echo " BUILDOS: $BUILDOS"
-echo " TEST_TARGET_ARCH: $TEST_TARGET_ARCH"
-echo " TEST_SUITE: $TEST_SUITE"
-echo
-echo " Directories:"
-echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"
-echo "  LLVM_OBJ_DIR: $LLVM_OBJ_DIR"
-echo 
-echo " Branch and commit information:"
-echo "  CLANG_BRANCH: $CLANG_BRANCH"
-echo "  CLANG_COMMIT: $CLANG_COMMIT"
-echo "  LLVM_BRANCH: $LLVM_BRANCH"
-echo "  LLVM_COMMIT: $LLVM_COMMIT"
-echo "  CHECKEDC BRANCH: $CHECKEDC_BRANCH"
-echo "  CHECKEDC_COMMIT: $CHECKEDC_COMMIT"
-echo
-echo " BUILD_CPU_COUNT: $BUILD_CPU_COUNT"
+if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
+  echo "Configured environment variables:"
+  echo
+  echo " BUILDCONFIGURATION: $BUILDCONFIGURATION"
+  echo " BUILDOS: $BUILDOS"
+  echo " TEST_TARGET_ARCH: $TEST_TARGET_ARCH"
+  echo " TEST_SUITE: $TEST_SUITE"
+  echo
+  echo " Directories:"
+  echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"
+  echo "  LLVM_OBJ_DIR: $LLVM_OBJ_DIR"
+  echo 
+  echo " Branch and commit information:"
+  echo "  CLANG_BRANCH: $CLANG_BRANCH"
+  echo "  CLANG_COMMIT: $CLANG_COMMIT"
+  echo "  LLVM_BRANCH: $LLVM_BRANCH"
+  echo "  LLVM_COMMIT: $LLVM_COMMIT"
+  echo "  CHECKEDC BRANCH: $CHECKEDC_BRANCH"
+  echo "  CHECKEDC_COMMIT: $CHECKEDC_COMMIT"
+  echo
+  echo " BUILD_CPU_COUNT: $BUILD_CPU_COUNT"
+else
+  echo "Configuration of environment variables failed"
+fi
 
-exit 0
