@@ -1873,6 +1873,20 @@ void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
   OS << ", ";
   PrintExpr(Node->getUpperExpr());
   OS << ")";
+  if (Node->hasRelativeBoundsClause()) {
+    RelativeBoundsClause *Expr =
+        cast<RelativeBoundsClause>(Node->getRelativeBoundsClause());
+    if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
+      OS << " rel_align(";
+      (cast<RelativeTypeBoundsClause>(Expr)->getType()).print(OS, Policy);
+    } else if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Const) {
+      OS << " rel_align_value(";
+      PrintExpr(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
+    } else {
+      llvm_unreachable("unexpected kind field of relative bounds clause");
+    }
+    OS << ")";
+  }
 }
 
 void StmtPrinter::VisitInteropTypeBoundsAnnotation(

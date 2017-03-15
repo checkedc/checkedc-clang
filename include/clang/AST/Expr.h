@@ -4741,16 +4741,86 @@ public:
   }
 };
 
+class RelativeBoundsClause {
+public:
+  enum Kind {
+    Invalid = 0,
+    Type = 1,
+    Const = 2,
+    MaxRelativeKind = Const
+  };
+
+  RelativeBoundsClause(Kind ClauseKind, SourceLocation StartLoc,
+                       SourceLocation EndLoc)
+      : StartLoc(StartLoc), EndLoc(EndLoc), ClauseKind(ClauseKind) {}
+
+  SourceLocation getLocStart() const { return StartLoc; }
+
+  SourceLocation getLocEnd() const { return EndLoc; }
+
+  void setLocStart(SourceLocation Loc) { StartLoc = Loc; }
+
+  void setLocEnd(SourceLocation Loc) { EndLoc = Loc; }
+
+  Kind getClauseKind() const { return ClauseKind; }
+
+  void setClauseKind(Kind Kind) { ClauseKind = Kind; }
+
+  static bool classof(const RelativeBoundsClause *) { return true; }
+  
+  private:
+  SourceLocation StartLoc;
+  SourceLocation EndLoc;
+  Kind ClauseKind;
+};
+
+class RelativeTypeBoundsClause : public RelativeBoundsClause {
+private:
+  QualType Ty;
+
+public:
+  RelativeTypeBoundsClause(QualType Ty, SourceLocation StartLoc,
+                           SourceLocation RParenLoc)
+      : RelativeBoundsClause(Type, StartLoc, RParenLoc), Ty(Ty) {}
+
+  QualType getType() const { return Ty; }
+  void setType(QualType T){ Ty = T; }
+
+  static bool classof(const RelativeBoundsClause *T){
+    return (T->getClauseKind() == RelativeBoundsClause::Kind::Type);
+  }
+};
+
+class RelativeConstExprBoundsClause : public RelativeBoundsClause {
+private:
+  Stmt *ConstExpr;
+
+public:
+  RelativeConstExprBoundsClause(Expr *ConstExpr, SourceLocation StartLoc,
+                                SourceLocation RParenLoc)
+      : RelativeBoundsClause(Const, StartLoc, RParenLoc), ConstExpr(ConstExpr) {
+  }
+
+  Expr *getConstExpr() const { return cast<Expr>(ConstExpr); }
+  void setConstExpr(Expr *E) {ConstExpr = E;}
+
+  static bool classof(const RelativeBoundsClause *T){
+    return (T->getClauseKind() == RelativeBoundsClause::Kind::Const);
+  }
+};
+
 /// \brief Represents a Checked C range bounds expression.
 class RangeBoundsExpr : public BoundsExpr {
 private:
   enum { LOWER, UPPER, END_EXPR };
   Stmt *SubExprs[END_EXPR];
+  RelativeBoundsClause *RelativeClause;
 
 public:
   RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc,
                   SourceLocation RParenLoc)
-    : BoundsExpr(RangeBoundsExprClass, Range, StartLoc, RParenLoc) {
+      : BoundsExpr(RangeBoundsExprClass, Range, StartLoc, RParenLoc),
+        RelativeClause(nullptr) {
     SubExprs[LOWER] = Lower;
     SubExprs[UPPER] = Upper;
   }
@@ -4762,6 +4832,11 @@ public:
   void setLowerExpr(Expr *E) { SubExprs[LOWER] = E; }
   Expr *getUpperExpr() const { return cast<Expr>(SubExprs[UPPER]); }
   void setUpperExpr(Expr *E) { SubExprs[UPPER] = E; }
+  RelativeBoundsClause *getRelativeBoundsClause() const {
+    return RelativeClause;
+  }
+  void setRelativeBoundsClause(RelativeBoundsClause *E) { RelativeClause = E; }
+  bool hasRelativeBoundsClause() const { return RelativeClause != nullptr; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == RangeBoundsExprClass;

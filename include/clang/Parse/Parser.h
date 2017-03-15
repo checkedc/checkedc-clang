@@ -168,6 +168,12 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "itype"
   IdentifierInfo *Ident_itype;
 
+  /// \brief Identifier for "rel_align"
+  IdentifierInfo *Ident_rel_align;
+
+  /// \brief Identifier for "rel_align_value"
+  IdentifierInfo *Ident_rel_align_value;
+
   // C++ type trait keywords that can be reverted to identifiers and still be
   // used as type traits.
   llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertibleTypeTraits;
@@ -1664,12 +1670,16 @@ private:
   /// type annotation.
   bool StartsInteropTypeAnnotation(Token &tok);
 
+  bool StartsRelativeBoundsClause(Token &tok);
+
+  bool ParseRelativeBoundsClause(ExprResult &Expr);
+
   ExprResult ParseBoundsExpression();
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
   ExprResult ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                 bool IsReturn=false);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
-  ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks);
+  ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,  Declarator &D);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
