@@ -7,9 +7,9 @@ set -x
 cd ${LLVM_OBJ_DIR}
 make -j${BUILD_CPU_COUNT} check-checkedc
 
-if [ "${TEST_SUITE}" == "CheckedC_clang" ]
+if [ "${TEST_SUITE}" == "CheckedC_clang" ]; then
   make -j${BUILD_CPU_COUNT} check-clang
-elif [ "${TEST_SUITE}" == "CheckedC_LLVM" ]
+elif [ "${TEST_SUITE}" == "CheckedC_LLVM" ]; then
   make -j${BUILD_CPU_COUNT} check-all
 fi
 
