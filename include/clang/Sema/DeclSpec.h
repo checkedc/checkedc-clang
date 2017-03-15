@@ -355,6 +355,8 @@ private:
   unsigned FS_virtual_specified : 1;
   unsigned FS_explicit_specified : 1;
   unsigned FS_noreturn_specified : 1;
+  // Checked C - function specifier for checked function type
+  unsigned FS_checked_specified : 1;
 
   // friend-specifier
   unsigned Friend_specified : 1;
@@ -393,6 +395,8 @@ private:
       TQ_unalignedLoc;
   SourceLocation FS_inlineLoc, FS_virtualLoc, FS_explicitLoc, FS_noreturnLoc;
   SourceLocation FS_forceinlineLoc;
+  // Checked C - checked scope
+  SourceLocation FS_checkedLoc;
   SourceLocation FriendLoc, ModulePrivateLoc, ConstexprLoc, ConceptLoc;
   SourceLocation TQ_pipeLoc;
 
@@ -438,6 +442,8 @@ public:
       FS_virtual_specified(false),
       FS_explicit_specified(false),
       FS_noreturn_specified(false),
+      // Checked C
+      FS_checked_specified(false),
       Friend_specified(false),
       Constexpr_specified(false),
       Concept_specified(false),
@@ -576,6 +582,10 @@ public:
   bool isNoreturnSpecified() const { return FS_noreturn_specified; }
   SourceLocation getNoreturnSpecLoc() const { return FS_noreturnLoc; }
 
+  // Checked C - checked function
+  bool isCheckedSpecified() const { return FS_checked_specified; }
+  SourceLocation getCheckedSpecLoc() const { return FS_checkedLoc; }
+
   void ClearFunctionSpecs() {
     FS_inline_specified = false;
     FS_inlineLoc = SourceLocation();
@@ -587,6 +597,9 @@ public:
     FS_explicitLoc = SourceLocation();
     FS_noreturn_specified = false;
     FS_noreturnLoc = SourceLocation();
+    // Checked C
+    FS_checked_specified = false;
+    FS_checkedLoc = SourceLocation();
   }
 
   /// \brief Return true if any type-specifier has been found.
@@ -690,6 +703,9 @@ public:
                                unsigned &DiagID);
   bool setFunctionSpecNoreturn(SourceLocation Loc, const char *&PrevSpec,
                                unsigned &DiagID);
+  // Checked C - checked scope
+  bool setFunctionSpecChecked(SourceLocation Loc, const char *&PrevSpec,
+                              unsigned &DiagID);
 
   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                      unsigned &DiagID);
@@ -1164,7 +1180,7 @@ struct DeclaratorChunk {
     /// True if this dimension was [*].  In this case, NumElts is null.
     unsigned isStar : 1;
 
-    // True if this is a checked array.
+    // Checked C - True if this is a checked array.
     bool isChecked: 1;
 
     /// This is the size of the array, or null if [] or [*] was specified.

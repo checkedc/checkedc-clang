@@ -10621,6 +10621,62 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                                         << RHSExpr->getSourceRange();
 }
 
+
+//===--- CHECK: Checked scope -------------------------===//
+void Sema::DiagnoseCheckedDecl(const DeclStmt *DS) {
+  // Checked C - check consistency between compound stmt checked property
+  // and declaration type
+  DeclGroupRef DG = DS->getDeclGroup();
+  for (DeclGroupRef::const_iterator D = DG.begin(), DEnd = DG.end(); D != DEnd;
+       ++D) {
+    if (const VarDecl *VD = dyn_cast<VarDecl>(*D)) {
+      DiagnoseCheckedDecl(VD);
+    }
+  }
+}
+
+void Sema::DiagnoseCheckedDecl(const DeclaratorDecl *Decl) {
+  // Checked C - check consistency between checked property and declaration
+  const DeclaratorDecl *TargetDecl = nullptr;
+  int TypeKind;
+  QualType Ty;
+  if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(Decl)) {
+    TargetDecl = Parm;
+    TypeKind = 0; // function param type
+    Ty = Parm->getType();
+  }
+  else if (const FunctionDecl *Func = dyn_cast<FunctionDecl>(Decl)) {
+    TargetDecl = Func;
+    TypeKind = 1; // function return type
+    Ty = Func->getReturnType();
+  }
+  else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
+    TargetDecl = Var;
+    TypeKind = 2; // decl var type
+    Ty = Var->getType();
+  }
+  else if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl)) {
+    TargetDecl = Field;
+    TypeKind = 3; // member type
+    Ty = Field->getType();
+  }
+
+  bool checkedScopeError = false;
+  if (TargetDecl) {
+    // type is unchecked pointer w/o bounds-safe interface
+    // type is unchecked pointer & its bounds-safe interface is also unchecked
+    QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
+    if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
+        (InterOpTy.isNull() || (InterOpTy->isUncheckedPointerType() ||
+                                InterOpTy->isUncheckedArrayType())))
+      checkedScopeError = true;
+  }
+  if (checkedScopeError) {
+    Diag(TargetDecl->getLocStart(), diag::err_checked_scope_type) << TypeKind;
+  }
+}
+
+
 //===--- Layout compatibility ----------------------------------------------//
 
 namespace {

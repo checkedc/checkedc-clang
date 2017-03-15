@@ -1641,6 +1641,8 @@ private:
   unsigned HasImplicitReturnZero : 1;
   unsigned IsLateTemplateParsed : 1;
   unsigned IsConstexpr : 1;
+  // Checked C
+  unsigned IsChecked : 1;
 
   /// \brief Indicates if the function uses __try.
   unsigned UsesSEHTry : 1;
@@ -1718,25 +1720,21 @@ private:
 
 protected:
   FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
-               const DeclarationNameInfo &NameInfo,
-               QualType T, TypeSourceInfo *TInfo,
-               StorageClass S, bool isInlineSpecified,
+               const DeclarationNameInfo &NameInfo, QualType T,
+               TypeSourceInfo *TInfo, StorageClass S, bool isInlineSpecified,
                bool isConstexprSpecified)
-    : DeclaratorDecl(DK, DC, NameInfo.getLoc(), NameInfo.getName(), T, TInfo,
-                     StartLoc),
-      DeclContext(DK),
-      redeclarable_base(C),
-      ParamInfo(nullptr), Body(),
-      SClass(S),
-      IsInline(isInlineSpecified), IsInlineSpecified(isInlineSpecified),
-      IsVirtualAsWritten(false), IsPure(false), HasInheritedPrototype(false),
-      HasWrittenPrototype(true), IsDeleted(false), IsTrivial(false),
-      IsDefaulted(false), IsExplicitlyDefaulted(false),
-      HasImplicitReturnZero(false), IsLateTemplateParsed(false),
-      IsConstexpr(isConstexprSpecified), UsesSEHTry(false),
-      HasSkippedBody(false), EndRangeLoc(NameInfo.getEndLoc()),
-      TemplateOrSpecialization(),
-      DNLoc(NameInfo.getInfo()) {}
+      : DeclaratorDecl(DK, DC, NameInfo.getLoc(), NameInfo.getName(), T, TInfo,
+                       StartLoc),
+        DeclContext(DK), redeclarable_base(C), ParamInfo(nullptr), Body(),
+        SClass(S), IsInline(isInlineSpecified),
+        IsInlineSpecified(isInlineSpecified), IsVirtualAsWritten(false),
+        IsPure(false), HasInheritedPrototype(false), HasWrittenPrototype(true),
+        IsDeleted(false), IsTrivial(false), IsDefaulted(false),
+        IsExplicitlyDefaulted(false), HasImplicitReturnZero(false),
+        IsLateTemplateParsed(false), IsConstexpr(isConstexprSpecified),
+        UsesSEHTry(false), HasSkippedBody(false),
+        EndRangeLoc(NameInfo.getEndLoc()), TemplateOrSpecialization(),
+        DNLoc(NameInfo.getInfo()) {}
 
   typedef Redeclarable<FunctionDecl> redeclarable_base;
   FunctionDecl *getNextRedeclarationImpl() override {

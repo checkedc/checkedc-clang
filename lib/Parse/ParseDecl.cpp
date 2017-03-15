@@ -2814,7 +2814,9 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 
     case tok::l_square:
     case tok::kw_alignas:
+#if 0
     case tok::kw__Checked:
+#endif
       if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
         goto DoneWithDeclSpec;
 
@@ -2828,6 +2830,31 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       ParseCXX11Attributes(attrs);
       AttrsLastTime = true;
       continue;
+
+    case tok::kw__Checked:
+      // Checked C - checked array type, checked []
+      if (NextToken().is(tok::l_square)) {
+        if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
+          goto DoneWithDeclSpec;
+
+        ProhibitAttributes(attrs);
+        // FIXME: It would be good to recover by accepting the attributes,
+        //        but attempting to do that now would cause serious
+        //        madness in terms of diagnostics.
+        attrs.clear();
+        attrs.Range = SourceRange();
+
+        ParseCXX11Attributes(attrs);
+        AttrsLastTime = true;
+        continue;
+      } else if (NextToken().is(tok::l_brace)) {
+        // Checked C - checked scope, checked {}
+        assert(false);
+      } else {
+        // Checked C - checked function keyword, checked (specifier)
+        isInvalid = DS.setFunctionSpecChecked(Loc, PrevSpec, DiagID);
+        break;
+      }
 
     case tok::code_completion: {
       Sema::ParserCompletionContext CCC = Sema::PCC_Namespace;
@@ -5593,10 +5620,14 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
     if (Tok.is(tok::l_paren)) {
       // Enter function-declaration scope, limiting any declarators to the
       // function prototype scope, including parameter declarators.
-      ParseScope PrototypeScope(this,
-                                Scope::FunctionPrototypeScope|Scope::DeclScope|
-                                (D.isFunctionDeclaratorAFunctionDeclaration()
-                                   ? Scope::FunctionDeclarationScope : 0));
+      // Checked C - checked function
+      ParseScope PrototypeScope(
+          this,
+          Scope::FunctionPrototypeScope | Scope::DeclScope |
+              (D.isFunctionDeclaratorAFunctionDeclaration()
+                   ? Scope::FunctionDeclarationScope
+                   : 0) |
+              (D.getDeclSpec().isCheckedSpecified() ? Scope::CheckedScope : 0));
 
       // The paren may be part of a C++ direct initializer, eg. "int x(1);".
       // In such a case, check if we actually have a function declarator; if it
@@ -5617,12 +5648,24 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       ParseFunctionDeclarator(D, attrs, T, IsAmbiguous);
       PrototypeScope.Exit();
     }
+    // Checked C - it assumes that _Checked is used only for checked array type
+    // checked scope is added
+#if 0
     else if (Tok.is(tok::l_square) || Tok.is(tok::kw__Checked)) {
       ParseBracketDeclarator(D);
     } else {
       break;
     }
-  }
+#else
+    else if (Tok.is(tok::l_square) ||
+             (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_square))) {
+       // distinguish checked array from checked scope
+       ParseBracketDeclarator(D);
+     } else {
+       break;
+     }
+#endif
+   }
 }
 
 void Parser::ParseDecompositionDeclarator(Declarator &D) {
@@ -5791,10 +5834,14 @@ void Parser::ParseParenDeclarator(Declarator &D) {
 
   // Enter function-declaration scope, limiting any declarators to the
   // function prototype scope, including parameter declarators.
-  ParseScope PrototypeScope(this,
-                            Scope::FunctionPrototypeScope | Scope::DeclScope |
-                            (D.isFunctionDeclaratorAFunctionDeclaration()
-                               ? Scope::FunctionDeclarationScope : 0));
+  // Checked C - checked function
+  ParseScope PrototypeScope(
+      this,
+      Scope::FunctionPrototypeScope | Scope::DeclScope |
+          (D.isFunctionDeclaratorAFunctionDeclaration()
+               ? Scope::FunctionDeclarationScope
+               : 0) |
+          (D.getDeclSpec().isCheckedSpecified() ? Scope::CheckedScope : 0));
   ParseFunctionDeclarator(D, attrs, T, false, RequiresArg);
   PrototypeScope.Exit();
 }
@@ -6195,6 +6242,7 @@ void Parser::ParseParameterDeclarationClause(
 
     ParseDeclarationSpecifiers(DS);
 
+    // Checked C - checked function property is set in current scope
 
     // Parse the declarator.  This is "PrototypeContext" or 
     // "LambdaExprParameterContext", because we must accept either 
@@ -6236,7 +6284,8 @@ void Parser::ParseParameterDeclarationClause(
 
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.
-      ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
+      ParmVarDecl *Param =
+          Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
 
       // Parse an optional Checked C bounds expression or bounds-safe interface
       // type annotation.  Bounds expressions must be delay parsed because they

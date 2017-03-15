@@ -8521,6 +8521,24 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
+  // Checked C - checked function return type checking
+  if (D.getDeclSpec().isCheckedSpecified()) {
+    // current scope - function definition/body scope, checked propery is from
+    // checked function or checked scope
+    // Checked C - in checked function, check return/param type
+    // In checked scope, no prototype function is not allowed to use
+    DiagnoseCheckedDecl(NewFD);
+    for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
+      ParmVarDecl *PVD = NewFD->getParamDecl(I);
+      DiagnoseCheckedDecl(PVD);
+    }
+    // FTI.NumParams = number of formal parameter
+    // NewFD->getNumParams() = number of actual parameter
+    // f(void) - FIT.NumParams = 1, getNumParams() = 0
+    if (!D.getFunctionTypeInfo().NumParams)
+      Diag(NewFD->getLocStart(), diag::err_checked_scope_no_prototype_func);
+  }
+
   // Find all anonymous symbols defined during the declaration of this function
   // and add to NewFD. This lets us track decls such 'enum Y' in:
   //
@@ -11391,6 +11409,9 @@ ParmVarDecl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
   if (New->hasAttr<BlocksAttr>()) {
     Diag(New->getLocation(), diag::err_block_on_nonlocal);
   }
+  // Checked C - check consistency between checked property and param decl type
+  // For now, parameter interop type is not yet parsed
+  // This semantic checking is moved to ActOnFunctionDeclarator
   return New;
 }
 

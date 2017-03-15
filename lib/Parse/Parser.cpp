@@ -900,7 +900,11 @@ bool Parser::isStartOfFunctionDefinition(const ParsingDeclarator &Declarator) {
   assert(Declarator.isFunctionDeclarator() && "Isn't a function declarator");
   if (Tok.is(tok::l_brace))   // int X() {}
     return true;
-  
+
+  // Checked C - checked scope keyword
+  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)) // int X() checked {}
+    return true;
+
   // Handle K&R C argument lists: int X(f) int f; {}
   if (!getLangOpts().CPlusPlus &&
       Declarator.getFunctionTypeInfo().isKNRPrototype()) 
@@ -1062,10 +1066,13 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
 
   // We should have either an opening brace or, in a C++ constructor,
   // we may have a colon.
-  if (Tok.isNot(tok::l_brace) && 
-      (!getLangOpts().CPlusPlus ||
-       (Tok.isNot(tok::colon) && Tok.isNot(tok::kw_try) &&
-        Tok.isNot(tok::equal)))) {
+  // it is related to check function definition(isStartOfFunctionDefinition)
+  // Checked C - checked scope keyword
+  bool isChecked = (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace));
+  if (Tok.isNot(tok::l_brace) &&
+      !isChecked && (!getLangOpts().CPlusPlus ||
+                     (Tok.isNot(tok::colon) && Tok.isNot(tok::kw_try) &&
+                      Tok.isNot(tok::equal)))) {
     Diag(Tok, diag::err_expected_fn_body);
 
     // Skip over garbage, until we get to '{'.  Don't eat the '{'.
@@ -1096,8 +1103,13 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
       TemplateInfo.Kind == ParsedTemplateInfo::Template &&
       Actions.canDelayFunctionBody(D)) {
     MultiTemplateParamsArg TemplateParameterLists(*TemplateInfo.TemplateParams);
-    
-    ParseScope BodyScope(this, Scope::FnScope|Scope::DeclScope);
+
+    // Checked C - consider checked function definition
+    ParseScope BodyScope(this,
+                         Scope::FnScope | Scope::DeclScope |
+                             (D.getDeclSpec().isCheckedSpecified() || isChecked
+                                  ? Scope::CheckedScope
+                                  : 0));
     Scope *ParentScope = getCurScope()->getParent();
 
     D.setFunctionDefinitionKind(FDK_Definition);
@@ -1127,7 +1139,12 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
            (Tok.is(tok::l_brace) || Tok.is(tok::kw_try) ||
             Tok.is(tok::colon)) && 
       Actions.CurContext->isTranslationUnit()) {
-    ParseScope BodyScope(this, Scope::FnScope|Scope::DeclScope);
+    // Checked C - consider checked function definition
+    ParseScope BodyScope(this,
+                         Scope::FnScope | Scope::DeclScope |
+                             (D.getDeclSpec().isCheckedSpecified() || isChecked
+                                  ? Scope::CheckedScope
+                                  : 0));
     Scope *ParentScope = getCurScope()->getParent();
 
     D.setFunctionDefinitionKind(FDK_Definition);
@@ -1145,7 +1162,12 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   }
 
   // Enter a scope for the function body.
-  ParseScope BodyScope(this, Scope::FnScope|Scope::DeclScope);
+  // Checked C - consider checked function definition
+  ParseScope BodyScope(this,
+                       Scope::FnScope | Scope::DeclScope |
+                           (D.getDeclSpec().isCheckedSpecified() || isChecked
+                                ? Scope::CheckedScope
+                                : 0));
 
   // Tell the actions module that we have entered a function definition with the
   // specified Declarator for the function.
@@ -1265,8 +1287,11 @@ void Parser::ParseKNRParamDeclarations(Declarator &D) {
 
   // Enter function-declaration scope, limiting any declarators to the
   // function prototype scope, including parameter declarators.
-  ParseScope PrototypeScope(this, Scope::FunctionPrototypeScope |
-                            Scope::FunctionDeclarationScope | Scope::DeclScope);
+  ParseScope PrototypeScope(
+      this,
+      Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
+          Scope::DeclScope |
+          (D.getDeclSpec().isCheckedSpecified() ? Scope::CheckedScope : 0));
 
   // Read all the argument declarations.
   while (isDeclarationSpecifier()) {

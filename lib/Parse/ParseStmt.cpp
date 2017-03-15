@@ -21,6 +21,7 @@
 #include "clang/Sema/PrettyDeclStackTrace.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
+#include "clang/Sema/SemaDiagnostic.h"
 using namespace clang;
 
 //===----------------------------------------------------------------------===//
@@ -155,6 +156,7 @@ Parser::ParseStatementOrDeclarationAfterAttributes(StmtVector &Stmts,
   const char *SemiError = nullptr;
   StmtResult Res;
 
+  bool isChecked = false;
   // Cases in this switch statement should fall through if the parser expects
   // the token to end in a semicolon (in which case SemiError should be set),
   // or they directly 'return;' if not.
@@ -228,8 +230,15 @@ Retry:
   case tok::kw_default:             // C99 6.8.1: labeled-statement
     return ParseDefaultStatement();
 
+  case tok::kw__Checked:
+    // Checked C - check if checked scope keyword
+    assert(NextToken().is(tok::l_brace));
+    isChecked = true;
+    ConsumeToken();
+    goto Retry;
+
   case tok::l_brace:                // C99 6.8.2: compound-statement
-    return ParseCompoundStatement();
+    return ParseCompoundStatement(/*isStmtExpr*/false, isChecked);
   case tok::semi: {                 // C99 6.8.3p3: expression[opt] ';'
     bool HasLeadingEmptyMacro = Tok.hasLeadingEmptyMacro();
     return Actions.ActOnNullStmt(ConsumeToken(), HasLeadingEmptyMacro);
@@ -441,7 +450,7 @@ StmtResult Parser::ParseSEHTryBlock() {
     return StmtError(Diag(Tok, diag::err_expected) << tok::l_brace);
 
   StmtResult TryBlock(ParseCompoundStatement(/*isStmtExpr=*/false,
-                      Scope::DeclScope | Scope::SEHTryScope));
+                      (unsigned)(Scope::DeclScope | Scope::SEHTryScope)));
   if(TryBlock.isInvalid())
     return TryBlock;
 
@@ -826,8 +835,10 @@ StmtResult Parser::ParseDefaultStatement() {
                                   SubStmt.get(), getCurScope());
 }
 
-StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
-  return ParseCompoundStatement(isStmtExpr, Scope::DeclScope);
+StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, bool isChecked) {
+  return ParseCompoundStatement(
+      isStmtExpr,
+      (unsigned)(Scope::DeclScope | (isChecked ? Scope::CheckedScope : 0)));
 }
 
 /// ParseCompoundStatement - Parse a "{}" block.
@@ -854,7 +865,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 ///
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
                                           unsigned ScopeFlags) {
-  assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
+  assert(Tok.is(tok::l_brace) && "Not a compound stmt!");
 
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.
@@ -923,9 +934,22 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
 /// consume the '}' at the end of the block.  It does not manipulate the scope
 /// stack.
 StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
+  // Checked C - checked scope handling
+  // By default, compound statment has checked property value as false
+  // If checked scope is defined, it set checked property as true value
+  SourceLocation LBraceLoc;
+  if (Tok.is(tok::l_brace))
+    LBraceLoc = Tok.getLocation();
+  else {
+    LBraceLoc = NextToken().getLocation();
+    ConsumeToken();
+    assert(Tok.is(tok::l_brace));
+  }
+
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
-                                Tok.getLocation(),
+                                LBraceLoc,
                                 "in compound statement ('{}')");
+
 
   // Record the state of the FP_CONTRACT pragma, restore on leaving the
   // compound statement.
@@ -936,7 +960,12 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   if (T.consumeOpen())
     return StmtError();
 
+  // Checked C - compound checked property is from
+  // 1. checked function -> function definition scope -> compound statement
+  // 2. checked scope keyword -> scope -> compound statement
   Sema::CompoundScopeRAII CompoundScope(Actions);
+  if (getCurScope()->isCheckedScope())
+    CompoundScope.setCheckedScope();
 
   // Parse any pragmas at the beginning of the compound statement.
   ParseCompoundStatementLeadingPragmas();
@@ -1931,8 +1960,22 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
 }
 
 Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
+#if 0
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();
+#else
+  // To handle checked scope, it can have prefix checked keyword
+  // Checked C - checked function or checked scope keyword before function body
+  bool isChecked = false;
+  assert(Tok.is(tok::l_brace)
+      || (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)));
+  SourceLocation LBraceLoc;
+  if (Tok.is(tok::l_brace)) LBraceLoc = Tok.getLocation();
+  else {
+    isChecked = true;
+    LBraceLoc = NextToken().getLocation();
+  }
+#endif
 
   PrettyDeclStackTraceEntry CrashInfo(Actions, Decl, LBraceLoc,
                                       "parsing function body");
@@ -1951,6 +1994,8 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
+    if (isChecked)
+      CompoundScope.setCheckedScope();
     FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
   }
 
@@ -2068,8 +2113,8 @@ StmtResult Parser::ParseCXXTryBlockCommon(SourceLocation TryLoc, bool FnTry) {
     return StmtError(Diag(Tok, diag::err_expected) << tok::l_brace);
 
   StmtResult TryBlock(ParseCompoundStatement(/*isStmtExpr=*/false,
-                      Scope::DeclScope | Scope::TryScope |
-                        (FnTry ? Scope::FnTryCatchScope : 0)));
+                      (unsigned)(Scope::DeclScope | Scope::TryScope |
+                        (FnTry ? Scope::FnTryCatchScope : 0))));
   if (TryBlock.isInvalid())
     return TryBlock;
 

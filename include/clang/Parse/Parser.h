@@ -1744,7 +1744,8 @@ private:
   StmtResult ParseCaseStatement(bool MissingCase = false,
                                 ExprResult Expr = ExprResult());
   StmtResult ParseDefaultStatement();
-  StmtResult ParseCompoundStatement(bool isStmtExpr = false);
+  StmtResult ParseCompoundStatement(bool isStmtExpr = false,
+                                    bool isChecked = false);
   StmtResult ParseCompoundStatement(bool isStmtExpr,
                                     unsigned ScopeFlags);
   void ParseCompoundStatementLeadingPragmas();

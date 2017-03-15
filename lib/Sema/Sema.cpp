@@ -1167,7 +1167,12 @@ void Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
 }
 
 void Sema::PushCompoundScope() {
-  getCurFunction()->CompoundScopes.push_back(CompoundScopeInfo());
+  // Checked C - by default, it inherits the checking property of its parent
+  CompoundScopeInfo CSI;
+  if (!getCurFunction()->CompoundScopes.empty() &&
+      getCurCompoundScope().IsCheckedScope)
+    CSI.setCheckedScope();
+  getCurFunction()->CompoundScopes.push_back(CSI);
 }
 
 void Sema::PopCompoundScope() {

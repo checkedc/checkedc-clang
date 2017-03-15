@@ -1743,6 +1743,7 @@ public:
                                      LookupResult &Previous,
                                      MultiTemplateParamsArg TemplateParamLists,
                                      bool &AddToScope);
+
   bool AddOverriddenMethods(CXXRecordDecl *DC, CXXMethodDecl *MD);
 
   bool CheckConstexprFunctionDecl(const FunctionDecl *FD);
@@ -3420,6 +3421,10 @@ public:
       S.ActOnFinishOfCompoundStmt();
     }
 
+    void setCheckedScope() {
+      S.getCurCompoundScope().setCheckedScope();
+    }
+
   private:
     Sema &S;
   };
@@ -3657,6 +3662,10 @@ public:
   /// Warn if a value is moved to itself.
   void DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                         SourceLocation OpLoc);
+
+  /// Checked C - Error if decl is not checked type
+  void DiagnoseCheckedDecl(const DeclStmt *DS);
+  void DiagnoseCheckedDecl(const DeclaratorDecl *D);
 
   /// \brief Warn if we're implicitly casting from a _Nullable pointer type to a
   /// _Nonnull one.

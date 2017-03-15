@@ -914,6 +914,19 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
   return false;
 }
 
+bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
+                                      const char *&PrevSpec,
+                                      unsigned &DiagID) {
+  if (FS_checked_specified) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "checked";
+    return true;
+  }
+  FS_checked_specified = true;
+  FS_checkedLoc = Loc;
+  return false;
+}
+
 bool DeclSpec::SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                              unsigned &DiagID) {
   if (Friend_specified) {
