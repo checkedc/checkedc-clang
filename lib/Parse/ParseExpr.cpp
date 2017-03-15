@@ -2813,6 +2813,7 @@ ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                       bool IsReturn) {
   ExprResult Result(true);
   bool isBoundsOrItype = false;
+  Token TempTok = Tok;
 
   if (StartsBoundsExpression(Tok)) {
     Result = ParseBoundsExpression();
@@ -2826,7 +2827,7 @@ ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
     ParseRelativeBoundsClause(Result);
 
   if (!isBoundsOrItype)
-    Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
+    Diag(TempTok, diag::err_expected_bounds_expr_or_interop_type);
 
   return Result;
 }
