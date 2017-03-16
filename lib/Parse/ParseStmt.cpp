@@ -934,22 +934,9 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
 /// consume the '}' at the end of the block.  It does not manipulate the scope
 /// stack.
 StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
-  // Checked C - checked scope handling
-  // By default, compound statment has checked property value as false
-  // If checked scope is defined, it set checked property as true value
-  SourceLocation LBraceLoc;
-  if (Tok.is(tok::l_brace))
-    LBraceLoc = Tok.getLocation();
-  else {
-    LBraceLoc = NextToken().getLocation();
-    ConsumeToken();
-    assert(Tok.is(tok::l_brace));
-  }
-
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
-                                LBraceLoc,
+                                Tok.getLocation(),
                                 "in compound statement ('{}')");
-
 
   // Record the state of the FP_CONTRACT pragma, restore on leaving the
   // compound statement.
@@ -1960,22 +1947,8 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
 }
 
 Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
-#if 0
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();
-#else
-  // To handle checked scope, it can have prefix checked keyword
-  // Checked C - checked function or checked scope keyword before function body
-  bool isChecked = false;
-  assert(Tok.is(tok::l_brace)
-      || (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)));
-  SourceLocation LBraceLoc;
-  if (Tok.is(tok::l_brace)) LBraceLoc = Tok.getLocation();
-  else {
-    isChecked = true;
-    LBraceLoc = NextToken().getLocation();
-  }
-#endif
 
   PrettyDeclStackTraceEntry CrashInfo(Actions, Decl, LBraceLoc,
                                       "parsing function body");
@@ -1994,7 +1967,7 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    if (isChecked)
+    if (getCurScope()->isCheckedScope())
       CompoundScope.setCheckedScope();
     FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
   }

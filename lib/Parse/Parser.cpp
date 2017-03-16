@@ -1068,11 +1068,15 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   // we may have a colon.
   // it is related to check function definition(isStartOfFunctionDefinition)
   // Checked C - checked scope keyword
+  // checked scope is propagated further by scope property (CheckedScope)
+  // To parse correctly afterward, consume checked keyword 
   bool isChecked = (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace));
-  if (Tok.isNot(tok::l_brace) &&
-      !isChecked && (!getLangOpts().CPlusPlus ||
-                     (Tok.isNot(tok::colon) && Tok.isNot(tok::kw_try) &&
-                      Tok.isNot(tok::equal)))) {
+  if (isChecked) ConsumeToken();
+
+  if (Tok.isNot(tok::l_brace) && 
+      (!getLangOpts().CPlusPlus ||
+       (Tok.isNot(tok::colon) && Tok.isNot(tok::kw_try) &&
+        Tok.isNot(tok::equal)))) {
     Diag(Tok, diag::err_expected_fn_body);
 
     // Skip over garbage, until we get to '{'.  Don't eat the '{'.
@@ -1103,7 +1107,6 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
       TemplateInfo.Kind == ParsedTemplateInfo::Template &&
       Actions.canDelayFunctionBody(D)) {
     MultiTemplateParamsArg TemplateParameterLists(*TemplateInfo.TemplateParams);
-
     // Checked C - consider checked function definition
     ParseScope BodyScope(this,
                          Scope::FnScope | Scope::DeclScope |

@@ -125,7 +125,7 @@ public:
     /// We are currently in the filter expression of an SEH except block.
     SEHFilterScope = 0x200000,
 
-    /// Checked C - checked scope
+    /// Checked C - This scope corresponds to checked scope for checkedc
     CheckedScope = 0x400000,
   };
 private:

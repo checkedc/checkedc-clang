@@ -4080,9 +4080,9 @@ FunctionDecl *FunctionDecl::Create(ASTContext &C, DeclContext *DC,
                                    bool isInlineSpecified,
                                    bool hasWrittenPrototype,
                                    bool isConstexprSpecified) {
-  FunctionDecl *New = new (C, DC)
-      FunctionDecl(Function, C, DC, StartLoc, NameInfo, T, TInfo, SC,
-                   isInlineSpecified, isConstexprSpecified);
+  FunctionDecl *New =
+      new (C, DC) FunctionDecl(Function, C, DC, StartLoc, NameInfo, T, TInfo,
+                               SC, isInlineSpecified, isConstexprSpecified);
   New->HasWrittenPrototype = hasWrittenPrototype;
   return New;
 }

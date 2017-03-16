@@ -10637,6 +10637,8 @@ void Sema::DiagnoseCheckedDecl(const DeclStmt *DS) {
 
 void Sema::DiagnoseCheckedDecl(const DeclaratorDecl *Decl) {
   // Checked C - check consistency between checked property and declaration
+  // checked pointer type or unchecked pointer type with bounds-safe interface
+  // is only allowed in checked scope or funcion
   const DeclaratorDecl *TargetDecl = nullptr;
   int TypeKind;
   QualType Ty;

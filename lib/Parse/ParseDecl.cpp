@@ -2814,9 +2814,6 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 
     case tok::l_square:
     case tok::kw_alignas:
-#if 0
-    case tok::kw__Checked:
-#endif
       if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
         goto DoneWithDeclSpec;
 
@@ -2832,7 +2829,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       continue;
 
     case tok::kw__Checked:
-      // Checked C - checked array type, checked []
+      // Checked C - it is parsed as checked array or checked function keyword
+      // checked array type, checked []
       if (NextToken().is(tok::l_square)) {
         if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
           goto DoneWithDeclSpec;
@@ -2848,10 +2846,10 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         AttrsLastTime = true;
         continue;
       } else if (NextToken().is(tok::l_brace)) {
-        // Checked C - checked scope, checked {}
+        // checked scope, checked {}, it is not handled in specifier
         assert(false);
       } else {
-        // Checked C - checked function keyword, checked (specifier)
+        // checked function, it acts as function specifier
         isInvalid = DS.setFunctionSpecChecked(Loc, PrevSpec, DiagID);
         break;
       }
@@ -5648,15 +5646,9 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       ParseFunctionDeclarator(D, attrs, T, IsAmbiguous);
       PrototypeScope.Exit();
     }
-    // Checked C - it assumes that _Checked is used only for checked array type
-    // checked scope is added
-#if 0
-    else if (Tok.is(tok::l_square) || Tok.is(tok::kw__Checked)) {
-      ParseBracketDeclarator(D);
-    } else {
-      break;
-    }
-#else
+    // Checked C - checked keyword is used checked array type
+    // as well as checked scope
+    // distinguish checked array type from other uses of checked keyword
     else if (Tok.is(tok::l_square) ||
              (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_square))) {
        // distinguish checked array from checked scope
@@ -5664,7 +5656,6 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
      } else {
        break;
      }
-#endif
    }
 }
 
@@ -6242,7 +6233,6 @@ void Parser::ParseParameterDeclarationClause(
 
     ParseDeclarationSpecifiers(DS);
 
-    // Checked C - checked function property is set in current scope
 
     // Parse the declarator.  This is "PrototypeContext" or 
     // "LambdaExprParameterContext", because we must accept either 

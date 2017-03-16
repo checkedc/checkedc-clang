@@ -8905,8 +8905,7 @@ def err_bounds_type_annotation_lost_checking : Error<
 	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression}1">;
 
   def err_checked_scope_type : Error<
-    "checked scope limits %select{parameter type|return type|variable type|member type}0 to use checked pointer types or "
-    "unchecked pointer types with bounds-safe interfaces">;
+    "invalid %select{parameter type|return type|variable type|member type}0 in checked scope or function">;
 
   def err_checked_scope_no_prototype_func : Error<
     "checked scope prevents function with no prototype">;

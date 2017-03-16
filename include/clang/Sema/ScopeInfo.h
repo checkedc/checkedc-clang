@@ -60,7 +60,7 @@ public:
   /// with empty bodies.
   bool HasEmptyLoopBodies;
 
-  /// \brief Whether this compound statement is in checked scope or not
+  /// \brief Checked C, Whether this compound statement is in checked scope or not
   bool IsCheckedScope;
 
   void setHasEmptyLoopBodies() {

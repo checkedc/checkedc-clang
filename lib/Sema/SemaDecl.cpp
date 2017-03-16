@@ -11409,9 +11409,6 @@ ParmVarDecl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
   if (New->hasAttr<BlocksAttr>()) {
     Diag(New->getLocation(), diag::err_block_on_nonlocal);
   }
-  // Checked C - check consistency between checked property and param decl type
-  // For now, parameter interop type is not yet parsed
-  // This semantic checking is moved to ActOnFunctionDeclarator
   return New;
 }
 

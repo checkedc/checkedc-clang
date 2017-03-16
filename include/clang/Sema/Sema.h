@@ -1743,7 +1743,6 @@ public:
                                      LookupResult &Previous,
                                      MultiTemplateParamsArg TemplateParamLists,
                                      bool &AddToScope);
-
   bool AddOverriddenMethods(CXXRecordDecl *DC, CXXMethodDecl *MD);
 
   bool CheckConstexprFunctionDecl(const FunctionDecl *FD);
