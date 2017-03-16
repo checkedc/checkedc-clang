@@ -11,6 +11,7 @@ out-of-bounds memory accesses.  The Checked C specification is available  at the
 |--------|---------------|-------|
 |Debug X86 Windows| Checked C and clang regression tests|![Debug X86 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/211/badge)|
 |Debug X64 Windows| Checked C and clang regression tests| ![Debug X64 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/205/badge)|
+|Debug X64 Linux  | Checked C and clang regression tests| ![Debug X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/217/badge)|
 
 
 ## Trying out Checked C
@@ -56,7 +57,7 @@ phase is not applicable to the language feature.
 |----                        | ---         | ---           | ---                    | ----            |
 |`ptr` type                  | Done        | Done          | -                      | Done             |
 |`array_ptr` type           | Done        | Done          | -                      | Done (excluding checks) |
-|`checked` array type        | Done        | Done          | -                      | Done (excluding checks) |
+|`checked` array type       | Done        | Done          | -                      | Done (excluding checks) |
 |In-line bounds declarations | Done        | Done          | In-progress            | -            |
 |Bounds-safe interfaces      | Done        | Done          | Done                   | -            |
 |Function types with bounds-safe interfaces|Done | Done    | -                      | -             |
@@ -65,7 +66,7 @@ phase is not applicable to the language feature.
 |Insertion of bounds checks  | -           | -             | -                      | In-progress   |
 |Insertion of null checks    | -           | -             | -                      | Not started   |
 |Checking correctness of bounds declarations | -   | -     | Not started            | -             |
-|Relative alignment of bounds declarations | In progress| In progress| Not started            | -             |
+|Relative alignment of bounds declarations | Done  | Done  | Not started            | -             |
 |Checked blocks              | In progress | -             | Not started            | -             |
 |New cast operators          | Not started | Not started   | Not started            | -             |
 
