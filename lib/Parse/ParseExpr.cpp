@@ -2969,14 +2969,13 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
 
   if (Expr.isInvalid()) {
     IsError = true;
-    Diag(Tok, diag::err_expected_bounds_expr_before_relative_bounds_clause);
     return IsError;
   }
 
   if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
     Range->setRelativeBoundsClause(RelativeClause);
   } else {
-    Diag(Tok, diag::err_expected_bounds_expr_before_relative_bounds_clause);
+    Diag(Tok, diag::err_expected_range_bounds_expr);
     IsError = true;
   }
   PT.consumeClose();
