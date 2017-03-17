@@ -192,6 +192,7 @@ namespace {
   private:
     // TODO: be more flexible about where bounds expression are allocated.
     ASTContext &Context;
+    Sema &S;
 
     BoundsExpr *CreateBoundsNone() {
       return new (Context) NullaryBoundsExpr(BoundsExpr::Kind::None,
@@ -301,9 +302,20 @@ namespace {
                                           ExprObjectKind::OK_Ordinary,
                                           SourceLocation(),
                                           false);
-          return new (Context) RangeBoundsExpr(LowerBound, UpperBound,
-                                               SourceLocation(),
-                                               SourceLocation());
+
+          // In expansion count/byte_count to bounds expression,
+          // default alignment action is called
+          // ElementCount - x : count(l) = x : bounds(x, x+l)
+          // ResultTy = type of x
+          // ByteCount - x : byte_count(l) = x : bounds(array_ptr<char>x,
+          // array_ptr<char>x+l)
+          // ResultTy = array_ptr<char>
+          BoundsExpr *NewBounds = new (Context) RangeBoundsExpr(
+              LowerBound, UpperBound, SourceLocation(), SourceLocation());
+          ExprResult Result =
+              S.ActOnDefaultBoundsClause(NewBounds, ResultTy);
+          assert(!Result.isInvalid());
+          return NewBounds;
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
           return CreateBoundsNone();
@@ -313,7 +325,7 @@ namespace {
     }
 
   public:
-    BoundsInference(ASTContext &Ctx) : Context(Ctx) {
+    BoundsInference(ASTContext &Ctx, Sema &S) : Context(Ctx), S(S) {
     }
 
     // Compute bounds for a variable with an array type.
@@ -647,19 +659,19 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
 }
 
 BoundsExpr *Sema::InferLValueBounds(ASTContext &Ctx, Expr *E) {
-  return BoundsInference(Ctx).LValueBounds(E);
+  return BoundsInference(Ctx, *this).LValueBounds(E);
 }
 
 BoundsExpr *Sema::InferLValueTargetBounds(ASTContext &Ctx, Expr *E) {
-  return BoundsInference(Ctx).LValueTargetBounds(E);
+  return BoundsInference(Ctx, *this).LValueTargetBounds(E);
 }
 
 BoundsExpr *Sema::InferRValueBounds(ASTContext &Ctx, Expr *E) {
-  return BoundsInference(Ctx).RValueBounds(E);
+  return BoundsInference(Ctx, *this).RValueBounds(E);
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
-  return BoundsInference(getASTContext()).CreateBoundsForArrayType(QT);
+  return BoundsInference(getASTContext(), *this).CreateBoundsForArrayType(QT);
 }
 
 namespace {
@@ -1268,3 +1280,5 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
     }
   }
 }
+
+

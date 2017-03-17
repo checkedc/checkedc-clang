@@ -27,6 +27,7 @@
 #include "clang/Basic/Module.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/APSInt.h"
 using namespace clang;
 using namespace clang::comments;
 
@@ -2550,15 +2551,17 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   if (Node->hasRelativeBoundsClause()) {
     RelativeBoundsClause *Expr =
         cast<RelativeBoundsClause>(Node->getRelativeBoundsClause());
-    OS << " rel_align : ";
     if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
+      OS << " rel_align(";
       QualType Ty = cast<RelativeTypeBoundsClause>(Expr)->getType();
       dumpType(Ty);
     } else if (Expr->getClauseKind() == RelativeTypeBoundsClause::Kind::Const) {
+      OS << " rel_align_value(";
       dumpStmt(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
     } else {
       llvm_unreachable("unexpected kind field of relative bounds clause");
     }
+    OS << ")";
   }
 }
 

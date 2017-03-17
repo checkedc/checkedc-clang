@@ -2356,10 +2356,11 @@ public:
   }
 
   ExprResult RebuildRangeBoundsExpr(SourceLocation StartLoc, Expr *Lower,
-                                    Expr *Upper, RelativeBoundsClause *Relative,
+                                    Expr *Upper, RelativeBoundsClause *Default,
+                                    RelativeBoundsClause *Relative,
                                     SourceLocation RParenLoc) {
-    return getSema().CreateRangeBoundsExpr(StartLoc, Lower, Upper, Relative,
-                                           RParenLoc);
+    return getSema().CreateRangeBoundsExpr(StartLoc, Lower, Upper, Default,
+                                           Relative, RParenLoc);
   }
 
   ExprResult RebuildInteropTypeBoundsAnnotation(SourceLocation StartLoc,
@@ -11527,6 +11528,7 @@ TreeTransform<Derived>::TransformNullaryBoundsExpr(NullaryBoundsExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
+  RelativeBoundsClause *Default;
   RelativeBoundsClause *Relative;
   ExprResult LowerExpr = getDerived().TransformExpr(E->getLowerExpr());
   if (LowerExpr.isInvalid())
@@ -11535,8 +11537,11 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
   ExprResult UpperExpr = getDerived().TransformExpr(E->getUpperExpr());
   if (UpperExpr.isInvalid())
     return ExprError();
-  bool HasRelative = E->hasRelativeBoundsClause();
-  if (HasRelative) 
+  if (E->hasDefaultBoundsClause())
+    Default = E->getDefaultBoundsClause();
+  else
+    Default = nullptr;
+  if (E->hasRelativeBoundsClause())
     Relative = E->getRelativeBoundsClause();
   else
     Relative = nullptr;
@@ -11546,10 +11551,8 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
       UpperExpr.get() == E->getUpperExpr())
     return E;
 
-  return getDerived().RebuildRangeBoundsExpr(E->getStartLoc(),
-                                             LowerExpr.get(),
-                                             UpperExpr.get(),
-                                             Relative,
+  return getDerived().RebuildRangeBoundsExpr(E->getStartLoc(), LowerExpr.get(),
+                                             UpperExpr.get(), Default, Relative,
                                              E->getRParenLoc());
 }
 

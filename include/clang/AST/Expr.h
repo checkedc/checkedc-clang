@@ -4814,13 +4814,24 @@ class RangeBoundsExpr : public BoundsExpr {
 private:
   enum { LOWER, UPPER, END_EXPR };
   Stmt *SubExprs[END_EXPR];
+  RelativeBoundsClause *DefaultClause;
   RelativeBoundsClause *RelativeClause;
+  /// Relative alignment base : bounds(lb, ub) rel_align(T)
+  /// compiler checkes whether sizeof(referent-type(base)) is common factor of
+  /// sizeof(T)
+  /// \brief BALIGN(base align) is sizeof(referent-type(base)))
+  /// \breif RALIGN(relative align) is from relative alignment clause
+  /// if rel_align(T), RALIGN is sizeof(T)
+  /// if rel_align_value(E), RALIGN is constant expression E
+  llvm::APSInt DefaultAlign;
+  llvm::APSInt RelativeAlign;
 
 public:
   RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc,
                   SourceLocation RParenLoc)
       : BoundsExpr(RangeBoundsExprClass, Range, StartLoc, RParenLoc),
-        RelativeClause(nullptr) {
+        DefaultClause(nullptr), RelativeClause(nullptr), 
+        DefaultAlign(llvm::APSInt()), RelativeAlign(llvm::APSInt()) {
     SubExprs[LOWER] = Lower;
     SubExprs[UPPER] = Upper;
   }
@@ -4832,11 +4843,22 @@ public:
   void setLowerExpr(Expr *E) { SubExprs[LOWER] = E; }
   Expr *getUpperExpr() const { return cast<Expr>(SubExprs[UPPER]); }
   void setUpperExpr(Expr *E) { SubExprs[UPPER] = E; }
+  RelativeBoundsClause *getDefaultBoundsClause() const {
+    return RelativeClause;
+  }
   RelativeBoundsClause *getRelativeBoundsClause() const {
     return RelativeClause;
   }
+
+  void setDefaultBoundsClause(RelativeBoundsClause *E) { DefaultClause = E; }
+  bool hasDefaultBoundsClause() const { return DefaultClause != nullptr; }
   void setRelativeBoundsClause(RelativeBoundsClause *E) { RelativeClause = E; }
   bool hasRelativeBoundsClause() const { return RelativeClause != nullptr; }
+
+  llvm::APSInt getDefaultAlign() const { return DefaultAlign; }
+  llvm::APSInt getRelativeAlign() const { return RelativeAlign; }
+  void setDefaultAlign(llvm::APSInt V) { DefaultAlign = V; }
+  void setRelativeAlign(llvm::APSInt V) { RelativeAlign = V; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == RangeBoundsExprClass;

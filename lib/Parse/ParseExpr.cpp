@@ -2948,13 +2948,14 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
   }
 
   if (Ident == Ident_rel_align) {
+    SourceLocation TypeLoc = Tok.getLocation();
     TypeResult ResultTy = ParseTypeName();
     if (ResultTy.isInvalid()) {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       IsError = true;
     } else
       RelativeClause = Actions.ActOnRelativeTypeBoundsClause(
-          BoundsKWLoc, ResultTy.get(), Tok.getLocation());
+          BoundsKWLoc, TypeLoc, ResultTy.get(), Tok.getLocation());
   } else if (Ident == Ident_rel_align_value) {
     ConstExpr = ParseConstantExpression();
     if (ConstExpr.isInvalid()) {
@@ -2977,7 +2978,14 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
   }
 
   if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
-    Range->setRelativeBoundsClause(RelativeClause);
+    llvm::APSInt Align;
+    if (RelativeClause) {
+      RelativeConstExprBoundsClause *RCBC =
+          dyn_cast<RelativeConstExprBoundsClause>(RelativeClause);
+      Actions.VerifyIntegerConstantExpression(RCBC->getConstExpr(), &Align);
+      Range->setRelativeBoundsClause(RelativeClause);
+      Range->setRelativeAlign(Align);
+    }
   } else {
     Diag(Tok, diag::err_expected_bounds_expr_before_relative_bounds_clause);
     IsError = true;

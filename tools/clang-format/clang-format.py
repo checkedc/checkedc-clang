@@ -68,6 +68,8 @@ def main():
 
   # Avoid flashing an ugly, ugly cmd prompt on Windows when invoking clang-format.
   startupinfo = None
+  reload(sys)
+  sys.setdefaultencoding('utf8')
   if sys.platform.startswith('win32'):
     startupinfo = subprocess.STARTUPINFO()
     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW

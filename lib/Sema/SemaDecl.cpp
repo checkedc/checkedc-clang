@@ -8481,6 +8481,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
         if (B) {
           B = ConcretizeFromFunctionType(B, ParamArray);
           Params[I]->setBoundsExpr(B);
+          ActOnDefaultBoundsClause(B, Params[I]->getType());
         }
       }
     }
@@ -8511,12 +8512,15 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       // the return type, and set the type return bounds to be invalid if it was
       // not.
       if (DeclaredReturnBounds && TypeReturnBounds &&
-          !TypeReturnBounds->isInvalid())
+          !TypeReturnBounds->isInvalid()) {
         NewFD->setBoundsExpr(DeclaredReturnBounds);
+        ActOnDefaultBoundsClause(DeclaredReturnBounds, NewFD->getReturnType());
+      }
       else {
         BoundsExpr *ReturnBounds = ConcretizeFromFunctionType(TypeReturnBounds,
                                                               Params);
         NewFD->setBoundsExpr(ReturnBounds);
+        ActOnDefaultBoundsClause(ReturnBounds, NewFD->getReturnType());
       }
     }
   }
@@ -11500,7 +11504,9 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
                                          Context.getAdjustedParameterType(T),
                                          TSInfo, SC, nullptr);
   if (T->isCheckedArrayType()) {
-     New->setBoundsExpr(CreateCountForArrayType(T));
+    BoundsExpr *BE = CreateCountForArrayType(T);
+    New->setBoundsExpr(BE);
+    ActOnDefaultBoundsClause(BE, New->getType());
   }
 
   // Parameters can not be abstract class types.
@@ -11813,10 +11819,13 @@ static void HandleVarDeclBounds(Sema &S, VarDecl *D, BoundsExpr *Expr) {
   if (!Old) {
     // There is no prior declaration, so there is nothing more to do.
     D->setBoundsExpr(Expr);
+    S.ActOnDefaultBoundsClause(Expr, D->getType());
     return;
   }
   SourceLocation BoundsLoc = Expr ? Expr->getStartLoc() : SourceLocation();
   BoundsExpr *OldBounds = Old->getBoundsExpr();
+  // for bounds equivalence check, adjust bounds expression to have alignment
+  S.ActOnDefaultBoundsClause(Expr, D->getType());
   if (diagnoseBoundsError(S, BoundsLoc, OldBounds, Expr,  Old, D,
                           Old->getType(), D->getType(),
                           Sema::CheckedCBoundsError::CCBE_Variable)) {
@@ -11864,6 +11873,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
 
   if (Expr && Expr->isInvalid()) {
     D->setBoundsExpr(Expr);
+    ActOnDefaultBoundsClause(Expr, D->getType());
     return;
   }
 
@@ -11906,8 +11916,10 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
   // before attaching the bounds.
   if (VD)
     HandleVarDeclBounds(*this, VD, Expr);
-  else
+  else {
     D->setBoundsExpr(Expr);
+    ActOnDefaultBoundsClause(Expr, D->getType());
+  }
 }
 
 void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
@@ -11916,6 +11928,7 @@ void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
 
   BoundsExpr *InvalidExpr = CreateInvalidBoundsExpr();
   D->setBoundsExpr(InvalidExpr);
+  ActOnDefaultBoundsClause(InvalidExpr, D->getType());
 }
 
 BoundsExpr *Sema::CreateInvalidBoundsExpr() {

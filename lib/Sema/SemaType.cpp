@@ -4545,8 +4545,11 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         if (ReturnBounds) {
           if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnBounds, true))
             ReturnBounds = S.CreateInvalidBoundsExpr();
-          else
+          else {
             ReturnBounds = S.AbstractForFunctionType(ReturnBounds, ParamInfo);
+            // adjust return bounds expression to have relative alignment
+            S.ActOnDefaultBoundsClause(ReturnBounds, T);
+          }
         }
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are
