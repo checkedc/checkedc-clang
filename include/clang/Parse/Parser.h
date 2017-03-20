@@ -1744,10 +1744,9 @@ private:
   StmtResult ParseCaseStatement(bool MissingCase = false,
                                 ExprResult Expr = ExprResult());
   StmtResult ParseDefaultStatement();
-  StmtResult ParseCompoundStatement(bool isStmtExpr = false,
+  StmtResult ParseCompoundStatement(bool isStmtExpr = false);
+  StmtResult ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
                                     bool isChecked = false);
-  StmtResult ParseCompoundStatement(bool isStmtExpr,
-                                    unsigned ScopeFlags);
   void ParseCompoundStatementLeadingPragmas();
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
@@ -1937,7 +1936,7 @@ private:
                           AccessSpecifier AS, DeclSpecContext DSC);
   void ParseEnumBody(SourceLocation StartLoc, Decl *TagDecl);
   void ParseStructUnionBody(SourceLocation StartLoc, unsigned TagType,
-                            Decl *TagDecl);
+                            Decl *TagDecl, bool isChecked);
 
   void ParseStructDeclaration(
       ParsingDeclSpec &DS,

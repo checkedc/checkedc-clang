@@ -370,6 +370,9 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
 
 /// EnterScope - Start a new scope.
 void Parser::EnterScope(unsigned ScopeFlags) {
+  // Checked C - inherit checked scope property from parent
+  if (getCurScope() && getCurScope()->isCheckedScope())
+    ScopeFlags |= Scope::CheckedScope;
   if (NumCachedScopes) {
     Scope *N = ScopeCache[--NumCachedScopes];
     N->Init(getCurScope(), ScopeFlags);
@@ -1071,7 +1074,8 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   // checked scope is propagated further by scope property (CheckedScope)
   // To parse correctly afterward, consume checked keyword 
   bool isChecked = (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace));
-  if (isChecked) ConsumeToken();
+  if (isChecked)
+    ConsumeToken();
 
   if (Tok.isNot(tok::l_brace) && 
       (!getLangOpts().CPlusPlus ||

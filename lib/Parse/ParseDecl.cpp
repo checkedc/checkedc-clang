@@ -2835,8 +2835,9 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
           goto DoneWithDeclSpec;
       } else if (NextToken().is(tok::l_brace)) {
-        // checked scope, checked {}, it is not handled in specifier
-        assert(false);
+        // checked scope, checked {}, structure/union checked scope
+        // this checked scope keyword is parsed afterward
+        break;
       } else {
         // checked function, it acts as function specifier
         isInvalid = DS.setFunctionSpecChecked(Loc, PrevSpec, DiagID);
@@ -3800,7 +3801,7 @@ void Parser::ParseStructDeclaration(
 /// [OBC]   '@' 'defs' '(' class-name ')'
 ///
 void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
-                                  unsigned TagType, Decl *TagDecl) {
+                                  unsigned TagType, Decl *TagDecl, bool isChecked) {
   PrettyDeclStackTraceEntry CrashInfo(Actions, TagDecl, RecordLoc,
                                       "parsing struct/union body");
   assert(!getLangOpts().CPlusPlus && "C++ declarations not supported");
@@ -3809,7 +3810,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   if (T.consumeOpen())
     return;
 
-  ParseScope StructScope(this, Scope::ClassScope|Scope::DeclScope);
+  ParseScope StructScope(this, Scope::ClassScope | Scope::DeclScope |
+                                   (isChecked ? Scope::CheckedScope : 0));
   Actions.ActOnTagStartDefinition(getCurScope(), TagDecl);
 
   SmallVector<Decl *, 32> FieldDecls;
