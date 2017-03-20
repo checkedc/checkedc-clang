@@ -21,7 +21,6 @@
 #include "clang/Sema/PrettyDeclStackTrace.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
-#include "clang/Sema/SemaDiagnostic.h"
 using namespace clang;
 
 //===----------------------------------------------------------------------===//
@@ -238,7 +237,8 @@ Retry:
     goto Retry;
 
   case tok::l_brace:                // C99 6.8.2: compound-statement
-    return ParseCompoundStatement(/*isStmtExpr*/false, isChecked);
+    return ParseCompoundStatement(/*isStmtExpr*/ false, Scope::DeclScope,
+                                  isChecked);
   case tok::semi: {                 // C99 6.8.3p3: expression[opt] ';'
     bool HasLeadingEmptyMacro = Tok.hasLeadingEmptyMacro();
     return Actions.ActOnNullStmt(ConsumeToken(), HasLeadingEmptyMacro);
@@ -450,7 +450,7 @@ StmtResult Parser::ParseSEHTryBlock() {
     return StmtError(Diag(Tok, diag::err_expected) << tok::l_brace);
 
   StmtResult TryBlock(ParseCompoundStatement(/*isStmtExpr=*/false,
-                      (unsigned)(Scope::DeclScope | Scope::SEHTryScope)));
+                      Scope::DeclScope | Scope::SEHTryScope));
   if(TryBlock.isInvalid())
     return TryBlock;
 
@@ -835,10 +835,9 @@ StmtResult Parser::ParseDefaultStatement() {
                                   SubStmt.get(), getCurScope());
 }
 
-StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, bool isChecked) {
-  return ParseCompoundStatement(
-      isStmtExpr,
-      (unsigned)(Scope::DeclScope | (isChecked ? Scope::CheckedScope : 0)));
+StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
+  return ParseCompoundStatement(isStmtExpr, Scope::DeclScope,
+                                /*isChecked*/ false);
 }
 
 /// ParseCompoundStatement - Parse a "{}" block.
@@ -863,12 +862,13 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, bool isChecked) {
 /// [GNU] label-declaration:
 /// [GNU]   '__label__' identifier-list ';'
 ///
-StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
-                                          unsigned ScopeFlags) {
-  assert(Tok.is(tok::l_brace) && "Not a compound stmt!");
+StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
+                                          bool isChecked) {
+  assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
 
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.
+  ScopeFlags |= (isChecked ? Scope::CheckedScope : 0);
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
@@ -2086,7 +2086,7 @@ StmtResult Parser::ParseCXXTryBlockCommon(SourceLocation TryLoc, bool FnTry) {
     return StmtError(Diag(Tok, diag::err_expected) << tok::l_brace);
 
   StmtResult TryBlock(ParseCompoundStatement(/*isStmtExpr=*/false,
-                      (unsigned)(Scope::DeclScope | Scope::TryScope |
+                      (Scope::DeclScope | Scope::TryScope |
                         (FnTry ? Scope::FnTryCatchScope : 0))));
   if (TryBlock.isInvalid())
     return TryBlock;

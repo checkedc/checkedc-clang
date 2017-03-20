@@ -14218,6 +14218,8 @@ FieldDecl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
   FieldDecl *Res = HandleField(S, cast_or_null<RecordDecl>(TagD),
                                DeclStart, D, static_cast<Expr*>(BitfieldWidth),
                                /*InitStyle=*/ICIS_NoInit, AS_public);
+  if (S->isCheckedScope())
+    DiagnoseCheckedDecl(Res);
   return Res;
 }
 

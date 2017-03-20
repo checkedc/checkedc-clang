@@ -1527,12 +1527,16 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
+  // Checked C - checked scope keyword
+  bool isChecked = (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace));
   if (DSC == DSC_trailing)
     TUK = Sema::TUK_Reference;
-  else if (Tok.is(tok::l_brace) ||
+  else if (Tok.is(tok::l_brace) || isChecked ||
            (getLangOpts().CPlusPlus && Tok.is(tok::colon)) ||
            (isCXX11FinalKeyword() &&
             (NextToken().is(tok::l_brace) || NextToken().is(tok::colon)))) {
+    if (isChecked)
+      ConsumeToken();
     if (DS.isFriendSpecified()) {
       // C++ [class.friend]p2:
       //   A class shall not be defined in a friend declaration.
@@ -1819,7 +1823,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       ParseCXXMemberSpecification(StartLoc, AttrFixitLoc, attrs, TagType,
                                   TagOrTempResult.get());
     else
-      ParseStructUnionBody(StartLoc, TagType, TagOrTempResult.get());
+      ParseStructUnionBody(StartLoc, TagType, TagOrTempResult.get(), isChecked);
   }
 
   const char *PrevSpec = nullptr;
