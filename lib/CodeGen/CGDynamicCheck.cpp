@@ -30,7 +30,6 @@ STATISTIC(NumDynamicChecksRange,   "The # of dynamic bounds checks found");
 STATISTIC(NumDynamicChecksExplicit,  "The # of dynamic checks inserted from _Dynamic_check(cond)");
 STATISTIC(NumDynamicChecksDeref,     "The # of dynamic checks inserted from *exp");
 STATISTIC(NumDynamicChecksSubscript, "The # of dynamic checks inserted from exp[exp]");
-STATISTIC(NumDynamicChecksMember,    "The # of dynamic checks inserted from exp.f");
 STATISTIC(NumDynamicChecksArrow,     "The # of dynamic checks inserted from exp->f");
 
 //
@@ -76,18 +75,6 @@ void CodeGenFunction::EmitCheckedCDerefCheck(const LValue Addr,
 
   ++NumDynamicChecksFound;
   ++NumDynamicChecksDeref;
-
-  EmitDynamicBoundsCheck(Addr, Bounds);
-}
-
-void CodeGenFunction::EmitCheckedCMemberCheck(const LValue Addr,
-                                              const BoundsExpr *Bounds) {
-
-  if (Bounds->isAny() || Bounds->isInvalid())
-    return;
-
-  ++NumDynamicChecksFound;
-  ++NumDynamicChecksMember;
 
   EmitDynamicBoundsCheck(Addr, Bounds);
 }

@@ -3273,6 +3273,15 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
     QualType PtrTy = BaseExpr->getType()->getPointeeType();
     EmitTypeCheck(TCK_MemberAccess, E->getExprLoc(), Addr.getPointer(), PtrTy);
     BaseLV = MakeAddrLValue(Addr, PtrTy, AlignSource);
+
+    // We only check the Base LValue, as we assume that any field is definitely
+    // within the size of the struct. This may not be the case with a final
+    // zero-length array (https://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html)
+    // but this is an array, so is either unchecked, or is a checked array with
+    // its own bounds.
+    if (E->hasBoundsExpr())
+      EmitCheckedCArrowCheck(BaseLV, E->getBoundsExpr());
+
   } else
     BaseLV = EmitCheckedLValue(BaseExpr, TCK_MemberAccess);
 
