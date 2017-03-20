@@ -395,7 +395,7 @@ private:
       TQ_unalignedLoc;
   SourceLocation FS_inlineLoc, FS_virtualLoc, FS_explicitLoc, FS_noreturnLoc;
   SourceLocation FS_forceinlineLoc;
-  // Checked C - checked function
+  // Checked C - checked keyword location
   SourceLocation FS_checkedLoc;
   SourceLocation FriendLoc, ModulePrivateLoc, ConstexprLoc, ConceptLoc;
   SourceLocation TQ_pipeLoc;

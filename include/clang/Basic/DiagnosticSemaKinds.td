@@ -8908,7 +8908,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "invalid %select{parameter type|return type|variable type|member type}0 in checked scope or function">;
 
   def err_checked_scope_no_prototype_func : Error<
-    "checked scope prevents function with no prototype">;
+    "function without a prototype cannot be used or declared in a checked scope">;
 } // end of Checked C Category
 
 } // end of sema component.

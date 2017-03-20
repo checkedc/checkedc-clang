@@ -1101,6 +1101,13 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
     }
   }
 
+  // define function body scope flag to consider checked property
+  // If checked function specifier or keyword is used before function body,
+  // add CheckedScope flag into function body scope to propagate checked info.
+  unsigned fnBodyScopeFlag = Scope::FnScope | Scope::DeclScope;
+  if (D.getDeclSpec().isCheckedSpecified() || isChecked)
+    fnBodyScopeFlag |= Scope::CheckedScope;
+
   // In delayed template parsing mode, for function template we consume the
   // tokens and store them for late parsing at the end of the translation unit.
   if (getLangOpts().DelayedTemplateParsing && Tok.isNot(tok::equal) &&
@@ -1108,11 +1115,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
       Actions.canDelayFunctionBody(D)) {
     MultiTemplateParamsArg TemplateParameterLists(*TemplateInfo.TemplateParams);
     // Checked C - consider checked function definition
-    ParseScope BodyScope(this,
-                         Scope::FnScope | Scope::DeclScope |
-                             (D.getDeclSpec().isCheckedSpecified() || isChecked
-                                  ? Scope::CheckedScope
-                                  : 0));
+    ParseScope BodyScope(this, fnBodyScopeFlag);
     Scope *ParentScope = getCurScope()->getParent();
 
     D.setFunctionDefinitionKind(FDK_Definition);
@@ -1143,11 +1146,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
             Tok.is(tok::colon)) && 
       Actions.CurContext->isTranslationUnit()) {
     // Checked C - consider checked function definition
-    ParseScope BodyScope(this,
-                         Scope::FnScope | Scope::DeclScope |
-                             (D.getDeclSpec().isCheckedSpecified() || isChecked
-                                  ? Scope::CheckedScope
-                                  : 0));
+    ParseScope BodyScope(this, fnBodyScopeFlag);
     Scope *ParentScope = getCurScope()->getParent();
 
     D.setFunctionDefinitionKind(FDK_Definition);
@@ -1166,11 +1165,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
 
   // Enter a scope for the function body.
   // Checked C - consider checked function definition
-  ParseScope BodyScope(this,
-                       Scope::FnScope | Scope::DeclScope |
-                           (D.getDeclSpec().isCheckedSpecified() || isChecked
-                                ? Scope::CheckedScope
-                                : 0));
+  ParseScope BodyScope(this, fnBodyScopeFlag);
 
   // Tell the actions module that we have entered a function definition with the
   // specified Declarator for the function.

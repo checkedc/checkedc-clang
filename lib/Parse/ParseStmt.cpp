@@ -21,7 +21,6 @@
 #include "clang/Sema/PrettyDeclStackTrace.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/TypoCorrection.h"
-#include "clang/Sema/SemaDiagnostic.h"
 using namespace clang;
 
 //===----------------------------------------------------------------------===//
@@ -865,7 +864,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, bool isChecked) {
 ///
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
                                           unsigned ScopeFlags) {
-  assert(Tok.is(tok::l_brace) && "Not a compound stmt!");
+  assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
 
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.

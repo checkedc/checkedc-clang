@@ -2834,17 +2834,6 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       if (NextToken().is(tok::l_square)) {
         if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
           goto DoneWithDeclSpec;
-
-        ProhibitAttributes(attrs);
-        // FIXME: It would be good to recover by accepting the attributes,
-        //        but attempting to do that now would cause serious
-        //        madness in terms of diagnostics.
-        attrs.clear();
-        attrs.Range = SourceRange();
-
-        ParseCXX11Attributes(attrs);
-        AttrsLastTime = true;
-        continue;
       } else if (NextToken().is(tok::l_brace)) {
         // checked scope, checked {}, it is not handled in specifier
         assert(false);
@@ -6274,8 +6263,7 @@ void Parser::ParseParameterDeclarationClause(
 
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.
-      ParmVarDecl *Param =
-          Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
+      ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
 
       // Parse an optional Checked C bounds expression or bounds-safe interface
       // type annotation.  Bounds expressions must be delay parsed because they
