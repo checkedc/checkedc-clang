@@ -494,10 +494,6 @@ public:
     return true;
   }
 
-  void applyConstraintsForBounds(const ParmVarDecl *P, const BoundsExpr *B) {
-    return;
-  }
-
   bool VisitFunctionDecl(FunctionDecl *D) {
     FullSourceLoc FL = Context->getFullLoc(D->getLocStart());
 
@@ -512,20 +508,6 @@ public:
 
         // Visit the body of the function and build up information.
         FV.TraverseStmt(Body);
-      }
-
-      // Look at the declared parameters and see if there are any 
-      // Checked-C annotations on them. 
-      for (unsigned int i = 0; i < D->getNumParams(); i++) {
-        const ParmVarDecl *PD = D->getParamDecl(i);
-
-        if (PD->hasBoundsExpr()) {
-          const BoundsExpr *BE = PD->getBoundsExpr();
-          
-          // This parameter has a bounds expr, evaluate it to figure out 
-          // how we should constrain the parameter declaration. 
-          applyConstraintsForBounds(PD, BE); 
-        }
       }
     }
 
