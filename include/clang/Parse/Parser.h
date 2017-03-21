@@ -1674,6 +1674,8 @@ private:
 
   bool ParseRelativeBoundsClause(ExprResult &Expr);
 
+  void SkipInvalidBoundsExpr(Token &T);
+
   ExprResult ParseBoundsExpression();
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
   ExprResult ParseBoundsExpressionOrInteropType(const Declarator &D,
