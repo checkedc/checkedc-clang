@@ -3275,10 +3275,11 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
     BaseLV = MakeAddrLValue(Addr, PtrTy, AlignSource);
 
     // We only check the Base LValue, as we assume that any field is definitely
-    // within the size of the struct. This may not be the case with a final
-    // zero-length array (https://gcc.gnu.org/onlinedocs/gcc/Zero-Length.html)
-    // but this is an array, so is either unchecked, or is a checked array with
-    // its own bounds.
+    // within the size of the struct. This may not be the case with a "flexible
+    // array member" (6.7.2.1.18), but this member is an array, so is either
+    // unchecked, or is a checked array with its own bounds.
+    // A second reason for always checking the BaseLV is that it is the same for
+    // all the fields in the struct, so more of the checks should optimize away.
     if (E->hasBoundsExpr())
       EmitCheckedCArrowCheck(BaseLV, E->getBoundsExpr());
 
