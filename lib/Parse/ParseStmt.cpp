@@ -155,7 +155,6 @@ Parser::ParseStatementOrDeclarationAfterAttributes(StmtVector &Stmts,
   const char *SemiError = nullptr;
   StmtResult Res;
 
-  bool isChecked = false;
   // Cases in this switch statement should fall through if the parser expects
   // the token to end in a semicolon (in which case SemiError should be set),
   // or they directly 'return;' if not.
@@ -230,15 +229,12 @@ Retry:
     return ParseDefaultStatement();
 
   case tok::kw__Checked:
-    // Checked C - check if checked scope keyword
-    assert(NextToken().is(tok::l_brace));
-    isChecked = true;
-    ConsumeToken();
-    goto Retry;
+    // Checked C - expects l_brace after checked scope keyword
+    // when parsing statement, checked keyword is always before l_brace
+    return ParseCheckedScopeStatement();
 
   case tok::l_brace:                // C99 6.8.2: compound-statement
-    return ParseCompoundStatement(/*isStmtExpr*/ false, Scope::DeclScope,
-                                  isChecked);
+    return ParseCompoundStatement();
   case tok::semi: {                 // C99 6.8.3p3: expression[opt] ';'
     bool HasLeadingEmptyMacro = Tok.hasLeadingEmptyMacro();
     return Actions.ActOnNullStmt(ConsumeToken(), HasLeadingEmptyMacro);
@@ -835,9 +831,24 @@ StmtResult Parser::ParseDefaultStatement() {
                                   SubStmt.get(), getCurScope());
 }
 
+/// ParseCheckedScopeStatement - Parse a 'checked {' statement
+/// checked scope : checked { compound_stmt }
+StmtResult Parser::ParseCheckedScopeStatement() {
+  assert(Tok.is(tok::kw__Checked) && "Not a checked scope!");
+  SourceLocation CheckedLoc = ConsumeToken();
+  // expects 'checked {'
+  if (Tok.is(tok::l_brace)) {
+    return ParseCompoundStatement(false, Scope::DeclScope, /*isChecked*/ true);
+  }
+  else {
+    Diag(Tok, diag::err_expected_compound_stmt_after_checked_scope);
+    SkipUntil(tok::l_brace, StopAtSemi | StopBeforeMatch);
+    return StmtError();
+  }
+}
+
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
-  return ParseCompoundStatement(isStmtExpr, Scope::DeclScope,
-                                /*isChecked*/ false);
+  return ParseCompoundStatement(isStmtExpr, Scope::DeclScope);
 }
 
 /// ParseCompoundStatement - Parse a "{}" block.

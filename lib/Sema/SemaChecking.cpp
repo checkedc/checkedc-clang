@@ -10635,46 +10635,55 @@ void Sema::DiagnoseCheckedDecl(const DeclStmt *DS) {
   }
 }
 
+// type restrictions on declaration in checked blocks
 void Sema::DiagnoseCheckedDecl(const DeclaratorDecl *Decl) {
   // Checked C - check consistency between checked property and declaration
   // checked pointer type or unchecked pointer type with bounds-safe interface
   // is only allowed in checked scope or funcion
   const DeclaratorDecl *TargetDecl = nullptr;
-  int TypeKind;
+  int DeclKind;
   QualType Ty;
   if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(Decl)) {
     TargetDecl = Parm;
-    TypeKind = 0; // function param type
+    DeclKind = 0; // function param
     Ty = Parm->getType();
   }
   else if (const FunctionDecl *Func = dyn_cast<FunctionDecl>(Decl)) {
     TargetDecl = Func;
-    TypeKind = 1; // function return type
+    DeclKind = 1; // function return
     Ty = Func->getReturnType();
   }
   else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
     TargetDecl = Var;
-    TypeKind = 2; // decl var type
+    DeclKind = 2; // decl var
     Ty = Var->getType();
   }
   else if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl)) {
     TargetDecl = Field;
-    TypeKind = 3; // member type
+    DeclKind = 3; // member
     Ty = Field->getType();
   }
 
   bool checkedScopeError = false;
+  int TypeKind = 0;
   if (TargetDecl) {
     // type is unchecked pointer w/o bounds-safe interface
     // type is unchecked pointer & its bounds-safe interface is also unchecked
     QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
     if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
         (InterOpTy.isNull() || (InterOpTy->isUncheckedPointerType() ||
-                                InterOpTy->isUncheckedArrayType())))
+                                InterOpTy->isUncheckedArrayType()))) {
       checkedScopeError = true;
+      TypeKind =
+          (Ty->isUncheckedPointerType() &&
+                   (InterOpTy.isNull() || InterOpTy->isUncheckedPointerType())
+               ? 0
+               : 1);
+    }
   }
   if (checkedScopeError) {
-    Diag(TargetDecl->getLocStart(), diag::err_checked_scope_type) << TypeKind;
+    Diag(TargetDecl->getLocStart(), diag::err_checked_scope_type) << DeclKind
+                                                                  << TypeKind;
   }
 }
 
