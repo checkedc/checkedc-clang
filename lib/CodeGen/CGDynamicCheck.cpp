@@ -27,13 +27,11 @@ STATISTIC(NumDynamicChecksInserted, "The # of dynamic checks inserted");
 STATISTIC(NumDynamicChecksNonNull, "The # of dynamic non-null checks found");
 STATISTIC(NumDynamicChecksRange,   "The # of dynamic bounds checks found");
 
-STATISTIC(NumDynamicChecksExplicit,  "The # of dynamic checks inserted from _Dynamic_check(exp)");
+STATISTIC(NumDynamicChecksExplicit,  "The # of dynamic checks inserted from _Dynamic_check(cond)");
+STATISTIC(NumDynamicChecksDeref,     "The # of dynamic checks inserted from *exp");
 STATISTIC(NumDynamicChecksSubscript, "The # of dynamic checks inserted from exp[exp]");
 STATISTIC(NumDynamicChecksMember,    "The # of dynamic checks inserted from exp.f");
-STATISTIC(NumDynamicChecksDeref,     "The # of dynamic checks inserted from *exp");
-STATISTIC(NumDynamicChecksLValRead,  "The # of dynamic checks inserted from l-value reads");
-STATISTIC(NumDynamicChecksAssign,    "The # of dynamic checks inserted from x = exp, x += exp");
-STATISTIC(NumDynamicChecksIncrement, "The # of dynamic checks inserted from x++, x--, ++x, --x");
+STATISTIC(NumDynamicChecksArrow,     "The # of dynamic checks inserted from exp->f");
 
 //
 // Expression-specific dynamic check insertion
@@ -82,16 +80,40 @@ void CodeGenFunction::EmitCheckedCDerefCheck(const LValue Addr,
   EmitDynamicBoundsCheck(Addr, Bounds);
 }
 
+void CodeGenFunction::EmitCheckedCMemberCheck(const LValue Addr,
+                                              const BoundsExpr *Bounds) {
+
+  if (Bounds->isAny() || Bounds->isInvalid())
+    return;
+
+  ++NumDynamicChecksFound;
+  ++NumDynamicChecksMember;
+
+  EmitDynamicBoundsCheck(Addr, Bounds);
+}
+
+void CodeGenFunction::EmitCheckedCArrowCheck(const LValue Addr,
+                                             const BoundsExpr *Bounds) {
+  if (Bounds->isAny() || Bounds->isInvalid())
+    return;
+
+  ++NumDynamicChecksFound;
+  ++NumDynamicChecksArrow;
+
+  EmitDynamicBoundsCheck(Addr, Bounds);
+}
 
 //
 // General Functions for inserting dynamic checks
 //
 
+// This isn't called anywhere yet. Its logic will almost certainly need updating once
+// we start using it.
 void CodeGenFunction::EmitDynamicNonNullCheck(const LValue Addr) {
-  ++NumDynamicChecksNonNull;
-
   if (!Addr.getType()->isCheckedPointerType())
     return;
+
+  ++NumDynamicChecksNonNull;
 
   // We can't do constant evaluation here, because we can only be sure a value
   // is null, which would still need the check to be inserted.
