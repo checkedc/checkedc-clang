@@ -140,6 +140,7 @@ echo.  TEST_SUITE: %TEST_SUITE%
 echo.
 echo.  Directories:
 echo.    BUILD_SOURCESDIRECTORY: %BUILD_SOURCESDIRECTORY%
+echo.    BUILD_BINARIESDIRECTORY: %BUILD_BINARIESDIRECTORY%
 echo.    LLVM_OBJ_DIR: %LLVM_OBJ_DIR%
 echo.
 echo.  Branch and commit information:

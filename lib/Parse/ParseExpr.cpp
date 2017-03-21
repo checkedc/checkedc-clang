@@ -2973,7 +2973,6 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
 
   if (Expr.isInvalid()) {
     IsError = true;
-    Diag(Tok, diag::err_expected_bounds_expr_before_relative_bounds_clause);
     return IsError;
   }
 
@@ -2987,7 +2986,7 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
       Range->setRelativeAlign(Align);
     }
   } else {
-    Diag(Tok, diag::err_expected_bounds_expr_before_relative_bounds_clause);
+    Diag(Tok, diag::err_expected_range_bounds_expr);
     IsError = true;
   }
   PT.consumeClose();
