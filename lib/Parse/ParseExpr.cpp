@@ -2770,8 +2770,11 @@ bool Parser::StartsInteropTypeAnnotation(Token &T) {
 }
 
 bool Parser::StartsRelativeBoundsClause(Token &T) {
+  if (T.getKind() == tok::identifier) {
     IdentifierInfo *Ident = T.getIdentifierInfo();
     return (Ident == Ident_rel_align || Ident == Ident_rel_align_value);
+  }
+  return false;
 }
 
 ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn) {
@@ -3004,7 +3007,7 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
   }
   ConsumeParen();
   result = ConsumeAndStoreUntil(tok::r_paren, Toks, /*StopAtSemi=*/true);
-  if (Tok.getKind() == tok::identifier) {
+  if (StartsRelativeBoundsClause(Tok)) {
     Toks.push_back(Tok);
     ConsumeToken();
     Toks.push_back(Tok);

@@ -411,7 +411,7 @@ unsigned DeclSpec::getParsedSpecifiers() const {
     Res |= PQ_TypeSpecifier;
 
   if (FS_inline_specified || FS_virtual_specified || FS_explicit_specified ||
-      FS_noreturn_specified || FS_forceinline_specified)
+      FS_noreturn_specified || FS_forceinline_specified || FS_checked_specified)
     Res |= PQ_FunctionSpecifier;
   return Res;
 }
@@ -911,6 +911,19 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
   }
   FS_noreturn_specified = true;
   FS_noreturnLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
+                                      const char *&PrevSpec,
+                                      unsigned &DiagID) {
+  if (FS_checked_specified) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "checked";
+    return true;
+  }
+  FS_checked_specified = true;
+  FS_checkedLoc = Loc;
   return false;
 }
 

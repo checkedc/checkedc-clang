@@ -228,6 +228,11 @@ Retry:
   case tok::kw_default:             // C99 6.8.1: labeled-statement
     return ParseDefaultStatement();
 
+  case tok::kw__Checked:
+    // Checked C - expects l_brace after checked scope keyword
+    // when parsing statement, checked keyword is always before l_brace
+    return ParseCheckedScopeStatement();
+
   case tok::l_brace:                // C99 6.8.2: compound-statement
     return ParseCompoundStatement();
   case tok::semi: {                 // C99 6.8.3p3: expression[opt] ';'
@@ -826,6 +831,22 @@ StmtResult Parser::ParseDefaultStatement() {
                                   SubStmt.get(), getCurScope());
 }
 
+/// ParseCheckedScopeStatement - Parse a 'checked {' statement
+/// checked scope : checked { compound_stmt }
+StmtResult Parser::ParseCheckedScopeStatement() {
+  assert(Tok.is(tok::kw__Checked) && "Not a checked scope!");
+  SourceLocation CheckedLoc = ConsumeToken();
+  // expects 'checked {'
+  if (Tok.is(tok::l_brace)) {
+    return ParseCompoundStatement(false, Scope::DeclScope, /*isChecked*/ true);
+  }
+  else {
+    Diag(Tok, diag::err_expected_compound_stmt_after_checked_scope);
+    SkipUntil(tok::l_brace, StopAtSemi | StopBeforeMatch);
+    return StmtError();
+  }
+}
+
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
   return ParseCompoundStatement(isStmtExpr, Scope::DeclScope);
 }
@@ -852,12 +873,13 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 /// [GNU] label-declaration:
 /// [GNU]   '__label__' identifier-list ';'
 ///
-StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
-                                          unsigned ScopeFlags) {
+StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
+                                          bool isChecked) {
   assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
 
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.
+  ScopeFlags |= (isChecked ? Scope::CheckedScope : 0);
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
@@ -936,7 +958,12 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   if (T.consumeOpen())
     return StmtError();
 
+  // Checked C - compound checked property is from
+  // 1. checked function -> function definition scope -> compound statement
+  // 2. checked scope keyword -> scope -> compound statement
   Sema::CompoundScopeRAII CompoundScope(Actions);
+  if (getCurScope()->isCheckedScope())
+    CompoundScope.setCheckedScope();
 
   // Parse any pragmas at the beginning of the compound statement.
   ParseCompoundStatementLeadingPragmas();
@@ -1951,6 +1978,8 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
+    if (getCurScope()->isCheckedScope())
+      CompoundScope.setCheckedScope();
     FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
   }
 
@@ -2068,8 +2097,8 @@ StmtResult Parser::ParseCXXTryBlockCommon(SourceLocation TryLoc, bool FnTry) {
     return StmtError(Diag(Tok, diag::err_expected) << tok::l_brace);
 
   StmtResult TryBlock(ParseCompoundStatement(/*isStmtExpr=*/false,
-                      Scope::DeclScope | Scope::TryScope |
-                        (FnTry ? Scope::FnTryCatchScope : 0)));
+                      (Scope::DeclScope | Scope::TryScope |
+                        (FnTry ? Scope::FnTryCatchScope : 0))));
   if (TryBlock.isInvalid())
     return TryBlock;
 
