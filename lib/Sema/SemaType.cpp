@@ -3610,6 +3610,9 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
     TargetDecl = Field;
   else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl))
     TargetDecl = Var;
+  else if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(Decl)) {
+    TargetDecl = FD;
+  }
 
   QualType ResultType = QualType();
   if (!TargetDecl)

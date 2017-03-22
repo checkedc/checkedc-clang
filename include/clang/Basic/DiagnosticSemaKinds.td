@@ -8904,6 +8904,12 @@ def err_bounds_type_annotation_lost_checking : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
 	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression}1">;
 
+  def err_checked_scope_type : Error<
+    "%select{parameter|return|variable|member}0 cannot have an unchecked "
+    "%select{pointer|array}1 type in a checked scope or function">;
+
+  def err_checked_scope_no_prototype_func : Error<
+    "function without a prototype cannot be used or declared in a checked scope">;
 } // end of Checked C Category
 
 } // end of sema component.

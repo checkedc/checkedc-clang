@@ -2814,7 +2814,6 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 
     case tok::l_square:
     case tok::kw_alignas:
-    case tok::kw__Checked:
       if (!getLangOpts().CPlusPlus11 || !isCXX11AttributeSpecifier())
         goto DoneWithDeclSpec;
 
@@ -2828,6 +2827,21 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       ParseCXX11Attributes(attrs);
       AttrsLastTime = true;
       continue;
+
+    case tok::kw__Checked:
+      // Checked C - it is parsed as checked array or checked function keyword
+      // checked array type, checked []
+      if (NextToken().is(tok::l_square)) {
+        goto DoneWithDeclSpec;
+      } else if (NextToken().is(tok::l_brace)) {
+        // checked scope, checked {}, structure/union checked scope
+        // this checked scope keyword is parsed afterward
+        break;
+      } else {
+        // checked function, it acts as function specifier
+        isInvalid = DS.setFunctionSpecChecked(Loc, PrevSpec, DiagID);
+        break;
+      }
 
     case tok::code_completion: {
       Sema::ParserCompletionContext CCC = Sema::PCC_Namespace;
@@ -3786,7 +3800,7 @@ void Parser::ParseStructDeclaration(
 /// [OBC]   '@' 'defs' '(' class-name ')'
 ///
 void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
-                                  unsigned TagType, Decl *TagDecl) {
+                                  unsigned TagType, Decl *TagDecl, bool isChecked) {
   PrettyDeclStackTraceEntry CrashInfo(Actions, TagDecl, RecordLoc,
                                       "parsing struct/union body");
   assert(!getLangOpts().CPlusPlus && "C++ declarations not supported");
@@ -3795,7 +3809,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   if (T.consumeOpen())
     return;
 
-  ParseScope StructScope(this, Scope::ClassScope|Scope::DeclScope);
+  ParseScope StructScope(this, Scope::ClassScope | Scope::DeclScope |
+                                   (isChecked ? Scope::CheckedScope : 0));
   Actions.ActOnTagStartDefinition(getCurScope(), TagDecl);
 
   SmallVector<Decl *, 32> FieldDecls;
@@ -5593,10 +5608,14 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
     if (Tok.is(tok::l_paren)) {
       // Enter function-declaration scope, limiting any declarators to the
       // function prototype scope, including parameter declarators.
-      ParseScope PrototypeScope(this,
-                                Scope::FunctionPrototypeScope|Scope::DeclScope|
-                                (D.isFunctionDeclaratorAFunctionDeclaration()
-                                   ? Scope::FunctionDeclarationScope : 0));
+      // Checked C - checked function
+      ParseScope PrototypeScope(
+          this,
+          Scope::FunctionPrototypeScope | Scope::DeclScope |
+              (D.isFunctionDeclaratorAFunctionDeclaration()
+                   ? Scope::FunctionDeclarationScope
+                   : 0) |
+              (D.getDeclSpec().isCheckedSpecified() ? Scope::CheckedScope : 0));
 
       // The paren may be part of a C++ direct initializer, eg. "int x(1);".
       // In such a case, check if we actually have a function declarator; if it
@@ -5617,12 +5636,17 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       ParseFunctionDeclarator(D, attrs, T, IsAmbiguous);
       PrototypeScope.Exit();
     }
-    else if (Tok.is(tok::l_square) || Tok.is(tok::kw__Checked)) {
-      ParseBracketDeclarator(D);
-    } else {
-      break;
-    }
-  }
+    // Checked C - checked keyword is used checked array type
+    // as well as checked scope
+    // distinguish checked array type from other uses of checked keyword
+    else if (Tok.is(tok::l_square) ||
+             (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_square))) {
+       // distinguish checked array from checked scope
+       ParseBracketDeclarator(D);
+     } else {
+       break;
+     }
+   }
 }
 
 void Parser::ParseDecompositionDeclarator(Declarator &D) {
@@ -5791,10 +5815,14 @@ void Parser::ParseParenDeclarator(Declarator &D) {
 
   // Enter function-declaration scope, limiting any declarators to the
   // function prototype scope, including parameter declarators.
-  ParseScope PrototypeScope(this,
-                            Scope::FunctionPrototypeScope | Scope::DeclScope |
-                            (D.isFunctionDeclaratorAFunctionDeclaration()
-                               ? Scope::FunctionDeclarationScope : 0));
+  // Checked C - checked function
+  ParseScope PrototypeScope(
+      this,
+      Scope::FunctionPrototypeScope | Scope::DeclScope |
+          (D.isFunctionDeclaratorAFunctionDeclaration()
+               ? Scope::FunctionDeclarationScope
+               : 0) |
+          (D.getDeclSpec().isCheckedSpecified() ? Scope::CheckedScope : 0));
   ParseFunctionDeclarator(D, attrs, T, false, RequiresArg);
   PrototypeScope.Exit();
 }
