@@ -2832,8 +2832,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       // Checked C - it is parsed as checked array or checked function keyword
       // checked array type, checked []
       if (NextToken().is(tok::l_square)) {
-        if (!isCXX11AttributeSpecifier())
-          goto DoneWithDeclSpec;
+        goto DoneWithDeclSpec;
       } else if (NextToken().is(tok::l_brace)) {
         // checked scope, checked {}, structure/union checked scope
         // this checked scope keyword is parsed afterward

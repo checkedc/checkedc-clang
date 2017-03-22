@@ -10646,7 +10646,9 @@ void Sema::DiagnoseCheckedDecl(const DeclaratorDecl *Decl) {
   if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(Decl)) {
     TargetDecl = Parm;
     DeclKind = 0; // function param
-    Ty = Parm->getType();
+    // default type conversion from array type to pointer type for parameter
+    // To get original type of parameter not adjusted type, use it
+    Ty = Parm->getOriginalType();
   }
   else if (const FunctionDecl *Func = dyn_cast<FunctionDecl>(Decl)) {
     TargetDecl = Func;
@@ -10667,18 +10669,13 @@ void Sema::DiagnoseCheckedDecl(const DeclaratorDecl *Decl) {
   bool checkedScopeError = false;
   int TypeKind = 0;
   if (TargetDecl) {
-    // type is unchecked pointer w/o bounds-safe interface
-    // type is unchecked pointer & its bounds-safe interface is also unchecked
+    // type is unchecked pointer/array type w/o bounds-safe interface
+    // bounds safe interface is always checked type
     QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
     if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
-        (InterOpTy.isNull() || (InterOpTy->isUncheckedPointerType() ||
-                                InterOpTy->isUncheckedArrayType()))) {
+        InterOpTy.isNull()) {
       checkedScopeError = true;
-      TypeKind =
-          (Ty->isUncheckedPointerType() &&
-                   (InterOpTy.isNull() || InterOpTy->isUncheckedPointerType())
-               ? 0
-               : 1);
+      TypeKind = (Ty->isUncheckedPointerType() ? 0 : 1);
     }
   }
   if (checkedScopeError) {
