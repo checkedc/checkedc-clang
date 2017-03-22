@@ -218,6 +218,10 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     assert(FT != nullptr); 
     returnType = FT->getReturnType();
+
+    // Extract the types for the parameters to this function. If the parameter
+    // has a bounds expression associated with it, substitute the type of that
+    // bounds expression for the other type. 
     for (unsigned i = 0; i < FT->getNumParams(); i++) {
       QualType QT;
 

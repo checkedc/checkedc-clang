@@ -54,6 +54,10 @@ private:
   ConstraintVariableKind Kind;
 protected:
   std::string BaseType;
+  // Set of constraint variables that have been constrained due to a 
+  // bounds-safe interface. They are remembered as being constrained
+  // so that later on we do not introduce a spurious constraint 
+  // making those variables WILD. 
   std::set<uint32_t> ConstrainedVars;
 public:
   ConstraintVariable(ConstraintVariableKind K, std::string T) : 
@@ -67,6 +71,9 @@ public:
   virtual void dump() const = 0;
 
   // Constrain everything 'within' this ConstraintVariable to be equal to C.
+  // Set checkSkip to true if you would like constrainTo to consider the 
+  // ConstrainedVars when applying constraints. This should be set when
+  // applying constraints due to external symbols, during linking. 
   virtual void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false) = 0;
 
   // Returns true if any of the constraint variables 'within' this instance
