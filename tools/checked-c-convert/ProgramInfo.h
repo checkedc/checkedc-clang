@@ -54,6 +54,11 @@ private:
   ConstraintVariableKind Kind;
 protected:
   std::string BaseType;
+  // Set of constraint variables that have been constrained due to a 
+  // bounds-safe interface. They are remembered as being constrained
+  // so that later on we do not introduce a spurious constraint 
+  // making those variables WILD. 
+  std::set<uint32_t> ConstrainedVars;
 public:
   ConstraintVariable(ConstraintVariableKind K, std::string T) : 
     Kind(K),BaseType(T) {}
@@ -66,7 +71,10 @@ public:
   virtual void dump() const = 0;
 
   // Constrain everything 'within' this ConstraintVariable to be equal to C.
-  virtual void constrainTo(Constraints &CS, ConstAtom *C) = 0;
+  // Set checkSkip to true if you would like constrainTo to consider the 
+  // ConstrainedVars when applying constraints. This should be set when
+  // applying constraints due to external symbols, during linking. 
+  virtual void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false) = 0;
 
   // Returns true if any of the constraint variables 'within' this instance
   // have a binding in E other than top. E should be the EnvironmentMap that
@@ -75,6 +83,14 @@ public:
   virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
+
+  void constrainedVariable(uint32_t K) {
+    ConstrainedVars.insert(K);
+  }
+
+  bool isConstrained(uint32_t K) { 
+    return ConstrainedVars.find(K) != ConstrainedVars.end(); 
+  }
 };
 
 class PointerVariableConstraint;
@@ -119,7 +135,7 @@ public:
 
   void print(llvm::raw_ostream &O) const ;
   void dump() const { print(llvm::errs()); }
-  void constrainTo(Constraints &CS, ConstAtom *C);
+  void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
 };
 
@@ -167,7 +183,7 @@ public:
   std::string mkString(Constraints::EnvironmentMap &E);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
-  void constrainTo(Constraints &CS, ConstAtom *C);
+  void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
 };
 
