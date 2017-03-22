@@ -12361,7 +12361,6 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
 
 ExprResult Sema::CreateRangeBoundsExpr(SourceLocation BoundsKWLoc,
                                        Expr *LowerBound, Expr *UpperBound,
-                                       RelativeBoundsClause *Default,
                                        RelativeBoundsClause *Relative,
                                        SourceLocation RParenLoc) {
   RangeBoundsExpr *Range = nullptr;
@@ -12370,45 +12369,24 @@ ExprResult Sema::CreateRangeBoundsExpr(SourceLocation BoundsKWLoc,
   if (Result.isInvalid())
     return ExprError();
   Range = cast<RangeBoundsExpr>(Result.get());
-  RelativeConstExprBoundsClause *RCBC;
-  llvm::APSInt Align;
-  if (Default) {
-    RCBC = dyn_cast<RelativeConstExprBoundsClause>(Default);
-    assert(RCBC);
-    VerifyIntegerConstantExpression(RCBC->getConstExpr(), &Align);
-    Range->setDefaultBoundsClause(Default);
-    Range->setDefaultAlign(Align);
-  }
-
-  if (Relative) {
-    RCBC = dyn_cast<RelativeConstExprBoundsClause>(Relative);
-    assert(RCBC);
-    VerifyIntegerConstantExpression(RCBC->getConstExpr(), &Align);
-    Range->setRelativeBoundsClause(Relative);
-    Range->setRelativeAlign(Align);
-  }
+  Range->setRelativeBoundsClause(Relative);
   return Result;
 }
 
-RelativeBoundsClause *
-Sema::ActOnRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
-                                    SourceLocation TypeLoc, ParsedType Ty,
-                                    SourceLocation RParenLoc) {
+RelativeBoundsClause* Sema::ActOnRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                         ParsedType Ty,
+                                         SourceLocation RParenLoc) {
   TypeSourceInfo *TyInfo = nullptr;
   GetTypeFromParser(Ty, &TyInfo);
-  if (!TyInfo)
-    TyInfo = Context.getTrivialTypeSourceInfo(Ty.get());
-  assert(TyInfo);
+  return CreateRelativeTypeBoundsClause(BoundsKWLoc, TyInfo, RParenLoc);
+}
 
-  // rel_align(T) is shorthand of rel_align_value(sizeof(T)), default expansion
-  SourceRange R;
-  ExprResult SizeOfTy =
-      CreateUnaryExprOrTypeTraitExpr(TyInfo, TypeLoc, UETT_SizeOf, R);
-
-  assert(!SizeOfTy.isInvalid());
-
-  return new (Context)
-      RelativeConstExprBoundsClause(SizeOfTy.get(), BoundsKWLoc, RParenLoc);
+RelativeBoundsClause *
+Sema::CreateRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                     TypeSourceInfo *TyInfo,
+                                     SourceLocation RParenLoc) {
+  QualType QT = TyInfo->getType();
+  return new (Context) RelativeTypeBoundsClause(QT, BoundsKWLoc, RParenLoc);
 }
 
 RelativeBoundsClause *
@@ -12417,59 +12395,14 @@ Sema::ActOnRelativeConstExprClause(Expr *ConstExpr, SourceLocation BoundsKWLoc,
   ExprResult Result = UsualUnaryConversions(ConstExpr);
   if (Result.isInvalid())
     return nullptr;
-
   ConstExpr = Result.get();
-  llvm::APSInt AlignValue;
-  ExprResult R = VerifyIntegerConstantExpression(ConstExpr, &AlignValue);
-  if (R.isInvalid()) {
-    Diag(ConstExpr->getLocStart(), diag::err_typecheck_rel_align_bounds_clause)
-        << ConstExpr->getType();
+  QualType ResultType = ConstExpr->getType();
+  if (!ResultType->isIntegerType()) {
+    Diag(ConstExpr->getLocStart(), diag::err_typecheck_rel_align_bounds_clause)<< ResultType;
     return nullptr;
-  } else
-    return new (Context)
-        RelativeConstExprBoundsClause(ConstExpr, BoundsKWLoc, RParenLoc);
-}
-
-/// \brief create default alignment & bind them with bounds expression
-/// it is called when associating decl with its bounds expression
-/// (D->setBoundsExpr) to get type information about base
-/// Especially, binding (decl with bounds) is not called in function prototype
-/// if relative alignment is not set, set it as base alignment expression
-ExprResult Sema::ActOnDefaultBoundsClause(BoundsExpr *BE, QualType BaseType) {
-  if (!BE)
-    return ExprError();
-  RangeBoundsExpr *RBE = dyn_cast<RangeBoundsExpr>(BE);
-  if (!RBE)
-    return ExprError();
-
-  QualType BaseRefType;
-  if (BaseType->isPointerType()) {
-    BaseRefType = BaseType->getAs<PointerType>()->getPointeeType();
-  } else if (BaseType->isArrayType()) {
-    BaseRefType = Context.getArrayDecayedType(BaseType)->getPointeeType();
-  } else {
-    /// integer-typed variables can have bounds expression
-    /// In this case, we can't know about pointer type, skip it
-    return ExprError();
   }
-  // referent type of base type
-  RelativeBoundsClause *RBC = ActOnRelativeTypeBoundsClause(
-      SourceLocation(), SourceLocation(), ParsedType::make(BaseRefType),
-      SourceLocation());
-  assert(RBC);
-  // type bounds clause is default expanded into expr bounds clause
-  RelativeConstExprBoundsClause *RCBC =
-      dyn_cast<RelativeConstExprBoundsClause>(RBC);
-  assert(RCBC);
-
-  llvm::APSInt Align;
-  VerifyIntegerConstantExpression(RCBC->getConstExpr(), &Align);
-  // set default alignment
-  if (!RBE->hasDefaultBoundsClause()) {
-    RBE->setDefaultBoundsClause(RCBC);
-    RBE->setDefaultAlign(Align);
-  }
-  return RBE;
+  return new (Context)
+      RelativeConstExprBoundsClause(ConstExpr, BoundsKWLoc, RParenLoc);
 }
 
 ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
