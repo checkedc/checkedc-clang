@@ -2815,24 +2815,45 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
 ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                       bool IsReturn) {
   ExprResult Result(true);
-  bool isBoundsOrItype = false;
+  bool isBounds = false;
+  bool isItype = false;
   Token TempTok = Tok;
 
   if (StartsBoundsExpression(Tok)) {
     Result = ParseBoundsExpression();
-    isBoundsOrItype = true;
+    isBounds = true;
   } else if (StartsInteropTypeAnnotation(Tok)) {
     Result = ParseInteropTypeAnnotation(D, IsReturn);
-    isBoundsOrItype = true;
+    isItype = true;
   }
 
+  if (!isItype && !isBounds)
+    SkipInvalidBoundsExpr(TempTok);
+
+  TempTok = Tok;
   if (StartsRelativeBoundsClause(Tok))
     ParseRelativeBoundsClause(Result);
 
-  if (!isBoundsOrItype)
-    Diag(TempTok, diag::err_expected_bounds_expr_or_interop_type);
-
   return Result;
+}
+
+// Skip Invalid Bounds Expression such as boounds(), b0unds(e1,e2) and stop if
+// relative bounds clause founds. In this case, the value of isBounds or isItype
+// is false. if there is parsing error in ParseBoundsExpression() or
+// ParseInteropTypeAnnotation(), the value of isBounds or isItype is true. That
+// means we do not need to skip bounds expression because it already skiped to
+// the right paren.
+
+void Parser::SkipInvalidBoundsExpr(Token &T) {
+  Diag(T, diag::err_expected_bounds_expr_or_interop_type);
+  Token Next;
+  BalancedDelimiterTracker Paren(*this, tok::l_paren, tok::r_paren);
+  Next = NextToken();
+  ConsumeToken();
+  if (Next.getKind() == tok::l_paren) {
+    Paren.consumeOpen();
+    Paren.skipToEnd();
+  }
 }
 
 ExprResult Parser::ParseBoundsExpression() {
@@ -2936,6 +2957,7 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
 
   IdentifierInfo *Ident = Tok.getIdentifierInfo();
   SourceLocation BoundsKWLoc = Tok.getLocation();
+  Token TempTok = Tok;
   ConsumeToken();
 
   BalancedDelimiterTracker PT(*this, tok::l_paren);
@@ -2978,7 +3000,7 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
   if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
     Range->setRelativeBoundsClause(RelativeClause);
   } else {
-    Diag(Tok, diag::err_expected_range_bounds_expr);
+    Diag(TempTok, diag::err_expected_range_bounds_expr);
     IsError = true;
   }
   PT.consumeClose();

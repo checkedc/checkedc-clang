@@ -42,7 +42,18 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	while (Ty->isPointerType()) {
 		// Allocate a new constraint variable for this level of pointer.
 		vars.insert(K);
-		CS.getOrCreateVar(K);
+		VarAtom * V = CS.getOrCreateVar(K);
+   
+    if (Ty->isCheckedPointerType()) {
+      if (Ty->isCheckedPointerPtrType()) {
+        // Constrain V so that it can't be either wild or an array.
+        CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr()))); 
+        CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
+        ConstrainedVars.insert(K);
+      } else if (Ty->isCheckedPointerArrayType()) {
+        llvm_unreachable("unsupported!");
+      }
+    } 
 
 		// Save here if QTy is qualified or not into a map that 
 		// indexes K to the qualification of QTy, if any.
@@ -51,9 +62,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 				std::pair<uint32_t, Qualification>(K, ConstQualification));
 
 		K++;
-        std::string TyName = tyToStr(Ty);
-        // TODO: Github issue #61: improve handling of types for
-        // variable arguments.
+    std::string TyName = tyToStr(Ty);
+    // TODO: Github issue #61: improve handling of types for
+    // // variable arguments.
 		if (TyName == "struct __va_list_tag *" || TyName == "va_list")
 			break;
 
@@ -127,11 +138,17 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
         if (q->second == ConstQualification)
           s = s + "const ";
 
-      emittedBase = false;
-      s = s + "_Ptr<";
+      // We need to check and see if this level of variable
+      // is constrained by a bounds safe interface. If it is, 
+      // then we shouldn't re-write it. 
+      if (ConstrainedVars.find(V) == ConstrainedVars.end()) {
+        emittedBase = false;
+        s = s + "_Ptr<";
 
-      caratsToAdd++;
-      break;
+        caratsToAdd++;
+        break;
+      }
+      // ELSE FALL THROUGH! 
     case Atom::A_Arr:
     case Atom::A_Wild:
       if (emittedBase) {
@@ -201,8 +218,22 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     assert(FT != nullptr); 
     returnType = FT->getReturnType();
-    for (unsigned i = 0; i < FT->getNumParams(); i++) 
-      paramTypes.push_back(FT->getParamType(i));
+
+    // Extract the types for the parameters to this function. If the parameter
+    // has a bounds expression associated with it, substitute the type of that
+    // bounds expression for the other type. 
+    for (unsigned i = 0; i < FT->getNumParams(); i++) {
+      QualType QT;
+
+      if(const BoundsExpr *BE = FT->getParamBounds(i))
+        QT = BE->getType();
+      else
+        QT = FT->getParamType(i);
+         
+      paramTypes.push_back(QT);
+    }
+    if (FT->hasReturnBounds()) 
+      returnType = FT->getReturnBounds()->getType();
     hasproto = true;
   }
   else if (Ty->isFunctionNoProtoType()) {
@@ -217,7 +248,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // aren't pointer types. If we need to re-emit the function signature
   // as a type, then we will need the types for all the parameters and the
   // return values
- 
+
   returnVars.insert(new PVConstraint(returnType, K, N, CS, Ctx));
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
@@ -235,13 +266,13 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   }
 }
 
-void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A) {
+void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool checkSkip) {
   for (const auto &V : returnVars)
-    V->constrainTo(CS, A);
+    V->constrainTo(CS, A, checkSkip);
 
   for (const auto &V : paramVars)
     for (const auto &U : V)
-      U->constrainTo(CS, A);
+      U->constrainTo(CS, A, checkSkip);
 }
 
 bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
@@ -253,12 +284,23 @@ bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
   return f;
 }
 
-void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A) {
-  for (const auto &V : vars)
-    CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
+void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool checkSkip) {
+  for (const auto &V : vars) {
+    // Check and see if we've already constrained this variable. This is currently 
+    // only done when the bounds-safe interface has refined a type for an external
+    // function, and we don't want the linking phase to un-refine it by introducing
+    // a conflicting constraint. 
+    bool doAdd = true;
+    if (checkSkip) 
+      if (ConstrainedVars.find(V) != ConstrainedVars.end())
+        doAdd = false;
+
+    if (doAdd)
+      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
+  }
 
   if (FV)
-    FV->constrainTo(CS, A);
+    FV->constrainTo(CS, A, checkSkip);
 }
 
 bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
@@ -505,8 +547,8 @@ bool ProgramInfo::link() {
           // which case we don't need to constrain anything.
           if (P1->hasProtoType() && P2->hasProtoType()) {
             // Nope, we have no choice. Constrain everything to wild.
-            P1->constrainTo(CS, CS.getWild());
-            P2->constrainTo(CS, CS.getWild());
+            P1->constrainTo(CS, CS.getWild(), true);
+            P2->constrainTo(CS, CS.getWild(), true);
           }
         }
         ++I;
@@ -516,7 +558,7 @@ bool ProgramInfo::link() {
   }
 
   // For every global function that is an unresolved external, constrain 
-  // its parameter types to be wild.
+  // its parameter types to be wild. Unless it has a bounds-safe annotation. 
   for (const auto &U : ExternFunctions) {
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
@@ -528,12 +570,13 @@ bool ProgramInfo::link() {
       const std::set<FVConstraint*> &Gs = (*I).second;
 
       for (const auto &G : Gs) {
-        for(const auto &U : G->getReturnVars()) 
-          U->constrainTo(CS, CS.getWild());
+        for(const auto &U : G->getReturnVars()) {
+          U->constrainTo(CS, CS.getWild(), true);
+        }
 
         for(unsigned i = 0; i < G->numParams(); i++) 
           for(const auto &U : G->getParamVar(i)) 
-            U->constrainTo(CS, CS.getWild());
+            U->constrainTo(CS, CS.getWild(), true);
       }
     }
   }
