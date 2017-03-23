@@ -130,6 +130,7 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"
+  echo "  BUILD_BINARIESDIRECTORY: $BUILD_BINARIESDIRECTORY"
   echo "  LLVM_OBJ_DIR: $LLVM_OBJ_DIR"
   if [ -n "$LNT" ]; then
     echo "  LNT_RESULTS_DIR: $LNT_RESULTS_DIR"
