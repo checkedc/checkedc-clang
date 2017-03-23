@@ -10739,6 +10739,7 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     OrigOp = op =
         CreateMaterializeTemporaryExpr(op->getType(), OrigOp.get(), true);
   } else if (isa<ObjCSelectorExpr>(op)) {
+    // Checked C - objective C is not related to checked c
     return Context.getPointerType(op->getType());
   } else if (lval == Expr::LV_MemberFunction) {
     // If it's an instance method, make a member pointer.
@@ -10866,7 +10867,19 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
 
   // In Checked C, the address-of operator always produces an unchecked pointer
   // type.
-  return Context.getPointerType(op->getType(), CheckedPointerKind::Unchecked);
+
+  // checked scope change types produced by unary address-of operator
+  // In checked scope, address-of operator (&) produces type as ptr<T>
+  // In unchecked scope, address-of operator (&) produces type as (T *)
+  // refer to current scope checked property to produce address-of type
+  bool isCheckedScope = getCurScope()->isCheckedScope();
+  CheckedPointerKind kind;
+  if (isCheckedScope)
+    kind = CheckedPointerKind::Ptr;
+  else
+    kind = CheckedPointerKind::Unchecked;
+
+  return Context.getPointerType(op->getType(), kind);
 }
 
 static void RecordModifiableNonNullParam(Sema &S, const Expr *Exp) {
