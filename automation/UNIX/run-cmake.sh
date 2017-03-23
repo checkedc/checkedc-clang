@@ -12,6 +12,10 @@ else
   CMAKE_ADDITIONAL_OPTIONS=""
 fi
 
+if [[ "$LNT" != "" && ("$BUILD_TYPE" == "Release" || "$BUILD_TYPE" == "ReleaseWithDebInfo" ]]; then
+  CMAKE_ADDITIONAL_OPTIONS="$CMAKE_ADDITIONAL_OPTIONS -DLLVM_ENABLE_ASSERTIONS=On"
+fi
+
 (cd "$LLVM_OBJ_DIR";
  cmake -G "Unix Makefiles" \
    ${CMAKE_ADDITIONAL_OPTIONS} -DCMAKE_BUILD_TYPE="$BUILDCONFIGURATION" \

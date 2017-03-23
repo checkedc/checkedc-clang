@@ -25,6 +25,13 @@ function clone_or_update {
 # Make Build Dir
 mkdir -p "$LLVM_OBJ_DIR"
 
+if [ -n "$LNT" ]; then
+  mkdir -p "$LNT_RESULTS_DIR"
+  if [ ! -a "$LNT_SCRIPT" ]; then
+    echo "LNT script is missing from $LNT_SCRIPT"
+    exit 1
+  fi
+fi
 cd "$BUILD_SOURCESDIRECTORY"
 
 # Check out LLVM
@@ -36,17 +43,10 @@ clone_or_update llvm/tools/clang https://github.com/Microsoft/checkedc-clang "$C
 # Check out Checked C Tests
 clone_or_update llvm/projects/checkedc-wrapper/checkedc https://github.com/Microsoft/checkedc "$CHECKEDC_BRANCH" "$CHECKEDC_COMMIT"
 
-## Comment out LNT-related stuff for now.  We are not ready to automate that yet.
-# Check out LNT
-# clone_or_update lnt https://github.com/llvm-mirror/lnt master
-
-# Check out Test Suite
-# clone_or_update llvm-test-suite https://github.com/Microsoft/checkedc-llvm-test-suite master
-
-
-# Install lnt into the virtualenv we set up in install.sh
-#(cd lnt;
-# $LNT_VE_DIR/bin/python setup.py -q install)
+# Check out LLVM test suite
+if [ -n "$LNT"]; then
+  clone_or_update llvm-test-suite https://github.com/Microsoft/checkedc-llvm-test-suite "$LLVM_TEST_SUITE_BRANCH" "$LLVM_TEST_SUITE_COMMIT"
+fi
 
 set +ue
 set +o pipefail

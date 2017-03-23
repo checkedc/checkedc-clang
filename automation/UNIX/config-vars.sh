@@ -81,6 +81,10 @@ if [ -z "$CLANG_BRANCH" ]; then
   export CLANG_BRANCH="master"
 fi
 
+if [ -z "$LLVM_TEST_SUITE_BRANCH" ]; then
+  export LLVM_TEST_SUITE_BRANCH="master"
+fi
+
 # set up source versions (Git commit number)
 if [ -z "$LLVM_COMMIT" ]; then
   export LLVM_COMMIT="HEAD"
@@ -94,11 +98,27 @@ if [ -z "$CLANG_COMMIT" ]; then
   export CLANG_COMMIT="HEAD"
 fi
 
-if [ -z "$BUILD_CPU_COUNT" ]; then
-  declare -i NPROC=$(nproc);
-  export BUILD_CPU_COUNT=$(($NPROC/2))
+if [ -z "$LLVM_TEST_SUITE_COMMIT" ]; then
+  export LLVM_TEST_SUITE_COMMIT="HEAD"
 fi
 
+if [ -z "$BUILD_CPU_COUNT" ]; then
+  declare -i NPROC=$(nproc);
+  export BUILD_CPU_COUNT=$(($NPROC*3/4))
+fi
+
+# LLVM Nightly Tests are enabled when LNT is a non-empty
+# string.
+if [ -z "$LNT" ]; then
+  # Make sure LNT variable is defined so that scripts that require all variables
+  # to be defined do not break.
+  export LNT=""
+else
+  export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${TEST_TARGET_ARCH}-${BUILDOS}.obj"
+  # We assume that lnt is installed in /lnt-install on test machines.
+  export LNT_SCRIPT=/lnt-install/sandbox/lnt
+fi
+ 
 if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo "Configured environment variables:"
   echo
@@ -106,10 +126,15 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " BUILDOS: $BUILDOS"
   echo " TEST_TARGET_ARCH: $TEST_TARGET_ARCH"
   echo " TEST_SUITE: $TEST_SUITE"
+  echo " LNT: $LNT"
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"
   echo "  LLVM_OBJ_DIR: $LLVM_OBJ_DIR"
+  if [ -n "$LNT" ]; then
+    echo "  LNT_RESULTS_DIR: $LNT_RESULTS_DIR"
+    echo "  LNT_SCRIPT: $LNT_SCRIPT"
+  fi
   echo 
   echo " Branch and commit information:"
   echo "  CLANG_BRANCH: $CLANG_BRANCH"
@@ -118,6 +143,8 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo "  LLVM_COMMIT: $LLVM_COMMIT"
   echo "  CHECKEDC BRANCH: $CHECKEDC_BRANCH"
   echo "  CHECKEDC_COMMIT: $CHECKEDC_COMMIT"
+  echo "  LLVM_TEST_SUITE_BRANCH: $LLVM_TEST_SUITE_BRANCH"
+  echo "  LLVM_TEST_SUITE_COMMIT: $LLVM_TEST_SUITE_COMMIT"
   echo
   echo " BUILD_CPU_COUNT: $BUILD_CPU_COUNT"
 else
