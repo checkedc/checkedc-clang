@@ -3273,6 +3273,16 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
     QualType PtrTy = BaseExpr->getType()->getPointeeType();
     EmitTypeCheck(TCK_MemberAccess, E->getExprLoc(), Addr.getPointer(), PtrTy);
     BaseLV = MakeAddrLValue(Addr, PtrTy, AlignSource);
+
+    // We only check the Base LValue, as we assume that any field is definitely
+    // within the size of the struct. This may not be the case with a "flexible
+    // array member" (6.7.2.1.18), but this member is an array, so is either
+    // unchecked, or is a checked array with its own bounds.
+    // A second reason for always checking the BaseLV is that it is the same for
+    // all the fields in the struct, so more of the checks should optimize away.
+    if (E->hasBoundsExpr())
+      EmitCheckedCArrowCheck(BaseLV, E->getBoundsExpr());
+
   } else
     BaseLV = EmitCheckedLValue(BaseExpr, TCK_MemberAccess);
 
