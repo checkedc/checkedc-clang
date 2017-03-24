@@ -8874,6 +8874,15 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_expected_bounds : Error<
     "expression has no bounds">;
 
+  def err_expected_bounds_for_ptr_cast : Error<
+    "casts to _Ptr type must have a source bounds">;
+
+  def err_expected_bounds_for_assignment : Error<
+    "lvalue /w bounds must have a rvalue /w bounds">;
+
+  def err_expected_bounds_for_initializer : Error<
+    "variable initializer must have a bounds">;
+
   def err_initializer_expected_with_bounds : Error<
     "automatic variable %0 with bounds must have initializer">;
 

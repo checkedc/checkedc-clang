@@ -784,7 +784,7 @@ namespace {
           else
             RHSBounds = S.InferRValueBounds(S.Context, RHS);
           if (RHSBounds->isNone()) {
-             S.Diag(RHS->getLocStart(), diag::err_expected_bounds);
+             S.Diag(RHS->getLocStart(), diag::err_expected_bounds_for_assignment);
              RHSBounds = S.CreateInvalidBoundsExpr();
           }
         }
@@ -821,7 +821,7 @@ namespace {
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
         if (SrcBounds->isNone()) {
           // TODO: produce more informative error message.
-          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds_for_ptr_cast);
           SrcBounds = S.CreateInvalidBoundsExpr();
         }
         assert(SrcBounds);
@@ -899,7 +899,7 @@ namespace {
         BoundsExpr *InitBounds = S.InferRValueBounds(S.getASTContext(), Init);
         if (InitBounds->isNone()) {
           // TODO: need some place to record the initializer bounds
-          S.Diag(Init->getLocStart(), diag::err_expected_bounds);
+          S.Diag(Init->getLocStart(), diag::err_expected_bounds_for_initializer);
           InitBounds = S.CreateInvalidBoundsExpr();
         }
         if (DumpBounds)
