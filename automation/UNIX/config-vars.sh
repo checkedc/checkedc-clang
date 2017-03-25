@@ -114,7 +114,7 @@ if [ -z "$LNT" ]; then
   # to be defined do not break.
   export LNT=""
 else
-  export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${TEST_TARGET_ARCH}-${BUILDOS}.obj"
+  export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${TEST_TARGET_ARCH}-${BUILDOS}"
   # We assume that lnt is installed in /lnt-install on test machines.
   export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
 fi

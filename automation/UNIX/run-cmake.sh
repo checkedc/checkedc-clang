@@ -12,7 +12,7 @@ else
   CMAKE_ADDITIONAL_OPTIONS=""
 fi
 
-if [[ "$LNT" != "" && ("$BUILD_TYPE" == "Release" || "$BUILD_TYPE" == "ReleaseWithDebInfo" ]]; then
+if [[ "$LNT" != "" && ("$BUILDCONFIGURATION" == "Release" || "$BUILDCONFIGURATION" == "ReleaseWithDebInfo") ]]; then
   CMAKE_ADDITIONAL_OPTIONS="$CMAKE_ADDITIONAL_OPTIONS -DLLVM_ENABLE_ASSERTIONS=On"
 fi
 
