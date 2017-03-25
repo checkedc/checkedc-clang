@@ -318,7 +318,7 @@ void f3(void) {
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
-  // CHECK-IR-NEXT: store i32 1, i32* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, i32 0, i64 2, i32 0)
+  // CHECK-IR-NEXT: store i32 1, i32* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 0)
 
   // CHECK-IR: ret void
   // CHECK-IR: call void @llvm.trap
