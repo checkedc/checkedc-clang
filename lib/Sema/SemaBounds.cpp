@@ -739,8 +739,12 @@ namespace {
     bool AddMemberBaseBoundsCheck(MemberExpr *E) {
       Expr *Base = E->getBase();
       // E.F
-      if (!E->isArrow())
-        return AddBoundsCheck(Base);
+      if (!E->isArrow()) {
+        // The base expression only needs a bounds check if it is an lvalue.
+        if (Base->isLValue())
+          return AddBoundsCheck(Base);
+        return false;
+      }
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()){
