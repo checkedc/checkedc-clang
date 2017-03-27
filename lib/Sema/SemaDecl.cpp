@@ -8527,10 +8527,16 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     // checked function or checked scope
     // Checked C - in checked function, check return/param type
     // In checked scope, no prototype function is not allowed to use
-    DiagnoseCheckedDecl(NewFD);
+
+    // Checked C - check type restriction on declaration in checked scope
+    // if failed at function declaration, set invalid
+    // if failed at function parameter declaration, set invalid
+    if (!DiagnoseCheckedDecl(NewFD))
+      NewFD->setInvalidDecl();
     for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
       ParmVarDecl *PVD = NewFD->getParamDecl(I);
-      DiagnoseCheckedDecl(PVD);
+      if (!DiagnoseCheckedDecl(PVD))
+        PVD->setInvalidDecl();
     }
     // FTI.NumParams = number of formal parameter
     // NewFD->getNumParams() = number of actual parameter
@@ -14205,8 +14211,10 @@ FieldDecl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
   FieldDecl *Res = HandleField(S, cast_or_null<RecordDecl>(TagD),
                                DeclStart, D, static_cast<Expr*>(BitfieldWidth),
                                /*InitStyle=*/ICIS_NoInit, AS_public);
-  if (S->isCheckedScope())
-    DiagnoseCheckedDecl(Res);
+  // Checked C - check type restriction on declaration in checked scope
+  // if failed at member declaration, set invalid
+  if (S->isCheckedScope() && !DiagnoseCheckedDecl(Res))
+    Res->setInvalidDecl();
   return Res;
 }
 

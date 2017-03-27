@@ -388,6 +388,15 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, SourceLocation Loc,
     Diag(D->getLocation(), diag::note_entity_declared_at) << D;
     return true;
   }
+
+  // Checked C - check if use of declaration is proper type in checked scope
+  // if there was an error, return true
+  if (getCurScope()->isCheckedScope() &&
+      isa<ValueDecl>(D->getUnderlyingDecl())) {
+    ValueDecl *VD = cast<ValueDecl>(D);
+    if (!DiagnoseCheckedDecl(VD, Loc))
+      return true;
+  }
   DiagnoseAvailabilityOfDecl(*this, D, Loc, UnknownObjCClass,
                              ObjCPropertyAccess);
 
@@ -10875,13 +10884,13 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   // type.
 
   // checked scope change types produced by unary address-of operator
-  // In checked scope, address-of operator (&) produces type as ptr<T>
+  // In checked scope, address-of operator (&) produces type as array_ptr<T>
   // In unchecked scope, address-of operator (&) produces type as (T *)
   // refer to current scope checked property to produce address-of type
   bool isCheckedScope = getCurScope()->isCheckedScope();
   CheckedPointerKind kind;
   if (isCheckedScope)
-    kind = CheckedPointerKind::Ptr;
+    kind = CheckedPointerKind::Array;
   else
     kind = CheckedPointerKind::Unchecked;
 

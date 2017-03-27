@@ -373,7 +373,8 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
   if (NumElts != 0 && getCurCompoundScope().IsCheckedScope) {
     for (unsigned i = 0; i != NumElts; ++i) {
       DeclStmt *DS = dyn_cast<DeclStmt>(Elts[i]);
-      if (DS) DiagnoseCheckedDecl(DS);
+      if (DS)
+        CheckAndDiagnoseCheckedDecl(DS);
     }
   }
 
