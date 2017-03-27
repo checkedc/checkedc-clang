@@ -7411,11 +7411,22 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // pointers. Only implicit conversions between unchecked pointers or from
   // unchecked to checked pointers are allowed.
 
-  // Checked C - implicit type conversion rule is changed
-  // need to add rules for implicit casts between checked pointer types
+  // Checked C - add rules for implicit casts between checked pointer types
+  // implicit casts between checked pointer type are not allowed
+  // -> implicit casts from checked to unchecked are not allowed only
   // remove constraints which prevents implicit casts between checked pointers
+  // prevent only implicit casts from checked to unchecked
+
+  // checked->checked : incompatible -> compatible
+  // checked->unchecked : incompatible -> incompatible
+  // unchecked->checked : allowed -> allowed
+  // unchecked->unchecked : allowed -> allowed
 #if 0
   if (lhkind != rhkind && rhkind != CheckedPointerKind::Unchecked)
+    return Sema::Incompatible;
+#else
+  if (lhkind != rhkind && rhkind != CheckedPointerKind::Unchecked &&
+      lhkind == CheckedPointerKind::Unchecked)
     return Sema::Incompatible;
 #endif
 
