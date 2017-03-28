@@ -20,99 +20,66 @@ using namespace llvm;
 
 #define DEBUG_TYPE "DynamicCheckCodeGen"
 
-STATISTIC(NumDynamicChecksFound,    "The # of dynamic checks found (total)");
-STATISTIC(NumDynamicChecksElided,   "The # of dynamic checks elided (due to constant folding)");
-STATISTIC(NumDynamicChecksInserted, "The # of dynamic checks inserted");
+namespace {
+  STATISTIC(NumDynamicChecksElided, "The # of dynamic checks elided (due to constant folding)");
+  STATISTIC(NumDynamicChecksInserted, "The # of dynamic checks inserted");
 
-STATISTIC(NumDynamicChecksNonNull, "The # of dynamic non-null checks found");
-STATISTIC(NumDynamicChecksRange,   "The # of dynamic bounds checks found");
-
-STATISTIC(NumDynamicChecksExplicit,  "The # of dynamic checks inserted from _Dynamic_check(cond)");
-STATISTIC(NumDynamicChecksDeref,     "The # of dynamic checks inserted from *exp");
-STATISTIC(NumDynamicChecksSubscript, "The # of dynamic checks inserted from exp[exp]");
-STATISTIC(NumDynamicChecksArrow,     "The # of dynamic checks inserted from exp->f");
+  STATISTIC(NumDynamicChecksExplicit, "The # of dynamic _Dynamic_check(cond) checks found");
+  STATISTIC(NumDynamicChecksNonNull, "The # of dynamic non-null checks found");
+  STATISTIC(NumDynamicChecksOverflow, "The # of dynamic overflow checks found");
+  STATISTIC(NumDynamicChecksRange, "The # of dynamic bounds checks found");
+}
 
 //
 // Expression-specific dynamic check insertion
 //
 
 void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
-  ++NumDynamicChecksFound;
-
-  bool ConditionConstant;
-  if (ConstantFoldsToSimpleInteger(Condition, ConditionConstant, /*AllowLabels=*/false)
-      && ConditionConstant) {
-
-    // Dynamic Check will always pass, leave it out.
-    ++NumDynamicChecksElided;
-
+  if (!getLangOpts().CheckedC)
     return;
-  }
 
   ++NumDynamicChecksExplicit;
 
-  // Dynamic Check relies on runtime behaviour (or we believe it will always fail),
-  // so emit the required check
+  // Emit Check
   Value *ConditionVal = EvaluateExprAsBool(Condition);
   EmitDynamicCheckBlocks(ConditionVal);
-}
-
-void CodeGenFunction::EmitCheckedCSubscriptCheck(const LValue Addr,
-                                                 const BoundsExpr *Bounds) {
-  if (Bounds->isAny() || Bounds->isInvalid())
-    return;
-
-  ++NumDynamicChecksFound;
-  ++NumDynamicChecksSubscript;
-
-  EmitDynamicBoundsCheck(Addr, Bounds);
-}
-
-void CodeGenFunction::EmitCheckedCDerefCheck(const LValue Addr,
-                                             const BoundsExpr *Bounds) {
-  if (Bounds->isAny() || Bounds->isInvalid())
-    return;
-
-  ++NumDynamicChecksFound;
-  ++NumDynamicChecksDeref;
-
-  EmitDynamicBoundsCheck(Addr, Bounds);
-}
-
-void CodeGenFunction::EmitCheckedCArrowCheck(const LValue Addr,
-                                             const BoundsExpr *Bounds) {
-  if (Bounds->isAny() || Bounds->isInvalid())
-    return;
-
-  ++NumDynamicChecksFound;
-  ++NumDynamicChecksArrow;
-
-  EmitDynamicBoundsCheck(Addr, Bounds);
 }
 
 //
 // General Functions for inserting dynamic checks
 //
 
-// This isn't called anywhere yet. Its logic will almost certainly need updating once
-// we start using it.
-void CodeGenFunction::EmitDynamicNonNullCheck(const LValue Addr) {
-  if (!Addr.getType()->isCheckedPointerType())
+void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy) {
+  if (!getLangOpts().CheckedC)
+    return;
+
+  if (!(BaseTy->isCheckedPointerType() || BaseTy->isCheckedArrayType()))
     return;
 
   ++NumDynamicChecksNonNull;
 
-  // We can't do constant evaluation here, because we can only be sure a value
-  // is null, which would still need the check to be inserted.
-
-  assert(Addr.isSimple() && "Values checked in non-null ptr dynamic checks should be scalars");
-
-  Value *Condition = Builder.CreateIsNotNull(Addr.getPointer(), "_Dynamic_check.non_null");
-  EmitDynamicCheckBlocks(Condition);
+  Value *ConditionVal = Builder.CreateIsNotNull(BaseAddr.getPointer(), "_Dynamic_check.non_null");
+  EmitDynamicCheckBlocks(ConditionVal);
 }
 
-void CodeGenFunction::EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr *Bounds) {
+// TODO: This is currently unused. It may never be used.
+void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy, const Address PtrAddr) {
+  if (!getLangOpts().CheckedC)
+    return;
+
+  ++NumDynamicChecksOverflow;
+
+  // EmitDynamicCheckBlocks(Condition);
+}
+
+void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds) {
+  if (!getLangOpts().CheckedC)
+    return;
+
   if (!Bounds)
+    return;
+
+  if (Bounds->isAny() || Bounds->isInvalid())
     return;
 
   // We can only generate the check if we have the bounds as a range.
@@ -126,23 +93,18 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr
   ++NumDynamicChecksRange;
 
   // Emit the code to generate the pointer values
-  RValue Lower = EmitAnyExpr(BoundsRange->getLowerExpr());
-  RValue Upper = EmitAnyExpr(BoundsRange->getUpperExpr());
-
-  assert(Addr.isSimple()
-         && Lower.isScalar()
-         && Upper.isScalar()
-         && "Values checked in range ptr dynamic checks should be scalars");
+  Address Lower = EmitPointerWithAlignment(BoundsRange->getLowerExpr());
+  Address Upper = EmitPointerWithAlignment(BoundsRange->getUpperExpr());
 
   // Emit the address as an int
-  Value *PtrInt = Builder.CreatePtrToInt(Addr.getPointer(), IntPtrTy, "_Dynamic_check.addr");
+  Value *PtrInt = Builder.CreatePtrToInt(PtrAddr.getPointer(), IntPtrTy, "_Dynamic_check.addr");
 
   // Make the lower check
-  Value *LowerInt = Builder.CreatePtrToInt(Lower.getScalarVal(), IntPtrTy, "_Dynamic_check.lower");
+  Value *LowerInt = Builder.CreatePtrToInt(Lower.getPointer(), IntPtrTy, "_Dynamic_check.lower");
   Value *LowerChk = Builder.CreateICmpSLE(LowerInt, PtrInt, "_Dynamic_check.lower_cmp");
 
   // Make the upper check
-  Value* UpperInt = Builder.CreatePtrToInt(Upper.getScalarVal(), IntPtrTy, "_Dynamic_check.upper");
+  Value* UpperInt = Builder.CreatePtrToInt(Upper.getPointer(), IntPtrTy, "_Dynamic_check.upper");
   Value* UpperChk = Builder.CreateICmpSLT(PtrInt, UpperInt, "_Dynamic_check.upper_cmp");
 
   // Emit both checks
@@ -150,6 +112,19 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr
 }
 
 void CodeGenFunction::EmitDynamicCheckBlocks(Value *Condition) {
+  assert(Condition->getType()->isIntegerTy(1) &&
+         "May only dynamic check boolean conditions");
+
+  // Constant Folding:
+  // If we have generated a constant condition, and the condition is true,
+  // then the check will always pass and we can elide it.
+  if (const ConstantInt *ConditionConstant = dyn_cast<ConstantInt>(Condition)) {
+    if (ConditionConstant->isOne()) {
+      ++NumDynamicChecksElided;
+      return;
+    }
+  }
+
   ++NumDynamicChecksInserted;
 
   BasicBlock *Begin, *DyCkSuccess, *DyCkFail;
