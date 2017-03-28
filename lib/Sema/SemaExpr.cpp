@@ -7421,14 +7421,9 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // checked->unchecked : incompatible -> incompatible
   // unchecked->checked : allowed -> allowed
   // unchecked->unchecked : allowed -> allowed
-#if 0
-  if (lhkind != rhkind && rhkind != CheckedPointerKind::Unchecked)
-    return Sema::Incompatible;
-#else
   if (lhkind != rhkind && rhkind != CheckedPointerKind::Unchecked &&
       lhkind == CheckedPointerKind::Unchecked)
     return Sema::Incompatible;
-#endif
 
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
   // unqualified versions of compatible types, ...
