@@ -391,10 +391,14 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, SourceLocation Loc,
 
   // Checked C - check if use of declaration is proper type in checked scope
   // if there was an error, return true
+  // if declaration is valid, it checks if use of declaration is unchecked
+  // pointers in checked scope
+  // Otherwise, DO NOT emit redundant error message at use of variable
+  // it already produced error message at variable declaration
   if (getCurScope()->isCheckedScope() &&
       isa<ValueDecl>(D->getUnderlyingDecl())) {
     ValueDecl *VD = cast<ValueDecl>(D);
-    if (!DiagnoseCheckedDecl(VD, Loc))
+    if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
       return true;
   }
   DiagnoseAvailabilityOfDecl(*this, D, Loc, UnknownObjCClass,
@@ -7410,17 +7414,10 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // between checked and unchecked pointers or between different kinds of checked
   // pointers. Only implicit conversions between unchecked pointers or from
   // unchecked to checked pointers are allowed.
-
-  // Checked C - add rules for implicit casts between checked pointer types
-  // implicit casts between checked pointer type are not allowed
-  // -> implicit casts from checked to unchecked are not allowed only
-  // remove constraints which prevents implicit casts between checked pointers
-  // prevent only implicit casts from checked to unchecked
-
-  // checked->checked : incompatible -> compatible
-  // checked->unchecked : incompatible -> incompatible
-  // unchecked->checked : allowed -> allowed
-  // unchecked->unchecked : allowed -> allowed
+  // Also, implicit conversion between checked pointers is added
+  // to handle properly address-of (&) operator in checked block
+  // Except for implicit conversion from checked to unchecked pointers,
+  // all other implicit conversions are allowed
   if (lhkind != rhkind && rhkind != CheckedPointerKind::Unchecked &&
       lhkind == CheckedPointerKind::Unchecked)
     return Sema::Incompatible;
@@ -10760,7 +10757,6 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
     OrigOp = op =
         CreateMaterializeTemporaryExpr(op->getType(), OrigOp.get(), true);
   } else if (isa<ObjCSelectorExpr>(op)) {
-    // Checked C - objective C is not related to checked c
     return Context.getPointerType(op->getType());
   } else if (lval == Expr::LV_MemberFunction) {
     // If it's an instance method, make a member pointer.
@@ -10886,13 +10882,9 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
 
   CheckAddressOfPackedMember(op);
 
-  // In Checked C, the address-of operator always produces an unchecked pointer
-  // type.
-
-  // checked scope change types produced by unary address-of operator
-  // In checked scope, address-of operator (&) produces type as array_ptr<T>
-  // In unchecked scope, address-of operator (&) produces type as (T *)
-  // refer to current scope checked property to produce address-of type
+  // Checked scopes change the types of the address-of(&) operator.
+  // In a checked scope, the operator produces an array_ptr<T>.
+  // In an unchecked scope, it continues to produce (T *).
   bool isCheckedScope = getCurScope()->isCheckedScope();
   CheckedPointerKind kind;
   if (isCheckedScope)

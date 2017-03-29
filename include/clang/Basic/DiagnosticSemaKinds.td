@@ -8875,13 +8875,16 @@ def err_bounds_type_annotation_lost_checking : Error<
     "expression has no bounds">;
 
   def err_expected_bounds_for_ptr_cast : Error<
-    "expression has no bounds, cast to ptr<T> require a source /w bounds">; 
+    "expression has no bounds"
+    ", cast to ptr<T> expects source to have bounds">;
 
   def err_expected_bounds_for_assignment : Error<
-    "expression has no bounds, lvalue /w bounds require a rvalue /w bounds">;
+    "expression has no bounds"
+    ", right-hand side of assignment expected to have bounds because the left-hand side has bounds">;
 
   def err_expected_bounds_for_initializer : Error<
-    "expression has no bounds, variable decl require a initializer /w bounds">;
+    "expression has no bounds"
+    ", an initializer expected to have bounds because variable declaration has bounds">;
 
   def err_initializer_expected_with_bounds : Error<
     "automatic variable %0 with bounds must have initializer">;
@@ -8918,8 +8921,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{pointer|array}1 type in a checked scope or function">;
 
   def err_checked_scope_type_for_expression : Error<
-    "No use of %select{parameter|return|variable|member}0 have an unchecked "
-    "%select{pointer|array}1 type in a checked scope or function">;
+    "cannot use a %select{parameter|return|variable|member}0 with an unchecked type in a checked scope or function">;
 
   def err_checked_scope_type_for_casting : Error<
     "invalid casting to unchecked %select{pointer|array}0 type in a checked scope or function">;

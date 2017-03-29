@@ -3662,10 +3662,6 @@ public:
   void DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                         SourceLocation OpLoc);
 
-  /// Checked C - Error if decl is not checked type
-  void CheckAndDiagnoseCheckedDecl(const DeclStmt *DS);
-  /// \brief Error if decl is not checked type
-
   /// \param D - target declaration
   /// \param UseLoc - default invalid location at declaration
   /// it is valid only if it is regarded as use of variable

@@ -10623,21 +10623,6 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
 
 
 //===--- CHECK: Checked scope -------------------------===//
-void Sema::CheckAndDiagnoseCheckedDecl(const DeclStmt *DS) {
-  // Checked C - check consistency between compound stmt checked property
-  // and declaration type
-  DeclGroupRef DG = DS->getDeclGroup();
-  for (DeclGroupRef::iterator D = DG.begin(), DEnd = DG.end(); D != DEnd;
-       ++D) {
-    if (VarDecl *VD = dyn_cast<VarDecl>(*D)) {
-      // Checked C - check type restriction on declaration in checked scope
-      // if failed at variable declaration, set invalid
-      if (!DiagnoseCheckedDecl(VD))
-        VD->setInvalidDecl();
-    }
-  }
-}
-
 // type restrictions on declaration in checked blocks
 bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   // Checked C - check consistency between checked property and declaration
@@ -10669,7 +10654,7 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
     Ty = Field->getType();
   }
 
-  bool Res = true;
+  bool Result = true;
   int TypeKind = 0;
   if (TargetDecl) {
     // type is unchecked pointer/array type w/o bounds-safe interface
@@ -10679,22 +10664,21 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
       // check if type is checked pointer type or it has interop type
       QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
       if (!Ty->hasCheckedType() && InterOpTy.isNull()) {
-        Res = false;
+        Result = false;
         TypeKind = (Ty->isUncheckedPointerType() ? 0 : 1);
       }
     }
   }
-  if (!Res) {
+  if (!Result) {
     if (UseLoc.isInvalid()) {
       SourceLocation DeclLoc = TargetDecl->getLocStart();
       Diag(DeclLoc, diag::err_checked_scope_type_for_declaration) << DeclKind
                                                                   << TypeKind;
     } else {
-      Diag(UseLoc, diag::err_checked_scope_type_for_expression) << DeclKind
-                                                                << TypeKind;
+      Diag(UseLoc, diag::err_checked_scope_type_for_expression) << DeclKind;
     }
   }
-  return Res;
+  return Result;
 }
 
 

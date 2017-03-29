@@ -6830,6 +6830,11 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     return NewTemplate;
   }
 
+  // Checked C - type restriction on declarations in checked block
+  // variable declaration is not allowed to use unchecked type in checked block
+  if (S->isCheckedScope() && !DiagnoseCheckedDecl(NewVD))
+    NewVD->setInvalidDecl();
+
   return NewVD;
 }
 
@@ -8521,16 +8526,14 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
-  // Checked C - checked function return type checking
+  // Checked C - type restriction on declarations in checked block
+  // function parameter & return type is not allowed to use unchecked type
+  // in checked blocks
   if (D.getDeclSpec().isCheckedSpecified()) {
-    // current scope - function definition/body scope, checked propery is from
-    // checked function or checked scope
-    // Checked C - in checked function, check return/param type
-    // In checked scope, no prototype function is not allowed to use
-
-    // Checked C - check type restriction on declaration in checked scope
-    // if failed at function declaration, set invalid
-    // if failed at function parameter declaration, set invalid
+    // current scope - function definition/body scope
+    // checked propery is from checked function or checked scope keyword
+    // In checked function, check function return/param type
+    // In checked scope, no prototype function is not allowed
     if (!DiagnoseCheckedDecl(NewFD))
       NewFD->setInvalidDecl();
     for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
@@ -14211,8 +14214,8 @@ FieldDecl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
   FieldDecl *Res = HandleField(S, cast_or_null<RecordDecl>(TagD),
                                DeclStart, D, static_cast<Expr*>(BitfieldWidth),
                                /*InitStyle=*/ICIS_NoInit, AS_public);
-  // Checked C - check type restriction on declaration in checked scope
-  // if failed at member declaration, set invalid
+  // Checked C - type restriction on declarations in checked block
+  // member declaration is not allowed to use unchecked type in checked block
   if (S->isCheckedScope() && !DiagnoseCheckedDecl(Res))
     Res->setInvalidDecl();
   return Res;

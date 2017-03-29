@@ -824,7 +824,6 @@ namespace {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
         if (SrcBounds->isNone()) {
-          // TODO: produce more informative error message.
           S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds_for_ptr_cast);
           SrcBounds = S.CreateInvalidBoundsExpr();
         }
