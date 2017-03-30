@@ -2285,12 +2285,12 @@ public:
   void EmitAsmStmt(const AsmStmt &S);
 
   void EmitExplicitDynamicCheck(const Expr *Condition);
-  void EmitCheckedCSubscriptCheck(const LValue Addr, const BoundsExpr *Bounds);
-  void EmitCheckedCDerefCheck(const LValue Addr, const BoundsExpr *Bounds);
-  void EmitCheckedCMemberCheck(const LValue Addr, const BoundsExpr *Bounds);
-  void EmitCheckedCArrowCheck(const LValue Addr, const BoundsExpr *Bounds);
-  void EmitDynamicNonNullCheck(const LValue Addr);
-  void EmitDynamicBoundsCheck(const LValue Addr, const BoundsExpr *Bounds);
+  void EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy);
+  void EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy, const Address PtrAddr);
+  void EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds);
+  /// \brief Create a basic block that will call the trap intrinsic, and emit
+  /// a conditional branch to it, for Checked C's dynamic checks.
+  void EmitDynamicCheckBlocks(llvm::Value *Condition);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);
@@ -3230,9 +3230,6 @@ public:
   /// "trap-func-name" if specified.
   llvm::CallInst *EmitTrapCall(llvm::Intrinsic::ID IntrID);
 
-  /// \brief Create a basic block that will call the trap intrinsic, and emit
-  /// a conditional branch to it, for Checked C _Dynamic_checks expressions.
-  void EmitDynamicCheckBlocks(llvm::Value *Condition);
 
   /// \brief Emit a cross-DSO CFI failure handling function.
   void EmitCfiCheckFail();
