@@ -2557,6 +2557,17 @@ void CastOperation::CheckCStyleCast() {
       return;
     }
   }
+
+  // Checked C - No C-style casts to unchecked pointer/array type.
+  if (Self.getCurScope()->isCheckedScope()) {
+    if ((isa<PointerType>(DestType) || isa<ArrayType>(DestType)) &&
+        !DestType->hasCheckedType()) {
+      int TypeKind = (DestType->isUncheckedPointerType() ? 0 : 1);
+      Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting) << TypeKind;
+      SrcExpr = ExprError();
+      return;
+    }
+  }
   
   DiagnoseCastOfObjCSEL(Self, SrcExpr, DestType);
   DiagnoseCallingConvCast(Self, SrcExpr, DestType, OpRange);

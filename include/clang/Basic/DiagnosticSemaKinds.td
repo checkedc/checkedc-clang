@@ -8874,6 +8874,18 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_expected_bounds : Error<
     "expression has no bounds">;
 
+  def err_expected_bounds_for_ptr_cast : Error<
+    "expression has no bounds"
+    ", cast to ptr<T> expects source to have bounds">;
+
+  def err_expected_bounds_for_assignment : Error<
+    "expression has no bounds"
+    ", right-hand side of assignment expected to have bounds because the left-hand side has bounds">;
+
+  def err_expected_bounds_for_initializer : Error<
+    "expression has no bounds"
+    ", initializer expected to have bounds because the variable being declared has bounds">;
+
   def err_initializer_expected_with_bounds : Error<
     "automatic variable %0 with bounds must have initializer">;
 
@@ -8904,9 +8916,15 @@ def err_bounds_type_annotation_lost_checking : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
 	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression}1">;
 
-  def err_checked_scope_type : Error<
+  def err_checked_scope_type_for_declaration : Error<
     "%select{parameter|return|variable|member}0 cannot have an unchecked "
     "%select{pointer|array}1 type in a checked scope or function">;
+
+  def err_checked_scope_type_for_expression : Error<
+    "cannot use a %select{parameter|return|variable|member}0 with an unchecked type in a checked scope or function">;
+
+  def err_checked_scope_type_for_casting : Error<
+    "invalid casting to unchecked %select{pointer|array}0 type in a checked scope or function">;
 
   def err_checked_scope_no_prototype_func : Error<
     "function without a prototype cannot be used or declared in a checked scope">;

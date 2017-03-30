@@ -10623,23 +10623,10 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
 
 
 //===--- CHECK: Checked scope -------------------------===//
-void Sema::DiagnoseCheckedDecl(const DeclStmt *DS) {
-  // Checked C - check consistency between compound stmt checked property
-  // and declaration type
-  DeclGroupRef DG = DS->getDeclGroup();
-  for (DeclGroupRef::const_iterator D = DG.begin(), DEnd = DG.end(); D != DEnd;
-       ++D) {
-    if (const VarDecl *VD = dyn_cast<VarDecl>(*D)) {
-      DiagnoseCheckedDecl(VD);
-    }
-  }
-}
-
-// type restrictions on declaration in checked blocks
-void Sema::DiagnoseCheckedDecl(const DeclaratorDecl *Decl) {
-  // Checked C - check consistency between checked property and declaration
-  // checked pointer type or unchecked pointer type with bounds-safe interface
-  // is only allowed in checked scope or funcion
+// Checked C - type restrictions on declarations in checked blocks.
+bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
+  // Checked pointer type or unchecked pointer type with bounds-safe interface
+  // is only allowed in checked scope or funcion.
   const DeclaratorDecl *TargetDecl = nullptr;
   int DeclKind;
   QualType Ty;
@@ -10666,22 +10653,29 @@ void Sema::DiagnoseCheckedDecl(const DeclaratorDecl *Decl) {
     Ty = Field->getType();
   }
 
-  bool checkedScopeError = false;
+  bool Result = true;
   int TypeKind = 0;
   if (TargetDecl) {
-    // type is unchecked pointer/array type w/o bounds-safe interface
-    // bounds safe interface is always checked type
-    QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
-    if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
-        InterOpTy.isNull()) {
-      checkedScopeError = true;
-      TypeKind = (Ty->isUncheckedPointerType() ? 0 : 1);
+    // If declared type is unchecked pointer/array type
+    // without bounds-safe interface, it is wrong declaration.
+    if (isa<PointerType>(Ty) || isa<ArrayType>(Ty)) {
+      QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
+      if (!Ty->hasCheckedType() && InterOpTy.isNull()) {
+        Result = false;
+        TypeKind = (Ty->isUncheckedPointerType() ? 0 : 1);
+      }
     }
   }
-  if (checkedScopeError) {
-    Diag(TargetDecl->getLocStart(), diag::err_checked_scope_type) << DeclKind
+  if (!Result) {
+    if (UseLoc.isInvalid()) {
+      SourceLocation DeclLoc = TargetDecl->getLocStart();
+      Diag(DeclLoc, diag::err_checked_scope_type_for_declaration) << DeclKind
                                                                   << TypeKind;
+    } else {
+      Diag(UseLoc, diag::err_checked_scope_type_for_expression) << DeclKind;
+    }
   }
+  return Result;
 }
 
 

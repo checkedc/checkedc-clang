@@ -3662,9 +3662,13 @@ public:
   void DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                         SourceLocation OpLoc);
 
-  /// Checked C - Error if decl is not checked type
-  void DiagnoseCheckedDecl(const DeclStmt *DS);
-  void DiagnoseCheckedDecl(const DeclaratorDecl *D);
+  /// \param D - target declaration
+  /// \param UseLoc - default invalid location at declaration
+  /// it is valid only if it is regarded as use of variable
+
+  /// \returns true if target declaration is valid checked decl
+  bool DiagnoseCheckedDecl(const ValueDecl *D,
+                           SourceLocation UseLoc = SourceLocation());
 
   /// \brief Warn if we're implicitly casting from a _Nullable pointer type to a
   /// _Nonnull one.

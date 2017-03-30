@@ -388,6 +388,18 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, SourceLocation Loc,
     Diag(D->getLocation(), diag::note_entity_declared_at) << D;
     return true;
   }
+
+  // Checked C - check if use of declaration has proper type in checked block.
+  // If it is valid declaration, it checks if use of declaration has unchecked
+  // type in checked block.
+  // Otherwise, it does not emit redundant error message at the use of variable
+  // since it already produced an error message at the declaration of variable.
+  if (getCurScope()->isCheckedScope() &&
+      isa<ValueDecl>(D->getUnderlyingDecl())) {
+    ValueDecl *VD = cast<ValueDecl>(D);
+    if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
+      return true;
+  }
   DiagnoseAvailabilityOfDecl(*this, D, Loc, UnknownObjCClass,
                              ObjCPropertyAccess);
 
@@ -7401,7 +7413,12 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // between checked and unchecked pointers or between different kinds of checked
   // pointers. Only implicit conversions between unchecked pointers or from
   // unchecked to checked pointers are allowed.
-  if (lhkind != rhkind && rhkind != CheckedPointerKind::Unchecked)
+  // Also, implicit conversion between checked pointers is added
+  // to handle properly address-of (&) operator in checked block.
+  // Except for implicit conversion from checked to unchecked pointers,
+  // all other implicit conversions are allowed.
+  if (rhkind != CheckedPointerKind::Unchecked &&
+      lhkind == CheckedPointerKind::Unchecked)
     return Sema::Incompatible;
 
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
@@ -10864,9 +10881,17 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
 
   CheckAddressOfPackedMember(op);
 
-  // In Checked C, the address-of operator always produces an unchecked pointer
-  // type.
-  return Context.getPointerType(op->getType(), CheckedPointerKind::Unchecked);
+  // Checked scopes change the types of the address-of(&) operator.
+  // In a checked scope, the operator produces an array_ptr<T>.
+  // In an unchecked scope, it continues to produce (T *).
+  bool isCheckedScope = getCurScope()->isCheckedScope();
+  CheckedPointerKind kind;
+  if (isCheckedScope)
+    kind = CheckedPointerKind::Array;
+  else
+    kind = CheckedPointerKind::Unchecked;
+
+  return Context.getPointerType(op->getType(), kind);
 }
 
 static void RecordModifiableNonNullParam(Sema &S, const Expr *Exp) {
