@@ -8884,7 +8884,7 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def err_expected_bounds_for_initializer : Error<
     "expression has no bounds"
-    ", an initializer expected to have bounds because variable declaration has bounds">;
+    ", initializer expected to have bounds because the variable being declared has bounds">;
 
   def err_initializer_expected_with_bounds : Error<
     "automatic variable %0 with bounds must have initializer">;

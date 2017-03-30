@@ -10623,11 +10623,10 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
 
 
 //===--- CHECK: Checked scope -------------------------===//
-// type restrictions on declaration in checked blocks
+// Checked C - type restrictions on declarations in checked blocks.
 bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
-  // Checked C - check consistency between checked property and declaration
-  // checked pointer type or unchecked pointer type with bounds-safe interface
-  // is only allowed in checked scope or funcion
+  // Checked pointer type or unchecked pointer type with bounds-safe interface
+  // is only allowed in checked scope or funcion.
   const DeclaratorDecl *TargetDecl = nullptr;
   int DeclKind;
   QualType Ty;
@@ -10657,11 +10656,9 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   bool Result = true;
   int TypeKind = 0;
   if (TargetDecl) {
-    // type is unchecked pointer/array type w/o bounds-safe interface
-    // bounds safe interface is always checked type
-
+    // If declared type is unchecked pointer/array type
+    // without bounds-safe interface, it is wrong declaration.
     if (isa<PointerType>(Ty) || isa<ArrayType>(Ty)) {
-      // check if type is checked pointer type or it has interop type
       QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
       if (!Ty->hasCheckedType() && InterOpTy.isNull()) {
         Result = false;

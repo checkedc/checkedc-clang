@@ -2558,7 +2558,7 @@ void CastOperation::CheckCStyleCast() {
     }
   }
 
-  // Checked C - No c-style casts to unchecked pointer/array type
+  // Checked C - No C-style casts to unchecked pointer/array type.
   if (Self.getCurScope()->isCheckedScope()) {
     if ((isa<PointerType>(DestType) || isa<ArrayType>(DestType)) &&
         !DestType->hasCheckedType()) {

@@ -6830,8 +6830,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     return NewTemplate;
   }
 
-  // Checked C - type restriction on declarations in checked block
-  // variable declaration is not allowed to use unchecked type in checked block
+  // Checked C - type restrictions on declarations in checked blocks.
+  // Variable declaration is not allowed to use unchecked type in checked block.
   if (S->isCheckedScope() && !DiagnoseCheckedDecl(NewVD))
     NewVD->setInvalidDecl();
 
@@ -8526,14 +8526,14 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
-  // Checked C - type restriction on declarations in checked block
-  // function parameter & return type is not allowed to use unchecked type
-  // in checked blocks
+  // Checked C - type restrictions on declarations in checked blocks.
+  // Function parameters & return are not allowed to use unchecked type
+  // in checked block.
   if (D.getDeclSpec().isCheckedSpecified()) {
-    // current scope - function definition/body scope
-    // checked propery is from checked function or checked scope keyword
-    // In checked function, check function return/param type
-    // In checked scope, no prototype function is not allowed
+    // Current scope checked property is from checked function or
+    // checked scope keyword.
+    // In checked function, check function return/param types.
+    // In checked block, no prototypes functions are not allowed.
     if (!DiagnoseCheckedDecl(NewFD))
       NewFD->setInvalidDecl();
     for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
@@ -14214,10 +14214,11 @@ FieldDecl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
   FieldDecl *Res = HandleField(S, cast_or_null<RecordDecl>(TagD),
                                DeclStart, D, static_cast<Expr*>(BitfieldWidth),
                                /*InitStyle=*/ICIS_NoInit, AS_public);
-  // Checked C - type restriction on declarations in checked block
-  // member declaration is not allowed to use unchecked type in checked block
+  // Checked C - type restrictions on declarations in checked blocks.
+  // Member declaration is not allowed to use unchecked type in checked block.
   if (S->isCheckedScope() && !DiagnoseCheckedDecl(Res))
     Res->setInvalidDecl();
+
   return Res;
 }
 

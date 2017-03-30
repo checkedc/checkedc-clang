@@ -389,12 +389,11 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, SourceLocation Loc,
     return true;
   }
 
-  // Checked C - check if use of declaration is proper type in checked scope
-  // if there was an error, return true
-  // if declaration is valid, it checks if use of declaration is unchecked
-  // pointers in checked scope
-  // Otherwise, DO NOT emit redundant error message at use of variable
-  // it already produced error message at variable declaration
+  // Checked C - check if use of declaration has proper type in checked block.
+  // If it is valid declaration, it checks if use of declaration has unchecked
+  // type in checked block.
+  // Otherwise, it does not emit redundant error message at the use of variable
+  // since it already produced an error message at the declaration of variable.
   if (getCurScope()->isCheckedScope() &&
       isa<ValueDecl>(D->getUnderlyingDecl())) {
     ValueDecl *VD = cast<ValueDecl>(D);
@@ -7415,10 +7414,10 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // pointers. Only implicit conversions between unchecked pointers or from
   // unchecked to checked pointers are allowed.
   // Also, implicit conversion between checked pointers is added
-  // to handle properly address-of (&) operator in checked block
+  // to handle properly address-of (&) operator in checked block.
   // Except for implicit conversion from checked to unchecked pointers,
-  // all other implicit conversions are allowed
-  if (lhkind != rhkind && rhkind != CheckedPointerKind::Unchecked &&
+  // all other implicit conversions are allowed.
+  if (rhkind != CheckedPointerKind::Unchecked &&
       lhkind == CheckedPointerKind::Unchecked)
     return Sema::Incompatible;
 
