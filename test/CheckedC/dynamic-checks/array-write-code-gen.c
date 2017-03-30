@@ -41,6 +41,9 @@ void f1(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1
@@ -71,6 +74,9 @@ void f1(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp1
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG3]], {{i[0-9]+}} 1
@@ -101,6 +107,9 @@ void f1(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
@@ -132,6 +141,9 @@ void f1(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 4
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 2
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
@@ -162,6 +174,9 @@ void f1(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 5
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** @gp3
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG3]], {{i[0-9]+}} 3
@@ -176,6 +191,11 @@ void f1(void) {
   // CHECK-IR-NEXT: store i32 5, i32* [[REG1]]
 
   // CHECK-IR: ret void
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
@@ -208,6 +228,9 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr
@@ -238,6 +261,9 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp1.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG3]], {{i[0-9]+}} 1
@@ -268,6 +294,9 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
@@ -299,6 +328,9 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 4
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 2
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
@@ -329,6 +361,9 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 5
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %lp3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG3]], {{i[0-9]+}} 3
@@ -343,6 +378,11 @@ void f2(_Array_ptr<int> lp1 : count(1),
   // CHECK-IR-NEXT: store i32 5, i32* [[REG1]]
 
   // CHECK-IR: ret void
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
@@ -373,6 +413,7 @@ void f3(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 0
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
 
+  // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt ({{i[0-9]+}} ptrtoint ([1 x i32]* @ga1 to {{i[0-9]+}}),
@@ -399,6 +440,7 @@ void f3(void) {
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int checked[1]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
 
+  // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt ({{i[0-9]+}} ptrtoint ([1 x i32]* @ga1 to {{i[0-9]+}}),
@@ -426,6 +468,7 @@ void f3(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 0
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
+  // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt ({{i[0-9]+}} ptrtoint ([3 x i32]* @ga3 to {{i[0-9]+}}),
@@ -453,6 +496,7 @@ void f3(void) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 4
 
+  // NOTE: No Non-null check inserted
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle ({{i[0-9]+}} ptrtoint ([3 x i32]* @ga3 to {{i[0-9]+}}),
@@ -480,6 +524,7 @@ void f3(void) {
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 5
 
+  // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt ({{i[0-9]+}} ptrtoint ([3 x i32]* @ga3 to {{i[0-9]+}}),
@@ -524,6 +569,9 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr
@@ -554,6 +602,9 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la1.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG3]], {{i[0-9]+}} 1
@@ -584,6 +635,9 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 0
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
@@ -615,6 +669,9 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 4
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG1]], {{i[0-9]+}} 2
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
@@ -645,6 +702,9 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 5
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load i32*, i32** %la3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds i32, i32* [[REG3]], {{i[0-9]+}} 3
@@ -663,7 +723,14 @@ void f4(int la1 _Checked[1],
   // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
 }
+
 
 
 
@@ -693,6 +760,7 @@ void f5() {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 0
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
 
+  // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt ({{i[0-9]+}} ptrtoint ([3 x [3 x i32]]* @gma to {{i[0-9]+}}),
@@ -723,6 +791,7 @@ void f5() {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
 
+  // NOTE: No Non-null check inserted
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle ({{i[0-9]+}} ptrtoint ([3 x [3 x i32]]* @gma to {{i[0-9]+}}),
@@ -755,6 +824,7 @@ void f5() {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 5
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
+  // NOTE: No Non-null check inserted
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle ({{i[0-9]+}} ptrtoint ([3 x [3 x i32]]* @gma to {{i[0-9]+}}),
@@ -788,6 +858,7 @@ void f5() {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 4
 
+  // NOTE: No Non-null check inserted
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle ({{i[0-9]+}} ptrtoint ([3 x [3 x i32]]* @gma to {{i[0-9]+}}),
@@ -817,6 +888,7 @@ void f5() {
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int checked[3][3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 5
 
+  // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 icmp slt ({{i[0-9]+}} ptrtoint ([3 x [3 x i32]]* @gma to {{i[0-9]+}}),
@@ -846,6 +918,7 @@ void f5() {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 6
 
+  // NOTE: No Non-null check inserted
   // The following line of LLVM IR is very long
   // CHECK-IR: br i1 and
   // CHECK-IR-SAME: (i1 icmp sle ({{i[0-9]+}} ptrtoint ([3 x [3 x i32]]* @gma to {{i[0-9]+}}),
@@ -891,7 +964,13 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG1]], {{i[0-9]+}} 0
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG2]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
@@ -926,7 +1005,13 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG1]], {{i[0-9]+}} 2
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG2]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} 2
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
@@ -962,7 +1047,13 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG1]], {{i[0-9]+}} 0
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG2]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} 5
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
@@ -999,7 +1090,13 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 4
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG1]], {{i[0-9]+}} 2
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG2]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} -2
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
@@ -1032,7 +1129,13 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 5
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG1]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG2]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG4]], {{i[0-9]+}} 3
@@ -1065,8 +1168,14 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 6
 
   // CHECK-IR: [[REG1:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne [3 x i32]* [[REG1]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG1]], {{i[0-9]+}} 2
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
+  // CHECK-IR-NEXT: [[REG_DYNN:%_Dynamic_check.non_null[a-zA-Z0-9.]*]] = icmp ne i32* [[REG3]], null
+  // CHECK-IR-NEXT: br i1 [[REG_DYNN]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
+  // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = load [3 x i32]*, [3 x i32]** %lma.addr
   // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = getelementptr inbounds [3 x i32], [3 x i32]* [[REG5]], {{i[0-9]+}} 3
@@ -1081,6 +1190,18 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-IR-NEXT: store i32 6, i32* [[REG3]]
 
   // CHECK-IR: ret void
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
+  // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
   // CHECK-IR: call void @llvm.trap
