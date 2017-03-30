@@ -716,7 +716,7 @@ namespace {
         NeedsBoundsCheck = true;
         LValueBounds = S.InferLValueBounds(S.getASTContext(), E);
         if (LValueBounds->isNone()) {
-          S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          S.Diag(E->getLocStart(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
         }
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
@@ -750,7 +750,7 @@ namespace {
       if (Base->getType()->isCheckedPointerArrayType()){
         BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
         if (Bounds->isNone()) {
-          S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          S.Diag(Base->getLocStart(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
         }
         E->setBoundsExpr(Bounds);
@@ -788,7 +788,7 @@ namespace {
           else
             RHSBounds = S.InferRValueBounds(S.Context, RHS);
           if (RHSBounds->isNone()) {
-             S.Diag(RHS->getLocStart(), diag::err_expected_bounds);
+             S.Diag(RHS->getLocStart(), diag::err_expected_bounds_for_assignment) << RHS->getSourceRange();
              RHSBounds = S.CreateInvalidBoundsExpr();
           }
         }
@@ -824,8 +824,7 @@ namespace {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
         if (SrcBounds->isNone()) {
-          // TODO: produce more informative error message.
-          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds_for_ptr_cast)  << E->getSubExpr()->getSourceRange();
           SrcBounds = S.CreateInvalidBoundsExpr();
         }
         assert(SrcBounds);
@@ -903,7 +902,7 @@ namespace {
         BoundsExpr *InitBounds = S.InferRValueBounds(S.getASTContext(), Init);
         if (InitBounds->isNone()) {
           // TODO: need some place to record the initializer bounds
-          S.Diag(Init->getLocStart(), diag::err_expected_bounds);
+          S.Diag(Init->getLocStart(), diag::err_expected_bounds_for_initializer) << Init->getSourceRange();
           InitBounds = S.CreateInvalidBoundsExpr();
         }
         if (DumpBounds)
