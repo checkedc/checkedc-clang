@@ -3799,8 +3799,8 @@ void Parser::ParseStructDeclaration(
 ///         struct-declaration-list struct-declaration
 /// [OBC]   '@' 'defs' '(' class-name ')'
 ///
-void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
-                                  unsigned TagType, Decl *TagDecl, bool isChecked) {
+void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
+                                  Decl *TagDecl, CheckedScopeKind Kind) {
   PrettyDeclStackTraceEntry CrashInfo(Actions, TagDecl, RecordLoc,
                                       "parsing struct/union body");
   assert(!getLangOpts().CPlusPlus && "C++ declarations not supported");
@@ -3809,8 +3809,12 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   if (T.consumeOpen())
     return;
 
-  ParseScope StructScope(this, Scope::ClassScope | Scope::DeclScope |
-                                   (isChecked ? Scope::CheckedScope : 0));
+  unsigned structScopeFlag = (Scope::ClassScope | Scope::DeclScope);
+  if (Kind == CSK_Checked)
+    structScopeFlag |= Scope::CheckedScope;
+  else if (Kind == CSK_Unchecked)
+    structScopeFlag |= Scope::UncheckedScope;
+  ParseScope StructScope(this, structScopeFlag);
   Actions.ActOnTagStartDefinition(getCurScope(), TagDecl);
 
   SmallVector<Decl *, 32> FieldDecls;

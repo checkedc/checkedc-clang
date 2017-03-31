@@ -1527,15 +1527,20 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
-  // Checked C - checked scope keyword
-  bool isChecked = (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace));
+  // Checked C - checked/unchecked scope keyword, consume token and pass it.
+  CheckedScopeKind CSK = CSK_None;
+  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace))
+    CSK = CSK_Checked;
+  else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace))
+    CSK = CSK_Unchecked;
+
   if (DSC == DSC_trailing)
     TUK = Sema::TUK_Reference;
-  else if (Tok.is(tok::l_brace) || isChecked ||
+  else if (Tok.is(tok::l_brace) || CSK == CSK_Checked || CSK == CSK_Unchecked ||
            (getLangOpts().CPlusPlus && Tok.is(tok::colon)) ||
            (isCXX11FinalKeyword() &&
             (NextToken().is(tok::l_brace) || NextToken().is(tok::colon)))) {
-    if (isChecked)
+    if (CSK == CSK_Checked || CSK == CSK_Unchecked)
       ConsumeToken();
     if (DS.isFriendSpecified()) {
       // C++ [class.friend]p2:
@@ -1823,7 +1828,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       ParseCXXMemberSpecification(StartLoc, AttrFixitLoc, attrs, TagType,
                                   TagOrTempResult.get());
     else
-      ParseStructUnionBody(StartLoc, TagType, TagOrTempResult.get(), isChecked);
+      ParseStructUnionBody(StartLoc, TagType, TagOrTempResult.get(), CSK);
   }
 
   const char *PrevSpec = nullptr;
