@@ -458,7 +458,7 @@ private:
     if (Tok.getKind() == tok::l_brace)
       ++BraceCount;
     else if (BraceCount)
-      --BraceCount;     // Don't let unbalanced '}'s drive the count negative.
+      --BraceCount;     // Don't let unbalanced }'s drive the count negative.
 
     PrevTokLocation = Tok.getLocation();
     PP.Lex(Tok);
