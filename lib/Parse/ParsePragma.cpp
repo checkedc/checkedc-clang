@@ -167,6 +167,15 @@ struct PragmaMSIntrinsicHandler : public PragmaHandler {
                     Token &FirstToken) override;
 };
 
+struct PragmaCheckedScopeHandler : public PragmaHandler {
+  PragmaCheckedScopeHandler(Sema &S)
+      : PragmaHandler("BOUNDS_CHECKED"), Actions(S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
+                    Token &FirstToken) override;
+private:
+  Sema &Actions;
+};
+
 }  // end namespace
 
 void Parser::initializePragmaHandlers() {
@@ -250,6 +259,9 @@ void Parser::initializePragmaHandlers() {
 
   NoUnrollHintHandler.reset(new PragmaUnrollHintHandler("nounroll"));
   PP.AddPragmaHandler(NoUnrollHintHandler.get());
+
+  CheckedScopeHandler.reset(new PragmaCheckedScopeHandler(Actions));
+  PP.AddPragmaHandler(CheckedScopeHandler.get());
 }
 
 void Parser::resetPragmaHandlers() {
@@ -323,6 +335,9 @@ void Parser::resetPragmaHandlers() {
 
   PP.RemovePragmaHandler(NoUnrollHintHandler.get());
   NoUnrollHintHandler.reset();
+
+  PP.RemovePragmaHandler(CheckedScopeHandler.get());
+  CheckedScopeHandler.reset();
 }
 
 /// \brief Handle the annotation token produced for #pragma unused(...)
@@ -2186,4 +2201,46 @@ void PragmaMSIntrinsicHandler::HandlePragma(Preprocessor &PP,
   if (Tok.isNot(tok::eod))
     PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
         << "intrinsic";
+}
+
+// Handle the checked-c top level scope checked property.
+// #pragma BOUNDS_CHECKED default
+// #pragma BOUNDS_CHECKED on
+// #pragma BOUNDS_CHECKED off
+void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
+                                             PragmaIntroducerKind Introducer,
+                                             Token &Tok) {
+  PP.Lex(Tok);
+  if (Tok.is(tok::eod)) {
+    PP.Diag(Tok.getLocation(), diag::err_pragma_missing_argument)
+        << "BOUNDS_CHECKED" << /*Expected=*/true
+        << "'on' or 'off' or 'default'";
+    return;
+  }
+  if (Tok.isNot(tok::identifier)) {
+    PP.Diag(Tok.getLocation(), diag::err_pragma_bounds_checked_invalid_argument)
+        << PP.getSpelling(Tok);
+    return;
+  }
+  const IdentifierInfo *II = Tok.getIdentifierInfo();
+  // The only accepted values are 'on' or 'off' or 'default'.
+  PragmaCheckedScopeKind Kind = PCSK_Default;
+  if (II->isStr("on")) {
+    Kind = PCSK_Checked;
+  } else if (II->isStr("off")) {
+    Kind = PCSK_Unchecked;
+  } else if (!II->isStr("default")) {
+    PP.Diag(Tok.getLocation(), diag::err_pragma_bounds_checked_invalid_argument)
+        << PP.getSpelling(Tok);
+    return;
+  }
+  PP.Lex(Tok);
+
+  if (Tok.isNot(tok::eod)) {
+    PP.Diag(Tok.getLocation(), diag::err_pragma_bounds_checked_extra_argument)
+        << PP.getSpelling(Tok);
+    return;
+  }
+
+  Actions.ActOnPragmaCheckedScope(Actions.getCurScope(), Kind);
 }

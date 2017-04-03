@@ -4293,6 +4293,10 @@ public:
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
 
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
+
+  // \#pragma BOUNDS_CHECKED.
+  void ActOnPragmaCheckedScope(Scope* S, PragmaCheckedScopeKind Kind);
+
   BoundsExpr *CreateInvalidBoundsExpr();
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
