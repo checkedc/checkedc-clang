@@ -2209,8 +2209,7 @@ void PragmaMSIntrinsicHandler::HandlePragma(Preprocessor &PP,
 // #pragma BOUNDS_CHECKED off
 void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
                                              PragmaIntroducerKind Introducer,
-                                             Token &FirstToken) {
-  Token Tok;
+                                             Token &Tok) {
   PP.Lex(Tok);
   if (Tok.is(tok::eod)) {
     PP.Diag(Tok.getLocation(), diag::err_pragma_missing_argument)
@@ -2243,5 +2242,5 @@ void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
     return;
   }
 
-  Actions.ActOnPragmaCheckedScope(Kind, FirstToken.getLocation());
+  Actions.ActOnPragmaCheckedScope(Actions.getCurScope(), Kind);
 }

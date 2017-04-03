@@ -4294,9 +4294,8 @@ public:
 
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
 
-  // Called on well formed \#pragma BOUNDS_CHECKED.
-  void ActOnPragmaCheckedScope(PragmaCheckedScopeKind Kind,
-                               SourceLocation PragmaLoc);
+  // \#pragma BOUNDS_CHECKED.
+  void ActOnPragmaCheckedScope(Scope* S, PragmaCheckedScopeKind Kind);
 
   BoundsExpr *CreateInvalidBoundsExpr();
   BoundsExpr *CreateCountForArrayType(QualType QT);
