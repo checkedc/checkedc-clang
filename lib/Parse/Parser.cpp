@@ -1123,6 +1123,8 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
     FnBodyScopeFlag |= Scope::UncheckedScope;
   else if (D.getDeclSpec().isCheckedSpecified())
     FnBodyScopeFlag |= Scope::CheckedScope;
+  else if (D.getDeclSpec().isUncheckedSpecified())
+    FnBodyScopeFlag |= Scope::UncheckedScope;
 
   // In delayed template parsing mode, for function template we consume the
   // tokens and store them for late parsing at the end of the translation unit.
@@ -1301,11 +1303,16 @@ void Parser::ParseKNRParamDeclarations(Declarator &D) {
 
   // Enter function-declaration scope, limiting any declarators to the
   // function prototype scope, including parameter declarators.
-  ParseScope PrototypeScope(
-      this,
-      Scope::FunctionPrototypeScope | Scope::FunctionDeclarationScope |
-          Scope::DeclScope |
-          (D.getDeclSpec().isCheckedSpecified() ? Scope::CheckedScope : 0));
+  unsigned PrototypeScopeFlag = Scope::FunctionPrototypeScope |
+                                Scope::FunctionDeclarationScope |
+                                Scope::DeclScope;
+  PrototypeScopeFlag |=
+      (D.getDeclSpec().isCheckedSpecified()
+           ? Scope::CheckedScope
+           : (D.getDeclSpec().isUncheckedSpecified() ? Scope::UncheckedScope
+                                                     : 0));
+
+  ParseScope PrototypeScope(this, PrototypeScopeFlag);
 
   // Read all the argument declarations.
   while (isDeclarationSpecifier()) {

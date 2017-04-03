@@ -2104,6 +2104,12 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         Bounds = cast<BoundsExpr>(ParsedBounds.get());
     }
     Actions.ActOnBoundsDecl(ThisVarDecl, Bounds);
+    // Checked C - type restrictions on declarations in checked blocks.
+    // Variable declaration is not allowed to use unchecked type in checked block.
+    // Bounds-safe interface type is applied to decl after building VarDecl.
+    if (getCurScope()->isCheckedScope() &&
+        !Actions.DiagnoseCheckedDecl(ThisVarDecl))
+      ThisVarDecl->setInvalidDecl();
   }
 
   // Parse declarator '=' initializer.
@@ -2829,6 +2835,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       continue;
 
     case tok::kw__Checked:
+    case tok::kw__Unchecked:
       // Checked C - it is parsed as checked array or checked function keyword
       // checked array type, checked []
       if (NextToken().is(tok::l_square)) {
@@ -2839,7 +2846,10 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         break;
       } else {
         // checked function, it acts as function specifier
-        isInvalid = DS.setFunctionSpecChecked(Loc, PrevSpec, DiagID);
+        if (Tok.is(tok::kw__Checked))
+          isInvalid = DS.setFunctionSpecChecked(Loc, PrevSpec, DiagID);
+        else
+          isInvalid = DS.setFunctionSpecUnchecked(Loc, PrevSpec, DiagID);
         break;
       }
 
@@ -3891,6 +3901,13 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
           else
             Actions.ActOnBoundsDecl(Field, BoundsAnnotation);
 	 }
+         // Checked C - type restrictions on declarations in checked blocks.
+         // Member declaration is not allowed to use unchecked type in checked
+         // block.
+         // Bounds-safe interface type is applied to decl after building Field
+         if (getCurScope()->isCheckedScope() &&
+             !Actions.DiagnoseCheckedDecl(Field))
+           Field->setInvalidDecl();
       };
 
       // Parse all the comma separated declarators.
@@ -5613,13 +5630,19 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       // Enter function-declaration scope, limiting any declarators to the
       // function prototype scope, including parameter declarators.
       // Checked C - checked function
-      ParseScope PrototypeScope(
-          this,
+      unsigned PrototypeScopeFlag =
           Scope::FunctionPrototypeScope | Scope::DeclScope |
-              (D.isFunctionDeclaratorAFunctionDeclaration()
-                   ? Scope::FunctionDeclarationScope
-                   : 0) |
-              (D.getDeclSpec().isCheckedSpecified() ? Scope::CheckedScope : 0));
+          (D.isFunctionDeclaratorAFunctionDeclaration()
+               ? Scope::FunctionDeclarationScope
+               : 0);
+
+      PrototypeScopeFlag |=
+          (D.getDeclSpec().isCheckedSpecified()
+               ? Scope::CheckedScope
+               : (D.getDeclSpec().isUncheckedSpecified() ? Scope::UncheckedScope
+                                                         : 0));
+
+      ParseScope PrototypeScope(this, PrototypeScopeFlag);
 
       // The paren may be part of a C++ direct initializer, eg. "int x(1);".
       // In such a case, check if we actually have a function declarator; if it
@@ -5820,13 +5843,19 @@ void Parser::ParseParenDeclarator(Declarator &D) {
   // Enter function-declaration scope, limiting any declarators to the
   // function prototype scope, including parameter declarators.
   // Checked C - checked function
-  ParseScope PrototypeScope(
-      this,
-      Scope::FunctionPrototypeScope | Scope::DeclScope |
-          (D.isFunctionDeclaratorAFunctionDeclaration()
-               ? Scope::FunctionDeclarationScope
-               : 0) |
-          (D.getDeclSpec().isCheckedSpecified() ? Scope::CheckedScope : 0));
+  unsigned PrototypeScopeFlag = Scope::FunctionPrototypeScope |
+                                Scope::DeclScope |
+                                (D.isFunctionDeclaratorAFunctionDeclaration()
+                                     ? Scope::FunctionDeclarationScope
+                                     : 0);
+
+  PrototypeScopeFlag |=
+      (D.getDeclSpec().isCheckedSpecified()
+           ? Scope::CheckedScope
+           : (D.getDeclSpec().isUncheckedSpecified() ? Scope::UncheckedScope
+                                                     : 0));
+
+  ParseScope PrototypeScope(this, PrototypeScopeFlag);
   ParseFunctionDeclarator(D, attrs, T, false, RequiresArg);
   PrototypeScope.Exit();
 }
