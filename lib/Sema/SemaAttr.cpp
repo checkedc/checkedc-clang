@@ -375,17 +375,16 @@ void Sema::ActOnPragmaOptimize(bool On, SourceLocation PragmaLoc) {
 }
 
 // Checked C - #pragma BOUNDS_CHECKED action, adjust top level scope flags.
+// Adjust checked property of scope where '#pragma BOUNDS_CHECKED' is set.
 void Sema::ActOnPragmaCheckedScope(Scope *S, PragmaCheckedScopeKind Kind) {
-  if (S == TUScope) {
-    unsigned ScopeFlags = S->getFlags();
-    if (Kind == PCSK_Checked)
-      ScopeFlags |= Scope::CheckedScope;
-    else {
-      ScopeFlags &= ~Scope::CheckedScope;
-      ScopeFlags |= Scope::UncheckedScope;
-    }
-    S->setFlags(ScopeFlags);
+  unsigned ScopeFlags = S->getFlags();
+  if (Kind == PCSK_Checked)
+    ScopeFlags |= Scope::CheckedScope;
+  else {
+    ScopeFlags &= ~Scope::CheckedScope;
+    ScopeFlags |= Scope::UncheckedScope;
   }
+  S->setFlags(ScopeFlags);
 }
 
 void Sema::AddRangeBasedOptnone(FunctionDecl *FD) {
