@@ -12469,17 +12469,41 @@ ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
 
   checkUnusedDeclAttributes(D);
 
-  QualType castType = castTInfo->getType();
-  Ty = CreateParsedType(castType, castTInfo);
+  BoundsExpr *bounds = nullptr;
+  ExprResult Result(true);
 
-  CheckTollFreeBridgeCast(castType, BaseExpr);
+  ExprResult ResCount = CorrectDelayedTyposInExpr(CountExpr);
+  ExprResult ResRange = CorrectDelayedTyposInExpr(RangeExpr);
 
-  CheckObjCBridgeRelatedCast(castType, BaseExpr);
+  if (!ResCount.isUsable() && !ResRange.isUsable()) {
+    llvm::APInt I = llvm::APInt(1, 1, false);
+    uint64_t Bits = I.getZExtValue();
+    unsigned Width = Context.getIntWidth(Context.UnsignedLongLongTy);
+    llvm::APInt ResultVal(Width, Bits);
+    IntegerLiteral *One = IntegerLiteral::Create(
+        Context, ResultVal, Context.UnsignedLongLongTy, SourceLocation());
+    Result =
+        ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
+                             One, SourceLocation());
+  } else if (ResCount.isUsable() && !ResRange.isUsable()) {
+    Result =
+        ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
+                             ResCount.get(), SourceLocation());
 
-  DiscardMisalignedMemberAddress(castType.getTypePtr(), BaseExpr);
+  } else if (ResCount.isUsable() && ResRange.isUsable()) {
+    Result = ActOnRangeBoundsExpr(SourceLocation(), ResCount.get(),
+                                  ResRange.get(), SourceLocation());
+  } else {
+    Result = ActOnNullaryBoundsExpr(SourceLocation(), BoundsExpr::Kind::None,
+                                    SourceLocation());
+  }
+  if (Result.isInvalid())
+    Result = ActOnNullaryBoundsExpr(SourceLocation(), BoundsExpr::Kind::None,
+                                    SourceLocation());
+  bounds = dyn_cast<BoundsExpr>(Result.get());
 
-  return BuildBoundsCastExpr(LParenLoc, castTInfo, RParenLoc, BaseExpr,
-                             CountExpr, RangeExpr, kind);
+  return BuildBoundsCastExpr(LParenLoc, castTInfo, RParenLoc, BaseExpr, bounds,
+                             kind);
 }
 
 //===----------------------------------------------------------------------===//

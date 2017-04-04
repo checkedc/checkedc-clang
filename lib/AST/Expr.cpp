@@ -1575,7 +1575,7 @@ bool CastExpr::CastConsistency() const {
 
   case CK_Dependent:
   case CK_LValueToRValue:
-  case CK_UnCheckedToChecked:    
+  case CK_PointerBounds:
   case CK_NoOp:
   case CK_AtomicToNonAtomic:
   case CK_NonAtomicToAtomic:
@@ -1696,13 +1696,12 @@ BoundsCastExpr *BoundsCastExpr::Create(const ASTContext &C, QualType T,
                                        const CXXCastPath *BasePath,
                                        TypeSourceInfo *WrittenTy,
                                        SourceLocation L, SourceLocation R,
-                                       Expr *base, Expr *count, Expr *range,
-                                       Kind boundsCastKind) {
+                                       BoundsExpr *bounds, Kind boundsCastKind) {
   unsigned PathSize = (BasePath ? BasePath->size() : 0);
   void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
   BoundsCastExpr *E =
-      new (Buffer) BoundsCastExpr(T, VK, K, Op, PathSize, WrittenTy, L, R, base,
-                                  count, range, boundsCastKind);
+      new (Buffer) BoundsCastExpr(T, VK, K, Op, PathSize, WrittenTy, L, R,
+                                  bounds, boundsCastKind);
   if (PathSize)
     std::uninitialized_copy_n(BasePath->data(), BasePath->size(),
                               E->getTrailingObjects<CXXBaseSpecifier *>());

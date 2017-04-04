@@ -999,7 +999,7 @@ static bool rewriteToNumericBoxedExpression(const ObjCMessageExpr *Msg,
   if (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(Arg)) {
     switch (ICE->getCastKind()) {
     case CK_LValueToRValue:
-    case CK_UnCheckedToChecked:      
+    case CK_PointerBounds:
     case CK_NoOp:
     case CK_UserDefinedConversion:
       break;

@@ -2967,9 +2967,6 @@ class BoundsCastExpr final
       private llvm::TrailingObjects<BoundsCastExpr, CXXBaseSpecifier *> {
   SourceLocation LPLoc;
   SourceLocation RPLoc;
-  Expr *BaseExpr = nullptr;
-  Expr *CountExpr = nullptr;
-  Expr *RangeExpr = nullptr;
   
 public:  
   enum Kind {
@@ -2978,15 +2975,15 @@ public:
     Assume = 2,
     MaxBoundsCastKind = Assume
   };
-  
+
   BoundsCastExpr(QualType exprTy, ExprValueKind vk, CastKind kind, Expr *op,
                  unsigned PathSize, TypeSourceInfo *writtenTy, SourceLocation l,
-                 SourceLocation r, Expr *baseExpr, Expr *countExpr,
-                 Expr *rangeExpr, Kind boundsCastKind)
+                 SourceLocation r, BoundsExpr *bounds, Kind boundsCastKind)
       : ExplicitCastExpr(BoundsCastExprClass, exprTy, vk, kind, op, PathSize,
                          writtenTy),
-        LPLoc(l), RPLoc(r), BaseExpr(baseExpr), CountExpr(countExpr),
-        RangeExpr(rangeExpr), BoundsCastKind(boundsCastKind) {}
+        LPLoc(l), RPLoc(r), BoundsCastKind(boundsCastKind) {
+    setBoundsExpr(bounds);
+  }
 
   explicit BoundsCastExpr(EmptyShell Shell, unsigned PathSize)
       : ExplicitCastExpr(BoundsCastExprClass, Shell, PathSize) {}
@@ -2994,8 +2991,7 @@ public:
   static BoundsCastExpr *
   Create(const ASTContext &Context, QualType T, ExprValueKind VK, CastKind K,
          Expr *Op, const CXXCastPath *BasePath, TypeSourceInfo *WrittenTy,
-         SourceLocation L, SourceLocation R, Expr *BaseExpr, Expr *CountExpr,
-         Expr *RangeExpr, Kind boundsCastKind);
+         SourceLocation L, SourceLocation R, BoundsExpr *bounds, Kind boundsCastKind);
 
   static BoundsCastExpr *CreateEmpty(const ASTContext &Context,
                                      unsigned PathSize);
@@ -3011,17 +3007,8 @@ public:
     return getSubExpr()->getLocEnd();
   }
 
-  Expr *getBaseExpr() const { return BaseExpr; }
-  Expr *getCountExpr() const { return CountExpr; }
-  Expr *getRangeExpr() const { return RangeExpr; }
   Kind getBoundsCastKind() const { return BoundsCastKind; }
-  void setCountExpr(Expr *E) { CountExpr = E; }
-  void setRangeExpr(Expr *E) { RangeExpr = E; }
   void setBoundsCastKind(Kind kind) { BoundsCastKind = kind; }
-
-  bool hasBaseExpr() { return BaseExpr != nullptr; }
-  bool hasCountExpr() { return CountExpr != nullptr; }
-  bool hasRangeExpr() { return RangeExpr != nullptr; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == BoundsCastExprClass;

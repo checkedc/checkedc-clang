@@ -327,9 +327,9 @@ CAST_OPERATION(AddressSpaceConversion)
 // Convert an integer initializer to an OpenCL sampler.
 CAST_OPERATION(IntToOCLSampler)
 
-// CK_UnCheckedToChecked - A conversion from a Unchecked pointer to checkedc
+// CK_PointerBounds - A conversion from a Unchecked pointer to checkedc
 // pointer
-CAST_OPERATION(UnCheckedToChecked)
+CAST_OPERATION(PointerBounds)
 
 //===- Binary Operations  -------------------------------------------------===//
 // Operators listed in order of precedence.

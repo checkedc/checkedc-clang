@@ -715,7 +715,7 @@ public:
     // These don't need to be handled here because Evaluate knows how to
     // evaluate them in the cases where they can be folded.
     case CK_BitCast:
-    case CK_UnCheckedToChecked:      
+    case CK_PointerBounds:
     case CK_ToVoid:
     case CK_Dynamic:
     case CK_LValueBitCast:

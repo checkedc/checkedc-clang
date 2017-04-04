@@ -1904,10 +1904,16 @@ void StmtPrinter::VisitInteropTypeBoundsAnnotation(
 }
 
 void StmtPrinter::VisitBoundsCastExpr(BoundsCastExpr *Node) {
-  OS << '(';
+  if (Node->getBoundsCastKind() == BoundsCastExpr::Kind::Dynamic)
+    OS << "_Dynamic_bounds_cast<";
+  else if (Node->getBoundsCastKind() == BoundsCastExpr::Kind::Assume)
+    OS << "_Assume_bounds_cast<";
   Node->getTypeAsWritten().print(OS, Policy);
-  OS << ')';
+  OS << '>';
   PrintExpr(Node->getSubExpr());
+  OS << '(';
+  PrintExpr(Node->getBoundsExpr());
+  OS << ')';
 }
 
 // PositionalParameterExpr is used in the representation of bounds

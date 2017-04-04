@@ -4290,13 +4290,13 @@ public:
 
   ExprResult ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
                                  Declarator &D, ParsedType &Ty,
-                                 SourceLocation RParenLoc, Expr *CastExpr,
+                                 SourceLocation RParenLoc, Expr *BaseExpr,
                                  Expr *CountExpr, Expr *RangeExpr,
                                  BoundsCastExpr::Kind kind);
 
   ExprResult BuildBoundsCastExpr(SourceLocation LParenLoc, TypeSourceInfo *Ty,
-                                 SourceLocation RParenLoc, Expr *CastExpr,
-                                 Expr *CountExpr, Expr *RangeExpr,
+                                 SourceLocation RParenLoc, Expr *BaseExpr,
+                                 BoundsExpr *bounds,
                                  BoundsCastExpr::Kind kind);
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,

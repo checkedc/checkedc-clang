@@ -743,10 +743,10 @@ void ASTStmtReader::VisitCStyleCastExpr(CStyleCastExpr *E) {
 
 void ASTStmtReader::VisitBoundsCastExpr(BoundsCastExpr *E) {
   VisitExplicitCastExpr(E);
+  E->setBoundsCastKind((BoundsCastExpr::Kind) Record[Idx++]);  
   E->setLParenLoc(ReadSourceLocation(Record, Idx));
   E->setRParenLoc(ReadSourceLocation(Record, Idx));
-  E->setCountExpr(Reader.ReadSubExpr());
-  E->setRangeExpr(Reader.ReadSubExpr());
+  E->setBoundsExpr(dyn_cast<BoundsExpr>(Reader.ReadSubExpr()));
 }
 
 void ASTStmtReader::VisitCompoundLiteralExpr(CompoundLiteralExpr *E) {

@@ -884,7 +884,7 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
       if (&II == Ident_dynamic_bounds_cast || &II == Ident_assume_bounds_cast) {
         if (Tok.is(tok::less))
           Res = ParseBoundsCastExpression(II, ILoc);
-	break;
+        break;
       }
     }
 
@@ -3022,7 +3022,7 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   SourceLocation StartLoc = Tok.getLocation();
   ParsedType CastTy = nullptr;
   BoundsCastExpr::Kind kind;
-  if(&Ident == Ident_dynamic_bounds_cast)
+  if (&Ident == Ident_dynamic_bounds_cast)
     kind = BoundsCastExpr::Kind::Dynamic;
   else if (&Ident == Ident_assume_bounds_cast)
     kind = BoundsCastExpr::Kind::Assume;
@@ -3112,7 +3112,7 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
 
   Result = Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, DeclaratorInfo,
                                        CastTy, RParenLoc, CastExpr.get(),
-                                       CountExpr.get(), RangeExpr.get(),kind);
+                                       CountExpr.get(), RangeExpr.get(), kind);
 
   return Result;
 }
