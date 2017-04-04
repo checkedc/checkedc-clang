@@ -27,7 +27,6 @@ enum PragmaMSStructKind {
 };
 
 enum PragmaCheckedScopeKind {
-  PCSK_Default,   // #pragma BOUNDS_CHECKED default
   PCSK_Checked,   // #pragma BOUNDS_CHECKED on
   PCSK_Unchecked  // #pragma BOUNDS_CHECKED off
 };

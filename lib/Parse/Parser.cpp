@@ -371,10 +371,11 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
 /// EnterScope - Start a new scope.
 void Parser::EnterScope(unsigned ScopeFlags) {
   // Checked C - inherit checked scope property from parent scope.
-  // UncheckedScope ScopeFlag clears checked property.
-  if (getCurScope() && getCurScope()->isCheckedScope() &&
-      !(ScopeFlags & Scope::UncheckedScope))
+  if (getCurScope() && getCurScope()->isCheckedScope())
     ScopeFlags |= Scope::CheckedScope;
+  // UncheckedScope ScopeFlag clears checked property.
+  if (ScopeFlags & Scope::UncheckedScope)
+    ScopeFlags &= ~Scope::CheckedScope;
   if (NumCachedScopes) {
     Scope *N = ScopeCache[--NumCachedScopes];
     N->Init(getCurScope(), ScopeFlags);

@@ -380,8 +380,10 @@ void Sema::ActOnPragmaCheckedScope(Scope *S, PragmaCheckedScopeKind Kind) {
     unsigned ScopeFlags = S->getFlags();
     if (Kind == PCSK_Checked)
       ScopeFlags |= Scope::CheckedScope;
-    else if (Kind == PCSK_Unchecked)
+    else {
+      ScopeFlags &= ~Scope::CheckedScope;
       ScopeFlags |= Scope::UncheckedScope;
+    }
     S->setFlags(ScopeFlags);
   }
 }
