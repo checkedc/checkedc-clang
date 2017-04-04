@@ -184,6 +184,7 @@ public:
   // an expression which might produce constraint variables, or, it might 
   // be some expression like NULL, an integer constant or a cast.
   void constrainAssign( std::set<ConstraintVariable*> V, 
+                        QualType lhsType,
                         Expr *RHS) {
     if (!RHS)
       return;
@@ -220,7 +221,8 @@ public:
         else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
           // Case 4.
           W = Info.getVariable(C->getSubExpr(), Context);
-          if (Info.checkStructuralEquality(V, W)) {
+          QualType rhsTy = RHS->getType();
+          if (Info.checkStructuralEquality(V, W, lhsType, rhsTy)) {
             // This has become a little stickier to think about. 
             // What do you do here if we determine that two things with
             // very different arity are structurally equal? Is that even 
@@ -251,12 +253,12 @@ public:
 
   void constrainAssign(Expr *LHS, Expr *RHS) {
     std::set<ConstraintVariable*> V = Info.getVariable(LHS, Context);
-    constrainAssign(V, RHS);
+    constrainAssign(V, LHS->getType(), RHS);
   }
 
   void constrainAssign(DeclaratorDecl *D, Expr *RHS) {
     std::set<ConstraintVariable*> V = Info.getVariable(D, Context);
-    constrainAssign(V, RHS);
+    constrainAssign(V, D->getType(), RHS);
   }
 
   bool VisitDeclStmt(DeclStmt *S) {

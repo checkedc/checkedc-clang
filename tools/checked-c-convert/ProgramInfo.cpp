@@ -484,9 +484,12 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   }
 }
 
+// Check the equality of 
 bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable*> V, 
-                                          std::set<ConstraintVariable*> U) {
-  // TODO: implement structural equality checking.
+                                          std::set<ConstraintVariable*> U,
+                                          QualType VTy,
+                                          QualType UTy) 
+{
   return false;
 }
 
