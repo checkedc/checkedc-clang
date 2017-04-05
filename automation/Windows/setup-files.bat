@@ -2,7 +2,7 @@ rem Create directories and sync files
 
 set OLD_DIR=%CD%
 
-if "%CHECKEDC_BUILD_CLEAN%"=="Yes" (
+if "%BUILD_CHECKEDC_CLEAN%"=="Yes" (
   if exist %BUILD_SOURCESDIRECTORY%\llvm (
     rmdir /s /q %BUILD_SOURCESDIRECTORY%\llvm
     if ERRORLEVEL 1 (goto cmdfailed)
