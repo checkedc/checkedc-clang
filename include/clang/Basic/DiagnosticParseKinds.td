@@ -1087,11 +1087,4 @@ def err_expected_bounds_expr_or_interop_type : Error<
 def err_expected_compound_stmt_after_checked_scope : Error<
   "expected compound statement after checked scope keyword">;
 
-def err_pragma_bounds_checked_invalid_argument : Error<
-  "unexpected argument '%0' to '#pragma BOUNDS_CHECKED'; "
-  "expected 'on' or 'off'">;
-
-def err_pragma_bounds_checked_extra_argument : Error<
-  "unexpected extra argument '%0' to '#pragma BOUNDS_CHECKED'">;
-
 } // end of Parser diagnostics

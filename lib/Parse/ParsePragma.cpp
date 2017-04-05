@@ -926,6 +926,16 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
   return true;
 }
 
+// #pragma BOUNDS_CHECKED [on-off-switch]
+void Parser::HandlePragmaBoundsChecked() {
+  assert(Tok.is(tok::annot_pragma_bounds_checked));
+  tok::OnOffSwitch OOS =
+    static_cast<tok::OnOffSwitch>(
+    reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
+  Actions.ActOnPragmaBoundsChecked(Actions.getCurScope(), OOS);
+  ConsumeToken(); // The annotation token.
+}
+
 // #pragma GCC visibility comes in two variants:
 //   'push' '(' [visibility] ')'
 //   'pop'
@@ -2204,39 +2214,22 @@ void PragmaMSIntrinsicHandler::HandlePragma(Preprocessor &PP,
 }
 
 // Handle the checked-c top level scope checked property.
-// #pragma BOUNDS_CHECKED on
-// #pragma BOUNDS_CHECKED off
+// #pragma BOUNDS_CHECKED [on-off-swtich]
+// To handle precise scope property, annotation token is better
 void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
                                              PragmaIntroducerKind Introducer,
                                              Token &Tok) {
-  PP.Lex(Tok);
-  if (Tok.is(tok::eod)) {
-    PP.Diag(Tok.getLocation(), diag::err_pragma_missing_argument)
-        << "BOUNDS_CHECKED" << /*Expected=*/true << "'on' or 'off'";
+  tok::OnOffSwitch OOS;
+  if (PP.LexOnOffSwitch(OOS))
     return;
-  }
-  if (Tok.isNot(tok::identifier)) {
-    PP.Diag(Tok.getLocation(), diag::err_pragma_bounds_checked_invalid_argument)
-        << PP.getSpelling(Tok);
-    return;
-  }
-  const IdentifierInfo *II = Tok.getIdentifierInfo();
-  // The only accepted values are 'on' or 'off'. Default value is off
-  PragmaCheckedScopeKind Kind = PCSK_Unchecked;
-  if (II->isStr("on")) {
-    Kind = PCSK_Checked;
-  } else if (!II->isStr("off")) {
-    PP.Diag(Tok.getLocation(), diag::err_pragma_bounds_checked_invalid_argument)
-        << PP.getSpelling(Tok);
-    return;
-  }
-  PP.Lex(Tok);
 
-  if (Tok.isNot(tok::eod)) {
-    PP.Diag(Tok.getLocation(), diag::err_pragma_bounds_checked_extra_argument)
-        << PP.getSpelling(Tok);
-    return;
-  }
-
-  Actions.ActOnPragmaCheckedScope(Actions.getCurScope(), Kind);
+  MutableArrayRef<Token> Toks(PP.getPreprocessorAllocator().Allocate<Token>(1),
+                              1);
+  Toks[0].startToken();
+  Toks[0].setKind(tok::annot_pragma_bounds_checked);
+  Toks[0].setLocation(Tok.getLocation());
+  Toks[0].setAnnotationEndLoc(Tok.getLocation());
+  Toks[0].setAnnotationValue(
+      reinterpret_cast<void *>(static_cast<uintptr_t>(OOS)));
+  PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/true);
 }

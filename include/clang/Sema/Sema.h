@@ -4295,7 +4295,7 @@ public:
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
 
   // \#pragma BOUNDS_CHECKED.
-  void ActOnPragmaCheckedScope(Scope* S, PragmaCheckedScopeKind Kind);
+  void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
 
   BoundsExpr *CreateInvalidBoundsExpr();
   BoundsExpr *CreateCountForArrayType(QualType QT);
