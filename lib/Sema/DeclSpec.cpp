@@ -917,12 +917,25 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
 bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
                                       const char *&PrevSpec,
                                       unsigned &DiagID) {
-  if (FS_checked_specified) {
+  if (FS_checked_specified == CFS_Checked) {
     DiagID = diag::warn_duplicate_declspec;
     PrevSpec = "checked";
     return true;
   }
-  FS_checked_specified = true;
+  FS_checked_specified = CFS_Checked;
+  FS_checkedLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setFunctionSpecUnchecked(SourceLocation Loc,
+                                        const char *&PrevSpec,
+                                        unsigned &DiagID) {
+  if (FS_checked_specified == CFS_Unchecked) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "unchecked";
+    return true;
+  }
+  FS_checked_specified = CFS_Unchecked;
   FS_checkedLoc = Loc;
   return false;
 }

@@ -6830,11 +6830,6 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     return NewTemplate;
   }
 
-  // Checked C - type restrictions on declarations in checked blocks.
-  // Variable declaration is not allowed to use unchecked type in checked block.
-  if (S->isCheckedScope() && !DiagnoseCheckedDecl(NewVD))
-    NewVD->setInvalidDecl();
-
   return NewVD;
 }
 
@@ -8529,7 +8524,9 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Checked C - type restrictions on declarations in checked blocks.
   // Function parameters & return are not allowed to use unchecked type
   // in checked block.
-  if (D.getDeclSpec().isCheckedSpecified()) {
+  // Checked function specifier & top level scope checked property can be used.
+  if (D.getDeclSpec().isCheckedSpecified() ||
+      (!D.getDeclSpec().isUncheckedSpecified() && S->isCheckedScope())) {
     // Current scope checked property is from checked function or
     // checked scope keyword.
     // In checked function, check function return/param types.
@@ -14214,11 +14211,6 @@ FieldDecl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
   FieldDecl *Res = HandleField(S, cast_or_null<RecordDecl>(TagD),
                                DeclStart, D, static_cast<Expr*>(BitfieldWidth),
                                /*InitStyle=*/ICIS_NoInit, AS_public);
-  // Checked C - type restrictions on declarations in checked blocks.
-  // Member declaration is not allowed to use unchecked type in checked block.
-  if (S->isCheckedScope() && !DiagnoseCheckedDecl(Res))
-    Res->setInvalidDecl();
-
   return Res;
 }
 

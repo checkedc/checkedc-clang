@@ -180,6 +180,15 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "assume_bounds_cast"
   IdentifierInfo *Ident_assume_bounds_cast;
 
+  enum CheckedScopeKind {
+    /// '{'
+    CSK_None,
+    /// checked '{'
+    CSK_Checked,
+    /// unchecked '{'
+    CSK_Unchecked
+  };
+
   // C++ type trait keywords that can be reverted to identifiers and still be
   // used as type traits.
   llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertibleTypeTraits;
@@ -211,6 +220,7 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> LoopHintHandler;
   std::unique_ptr<PragmaHandler> UnrollHintHandler;
   std::unique_ptr<PragmaHandler> NoUnrollHintHandler;
+  std::unique_ptr<PragmaHandler> CheckedScopeHandler;
 
   std::unique_ptr<CommentHandler> CommentSemaHandler;
 
@@ -1757,7 +1767,7 @@ private:
   StmtResult ParseCheckedScopeStatement();
   StmtResult ParseCompoundStatement(bool isStmtExpr = false);
   StmtResult ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
-                                    bool isChecked = false);
+                                    CheckedScopeKind Kind = CSK_None);
   void ParseCompoundStatementLeadingPragmas();
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
@@ -1947,7 +1957,7 @@ private:
                           AccessSpecifier AS, DeclSpecContext DSC);
   void ParseEnumBody(SourceLocation StartLoc, Decl *TagDecl);
   void ParseStructUnionBody(SourceLocation StartLoc, unsigned TagType,
-                            Decl *TagDecl, bool isChecked);
+                            Decl *TagDecl, CheckedScopeKind CSK = CSK_None);
 
   void ParseStructDeclaration(
       ParsingDeclSpec &DS,
