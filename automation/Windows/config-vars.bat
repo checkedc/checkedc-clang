@@ -11,6 +11,23 @@ rem Create configuration variables
 
 set MSBUILD_VERBOSITY=n
 
+if NOT DEFINED BUILD_CHECKEDC_CLEAN (
+  if DEFINED BUILD_CLEAN (
+    set BUILD_CHECKEDC_CLEAN=Yes
+  ) else (
+    set BUILD_CHECKEDC_CLEAN=No
+  )
+) else (
+  if "%BUILD_CHECKEDC_CLEAN%"=="Yes" (
+    rem
+  ) else if "%BUILD_CHECKEDC_CLEAN%"=="No" (
+    rem
+  ) else (
+    echo Unknown BUILD_CHECKEDC_CLEAN value %BUILD_CHECKEDC_CLEAN%: must be one of Yes or No
+    exit /b /1
+  )
+)
+
 rem Validate build configuration
 
 if NOT DEFINED BUILDCONFIGURATION (
@@ -137,6 +154,7 @@ echo.  BUILDCONFIGURATION: %BUILDCONFIGURATION%
 echo.  BUILDOS: %BUILDOS%
 echo.  TEST_TARGET_ARCH: %TEST_TARGET_ARCH%
 echo.  TEST_SUITE: %TEST_SUITE%
+echo.  BUILD_CHECKEDC_CLEAN: %BUILD_CHECKEDC_CLEAN%
 echo.
 echo.  Directories:
 echo.    BUILD_SOURCESDIRECTORY: %BUILD_SOURCESDIRECTORY%
