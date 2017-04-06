@@ -4294,6 +4294,8 @@ public:
                                  Expr *CountExpr, Expr *RangeExpr,
                                  BoundsCastExpr::Kind kind);
 
+  ExprResult GenerateBoundsExpr(Expr *E2, Expr *E3);
+
   ExprResult BuildBoundsCastExpr(SourceLocation LParenLoc, TypeSourceInfo *Ty,
                                  SourceLocation RParenLoc, Expr *BaseExpr,
                                  BoundsExpr *bounds,

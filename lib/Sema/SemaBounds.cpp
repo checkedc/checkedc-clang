@@ -513,8 +513,9 @@ namespace {
           Expr *subExpr = CE->getSubExpr();
           BoundsExpr *Bounds = CE->getBoundsExpr();
           QualType QT = subExpr->getType();
-          Expr *Base =
-              CreateImplicitCast(QT, CastKind::CK_LValueToRValue, subExpr);
+	  Expr *Base = subExpr;
+          if (subExpr->getStmtClass() != clang::Stmt::CallExprClass)
+	    Base=CreateImplicitCast(QT, CastKind::CK_LValueToRValue, subExpr);
           Bounds = ExpandToRange(Base, Bounds);
           CE->setBoundsExpr(Bounds);
           return Bounds;

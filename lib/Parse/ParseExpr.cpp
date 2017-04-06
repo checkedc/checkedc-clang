@@ -3019,7 +3019,6 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
 ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
                                              SourceLocation &ILoc) {
   ExprResult Result(true);
-  SourceLocation StartLoc = Tok.getLocation();
   ParsedType CastTy = nullptr;
   BoundsCastExpr::Kind kind;
   if (&Ident == Ident_dynamic_bounds_cast)
@@ -3030,24 +3029,19 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
     kind = BoundsCastExpr::Kind::Invalid;
 
   DeclSpec DS(AttrFactory);
-  DS.SetRangeStart(Tok.getLocation());
-  DS.SetRangeEnd(SourceLocation());
 
   if (ExpectAndConsume(tok::less, diag::err_expected_less_after,
                        Ident.getNameStart()))
     return ExprError();
 
-  TypeResult Ty = ParseTypeName();
-  if (Ty.isInvalid())
-    SkipUntil(tok::greater, StopAtSemi);
+  ParseSpecifierQualifierList(DS);
 
   // if there is rel, parsing it.
-  // if(Tok.is(tok::comma)){
-  //   ConsumeToken();
-  //   Parsing Alignment
-  //   .....
-  // }
-
+  if(Tok.is(tok::comma)){
+    ConsumeToken();
+  //...
+  }
+  
   Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
   ParseDeclarator(DeclaratorInfo);
 
@@ -3065,19 +3059,19 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   LParenLoc = T.getOpenLocation();
 
   // Parsing e1, e2, e3
-  ExprResult CastExpr(true), CountExpr(true), RangeExpr(true);
+  ExprResult E1(true), E2(true), E3(true);
 
-  CastExpr = ParseCastExpression(true);
-  if (CastExpr.isInvalid()) {
+  E1 = ParseCastExpression(true);
+  if (E1.isInvalid()) {
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
     return ExprError();
   }
 
   if (Tok.is(tok::comma)) {
     ConsumeToken();
-    CountExpr = ParseAssignmentExpression();
-    if (!CountExpr.isInvalid())
-      CountExpr = Actions.CorrectDelayedTyposInExpr(CountExpr.get());
+    E2 = ParseAssignmentExpression();
+    if (!E2.isInvalid())
+      E2 = Actions.CorrectDelayedTyposInExpr(E2.get());
     else {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       return ExprError();
@@ -3086,9 +3080,9 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
 
   if (Tok.is(tok::comma)) {
     ConsumeToken();
-    RangeExpr = ParseAssignmentExpression();
-    if (!RangeExpr.isInvalid())
-      RangeExpr = Actions.CorrectDelayedTyposInExpr(RangeExpr.get());
+    E3 = ParseAssignmentExpression();
+    if (!E3.isInvalid())
+      E3 = Actions.CorrectDelayedTyposInExpr(E3.get());
     else {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       return ExprError();
@@ -3098,21 +3092,10 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   // Match the ')'.
   T.consumeClose();
   RParenLoc = T.getCloseLocation();
-
-  const char *PrevSpec = nullptr;
-  unsigned DiagID;
-  auto pointerKind = (RangeExpr.isInvalid() && CountExpr.isInvalid())
-                         ? TST_plainPtr
-                         : TST_arrayPtr;
-  if (DS.SetTypeSpecType(pointerKind, StartLoc, PrevSpec, DiagID, Ty.get(),
-                         Actions.getASTContext().getPrintingPolicy()))
-    Diag(StartLoc, DiagID) << PrevSpec;
-
-  DS.Finish(Actions, Actions.getASTContext().getPrintingPolicy());
-
-  Result = Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, DeclaratorInfo,
-                                       CastTy, RParenLoc, CastExpr.get(),
-                                       CountExpr.get(), RangeExpr.get(), kind);
+  if(!E1.isInvalid() && !DeclaratorInfo.isInvalidType())
+    Result = Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, DeclaratorInfo,
+                                       CastTy, RParenLoc, E1.get(),
+                                       E2.get(), E3.get(), kind);
 
   return Result;
 }

@@ -3014,6 +3014,11 @@ public:
     return T->getStmtClass() == BoundsCastExprClass;
   }
 
+  child_range children(){
+    Stmt *bounds = dyn_cast<Stmt>(this->getBoundsExpr());
+    return child_range(&bounds, &bounds+1);
+  }
+
   friend TrailingObjects;
   friend class CastExpr;
 private:

@@ -12451,31 +12451,34 @@ ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
 
 ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
                                      Declarator &D, ParsedType &Ty,
-                                     SourceLocation RParenLoc, Expr *BaseExpr,
-                                     Expr *CountExpr, Expr *RangeExpr,
+                                     SourceLocation RParenLoc, Expr *E1,
+                                     Expr *E2, Expr *E3,
                                      BoundsCastExpr::Kind kind) {
-  assert(!D.isInvalidType() && (BaseExpr != nullptr) &&
+  assert(!D.isInvalidType() && (E1 != nullptr) &&
          "ActOnBoundsCastExpr(): missing type or expr");
 
-  TypeSourceInfo *castTInfo = GetTypeForDeclaratorCast(D, BaseExpr->getType());
+  TypeSourceInfo *castTInfo = GetTypeForDeclaratorCast(D, E1->getType());
 
   if (D.isInvalidType())
     return ExprError();
 
-  ExprResult Res = CorrectDelayedTyposInExpr(BaseExpr);
-  if (!Res.isUsable())
+  ExprResult ResE1 = CorrectDelayedTyposInExpr(E1);
+  if (!ResE1.isUsable())
     return ExprError();
-  BaseExpr = Res.get();
+  E1 = ResE1.get();
 
-  checkUnusedDeclAttributes(D);
+  ExprResult bounds = GenerateBoundsExpr(E2, E3);
 
-  BoundsExpr *bounds = nullptr;
+  return BuildBoundsCastExpr(LParenLoc, castTInfo, RParenLoc, E1,
+                             dyn_cast<BoundsExpr>(bounds.get()), kind);
+}
+
+ExprResult Sema::GenerateBoundsExpr(Expr *E2, Expr *E3) {
   ExprResult Result(true);
+  ExprResult ResE2 = CorrectDelayedTyposInExpr(E2);
+  ExprResult ResE3 = CorrectDelayedTyposInExpr(E3);
 
-  ExprResult ResCount = CorrectDelayedTyposInExpr(CountExpr);
-  ExprResult ResRange = CorrectDelayedTyposInExpr(RangeExpr);
-
-  if (!ResCount.isUsable() && !ResRange.isUsable()) {
+  if (!ResE2.isUsable() && !ResE3.isUsable()) {
     llvm::APInt I = llvm::APInt(1, 1, false);
     uint64_t Bits = I.getZExtValue();
     unsigned Width = Context.getIntWidth(Context.UnsignedLongLongTy);
@@ -12485,25 +12488,18 @@ ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
     Result =
         ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
                              One, SourceLocation());
-  } else if (ResCount.isUsable() && !ResRange.isUsable()) {
+  } else if (ResE2.isUsable() && !ResE3.isUsable()) {
     Result =
         ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
-                             ResCount.get(), SourceLocation());
-
-  } else if (ResCount.isUsable() && ResRange.isUsable()) {
-    Result = ActOnRangeBoundsExpr(SourceLocation(), ResCount.get(),
-                                  ResRange.get(), SourceLocation());
-  } else {
-    Result = ActOnNullaryBoundsExpr(SourceLocation(), BoundsExpr::Kind::None,
-                                    SourceLocation());
+                             ResE2.get(), SourceLocation());
+  } else if (ResE2.isUsable() && ResE3.isUsable()) {
+    Result = ActOnRangeBoundsExpr(SourceLocation(), ResE2.get(), ResE3.get(),
+                                  SourceLocation());
   }
   if (Result.isInvalid())
-    Result = ActOnNullaryBoundsExpr(SourceLocation(), BoundsExpr::Kind::None,
-                                    SourceLocation());
-  bounds = dyn_cast<BoundsExpr>(Result.get());
+    Result = CreateInvalidBoundsExpr();
 
-  return BuildBoundsCastExpr(LParenLoc, castTInfo, RParenLoc, BaseExpr, bounds,
-                             kind);
+  return Result;
 }
 
 //===----------------------------------------------------------------------===//
