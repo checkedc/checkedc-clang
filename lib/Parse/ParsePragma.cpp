@@ -2204,7 +2204,6 @@ void PragmaMSIntrinsicHandler::HandlePragma(Preprocessor &PP,
 }
 
 // Handle the checked-c top level scope checked property.
-// #pragma BOUNDS_CHECKED default
 // #pragma BOUNDS_CHECKED on
 // #pragma BOUNDS_CHECKED off
 void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
@@ -2213,8 +2212,7 @@ void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
   PP.Lex(Tok);
   if (Tok.is(tok::eod)) {
     PP.Diag(Tok.getLocation(), diag::err_pragma_missing_argument)
-        << "BOUNDS_CHECKED" << /*Expected=*/true
-        << "'on' or 'off' or 'default'";
+        << "BOUNDS_CHECKED" << /*Expected=*/true << "'on' or 'off'";
     return;
   }
   if (Tok.isNot(tok::identifier)) {
@@ -2223,13 +2221,11 @@ void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
     return;
   }
   const IdentifierInfo *II = Tok.getIdentifierInfo();
-  // The only accepted values are 'on' or 'off' or 'default'.
-  PragmaCheckedScopeKind Kind = PCSK_Default;
+  // The only accepted values are 'on' or 'off'. Default value is off
+  PragmaCheckedScopeKind Kind = PCSK_Unchecked;
   if (II->isStr("on")) {
     Kind = PCSK_Checked;
-  } else if (II->isStr("off")) {
-    Kind = PCSK_Unchecked;
-  } else if (!II->isStr("default")) {
+  } else if (!II->isStr("off")) {
     PP.Diag(Tok.getLocation(), diag::err_pragma_bounds_checked_invalid_argument)
         << PP.getSpelling(Tok);
     return;
