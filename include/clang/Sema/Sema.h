@@ -4304,6 +4304,8 @@ public:
                                       ArrayRef<DeclaratorChunk::ParamInfo> Params);
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
+  BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
+                                       BoundsExpr *Bounds);
 
   /// GetArrayPtrDereference - determine if an lvalue expression is
   /// a dereference of an Array_ptr (via '*" or an array subscript operator).
@@ -4314,19 +4316,16 @@ public:
   /// InferLValueBounds - infer a bounds expression for an lvalue.
   /// The bounds determine whether the lvalue to which an
   /// expression evaluates in in range.
-  /// Allocate the nodes for the bounds expression in Ctx.
-  BoundsExpr *InferLValueBounds(ASTContext &Ctx, Expr *E);
+  BoundsExpr *InferLValueBounds(Expr *E);
 
   /// InferLValueTargetBounds - infer the bounds for the
   /// target of an lvalue.
-  /// Allocate the nodes for the bounds expression in Ctx.
-  BoundsExpr *InferLValueTargetBounds(ASTContext &Ctx, Expr *E);
+  BoundsExpr *InferLValueTargetBounds(Expr *E);
 
   /// InferRVa;ieBounds - infer a bounds expression for an rvalue.
   /// The bounds determine whether the rvalue to which an
   /// expression evaluates is in range.
-  /// Allocate the nodes for the bounds expression in Ctx.
-  BoundsExpr *InferRValueBounds(ASTContext &Ctx, Expr *E);
+  BoundsExpr *InferRValueBounds(Expr *E);
 
   /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
   /// body.
@@ -4348,7 +4347,9 @@ public:
 
   /// CheckNonModifyingExpr - checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1)
-  bool CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req);
+  bool CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req =
+                               NonModifiyingExprRequirement::NMER_Unknown,
+                               bool ReportError = true);
 
   // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check
   // will always fail.

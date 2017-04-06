@@ -1,4 +1,4 @@
-// Tests of inferred bounds for base expressions of member referenc&es of
+// Tests of inferred bounds for base expressions of member references of
 // structure or unions.  The goal is to check that the bounds are being 
 // inferred correctly.
 //
