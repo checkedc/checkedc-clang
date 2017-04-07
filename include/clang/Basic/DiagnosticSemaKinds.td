@@ -8929,8 +8929,19 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_checked_scope_no_prototype_func : Error<
     "function without a prototype cannot be used or declared in a checked scope">;
 
-  def err_checked_scope_no_variadic_func : Error<
-    "call to variable argument function cannot be used in a checked scope">;
+  def err_checked_scope_no_variable_args_for_declaration : Error<
+    "%select{parameter|return|variable|member}0 cannot have variable arguments "
+    "in a checked scope or function">;
+
+  def err_checked_scope_no_variable_args_for_expression : Error<
+    "cannot use a %select{parameter|return|variable|member}0 having variable arguments "
+    "in a checked scope or function">;
+
+  def err_checked_scope_no_variadic_func_for_declaration : Error<
+    "variable arguments function cannot be made in a checked scope or function">;
+
+  def err_checked_scope_no_variadic_func_for_expression : Error<
+    "cannot use a variable arguments function in a checked scope or function">;
 } // end of Checked C Category
 
 } // end of sema component.

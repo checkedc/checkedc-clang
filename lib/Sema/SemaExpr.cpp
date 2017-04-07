@@ -401,8 +401,8 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, SourceLocation Loc,
     if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
       return true;
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      if (FD->isVariadic()) {
-        Diag(Loc, diag::err_checked_scope_no_variadic_func);
+      if (FD->getType()->hasVariadicType()) {
+        Diag(Loc, diag::err_checked_scope_no_variadic_func_for_expression);
         return true;
       }
     }

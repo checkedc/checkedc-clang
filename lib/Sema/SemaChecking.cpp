@@ -10654,25 +10654,31 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   }
 
   bool Result = true;
-  int TypeKind = 0;
+  unsigned TypeKind = 0;
   if (TargetDecl) {
     // If declared type is unchecked pointer/array type
     // without bounds-safe interface, it is wrong declaration.
-    if (isa<PointerType>(Ty) || isa<ArrayType>(Ty)) {
-      QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
-      if (!Ty->hasCheckedType() && InterOpTy.isNull()) {
-        Result = false;
-        TypeKind = (Ty->isUncheckedPointerType() ? 0 : 1);
-      }
+    QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
+    if ((Ty->hasUncheckedType(TypeKind) || Ty->hasVariadicType()) &&
+        InterOpTy.isNull()) {
+      Result = false;
     }
   }
   if (!Result) {
     if (UseLoc.isInvalid()) {
-      SourceLocation DeclLoc = TargetDecl->getLocStart();
-      Diag(DeclLoc, diag::err_checked_scope_type_for_declaration) << DeclKind
-                                                                  << TypeKind;
+      SourceLocation DefLoc = TargetDecl->getLocStart();
+      if (Ty->hasUncheckedType(TypeKind))
+        Diag(DefLoc, diag::err_checked_scope_type_for_declaration) << DeclKind
+                                                                   << TypeKind;
+      else
+        Diag(DefLoc, diag::err_checked_scope_no_variable_args_for_declaration)
+            << DeclKind;
     } else {
-      Diag(UseLoc, diag::err_checked_scope_type_for_expression) << DeclKind;
+      if (Ty->hasUncheckedType(TypeKind))
+        Diag(UseLoc, diag::err_checked_scope_type_for_expression) << DeclKind;
+      else
+        Diag(UseLoc, diag::err_checked_scope_no_variable_args_for_expression)
+            << DeclKind;
     }
   }
   return Result;

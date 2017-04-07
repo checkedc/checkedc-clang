@@ -2214,7 +2214,7 @@ void PragmaMSIntrinsicHandler::HandlePragma(Preprocessor &PP,
 }
 
 // Handle the checked-c top level scope checked property.
-// #pragma BOUNDS_CHECKED [on-off-swtich]
+// #pragma BOUNDS_CHECKED [on-off-switch]
 // To handle precise scope property, annotation token is better
 void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
                                              PragmaIntroducerKind Introducer,

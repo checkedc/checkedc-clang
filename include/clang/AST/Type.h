@@ -1839,6 +1839,12 @@ public:
   /// \brief Whether this type is or contains a checked type
   bool hasCheckedType() const;
 
+  /// \brief Whether this type is or contains a unchecked type
+  bool hasUncheckedType(unsigned& Kind) const;
+
+  /// \brief Whether this type is or contains a variadic type
+  bool hasVariadicType() const;
+
   bool isOverloadableType() const;
 
   /// \brief Determine wither this type is a C++ elaborated-type-specifier.
