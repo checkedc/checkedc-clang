@@ -443,9 +443,7 @@ namespace {
         // getBase returns the pointer-typed expression.
         return RValueBounds(AS->getBase());
       }
-      case Expr::MemberExprClass: 
-#if 0
-      {
+      case Expr::MemberExprClass: {
         MemberExpr *ME = dyn_cast<MemberExpr>(E);
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
@@ -468,8 +466,7 @@ namespace {
 
         Expr *AddrOf = CreateAddressOfOperator(ME);
         return CreateSingleElementBounds(AddrOf);
-      } 
-#endif
+      }
       // TODO: fill in these cases.
       case Expr::CompoundLiteralExprClass:
         return CreateBoundsAny();
