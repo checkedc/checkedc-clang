@@ -159,7 +159,7 @@ namespace {
 
   public:
     ConcretizeMemberBounds(Sema &SemaRef, Expr *MemberBaseExpr, bool IsArrow) :
-      BaseTransform(SemaRef), Base(MemberBaseExpr), IsArrow(IsArrow) { }      
+      BaseTransform(SemaRef), Base(MemberBaseExpr), IsArrow(IsArrow) { }
 
     // TODO: handle the situation where the base expression is an rvalue.
     // By C semantics, the result is an rvalue.  We are setting fields used in
@@ -172,8 +172,8 @@ namespace {
     //   conversions applied to rvalues.  We need to remove these conversions.
     // - The address of a field is taken.  It is illegal to take the address of
     //   an lvalue.
-    // 
-    // rValue structs can arise from function returns of struct values.
+    //
+    // rVvalue structs can arise from function returns of struct values.
     ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
       if (FieldDecl *FD = dyn_cast<FieldDecl>(E->getDecl())) {
         if (Base->isRValue() && !IsArrow)
@@ -181,7 +181,7 @@ namespace {
           return ExprResult();
         ASTContext &Context = SemaRef.getASTContext();
         ExprValueKind ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
-        MemberExpr *ME = 
+        MemberExpr *ME =
           new (Context) MemberExpr(Base, /*IsArrow=*/false,
                                    SourceLocation(), FD, SourceLocation(),
                                    E->getType(), ResultKind, OK_Ordinary);
@@ -408,7 +408,7 @@ namespace {
 
         if (DR->getType()->isArrayType())
           return ArrayExprBounds(DR);
-        
+
         // TODO: distinguish between variable vs. function
         // references.  This should only apply to function
         // references.
@@ -448,7 +448,7 @@ namespace {
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
           return CreateBoundsNone();
-        if (!SemaRef.CheckIsNonModifyingExpr(ME->getBase(), 
+        if (!SemaRef.CheckIsNonModifyingExpr(ME->getBase(),
                              Sema::NonModifiyingExprRequirement::NMER_Unknown,
                                            /*ReportError=*/false))
           return CreateBoundsNone();
@@ -526,18 +526,15 @@ namespace {
             return CreateBoundsNone();
 
           BoundsExpr *B = F->getBoundsExpr();
-          if (!B || B->isNone())
+          if (!B || B->isNone() || B->isInteropTypeAnnotation())
             return CreateBoundsNone();
 
-          Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
-          return ExpandToRange(Base, B);
-#if 0
           Expr *MemberBaseExpr = M->getBase();
           if (!SemaRef.CheckIsNonModifyingExpr(MemberBaseExpr,
               Sema::NonModifiyingExprRequirement::NMER_Unknown,
               /*ReportError=*/false))
             return CreateBoundsNone();
-          B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B); 
+          B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
           if (!B)
             return CreateBoundsNone();
           if (B->isElementCount() || B->isByteCount()) {
@@ -549,7 +546,6 @@ namespace {
             return ExpandToRange(MemberRValue, B);
           }
           return B;
-#endif
         }
         default:
           return CreateBoundsNone();
