@@ -371,10 +371,11 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
 /// EnterScope - Start a new scope.
 void Parser::EnterScope(unsigned ScopeFlags) {
   // Checked C - inherit checked scope property from parent scope.
-  // UncheckedScope ScopeFlag clears checked property.
-  if (getCurScope() && getCurScope()->isCheckedScope() &&
-      !(ScopeFlags & Scope::UncheckedScope))
+  if (getCurScope() && getCurScope()->isCheckedScope())
     ScopeFlags |= Scope::CheckedScope;
+  // UncheckedScope ScopeFlag clears checked property.
+  if (ScopeFlags & Scope::UncheckedScope)
+    ScopeFlags &= ~Scope::CheckedScope;
   if (NumCachedScopes) {
     Scope *N = ScopeCache[--NumCachedScopes];
     N->Init(getCurScope(), ScopeFlags);
@@ -507,6 +508,10 @@ void Parser::Initialize() {
     Ident_itype = &PP.getIdentifierTable().get("itype");
     Ident_rel_align = &PP.getIdentifierTable().get("rel_align");
     Ident_rel_align_value = &PP.getIdentifierTable().get("rel_align_value");
+    Ident_dynamic_bounds_cast =
+        &PP.getIdentifierTable().get("_Dynamic_bounds_cast");
+    Ident_assume_bounds_cast =
+        &PP.getIdentifierTable().get("_Assume_bounds_cast");
   } else {
     Ident_bounds = nullptr;
     Ident_byte_count = nullptr;
@@ -515,6 +520,8 @@ void Parser::Initialize() {
     Ident_itype = nullptr;
     Ident_rel_align = nullptr;
     Ident_rel_align_value = nullptr;
+    Ident_dynamic_bounds_cast = nullptr;
+    Ident_assume_bounds_cast = nullptr;
   }
 
   Ident__except = nullptr;
@@ -604,6 +611,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result) {
   switch (Tok.getKind()) {
   case tok::annot_pragma_unused:
     HandlePragmaUnused();
+    return false;
+
+  case tok::annot_pragma_bounds_checked:
+    HandlePragmaBoundsChecked();
     return false;
 
   case tok::kw_import:

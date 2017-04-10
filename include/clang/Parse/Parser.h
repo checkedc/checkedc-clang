@@ -174,6 +174,12 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "rel_align_value"
   IdentifierInfo *Ident_rel_align_value;
 
+  /// \brief Identifier for "dynamic_bounds_cast"
+  IdentifierInfo *Ident_dynamic_bounds_cast;
+  
+  /// \brief Identifier for "assume_bounds_cast"
+  IdentifierInfo *Ident_assume_bounds_cast;
+
   enum CheckedScopeKind {
     /// '{'
     CSK_None,
@@ -586,6 +592,10 @@ private:
   /// \brief Handle the annotation token produced for
   /// #pragma clang loop and #pragma unroll.
   bool HandlePragmaLoopHint(LoopHint &Hint);
+
+  /// \brief Handle the annotation token produced for
+  /// #pragma BOUNDS_CHECKED [on-off-switch]
+  void HandlePragmaBoundsChecked();
 
   /// GetLookAheadToken - This peeks ahead N tokens and returns that token
   /// without consuming any tokens.  LookAhead(0) returns 'Tok', LookAhead(1)
@@ -1685,6 +1695,8 @@ private:
   bool ParseRelativeBoundsClause(ExprResult &Expr);
 
   void SkipInvalidBoundsExpr(Token &T);
+
+  ExprResult ParseBoundsCastExpression(IdentifierInfo &Ident, SourceLocation &ILoc);
 
   ExprResult ParseBoundsExpression();
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);

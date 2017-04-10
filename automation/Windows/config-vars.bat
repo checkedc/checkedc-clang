@@ -132,8 +132,6 @@ if not defined CHECKEDC_COMMIT (
 
 if not defined CLANG_COMMIT (
   set CLANG_COMMIT=HEAD
-) else (
-  set CLANG_COMMIT=%BUILD_SOURCEVERSION%
 )
 
 if NOT DEFINED MSBUILD_BIN (
