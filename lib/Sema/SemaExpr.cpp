@@ -12450,17 +12450,11 @@ ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
 }
 
 ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
-                                     Declarator &D, ParsedType &Ty,
-                                     SourceLocation RParenLoc, Expr *E1,
-                                     Expr *E2, Expr *E3,
+                                     ParsedType D, SourceLocation RParenLoc,
+                                     Expr *E1, Expr *E2, Expr *E3,
                                      BoundsCastExpr::Kind kind) {
-  assert(!D.isInvalidType() && (E1 != nullptr) &&
-         "ActOnBoundsCastExpr(): missing type or expr");
-
-  TypeSourceInfo *castTInfo = GetTypeForDeclaratorCast(D, E1->getType());
-
-  if (D.isInvalidType())
-    return ExprError();
+  TypeSourceInfo *castTInfo;
+  GetTypeFromParser(D, &castTInfo);
 
   ExprResult ResE1 = CorrectDelayedTyposInExpr(E1);
   if (!ResE1.isUsable())

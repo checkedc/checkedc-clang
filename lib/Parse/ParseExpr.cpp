@@ -3019,7 +3019,6 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
 ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
                                              SourceLocation &ILoc) {
   ExprResult Result(true);
-  ParsedType CastTy = nullptr;
   BoundsCastExpr::Kind kind;
   if (&Ident == Ident_dynamic_bounds_cast)
     kind = BoundsCastExpr::Kind::Dynamic;
@@ -3028,28 +3027,26 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   else
     kind = BoundsCastExpr::Kind::Invalid;
 
-  DeclSpec DS(AttrFactory);
-
   if (ExpectAndConsume(tok::less, diag::err_expected_less_after,
                        Ident.getNameStart()))
     return ExprError();
 
-  ParseSpecifierQualifierList(DS);
+  TypeResult Ty = ParseTypeName();
+
+  if (Ty.isInvalid()) {
+    SkipUntil(tok::greater, StopAtSemi);
+    return ExprError();
+  }
 
   // if there is rel, parsing it.
-  if(Tok.is(tok::comma)){
+  if (Tok.is(tok::comma)) {
     ConsumeToken();
-  //...
+    //...
   }
-  
-  Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
-  ParseDeclarator(DeclaratorInfo);
 
   SourceLocation EndLoc = Tok.getLocation();
   if (ExpectAndConsume(tok::greater))
     return ExprError(Diag(EndLoc, diag::note_matching) << tok::less);
-
-  DS.SetRangeEnd(EndLoc);
 
   SourceLocation LParenLoc, RParenLoc;
   BalancedDelimiterTracker T(*this, tok::l_paren);
@@ -3092,11 +3089,10 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   // Match the ')'.
   T.consumeClose();
   RParenLoc = T.getCloseLocation();
-  if(!E1.isInvalid() && !DeclaratorInfo.isInvalidType())
-    Result = Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, DeclaratorInfo,
-                                       CastTy, RParenLoc, E1.get(),
-                                       E2.get(), E3.get(), kind);
-
+  if (!E1.isInvalid())
+    Result =
+        Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, Ty.get(), RParenLoc,
+                                    E1.get(), E2.get(), E3.get(), kind);
   return Result;
 }
 

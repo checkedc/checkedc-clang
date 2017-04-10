@@ -4289,9 +4289,8 @@ public:
                                                     SourceLocation RParenLoc);
 
   ExprResult ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
-                                 Declarator &D, ParsedType &Ty,
-                                 SourceLocation RParenLoc, Expr *BaseExpr,
-                                 Expr *CountExpr, Expr *RangeExpr,
+                                 ParsedType D, SourceLocation RParenLoc,
+                                 Expr *E1, Expr *E2, Expr *E3,
                                  BoundsCastExpr::Kind kind);
 
   ExprResult GenerateBoundsExpr(Expr *E2, Expr *E3);
