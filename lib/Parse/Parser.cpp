@@ -607,6 +607,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result) {
     HandlePragmaUnused();
     return false;
 
+  case tok::annot_pragma_bounds_checked:
+    HandlePragmaBoundsChecked();
+    return false;
+
   case tok::kw_import:
     Result = ParseModuleImport(SourceLocation());
     return false;
@@ -731,9 +735,6 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
     return nullptr;
   case tok::annot_pragma_dump:
     HandlePragmaDump();
-    return nullptr;
-  case tok::annot_pragma_bounds_checked:
-    HandlePragmaBoundsChecked();
     return nullptr;
   case tok::semi:
     // Either a C++11 empty-declaration or attribute-declaration.
