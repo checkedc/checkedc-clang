@@ -10655,26 +10655,26 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
 
   bool Result = true;
   unsigned TypeKind = 0;
+  bool HasUncheckedType = Ty->hasUncheckedType(TypeKind);
+  bool HasVariadicType = Ty->hasVariadicType();
   if (TargetDecl) {
     // If declared type is unchecked pointer/array type
     // without bounds-safe interface, it is wrong declaration.
     QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
-    if ((Ty->hasUncheckedType(TypeKind) || Ty->hasVariadicType()) &&
-        InterOpTy.isNull()) {
+    if ((HasUncheckedType || HasVariadicType) && InterOpTy.isNull())
       Result = false;
-    }
   }
   if (!Result) {
     if (UseLoc.isInvalid()) {
       SourceLocation DefLoc = TargetDecl->getLocStart();
-      if (Ty->hasUncheckedType(TypeKind))
+      if (HasUncheckedType)
         Diag(DefLoc, diag::err_checked_scope_type_for_declaration) << DeclKind
                                                                    << TypeKind;
       else
         Diag(DefLoc, diag::err_checked_scope_no_variable_args_for_declaration)
             << DeclKind;
     } else {
-      if (Ty->hasUncheckedType(TypeKind))
+      if (HasUncheckedType)
         Diag(UseLoc, diag::err_checked_scope_type_for_expression) << DeclKind;
       else
         Diag(UseLoc, diag::err_checked_scope_no_variable_args_for_expression)

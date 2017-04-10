@@ -2558,17 +2558,25 @@ void CastOperation::CheckCStyleCast() {
     }
   }
 
-  // Checked C - No C-style casts to unchecked pointer/array type.
+  // Checked C - No C-style casts to unchecked pointer/array type or variadic
+  // type in a checked block.
   if (Self.getCurScope()->isCheckedScope()) {
-    if ((isa<PointerType>(DestType) || isa<ArrayType>(DestType)) &&
-        !DestType->hasCheckedType()) {
-      int TypeKind = (DestType->isUncheckedPointerType() ? 0 : 1);
-      Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting) << TypeKind;
+    unsigned TypeKind = 0;
+    bool HasUncheckedType = DestType->hasUncheckedType(TypeKind);
+    bool HasVariadicType = DestType->hasVariadicType();
+    if (HasUncheckedType || HasVariadicType) {
+      if (HasUncheckedType) {
+        Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
+            << TypeKind;
+      } else {
+        Self.Diag(OpRange.getBegin(),
+                  diag::err_checked_scope_no_variable_args_for_casting);
+      }
       SrcExpr = ExprError();
       return;
     }
   }
-  
+
   DiagnoseCastOfObjCSEL(Self, SrcExpr, DestType);
   DiagnoseCallingConvCast(Self, SrcExpr, DestType, OpRange);
   DiagnoseBadFunctionCast(Self, SrcExpr, DestType);
