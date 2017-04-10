@@ -12456,6 +12456,53 @@ ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
   return new (Context) PositionalParameterExpr(Index, QT);
 }
 
+ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
+                                     ParsedType D, SourceLocation RParenLoc,
+                                     Expr *E1, Expr *E2, Expr *E3,
+                                     BoundsCastExpr::Kind kind) {
+  TypeSourceInfo *castTInfo;
+  GetTypeFromParser(D, &castTInfo);
+
+  ExprResult ResE1 = CorrectDelayedTyposInExpr(E1);
+  if (!ResE1.isUsable())
+    return ExprError();
+  E1 = ResE1.get();
+
+  ExprResult bounds = GenerateBoundsExpr(E2, E3);
+
+  return BuildBoundsCastExpr(LParenLoc, castTInfo, RParenLoc, E1,
+                             dyn_cast<BoundsExpr>(bounds.get()), kind);
+}
+
+ExprResult Sema::GenerateBoundsExpr(Expr *E2, Expr *E3) {
+  ExprResult Result(true);
+  ExprResult ResE2 = CorrectDelayedTyposInExpr(E2);
+  ExprResult ResE3 = CorrectDelayedTyposInExpr(E3);
+
+  if (!ResE2.isUsable() && !ResE3.isUsable()) {
+    llvm::APInt I = llvm::APInt(1, 1, false);
+    uint64_t Bits = I.getZExtValue();
+    unsigned Width = Context.getIntWidth(Context.UnsignedLongLongTy);
+    llvm::APInt ResultVal(Width, Bits);
+    IntegerLiteral *One = IntegerLiteral::Create(
+        Context, ResultVal, Context.UnsignedLongLongTy, SourceLocation());
+    Result =
+        ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
+                             One, SourceLocation());
+  } else if (ResE2.isUsable() && !ResE3.isUsable()) {
+    Result =
+        ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
+                             ResE2.get(), SourceLocation());
+  } else if (ResE2.isUsable() && ResE3.isUsable()) {
+    Result = ActOnRangeBoundsExpr(SourceLocation(), ResE2.get(), ResE3.get(),
+                                  SourceLocation());
+  }
+  if (Result.isInvalid())
+    Result = CreateInvalidBoundsExpr();
+
+  return Result;
+}
+
 //===----------------------------------------------------------------------===//
 // Clang Extensions.
 //===----------------------------------------------------------------------===//

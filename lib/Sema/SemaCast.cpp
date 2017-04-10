@@ -2635,6 +2635,26 @@ ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
                               &Op.BasePath, CastTypeInfo, LPLoc, RPLoc));
 }
 
+ExprResult Sema::BuildBoundsCastExpr(SourceLocation LPLoc,
+                                     TypeSourceInfo *CastTypeInfo,
+                                     SourceLocation RPLoc, Expr *E1,
+                                     BoundsExpr *bounds,
+                                     BoundsCastExpr::Kind kind) {
+
+  CastOperation Op(*this, CastTypeInfo->getType(), E1);
+  Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
+  Op.OpRange = SourceRange(LPLoc, E1->getLocEnd());
+
+  Op.Kind = CastKind::CK_PointerBounds;
+
+  if (Op.SrcExpr.isInvalid())
+    return ExprError();
+
+  return Op.complete(BoundsCastExpr::Create(
+      Context, Op.ResultType, Op.ValueKind, Op.Kind, Op.SrcExpr.get(),
+      &Op.BasePath, CastTypeInfo, LPLoc, RPLoc, bounds, kind));
+}
+
 ExprResult Sema::BuildCXXFunctionalCastExpr(TypeSourceInfo *CastTypeInfo,
                                             SourceLocation LPLoc,
                                             Expr *CastExpr,

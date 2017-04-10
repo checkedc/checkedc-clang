@@ -1204,6 +1204,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
 
     case Stmt::ImplicitCastExprClass:
     case Stmt::CStyleCastExprClass:
+    case Stmt::BoundsCastExprClass:      
     case Stmt::CXXStaticCastExprClass:
     case Stmt::CXXDynamicCastExprClass:
     case Stmt::CXXReinterpretCastExprClass:

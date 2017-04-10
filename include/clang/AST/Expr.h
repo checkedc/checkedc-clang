@@ -2962,6 +2962,69 @@ public:
   friend class CastExpr;
 };
 
+class BoundsCastExpr final
+    : public ExplicitCastExpr,
+      private llvm::TrailingObjects<BoundsCastExpr, CXXBaseSpecifier *> {
+  SourceLocation LPLoc;
+  SourceLocation RPLoc;
+  
+public:  
+  enum Kind {
+    Invalid = 0,
+    Dynamic = 1,
+    Assume = 2,
+    MaxBoundsCastKind = Assume
+  };
+
+  BoundsCastExpr(QualType exprTy, ExprValueKind vk, CastKind kind, Expr *op,
+                 unsigned PathSize, TypeSourceInfo *writtenTy, SourceLocation l,
+                 SourceLocation r, BoundsExpr *bounds, Kind boundsCastKind)
+      : ExplicitCastExpr(BoundsCastExprClass, exprTy, vk, kind, op, PathSize,
+                         writtenTy),
+        LPLoc(l), RPLoc(r), BoundsCastKind(boundsCastKind) {
+    setBoundsExpr(bounds);
+  }
+
+  explicit BoundsCastExpr(EmptyShell Shell, unsigned PathSize)
+      : ExplicitCastExpr(BoundsCastExprClass, Shell, PathSize) {}
+
+  static BoundsCastExpr *
+  Create(const ASTContext &Context, QualType T, ExprValueKind VK, CastKind K,
+         Expr *Op, const CXXCastPath *BasePath, TypeSourceInfo *WrittenTy,
+         SourceLocation L, SourceLocation R, BoundsExpr *bounds, Kind boundsCastKind);
+
+  static BoundsCastExpr *CreateEmpty(const ASTContext &Context,
+                                     unsigned PathSize);
+
+  SourceLocation getLParenLoc() const { return LPLoc; }
+  void setLParenLoc(SourceLocation L) { LPLoc = L; }
+
+  SourceLocation getRParenLoc() const { return RPLoc; }
+  void setRParenLoc(SourceLocation L) { RPLoc = L; }
+
+  SourceLocation getLocStart() const LLVM_READONLY { return LPLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY {
+    return getSubExpr()->getLocEnd();
+  }
+
+  Kind getBoundsCastKind() const { return BoundsCastKind; }
+  void setBoundsCastKind(Kind kind) { BoundsCastKind = kind; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == BoundsCastExprClass;
+  }
+
+  child_range children(){
+    Stmt *bounds = dyn_cast<Stmt>(this->getBoundsExpr());
+    return child_range(&bounds, &bounds+1);
+  }
+
+  friend TrailingObjects;
+  friend class CastExpr;
+private:
+  Kind BoundsCastKind;
+};
+
 /// \brief A builtin binary operation expression such as "x + y" or "x <= y".
 ///
 /// This expression node kind describes a builtin binary operation,

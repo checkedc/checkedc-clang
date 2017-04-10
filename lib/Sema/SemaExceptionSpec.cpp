@@ -1102,6 +1102,7 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::BinaryOperatorClass:
   case Expr::CompoundAssignOperatorClass:
   case Expr::CStyleCastExprClass:
+  case Expr::BoundsCastExprClass:    
   case Expr::CXXStaticCastExprClass:
   case Expr::CXXFunctionalCastExprClass:
   case Expr::ImplicitCastExprClass:
