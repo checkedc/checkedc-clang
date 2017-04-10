@@ -38,7 +38,7 @@ clone_or_update llvm/projects/checkedc-wrapper/checkedc https://github.com/Micro
 
 ## Comment out LNT-related stuff for now.  We are not ready to automate that yet.
 # Check out LNT
-# clone_or_update lnt https://github.com/llvm-mirror/lnt master
+# clone_or_update lnt https://github.com/Microsoft/checkedc-lnt master
 
 # Check out Test Suite
 # clone_or_update llvm-test-suite https://github.com/Microsoft/checkedc-llvm-test-suite master

@@ -94,3 +94,18 @@ and then follow the directions in the
 Note that the  `original` branch contains tests as well as benchmarks.
 It is much larger than the `master` branch.  It will use more than 2 GBytes of disk space
 and the testing will take much longer to run.
+
+
+## Gotchas
+
+Windows x86 will cause issues if executables have "install", "setup", or "update" in
+their filename. It will assume the executable is an installer, and require that the user has
+elevated privileges to run the program. Usually inside visual studio this manifests itself
+as "WinError 740". There is more documentation on the heuristics used here:
+https://msdn.microsoft.com/en-us/enus/library/aa905330.aspx
+
+We originally diagnosed this issue thanks to this stackoverflow post:
+http://stackoverflow.com/q/11573444
+
+We ran into this issue when compiling and running regression tests to ensure that dynamic
+checking was being performed correctly.
