@@ -8538,11 +8538,17 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       if (!DiagnoseCheckedDecl(PVD))
         PVD->setInvalidDecl();
     }
+    if (NewFD->isVariadic()) {
+      Diag(NewFD->getLocStart(), diag::err_checked_scope_no_variadic_func_for_declaration);
+      NewFD->setInvalidDecl();
+    }
     // FTI.NumParams = number of formal parameter
     // NewFD->getNumParams() = number of actual parameter
     // f(void) - FIT.NumParams = 1, getNumParams() = 0
-    if (!D.getFunctionTypeInfo().NumParams)
+    if (!D.getFunctionTypeInfo().NumParams) {
       Diag(NewFD->getLocStart(), diag::err_checked_scope_no_prototype_func);
+      NewFD->setInvalidDecl();
+    }
   }
 
   // Find all anonymous symbols defined during the declaration of this function

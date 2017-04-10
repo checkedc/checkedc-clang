@@ -3875,6 +3875,11 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
       continue;
     }
 
+    if (Tok.is(tok::annot_pragma_bounds_checked)) {
+      HandlePragmaBoundsChecked();
+      continue;
+    }
+
     if (!Tok.is(tok::at)) {
       auto CFieldCallback = [&](ParsingFieldDeclarator &FD) {
         // Install the declarator into the current TagDecl.

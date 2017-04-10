@@ -587,6 +587,10 @@ private:
   /// #pragma clang loop and #pragma unroll.
   bool HandlePragmaLoopHint(LoopHint &Hint);
 
+  /// \brief Handle the annotation token produced for
+  /// #pragma BOUNDS_CHECKED [on-off-switch]
+  void HandlePragmaBoundsChecked();
+
   /// GetLookAheadToken - This peeks ahead N tokens and returns that token
   /// without consuming any tokens.  LookAhead(0) returns 'Tok', LookAhead(1)
   /// returns the token after Tok, etc.

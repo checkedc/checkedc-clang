@@ -607,6 +607,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result) {
     HandlePragmaUnused();
     return false;
 
+  case tok::annot_pragma_bounds_checked:
+    HandlePragmaBoundsChecked();
+    return false;
+
   case tok::kw_import:
     Result = ParseModuleImport(SourceLocation());
     return false;

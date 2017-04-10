@@ -394,11 +394,18 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, SourceLocation Loc,
   // type in checked block.
   // Otherwise, it does not emit redundant error message at the use of variable
   // since it already produced an error message at the declaration of variable.
+  // Calls to variable argument functions are not allowed in a checked block.
   if (getCurScope()->isCheckedScope() &&
       isa<ValueDecl>(D->getUnderlyingDecl())) {
     ValueDecl *VD = cast<ValueDecl>(D);
     if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
       return true;
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      if (FD->getType()->hasVariadicType()) {
+        Diag(Loc, diag::err_checked_scope_no_variadic_func_for_expression);
+        return true;
+      }
+    }
   }
   DiagnoseAvailabilityOfDecl(*this, D, Loc, UnknownObjCClass,
                              ObjCPropertyAccess);

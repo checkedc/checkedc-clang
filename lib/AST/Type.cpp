@@ -3827,6 +3827,81 @@ bool Type::hasCheckedType() const {
   }
 }
 
+// hasUncheckedType - check whether a type is a unchecked type or is a
+// constructed type (array, pointer, function) that uses a unchecked type.
+// If it has unchecked pointer type, Kind is 0. Otherwise, Kind is 1
+bool Type::hasUncheckedType(unsigned& Kind) const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      if (ptr->isUncheckedPointerType()) {
+        Kind = 0;
+        return true;
+      }
+      return ptr->getPointeeType()->hasUncheckedType(Kind);
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      if (!arr->isChecked()) {
+        Kind = 1;
+        return true;
+      }
+      return arr->getElementType()->hasUncheckedType(Kind);
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->hasUncheckedType(Kind))
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->hasUncheckedType(Kind))
+          return true;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+// hasVariadicType - check whether a type has variable arguments
+// or is a constructed type(array, pointer, function) having variable arguments.
+bool Type::hasVariadicType() const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      return ptr->getPointeeType()->hasVariadicType();
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      return arr->getElementType()->hasVariadicType();
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->hasVariadicType())
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->hasVariadicType())
+          return true;
+      }
+      if (fpt->isVariadic())
+        return true;
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
 QualType::DestructionKind QualType::isDestructedTypeImpl(QualType type) {
   switch (type.getObjCLifetime()) {
   case Qualifiers::OCL_None:
