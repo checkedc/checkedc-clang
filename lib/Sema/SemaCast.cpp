@@ -82,6 +82,7 @@ namespace {
     void CheckDynamicCast();
     void CheckCXXCStyleCast(bool FunctionalCast, bool ListInitialization);
     void CheckCStyleCast();
+    void CheckBoundsCast(BoundsExpr *&bounds, BoundsCastExpr::Kind kind);
 
     /// Complete an apparently-successful cast operation that yields
     /// the given expression.
@@ -2612,6 +2613,24 @@ void CastOperation::CheckCStyleCast() {
   }
 }
 
+void CastOperation::CheckBoundsCast(BoundsExpr *&Bounds,
+                                    BoundsCastExpr::Kind kind) {
+  QualType Ty = SrcExpr.get()->getType();
+  // Check DestType and SrcExpr is pointer type;
+  if (!Ty->isAnyPointerType()) {
+    Bounds = Self.CreateInvalidBoundsExpr();
+    Self.Diag(SrcExpr.get()->getLocStart(),
+              diag::err_typecheck_pointer_type_expected)
+        << Ty;
+  }
+  if (DestType->isUncheckedPointerType()) {
+    Bounds = Self.CreateInvalidBoundsExpr();
+  }
+
+  Kind = CastKind::CK_PointerBounds;
+  SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
+}
+
 ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
                                      TypeSourceInfo *CastTypeInfo,
                                      SourceLocation RPLoc,
@@ -2645,7 +2664,7 @@ ExprResult Sema::BuildBoundsCastExpr(SourceLocation LPLoc,
   Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
   Op.OpRange = SourceRange(LPLoc, E1->getLocEnd());
 
-  Op.Kind = CastKind::CK_PointerBounds;
+  Op.CheckBoundsCast(bounds, kind);
 
   if (Op.SrcExpr.isInvalid())
     return ExprError();

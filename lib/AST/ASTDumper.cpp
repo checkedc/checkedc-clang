@@ -1973,14 +1973,9 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
       OS << "_Assume_bounds_cast";
     else if (kind == BoundsCastExpr::Kind::Dynamic)
       OS << "_Dynamic_bounds_cast";
+    else
+      OS << "Illegal_bounds_cast_kind";
     OS << ">";
-  }
-
-  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
-    dumpChild([=] {
-      OS << "Inferred Bounds";
-      dumpStmt(Bounds);
-    });
   }
 }
 

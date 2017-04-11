@@ -2884,7 +2884,7 @@ public:
     // in the AST because they are part of the source program.  For other
     // cast expressions, the bounds are not included because they are
     // inferred by the compiler only when needed.
-    if (getStmtClass() == BoundsCastExprClass)
+    if (SubExprs[BOUNDS])
       return child_range(&SubExprs[OP], &SubExprs[END_EXPR]);
     else
       return child_range(&SubExprs[OP], &SubExprs[OP] + 1);

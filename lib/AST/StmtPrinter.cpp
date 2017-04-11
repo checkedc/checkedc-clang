@@ -1908,6 +1908,8 @@ void StmtPrinter::VisitBoundsCastExpr(BoundsCastExpr *Node) {
     OS << "_Dynamic_bounds_cast<";
   else if (Node->getBoundsCastKind() == BoundsCastExpr::Kind::Assume)
     OS << "_Assume_bounds_cast<";
+  else
+    OS << "Illegal_bounds_cast_kind";
   Node->getTypeAsWritten().print(OS, Policy);
   OS << '>';
   PrintExpr(Node->getSubExpr());

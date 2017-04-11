@@ -611,10 +611,7 @@ namespace {
           }
           Expr *subExpr = CE->getSubExpr();
           BoundsExpr *Bounds = CE->getBoundsExpr();
-          QualType QT = subExpr->getType();
 	  Expr *Base = subExpr;
-          if (subExpr->getStmtClass() != clang::Stmt::CallExprClass)
-	    Base=CreateImplicitCast(QT, CastKind::CK_LValueToRValue, subExpr);
           Bounds = ExpandToRange(Base, Bounds);
           CE->setBoundsExpr(Bounds);
           return Bounds;
@@ -909,6 +906,15 @@ namespace {
         }
       }
 
+      if (LHSType->isPointerType() &&
+          (RHS->getStmtClass() == Expr::BoundsCastExprClass)) {
+        RHSBounds = S.InferRValueBounds(RHS);
+        if (RHSBounds->isNone()) {
+          RHSBounds = S.CreateInvalidBoundsExpr();
+        }
+        assert(RHSBounds);
+      }
+
       // Check that the LHS lvalue of the assignment has bounds, if it is an
       // lvalue that was produced by dereferencing an _Array_ptr.
       bool LHSNeedsBoundsCheck = false;
@@ -930,6 +936,14 @@ namespace {
           DumpExpression(llvm::outs(), E);
 
         return true;
+      }
+
+      if (CK == CK_PointerBounds) {
+        BoundsExpr *SrcBounds = S.InferRValueBounds(E);
+        if (SrcBounds->isNone()) {
+          SrcBounds = S.CreateInvalidBoundsExpr();
+        }
+        assert(SrcBounds);
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
