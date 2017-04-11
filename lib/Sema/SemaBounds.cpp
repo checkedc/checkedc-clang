@@ -556,6 +556,7 @@ namespace {
     BoundsExpr *RValueCastBounds(CastKind CK, Expr *E) {
       switch (CK) {
         case CastKind::CK_BitCast:
+        case CastKind::CK_PointerBounds:
         case CastKind::CK_NoOp:
         case CastKind::CK_NullToPointer:
         // Truncation or widening of a value does not affect its bounds.
@@ -601,6 +602,22 @@ namespace {
             return CreateBoundsAny();
 
           return CreateBoundsNone();
+        }
+        case Expr::BoundsCastExprClass: {
+          CastExpr *CE = dyn_cast<CastExpr>(E);
+          if (!E) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsNone();
+          }
+          Expr *subExpr = CE->getSubExpr();
+          BoundsExpr *Bounds = CE->getBoundsExpr();
+          QualType QT = subExpr->getType();
+	  Expr *Base = subExpr;
+          if (subExpr->getStmtClass() != clang::Stmt::CallExprClass)
+	    Base=CreateImplicitCast(QT, CastKind::CK_LValueToRValue, subExpr);
+          Bounds = ExpandToRange(Base, Bounds);
+          CE->setBoundsExpr(Bounds);
+          return Bounds;
         }
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass: {
@@ -987,25 +1004,32 @@ namespace {
         return true;
      }
 
-      // Handle variables with bounds declarations
-      BoundsExpr *DeclaredBounds = D->getBoundsExpr();
-      if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
-          DeclaredBounds->isNone())
-        return true;
+     if (Expr *Init = D->getInit()) {
+       if (Init->getStmtClass() == Expr::BoundsCastExprClass) {
+         S.InferRValueBounds(Init);
+       }
+     }
 
-      // If there is an initializer, check that the initializer meets the bounds
-      // requirements for the variable.
-      if (Expr *Init = D->getInit()) {
-        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-        BoundsExpr *InitBounds = S.InferRValueBounds(Init);
-        if (InitBounds->isNone()) {
-          // TODO: need some place to record the initializer bounds
-          S.Diag(Init->getLocStart(), diag::err_expected_bounds_for_initializer) << Init->getSourceRange();
-          InitBounds = S.CreateInvalidBoundsExpr();
-        }
-        if (DumpBounds)
-          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
-        // TODO: check that it meets the bounds requirements for the variable.
+     // Handle variables with bounds declarations
+     BoundsExpr *DeclaredBounds = D->getBoundsExpr();
+     if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
+         DeclaredBounds->isNone())
+       return true;
+
+     // If there is an initializer, check that the initializer meets the bounds
+     // requirements for the variable.
+     if (Expr *Init = D->getInit()) {
+       assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
+       BoundsExpr *InitBounds = S.InferRValueBounds(Init);
+       if (InitBounds->isNone()) {
+         // TODO: need some place to record the initializer bounds
+         S.Diag(Init->getLocStart(), diag::err_expected_bounds_for_initializer)
+             << Init->getSourceRange();
+         InitBounds = S.CreateInvalidBoundsExpr();
+       }
+       if (DumpBounds)
+         DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
+       // TODO: check that it meets the bounds requirements for the variable.
       }
       else {
         // Make sure that automatic variables that are not arrays are

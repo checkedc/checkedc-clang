@@ -322,6 +322,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
 
     // Casts depend completely on the target type. All casts work the same.
   case Expr::CStyleCastExprClass:
+  case Expr::BoundsCastExprClass:    
   case Expr::CXXFunctionalCastExprClass:
   case Expr::CXXStaticCastExprClass:
   case Expr::CXXDynamicCastExprClass:

@@ -663,6 +663,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::InteropTypeBoundsAnnotationClass:
   case Stmt::NullaryBoundsExprClass:
   case Stmt::RangeBoundsExprClass:
+  case Stmt::BoundsCastExprClass:
     K = CXCursor_UnexposedExpr;
     break;
   }

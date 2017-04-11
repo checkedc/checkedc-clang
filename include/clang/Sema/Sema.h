@@ -4288,6 +4288,18 @@ public:
                                                     SourceLocation BoundsKWLoc,
                                                     SourceLocation RParenLoc);
 
+  ExprResult ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
+                                 ParsedType D, SourceLocation RParenLoc,
+                                 Expr *E1, Expr *E2, Expr *E3,
+                                 BoundsCastExpr::Kind kind);
+
+  ExprResult GenerateBoundsExpr(Expr *E2, Expr *E3);
+
+  ExprResult BuildBoundsCastExpr(SourceLocation LParenLoc, TypeSourceInfo *Ty,
+                                 SourceLocation RParenLoc, Expr *BaseExpr,
+                                 BoundsExpr *bounds,
+                                 BoundsCastExpr::Kind kind);
+
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsExpr *Expr, bool IsReturnBounds);
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
@@ -4295,7 +4307,7 @@ public:
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
 
   // \#pragma BOUNDS_CHECKED.
-  void ActOnPragmaCheckedScope(Scope* S, PragmaCheckedScopeKind Kind);
+  void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
 
   BoundsExpr *CreateInvalidBoundsExpr();
   BoundsExpr *CreateCountForArrayType(QualType QT);
