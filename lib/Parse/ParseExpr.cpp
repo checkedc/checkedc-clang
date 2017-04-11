@@ -2958,8 +2958,8 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
-bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
-  bool IsError = false;
+RelativeBoundsClause *Parser::ParseRelativeBoundsClause(ExprResult &Expr,
+                                                        bool isReturn) {
   RelativeBoundsClause *RelativeClause = nullptr;
   ExprResult ConstExpr;
   RangeBoundsExpr *Range = nullptr;
@@ -2974,15 +2974,13 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
   if (PT.expectAndConsume(diag::err_expected_lparen_after,
                           Ident->getNameStart())) {
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-    IsError = true;
-    return IsError;
+    return RelativeClause;
   }
 
   if (Ident == Ident_rel_align) {
     TypeResult ResultTy = ParseTypeName();
     if (ResultTy.isInvalid()) {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-      IsError = true;
     } else
       RelativeClause = Actions.ActOnRelativeTypeBoundsClause(
           BoundsKWLoc, ResultTy.get(), Tok.getLocation());
@@ -2990,7 +2988,6 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
     ConstExpr = ParseConstantExpression();
     if (ConstExpr.isInvalid()) {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-      IsError = true;
     } else {
       ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get());
       if (!ConstExpr.isInvalid())
@@ -3001,24 +2998,25 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
     llvm_unreachable("unexpected relative alignment clause kind");
   }
 
-  if (Expr.isInvalid()) {
-    IsError = true;
-    return IsError;
+  if (!isReturn && Expr.isInvalid()) {
+    return RelativeClause;
   }
 
-  if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
-    Range->setRelativeBoundsClause(RelativeClause);
-  } else {
-    Diag(TempTok, diag::err_expected_range_bounds_expr);
-    IsError = true;
+  if (!isReturn) {
+    if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
+      Range->setRelativeBoundsClause(RelativeClause);
+    } else {
+      Diag(TempTok, diag::err_expected_range_bounds_expr);
+    }
   }
   PT.consumeClose();
-  return IsError;
+  return RelativeClause;
 }
 
 ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
                                              SourceLocation &ILoc) {
   ExprResult Result(true);
+  RelativeBoundsClause *RelativeClause = nullptr;
   BoundsCastExpr::Kind kind;
   if (&Ident == Ident_dynamic_bounds_cast)
     kind = BoundsCastExpr::Kind::Dynamic;
@@ -3041,7 +3039,12 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   // if there is rel, parsing it.
   if (Tok.is(tok::comma)) {
     ConsumeToken();
-    //...
+    if (StartsRelativeBoundsClause(Tok)) {
+      if (!(RelativeClause = ParseRelativeBoundsClause(Result, true)))
+        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+    } else {
+      SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+    }
   }
 
   SourceLocation EndLoc = Tok.getLocation();
@@ -3090,9 +3093,9 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   T.consumeClose();
   RParenLoc = T.getCloseLocation();
   if (!E1.isInvalid())
-    Result =
-        Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, Ty.get(), RParenLoc,
-                                    E1.get(), E2.get(), E3.get(), kind);
+    Result = Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, Ty.get(),
+                                         RelativeClause, RParenLoc, E1.get(),
+                                         E2.get(), E3.get(), kind);
   return Result;
 }
 

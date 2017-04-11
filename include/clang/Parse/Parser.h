@@ -1692,7 +1692,8 @@ private:
 
   bool StartsRelativeBoundsClause(Token &tok);
 
-  bool ParseRelativeBoundsClause(ExprResult &Expr);
+  RelativeBoundsClause *ParseRelativeBoundsClause(ExprResult &Expr,
+                                                  bool isReturn = false);
 
   void SkipInvalidBoundsExpr(Token &T);
 
