@@ -2815,8 +2815,6 @@ private:
   }
 
 protected:
-  Stmt *Bounds;  // actually a bounds expression
-
   CastExpr(StmtClass SC, QualType ty, ExprValueKind VK, const CastKind kind,
            Expr *op, unsigned BasePathSize)
       : Expr(SC, ty, VK, OK_Ordinary,
