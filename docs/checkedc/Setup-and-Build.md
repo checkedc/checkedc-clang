@@ -3,17 +3,23 @@
 ## Setting up your machine
 
 See the clang [Getting started guide](http://clang.llvm.org/get_started.html) for information
-on how to set up your machine.
+on how to set up your machine. If you will be developing on Windows, you should have CMake 3.8
+or later installed on your machine.
 
 ### Developing on Windows
 
 We are doing the development work for Checked C on Windows. We have a few recommendations for developing 
-clang on Windows using Visual Studio. 
+clang on Windows using Visual Studio.
+
+We recommend that you use a 64-bit version of Windows. We have found that the 32-bit hosted
+Visual Studio linker tends to run out of memory when linking clang or clang tools.  You will
+want to use the 64-bit hosted Visual Studio toolset instead, which will require a 64-bit version
+of Windows too.
  
 You will need to install the following before building: 
 
-- Visual Studio 2013 or later, cmake, Python (version 2.7), and versions of UNIX command line tools. We
-recommend using Visual Studio 2015. 
+- Visual Studio 2013 or later, CMake (version 3.8 or later), Python (version 2.7), and versions of UNIX command
+line tools.  We recommend using Visual Studio 2015 or later.
 - For UNIX command-line tools, we recommend installing them via Cygwin because these are well-maintained. 
 Go to [http://www.cygwin.com](http://www.cygwin.com) and download the installer (put it in a known place).
 Then run it and use the GUI to install the coreutils and diffutils packages.  Add the bin subdirectory to your system path.
@@ -113,25 +119,34 @@ git clone https://github.com/Microsoft/checkedc
 
 ## Setting up a build directory
 
-1. LLVM and clang use cmake, which is a meta-build system generator. It generates build systems for a specific platform.
+1. LLVM and clang use CMake, which is a meta-build system generator. It generates build systems for a specific platform.
 2. Create a build directory that is a sibling of your llvm source tree.  For example, if llvm is in MyDir\llvm, create MyDir\llvm.obj.      
 3. Be sure to exclude the build directory from anti-virus scanning.   On Windows 10, go to Settings->Update & Security->Windows Defender->Add an exclusion.
 4. You may optionally want to create an install directory, which is the place where an installed version of LLVM can be placed. 
 An install directory is different than the build directory, which will contain the results of building LLVM.
-5. Cmake will produce a build system by default that builds all LLVM target.  This can lead to slow build and link times.  We are developing and testing
-   Checked C on x86 right now, so we recommend only building only that target.  None of the changes made for Checked C are target-specific, so other targets such as
-   x64 should work too.  To avoid building all targets, add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
-6. Make sure that you are using whatever shell you normally do compiles in.  Cd to your build directory and invoke cmake with: 
+5. Cmake will produce a build system by default that builds code generators for all LLVM-supported architectures.
+   This can increase buildand link times.  You might want to build the code generator for a specific target, such as x86.  To
+   do that,  add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
+6. Make sure that you are using whatever shell you normally do compiles in.  On Linux, cd your build directory and invoke CMake
+   with:
 ```
     cmake -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
 ```
 where `{llvm-path}` is the path to the root of your LLVM repo.
 
-   On Windows, by default cmake will produce a build system for x86, even for 64-bit versions of Windows.  This means that
-   clang tests will run in 32-bit compatibility mode on 64-bit versions of Windows.   To build and run tests on x64, specify
-   a different generator using the `-G` option.  For Visual Studio 2015, you can use:
+   On Windows, when using Visual Studio, you should specify that the 64-bit hosted toolset be used.
+   Visual Studio has both 32-bit hosted and 64-bit hosted versions of tools.
+   You can do that by adding the option `-T "host=x64"` to the command-line (note that this
+   option is only available using CMake version 3.8 or later).
 ```
-    cmake -G "Visual Studio 14 2015 Win64" -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
+    cmake -T "host=x64" -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
+```
+
+   On Windows, when using Visual Studio, CMake by default produces a build system for x86.  This means that
+   the clang tests will run in 32-bit compatiblity mode, even on a 64-bit version of Windows.  To build and run
+   tests on x64, specify a different generator using the `-G` option.  For Visual Studio 2015, you can use:
+```
+    cmake -T "host=x64" -G "Visual Studio 14 2015 Win64" -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
 ```
 `cmake --help` will list all the available generators on your platform.
 
@@ -186,7 +201,8 @@ To clean the build directory:
 
 ## Testing
 
-See the [Testing](Testing.md) page for directions on how to test the compiler once you have built it.
+See the [Testing](Testing.md) page for directions on how to test the compiler once you have built it.  We
+are testing the Checked C version of clang on x86 and x64 Windows and on x64 Linux.
 
 ## Updating sources to the latest sources for clang/LLVM
 
