@@ -8,11 +8,12 @@ if [ -z "$LNT" ]; then
   exit 0;
 fi
 
-CLANG=$(LLVM_OBJ_DIR)/$(BUILDCONFIGURATION)/bin/clang
+CLANG=${LLVM_OBJ_DIR}/bin/clang
 RESULT_LOG="${LNT_RESULTS_DIRS}/result.log"
 
-if [ ! -a "$CLANG" ]; then
-  echo "clang compiler not found at %CLANG%"
+
+if [ ! -e "$CLANG" ]; then
+  echo "clang compiler not found at $CLANG"
   exit 1
 fi
 

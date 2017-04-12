@@ -26,8 +26,9 @@ function clone_or_update {
 mkdir -p "$LLVM_OBJ_DIR"
 
 if [ -n "$LNT" ]; then
+  rm -fr "$LNT_RESULTS_DIR"
   mkdir -p "$LNT_RESULTS_DIR"
-  if [ ! -a "$LNT_SCRIPT" ]; then
+  if [ ! -e "$LNT_SCRIPT" ]; then
     echo "LNT script is missing from $LNT_SCRIPT"
     exit 1
   fi
@@ -44,7 +45,7 @@ clone_or_update llvm/tools/clang https://github.com/Microsoft/checkedc-clang "$C
 clone_or_update llvm/projects/checkedc-wrapper/checkedc https://github.com/Microsoft/checkedc "$CHECKEDC_BRANCH" "$CHECKEDC_COMMIT"
 
 # Check out LLVM test suite
-if [ -n "$LNT"]; then
+if [ -n "$LNT" ]; then
   clone_or_update llvm-test-suite https://github.com/Microsoft/checkedc-llvm-test-suite "$LLVM_TEST_SUITE_BRANCH" "$LLVM_TEST_SUITE_COMMIT"
 fi
 
