@@ -113,6 +113,8 @@ if [ -z "$LNT" ]; then
   # Make sure LNT variable is defined so that scripts that require all variables
   # to be defined do not break.
   export LNT=""
+  export LNT_RESULTS_DIR=""
+  export LN_SCRIPT=""
 else
   export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${TEST_TARGET_ARCH}-${BUILDOS}.obj"
   # We assume that lnt is installed in /lnt-install on test machines.
@@ -127,15 +129,13 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " TEST_TARGET_ARCH: $TEST_TARGET_ARCH"
   echo " TEST_SUITE: $TEST_SUITE"
   echo " LNT: $LNT"
+  echo "  LNT_SCRIPT: $LNT_SCRIPT"
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"
   echo "  BUILD_BINARIESDIRECTORY: $BUILD_BINARIESDIRECTORY"
   echo "  LLVM_OBJ_DIR: $LLVM_OBJ_DIR"
-  if [ -n "$LNT" ]; then
-    echo "  LNT_RESULTS_DIR: $LNT_RESULTS_DIR"
-    echo "  LNT_SCRIPT: $LNT_SCRIPT"
-  fi
+  echo "  LNT_RESULTS_DIR: $LNT_RESULTS_DIR"
   echo 
   echo " Branch and commit information:"
   echo "  CLANG_BRANCH: $CLANG_BRANCH"
