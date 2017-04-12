@@ -1086,4 +1086,5 @@ def err_expected_bounds_expr_or_interop_type : Error<
 
 def err_expected_compound_stmt_after_checked_scope : Error<
   "expected compound statement after checked scope keyword">;
+
 } // end of Parser diagnostics

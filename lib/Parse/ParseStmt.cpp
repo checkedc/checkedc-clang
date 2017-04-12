@@ -229,8 +229,9 @@ Retry:
     return ParseDefaultStatement();
 
   case tok::kw__Checked:
-    // Checked C - expects l_brace after checked scope keyword
-    // when parsing statement, checked keyword is always before l_brace
+  case tok::kw__Unchecked:
+    // Checked C - expects '{' after checked scope keyword(checked/unchecked)
+    // when parsing statement, keyword is always before l_brace
     return ParseCheckedScopeStatement();
 
   case tok::l_brace:                // C99 6.8.2: compound-statement
@@ -380,6 +381,10 @@ Retry:
 
   case tok::annot_pragma_dump:
     HandlePragmaDump();
+    return StmtEmpty();
+
+  case tok::annot_pragma_bounds_checked:
+    HandlePragmaBoundsChecked();
     return StmtEmpty();
   }
 
@@ -834,11 +839,18 @@ StmtResult Parser::ParseDefaultStatement() {
 /// ParseCheckedScopeStatement - Parse a 'checked {' statement
 /// checked scope : checked { compound_stmt }
 StmtResult Parser::ParseCheckedScopeStatement() {
-  assert(Tok.is(tok::kw__Checked) && "Not a checked scope!");
+  assert((Tok.is(tok::kw__Checked) || Tok.is(tok::kw__Unchecked)) &&
+         "Not a checked scope keyword(checked/unchecked)!");
+  CheckedScopeKind Kind;
+  if (Tok.is(tok::kw__Checked))
+    Kind = CSK_Checked;
+  else if (Tok.is(tok::kw__Unchecked))
+    Kind = CSK_Unchecked;
+
   SourceLocation CheckedLoc = ConsumeToken();
-  // expects 'checked {'
+  // expects checked/unchecked '{'
   if (Tok.is(tok::l_brace)) {
-    return ParseCompoundStatement(false, Scope::DeclScope, /*isChecked*/ true);
+    return ParseCompoundStatement(false, Scope::DeclScope, Kind);
   }
   else {
     Diag(Tok, diag::err_expected_compound_stmt_after_checked_scope);
@@ -874,12 +886,15 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 /// [GNU]   '__label__' identifier-list ';'
 ///
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
-                                          bool isChecked) {
+                                          CheckedScopeKind Kind) {
   assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
 
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.
-  ScopeFlags |= (isChecked ? Scope::CheckedScope : 0);
+  if (Kind == CSK_Checked)
+    ScopeFlags |= Scope::CheckedScope;
+  else if (Kind == CSK_Unchecked)
+    ScopeFlags |= Scope::UncheckedScope;
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
@@ -931,6 +946,9 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
       break;
     case tok::annot_pragma_dump:
       HandlePragmaDump();
+      break;
+    case tok::annot_pragma_bounds_checked:
+      HandlePragmaBoundsChecked();
       break;
     default:
       checkForPragmas = false;

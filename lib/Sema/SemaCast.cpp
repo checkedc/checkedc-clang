@@ -2557,7 +2557,26 @@ void CastOperation::CheckCStyleCast() {
       return;
     }
   }
-  
+
+  // Checked C - No C-style casts to unchecked pointer/array type or variadic
+  // type in a checked block.
+  if (Self.getCurScope()->isCheckedScope()) {
+    unsigned TypeKind = 0;
+    bool HasUncheckedType = DestType->hasUncheckedType(TypeKind);
+    bool HasVariadicType = DestType->hasVariadicType();
+    if (HasUncheckedType || HasVariadicType) {
+      if (HasUncheckedType) {
+        Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
+            << TypeKind;
+      } else {
+        Self.Diag(OpRange.getBegin(),
+                  diag::err_checked_scope_no_variable_args_for_casting);
+      }
+      SrcExpr = ExprError();
+      return;
+    }
+  }
+
   DiagnoseCastOfObjCSEL(Self, SrcExpr, DestType);
   DiagnoseCallingConvCast(Self, SrcExpr, DestType, OpRange);
   DiagnoseBadFunctionCast(Self, SrcExpr, DestType);
@@ -2614,6 +2633,26 @@ ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
   return Op.complete(CStyleCastExpr::Create(Context, Op.ResultType,
                               Op.ValueKind, Op.Kind, Op.SrcExpr.get(),
                               &Op.BasePath, CastTypeInfo, LPLoc, RPLoc));
+}
+
+ExprResult Sema::BuildBoundsCastExpr(SourceLocation LPLoc,
+                                     TypeSourceInfo *CastTypeInfo,
+                                     SourceLocation RPLoc, Expr *E1,
+                                     BoundsExpr *bounds,
+                                     BoundsCastExpr::Kind kind) {
+
+  CastOperation Op(*this, CastTypeInfo->getType(), E1);
+  Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
+  Op.OpRange = SourceRange(LPLoc, E1->getLocEnd());
+
+  Op.Kind = CastKind::CK_PointerBounds;
+
+  if (Op.SrcExpr.isInvalid())
+    return ExprError();
+
+  return Op.complete(BoundsCastExpr::Create(
+      Context, Op.ResultType, Op.ValueKind, Op.Kind, Op.SrcExpr.get(),
+      &Op.BasePath, CastTypeInfo, LPLoc, RPLoc, bounds, kind));
 }
 
 ExprResult Sema::BuildCXXFunctionalCastExpr(TypeSourceInfo *CastTypeInfo,

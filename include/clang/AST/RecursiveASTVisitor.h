@@ -2470,6 +2470,12 @@ DEF_TRAVERSE_STMT(ObjCDictionaryLiteral, {})
 // Traverse OpenCL: AsType, Convert.
 DEF_TRAVERSE_STMT(AsTypeExpr, {})
 
+// CheckedC Bounds Casting
+DEF_TRAVERSE_STMT(BoundsCastExpr, {
+  TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
+})
+
+
 // OpenMP directives.
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseOMPExecutableDirective(

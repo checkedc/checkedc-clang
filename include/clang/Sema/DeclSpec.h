@@ -329,6 +329,13 @@ public:
     PQ_FunctionSpecifier     = 8
   };
 
+  /// Checked C - checked function specifiers
+  enum CheckedFunctionSpecifiers {
+    CFS_None       = 0,
+    CFS_Checked    = 1,
+    CFS_Unchecked  = 2
+  };
+
 private:
   // storage-class-specifier
   /*SCS*/unsigned StorageClassSpec : 3;
@@ -356,7 +363,7 @@ private:
   unsigned FS_explicit_specified : 1;
   unsigned FS_noreturn_specified : 1;
   // Checked C - checked function type
-  unsigned FS_checked_specified : 1;
+  unsigned FS_checked_specified : 2;
 
   // friend-specifier
   unsigned Friend_specified : 1;
@@ -443,7 +450,7 @@ public:
       FS_explicit_specified(false),
       FS_noreturn_specified(false),
       // Checked C - checked function
-      FS_checked_specified(false),
+      FS_checked_specified(CFS_None),
       Friend_specified(false),
       Constexpr_specified(false),
       Concept_specified(false),
@@ -582,7 +589,8 @@ public:
   bool isNoreturnSpecified() const { return FS_noreturn_specified; }
   SourceLocation getNoreturnSpecLoc() const { return FS_noreturnLoc; }
 
-  bool isCheckedSpecified() const { return FS_checked_specified; }
+  bool isCheckedSpecified() const { return FS_checked_specified == CFS_Checked; }
+  bool isUncheckedSpecified() const { return FS_checked_specified == CFS_Unchecked; }
   SourceLocation getCheckedSpecLoc() const { return FS_checkedLoc; }
 
   void ClearFunctionSpecs() {
@@ -596,7 +604,7 @@ public:
     FS_explicitLoc = SourceLocation();
     FS_noreturn_specified = false;
     FS_noreturnLoc = SourceLocation();
-    FS_checked_specified = false;
+    FS_checked_specified = CFS_None;
     FS_checkedLoc = SourceLocation();
   }
 
@@ -703,6 +711,8 @@ public:
                                unsigned &DiagID);
   bool setFunctionSpecChecked(SourceLocation Loc, const char *&PrevSpec,
                               unsigned &DiagID);
+  bool setFunctionSpecUnchecked(SourceLocation Loc, const char *&PrevSpec,
+                                unsigned &DiagID);
 
   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                      unsigned &DiagID);

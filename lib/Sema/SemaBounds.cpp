@@ -132,7 +132,7 @@ namespace {
 }
 
 BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
-                                              ArrayRef<ParmVarDecl *> Params) {
+                                             ArrayRef<ParmVarDecl *> Params) {
   if (!Expr)
     return Expr;
 
@@ -145,6 +145,64 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
   else {
     Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
     assert(Result && "unexpected dyn_cast failure");
+    return Result;
+  }
+}
+
+namespace {
+  class ConcretizeMemberBounds : public TreeTransform<ConcretizeMemberBounds> {
+    typedef TreeTransform<ConcretizeMemberBounds> BaseTransform;
+
+  private:
+    Expr *Base;
+    bool IsArrow;
+
+  public:
+    ConcretizeMemberBounds(Sema &SemaRef, Expr *MemberBaseExpr, bool IsArrow) :
+      BaseTransform(SemaRef), Base(MemberBaseExpr), IsArrow(IsArrow) { }
+
+    // TODO: handle the situation where the base expression is an rvalue.
+    // By C semantics, the result is an rvalue.  We are setting fields used in
+    // bounds expressions to be lvalues, so we end up with a problems when
+    // we expand the occurrences of the fields to be expressions that are
+    //  rvalues.
+    //
+    // There are two problematic cases:
+    // - We assume field expressions are lvalues, so we will have lvalue-to-rvalue
+    //   conversions applied to rvalues.  We need to remove these conversions.
+    // - The address of a field is taken.  It is illegal to take the address of
+    //   an lvalue.
+    //
+    // rVvalue structs can arise from function returns of struct values.
+    ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
+      if (FieldDecl *FD = dyn_cast<FieldDecl>(E->getDecl())) {
+        if (Base->isRValue() && !IsArrow)
+          // For now, return nothing if we see an rvalue base.
+          return ExprResult();
+        ASTContext &Context = SemaRef.getASTContext();
+        ExprValueKind ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
+        MemberExpr *ME =
+          new (Context) MemberExpr(Base, /*IsArrow=*/false,
+                                   SourceLocation(), FD, SourceLocation(),
+                                   E->getType(), ResultKind, OK_Ordinary);
+        return ME;
+      }
+      return E;
+    }
+  };
+}
+
+
+BoundsExpr *Sema::MakeMemberBoundsConcrete(
+  Expr *Base,
+  bool IsArrow,
+  BoundsExpr *Bounds) {
+  ExprResult ConcreteBounds =
+    ConcretizeMemberBounds(*this, Base, IsArrow).TransformExpr(Bounds);
+  if (ConcreteBounds.isInvalid())
+    return nullptr;
+  else {
+    BoundsExpr *Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
     return Result;
   }
 }
@@ -191,6 +249,7 @@ namespace {
 
   private:
     // TODO: be more flexible about where bounds expression are allocated.
+    Sema &SemaRef;
     ASTContext &Context;
 
     BoundsExpr *CreateBoundsNone() {
@@ -313,22 +372,21 @@ namespace {
     }
 
   public:
-    BoundsInference(ASTContext &Ctx) : Context(Ctx) {
+    BoundsInference(Sema &S) : SemaRef(S), Context(S.getASTContext()) {
     }
 
-    // Compute bounds for a variable with an array type.
-    BoundsExpr *ArrayVariableBounds(DeclRefExpr *DR) {
-      VarDecl *D = dyn_cast<VarDecl>(DR->getDecl());
-      if (!D)
-        return CreateBoundsNone();
-
-      BoundsExpr *BE = CreateBoundsForArrayType(D->getType());
+    // Compute bounds for a variable expression or member reference expression
+    // with an array type.
+    BoundsExpr *ArrayExprBounds(Expr *E) {
+      DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
+      assert((DR && dyn_cast<VarDecl>(DR->getDecl())) || isa<MemberExpr>(E));
+      BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
       if (BE->isNone())
         return BE;
 
-      Expr *Base = CreateImplicitCast(Context.getDecayedType(D->getType()),
+      Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                       CastKind::CK_ArrayToPointerDecay,
-                                      DR);
+                                      E);
       return ExpandToRange(Base, BE);
     }
 
@@ -349,8 +407,11 @@ namespace {
         }
 
         if (DR->getType()->isArrayType())
-          return ArrayVariableBounds(DR);
+          return ArrayExprBounds(DR);
 
+        // TODO: distinguish between variable vs. function
+        // references.  This should only apply to function
+        // references.
         if (DR->getType()->isFunctionType())
           return CreateBoundsNone();
 
@@ -382,8 +443,31 @@ namespace {
         // getBase returns the pointer-typed expression.
         return RValueBounds(AS->getBase());
       }
+      case Expr::MemberExprClass: {
+        MemberExpr *ME = dyn_cast<MemberExpr>(E);
+        FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
+        if (!FD)
+          return CreateBoundsNone();
+        if (!SemaRef.CheckIsNonModifyingExpr(ME->getBase(),
+                             Sema::NonModifiyingExprRequirement::NMER_Unknown,
+                                           /*ReportError=*/false))
+          return CreateBoundsNone();
+
+        if (ME->getType()->isArrayType())
+          return ArrayExprBounds(ME);
+
+        // TODO: can a member have a function type, or is it adjusted
+        // to be a pointer function type?
+        if (ME->getType()->isFunctionType())
+          return CreateBoundsNone();
+
+        if (ME->isRValue())
+          return CreateBoundsNone();
+
+        Expr *AddrOf = CreateAddressOfOperator(ME);
+        return CreateSingleElementBounds(AddrOf);
+      }
       // TODO: fill in these cases.
-      case Expr::MemberExprClass:
       case Expr::CompoundLiteralExprClass:
         return CreateBoundsAny();
       default:
@@ -442,11 +526,26 @@ namespace {
             return CreateBoundsNone();
 
           BoundsExpr *B = F->getBoundsExpr();
-          if (!B || B->isNone())
+          if (!B || B->isNone() || B->isInteropTypeAnnotation())
             return CreateBoundsNone();
 
-          Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
-          return ExpandToRange(Base, B);
+          Expr *MemberBaseExpr = M->getBase();
+          if (!SemaRef.CheckIsNonModifyingExpr(MemberBaseExpr,
+              Sema::NonModifiyingExprRequirement::NMER_Unknown,
+              /*ReportError=*/false))
+            return CreateBoundsNone();
+          B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
+          if (!B)
+            return CreateBoundsNone();
+          if (B->isElementCount() || B->isByteCount()) {
+             Expr *MemberRValue;
+            if (M->isLValue())
+               MemberRValue = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
+            else
+              MemberRValue = M;
+            return ExpandToRange(MemberRValue, B);
+          }
+          return B;
         }
         default:
           return CreateBoundsNone();
@@ -457,6 +556,7 @@ namespace {
     BoundsExpr *RValueCastBounds(CastKind CK, Expr *E) {
       switch (CK) {
         case CastKind::CK_BitCast:
+        case CastKind::CK_PointerBounds:
         case CastKind::CK_NoOp:
         case CastKind::CK_NullToPointer:
         // Truncation or widening of a value does not affect its bounds.
@@ -502,6 +602,22 @@ namespace {
             return CreateBoundsAny();
 
           return CreateBoundsNone();
+        }
+        case Expr::BoundsCastExprClass: {
+          CastExpr *CE = dyn_cast<CastExpr>(E);
+          if (!E) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsNone();
+          }
+          Expr *subExpr = CE->getSubExpr();
+          BoundsExpr *Bounds = CE->getBoundsExpr();
+          QualType QT = subExpr->getType();
+	  Expr *Base = subExpr;
+          if (subExpr->getStmtClass() != clang::Stmt::CallExprClass)
+	    Base=CreateImplicitCast(QT, CastKind::CK_LValueToRValue, subExpr);
+          Bounds = ExpandToRange(Base, Bounds);
+          CE->setBoundsExpr(Bounds);
+          return Bounds;
         }
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass: {
@@ -646,20 +762,20 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
   }
 }
 
-BoundsExpr *Sema::InferLValueBounds(ASTContext &Ctx, Expr *E) {
-  return BoundsInference(Ctx).LValueBounds(E);
+BoundsExpr *Sema::InferLValueBounds(Expr *E) {
+  return BoundsInference(*this).LValueBounds(E);
 }
 
-BoundsExpr *Sema::InferLValueTargetBounds(ASTContext &Ctx, Expr *E) {
-  return BoundsInference(Ctx).LValueTargetBounds(E);
+BoundsExpr *Sema::InferLValueTargetBounds(Expr *E) {
+  return BoundsInference(*this).LValueTargetBounds(E);
 }
 
-BoundsExpr *Sema::InferRValueBounds(ASTContext &Ctx, Expr *E) {
-  return BoundsInference(Ctx).RValueBounds(E);
+BoundsExpr *Sema::InferRValueBounds(Expr *E) {
+  return BoundsInference(*this).RValueBounds(E);
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
-  return BoundsInference(getASTContext()).CreateBoundsForArrayType(QT);
+  return BoundsInference(*this).CreateBoundsForArrayType(QT);
 }
 
 namespace {
@@ -714,9 +830,9 @@ namespace {
       BoundsExpr *LValueBounds = nullptr;
       if (Expr *Deref = S.GetArrayPtrDereference(E)) {
         NeedsBoundsCheck = true;
-        LValueBounds = S.InferLValueBounds(S.getASTContext(), E);
+        LValueBounds = S.InferLValueBounds(E);
         if (LValueBounds->isNone()) {
-          S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          S.Diag(E->getLocStart(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
         }
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
@@ -739,14 +855,18 @@ namespace {
     bool AddMemberBaseBoundsCheck(MemberExpr *E) {
       Expr *Base = E->getBase();
       // E.F
-      if (!E->isArrow())
-        return AddBoundsCheck(Base);
+      if (!E->isArrow()) {
+        // The base expression only needs a bounds check if it is an lvalue.
+        if (Base->isLValue())
+          return AddBoundsCheck(Base);
+        return false;
+      }
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()){
-        BoundsExpr *Bounds = S.InferRValueBounds(S.getASTContext(), Base);
+        BoundsExpr *Bounds = S.InferRValueBounds(Base);
         if (Bounds->isNone()) {
-          S.Diag(E->getLocStart(), diag::err_expected_bounds);
+          S.Diag(Base->getLocStart(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
         }
         E->setBoundsExpr(Bounds);
@@ -776,15 +896,14 @@ namespace {
       // target of the LHS lvalue has bounds.
       if (LHSType->isCheckedPointerType() ||
           LHSType->isIntegerType()) {
-        LHSTargetBounds =
-          S.InferLValueTargetBounds(S.getASTContext(), LHS);
+        LHSTargetBounds = S.InferLValueTargetBounds(LHS);
         if (!LHSTargetBounds->isNone()) {
           if (E->isCompoundAssignmentOp())
-            RHSBounds = S.InferRValueBounds(S.Context, E);
+            RHSBounds = S.InferRValueBounds(E);
           else
-            RHSBounds = S.InferRValueBounds(S.Context, RHS);
+            RHSBounds = S.InferRValueBounds(RHS);
           if (RHSBounds->isNone()) {
-             S.Diag(RHS->getLocStart(), diag::err_expected_bounds);
+             S.Diag(RHS->getLocStart(), diag::err_expected_bounds_for_assignment) << RHS->getSourceRange();
              RHSBounds = S.CreateInvalidBoundsExpr();
           }
         }
@@ -818,10 +937,9 @@ namespace {
           E->getType()->isCheckedPointerPtrType() &&
           !E->getType()->isFunctionPointerType()) {
         BoundsExpr *SrcBounds =
-          S.InferRValueBounds(S.getASTContext(), E->getSubExpr());
+          S.InferRValueBounds(E->getSubExpr());
         if (SrcBounds->isNone()) {
-          // TODO: produce more informative error message.
-          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds);
+          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds_for_ptr_cast)  << E->getSubExpr()->getSourceRange();
           SrcBounds = S.CreateInvalidBoundsExpr();
         }
         assert(SrcBounds);
@@ -886,25 +1004,32 @@ namespace {
         return true;
      }
 
-      // Handle variables with bounds declarations
-      BoundsExpr *DeclaredBounds = D->getBoundsExpr();
-      if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
-          DeclaredBounds->isNone())
-        return true;
+     if (Expr *Init = D->getInit()) {
+       if (Init->getStmtClass() == Expr::BoundsCastExprClass) {
+         S.InferRValueBounds(Init);
+       }
+     }
 
-      // If there is an initializer, check that the initializer meets the bounds
-      // requirements for the variable.
-      if (Expr *Init = D->getInit()) {
-        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-        BoundsExpr *InitBounds = S.InferRValueBounds(S.getASTContext(), Init);
-        if (InitBounds->isNone()) {
-          // TODO: need some place to record the initializer bounds
-          S.Diag(Init->getLocStart(), diag::err_expected_bounds);
-          InitBounds = S.CreateInvalidBoundsExpr();
-        }
-        if (DumpBounds)
-          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
-        // TODO: check that it meets the bounds requirements for the variable.
+     // Handle variables with bounds declarations
+     BoundsExpr *DeclaredBounds = D->getBoundsExpr();
+     if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
+         DeclaredBounds->isNone())
+       return true;
+
+     // If there is an initializer, check that the initializer meets the bounds
+     // requirements for the variable.
+     if (Expr *Init = D->getInit()) {
+       assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
+       BoundsExpr *InitBounds = S.InferRValueBounds(Init);
+       if (InitBounds->isNone()) {
+         // TODO: need some place to record the initializer bounds
+         S.Diag(Init->getLocStart(), diag::err_expected_bounds_for_initializer)
+             << Init->getSourceRange();
+         InitBounds = S.CreateInvalidBoundsExpr();
+       }
+       if (DumpBounds)
+         DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
+       // TODO: check that it meets the bounds requirements for the variable.
       }
       else {
         // Make sure that automatic variables that are not arrays are
@@ -1187,7 +1312,7 @@ namespace {
     };
 
   public:
-    NonModifiyingExprSema(Sema &S, Sema::NonModifiyingExprRequirement From) :
+    NonModifiyingExprSema(Sema &S, Sema::NonModifiyingExprRequirement From, bool ReportError) :
       S(S), FoundModifyingExpr(false), ReqFrom(From) {}
 
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
@@ -1243,16 +1368,19 @@ namespace {
     Sema &S;
     bool FoundModifyingExpr;
     Sema::NonModifiyingExprRequirement ReqFrom;
+    bool ReportError;
 
     void addError(Expr *E, ModifyingExprKind Kind) {
-      S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
-        << Kind << ReqFrom << E->getSourceRange();
+      if (ReportError)
+        S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
+          << Kind << ReqFrom << E->getSourceRange();
     }
   };
 }
 
-bool Sema::CheckIsNonModifyingExpr(Expr *E, Sema::NonModifiyingExprRequirement Req = Sema::NMER_Unknown) {
-  NonModifiyingExprSema Checker(*this, Req);
+bool Sema::CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req,
+                                   bool ReportError) {
+  NonModifiyingExprSema Checker(*this, Req, ReportError);
   Checker.TraverseStmt(E);
 
   return Checker.isNonModifyingExpr();

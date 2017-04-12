@@ -8521,22 +8521,34 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
-  // Checked C - checked function return type checking
-  if (D.getDeclSpec().isCheckedSpecified()) {
-    // current scope - function definition/body scope, checked propery is from
-    // checked function or checked scope
-    // Checked C - in checked function, check return/param type
-    // In checked scope, no prototype function is not allowed to use
-    DiagnoseCheckedDecl(NewFD);
+  // Checked C - type restrictions on declarations in checked blocks.
+  // Function parameters & return are not allowed to use unchecked type
+  // in checked block.
+  // Checked function specifier & top level scope checked property can be used.
+  if (D.getDeclSpec().isCheckedSpecified() ||
+      (!D.getDeclSpec().isUncheckedSpecified() && S->isCheckedScope())) {
+    // Current scope checked property is from checked function or
+    // checked scope keyword.
+    // In checked function, check function return/param types.
+    // In checked block, no prototypes functions are not allowed.
+    if (!DiagnoseCheckedDecl(NewFD))
+      NewFD->setInvalidDecl();
     for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
       ParmVarDecl *PVD = NewFD->getParamDecl(I);
-      DiagnoseCheckedDecl(PVD);
+      if (!DiagnoseCheckedDecl(PVD))
+        PVD->setInvalidDecl();
+    }
+    if (NewFD->isVariadic()) {
+      Diag(NewFD->getLocStart(), diag::err_checked_scope_no_variadic_func_for_declaration);
+      NewFD->setInvalidDecl();
     }
     // FTI.NumParams = number of formal parameter
     // NewFD->getNumParams() = number of actual parameter
     // f(void) - FIT.NumParams = 1, getNumParams() = 0
-    if (!D.getFunctionTypeInfo().NumParams)
+    if (!D.getFunctionTypeInfo().NumParams) {
       Diag(NewFD->getLocStart(), diag::err_checked_scope_no_prototype_func);
+      NewFD->setInvalidDecl();
+    }
   }
 
   // Find all anonymous symbols defined during the declaration of this function
@@ -14205,8 +14217,6 @@ FieldDecl *Sema::ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
   FieldDecl *Res = HandleField(S, cast_or_null<RecordDecl>(TagD),
                                DeclStart, D, static_cast<Expr*>(BitfieldWidth),
                                /*InitStyle=*/ICIS_NoInit, AS_public);
-  if (S->isCheckedScope())
-    DiagnoseCheckedDecl(Res);
   return Res;
 }
 

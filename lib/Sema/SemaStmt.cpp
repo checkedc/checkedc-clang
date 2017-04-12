@@ -369,14 +369,6 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
-  // Checked C - check consistency between checked property and param decl type
-  if (NumElts != 0 && getCurCompoundScope().IsCheckedScope) {
-    for (unsigned i = 0; i != NumElts; ++i) {
-      DeclStmt *DS = dyn_cast<DeclStmt>(Elts[i]);
-      if (DS) DiagnoseCheckedDecl(DS);
-    }
-  }
-
   return new (Context) CompoundStmt(Context, Elts, L, R);
 }
 

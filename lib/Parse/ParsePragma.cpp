@@ -167,6 +167,15 @@ struct PragmaMSIntrinsicHandler : public PragmaHandler {
                     Token &FirstToken) override;
 };
 
+struct PragmaCheckedScopeHandler : public PragmaHandler {
+  PragmaCheckedScopeHandler(Sema &S)
+      : PragmaHandler("BOUNDS_CHECKED"), Actions(S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
+                    Token &FirstToken) override;
+private:
+  Sema &Actions;
+};
+
 }  // end namespace
 
 void Parser::initializePragmaHandlers() {
@@ -250,6 +259,9 @@ void Parser::initializePragmaHandlers() {
 
   NoUnrollHintHandler.reset(new PragmaUnrollHintHandler("nounroll"));
   PP.AddPragmaHandler(NoUnrollHintHandler.get());
+
+  CheckedScopeHandler.reset(new PragmaCheckedScopeHandler(Actions));
+  PP.AddPragmaHandler(CheckedScopeHandler.get());
 }
 
 void Parser::resetPragmaHandlers() {
@@ -323,6 +335,9 @@ void Parser::resetPragmaHandlers() {
 
   PP.RemovePragmaHandler(NoUnrollHintHandler.get());
   NoUnrollHintHandler.reset();
+
+  PP.RemovePragmaHandler(CheckedScopeHandler.get());
+  CheckedScopeHandler.reset();
 }
 
 /// \brief Handle the annotation token produced for #pragma unused(...)
@@ -909,6 +924,16 @@ bool Parser::HandlePragmaLoopHint(LoopHint &Hint) {
   Hint.Range = SourceRange(Info->PragmaName.getLocation(),
                            Info->Toks.back().getLocation());
   return true;
+}
+
+// #pragma BOUNDS_CHECKED [on-off-switch]
+void Parser::HandlePragmaBoundsChecked() {
+  assert(Tok.is(tok::annot_pragma_bounds_checked));
+  tok::OnOffSwitch OOS =
+    static_cast<tok::OnOffSwitch>(
+    reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
+  Actions.ActOnPragmaBoundsChecked(Actions.getCurScope(), OOS);
+  ConsumeToken(); // The annotation token.
 }
 
 // #pragma GCC visibility comes in two variants:
@@ -2186,4 +2211,25 @@ void PragmaMSIntrinsicHandler::HandlePragma(Preprocessor &PP,
   if (Tok.isNot(tok::eod))
     PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
         << "intrinsic";
+}
+
+// Handle the checked-c top level scope checked property.
+// #pragma BOUNDS_CHECKED [on-off-switch]
+// To handle precise scope property, annotation token is better
+void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
+                                             PragmaIntroducerKind Introducer,
+                                             Token &Tok) {
+  tok::OnOffSwitch OOS;
+  if (PP.LexOnOffSwitch(OOS))
+    return;
+
+  MutableArrayRef<Token> Toks(PP.getPreprocessorAllocator().Allocate<Token>(1),
+                              1);
+  Toks[0].startToken();
+  Toks[0].setKind(tok::annot_pragma_bounds_checked);
+  Toks[0].setLocation(Tok.getLocation());
+  Toks[0].setAnnotationEndLoc(Tok.getLocation());
+  Toks[0].setAnnotationValue(
+      reinterpret_cast<void *>(static_cast<uintptr_t>(OOS)));
+  PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/true);
 }

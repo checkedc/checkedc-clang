@@ -2,6 +2,17 @@ rem Create directories and sync files
 
 set OLD_DIR=%CD%
 
+if "%BUILD_CHECKEDC_CLEAN%"=="Yes" (
+  if exist %BUILD_SOURCESDIRECTORY%\llvm (
+    rmdir /s /q %BUILD_SOURCESDIRECTORY%\llvm
+    if ERRORLEVEL 1 (goto cmdfailed)
+  )
+  if exist %LLVM_OBJ_DIR% (
+    rmdir /s /q %LLVM_OBJ_DIR%
+    if ERRORLEVEL 1 (goto cmdfailed)
+  )
+)
+ 
 if not exist %BUILD_SOURCESDIRECTORY%\llvm\.git (
   git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-llvm %BUILD_SOURCESDIRECTORY%\llvm
   if ERRORLEVEL 1 (goto cmdfailed)
