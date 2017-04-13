@@ -1313,7 +1313,7 @@ namespace {
 
   public:
     NonModifiyingExprSema(Sema &S, Sema::NonModifiyingExprRequirement From, bool ReportError) :
-      S(S), FoundModifyingExpr(false), ReqFrom(From) {}
+      S(S), FoundModifyingExpr(false), ReqFrom(From), ReportError(ReportError) {}
 
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
