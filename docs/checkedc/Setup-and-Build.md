@@ -24,11 +24,23 @@ line tools.  We recommend using Visual Studio 2015 or later.
 Go to [http://www.cygwin.com](http://www.cygwin.com) and download the installer (put it in a known place).
 Then run it and use the GUI to install the coreutils and diffutils packages.  Add the bin subdirectory to your system path.
 
-If you plan to use Visual Studio to build projects, lower the default number of projects that will be built in parallel. 
-The Visual Studio solution for clang has lots of parallelism. The parallelism can cause your machine to use too much
-virtual memory and become unresponsive when building.  In VS 2015, go to _Debug->Options->Projects and Solutions ->Build and Run_ and 
-set the maximum number of parallel project builds to a fraction of the actual number processors
-(for example, number of processor cores on your machine/3).
+If you plan to use Visual Studio to build projects,  you must limit the amount
+of parallelism that will be used during builds.  By default, the Visual Studio solution
+for clang has [too much parallelism](https:/github.com/Microsoft/checkedc-clang/issues/268). 
+The parallelism will cause your build to use too much physical memory and cause your machine
+to start paging.  This will make your machine unresponsive and slow down your build too.
+In VS 2015, go to _Debug->Options->Projects and Solutions->VC++ Project Solutions_ and set
+the `Maximum Number of concurrent C++ compilations` to 4 or 6.
+By default, 0 causes it to be the number of available CPU cores on your machine, which is too much.
+You may want to go to  _Debug->Options->Projects and Solutions ->Build and Run_ and 
+set the maximum number of parallel project builds to be 3/4 of the actual number of CPU cores on
+your machine.  
+
+In general, choose these numbers so that the build stays within physical
+memory.  We have found that having 256 MBytes of memory per compiler invocation given the
+maximum number of compiler invocations works well. In other words, we recommend
+that _total physical memory_/(_number of concurrent compilations_ *
+_number of parallel project builds_) is greater than 256 MBytes.
 
 LLVM/clang have some tests that depend on using Unix line ending conventions
 (line feeds only).  This means that the sources you will be working with
