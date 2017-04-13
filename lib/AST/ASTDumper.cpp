@@ -1977,6 +1977,14 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
       OS << "Illegal_bounds_cast_kind";
     OS << ">";
   }
+
+  if(Node->getStmtClass() != Expr::BoundsCastExprClass)
+    if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+      dumpChild([=] {
+        OS << "Inferred Bounds";
+        dumpStmt(Bounds);
+      });
+    }
 }
 
 void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {

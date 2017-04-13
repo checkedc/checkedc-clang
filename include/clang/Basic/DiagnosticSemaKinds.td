@@ -8945,6 +8945,16 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def err_checked_scope_no_variadic_func_for_expression : Error<
     "cannot use a variable arguments function in a checked scope or function">;
+    
+  def warn_bounds_cast_invalidated_bounds: Warning<
+    "bounds will be invalidated : asssigning to %0">;
+
+  def err_bounds_cast_generate_bounds_for_unchecked_type: Error<
+    "generate bounds expression for unchecked type :  %0">;
+
+  def err_bounds_cast_generate_bounds_for_ptr_type: Error<
+    "generate bounds expression for ptr type :  %0">;
+    
 } // end of Checked C Category
 
 } // end of sema component.

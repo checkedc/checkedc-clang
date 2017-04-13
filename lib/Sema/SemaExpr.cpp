@@ -12461,23 +12461,45 @@ ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
                                      Expr *E1, Expr *E2, Expr *E3,
                                      BoundsCastExpr::Kind kind) {
   TypeSourceInfo *castTInfo;
-  GetTypeFromParser(D, &castTInfo);
+  QualType DestTy = GetTypeFromParser(D, &castTInfo);
 
   ExprResult ResE1 = CorrectDelayedTyposInExpr(E1);
   if (!ResE1.isUsable())
     return ExprError();
   E1 = ResE1.get();
 
-  ExprResult bounds = GenerateBoundsExpr(E2, E3);
+  ExprResult bounds = GenerateBoundsExpr(E1, E2, E3, DestTy);
 
   return BuildBoundsCastExpr(LParenLoc, castTInfo, RParenLoc, E1,
                              dyn_cast<BoundsExpr>(bounds.get()), kind);
 }
 
-ExprResult Sema::GenerateBoundsExpr(Expr *E2, Expr *E3) {
+ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
+                                    QualType DestTy) {
   ExprResult Result(true);
   ExprResult ResE2 = CorrectDelayedTyposInExpr(E2);
   ExprResult ResE3 = CorrectDelayedTyposInExpr(E3);
+
+  if (!DestTy->isCheckedPointerType()) {
+    if (ResE2.isUsable() || ResE3.isUsable()) {
+      Diag(E2->getLocStart(),
+           diag::err_bounds_cast_generate_bounds_for_unchecked_type)
+          << DestTy;
+    }
+    return CreateInvalidBoundsExpr();
+  } else if (DestTy->isCheckedPointerPtrType()){
+    if (ResE2.isUsable() || ResE3.isUsable()) {
+      Diag(E2->getLocStart(),
+           diag::err_bounds_cast_generate_bounds_for_ptr_type)
+          << DestTy;
+      return CreateInvalidBoundsExpr();            
+    }
+  } else if (DestTy->isCheckedPointerArrayType()) {
+    if (!ResE2.isUsable() && !ResE3.isUsable()) {
+      return ActOnNullaryBoundsExpr(SourceLocation(), BoundsExpr::Kind::None,
+                                    SourceLocation());
+    }
+  }
 
   if (!ResE2.isUsable() && !ResE3.isUsable()) {
     llvm::APInt I = llvm::APInt(1, 1, false);

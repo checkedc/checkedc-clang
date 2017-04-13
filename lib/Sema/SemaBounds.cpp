@@ -611,6 +611,11 @@ namespace {
           }
           Expr *subExpr = CE->getSubExpr();
           BoundsExpr *Bounds = CE->getBoundsExpr();
+	  if(Bounds->isNone()){
+	    Bounds = RValueBounds(subExpr);
+	    if(Bounds->isNone())
+	      Bounds=CreateBoundsNone();
+	  }
 	  Expr *Base = subExpr;
           Bounds = ExpandToRange(Base, Bounds);
           CE->setBoundsExpr(Bounds);
@@ -938,12 +943,17 @@ namespace {
         return true;
       }
 
-      if (CK == CK_PointerBounds) {
+      if (CK == CK_PointerBounds &&
+          (dyn_cast<BoundsCastExpr>(E)->getBoundsCastKind() ==
+           BoundsCastExpr::Kind::Dynamic)) {
         BoundsExpr *SrcBounds = S.InferRValueBounds(E);
         if (SrcBounds->isNone()) {
-          SrcBounds = S.CreateInvalidBoundsExpr();
+          SrcBounds = S.InferRValueBounds(E->getSubExpr());
+	  if(SrcBounds->isNone())
+	    SrcBounds = S.CreateInvalidBoundsExpr();
         }
         assert(SrcBounds);
+        E->setBoundsExpr(SrcBounds);
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.

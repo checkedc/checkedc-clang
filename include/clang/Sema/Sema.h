@@ -4293,7 +4293,7 @@ public:
                                  Expr *E1, Expr *E2, Expr *E3,
                                  BoundsCastExpr::Kind kind);
 
-  ExprResult GenerateBoundsExpr(Expr *E2, Expr *E3);
+  ExprResult GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3, QualType DestTy);
 
   ExprResult BuildBoundsCastExpr(SourceLocation LParenLoc, TypeSourceInfo *Ty,
                                  SourceLocation RParenLoc, Expr *BaseExpr,

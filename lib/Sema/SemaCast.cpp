@@ -82,7 +82,7 @@ namespace {
     void CheckDynamicCast();
     void CheckCXXCStyleCast(bool FunctionalCast, bool ListInitialization);
     void CheckCStyleCast();
-    void CheckBoundsCast(BoundsExpr *&bounds, BoundsCastExpr::Kind kind);
+    BoundsExpr *CheckBoundsCast(BoundsCastExpr::Kind kind);
 
     /// Complete an apparently-successful cast operation that yields
     /// the given expression.
@@ -2613,22 +2613,45 @@ void CastOperation::CheckCStyleCast() {
   }
 }
 
-void CastOperation::CheckBoundsCast(BoundsExpr *&Bounds,
-                                    BoundsCastExpr::Kind kind) {
-  QualType Ty = SrcExpr.get()->getType();
-  // Check DestType and SrcExpr is pointer type;
-  if (!Ty->isAnyPointerType()) {
-    Bounds = Self.CreateInvalidBoundsExpr();
-    Self.Diag(SrcExpr.get()->getLocStart(),
-              diag::err_typecheck_pointer_type_expected)
-        << Ty;
+BoundsExpr *CastOperation::CheckBoundsCast(BoundsCastExpr::Kind kind) {
+  QualType SrcType = SrcExpr.get()->getType();
+  BoundsExpr *Bounds = nullptr;
+  // Check SrcExpr is pointer type;
+
+  if (!DestType->isArithmeticType()) {
+    if (!SrcType->isIntegralType(Self.Context) && SrcType->isArithmeticType()) {
+      Self.Diag(SrcExpr.get()->getExprLoc(),
+                diag::err_cast_pointer_from_non_pointer_int)
+        << SrcType << SrcExpr.get()->getSourceRange();
+      SrcExpr = ExprError();
+      return Self.CreateInvalidBoundsExpr();
+    }
+    checkIntToPointerCast(true, OpRange.getBegin(), SrcExpr.get(),
+                          DestType, Self);
+  } else if (!SrcType->isArithmeticType()) {
+    if (!DestType->isIntegralType(Self.Context) &&
+        DestType->isArithmeticType()) {
+      Self.Diag(SrcExpr.get()->getLocStart(),
+           diag::err_cast_pointer_to_non_pointer_int)
+        << DestType << SrcExpr.get()->getSourceRange();
+      SrcExpr = ExprError();
+      return Self.CreateInvalidBoundsExpr();
+    }
   }
-  if (DestType->isUncheckedPointerType()) {
+  
+  if (DestType->isUncheckedPointerType()){
+    if (SrcType->isCheckedPointerType()){
+      Self.Diag(SrcExpr.get()->getLocStart(),
+                diag::warn_bounds_cast_invalidated_bounds)
+          << DestType;
+    }
     Bounds = Self.CreateInvalidBoundsExpr();
   }
 
   Kind = CastKind::CK_PointerBounds;
   SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
+
+  return Bounds;
 }
 
 ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
@@ -2664,7 +2687,10 @@ ExprResult Sema::BuildBoundsCastExpr(SourceLocation LPLoc,
   Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
   Op.OpRange = SourceRange(LPLoc, E1->getLocEnd());
 
-  Op.CheckBoundsCast(bounds, kind);
+  BoundsExpr *B = Op.CheckBoundsCast(kind);
+  
+  if(B != nullptr)
+    bounds = B;
 
   if (Op.SrcExpr.isInvalid())
     return ExprError();
