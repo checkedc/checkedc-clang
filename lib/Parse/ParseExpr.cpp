@@ -2958,29 +2958,50 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
-RelativeBoundsClause *Parser::ParseRelativeBoundsClause(ExprResult &Expr,
-                                                        bool isReturn) {
-  RelativeBoundsClause *RelativeClause = nullptr;
-  ExprResult ConstExpr;
-  RangeBoundsExpr *Range = nullptr;
-
+bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
+  bool isError = false;
   IdentifierInfo *Ident = Tok.getIdentifierInfo();
   SourceLocation BoundsKWLoc = Tok.getLocation();
+  RangeBoundsExpr *Range = nullptr;
   Token TempTok = Tok;
   ConsumeToken();
-
   BalancedDelimiterTracker PT(*this, tok::l_paren);
-
   if (PT.expectAndConsume(diag::err_expected_lparen_after,
                           Ident->getNameStart())) {
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-    return RelativeClause;
+    isError = true;
+    return isError;
   }
+
+  RelativeBoundsClause *RelativeClause =
+      CreateRelativeBoundsClause(isError, Ident, BoundsKWLoc);
+
+  if (Expr.isInvalid()) {
+    isError = true;
+    return isError;
+  }
+
+  if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
+    Range->setRelativeBoundsClause(RelativeClause);
+  } else {
+    Diag(TempTok, diag::err_expected_range_bounds_expr);
+  }
+
+  PT.consumeClose();
+  return isError;
+}
+
+RelativeBoundsClause *
+Parser::CreateRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
+                                   SourceLocation BoundsKWLoc) {
+  RelativeBoundsClause *RelativeClause = nullptr;
+  ExprResult ConstExpr;
 
   if (Ident == Ident_rel_align) {
     TypeResult ResultTy = ParseTypeName();
     if (ResultTy.isInvalid()) {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      isError = true;
     } else
       RelativeClause = Actions.ActOnRelativeTypeBoundsClause(
           BoundsKWLoc, ResultTy.get(), Tok.getLocation());
@@ -2988,6 +3009,7 @@ RelativeBoundsClause *Parser::ParseRelativeBoundsClause(ExprResult &Expr,
     ConstExpr = ParseConstantExpression();
     if (ConstExpr.isInvalid()) {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      isError = true;
     } else {
       ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get());
       if (!ConstExpr.isInvalid())
@@ -2996,20 +3018,9 @@ RelativeBoundsClause *Parser::ParseRelativeBoundsClause(ExprResult &Expr,
     }
   } else {
     llvm_unreachable("unexpected relative alignment clause kind");
+    isError = true;
   }
 
-  if (!isReturn && Expr.isInvalid()) {
-    return RelativeClause;
-  }
-
-  if (!isReturn) {
-    if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
-      Range->setRelativeBoundsClause(RelativeClause);
-    } else {
-      Diag(TempTok, diag::err_expected_range_bounds_expr);
-    }
-  }
-  PT.consumeClose();
   return RelativeClause;
 }
 
@@ -3040,8 +3051,20 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   if (Tok.is(tok::comma)) {
     ConsumeToken();
     if (StartsRelativeBoundsClause(Tok)) {
-      if (!(RelativeClause = ParseRelativeBoundsClause(Result, true)))
-        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+      IdentifierInfo *Ident = Tok.getIdentifierInfo();
+      bool isError = false;
+      ConsumeToken();
+      BalancedDelimiterTracker PT(*this, tok::l_paren);
+      if (PT.expectAndConsume(diag::err_expected_lparen_after,
+                              Ident->getNameStart())) {
+        SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      } else {
+        RelativeClause =
+            CreateRelativeBoundsClause(isError, Ident, Tok.getLocation());
+        if (isError)
+          SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      }
+      PT.consumeClose();
     } else {
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
     }

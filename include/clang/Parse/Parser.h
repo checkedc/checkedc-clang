@@ -1692,8 +1692,11 @@ private:
 
   bool StartsRelativeBoundsClause(Token &tok);
 
-  RelativeBoundsClause *ParseRelativeBoundsClause(ExprResult &Expr,
-                                                  bool isReturn = false);
+  bool ParseRelativeBoundsClause(ExprResult &Expr);
+
+  RelativeBoundsClause *CreateRelativeBoundsClause(bool &isError,
+                                                   IdentifierInfo *Ident,
+                                                   SourceLocation BoundsKWLoc);
 
   void SkipInvalidBoundsExpr(Token &T);
 
