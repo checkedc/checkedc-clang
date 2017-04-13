@@ -9,7 +9,7 @@ if [ -z "$LNT" ]; then
 fi
 
 CLANG=${LLVM_OBJ_DIR}/bin/clang
-RESULT_LOG="${LNT_RESULTS_DIRS}/result.log"
+RESULT_LOG="${LNT_RESULTS_DIR}/result.log"
 
 
 if [ ! -e "$CLANG" ]; then
@@ -17,12 +17,10 @@ if [ ! -e "$CLANG" ]; then
   exit 1
 fi
 
-"$LNT_SCRIPT" runtest nt --sandbox "$LNT_RESULTS_DIR" --notimestamp
+"$LNT_SCRIPT" runtest nt --sandbox "$LNT_RESULTS_DIR" --no-timestamp \
    --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
    --cflags -fcheckedc-extension \
-   --output="${LNT_RESULTS_DIR}/result.log -j${$BUILD_CPU_COUNT}
-
-cat ${RESULT_LOG}
+   -v --output=${RESULT_LOG} -j${BUILD_CPU_COUNT}
 
 if grep FAILED ${RESULT_LOG}; then
   echo "LNT testing failed."
