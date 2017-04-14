@@ -2841,7 +2841,7 @@ ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
 
   TempTok = Tok;
   if (StartsRelativeBoundsClause(Tok))
-    ParseRelativeBoundsClause(Result);
+    ParseRelativeBoundsClauseForDecl(Result);
 
   return Result;
 }
@@ -2958,7 +2958,7 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
-bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
+bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {
   bool isError = false;
   IdentifierInfo *Ident = Tok.getIdentifierInfo();
   SourceLocation BoundsKWLoc = Tok.getLocation();
@@ -2974,7 +2974,7 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
   }
 
   RelativeBoundsClause *RelativeClause =
-      CreateRelativeBoundsClause(isError, Ident, BoundsKWLoc);
+      ParseRelativeBoundsClause(isError, Ident, BoundsKWLoc);
 
   if (Expr.isInvalid()) {
     isError = true;
@@ -2992,7 +2992,7 @@ bool Parser::ParseRelativeBoundsClause(ExprResult &Expr) {
 }
 
 RelativeBoundsClause *
-Parser::CreateRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
+Parser::ParseRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
                                    SourceLocation BoundsKWLoc) {
   RelativeBoundsClause *RelativeClause = nullptr;
   ExprResult ConstExpr;
@@ -3057,17 +3057,16 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
       BalancedDelimiterTracker PT(*this, tok::l_paren);
       if (PT.expectAndConsume(diag::err_expected_lparen_after,
                               Ident->getNameStart())) {
-        SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
       } else {
         RelativeClause =
-            CreateRelativeBoundsClause(isError, Ident, Tok.getLocation());
+            ParseRelativeBoundsClause(isError, Ident, Tok.getLocation());
         if (isError)
           SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+	PT.consumeClose();
       }
-      PT.consumeClose();
-    } else {
+    } else
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
-    }
   }
 
   SourceLocation EndLoc = Tok.getLocation();

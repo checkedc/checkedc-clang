@@ -1692,9 +1692,9 @@ private:
 
   bool StartsRelativeBoundsClause(Token &tok);
 
-  bool ParseRelativeBoundsClause(ExprResult &Expr);
+  bool ParseRelativeBoundsClauseForDecl(ExprResult &Expr);
 
-  RelativeBoundsClause *CreateRelativeBoundsClause(bool &isError,
+  RelativeBoundsClause *ParseRelativeBoundsClause(bool &isError,
                                                    IdentifierInfo *Ident,
                                                    SourceLocation BoundsKWLoc);
 
