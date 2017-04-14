@@ -484,13 +484,20 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   }
 }
 
-// Check the equality of 
+// Check the equality of VTy and UTy. There are some specific rules that
+// fire, and a general check is yet to be implemented. 
 bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable*> V, 
                                           std::set<ConstraintVariable*> U,
                                           QualType VTy,
                                           QualType UTy) 
 {
-  return false;
+  // First specific rule: Are these types directly equal? 
+  if (VTy == UTy) {
+    return true;
+  } else {
+    // Further structural checking is TODO.
+    return false;
+  } 
 }
 
 bool ProgramInfo::link() {
