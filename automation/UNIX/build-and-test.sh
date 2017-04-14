@@ -13,5 +13,7 @@ set -o pipefail
 ./setup-files.sh
 ./run-cmake.sh
 ./test-clang.sh
+./test-lnt.sh
+
 
 

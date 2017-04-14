@@ -12457,9 +12457,12 @@ ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
 }
 
 ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
-                                     ParsedType D, SourceLocation RParenLoc,
-                                     Expr *E1, Expr *E2, Expr *E3,
+                                     ParsedType D,
+                                     RelativeBoundsClause *RelativeClause,
+                                     SourceLocation RParenLoc, Expr *E1,
+                                     Expr *E2, Expr *E3,
                                      BoundsCastExpr::Kind kind) {
+  RangeBoundsExpr *Range = nullptr;
   TypeSourceInfo *castTInfo;
   QualType DestTy = GetTypeFromParser(D, &castTInfo);
 
@@ -12469,6 +12472,14 @@ ExprResult Sema::ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
   E1 = ResE1.get();
 
   ExprResult bounds = GenerateBoundsExpr(E1, E2, E3, DestTy);
+  if (RelativeClause != nullptr) {
+    RelativeBoundsClause::Kind kind = RelativeClause->getClauseKind();
+    if (((kind == RelativeBoundsClause::Kind::Type) ||
+         (kind == RelativeBoundsClause::Kind::Const)) &&
+        (Range = dyn_cast<RangeBoundsExpr>(bounds.get()))) {
+      Range->setRelativeBoundsClause(RelativeClause);
+    }
+  }
 
   return BuildBoundsCastExpr(LParenLoc, castTInfo, RParenLoc, E1,
                              dyn_cast<BoundsExpr>(bounds.get()), kind);

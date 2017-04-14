@@ -138,12 +138,17 @@ if NOT DEFINED MSBUILD_BIN (
   set "MSBUILD_BIN=%programfiles(x86)%\MSBuild\14.0\Bin\MSBuild.exe"
 )
 
-if NOT DEFINED NUMBER_OF_PROCESSORS (
-  set MSBUILD_CPU_COUNT=2
-) else if %NUMBER_OF_PROCESSORS% LSS 16 (
-  set MSBUILD_CPU_COUNT=2
-) else (
-  set /a "MSBUILD_CPU_COUNT=%NUMBER_OF_PROCESSORS%/4"
+if NOT DEFINED MSBUILD_CPU_COUNT (
+  if DEFINED NUMBER_OF_PROCESSORS (
+    set MSBUILD_CPU_COUNT=%NUMBER_OF_PROCESSORS%
+  ) else (
+    set MSBUILD_CPU_COUNT=2
+  )
+)
+
+if NOT DEFINED CL_CPU_COUNT (
+  rem It would be better to calculate this based on total physical memory availablity.
+  set CL_CPU_COUNT=6
 )
 
 echo Configured environment variables:
@@ -169,5 +174,6 @@ echo.    CHECKEDC_COMMIT: %CHECKEDC_COMMIT%
 echo.
 echo.  MSBUILD_BIN: %MSBUILD_BIN%
 echo.  MSBUILD_CPU_COUNT: %MSBUILD_CPU_COUNT%
+echo.  CL_CPU_COUNT: %CL_CPU_COUNT%
 
 exit /b 0
