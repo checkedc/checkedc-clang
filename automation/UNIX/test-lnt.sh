@@ -22,7 +22,7 @@ fi
    --cflags -fcheckedc-extension \
    -v --output=${RESULT_LOG} -j${BUILD_CPU_COUNT}
 
-if grep FAILED ${RESULT_LOG}; then
+if grep FAIL ${RESULT_LOG}; then
   echo "LNT testing failed."
   exit 1
 else
