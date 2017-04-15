@@ -21,7 +21,7 @@ fi
 "$LNT_SCRIPT" runtest nt --sandbox "$LNT_RESULTS_DIR" --no-timestamp \
    --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
    --cflags -fcheckedc-extension \
-   -v --output=${RESULT_LOG} -j${BUILD_CPU_COUNT} | tee ${RESULT_SUMMARY}
+   -v --output=${RESULT_DATA} -j${BUILD_CPU_COUNT} | tee ${RESULT_SUMMARY}
 
 if grep FAIL ${RESULT_SUMMARY}; then
   echo "LNT testing failed."
