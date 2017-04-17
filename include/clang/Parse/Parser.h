@@ -1700,7 +1700,7 @@ private:
 
   void SkipInvalidBoundsExpr(Token &T);
 
-  ExprResult ParseBoundsCastExpression(IdentifierInfo &Ident, SourceLocation &ILoc);
+  ExprResult ParseBoundsCastExpression();
 
   ExprResult ParseBoundsExpression();
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);

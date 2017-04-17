@@ -8945,16 +8945,23 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def err_checked_scope_no_variadic_func_for_expression : Error<
     "cannot use a variable arguments function in a checked scope or function">;
-    
-  def warn_bounds_cast_invalidated_bounds: Warning<
-    "bounds will be invalidated : asssigning to %0">;
 
-  def err_bounds_cast_generate_bounds_for_unchecked_type: Error<
-    "generate bounds expression for unchecked type :  %0">;
+  def err_bounds_cast_array_pointer_type_with_single_syntax
+      : Error<"invalid bounds casting : cast array pointer type with single "
+              "bounds casting syntax :  %0">;
 
-  def err_bounds_cast_generate_bounds_for_ptr_type: Error<
-    "generate bounds expression for ptr type :  %0">;
-    
+  def err_bounds_cast_integral_with_single_syntax
+      : Error<"invalid bounds casting : cast integral type with single bounds "
+              "casting syntax :  %0">;
+
+  def err_bounds_cast_single_pointer_type_with_array_syntax
+      : Error<"invalid bounds casting : cast single pointer type with array "
+              "bounds casting syntax :  %0">;
+
+  def err_bounds_cast_unchecked_pointer_type_with_assume_single_syntax
+      : Error<"invalid bounds casting : cast unchecked pointer type with "
+              "assume single bounds casting syntax :  %0">;
+
 } // end of Checked C Category
 
 } // end of sema component.

@@ -82,7 +82,7 @@ namespace {
     void CheckDynamicCast();
     void CheckCXXCStyleCast(bool FunctionalCast, bool ListInitialization);
     void CheckCStyleCast();
-    BoundsExpr *CheckBoundsCast(BoundsCastExpr::Kind kind);
+    void CheckBoundsCast(tok::TokenKind kind);
 
     /// Complete an apparently-successful cast operation that yields
     /// the given expression.
@@ -2613,45 +2613,14 @@ void CastOperation::CheckCStyleCast() {
   }
 }
 
-BoundsExpr *CastOperation::CheckBoundsCast(BoundsCastExpr::Kind kind) {
-  QualType SrcType = SrcExpr.get()->getType();
-  BoundsExpr *Bounds = nullptr;
-  // Check SrcExpr is pointer type;
+void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
 
-  if (!DestType->isArithmeticType()) {
-    if (!SrcType->isIntegralType(Self.Context) && SrcType->isArithmeticType()) {
-      Self.Diag(SrcExpr.get()->getExprLoc(),
-                diag::err_cast_pointer_from_non_pointer_int)
-        << SrcType << SrcExpr.get()->getSourceRange();
-      SrcExpr = ExprError();
-      return Self.CreateInvalidBoundsExpr();
-    }
-    checkIntToPointerCast(true, OpRange.getBegin(), SrcExpr.get(),
-                          DestType, Self);
-  } else if (!SrcType->isArithmeticType()) {
-    if (!DestType->isIntegralType(Self.Context) &&
-        DestType->isArithmeticType()) {
-      Self.Diag(SrcExpr.get()->getLocStart(),
-           diag::err_cast_pointer_to_non_pointer_int)
-        << DestType << SrcExpr.get()->getSourceRange();
-      SrcExpr = ExprError();
-      return Self.CreateInvalidBoundsExpr();
-    }
-  }
-  
-  if (DestType->isUncheckedPointerType()){
-    if (SrcType->isCheckedPointerType()){
-      Self.Diag(SrcExpr.get()->getLocStart(),
-                diag::warn_bounds_cast_invalidated_bounds)
-          << DestType;
-    }
-    Bounds = Self.CreateInvalidBoundsExpr();
-  }
-
-  Kind = CastKind::CK_PointerBounds;
   SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
-
-  return Bounds;
+  
+  if(kind == tok::kw__Assume_bounds_cast)
+    Kind = CK_AssumePtrBounds;
+  else if (kind == tok::kw__Dynamic_bounds_cast)
+    Kind = CK_DynamicPtrBounds;
 }
 
 ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
@@ -2677,27 +2646,25 @@ ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
                               &Op.BasePath, CastTypeInfo, LPLoc, RPLoc));
 }
 
-ExprResult Sema::BuildBoundsCastExpr(SourceLocation LPLoc,
+ExprResult Sema::BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
                                      TypeSourceInfo *CastTypeInfo,
-                                     SourceLocation RPLoc, Expr *E1,
-                                     BoundsExpr *bounds,
-                                     BoundsCastExpr::Kind kind) {
+                                     SourceRange AngleBrackets,
+                                     SourceRange Paren, Expr *E1,
+                                     BoundsExpr *bounds) {
 
   CastOperation Op(*this, CastTypeInfo->getType(), E1);
   Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
-  Op.OpRange = SourceRange(LPLoc, E1->getLocEnd());
+  Op.OpRange = SourceRange(OpLoc, E1->getLocEnd());
 
-  BoundsExpr *B = Op.CheckBoundsCast(kind);
+  Op.CheckBoundsCast(Kind);  
   
-  if(B != nullptr)
-    bounds = B;
-
   if (Op.SrcExpr.isInvalid())
     return ExprError();
 
-  return Op.complete(BoundsCastExpr::Create(
-      Context, Op.ResultType, Op.ValueKind, Op.Kind, Op.SrcExpr.get(),
-      &Op.BasePath, CastTypeInfo, LPLoc, RPLoc, bounds, kind));
+  return Op.complete(
+      BoundsCastExpr::Create(Context, Op.ResultType, Op.ValueKind, Op.Kind,
+                             Op.SrcExpr.get(), &Op.BasePath, CastTypeInfo,
+                             OpLoc, Paren.getEnd(), AngleBrackets, bounds));
 }
 
 ExprResult Sema::BuildCXXFunctionalCastExpr(TypeSourceInfo *CastTypeInfo,

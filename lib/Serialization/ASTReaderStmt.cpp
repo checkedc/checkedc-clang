@@ -743,9 +743,11 @@ void ASTStmtReader::VisitCStyleCastExpr(CStyleCastExpr *E) {
 
 void ASTStmtReader::VisitBoundsCastExpr(BoundsCastExpr *E) {
   VisitExplicitCastExpr(E);
-  E->setBoundsCastKind((BoundsCastExpr::Kind) Record[Idx++]);  
-  E->setLParenLoc(ReadSourceLocation(Record, Idx));
-  E->setRParenLoc(ReadSourceLocation(Record, Idx));
+  SourceRange R = ReadSourceRange(Record, Idx);
+  E->LPLoc = R.getBegin();
+  E->RParenLoc = R.getEnd();
+  R= ReadSourceRange(Record,Idx);
+  E->AngleBrackets=R;
   E->setBoundsExpr(dyn_cast<BoundsExpr>(Reader.ReadSubExpr()));
 }
 

@@ -556,7 +556,8 @@ namespace {
     BoundsExpr *RValueCastBounds(CastKind CK, Expr *E) {
       switch (CK) {
         case CastKind::CK_BitCast:
-        case CastKind::CK_PointerBounds:
+        case CastKind::CK_DynamicPtrBounds:
+        case CastKind::CK_AssumePtrBounds:
         case CastKind::CK_NoOp:
         case CastKind::CK_NullToPointer:
         // Truncation or widening of a value does not affect its bounds.
@@ -609,16 +610,21 @@ namespace {
             llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
+
           Expr *subExpr = CE->getSubExpr();
           BoundsExpr *Bounds = CE->getBoundsExpr();
-	  if(Bounds->isNone()){
-	    Bounds = RValueBounds(subExpr);
-	    if(Bounds->isNone())
-	      Bounds=CreateBoundsNone();
-	  }
-	  Expr *Base = subExpr;
+
+          if (Bounds->isInvalid()) {
+            return CreateBoundsNone();
+          }
+
+          BoundsExpr *bounds = RValueBounds(subExpr);
+
+          if (!Bounds->isInvalid() && bounds->isNone())
+            return CreateBoundsNone();
+
+          Expr *Base = subExpr;
           Bounds = ExpandToRange(Base, Bounds);
-          CE->setBoundsExpr(Bounds);
           return Bounds;
         }
         case Expr::ImplicitCastExprClass:
@@ -905,21 +911,12 @@ namespace {
           else
             RHSBounds = S.InferRValueBounds(RHS);
           if (RHSBounds->isNone()) {
-             S.Diag(RHS->getLocStart(), diag::err_expected_bounds_for_assignment) << RHS->getSourceRange();
-             RHSBounds = S.CreateInvalidBoundsExpr();
+	    S.Diag(RHS->getLocStart(), diag::err_expected_bounds_for_assignment) << RHS->getSourceRange();
+	    RHSBounds = S.CreateInvalidBoundsExpr();
           }
         }
       }
-
-      if (LHSType->isPointerType() &&
-          (RHS->getStmtClass() == Expr::BoundsCastExprClass)) {
-        RHSBounds = S.InferRValueBounds(RHS);
-        if (RHSBounds->isNone()) {
-          RHSBounds = S.CreateInvalidBoundsExpr();
-        }
-        assert(RHSBounds);
-      }
-
+      
       // Check that the LHS lvalue of the assignment has bounds, if it is an
       // lvalue that was produced by dereferencing an _Array_ptr.
       bool LHSNeedsBoundsCheck = false;
@@ -943,14 +940,22 @@ namespace {
         return true;
       }
 
-      if (CK == CK_PointerBounds &&
-          (dyn_cast<BoundsCastExpr>(E)->getBoundsCastKind() ==
-           BoundsCastExpr::Kind::Dynamic)) {
+      if (CK == CK_DynamicPtrBounds || CK == CK_AssumePtrBounds) {
         BoundsExpr *SrcBounds = S.InferRValueBounds(E);
+        Expr *subExpr = E->getSubExpr();
+        BoundsExpr *Bounds = E->getBoundsExpr();
+        BoundsExpr *bounds = S.InferRValueBounds(subExpr);
+        QualType DestTy = E->getType();
+        QualType SrcTy = subExpr->getType();
+
+        if (!Bounds->isInvalid() && bounds->isNone()) {
+          if (!(DestTy->isUncheckedPointerType() &&
+                SrcTy->isUncheckedPointerType()))
+            S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
+        }
+
         if (SrcBounds->isNone()) {
-          SrcBounds = S.InferRValueBounds(E->getSubExpr());
-	  if(SrcBounds->isNone())
-	    SrcBounds = S.CreateInvalidBoundsExpr();
+          SrcBounds = S.CreateInvalidBoundsExpr();
         }
         assert(SrcBounds);
         E->setBoundsExpr(SrcBounds);
@@ -965,7 +970,7 @@ namespace {
         if (SrcBounds->isNone()) {
           S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds_for_ptr_cast)  << E->getSubExpr()->getSourceRange();
           SrcBounds = S.CreateInvalidBoundsExpr();
-        }
+	}
         assert(SrcBounds);
         assert(!E->getBoundsExpr());
         E->setBoundsExpr(SrcBounds);

@@ -879,15 +879,6 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     IdentifierInfo &II = *Tok.getIdentifierInfo();
     SourceLocation ILoc = ConsumeToken();
 
-    // Parsing CheckedC bounds cast expression
-    if (getLangOpts().CheckedC) {
-      if (&II == Ident_dynamic_bounds_cast || &II == Ident_assume_bounds_cast) {
-        if (Tok.is(tok::less))
-          Res = ParseBoundsCastExpression(II, ILoc);
-        break;
-      }
-    }
-
     // Support 'Class.property' and 'super.property' notation.
     if (getLangOpts().ObjC1 && Tok.is(tok::period) &&
         (Actions.getTypeName(II, ILoc, getCurScope()) ||
@@ -1138,7 +1129,10 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   case tok::kw_this:
     Res = ParseCXXThis();
     break;
-
+  case tok::kw__Assume_bounds_cast:
+  case tok::kw__Dynamic_bounds_cast:
+    Res = ParseBoundsCastExpression();
+    break;
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
       ParsedType Type = getTypeAnnotation(Tok);
@@ -3024,20 +3018,28 @@ Parser::ParseRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
   return RelativeClause;
 }
 
-ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
-                                             SourceLocation &ILoc) {
+ExprResult Parser::ParseBoundsCastExpression() {
+  tok::TokenKind Kind = Tok.getKind();
+  const char *CastName = nullptr;
+  switch (Kind) {
+  default:
+    llvm_unreachable("Unknown CheckedC Bounds Cast!");
+  case tok::kw__Assume_bounds_cast:
+    CastName = "_Assume_bounds_cast";
+    break;
+  case tok::kw__Dynamic_bounds_cast:
+    CastName = "_Dynamic_bounds_cast";
+    break;
+  }
+
+  BoundsCastExpr::SyntaxType syntax = BoundsCastExpr::SyntaxType::Single;
   ExprResult Result(true);
   RelativeBoundsClause *RelativeClause = nullptr;
-  BoundsCastExpr::Kind kind;
-  if (&Ident == Ident_dynamic_bounds_cast)
-    kind = BoundsCastExpr::Kind::Dynamic;
-  else if (&Ident == Ident_assume_bounds_cast)
-    kind = BoundsCastExpr::Kind::Assume;
-  else
-    kind = BoundsCastExpr::Kind::Invalid;
 
-  if (ExpectAndConsume(tok::less, diag::err_expected_less_after,
-                       Ident.getNameStart()))
+  SourceLocation OpLoc = ConsumeToken();
+  SourceLocation LAngleBracketLoc = Tok.getLocation();
+
+  if (ExpectAndConsume(tok::less, diag::err_expected_less_after, CastName))
     return ExprError();
 
   TypeResult Ty = ParseTypeName();
@@ -3069,15 +3071,16 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
   }
 
-  SourceLocation EndLoc = Tok.getLocation();
+  SourceLocation RAngleBracketLoc = Tok.getLocation();
   if (ExpectAndConsume(tok::greater))
-    return ExprError(Diag(EndLoc, diag::note_matching) << tok::less);
+    return ExprError(Diag(RAngleBracketLoc, diag::note_matching) << tok::less);
 
   SourceLocation LParenLoc, RParenLoc;
   BalancedDelimiterTracker T(*this, tok::l_paren);
 
-  if (T.expectAndConsume(diag::err_expected_lparen_after, Ident.getNameStart()))
+  if (T.expectAndConsume(diag::err_expected_lparen_after, CastName))
     return ExprError();
+  
   LParenLoc = T.getOpenLocation();
 
   // Parsing e1, e2, e3
@@ -3086,38 +3089,39 @@ ExprResult Parser::ParseBoundsCastExpression(IdentifierInfo &Ident,
   E1 = ParseCastExpression(true);
   if (E1.isInvalid()) {
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-    return ExprError();
   }
-
+  
   if (Tok.is(tok::comma)) {
     ConsumeToken();
+    syntax = BoundsCastExpr::SyntaxType::Count;
     E2 = ParseAssignmentExpression();
     if (!E2.isInvalid())
       E2 = Actions.CorrectDelayedTyposInExpr(E2.get());
     else {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-      return ExprError();
     }
   }
 
   if (Tok.is(tok::comma)) {
     ConsumeToken();
+    syntax = BoundsCastExpr::SyntaxType::Range;    
     E3 = ParseAssignmentExpression();
     if (!E3.isInvalid())
       E3 = Actions.CorrectDelayedTyposInExpr(E3.get());
     else {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-      return ExprError();
     }
   }
 
   // Match the ')'.
   T.consumeClose();
   RParenLoc = T.getCloseLocation();
+
   if (!E1.isInvalid())
-    Result = Actions.ActOnBoundsCastExpr(getCurScope(), ILoc, Ty.get(),
-                                         RelativeClause, RParenLoc, E1.get(),
-                                         E2.get(), E3.get(), kind);
+    Result = Actions.ActOnBoundsCastExpr(
+        getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(),
+        RAngleBracketLoc, RelativeClause, LParenLoc, RParenLoc, E1.get(),
+        E2.get(), E3.get(), syntax);
   return Result;
 }
 
