@@ -24,10 +24,10 @@ struct S2 {
 //CHECK: |-RecordDecl {{.*}} struct S2 definition
 //CHECK: | `-FieldDecl {{.*}} f '_Array_ptr<int>'
 //CHECK: |   `-CountBoundsExpr {{.*}} 'NULL TYPE' Byte
-//CHECK: |     `-BinaryOperator {{.*}} 'unsigned int' '*'
-//CHECK: |       |-ImplicitCastExpr {{.*}} 'unsigned int' <IntegralCast>
+//CHECK: |     `-BinaryOperator {{.*}} 'unsigned {{.*}}' '*'
+//CHECK: |       |-ImplicitCastExpr {{.*}} 'unsigned {{.*}}' <IntegralCast>
 //CHECK: |       | `-IntegerLiteral {{.*}} 'int' 5
-//CHECK: |       `-UnaryExprOrTypeTraitExpr {{.*}} 'unsigned int' sizeof 'int'
+//CHECK: |       `-UnaryExprOrTypeTraitExpr {{.*}} 'unsigned {{.*}}' sizeof 'int'
 
 struct S3 {
   _Array_ptr<int> f : bounds(f, f + 5);
@@ -56,18 +56,18 @@ struct S4 {
 //CHECK: | `-FieldDecl {{.*}} referenced len 'int'
 
 struct S5 {
-  _Array_ptr<int> f: count(len * sizeof(int));
+  _Array_ptr<int> f: byte_count(len * sizeof(int));
   int len;
 };
 
 //CHECK: |-RecordDecl {{.*}} struct S5 definition
 //CHECK: | |-FieldDecl {{.*}} f '_Array_ptr<int>'
-//CHECK: | | `-CountBoundsExpr {{.*}} 'NULL TYPE' Element
-//CHECK: | |   `-BinaryOperator {{.*}} 'unsigned int' '*'
-//CHECK: | |     |-ImplicitCastExpr {{.*}} 'unsigned int' <IntegralCast>
+//CHECK: | | `-CountBoundsExpr {{.*}} 'NULL TYPE' Byte
+//CHECK: | |   `-BinaryOperator {{.*}} 'unsigned {{.*}}' '*'
+//CHECK: | |     |-ImplicitCastExpr {{.*}} 'unsigned {{.*}}' <IntegralCast>
 //CHECK: | |     | `-ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
 //CHECK: | |     |   `-DeclRefExpr {{.*}} 'int' lvalue Field {{0x[0-9a-f]+}} 'len' 'int'
-//CHECK: | |     `-UnaryExprOrTypeTraitExpr {{.*}} 'unsigned int' sizeof 'int'
+//CHECK: | |     `-UnaryExprOrTypeTraitExpr {{.*}} 'unsigned {{.*}}' sizeof 'int'
 //CHECK: | `-FieldDecl {{.*}} referenced len 'int'
 
 struct S6 {
