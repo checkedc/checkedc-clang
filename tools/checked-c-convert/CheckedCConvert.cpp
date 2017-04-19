@@ -100,8 +100,6 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
   std::set<DAndReplace> skip;
 
   for (const auto &N : toRewrite) {
-    //if (N->anyChanges() == false)
-      //continue;
     DeclNStmt DN = N.first;
     Decl *D = DN.first;
     DeclStmt *Where = DN.second;
