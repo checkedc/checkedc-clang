@@ -180,9 +180,13 @@ namespace {
           // For now, return nothing if we see an rvalue base.
           return ExprResult();
         ASTContext &Context = SemaRef.getASTContext();
-        ExprValueKind ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
+        ExprValueKind ResultKind;
+        if (IsArrow)
+          ResultKind = VK_LValue;
+        else
+          ResultKind = Base->isLValue() ? VK_LValue : VK_RValue;
         MemberExpr *ME =
-          new (Context) MemberExpr(Base, /*IsArrow=*/false,
+          new (Context) MemberExpr(Base, IsArrow,
                                    SourceLocation(), FD, SourceLocation(),
                                    E->getType(), ResultKind, OK_Ordinary);
         return ME;
@@ -1313,7 +1317,7 @@ namespace {
 
   public:
     NonModifiyingExprSema(Sema &S, Sema::NonModifiyingExprRequirement From, bool ReportError) :
-      S(S), FoundModifyingExpr(false), ReqFrom(From) {}
+      S(S), FoundModifyingExpr(false), ReqFrom(From), ReportError(ReportError) {}
 
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
