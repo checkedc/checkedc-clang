@@ -9,6 +9,7 @@
 typedef __SIZE_TYPE__ size_t;
 extern void *malloc(size_t);
 extern void free(void *);
+=======
 
 void dosomething(void) {
   int a = 0;
