@@ -6,7 +6,7 @@
 // RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
-#include <stdlib.h>
+extern void *malloc(unsigned long);
 
 void dosomething(void) {
   int a = 0;
@@ -20,3 +20,5 @@ void foo(void) {
   *a = 0;
   return;
 }
+//CHECK: void foo(void) {
+//CHECK-NEXT: _Ptr<int> a = (int *) malloc(sizeof(int));
