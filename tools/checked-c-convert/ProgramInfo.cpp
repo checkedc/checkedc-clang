@@ -130,7 +130,12 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     assert(C != nullptr);
 
     std::map<uint32_t, Qualification>::iterator q;
-    switch (C->getKind()) {
+    Atom::AtomKind K = C->getKind();
+
+    if (BaseType == "void")
+      K = Atom::A_Wild;
+
+    switch (K) {
     case Atom::A_Ptr:
       q = QualMap.find(V);
       if (q != QualMap.end())
