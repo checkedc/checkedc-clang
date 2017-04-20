@@ -33,7 +33,7 @@ void *xyzzy(int *a, int b) {
 
   return 0;
 }
-//CHECK: void *xyzzy(_Ptr<int>  a, int b) {
+//CHECK: void* xyzzy(_Ptr<int>  a, int b) {
 //CHECK-NEXT: *a = b;
 
 void xyzzy_driver(void) {
