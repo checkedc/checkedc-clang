@@ -418,8 +418,9 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 // insert casts. Right now, it looks specifically for 'free'. 
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
-  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I)
-    : Context(C), Info(I) {} 
+  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, 
+      Rewriter &R, std::set<FileID> &Files)
+    : Context(C), Info(I), R(R), Files(Files) {} 
 
   bool VisitCallExpr(CallExpr *);
 private:
@@ -427,6 +428,8 @@ private:
   bool anyTop(std::set<ConstraintVariable*>);
   ASTContext *Context;
   ProgramInfo &Info;
+  Rewriter &R;
+  std::set<FileID> &Files;
 };
 
 // For a given function name, what are the argument positions for that function
@@ -475,6 +478,8 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
         // insert a cast. 
         if (EPT != PTF && !anyTop(EPC)) {
           // Insert a cast. 
+          SourceLocation CL = EP->getExprLoc();
+          R.InsertTextBefore(CL, "("+PTF.getAsString()+")");
         }
       }
     }
@@ -490,10 +495,13 @@ public:
 
   virtual void HandleTranslationUnit(ASTContext &Context) {
     Info.enterCompilationUnit(Context);
+    
+    Rewriter R(Context.getSourceManager(), Context.getLangOpts());
+    std::set<FileID> Files;
 
     // Unification is done, so visit and see if we need to place any casts
     // in the program. 
-    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info);
+    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, Files);
     for (const auto &D : Context.getTranslationUnitDecl()->decls())
       CPV.TraverseDecl(D);
 
@@ -570,9 +578,6 @@ public:
         }
       }
     }
-
-    Rewriter R(Context.getSourceManager(), Context.getLangOpts());
-    std::set<FileID> Files;
 
     rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
 
