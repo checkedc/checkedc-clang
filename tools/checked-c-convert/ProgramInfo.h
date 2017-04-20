@@ -263,6 +263,10 @@ public:
   VariableMap &getVarMap() { return Variables;  }
 
 private:
+  // Function to check if an external symbol is okay to leave 
+  // constrained. 
+  bool isExternOkay(std::string ext);
+
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;
