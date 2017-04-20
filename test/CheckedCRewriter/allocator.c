@@ -3,10 +3,12 @@
 // Tests for malloc and friends. 
 //
 // RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
-// RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: checked-c-convert %s -- | %clang_cc1 -fno-builtin -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 //
-extern void *malloc(unsigned long);
+typedef __SIZE_TYPE__ size_t;
+extern void *malloc(size_t);
+extern void free(void *);
 
 void dosomething(void) {
   int a = 0;
@@ -18,7 +20,29 @@ void dosomething(void) {
 void foo(void) {
   int *a = (int *) malloc(sizeof(int));
   *a = 0;
+  free((void*)a);
   return;
 }
 //CHECK: void foo(void) {
-//CHECK-NEXT: _Ptr<int> a = (int *) malloc(sizeof(int));
+//CHECK-NEXT: _Ptr<int>  a = (int *) malloc(sizeof(int));
+
+typedef struct _listelt {
+  struct _listelt *next;
+  int val;
+} listelt;
+
+typedef struct _listhead {
+  listelt *hd;
+} listhead;
+
+void add_some_stuff(listhead *hd) {
+  listelt *l1 = (listelt *) malloc(sizeof(listelt));
+  l1->next = 0;
+  l1->val = 0;
+  listelt *cur = hd->hd;
+  while (cur) {
+    cur = cur->next;
+  }
+  cur->next = l1;
+  return;
+}

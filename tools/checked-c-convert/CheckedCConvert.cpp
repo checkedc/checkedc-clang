@@ -292,6 +292,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
       //       Additionally, a source range can be (mis) identified as 
       //       spanning multiple files. We don't know how to re-write that,
       //       so don't.
+    
       SourceRange SR = UD->getReturnTypeSourceRange();
       if (canRewrite(R, SR))
         R.ReplaceText(SR, N.second);
