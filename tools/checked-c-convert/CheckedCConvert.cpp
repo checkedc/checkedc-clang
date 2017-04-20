@@ -14,6 +14,7 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/FileSystem.h"
@@ -413,6 +414,75 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
         }
 }
 
+// Class for visiting declarations during re-writing to find locations to
+// insert casts. Right now, it looks specifically for 'free'. 
+class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
+public:
+  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I)
+    : Context(C), Info(I) {} 
+
+  bool VisitCallExpr(CallExpr *);
+private:
+  std::set<unsigned int> getParamsForExtern(std::string);
+  bool anyTop(std::set<ConstraintVariable*>);
+  ASTContext *Context;
+  ProgramInfo &Info;
+};
+
+// For a given function name, what are the argument positions for that function
+// that we would want to treat specially and insert a cast into? 
+std::set<unsigned int> CastPlacementVisitor::getParamsForExtern(std::string E) {
+  return StringSwitch<std::set<unsigned int>>(E)
+    .Case("free", {0})
+    .Default(std::set<unsigned int>());
+}
+
+bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
+  bool anyTopFound = false;
+  Constraints &CS = Info.getConstraints();
+  Constraints::EnvironmentMap &env = CS.getVariables();
+  for (ConstraintVariable *c : C) {
+    if (PointerVariableConstraint *pvc = dyn_cast<PointerVariableConstraint>(c)) {
+      for (uint32_t v : pvc->getCvars()) {
+        ConstAtom *CK = env[CS.getVar(v)]; 
+        if (CK->getKind() == Atom::A_Wild) {
+          anyTopFound = true;
+        }
+      }
+    }
+  }
+  return anyTopFound;
+}
+
+bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
+
+  // Find the target of this call. 
+  if (Decl *D = E->getCalleeDecl()) {
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      // Find the parameter placement for this call instruction. 
+      std::set<unsigned int> P = getParamsForExtern(FD->getName());
+
+      for (unsigned int i : P) {
+        // Get the constraints for the ith parameter to the call. 
+        Expr *EP = E->getArg(i)->IgnoreImpCasts();
+        std::set<ConstraintVariable*> EPC = Info.getVariable(EP, Context);
+        
+        // Get the type of the ith parameter to the call. 
+        QualType EPT = EP->getType(); 
+        QualType PTF = FD->getParamDecl(i)->getType();
+
+        // If they aren't equal, and the constraints in EPC are non-top, 
+        // insert a cast. 
+        if (EPT != PTF && !anyTop(EPC)) {
+          // Insert a cast. 
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
 class RewriteConsumer : public ASTConsumer {
 public:
   explicit RewriteConsumer(ProgramInfo &I, 
@@ -420,6 +490,12 @@ public:
 
   virtual void HandleTranslationUnit(ASTContext &Context) {
     Info.enterCompilationUnit(Context);
+
+    // Unification is done, so visit and see if we need to place any casts
+    // in the program. 
+    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info);
+    for (const auto &D : Context.getTranslationUnitDecl()->decls())
+      CPV.TraverseDecl(D);
 
     // Build a map of all of the PersistentSourceLoc's back to some kind of 
     // Stmt, Decl, or Type.
