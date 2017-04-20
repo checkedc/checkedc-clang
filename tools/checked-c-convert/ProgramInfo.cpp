@@ -9,6 +9,7 @@
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "ConstraintBuilder.h"
+#include "llvm/ADT/StringSwitch.h"
 #include <sstream>
 
 using namespace clang;
@@ -94,11 +95,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 		BaseType = "const " + BaseType;
 	}
 
-	// Special case for void to not make _Ptr<void> pointers.
-    // TODO: Github issue #61: improve handling of types for
-    // variable arguments.
-	if (Ty->isVoidType() || BaseType == "struct __va_list_tag *" ||
-        BaseType == "va_list")
+  // TODO: Github issue #61: improve handling of types for
+  // variable arguments.
+	if (BaseType == "struct __va_list_tag *" || BaseType == "va_list")
 		for (const auto &V : vars)
 			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }
@@ -500,8 +499,13 @@ bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable*> V,
   } 
 }
 
-bool ProgramInfo::link() {
+bool ProgramInfo::isExternOkay(std::string ext) {
+  return llvm::StringSwitch<bool>(ext)
+    .Cases("malloc", "free", true)
+    .Default(false);
+}
 
+bool ProgramInfo::link() {
   // For every global symbol in all the global symbols that we have found
   // go through and apply rules for whether they are functions or variables.
   if (Verbose)
@@ -572,7 +576,9 @@ bool ProgramInfo::link() {
   for (const auto &U : ExternFunctions) {
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
-    if (U.second == false) {
+    if (U.second == false && isExternOkay(U.first) == false) {
+      // Some global symbols we don't need to constrain to wild, like 
+      // malloc and free. Check those here and skip if we find them. 
       std::string UnkSymbol = U.first;
       std::map<std::string, std::set<FVConstraint*> >::iterator I =
         GlobalSymbols.find(UnkSymbol);
