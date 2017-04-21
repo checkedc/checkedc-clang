@@ -558,8 +558,10 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
         if (!checkAddressOfFunctionIsAvailable(FD, Diagnose, E->getExprLoc()))
           return ExprError();
-
-    E = ImpCastExprToType(E, Context.getPointerType(Ty),
+    CheckedPointerKind kind = CheckedPointerKind::Unchecked;
+    if (getCurScope()->isCheckedScope())
+      kind = CheckedPointerKind::Ptr;
+    E = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
                           CK_FunctionToPointerDecay).get();
   } else if (Ty->isArrayType()) {
     // In C90 mode, arrays only promote to pointers if the array expression is
@@ -770,7 +772,10 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
   // Only do implicit cast for a function type, but not for a pointer
   // to function type.
   if (Ty->isFunctionType()) {
-    Res = ImpCastExprToType(E, Context.getPointerType(Ty),
+    CheckedPointerKind kind = CheckedPointerKind::Unchecked;
+    if (getCurScope()->isCheckedScope())
+      kind = CheckedPointerKind::Ptr;
+    Res = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
                             CK_FunctionToPointerDecay).get();
     if (Res.isInvalid())
       return ExprError();
@@ -10890,13 +10895,17 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   CheckAddressOfPackedMember(op);
 
   // Checked scopes change the types of the address-of(&) operator.
-  // In a checked scope, the operator produces an array_ptr<T>.
+  // In a checked scope, the operator produces an array_ptr<T> except for
+  // function type. For address-of function type, it produces ptr not array_ptr.
   // In an unchecked scope, it continues to produce (T *).
   bool isCheckedScope = getCurScope()->isCheckedScope();
   CheckedPointerKind kind;
-  if (isCheckedScope)
-    kind = CheckedPointerKind::Array;
-  else
+  if (isCheckedScope) {
+    if (op->getType()->isFunctionType())
+      kind = CheckedPointerKind::Ptr;
+    else
+      kind = CheckedPointerKind::Array;
+  } else
     kind = CheckedPointerKind::Unchecked;
 
   return Context.getPointerType(op->getType(), kind);
