@@ -4296,7 +4296,8 @@ public:
       Expr *E3, BoundsCastExpr::SyntaxType SyntaxType);
 
   ExprResult GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3, QualType DestTy,
-                                int SyntaxType, tok::TokenKind Kind);
+                                int SyntaxType, tok::TokenKind Kind,
+                                SourceLocation TypeLoc);
 
   ExprResult BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
                                  TypeSourceInfo *CastTypeInfo,

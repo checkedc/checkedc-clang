@@ -12482,8 +12482,10 @@ ExprResult Sema::ActOnBoundsCastExpr(
     return ExprError();
   E1 = ResE1.get();
 
-  ExprResult bounds = GenerateBoundsExpr(E1, E2, E3, DestTy, SyntaxType, Kind);
-  
+  ExprResult bounds =
+      GenerateBoundsExpr(E1, E2, E3, DestTy, SyntaxType, Kind,
+                         (castTInfo->getTypeLoc()).getBeginLoc());
+
   if (RelativeClause != nullptr && !bounds.isInvalid()) {
     RelativeBoundsClause::Kind kind = RelativeClause->getClauseKind();
     if (((kind == RelativeBoundsClause::Kind::Type) ||
@@ -12500,29 +12502,16 @@ ExprResult Sema::ActOnBoundsCastExpr(
 }
 
 ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
-                                    QualType DestTy, int SyntaxType, tok::TokenKind Kind){
+                                    QualType DestTy, int SyntaxType,
+                                    tok::TokenKind Kind,
+                                    SourceLocation TypeLoc) {
   ExprResult Result(true);
   ExprResult ResE2 = CorrectDelayedTyposInExpr(E2);
   ExprResult ResE3 = CorrectDelayedTyposInExpr(E3);
 
   switch (SyntaxType) {
   case BoundsCastExpr::SyntaxType::Single:
-    if (DestTy->isCheckedPointerArrayType()) {
-      Diag(E1->getLocStart(),
-           diag::err_bounds_cast_array_pointer_type_with_single_syntax)
-          << DestTy;
-      Result = CreateInvalidBoundsExpr();
-    } else if (DestTy->isIntegralType(Context)) {
-      Diag(E1->getLocStart(), diag::err_bounds_cast_integral_with_single_syntax)
-          << DestTy;
-      Result = CreateInvalidBoundsExpr();
-    } else if (DestTy->isUncheckedPointerType()&&(Kind == tok::kw__Assume_bounds_cast)){
-      Diag(E1->getLocStart(),
-           diag::
-               err_bounds_cast_unchecked_pointer_type_with_assume_single_syntax)
-          << DestTy;
-      Result = CreateInvalidBoundsExpr();
-    } else {
+    if (DestTy->isCheckedPointerPtrType() || DestTy->isUncheckedPointerType()) {
       llvm::APInt I = llvm::APInt(1, 1, false);
       uint64_t Bits = I.getZExtValue();
       unsigned Width = Context.getIntWidth(Context.UnsignedLongLongTy);
@@ -12532,11 +12521,21 @@ ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
       Result =
           ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
                                One, SourceLocation());
-    }
+    } else if (DestTy->isCheckedPointerArrayType()) {
+      Diag(TypeLoc,
+           diag::err_bounds_cast_array_pointer_type_with_single_syntax)
+          << DestTy;
+      Result = CreateInvalidBoundsExpr();
+    } else if (DestTy->isIntegralType(Context)) {
+      Diag(TypeLoc, diag::err_bounds_cast_integral_with_single_syntax)
+          << DestTy;
+      Result = CreateInvalidBoundsExpr();
+    } else
+      Result = CreateInvalidBoundsExpr();
     break;
   case BoundsCastExpr::SyntaxType::Count:
     if (!DestTy->isCheckedPointerArrayType()) {
-      Diag(E1->getLocStart(),
+      Diag(TypeLoc,
            diag::err_bounds_cast_single_pointer_type_with_array_syntax)
           << DestTy;
       Result = CreateInvalidBoundsExpr();
@@ -12549,7 +12548,7 @@ ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
     break;
   case BoundsCastExpr::SyntaxType::Range:
     if (!DestTy->isCheckedPointerArrayType()) {
-      Diag(E1->getLocStart(),
+      Diag(TypeLoc,
            diag::err_bounds_cast_single_pointer_type_with_array_syntax)
           << DestTy;
       Result = CreateInvalidBoundsExpr();

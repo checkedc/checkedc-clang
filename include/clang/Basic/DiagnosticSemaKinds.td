@@ -8947,20 +8947,13 @@ def err_bounds_type_annotation_lost_checking : Error<
     "cannot use a variable arguments function in a checked scope or function">;
 
   def err_bounds_cast_array_pointer_type_with_single_syntax
-      : Error<"invalid bounds casting : cast array pointer type with single "
-              "bounds casting syntax :  %0">;
+      : Error<"invalid bounds cast : expected _Ptr or * type (%0)">;
 
   def err_bounds_cast_integral_with_single_syntax
-      : Error<"invalid bounds casting : cast integral type with single bounds "
-              "casting syntax :  %0">;
+      : Error<"invalid bounds cast : expected _Ptr or * type (%0)">;
 
   def err_bounds_cast_single_pointer_type_with_array_syntax
-      : Error<"invalid bounds casting : cast single pointer type with array "
-              "bounds casting syntax :  %0">;
-
-  def err_bounds_cast_unchecked_pointer_type_with_assume_single_syntax
-      : Error<"invalid bounds casting : cast unchecked pointer type with "
-              "assume single bounds casting syntax :  %0">;
+      : Error<"invalid bounds cast : expected Array_ptr type (%0)">;
 
 } // end of Checked C Category
 

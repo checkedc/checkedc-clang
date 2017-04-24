@@ -3090,7 +3090,7 @@ ExprResult Parser::ParseBoundsCastExpression() {
   if (E1.isInvalid()) {
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
   }
-  
+
   if (Tok.is(tok::comma)) {
     ConsumeToken();
     syntax = BoundsCastExpr::SyntaxType::Count;

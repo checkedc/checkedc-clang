@@ -618,17 +618,7 @@ namespace {
           Expr *subExpr = CE->getSubExpr();
           BoundsExpr *Bounds = CE->getBoundsExpr();
 
-          if (Bounds->isInvalid()) {
-            return CreateBoundsNone();
-          }
-
-          BoundsExpr *bounds = RValueBounds(subExpr);
-
-          if (!Bounds->isInvalid() && bounds->isNone())
-            return CreateBoundsNone();
-
-          Expr *Base = subExpr;
-          Bounds = ExpandToRange(Base, Bounds);
+          Bounds = ExpandToRange(subExpr, Bounds);
           return Bounds;
         }
         case Expr::ImplicitCastExprClass:
@@ -915,12 +905,12 @@ namespace {
           else
             RHSBounds = S.InferRValueBounds(RHS);
           if (RHSBounds->isNone()) {
-	    S.Diag(RHS->getLocStart(), diag::err_expected_bounds_for_assignment) << RHS->getSourceRange();
-	    RHSBounds = S.CreateInvalidBoundsExpr();
+             S.Diag(RHS->getLocStart(), diag::err_expected_bounds_for_assignment) << RHS->getSourceRange();
+             RHSBounds = S.CreateInvalidBoundsExpr();
           }
         }
       }
-      
+
       // Check that the LHS lvalue of the assignment has bounds, if it is an
       // lvalue that was produced by dereferencing an _Array_ptr.
       bool LHSNeedsBoundsCheck = false;
@@ -947,19 +937,11 @@ namespace {
       if (CK == CK_DynamicPtrBounds || CK == CK_AssumePtrBounds) {
         BoundsExpr *SrcBounds = S.InferRValueBounds(E);
         Expr *subExpr = E->getSubExpr();
-        BoundsExpr *Bounds = E->getBoundsExpr();
-        BoundsExpr *bounds = S.InferRValueBounds(subExpr);
-        QualType DestTy = E->getType();
-        QualType SrcTy = subExpr->getType();
+        BoundsExpr *subExprBounds = S.InferRValueBounds(subExpr);
 
-        if (!Bounds->isInvalid() && bounds->isNone()) {
-          if (!(DestTy->isUncheckedPointerType() &&
-                SrcTy->isUncheckedPointerType()))
-            S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
-        }
-
-        if (SrcBounds->isNone()) {
-          SrcBounds = S.CreateInvalidBoundsExpr();
+	if(subExprBounds->isNone()){
+	  S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
+	  SrcBounds = S.CreateInvalidBoundsExpr();
         }
         assert(SrcBounds);
         E->setBoundsExpr(SrcBounds);
@@ -974,7 +956,7 @@ namespace {
         if (SrcBounds->isNone()) {
           S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds_for_ptr_cast)  << E->getSubExpr()->getSourceRange();
           SrcBounds = S.CreateInvalidBoundsExpr();
-	}
+        }
         assert(SrcBounds);
         assert(!E->getBoundsExpr());
         E->setBoundsExpr(SrcBounds);
