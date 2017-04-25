@@ -939,9 +939,9 @@ namespace {
         Expr *subExpr = E->getSubExpr();
         BoundsExpr *subExprBounds = S.InferRValueBounds(subExpr);
 
-	if(subExprBounds->isNone()){
-	  S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
-	  SrcBounds = S.CreateInvalidBoundsExpr();
+        if (subExprBounds->isNone()) {
+          S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
+          SrcBounds = S.CreateInvalidBoundsExpr();
         }
 
         assert(SrcBounds);
