@@ -178,13 +178,13 @@ Change to your build directory and just run `make`:
 
 	make -j nnn
 
-where `nnn` is replaced by the number of CPU cores on your machine.
+where `nnn` is replaced by the number of CPU cores that your computer has.
 
 For subsequent builds, you can just build `clang`:
 
 	make -j nnn clang
 
-where `nnn` is replaced by the number of core CPU cores on your machine
+where `nnn` is replaced by the number of CPU cores that your computer has.
 
 ### On Windows
 

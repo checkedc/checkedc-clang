@@ -39,7 +39,7 @@ In your build directory,
 - clang tests: `make -j nnn check-clang`
 - All tests: `make -j nnn check-all`
 
-where `nnn` is replaced by the number of CPU cores on your machine.
+where `nnn` is replaced by the number of CPU cores that your computer has.
 
 ### From a command shell using the testing harness
 You can use the testing harness to run individual tests or sets of tests.
