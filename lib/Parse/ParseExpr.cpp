@@ -2841,7 +2841,10 @@ ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
 
   TempTok = Tok;
   if (StartsRelativeBoundsClause(Tok))
-    ParseRelativeBoundsClauseForDecl(Result);
+    if (ParseRelativeBoundsClauseForDecl(Result)) {
+      Diag(Tok, diag::err_invalid_relative_bounds_clause);
+      Result = ExprError();
+    }
 
   return Result;
 }
@@ -2977,7 +2980,6 @@ bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {
       ParseRelativeBoundsClause(isError, Ident, BoundsKWLoc);
 
   if (Expr.isInvalid()) {
-    isError = true;
     return isError;
   }
 
