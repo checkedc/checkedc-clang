@@ -943,6 +943,7 @@ namespace {
 	  S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
 	  SrcBounds = S.CreateInvalidBoundsExpr();
         }
+
         assert(SrcBounds);
         E->setBoundsExpr(SrcBounds);
       }

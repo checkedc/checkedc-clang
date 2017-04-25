@@ -2616,8 +2616,8 @@ void CastOperation::CheckCStyleCast() {
 void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
 
   SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
-  
-  if(kind == tok::kw__Assume_bounds_cast)
+
+  if (kind == tok::kw__Assume_bounds_cast)
     Kind = CK_AssumePtrBounds;
   else if (kind == tok::kw__Dynamic_bounds_cast)
     Kind = CK_DynamicPtrBounds;

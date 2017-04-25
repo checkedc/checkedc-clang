@@ -12521,23 +12521,20 @@ ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
       Result =
           ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
                                One, SourceLocation());
-    } else if (DestTy->isCheckedPointerArrayType()) {
-      Diag(TypeLoc,
-           diag::err_bounds_cast_array_pointer_type_with_single_syntax)
-          << DestTy;
-      Result = CreateInvalidBoundsExpr();
-    } else if (DestTy->isIntegralType(Context)) {
-      Diag(TypeLoc, diag::err_bounds_cast_integral_with_single_syntax)
-          << DestTy;
+    } else if (DestTy->isCheckedPointerArrayType() ||
+               DestTy->isIntegralType(Context)) {
+      Diag(TypeLoc, diag::err_bounds_cast_error_with_single_syntax);
       Result = CreateInvalidBoundsExpr();
     } else
       Result = CreateInvalidBoundsExpr();
     break;
   case BoundsCastExpr::SyntaxType::Count:
     if (!DestTy->isCheckedPointerArrayType()) {
-      Diag(TypeLoc,
-           diag::err_bounds_cast_single_pointer_type_with_array_syntax)
-          << DestTy;
+      Diag(TypeLoc, diag::err_bounds_cast_error_with_array_syntax);
+      Result = CreateInvalidBoundsExpr();
+    } else if ((E1->getType())->isVoidPointerType()) {
+      Diag(E1->getLocStart(),
+             diag::err_typecheck_void_pointer_count_return_bounds);
       Result = CreateInvalidBoundsExpr();
     } else {
       if (ResE2.isUsable())
@@ -12548,9 +12545,7 @@ ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
     break;
   case BoundsCastExpr::SyntaxType::Range:
     if (!DestTy->isCheckedPointerArrayType()) {
-      Diag(TypeLoc,
-           diag::err_bounds_cast_single_pointer_type_with_array_syntax)
-          << DestTy;
+      Diag(TypeLoc, diag::err_bounds_cast_error_with_array_syntax);
       Result = CreateInvalidBoundsExpr();
     } else {
       if (ResE2.isUsable() && ResE3.isUsable())
@@ -12559,7 +12554,7 @@ ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
     }
     break;
   default:
-    Result = CreateInvalidBoundsExpr();
+    llvm_unreachable("unexpected expression kind");    
   }
   if (Result.isInvalid())
     Result = CreateInvalidBoundsExpr();
