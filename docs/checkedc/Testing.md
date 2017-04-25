@@ -28,16 +28,18 @@ Load the solution and the open it using the Solution explorer (View->Solution Ex
 ### From a command shell using msbuild
 Set up the build system and then change to your new object directory.  Use the following commands to run tests:
 
-- Checked C tests: `msbuild projects\checkedc-wrapper\check-checkedc.vcxproj /maxcpucount:`_number of processors_/3
-- Clang tests: `msbuild tools\clang\test\check-clang.vcxproj /maxcpucount:`_number of processors_/3
-- All LLVM and clang tests: `msbuild check-all.vcxproj /maxcpucount:`_number of processors_/3
+- Checked C tests: `msbuild projects\checkedc-wrapper\check-checkedc.vcxproj /p:CL_CPUCount=6 /m`
+- Clang tests: `msbuild tools\clang\test\check-clang.vcxproj /p:CL_CPUCount=6 /m`
+- All LLVM and clang tests: `msbuild check-all.vcxproj /p:CL_CPUCount=6 /m`
 
 ### Using make
 In your build directory,
 
-- Checked C tests: `make check-checkedc`
-- clang tests: `make check-clang`
-- All tests: `make check-all`
+- Checked C tests: `make -j nnn check-checkedc`
+- clang tests: `make -j nnn check-clang`
+- All tests: `make -j nnn check-all`
+
+where `nnn` is replaced by the number of CPU cores that your computer has.
 
 ### From a command shell using the testing harness
 You can use the testing harness to run individual tests or sets of tests.
