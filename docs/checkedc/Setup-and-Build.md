@@ -29,18 +29,18 @@ of parallelism that will be used during builds.  By default, the Visual Studio s
 for clang has [too much parallelism](https:/github.com/Microsoft/checkedc-clang/issues/268). 
 The parallelism will cause your build to use too much physical memory and cause your machine
 to start paging.  This will make your machine unresponsive and slow down your build too.
-In VS 2015, go to _Debug->Options->Projects and Solutions->VC++ Project Solutions_ and set
-the `Maximum Number of concurrent C++ compilations` to 4 or 6.
+See The Wiki page on [Parallel builds of clang on Windows](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
+for more details.
+
+in VS 2015, go to _Debug->Options->Projects and Solutions->VC++ Project Solutions_ and set
+the `Maximum Number of concurrent C++ compilations` to 6, if your development machine has
+1 GByte of memor or more per core.  If not, see the 
+[Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
+to figure out what number to use.
 By default, 0 causes it to be the number of available CPU cores on your machine, which is too much.
 You may want to go to  _Debug->Options->Projects and Solutions ->Build and Run_ and 
 set the maximum number of parallel project builds to be 3/4 of the actual number of CPU cores on
 your machine.  
-
-In general, choose these numbers so that the build stays within physical
-memory.  We have found that having 256 MBytes of memory per compiler invocation given the
-maximum number of compiler invocations works well. In other words, we recommend
-that _total physical memory_/(_number of concurrent compilations_ *
-_number of parallel project builds_) is greater than 256 MBytes.
 
 LLVM/clang have some tests that depend on using Unix line ending conventions
 (line feeds only).  This means that the sources you will be working with
@@ -176,11 +176,15 @@ Subsequent builds during development will be much faster (minutes, not an hour).
 
 Change to your build directory and just run `make`:
 
-	make
+	make -j _nnn_
+
+where `nnn` is the number of CPU cores on your machine.
 
 For subsequent builds, you can just build `clang`:
 
-	make clang
+	make -j _nnn_ clang
+
+where `_nnn_` is the number of core CPU cores on your machine
 
 ### On Windows
 
@@ -201,11 +205,11 @@ To build
 
 Follow the earlier instruction to set up the build system.  Form the build directory, use the following comamnd to build clang only:
 
-	msbuild tools\clang\tools\driver\clang.vcxproj /maxcpucount:number of processors/3
+	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_CPUCount=6 /m
 
 To build everything:
 
-	msbuild LLVM.sln //maxcpucount:number of processors/3
+	msbuild LLVM.sln /p:CL_CPUCount=6 /m
 
 To clean the build directory:
 
