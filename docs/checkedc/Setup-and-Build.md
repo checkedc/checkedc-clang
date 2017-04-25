@@ -29,12 +29,12 @@ of parallelism that will be used during builds.  By default, the Visual Studio s
 for clang has [too much parallelism](https:/github.com/Microsoft/checkedc-clang/issues/268). 
 The parallelism will cause your build to use too much physical memory and cause your machine
 to start paging.  This will make your machine unresponsive and slow down your build too.
-See The Wiki page on [Parallel builds of clang on Windows](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
+See the Wiki page on [Parallel builds of clang on Windows](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 for more details.
 
 in VS 2015, go to _Debug->Options->Projects and Solutions->VC++ Project Solutions_ and set
 the `Maximum Number of concurrent C++ compilations` to 6, if your development machine has
-1 GByte of memor or more per core.  If not, see the 
+1 GByte of memory or more per core.  If not, see the
 [Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 to figure out what number to use.
 By default, 0 causes it to be the number of available CPU cores on your machine, which is too much.
@@ -176,15 +176,15 @@ Subsequent builds during development will be much faster (minutes, not an hour).
 
 Change to your build directory and just run `make`:
 
-	make -j _nnn_
+	make -j nnn
 
-where `nnn` is the number of CPU cores on your machine.
+where `nnn` is replaced by the number of CPU cores on your machine.
 
 For subsequent builds, you can just build `clang`:
 
-	make -j _nnn_ clang
+	make -j nnn clang
 
-where `_nnn_` is the number of core CPU cores on your machine
+where `nnn` is replaced by the number of core CPU cores on your machine
 
 ### On Windows
 

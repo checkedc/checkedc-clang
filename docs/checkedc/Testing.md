@@ -35,11 +35,11 @@ Set up the build system and then change to your new object directory.  Use the f
 ### Using make
 In your build directory,
 
-- Checked C tests: `make -j _nnn_ check-checkedc`
-- clang tests: `make -j _nnn_ check-clang`
-- All tests: `make -j _nnn_ check-all`
+- Checked C tests: `make -j nnn check-checkedc`
+- clang tests: `make -j nnn check-clang`
+- All tests: `make -j nnn check-all`
 
-where `_nnn` is the number of CPU cores on your machine.
+where `nnn` is replaced by the number of CPU cores on your machine.
 
 ### From a command shell using the testing harness
 You can use the testing harness to run individual tests or sets of tests.
