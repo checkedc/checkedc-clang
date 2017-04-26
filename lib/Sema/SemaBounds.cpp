@@ -934,7 +934,7 @@ namespace {
         return true;
       }
 
-      if (CK == CK_DynamicPtrBounds || CK == CK_AssumePtrBounds) {
+      if (CK == CK_DynamicPtrBounds) {
         BoundsExpr *SrcBounds = S.InferRValueBounds(E);
         Expr *subExpr = E->getSubExpr();
         BoundsExpr *subExprBounds = S.InferRValueBounds(subExpr);

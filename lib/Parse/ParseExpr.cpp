@@ -3065,7 +3065,7 @@ ExprResult Parser::ParseBoundsCastExpression() {
             ParseRelativeBoundsClause(isError, Ident, Tok.getLocation());
         if (isError)
           SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
-	PT.consumeClose();
+        PT.consumeClose();
       }
     } else
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
@@ -3080,15 +3080,18 @@ ExprResult Parser::ParseBoundsCastExpression() {
 
   if (T.expectAndConsume(diag::err_expected_lparen_after, CastName))
     return ExprError();
-  
+
   LParenLoc = T.getOpenLocation();
 
   // Parsing e1, e2, e3
   ExprResult E1(true), E2(true), E3(true);
 
-  E1 = ParseCastExpression(true);
-  if (E1.isInvalid()) {
+  E1 = ParseAssignmentExpression();
+  if (!E1.isInvalid())
+    E1 = Actions.CorrectDelayedTyposInExpr(E1.get());
+  else {
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+    return ExprError();
   }
 
   if (Tok.is(tok::comma)) {
@@ -3099,17 +3102,19 @@ ExprResult Parser::ParseBoundsCastExpression() {
       E2 = Actions.CorrectDelayedTyposInExpr(E2.get());
     else {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      return ExprError();
     }
   }
 
   if (Tok.is(tok::comma)) {
     ConsumeToken();
-    syntax = BoundsCastExpr::SyntaxType::Range;    
+    syntax = BoundsCastExpr::SyntaxType::Range;
     E3 = ParseAssignmentExpression();
     if (!E3.isInvalid())
       E3 = Actions.CorrectDelayedTyposInExpr(E3.get());
     else {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      return ExprError();
     }
   }
 
@@ -3117,11 +3122,11 @@ ExprResult Parser::ParseBoundsCastExpression() {
   T.consumeClose();
   RParenLoc = T.getCloseLocation();
 
-  if (!E1.isInvalid())
-    Result = Actions.ActOnBoundsCastExpr(
-        getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(),
-        RAngleBracketLoc, RelativeClause, LParenLoc, RParenLoc, E1.get(),
-        E2.get(), E3.get(), syntax);
+  Result = Actions.ActOnBoundsCastExpr(
+      getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(), RAngleBracketLoc,
+      RelativeClause, LParenLoc, RParenLoc, E1.get(), E2.get(), E3.get(),
+      syntax);
+
   return Result;
 }
 

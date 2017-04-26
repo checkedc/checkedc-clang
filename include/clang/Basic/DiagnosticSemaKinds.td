@@ -8950,7 +8950,7 @@ def err_bounds_type_annotation_lost_checking : Error<
       : Error<"invalid bounds cast: expected _Ptr or * type">;
 
   def err_bounds_cast_error_with_array_syntax
-      : Error<"invalid bounds cast: expected Array_ptr type">;
+      : Error<"invalid bounds cast: expected _Array_ptr type">;
 
 } // end of Checked C Category
 

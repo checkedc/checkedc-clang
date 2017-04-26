@@ -12472,7 +12472,6 @@ ExprResult Sema::ActOnBoundsCastExpr(
     SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
     SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1, Expr *E2,
     Expr *E3, BoundsCastExpr::SyntaxType SyntaxType) {
-
   RangeBoundsExpr *Range = nullptr;
   TypeSourceInfo *castTInfo;
   QualType DestTy = GetTypeFromParser(D, &castTInfo);
@@ -12485,6 +12484,9 @@ ExprResult Sema::ActOnBoundsCastExpr(
   ExprResult bounds =
       GenerateBoundsExpr(E1, E2, E3, DestTy, SyntaxType, Kind,
                          (castTInfo->getTypeLoc()).getBeginLoc());
+
+  if(bounds.isInvalid())
+    return ExprError();
 
   if (RelativeClause != nullptr && !bounds.isInvalid()) {
     RelativeBoundsClause::Kind kind = RelativeClause->getClauseKind();
@@ -12521,12 +12523,9 @@ ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
       Result =
           ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
                                One, SourceLocation());
-    } else if (DestTy->isCheckedPointerArrayType() ||
-               DestTy->isIntegralType(Context)) {
+    } else {
       Diag(TypeLoc, diag::err_bounds_cast_error_with_single_syntax);
-      Result = CreateInvalidBoundsExpr();
-    } else
-      Result = CreateInvalidBoundsExpr();
+    }
     break;
   case BoundsCastExpr::SyntaxType::Count:
     if (!DestTy->isCheckedPointerArrayType()) {
@@ -12535,7 +12534,6 @@ ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
     } else if ((E1->getType())->isVoidPointerType()) {
       Diag(E1->getLocStart(),
              diag::err_typecheck_void_pointer_count_return_bounds);
-      Result = CreateInvalidBoundsExpr();
     } else {
       if (ResE2.isUsable())
         Result = ActOnCountBoundsExpr(SourceLocation(),
@@ -12556,6 +12554,7 @@ ExprResult Sema::GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3,
   default:
     llvm_unreachable("unexpected expression kind");    
   }
+  
   if (Result.isInvalid())
     Result = CreateInvalidBoundsExpr();
   return Result;
