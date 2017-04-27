@@ -3064,12 +3064,14 @@ ExprResult Parser::ParseBoundsCastExpression() {
       } else {
         RelativeClause =
             ParseRelativeBoundsClause(isError, Ident, Tok.getLocation());
-        if (isError)
+        if (isError) {
           SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+          return ExprError();
+        }
         PT.consumeClose();
       }
     } else
-      SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+      return ExprError();
   }
 
   SourceLocation RAngleBracketLoc = Tok.getLocation();
@@ -3087,10 +3089,8 @@ ExprResult Parser::ParseBoundsCastExpression() {
   // Parsing e1, e2, e3
   ExprResult E1(true), E2(true), E3(true);
 
-  E1 = ParseAssignmentExpression();
-  if (!E1.isInvalid())
-    E1 = Actions.CorrectDelayedTyposInExpr(E1.get());
-  else {
+  E1 = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+  if (E1.isInvalid()) {
     SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
     return ExprError();
   }
@@ -3098,10 +3098,8 @@ ExprResult Parser::ParseBoundsCastExpression() {
   if (Tok.is(tok::comma)) {
     ConsumeToken();
     syntax = BoundsCastExpr::SyntaxType::Count;
-    E2 = ParseAssignmentExpression();
-    if (!E2.isInvalid())
-      E2 = Actions.CorrectDelayedTyposInExpr(E2.get());
-    else {
+    E2 = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+    if (E2.isInvalid()) {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       return ExprError();
     }
@@ -3110,10 +3108,8 @@ ExprResult Parser::ParseBoundsCastExpression() {
   if (Tok.is(tok::comma)) {
     ConsumeToken();
     syntax = BoundsCastExpr::SyntaxType::Range;
-    E3 = ParseAssignmentExpression();
-    if (!E3.isInvalid())
-      E3 = Actions.CorrectDelayedTyposInExpr(E3.get());
-    else {
+    E3 = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+    if (E3.isInvalid()) {
       SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
       return ExprError();
     }
@@ -3123,10 +3119,27 @@ ExprResult Parser::ParseBoundsCastExpression() {
   T.consumeClose();
   RParenLoc = T.getCloseLocation();
 
-  Result = Actions.ActOnBoundsCastExpr(
-      getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(), RAngleBracketLoc,
-      RelativeClause, LParenLoc, RParenLoc, E1.get(), E2.get(), E3.get(),
-      syntax);
+  switch (syntax) {
+  case BoundsCastExpr::SyntaxType::Single:
+    Result = Actions.ActOnBoundsCastExprSingle(
+        getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(),
+        RAngleBracketLoc, RelativeClause, LParenLoc, RParenLoc, E1.get());
+    break;
+  case BoundsCastExpr::SyntaxType::Count:
+    Result = Actions.ActOnBoundsCastExprCount(
+        getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(),
+        RAngleBracketLoc, RelativeClause, LParenLoc, RParenLoc, E1.get(),
+        E2.get());
+    break;
+  case BoundsCastExpr::SyntaxType::Range:
+    Result = Actions.ActOnBoundsCastExprRange(
+        getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(),
+        RAngleBracketLoc, RelativeClause, LParenLoc, RParenLoc, E1.get(),
+        E2.get(), E3.get());
+    break;
+  default:
+    llvm_unreachable("unexpected expression kind");
+  }
 
   return Result;
 }

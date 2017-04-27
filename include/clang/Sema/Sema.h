@@ -4288,16 +4288,25 @@ public:
                                                     SourceLocation BoundsKWLoc,
                                                     SourceLocation RParenLoc);
 
-  ExprResult ActOnBoundsCastExpr(
+  ExprResult ActOnBoundsCastExprSingle(
       Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
       SourceLocation LAnagleBracketLoc, ParsedType D,
       SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
-      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1, Expr *E2,
-      Expr *E3, BoundsCastExpr::SyntaxType SyntaxType);
+      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1);
 
-  ExprResult GenerateBoundsExpr(Expr *E1, Expr *E2, Expr *E3, QualType DestTy,
-                                int SyntaxType, tok::TokenKind Kind,
-                                SourceLocation TypeLoc);
+  ExprResult ActOnBoundsCastExprCount(
+      Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+      SourceLocation LAnagleBracketLoc, ParsedType D,
+      SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
+      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1, Expr *E2);
+
+  ExprResult
+  ActOnBoundsCastExprRange(Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+                           SourceLocation LAnagleBracketLoc, ParsedType D,
+                           SourceLocation RAngleBracketLoc,
+                           RelativeBoundsClause *RelativeClause,
+                           SourceLocation LParenLoc, SourceLocation RParenLoc,
+                           Expr *E1, Expr *E2, Expr *E3);
 
   ExprResult BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
                                  TypeSourceInfo *CastTypeInfo,
