@@ -560,7 +560,8 @@ namespace {
     BoundsExpr *RValueCastBounds(CastKind CK, Expr *E) {
       switch (CK) {
         case CastKind::CK_BitCast:
-        case CastKind::CK_PointerBounds:
+        case CastKind::CK_DynamicPtrBounds:
+        case CastKind::CK_AssumePtrBounds:
         case CastKind::CK_NoOp:
         case CastKind::CK_NullToPointer:
         // Truncation or widening of a value does not affect its bounds.
@@ -613,14 +614,11 @@ namespace {
             llvm_unreachable("unexpected cast failure");
             return CreateBoundsNone();
           }
+
           Expr *subExpr = CE->getSubExpr();
           BoundsExpr *Bounds = CE->getBoundsExpr();
-          QualType QT = subExpr->getType();
-	  Expr *Base = subExpr;
-          if (subExpr->getStmtClass() != clang::Stmt::CallExprClass)
-	    Base=CreateImplicitCast(QT, CastKind::CK_LValueToRValue, subExpr);
-          Bounds = ExpandToRange(Base, Bounds);
-          CE->setBoundsExpr(Bounds);
+
+          Bounds = ExpandToRange(subExpr, Bounds);
           return Bounds;
         }
         case Expr::ImplicitCastExprClass:
@@ -934,6 +932,20 @@ namespace {
           DumpExpression(llvm::outs(), E);
 
         return true;
+      }
+
+      if (CK == CK_DynamicPtrBounds) {
+        BoundsExpr *SrcBounds = S.InferRValueBounds(E);
+        Expr *subExpr = E->getSubExpr();
+        BoundsExpr *subExprBounds = S.InferRValueBounds(subExpr);
+
+        if (subExprBounds->isNone()) {
+          S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
+          SrcBounds = S.CreateInvalidBoundsExpr();
+        }
+
+        assert(SrcBounds);
+        E->setBoundsExpr(SrcBounds);
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.

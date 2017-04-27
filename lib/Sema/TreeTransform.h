@@ -2195,12 +2195,13 @@ public:
                                          SubExpr);
   }
 
-  ExprResult RebuildBoundsCastExpr(SourceLocation LParenLoc,
+  ExprResult RebuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
                                    TypeSourceInfo *TInfo,
+                                   SourceRange AngleBrackets,
                                    SourceLocation RParenLoc, Expr *SubExpr,
-                                   BoundsExpr *bounds, BoundsCastExpr::Kind kind) {
-    return getSema().BuildBoundsCastExpr(LParenLoc, TInfo, RParenLoc, SubExpr,
-                                         bounds, kind);
+                                   BoundsExpr *bounds) {
+    return getSema().BuildBoundsCastExpr(OpLoc, Kind, TInfo, AngleBrackets,
+                                         RParenLoc, SubExpr, bounds);
   }
 
   /// \brief Build a new compound literal expression.
@@ -11584,15 +11585,15 @@ ExprResult TreeTransform<Derived>::TransformBoundsCastExpr(BoundsCastExpr *E) {
 
   BoundsExpr *bounds = E->getBoundsExpr();
 
-  BoundsCastExpr::Kind kind = E->getBoundsCastKind();
-
   if (!getDerived().AlwaysRebuild() && Type == E->getTypeInfoAsWritten() &&
       SubExpr.get() == E->getSubExpr())
     return E;
 
   return getDerived().RebuildBoundsCastExpr(
-      E->getLParenLoc(), Type, E->getRParenLoc(), SubExpr.get(),
-      bounds, kind);
+      E->getOperatorLoc(), (E->getCastKind() == CK_DynamicPtrBounds)
+                               ? tok::TokenKind::kw__Dynamic_bounds_cast
+                               : tok::TokenKind::kw__Assume_bounds_cast,
+      Type, E->getAngleBrackets(), E->getRParenLoc(), SubExpr.get(), bounds);
 }
 
 template<typename Derived>

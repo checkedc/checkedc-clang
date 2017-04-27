@@ -1965,23 +1965,13 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
   dumpBasePath(OS, Node);
   OS << ">";
 
-  if (Node->getCastKind() == CastKind::CK_PointerBounds) {
-    OS << " <";
-    BoundsCastExpr::Kind kind =
-        dyn_cast<BoundsCastExpr>(Node)->getBoundsCastKind();
-    if (kind == BoundsCastExpr::Kind::Assume)
-      OS << "_Assume_bounds_cast";
-    else if (kind == BoundsCastExpr::Kind::Dynamic)
-      OS << "_Dynamic_bounds_cast";
-    OS << ">";
-  }
-
-  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
-    dumpChild([=] {
-      OS << "Inferred Bounds";
-      dumpStmt(Bounds);
-    });
-  }
+  if(Node->getStmtClass() != Expr::BoundsCastExprClass)
+    if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+      dumpChild([=] {
+        OS << "Inferred Bounds";
+        dumpStmt(Bounds);
+      });
+    }
 }
 
 void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {

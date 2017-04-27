@@ -718,8 +718,8 @@ void ASTStmtWriter::VisitCStyleCastExpr(CStyleCastExpr *E) {
 
 void ASTStmtWriter::VisitBoundsCastExpr(BoundsCastExpr *E) {
   VisitExplicitCastExpr(E);
-  Record.push_back(E->getBoundsCastKind());  
-  Record.AddSourceLocation(E->getRParenLoc());
+  Record.AddSourceRange(SourceRange(E->getOperatorLoc(), E->getRParenLoc()));
+  Record.AddSourceRange(E->getAngleBrackets());  
   Record.AddStmt(E->getBoundsExpr());
   Code = serialization::EXPR_BOUNDS_CAST;
 }

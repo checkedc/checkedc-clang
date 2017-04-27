@@ -4288,18 +4288,31 @@ public:
                                                     SourceLocation BoundsKWLoc,
                                                     SourceLocation RParenLoc);
 
-  ExprResult ActOnBoundsCastExpr(Scope *S, SourceLocation LParenLoc,
-                                 ParsedType D,
-                                 RelativeBoundsClause *RelativeClause,
-                                 SourceLocation RParenLoc, Expr *E1, Expr *E2,
-                                 Expr *E3, BoundsCastExpr::Kind kind);
+  ExprResult ActOnBoundsCastExprSingle(
+      Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+      SourceLocation LAnagleBracketLoc, ParsedType D,
+      SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
+      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1);
 
-  ExprResult GenerateBoundsExpr(Expr *E2, Expr *E3);
+  ExprResult ActOnBoundsCastExprCount(
+      Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+      SourceLocation LAnagleBracketLoc, ParsedType D,
+      SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
+      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1, Expr *E2);
 
-  ExprResult BuildBoundsCastExpr(SourceLocation LParenLoc, TypeSourceInfo *Ty,
-                                 SourceLocation RParenLoc, Expr *BaseExpr,
-                                 BoundsExpr *bounds,
-                                 BoundsCastExpr::Kind kind);
+  ExprResult
+  ActOnBoundsCastExprRange(Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+                           SourceLocation LAnagleBracketLoc, ParsedType D,
+                           SourceLocation RAngleBracketLoc,
+                           RelativeBoundsClause *RelativeClause,
+                           SourceLocation LParenLoc, SourceLocation RParenLoc,
+                           Expr *E1, Expr *E2, Expr *E3);
+
+  ExprResult BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
+                                 TypeSourceInfo *CastTypeInfo,
+                                 SourceRange AngleBrackets,
+                                 SourceRange Paren, Expr *E1,
+                                 BoundsExpr *bounds);
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsExpr *Expr, bool IsReturnBounds);

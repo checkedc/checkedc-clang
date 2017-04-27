@@ -82,6 +82,7 @@ namespace {
     void CheckDynamicCast();
     void CheckCXXCStyleCast(bool FunctionalCast, bool ListInitialization);
     void CheckCStyleCast();
+    void CheckBoundsCast(tok::TokenKind kind);
 
     /// Complete an apparently-successful cast operation that yields
     /// the given expression.
@@ -2612,6 +2613,16 @@ void CastOperation::CheckCStyleCast() {
   }
 }
 
+void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
+
+  SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
+
+  if (kind == tok::kw__Assume_bounds_cast)
+    Kind = CK_AssumePtrBounds;
+  else if (kind == tok::kw__Dynamic_bounds_cast)
+    Kind = CK_DynamicPtrBounds;
+}
+
 ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
                                      TypeSourceInfo *CastTypeInfo,
                                      SourceLocation RPLoc,
@@ -2635,24 +2646,25 @@ ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
                               &Op.BasePath, CastTypeInfo, LPLoc, RPLoc));
 }
 
-ExprResult Sema::BuildBoundsCastExpr(SourceLocation LPLoc,
+ExprResult Sema::BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
                                      TypeSourceInfo *CastTypeInfo,
-                                     SourceLocation RPLoc, Expr *E1,
-                                     BoundsExpr *bounds,
-                                     BoundsCastExpr::Kind kind) {
+                                     SourceRange AngleBrackets,
+                                     SourceRange Paren, Expr *E1,
+                                     BoundsExpr *bounds) {
 
   CastOperation Op(*this, CastTypeInfo->getType(), E1);
   Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
-  Op.OpRange = SourceRange(LPLoc, E1->getLocEnd());
+  Op.OpRange = SourceRange(OpLoc, E1->getLocEnd());
 
-  Op.Kind = CastKind::CK_PointerBounds;
-
+  Op.CheckBoundsCast(Kind);  
+  
   if (Op.SrcExpr.isInvalid())
     return ExprError();
 
-  return Op.complete(BoundsCastExpr::Create(
-      Context, Op.ResultType, Op.ValueKind, Op.Kind, Op.SrcExpr.get(),
-      &Op.BasePath, CastTypeInfo, LPLoc, RPLoc, bounds, kind));
+  return Op.complete(
+      BoundsCastExpr::Create(Context, Op.ResultType, Op.ValueKind, Op.Kind,
+                             Op.SrcExpr.get(), &Op.BasePath, CastTypeInfo,
+                             OpLoc, Paren.getEnd(), AngleBrackets, bounds));
 }
 
 ExprResult Sema::BuildCXXFunctionalCastExpr(TypeSourceInfo *CastTypeInfo,

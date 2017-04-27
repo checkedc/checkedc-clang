@@ -8086,7 +8086,8 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
 
   case CK_UserDefinedConversion:
   case CK_LValueToRValue:
-  case CK_PointerBounds:
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_AtomicToNonAtomic:
   case CK_NoOp:
     return ExprEvaluatorBaseTy::VisitCastExpr(E);
@@ -8568,7 +8569,8 @@ bool ComplexExprEvaluator::VisitCastExpr(const CastExpr *E) {
     llvm_unreachable("invalid cast kind for complex value");
 
   case CK_LValueToRValue:
-  case CK_PointerBounds:
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_AtomicToNonAtomic:
   case CK_NoOp:
     return ExprEvaluatorBaseTy::VisitCastExpr(E);
