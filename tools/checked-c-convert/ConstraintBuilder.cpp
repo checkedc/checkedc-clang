@@ -149,7 +149,7 @@ public:
       SourceRange SR = D->getSourceRange();
 
       if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
-        D->getType()->isPointerType()) {
+        (D->getType()->isPointerType() || D->getType()->isArrayType())) {
         Info.addVariable(D, S, Context);
 
         specialCaseVarIntros(D, Info, Context);
@@ -528,8 +528,9 @@ public:
 
   bool VisitVarDecl(VarDecl *G) {
     
-    if (G->hasGlobalStorage() && G->getType()->isPointerType())
-      Info.addVariable(G, nullptr, Context);
+    if (G->hasGlobalStorage())
+      if (G->getType()->isPointerType() || G->getType()->isArrayType())
+        Info.addVariable(G, nullptr, Context);
 
     Info.seeGlobalDecl(G);
 
@@ -572,7 +573,7 @@ public:
           // that don't have any pointers.
 
           for (const auto &D : Definition->fields())
-            if (D->getType()->isPointerType()) {
+            if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
               Info.addVariable(D, NULL, Context);
               specialCaseVarIntros(D, Info, Context);
             }
