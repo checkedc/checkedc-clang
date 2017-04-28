@@ -4288,6 +4288,16 @@ public:
                                                     SourceLocation BoundsKWLoc,
                                                     SourceLocation RParenLoc);
 
+  bool CheckBoundsCastBaseType(Expr *E1);
+
+  ExprResult
+  ActOnBoundsCastExprBounds(Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+                            SourceLocation LAnagleBracketLoc, ParsedType D,
+                            SourceLocation RAngleBracketLoc,
+                            RelativeBoundsClause *RelativeClause,
+                            SourceLocation LParenLoc, SourceLocation RParenLoc,
+                            Expr *E1, Expr *ParsedBounds);
+
   ExprResult ActOnBoundsCastExprSingle(
       Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
       SourceLocation LAnagleBracketLoc, ParsedType D,
