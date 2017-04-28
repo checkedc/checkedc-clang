@@ -1965,7 +1965,7 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
   dumpBasePath(OS, Node);
   OS << ">";
 
-  if(Node->getStmtClass() != Expr::BoundsCastExprClass)
+  if (Node->getStmtClass() != Expr::BoundsCastExprClass)
     if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
       dumpChild([=] {
         OS << "Inferred Bounds";
