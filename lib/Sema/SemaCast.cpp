@@ -2621,6 +2621,30 @@ void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
     Kind = CK_AssumePtrBounds;
   else if (kind == tok::kw__Dynamic_bounds_cast)
     Kind = CK_DynamicPtrBounds;
+
+  // Checked C - No C-style casts to unchecked pointer/array type or variadic
+  // type in a checked block.
+  if (Self.getCurScope()->isCheckedScope()) {
+    unsigned TypeKind = 0;
+    bool HasUncheckedType = DestType->hasUncheckedType(TypeKind);
+    bool HasVariadicType = DestType->hasVariadicType();
+    if (Kind == CK_AssumePtrBounds) {
+      Self.Diag(OpRange.getBegin(),
+                diag::err_checked_scope_no_assume_bounds_casting);
+      SrcExpr = ExprError();
+      return;
+    } else if (HasUncheckedType || HasVariadicType) {
+      if (HasUncheckedType) {
+        Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
+            << TypeKind;
+      } else {
+        Self.Diag(OpRange.getBegin(),
+                  diag::err_checked_scope_no_variable_args_for_casting);
+      }
+      SrcExpr = ExprError();
+      return;
+    }
+  }
 }
 
 ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
