@@ -40,39 +40,54 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	if (Ty->getAs<TypedefType>())
 		isTypedef = true;
 
-	while (Ty->isPointerType()) {
-		// Allocate a new constraint variable for this level of pointer.
-		vars.insert(K);
-		VarAtom * V = CS.getOrCreateVar(K);
-   
-    if (Ty->isCheckedPointerType()) {
-      if (Ty->isCheckedPointerPtrType()) {
-        // Constrain V so that it can't be either wild or an array.
-        CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr()))); 
-        CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
-        ConstrainedVars.insert(K);
-      } else if (Ty->isCheckedPointerArrayType()) {
-        llvm_unreachable("unsupported!");
-      }
-    } 
+	while (Ty->isPointerType() || Ty->isArrayType()) {
+    if (Ty->isArrayType()) {
+      // If it's an array, then we need both a constraint variable 
+      // for each level of the array, and a constraint variable for 
+      // values stored in the array. 
+      vars.insert(K);
+      K++;
+      CS.getOrCreateVar(K);
 
-		// Save here if QTy is qualified or not into a map that 
-		// indexes K to the qualification of QTy, if any.
-		if (QTy.isConstQualified()) 
-			QualMap.insert(
-				std::pair<uint32_t, Qualification>(K, ConstQualification));
+      // Iterate.
+      // TODO: Why is it the case that we can only get the unqualified type
+      //       of an array element? That's okay, right? 
+      Ty = Ty->getArrayElementTypeNoTypeQual();
+      QTy = QualType(Ty, 0);
+    } else {
+      // Allocate a new constraint variable for this level of pointer.
+      vars.insert(K);
+      VarAtom * V = CS.getOrCreateVar(K);
+     
+      if (Ty->isCheckedPointerType()) {
+        if (Ty->isCheckedPointerPtrType()) {
+          // Constrain V so that it can't be either wild or an array.
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr()))); 
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
+          ConstrainedVars.insert(K);
+        } else if (Ty->isCheckedPointerArrayType()) {
+          llvm_unreachable("unsupported!");
+        }
+      } 
 
-		K++;
-    std::string TyName = tyToStr(Ty);
-    // TODO: Github issue #61: improve handling of types for
-    // // variable arguments.
-		if (TyName == "struct __va_list_tag *" || TyName == "va_list")
-			break;
+      // Save here if QTy is qualified or not into a map that 
+      // indexes K to the qualification of QTy, if any.
+      if (QTy.isConstQualified()) 
+        QualMap.insert(
+          std::pair<uint32_t, Qualification>(K, ConstQualification));
 
-		// Iterate.
-		QTy = QTy.getSingleStepDesugaredType(C);
-		QTy = QTy.getTypePtr()->getPointeeType();
-		Ty = QTy.getTypePtr();
+      K++;
+      std::string TyName = tyToStr(Ty);
+      // TODO: Github issue #61: improve handling of types for
+      // // variable arguments.
+      if (TyName == "struct __va_list_tag *" || TyName == "va_list")
+        break;
+
+		  // Iterate.
+		  QTy = QTy.getSingleStepDesugaredType(C);
+		  QTy = QTy.getTypePtr()->getPointeeType();
+		  Ty = QTy.getTypePtr();
+    }
 	}
 
 	// If, after boiling off the pointer-ness from this type, we hit a 
@@ -745,7 +760,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   FVConstraint *F = nullptr;
   PVConstraint *P = nullptr;
   
-  if (Ty->isPointerType()) 
+  if (Ty->isPointerType() || Ty->isArrayType()) 
     // Create a pointer value for the type.
     P = new PVConstraint(D, freeKey, CS, *C);
 
@@ -875,6 +890,10 @@ ProgramInfo::getVariableHelper(Expr *E,
     // Here, we need to look up the target of the call and return the
     // constraints for the return value of that function.
     Decl *D = CE->getCalleeDecl();
+    if (D == nullptr) {
+      // There are a few reasons that we couldn't get a decl. For example,
+      // the call could be done through an array subscript. 
+    }
     assert(D != nullptr);
     // D could be a FunctionDecl, or a VarDecl, or a FieldDecl. 
     // Really it could be any DeclaratorDecl. 
