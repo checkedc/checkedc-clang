@@ -178,3 +178,35 @@ int *(*get_mut(void))(int*,int) {
   return &ok_mut_clone;
 }
 //CHECK: int *(*get_mut(void))(int*,int) {
+
+int *p1(int *a) {
+  return a;
+}
+
+int *p2(int *a) {
+  *a = *a + 1;
+  return a;
+}
+
+int *p3(int *a) {
+  *a = *(a+4) + 1;
+  return a;
+}
+
+// Arrays of function pointers.
+void f_test(void) {
+  int * (*arr[3])(int *) = { 0 };
+
+  arr[0] = p1;
+  arr[1] = p2;
+  arr[2] = 0;
+
+  return;
+} 
+
+// Arrays of function pointers.
+void f_test2(int i, int *(*arr[])(int *)) {
+  int j = 0;
+  int *k = arr[i](&j);
+  return;
+} 
