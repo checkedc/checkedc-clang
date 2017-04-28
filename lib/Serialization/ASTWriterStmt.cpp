@@ -649,6 +649,11 @@ void ASTStmtWriter::VisitCastExpr(CastExpr *E) {
   if (E->hasBoundsExpr()) {
     Record.AddStmt(E->getBoundsExpr());
   }
+  Record.push_back(E->hasSubBoundsExpr());
+  if (E->hasSubBoundsExpr()) {
+    Record.AddStmt(E->getSubBoundsExpr());
+  }
+
 
   for (CastExpr::path_iterator
          PI = E->path_begin(), PE = E->path_end(); PI != PE; ++PI)

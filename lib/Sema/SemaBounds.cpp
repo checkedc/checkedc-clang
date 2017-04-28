@@ -946,6 +946,7 @@ namespace {
 
         assert(SrcBounds);
         E->setBoundsExpr(SrcBounds);
+        E->setSubBoundsExpr(subExprBounds);
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.

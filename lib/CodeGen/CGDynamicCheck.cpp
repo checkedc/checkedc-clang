@@ -111,6 +111,66 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
   EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
 }
 
+void CodeGenFunction::EmitDynamicBoundsCheck(const BoundsExpr *DynamicBounds,
+                                             const BoundsExpr *SrcBounds) {
+  if (!getLangOpts().CheckedC)
+    return;
+
+  if (!SrcBounds || !DynamicBounds)
+    return;
+
+  if (SrcBounds->isAny() || SrcBounds->isInvalid())
+    return;
+
+  if (DynamicBounds->isAny() || DynamicBounds->isInvalid())
+    return;
+
+  // We can only generate the check if we have the bounds as a range.
+  if (!isa<RangeBoundsExpr>(SrcBounds) ||
+      !isa<RangeBoundsExpr>(DynamicBounds)) {
+    llvm_unreachable(
+        "Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
+    return;
+  }
+
+  const RangeBoundsExpr *SrcRange = dyn_cast<RangeBoundsExpr>(SrcBounds);
+  const RangeBoundsExpr *CastRange = dyn_cast<RangeBoundsExpr>(DynamicBounds);
+
+  ++NumDynamicChecksRange;
+
+  // SrcRange - bounds(lb, ub) vs CastRange - bounds(castlb, castub)
+  // Dynamic_check(lb <= castlb && castub <= ub)
+
+  // Emit the code to generate the pointer values
+  Address Lower = EmitPointerWithAlignment(SrcRange->getLowerExpr());
+  Address Upper = EmitPointerWithAlignment(SrcRange->getUpperExpr());
+
+  Value *LowerInt = Builder.CreatePtrToInt(Lower.getPointer(), IntPtrTy,
+                                           "_Dynamic_check.lower");
+  Value *UpperInt = Builder.CreatePtrToInt(Upper.getPointer(), IntPtrTy,
+                                           "_Dynamic_check.upper");
+
+  Address CastLower = EmitPointerWithAlignment(CastRange->getLowerExpr());
+  Address CastUpper = EmitPointerWithAlignment(CastRange->getUpperExpr());
+
+  Value *CastLowerInt = Builder.CreatePtrToInt(CastLower.getPointer(), IntPtrTy,
+                                               "_Dynamic_check.castlower");
+  Value *CastUpperInt = Builder.CreatePtrToInt(CastUpper.getPointer(), IntPtrTy,
+                                               "_Dynamic_check.castupper");
+
+  // Make the lower check (Lower <= CastLower)
+  Value *LowerChk =
+      Builder.CreateICmpSLE(LowerInt, CastLowerInt, "_Dynamic_check.lower_cmp");
+
+  // Make the upper check (CastUpper <= Upper)
+  Value *UpperChk =
+      Builder.CreateICmpSLE(CastUpperInt, UpperInt, "_Dynamic_check.upper_cmp");
+
+  // Emit both checks (Lower <= CastLower && CastUpper <= Upper)
+  EmitDynamicCheckBlocks(
+      Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
+}
+
 void CodeGenFunction::EmitDynamicCheckBlocks(Value *Condition) {
   assert(Condition->getType()->isIntegerTy(1) &&
          "May only dynamic check boolean conditions");
