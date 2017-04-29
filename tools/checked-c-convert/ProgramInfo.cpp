@@ -46,8 +46,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       // for each level of the array, and a constraint variable for 
       // values stored in the array. 
       vars.insert(K);
-      K++;
       CS.getOrCreateVar(K);
+      K++;
 
       // Iterate.
       // TODO: Why is it the case that we can only get the unqualified type
@@ -857,7 +857,11 @@ ProgramInfo::getVariableHelper(Expr *E,
     std::set<ConstraintVariable*> T2 = getVariableHelper(BO->getRHS(), V, C);
     T1.insert(T2.begin(), T2.end());
     return T1;
-  } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+  } /*else if (ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E)) {
+    // In an array subscript, we want to do something sort of similar to taking
+    // the address or doing a dereference. 
+    llvm_unreachable("AE");
+  } */ else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
     std::set<ConstraintVariable *> T = 
       getVariableHelper(UO->getSubExpr(), V, C);
    
