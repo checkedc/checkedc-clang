@@ -436,14 +436,7 @@ public:
   }
 
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(E->getBase(), Context);
-    Constraints &CS = Info.getConstraints();
-    for (const auto &C : Var) 
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) 
-        for (const auto &D : PVC->getCvars())
-          CS.addConstraint(CS.createEq(CS.getOrCreateVar(D), CS.getArr()));
-      
+    constrainExprFirstArr(E->getBase());
     return true;
   }
 
@@ -477,6 +470,21 @@ public:
                 CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
       }
   }
+
+  void constrainExprFirstArr(Expr *E) {
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(E, Context);
+    Constraints &CS = Info.getConstraints();
+    for (const auto &I : Var)
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0) {
+          CS.addConstraint(
+              CS.createEq(
+                CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getArr()));
+        }
+      }
+  }
+
 
   bool VisitUnaryPreInc(UnaryOperator *O) {
     constrainExprFirst(O->getSubExpr());
