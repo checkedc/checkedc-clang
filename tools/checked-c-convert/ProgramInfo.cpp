@@ -48,6 +48,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       // values stored in the array. 
       vars.insert(K);
       CS.getOrCreateVar(K);
+      K++;
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
