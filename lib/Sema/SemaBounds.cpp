@@ -935,17 +935,12 @@ namespace {
       }
 
       if (CK == CK_DynamicPtrBounds) {
-        BoundsExpr *SrcBounds = S.InferRValueBounds(E);
         Expr *subExpr = E->getSubExpr();
         BoundsExpr *subExprBounds = S.InferRValueBounds(subExpr);
 
         if (subExprBounds->isNone()) {
           S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
-          SrcBounds = S.CreateInvalidBoundsExpr();
         }
-
-        assert(SrcBounds);
-        E->setBoundsExpr(SrcBounds);
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
