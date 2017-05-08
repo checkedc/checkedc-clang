@@ -54,14 +54,16 @@ private:
   ConstraintVariableKind Kind;
 protected:
   std::string BaseType;
+  // Underlying name of the C variable this ConstraintVariable represents.
+  std::string Name;
   // Set of constraint variables that have been constrained due to a 
   // bounds-safe interface. They are remembered as being constrained
   // so that later on we do not introduce a spurious constraint 
   // making those variables WILD. 
   std::set<uint32_t> ConstrainedVars;
 public:
-  ConstraintVariable(ConstraintVariableKind K, std::string T) : 
-    Kind(K),BaseType(T) {}
+  ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) : 
+    Kind(K),BaseType(T),Name(N) {}
 
   // Create a "for-rewriting" representation of this ConstraintVariable.
   virtual std::string mkString(Constraints::EnvironmentMap &E) = 0;
@@ -83,6 +85,7 @@ public:
   virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
+  std::string getName() { return Name; }
 
   void constrainedVariable(uint32_t K) {
     ConstrainedVars.insert(K);
@@ -108,13 +111,29 @@ private:
   CVars vars;
   FunctionVariableConstraint *FV;
   std::map<uint32_t, Qualification> QualMap;
+  enum OriginalArrType {
+    O_Pointer,
+    O_SizedArray,
+    O_UnSizedArray
+  };
+  // Map from constraint variable to original type and size. 
+  // If the original variable U was:
+  //  * A pointer, then U -> (a,b) , a = O_Pointer, b has no meaning.
+  //  * A sized array, then U -> (a,b) , a = O_SizedArray, b is static size.
+  //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
+  std::map<uint32_t,std::pair<OriginalArrType,uint64_t>> arrSizes;
+  // If for all U in arrSized, any U -> (a,b) where a = O_SizedArray or 
+  // O_UnSizedArray, arrPresent is true.
+  bool arrPresent;
 public:
   // Constructor for when we know a CVars and a type string.
-  PointerVariableConstraint(CVars V, std::string T) : 
-    ConstraintVariable(PointerVariable, T),vars(V),FV(nullptr) {}
+  PointerVariableConstraint(CVars V, std::string T, std::string Name) : 
+    ConstraintVariable(PointerVariable, T, Name)
+    ,vars(V),FV(nullptr),arrPresent(false) {}
 
   // Constructor for when we have a Decl. K is the current free
-  // constraint variable index.
+  // constraint variable index. We don't need to explicitly pass
+  // the name because it's available in 'D'.
   PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS, const clang::ASTContext &C);
 
@@ -155,7 +174,7 @@ private:
   bool hasproto;
 public:
   FunctionVariableConstraint() : 
-    ConstraintVariable(FunctionVariable, ""),name(""),hasproto(false) { }
+    ConstraintVariable(FunctionVariable, "", ""),name(""),hasproto(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS, const clang::ASTContext &C);
