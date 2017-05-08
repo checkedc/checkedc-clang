@@ -31,7 +31,7 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_t &K,
 	std::string N, Constraints &CS, const ASTContext &C) : 
 	ConstraintVariable(ConstraintVariable::PointerVariable, 
-					   tyToStr(QT.getTypePtr())),FV(nullptr)
+					   tyToStr(QT.getTypePtr()),N),FV(nullptr)
 { 
 	QualType QTy = QT;
 	const Type *Ty = QTy.getTypePtr();
@@ -40,6 +40,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	if (Ty->getAs<TypedefType>())
 		isTypedef = true;
 
+  arrPresent = false;
 	while (Ty->isPointerType() || Ty->isArrayType()) {
     if (Ty->isArrayType()) {
       // If it's an array, then we need both a constraint variable 
@@ -47,6 +48,17 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       // values stored in the array. 
       vars.insert(K);
       CS.getOrCreateVar(K);
+
+      // See if there is a constant size to this array type at this position.
+      if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
+        arrPresent = true;
+        arrSizes[K] = std::pair<OriginalArrType,uint64_t>(
+                        O_SizedArray,CAT->getSize().getZExtValue());
+      } else {
+        arrSizes[K] = std::pair<OriginalArrType,uint64_t>(
+                        O_UnSizedArray,0);
+      }
+
       K++;
 
       // Iterate.
@@ -76,6 +88,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
         QualMap.insert(
           std::pair<uint32_t, Qualification>(K, ConstQualification));
 
+      arrSizes[K] = std::pair<OriginalArrType,uint64_t>(O_Pointer,0);
+ 
       K++;
       std::string TyName = tyToStr(Ty);
       // TODO: Github issue #61: improve handling of types for
@@ -135,14 +149,14 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
 // string that can be replaced in the source code.
 std::string
 PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
-  // TODO: the use of 's' is inefficient, use a stringstream later.
-  std::string s = "";
+  std::ostringstream ss;
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
   for (const auto &V : vars) {
     VarAtom VA(V);
     ConstAtom *C = E[&VA];
     assert(C != nullptr);
+    std::string ptrSubVal = "*";
 
     std::map<uint32_t, Qualification>::iterator q;
     Atom::AtomKind K = C->getKind();
@@ -155,37 +169,61 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
       q = QualMap.find(V);
       if (q != QualMap.end())
         if (q->second == ConstQualification)
-          s = s + "const ";
+          ss << "const ";
 
       // We need to check and see if this level of variable
       // is constrained by a bounds safe interface. If it is, 
       // then we shouldn't re-write it. 
       if (ConstrainedVars.find(V) == ConstrainedVars.end()) {
         emittedBase = false;
-        s = s + "_Ptr<";
-
+        ss << "_Ptr<";
         caratsToAdd++;
         break;
       }
-      // ELSE FALL THROUGH! 
     case Atom::A_Arr:
+      // If it's an Arr, then the character we substitute should
+      // be [] instead of *, IF, the original type was an array. 
+      // And, if the original type was a sized array of size K,
+      // we should substitute [K].
+      if (arrPresent) {
+        auto i = arrSizes.find(V);
+        assert(i != arrSizes.end());
+        OriginalArrType oat = i->second.first;
+        uint64_t oas = i->second.second;
+        std::stringstream pss;
+        
+        switch(oat) {
+          case O_Pointer:
+            pss << "*";
+            break;
+          case O_SizedArray:
+            pss << "[" << oas << "]";
+            break;
+          case O_UnSizedArray:
+            pss << "[]";
+            break;
+        } 
+        
+        ptrSubVal = pss.str();
+      } 
+      // FALL THROUGH!
     case Atom::A_Wild:
       if (emittedBase) {
-        s = s + "*";
+        ss << ptrSubVal;
       } else {
         assert(BaseType.size() > 0);
         emittedBase = true;
         if (FV) {
-          s = s + FV->mkString(E);
+          ss << FV->mkString(E);
         } else {
-          s = s + BaseType + "*";
+          ss << BaseType << ptrSubVal;
         }
       }
 
       q = QualMap.find(V);
       if (q != QualMap.end())
         if (q->second == ConstQualification)
-          s = s + "const ";
+          ss << "const ";
       break;
     case Atom::A_Const:
     case Atom::A_Var:
@@ -198,20 +236,20 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     // If we have a FV pointer, then our "base" type is a function pointer
     // type.
     if (FV) {
-      s = s + FV->mkString(E);
+      ss << FV->mkString(E);
     } else {
-      s = s + BaseType;
+      ss << BaseType;
     }
   }
 
   // Push carats onto the end of the string
   for (unsigned i = 0; i < caratsToAdd; i++) {
-    s = s + ">";
+    ss << ">";
   }
 
-  s = s + " ";
+  ss << " ";
 
-  return s;
+  return ss.str();
 }
 
 // This describes a function, either a function pointer or a function
@@ -224,7 +262,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     uint32_t &K, std::string N, Constraints &CS, const ASTContext &Ctx) :
-  ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty)),name(N)
+  ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty), N),name(N)
 {
   QualType returnType;
   std::vector<QualType> paramTypes;
@@ -260,7 +298,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     assert(FT != nullptr);
     returnType = FT->getReturnType();
   } else {
-    Ty->dump();
     llvm_unreachable("don't know what to do");
   }
   // This has to be a mapping for all parameter/return types, even those that 
@@ -876,7 +913,7 @@ ProgramInfo::getVariableHelper(Expr *E,
           if(C.size() > 0) {
             C.erase(C.begin());
             if (C.size() > 0)
-              tmp.insert(new PVConstraint(C, PVC->getTy()));
+              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName()));
           }
         } else {
           llvm_unreachable("Shouldn't dereference a function pointer!");
