@@ -24,7 +24,7 @@ void foo(void) {
   return;
 }
 //CHECK: void foo(void) {
-//CHECK-NEXT: _Ptr<int>  a = (int *) malloc(sizeof(int));
+//CHECK-NEXT: _Ptr<int> a = (int *) malloc(sizeof(int));
 //CHECK-NEXT: *a = 0;
 //CHECK-NEXT: free((void *)a);
 
