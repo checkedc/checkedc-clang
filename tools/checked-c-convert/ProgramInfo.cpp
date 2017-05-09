@@ -209,9 +209,10 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
             break;
         } 
 
-
+        break;
       } 
-      break;
+      // If there is no array in the original program, then we fall through to 
+      // the case where we write a pointer value. 
     case Atom::A_Wild:
       if (emittedBase) {
         ss << "*";
@@ -301,14 +302,17 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         QT = FT->getParamType(i);
 
       std::string paramName = "";
-      if (FD) {
+      DeclaratorDecl *tmpD = D;
+      if (FD && i < FD->getNumParams()) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
-        if (PVD)
+        if (PVD) {
+          tmpD = PVD;
           paramName = PVD->getName();
+        }
       }
 
       std::set<ConstraintVariable*> C;
-      C.insert(new PVConstraint(QT, K, nullptr, paramName, CS, Ctx));
+      C.insert(new PVConstraint(QT, K, tmpD, paramName, CS, Ctx));
       paramVars.push_back(C);
     }
     if (FT->hasReturnBounds()) 
@@ -327,7 +331,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // as a type, then we will need the types for all the parameters and the
   // return values
 
-  returnVars.insert(new PVConstraint(returnType, K, nullptr, "", CS, Ctx));
+  returnVars.insert(new PVConstraint(returnType, K, D, "", CS, Ctx));
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
       if (PVC->getFV())
