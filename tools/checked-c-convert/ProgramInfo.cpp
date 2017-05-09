@@ -287,7 +287,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
     assert(FT != nullptr); 
-    assert(FD != nullptr);
     returnType = FT->getReturnType();
 
     // Extract the types for the parameters to this function. If the parameter
@@ -302,9 +301,11 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         QT = FT->getParamType(i);
 
       std::string paramName = "";
-      ParmVarDecl *PVD = FD->getParamDecl(i);
-      if (PVD)
-        paramName = PVD->getName();
+      if (FD) {
+        ParmVarDecl *PVD = FD->getParamDecl(i);
+        if (PVD)
+          paramName = PVD->getName();
+      }
 
       std::set<ConstraintVariable*> C;
       C.insert(new PVConstraint(QT, K, nullptr, paramName, CS, Ctx));
