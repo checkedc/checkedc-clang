@@ -237,7 +237,7 @@ void cvxqqef(void) {
 //CHECK-NEXT: _Ptr<int> c = &a;
 
 // Check that constraints involving arrays work.
-void ptrarr(void) {
+/*void ptrarr(void) {
   int *vals[4] = { 0 };
   int a = 0;
   int b = 0;
@@ -250,6 +250,6 @@ void ptrarr(void) {
   vals[3] = &d;
 
   return;
-}
+}*/
 
 // Check that constraints involving multi-dimensional arrays work.

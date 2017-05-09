@@ -21,7 +21,7 @@ void typd_driver(void) {
 }
 //CHECK: void typd_driver(void) {
 //CHECK-NEXT: wchar_t buf[10];
-//CHECK-NEXT: _Ptr<wchar_t>  a = &buf[0];
+//CHECK-NEXT: _Ptr<wchar_t> a = &buf[0];
 //CHECK-NEXT: wchar_t *b = &buf[0];
 
 typedef struct _A {
@@ -43,7 +43,7 @@ void pa_driver(void) {
 }
 //CHECK: void pa_driver(void) {
 //CHECK-NEXT: A a = {0};
-//CHECK-NEXT: _Ptr<struct _A>  b = &a;
+//CHECK-NEXT: _Ptr<struct _A> b = &a;
 
 int *id(int *a) {
   return a;
@@ -61,8 +61,8 @@ void fret_driver(void) {
 }
 //CHECK: void fret_driver(void) {
 //CHECK-NEXT: int a = 0;
-//CHECK-NEXT: _Ptr<int>  b = &a;
-//CHECK-NEXT: _Ptr<int>  c = id(b);
+//CHECK-NEXT: _Ptr<int> b = &a;
+//CHECK-NEXT: _Ptr<int> c = id(b);
 //CHECK-NEXT: int *d = fry();
 
 typedef int *(*fooptr)(int*, int);
@@ -82,8 +82,8 @@ void fooptr_driver(void) {
 //CHECK: void fooptr_driver(void) {
 //CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> , int )>   f = &good_mut;
 //CHECK-NEXT: int a = 0;
-//CHECK-NEXT: _Ptr<int>  b = &a;
-//CHECK-NEXT: _Ptr<int>  c = f(b, 1);
+//CHECK-NEXT: _Ptr<int> b = &a;
+//CHECK-NEXT: _Ptr<int> c = f(b, 1);
 
 #define launder(x) (char*) x
 
@@ -98,7 +98,7 @@ void launder_driver(void) {
 }
 //CHECK: void launder_driver(void) {
 //CHECK-NEXT: int a = 0;
-//CHECK-NEXT: _Ptr<int>  b = &a;
+//CHECK-NEXT: _Ptr<int> b = &a;
 //CHECK-NEXT: int *e = &a;
 //CHECK-NEXT: char *d = launder(e);
 
