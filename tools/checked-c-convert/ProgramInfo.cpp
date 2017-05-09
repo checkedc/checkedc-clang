@@ -26,10 +26,10 @@ tyToStr(const Type *T) {
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS, const ASTContext &C) :
-  PointerVariableConstraint(D->getType(), K, D->getName(), CS, C) { }
+  PointerVariableConstraint(D->getType(), K, D, D->getName(), CS, C) { }
 
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_t &K,
-	std::string N, Constraints &CS, const ASTContext &C) : 
+	DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) : 
 	ConstraintVariable(ConstraintVariable::PointerVariable, 
 					   tyToStr(QT.getTypePtr()),N),FV(nullptr)
 { 
@@ -116,7 +116,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 		//    tn fname = ...,
 		// where tn is the typedef'ed type name.
 		// There is possibly something more elegant to do in the code here.
-		FV = new FVConstraint(Ty, K, (isTypedef ? "" : N), CS, C);
+		FV = new FVConstraint(Ty, K, D, (isTypedef ? "" : N), CS, C);
 
 	BaseType = tyToStr(Ty);
 
@@ -270,15 +270,14 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
 // types that are either return values or paraemeters for the function.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS, const ASTContext &C) :
-  FunctionVariableConstraint(D->getType().getTypePtr(), K, D->getName(), CS, C) 
+  FunctionVariableConstraint(D->getType().getTypePtr(), K, D, D->getName(), CS, C) 
   { }
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
-    uint32_t &K, std::string N, Constraints &CS, const ASTContext &Ctx) :
+    uint32_t &K, DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &Ctx) :
   ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty), N),name(N)
 {
   QualType returnType;
-  std::vector<QualType> paramTypes;
   hasproto = false;
   if (Ty->isFunctionPointerType()) {
     // Is this a function pointer definition?
@@ -286,7 +285,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   } else if (Ty->isFunctionProtoType()) {
     // Is this a function? 
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
+    FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
     assert(FT != nullptr); 
+    assert(FD != nullptr);
     returnType = FT->getReturnType();
 
     // Extract the types for the parameters to this function. If the parameter
@@ -299,8 +300,15 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         QT = BE->getType();
       else
         QT = FT->getParamType(i);
-         
-      paramTypes.push_back(QT);
+
+      std::string paramName = "";
+      ParmVarDecl *PVD = FD->getParamDecl(i);
+      if (PVD)
+        paramName = PVD->getName();
+
+      std::set<ConstraintVariable*> C;
+      C.insert(new PVConstraint(QT, K, nullptr, paramName, CS, Ctx));
+      paramVars.push_back(C);
     }
     if (FT->hasReturnBounds()) 
       returnType = FT->getReturnBounds()->getType();
@@ -318,7 +326,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // as a type, then we will need the types for all the parameters and the
   // return values
 
-  returnVars.insert(new PVConstraint(returnType, K, N, CS, Ctx));
+  returnVars.insert(new PVConstraint(returnType, K, nullptr, "", CS, Ctx));
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
       if (PVC->getFV())
@@ -326,12 +334,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
       FVC->constrainTo(CS, CS.getWild());
     }
-  }
-
-  for (auto &P : paramTypes) {
-    std::set<ConstraintVariable*> C;
-    C.insert(new PVConstraint(P, K, N, CS, Ctx));
-    paramVars.push_back(C);
   }
 }
 
