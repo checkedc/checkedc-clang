@@ -162,7 +162,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
           Where->dump();
         }
         SourceRange TR = VD->getSourceRange();
-        std::string sRewrite = N.second + " " + VD->getNameAsString();
+        std::string sRewrite = N.second;
 
         // Is there an initializer? If there is, change TR so that it points
         // to the START of the SourceRange of the initializer text, and drop
@@ -170,7 +170,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         if (VD->hasInit()) {
           SourceLocation eqLoc = VD->getInitializerStartLoc();
           TR.setEnd(eqLoc);
-          sRewrite = sRewrite + " =";
+          sRewrite = sRewrite + " = ";
         }
 
         // Is it a variable type? This is the easy case, we can re-write it
