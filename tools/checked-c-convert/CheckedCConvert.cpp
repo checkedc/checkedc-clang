@@ -140,11 +140,12 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
                toRewrite = toRewrite->getPreviousDecl()) {
             int U = toRewrite->getNumParams();
             if (parmIndex < U) {
-              // TODO these declarations could get us into deeper header files.
+              // TODO these declarations could get us into deeper 
+              // header files.
               ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
               assert(Rewrite != NULL);
               SourceRange TR = Rewrite->getSourceRange();
-              std::string sRewrite = N.second + " " + Rewrite->getNameAsString();
+              std::string sRewrite = N.second;
 
               if (canRewrite(R, TR))
                 R.ReplaceText(TR, sRewrite);
