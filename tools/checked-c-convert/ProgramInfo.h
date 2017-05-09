@@ -140,7 +140,7 @@ public:
   // Constructor for when we only have a Type. Needs a string name
   // N for the name of the variable that this represents.
   PointerVariableConstraint(const clang::QualType &QT, uint32_t &K,
-	  std::string N, Constraints &CS, const clang::ASTContext &C);
+	  clang::DeclaratorDecl *D, std::string N, Constraints &CS, const clang::ASTContext &C);
 
   const CVars &getCvars() const { return vars; }
 
@@ -179,7 +179,7 @@ public:
   FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS, const clang::ASTContext &C);
   FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
-    std::string N, Constraints &CS, const clang::ASTContext &C);
+    clang::DeclaratorDecl *D, std::string N, Constraints &CS, const clang::ASTContext &C);
 
   std::set<ConstraintVariable*> &
   getReturnVars() { return returnVars; }
