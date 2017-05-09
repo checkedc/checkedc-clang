@@ -150,13 +150,14 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
 std::string
 PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   std::ostringstream ss;
+  std::ostringstream pss;
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
+  bool emittedName = false;
   for (const auto &V : vars) {
     VarAtom VA(V);
     ConstAtom *C = E[&VA];
     assert(C != nullptr);
-    std::string ptrSubVal = "*";
 
     std::map<uint32_t, Qualification>::iterator q;
     Atom::AtomKind K = C->getKind();
@@ -190,7 +191,11 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
         assert(i != arrSizes.end());
         OriginalArrType oat = i->second.first;
         uint64_t oas = i->second.second;
-        std::stringstream pss;
+
+        if (emittedName == false) {
+          emittedName = true;
+          pss << getName();
+        }
         
         switch(oat) {
           case O_Pointer:
@@ -203,20 +208,20 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
             pss << "[]";
             break;
         } 
-        
-        ptrSubVal = pss.str();
+
+
       } 
-      // FALL THROUGH!
+      break;
     case Atom::A_Wild:
       if (emittedBase) {
-        ss << ptrSubVal;
+        ss << "*";
       } else {
         assert(BaseType.size() > 0);
         emittedBase = true;
         if (FV) {
           ss << FV->mkString(E);
         } else {
-          ss << BaseType << ptrSubVal;
+          ss << BaseType << "*";
         }
       }
 
@@ -249,7 +254,15 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
 
   ss << " ";
 
-  return ss.str();
+  std::string finalDec;
+  if (emittedName == false) {
+    ss << getName();
+    finalDec = ss.str();
+  } else {
+    finalDec = ss.str() + pss.str();
+  }
+
+  return finalDec;
 }
 
 // This describes a function, either a function pointer or a function
