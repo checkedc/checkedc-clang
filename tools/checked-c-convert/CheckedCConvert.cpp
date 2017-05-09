@@ -248,7 +248,6 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
 
             if (found) {
               newMLDecl << N.second;
-              newMLDecl << " " << VDL->getNameAsString();
               if (Expr *E = VDL->getInit()) {
                 newMLDecl << " = ";
                 E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
@@ -300,7 +299,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         R.ReplaceText(SR, N.second);
     } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getSourceRange();
-      std::string sRewrite = N.second + " " + FD->getNameAsString();
+      std::string sRewrite = N.second;
 
       if (canRewrite(R, SR))
         R.ReplaceText(SR, sRewrite);
