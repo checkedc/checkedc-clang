@@ -205,11 +205,11 @@ To build
 
 Follow the earlier instruction to set up the build system.  Form the build directory, use the following comamnd to build clang only:
 
-	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_CPUCount=6 /m
+	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_MPCount=6 /m
 
 To build everything:
 
-	msbuild LLVM.sln /p:CL_CPUCount=6 /m
+	msbuild LLVM.sln /p:CL_MPCount=6 /m
 
 To clean the build directory:
 
