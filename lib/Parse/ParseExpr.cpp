@@ -3098,11 +3098,6 @@ ExprResult Parser::ParseBoundsCastExpression() {
   if (Tok.is(tok::comma)) {
     ConsumeToken();
     if (StartsBoundsExpression(Tok)) {
-      IdentifierInfo *Ident = Tok.getIdentifierInfo();
-
-      if (Ident == Ident_byte_count)
-        return ExprError();
-
       syntax = BoundsCastExpr::SyntaxType::Bounds;
       ParsedBounds = ParseBoundsExpression();
       if (ParsedBounds.isInvalid())

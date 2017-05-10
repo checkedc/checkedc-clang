@@ -12469,8 +12469,6 @@ ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
 bool Sema::CheckBoundsCastBaseType(Expr *E1) {
   bool Result = false;
   QualType SrcTy = E1->getType();
-  if (SrcTy->isFunctionType())
-    SrcTy = dyn_cast<FunctionType>(SrcTy)->getReturnType();
   if (!SrcTy->isPointerType() && !SrcTy->isIntegralType(Context) &&
       !SrcTy->isArrayType()) {
     Diag(E1->getLocStart(), diag::err_typecheck_non_count_bounds_decl) << E1;
@@ -12536,8 +12534,8 @@ ExprResult Sema::ActOnBoundsCastExprSingle(
   QualType DestTy = GetTypeFromParser(D, &castTInfo);
   SourceLocation TypeLoc = (castTInfo->getTypeLoc()).getBeginLoc();
 
-  if(CheckBoundsCastBaseType(E1))
-    return ExprError();  
+  if (CheckBoundsCastBaseType(E1))
+    return ExprError();
 
   if (DestTy->isCheckedPointerPtrType() || DestTy->isUncheckedPointerType()) {
     llvm::APInt I = llvm::APInt(1, 1, false);
@@ -12586,9 +12584,9 @@ ExprResult Sema::ActOnBoundsCastExprCount(
   ExprResult ResE2 = CorrectDelayedTyposInExpr(E2);
   SourceLocation TypeLoc = (castTInfo->getTypeLoc()).getBeginLoc();
 
-  if(CheckBoundsCastBaseType(E1))
+  if (CheckBoundsCastBaseType(E1))
     return ExprError();
-  
+
   if (!DestTy->isCheckedPointerArrayType()) {
     Diag(TypeLoc, diag::err_bounds_cast_error_with_array_syntax);
     return ExprError();
@@ -12632,7 +12630,7 @@ ExprResult Sema::ActOnBoundsCastExprRange(
   TypeSourceInfo *castTInfo;
   ExprResult bounds(true);
 
-  if(CheckBoundsCastBaseType(E1))
+  if (CheckBoundsCastBaseType(E1))
     return ExprError();
 
   QualType DestTy = GetTypeFromParser(D, &castTInfo);
