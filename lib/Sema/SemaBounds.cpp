@@ -938,7 +938,7 @@ namespace {
       // If inferred bounds of e1 are bounds(any), no runtime checks.
       // Otherwise, the inferred bounds is bounds(lb, ub).
       // bounds of cast operation is bounds(e2, e3).
-      // In code geneartion, it inserts dynamic_check(lb <= e2 && e3 <= ub).
+      // In code generation, it inserts dynamic_check(lb <= e2 && e3 <= ub).
       if (CK == CK_DynamicPtrBounds) {
         BoundsExpr *SrcBounds = S.InferRValueBounds(E);
         Expr *subExpr = E->getSubExpr();
