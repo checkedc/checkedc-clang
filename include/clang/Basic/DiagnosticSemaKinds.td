@@ -8946,6 +8946,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_checked_scope_no_variadic_func_for_expression : Error<
     "cannot use a variable arguments function in a checked scope or function">;
 
+  def err_checked_scope_no_assume_bounds_casting : Error<
+    "_Assume_bounds_cast not allowed in a checked scope or function">;
+
   def err_bounds_cast_error_with_single_syntax
       : Error<"invalid bounds cast: expected _Ptr or * type">;
 
