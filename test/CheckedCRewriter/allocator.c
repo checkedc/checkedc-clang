@@ -48,3 +48,5 @@ void add_some_stuff(listhead *hd) {
   cur->next = l1;
   return;
 }
+//CHECK: void add_some_stuff(_Ptr<listhead>  hd) {
+//CHECK-NEXT: _Ptr<listelt>  l1 = (listelt *) malloc(sizeof(listelt));

@@ -245,20 +245,23 @@ public:
                   UnaryExprOrTypeTraitExpr *arg = 
                     dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
                   if (arg && arg->isArgumentType()) {
-                    QualType argTy = arg->getArgumentType();
-                    // argTy should be made a pointer, then compared for 
-                    // equality to lhsType and rhsTy. 
-                    QualType argPTy = Context->getPointerType(argTy); 
+                    // Check that the argument is a sizeof. 
+                    if (arg->getKind() == UETT_SizeOf) {
+                      QualType argTy = arg->getArgumentType();
+                      // argTy should be made a pointer, then compared for 
+                      // equality to lhsType and rhsTy. 
+                      QualType argPTy = Context->getPointerType(argTy); 
 
-                    if (Info.checkStructuralEquality(V, W, argPTy, lhsType) && 
-                        Info.checkStructuralEquality(V, W, argPTy, rhsTy)) 
-                    {
-                      rulesFired = true;
-                      // At present, I don't think we need to add an 
-                      // implication based constraint since this rule
-                      // only fires if there is a cast from a call to malloc.
-                      // Since malloc is an external, there's no point in 
-                      // adding constraints to it. 
+                      if (Info.checkStructuralEquality(V, W, argPTy, lhsType) && 
+                          Info.checkStructuralEquality(V, W, argPTy, rhsTy)) 
+                      {
+                        rulesFired = true;
+                        // At present, I don't think we need to add an 
+                        // implication based constraint since this rule
+                        // only fires if there is a cast from a call to malloc.
+                        // Since malloc is an external, there's no point in 
+                        // adding constraints to it. 
+                      }
                     }
                   }
                 }

@@ -440,6 +440,9 @@ std::set<unsigned int> CastPlacementVisitor::getParamsForExtern(std::string E) {
     .Default(std::set<unsigned int>());
 }
 
+// Checks the bindings in the environment for all of the constraints
+// associated with C and returns true if any of those constraints 
+// are WILD. 
 bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
   bool anyTopFound = false;
   Constraints &CS = Info.getConstraints();
