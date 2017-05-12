@@ -220,7 +220,9 @@ public:
   // safe to add an implication that if U is wild, then V is wild. However,
   // if this returns false, then both U and V must be constrained to wild.
   bool checkStructuralEquality( std::set<ConstraintVariable*> V, 
-                                std::set<ConstraintVariable*> U);
+                                std::set<ConstraintVariable*> U,
+                                clang::QualType VTy,
+                                clang::QualType UTy);
 
   // Called when we are done adding constraints and visiting ASTs. 
   // Links information about global symbols together and adds 
@@ -261,6 +263,10 @@ public:
   VariableMap &getVarMap() { return Variables;  }
 
 private:
+  // Function to check if an external symbol is okay to leave 
+  // constrained. 
+  bool isExternOkay(std::string ext);
+
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
   uint32_t freeKey;

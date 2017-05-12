@@ -184,6 +184,7 @@ public:
   // an expression which might produce constraint variables, or, it might 
   // be some expression like NULL, an integer constant or a cast.
   void constrainAssign( std::set<ConstraintVariable*> V, 
+                        QualType lhsType,
                         Expr *RHS) {
     if (!RHS)
       return;
@@ -220,13 +221,57 @@ public:
         else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
           // Case 4.
           W = Info.getVariable(C->getSubExpr(), Context);
-          if (Info.checkStructuralEquality(V, W)) {
+          QualType rhsTy = RHS->getType();
+          bool rulesFired = false;
+          if (Info.checkStructuralEquality(V, W, lhsType, rhsTy)) {
             // This has become a little stickier to think about. 
             // What do you do here if we determine that two things with
             // very different arity are structurally equal? Is that even 
             // possible? 
-            llvm_unreachable("TODO");
-          } else {
+            
+            // We apply a few rules here to determine if there are any
+            // finer-grained constraints we can add. One of them is if the 
+            // value being cast from on the RHS is a call to malloc, and if
+            // the type passed to malloc is equal to both lhsType and rhsTy. 
+            // If it is, we can do something less conservative. 
+            if (CallExpr *CA = dyn_cast<CallExpr>(C->getSubExpr())) {
+              // Is this a call to malloc? Can we coerce the callee 
+              // to a NamedDecl?
+              FunctionDecl *calleeDecl = 
+                dyn_cast<FunctionDecl>(CA->getCalleeDecl());
+              if (calleeDecl && calleeDecl->getName() == "malloc") {
+                // It's a call to malloc. What about the parameter to the call?
+                if (CA->getNumArgs() > 0) {
+                  UnaryExprOrTypeTraitExpr *arg = 
+                    dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
+                  if (arg && arg->isArgumentType()) {
+                    // Check that the argument is a sizeof. 
+                    if (arg->getKind() == UETT_SizeOf) {
+                      QualType argTy = arg->getArgumentType();
+                      // argTy should be made a pointer, then compared for 
+                      // equality to lhsType and rhsTy. 
+                      QualType argPTy = Context->getPointerType(argTy); 
+
+                      if (Info.checkStructuralEquality(V, W, argPTy, lhsType) && 
+                          Info.checkStructuralEquality(V, W, argPTy, rhsTy)) 
+                      {
+                        rulesFired = true;
+                        // At present, I don't think we need to add an 
+                        // implication based constraint since this rule
+                        // only fires if there is a cast from a call to malloc.
+                        // Since malloc is an external, there's no point in 
+                        // adding constraints to it. 
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          } 
+
+          // If none of the above rules for cast behavior fired, then 
+          // we need to fall back to doing something conservative. 
+          if (rulesFired == false) {
             // Constrain everything in both to top.
             // Remove the casts from RHS and try again to get a variable
             // from it. We want to constrain that side to wild as well.
@@ -251,12 +296,12 @@ public:
 
   void constrainAssign(Expr *LHS, Expr *RHS) {
     std::set<ConstraintVariable*> V = Info.getVariable(LHS, Context);
-    constrainAssign(V, RHS);
+    constrainAssign(V, LHS->getType(), RHS);
   }
 
   void constrainAssign(DeclaratorDecl *D, Expr *RHS) {
     std::set<ConstraintVariable*> V = Info.getVariable(D, Context);
-    constrainAssign(V, RHS);
+    constrainAssign(V, D->getType(), RHS);
   }
 
   bool VisitDeclStmt(DeclStmt *S) {

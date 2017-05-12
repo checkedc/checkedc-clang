@@ -9,6 +9,7 @@
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "ConstraintBuilder.h"
+#include "llvm/ADT/StringSwitch.h"
 #include <sstream>
 
 using namespace clang;
@@ -94,11 +95,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 		BaseType = "const " + BaseType;
 	}
 
-	// Special case for void to not make _Ptr<void> pointers.
-    // TODO: Github issue #61: improve handling of types for
-    // variable arguments.
-	if (Ty->isVoidType() || BaseType == "struct __va_list_tag *" ||
-        BaseType == "va_list")
+  // TODO: Github issue #61: improve handling of types for
+  // variable arguments.
+	if (BaseType == "struct __va_list_tag *" || BaseType == "va_list")
 		for (const auto &V : vars)
 			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }
@@ -131,7 +130,12 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     assert(C != nullptr);
 
     std::map<uint32_t, Qualification>::iterator q;
-    switch (C->getKind()) {
+    Atom::AtomKind K = C->getKind();
+
+    if (BaseType == "void")
+      K = Atom::A_Wild;
+
+    switch (K) {
     case Atom::A_Ptr:
       q = QualMap.find(V);
       if (q != QualMap.end())
@@ -484,14 +488,29 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   }
 }
 
+// Check the equality of VTy and UTy. There are some specific rules that
+// fire, and a general check is yet to be implemented. 
 bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable*> V, 
-                                          std::set<ConstraintVariable*> U) {
-  // TODO: implement structural equality checking.
-  return false;
+                                          std::set<ConstraintVariable*> U,
+                                          QualType VTy,
+                                          QualType UTy) 
+{
+  // First specific rule: Are these types directly equal? 
+  if (VTy == UTy) {
+    return true;
+  } else {
+    // Further structural checking is TODO.
+    return false;
+  } 
+}
+
+bool ProgramInfo::isExternOkay(std::string ext) {
+  return llvm::StringSwitch<bool>(ext)
+    .Cases("malloc", "free", true)
+    .Default(false);
 }
 
 bool ProgramInfo::link() {
-
   // For every global symbol in all the global symbols that we have found
   // go through and apply rules for whether they are functions or variables.
   if (Verbose)
@@ -562,7 +581,9 @@ bool ProgramInfo::link() {
   for (const auto &U : ExternFunctions) {
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
-    if (U.second == false) {
+    if (U.second == false && isExternOkay(U.first) == false) {
+      // Some global symbols we don't need to constrain to wild, like 
+      // malloc and free. Check those here and skip if we find them. 
       std::string UnkSymbol = U.first;
       std::map<std::string, std::set<FVConstraint*> >::iterator I =
         GlobalSymbols.find(UnkSymbol);
