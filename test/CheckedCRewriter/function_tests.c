@@ -203,6 +203,8 @@ void f_test(void) {
 
   return;
 } 
+//CHECK: void f_test(void) {
+//CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> )> arr[3] =  { 0 };
 
 // Arrays of function pointers.
 /*void f_test2(int i, int *(*arr[])(int *)) {
