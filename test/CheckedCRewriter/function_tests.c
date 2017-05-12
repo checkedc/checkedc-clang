@@ -194,7 +194,7 @@ int *p3(int *a) {
 }
 
 // Arrays of function pointers.
-/*void f_test(void) {
+void f_test(void) {
   int * (*arr[3])(int *) = { 0 };
 
   arr[0] = p1;
@@ -202,7 +202,7 @@ int *p3(int *a) {
   arr[2] = 0;
 
   return;
-} */
+} 
 
 // Arrays of function pointers.
 /*void f_test2(int i, int *(*arr[])(int *)) {

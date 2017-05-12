@@ -186,9 +186,17 @@ public:
   void constrainAssign( std::set<ConstraintVariable*> V, 
                         QualType lhsType,
                         Expr *RHS) {
-    if (!RHS)
+    if (!RHS || V.size() == 0)
       return;
 
+    errs() << "constrainAssign\n";
+    for (auto &I : V) {
+      I->dump();
+      errs() << "\n";
+    }
+    errs() << "to ";
+    RHS->dump();
+    errs() << "\n";
     Constraints &CS = Info.getConstraints();
     std::set<ConstraintVariable*> W = Info.getVariable(RHS, Context);
     if (W.size() > 0) {

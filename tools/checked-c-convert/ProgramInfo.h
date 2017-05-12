@@ -127,10 +127,12 @@ private:
   bool arrPresent;
 public:
   // Constructor for when we know a CVars and a type string.
-  PointerVariableConstraint(CVars V, std::string T, std::string Name) : 
+  PointerVariableConstraint(CVars V, std::string T, std::string Name, 
+    FunctionVariableConstraint *F, bool isArr) : 
     ConstraintVariable(PointerVariable, T, Name)
-    ,vars(V),FV(nullptr),arrPresent(false) {}
+    ,vars(V),FV(F),arrPresent(isArr) {}
 
+  bool getArrPresent() { return arrPresent; }
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index. We don't need to explicitly pass
   // the name because it's available in 'D'.

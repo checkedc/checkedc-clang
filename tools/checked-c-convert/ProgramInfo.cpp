@@ -32,7 +32,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) : 
 	ConstraintVariable(ConstraintVariable::PointerVariable, 
 					   tyToStr(QT.getTypePtr()),N),FV(nullptr)
-{ 
+{   
 	QualType QTy = QT;
 	const Type *Ty = QTy.getTypePtr();
 	bool isTypedef = false;
@@ -914,15 +914,33 @@ ProgramInfo::getVariableHelper(Expr *E,
     std::set<ConstraintVariable*> T2 = getVariableHelper(BO->getRHS(), V, C);
     T1.insert(T2.begin(), T2.end());
     return T1;
-  } /*else if (ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E)) {
+  } else if (ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E)) {
     // In an array subscript, we want to do something sort of similar to taking
     // the address or doing a dereference. 
-    llvm_unreachable("AE");
-  } */ else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+    std::set<ConstraintVariable *> T = getVariableHelper(AE->getBase(), V, C);
+    std::set<ConstraintVariable*> tmp;
+    for (const auto &CV : T) {
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+        // Subtract one from this constraint. If that generates an empty 
+        // constraint, then, don't add it 
+        std::set<uint32_t> C = PVC->getCvars();
+        if(C.size() > 0) {
+          C.erase(C.begin());
+          if (C.size() > 0) {
+            bool a = PVC->getArrPresent();
+            FVConstraint *b = PVC->getFV();
+            tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a));
+          }
+        }
+      }
+    }
+
+    T.swap(tmp);
+    return T;
+  } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
     std::set<ConstraintVariable *> T = 
       getVariableHelper(UO->getSubExpr(), V, C);
    
-    std::set<ConstraintVariable*> updt;
     std::set<ConstraintVariable*> tmp;
     if (UO->getOpcode() == UO_Deref) {
       for (const auto &CV : T) {
@@ -932,8 +950,11 @@ ProgramInfo::getVariableHelper(Expr *E,
           std::set<uint32_t> C = PVC->getCvars();
           if(C.size() > 0) {
             C.erase(C.begin());
-            if (C.size() > 0)
-              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName()));
+            if (C.size() > 0) {
+              bool a = PVC->getArrPresent();
+              FVConstraint *b = PVC->getFV();
+              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a));
+            }
           }
         } else {
           llvm_unreachable("Shouldn't dereference a function pointer!");
