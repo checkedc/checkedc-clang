@@ -399,7 +399,7 @@ namespace {
     // should be the range of an object in memory or a subrange of
     // an object.
     BoundsExpr *LValueBounds(Expr *E) {
-      assert(E->isLValue());
+      if (!E->isLValue()) return CreateBoundsNone();
       // TODO: handle side effects within E
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
