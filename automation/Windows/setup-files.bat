@@ -59,7 +59,7 @@ cd %BUILD_SOURCESDIRECTORY%\llvm\tools\clang
 if ERRORLEVEL 1 (goto cmdfailed)
 git fetch origin
 if ERRORLEVEL 1 (goto cmdfailed)
-git checkout -f %CHECKEDC_BRANCH%
+git checkout -f %CLANG_BRANCH%
 if ERRORLEVEL 1 (goto cmdfailed)
 git pull -f origin %CLANG_BRANCH%
 if ERRORLEVEL 1 (goto cmdfailed)
