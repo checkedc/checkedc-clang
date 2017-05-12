@@ -970,6 +970,21 @@ ProgramInfo::getVariableHelper(Expr *E,
     if (D == nullptr) {
       // There are a few reasons that we couldn't get a decl. For example,
       // the call could be done through an array subscript. 
+      Expr *CalledExpr = CE->getCallee();
+      std::set<ConstraintVariable*> tmp = getVariableHelper(CalledExpr, V, C);
+      std::set<ConstraintVariable*> T;
+
+      for (ConstraintVariable *C : tmp) {
+        if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+          T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
+        } else if(PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
+          if (FVConstraint *FV = PV->getFV()) {
+            T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
+          }
+        }
+      }
+
+      return T;
     }
     assert(D != nullptr);
     // D could be a FunctionDecl, or a VarDecl, or a FieldDecl. 
