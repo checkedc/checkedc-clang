@@ -207,8 +207,9 @@ void f_test(void) {
 //CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> )> arr[3] =  { 0 };
 
 // Arrays of function pointers.
-/*void f_test2(int i, int *(*arr[])(int *)) {
+void f_test2(int i, int *(*arr[])(int *)) {
   int j = 0;
   int *k = arr[i](&j);
   return;
-} */
+}
+//CHECK: void f_test2(int i, _Ptr<_Ptr<int> (_Ptr<int> )> arr[]) {

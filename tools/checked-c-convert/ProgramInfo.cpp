@@ -35,6 +35,18 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 {   
 	QualType QTy = QT;
 	const Type *Ty = QTy.getTypePtr();
+  // If the type is a decayed type, then maybe this is the result of 
+  // decaying an array to a pointer. If the original type is some 
+  // kind of array type, we want to use that instead. 
+  if (const DecayedType *DC = dyn_cast<DecayedType>(Ty)) {
+    QualType QTytmp = DC->getOriginalType();
+    const Type * Tytmp = QTytmp.getTypePtr();
+    if (Tytmp->isArrayType() || Tytmp->isIncompleteArrayType()) {
+      QTy = QTytmp;
+      Ty = QTy.getTypePtr();
+    }
+  }
+
 	bool isTypedef = false;
 
 	if (Ty->getAs<TypedefType>())
@@ -42,7 +54,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 
   arrPresent = false;
 	while (Ty->isPointerType() || Ty->isArrayType()) {
-    if (Ty->isArrayType()) {
+    if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
+      arrPresent = true;
       // If it's an array, then we need both a constraint variable 
       // for each level of the array, and a constraint variable for 
       // values stored in the array. 
@@ -51,7 +64,6 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
-        arrPresent = true;
         arrSizes[K] = std::pair<OriginalArrType,uint64_t>(
                         O_SizedArray,CAT->getSize().getZExtValue());
       } else {
@@ -126,7 +138,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
-	if (BaseType == "struct __va_list_tag *" || BaseType == "va_list")
+	if (BaseType == "struct __va_list_tag *" || BaseType == "va_list" || 
+      BaseType == "struct __va_list_tag")
 		for (const auto &V : vars)
 			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }
