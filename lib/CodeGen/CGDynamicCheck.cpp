@@ -101,11 +101,11 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
 
   // Make the lower check
   Value *LowerInt = Builder.CreatePtrToInt(Lower.getPointer(), IntPtrTy, "_Dynamic_check.lower");
-  Value *LowerChk = Builder.CreateICmpSLE(LowerInt, PtrInt, "_Dynamic_check.lower_cmp");
+  Value *LowerChk = Builder.CreateICmpULE(LowerInt, PtrInt, "_Dynamic_check.lower_cmp");
 
   // Make the upper check
   Value* UpperInt = Builder.CreatePtrToInt(Upper.getPointer(), IntPtrTy, "_Dynamic_check.upper");
-  Value* UpperChk = Builder.CreateICmpSLT(PtrInt, UpperInt, "_Dynamic_check.upper_cmp");
+  Value* UpperChk = Builder.CreateICmpULT(PtrInt, UpperInt, "_Dynamic_check.upper_cmp");
 
   // Emit both checks
   EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
