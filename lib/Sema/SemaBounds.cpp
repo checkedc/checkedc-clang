@@ -924,8 +924,12 @@ namespace {
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return true;
     }
-
-    // This includes both ImplicitCastExprs and CStyleCastExprs
+	    
+    // If inferred bounds of e1 are bounds(none), compile-time error. 
+    // If inferred bounds of e1 are bounds(any), no runtime checks. 
+    // Otherwise, the inferred bounds is bounds(lb, ub). 
+    // bounds of cast operation is bounds(e2, e3). 
+    // In code generation, it inserts dynamic_check(lb <= e2 && e3 <= ub). 
     bool VisitCastExpr(CastExpr *E) {
       CheckDisallowedFunctionPtrCasts(E);
 
