@@ -399,7 +399,11 @@ namespace {
     // should be the range of an object in memory or a subrange of
     // an object.
     BoundsExpr *LValueBounds(Expr *E) {
-      assert(E->isLValue());
+			// When type-checking errors, the resulting AST may not have 
+			// lvalue attribute to a node when it should. Then, if we use 
+			// assert, the compiler crashes. This should be okay, because 
+			// this will only occur when compiler has an error.
+			if (!E->isLValue()) return CreateBoundsNone();
       // TODO: handle side effects within E
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
