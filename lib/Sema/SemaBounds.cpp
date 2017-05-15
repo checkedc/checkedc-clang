@@ -399,11 +399,7 @@ namespace {
     // should be the range of an object in memory or a subrange of
     // an object.
     BoundsExpr *LValueBounds(Expr *E) {
-			// When type-checking errors, the resulting AST may not have 
-			// lvalue attribute to a node when it should. Then, if we use 
-			// assert, the compiler crashes. This should be okay, because 
-			// this will only occur when compiler has an error.
-			if (!E->isLValue()) return CreateBoundsNone();
+      assert(E->isLValue());
       // TODO: handle side effects within E
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
@@ -924,12 +920,8 @@ namespace {
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return true;
     }
-	    
-    // If inferred bounds of e1 are bounds(none), compile-time error. 
-    // If inferred bounds of e1 are bounds(any), no runtime checks. 
-    // Otherwise, the inferred bounds is bounds(lb, ub). 
-    // bounds of cast operation is bounds(e2, e3). 
-    // In code generation, it inserts dynamic_check(lb <= e2 && e3 <= ub). 
+
+    // This includes both ImplicitCastExprs and CStyleCastExprs
     bool VisitCastExpr(CastExpr *E) {
       CheckDisallowedFunctionPtrCasts(E);
 
@@ -942,6 +934,11 @@ namespace {
         return true;
       }
 
+      // If inferred bounds of e1 are bounds(none), compile-time error.
+      // If inferred bounds of e1 are bounds(any), no runtime checks.
+      // Otherwise, the inferred bounds is bounds(lb, ub).
+      // bounds of cast operation is bounds(e2, e3).
+      // In code generation, it inserts dynamic_check(lb <= e2 && e3 <= ub).
       if (CK == CK_DynamicPtrBounds) {
         Expr *subExpr = E->getSubExpr();
         BoundsExpr *subExprBounds = S.InferRValueBounds(subExpr);
