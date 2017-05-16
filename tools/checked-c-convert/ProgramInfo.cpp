@@ -32,7 +32,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 	DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) : 
 	ConstraintVariable(ConstraintVariable::PointerVariable, 
 					   tyToStr(QT.getTypePtr()),N),FV(nullptr)
-{   
+{
 	QualType QTy = QT;
 	const Type *Ty = QTy.getTypePtr();
   // If the type is a decayed type, then maybe this is the result of 
@@ -40,8 +40,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
   // kind of array type, we want to use that instead. 
   if (const DecayedType *DC = dyn_cast<DecayedType>(Ty)) {
     QualType QTytmp = DC->getOriginalType();
-    const Type * Tytmp = QTytmp.getTypePtr();
-    if (Tytmp->isArrayType() || Tytmp->isIncompleteArrayType()) {
+    if (QTytmp->isArrayType() || QTytmp->isIncompleteArrayType()) {
       QTy = QTytmp;
       Ty = QTy.getTypePtr();
     }
@@ -72,12 +71,20 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       }
 
       K++;
+     
+      // Boil off the typedefs in the array case. 
+      while(const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
+        QTy = tydTy->desugar();
+        Ty = QTy.getTypePtr();
+      }
 
       // Iterate.
-      // TODO: Why is it the case that we can only get the unqualified type
-      //       of an array element? That's okay, right? 
-      Ty = Ty->getArrayElementTypeNoTypeQual();
-      QTy = QualType(Ty, 0);
+      if(const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
+        QTy = arrTy->getElementType();
+        Ty = QTy.getTypePtr();
+      } else {
+        llvm_unreachable("unknown array type");
+      }
     } else {
       // Allocate a new constraint variable for this level of pointer.
       vars.insert(K);

@@ -122,7 +122,7 @@ private:
   //  * A sized array, then U -> (a,b) , a = O_SizedArray, b is static size.
   //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
   std::map<uint32_t,std::pair<OriginalArrType,uint64_t>> arrSizes;
-  // If for all U in arrSized, any U -> (a,b) where a = O_SizedArray or 
+  // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or 
   // O_UnSizedArray, arrPresent is true.
   bool arrPresent;
 public:

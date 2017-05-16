@@ -579,9 +579,10 @@ public:
 
         if (FE && FE->isValid()) {
           // We only want to re-write a record if it contains
-          // any pointer types. Most record types probably do,
+          // any pointer types, to include array types. 
+          // Most record types probably do,
           // but let's scan it and not consider any records
-          // that don't have any pointers.
+          // that don't have any pointers or arrays. 
 
           for (const auto &D : Definition->fields())
             if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
