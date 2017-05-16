@@ -284,7 +284,8 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
 // types that are either return values or paraemeters for the function.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS, const ASTContext &C) :
-  FunctionVariableConstraint(D->getType().getTypePtr(), K, D, D->getName(), CS, C) 
+  FunctionVariableConstraint(D->getType().getTypePtr(), K, D, 
+    (D->getDeclName().isIdentifier() ? D->getName() : ""), CS, C) 
   { }
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
