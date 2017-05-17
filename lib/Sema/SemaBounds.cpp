@@ -942,6 +942,7 @@ namespace {
       if (CK == CK_DynamicPtrBounds) {
         Expr *subExpr = E->getSubExpr();
         BoundsExpr *subExprBounds = S.InferRValueBounds(subExpr);
+        BoundsExpr *SrcBounds = S.InferRValueBounds(E);
 
         if (subExprBounds->isNone()) {
           S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
