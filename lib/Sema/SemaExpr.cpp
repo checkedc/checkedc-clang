@@ -772,10 +772,7 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
   // Only do implicit cast for a function type, but not for a pointer
   // to function type.
   if (Ty->isFunctionType()) {
-    CheckedPointerKind kind = CheckedPointerKind::Unchecked;
-    if (getCurScope()->isCheckedScope())
-      kind = CheckedPointerKind::Ptr;
-    Res = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
+    Res = ImpCastExprToType(E, Context.getPointerType(Ty),
                             CK_FunctionToPointerDecay).get();
     if (Res.isInvalid())
       return ExprError();
