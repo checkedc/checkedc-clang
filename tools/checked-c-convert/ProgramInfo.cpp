@@ -29,12 +29,12 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
   PointerVariableConstraint(D->getType(), K, D, D->getName(), CS, C) { }
 
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_t &K,
-	DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) : 
-	ConstraintVariable(ConstraintVariable::PointerVariable, 
-					   tyToStr(QT.getTypePtr()),N),FV(nullptr)
+  DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) : 
+  ConstraintVariable(ConstraintVariable::PointerVariable, 
+             tyToStr(QT.getTypePtr()),N),FV(nullptr)
 {
-	QualType QTy = QT;
-	const Type *Ty = QTy.getTypePtr();
+  QualType QTy = QT;
+  const Type *Ty = QTy.getTypePtr();
   // If the type is a decayed type, then maybe this is the result of 
   // decaying an array to a pointer. If the original type is some 
   // kind of array type, we want to use that instead. 
@@ -46,13 +46,13 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
     }
   }
 
-	bool isTypedef = false;
+  bool isTypedef = false;
 
-	if (Ty->getAs<TypedefType>())
-		isTypedef = true;
+  if (Ty->getAs<TypedefType>())
+    isTypedef = true;
 
   arrPresent = false;
-	while (Ty->isPointerType() || Ty->isArrayType()) {
+  while (Ty->isPointerType() || Ty->isArrayType()) {
     if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
       arrPresent = true;
       // If it's an array, then we need both a constraint variable 
@@ -116,39 +116,39 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       if (TyName == "struct __va_list_tag *" || TyName == "va_list")
         break;
 
-		  // Iterate.
-		  QTy = QTy.getSingleStepDesugaredType(C);
-		  QTy = QTy.getTypePtr()->getPointeeType();
-		  Ty = QTy.getTypePtr();
+      // Iterate.
+      QTy = QTy.getSingleStepDesugaredType(C);
+      QTy = QTy.getTypePtr()->getPointeeType();
+      Ty = QTy.getTypePtr();
     }
-	}
+  }
 
-	// If, after boiling off the pointer-ness from this type, we hit a 
-	// function, then create a base-level FVConstraint that we carry 
-	// around too.
-	if (Ty->isFunctionType())
-		// C function-pointer type declarator syntax embeds the variable 
-		// name within the function-like syntax. For example:
-		//    void (*fname)(int, int) = ...;
-		// If a typedef'ed type name is used, the name can be omitted 
-		// because it is not embedded like that. Instead, it has the form
-		//    tn fname = ...,
-		// where tn is the typedef'ed type name.
-		// There is possibly something more elegant to do in the code here.
-		FV = new FVConstraint(Ty, K, D, (isTypedef ? "" : N), CS, C);
+  // If, after boiling off the pointer-ness from this type, we hit a 
+  // function, then create a base-level FVConstraint that we carry 
+  // around too.
+  if (Ty->isFunctionType())
+    // C function-pointer type declarator syntax embeds the variable 
+    // name within the function-like syntax. For example:
+    //    void (*fname)(int, int) = ...;
+    // If a typedef'ed type name is used, the name can be omitted 
+    // because it is not embedded like that. Instead, it has the form
+    //    tn fname = ...,
+    // where tn is the typedef'ed type name.
+    // There is possibly something more elegant to do in the code here.
+    FV = new FVConstraint(Ty, K, D, (isTypedef ? "" : N), CS, C);
 
-	BaseType = tyToStr(Ty);
+  BaseType = tyToStr(Ty);
 
-	if (QTy.isConstQualified()) {
-		BaseType = "const " + BaseType;
-	}
+  if (QTy.isConstQualified()) {
+    BaseType = "const " + BaseType;
+  }
 
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
-	if (BaseType == "struct __va_list_tag *" || BaseType == "va_list" || 
+  if (BaseType == "struct __va_list_tag *" || BaseType == "va_list" || 
       BaseType == "struct __va_list_tag")
-		for (const auto &V : vars)
-			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+    for (const auto &V : vars)
+      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
@@ -440,7 +440,7 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   assert(V != nullptr);
   s = V->mkString(E);
   s = s + "(";
-	std::vector<std::string> parmStrs;
+  std::vector<std::string> parmStrs;
   for (const auto &I : this->paramVars) {
     // TODO likewise punting here.
     assert(I.size() > 0);
