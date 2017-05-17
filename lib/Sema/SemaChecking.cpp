@@ -10652,6 +10652,9 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
     DeclKind = 3; // member
     Ty = Field->getType();
   }
+  else {
+    Ty = Decl->getType();
+  }
 
   bool Result = true;
   unsigned TypeKind = 0;
