@@ -399,7 +399,9 @@ namespace {
     // should be the range of an object in memory or a subrange of
     // an object.
     BoundsExpr *LValueBounds(Expr *E) {
-      assert(E->isLValue());
+      // E may not be an lvalue if there is a typechecking error when struct 
+      // accesses member array incorrectly.
+      if (!E->isLValue()) return CreateBoundsNone();
       // TODO: handle side effects within E
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
