@@ -406,7 +406,14 @@ public:
               i++;
             }
           } else {
-            llvm_unreachable("No FV for function pointer call");
+            // This can happen when someone does something really wacky, like 
+            // cast a char* to a function pointer, then call it. Constrain
+            // everything. 
+            Constraints &CS = Info.getConstraints();
+            for (const auto &A : E->arguments()) 
+              for (const auto &Ct : Info.getVariable(A, Context)) 
+                Ct->constrainTo(CS, CS.getWild());
+            C->constrainTo(CS, CS.getWild());
           }
         }
       } else {
