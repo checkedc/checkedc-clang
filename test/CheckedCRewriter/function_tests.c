@@ -33,7 +33,7 @@ void *xyzzy(int *a, int b) {
 
   return 0;
 }
-//CHECK: void* xyzzy(_Ptr<int>  a, int b) {
+//CHECK: void* xyzzy(_Ptr<int> a, int b) {
 //CHECK-NEXT: *a = b;
 
 void xyzzy_driver(void) {
@@ -43,7 +43,7 @@ void xyzzy_driver(void) {
   xyzzy_ptr(v, u);
 }
 //CHECK: void xyzzy_driver(void) {
-//CHECK-NEXT: _Ptr<void* (_Ptr<int> , int )>  xyzzy_ptr = &xyzzy;
+//CHECK-NEXT: _Ptr<void* (_Ptr<int> , int )> xyzzy_ptr = &xyzzy;
 //CHECK-NEXT: int u = 0;
 //CHECK-NEXT: _Ptr<int> v = &u;
 //CHECK-NEXT: xyzzy_ptr(v, u);
@@ -61,7 +61,7 @@ void bad_mut_driver(void) {
   bad_mut_ptr(b, 2, 0);
 }
 //CHECK: void bad_mut_driver(void) {
-//CHECK-NEXT: _Ptr<void (int* , int , int )> bad_mut_ptr  = &bad_mut;
+//CHECK-NEXT: _Ptr<void (int* , int , int )> bad_mut_ptr = &bad_mut;
 //CHECK-NEXT: int a = 0;
 //CHECK-NEXT: int *b = &a;
 //CHECK-NEXT: bad_mut_ptr(b, 2, 0);
@@ -178,3 +178,38 @@ int *(*get_mut(void))(int*,int) {
   return &ok_mut_clone;
 }
 //CHECK: int *(*get_mut(void))(int*,int) {
+
+int *p1(int *a) {
+  return a;
+}
+
+int *p2(int *a) {
+  *a = *a + 1;
+  return a;
+}
+
+int *p3(int *a) {
+  *a = *(a+4) + 1;
+  return a;
+}
+
+// Arrays of function pointers.
+void f_test(void) {
+  int * (*arr[3])(int *) = { 0 };
+
+  arr[0] = p1;
+  arr[1] = p2;
+  arr[2] = 0;
+
+  return;
+} 
+//CHECK: void f_test(void) {
+//CHECK-NEXT: _Ptr<_Ptr<int> (_Ptr<int> )> arr[3] =  { 0 };
+
+// Arrays of function pointers.
+void f_test2(int i, int *(*arr[])(int *)) {
+  int j = 0;
+  int *k = arr[i](&j);
+  return;
+}
+//CHECK: void f_test2(int i, _Ptr<_Ptr<int> (_Ptr<int> )> arr[]) {

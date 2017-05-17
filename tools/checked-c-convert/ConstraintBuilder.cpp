@@ -149,7 +149,7 @@ public:
       SourceRange SR = D->getSourceRange();
 
       if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
-        D->getType()->isPointerType()) {
+        (D->getType()->isPointerType() || D->getType()->isArrayType())) {
         Info.addVariable(D, S, Context);
 
         specialCaseVarIntros(D, Info, Context);
@@ -186,7 +186,7 @@ public:
   void constrainAssign( std::set<ConstraintVariable*> V, 
                         QualType lhsType,
                         Expr *RHS) {
-    if (!RHS)
+    if (!RHS || V.size() == 0)
       return;
 
     Constraints &CS = Info.getConstraints();
@@ -406,7 +406,14 @@ public:
               i++;
             }
           } else {
-            llvm_unreachable("No FV for function pointer call");
+            // This can happen when someone does something really wacky, like 
+            // cast a char* to a function pointer, then call it. Constrain
+            // everything. 
+            Constraints &CS = Info.getConstraints();
+            for (const auto &A : E->arguments()) 
+              for (const auto &Ct : Info.getVariable(A, Context)) 
+                Ct->constrainTo(CS, CS.getWild());
+            C->constrainTo(CS, CS.getWild());
           }
         }
       } else {
@@ -436,14 +443,7 @@ public:
   }
 
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(E->getBase(), Context);
-    Constraints &CS = Info.getConstraints();
-    for (const auto &C : Var) 
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) 
-        for (const auto &D : PVC->getCvars())
-          CS.addConstraint(CS.createEq(CS.getOrCreateVar(D), CS.getArr()));
-      
+    constrainExprFirstArr(E->getBase());
     return true;
   }
 
@@ -477,6 +477,21 @@ public:
                 CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
       }
   }
+
+  void constrainExprFirstArr(Expr *E) {
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(E, Context);
+    Constraints &CS = Info.getConstraints();
+    for (const auto &I : Var)
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0) {
+          CS.addConstraint(
+              CS.createEq(
+                CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getArr()));
+        }
+      }
+  }
+
 
   bool VisitUnaryPreInc(UnaryOperator *O) {
     constrainExprFirst(O->getSubExpr());
@@ -531,8 +546,9 @@ public:
 
   bool VisitVarDecl(VarDecl *G) {
     
-    if (G->hasGlobalStorage() && G->getType()->isPointerType())
-      Info.addVariable(G, nullptr, Context);
+    if (G->hasGlobalStorage())
+      if (G->getType()->isPointerType() || G->getType()->isArrayType())
+        Info.addVariable(G, nullptr, Context);
 
     Info.seeGlobalDecl(G);
 
@@ -570,12 +586,13 @@ public:
 
         if (FE && FE->isValid()) {
           // We only want to re-write a record if it contains
-          // any pointer types. Most record types probably do,
+          // any pointer types, to include array types. 
+          // Most record types probably do,
           // but let's scan it and not consider any records
-          // that don't have any pointers.
+          // that don't have any pointers or arrays. 
 
           for (const auto &D : Definition->fields())
-            if (D->getType()->isPointerType()) {
+            if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
               Info.addVariable(D, NULL, Context);
               specialCaseVarIntros(D, Info, Context);
             }

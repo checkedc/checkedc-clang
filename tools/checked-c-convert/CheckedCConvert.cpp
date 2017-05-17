@@ -140,11 +140,12 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
                toRewrite = toRewrite->getPreviousDecl()) {
             int U = toRewrite->getNumParams();
             if (parmIndex < U) {
-              // TODO these declarations could get us into deeper header files.
+              // TODO these declarations could get us into deeper 
+              // header files.
               ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
               assert(Rewrite != NULL);
               SourceRange TR = Rewrite->getSourceRange();
-              std::string sRewrite = N.second + " " + Rewrite->getNameAsString();
+              std::string sRewrite = N.second;
 
               if (canRewrite(R, TR))
                 R.ReplaceText(TR, sRewrite);
@@ -162,7 +163,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
           Where->dump();
         }
         SourceRange TR = VD->getSourceRange();
-        std::string sRewrite = N.second + " " + VD->getNameAsString();
+        std::string sRewrite = N.second;
 
         // Is there an initializer? If there is, change TR so that it points
         // to the START of the SourceRange of the initializer text, and drop
@@ -170,7 +171,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         if (VD->hasInit()) {
           SourceLocation eqLoc = VD->getInitializerStartLoc();
           TR.setEnd(eqLoc);
-          sRewrite = sRewrite + " =";
+          sRewrite = sRewrite + " = ";
         }
 
         // Is it a variable type? This is the easy case, we can re-write it
@@ -247,7 +248,6 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
 
             if (found) {
               newMLDecl << N.second;
-              newMLDecl << " " << VDL->getNameAsString();
               if (Expr *E = VDL->getInit()) {
                 newMLDecl << " = ";
                 E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
@@ -299,7 +299,7 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
         R.ReplaceText(SR, N.second);
     } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getSourceRange();
-      std::string sRewrite = N.second + " " + FD->getNameAsString();
+      std::string sRewrite = N.second;
 
       if (canRewrite(R, SR))
         R.ReplaceText(SR, sRewrite);

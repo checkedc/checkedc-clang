@@ -235,3 +235,22 @@ void cvxqqef(void) {
 //CHECK-NEXT: int a = 0;
 //CHECK-NEXT: int *b = &a;
 //CHECK-NEXT: _Ptr<int> c = &a;
+
+// Check that constraints involving arrays work.
+void ptrarr(void) {
+  int *vals[4] = { 0 };
+  int a = 0;
+  int b = 0;
+  int c = 0;
+  int d = 0;
+
+  vals[0] = &a;
+  vals[1] = &b;
+  vals[2] = &c;
+  vals[3] = &d;
+
+  return;
+}
+//CHECK: void ptrarr(void) { 
+//CHECK-NEXT: _Ptr<int> vals[4] =  { 0 };
+
