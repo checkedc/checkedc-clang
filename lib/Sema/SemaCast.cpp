@@ -2565,7 +2565,15 @@ void CastOperation::CheckCStyleCast() {
     unsigned TypeKind = 0;
     bool HasUncheckedType = DestType->hasUncheckedType(TypeKind);
     bool HasVariadicType = DestType->hasVariadicType();
-    if (HasUncheckedType || HasVariadicType) {
+    bool ConstructsNullPointer = false;
+    if (HasUncheckedType)
+      if (DestType->isVoidPointerType() &&
+          !SrcExpr.isInvalid()) {
+        const IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(SrcExpr.get());
+        if (Lit && !Lit->getValue())
+         ConstructsNullPointer = true;
+      }
+    if ((HasUncheckedType && !ConstructsNullPointer) || HasVariadicType) {
       if (HasUncheckedType) {
         Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
             << TypeKind;
