@@ -772,7 +772,10 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
   // Only do implicit cast for a function type, but not for a pointer
   // to function type.
   if (Ty->isFunctionType()) {
-    Res = ImpCastExprToType(E, Context.getPointerType(Ty),
+    CheckedPointerKind kind = CheckedPointerKind::Unchecked;
+    if (getCurScope()->isCheckedScope())
+      kind = CheckedPointerKind::Ptr;
+    Res = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
                             CK_FunctionToPointerDecay).get();
     if (Res.isInvalid())
       return ExprError();
@@ -1770,6 +1773,14 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
       if (!CheckCUDACall(NameInfo.getLoc(), Callee))
         return ExprError();
 
+  // Checked C - no-prototype function is not allowed in checked scope.
+  // KNR parameter function has no-prototype function proto type
+  if (getCurScope()->isCheckedScope()) {
+    if (Ty->isFunctionNoProtoType()) {
+      Diag(NameInfo.getLoc(), diag::err_checked_scope_no_prototype_func);
+      return ExprError();
+    }
+  }
   bool RefersToCapturedVariable =
       isa<VarDecl>(D) &&
       NeedToCaptureVariable(cast<VarDecl>(D), NameInfo.getLoc());
