@@ -3373,13 +3373,35 @@ public:
               (const FunctionProtoType *)CallArgTypeInfo;
           if (FPT && FPT->hasParamBounds()) {
             const BoundsExpr *Bounds = FPT->getParamBounds(N);
-            // if it has interop type, check interop type as well as the type
-            if (Bounds &&
-                Bounds->getKind() == BoundsExpr::Kind::InteropTypeAnnotation) {
-              const InteropTypeBoundsAnnotation *annot =
-                  dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
-              interop_ty1 =
-                  getContext().getCanonicalType(annot->getType()).getTypePtr();
+            if (Bounds) {
+              switch (Bounds->getKind()) {
+              case BoundsExpr::Kind::InteropTypeAnnotation: {
+                const InteropTypeBoundsAnnotation *Annot =
+                    dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
+                interop_ty1 = getContext()
+                                  .getCanonicalType(Annot->getType())
+                                  .getTypePtr();
+                break;
+              }
+              case BoundsExpr::Kind::ByteCount:
+              case BoundsExpr::Kind::ElementCount:
+              case BoundsExpr::Kind::Range: {
+                QualType Ty = FPT->getParamType(N);
+                if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
+                  if (PtrType->isUnchecked()) {
+                    interop_ty1 =
+                        getContext()
+                            .getCanonicalType(getContext().getPointerType(
+                                PtrType->getPointeeType(),
+                                CheckedPointerKind::Array))
+                            .getTypePtr();
+                  }
+                }
+                break;
+              }
+              default:
+                break;
+              }
             }
           }
         }

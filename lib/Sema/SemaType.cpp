@@ -3638,6 +3638,8 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
         // become checked array types too.
         if (const ParmVarDecl *ParmVar = dyn_cast<ParmVarDecl>(TargetDecl))
           Ty = ParmVar->getOriginalType();
+        else if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(TargetDecl))
+          Ty = FD->getReturnType();
         else
           Ty = Decl->getType();
 

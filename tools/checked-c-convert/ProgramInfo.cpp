@@ -26,80 +26,129 @@ tyToStr(const Type *T) {
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS, const ASTContext &C) :
-  PointerVariableConstraint(D->getType(), K, D->getName(), CS, C) { }
+  PointerVariableConstraint(D->getType(), K, D, D->getName(), CS, C) { }
 
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_t &K,
-	std::string N, Constraints &CS, const ASTContext &C) : 
-	ConstraintVariable(ConstraintVariable::PointerVariable, 
-					   tyToStr(QT.getTypePtr())),FV(nullptr)
-{ 
-	QualType QTy = QT;
-	const Type *Ty = QTy.getTypePtr();
-	bool isTypedef = false;
+  DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) : 
+  ConstraintVariable(ConstraintVariable::PointerVariable, 
+             tyToStr(QT.getTypePtr()),N),FV(nullptr)
+{
+  QualType QTy = QT;
+  const Type *Ty = QTy.getTypePtr();
+  // If the type is a decayed type, then maybe this is the result of 
+  // decaying an array to a pointer. If the original type is some 
+  // kind of array type, we want to use that instead. 
+  if (const DecayedType *DC = dyn_cast<DecayedType>(Ty)) {
+    QualType QTytmp = DC->getOriginalType();
+    if (QTytmp->isArrayType() || QTytmp->isIncompleteArrayType()) {
+      QTy = QTytmp;
+      Ty = QTy.getTypePtr();
+    }
+  }
 
-	if (Ty->getAs<TypedefType>())
-		isTypedef = true;
+  bool isTypedef = false;
 
-	while (Ty->isPointerType()) {
-		// Allocate a new constraint variable for this level of pointer.
-		vars.insert(K);
-		VarAtom * V = CS.getOrCreateVar(K);
-   
-    if (Ty->isCheckedPointerType()) {
-      if (Ty->isCheckedPointerPtrType()) {
-        // Constrain V so that it can't be either wild or an array.
-        CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr()))); 
-        CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
-        ConstrainedVars.insert(K);
-      } else if (Ty->isCheckedPointerArrayType()) {
-        llvm_unreachable("unsupported!");
+  if (Ty->getAs<TypedefType>())
+    isTypedef = true;
+
+  arrPresent = false;
+  while (Ty->isPointerType() || Ty->isArrayType()) {
+    if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
+      arrPresent = true;
+      // If it's an array, then we need both a constraint variable 
+      // for each level of the array, and a constraint variable for 
+      // values stored in the array. 
+      vars.insert(K);
+      CS.getOrCreateVar(K);
+
+      // See if there is a constant size to this array type at this position.
+      if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
+        arrSizes[K] = std::pair<OriginalArrType,uint64_t>(
+                        O_SizedArray,CAT->getSize().getZExtValue());
+      } else {
+        arrSizes[K] = std::pair<OriginalArrType,uint64_t>(
+                        O_UnSizedArray,0);
       }
-    } 
 
-		// Save here if QTy is qualified or not into a map that 
-		// indexes K to the qualification of QTy, if any.
-		if (QTy.isConstQualified()) 
-			QualMap.insert(
-				std::pair<uint32_t, Qualification>(K, ConstQualification));
+      K++;
+     
+      // Boil off the typedefs in the array case. 
+      while(const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
+        QTy = tydTy->desugar();
+        Ty = QTy.getTypePtr();
+      }
 
-		K++;
-    std::string TyName = tyToStr(Ty);
-    // TODO: Github issue #61: improve handling of types for
-    // // variable arguments.
-		if (TyName == "struct __va_list_tag *" || TyName == "va_list")
-			break;
+      // Iterate.
+      if(const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
+        QTy = arrTy->getElementType();
+        Ty = QTy.getTypePtr();
+      } else {
+        llvm_unreachable("unknown array type");
+      }
+    } else {
+      // Allocate a new constraint variable for this level of pointer.
+      vars.insert(K);
+      VarAtom * V = CS.getOrCreateVar(K);
+     
+      if (Ty->isCheckedPointerType()) {
+        if (Ty->isCheckedPointerPtrType()) {
+          // Constrain V so that it can't be either wild or an array.
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr()))); 
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
+          ConstrainedVars.insert(K);
+        } else if (Ty->isCheckedPointerArrayType()) {
+          llvm_unreachable("unsupported!");
+        }
+      } 
 
-		// Iterate.
-		QTy = QTy.getSingleStepDesugaredType(C);
-		QTy = QTy.getTypePtr()->getPointeeType();
-		Ty = QTy.getTypePtr();
-	}
+      // Save here if QTy is qualified or not into a map that 
+      // indexes K to the qualification of QTy, if any.
+      if (QTy.isConstQualified()) 
+        QualMap.insert(
+          std::pair<uint32_t, Qualification>(K, ConstQualification));
 
-	// If, after boiling off the pointer-ness from this type, we hit a 
-	// function, then create a base-level FVConstraint that we carry 
-	// around too.
-	if (Ty->isFunctionType())
-		// C function-pointer type declarator syntax embeds the variable 
-		// name within the function-like syntax. For example:
-		//    void (*fname)(int, int) = ...;
-		// If a typedef'ed type name is used, the name can be omitted 
-		// because it is not embedded like that. Instead, it has the form
-		//    tn fname = ...,
-		// where tn is the typedef'ed type name.
-		// There is possibly something more elegant to do in the code here.
-		FV = new FVConstraint(Ty, K, (isTypedef ? "" : N), CS, C);
+      arrSizes[K] = std::pair<OriginalArrType,uint64_t>(O_Pointer,0);
+ 
+      K++;
+      std::string TyName = tyToStr(Ty);
+      // TODO: Github issue #61: improve handling of types for
+      // // variable arguments.
+      if (TyName == "struct __va_list_tag *" || TyName == "va_list")
+        break;
 
-	BaseType = tyToStr(Ty);
+      // Iterate.
+      QTy = QTy.getSingleStepDesugaredType(C);
+      QTy = QTy.getTypePtr()->getPointeeType();
+      Ty = QTy.getTypePtr();
+    }
+  }
 
-	if (QTy.isConstQualified()) {
-		BaseType = "const " + BaseType;
-	}
+  // If, after boiling off the pointer-ness from this type, we hit a 
+  // function, then create a base-level FVConstraint that we carry 
+  // around too.
+  if (Ty->isFunctionType())
+    // C function-pointer type declarator syntax embeds the variable 
+    // name within the function-like syntax. For example:
+    //    void (*fname)(int, int) = ...;
+    // If a typedef'ed type name is used, the name can be omitted 
+    // because it is not embedded like that. Instead, it has the form
+    //    tn fname = ...,
+    // where tn is the typedef'ed type name.
+    // There is possibly something more elegant to do in the code here.
+    FV = new FVConstraint(Ty, K, D, (isTypedef ? "" : N), CS, C);
+
+  BaseType = tyToStr(Ty);
+
+  if (QTy.isConstQualified()) {
+    BaseType = "const " + BaseType;
+  }
 
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
-	if (BaseType == "struct __va_list_tag *" || BaseType == "va_list")
-		for (const auto &V : vars)
-			CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+  if (BaseType == "struct __va_list_tag *" || BaseType == "va_list" || 
+      BaseType == "struct __va_list_tag")
+    for (const auto &V : vars)
+      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }
 
 void PointerVariableConstraint::print(raw_ostream &O) const {
@@ -120,10 +169,11 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
 // string that can be replaced in the source code.
 std::string
 PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
-  // TODO: the use of 's' is inefficient, use a stringstream later.
-  std::string s = "";
+  std::ostringstream ss;
+  std::ostringstream pss;
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
+  bool emittedName = false;
   for (const auto &V : vars) {
     VarAtom VA(V);
     ConstAtom *C = E[&VA];
@@ -140,37 +190,66 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
       q = QualMap.find(V);
       if (q != QualMap.end())
         if (q->second == ConstQualification)
-          s = s + "const ";
+          ss << "const ";
 
       // We need to check and see if this level of variable
       // is constrained by a bounds safe interface. If it is, 
       // then we shouldn't re-write it. 
       if (ConstrainedVars.find(V) == ConstrainedVars.end()) {
         emittedBase = false;
-        s = s + "_Ptr<";
-
+        ss << "_Ptr<";
         caratsToAdd++;
         break;
       }
-      // ELSE FALL THROUGH! 
     case Atom::A_Arr:
+      // If it's an Arr, then the character we substitute should
+      // be [] instead of *, IF, the original type was an array. 
+      // And, if the original type was a sized array of size K,
+      // we should substitute [K].
+      if (arrPresent) {
+        auto i = arrSizes.find(V);
+        assert(i != arrSizes.end());
+        OriginalArrType oat = i->second.first;
+        uint64_t oas = i->second.second;
+
+        if (emittedName == false) {
+          emittedName = true;
+          pss << getName();
+        }
+        
+        switch(oat) {
+          case O_Pointer:
+            pss << "*";
+            break;
+          case O_SizedArray:
+            pss << "[" << oas << "]";
+            break;
+          case O_UnSizedArray:
+            pss << "[]";
+            break;
+        } 
+
+        break;
+      } 
+      // If there is no array in the original program, then we fall through to 
+      // the case where we write a pointer value. 
     case Atom::A_Wild:
       if (emittedBase) {
-        s = s + "*";
+        ss << "*";
       } else {
         assert(BaseType.size() > 0);
         emittedBase = true;
         if (FV) {
-          s = s + FV->mkString(E);
+          ss << FV->mkString(E);
         } else {
-          s = s + BaseType + "*";
+          ss << BaseType << "*";
         }
       }
 
       q = QualMap.find(V);
       if (q != QualMap.end())
         if (q->second == ConstQualification)
-          s = s + "const ";
+          ss << "const ";
       break;
     case Atom::A_Const:
     case Atom::A_Var:
@@ -183,20 +262,28 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
     // If we have a FV pointer, then our "base" type is a function pointer
     // type.
     if (FV) {
-      s = s + FV->mkString(E);
+      ss << FV->mkString(E);
     } else {
-      s = s + BaseType;
+      ss << BaseType;
     }
   }
 
   // Push carats onto the end of the string
   for (unsigned i = 0; i < caratsToAdd; i++) {
-    s = s + ">";
+    ss << ">";
   }
 
-  s = s + " ";
+  ss << " ";
 
-  return s;
+  std::string finalDec;
+  if (emittedName == false) {
+    ss << getName();
+    finalDec = ss.str();
+  } else {
+    finalDec = ss.str() + pss.str();
+  }
+
+  return finalDec;
 }
 
 // This describes a function, either a function pointer or a function
@@ -204,15 +291,15 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
 // types that are either return values or paraemeters for the function.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
   uint32_t &K, Constraints &CS, const ASTContext &C) :
-  FunctionVariableConstraint(D->getType().getTypePtr(), K, D->getName(), CS, C) 
+  FunctionVariableConstraint(D->getType().getTypePtr(), K, D, 
+    (D->getDeclName().isIdentifier() ? D->getName() : ""), CS, C) 
   { }
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
-    uint32_t &K, std::string N, Constraints &CS, const ASTContext &Ctx) :
-  ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty)),name(N)
+    uint32_t &K, DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &Ctx) :
+  ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty), N),name(N)
 {
   QualType returnType;
-  std::vector<QualType> paramTypes;
   hasproto = false;
   if (Ty->isFunctionPointerType()) {
     // Is this a function pointer definition?
@@ -220,6 +307,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   } else if (Ty->isFunctionProtoType()) {
     // Is this a function? 
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
+    FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
     assert(FT != nullptr); 
     returnType = FT->getReturnType();
 
@@ -233,8 +321,20 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
         QT = BE->getType();
       else
         QT = FT->getParamType(i);
-         
-      paramTypes.push_back(QT);
+
+      std::string paramName = "";
+      DeclaratorDecl *tmpD = D;
+      if (FD && i < FD->getNumParams()) {
+        ParmVarDecl *PVD = FD->getParamDecl(i);
+        if (PVD) {
+          tmpD = PVD;
+          paramName = PVD->getName();
+        }
+      }
+
+      std::set<ConstraintVariable*> C;
+      C.insert(new PVConstraint(QT, K, tmpD, paramName, CS, Ctx));
+      paramVars.push_back(C);
     }
     if (FT->hasReturnBounds()) 
       returnType = FT->getReturnBounds()->getType();
@@ -245,7 +345,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     assert(FT != nullptr);
     returnType = FT->getReturnType();
   } else {
-    Ty->dump();
     llvm_unreachable("don't know what to do");
   }
   // This has to be a mapping for all parameter/return types, even those that 
@@ -253,7 +352,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // as a type, then we will need the types for all the parameters and the
   // return values
 
-  returnVars.insert(new PVConstraint(returnType, K, N, CS, Ctx));
+  returnVars.insert(new PVConstraint(returnType, K, D, "", CS, Ctx));
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
       if (PVC->getFV())
@@ -261,12 +360,6 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
       FVC->constrainTo(CS, CS.getWild());
     }
-  }
-
-  for (auto &P : paramTypes) {
-    std::set<ConstraintVariable*> C;
-    C.insert(new PVConstraint(P, K, N, CS, Ctx));
-    paramVars.push_back(C);
   }
 }
 
@@ -310,11 +403,6 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
 bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
   bool f = false;
 
-  // TODO: bail early if we have more than one level of pointer variable and 
-  // a FV, because we'll mangle it if we do that re-write right now.
-  if (FV && vars.size() > 1)
-    return false;
-
   for (const auto &C : vars) {
     VarAtom V(C);
     ConstAtom *CS = E[&V];
@@ -352,7 +440,7 @@ FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
   assert(V != nullptr);
   s = V->mkString(E);
   s = s + "(";
-	std::vector<std::string> parmStrs;
+  std::vector<std::string> parmStrs;
   for (const auto &I : this->paramVars) {
     // TODO likewise punting here.
     assert(I.size() > 0);
@@ -745,7 +833,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   FVConstraint *F = nullptr;
   PVConstraint *P = nullptr;
   
-  if (Ty->isPointerType()) 
+  if (Ty->isPointerType() || Ty->isArrayType()) 
     // Create a pointer value for the type.
     P = new PVConstraint(D, freeKey, CS, *C);
 
@@ -842,11 +930,33 @@ ProgramInfo::getVariableHelper(Expr *E,
     std::set<ConstraintVariable*> T2 = getVariableHelper(BO->getRHS(), V, C);
     T1.insert(T2.begin(), T2.end());
     return T1;
+  } else if (ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E)) {
+    // In an array subscript, we want to do something sort of similar to taking
+    // the address or doing a dereference. 
+    std::set<ConstraintVariable *> T = getVariableHelper(AE->getBase(), V, C);
+    std::set<ConstraintVariable*> tmp;
+    for (const auto &CV : T) {
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
+        // Subtract one from this constraint. If that generates an empty 
+        // constraint, then, don't add it 
+        std::set<uint32_t> C = PVC->getCvars();
+        if(C.size() > 0) {
+          C.erase(C.begin());
+          if (C.size() > 0) {
+            bool a = PVC->getArrPresent();
+            FVConstraint *b = PVC->getFV();
+            tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a));
+          }
+        }
+      }
+    }
+
+    T.swap(tmp);
+    return T;
   } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
     std::set<ConstraintVariable *> T = 
       getVariableHelper(UO->getSubExpr(), V, C);
    
-    std::set<ConstraintVariable*> updt;
     std::set<ConstraintVariable*> tmp;
     if (UO->getOpcode() == UO_Deref) {
       for (const auto &CV : T) {
@@ -856,8 +966,11 @@ ProgramInfo::getVariableHelper(Expr *E,
           std::set<uint32_t> C = PVC->getCvars();
           if(C.size() > 0) {
             C.erase(C.begin());
-            if (C.size() > 0)
-              tmp.insert(new PVConstraint(C, PVC->getTy()));
+            if (C.size() > 0) {
+              bool a = PVC->getArrPresent();
+              FVConstraint *b = PVC->getFV();
+              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a));
+            }
           }
         } else {
           llvm_unreachable("Shouldn't dereference a function pointer!");
@@ -875,6 +988,25 @@ ProgramInfo::getVariableHelper(Expr *E,
     // Here, we need to look up the target of the call and return the
     // constraints for the return value of that function.
     Decl *D = CE->getCalleeDecl();
+    if (D == nullptr) {
+      // There are a few reasons that we couldn't get a decl. For example,
+      // the call could be done through an array subscript. 
+      Expr *CalledExpr = CE->getCallee();
+      std::set<ConstraintVariable*> tmp = getVariableHelper(CalledExpr, V, C);
+      std::set<ConstraintVariable*> T;
+
+      for (ConstraintVariable *C : tmp) {
+        if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+          T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
+        } else if(PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
+          if (FVConstraint *FV = PV->getFV()) {
+            T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
+          }
+        }
+      }
+
+      return T;
+    }
     assert(D != nullptr);
     // D could be a FunctionDecl, or a VarDecl, or a FieldDecl. 
     // Really it could be any DeclaratorDecl. 

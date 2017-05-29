@@ -25,5 +25,5 @@ int foo2(int *j) {
 	int *a = baz();
 	return *a + *j; 
 }
-//CHECK: int foo2(_Ptr<int>  j) {
-//CHECK-NEXT: _Ptr<int>  a = baz();
+//CHECK: int foo2(_Ptr<int> j) {
+//CHECK-NEXT: _Ptr<int> a = baz();
