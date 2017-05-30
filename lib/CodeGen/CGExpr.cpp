@@ -3668,7 +3668,7 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
   case CK_DynamicPtrBounds:
   case CK_AssumePtrBounds:
     return MakeNaturalAlignAddrLValue(
-        EmitDynamicBoundsCast(const_cast<CastExpr *>(E)), E->getType());
+        EmitBoundsCast(const_cast<CastExpr *>(E)), E->getType());
 
   case CK_ConstructorConversion:
   case CK_UserDefinedConversion:
@@ -4311,7 +4311,7 @@ LValue CodeGenFunction::EmitPseudoObjectLValue(const PseudoObjectExpr *E) {
   return emitPseudoObjectExpr(*this, E, true, AggValueSlot::ignored()).LV;
 }
 
-llvm::Value *CodeGenFunction::EmitDynamicBoundsCast(CastExpr *CE) {
+llvm::Value *CodeGenFunction::EmitBoundsCast(CastExpr *CE) {
   Expr *E = CE->getSubExpr();
   QualType DestTy = CE->getType();
   CastKind Kind = CE->getCastKind();
@@ -4342,8 +4342,8 @@ llvm::Value *CodeGenFunction::EmitDynamicBoundsCast(CastExpr *CE) {
   }
   if (Kind == CK_DynamicPtrBounds) {
     BoundsCastExpr *BCE = cast<BoundsCastExpr>(CE);
-    EmitDynamicNonNullCheck(Addr, E->getType());
-    EmitDynamicBoundsCheck(BCE->getBoundsExpr(), BCE->getSubBoundsExpr());
+    EmitDynamicBoundsCheck(Addr, BCE->getCastBoundsExpr(),
+                           BCE->getSubExprBoundsExpr());
   }
   return Addr.getPointer();
 }

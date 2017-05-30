@@ -942,17 +942,17 @@ namespace {
       // bounds of cast operation is bounds(e2, e3).
       // In code generation, it inserts dynamic_check(lb <= e2 && e3 <= ub).
       if (CK == CK_DynamicPtrBounds) {
-        Expr *subExpr = E->getSubExpr();
-        BoundsExpr *subExprBounds = S.InferRValueBounds(subExpr);
-        BoundsExpr *SrcBounds = S.InferRValueBounds(E);
+        Expr *SubExpr = E->getSubExpr();
+        BoundsExpr *SubExprBounds = S.InferRValueBounds(SubExpr);
+        BoundsExpr *CastBounds = S.InferRValueBounds(E);
 
-        if (subExprBounds->isNone()) {
-          S.Diag(subExpr->getLocStart(), diag::err_expected_bounds);
+        if (SubExprBounds->isNone()) {
+          S.Diag(SubExpr->getLocStart(), diag::err_expected_bounds);
         }
 
-        assert(SrcBounds);
-        E->setBoundsExpr(SrcBounds);
-        E->setSubBoundsExpr(subExprBounds);
+        assert(CastBounds);
+        E->setCastBoundsExpr(CastBounds);
+        E->setSubExprBoundsExpr(SubExprBounds);
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.

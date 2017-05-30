@@ -111,39 +111,42 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
   EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
 }
 
-void CodeGenFunction::EmitDynamicBoundsCheck(const BoundsExpr *DynamicBounds,
-                                             const BoundsExpr *SrcBounds) {
+void CodeGenFunction::EmitDynamicBoundsCheck(const Address BaseAddr,
+                                             const BoundsExpr *CastBounds,
+                                             const BoundsExpr *SubExprBounds) {
   if (!getLangOpts().CheckedC)
     return;
 
-  if (!SrcBounds || !DynamicBounds)
+  if (!SubExprBounds || !CastBounds)
     return;
 
-  if (SrcBounds->isAny() || SrcBounds->isInvalid())
+  if (SubExprBounds->isAny() || SubExprBounds->isInvalid())
     return;
 
-  if (DynamicBounds->isAny() || DynamicBounds->isInvalid())
+  // SubExprBounds can be Any by inference but CastBounds can't be Any
+  assert(!CastBounds->isAny());
+  if (CastBounds->isInvalid())
     return;
 
   // We can only generate the check if we have the bounds as a range.
-  if (!isa<RangeBoundsExpr>(SrcBounds) ||
-      !isa<RangeBoundsExpr>(DynamicBounds)) {
+  if (!isa<RangeBoundsExpr>(SubExprBounds) ||
+      !isa<RangeBoundsExpr>(CastBounds)) {
     llvm_unreachable(
         "Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
     return;
   }
 
-  const RangeBoundsExpr *SrcRange = dyn_cast<RangeBoundsExpr>(SrcBounds);
-  const RangeBoundsExpr *CastRange = dyn_cast<RangeBoundsExpr>(DynamicBounds);
+  const RangeBoundsExpr *SubRange = dyn_cast<RangeBoundsExpr>(SubExprBounds);
+  const RangeBoundsExpr *CastRange = dyn_cast<RangeBoundsExpr>(CastBounds);
 
   ++NumDynamicChecksRange;
 
-  // SrcRange - bounds(lb, ub) vs CastRange - bounds(castlb, castub)
+  // SubRange - bounds(lb, ub) vs CastRange - bounds(castlb, castub)
   // Dynamic_check(lb <= castlb && castub <= ub)
 
   // Emit the code to generate the pointer values
-  Address Lower = EmitPointerWithAlignment(SrcRange->getLowerExpr());
-  Address Upper = EmitPointerWithAlignment(SrcRange->getUpperExpr());
+  Address Lower = EmitPointerWithAlignment(SubRange->getLowerExpr());
+  Address Upper = EmitPointerWithAlignment(SubRange->getUpperExpr());
 
   Value *LowerInt = Builder.CreatePtrToInt(Lower.getPointer(), IntPtrTy,
                                            "_Dynamic_check.lower");
@@ -160,14 +163,21 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const BoundsExpr *DynamicBounds,
 
   // Make the lower check (Lower <= CastLower)
   Value *LowerChk =
-      Builder.CreateICmpSLE(LowerInt, CastLowerInt, "_Dynamic_check.lower_cmp");
+      Builder.CreateICmpULE(LowerInt, CastLowerInt, "_Dynamic_check.lower_cmp");
 
   // Make the upper check (CastUpper <= Upper)
   Value *UpperChk =
-      Builder.CreateICmpSLE(CastUpperInt, UpperInt, "_Dynamic_check.upper_cmp");
+      Builder.CreateICmpULE(CastUpperInt, UpperInt, "_Dynamic_check.upper_cmp");
 
-  // Emit both checks (Lower <= CastLower && CastUpper <= Upper)
+  // if expression E is NULL, skip dynamic_check
+  // Dynamic_check(E == NULL || (lb <= castlb && castub <= ub))
+  // if (cond1) {...}
+  // else {
+  // if (cond2) {...}
+  // else { trap(); llvm_unreachable(); }
+  // }
   EmitDynamicCheckBlocks(
+      Builder.CreateIsNull(BaseAddr.getPointer(), "_Dynamic_check.null"),
       Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
 }
 
@@ -200,6 +210,57 @@ void CodeGenFunction::EmitDynamicCheckBlocks(Value *Condition) {
 
   Builder.SetInsertPoint(Begin);
   Builder.CreateCondBr(Condition, DyCkSuccess, DyCkFail);
+  // This ensures the success block comes directly after the branch
+  EmitBlock(DyCkSuccess);
+
+  Builder.SetInsertPoint(DyCkSuccess);
+}
+
+// emit code for dynamic_check(cond1 || cond2)
+void CodeGenFunction::EmitDynamicCheckBlocks(Value *Cond1, Value *Cond2) {
+  assert(Cond1->getType()->isIntegerTy(1) &&
+         "May only dynamic check boolean conditions");
+
+  // Constant Folding:
+  // If we have generated a constant condition, and the condition is true,
+  // then the check will always pass and we can elide it.
+  if (const ConstantInt *ConditionConstant = dyn_cast<ConstantInt>(Cond1)) {
+    if (ConditionConstant->isOne()) {
+      ++NumDynamicChecksElided;
+      return;
+    }
+  }
+
+  ++NumDynamicChecksInserted;
+
+  // if (cond1) {...}
+  // else {
+  // if (cond2) {...}
+  // else { trap(); llvm_unreachable(); }
+  // }
+
+  BasicBlock *Begin, *DyCkSuccess, *DyCkFail, *DyCkFallThrough;
+  Begin = Builder.GetInsertBlock();
+  DyCkSuccess = createBasicBlock("_Dynamic_check.succeeded");
+  DyCkFallThrough = createBasicBlock("_Dynamic_check.fallthrough", this->CurFn);
+  DyCkFail = createBasicBlock("_Dynamic_check.failed", this->CurFn);
+
+  // if (cond1) Success
+  // else { FallThrough
+  // if (cond2) Success
+  // else { Fail, trap; llvm_unreachable; }
+  // }
+  Builder.SetInsertPoint(DyCkFallThrough);
+  Builder.CreateCondBr(Cond2, DyCkSuccess, DyCkFail);
+
+  Builder.SetInsertPoint(DyCkFail);
+  CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(Intrinsic::trap));
+  TrapCall->setDoesNotReturn();
+  TrapCall->setDoesNotThrow();
+  Builder.CreateUnreachable();
+
+  Builder.SetInsertPoint(Begin);
+  Builder.CreateCondBr(Cond1, DyCkSuccess, DyCkFallThrough);
   // This ensures the success block comes directly after the branch
   EmitBlock(DyCkSuccess);
 

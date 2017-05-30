@@ -2798,9 +2798,9 @@ private:
 /// classes).
 class CastExpr : public Expr {
 private:
-  // BOUNDS - enum value for bounds of cast expression
-  // SUBBOUNDS - enum value for bounds of subexpression
-  enum { OP, BOUNDS, SUBBOUNDS, END_EXPR = 3 };
+  // CASTBOUNDS - for expanded bounds of cast expression
+  // SUBEXPRBOUNDS - for bounds of subexpression
+  enum { OP, BOUNDS, CASTBOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
   Stmt* SubExprs[END_EXPR];
 
   bool CastConsistency() const;
@@ -2836,7 +2836,8 @@ protected:
     assert(kind != CK_Invalid && "creating cast with invalid cast kind");
     SubExprs[OP] = op;
     SubExprs[BOUNDS] = nullptr;
-    SubExprs[SUBBOUNDS] = nullptr;
+    SubExprs[CASTBOUNDS] = nullptr;
+    SubExprs[SUBEXPRBOUNDS] = nullptr;
     CastExprBits.Kind = kind;
     setBasePathSize(BasePathSize);
     assert(CastConsistency());
@@ -2847,7 +2848,8 @@ protected:
     : Expr(SC, Empty) {
     SubExprs[OP] = nullptr;
     SubExprs[BOUNDS] = nullptr;
-    SubExprs[SUBBOUNDS] = nullptr;
+    SubExprs[CASTBOUNDS] = nullptr;
+    SubExprs[SUBEXPRBOUNDS] = nullptr;
     setBasePathSize(BasePathSize);
   }
 
@@ -2920,15 +2922,26 @@ public:
     SubExprs[BOUNDS] = E;
   }
 
-  bool hasSubBoundsExpr() const { return SubExprs[SUBBOUNDS] != nullptr; }
-  BoundsExpr *getSubBoundsExpr() {
-    return cast_or_null<BoundsExpr>(SubExprs[SUBBOUNDS]);
+  bool hasCastBoundsExpr() const { return SubExprs[CASTBOUNDS] != nullptr; }
+  BoundsExpr *getCastBoundsExpr() {
+    return cast_or_null<BoundsExpr>(SubExprs[CASTBOUNDS]);
   }
-  const BoundsExpr *getSubBoundsExpr() const {
-    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[SUBBOUNDS]));
+  const BoundsExpr *getCastBoundsExpr() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[CASTBOUNDS]));
   }
-  void setSubBoundsExpr(BoundsExpr *E) {
-    SubExprs[SUBBOUNDS] = E;
+  void setCastBoundsExpr(BoundsExpr *E) {
+    SubExprs[CASTBOUNDS] = E;
+  }
+
+  bool hasSubExprBoundsExpr() const { return SubExprs[SUBEXPRBOUNDS] != nullptr; }
+  BoundsExpr *getSubExprBoundsExpr() {
+    return cast_or_null<BoundsExpr>(SubExprs[SUBEXPRBOUNDS]);
+  }
+  const BoundsExpr *getSubExprBoundsExpr() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[SUBEXPRBOUNDS]));
+  }
+  void setSubExprBoundsExpr(BoundsExpr *E) {
+    SubExprs[SUBEXPRBOUNDS] = E;
   }
 };
 

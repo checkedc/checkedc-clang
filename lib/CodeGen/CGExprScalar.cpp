@@ -1446,7 +1446,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
 
   case CK_DynamicPtrBounds:
   case CK_AssumePtrBounds:
-    return CGF.EmitDynamicBoundsCast(CE);
+    return CGF.EmitBoundsCast(CE);
 
   case CK_ArrayToPointerDecay:
     return CGF.EmitArrayToPointerDecay(E).getPointer();
