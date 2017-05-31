@@ -141,6 +141,36 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address BaseAddr,
 
   ++NumDynamicChecksRange;
 
+  // Dynamic_check(Base == NULL || (Lower <= CastLower && CastUpper <= Upper))
+  // Emit code blocks as follows:
+  // if (Base == NULL) {...}
+  // else {
+  // if (Lower <= CastLower && CastUpper <= Upper) {...}
+  // else { trap(); llvm_unreachable(); }
+  // }
+
+  Value *Cond1 =
+            Builder.CreateIsNull(BaseAddr.getPointer(), "_Dynamic_check.null");
+
+  // Constant Folding:
+  // If we have generated a constant condition, and the condition is true,
+  // then the check will always pass and we can elide it.
+  if (const ConstantInt *ConditionConstant = dyn_cast<ConstantInt>(Cond1)) {
+    if (ConditionConstant->isOne()) {
+      ++NumDynamicChecksElided;
+      return;
+    }
+  }
+
+  ++NumDynamicChecksInserted;
+
+  BasicBlock *Begin, *DyCkSuccess, *DyCkFail, *DyCkFallThrough;
+  Begin = Builder.GetInsertBlock();
+  DyCkSuccess = createBasicBlock("_Dynamic_check.succeeded");
+  DyCkFallThrough = createBasicBlock("_Dynamic_check.fallthrough", this->CurFn);
+  DyCkFail = createBasicBlock("_Dynamic_check.failed", this->CurFn);
+
+  Builder.SetInsertPoint(DyCkFallThrough);
   // SubRange - bounds(lb, ub) vs CastRange - bounds(castlb, castub)
   // Dynamic_check(lb <= castlb && castub <= ub)
 
@@ -169,16 +199,21 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address BaseAddr,
   Value *UpperChk =
       Builder.CreateICmpULE(CastUpperInt, UpperInt, "_Dynamic_check.upper_cmp");
 
-  // if expression E is NULL, skip dynamic_check
-  // Dynamic_check(E == NULL || (lb <= castlb && castub <= ub))
-  // if (cond1) {...}
-  // else {
-  // if (cond2) {...}
-  // else { trap(); llvm_unreachable(); }
-  // }
-  EmitDynamicCheckBlocks(
-      Builder.CreateIsNull(BaseAddr.getPointer(), "_Dynamic_check.null"),
-      Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
+  Value *Cond2 = Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range");
+  Builder.CreateCondBr(Cond2, DyCkSuccess, DyCkFail);
+
+  Builder.SetInsertPoint(DyCkFail);
+  CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(Intrinsic::trap));
+  TrapCall->setDoesNotReturn();
+  TrapCall->setDoesNotThrow();
+  Builder.CreateUnreachable();
+
+  Builder.SetInsertPoint(Begin);
+  Builder.CreateCondBr(Cond1, DyCkSuccess, DyCkFallThrough);
+  // This ensures the success block comes directly after the branch
+  EmitBlock(DyCkSuccess);
+
+  Builder.SetInsertPoint(DyCkSuccess);
 }
 
 void CodeGenFunction::EmitDynamicCheckBlocks(Value *Condition) {
@@ -216,53 +251,3 @@ void CodeGenFunction::EmitDynamicCheckBlocks(Value *Condition) {
   Builder.SetInsertPoint(DyCkSuccess);
 }
 
-// emit code for dynamic_check(cond1 || cond2)
-void CodeGenFunction::EmitDynamicCheckBlocks(Value *Cond1, Value *Cond2) {
-  assert(Cond1->getType()->isIntegerTy(1) &&
-         "May only dynamic check boolean conditions");
-
-  // Constant Folding:
-  // If we have generated a constant condition, and the condition is true,
-  // then the check will always pass and we can elide it.
-  if (const ConstantInt *ConditionConstant = dyn_cast<ConstantInt>(Cond1)) {
-    if (ConditionConstant->isOne()) {
-      ++NumDynamicChecksElided;
-      return;
-    }
-  }
-
-  ++NumDynamicChecksInserted;
-
-  // if (cond1) {...}
-  // else {
-  // if (cond2) {...}
-  // else { trap(); llvm_unreachable(); }
-  // }
-
-  BasicBlock *Begin, *DyCkSuccess, *DyCkFail, *DyCkFallThrough;
-  Begin = Builder.GetInsertBlock();
-  DyCkSuccess = createBasicBlock("_Dynamic_check.succeeded");
-  DyCkFallThrough = createBasicBlock("_Dynamic_check.fallthrough", this->CurFn);
-  DyCkFail = createBasicBlock("_Dynamic_check.failed", this->CurFn);
-
-  // if (cond1) Success
-  // else { FallThrough
-  // if (cond2) Success
-  // else { Fail, trap; llvm_unreachable; }
-  // }
-  Builder.SetInsertPoint(DyCkFallThrough);
-  Builder.CreateCondBr(Cond2, DyCkSuccess, DyCkFail);
-
-  Builder.SetInsertPoint(DyCkFail);
-  CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(Intrinsic::trap));
-  TrapCall->setDoesNotReturn();
-  TrapCall->setDoesNotThrow();
-  Builder.CreateUnreachable();
-
-  Builder.SetInsertPoint(Begin);
-  Builder.CreateCondBr(Cond1, DyCkSuccess, DyCkFallThrough);
-  // This ensures the success block comes directly after the branch
-  EmitBlock(DyCkSuccess);
-
-  Builder.SetInsertPoint(DyCkSuccess);
-}

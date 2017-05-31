@@ -2798,8 +2798,9 @@ private:
 /// classes).
 class CastExpr : public Expr {
 private:
-  // CASTBOUNDS - for expanded bounds of cast expression
-  // SUBEXPRBOUNDS - for bounds of subexpression
+  // BOUNDS - declared bounds of the result of the cast expression
+  // CASTBOUNDS - inferred bounds of cast expression
+  // SUBEXPRBOUNDS - inferred bounds of subexpression
   enum { OP, BOUNDS, CASTBOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
   Stmt* SubExprs[END_EXPR];
 

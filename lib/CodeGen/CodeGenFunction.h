@@ -2294,8 +2294,6 @@ public:
   /// \brief Create a basic block that will call the trap intrinsic, and emit
   /// a conditional branch to it, for Checked C's dynamic checks.
   void EmitDynamicCheckBlocks(llvm::Value *Condition);
-  /// Emit code blocks for dynamic_check(cond1 || cond2)
-  void EmitDynamicCheckBlocks(llvm::Value *Cond1, llvm::Value *Cond2);
 
   llvm::Value *EmitBoundsCast(CastExpr *CE);
 
