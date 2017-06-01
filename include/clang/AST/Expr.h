@@ -2799,7 +2799,7 @@ private:
 class CastExpr : public Expr {
 private:
   // BOUNDS - declared bounds of the result of the cast expression
-  // CASTBOUNDS - inferred bounds of cast expression
+  // CASTBOUNDS - normalized version of BOUNDS
   // SUBEXPRBOUNDS - inferred bounds of subexpression
   enum { OP, BOUNDS, CASTBOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
   Stmt* SubExprs[END_EXPR];

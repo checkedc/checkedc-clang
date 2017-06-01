@@ -4315,11 +4315,13 @@ llvm::Value *CodeGenFunction::EmitBoundsCast(CastExpr *CE) {
   Expr *E = CE->getSubExpr();
   QualType DestTy = CE->getType();
   CastKind Kind = CE->getCastKind();
-  // Bounds casting has two functionalities
+  // Bounds casting has two functionalities.
   // - code generation for explicit type casting
-  // - code generation for dynamic check, dynamic_bounds_cast only
-  //  - dynamic_check(e1 != NULL)
-  //  - dynamic_check(lb <= e2 && e3 <= ub)
+  // - code generation for dynamic check for only dynamic_bounds_cast
+  // : bounds_cast<T>(e1, e2, e3) with e1 : bounds(lb, ub)
+  //  - dynamic_check(e1 == NULL || (lb <= e2 && e3 <= ub))
+  //  if e1 is NULL, it skips checking range bounds.
+  //  otherwise, it checks range bounds.
   Address Addr = Address::invalid();
   // For count bounds, source can be a pointer/array type (ArrayToPointerDecay)
   // For range bounds, source can be a pointer/array/integer
