@@ -2798,7 +2798,10 @@ private:
 /// classes).
 class CastExpr : public Expr {
 private:
-  enum { OP, BOUNDS, END_EXPR = 2 };
+  // BOUNDS - declared bounds of the result of the cast expression
+  // CASTBOUNDS - normalized version of BOUNDS
+  // SUBEXPRBOUNDS - inferred bounds of subexpression
+  enum { OP, BOUNDS, CASTBOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
   Stmt* SubExprs[END_EXPR];
 
   bool CastConsistency() const;
@@ -2834,6 +2837,8 @@ protected:
     assert(kind != CK_Invalid && "creating cast with invalid cast kind");
     SubExprs[OP] = op;
     SubExprs[BOUNDS] = nullptr;
+    SubExprs[CASTBOUNDS] = nullptr;
+    SubExprs[SUBEXPRBOUNDS] = nullptr;
     CastExprBits.Kind = kind;
     setBasePathSize(BasePathSize);
     assert(CastConsistency());
@@ -2844,6 +2849,8 @@ protected:
     : Expr(SC, Empty) {
     SubExprs[OP] = nullptr;
     SubExprs[BOUNDS] = nullptr;
+    SubExprs[CASTBOUNDS] = nullptr;
+    SubExprs[SUBEXPRBOUNDS] = nullptr;
     setBasePathSize(BasePathSize);
   }
 
@@ -2914,6 +2921,28 @@ public:
 
   void setBoundsExpr(BoundsExpr *E) {
     SubExprs[BOUNDS] = E;
+  }
+
+  bool hasCastBoundsExpr() const { return SubExprs[CASTBOUNDS] != nullptr; }
+  BoundsExpr *getCastBoundsExpr() {
+    return cast_or_null<BoundsExpr>(SubExprs[CASTBOUNDS]);
+  }
+  const BoundsExpr *getCastBoundsExpr() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[CASTBOUNDS]));
+  }
+  void setCastBoundsExpr(BoundsExpr *E) {
+    SubExprs[CASTBOUNDS] = E;
+  }
+
+  bool hasSubExprBoundsExpr() const { return SubExprs[SUBEXPRBOUNDS] != nullptr; }
+  BoundsExpr *getSubExprBoundsExpr() {
+    return cast_or_null<BoundsExpr>(SubExprs[SUBEXPRBOUNDS]);
+  }
+  const BoundsExpr *getSubExprBoundsExpr() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[SUBEXPRBOUNDS]));
+  }
+  void setSubExprBoundsExpr(BoundsExpr *E) {
+    SubExprs[SUBEXPRBOUNDS] = E;
   }
 };
 

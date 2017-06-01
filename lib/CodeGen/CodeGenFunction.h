@@ -2288,9 +2288,14 @@ public:
   void EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy);
   void EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy, const Address PtrAddr);
   void EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds);
+  void EmitDynamicBoundsCheck(const Address BaseAddr,
+                              const BoundsExpr *CastBounds,
+                              const BoundsExpr *SubExprBounds);
   /// \brief Create a basic block that will call the trap intrinsic, and emit
   /// a conditional branch to it, for Checked C's dynamic checks.
   void EmitDynamicCheckBlocks(llvm::Value *Condition);
+
+  llvm::Value *EmitBoundsCast(CastExpr *CE);
 
   void EmitObjCForCollectionStmt(const ObjCForCollectionStmt &S);
   void EmitObjCAtTryStmt(const ObjCAtTryStmt &S);

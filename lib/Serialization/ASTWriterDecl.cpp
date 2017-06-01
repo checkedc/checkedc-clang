@@ -2125,6 +2125,8 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(0)); // PathSize
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 6)); // CastKind
   Abv->Add(BitCodeAbbrevOp(0)); // hasBoundsExpr
+  Abv->Add(BitCodeAbbrevOp(0)); // hasCastBoundsExpr
+  Abv->Add(BitCodeAbbrevOp(0)); // hasSubExprBoundsExpr
   // ImplicitCastExpr
   ExprImplicitCastAbbrev = Stream.EmitAbbrev(Abv);
 

@@ -1074,6 +1074,7 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
   case Expr::CXXReinterpretCastExprClass:
   case Expr::CXXConstCastExprClass:
   case Expr::ObjCBridgedCastExprClass:
+  case Expr::BoundsCastExprClass:
     return EmitCastLValue(cast<CastExpr>(E));
 
   case Expr::MaterializeTemporaryExprClass:
@@ -3664,13 +3665,16 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
     return MakeNaturalAlignAddrLValue(EmitDynamicCast(V, DCE), E->getType());
   }
 
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
+    return MakeNaturalAlignAddrLValue(
+        EmitBoundsCast(const_cast<CastExpr *>(E)), E->getType());
+
   case CK_ConstructorConversion:
   case CK_UserDefinedConversion:
   case CK_CPointerToObjCPointerCast:
   case CK_BlockPointerToObjCPointerCast:
   case CK_NoOp:
-  case CK_DynamicPtrBounds:
-  case CK_AssumePtrBounds:
   case CK_LValueToRValue:
     return EmitLValue(E->getSubExpr());
 
@@ -4306,3 +4310,43 @@ RValue CodeGenFunction::EmitPseudoObjectRValue(const PseudoObjectExpr *E,
 LValue CodeGenFunction::EmitPseudoObjectLValue(const PseudoObjectExpr *E) {
   return emitPseudoObjectExpr(*this, E, true, AggValueSlot::ignored()).LV;
 }
+
+llvm::Value *CodeGenFunction::EmitBoundsCast(CastExpr *CE) {
+  Expr *E = CE->getSubExpr();
+  QualType DestTy = CE->getType();
+  CastKind Kind = CE->getCastKind();
+  // Bounds casting has two functionalities.
+  // - code generation for explicit type casting
+  // - code generation for dynamic check for only dynamic_bounds_cast
+  // : bounds_cast<T>(e1, e2, e3) with e1 : bounds(lb, ub)
+  //  - dynamic_check(e1 == NULL || (lb <= e2 && e3 <= ub))
+  //  if e1 is NULL, it skips checking range bounds.
+  //  otherwise, it checks range bounds.
+  Address Addr = Address::invalid();
+  // For count bounds, source can be a pointer/array type (ArrayToPointerDecay)
+  // For range bounds, source can be a pointer/array/integer
+  // For integer type,
+  if (E->getType()->isPointerType()) {
+    Addr = EmitPointerWithAlignment(E);
+    // explicit type casting for destination type
+    Addr = Builder.CreateBitCast(Addr, ConvertType(DestTy));
+  } else {
+    // CK_IntegralToPointer (IntToPtr) casts integer to pointer type
+    llvm::Value *Src = EmitScalarExpr(const_cast<Expr *>(E));
+    llvm::Type *DestLLVMTy = ConvertType(DestTy);
+    llvm::Type *MiddleTy = CGM.getDataLayout().getIntPtrType(DestLLVMTy);
+    bool InputSigned = E->getType()->isSignedIntegerOrEnumerationType();
+    llvm::Value* IntResult =
+      Builder.CreateIntCast(Src, MiddleTy, InputSigned, "conv");
+    llvm::Value *Result = Builder.CreateIntToPtr(IntResult, DestLLVMTy);
+    CharUnits Align = getContext().getTypeAlignInChars(DestTy);
+    Addr = Address(Result, Align);
+  }
+  if (Kind == CK_DynamicPtrBounds) {
+    BoundsCastExpr *BCE = cast<BoundsCastExpr>(CE);
+    EmitDynamicBoundsCheck(Addr, BCE->getCastBoundsExpr(),
+                           BCE->getSubExprBoundsExpr());
+  }
+  return Addr.getPointer();
+}
+

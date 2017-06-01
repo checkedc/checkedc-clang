@@ -1444,6 +1444,10 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     return CGF.EmitDynamicCast(V, DCE);
   }
 
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
+    return CGF.EmitBoundsCast(CE);
+
   case CK_ArrayToPointerDecay:
     return CGF.EmitArrayToPointerDecay(E).getPointer();
   case CK_FunctionToPointerDecay:
@@ -1500,8 +1504,6 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_ToUnion:
     llvm_unreachable("scalar cast to non-scalar value");
 
-  case CK_DynamicPtrBounds:
-  case CK_AssumePtrBounds:
   case CK_LValueToRValue:
     assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");

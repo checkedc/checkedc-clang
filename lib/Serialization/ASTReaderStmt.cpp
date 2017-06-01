@@ -682,6 +682,14 @@ void ASTStmtReader::VisitCastExpr(CastExpr *E) {
   if (hasBoundsExpr) {
     E->setBoundsExpr(Reader.ReadBoundsExpr(F));
   }
+  bool hasCastBoundsExpr = Record[Idx++];
+  if (hasCastBoundsExpr) {
+    E->setCastBoundsExpr(Reader.ReadBoundsExpr(F));
+  }
+  bool hasSubExprBoundsExpr = Record[Idx++];
+  if (hasSubExprBoundsExpr) {
+    E->setSubExprBoundsExpr(Reader.ReadBoundsExpr(F));
+  }
   CastExpr::path_iterator BaseI = E->path_begin();
   while (NumBaseSpecs--) {
     CXXBaseSpecifier *BaseSpec = new (Reader.getContext()) CXXBaseSpecifier;
