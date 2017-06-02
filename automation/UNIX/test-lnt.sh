@@ -19,12 +19,12 @@ if [ ! -e "$CLANG" ]; then
 fi
 
 "$LNT_SCRIPT" runtest nt --sandbox "$LNT_RESULTS_DIR" --no-timestamp \
-    --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
-    --cflags -fcheckedc-extension \
-    --make-param=ExtraHeaders=${BUILD_SOURCESDIRECTORY}/llvm/projects/checkedc-wrapper/checkedc/include \
-    -v --output=${RESULT_DATA} -j${BUILD_CPU_COUNT} | tee ${RESULT_SUMMARY}
+   --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
+   --cflags -fcheckedc-extension \
+   --make-param=ExtraHeaders=${BUILD_SOURCESDIRECTORY}/llvm/projects/checkedc-wrapper/checkedc/include \
+   -v --output=${RESULT_DATA} -j${BUILD_CPU_COUNT} | tee ${RESULT_SUMMARY}
 
-# Code for runnint tests using cmake.  Needs further testing before enabling.
+# Code for running tests using cmake.  Needs further testing before enabling.
 #
 # "$LNT_SCRIPT" runtest test-suite --sandbox "$LNT_RESULTS_DIR" --no-timestamp \
 # --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
