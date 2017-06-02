@@ -18,22 +18,21 @@ if [ ! -e "$CLANG" ]; then
   exit 1
 fi
 
-# "$LNT_SCRIPT" runtest nt --sandbox "$LNT_RESULTS_DIR" --no-timestamp \
-#   --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
+"$LNT_SCRIPT" runtest nt --sandbox "$LNT_RESULTS_DIR" --no-timestamp \
+   --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
+   --cflags -fcheckedc-extension \
+   --make-param=ExtraHeaders=${BUILD_SOURCESDIRECTORY}/llvm/projects/checkedc-wrapper/checkedc/include \
+   -v --output=${RESULT_DATA} -j${BUILD_CPU_COUNT} | tee ${RESULT_SUMMARY}
+
+# Code for running tests using cmake.  Needs further testing before enabling.
+#
+# "$LNT_SCRIPT" runtest test-suite --sandbox "$LNT_RESULTS_DIR" --no-timestamp \
+# --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
 #   --cflags -fcheckedc-extension \
-#   --make-param=ExtraHeaders=${BUILD_SOURCESDIRECTORY}/llvm/projects/checkedc-wrapper/checkedc/include \
-#   -v --output=${RESULT_DATA} -j${BUILD_CPU_COUNT} | tee ${RESULT_SUMMARY}
-
-# Code for running tests using cmake.
-
-"$LNT_SCRIPT" runtest test-suite --sandbox "$LNT_RESULTS_DIR" --no-timestamp \
-  --cc "$CLANG" --test-suite ${BUILD_SOURCESDIRECTORY}/llvm-test-suite \
-  --cflags -fcheckedc-extension \
-  --use-cmake=/usr/local/bin/cmake \
-  --cmake-cache ${BUILDCONFIGURATION} \
-  --use-lit=${BUILD_SOURCESDIRECTORY}/llvm/utils/lit/lit.py \
-  --cmake-define "CHECKEDC_SPEC_DIR=${BUILD_SOURCESDIRECTORY}/llvm/projects/checkedc-wrapper/checkedc"  \
-  -v | tee ${RESULT_SUMMARY}
+#  --use-cmake=/usr/local/bin/cmake \
+#   --cmake-cache ${BUILDCONFIGURATION} \
+#   --use-lit=${BUILD_SOURCESDIRECTORY}/llvm/utilkkvs/lit/lit.py \
+#   -v | tee ${RESULT_SUMMARY}
 
 if grep FAIL ${RESULT_SUMMARY}; then
   echo "LNT testing failed."
