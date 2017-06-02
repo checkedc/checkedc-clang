@@ -5,7 +5,10 @@ set -o pipefail
 set -x
 
 cd ${LLVM_OBJ_DIR}
-make -j${BUILD_CPU_COUNT} check-checkedc
+
+if [ "${SKIP_CHECKEDC_TESTS}" != "Yes" ]; then
+  make -j${BUILD_CPU_COUNT} check-checkedc
+fi
 
 if [ "${TEST_SUITE}" == "CheckedC_clang" ]; then
   make -j${BUILD_CPU_COUNT} check-clang
