@@ -1,4 +1,4 @@
-rem 
+rem
 rem Validate and set configuration variables.   Other scripts should only 
 rem depend on variables printed at the end of this script.
 rem
@@ -98,6 +98,21 @@ if NOT DEFINED TEST_SUITE (
   exit /b 1
 )
 
+rem SKIP_CHECKEDC_TESTS controls whether to skip the Checked C repo tests
+rem entirely. This is useful for building/testing a stock (unmodified)
+rem version of clang/LLVM that does not support Checked C.
+
+if NOT DEFINED SKIP_CHECKEDC_TESTS (
+  set SKIP_CHECKEDC_TESTS=No
+) else if "%SKIP_CHECKEDC_TESTS%"=="Yes" (
+  rem
+) else if "%SKIP_CHECKEDC_TESTS%"=="No" (
+  rem
+) else (
+  echo Unknown SKIP_CHECKEDC_TESTS value: must be one of Yes or No
+  exit /b 1
+)
+
 rem set up branch names
 if not defined LLVM_BRANCH (
   set LLVM_BRANCH=master
@@ -157,6 +172,7 @@ echo.  BUILDCONFIGURATION: %BUILDCONFIGURATION%
 echo.  BUILDOS: %BUILDOS%
 echo.  TEST_TARGET_ARCH: %TEST_TARGET_ARCH%
 echo.  TEST_SUITE: %TEST_SUITE%
+echo.  SKIP_CHECKEDC_TESTS: %SKIP_CHECKEDC_TESTS%
 echo.  BUILD_CHECKEDC_CLEAN: %BUILD_CHECKEDC_CLEAN%
 echo.
 echo.  Directories:

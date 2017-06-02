@@ -46,12 +46,12 @@ elif [ "$TEST_TARGET_ARCH" != "X86" -a "$TEST_TARGET_ARCH" != "AMD64" ]; then
 fi
 
 if [ -z $BUILD_BINARIESDIRECTORY ]; then
-  echo "BUILD_BINARIESDIRECTORY not set.  Set it the directory that will contain the object directory."
+  echo "BUILD_BINARIESDIRECTORY not set.  Set it to the directory that will contain the object directory."
   CHECKEDC_CONFIG_STATUS="error" 
 fi
 
 if [ -z $BUILD_SOURCESDIRECTORY ]; then
-  echo "BUILD_SOURCESDIRECTORY not set.  Set it the directory that will contain the sources directory."
+  echo "BUILD_SOURCESDIRECTORY not set.  Set it to the directory that will contain the sources directory."
   CHECKEDC_CONFIG_STATUS="error" 
 fi
 
@@ -66,6 +66,17 @@ elif [ "$TEST_SUITE" != "CheckedC" -a "$TEST_SUITE" != "CheckedC_clang" -a \
        "$TEST_SUITE" != "CheckedC_LLVM" ]; then
   echo "Unknown TEST_SUITE value $TEST_SUITE: must be one of CheckedC, CheckedC_clang, or CheckedC_LLVM"
   CHECKEDC_CONFIG_STATUS="error" 
+fi
+
+# SKIP_CHECKEDC_TESTS controls whether to skip the Checked C repo tests
+# entirely. This is useful for building/testing a stock (unmodified)
+# version of clang/LLVM that does not support Checked C.
+
+if [ -z "$SKIP_CHECKEDC_TESTS" ]; then
+  export SKIP_CHECKEDC_TESTS="No"
+elif [ "$SKIP_CHECKEDC_TESTS" != "Yes" -a "$SKIP_CHECKEDC_TESTS" != "No" ]; then
+  echo Unknown SKIP_CHECKEDC_TESTS value: must be one of Yes or No
+  CHECKEDC_CONFIG_STATUS="error"
 fi
 
 # set up branch names
@@ -128,8 +139,9 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " BUILDOS: $BUILDOS"
   echo " TEST_TARGET_ARCH: $TEST_TARGET_ARCH"
   echo " TEST_SUITE: $TEST_SUITE"
+  echo " SKIP_CHECKEDC_TESTS: $SKIP_CHECKEDC_TESTS"
   echo " LNT: $LNT"
-  echo "  LNT_SCRIPT: $LNT_SCRIPT"
+  echo " LNT_SCRIPT: $LNT_SCRIPT"
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"
@@ -151,4 +163,3 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
 else
   echo "Configuration of environment variables failed"
 fi
-

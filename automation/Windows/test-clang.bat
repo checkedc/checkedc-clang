@@ -9,8 +9,12 @@ set OLD_DIR=%CD%
 
 cd %LLVM_OBJ_DIR%
 
-"%MSBUILD_BIN%" projects\checkedc-wrapper\check-checkedc.vcxproj /v:%MSBUILD_VERBOSITY% /maxcpucount:%MSBUILD_CPU_COUNT% /p:CL_MPCount=%CL_CPU_COUNT%
-if ERRORLEVEL 1 (goto cmdfailed)
+if "%SKIP_CHECKEDC_TESTS%"=="Yes" (
+  rem
+) else (
+  "%MSBUILD_BIN%" projects\checkedc-wrapper\check-checkedc.vcxproj /v:%MSBUILD_VERBOSITY% /maxcpucount:%MSBUILD_CPU_COUNT% /p:CL_MPCount=%CL_CPU_COUNT%
+  if ERRORLEVEL 1 (goto cmdfailed)
+)
 
 if "%TEST_SUITE%"=="CheckedC" (
   rem
