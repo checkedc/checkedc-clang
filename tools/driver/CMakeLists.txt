@@ -51,6 +51,10 @@ endif()
 
 add_dependencies(clang clang-headers)
 
+if (DEFINED CHECKEDC_IN_TREE)
+  add_dependencies(checkedc-headers)
+endif()
+
 if(NOT CLANG_LINKS_TO_CREATE)
   set(CLANG_LINKS_TO_CREATE clang++ clang-cl)
 
