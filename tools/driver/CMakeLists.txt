@@ -51,7 +51,7 @@ endif()
 
 add_dependencies(clang clang-headers)
 
-if (DEFINED CHECKEDC_IN_TREE)
+if (CHECKEDC_IN_TREE)
   add_dependencies(clang checkedc-headers)
 endif()
 
