@@ -52,7 +52,7 @@ endif()
 add_dependencies(clang clang-headers)
 
 if (DEFINED CHECKEDC_IN_TREE)
-  add_dependencies(checkedc-headers)
+  add_dependencies(clang checkedc-headers)
 endif()
 
 if(NOT CLANG_LINKS_TO_CREATE)
