@@ -211,6 +211,10 @@ void Scope::dumpImpl(raw_ostream &OS) const {
       OS << "UncheckedScope";
       Flags &= ~UncheckedScope;
     }
+    else if (Flags & ForanyScope) {
+      OS << "ForanyScope";
+      Flags &= ~ForanyScope;
+    }
 
     if (Flags)
       OS << " | ";

@@ -1850,6 +1850,12 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
 
         Decl *TheDecl =
           ParseFunctionDefinition(D, ParsedTemplateInfo(), &LateParsedAttrs);
+        // If we encountered _For_any make sure we're in Forany scope and exit.
+        if (DS.isForanySpecified()) {
+          assert(getCurScope()->isForanyScope()
+            && "Current scope should be created by _For_any specifier.");
+          ExitScope();
+        }
         return Actions.ConvertDeclToDeclGroup(TheDecl);
       }
 
@@ -1968,6 +1974,13 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     }
   }
 
+  // If we encountered _For_any, make sure we're in Forany scope and exit.
+  if (DS.isForanySpecified()) {
+    assert(getCurScope()->isForanyScope()
+      && "Current scope should be created by _For_any specifier.");
+    ExitScope();
+  }
+
   return Actions.FinalizeDeclaratorGroup(getCurScope(), DS, DeclsInGroup);
 }
 
@@ -2029,7 +2042,9 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
   Decl *ThisDecl = nullptr;
   switch (TemplateInfo.Kind) {
   case ParsedTemplateInfo::NonTemplate:
-    ThisDecl = Actions.ActOnDeclarator(getCurScope(), D);
+    // if _For_any specifier, make sure to add function decl in correct scope.
+    ThisDecl = Actions.ActOnDeclarator(D.getDeclSpec().isForanySpecified() ? 
+                               getCurScope()->getParent() : getCurScope(), D);
     break;
 
   case ParsedTemplateInfo::Template:
@@ -2759,6 +2774,7 @@ Parser::DiagnoseMissingSemiAfterTagDefinition(DeclSpec &DS, AccessSpecifier AS,
 /// [C++]   'virtual'
 /// [C++]   'explicit'
 /// [OpenCL] '__kernel'
+/// [CheckedC] '_For_any'
 ///       'friend': [C++ dcl.friend]
 ///       'constexpr': [C++0x dcl.constexpr]
 void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
@@ -2852,6 +2868,10 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
           isInvalid = DS.setFunctionSpecUnchecked(Loc, PrevSpec, DiagID);
         break;
       }
+    case tok::kw__For_any:
+      isInvalid = DS.setFunctionSpecForany(Loc, PrevSpec, DiagID);
+      if (!isInvalid) ParseForanySpecifier(DS);
+      continue;
 
     case tok::code_completion: {
       Sema::ParserCompletionContext CCC = Sema::PCC_Namespace;
@@ -4793,6 +4813,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw_virtual:
   case tok::kw_explicit:
   case tok::kw__Noreturn:
+  case tok::kw__For_any:
 
     // alignment-specifier
   case tok::kw__Alignas:
@@ -6820,6 +6841,85 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
         DiagID, Result.get(),
         Actions.getASTContext().getPrintingPolicy()))
         Diag(StartLoc, DiagID) << PrevSpec;
+}
+
+void Parser::ParseForanySpecifier(DeclSpec &DS) {
+  EnterScope(Scope::DeclScope | Scope::ForanyScope);
+  SourceLocation ForAnyStartLoc = ConsumeToken();
+  if (ExpectAndConsume(tok::l_paren, diag::err_forany_unexpected_token)) {
+    ExitScope();
+    return;
+  }
+  tok::TokenKind prevToken = tok::l_paren;
+  // Loop through inside of (), to retrieve polymorphic type declarations.
+  bool breakOutOfWhileLoop = false;
+  while (!breakOutOfWhileLoop) {
+    // In here, it should be one of the three. tok::identifier, tok::comma, 
+    // tok::r_paren. Anything else will be an error.
+    if (Tok.getKind() == tok::identifier) {
+      // We'd expect the previous token to not be an identifier.
+      if (prevToken == tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_forany_comma_or_parenthesis_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        breakOutOfWhileLoop = true;
+        break;
+      }
+
+      // Add polymorphic type to scope.
+      SourceLocation StartLoc = Tok.getLocation();
+      DeclSpec polyDS(AttrFactory);
+      PrintingPolicy Policy = Actions.getPrintingPolicy();
+      const char *PrevSpec = nullptr;
+      unsigned DiagID;
+      polyDS.SetStorageClassSpec(Actions, DeclSpec::SCS_typedef, StartLoc, 
+                                 PrevSpec, DiagID, Policy);
+      polyDS.SetTypeSpecType(DeclSpec::TST_void, StartLoc, PrevSpec, DiagID, 
+                             Policy);
+      DS.SetRangeStart(ForAnyStartLoc);
+      DS.SetRangeEnd(SourceLocation());
+      Declarator D(polyDS, Declarator::TheContext::BlockContext);
+      D.SetRangeBegin(ForAnyStartLoc);
+      D.SetRangeEnd(SourceLocation());
+      D.AddTypeInfo(DeclaratorChunk::getPointer(DS.getTypeQualifiers(), StartLoc,
+                                                DS.getConstSpecLoc(),
+                                                DS.getVolatileSpecLoc(),
+                                                DS.getRestrictSpecLoc(),
+                                                DS.getAtomicSpecLoc(),
+                                                DS.getUnalignedSpecLoc()),
+                                                DS.getAttributes(),
+                                                SourceLocation());
+      D.SetIdentifier(Tok.getIdentifierInfo(), Tok.getLocation());
+      D.SetRangeEnd(Tok.getLocation());
+      Decl* ThisDecl = Actions.ActOnDeclarator(getCurScope(), D);
+      prevToken = tok::identifier;
+      ConsumeToken();
+    } else if (Tok.getKind() == tok::comma) {
+      // We'd expect the previous token to be an identifier
+      if (prevToken != tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_forany_polymorphic_type_declaration_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        breakOutOfWhileLoop = true;
+        break;
+      }
+      prevToken = tok::comma;
+      ConsumeToken();
+    } else if (Tok.getKind() == tok::r_paren) {
+      // We'd expect the previous token to be an identifier
+      if (prevToken != tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_forany_polymorphic_type_declaration_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        breakOutOfWhileLoop = true;
+        break;
+      }
+      ConsumeParen();
+      breakOutOfWhileLoop = true;
+    } else {
+      Diag(Tok.getLocation(), diag::err_forany_unexpected_token);
+      SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+      breakOutOfWhileLoop = true;
+      break;
+    }
+  }
 }
 
 /// TryAltiVecVectorTokenOutOfLine - Out of line body that should only be called
