@@ -1087,4 +1087,18 @@ def err_expected_bounds_expr_or_interop_type : Error<
 def err_expected_compound_stmt_after_checked_scope : Error<
   "expected compound statement after checked scope keyword">;
 
+// generic function declaration parsing error.
+def err_forany_type_variable_declaration_expected : Error<
+  "expected list of type variables">;
+
+def err_forany_type_variable_identifier_expected : Error<
+  "expected type variable identifier">;
+
+def err_forany_unexpected_token : Error<
+  "unexpected token in _For_any specifier">;
+
+def err_forany_comma_or_parenthesis_expected : Error<
+  "expected , or )">;
+
+
 } // end of Parser diagnostics

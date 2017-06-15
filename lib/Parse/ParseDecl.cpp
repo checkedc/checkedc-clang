@@ -6851,10 +6851,10 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
     return;
   }
   tok::TokenKind prevToken = tok::l_paren;
-  // Loop through inside of (), to retrieve polymorphic type declarations.
+  // Obtain list of type variables bound to for any.
   bool breakOutOfWhileLoop = false;
   while (!breakOutOfWhileLoop) {
-    // In here, it should be one of the three. tok::identifier, tok::comma, 
+    // The tokens should be one of the three. tok::identifier, tok::comma, 
     // tok::r_paren. Anything else will be an error.
     if (Tok.getKind() == tok::identifier) {
       // We'd expect the previous token to not be an identifier.
@@ -6865,38 +6865,40 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
         break;
       }
 
-      // Add polymorphic type to scope.
+      // Add type variable to scope.
       SourceLocation StartLoc = Tok.getLocation();
-      DeclSpec polyDS(AttrFactory);
+      DeclSpec genericType(AttrFactory);
       PrintingPolicy Policy = Actions.getPrintingPolicy();
       const char *PrevSpec = nullptr;
       unsigned DiagID;
-      polyDS.SetStorageClassSpec(Actions, DeclSpec::SCS_typedef, StartLoc, 
+      // Introduce typedef name that will be bound to type variable. TODO: For
+      // now we bind to void*. Change the binding to type variable.
+      genericType.SetStorageClassSpec(Actions, DeclSpec::SCS_typedef, StartLoc,
                                  PrevSpec, DiagID, Policy);
-      polyDS.SetTypeSpecType(DeclSpec::TST_void, StartLoc, PrevSpec, DiagID, 
+      genericType.SetTypeSpecType(DeclSpec::TST_void, StartLoc, PrevSpec, DiagID,
                              Policy);
       DS.SetRangeStart(ForAnyStartLoc);
       DS.SetRangeEnd(SourceLocation());
-      Declarator D(polyDS, Declarator::TheContext::BlockContext);
+      Declarator D(genericType, Declarator::TheContext::BlockContext);
       D.SetRangeBegin(ForAnyStartLoc);
       D.SetRangeEnd(SourceLocation());
-      D.AddTypeInfo(DeclaratorChunk::getPointer(DS.getTypeQualifiers(), StartLoc,
-                                                DS.getConstSpecLoc(),
-                                                DS.getVolatileSpecLoc(),
-                                                DS.getRestrictSpecLoc(),
-                                                DS.getAtomicSpecLoc(),
-                                                DS.getUnalignedSpecLoc()),
-                                                DS.getAttributes(),
+      D.AddTypeInfo(DeclaratorChunk::getPointer(genericType.getTypeQualifiers(), StartLoc,
+                                                genericType.getConstSpecLoc(),
+                                                genericType.getVolatileSpecLoc(),
+                                                genericType.getRestrictSpecLoc(),
+                                                genericType.getAtomicSpecLoc(),
+                                                genericType.getUnalignedSpecLoc()),
+                                                genericType.getAttributes(),
                                                 SourceLocation());
       D.SetIdentifier(Tok.getIdentifierInfo(), Tok.getLocation());
       D.SetRangeEnd(Tok.getLocation());
-      Decl* ThisDecl = Actions.ActOnDeclarator(getCurScope(), D);
+      Decl* genericTypeDecl = Actions.ActOnDeclarator(getCurScope(), D);
       prevToken = tok::identifier;
       ConsumeToken();
     } else if (Tok.getKind() == tok::comma) {
       // We'd expect the previous token to be an identifier
       if (prevToken != tok::identifier) {
-        Diag(Tok.getLocation(), diag::err_forany_polymorphic_type_declaration_expected);
+        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
         SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
         breakOutOfWhileLoop = true;
         break;
@@ -6906,7 +6908,7 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
     } else if (Tok.getKind() == tok::r_paren) {
       // We'd expect the previous token to be an identifier
       if (prevToken != tok::identifier) {
-        Diag(Tok.getLocation(), diag::err_forany_polymorphic_type_declaration_expected);
+        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
         SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
         breakOutOfWhileLoop = true;
         break;
