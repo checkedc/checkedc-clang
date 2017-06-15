@@ -6871,8 +6871,10 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
       PrintingPolicy Policy = Actions.getPrintingPolicy();
       const char *PrevSpec = nullptr;
       unsigned DiagID;
-      // Introduce typedef name that will be bound to type variable. TODO: For
-      // now we bind to void*. Change the binding to type variable.
+      // Introduce typedef name that will be bound to type variable. Create a 
+      // DeclSpec of typedef, in order to use clang code for checking whether 
+      // the type name already exists. TODO: For now we bind to void*. Change 
+      // the binding to type variable.
       genericType.SetStorageClassSpec(Actions, DeclSpec::SCS_typedef, StartLoc,
                                  PrevSpec, DiagID, Policy);
       genericType.SetTypeSpecType(DeclSpec::TST_void, StartLoc, PrevSpec, DiagID,
