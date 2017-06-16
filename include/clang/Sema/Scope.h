@@ -131,6 +131,9 @@ public:
 
     /// Checked C - It clears checked property & prevents checked inheritance.
     UncheckedScope = 0x800000,
+
+    /// Checked C - _For_any Polymorphic type scopes
+    ForanyScope = 0x1000000
   };
 private:
   /// The parent scope for this scope.  This is null for the translation-unit
@@ -333,6 +336,9 @@ public:
   bool isClassScope() const {
     return (getFlags() & Scope::ClassScope);
   }
+
+  /// isForanyScope - Return true if this scope is _For_any scope.
+  bool isForanyScope() const { return (getFlags() & Scope::ForanyScope); }
 
   /// isInCXXInlineMethodScope - Return true if this scope is a C++ inline
   /// method scope or is inside one.
