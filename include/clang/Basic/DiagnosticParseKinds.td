@@ -1100,5 +1100,14 @@ def err_forany_unexpected_token : Error<
 def err_forany_comma_or_parenthesis_expected : Error<
   "expected , or )">;
 
+def err_generic_function_unexpected_token : Error<
+  "unexpected token in generic function call">;
+
+def erro_type_function_comma_or_greater_expected : Error<
+  "expected , or )">;
+
+def err_type_function_type_expected : Error<
+  "expected type or a list of types">;
+
 
 } // end of Parser diagnostics

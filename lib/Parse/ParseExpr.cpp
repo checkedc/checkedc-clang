@@ -1370,6 +1370,55 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   // are compiling for OpenCL, we need to return an error as this implies
   // that the address of the function is being taken, which is illegal in CL.
 
+  // With primary-expression, before parsing postfix-expression, check to make
+  // sure that Expr is declRefExpr of generic function with _For_any specifier
+  Expr* resExpr = Res.get();
+  if (resExpr != NULL && isa<DeclRefExpr>(resExpr)) {
+    DeclRefExpr* declRef = dyn_cast<DeclRefExpr>(resExpr);
+    ValueDecl* resDecl = declRef->getDecl();
+    if (resDecl != NULL && isa<FunctionDecl>(resDecl)) {
+      FunctionDecl* funDecl = dyn_cast<FunctionDecl>(resDecl);
+      if (funDecl->IsGenericFunction()) {
+        // In this case, parse for <types, ...> in generic function call.
+        ExpectAndConsume(tok::less);
+        bool breakOutOfWhile = false;
+        bool lastEncounteredIsType = false;
+        while (!breakOutOfWhile) {
+          switch (Tok.getKind()) {
+          case tok::comma :
+          case tok::greater :
+            if (!lastEncounteredIsType) {
+              Diag(Tok, diag::err_generic_function_unexpected_token);
+              breakOutOfWhile = true;
+            }
+            lastEncounteredIsType = false;
+            if (Tok.getKind() == tok::greater) {
+              breakOutOfWhile = true;
+            }
+            ConsumeToken();
+            break;
+          default :
+            if (lastEncounteredIsType) {
+              Diag(Tok, diag::erro_type_function_comma_or_greater_expected);
+              breakOutOfWhile = true;
+              break;
+            }
+            TypeResult Ty = ParseTypeName();
+            if (Ty.isInvalid()) {
+              Diag(Tok, diag::err_type_function_type_expected);
+              breakOutOfWhile = true;
+            }
+            else {
+              lastEncounteredIsType = true;
+            }
+
+            break;
+          }
+        }
+      }
+    }
+  }
+
   // These can be followed by postfix-expr pieces.
   Res = ParsePostfixExpressionSuffix(Res);
   if (getLangOpts().OpenCL)
