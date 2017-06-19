@@ -2153,6 +2153,9 @@ public:
   /// \brief Reads an expression.
   Expr *ReadExpr(ModuleFile &F);
 
+  /// \brief Reads a bounds expression.
+  BoundsExpr *ReadBoundsExpr(ModuleFile &F);
+
   /// \brief Reads a sub-statement operand during statement reading.
   Stmt *ReadSubStmt() {
     assert(ReadingKind == Read_Stmt &&
@@ -2329,6 +2332,9 @@ public:
 
   /// \brief Reads an expression.
   Expr *readExpr() { return Reader->ReadExpr(*F); }
+
+  /// \brief Read a bounds expression.
+  BoundsExpr *readBoundsExpr() { return Reader->ReadBoundsExpr(*F); }
 
   /// \brief Reads a sub-statement operand during statement reading.
   Stmt *readSubStmt() { return Reader->ReadSubStmt(); }

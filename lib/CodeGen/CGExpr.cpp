@@ -1147,6 +1147,7 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
   case Expr::CXXReinterpretCastExprClass:
   case Expr::CXXConstCastExprClass:
   case Expr::ObjCBridgedCastExprClass:
+  case Expr::BoundsCastExprClass:
     return EmitCastLValue(cast<CastExpr>(E));
 
   case Expr::MaterializeTemporaryExprClass:
@@ -2341,13 +2342,17 @@ LValue CodeGenFunction::EmitUnaryOpLValue(const UnaryOperator *E) {
   switch (E->getOpcode()) {
   default: llvm_unreachable("Unknown unary operator lvalue!");
   case UO_Deref: {
-    QualType T = E->getSubExpr()->getType()->getPointeeType();
+    QualType BaseTy = E->getSubExpr()->getType();
+    QualType T = BaseTy->getPointeeType();
     assert(!T.isNull() && "CodeGenFunction::EmitUnaryOpLValue: Illegal type");
 
     AlignmentSource AlignSource;
     Address Addr = EmitPointerWithAlignment(E->getSubExpr(), &AlignSource);
     LValue LV = MakeAddrLValue(Addr, T, AlignSource);
     LV.getQuals().setAddressSpace(ExprTy.getAddressSpace());
+
+    EmitDynamicNonNullCheck(Addr, BaseTy);
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr());
 
     // We should not generate __weak write barrier on indirect reference
     // of a pointer to object; as in void foo (__weak id *param); *param = 0;
@@ -3069,17 +3074,25 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
   };
   IdxPre = nullptr;
 
+  QualType BaseTy = E->getBase()->getType();
+
   // If the base is a vector type, then we are forming a vector element lvalue
   // with this subscript.
-  if (E->getBase()->getType()->isVectorType() &&
+  if (BaseTy->isVectorType() &&
       !isa<ExtVectorElementExpr>(E->getBase())) {
     // Emit the vector as an lvalue to get its address.
     LValue LHS = EmitLValue(E->getBase());
     auto *Idx = EmitIdxAfterBase(/*Promote*/false);
     assert(LHS.isSimple() && "Can only subscript lvalue vectors here!");
-    return LValue::MakeVectorElt(LHS.getAddress(), Idx,
-                                 E->getBase()->getType(),
-                                 LHS.getAlignmentSource());
+    EmitDynamicNonNullCheck(LHS.getAddress(), BaseTy);
+
+    LValue LV =  LValue::MakeVectorElt(LHS.getAddress(), Idx,
+                                       E->getBase()->getType(),
+                                       LHS.getAlignmentSource());
+
+    EmitDynamicBoundsCheck(LV.getVectorAddress(), E->getBoundsExpr());
+
+    return LV;
   }
 
   // All the other cases basically behave like simple offsetting.
@@ -3089,10 +3102,15 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     LValue LV = EmitLValue(E->getBase());
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
     Address Addr = EmitExtVectorElementLValue(LV);
+    EmitDynamicNonNullCheck(Addr, BaseTy);
 
     QualType EltType = LV.getType()->castAs<VectorType>()->getElementType();
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, EltType, /*inbounds*/ true);
-    return MakeAddrLValue(Addr, EltType, LV.getAlignmentSource());
+    LValue AddrLV = MakeAddrLValue(Addr, EltType, LV.getAlignmentSource());
+
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr());
+
+    return AddrLV;
   }
 
   AlignmentSource AlignSource;
@@ -3104,6 +3122,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     // the VLA bounds.
     Addr = EmitPointerWithAlignment(E->getBase(), &AlignSource);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
+    EmitDynamicNonNullCheck(Addr, BaseTy);
 
     // The element count here is the total number of non-VLA elements.
     llvm::Value *numElements = getVLASize(vla).first;
@@ -3133,6 +3152,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
         llvm::ConstantInt::get(Idx->getType(), InterfaceSize.getQuantity());
 
     llvm::Value *ScaledIdx = Builder.CreateMul(Idx, InterfaceSizeVal);
+    EmitDynamicNonNullCheck(Addr, BaseTy);
 
     // We don't necessarily build correct LLVM struct types for ObjC
     // interfaces, so we can't rely on GEP to do this scaling
@@ -3166,6 +3186,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
       ArrayLV = EmitLValue(Array);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
 
+    EmitDynamicNonNullCheck(ArrayLV.getAddress(), BaseTy);
+
     // Propagate the alignment from the array itself to the result.
     Addr = emitArraySubscriptGEP(*this, ArrayLV.getAddress(),
                                  {CGM.getSize(CharUnits::Zero()), Idx},
@@ -3176,6 +3198,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     // The base must be a pointer; emit it with an estimate of its alignment.
     Addr = EmitPointerWithAlignment(E->getBase(), &AlignSource);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
+    EmitDynamicNonNullCheck(Addr, BaseTy);
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, E->getType(),
                                  !getLangOpts().isSignedOverflowDefined());
   }
@@ -3183,6 +3206,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
   LValue LV = MakeAddrLValue(Addr, E->getType(), AlignSource);
 
   // TODO: Preserve/extend path TBAA metadata?
+
+  EmitDynamicBoundsCheck(Addr, E->getBoundsExpr());
 
   if (getLangOpts().ObjC1 &&
       getLangOpts().getGC() != LangOptions::NonGC) {
@@ -3443,6 +3468,7 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
   if (E->isArrow()) {
     AlignmentSource AlignSource;
     Address Addr = EmitPointerWithAlignment(BaseExpr, &AlignSource);
+    QualType BaseTy = BaseExpr->getType();
     QualType PtrTy = BaseExpr->getType()->getPointeeType();
     SanitizerSet SkippedChecks;
     bool IsBaseCXXThis = IsWrappedCXXThis(BaseExpr);
@@ -3452,7 +3478,18 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
       SkippedChecks.set(SanitizerKind::Null, true);
     EmitTypeCheck(TCK_MemberAccess, E->getExprLoc(), Addr.getPointer(), PtrTy,
                   /*Alignment=*/CharUnits::Zero(), SkippedChecks);
+
     BaseLV = MakeAddrLValue(Addr, PtrTy, AlignSource);
+
+    EmitDynamicNonNullCheck(Addr, BaseTy);
+    // We only check the Base LValue, as we assume that any field is definitely
+    // within the size of the struct. This may not be the case with a "flexible
+    // array member" (6.7.2.1.18), but this member is an array, so is either
+    // unchecked, or is a checked array with its own bounds.
+    // A second reason for always checking the BaseLV is that it is the same for
+    // all the fields in the struct, so more of the checks should optimize away.
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr());
+
   } else
     BaseLV = EmitCheckedLValue(BaseExpr, TCK_MemberAccess);
 
@@ -3824,6 +3861,11 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
     const auto *DCE = cast<CXXDynamicCastExpr>(E);
     return MakeNaturalAlignAddrLValue(EmitDynamicCast(V, DCE), E->getType());
   }
+
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
+    return MakeNaturalAlignAddrLValue(
+        EmitBoundsCast(const_cast<CastExpr *>(E)), E->getType());
 
   case CK_ConstructorConversion:
   case CK_UserDefinedConversion:
@@ -4512,3 +4554,43 @@ RValue CodeGenFunction::EmitPseudoObjectRValue(const PseudoObjectExpr *E,
 LValue CodeGenFunction::EmitPseudoObjectLValue(const PseudoObjectExpr *E) {
   return emitPseudoObjectExpr(*this, E, true, AggValueSlot::ignored()).LV;
 }
+
+llvm::Value *CodeGenFunction::EmitBoundsCast(CastExpr *CE) {
+  Expr *E = CE->getSubExpr();
+  QualType DestTy = CE->getType();
+  CastKind Kind = CE->getCastKind();
+  // Bounds casting has two functionalities.
+  // - code generation for explicit type casting
+  // - code generation for dynamic check for only dynamic_bounds_cast
+  // : bounds_cast<T>(e1, e2, e3) with e1 : bounds(lb, ub)
+  //  - dynamic_check(e1 == NULL || (lb <= e2 && e3 <= ub))
+  //  if e1 is NULL, it skips checking range bounds.
+  //  otherwise, it checks range bounds.
+  Address Addr = Address::invalid();
+  // For count bounds, source can be a pointer/array type (ArrayToPointerDecay)
+  // For range bounds, source can be a pointer/array/integer
+  // For integer type,
+  if (E->getType()->isPointerType()) {
+    Addr = EmitPointerWithAlignment(E);
+    // explicit type casting for destination type
+    Addr = Builder.CreateBitCast(Addr, ConvertType(DestTy));
+  } else {
+    // CK_IntegralToPointer (IntToPtr) casts integer to pointer type
+    llvm::Value *Src = EmitScalarExpr(const_cast<Expr *>(E));
+    llvm::Type *DestLLVMTy = ConvertType(DestTy);
+    llvm::Type *MiddleTy = CGM.getDataLayout().getIntPtrType(DestLLVMTy);
+    bool InputSigned = E->getType()->isSignedIntegerOrEnumerationType();
+    llvm::Value* IntResult =
+      Builder.CreateIntCast(Src, MiddleTy, InputSigned, "conv");
+    llvm::Value *Result = Builder.CreateIntToPtr(IntResult, DestLLVMTy);
+    CharUnits Align = getContext().getTypeAlignInChars(DestTy);
+    Addr = Address(Result, Align);
+  }
+  if (Kind == CK_DynamicPtrBounds) {
+    BoundsCastExpr *BCE = cast<BoundsCastExpr>(CE);
+    EmitDynamicBoundsCheck(Addr, BCE->getCastBoundsExpr(),
+                           BCE->getSubExprBoundsExpr());
+  }
+  return Addr.getPointer();
+}
+

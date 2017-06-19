@@ -127,7 +127,7 @@ DependentSizedArrayType::DependentSizedArrayType(const ASTContext &Context,
                                                  SourceRange brackets)
     : ArrayType(DependentSizedArray, et, can, sm, tq, 
                 (et->containsUnexpandedParameterPack() ||
-                 (e && e->containsUnexpandedParameterPack()))),
+                 (e && e->containsUnexpandedParameterPack())), /*IsChecked=*/false),
       Context(Context), SizeExpr((Stmt*) e), Brackets(brackets) 
 {
 }
@@ -767,7 +767,8 @@ public:
 
     return Ctx.getConstantArrayType(elementType, T->getSize(),
                                     T->getSizeModifier(),
-                                    T->getIndexTypeCVRQualifiers());
+                                    T->getIndexTypeCVRQualifiers(),
+                                    T->isChecked());
   }
 
   QualType VisitVariableArrayType(const VariableArrayType *T) {
@@ -793,7 +794,8 @@ public:
       return QualType(T, 0);
 
     return Ctx.getIncompleteArrayType(elementType, T->getSizeModifier(),
-                                      T->getIndexTypeCVRQualifiers());
+                                      T->getIndexTypeCVRQualifiers(),
+                                      T->isChecked());
   }
 
   QualType VisitVectorType(const VectorType *T) { 
@@ -2661,7 +2663,9 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       NumExceptions(epi.ExceptionSpec.Exceptions.size()),
       ExceptionSpecType(epi.ExceptionSpec.Type),
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
-      Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn) {
+      Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
+      HasParamBounds(epi.ParamBounds != nullptr),
+      ReturnBounds(epi.ReturnBounds) {
   assert(NumParams == params.size() && "function has too many parameters");
 
   FunctionTypeBits.TypeQuals = epi.TypeQuals;
@@ -2681,9 +2685,17 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
     argSlot[i] = params[i];
   }
 
+  // Fill in the Checked C parameter bounds array.
+  if (hasParamBounds()) {
+    const BoundsExpr **boundsSlot = reinterpret_cast<const BoundsExpr **>(argSlot + NumParams);
+    for (unsigned i = 0; i != NumParams; ++i)
+      boundsSlot[i] = epi.ParamBounds[i];
+  }
+
+  QualType *exnArray = const_cast<QualType *>(exception_begin());
   if (getExceptionSpecType() == EST_Dynamic) {
     // Fill in the exception array.
-    QualType *exnSlot = argSlot + NumParams;
+    QualType *exnSlot = exnArray;
     unsigned I = 0;
     for (QualType ExceptionType : epi.ExceptionSpec.Exceptions) {
       // Note that, before C++17, a dependent exception specification does
@@ -2699,7 +2711,7 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
     }
   } else if (getExceptionSpecType() == EST_ComputedNoexcept) {
     // Store the noexcept expression and context.
-    Expr **noexSlot = reinterpret_cast<Expr **>(argSlot + NumParams);
+    Expr **noexSlot = reinterpret_cast<Expr **>(exnArray);
     *noexSlot = epi.ExceptionSpec.NoexceptExpr;
 
     if (epi.ExceptionSpec.NoexceptExpr) {
@@ -2714,7 +2726,7 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
     // Store the function decl from which we will resolve our
     // exception specification.
     FunctionDecl **slot =
-        reinterpret_cast<FunctionDecl **>(argSlot + NumParams);
+        reinterpret_cast<FunctionDecl **>(exnArray);
     slot[0] = epi.ExceptionSpec.SourceDecl;
     slot[1] = epi.ExceptionSpec.SourceTemplate;
     // This exception specification doesn't make the type dependent, because
@@ -2723,7 +2735,7 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
     // Store the function decl from which we will resolve our
     // exception specification.
     FunctionDecl **slot =
-        reinterpret_cast<FunctionDecl **>(argSlot + NumParams);
+        reinterpret_cast<FunctionDecl **>(exnArray);
     slot[0] = epi.ExceptionSpec.SourceDecl;
   }
 
@@ -2850,6 +2862,7 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
   ID.AddPointer(Result.getAsOpaquePtr());
   for (unsigned i = 0; i != NumParams; ++i)
     ID.AddPointer(ArgTys[i].getAsOpaquePtr());
+
   // This method is relatively performance sensitive, so as a performance
   // shortcut, use one AddInteger call instead of four for the next four
   // fields.
@@ -2872,6 +2885,20 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
              epi.ExceptionSpec.Type == EST_Unevaluated) {
     ID.AddPointer(epi.ExceptionSpec.SourceDecl->getCanonicalDecl());
   }
+
+  // Checked C bounds information.
+  if (epi.ParamBounds) {
+    auto Bounds = epi.ParamBounds;
+    for (unsigned i = 0; i != NumParams; ++i) {
+      const BoundsExpr *BoundsExpr = Bounds[i];
+      if (BoundsExpr)
+        BoundsExpr->Profile(ID, Context, true);
+      else
+        ID.AddPointer(nullptr);
+    }
+  }
+  ID.AddPointer(epi.ReturnBounds);
+
   if (epi.ExtParameterInfos) {
     for (unsigned i = 0; i != NumParams; ++i)
       ID.AddInteger(epi.ExtParameterInfos[i].getOpaqueValue());
@@ -3800,6 +3827,118 @@ bool Type::hasSizedVLAType() const {
   }
 
   return false;
+}
+
+// hasCheckedType - check whether a type is a checked type or is a constructed
+//  type (array, pointer, function) that uses a checked type.
+bool Type::hasCheckedType() const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      if (ptr->isCheckedPointerType()) {
+        return true;
+      }
+      return ptr->getPointeeType()->hasCheckedType();
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      if (arr->isChecked())
+        return true;
+      return arr->getElementType()->hasCheckedType();
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->hasCheckedType())
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->hasCheckedType())
+          return true;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+// hasUncheckedType - check whether a type is a unchecked type or is a
+// constructed type (array, pointer, function) that uses a unchecked type.
+// If it has unchecked pointer type, Kind is 0. Otherwise, Kind is 1
+bool Type::hasUncheckedType(unsigned& Kind) const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      if (ptr->isUncheckedPointerType()) {
+        Kind = 0;
+        return true;
+      }
+      return ptr->getPointeeType()->hasUncheckedType(Kind);
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      if (!arr->isChecked()) {
+        Kind = 1;
+        return true;
+      }
+      return arr->getElementType()->hasUncheckedType(Kind);
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->hasUncheckedType(Kind))
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->hasUncheckedType(Kind))
+          return true;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+// hasVariadicType - check whether a type has variable arguments
+// or is a constructed type(array, pointer, function) having variable arguments.
+bool Type::hasVariadicType() const {
+  const Type *current = CanonicalType.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      return ptr->getPointeeType()->hasVariadicType();
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+     const ArrayType *arr = cast<ArrayType>(current);
+      return arr->getElementType()->hasVariadicType();
+    }
+    case Type::FunctionProto: {
+      const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
+      if (fpt->getReturnType()->hasVariadicType())
+        return true;
+      unsigned int paramCount = fpt->getNumParams();
+      for (unsigned int i = 0; i < paramCount; i++) {
+        if (fpt->getParamType(i)->hasVariadicType())
+          return true;
+      }
+      if (fpt->isVariadic())
+        return true;
+      return false;
+    }
+    default:
+      return false;
+  }
 }
 
 QualType::DestructionKind QualType::isDestructedTypeImpl(QualType type) {

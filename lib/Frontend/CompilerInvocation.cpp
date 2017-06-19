@@ -2023,6 +2023,31 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   Opts.PascalStrings = Args.hasArg(OPT_fpascal_strings);
   Opts.VtorDispMode = getLastArgIntValue(Args, OPT_vtordisp_mode_EQ, 1, Diags);
   Opts.Borland = Args.hasArg(OPT_fborland_extensions);
+  if (Args.hasArg(OPT_fcheckedc_extension)) {
+    std::string disallowed;
+    if (Opts.CUDA)
+      disallowed = "CUDA";
+    else if (Opts.OpenCL)
+      disallowed = "OpenCL";
+    else if (Opts.ObjC1 || Opts.ObjC2) {
+      if (Opts.CPlusPlus)
+        disallowed = "Objective C/C++";
+      else
+        disallowed = "Objective C";
+    }
+    else if (Opts.CPlusPlus) {
+      disallowed = "C++";
+    }
+
+    if (disallowed.size() > 0) {
+      Diags.Report(diag::warn_drv_checkedc_extension_notsupported) <<
+        "-fcheckedc-extension" << disallowed;
+    } else
+      Opts.CheckedC = true;
+  }
+  if (Args.hasArg(OPT_fdump_inferred_bounds))
+    Opts.DumpInferredBounds = true;
+
   Opts.WritableStrings = Args.hasArg(OPT_fwritable_strings);
   Opts.ConstStrings = Args.hasFlag(OPT_fconst_strings, OPT_fno_const_strings,
                                    Opts.ConstStrings);

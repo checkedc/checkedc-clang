@@ -178,7 +178,15 @@ struct PragmaForceCUDAHostDeviceHandler : public PragmaHandler {
       : PragmaHandler("force_cuda_host_device"), Actions(Actions) {}
   void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
                     Token &FirstToken) override;
+private:
+  Sema &Actions;
+};
 
+struct PragmaCheckedScopeHandler : public PragmaHandler {
+  PragmaCheckedScopeHandler(Sema &S)
+      : PragmaHandler("BOUNDS_CHECKED"), Actions(S) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
+                    Token &FirstToken) override;
 private:
   Sema &Actions;
 };
@@ -289,6 +297,9 @@ void Parser::initializePragmaHandlers() {
 
   AttributePragmaHandler.reset(new PragmaAttributeHandler(AttrFactory));
   PP.AddPragmaHandler("clang", AttributePragmaHandler.get());
+
+  CheckedScopeHandler.reset(new PragmaCheckedScopeHandler(Actions));
+  PP.AddPragmaHandler(CheckedScopeHandler.get());
 }
 
 void Parser::resetPragmaHandlers() {
@@ -373,6 +384,9 @@ void Parser::resetPragmaHandlers() {
 
   PP.RemovePragmaHandler("clang", AttributePragmaHandler.get());
   AttributePragmaHandler.reset();
+
+  PP.RemovePragmaHandler(CheckedScopeHandler.get());
+  CheckedScopeHandler.reset();
 }
 
 /// \brief Handle the annotation token produced for #pragma unused(...)
@@ -1397,6 +1411,16 @@ void Parser::HandlePragmaAttribute() {
 
   Actions.ActOnPragmaAttributePush(Attribute, PragmaLoc,
                                    std::move(SubjectMatchRules));
+}
+
+// #pragma BOUNDS_CHECKED [on-off-switch]
+void Parser::HandlePragmaBoundsChecked() {
+  assert(Tok.is(tok::annot_pragma_bounds_checked));
+  tok::OnOffSwitch OOS =
+    static_cast<tok::OnOffSwitch>(
+    reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
+  Actions.ActOnPragmaBoundsChecked(Actions.getCurScope(), OOS);
+  ConsumeToken(); // The annotation token.
 }
 
 // #pragma GCC visibility comes in two variants:
@@ -2805,6 +2829,7 @@ void PragmaMSIntrinsicHandler::HandlePragma(Preprocessor &PP,
     PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
         << "intrinsic";
 }
+
 void PragmaForceCUDAHostDeviceHandler::HandlePragma(
     Preprocessor &PP, PragmaIntroducerKind Introducer, Token &Tok) {
   Token FirstTok = Tok;
@@ -2928,4 +2953,25 @@ void PragmaAttributeHandler::HandlePragma(Preprocessor &PP,
   TokenArray[0].setAnnotationValue(static_cast<void *>(Info));
   PP.EnterTokenStream(std::move(TokenArray), 1,
                       /*DisableMacroExpansion=*/false);
+}
+
+// Handle the checked-c top level scope checked property.
+// #pragma BOUNDS_CHECKED [on-off-switch]
+// To handle precise scope property, annotation token is better
+void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
+                                             PragmaIntroducerKind Introducer,
+                                             Token &Tok) {
+  tok::OnOffSwitch OOS;
+  if (PP.LexOnOffSwitch(OOS))
+    return;
+
+  MutableArrayRef<Token> Toks(PP.getPreprocessorAllocator().Allocate<Token>(1),
+                              1);
+  Toks[0].startToken();
+  Toks[0].setKind(tok::annot_pragma_bounds_checked);
+  Toks[0].setLocation(Tok.getLocation());
+  Toks[0].setAnnotationEndLoc(Tok.getLocation());
+  Toks[0].setAnnotationValue(
+      reinterpret_cast<void *>(static_cast<uintptr_t>(OOS)));
+  PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/true);
 }

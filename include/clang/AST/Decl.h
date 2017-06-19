@@ -36,6 +36,7 @@ class CXXTemporary;
 class CompoundStmt;
 class DependentFunctionTemplateSpecializationInfo;
 class Expr;
+class BoundsExpr;
 class FunctionTemplateDecl;
 class FunctionTemplateSpecializationInfo;
 class LabelStmt;
@@ -664,8 +665,11 @@ protected:
   DeclaratorDecl(Kind DK, DeclContext *DC, SourceLocation L,
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
                  SourceLocation StartL)
-    : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL) {
+    : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL),
+      Bounds(nullptr) {
   }
+
+  BoundsExpr *Bounds;
 
 public:
   TypeSourceInfo *getTypeSourceInfo() const {
@@ -731,6 +735,28 @@ public:
 
   friend class ASTDeclReader;
   friend class ASTDeclWriter;
+
+  // Checked C bounds information
+  // For function declarations, this is the return bounds of the function.
+
+  /// \brief Return true if this declaration has bounds declared for it.
+  bool hasBoundsExpr() const;
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<DeclaratorDecl *>(this)->getBoundsExpr();
+  }
+
+  /// \brief The declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr();
+
+  /// \brief Set the declared bounds for this declaration. For function
+  /// declarations, this is the return bounds of the function.
+  void setBoundsExpr(BoundsExpr *E);
 };
 
 /// \brief Structure used to store a statement, the constant value to
@@ -800,6 +826,8 @@ protected:
   /// \brief The initializer for this variable or, for a ParmVarDecl, the
   /// C++ default argument.
   mutable InitType Init;
+
+  SourceLocation InitializerStartLoc;
 
 private:
   class VarDeclBitfields {
@@ -1150,6 +1178,20 @@ public:
   Stmt **getInitAddress();
 
   void setInit(Expr *I);
+
+  /// \brief Set the location of the first token of the initializer
+  /// expression.  For C-style intializers, this is the location of
+  /// the equal token.
+  void setInitializerStartLoc(SourceLocation Loc) {
+    InitializerStartLoc = Loc;
+  }
+
+  /// \brief Get the location of the first token of the initializer
+  /// expression.  For C-style intializers, this is the location of
+  /// the equal token.
+  SourceLocation getInitializerStartLoc() {
+    return InitializerStartLoc;
+  }
 
   /// \brief Determine whether this variable's value can be used in a
   /// constant expression, according to the relevant language standard.

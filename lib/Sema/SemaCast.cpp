@@ -82,6 +82,7 @@ namespace {
     void CheckDynamicCast();
     void CheckCXXCStyleCast(bool FunctionalCast, bool ListInitialization);
     void CheckCStyleCast();
+    void CheckBoundsCast(tok::TokenKind kind);
 
     /// Complete an apparently-successful cast operation that yields
     /// the given expression.
@@ -2569,7 +2570,34 @@ void CastOperation::CheckCStyleCast() {
       return;
     }
   }
-  
+
+  // Checked C - No C-style casts to unchecked pointer/array type or variadic
+  // type in a checked block.
+  if (Self.getCurScope()->isCheckedScope()) {
+    unsigned TypeKind = 0;
+    bool HasUncheckedType = DestType->hasUncheckedType(TypeKind);
+    bool HasVariadicType = DestType->hasVariadicType();
+    bool ConstructsNullPointer = false;
+    if (HasUncheckedType)
+      if (DestType->isVoidPointerType() &&
+          !SrcExpr.isInvalid()) {
+        const IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(SrcExpr.get());
+        if (Lit && !Lit->getValue())
+         ConstructsNullPointer = true;
+      }
+    if ((HasUncheckedType && !ConstructsNullPointer) || HasVariadicType) {
+      if (HasUncheckedType) {
+        Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
+            << TypeKind;
+      } else {
+        Self.Diag(OpRange.getBegin(),
+                  diag::err_checked_scope_no_variable_args_for_casting);
+      }
+      SrcExpr = ExprError();
+      return;
+    }
+  }
+
   DiagnoseCastOfObjCSEL(Self, SrcExpr, DestType);
   DiagnoseCallingConvCast(Self, SrcExpr, DestType, OpRange);
   DiagnoseBadFunctionCast(Self, SrcExpr, DestType);
@@ -2605,6 +2633,40 @@ void CastOperation::CheckCStyleCast() {
   }
 }
 
+void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
+
+  SrcExpr = Self.DefaultFunctionArrayLvalueConversion(SrcExpr.get());
+
+  if (kind == tok::kw__Assume_bounds_cast)
+    Kind = CK_AssumePtrBounds;
+  else if (kind == tok::kw__Dynamic_bounds_cast)
+    Kind = CK_DynamicPtrBounds;
+
+  // Checked C - No C-style casts to unchecked pointer/array type or variadic
+  // type in a checked block.
+  if (Self.getCurScope()->isCheckedScope()) {
+    unsigned TypeKind = 0;
+    bool HasUncheckedType = DestType->hasUncheckedType(TypeKind);
+    bool HasVariadicType = DestType->hasVariadicType();
+    if (Kind == CK_AssumePtrBounds) {
+      Self.Diag(OpRange.getBegin(),
+                diag::err_checked_scope_no_assume_bounds_casting);
+      SrcExpr = ExprError();
+      return;
+    } else if (HasUncheckedType || HasVariadicType) {
+      if (HasUncheckedType) {
+        Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
+            << TypeKind;
+      } else {
+        Self.Diag(OpRange.getBegin(),
+                  diag::err_checked_scope_no_variable_args_for_casting);
+      }
+      SrcExpr = ExprError();
+      return;
+    }
+  }
+}
+
 ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
                                      TypeSourceInfo *CastTypeInfo,
                                      SourceLocation RPLoc,
@@ -2626,6 +2688,27 @@ ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
   return Op.complete(CStyleCastExpr::Create(Context, Op.ResultType,
                               Op.ValueKind, Op.Kind, Op.SrcExpr.get(),
                               &Op.BasePath, CastTypeInfo, LPLoc, RPLoc));
+}
+
+ExprResult Sema::BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
+                                     TypeSourceInfo *CastTypeInfo,
+                                     SourceRange AngleBrackets,
+                                     SourceRange Paren, Expr *E1,
+                                     BoundsExpr *bounds) {
+
+  CastOperation Op(*this, CastTypeInfo->getType(), E1);
+  Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
+  Op.OpRange = SourceRange(OpLoc, E1->getLocEnd());
+
+  Op.CheckBoundsCast(Kind);  
+  
+  if (Op.SrcExpr.isInvalid())
+    return ExprError();
+
+  return Op.complete(
+      BoundsCastExpr::Create(Context, Op.ResultType, Op.ValueKind, Op.Kind,
+                             Op.SrcExpr.get(), &Op.BasePath, CastTypeInfo,
+                             OpLoc, Paren.getEnd(), AngleBrackets, bounds));
 }
 
 ExprResult Sema::BuildCXXFunctionalCastExpr(TypeSourceInfo *CastTypeInfo,

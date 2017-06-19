@@ -337,10 +337,25 @@ namespace  {
       // FIXME: Exception specification.
       // FIXME: Consumed parameters.
       VisitFunctionType(T);
-      for (QualType PT : T->getParamTypes())
+      unsigned numParams = T->getNumParams();
+      bool hasBounds = T->hasParamBounds();
+      for (unsigned i = 0; i < numParams; i++) {
+        QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
+        if (hasBounds)
+          if (const BoundsExpr *const Bounds = T->getParamBounds(i))
+            dumpChild([=] {
+              OS << "Bounds";
+              dumpStmt(Bounds);
+            });
+      }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
+      if (EPI.ReturnBounds)
+        dumpChild([=] {
+          OS << "Return bounds";
+          dumpStmt(EPI.ReturnBounds);
+        });
     }
     void VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
       dumpDeclRef(T->getDecl());
@@ -531,6 +546,7 @@ namespace  {
     void VisitAddrLabelExpr(const AddrLabelExpr *Node);
     void VisitBlockExpr(const BlockExpr *Node);
     void VisitOpaqueValueExpr(const OpaqueValueExpr *Node);
+    void VisitArraySubscriptExpr(const ArraySubscriptExpr *Node);
 
     // C++
     void VisitCXXNamedCastExpr(const CXXNamedCastExpr *Node);
@@ -582,6 +598,15 @@ namespace  {
     void visitVerbatimBlockComment(const VerbatimBlockComment *C);
     void visitVerbatimBlockLineComment(const VerbatimBlockLineComment *C);
     void visitVerbatimLineComment(const VerbatimLineComment *C);
+
+    // Checked C bounds expressions.
+    void VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node);
+    void VisitCountBoundsExpr(const CountBoundsExpr *Node);
+    void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
+    void VisitInteropTypeBoundsAnnotation(
+      const InteropTypeBoundsAnnotation *Node);
+    void dumpBoundsKind(BoundsExpr::Kind kind);
+    void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
   };
 }
 
@@ -1178,6 +1203,9 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
     for (const ParmVarDecl *Parameter : D->parameters())
       dumpDecl(Parameter);
 
+  if (D->hasBoundsExpr())
+    dumpStmt(D->getBoundsExpr());
+
   if (const CXXConstructorDecl *C = dyn_cast<CXXConstructorDecl>(D))
     for (CXXConstructorDecl::init_const_iterator I = C->init_begin(),
                                                  E = C->init_end();
@@ -1198,6 +1226,8 @@ void ASTDumper::VisitFieldDecl(const FieldDecl *D) {
 
   if (D->isBitField())
     dumpStmt(D->getBitWidth());
+  if (D->hasBoundsExpr())
+    dumpStmt(D->getBoundsExpr());
   if (Expr *Init = D->getInClassInitializer())
     dumpStmt(Init);
 }
@@ -1221,6 +1251,8 @@ void ASTDumper::VisitVarDecl(const VarDecl *D) {
     OS << " inline";
   if (D->isConstexpr())
     OS << " constexpr";
+  if (D->hasBoundsExpr())
+    dumpStmt(D->getBoundsExpr());
   if (D->hasInit()) {
     switch (D->getInitStyle()) {
     case VarDecl::CInit: OS << " cinit"; break;
@@ -1947,6 +1979,14 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
   }
   dumpBasePath(OS, Node);
   OS << ">";
+
+  if (Node->getStmtClass() != Expr::BoundsCastExprClass)
+    if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+      dumpChild([=] {
+        OS << "Inferred Bounds";
+        dumpStmt(Bounds);
+      });
+    }
 }
 
 void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
@@ -2047,6 +2087,12 @@ void ASTDumper::VisitUnaryOperator(const UnaryOperator *Node) {
   VisitExpr(Node);
   OS << " " << (Node->isPostfix() ? "postfix" : "prefix")
      << " '" << UnaryOperator::getOpcodeStr(Node->getOpcode()) << "'";
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Bounds";
+      dumpStmt(Bounds);
+    });
+  }
 }
 
 void ASTDumper::VisitUnaryExprOrTypeTraitExpr(
@@ -2074,6 +2120,12 @@ void ASTDumper::VisitMemberExpr(const MemberExpr *Node) {
   VisitExpr(Node);
   OS << " " << (Node->isArrow() ? "->" : ".") << *Node->getMemberDecl();
   dumpPointer(Node->getMemberDecl());
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Base Expr Bounds";
+      dumpStmt(Bounds);
+    });
+  }
 }
 
 void ASTDumper::VisitExtVectorElementExpr(const ExtVectorElementExpr *Node) {
@@ -2106,6 +2158,16 @@ void ASTDumper::VisitOpaqueValueExpr(const OpaqueValueExpr *Node) {
 
   if (Expr *Source = Node->getSourceExpr())
     dumpStmt(Source);
+}
+
+void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
+  VisitExpr(Node);
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Bounds";
+      dumpStmt(Bounds);
+      });
+  }
 }
 
 // GNU extensions.
@@ -2482,6 +2544,66 @@ void ASTDumper::visitVerbatimBlockLineComment(
 
 void ASTDumper::visitVerbatimLineComment(const VerbatimLineComment *C) {
   OS << " Text=\"" << C->getText() << "\"";
+}
+
+//===----------------------------------------------------------------------===//
+// Checked C bounds expressions
+//===----------------------------------------------------------------------===//
+
+void ASTDumper::dumpBoundsKind(BoundsExpr::Kind K) {
+  switch (K) {
+    case BoundsExpr::Kind::Invalid: OS << " Invalid"; break;
+    case BoundsExpr::Kind::None: OS << " None"; break;
+    case BoundsExpr::Kind::Any: OS << "Any"; break;
+    case BoundsExpr::Kind::ElementCount: OS << " Element"; break;
+    case BoundsExpr::Kind::ByteCount: OS << " Byte"; break;
+    case BoundsExpr::Kind::Range: OS << " Range"; break;
+    case BoundsExpr::Kind::InteropTypeAnnotation: OS << " InteropTypeAnnotation"; break;
+    default: OS << " <<err>>"; break;
+  }
+}
+
+void ASTDumper::VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node) {
+  VisitExpr(Node);
+  dumpBoundsKind(Node->getKind());
+}
+
+void ASTDumper::VisitCountBoundsExpr(const CountBoundsExpr *Node) {
+  VisitExpr(Node);
+  dumpBoundsKind(Node->getKind());
+}
+
+void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
+  VisitExpr(Node);
+  if (Node->getKind() != BoundsExpr::Kind::Range)
+    dumpBoundsKind(Node->getKind());
+  if (Node->hasRelativeBoundsClause()) {
+    RelativeBoundsClause *Expr =
+        cast<RelativeBoundsClause>(Node->getRelativeBoundsClause());
+    OS << " rel_align : ";
+    if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
+      QualType Ty = cast<RelativeTypeBoundsClause>(Expr)->getType();
+      dumpType(Ty);
+    } else if (Expr->getClauseKind() == RelativeTypeBoundsClause::Kind::Const) {
+      dumpStmt(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
+    } else {
+      llvm_unreachable("unexpected kind field of relative bounds clause");
+    }
+  }
+}
+
+void ASTDumper::VisitInteropTypeBoundsAnnotation(
+  const InteropTypeBoundsAnnotation *Node) {
+  VisitExpr(Node);
+  if (Node->getKind() != BoundsExpr::Kind::InteropTypeAnnotation)
+    dumpBoundsKind(Node->getKind());
+}
+
+void ASTDumper::VisitPositionalParameterExpr(
+  const PositionalParameterExpr *Node) {
+  VisitExpr(Node);
+  OS << " arg #";
+  OS << Node->getIndex();
 }
 
 //===----------------------------------------------------------------------===//

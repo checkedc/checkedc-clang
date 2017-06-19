@@ -3363,6 +3363,11 @@ recurse:
   case Expr::AsTypeExprClass:
   case Expr::PseudoObjectExprClass:
   case Expr::AtomicExprClass:
+  case Expr::PositionalParameterExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
   {
     if (!NullOut) {
       // As bad as this diagnostic is, it's better than crashing.
@@ -3775,7 +3780,8 @@ recurse:
     Out << "v1U" << Kind.size() << Kind;
   }
   // Fall through to mangle the cast itself.
-      
+    
+  case Expr::BoundsCastExprClass:      
   case Expr::CStyleCastExprClass:
     mangleCastExpression(E, "cv");
     break;

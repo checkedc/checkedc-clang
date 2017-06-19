@@ -2457,11 +2457,11 @@ QualType ASTContext::getComplexType(QualType T) const {
 
 /// getPointerType - Return the uniqued reference to the type for a pointer to
 /// the specified type.
-QualType ASTContext::getPointerType(QualType T) const {
+QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
   // Unique pointers, to guarantee there is only one pointer of a particular
   // structure.
   llvm::FoldingSetNodeID ID;
-  PointerType::Profile(ID, T);
+  PointerType::Profile(ID, T, kind);
 
   void *InsertPos = nullptr;
   if (PointerType *PT = PointerTypes.FindNodeOrInsertPos(ID, InsertPos))
@@ -2471,13 +2471,13 @@ QualType ASTContext::getPointerType(QualType T) const {
   // so fill in the canonical type field.
   QualType Canonical;
   if (!T.isCanonical()) {
-    Canonical = getPointerType(getCanonicalType(T));
+    Canonical = getPointerType(getCanonicalType(T), kind);
 
     // Get the new insert position for the node we care about.
     PointerType *NewIP = PointerTypes.FindNodeOrInsertPos(ID, InsertPos);
     assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
   }
-  PointerType *New = new (*this, TypeAlignment) PointerType(T, Canonical);
+  PointerType *New = new (*this, TypeAlignment) PointerType(T, Canonical, kind);
   Types.push_back(New);
   PointerTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
@@ -2687,7 +2687,8 @@ QualType ASTContext::getMemberPointerType(QualType T, const Type *Cls) const {
 QualType ASTContext::getConstantArrayType(QualType EltTy,
                                           const llvm::APInt &ArySizeIn,
                                           ArrayType::ArraySizeModifier ASM,
-                                          unsigned IndexTypeQuals) const {
+                                          unsigned IndexTypeQuals,
+                                          bool IsChecked) const {
   assert((EltTy->isDependentType() ||
           EltTy->isIncompleteType() || EltTy->isConstantSizeType()) &&
          "Constant array of VLAs is illegal!");
@@ -2698,7 +2699,8 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
   ArySize = ArySize.zextOrTrunc(Target->getMaxPointerWidth());
 
   llvm::FoldingSetNodeID ID;
-  ConstantArrayType::Profile(ID, EltTy, ArySize, ASM, IndexTypeQuals);
+  ConstantArrayType::Profile(ID, EltTy, ArySize, ASM, IndexTypeQuals,
+                             IsChecked);
 
   void *InsertPos = nullptr;
   if (ConstantArrayType *ATP =
@@ -2711,7 +2713,7 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
   if (!EltTy.isCanonical() || EltTy.hasLocalQualifiers()) {
     SplitQualType canonSplit = getCanonicalType(EltTy).split();
     Canon = getConstantArrayType(QualType(canonSplit.Ty, 0), ArySize,
-                                 ASM, IndexTypeQuals);
+                                 ASM, IndexTypeQuals, IsChecked);
     Canon = getQualifiedType(Canon, canonSplit.Quals);
 
     // Get the new insert position for the node we care about.
@@ -2721,7 +2723,8 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
   }
 
   ConstantArrayType *New = new(*this,TypeAlignment)
-    ConstantArrayType(EltTy, Canon, ArySize, ASM, IndexTypeQuals);
+    ConstantArrayType(EltTy, Canon, ArySize, ASM, IndexTypeQuals,
+                      IsChecked);
   ConstantArrayTypes.InsertNode(New, InsertPos);
   Types.push_back(New);
   return QualType(New, 0);
@@ -2817,7 +2820,8 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
                  getVariableArrayDecayedType(cat->getElementType()),
                                   cat->getSize(),
                                   cat->getSizeModifier(),
-                                  cat->getIndexTypeCVRQualifiers());
+                                  cat->getIndexTypeCVRQualifiers(),
+                                  cat->isChecked());
     break;
   }
 
@@ -2961,9 +2965,11 @@ QualType ASTContext::getDependentSizedArrayType(QualType elementType,
 
 QualType ASTContext::getIncompleteArrayType(QualType elementType,
                                             ArrayType::ArraySizeModifier ASM,
-                                            unsigned elementTypeQuals) const {
+                                            unsigned elementTypeQuals,
+                                            bool isChecked) const {
   llvm::FoldingSetNodeID ID;
-  IncompleteArrayType::Profile(ID, elementType, ASM, elementTypeQuals);
+  IncompleteArrayType::Profile(ID, elementType, ASM, elementTypeQuals,
+                               isChecked);
 
   void *insertPos = nullptr;
   if (IncompleteArrayType *iat =
@@ -2978,7 +2984,7 @@ QualType ASTContext::getIncompleteArrayType(QualType elementType,
   if (!elementType.isCanonical() || elementType.hasLocalQualifiers()) {
     SplitQualType canonSplit = getCanonicalType(elementType).split();
     canon = getIncompleteArrayType(QualType(canonSplit.Ty, 0),
-                                   ASM, elementTypeQuals);
+                                   ASM, elementTypeQuals, isChecked);
     canon = getQualifiedType(canon, canonSplit.Quals);
 
     // Get the new insert position for the node we care about.
@@ -2988,7 +2994,7 @@ QualType ASTContext::getIncompleteArrayType(QualType elementType,
   }
 
   IncompleteArrayType *newType = new (*this, TypeAlignment)
-    IncompleteArrayType(elementType, canon, ASM, elementTypeQuals);
+    IncompleteArrayType(elementType, canon, ASM, elementTypeQuals, isChecked);
 
   IncompleteArrayTypes.InsertNode(newType, insertPos);
   Types.push_back(newType);
@@ -3316,8 +3322,9 @@ QualType ASTContext::getFunctionTypeInternal(
   }
 
   // FunctionProtoType objects are allocated with extra bytes after
-  // them for three variable size arrays at the end:
+  // them for four variable size arrays at the end:
   //  - parameter types
+  //  - parameter bounds
   //  - exception types
   //  - extended parameter information
   // Instead of the exception types, there could be a noexcept
@@ -3325,6 +3332,10 @@ QualType ASTContext::getFunctionTypeInternal(
   // specification.
   size_t Size = sizeof(FunctionProtoType) +
                 NumArgs * sizeof(QualType);
+
+  if (EPI.ParamBounds) {
+    Size += NumArgs * sizeof(BoundsExpr *);
+  }
 
   if (EPI.ExceptionSpec.Type == EST_Dynamic) {
     Size += EPI.ExceptionSpec.Exceptions.size() * sizeof(QualType);
@@ -3335,6 +3346,7 @@ QualType ASTContext::getFunctionTypeInternal(
   } else if (EPI.ExceptionSpec.Type == EST_Unevaluated) {
     Size += sizeof(FunctionDecl*);
   }
+
 
   // Put the ExtParameterInfos last.  If all were equal, it would make
   // more sense to put these before the exception specification, because
@@ -4627,11 +4639,12 @@ QualType ASTContext::getUnqualifiedArrayType(QualType type,
 
   if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(AT)) {
     return getConstantArrayType(unqualElementType, CAT->getSize(),
-                                CAT->getSizeModifier(), 0);
+                                CAT->getSizeModifier(), 0, CAT->isChecked());
   }
 
   if (const IncompleteArrayType *IAT = dyn_cast<IncompleteArrayType>(AT)) {
-    return getIncompleteArrayType(unqualElementType, IAT->getSizeModifier(), 0);
+    return getIncompleteArrayType(unqualElementType, IAT->getSizeModifier(), 0,
+                                  IAT->isChecked());
   }
 
   if (const VariableArrayType *VAT = dyn_cast<VariableArrayType>(AT)) {
@@ -4931,11 +4944,13 @@ const ArrayType *ASTContext::getAsArrayType(QualType T) const {
   if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(ATy))
     return cast<ArrayType>(getConstantArrayType(NewEltTy, CAT->getSize(),
                                                 CAT->getSizeModifier(),
-                                           CAT->getIndexTypeCVRQualifiers()));
+                                           CAT->getIndexTypeCVRQualifiers(),
+                                                CAT->isChecked()));
   if (const IncompleteArrayType *IAT = dyn_cast<IncompleteArrayType>(ATy))
     return cast<ArrayType>(getIncompleteArrayType(NewEltTy,
                                                   IAT->getSizeModifier(),
-                                           IAT->getIndexTypeCVRQualifiers()));
+                                           IAT->getIndexTypeCVRQualifiers(),
+                                                  IAT->isChecked()));
 
   if (const DependentSizedArrayType *DSAT
         = dyn_cast<DependentSizedArrayType>(ATy))
@@ -4985,6 +5000,8 @@ QualType ASTContext::getExceptionObjectType(QualType T) const {
 /// this returns a pointer to a properly qualified element of the array.
 ///
 /// See C99 6.7.5.3p7 and C99 6.3.2.1p3.
+///
+/// For Checked C, a checked array type can decay to an _Array_ptr type.
 QualType ASTContext::getArrayDecayedType(QualType Ty) const {
   // Get the element type with 'getAsArrayType' so that we don't lose any
   // typedefs in the element type of the array.  This also handles propagation
@@ -4993,7 +5010,11 @@ QualType ASTContext::getArrayDecayedType(QualType Ty) const {
   const ArrayType *PrettyArrayType = getAsArrayType(Ty);
   assert(PrettyArrayType && "Not an array type!");
 
-  QualType PtrTy = getPointerType(PrettyArrayType->getElementType());
+  CheckedPointerKind checkedKind = PrettyArrayType->isChecked() ?
+    CheckedPointerKind::Array : CheckedPointerKind::Unchecked;
+
+  QualType PtrTy = getPointerType(PrettyArrayType->getElementType(),
+                                  checkedKind);
 
   // int x[restrict 4] ->  int *restrict
   QualType Result = getQualifiedType(PtrTy,
@@ -7802,11 +7823,13 @@ bool ASTContext::canBindObjCObjectType(QualType To, QualType From) {
 /// C99 6.2.7p1: Two types have compatible types if their types are the
 /// same. See 6.7.[2,3,5] for additional rules.
 bool ASTContext::typesAreCompatible(QualType LHS, QualType RHS,
-                                    bool CompareUnqualified) {
+                                    bool CompareUnqualified,
+                                    bool IgnoreBounds) {
   if (getLangOpts().CPlusPlus)
     return hasSameType(LHS, RHS);
 
-  return !mergeTypes(LHS, RHS, false, CompareUnqualified).isNull();
+  return !mergeTypes(LHS, RHS, false, CompareUnqualified, 
+                     /*BlockReturnType=*/false, IgnoreBounds).isNull();
 }
 
 bool ASTContext::propertyTypesAreCompatible(QualType LHS, QualType RHS) {
@@ -7817,18 +7840,81 @@ bool ASTContext::typesAreBlockPointerCompatible(QualType LHS, QualType RHS) {
   return !mergeTypes(LHS, RHS, true).isNull();
 }
 
+/// \brief pointeeTypesAreAssignable: given a LHS pointer and a RHS pointer,
+///  determine whether the LHS pointee can be assigned to the RHS pointee.
+///
+/// The LHS pointer and the RHS pointer must be the same kind of pointer or
+/// the RHS pointer must be an unchecked pointer.  Casting away checkedness
+/// via pointer assignment is not allowed.  Callers must enforce this.
+///
+/// Usually this is just type compatibility, but there is a special case:
+/// * the LHS pointee is a checked array type and the RHS pointee is an array type,
+///   and the RHS array can be made compatible with the LHS array by "promoting" it
+///   to be checked.
+bool ASTContext::pointeeTypesAreAssignable(QualType lhsptee, QualType rhsptee) {
+  rhsptee = matchArrayCheckedness(lhsptee, rhsptee);
+  return typesAreCompatible(lhsptee, rhsptee);
+}
+
+/// matchArrayCheckedness:  Given a pointer assignment, if the LHS and RHS
+/// pointee types are arrays and the LHS pointee is checked, make the RHS
+/// pointee array checked.  To handle multi-dimensional arrays, also
+/// do this recursively for element types of the pointee arrays.
+///  Examples:
+///     LHS = int checked[10], RHS=int [10].  new RHS = int checked[10].
+///     LHS = int checked[10]checked[10], RHS=int [10][10].  new RHS =
+///           int checked[10]checked[10].
+///     LHS = int[10], RHS = int[10]: rhs does not change
+///     LHS = int checked[10]checked[10], RHS=int checked[10][10].  new RHS =
+///           int checked[10]checked[10].
+///     LHS = checked[10], RHS=int[].   new RHS=int checked[]
+QualType ASTContext::matchArrayCheckedness(QualType LHS, QualType RHS) {
+  LHS = getCanonicalType(LHS);
+  RHS = getCanonicalType(RHS);
+  if (LHS->isArrayType() && RHS->isArrayType()) {
+    const ArrayType *lhsTy = cast<ArrayType>(LHS);
+    const ArrayType *rhsTy = cast<ArrayType>(RHS);
+    if (!lhsTy->isChecked()) {
+      return RHS;
+    }
+    assert((lhsTy->isConstantArrayType() || lhsTy->isIncompleteArrayType()) && 
+           "unexpected checked array type");
+    Type::TypeClass rhsTypeClass = rhsTy->getTypeClass();
+    if (rhsTypeClass == Type::ConstantArray || rhsTypeClass == Type::IncompleteArray) {
+        QualType elemTy = matchArrayCheckedness(lhsTy->getElementType(),
+                                                rhsTy->getElementType());
+      if (rhsTypeClass == Type::ConstantArray) {
+          const ConstantArrayType *rhsca = cast<ConstantArrayType>(rhsTy);
+          QualType result = getConstantArrayType(elemTy, rhsca->getSize(),
+                                                 rhsca->getSizeModifier(), RHS.getCVRQualifiers(),
+                                                 true);
+          return result;
+      }
+      else if (rhsTypeClass == Type::IncompleteArray) {
+          const IncompleteArrayType *rhsic = cast<IncompleteArrayType>(rhsTy);
+          QualType result = getIncompleteArrayType(elemTy, rhsic->getSizeModifier(),
+                                                   RHS.getCVRQualifiers(), true);
+          return result;
+      }
+    }
+ }
+ return RHS;
+}
+
 /// mergeTransparentUnionType - if T is a transparent union type and a member
 /// of T is compatible with SubType, return the merged type, else return
 /// QualType()
 QualType ASTContext::mergeTransparentUnionType(QualType T, QualType SubType,
                                                bool OfBlockPointer,
-                                               bool Unqualified) {
+                                               bool Unqualified,
+                                               bool IgnoreBounds) {
   if (const RecordType *UT = T->getAsUnionType()) {
     RecordDecl *UD = UT->getDecl();
     if (UD->hasAttr<TransparentUnionAttr>()) {
       for (const auto *I : UD->fields()) {
         QualType ET = I->getType().getUnqualifiedType();
-        QualType MT = mergeTypes(ET, SubType, OfBlockPointer, Unqualified);
+        QualType MT = mergeTypes(ET, SubType, OfBlockPointer, Unqualified,
+                                 /*BlockReturnType=*/false, IgnoreBounds);
         if (!MT.isNull())
           return MT;
       }
@@ -7842,26 +7928,29 @@ QualType ASTContext::mergeTransparentUnionType(QualType T, QualType SubType,
 /// parameter types
 QualType ASTContext::mergeFunctionParameterTypes(QualType lhs, QualType rhs,
                                                  bool OfBlockPointer,
-                                                 bool Unqualified) {
+                                                 bool Unqualified,
+                                                 bool IgnoreBounds) {
   // GNU extension: two types are compatible if they appear as a function
   // argument, one of the types is a transparent union type and the other
   // type is compatible with a union member
   QualType lmerge = mergeTransparentUnionType(lhs, rhs, OfBlockPointer,
-                                              Unqualified);
+                                              Unqualified, IgnoreBounds);
   if (!lmerge.isNull())
     return lmerge;
 
   QualType rmerge = mergeTransparentUnionType(rhs, lhs, OfBlockPointer,
-                                              Unqualified);
+                                              Unqualified, IgnoreBounds);
   if (!rmerge.isNull())
     return rmerge;
 
-  return mergeTypes(lhs, rhs, OfBlockPointer, Unqualified);
+  return mergeTypes(lhs, rhs, OfBlockPointer, Unqualified,
+                    /*BlockReturnType=*/false, IgnoreBounds);
 }
 
 QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs, 
                                         bool OfBlockPointer,
-                                        bool Unqualified) {
+                                        bool Unqualified,
+                                        bool IgnoreBounds) {
   const FunctionType *lbase = lhs->getAs<FunctionType>();
   const FunctionType *rbase = rhs->getAs<FunctionType>();
   const FunctionProtoType *lproto = dyn_cast<FunctionProtoType>(lbase);
@@ -7877,11 +7966,11 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     bool UnqualifiedResult = Unqualified;
     if (!UnqualifiedResult)
       UnqualifiedResult = (!RHS.hasQualifiers() && LHS.hasQualifiers());
-    retType = mergeTypes(LHS, RHS, true, UnqualifiedResult, true);
+    retType = mergeTypes(LHS, RHS, true, UnqualifiedResult, true, IgnoreBounds);
   }
   else
     retType = mergeTypes(lbase->getReturnType(), rbase->getReturnType(), false,
-                         Unqualified);
+                         Unqualified,/*BlockReturnType=*/false, IgnoreBounds);
   if (retType.isNull()) return QualType();
   
   if (Unqualified)
@@ -7948,13 +8037,36 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (!doFunctionTypesMatchOnExtParameterInfos(rproto, lproto))
       return QualType();
 
+    const BoundsExpr *returnBounds = nullptr;
+    if (!IgnoreBounds) {
+      const BoundsExpr *lReturnBounds = lproto->ReturnBounds;
+      const BoundsExpr *rReturnBounds = rproto->ReturnBounds;
+      if (lReturnBounds && rReturnBounds) {
+        if (!EquivalentBounds(lReturnBounds, rReturnBounds))
+          return QualType();
+      } else if (lReturnBounds || rReturnBounds) {
+        if (retType->isCheckedPointerType())
+          return QualType();
+        if (lReturnBounds) {
+          returnBounds = lReturnBounds;
+          allRTypes = false;
+        }
+        if (rReturnBounds) {
+          returnBounds = rReturnBounds;
+          allLTypes = false;
+        }
+      }
+    }
+
     // Check parameter type compatibility
     SmallVector<QualType, 10> types;
+    SmallVector<const BoundsExpr *, 10> bounds;
+    bool hasParamBounds = lproto->hasParamBounds() || rproto->hasParamBounds();
     for (unsigned i = 0, n = lproto->getNumParams(); i < n; i++) {
       QualType lParamType = lproto->getParamType(i).getUnqualifiedType();
       QualType rParamType = rproto->getParamType(i).getUnqualifiedType();
       QualType paramType = mergeFunctionParameterTypes(
-          lParamType, rParamType, OfBlockPointer, Unqualified);
+          lParamType, rParamType, OfBlockPointer, Unqualified, IgnoreBounds);
       if (paramType.isNull())
         return QualType();
 
@@ -7971,6 +8083,27 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         allLTypes = false;
       if (getCanonicalType(paramType) != getCanonicalType(rParamType))
         allRTypes = false;
+
+      if (!IgnoreBounds && hasParamBounds) {
+        const BoundsExpr *lBounds = lproto->getParamBounds(i);
+        const BoundsExpr *rBounds = rproto->getParamBounds(i);
+        if (lBounds && rBounds) {
+          if (!EquivalentBounds(lBounds, rBounds))
+            return QualType();
+          bounds.push_back(lBounds);
+        } else if (lBounds || rBounds) {
+          if (paramType->isCheckedPointerType())
+            return QualType();
+          if (lBounds) {
+            bounds.push_back(lBounds);
+            allRTypes = false;
+          }
+          if (rBounds) {
+            bounds.push_back(rBounds);
+            allLTypes = false;
+          }
+        }
+      }
     }
       
     if (allLTypes) return lhs;
@@ -7978,6 +8111,9 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
 
     FunctionProtoType::ExtProtoInfo EPI = lproto->getExtProtoInfo();
     EPI.ExtInfo = einfo;
+    if (hasParamBounds)
+      EPI.ParamBounds = bounds.data();
+    EPI.ReturnBounds = returnBounds;
     return getFunctionType(retType, types, EPI);
   }
 
@@ -7993,6 +8129,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     // The only types actually affected are promotable integer
     // types and floats, which would be passed as a different
     // type depending on whether the prototype is visible.
+    bool isCheckedC = getLangOpts().CheckedC;
     for (unsigned i = 0, n = proto->getNumParams(); i < n; ++i) {
       QualType paramTy = proto->getParamType(i);
 
@@ -8006,6 +8143,11 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
 
       if (paramTy->isPromotableIntegerType() ||
           getCanonicalType(paramTy).getUnqualifiedType() == FloatTy)
+        return QualType();
+
+      // For Checked C, a no prototype function is not compatible
+      // with a prototype with a checked argument.
+      if (isCheckedC && isNotAllowedForNoPrototypeFunction(paramTy))
         return QualType();
     }
 
@@ -8045,7 +8187,8 @@ static QualType mergeEnumWithInteger(ASTContext &Context, const EnumType *ET,
 
 QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, 
                                 bool OfBlockPointer,
-                                bool Unqualified, bool BlockReturnType) {
+                                bool Unqualified, bool BlockReturnType,
+                                bool IgnoreBounds) {
   // C++ [expr]: If an expression initially has the type "reference to T", the
   // type is adjusted to "T" prior to any further analysis, the expression
   // designates the object or function denoted by the reference, and the
@@ -8091,10 +8234,14 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
       return QualType();
 
     if (GC_L == Qualifiers::Strong && RHSCan->isObjCObjectPointerType()) {
-      return mergeTypes(LHS, getObjCGCQualType(RHS, Qualifiers::Strong));
+      return mergeTypes(LHS, getObjCGCQualType(RHS, Qualifiers::Strong),
+                        /*OfBlockPointer=*/false,/*Unqualifed=*/false,
+                        /*BlockReturnType=*/false, IgnoreBounds);
     }
     if (GC_R == Qualifiers::Strong && LHSCan->isObjCObjectPointerType()) {
-      return mergeTypes(getObjCGCQualType(LHS, Qualifiers::Strong), RHS);
+      return mergeTypes(getObjCGCQualType(LHS, Qualifiers::Strong), RHS,
+                        /*OfBlockPointer=*/false,/*Unqualifed=*/false,
+                        /*BlockReturnType=*/false, IgnoreBounds);
     }
     return QualType();
   }
@@ -8171,14 +8318,20 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   case Type::Pointer:
   {
     // Merge two pointer types, while trying to preserve typedef info
-    QualType LHSPointee = LHS->getAs<PointerType>()->getPointeeType();
-    QualType RHSPointee = RHS->getAs<PointerType>()->getPointeeType();
+    const PointerType *LHSptr = LHS->getAs<PointerType>();
+    const PointerType *RHSptr = RHS->getAs<PointerType>();
+    QualType LHSPointee = LHSptr->getPointeeType();
+    QualType RHSPointee = RHSptr->getPointeeType();
+
+    if (LHSptr->getKind() != RHSptr->getKind()) return QualType();
+
     if (Unqualified) {
       LHSPointee = LHSPointee.getUnqualifiedType();
       RHSPointee = RHSPointee.getUnqualifiedType();
     }
     QualType ResultType = mergeTypes(LHSPointee, RHSPointee, false, 
-                                     Unqualified);
+                                     Unqualified,/*BlockReturnType=*/false,
+                                     IgnoreBounds);
     if (ResultType.isNull()) return QualType();
     if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
       return LHS;
@@ -8210,7 +8363,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
           QualType(RHSPointee.getTypePtr(), RHSPteeQual.getAsOpaqueValue());
     }
     QualType ResultType = mergeTypes(LHSPointee, RHSPointee, OfBlockPointer,
-                                     Unqualified);
+                                     Unqualified,/*BlockReturnType=*/false,
+                                     IgnoreBounds);
     if (ResultType.isNull()) return QualType();
     if (getCanonicalType(LHSPointee) == getCanonicalType(ResultType))
       return LHS;
@@ -8228,7 +8382,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
       RHSValue = RHSValue.getUnqualifiedType();
     }
     QualType ResultType = mergeTypes(LHSValue, RHSValue, false, 
-                                     Unqualified);
+                                     Unqualified,/*BlockReturnType=*/false,
+                                     IgnoreBounds);
     if (ResultType.isNull()) return QualType();
     if (getCanonicalType(LHSValue) == getCanonicalType(ResultType))
       return LHS;
@@ -8238,28 +8393,38 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   }
   case Type::ConstantArray:
   {
+    const ArrayType *LHSArrayType = getAsArrayType(LHS);
+    const ArrayType *RHSArrayType = getAsArrayType(RHS);
+    bool isChecked = LHSArrayType->isChecked();
+    if (isChecked != RHSArrayType->isChecked()) {
+      return QualType();
+    }
+
     const ConstantArrayType* LCAT = getAsConstantArrayType(LHS);
     const ConstantArrayType* RCAT = getAsConstantArrayType(RHS);
     if (LCAT && RCAT && RCAT->getSize() != LCAT->getSize())
-      return QualType();
+        return QualType();
 
-    QualType LHSElem = getAsArrayType(LHS)->getElementType();
-    QualType RHSElem = getAsArrayType(RHS)->getElementType();
+    QualType LHSElem = LHSArrayType->getElementType();
+    QualType RHSElem = RHSArrayType->getElementType();
     if (Unqualified) {
       LHSElem = LHSElem.getUnqualifiedType();
       RHSElem = RHSElem.getUnqualifiedType();
     }
     
-    QualType ResultType = mergeTypes(LHSElem, RHSElem, false, Unqualified);
+    QualType ResultType = mergeTypes(LHSElem, RHSElem, false, Unqualified,
+                                     /*BlockReturnType=*/false, IgnoreBounds);
     if (ResultType.isNull()) return QualType();
     if (LCAT && getCanonicalType(LHSElem) == getCanonicalType(ResultType))
       return LHS;
     if (RCAT && getCanonicalType(RHSElem) == getCanonicalType(ResultType))
       return RHS;
     if (LCAT) return getConstantArrayType(ResultType, LCAT->getSize(),
-                                          ArrayType::ArraySizeModifier(), 0);
+                                          ArrayType::ArraySizeModifier(), 0,
+                                          isChecked);
     if (RCAT) return getConstantArrayType(ResultType, RCAT->getSize(),
-                                          ArrayType::ArraySizeModifier(), 0);
+                                          ArrayType::ArraySizeModifier(), 0,
+                                          isChecked);
     const VariableArrayType* LVAT = getAsVariableArrayType(LHS);
     const VariableArrayType* RVAT = getAsVariableArrayType(RHS);
     if (LVAT && getCanonicalType(LHSElem) == getCanonicalType(ResultType))
@@ -8281,10 +8446,12 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     if (getCanonicalType(LHSElem) == getCanonicalType(ResultType)) return LHS;
     if (getCanonicalType(RHSElem) == getCanonicalType(ResultType)) return RHS;
     return getIncompleteArrayType(ResultType,
-                                  ArrayType::ArraySizeModifier(), 0);
+                                  ArrayType::ArraySizeModifier(), 0,
+                                  isChecked);
   }
   case Type::FunctionNoProto:
-    return mergeFunctionTypes(LHS, RHS, OfBlockPointer, Unqualified);
+    return mergeFunctionTypes(LHS, RHS, OfBlockPointer, Unqualified,
+                              IgnoreBounds);
   case Type::Record:
   case Type::Enum:
     return QualType();
@@ -8437,6 +8604,275 @@ QualType ASTContext::mergeObjCGCQualifiers(QualType LHS, QualType RHS) {
       return RHS;
   }
   return QualType();
+}
+
+//===--------------------------------------------------------------------===//
+//            Predicates For Checked C checked types and bounds
+//===--------------------------------------------------------------------===//
+
+static bool lessThan(bool Self, bool Other) {
+  return (Self != Other && !Self);
+}
+
+bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
+  if (T1.isNull() || T2.isNull())
+    return false;
+
+  if (T1.getQualifiers() != T2.getQualifiers())
+    return false;
+
+  T1 = T1.getCanonicalType();
+  T2 = T2.getCanonicalType();
+
+  const Type *T1Type = T1.getTypePtr();
+  const Type *T2Type = T2.getTypePtr();
+
+  if (T1Type == T2Type)
+    return true;
+
+  Type::TypeClass T1TypeClass = T1->getTypeClass();
+  if (T1TypeClass != T2Type->getTypeClass())
+    return false;
+
+  switch (T1TypeClass) {
+  case Type::Pointer: {
+    const PointerType *T1PtrType = cast<PointerType>(T1Type);
+    const PointerType *T2PtrType = cast<PointerType>(T2Type);
+    if (lessThan(T1PtrType->isChecked(), T2PtrType->isChecked()))
+      return false;
+
+    QualType T1PointeeType = T1PtrType->getPointeeType();
+    QualType T2PointeeType = T2PtrType->getPointeeType();
+    if (!isAtLeastAsCheckedAs(T1PointeeType, T2PointeeType))
+      return false;
+
+    return true;
+  }
+  case Type::ConstantArray:
+  case Type::IncompleteArray: {
+    // check common array properties
+    const ArrayType *T1ArrayType = cast<ArrayType>(T1Type);
+    const ArrayType *T2ArrayType = cast<ArrayType>(T2Type);
+    if (T1ArrayType->getSizeModifier() != T2ArrayType->getSizeModifier())
+      return false;
+
+    if (lessThan(T1ArrayType->isChecked(), T2ArrayType->isChecked()))
+      return false;
+
+    QualType T1ElementType = T1ArrayType->getElementType();
+    QualType T2ElementType = T2ArrayType->getElementType();
+    if (!isAtLeastAsCheckedAs(T1ElementType, T2ElementType))
+      return false;
+
+    // check properties for specific kinds of arrays
+    if (T1TypeClass == Type::ConstantArray) {
+      const ConstantArrayType *T1ConstantArrayType =
+        cast<ConstantArrayType>(T1Type);
+      const ConstantArrayType *T2ConstantArrayType =
+        cast<ConstantArrayType>(T2Type);
+      if (!llvm::APInt::isSameValue(T1ConstantArrayType->getSize(),
+          T2ConstantArrayType->getSize()))
+        return false;
+    }
+
+    return true;
+  }
+  case Type::FunctionProto: {
+    const FunctionProtoType *T1FuncType =
+      cast<FunctionProtoType>(T1Type);
+    const FunctionProtoType *T2FuncType =
+      cast<FunctionProtoType>(T2Type);
+
+    // Check return types
+    QualType T1ReturnType = T1FuncType->getReturnType();
+    QualType T2ReturnType = T2FuncType->getReturnType();
+    if (!isAtLeastAsCheckedAs(T1ReturnType, T2ReturnType))
+      return false;
+
+    // Check parameter types and parameter-specific information.
+    unsigned int paramCount = T1FuncType->getNumParams();
+    if (paramCount != T2FuncType->getNumParams())
+      return false;
+
+    for (unsigned int i = 0; i < paramCount; i++) {
+      QualType T1ParamType = T1FuncType->getParamType(i);
+      QualType T2ParamType = T2FuncType->getParamType(i);
+      if (!isAtLeastAsCheckedAs(T1ParamType, T2ParamType))
+        return false;
+      // check additional non-type information about parameters
+      FunctionProtoType::ExtParameterInfo T1Info =
+        T1FuncType->getExtParameterInfo(i);
+      FunctionProtoType::ExtParameterInfo T2Info =
+        T2FuncType->getExtParameterInfo(i);
+      if (T1Info != T2Info)
+        return false;
+    }
+
+    // Check T2 properties of the function type.
+    if (T1FuncType->getExtInfo() != T2FuncType->getExtInfo())
+      return false;
+
+    if (T1FuncType->isVariadic() != T2FuncType->isVariadic())
+      return false;
+
+    // TODO: if we extend Checked C to C++, check C++-specific properties of
+    // function types.
+
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
+bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
+  if (T1.isNull() || T2.isNull())
+    return false;
+
+  if (T1.getQualifiers() != T2.getQualifiers())
+    return false;
+
+  T1 = T1.getCanonicalType();
+  T2 = T2.getCanonicalType();
+
+  const Type *T1Type = T1.getTypePtr();
+  const Type *T2Type = T2.getTypePtr();
+
+  if (T1Type == T2Type)
+    return true;
+
+  Type::TypeClass T1TypeClass = T1->getTypeClass();
+  if (T1TypeClass != T2Type->getTypeClass())
+    return false;
+
+  switch (T1TypeClass) {
+  case Type::Pointer: {
+    const PointerType *T1PtrType = cast<PointerType>(T1Type);
+    const PointerType *T2PtrType = cast<PointerType>(T2Type);
+    QualType T1PointeeType = T1PtrType->getPointeeType();
+    QualType T2PointeeType = T2PtrType->getPointeeType();
+    if (!isEqualIgnoringChecked(T1PointeeType, T2PointeeType))
+      return false;
+
+    return true;
+  }
+  case Type::ConstantArray:
+  case Type::IncompleteArray: {
+    // check common array properties
+    const ArrayType *T1ArrayType = cast<ArrayType>(T1Type);
+    const ArrayType *T2ArrayType = cast<ArrayType>(T2Type);
+    if (T1ArrayType->getSizeModifier() != T2ArrayType->getSizeModifier())
+      return false;
+
+    QualType T1ElementType = T1ArrayType->getElementType();
+    QualType T2ElementType = T2ArrayType->getElementType();
+    if (!isEqualIgnoringChecked(T1ElementType, T2ElementType))
+      return false;
+
+    // check properties for specific kinds of arrays
+    if (T1TypeClass == Type::ConstantArray) {
+      const ConstantArrayType *T1ConstantArrayType =
+        cast<ConstantArrayType>(T1Type);
+      const ConstantArrayType *T2ConstantArrayType =
+        cast<ConstantArrayType>(T2Type);
+      if (!llvm::APInt::isSameValue(T1ConstantArrayType->getSize(),
+          T2ConstantArrayType->getSize()))
+        return false;
+    }
+
+    return true;
+  }
+  case Type::FunctionProto: {
+    const FunctionProtoType *T1FuncType = cast<FunctionProtoType>(T1Type);
+    const FunctionProtoType *T2FuncType =
+      cast<FunctionProtoType>(T2Type);
+
+    // Check return types
+    QualType T1ReturnType = T1FuncType->getReturnType();
+    QualType T2ReturnType = T2FuncType->getReturnType();
+    if (!isEqualIgnoringChecked(T1ReturnType, T2ReturnType))
+      return false;
+
+    // Check parameter types and parameter-specific information.
+    unsigned int paramCount = T1FuncType->getNumParams();
+    if (paramCount != T2FuncType->getNumParams())
+      return false;
+
+    for (unsigned int i = 0; i < paramCount; i++) {
+      QualType T1ParamType = T1FuncType->getParamType(i);
+      QualType T2ParamType = T2FuncType->getParamType(i);
+      if (!isEqualIgnoringChecked(T1ParamType, T2ParamType))
+        return false;
+    }
+
+    // Check T2 properties of the function type.
+    if (T1FuncType->getExtInfo() != T2FuncType->getExtInfo())
+      return false;
+
+    if (T1FuncType->isVariadic() != T2FuncType->isVariadic())
+      return false;
+
+    // TODO: if we extend Checked C to C++, check C++-specific properties of
+    // function types.
+
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
+// For the Checked C extension, compute whether a type is allowed to be an
+// argument or return type for a no-prototype function.   This computes the
+// set of allowed types described in Section 5.5 of the Checked C
+// specification.
+bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
+  if (const PointerType *PT = QT->getAs<PointerType>()) {
+    if (PT->isChecked())
+      return true;
+    if (PT->isFunctionPointerType())
+      return isNotAllowedForNoPrototypeFunction(PT->getPointeeType());
+    // Unchecked pointer types are allowed
+    return false;
+  } else if (QT->isCheckedArrayType())
+    return true;
+  else if (const FunctionType *FT = QT->getAs<FunctionType>()) {
+    QualType RetType = FT->getReturnType();
+    if (isNotAllowedForNoPrototypeFunction(RetType))
+      return true;
+    if (const FunctionProtoType *FPT = FT->getAs<FunctionProtoType>()) {
+      if (FPT->hasReturnBounds())
+        return true;
+      unsigned NumParams = FPT->getNumParams();
+      for (unsigned I=0; I< NumParams; ++I) {
+        if (isNotAllowedForNoPrototypeFunction(FPT->getParamType(I)))
+          return true;
+        if (FPT->getParamBounds(I))
+          return true;
+      }
+    }
+  } else if (const RecordType *RT = QT->getAs<RecordType>()) {
+     const RecordDecl *RD = RT->getDecl();
+     if (const RecordDecl *Def = RD->getDefinition()) {
+       for (const auto *FieldDecl : Def->fields()) {
+         QualType FieldType = FieldDecl->getType();
+         if (isNotAllowedForNoPrototypeFunction(FieldType))
+           return true;
+         if (FieldDecl->getBoundsExpr() &&
+             !FieldType->isUncheckedPointerType())
+           return true;
+       }
+    }
+  }
+  return false;
+}
+
+bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2) {
+  llvm::FoldingSetNodeID ID1;
+  llvm::FoldingSetNodeID ID2;
+  Expr1->Profile(ID1, *this, true);
+  Expr2->Profile(ID2, *this, true);
+  return ID1 == ID2;
 }
 
 //===----------------------------------------------------------------------===//

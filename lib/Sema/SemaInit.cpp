@@ -7058,9 +7058,25 @@ InitializationSequence::Perform(Sema &S,
       // Save off the initial CurInit in case we need to emit a diagnostic
       ExprResult InitialCurInit = CurInit;
       ExprResult Result = CurInit;
+
+      QualType LHSType = Step->Type;
+      if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
+        // Tap-dance around the side-effecting behavior of
+        // CheckSingleAssignmentConstraints.  The call to
+        // CheckSingleAssignmentConstraints below can have side-effects where
+        // it modifies the RHS or produces diagnostic messages.  We want the
+        // side-effects to happen exactly once, so we carefully compute the
+        // right type and pass it to the call.
+        QualType LHSInteropType = S.GetCheckedCInteropType(Entity);
+        if (!LHSInteropType.isNull())
+          LHSType = S.ResolveSingleAssignmentType(LHSType, LHSInteropType,
+                                                  Result);
+      }
+
       Sema::AssignConvertType ConvTy =
-        S.CheckSingleAssignmentConstraints(Step->Type, Result, true,
-            Entity.getKind() == InitializedEntity::EK_Parameter_CF_Audited);
+        S.CheckSingleAssignmentConstraints(LHSType, Result, true,
+           Entity.getKind() == InitializedEntity::EK_Parameter_CF_Audited);
+
       if (Result.isInvalid())
         return ExprError();
       CurInit = Result;
@@ -7142,7 +7158,8 @@ InitializationSequence::Perform(Sema &S,
             *ResultType = S.Context.getConstantArrayType(
                                              IncompleteDest->getElementType(),
                                              ConstantSource->getSize(),
-                                             ArrayType::Normal, 0);
+                                             ArrayType::Normal, 0,
+                                             IncompleteDest->isChecked());
           }
         }
       }
@@ -8515,4 +8532,38 @@ QualType Sema::DeduceTemplateSpecializationFromInitializer(
   //  The placeholder is replaced by the return type of the function selected
   //  by overload resolution for class template deduction.
   return SubstAutoType(TSInfo->getType(), Best->Function->getReturnType());
+}
+
+/// Get the bounds-safe interface type for the Entity being initialized, if
+/// there is one.  Return a null QualType otherwise. For entities being
+/// initialized, bounds-safe interfaces are allowed only for global variables,
+/// parameters, and members of structures/unions.
+QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
+  switch (Entity.getKind()) {
+    case InitializedEntity::EntityKind::EK_Variable:
+    case InitializedEntity::EntityKind::EK_Parameter:
+    case InitializedEntity::EntityKind::EK_Member: {
+      ValueDecl *D = Entity.getDecl();
+      if (D != nullptr)
+        return GetCheckedCInteropType(D);
+      break;
+    }
+    case InitializedEntity::EK_ArrayElement:
+    case InitializedEntity::EK_Base:
+    case InitializedEntity::EK_Binding:
+    case InitializedEntity::EK_BlockElement:
+    case InitializedEntity::EK_ComplexElement:
+    case InitializedEntity::EK_CompoundLiteralInit:
+    case InitializedEntity::EK_Delegating:
+    case InitializedEntity::EK_Exception:
+    case InitializedEntity::EK_LambdaCapture:
+    case InitializedEntity::EK_New:
+    case InitializedEntity::EK_RelatedResult:
+    case InitializedEntity::EK_Result:
+    case InitializedEntity::EK_Temporary:
+    case InitializedEntity::EK_VectorElement:
+    case InitializedEntity::EK_Parameter_CF_Audited:
+      break;
+  }
+  return QualType();
 }

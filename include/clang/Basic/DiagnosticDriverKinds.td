@@ -226,6 +226,9 @@ def warn_drv_enabling_rtti_with_exceptions : Warning<
 def warn_drv_disabling_vptr_no_rtti_default : Warning<
   "implicitly disabling vptr sanitizer because rtti wasn't enabled">,
   InGroup<DiagGroup<"auto-disable-vptr-sanitizer">>;
+def warn_drv_checkedc_extension_notsupported : Warning<
+  "Checked C extension not supported with '%1'; ignoring '%0'">,
+  InGroup<CheckedC>;
 
 def note_drv_command_failed_diag_msg : Note<
   "diagnostic msg: %0">;

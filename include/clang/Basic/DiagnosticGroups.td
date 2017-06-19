@@ -916,3 +916,6 @@ def UnknownArgument : DiagGroup<"unknown-argument">;
 // A warning group for warnings about code that clang accepts when
 // compiling OpenCL C/C++ but which is not compatible with the SPIR spec.
 def SpirCompat : DiagGroup<"spir-compat">;
+
+// A warning group for all Checked C warnings
+def CheckedC : DiagGroup<"checkedc">;

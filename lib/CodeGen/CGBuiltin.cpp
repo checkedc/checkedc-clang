@@ -23,6 +23,7 @@
 #include "clang/Basic/TargetBuiltins.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
+#include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/DataLayout.h"
@@ -2768,6 +2769,18 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     analyze_os_log::computeOSLogBufferLayout(CGM.getContext(), E, Layout);
     return RValue::get(ConstantInt::get(ConvertType(E->getType()),
                                         Layout.size().getQuantity()));
+  }
+  case Builtin::BI_Dynamic_check: {
+    // This disables specific code generation for dynamic checks
+    // if Checked C is not enabled. Code Generation will fall-through
+    // to emitting a "Unknown Builtin" error.
+    if (!getLangOpts().CheckedC)
+      break;
+
+    const Expr *Condition = E->getArg(0);
+    EmitExplicitDynamicCheck(Condition);
+
+    return RValue::get(nullptr);
   }
   }
 

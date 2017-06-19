@@ -188,6 +188,7 @@ def err_invalid_token_after_declarator_suggest_equal : Error<
   "invalid %0 at end of declaration; did you mean '='?">;
 def err_expected_statement : Error<"expected statement">;
 def err_expected_lparen_after : Error<"expected '(' after '%0'">;
+def err_expected_lbracket_after : Error<"expected '[' after '%0'">;
 def err_expected_rparen_after : Error<"expected ')' after '%0'">;
 def err_expected_punc : Error<"expected ')' or ',' after '%0'">;
 def err_expected_less_after : Error<"expected '<' after '%0'">;
@@ -1147,5 +1148,30 @@ let CategoryName = "Coroutines Issue" in {
 def err_for_co_await_not_range_for : Error<
   "'co_await' modifier can only be applied to range-based for loop">;
 }
+
+// Checked C parsing errors
+def err_expected_bounds_expr : Error<
+  "expected bounds expression">;
+
+def err_expected_range_bounds_expr : Error<
+  "expected range bounds expression">;
+
+def err_expected_relative_bounds_clause
+    : Error<"expected rel_align or rel_align_value">;
+
+def err_unexpected_bounds_expr_after_declarator: Error<
+  "unexpected bounds expression after declarator">;
+
+def note_place_for_return_bounds_declarator : Note<
+  "if this is a return bounds declaration for %0, place it after the ')'">;
+
+def err_expected_bounds_interop_type : Error<
+  "expected bounds-safe interface type">;
+
+def err_expected_bounds_expr_or_interop_type : Error<
+  "expected bounds expression or bounds-safe interface type">;
+
+def err_expected_compound_stmt_after_checked_scope : Error<
+  "expected compound statement after checked scope keyword">;
 
 } // end of Parser diagnostics

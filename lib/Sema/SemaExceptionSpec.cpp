@@ -1185,6 +1185,7 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::DependentCoawaitExprClass:
   case Expr::CompoundAssignOperatorClass:
   case Expr::CStyleCastExprClass:
+  case Expr::BoundsCastExprClass:    
   case Expr::CXXStaticCastExprClass:
   case Expr::CXXFunctionalCastExprClass:
   case Expr::ImplicitCastExprClass:
@@ -1277,6 +1278,13 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::MSPropertyRefExprClass:
   case Expr::MSPropertySubscriptExprClass:
     llvm_unreachable("Invalid class for expression");
+
+  case Expr::PositionalParameterExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
+    llvm_unreachable("do not expect bounds expressions");
 
 #define STMT(CLASS, PARENT) case Expr::CLASS##Class:
 #define STMT_RANGE(Base, First, Last)

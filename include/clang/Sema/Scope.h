@@ -124,6 +124,13 @@ public:
 
     /// We are currently in the filter expression of an SEH except block.
     SEHFilterScope = 0x200000,
+
+    /// Checked C - This scope corresponds to checked scope for checkedc.
+    /// It is inherited from parent scope.
+    CheckedScope = 0x400000,
+
+    /// Checked C - It clears checked property & prevents checked inheritance.
+    UncheckedScope = 0x800000,
   };
 private:
   /// The parent scope for this scope.  This is null for the translation-unit
@@ -428,6 +435,9 @@ public:
 
   /// \brief Determine whether this scope is a SEH '__except' block.
   bool isSEHExceptScope() const { return getFlags() & Scope::SEHExceptScope; }
+
+  /// \brief Determine whether this scope is a checked scope 'checked'
+  bool isCheckedScope() const { return getFlags() & Scope::CheckedScope; }
 
   /// \brief Returns if rhs has a higher scope depth than this.
   ///

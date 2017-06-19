@@ -400,6 +400,8 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
       case CK_ZeroToOCLEvent:
       case CK_ZeroToOCLQueue:
       case CK_IntToOCLSampler:
+      case CK_DynamicPtrBounds:
+      case CK_AssumePtrBounds:
       case CK_LValueBitCast: {
         state =
             handleLValueBitCast(state, Ex, LCtx, T, ExTy, CastE, Bldr, Pred);

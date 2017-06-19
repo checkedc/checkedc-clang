@@ -1231,16 +1231,89 @@ public:
   }
 };
 
+struct PointerTypeLocInfo {
+  /// There are unchecked and checked pointer types.  They need different location
+  /// information because unchecked pointer types use * and checked pointer types use
+  /// template-like syntax.
+  ///
+  /// For unchecked pointer types, we initialize RightLoc and KWLoc to LeftLoc
+  /// so that all members are initialized.  This allows other code such as
+  /// AST reading/writing to always process all fields.
+  ///
+  /// \brief Location of Star or Less Than symbol
+  SourceLocation LeftSymLoc;
+ /// \brief Location of Greater Than symbol for checked pointer type
+  SourceLocation RightSymLoc;
+  /// \brief keyword location for checked pointer type
+  SourceLocation KWLoc;
+};
 
-/// \brief Wrapper for source info for pointers.
-class PointerTypeLoc : public PointerLikeTypeLoc<PointerTypeLoc,
-                                                 PointerType> {
+/// \brief Wrapper for source info for pointers
+class PointerTypeLoc : public ConcreteTypeLoc<UnqualTypeLoc, PointerTypeLoc,
+    PointerType, PointerTypeLocInfo> {
 public:
   SourceLocation getStarLoc() const {
-    return getSigilLoc();
+    return getLeftSymLoc();
   }
+
   void setStarLoc(SourceLocation Loc) {
-    setSigilLoc(Loc);
+    setLeftSymLoc(Loc);
+    setRightSymLoc(Loc);
+    setKWLoc(Loc);
+  }
+
+  SourceLocation getKWLoc() const {
+      return this->getLocalData()->KWLoc;
+  }
+  void setKWLoc(SourceLocation Loc) {
+      this->getLocalData()->KWLoc = Loc;
+  }
+
+  SourceLocation getLeftSymLoc() const {
+      return this->getLocalData()->LeftSymLoc;
+  }
+
+  void setLeftSymLoc(SourceLocation Loc) {
+      this->getLocalData()->LeftSymLoc = Loc;
+  }
+
+  SourceLocation getRightSymLoc() const {
+      return this->getLocalData()->RightSymLoc;
+  }
+
+  void setRightSymLoc(SourceLocation Loc) {
+      this->getLocalData()->RightSymLoc = Loc;
+  }
+
+  SourceRange getBracketsRange() const {
+      return SourceRange(getLeftSymLoc(), getRightSymLoc());
+  }
+
+  void setParensRange(SourceRange Range) {
+      setLeftSymLoc(Range.getBegin());
+      setRightSymLoc(Range.getEnd());
+  }
+
+  TypeLoc getPointeeLoc() const {
+      return this->getInnerTypeLoc();
+  }
+
+  SourceRange getLocalSourceRange() const {
+      return SourceRange(getKWLoc(), getRightSymLoc());
+  }
+
+  void initializeLocal(ASTContext &Context, SourceLocation Loc) {
+      setKWLoc(Loc);
+      setLeftSymLoc(Loc);
+      setRightSymLoc(Loc);
+  }
+
+  QualType getInnerType() const {
+      return this->getTypePtr()->getPointeeType();
+  }
+
+  CheckedPointerKind getKind() const {
+      return this->getTypePtr()->getKind();
   }
 };
 

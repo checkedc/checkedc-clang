@@ -177,6 +177,8 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
                                                  DeclsInPrototype,
                                              SourceLocation LocalRangeBegin,
                                              SourceLocation LocalRangeEnd,
+                                             SourceLocation ReturnBoundsColonLoc,
+                                             BoundsExpr *ReturnBoundsExpr,
                                              Declarator &TheDeclarator,
                                              TypeResult TrailingReturnType) {
   assert(!(TypeQuals & DeclSpec::TQ_atomic) &&
@@ -212,6 +214,8 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
   I.Fun.HasTrailingReturnType   = TrailingReturnType.isUsable() ||
                                   TrailingReturnType.isInvalid();
   I.Fun.TrailingReturnType      = TrailingReturnType.get();
+  I.Fun.ReturnBoundsColonLoc    = ReturnBoundsColonLoc.getRawEncoding();
+  I.Fun.ReturnBounds            = ReturnBoundsExpr;
 
   assert(I.Fun.TypeQuals == TypeQuals && "bitfield overflow");
   assert(I.Fun.ExceptionSpecType == ESpecType && "bitfield overflow");
@@ -350,6 +354,8 @@ bool Declarator::isDeclarationOfFunction() const {
     case TST_unspecified:
     case TST_void:
     case TST_wchar:
+    case TST_arrayPtr:
+    case TST_plainPtr:
 #define GENERIC_IMAGE_TYPE(ImgType, Id) case TST_##ImgType##_t:
 #include "clang/Basic/OpenCLImageTypes.def"
       return false;
@@ -420,7 +426,7 @@ unsigned DeclSpec::getParsedSpecifiers() const {
     Res |= PQ_TypeSpecifier;
 
   if (FS_inline_specified || FS_virtual_specified || FS_explicit_specified ||
-      FS_noreturn_specified || FS_forceinline_specified)
+      FS_noreturn_specified || FS_forceinline_specified || FS_checked_specified)
     Res |= PQ_FunctionSpecifier;
   return Res;
 }
@@ -525,6 +531,8 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   case DeclSpec::TST_underlyingType: return "__underlying_type";
   case DeclSpec::TST_unknown_anytype: return "__unknown_anytype";
   case DeclSpec::TST_atomic: return "_Atomic";
+  case DeclSpec::TST_arrayPtr: return "_ArrayPtr";
+  case DeclSpec::TST_plainPtr: return "_Ptr";
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   case DeclSpec::TST_##ImgType##_t: \
     return #ImgType "_t";
@@ -920,6 +928,32 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
   }
   FS_noreturn_specified = true;
   FS_noreturnLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
+                                      const char *&PrevSpec,
+                                      unsigned &DiagID) {
+  if (FS_checked_specified == CFS_Checked) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "checked";
+    return true;
+  }
+  FS_checked_specified = CFS_Checked;
+  FS_checkedLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setFunctionSpecUnchecked(SourceLocation Loc,
+                                        const char *&PrevSpec,
+                                        unsigned &DiagID) {
+  if (FS_checked_specified == CFS_Unchecked) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "unchecked";
+    return true;
+  }
+  FS_checked_specified = CFS_Unchecked;
+  FS_checkedLoc = Loc;
   return false;
 }
 

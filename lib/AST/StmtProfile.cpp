@@ -1174,6 +1174,39 @@ void StmtProfiler::VisitPseudoObjectExpr(const PseudoObjectExpr *S) {
       Visit(OVE->getSourceExpr());
 }
 
+void StmtProfiler::VisitCountBoundsExpr(const CountBoundsExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitNullaryBoundsExpr(const NullaryBoundsExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitInteropTypeBoundsAnnotation(
+  const InteropTypeBoundsAnnotation *S) {
+  VisitExpr(S);
+  VisitType(S->getTypeAsWritten());
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitBoundsCastExpr(const BoundsCastExpr *S) {
+  VisitExplicitCastExpr(S);
+}
+
+void StmtProfiler::VisitPositionalParameterExpr(
+  const PositionalParameterExpr *P) {
+  VisitExpr(P);
+  VisitType(P->getType());
+  ID.AddInteger(P->getIndex());
+}
+
 void StmtProfiler::VisitAtomicExpr(const AtomicExpr *S) {
   VisitExpr(S);
   ID.AddInteger(S->getOp());

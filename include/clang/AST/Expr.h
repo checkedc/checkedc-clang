@@ -1719,6 +1719,9 @@ private:
   unsigned Opc : 5;
   SourceLocation Loc;
   Stmt *Val;
+
+  // Compiler-inferred bounds used for inserting a bounds check.
+  BoundsExpr *Bounds;
 public:
 
   UnaryOperator(Expr *input, Opcode opc, QualType type,
@@ -1729,11 +1732,11 @@ public:
            (input->isInstantiationDependent() ||
             type->isInstantiationDependentType()),
            input->containsUnexpandedParameterPack()),
-      Opc(opc), Loc(l), Val(input) {}
+      Opc(opc), Loc(l), Val(input), Bounds(nullptr) {}
 
   /// \brief Build an empty unary operator.
   explicit UnaryOperator(EmptyShell Empty)
-    : Expr(UnaryOperatorClass, Empty), Opc(UO_AddrOf) { }
+    : Expr(UnaryOperatorClass, Empty), Opc(UO_AddrOf), Bounds(nullptr) { }
 
   Opcode getOpcode() const { return static_cast<Opcode>(Opc); }
   void setOpcode(Opcode O) { Opc = O; }
@@ -1808,9 +1811,28 @@ public:
 
   // Iterators
   child_range children() { return child_range(&Val, &Val+1); }
+
   const_child_range children() const {
     return const_child_range(&Val, &Val + 1);
   }
+
+  // Checked C bounds information
+
+  /// \brief Return true if this expression is an lvalue-producing
+  /// expression that should include a bounds check of the lvalue
+  /// that it produces at runtime.
+  bool hasBoundsExpr() const { return Bounds != nullptr; }
+
+  /// \brief The bounds to use during the bounds check of this expression.
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<BoundsExpr*>(Bounds);
+  }
+
+  /// \brief The bounds to use during the bounds check of this expression.
+  BoundsExpr *getBoundsExpr() { return Bounds; }
+
+  /// \brief Set the bounds to use during the bounds check of this expression.
+  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
 };
 
 /// Helper class for OffsetOfExpr.
@@ -2119,6 +2141,9 @@ class ArraySubscriptExpr : public Expr {
   enum { LHS, RHS, END_EXPR=2 };
   Stmt* SubExprs[END_EXPR];
   SourceLocation RBracketLoc;
+
+  // Compiler-inferred bounds used for inserting a bounds check.
+  BoundsExpr *Bounds;
 public:
   ArraySubscriptExpr(Expr *lhs, Expr *rhs, QualType t,
                      ExprValueKind VK, ExprObjectKind OK,
@@ -2130,14 +2155,14 @@ public:
           rhs->isInstantiationDependent()),
          (lhs->containsUnexpandedParameterPack() ||
           rhs->containsUnexpandedParameterPack())),
-    RBracketLoc(rbracketloc) {
+    RBracketLoc(rbracketloc), Bounds(nullptr) {
     SubExprs[LHS] = lhs;
     SubExprs[RHS] = rhs;
   }
 
   /// \brief Create an empty array subscript expression.
   explicit ArraySubscriptExpr(EmptyShell Shell)
-    : Expr(ArraySubscriptExprClass, Shell) { }
+    : Expr(ArraySubscriptExprClass, Shell), Bounds(nullptr) { }
 
   /// An array access can be written A[4] or 4[A] (both are equivalent).
   /// - getBase() and getIdx() always present the normalized view: A[4].
@@ -2192,9 +2217,27 @@ public:
   child_range children() {
     return child_range(&SubExprs[0], &SubExprs[0]+END_EXPR);
   }
+
   const_child_range children() const {
     return const_child_range(&SubExprs[0], &SubExprs[0] + END_EXPR);
   }
+
+  // Checked C bounds information
+
+  /// \brief Return true if this expression include a runtime bounds check of
+  /// the lvalue that it produces.
+  bool hasBoundsExpr() const { return Bounds != nullptr; }
+
+  /// \brief The bounds to use during the bounds check of this expression.
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<BoundsExpr*>(Bounds);
+  }
+
+  /// \brief The bounds to use during the bounds check of this expression.
+  BoundsExpr *getBoundsExpr() { return Bounds; }
+
+  /// \brief Set the bounds to use during the bounds check of this expression.
+  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
 };
 
 /// CallExpr - Represents a function call (C99 6.5.2.2, C++ [expr.call]).
@@ -2426,6 +2469,10 @@ class MemberExpr final
     return HasTemplateKWAndArgsInfo ? 1 : 0;
   }
 
+  /// Compiler-inferred bounds expression to be used to bounds check the base
+  /// expression X of X->F, if a bounds check is needed.
+  BoundsExpr *Bounds;
+
 public:
   MemberExpr(Expr *base, bool isarrow, SourceLocation operatorloc,
              ValueDecl *memberdecl, const DeclarationNameInfo &NameInfo,
@@ -2436,7 +2483,8 @@ public:
         Base(base), MemberDecl(memberdecl), MemberDNLoc(NameInfo.getInfo()),
         MemberLoc(NameInfo.getLoc()), OperatorLoc(operatorloc),
         IsArrow(isarrow), HasQualifierOrFoundDecl(false),
-        HasTemplateKWAndArgsInfo(false), HadMultipleCandidates(false) {
+        HasTemplateKWAndArgsInfo(false), HadMultipleCandidates(false),
+        Bounds(nullptr) {
     assert(memberdecl->getDeclName() == NameInfo.getName());
   }
 
@@ -2453,7 +2501,7 @@ public:
         Base(base), MemberDecl(memberdecl), MemberDNLoc(), MemberLoc(l),
         OperatorLoc(operatorloc), IsArrow(isarrow),
         HasQualifierOrFoundDecl(false), HasTemplateKWAndArgsInfo(false),
-        HadMultipleCandidates(false) {}
+        HadMultipleCandidates(false), Bounds(nullptr) {}
 
   static MemberExpr *Create(const ASTContext &C, Expr *base, bool isarrow,
                             SourceLocation OperatorLoc,
@@ -2621,6 +2669,24 @@ public:
   friend TrailingObjects;
   friend class ASTReader;
   friend class ASTStmtWriter;
+
+  // Checked C bounds information
+
+  /// \brief Return true if the base expression lvalue should be
+  /// bounds checked
+  bool hasBoundsExpr() const { return Bounds != nullptr; }
+
+  /// \brief The bounds to use for bounds checking the base expression lvalue.
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<BoundsExpr*>(Bounds);
+  }
+
+  /// \brief The bounds to use for bounds checking the base expression lvalue.
+  BoundsExpr *getBoundsExpr() { return Bounds; }
+
+  /// \brief Set the bounds to use for bounds checking the base expression
+  /// lvalue.
+  void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
 };
 
 /// CompoundLiteralExpr - [C99 6.5.2.5]
@@ -2694,13 +2760,120 @@ public:
   }
 };
 
+/// \brief Represents a Checked C bounds expression.
+class BoundsExpr : public Expr {
+private:
+  SourceLocation StartLoc, EndLoc;
+  friend class ASTStmtReader;
+
+public:
+  enum Kind {
+    // Invalid bounds expressions are used to flag invalid bounds
+    // expressions and prevent spurious downstream error messages
+    // in bounds declaration checking.
+    Invalid = 0,
+    // bounds(none)
+    None = 1,
+    // bounds(any)
+    Any = 2,
+    // count(e)
+    ElementCount = 3,
+    // byte_count(e)
+    ByteCount = 4,
+    // bounds(e1, e2)
+    Range = 5,
+    // ptr interop annotation.  This isn't really a bounds expression.
+    // To save space and for programmng convenience, we store the
+    // ": ptr" interop annotation as a bounds expression.
+    InteropTypeAnnotation = 6,
+
+    // Sentinel marker for maximum bounds kind.
+    MaxBoundsKind = InteropTypeAnnotation
+  };
+
+  static_assert(MaxBoundsKind < (1 << NumBoundsExprKindBits), "kind field too small");
+
+  BoundsExpr(StmtClass StmtClass, QualType Ty, Kind BoundsKind, SourceLocation StartLoc,
+             SourceLocation EndLoc)
+    : Expr(StmtClass, Ty, VK_RValue, OK_Ordinary, false,
+           false, false, false), StartLoc(StartLoc), EndLoc(EndLoc) {
+    setKind(BoundsKind);
+  }
+
+  BoundsExpr(StmtClass StmtClass, Kind BoundsKind, SourceLocation StartLoc,
+             SourceLocation EndLoc)
+    : BoundsExpr(StmtClass, QualType(), BoundsKind, StartLoc, EndLoc) {
+  }
+
+  explicit BoundsExpr(StmtClass StmtClass, EmptyShell Empty) :
+    Expr(StmtClass, Empty) {
+    setKind(Invalid);
+  }
+
+
+  SourceLocation getStartLoc() const { return StartLoc; }
+  SourceLocation getEndLoc() const { return EndLoc; }
+  SourceLocation getRParenLoc() const { return EndLoc; }
+
+  SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return EndLoc; }
+
+  Kind getKind() const { return (Kind)BoundsExprBits.Kind; }
+  void setKind(Kind Kind) {
+    assert(validateKind(Kind));
+    BoundsExprBits.Kind = Kind;
+  }
+
+  bool isInvalid() const {
+    return getKind() == Invalid;
+  }
+
+  bool isNone() const {
+    return getKind() == None;
+  }
+
+  bool isAny() const {
+    return getKind() == Any;
+  }
+
+  bool isElementCount() const {
+    return getKind() == ElementCount;
+  }
+
+  bool isByteCount() const {
+    return getKind() == ByteCount;
+  }
+
+  bool isRange() const {
+    return getKind() == Range;
+  }
+
+  bool isInteropTypeAnnotation() const {
+    return getKind() == InteropTypeAnnotation;
+  }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() >= firstBoundsExprConstant &&
+      T->getStmtClass() <= lastBoundsExprConstant;
+  }
+
+private:
+  /// \brief: check that the kind is valid for the type
+  /// of bounds expression.
+  bool validateKind(Kind kind);
+};
+
 /// CastExpr - Base class for type casts, including both implicit
 /// casts (ImplicitCastExpr) and explicit casts that have some
 /// representation in the source code (ExplicitCastExpr's derived
 /// classes).
 class CastExpr : public Expr {
 private:
-  Stmt *Op;
+  // BOUNDS - declared bounds of the result of the cast expression
+  // CASTBOUNDS - normalized version of BOUNDS
+  // SUBEXPRBOUNDS - inferred bounds of subexpression
+  enum { OP, BOUNDS, CASTBOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
+  Stmt* SubExprs[END_EXPR];
 
   bool CastConsistency() const;
 
@@ -2731,9 +2904,12 @@ protected:
              // unexpanded pack, even if its target type does.
              ((SC != ImplicitCastExprClass &&
                ty->containsUnexpandedParameterPack()) ||
-              (op && op->containsUnexpandedParameterPack()))),
-        Op(op) {
+              (op && op->containsUnexpandedParameterPack()))) {
     assert(kind != CK_Invalid && "creating cast with invalid cast kind");
+    SubExprs[OP] = op;
+    SubExprs[BOUNDS] = nullptr;
+    SubExprs[CASTBOUNDS] = nullptr;
+    SubExprs[SUBEXPRBOUNDS] = nullptr;
     CastExprBits.Kind = kind;
     setBasePathSize(BasePathSize);
     assert(CastConsistency());
@@ -2742,6 +2918,10 @@ protected:
   /// \brief Construct an empty cast.
   CastExpr(StmtClass SC, EmptyShell Empty, unsigned BasePathSize)
     : Expr(SC, Empty) {
+    SubExprs[OP] = nullptr;
+    SubExprs[BOUNDS] = nullptr;
+    SubExprs[CASTBOUNDS] = nullptr;
+    SubExprs[SUBEXPRBOUNDS] = nullptr;
     setBasePathSize(BasePathSize);
   }
 
@@ -2750,9 +2930,9 @@ public:
   void setCastKind(CastKind K) { CastExprBits.Kind = K; }
   const char *getCastKindName() const;
 
-  Expr *getSubExpr() { return cast<Expr>(Op); }
-  const Expr *getSubExpr() const { return cast<Expr>(Op); }
-  void setSubExpr(Expr *E) { Op = E; }
+  Expr *getSubExpr() { return cast<Expr>(SubExprs[OP]); }
+  const Expr *getSubExpr() const { return cast<Expr>(SubExprs[OP]); }
+  void setSubExpr(Expr *E) { SubExprs[OP] = E; }
 
   /// \brief Retrieve the cast subexpression as it was written in the source
   /// code, looking through any implicit casts or other intermediate nodes
@@ -2777,8 +2957,76 @@ public:
   }
 
   // Iterators
-  child_range children() { return child_range(&Op, &Op+1); }
-  const_child_range children() const { return const_child_range(&Op, &Op + 1); }
+
+  child_range children() {
+    // For bounds cast expression, the bounds are included as a subexpression
+    // in the AST because they are part of the source program.  For other
+    // cast expressions, the bounds are not included because they are
+    // inferred by the compiler only when needed.
+    if (getStmtClass() == BoundsCastExprClass)
+      return child_range(&SubExprs[OP], &SubExprs[END_EXPR]);
+    else
+      return child_range(&SubExprs[OP], &SubExprs[OP] + 1);
+  }
+
+  const_child_range children() const {
+    // For bounds cast expression, the bounds are included as a subexpression
+    // in the AST because they are part of the source program.  For other
+    // cast expressions, the bounds are not included because they are
+    // inferred by the compiler only when needed.
+    if (getStmtClass() == BoundsCastExprClass)
+      return const_child_range(&SubExprs[OP], &SubExprs[END_EXPR]);
+    else
+      return const_child_range(&SubExprs[OP], &SubExprs[OP] + 1);
+  }
+
+  // Checked C bounds information
+
+  /// \brief Return true if the cast expression has a bounds expression
+  /// associated with it.  Depending on the type of the cast expression,
+  /// the bounds expression may be declared as part of the program or inferred
+  /// by the compiler.
+  bool hasBoundsExpr() const { return SubExprs[BOUNDS] != nullptr; }
+
+  /// \brief Returns the bounds associated with the cast expression.
+  /// * If the cast expression is a BoundsCast expression, it is the bounds
+  /// declared in the program.
+  /// * If the cast expression is a cast to Ptr, it is the compiler-inferred
+  /// bounds of the subexpression of the cast expression.   The bounds must be
+  /// provably large enough at compile-time to contain a value of the _Ptr type.
+  BoundsExpr *getBoundsExpr() {
+    return cast_or_null<BoundsExpr>(SubExprs[BOUNDS]);
+  }
+
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[BOUNDS]));
+  }
+
+  void setBoundsExpr(BoundsExpr *E) {
+    SubExprs[BOUNDS] = E;
+  }
+
+  bool hasCastBoundsExpr() const { return SubExprs[CASTBOUNDS] != nullptr; }
+  BoundsExpr *getCastBoundsExpr() {
+    return cast_or_null<BoundsExpr>(SubExprs[CASTBOUNDS]);
+  }
+  const BoundsExpr *getCastBoundsExpr() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[CASTBOUNDS]));
+  }
+  void setCastBoundsExpr(BoundsExpr *E) {
+    SubExprs[CASTBOUNDS] = E;
+  }
+
+  bool hasSubExprBoundsExpr() const { return SubExprs[SUBEXPRBOUNDS] != nullptr; }
+  BoundsExpr *getSubExprBoundsExpr() {
+    return cast_or_null<BoundsExpr>(SubExprs[SUBEXPRBOUNDS]);
+  }
+  const BoundsExpr *getSubExprBoundsExpr() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[SUBEXPRBOUNDS]));
+  }
+  void setSubExprBoundsExpr(BoundsExpr *E) {
+    SubExprs[SUBEXPRBOUNDS] = E;
+  }
 };
 
 /// ImplicitCastExpr - Allows us to explicitly represent implicit type
@@ -2946,6 +3194,56 @@ public:
   friend class CastExpr;
 };
 
+class BoundsCastExpr final
+    : public ExplicitCastExpr,
+      private llvm::TrailingObjects<BoundsCastExpr, CXXBaseSpecifier *> {
+  SourceLocation LPLoc;
+  SourceLocation RParenLoc;
+  SourceRange AngleBrackets;
+public:
+  enum SyntaxType { Bounds = 0, Single = 1, Count = 2, Range = 3 };
+
+  BoundsCastExpr(QualType exprTy, ExprValueKind vk, CastKind kind, Expr *op,
+                 unsigned PathSize, TypeSourceInfo *writtenTy, SourceLocation l,
+                 SourceLocation RParenLoc, SourceRange AngleBrackets,
+                 BoundsExpr *bounds) : ExplicitCastExpr(BoundsCastExprClass,
+                                                        exprTy, vk, kind, op,
+                                                        PathSize, writtenTy),
+      LPLoc(l), RParenLoc(RParenLoc), AngleBrackets(AngleBrackets) {
+    setBoundsExpr(bounds);
+  }
+
+  explicit BoundsCastExpr(EmptyShell Shell, unsigned PathSize)
+      : ExplicitCastExpr(BoundsCastExprClass, Shell, PathSize) {}
+
+  static BoundsCastExpr *Create(const ASTContext &Context, QualType T,
+                                ExprValueKind VK, CastKind K, Expr *Op,
+                                const CXXCastPath *BasePath,
+                                TypeSourceInfo *WrittenTy, SourceLocation L,
+                                SourceLocation R, SourceRange Angle,
+                                BoundsExpr *bounds);
+
+  static BoundsCastExpr *CreateEmpty(const ASTContext &Context,
+                                     unsigned PathSize);
+
+  const char *getCastName() const;
+
+  SourceLocation getOperatorLoc() const { return LPLoc; }
+
+  SourceLocation getRParenLoc() const { return RParenLoc; }
+  SourceLocation getLocStart() const LLVM_READONLY { return LPLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return RParenLoc; }
+  SourceRange getAngleBrackets() const LLVM_READONLY { return AngleBrackets; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == BoundsCastExprClass;
+  }
+
+  friend TrailingObjects;
+  friend class CastExpr;
+  friend class ASTStmtReader;
+};
+
 /// \brief A builtin binary operation expression such as "x + y" or "x <= y".
 ///
 /// This expression node kind describes a builtin binary operation,
@@ -2978,6 +3276,7 @@ private:
 
   enum { LHS, RHS, END_EXPR };
   Stmt* SubExprs[END_EXPR];
+
 public:
 
   BinaryOperator(Expr *lhs, Expr *rhs, Opcode opc, QualType ResTy,
@@ -4741,6 +5040,257 @@ public:
   }
   friend class ASTStmtReader;
 };
+
+
+/// \brief Represents a Checked C nullary bounds expression.
+class NullaryBoundsExpr : public BoundsExpr {
+public:
+  NullaryBoundsExpr(Kind Kind, SourceLocation StartLoc, SourceLocation RParenLoc)
+    : BoundsExpr(NullaryBoundsExprClass, Kind, StartLoc, RParenLoc)  {
+    assert(Kind == Invalid || Kind == None || Kind == Any);
+  }
+
+  explicit NullaryBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(NullaryBoundsExprClass, Empty) {}
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == NullaryBoundsExprClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+};
+
+/// \brief Represents a Checked C count bounds expression.
+class CountBoundsExpr : public BoundsExpr {
+private:
+  Stmt *CountExpr;
+
+public:
+  CountBoundsExpr(Kind Kind, Expr *Count, SourceLocation StartLoc,
+    SourceLocation RParenLoc)
+    : BoundsExpr(CountBoundsExprClass, Kind, StartLoc, RParenLoc),
+      CountExpr(Count) {
+    assert(Kind == Invalid || Kind == ElementCount || Kind == ByteCount);
+  }
+
+  explicit CountBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(CountBoundsExprClass, Empty) {}
+
+  Expr *getCountExpr() const { return cast<Expr>(CountExpr); }
+  void setCountExpr(Expr *E) { CountExpr = E; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == CountBoundsExprClass;
+  }
+  // Iterators
+  child_range children() {
+    return child_range(&CountExpr, &CountExpr + 1);
+  }
+};
+
+class RelativeBoundsClause {
+public:
+  enum Kind {
+    Invalid = 0,
+    Type = 1,
+    Const = 2,
+    MaxRelativeKind = Const
+  };
+
+  RelativeBoundsClause(Kind ClauseKind, SourceLocation StartLoc,
+                       SourceLocation EndLoc)
+      : StartLoc(StartLoc), EndLoc(EndLoc), ClauseKind(ClauseKind) {}
+
+  SourceLocation getLocStart() const { return StartLoc; }
+
+  SourceLocation getLocEnd() const { return EndLoc; }
+
+  void setLocStart(SourceLocation Loc) { StartLoc = Loc; }
+
+  void setLocEnd(SourceLocation Loc) { EndLoc = Loc; }
+
+  Kind getClauseKind() const { return ClauseKind; }
+
+  void setClauseKind(Kind Kind) { ClauseKind = Kind; }
+
+  static bool classof(const RelativeBoundsClause *) { return true; }
+  
+  private:
+  SourceLocation StartLoc;
+  SourceLocation EndLoc;
+  Kind ClauseKind;
+};
+
+class RelativeTypeBoundsClause : public RelativeBoundsClause {
+private:
+  QualType Ty;
+
+public:
+  RelativeTypeBoundsClause(QualType Ty, SourceLocation StartLoc,
+                           SourceLocation RParenLoc)
+      : RelativeBoundsClause(Type, StartLoc, RParenLoc), Ty(Ty) {}
+
+  QualType getType() const { return Ty; }
+  void setType(QualType T){ Ty = T; }
+
+  static bool classof(const RelativeBoundsClause *T){
+    return (T->getClauseKind() == RelativeBoundsClause::Kind::Type);
+  }
+};
+
+class RelativeConstExprBoundsClause : public RelativeBoundsClause {
+private:
+  Stmt *ConstExpr;
+
+public:
+  RelativeConstExprBoundsClause(Expr *ConstExpr, SourceLocation StartLoc,
+                                SourceLocation RParenLoc)
+      : RelativeBoundsClause(Const, StartLoc, RParenLoc), ConstExpr(ConstExpr) {
+  }
+
+  Expr *getConstExpr() const { return cast<Expr>(ConstExpr); }
+  void setConstExpr(Expr *E) {ConstExpr = E;}
+
+  static bool classof(const RelativeBoundsClause *T){
+    return (T->getClauseKind() == RelativeBoundsClause::Kind::Const);
+  }
+};
+
+/// \brief Represents a Checked C range bounds expression.
+class RangeBoundsExpr : public BoundsExpr {
+private:
+  enum { LOWER, UPPER, END_EXPR };
+  Stmt *SubExprs[END_EXPR];
+  RelativeBoundsClause *RelativeClause;
+
+public:
+  RangeBoundsExpr(Expr *Lower, Expr *Upper, SourceLocation StartLoc,
+                  SourceLocation RParenLoc)
+      : BoundsExpr(RangeBoundsExprClass, Range, StartLoc, RParenLoc),
+        RelativeClause(nullptr) {
+    SubExprs[LOWER] = Lower;
+    SubExprs[UPPER] = Upper;
+  }
+
+  explicit RangeBoundsExpr(EmptyShell Empty)
+    : BoundsExpr(RangeBoundsExprClass, Empty) {}
+
+  Expr *getLowerExpr() const { return cast<Expr>(SubExprs[LOWER]); }
+  void setLowerExpr(Expr *E) { SubExprs[LOWER] = E; }
+  Expr *getUpperExpr() const { return cast<Expr>(SubExprs[UPPER]); }
+  void setUpperExpr(Expr *E) { SubExprs[UPPER] = E; }
+  RelativeBoundsClause *getRelativeBoundsClause() const {
+    return RelativeClause;
+  }
+  void setRelativeBoundsClause(RelativeBoundsClause *E) { RelativeClause = E; }
+  bool hasRelativeBoundsClause() const { return RelativeClause != nullptr; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == RangeBoundsExprClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(&SubExprs[0], &SubExprs[0] + END_EXPR);
+  }
+};
+
+/// \brief Represents a Checked C interop bounds annotation.
+///
+/// Checked C has bounds-safe interfaces that allow global variables,
+/// function parameters and return values, and members that have unchecked
+/// pointer types to be used in checked contexts and be treated as having
+/// checked pointer types. This annotation declares the checked pointer
+/// type to be used as the type of the entity in the bounds-safe interface.
+///
+/// This information is needed typically at the same points where bounds
+/// information is needed, so it is convenient to store the information as a
+/// bounds expression.
+///
+/// The annotation is typically used to declare that an entity has _Ptr type
+/// as its bounds-safe interface type.  More generally, an entity can have a
+/// checked pointer type to a checked pointer type and so on as its bounds-safe
+/// interface type.  This is useful for declarations such as `int **y', where
+/// `y' might have a bounds-safe interface that is `_Ptr<_Ptr<int>>` or
+/// `_Array_ptr<_Ptr<int>>`.
+///
+/// This annotation is not necessary for entities for which a bounds expression
+/// is declared and whci do not have a referent typat this a pointer  It will be
+/// inferred that the entity has _Array_ptr type as its bounds-safe interface
+/// type. Some entities will need both this annotation and a bounds expression.
+class InteropTypeBoundsAnnotation : public BoundsExpr {
+private:
+  TypeSourceInfo *TIInfo;
+public:
+  InteropTypeBoundsAnnotation(QualType Ty, SourceLocation StartLoc,
+                              SourceLocation EndLoc,
+                              TypeSourceInfo *TyAsWritten)
+    : BoundsExpr(InteropTypeBoundsAnnotationClass, Ty, InteropTypeAnnotation,
+                 StartLoc, EndLoc), TIInfo(TyAsWritten) {
+  }
+
+  explicit InteropTypeBoundsAnnotation(EmptyShell Empty)
+    : BoundsExpr(InteropTypeBoundsAnnotationClass, Empty), TIInfo(nullptr) {}
+
+  /// getTypeInfoAsWritten - Returns the type source info for the type
+  /// in the interop annotation.
+  TypeSourceInfo *getTypeInfoAsWritten() const { return TIInfo; }
+  void setTypeInfoAsWritten(TypeSourceInfo *WrittenTy) { TIInfo = WrittenTy; }
+
+  /// getTypeAsWritten - Returns the type that this expression is
+  /// casting to, as written in the source code.
+  QualType getTypeAsWritten() const { return TIInfo->getType(); }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == InteropTypeBoundsAnnotationClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+};
+
+// Represent a parameter as its index in the parameter list.
+// This is used in the representation of canonicalized bounds
+// expressions in function types.
+class PositionalParameterExpr : public Expr {
+  private:
+    unsigned Index;
+    friend class ASTStmtReader;
+
+  public:
+    PositionalParameterExpr(unsigned ParameterIndex, QualType QT) : Expr(
+      PositionalParameterExprClass, QT, ExprValueKind::VK_LValue,
+      ExprObjectKind::OK_Ordinary, false, false, false, false),
+      Index(ParameterIndex) {
+    }
+
+    explicit PositionalParameterExpr(EmptyShell Empty) :
+      Expr(PositionalParameterExprClass, Empty) {
+    }
+
+
+    unsigned getIndex() const {
+      return Index;
+    }
+
+    SourceLocation getLocStart() const LLVM_READONLY { return SourceLocation(); }
+    SourceLocation getLocEnd() const LLVM_READONLY { return SourceLocation(); }
+
+    static bool classof(const Stmt *T) {
+      return T->getStmtClass() == PositionalParameterExprClass;
+    }
+
+    // Iterators
+    child_range children() {
+      return child_range(child_iterator(), child_iterator());
+    }
+};
+
 
 //===----------------------------------------------------------------------===//
 // Clang Extensions

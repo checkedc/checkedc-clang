@@ -84,7 +84,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       DataSegStack(nullptr), BSSSegStack(nullptr), ConstSegStack(nullptr),
       CodeSegStack(nullptr), CurInitSeg(nullptr), VisContext(nullptr),
       PragmaAttributeCurrentTargetDecl(nullptr),
-      IsBuildingRecoveryCallExpr(false), Cleanup{}, LateTemplateParser(nullptr),
+      IsBuildingRecoveryCallExpr(false), Cleanup{}, IsMemberBoundsExpr(false), 
+      LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
       CXXTypeInfoDecl(nullptr), MSVCGuidDecl(nullptr), NSNumberDecl(nullptr),
@@ -843,7 +844,8 @@ void Sema::ActOnEndOfTranslationUnit() {
       Diag(VD->getLocation(), diag::warn_tentative_incomplete_array);
       llvm::APInt One(Context.getTypeSize(Context.getSizeType()), true);
       QualType T = Context.getConstantArrayType(ArrayT->getElementType(),
-                                                One, ArrayType::Normal, 0);
+                                                One, ArrayType::Normal, 0,
+                                                ArrayT->isChecked());
       VD->setType(T);
     } else if (RequireCompleteType(VD->getLocation(), VD->getType(),
                                    diag::err_tentative_def_incomplete_type))
@@ -1211,7 +1213,12 @@ void Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
 }
 
 void Sema::PushCompoundScope() {
-  getCurFunction()->CompoundScopes.push_back(CompoundScopeInfo());
+  // Checked C - by default, it inherits the checking property of its parent
+  CompoundScopeInfo CSI;
+  if (!getCurFunction()->CompoundScopes.empty() &&
+      getCurCompoundScope().IsCheckedScope)
+    CSI.setCheckedScope();
+  getCurFunction()->CompoundScopes.push_back(CSI);
 }
 
 void Sema::PopCompoundScope() {

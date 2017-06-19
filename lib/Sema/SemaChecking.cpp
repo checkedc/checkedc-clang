@@ -1090,6 +1090,21 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     }
     break;
+  case Builtin::BI_Dynamic_check: {
+    // This disables any semantic analysis (in particular, errors or warnings)
+    // if Checked C is not enabled
+    if (!getLangOpts().CheckedC)
+      break;
+
+    Expr *Conditional = TheCall->getArg(0);
+
+    if (!CheckIsNonModifyingExpr(Conditional, NMER_Dynamic_Check))
+      return ExprError();
+
+    WarnDynamicCheckAlwaysFails(Conditional);
+
+    break;
+  }
   }
 
   // Since the target specific builtins for each arch overlap, only check those
@@ -11543,6 +11558,73 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                                         << LHSExpr->getSourceRange()
                                         << RHSExpr->getSourceRange();
 }
+
+
+//===--- CHECK: Checked scope -------------------------===//
+// Checked C - type restrictions on declarations in checked blocks.
+bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
+  // Checked pointer type or unchecked pointer type with bounds-safe interface
+  // is only allowed in checked scope or funcion.
+  const DeclaratorDecl *TargetDecl = nullptr;
+  int DeclKind;
+  QualType Ty;
+  if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(Decl)) {
+    TargetDecl = Parm;
+    DeclKind = 0; // function param
+    // default type conversion from array type to pointer type for parameter
+    // To get original type of parameter not adjusted type, use it
+    Ty = Parm->getOriginalType();
+  }
+  else if (const FunctionDecl *Func = dyn_cast<FunctionDecl>(Decl)) {
+    TargetDecl = Func;
+    DeclKind = 1; // function return
+    Ty = Func->getReturnType();
+  }
+  else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
+    TargetDecl = Var;
+    DeclKind = 2; // decl var
+    Ty = Var->getType();
+  }
+  else if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl)) {
+    TargetDecl = Field;
+    DeclKind = 3; // member
+    Ty = Field->getType();
+  }
+  else {
+    Ty = Decl->getType();
+  }
+
+  bool Result = true;
+  unsigned TypeKind = 0;
+  bool HasUncheckedType = Ty->hasUncheckedType(TypeKind);
+  bool HasVariadicType = Ty->hasVariadicType();
+  if (TargetDecl) {
+    // If declared type is unchecked pointer/array type
+    // without bounds-safe interface, it is wrong declaration.
+    QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
+    if ((HasUncheckedType || HasVariadicType) && InterOpTy.isNull())
+      Result = false;
+  }
+  if (!Result) {
+    if (UseLoc.isInvalid()) {
+      SourceLocation DefLoc = TargetDecl->getLocStart();
+      if (HasUncheckedType)
+        Diag(DefLoc, diag::err_checked_scope_type_for_declaration) << DeclKind
+                                                                   << TypeKind;
+      else
+        Diag(DefLoc, diag::err_checked_scope_no_variable_args_for_declaration)
+            << DeclKind;
+    } else {
+      if (HasUncheckedType)
+        Diag(UseLoc, diag::err_checked_scope_type_for_expression) << DeclKind;
+      else
+        Diag(UseLoc, diag::err_checked_scope_no_variable_args_for_expression)
+            << DeclKind;
+    }
+  }
+  return Result;
+}
+
 
 //===--- Layout compatibility ----------------------------------------------//
 

@@ -5678,12 +5678,13 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
   }
 
   case TYPE_POINTER: {
-    if (Record.size() != 1) {
+    if (Record.size() != 2) {
       Error("Incorrect encoding of pointer type");
       return QualType();
     }
     QualType PointeeType = readType(*Loc.F, Record, Idx);
-    return Context.getPointerType(PointeeType);
+    unsigned kind = Record[1];
+    return Context.getPointerType(PointeeType, (CheckedPointerKind) kind);
   }
 
   case TYPE_DECAYED: {
@@ -5752,25 +5753,29 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    unsigned Idx = 3;
+    bool IsChecked = Record[3];
+    unsigned Idx = 4;
     llvm::APInt Size = ReadAPInt(Record, Idx);
     return Context.getConstantArrayType(ElementType, Size,
-                                         ASM, IndexTypeQuals);
+                                         ASM, IndexTypeQuals, IsChecked);
   }
 
   case TYPE_INCOMPLETE_ARRAY: {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    return Context.getIncompleteArrayType(ElementType, ASM, IndexTypeQuals);
+    bool isChecked = Record[3];
+    return Context.getIncompleteArrayType(ElementType, ASM, IndexTypeQuals,
+                                          isChecked);
   }
 
   case TYPE_VARIABLE_ARRAY: {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    SourceLocation LBLoc = ReadSourceLocation(*Loc.F, Record[3]);
-    SourceLocation RBLoc = ReadSourceLocation(*Loc.F, Record[4]);
+    // skip isChecked field at Record[3]
+    SourceLocation LBLoc = ReadSourceLocation(*Loc.F, Record[4]);
+    SourceLocation RBLoc = ReadSourceLocation(*Loc.F, Record[5]);
     return Context.getVariableArrayType(ElementType, ReadExpr(*Loc.F),
                                          ASM, IndexTypeQuals,
                                          SourceRange(LBLoc, RBLoc));
@@ -5781,7 +5786,6 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
       Error("incorrect encoding of vector type in AST file");
       return QualType();
     }
-
     QualType ElementType = readType(*Loc.F, Record, Idx);
     unsigned NumElements = Record[1];
     unsigned VecKind = Record[2];
@@ -5826,15 +5830,26 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
 
     EPI.Variadic = Record[Idx++];
     EPI.HasTrailingReturn = Record[Idx++];
+    bool HasParamBounds = Record[Idx++];
     EPI.TypeQuals = Record[Idx++];
     EPI.RefQualifier = static_cast<RefQualifierKind>(Record[Idx++]);
     SmallVector<QualType, 8> ExceptionStorage;
     readExceptionSpec(*Loc.F, ExceptionStorage, EPI.ExceptionSpec, Record, Idx);
+    EPI.ReturnBounds = ReadBoundsExpr(*Loc.F);
 
     unsigned NumParams = Record[Idx++];
     SmallVector<QualType, 16> ParamTypes;
     for (unsigned I = 0; I != NumParams; ++I)
       ParamTypes.push_back(readType(*Loc.F, Record, Idx));
+
+    if (HasParamBounds) {
+      SmallVector<const BoundsExpr *, 16> ParamBounds;
+      for (unsigned I = 0; I != NumParams; ++I) {
+        ParamBounds.push_back(ReadBoundsExpr(*Loc.F));
+      }
+      EPI.ParamBounds = ParamBounds.data();
+    } else
+      EPI.ParamBounds = nullptr;
 
     SmallVector<FunctionProtoType::ExtParameterInfo, 4> ExtParameterInfos;
     if (Idx != Record.size()) {
@@ -6096,6 +6111,7 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     ArrayType::ArraySizeModifier ASM
       = (ArrayType::ArraySizeModifier)Record[Idx++];
     unsigned IndexTypeQuals = Record[Idx++];
+    Idx++; // skip isChecked field
 
     // DependentSizedArrayType
     Expr *NumElts = ReadExpr(*Loc.F);
@@ -6232,7 +6248,9 @@ void TypeLocReader::VisitComplexTypeLoc(ComplexTypeLoc TL) {
 }
 
 void TypeLocReader::VisitPointerTypeLoc(PointerTypeLoc TL) {
-  TL.setStarLoc(ReadSourceLocation());
+    TL.setKWLoc(ReadSourceLocation());
+    TL.setLeftSymLoc(ReadSourceLocation());
+    TL.setRightSymLoc(ReadSourceLocation());
 }
 
 void TypeLocReader::VisitDecayedTypeLoc(DecayedTypeLoc TL) {

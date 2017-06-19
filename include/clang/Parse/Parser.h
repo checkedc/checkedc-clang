@@ -151,6 +151,49 @@ class Parser : public CodeCompletionHandler {
   mutable IdentifierInfo *Ident_GNU_final;
   mutable IdentifierInfo *Ident_override;
 
+  /// Checked C contextual keywords
+
+  /// These keywords are for bounds expressions.  They are contextual to avoid
+  /// collisions with existing identifiers in programs.  Some keywords like "count"
+  /// and "any" are likely to collide.  Others are unlikely to collide, but we make
+  /// them contextual for consistency.
+
+  /// \brief Identifier for "bounds".
+  IdentifierInfo *Ident_bounds;
+
+  /// \brief Identifier for "byte_count".
+  IdentifierInfo *Ident_byte_count;
+
+  /// \brief Identifier for "count".
+  IdentifierInfo *Ident_count;
+
+  /// \brief Identifier for "none".
+  IdentifierInfo *Ident_none;
+
+  /// \brief Identifier for "itype"
+  IdentifierInfo *Ident_itype;
+
+  /// \brief Identifier for "rel_align"
+  IdentifierInfo *Ident_rel_align;
+
+  /// \brief Identifier for "rel_align_value"
+  IdentifierInfo *Ident_rel_align_value;
+
+  /// \brief Identifier for "dynamic_bounds_cast"
+  IdentifierInfo *Ident_dynamic_bounds_cast;
+  
+  /// \brief Identifier for "assume_bounds_cast"
+  IdentifierInfo *Ident_assume_bounds_cast;
+
+  enum CheckedScopeKind {
+    /// '{'
+    CSK_None,
+    /// checked '{'
+    CSK_Checked,
+    /// unchecked '{'
+    CSK_Unchecked
+  };
+
   // C++ type trait keywords that can be reverted to identifiers and still be
   // used as type traits.
   llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertibleTypeTraits;
@@ -185,6 +228,7 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> NoUnrollHintHandler;
   std::unique_ptr<PragmaHandler> FPHandler;
   std::unique_ptr<PragmaHandler> AttributePragmaHandler;
+  std::unique_ptr<PragmaHandler> CheckedScopeHandler;
 
   std::unique_ptr<CommentHandler> CommentSemaHandler;
 
@@ -571,6 +615,10 @@ private:
       SourceLocation &AnyLoc, SourceLocation &LastMatchRuleEndLoc);
 
   void HandlePragmaAttribute();
+
+  /// \brief Handle the annotation token produced for
+  /// #pragma BOUNDS_CHECKED [on-off-switch]
+  void HandlePragmaBoundsChecked();
 
   /// GetLookAheadToken - This peeks ahead N tokens and returns that token
   /// without consuming any tokens.  LookAhead(0) returns 'Tok', LookAhead(1)
@@ -1668,6 +1716,34 @@ private:
   ExprResult ParseInitializerWithPotentialDesignator();
 
   //===--------------------------------------------------------------------===//
+  // Checked C Expressions
+
+  /// \brief Return true if this token can start a bounds expression.
+  bool StartsBoundsExpression(Token &Tok);
+  /// \brief Return true if this token can start a bounds-safe interface
+  /// type annotation.
+  bool StartsInteropTypeAnnotation(Token &tok);
+
+  bool StartsRelativeBoundsClause(Token &tok);
+
+  bool ParseRelativeBoundsClauseForDecl(ExprResult &Expr);
+
+  RelativeBoundsClause *ParseRelativeBoundsClause(bool &isError,
+                                                   IdentifierInfo *Ident,
+                                                   SourceLocation BoundsKWLoc);
+
+  void SkipInvalidBoundsExpr(Token &T);
+
+  ExprResult ParseBoundsCastExpression();
+
+  ExprResult ParseBoundsExpression();
+  ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
+  ExprResult ParseBoundsExpressionOrInteropType(const Declarator &D,
+                                                bool IsReturn=false);
+  bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
+  ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,  Declarator &D);
+
+  //===--------------------------------------------------------------------===//
   // clang Expressions
 
   ExprResult ParseBlockLiteralExpression();  // ^{...}
@@ -1730,9 +1806,10 @@ private:
   StmtResult ParseCaseStatement(bool MissingCase = false,
                                 ExprResult Expr = ExprResult());
   StmtResult ParseDefaultStatement();
+  StmtResult ParseCheckedScopeStatement();
   StmtResult ParseCompoundStatement(bool isStmtExpr = false);
-  StmtResult ParseCompoundStatement(bool isStmtExpr,
-                                    unsigned ScopeFlags);
+  StmtResult ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
+                                    CheckedScopeKind Kind = CSK_None);
   void ParseCompoundStatementLeadingPragmas();
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
@@ -1942,7 +2019,7 @@ private:
                           AccessSpecifier AS, DeclSpecContext DSC);
   void ParseEnumBody(SourceLocation StartLoc, Decl *TagDecl);
   void ParseStructUnionBody(SourceLocation StartLoc, unsigned TagType,
-                            Decl *TagDecl);
+                            Decl *TagDecl, CheckedScopeKind CSK = CSK_None);
 
   void ParseStructDeclaration(
       ParsingDeclSpec &DS,
@@ -2358,6 +2435,7 @@ private:
                                          SourceLocation EndLoc);
   void ParseUnderlyingTypeSpecifier(DeclSpec &DS);
   void ParseAtomicSpecifier(DeclSpec &DS);
+  void ParseCheckedPointerSpecifiers(DeclSpec & DS);
 
   ExprResult ParseAlignArgument(SourceLocation Start,
                                 SourceLocation &EllipsisLoc);

@@ -9104,4 +9104,253 @@ def warn_shadow_field :
   InGroup<ShadowField>, DefaultIgnore;
 def note_shadow_field : Note<"declared here">;
 
+// Checked C diagnostic messages
+let CategoryName = "Checked C" in {
+
+def err_checked_vla : Error<
+  "checked variable-length array not allowed">;
+
+def err_checked_cplusplus : Error<
+  "checked extension not supported for C++">;
+
+def err_undeclared_member_use : Error<"use of undeclared member %0">;
+
+def err_expected_bounds_expr_for_member : Error<
+  "expected bounds expression">;
+
+def err_checked_array_of_unchecked_array : Error<
+  "checked array of unchecked array not allowed (%0 is an unchecked array)">;  
+
+def err_unchecked_array_of_typedef_checked_array : Error<
+  "unchecked array of checked array not allowed (%0 is a checked array)">; 
+
+def err_unchecked_array_of_checked_array : Error<
+  "unchecked array of checked array not allowed">;
+
+def err_bounds_declaration_unchecked_local_pointer : Error<
+  "bounds declaration not allowed for local variable with unchecked pointer type">;
+
+def err_bounds_declaration_unchecked_local_array : Error<
+  "bounds declaration not allowed for local variable with unchecked array type">;
+
+def err_bounds_safe_interface_type_annotation_local_variable : Error<
+  "bounds-safe interface type annotation not allowed for local variable">;
+
+def err_typecheck_ptr_subscript : Error<
+  "subscript of %0">;
+
+def err_typecheck_cond_incompatible_checked_pointer : Error<
+  "pointer type mismatch%diff{ ($ and $)|}0,1">;
+
+def err_typecheck_ptr_arithmetic : Error<
+  "arithmetic on _Ptr type">;
+
+def err_typecheck_count_bounds_expr : Error<
+  "invalid argument type %0 to count expression">;
+
+def err_typecheck_rel_align_bounds_clause : Error<
+  "invalid argument type %0 to rel_align_value expression">;
+
+def err_typecheck_byte_count_bounds_expr : Error<
+  "invalid argument type %0 to byte_count expression">;
+
+def err_typecheck_bounds_expr : Error<
+  "invalid argument type %0 to bounds expression">;
+
+def err_typecheck_bounds_expr_incompatible_pointers : Error<
+  "pointer type mismatch%diff{ ($ and $)|}0,1">;
+
+ def err_typecheck_pointer_type_expected : Error<
+   "expected expression with pointer type (it has type %0)">;
+
+def err_typecheck_ptr_decl_with_bounds : Error<
+  "bounds declaration not allowed because %0 has a _Ptr type">;
+
+def err_typecheck_ptr_return_with_bounds : Error<
+  "bounds declaration not allowed for a _Ptr return type">;
+
+def err_typecheck_function_pointer_decl_with_bounds : Error<
+  "bounds declaration not allowed because %0 has a function pointer type">;
+
+def err_typecheck_function_pointer_return_with_bounds : Error<
+  "bounds declaration not allowed for a function pointer return type">;
+
+def err_typecheck_count_bounds_decl : Error<
+  "expected %0 to have a pointer or array type">;
+
+def err_typecheck_count_return_bounds : Error<
+  "count bounds expression only allowed for pointer return type">;
+
+def err_typecheck_void_pointer_count_bounds_decl : Error<
+  "expected %0 to have a non-void pointer type">;
+
+def err_typecheck_void_pointer_count_return_bounds : Error<
+  "count bounds expression not allowed for a void pointer return type">;
+
+def err_typecheck_non_count_bounds_decl : Error<
+  "expected %0 to have a pointer, array, or integer type">;
+
+def err_typecheck_non_count_return_bounds : Error<
+  "bounds declaration only allowed for a pointer or integer return type">;
+
+def err_typecheck_bounds_type_annotation_identifier: Error<
+  "type name cannot have identifier in it">;
+
+def err_typecheck_bounds_type_annotation_for_illegal_type : Error<
+  "interface type only allowed for a declaration with pointer "
+  "or array type">;
+
+def err_typecheck_return_bounds_type_annotation_for_illegal_type : Error<
+  "interface type only allowed for a pointer return type">;
+
+def err_typecheck_bounds_type_annotation_must_be_pointer_or_array : Error<
+  "type must be a pointer or array type">;
+
+def err_typecheck_return_bounds_type_annotation_must_be_pointer : Error<
+  "type must be a pointer type">;
+
+def err_typecheck_return_bounds_type_annotation_is_array : Error<
+  "array type not allowed">;
+
+def err_typecheck_bounds_type_annotation_incompatible : Error<
+  "mismatch between interface type "
+  "%diff{$ and declared type $|"
+  "and declared type}0,1">;
+
+def err_typecheck_bounds_type_annotation_must_be_checked_type : Error<
+  "type must be a checked type">;
+
+def err_bounds_type_annotation_lost_checking : Error<
+  "type %diff{$ loses checking of declared type $|"
+  "loses checking of declared type}0,1">;
+
+ def err_no_prototype_function_with_checked_return_type : Error<
+   "function with no prototype cannot have a return type that is a "
+   "%select{checked type|structure with a member with a checked type|"
+   "union with a member with a checked type}0">;
+
+ def err_no_prototype_function_with_return_bounds : Error<
+   "function with no prototype cannot have a return bounds">;
+
+ def err_no_prototype_function_redeclared_with_checked_arg : Error<
+   "cannot redeclare a function with no prototype to have an argument type "
+   "that is a %select{checked type|structure with a member with a checked type|"
+   "union with a member with a checked type}0">;
+
+ def err_checkedc_incompatible_no_prototype_redeclaration : Error<
+   "cannot redeclare a function that has a checked argument or argument "
+   "bounds to have no prototype">;
+
+ def note_previous_bounds_decl : Note<"previous bounds declaration is here">;
+ 
+  def err_decl_conflicting_bounds : Error<
+    "%select{function redeclaration has conflicting parameter bounds|function "
+    "redeclaration has conflicting return bounds|variable redeclaration has "
+    "conflicting bounds}0">;
+
+  def err_decl_added_bounds : Error<
+    "%select{function redeclaration added bounds for parameter|function "
+    "redeclaration added return bounds|variable redeclaration added bounds}0">;
+
+  def err_decl_dropped_bounds : Error<
+    "%select{function redeclaration dropped bounds for parameter|function "
+    "redeclaration dropped return bounds|variable redeclaration dropped "
+    "bounds}0">;
+
+  def err_conflicting_bounds : Error<"conflicting bounds for %0">;
+
+  def err_out_of_scope_function_type_local : Error<
+    "out-of-scope variable for bounds in a function type (a function type "
+    "cannot reference local variables)">;
+
+  def err_out_of_scope_function_type_parameter : Error<
+    "out-of-scope variable for bounds in a function type (a function type can "
+    "only reference parameters from its own parameter list)">;
+
+  def err_expected_bounds : Error<
+    "expression has no bounds">;
+
+  def err_expected_bounds_for_ptr_cast : Error<
+    "expression has no bounds"
+    ", cast to ptr<T> expects source to have bounds">;
+
+  def err_expected_bounds_for_assignment : Error<
+    "expression has no bounds"
+    ", right-hand side of assignment expected to have bounds because the left-hand side has bounds">;
+
+  def err_expected_bounds_for_initializer : Error<
+    "expression has no bounds"
+    ", initializer expected to have bounds because the variable being declared has bounds">;
+
+  def err_initializer_expected_with_bounds : Error<
+    "automatic variable %0 with bounds must have initializer">;
+
+  def err_initializer_expected_for_ptr : Error<
+    "automatic variable %0 with _Ptr type must have initializer">;
+
+  def err_cast_to_checked_fn_ptr_must_be_named : Error<
+	"cast to checked function pointer type %0 must be from named top-level function">;
+
+  def err_cast_to_checked_fn_ptr_from_incompatible_type : Error<
+    "cast to checked function pointer type %0 from incompatible %select{type|checked pointer type}2 %1">;
+
+  def err_cast_to_checked_fn_ptr_not_value_preserving : Error<
+    "can only cast function names or null pointers to checked function pointer type %0">;
+
+  def err_cast_to_checked_fn_ptr_cannot_read_mem : Error<
+    "cannot guarantee operand of cast to checked function pointer type %0 is a function pointer">;
+
+  def err_cast_to_checked_fn_ptr_can_only_ref_deref_functions : Error<
+    "cast to checked function pointer type %0 may only %select{dereference|take the address of}1 "
+	"expressions with function type">;
+
+  def warn_dynamic_check_condition_fail : Warning<
+    "dynamic check will always fail">,
+	InGroup<CheckedC>;
+
+  def err_not_non_modifying_expr : Error<
+	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
+	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression}1">;
+
+  def err_checked_scope_type_for_declaration : Error<
+    "%select{parameter|return|variable|member}0 cannot have an unchecked "
+    "%select{pointer|array}1 type in a checked scope or function">;
+
+  def err_checked_scope_type_for_expression : Error<
+    "cannot use a %select{parameter|return|variable|member}0 with an unchecked type in a checked scope or function">;
+
+  def err_checked_scope_type_for_casting : Error<
+    "invalid casting to unchecked %select{pointer|array}0 type in a checked scope or function">;
+
+  def err_checked_scope_no_prototype_func : Error<
+    "function without a prototype cannot be used or declared in a checked scope">;
+
+  def err_checked_scope_no_variable_args_for_declaration : Error<
+    "%select{parameter|return|variable|member}0 cannot have variable arguments "
+    "in a checked scope or function">;
+
+  def err_checked_scope_no_variable_args_for_expression : Error<
+    "cannot use a %select{parameter|return|variable|member}0 having variable arguments "
+    "in a checked scope or function">;
+
+  def err_checked_scope_no_variable_args_for_casting : Error<
+    "invalid casting to type having variable arguments in a checked scope or function">;
+
+  def err_checked_scope_no_variadic_func_for_declaration : Error<
+    "variable arguments function cannot be made in a checked scope or function">;
+
+  def err_checked_scope_no_variadic_func_for_expression : Error<
+    "cannot use a variable arguments function in a checked scope or function">;
+
+  def err_checked_scope_no_assume_bounds_casting : Error<
+    "_Assume_bounds_cast not allowed in a checked scope or function">;
+
+  def err_bounds_cast_error_with_single_syntax
+      : Error<"invalid bounds cast: expected _Ptr or * type">;
+
+  def err_bounds_cast_error_with_array_syntax
+      : Error<"invalid bounds cast: expected _Array_ptr type">;
+
+} // end of Checked C Category
+
 } // end of sema component.

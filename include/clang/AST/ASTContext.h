@@ -1140,9 +1140,9 @@ public:
 
   /// \brief Return the uniqued reference to the type for a pointer to
   /// the specified type.
-  QualType getPointerType(QualType T) const;
-  CanQualType getPointerType(CanQualType T) const {
-    return CanQualType::CreateUnsafe(getPointerType((QualType) T));
+  QualType getPointerType(QualType T, CheckedPointerKind kind = CheckedPointerKind::Unchecked) const;
+  CanQualType getPointerType(CanQualType T, CheckedPointerKind kind = CheckedPointerKind::Unchecked) const {
+    return CanQualType::CreateUnsafe(getPointerType((QualType) T, kind));
   }
 
   /// \brief Return the uniqued reference to a type adjusted from the original
@@ -1236,14 +1236,16 @@ public:
   /// the specified element type.
   QualType getIncompleteArrayType(QualType EltTy,
                                   ArrayType::ArraySizeModifier ASM,
-                                  unsigned IndexTypeQuals) const;
+                                  unsigned IndexTypeQuals,
+                                  bool isChecked) const;
 
   /// \brief Return the unique reference to the type for a constant array of
   /// the specified element type.
   QualType getConstantArrayType(QualType EltTy, const llvm::APInt &ArySize,
                                 ArrayType::ArraySizeModifier ASM,
-                                unsigned IndexTypeQuals) const;
-
+                                unsigned IndexTypeQuals,
+                                bool isChecked = false) const;
+  
   /// \brief Returns a vla type where known sizes are replaced with [*].
   QualType getVariableArrayDecayedType(QualType Ty) const;
 
@@ -2338,8 +2340,10 @@ public:
   //===--------------------------------------------------------------------===//
 
   /// Compatibility predicates used to check assignment expressions.
-  bool typesAreCompatible(QualType T1, QualType T2,
-                          bool CompareUnqualified = false); // C99 6.2.7p1
+
+  bool typesAreCompatible(QualType T1, QualType T2, 
+                          bool CompareUnqualified = false, // C99 6.2.7p1
+                          bool IgnoreBounds = false);
 
   bool propertyTypesAreCompatible(QualType, QualType);
   bool typesAreBlockPointerCompatible(QualType, QualType);
@@ -2374,16 +2378,19 @@ public:
 
   // Functions for calculating composite types
   QualType mergeTypes(QualType, QualType, bool OfBlockPointer=false,
-                      bool Unqualified = false, bool BlockReturnType = false);
+                      bool Unqualified = false, bool BlockReturnType = false,
+                      bool IgnoreBounds = false);
   QualType mergeFunctionTypes(QualType, QualType, bool OfBlockPointer=false,
-                              bool Unqualified = false);
+                              bool Unqualified = false, bool IgnoreBounds = false);
   QualType mergeFunctionParameterTypes(QualType, QualType,
                                        bool OfBlockPointer = false,
-                                       bool Unqualified = false);
+                                       bool Unqualified = false,
+                                       bool IgnoreBounds = false);
   QualType mergeTransparentUnionType(QualType, QualType,
                                      bool OfBlockPointer=false,
-                                     bool Unqualified = false);
-
+                                     bool Unqualified = false,
+                                     bool IgnoreBounds = false);
+  
   QualType mergeObjCGCQualifiers(QualType, QualType);
 
   bool doFunctionTypesMatchOnExtParameterInfos(
@@ -2391,6 +2398,40 @@ public:
          const FunctionProtoType *ToFunctionType);
 
   void ResetObjCLayout(const ObjCContainerDecl *CD);
+
+  //===--------------------------------------------------------------------===//
+  //           Predicates For Checked C checked types and bounds
+  //===--------------------------------------------------------------------===//
+
+  /// \brief Determine whether a pointer, array, or function type T1 provides
+  /// at least as much checking as the other type T2.  Return true if it does
+  /// or false if it does not or the types differ in some other way than
+  /// checkedness.
+  bool isAtLeastAsCheckedAs(QualType T1, QualType T2) const;
+
+  /// \brief Determine whether a pointer, array, or function type T1
+  /// is the same as the other pointer, array, or function type T2 if
+  /// checkedness is ignored.  Return true if does or false if the types
+  /// differ in some other way than checkedness.
+  bool isEqualIgnoringChecked(QualType T1, QualType T2) const;
+
+  /// \brief Return true if this type is a checked type that is not
+  /// allowed to be passed or returned from a no prototype function.
+  bool isNotAllowedForNoPrototypeFunction(QualType T1) const;
+
+  // Methods to support checking assignments in the presence of
+  // checked pointers.
+
+  /// \brief pointeeTypesAreAssignable: given a LHS pointer and a RHS pointer,
+  /// determine whether the LHS pointee can be assigned to the RHS pointee.
+  /// The pointer types must be the same kind or the RHS pointer type must
+  /// be unchecked.
+  bool pointeeTypesAreAssignable(QualType lhsptee, QualType rhsptee);
+private:
+  QualType matchArrayCheckedness(QualType LHS, QualType RHS);
+
+public:
+  bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
 
   //===--------------------------------------------------------------------===//
   //                    Integer Predicates

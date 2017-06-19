@@ -204,6 +204,12 @@ void Scope::dumpImpl(raw_ostream &OS) const {
     } else if (Flags & OpenMPSimdDirectiveScope) {
       OS << "OpenMPSimdDirectiveScope";
       Flags &= ~OpenMPSimdDirectiveScope;
+    } else if (Flags & CheckedScope) {
+      OS << "CheckedScope";
+      Flags &= ~CheckedScope;
+    } else if (Flags & UncheckedScope) {
+      OS << "UncheckedScope";
+      Flags &= ~UncheckedScope;
     }
 
     if (Flags)

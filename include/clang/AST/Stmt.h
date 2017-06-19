@@ -261,6 +261,15 @@ protected:
     unsigned IsImplicit : 1;
   };
 
+  enum { NumBoundsExprKindBits = 3 };
+
+  class BoundsExprBitFields {
+    friend class BoundsExpr;
+
+    unsigned : NumExprBits;
+    unsigned Kind : NumBoundsExprKindBits;
+  };
+
   union {
     StmtBitfields StmtBits;
     CompoundStmtBitfields CompoundStmtBits;
@@ -278,6 +287,7 @@ protected:
     InitListExprBitfields InitListExprBits;
     TypeTraitExprBitfields TypeTraitExprBits;
     CoawaitExprBitfields CoawaitBits;
+    BoundsExprBitFields BoundsExprBits;
   };
 
   friend class ASTStmtReader;

@@ -1409,6 +1409,9 @@ LANGBUILTIN(to_private, "v*v*", "tn", OCLC20_LANG)
 BUILTIN(__builtin_os_log_format_buffer_size, "zcC*.", "p:0:nut")
 BUILTIN(__builtin_os_log_format, "v*v*cC*.", "p:0:nt")
 
+// Checked C Builtins
+BUILTIN(_Dynamic_check, "vi", "n")
+
 #undef BUILTIN
 #undef LIBBUILTIN
 #undef LANGBUILTIN

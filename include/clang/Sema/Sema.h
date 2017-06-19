@@ -470,6 +470,11 @@ public:
   /// element type here is ExprWithCleanups::Object.
   SmallVector<BlockDecl*, 8> ExprCleanupObjects;
 
+  /// True if the current expression is a member bounds expression
+  /// for a structure.  Member bounds expressions can only reference
+  /// members and cannot reference variables.
+  bool IsMemberBoundsExpr;
+
   /// \brief Store a list of either DeclRefExprs or MemberExprs
   ///  that contain a reference to a variable (constant) that may or may not
   ///  be odr-used in this Expr, and we won't know until all lvalue-to-rvalue
@@ -1294,12 +1299,12 @@ public:
                               const DeclSpec *DS = nullptr);
   QualType BuildQualifiedType(QualType T, SourceLocation Loc, unsigned CVRA,
                               const DeclSpec *DS = nullptr);
-  QualType BuildPointerType(QualType T,
+  QualType BuildPointerType(QualType T, CheckedPointerKind kind,
                             SourceLocation Loc, DeclarationName Entity);
   QualType BuildReferenceType(QualType T, bool LValueRef,
                               SourceLocation Loc, DeclarationName Entity);
   QualType BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
-                          Expr *ArraySize, unsigned Quals,
+                          Expr *ArraySize, unsigned Quals, bool IsChecked,
                           SourceRange Brackets, DeclarationName Entity);
   QualType BuildExtVectorType(QualType T, Expr *ArraySize,
                               SourceLocation AttrLoc);
@@ -1827,7 +1832,7 @@ public:
   bool shouldLinkDependentDeclWithPrevious(Decl *D, Decl *OldDecl);
   void CheckMain(FunctionDecl *FD, const DeclSpec &D);
   void CheckMSVCRTEntryPoint(FunctionDecl *FD);
-  Decl *ActOnParamDeclarator(Scope *S, Declarator &D);
+  ParmVarDecl *ActOnParamDeclarator(Scope *S, Declarator &D);
   ParmVarDecl *BuildParmVarDeclForTypedef(DeclContext *DC,
                                           SourceLocation Loc,
                                           QualType T);
@@ -1845,7 +1850,8 @@ public:
   bool SetParamDefaultArgument(ParmVarDecl *Param, Expr *DefaultArg,
                                SourceLocation EqualLoc);
 
-  void AddInitializerToDecl(Decl *dcl, Expr *init, bool DirectInit);
+  void AddInitializerToDecl(Decl *dcl, Expr *init, bool DirectInit, 
+                            SourceLocation EqualLoc = SourceLocation());
   void ActOnUninitializedDecl(Decl *dcl);
   void ActOnInitializerError(Decl *Dcl);
 
@@ -2094,8 +2100,8 @@ public:
   void ActOnDefs(Scope *S, Decl *TagD, SourceLocation DeclStart,
                  IdentifierInfo *ClassName,
                  SmallVectorImpl<Decl *> &Decls);
-  Decl *ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
-                   Declarator &D, Expr *BitfieldWidth);
+  FieldDecl *ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
+                        Declarator &D, Expr *BitfieldWidth);
 
   FieldDecl *HandleField(Scope *S, RecordDecl *TagD, SourceLocation DeclStart,
                          Declarator &D, Expr *BitfieldWidth,
@@ -2337,6 +2343,30 @@ public:
   void MergeVarDeclExceptionSpecs(VarDecl *New, VarDecl *Old);
   bool checkVarDeclRedefinition(VarDecl *OldDefn, VarDecl *NewDefn);
   bool MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old, Scope *S);
+
+  // Checked C specific methods for merging function declarations.
+  bool CheckedCFunctionDeclCompatibility(FunctionDecl *New, FunctionDecl *Old);
+  bool CheckedCMergeFunctionDecls(FunctionDecl *New, FunctionDecl *Old);
+
+  bool DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
+                                             FunctionDecl *Old);
+
+  // used for %select in diagnostics for errors involving checked types.
+  enum class CheckedTypeClassification {
+    CCT_Any,
+    CCT_Struct,
+    CCT_Union
+  };
+
+  // used for %select in diagnostics for errors involving redeclarations
+  // with bounds
+  enum class CheckedCBoundsError {
+    CCBE_Parameter,
+    CCBE_Return,
+    CCBE_Variable
+  };
+
+  CheckedTypeClassification classifyForCheckedTypeDiagnostic(QualType qt);
 
   // AssignmentAction - This is used by all the assignment diagnostic functions
   // to represent what is actually causing the operation
@@ -3523,6 +3553,10 @@ public:
       S.ActOnFinishOfCompoundStmt();
     }
 
+    void setCheckedScope() {
+      S.getCurCompoundScope().setCheckedScope();
+    }
+
   private:
     Sema &S;
   };
@@ -3760,6 +3794,14 @@ public:
   /// Warn if a value is moved to itself.
   void DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                         SourceLocation OpLoc);
+
+  /// \param D - target declaration
+  /// \param UseLoc - default invalid location at declaration
+  /// it is valid only if it is regarded as use of variable
+
+  /// \returns true if target declaration is valid checked decl
+  bool DiagnoseCheckedDecl(const ValueDecl *D,
+                           SourceLocation UseLoc = SourceLocation());
 
   /// \brief Warn if we're implicitly casting from a _Nullable pointer type to a
   /// _Nonnull one.
@@ -4340,6 +4382,150 @@ public:
   /// literal was successfully completed.  ^(int x){...}
   ExprResult ActOnBlockStmtExpr(SourceLocation CaretLoc, Stmt *Body,
                                 Scope *CurScope);
+
+  //===---------------------------- Checked C Extension ----------------------===//
+
+private:
+  const Type *ValidateBoundsExprArgument(Expr *Arg);
+
+public:
+  ExprResult ActOnNullaryBoundsExpr(SourceLocation BoundKWLoc,
+                                    BoundsExpr::Kind Kind,
+                                    SourceLocation RParenLoc);
+  ExprResult ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
+                                  BoundsExpr::Kind Kind, Expr *CountExpr,
+                                  SourceLocation RParenLoc);
+  ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
+                                  Expr *UpperBound, SourceLocation RParenLoc);
+
+  ExprResult CreateRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
+                                   Expr *UpperBound,
+                                   RelativeBoundsClause *Relative,
+                                   SourceLocation RParenLoc);
+
+  ExprResult ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
+                                    SourceLocation RParenLoc);
+  ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc,
+                                     TypeSourceInfo *TInfo,
+                                     SourceLocation RParenLoc);
+
+  ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
+
+  RelativeBoundsClause* ActOnRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                                     ParsedType Ty,
+                                                     SourceLocation RParenLoc);
+
+  RelativeBoundsClause *
+  CreateRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                 TypeSourceInfo *TyInfo,
+                                 SourceLocation RParenLoc);
+
+  RelativeBoundsClause* ActOnRelativeConstExprClause(Expr *ConstExpr,
+                                                    SourceLocation BoundsKWLoc,
+                                                    SourceLocation RParenLoc);
+
+  bool CheckBoundsCastBaseType(Expr *E1);
+
+  ExprResult
+  ActOnBoundsCastExprBounds(Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+                            SourceLocation LAnagleBracketLoc, ParsedType D,
+                            SourceLocation RAngleBracketLoc,
+                            RelativeBoundsClause *RelativeClause,
+                            SourceLocation LParenLoc, SourceLocation RParenLoc,
+                            Expr *E1, Expr *ParsedBounds);
+
+  ExprResult ActOnBoundsCastExprSingle(
+      Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+      SourceLocation LAnagleBracketLoc, ParsedType D,
+      SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
+      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1);
+
+  ExprResult ActOnBoundsCastExprCount(
+      Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+      SourceLocation LAnagleBracketLoc, ParsedType D,
+      SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
+      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1, Expr *E2);
+
+  ExprResult
+  ActOnBoundsCastExprRange(Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+                           SourceLocation LAnagleBracketLoc, ParsedType D,
+                           SourceLocation RAngleBracketLoc,
+                           RelativeBoundsClause *RelativeClause,
+                           SourceLocation LParenLoc, SourceLocation RParenLoc,
+                           Expr *E1, Expr *E2, Expr *E3);
+
+  ExprResult BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
+                                 TypeSourceInfo *CastTypeInfo,
+                                 SourceRange AngleBrackets,
+                                 SourceRange Paren, Expr *E1,
+                                 BoundsExpr *bounds);
+
+  bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
+                              BoundsExpr *Expr, bool IsReturnBounds);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
+
+  void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
+
+  // \#pragma BOUNDS_CHECKED.
+  void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
+
+  BoundsExpr *CreateInvalidBoundsExpr();
+  BoundsExpr *CreateCountForArrayType(QualType QT);
+
+  BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr,
+                                      ArrayRef<DeclaratorChunk::ParamInfo> Params);
+  BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
+                                         ArrayRef<ParmVarDecl *> Params);
+  BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
+                                       BoundsExpr *Bounds);
+
+  /// GetArrayPtrDereference - determine if an lvalue expression is
+  /// a dereference of an Array_ptr (via '*" or an array subscript operator).
+  /// Returns the expression with the dereference (skipping parenthesis expressions)
+  /// or null, if this is not a dereference of an Array_ptr
+  Expr *GetArrayPtrDereference(Expr *E);
+
+  /// InferLValueBounds - infer a bounds expression for an lvalue.
+  /// The bounds determine whether the lvalue to which an
+  /// expression evaluates in in range.
+  BoundsExpr *InferLValueBounds(Expr *E);
+
+  /// InferLValueTargetBounds - infer the bounds for the
+  /// target of an lvalue.
+  BoundsExpr *InferLValueTargetBounds(Expr *E);
+
+  /// InferRVa;ieBounds - infer a bounds expression for an rvalue.
+  /// The bounds determine whether the rvalue to which an
+  /// expression evaluates is in range.
+  BoundsExpr *InferRValueBounds(Expr *E);
+
+  /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
+  /// body.
+  void CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body);
+
+  /// CheckTopLevelBoundsDecls - check bounds declarations for variable declarations
+  /// not within a function body.
+  void CheckTopLevelBoundsDecls(VarDecl *VD);
+
+  // Represents where the requirement that the checked expression is non-modifying
+  // comes from.
+  enum NonModifiyingExprRequirement {
+    NMER_Unknown,
+    NMER_Dynamic_Check,
+    NMER_Bounds_Count,
+    NMER_Bounds_Byte_Count,
+    NMER_Bounds_Range
+  };
+
+  /// CheckNonModifyingExpr - checks whether an expression is non-modifying
+  /// (see Checked C Spec, 3.6.1)
+  bool CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req =
+                               NonModifiyingExprRequirement::NMER_Unknown,
+                               bool ReportError = true);
+
+  // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check
+  // will always fail.
+  void WarnDynamicCheckAlwaysFails(const Expr *Condition);
 
   //===---------------------------- Clang Extensions ----------------------===//
 
@@ -9224,6 +9410,31 @@ public:
       QualType LHSType, ExprResult &RHS, bool Diagnose = true,
       bool DiagnoseCFAudited = false, bool ConvertRHS = true);
 
+private:
+  QualType GetCheckedCInteropType(const ValueDecl *Decl);
+public:
+  /// \brief Get the bounds-safe interface type for Entity.
+  /// Returns a null QualType if there isn't one.
+  QualType GetCheckedCInteropType(const InitializedEntity &Entity);
+
+  /// \brief Get the bounds-safe interface type for LHS.
+  /// Returns a null QualType if there isn't one.
+  QualType GetCheckedCInteropType(ExprResult LHS);
+
+  /// \brief If T is an array type, create a checked array type version of T.
+  /// This includes propagating the checked property to nested array types. If
+  /// a valid checked array type cannot be constructed and Diagnose is true,
+  /// print a diagnostic message for the problem.
+  QualType MakeCheckedArrayType(QualType T, bool Diagnose = false,
+                                SourceLocation Loc = SourceLocation());
+
+  /// \brief Helper function for type checking an assignment whose LHS has a
+  /// Checked C bounds-safe interface.  This function chooses which type to
+  /// use for the LHS of the assignment.
+  QualType ResolveSingleAssignmentType(QualType LHSType, 
+                                       QualType LHSInteropType, 
+                                       ExprResult &RHS);
+
   // \brief If the lhs type is a transparent union, check whether we
   // can initialize the transparent union with the given expression.
   AssignConvertType CheckTransparentUnionArgumentConstraints(QualType ArgType,
@@ -10408,6 +10619,24 @@ public:
   ~EnterExpressionEvaluationContext() {
     if (Entered)
       Actions.PopExpressionEvaluationContext();
+  }
+};
+
+/// \brief RAII object that handles state changes for processing a member
+// bounds expressions.
+class EnterMemberBoundsExprRAII {
+  Sema &S;
+  bool SavedMemberBounds;
+
+public:
+  EnterMemberBoundsExprRAII(Sema &S)
+    : S(S), SavedMemberBounds(S.IsMemberBoundsExpr)
+  {
+    S.IsMemberBoundsExpr = true;
+  }
+
+  ~EnterMemberBoundsExprRAII() {
+    S.IsMemberBoundsExpr = SavedMemberBounds;
   }
 };
 

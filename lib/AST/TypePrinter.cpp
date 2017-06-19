@@ -109,6 +109,9 @@ namespace {
     void print##CLASS##Before(const CLASS##Type *T, raw_ostream &OS); \
     void print##CLASS##After(const CLASS##Type *T, raw_ostream &OS);
 #include "clang/AST/TypeNodes.def"
+  private:
+    void printArrayAfter(const ArrayType *ty, Qualifiers qs, raw_ostream &OS,
+                         bool isInnerDimension);
   };
 }
 
@@ -331,22 +334,39 @@ void TypePrinter::printComplexAfter(const ComplexType *T, raw_ostream &OS) {
 
 void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
-  printBefore(T->getPointeeType(), OS);
-  // Handle things like 'int (*A)[4];' correctly.
-  // FIXME: this should include vectors, but vectors use attributes I guess.
-  if (isa<ArrayType>(T->getPointeeType()))
-    OS << '(';
-  OS << '*';
+  CheckedPointerKind kind = T->getKind();
+  if (kind == CheckedPointerKind::Unchecked) {
+    SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+    printBefore(T->getPointeeType(), OS);
+    // Handle things like 'int (*A)[4];' correctly.
+    // FIXME: this should include vectors, but vectors use attributes I guess.
+    if (isa<ArrayType>(T->getPointeeType()))
+      OS << '(';
+    OS << '*';
+  }
+  else {
+    if (T->getKind() == CheckedPointerKind::Ptr) {
+      OS << "_Ptr<";
+    }
+    else {
+      OS << "_Array_ptr<";
+    }
+    print(T->getPointeeType(), OS, StringRef());
+    OS << '>';
+    spaceBeforePlaceHolder(OS);
+  }
 }
+
 void TypePrinter::printPointerAfter(const PointerType *T, raw_ostream &OS) {
-  IncludeStrongLifetimeRAII Strong(Policy);
-  SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
-  // Handle things like 'int (*A)[4];' correctly.
-  // FIXME: this should include vectors, but vectors use attributes I guess.
-  if (isa<ArrayType>(T->getPointeeType()))
-    OS << ')';
-  printAfter(T->getPointeeType(), OS);
+  if (T->getKind() == CheckedPointerKind::Unchecked) {
+    IncludeStrongLifetimeRAII Strong(Policy);
+    SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
+    // Handle things like 'int (*A)[4];' correctly.
+    // FIXME: this should include vectors, but vectors use attributes I guess.
+    if (isa<ArrayType>(T->getPointeeType()))
+      OS << ')';
+    printAfter(T->getPointeeType(), OS);
+  }
 }
 
 void TypePrinter::printBlockPointerBefore(const BlockPointerType *T,
@@ -438,20 +458,59 @@ void TypePrinter::printConstantArrayBefore(const ConstantArrayType *T,
   SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getElementType(), OS);
 }
-void TypePrinter::printConstantArrayAfter(const ConstantArrayType *T, 
-                                          raw_ostream &OS) {
-  OS << '[';
-  if (T->getIndexTypeQualifiers().hasQualifiers()) {
-    AppendTypeQualList(OS, T->getIndexTypeCVRQualifiers(),
-                       Policy.Restrict);
-    OS << ' ';
+
+// For multi-dimensional checked arrays, print the checked keyword once before
+// the outermost dimension.
+//
+// To avoid passing state to all print functions, create a specialized array
+// printer that recursively calls itself with the state.
+void TypePrinter::printArrayAfter(const ArrayType *T, Qualifiers Quals, raw_ostream &OS,
+                                  bool checkedOuterDimension) {
+  if (T->isChecked() && !checkedOuterDimension)
+    OS << "checked";
+  else if (checkedOuterDimension && !T->isChecked()) {
+    // This case is never supposed to happen, but print an accurate type name if it does.
+    OS << "unchecked";
+  }
+  switch (T->getTypeClass()) {
+    case Type::IncompleteArray:
+      OS << "[]";
+      break;
+    case Type::ConstantArray: {
+      const ConstantArrayType *ct = cast<ConstantArrayType>(T);
+      assert(ct);
+      OS << '[';
+      if (ct->getIndexTypeQualifiers().hasQualifiers()) {
+        AppendTypeQualList(OS, ct->getIndexTypeCVRQualifiers(), Policy.Restrict);
+        OS << ' ';
+      }
+
+      if (ct->getSizeModifier() == ArrayType::Static)
+        OS << "static ";
+
+      OS << ct->getSize().getZExtValue() << ']';
+      break;
+    }
+    case Type::DependentSizedArray:
+    case Type::VariableArray:
+    default:
+      assert(!T->isChecked() && "unexpected checked array type");
+      printAfter(T, Quals, OS);
+      return;
   }
 
-  if (T->getSizeModifier() == ArrayType::Static)
-    OS << "static ";
+  const QualType qualElemType = T->getElementType();
+  SplitQualType split = qualElemType.split();
+  if (isa<ArrayType>(split.Ty)) {
+    const ArrayType *arrayElemType = cast<ArrayType>(split.Ty);
+    printArrayAfter(arrayElemType, split.Quals, OS, T->isChecked());
+  }
+  else printAfter(split.Ty, split.Quals, OS);
+}
 
-  OS << T->getSize().getZExtValue() << ']';
-  printAfter(T->getElementType(), OS);
+void TypePrinter::printConstantArrayAfter(const ConstantArrayType *T,
+                                          raw_ostream &OS) {
+  printArrayAfter(T, Qualifiers(), OS, false);
 }
 
 void TypePrinter::printIncompleteArrayBefore(const IncompleteArrayType *T, 
@@ -462,8 +521,7 @@ void TypePrinter::printIncompleteArrayBefore(const IncompleteArrayType *T,
 }
 void TypePrinter::printIncompleteArrayAfter(const IncompleteArrayType *T, 
                                             raw_ostream &OS) {
-  OS << "[]";
-  printAfter(T->getElementType(), OS);
+  printArrayAfter(T, Qualifiers(), OS, false);
 }
 
 void TypePrinter::printVariableArrayBefore(const VariableArrayType *T, 
@@ -659,6 +717,7 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
   OS << '(';
   {
     ParamPolicyRAII ParamPolicy(Policy);
+    bool HasBounds = T->hasParamBounds();
     for (unsigned i = 0, e = T->getNumParams(); i != e; ++i) {
       if (i) OS << ", ";
 
@@ -669,6 +728,12 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
         OS << "__attribute__((" << getParameterABISpelling(ABI) << ")) ";
 
       print(T->getParamType(i), OS, StringRef());
+      if (HasBounds) {
+        if (const BoundsExpr *const Bounds = T->getParamBounds(i)) {
+          OS << " : ";
+          Bounds->printPretty(OS, nullptr, Policy);
+        }
+      }
     }
   }
   
@@ -777,6 +842,11 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
     print(T->getReturnType(), OS, StringRef());
   } else
     printAfter(T->getReturnType(), OS);
+
+  if (const BoundsExpr *ReturnBounds = T->getReturnBounds()) {
+    OS << " : ";
+    ReturnBounds->printPretty(OS, nullptr, Policy);
+  }
 }
 
 void TypePrinter::printFunctionNoProtoBefore(const FunctionNoProtoType *T, 

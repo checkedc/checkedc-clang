@@ -1613,6 +1613,8 @@ bool CastExpr::CastConsistency() const {
 
   case CK_Dependent:
   case CK_LValueToRValue:
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_NoOp:
   case CK_AtomicToNonAtomic:
   case CK_NonAtomicToAtomic:
@@ -1707,7 +1709,6 @@ ImplicitCastExpr *ImplicitCastExpr::CreateEmpty(const ASTContext &C,
   return new (Buffer) ImplicitCastExpr(EmptyShell(), PathSize);
 }
 
-
 CStyleCastExpr *CStyleCastExpr::Create(const ASTContext &C, QualType T,
                                        ExprValueKind VK, CastKind K, Expr *Op,
                                        const CXXCastPath *BasePath,
@@ -1728,6 +1729,30 @@ CStyleCastExpr *CStyleCastExpr::CreateEmpty(const ASTContext &C,
   void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
   return new (Buffer) CStyleCastExpr(EmptyShell(), PathSize);
 }
+
+BoundsCastExpr *BoundsCastExpr::Create(const ASTContext &C, QualType T,
+                                       ExprValueKind VK, CastKind K, Expr *Op,
+                                       const CXXCastPath *BasePath,
+                                       TypeSourceInfo *WrittenTy,
+                                       SourceLocation L, SourceLocation R,
+                                       SourceRange Angle, BoundsExpr *bounds) {
+
+  unsigned PathSize = (BasePath ? BasePath->size() : 0);
+  void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
+  BoundsCastExpr *E = new (Buffer) BoundsCastExpr(
+      T, VK, K, Op, PathSize, WrittenTy, L, R, Angle, bounds);
+  if (PathSize)
+    std::uninitialized_copy_n(BasePath->data(), BasePath->size(),
+                              E->getTrailingObjects<CXXBaseSpecifier *>());
+  return E;
+}
+
+BoundsCastExpr *BoundsCastExpr::CreateEmpty(const ASTContext &C,
+                                            unsigned PathSize) {
+  void *Buffer = C.Allocate(totalSizeToAlloc<CXXBaseSpecifier *>(PathSize));
+  return new (Buffer) BoundsCastExpr(EmptyShell(), PathSize);
+}
+
 
 /// getOpcodeStr - Turn an Opcode enum value into the punctuation char it
 /// corresponds to, e.g. "<<=".
@@ -2925,6 +2950,13 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case ObjCAvailabilityCheckExprClass:
   case CXXUuidofExprClass:
   case OpaqueValueExprClass:
+    // Checked C bounds expressions are not allowed to have assignments
+    // embedded within them.
+  case CountBoundsExprClass:
+  case InteropTypeBoundsAnnotationClass:
+  case NullaryBoundsExprClass:
+  case PositionalParameterExprClass:
+  case RangeBoundsExprClass:
     // These never have a side-effect.
     return false;
 
@@ -3044,6 +3076,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   } // Fall through.
   case ImplicitCastExprClass:
   case CStyleCastExprClass:
+  case BoundsCastExprClass:    
   case CXXStaticCastExprClass:
   case CXXReinterpretCastExprClass:
   case CXXConstCastExprClass:
@@ -3878,6 +3911,24 @@ PseudoObjectExpr::PseudoObjectExpr(QualType type, ExprValueKind VK,
       assert(cast<OpaqueValueExpr>(E)->getSourceExpr() != nullptr &&
              "opaque-value semantic expressions for pseudo-object "
              "operations must have sources");
+  }
+}
+
+bool BoundsExpr::validateKind(Kind K) {
+  if (K == Invalid)
+    return true;
+
+  switch (getStmtClass()) {
+    case NullaryBoundsExprClass:
+      return (K == None || K == Any);
+    case CountBoundsExprClass:
+      return K == ElementCount || K == ByteCount;
+    case RangeBoundsExprClass:
+      return K == Range;
+    case InteropTypeBoundsAnnotationClass:
+      return K == InteropTypeAnnotation;
+    default:
+      return false;
   }
 }
 

@@ -1772,6 +1772,20 @@ void QualifierInfo::setTemplateParameterListsInfo(
   }
 }
 
+// Checked C bounds information
+
+bool DeclaratorDecl::hasBoundsExpr() const {
+  return Bounds != nullptr;
+}
+
+BoundsExpr *DeclaratorDecl::getBoundsExpr() {
+  return Bounds;
+}
+
+void DeclaratorDecl::setBoundsExpr(BoundsExpr *E) {
+  Bounds = E;
+}
+
 //===----------------------------------------------------------------------===//
 // VarDecl Implementation
 //===----------------------------------------------------------------------===//
@@ -2038,6 +2052,9 @@ VarDecl::DefinitionKind VarDecl::hasDefinition(ASTContext &C) const {
 
   return Kind;
 }
+
+
+
 
 const Expr *VarDecl::getAnyInitializer(const VarDecl *&D) const {
   for (auto I : redecls()) {

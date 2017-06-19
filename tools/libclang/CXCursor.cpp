@@ -682,6 +682,15 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
     break;
   case Stmt::OMPTargetTeamsDistributeSimdDirectiveClass:
     K = CXCursor_OMPTargetTeamsDistributeSimdDirective;
+
+  // For now, do not expose Checked C extensions.
+  case Stmt::PositionalParameterExprClass:
+  case Stmt::CountBoundsExprClass:
+  case Stmt::InteropTypeBoundsAnnotationClass:
+  case Stmt::NullaryBoundsExprClass:
+  case Stmt::RangeBoundsExprClass:
+  case Stmt::BoundsCastExprClass:
+    K = CXCursor_UnexposedExpr;
     break;
   }
 

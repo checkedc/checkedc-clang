@@ -1477,6 +1477,13 @@ namespace clang {
       // CUDA
       EXPR_CUDA_KERNEL_CALL,       // CUDAKernelCallExpr      
 
+      // Checked C
+      EXPR_COUNT_BOUNDS_EXPR,      // CountBoundsExpr
+      EXPR_NULLARY_BOUNDS_EXPR,    // NullaryBoundsExpr
+      EXPR_RANGE_BOUNDS_EXPR,      // RangeBoundsExpr
+      EXPR_INTEROPTYPE_BOUNDS_ANNOTATION,// InteropTypeBoundsAnnotation
+      EXPR_POSITIONAL_PARAMETER_EXPR, // PositionalParameterExpr
+      EXPR_BOUNDS_CAST,
       // OpenCL
       EXPR_ASTYPE,                 // AsTypeExpr
 

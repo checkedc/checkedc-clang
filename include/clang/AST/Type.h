@@ -91,6 +91,7 @@ namespace clang {
   class ObjCTypeParamDecl;
   class UnresolvedUsingTypenameDecl;
   class Expr;
+  class BoundsExpr;
   class Stmt;
   class SourceLocation;
   class StmtIteratorBase;
@@ -1271,6 +1272,26 @@ enum class AutoTypeKeyword {
   GNUAutoType
 };
 
+/// Checked C generalizes pointer types to 3 different kinds of
+/// pointers.  Each has different static and dynamic checking
+/// to detect programming errors:
+///   1. Unchecked C pointers: these are * pointers.  They have
+///      have no checking.
+///   2. Checked C _Ptr types: these have null checks before
+///      memory accesses.  No pointer arithmetic is allowed.
+///   3. Checked C _Array_ptr types: these have null checks
+///      and bounds checks before memory accesses. Bounds
+///      expressions must be statically specified.  Pointer
+///     arithmetic.  It has overflow checking.
+enum class CheckedPointerKind {
+  /// \brief Unchecked C pointer.
+  Unchecked = 0,
+  /// \brief Checked C _Ptr type.
+  Ptr,
+  /// \brief Checked C _Array_ptr type.
+  Array
+};
+
 /// The base class of the type hierarchy.
 ///
 /// A central concept with types is that each type always has a canonical
@@ -1363,6 +1384,12 @@ private:
 protected:
   // These classes allow subclasses to somewhat cleanly pack bitfields
   // into Type.
+  class PointerTypeBitfields {
+    friend class PointerType;
+
+    unsigned : NumTypeBits;
+    unsigned CheckedPointerKind : 2;
+  };
 
   class ArrayTypeBitfields {
     friend class ArrayType;
@@ -1377,6 +1404,9 @@ protected:
     /// 'int X[static restrict 4]'. For function parameters only.
     /// Actually an ArrayType::ArraySizeModifier.
     unsigned SizeModifier : 3;
+
+    // Is this a checked array type?
+    unsigned IsChecked : 1;
   };
 
   class BuiltinTypeBitfields {
@@ -1496,6 +1526,7 @@ protected:
 
   union {
     TypeBitfields TypeBits;
+    PointerTypeBitfields PointerTypeBits;
     ArrayTypeBitfields ArrayTypeBits;
     AttributedTypeBitfields AttributedTypeBits;
     AutoTypeBitfields AutoTypeBits;
@@ -1680,6 +1711,11 @@ public:
   bool isFunctionNoProtoType() const { return getAs<FunctionNoProtoType>(); }
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
   bool isPointerType() const;
+  bool isCheckedPointerType() const;
+  bool isUncheckedPointerType() const;
+  // Checked C ptr type
+  bool isCheckedPointerPtrType() const;
+  bool isCheckedPointerArrayType() const;
   bool isAnyPointerType() const;   // Any C pointer or ObjC object pointer
   bool isBlockPointerType() const;
   bool isVoidPointerType() const;
@@ -1695,6 +1731,9 @@ public:
   bool isIncompleteArrayType() const;
   bool isVariableArrayType() const;
   bool isDependentSizedArrayType() const;
+  /// \brief whether this is a Checked C checked array type.
+  bool isCheckedArrayType() const;
+  bool isUncheckedArrayType() const;
   bool isRecordType() const;
   bool isClassType() const;
   bool isStructureType() const;
@@ -1750,6 +1789,8 @@ public:
   bool isNullPtrType() const;                   // C++11 std::nullptr_t
   bool isAlignValT() const;                     // C++17 std::align_val_t
   bool isAtomicType() const;                    // C11 _Atomic()
+
+
 
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
   bool is##Id##Type() const;
@@ -1814,6 +1855,15 @@ public:
 
   /// \brief Whether this type is or contains a local or unnamed type.
   bool hasUnnamedOrLocalType() const;
+
+  /// \brief Whether this type is or contains a checked type
+  bool hasCheckedType() const;
+
+  /// \brief Whether this type is or contains a unchecked type
+  bool hasUncheckedType(unsigned& Kind) const;
+
+  /// \brief Whether this type is or contains a variadic type
+  bool hasVariadicType() const;
 
   bool isOverloadableType() const;
 
@@ -2219,18 +2269,21 @@ public:
 class PointerType : public Type, public llvm::FoldingSetNode {
   QualType PointeeType;
 
-  PointerType(QualType Pointee, QualType CanonicalPtr) :
+  PointerType(QualType Pointee, QualType CanonicalPtr, CheckedPointerKind ptrKind) :
     Type(Pointer, CanonicalPtr, Pointee->isDependentType(),
          Pointee->isInstantiationDependentType(),
          Pointee->isVariablyModifiedType(),
          Pointee->containsUnexpandedParameterPack()),
     PointeeType(Pointee) {
+      PointerTypeBits.CheckedPointerKind = (unsigned)ptrKind;
   }
   friend class ASTContext;  // ASTContext creates these.
 
 public:
 
   QualType getPointeeType() const { return PointeeType; }
+
+  CheckedPointerKind getKind() const { return CheckedPointerKind(PointerTypeBits.CheckedPointerKind); }
 
   /// Returns true if address spaces of pointers overlap.
   /// OpenCL v2.0 defines conversion rules for pointers to different
@@ -2248,14 +2301,17 @@ public:
            otherQuals.isAddressSpaceSupersetOf(thisQuals);
   }
 
+  bool isChecked() const { return getKind() != CheckedPointerKind::Unchecked; }
+  bool isUnchecked() const { return getKind() == CheckedPointerKind::Unchecked; }
   bool isSugared() const { return false; }
   QualType desugar() const { return QualType(this, 0); }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, getPointeeType());
+    Profile(ID, getPointeeType(), getKind());
   }
-  static void Profile(llvm::FoldingSetNodeID &ID, QualType Pointee) {
-    ID.AddPointer(Pointee.getAsOpaquePtr());
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType Pointee, CheckedPointerKind kind) {
+      ID.AddPointer(Pointee.getAsOpaquePtr());
+      ID.AddInteger((unsigned)kind);
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == Pointer; }
@@ -2510,7 +2566,8 @@ protected:
   //       value-dependent,
   ArrayType(TypeClass tc, QualType et, QualType can,
             ArraySizeModifier sm, unsigned tq,
-            bool ContainsUnexpandedParameterPack)
+            bool ContainsUnexpandedParameterPack,
+            bool IsChecked)
     : Type(tc, can, et->isDependentType() || tc == DependentSizedArray,
            et->isInstantiationDependentType() || tc == DependentSizedArray,
            (tc == VariableArray || et->isVariablyModifiedType()),
@@ -2518,11 +2575,15 @@ protected:
       ElementType(et) {
     ArrayTypeBits.IndexTypeQuals = tq;
     ArrayTypeBits.SizeModifier = sm;
+    ArrayTypeBits.IsChecked = IsChecked;
   }
 
   friend class ASTContext;  // ASTContext creates these.
 
 public:
+  bool isChecked() const {
+      return ArrayTypeBits.IsChecked;
+  }
   QualType getElementType() const { return ElementType; }
   ArraySizeModifier getSizeModifier() const {
     return ArraySizeModifier(ArrayTypeBits.SizeModifier);
@@ -2549,14 +2610,16 @@ class ConstantArrayType : public ArrayType {
   llvm::APInt Size; // Allows us to unique the type.
 
   ConstantArrayType(QualType et, QualType can, const llvm::APInt &size,
-                    ArraySizeModifier sm, unsigned tq)
+                    ArraySizeModifier sm, unsigned tq, bool IsChecked)
     : ArrayType(ConstantArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack()),
+                et->containsUnexpandedParameterPack(), IsChecked),
       Size(size) {}
 protected:
   ConstantArrayType(TypeClass tc, QualType et, QualType can,
-                    const llvm::APInt &size, ArraySizeModifier sm, unsigned tq)
-    : ArrayType(tc, et, can, sm, tq, et->containsUnexpandedParameterPack()),
+                    const llvm::APInt &size, ArraySizeModifier sm, unsigned tq,
+                    bool IsChecked)
+    : ArrayType(tc, et, can, sm, tq, et->containsUnexpandedParameterPack(),
+                IsChecked),
       Size(size) {}
   friend class ASTContext;  // ASTContext creates these.
 public:
@@ -2577,15 +2640,16 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getElementType(), getSize(),
-            getSizeModifier(), getIndexTypeCVRQualifiers());
+            getSizeModifier(), getIndexTypeCVRQualifiers(), isChecked());
   }
   static void Profile(llvm::FoldingSetNodeID &ID, QualType ET,
                       const llvm::APInt &ArraySize, ArraySizeModifier SizeMod,
-                      unsigned TypeQuals) {
+                      unsigned TypeQuals, bool IsChecked) {
     ID.AddPointer(ET.getAsOpaquePtr());
     ID.AddInteger(ArraySize.getZExtValue());
     ID.AddInteger(SizeMod);
     ID.AddInteger(TypeQuals);
+    ID.AddBoolean(IsChecked);
   }
   static bool classof(const Type *T) {
     return T->getTypeClass() == ConstantArray;
@@ -2598,9 +2662,9 @@ public:
 class IncompleteArrayType : public ArrayType {
 
   IncompleteArrayType(QualType et, QualType can,
-                      ArraySizeModifier sm, unsigned tq)
+                      ArraySizeModifier sm, unsigned tq, bool IsChecked)
     : ArrayType(IncompleteArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack()) {}
+                et->containsUnexpandedParameterPack(), IsChecked) {}
   friend class ASTContext;  // ASTContext creates these.
 public:
   bool isSugared() const { return false; }
@@ -2614,14 +2678,16 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getElementType(), getSizeModifier(),
-            getIndexTypeCVRQualifiers());
+            getIndexTypeCVRQualifiers(), isChecked());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, QualType ET,
-                      ArraySizeModifier SizeMod, unsigned TypeQuals) {
+                      ArraySizeModifier SizeMod, unsigned TypeQuals,
+                      bool IsChecked) {
     ID.AddPointer(ET.getAsOpaquePtr());
     ID.AddInteger(SizeMod);
     ID.AddInteger(TypeQuals);
+    ID.AddBoolean(IsChecked);
   }
 };
 
@@ -2651,7 +2717,7 @@ class VariableArrayType : public ArrayType {
                     ArraySizeModifier sm, unsigned tq,
                     SourceRange brackets)
     : ArrayType(VariableArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack()),
+                et->containsUnexpandedParameterPack(), /*isChecked=*/false),
       SizeExpr((Stmt*) e), Brackets(brackets) {}
   friend class ASTContext;  // ASTContext creates these.
 
@@ -3229,11 +3295,13 @@ public:
   struct ExtProtoInfo {
     ExtProtoInfo()
         : Variadic(false), HasTrailingReturn(false), TypeQuals(0),
-          RefQualifier(RQ_None), ExtParameterInfos(nullptr) {}
+          RefQualifier(RQ_None), ExtParameterInfos(nullptr),
+          ParamBounds(nullptr), ReturnBounds(nullptr) {}
 
     ExtProtoInfo(CallingConv CC)
         : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), TypeQuals(0),
-          RefQualifier(RQ_None), ExtParameterInfos(nullptr) {}
+          RefQualifier(RQ_None), ExtParameterInfos(nullptr),
+          ParamBounds(nullptr), ReturnBounds(nullptr) {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
       ExtProtoInfo Result(*this);
@@ -3248,6 +3316,8 @@ public:
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos;
+    const BoundsExpr *const *ParamBounds;
+    const BoundsExpr *ReturnBounds;
   };
 
 private:
@@ -3283,8 +3353,19 @@ private:
   /// Whether this function has a trailing return type.
   unsigned HasTrailingReturn : 1;
 
+  /// Whether this function has bounds information for parameters.
+  unsigned HasParamBounds : 1;
+
+  // The return bounds for a function.  Null when a function has no return
+  // bounds.
+  const BoundsExpr *const ReturnBounds;
+
   // ParamInfo - There is an variable size array after the class in memory that
   // holds the parameter types.
+
+  // ParamBounds - A variable size array after ParamInfo that holds the bounds
+  // expressions for parameters.  A nullptr is stored if a parameter has no
+  // bounds expression.
 
   // Exceptions - There is another variable size array after ArgInfo that
   // holds the exception types.
@@ -3339,6 +3420,14 @@ public:
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
 
+  const BoundsExpr *getParamBounds(unsigned i) const {
+    assert(i < NumParams && "invalid parameter index");
+    if (hasParamBounds())
+      return param_bounds_begin()[i];
+    else
+      return nullptr;
+  }
+
   ExtProtoInfo getExtProtoInfo() const {
     ExtProtoInfo EPI;
     EPI.ExtInfo = getExtInfo();
@@ -3359,6 +3448,8 @@ public:
     }
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
+    EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
+    EPI.ReturnBounds = hasReturnBounds() ? getReturnBounds() : nullptr;
     return EPI;
   }
 
@@ -3448,6 +3539,9 @@ public:
 
   unsigned getTypeQuals() const { return FunctionType::getTypeQuals(); }
 
+  bool hasParamBounds() const { return HasParamBounds; }
+
+  bool hasReturnBounds() const { return ReturnBounds != nullptr; }
 
   /// Retrieve the ref-qualifier associated with this function type.
   RefQualifierKind getRefQualifier() const {
@@ -3467,14 +3561,38 @@ public:
     return param_type_begin() + NumParams;
   }
 
+  // Checked C parameter bounds information.
+  typedef const BoundsExpr *const *bounds_iterator;
+
+  ArrayRef<const BoundsExpr *const> parameter_bounds() const {
+    return llvm::makeArrayRef(param_bounds_begin(),
+                              param_bounds_end());
+  }
+
+  bounds_iterator param_bounds_begin() const {
+    return reinterpret_cast<bounds_iterator>(param_type_end());
+  }
+
+  bounds_iterator param_bounds_end() const {
+    if (!hasParamBounds())
+      return param_bounds_begin();
+    else
+      return param_bounds_begin() + NumParams;
+  }
+
+  // Checked C return bounds information
+  const BoundsExpr *getReturnBounds() const {
+    return ReturnBounds;
+  }
+
   typedef const QualType *exception_iterator;
 
   ArrayRef<QualType> exceptions() const {
     return llvm::makeArrayRef(exception_begin(), exception_end());
   }
   exception_iterator exception_begin() const {
-    // exceptions begin where arguments end
-    return param_type_end();
+    // exceptions begin where bounds end
+    return (exception_iterator) param_bounds_end();
   }
   exception_iterator exception_end() const {
     if (getExceptionSpecType() != EST_Dynamic)
@@ -5706,6 +5824,30 @@ inline bool Type::isFunctionType() const {
 inline bool Type::isPointerType() const {
   return isa<PointerType>(CanonicalType);
 }
+inline bool Type::isCheckedPointerType() const {
+    if (const PointerType *T = getAs<PointerType>()) {
+      return T->getKind() != CheckedPointerKind::Unchecked;
+    }
+    return false;
+}
+inline bool Type::isUncheckedPointerType() const {
+  if (const PointerType *T = getAs<PointerType>()) {
+    return T->getKind() == CheckedPointerKind::Unchecked;
+  }
+  return false;
+}
+inline bool Type::isCheckedPointerPtrType() const {
+    if (const PointerType *T = getAs<PointerType>()) {
+        return T->getKind() == CheckedPointerKind::Ptr;
+    }
+    return false;
+}
+inline bool Type::isCheckedPointerArrayType() const {
+  if (const PointerType *T = getAs<PointerType>()) {
+    return T->getKind() == CheckedPointerKind::Array;
+  }
+  return false;
+}
 inline bool Type::isAnyPointerType() const {
   return isPointerType() || isObjCObjectPointerType();
 }
@@ -5756,6 +5898,18 @@ inline bool Type::isVariableArrayType() const {
 }
 inline bool Type::isDependentSizedArrayType() const {
   return isa<DependentSizedArrayType>(CanonicalType);
+}
+inline bool Type::isCheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return T->isChecked();
+  else
+    return false;
+}
+inline bool Type::isUncheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return !T->isChecked();
+  else
+    return false;
 }
 inline bool Type::isBuiltinType() const {
   return isa<BuiltinType>(CanonicalType);

@@ -536,6 +536,10 @@ void ASTStmtReader::VisitUnaryOperator(UnaryOperator *E) {
   E->setSubExpr(Record.readSubExpr());
   E->setOpcode((UnaryOperator::Opcode)Record.readInt());
   E->setOperatorLoc(ReadSourceLocation());
+  bool hasBoundsExpr = Record.readInt();
+  if (hasBoundsExpr) {
+    E->setBoundsExpr(Record.readBoundsExpr());
+  }
 }
 
 void ASTStmtReader::VisitOffsetOfExpr(OffsetOfExpr *E) {
@@ -598,6 +602,10 @@ void ASTStmtReader::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   E->setLHS(Record.readSubExpr());
   E->setRHS(Record.readSubExpr());
   E->setRBracketLoc(ReadSourceLocation());
+  bool hasBoundsExpr = Record.readInt();
+  if (hasBoundsExpr) {
+    E->setBoundsExpr(Record.readBoundsExpr());
+  }
 }
 
 void ASTStmtReader::VisitOMPArraySectionExpr(OMPArraySectionExpr *E) {
@@ -656,6 +664,18 @@ void ASTStmtReader::VisitCastExpr(CastExpr *E) {
   assert(NumBaseSpecs == E->path_size());
   E->setSubExpr(Record.readSubExpr());
   E->setCastKind((CastKind)Record.readInt());
+  bool hasBoundsExpr = Record.readInt();
+  if (hasBoundsExpr) {
+    E->setBoundsExpr(Record.readBoundsExpr());
+  }
+  bool hasCastBoundsExpr = Record.readInt();
+  if (hasCastBoundsExpr) {
+    E->setCastBoundsExpr(Record.readBoundsExpr());
+  }
+  bool hasSubExprBoundsExpr = Record.readInt();
+  if (hasSubExprBoundsExpr) {
+    E->setSubExprBoundsExpr(Record.readBoundsExpr());
+  }
   CastExpr::path_iterator BaseI = E->path_begin();
   while (NumBaseSpecs--) {
     CXXBaseSpecifier *BaseSpec = new (Record.getContext()) CXXBaseSpecifier;
@@ -713,6 +733,16 @@ void ASTStmtReader::VisitCStyleCastExpr(CStyleCastExpr *E) {
   VisitExplicitCastExpr(E);
   E->setLParenLoc(ReadSourceLocation());
   E->setRParenLoc(ReadSourceLocation());
+}
+
+void ASTStmtReader::VisitBoundsCastExpr(BoundsCastExpr *E) {
+  VisitExplicitCastExpr(E);
+  SourceRange R = ReadSourceRange();
+  E->LPLoc = R.getBegin();
+  E->RParenLoc = R.getEnd();
+  R= ReadSourceRange();
+  E->AngleBrackets=R;
+  E->setBoundsExpr(dyn_cast<BoundsExpr>(Record.readSubExpr()));
 }
 
 void ASTStmtReader::VisitCompoundLiteralExpr(CompoundLiteralExpr *E) {
@@ -942,6 +972,46 @@ void ASTStmtReader::VisitAtomicExpr(AtomicExpr *E) {
   E->BuiltinLoc = ReadSourceLocation();
   E->RParenLoc = ReadSourceLocation();
 }
+
+void ASTStmtReader::VisitCountBoundsExpr(CountBoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record.readInt());
+  E->setCountExpr(Record.readSubExpr());
+  E->StartLoc = ReadSourceLocation();
+  E->EndLoc = ReadSourceLocation();
+}
+
+void ASTStmtReader::VisitNullaryBoundsExpr(NullaryBoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record.readInt());
+  E->StartLoc = ReadSourceLocation();
+  E->EndLoc = ReadSourceLocation();
+}
+
+void ASTStmtReader::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record.readInt());
+  E->setLowerExpr(Record.readSubExpr());
+  E->setUpperExpr(Record.readSubExpr());
+  E->StartLoc = ReadSourceLocation();
+  E->EndLoc = ReadSourceLocation();
+}
+
+void ASTStmtReader::VisitInteropTypeBoundsAnnotation(
+  InteropTypeBoundsAnnotation *E) {
+  VisitExpr(E);
+  E->setKind((BoundsExpr::Kind)Record.readInt());
+  E->setTypeInfoAsWritten(GetTypeSourceInfo());
+  E->StartLoc = ReadSourceLocation();
+  E->EndLoc = ReadSourceLocation();
+}
+
+void ASTStmtReader::VisitPositionalParameterExpr(
+  PositionalParameterExpr *E) {
+  VisitExpr(E);
+  E->Index = Record.readInt();;
+}
+
 
 //===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements
@@ -2911,6 +2981,16 @@ Expr *ASTReader::ReadExpr(ModuleFile &F) {
   return cast_or_null<Expr>(ReadStmt(F));
 }
 
+BoundsExpr *ASTReader::ReadBoundsExpr(ModuleFile &F) {
+  Expr *E = ReadExpr(F);
+  BoundsExpr *B = nullptr;
+  if (E) {
+    B = dyn_cast<BoundsExpr>(E);
+    assert(B && "failure reading BoundsExpr");
+  }
+  return B;
+}
+
 Expr *ASTReader::ReadSubExpr() {
   return cast_or_null<Expr>(ReadSubStmt());
 }
@@ -3164,6 +3244,12 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       bool IsArrow = Record.readInt();
       SourceLocation OperatorLoc = Record.readSourceLocation();
 
+      bool HadBoundsExpr = Record.readInt();
+      BoundsExpr *Bounds = nullptr;
+      if (HadBoundsExpr) {
+        Bounds = Record.readBoundsExpr();
+      }
+
       S = MemberExpr::Create(Context, Base, IsArrow, OperatorLoc, QualifierLoc,
                              TemplateKWLoc, MemberD, FoundDecl, MemberNameInfo,
                              HasTemplateKWAndArgsInfo ? &ArgInfo : nullptr, T,
@@ -3172,6 +3258,8 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                                     MemberD->getDeclName());
       if (HadMultipleCandidates)
         cast<MemberExpr>(S)->setHadMultipleCandidates(true);
+      if (HadBoundsExpr)
+        cast<MemberExpr>(S)->setBoundsExpr(Bounds);
       break;
     }
 
@@ -3198,6 +3286,11 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_CSTYLE_CAST:
       S = CStyleCastExpr::CreateEmpty(Context,
+                       /*PathSize*/ Record[ASTStmtReader::NumExprFields]);
+      break;
+      
+    case EXPR_BOUNDS_CAST:
+      S = BoundsCastExpr::CreateEmpty(Context,
                        /*PathSize*/ Record[ASTStmtReader::NumExprFields]);
       break;
 
@@ -3899,6 +3992,26 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_ATOMIC:
       S = new (Context) AtomicExpr(Empty);
+      break;
+
+    case EXPR_COUNT_BOUNDS_EXPR:
+      S = new (Context) CountBoundsExpr(Empty);
+      break;
+
+    case EXPR_NULLARY_BOUNDS_EXPR:
+      S = new (Context) NullaryBoundsExpr(Empty);
+      break;
+
+    case EXPR_RANGE_BOUNDS_EXPR:
+      S = new (Context) RangeBoundsExpr(Empty);
+      break;
+
+    case EXPR_INTEROPTYPE_BOUNDS_ANNOTATION:
+      S = new (Context) InteropTypeBoundsAnnotation(Empty);
+      break;
+
+    case EXPR_POSITIONAL_PARAMETER_EXPR:
+      S = new (Context) PositionalParameterExpr(Empty);
       break;
 
     case EXPR_LAMBDA: {

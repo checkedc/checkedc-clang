@@ -1204,7 +1204,10 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                                              NoexceptExpr.get() : nullptr,
                                            /*ExceptionSpecTokens*/nullptr,
                                            /*DeclsInPrototype=*/None,
-                                           LParenLoc, FunLocalRangeEnd, D,
+                                           LParenLoc, FunLocalRangeEnd,
+                                           /*ReturnBoundsColonLoc=*/NoLoc,
+                                           /*ReturnBoundsExpr=*/nullptr,
+                                           D,
                                            TrailingReturnType),
                   Attr, DeclEndLoc);
   } else if (Tok.isOneOf(tok::kw_mutable, tok::arrow, tok::kw___attribute,
@@ -1274,7 +1277,10 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                                                /*NoexceptExpr=*/nullptr,
                                                /*ExceptionSpecTokens=*/nullptr,
                                                /*DeclsInPrototype=*/None,
-                                               DeclLoc, DeclEndLoc, D,
+                                               DeclLoc, DeclEndLoc,
+                                               /*ReturnBoundsColonLoc=*/NoLoc,
+                                               /*ReturnBoundsExpr=*/nullptr,
+                                               D,
                                                TrailingReturnType),
                   Attr, DeclEndLoc);
   }
@@ -2841,6 +2847,7 @@ void Parser::ParseDirectNewDeclarator(Declarator &D) {
 
     D.AddTypeInfo(DeclaratorChunk::getArray(0,
                                             /*static=*/false, /*star=*/false,
+                                            /*isChecked=*/false,
                                             Size.get(),
                                             T.getOpenLocation(),
                                             T.getCloseLocation()),
