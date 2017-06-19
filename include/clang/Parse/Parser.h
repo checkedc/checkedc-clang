@@ -2436,6 +2436,7 @@ private:
   void ParseUnderlyingTypeSpecifier(DeclSpec &DS);
   void ParseAtomicSpecifier(DeclSpec &DS);
   void ParseCheckedPointerSpecifiers(DeclSpec & DS);
+  void ParseForanySpecifier(DeclSpec &DS);
 
   ExprResult ParseAlignArgument(SourceLocation Start,
                                 SourceLocation &EllipsisLoc);

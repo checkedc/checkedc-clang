@@ -1198,7 +1198,8 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   // Tell the actions module that we have entered a function definition with the
   // specified Declarator for the function.
   Sema::SkipBodyInfo SkipBody;
-  Decl *Res = Actions.ActOnStartOfFunctionDef(getCurScope(), D,
+  Scope* funcDeclScope = D.getDeclSpec().isForanySpecified() ? getCurScope()->getParent() : getCurScope();
+  Decl *Res = Actions.ActOnStartOfFunctionDef(funcDeclScope, D,
                                               TemplateInfo.TemplateParams
                                                   ? *TemplateInfo.TemplateParams
                                                   : MultiTemplateParamsArg(),

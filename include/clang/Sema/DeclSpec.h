@@ -364,6 +364,8 @@ private:
   unsigned FS_noreturn_specified : 1;
   // Checked C - checked function type
   unsigned FS_checked_specified : 2;
+  // Checked C - For-any function specifier
+  unsigned FS_forany_specified : 1;
 
   // friend-specifier
   unsigned Friend_specified : 1;
@@ -404,7 +406,7 @@ private:
   SourceLocation FS_inlineLoc, FS_virtualLoc, FS_explicitLoc, FS_noreturnLoc;
   SourceLocation FS_forceinlineLoc;
   // Checked C - checked keyword location
-  SourceLocation FS_checkedLoc;
+  SourceLocation FS_checkedLoc, FS_foranyLoc;
   SourceLocation FriendLoc, ModulePrivateLoc, ConstexprLoc, ConceptLoc;
   SourceLocation TQ_pipeLoc;
 
@@ -452,6 +454,7 @@ public:
       FS_noreturn_specified(false),
       // Checked C - checked function
       FS_checked_specified(CFS_None),
+      FS_forany_specified(false),
       Friend_specified(false),
       Constexpr_specified(false),
       Concept_specified(false),
@@ -595,6 +598,9 @@ public:
   bool isUncheckedSpecified() const { return FS_checked_specified == CFS_Unchecked; }
   SourceLocation getCheckedSpecLoc() const { return FS_checkedLoc; }
 
+  bool isForanySpecified() const { return FS_forany_specified; }
+  SourceLocation getForanySpecLoc() const { return FS_foranyLoc; }
+
   void ClearFunctionSpecs() {
     FS_inline_specified = false;
     FS_inlineLoc = SourceLocation();
@@ -608,6 +614,8 @@ public:
     FS_noreturnLoc = SourceLocation();
     FS_checked_specified = CFS_None;
     FS_checkedLoc = SourceLocation();
+    FS_forany_specified = false;
+    FS_foranyLoc = SourceLocation();
   }
 
   /// \brief Return true if any type-specifier has been found.
@@ -715,7 +723,8 @@ public:
                               unsigned &DiagID);
   bool setFunctionSpecUnchecked(SourceLocation Loc, const char *&PrevSpec,
                                 unsigned &DiagID);
-
+  bool setFunctionSpecForany(SourceLocation Loc, const char *&PrevSpec,
+                                unsigned &DiagID);
   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                      unsigned &DiagID);
   bool setModulePrivateSpec(SourceLocation Loc, const char *&PrevSpec,
