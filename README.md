@@ -14,6 +14,10 @@ out-of-bounds memory accesses.  The Checked C specification is available  at the
 |Debug X64 Linux  | Checked C and clang regression tests| ![Debug X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/217/badge)|
 |Release X64 Linux| Checked C, clang, and LLVM nightly tests|![Release X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/238/badge)|
 
+## News
+
+We updated the LLVM/clang sources that we are using on June 20th, 2017.  If you have built your own copy
+of the compiler, you will need to delete your cmake build directory and re-run cmake after you sync.
 
 ## Trying out Checked C
 
@@ -32,61 +36,9 @@ command-line to enable the Checked C extension.
 
 ## Compiler development status
 
-### Summary
 We are implementing a subset of the Checked C extension that can be used to add bounds
-checking to real-world C programs.  After that, we will expand the implementation to include
-additional Checked C features. The subset includes the new `ptr`, `array_ptr`, and `checked` 
-array types. It also includes in-line bounds declarations, bounds-safe
-interface annotations, the new cast operators, and checked blocks.
-The implementation of the subset will be end-to-end within the
-compiler: it will include parsing, typechecking, other static
-semantic analysis, and code generation.
-
-We have completed most of the parsing and typechecking work
-for the subset. We are working on the insertion of runtime bounds checks.
-We have yet to start on implementing checked blocks, the new cast operators, 
-and checking the correctness of bounds declarations at compile time.
-
-### Details
-
-This table summarizes the implementation status for the
-features of the subset.  The columns are the major phases of the compiler
-and the rows list the language features.    A '-' indicates that that a compiler
-phase is not applicable to the language feature.
-
-|Feature                     | Parsing     | Type checking | Other semantic analysis| Code generation |
-|----                        | ---         | ---           | ---                    | ----            |
-|`ptr` type                  | Done        | Done          | -                      | Done             |
-|`array_ptr` type           | Done        | Done          | -                      | Done (excluding checks) |
-|`checked` array type       | Done        | Done          | -                      | Done (excluding checks) |
-|In-line bounds declarations | Done        | Done          | In-progress            | -            |
-|Bounds-safe interfaces      | Done        | Done          | Done                   | -            |
-|Function types with bounds-safe interfaces|Done | Done    | -                      | -             |
-|Checking of redeclarations  | -           | -             | Done                   |              | 
-|Expression bounds inference | -           | -             | In-progress            | -             |
-|Insertion of bounds checks  | -           | -             | -                      | In-progress   |
-|Insertion of null checks    | -           | -             | -                      | Not started   |
-|Checking correctness of bounds declarations | -   | -     | Not started            | -             |
-|Relative alignment of bounds declarations | Done  | Done  | Not started            | -             |
-|Checked blocks              | In progress | -             | Not started            | -             |
-|New cast operators          | Not started | Not started   | Not started            | -             |
-
-This table describes features _not_ in the subset, in approximate order of priority of implementation.
-
-|Feature                  | Comments                             |
-|-----                    |-----                                 |
-|Null-terminated arrays   |                                      |
-|Restrict taking addresses of variables used in bounds       |   |
-|Restrict taking addresses of members used in member bounds  |   |
-|Flow-sensitive bounds declarations                        |   |
-|Where clauses                                             |   |
-|Checking correctness of where clauses                     |   |
-|Bundled blocks                                            |   |
-|Holds/suspend state of member bounds                      | Depends on flow-sensitive bounds declarations. |
-|Check for undefined order of evaluation issues            |   |
-|Overflow checking of `array_ptr` pointer arithmetic      |   |
-|Span types                                                |Lower priority|
-|Pointers directly to `array_ptr`s                       |Design is tentative.|
+checking to real-world C programs.   The implementation roadmap and status are on the
+[Checked C Wiki](https://github.com/Microsoft/checkedc-clang/wiki/Implementation-roadmap-and-status).
 
 ## Contributing
 
