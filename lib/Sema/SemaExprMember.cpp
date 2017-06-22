@@ -133,19 +133,20 @@ static IMAKind ClassifyImplicitMemberAccess(Sema &SemaRef,
   IMAKind AbstractInstanceResult = IMA_Static; // happens to be 'false'
   assert(!AbstractInstanceResult);
   switch (SemaRef.ExprEvalContexts.back().Context) {
-  case Sema::Unevaluated:
+  case Sema::ExpressionEvaluationContext::Unevaluated:
+  case Sema::ExpressionEvaluationContext::UnevaluatedList:
     if (isField && SemaRef.getLangOpts().CPlusPlus11)
       AbstractInstanceResult = IMA_Field_Uneval_Context;
     break;
 
-  case Sema::UnevaluatedAbstract:
+  case Sema::ExpressionEvaluationContext::UnevaluatedAbstract:
     AbstractInstanceResult = IMA_Abstract;
     break;
 
-  case Sema::DiscardedStatement:
-  case Sema::ConstantEvaluated:
-  case Sema::PotentiallyEvaluated:
-  case Sema::PotentiallyEvaluatedIfUsed:
+  case Sema::ExpressionEvaluationContext::DiscardedStatement:
+  case Sema::ExpressionEvaluationContext::ConstantEvaluated:
+  case Sema::ExpressionEvaluationContext::PotentiallyEvaluated:
+  case Sema::ExpressionEvaluationContext::PotentiallyEvaluatedIfUsed:
     break;
   }
 
@@ -283,6 +284,14 @@ IsRGBA(char c) {
   }
 }
 
+// OpenCL v1.1, s6.1.7
+// The component swizzle length must be in accordance with the acceptable
+// vector sizes.
+static bool IsValidOpenCLComponentSwizzleLength(unsigned len)
+{
+  return (len >= 1 && len <= 4) || len == 8 || len == 16;
+}
+
 /// Check an ext-vector component access expression.
 ///
 /// VK should be set in advance to the value kind of the base
@@ -372,6 +381,19 @@ CheckExtVectorComponent(Sema &S, QualType baseType, ExprValueKind &VK,
           << baseType << SourceRange(CompLoc);
         return QualType();
       }
+    }
+  }
+
+  if (!HalvingSwizzle) {
+    unsigned SwizzleLength = CompName->getLength();
+
+    if (HexSwizzle)
+      SwizzleLength--;
+
+    if (IsValidOpenCLComponentSwizzleLength(SwizzleLength) == false) {
+      S.Diag(OpLoc, diag::err_opencl_ext_vector_component_invalid_length)
+        << SwizzleLength << SourceRange(CompLoc);
+      return QualType();
     }
   }
 
@@ -969,6 +991,15 @@ Sema::BuildMemberReferenceExpr(Expr *BaseExpr, QualType BaseExprType,
     BaseType = BaseType->castAs<PointerType>()->getPointeeType();
   }
   R.setBaseObjectType(BaseType);
+
+  // C++1z [expr.ref]p2:
+  //   For the first option (dot) the first expression shall be a glvalue [...]
+  if (!IsArrow && BaseExpr && BaseExpr->isRValue()) {
+    ExprResult Converted = TemporaryMaterializationConversion(BaseExpr);
+    if (Converted.isInvalid())
+      return ExprError();
+    BaseExpr = Converted.get();
+  }
   
   LambdaScopeInfo *const CurLSI = getCurLambda();
   // If this is an implicit member reference and the overloaded
@@ -1394,10 +1425,17 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
 
         // Figure out the class that declares the ivar.
         assert(!ClassDeclared);
+
         Decl *D = cast<Decl>(IV->getDeclContext());
-        if (ObjCCategoryDecl *CAT = dyn_cast<ObjCCategoryDecl>(D))
-          D = CAT->getClassInterface();
-        ClassDeclared = cast<ObjCInterfaceDecl>(D);
+        if (auto *Category = dyn_cast<ObjCCategoryDecl>(D))
+          D = Category->getClassInterface();
+
+        if (auto *Implementation = dyn_cast<ObjCImplementationDecl>(D))
+          ClassDeclared = Implementation->getClassInterface();
+        else if (auto *Interface = dyn_cast<ObjCInterfaceDecl>(D))
+          ClassDeclared = Interface;
+
+        assert(ClassDeclared && "cannot query interface");
       } else {
         if (IsArrow &&
             IDecl->FindPropertyDeclaration(
@@ -1449,16 +1487,16 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
         if (IV->getAccessControl() == ObjCIvarDecl::Private) {
           if (!declaresSameEntity(ClassDeclared, IDecl) ||
               !declaresSameEntity(ClassOfMethodDecl, ClassDeclared))
-            S.Diag(MemberLoc, diag::error_private_ivar_access)
+            S.Diag(MemberLoc, diag::err_private_ivar_access)
               << IV->getDeclName();
         } else if (!IDecl->isSuperClassOf(ClassOfMethodDecl))
           // @protected
-          S.Diag(MemberLoc, diag::error_protected_ivar_access)
+          S.Diag(MemberLoc, diag::err_protected_ivar_access)
               << IV->getDeclName();
       }
     }
     bool warn = true;
-    if (S.getLangOpts().ObjCAutoRefCount) {
+    if (S.getLangOpts().ObjCWeak) {
       Expr *BaseExp = BaseExpr.get()->IgnoreParenImpCasts();
       if (UnaryOperator *UO = dyn_cast<UnaryOperator>(BaseExp))
         if (UO->getOpcode() == UO_Deref)
@@ -1466,7 +1504,7 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
       
       if (DeclRefExpr *DE = dyn_cast<DeclRefExpr>(BaseExp))
         if (DE->getType().getObjCLifetime() == Qualifiers::OCL_Weak) {
-          S.Diag(DE->getLocation(), diag::error_arc_weak_ivar_access);
+          S.Diag(DE->getLocation(), diag::err_arc_weak_ivar_access);
           warn = false;
         }
     }
@@ -1485,11 +1523,9 @@ static ExprResult LookupMemberExpr(Sema &S, LookupResult &R,
         IV, IV->getUsageType(BaseType), MemberLoc, OpLoc, BaseExpr.get(),
         IsArrow);
 
-    if (S.getLangOpts().ObjCAutoRefCount) {
-      if (IV->getType().getObjCLifetime() == Qualifiers::OCL_Weak) {
-        if (!S.Diags.isIgnored(diag::warn_arc_repeated_use_of_weak, MemberLoc))
-          S.recordUseOfEvaluatedWeak(Result);
-      }
+    if (IV->getType().getObjCLifetime() == Qualifiers::OCL_Weak) {
+      if (!S.Diags.isIgnored(diag::warn_arc_repeated_use_of_weak, MemberLoc))
+        S.recordUseOfEvaluatedWeak(Result);
     }
 
     return Result;

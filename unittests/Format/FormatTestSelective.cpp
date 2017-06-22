@@ -24,10 +24,10 @@ protected:
     DEBUG(llvm::errs() << "---\n");
     DEBUG(llvm::errs() << Code << "\n\n");
     std::vector<tooling::Range> Ranges(1, tooling::Range(Offset, Length));
-    bool IncompleteFormat = false;
+    FormattingAttemptStatus Status;
     tooling::Replacements Replaces =
-        reformat(Style, Code, Ranges, "<stdin>", &IncompleteFormat);
-    EXPECT_FALSE(IncompleteFormat) << Code << "\n\n";
+        reformat(Style, Code, Ranges, "<stdin>", &Status);
+    EXPECT_TRUE(Status.FormatComplete) << Code << "\n\n";
     auto Result = applyAllReplacements(Code, Replaces);
     EXPECT_TRUE(static_cast<bool>(Result));
     DEBUG(llvm::errs() << "\n" << *Result << "\n\n");
@@ -111,13 +111,19 @@ TEST_F(FormatTestSelective, FormatsCommentsLocally) {
             format("int   a; // comment\n"
                    "int    b; // comment",
                    0, 0));
-  EXPECT_EQ("int   a; // comment\n"
-            "         // line 2\n"
+  EXPECT_EQ("int a; // comment\n"
+            "       // line 2\n"
             "int b;",
             format("int   a; // comment\n"
                    "            // line 2\n"
                    "int b;",
                    28, 0));
+  EXPECT_EQ("int   a; // comment\n"
+            "// comment 2\n"
+            "int b;",
+            format("int   a; // comment\n"
+                   "// comment 2\n"
+                   "int b;", 28, 0));
   EXPECT_EQ("int aaaaaa; // comment\n"
             "int b;\n"
             "int c; // unrelated comment",

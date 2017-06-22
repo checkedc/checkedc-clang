@@ -162,8 +162,9 @@ Download the latest Visual Studio extension from the `alpha build site
 Script for patch reformatting
 =============================
 
-The python script `clang/tools/clang-format-diff.py` parses the output of
-a unified diff and reformats all contained lines with :program:`clang-format`.
+The python script `clang/tools/clang-format/clang-format-diff.py` parses the
+output of a unified diff and reformats all contained lines with
+:program:`clang-format`.
 
 .. code-block:: console
 
@@ -184,7 +185,7 @@ So to reformat all the lines in the latest :program:`git` commit, just do:
 
 .. code-block:: console
 
-  git diff -U0 HEAD^ | clang-format-diff.py -i -p1
+  git diff -U0 --no-color HEAD^ | clang-format-diff.py -i -p1
 
 In an SVN client, you can do:
 

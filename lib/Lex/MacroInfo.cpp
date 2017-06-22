@@ -33,7 +33,7 @@ MacroInfo::MacroInfo(SourceLocation DefLoc)
     UsedForHeaderGuard(false) {
 }
 
-unsigned MacroInfo::getDefinitionLengthSlow(SourceManager &SM) const {
+unsigned MacroInfo::getDefinitionLengthSlow(const SourceManager &SM) const {
   assert(!IsDefinitionLengthCached);
   IsDefinitionLengthCached = true;
 
@@ -240,6 +240,6 @@ ModuleMacro *ModuleMacro::create(Preprocessor &PP, Module *OwningModule,
                                  ArrayRef<ModuleMacro *> Overrides) {
   void *Mem = PP.getPreprocessorAllocator().Allocate(
       sizeof(ModuleMacro) + sizeof(ModuleMacro *) * Overrides.size(),
-      llvm::alignOf<ModuleMacro>());
+      alignof(ModuleMacro));
   return new (Mem) ModuleMacro(OwningModule, II, Macro, Overrides);
 }

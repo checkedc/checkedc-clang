@@ -24,7 +24,7 @@
 // CHECK-NEXT: note: diagnostic msg: {{.*}}.m
 // CHECK-NEXT: note: diagnostic msg: {{.*}}.cache
 
-// CHECKSRC: @import cstd.stdio;
+// CHECKSRC: #pragma clang module import cstd.stdio
 
 // CHECKSH: # Crash reproducer
 // CHECKSH-NEXT: # Driver args: "-fsyntax-only"
@@ -34,7 +34,7 @@
 // CHECKSH: "-isysroot" "{{[^"]*}}/i/"
 // CHECKSH: "crash-vfs-{{[^ ]*}}.m"
 // CHECKSH: "-ivfsoverlay" "crash-vfs-{{[^ ]*}}.cache/vfs/vfs.yaml"
-// CHECKSH: "-fmodules-cache-path=crash-vfs-{{[^ ]*}}.cache/modules"
+// CHECKSH: "-fmodules-cache-path=crash-vfs-{{[^ ]*}}.cache/repro-modules"
 
 // CHECKYAML: 'case-sensitive':
 // CHECKYAML-NEXT: 'use-external-names': 'false',
@@ -58,4 +58,4 @@
 // RUN:     -fmodules-cache-path=%t/m/ 2>&1 \
 // RUN:     | FileCheck %s --check-prefix=CHECKOVERLAY
 
-// CHECKOVERLAY: @import cstd.stdio; /* clang -E: implicit import for "/{{[^ ].*}}/usr/include/stdio.h" */
+// CHECKOVERLAY: #pragma clang module import cstd.stdio /* clang -E: implicit import

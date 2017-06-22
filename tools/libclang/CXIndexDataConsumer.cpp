@@ -95,7 +95,7 @@ public:
     if (isa<ObjCImplDecl>(LexicalDC) && !D->isThisDeclarationADefinition())
       DataConsumer.handleSynthesizedObjCMethod(D, DeclLoc, LexicalDC);
     else
-      DataConsumer.handleObjCMethod(D);
+      DataConsumer.handleObjCMethod(D, DeclLoc);
     return true;
   }
 
@@ -410,8 +410,8 @@ void CXIndexDataConsumer::setASTContext(ASTContext &ctx) {
   cxtu::getASTUnit(CXTU)->setASTContext(&ctx);
 }
 
-void CXIndexDataConsumer::setPreprocessor(Preprocessor &PP) {
-  cxtu::getASTUnit(CXTU)->setPreprocessor(&PP);
+void CXIndexDataConsumer::setPreprocessor(std::shared_ptr<Preprocessor> PP) {
+  cxtu::getASTUnit(CXTU)->setPreprocessor(std::move(PP));
 }
 
 bool CXIndexDataConsumer::isFunctionLocalDecl(const Decl *D) {
@@ -801,7 +801,8 @@ bool CXIndexDataConsumer::handleObjCCategoryImpl(const ObjCCategoryImplDecl *D) 
   return handleObjCContainer(D, CategoryLoc, getCursor(D), CatDInfo);
 }
 
-bool CXIndexDataConsumer::handleObjCMethod(const ObjCMethodDecl *D) {
+bool CXIndexDataConsumer::handleObjCMethod(const ObjCMethodDecl *D,
+                                           SourceLocation Loc) {
   bool isDef = D->isThisDeclarationADefinition();
   bool isContainer = isDef;
   bool isSkipped = false;
@@ -814,7 +815,7 @@ bool CXIndexDataConsumer::handleObjCMethod(const ObjCMethodDecl *D) {
   DeclInfo DInfo(!D->isCanonicalDecl(), isDef, isContainer);
   if (isSkipped)
     DInfo.flags |= CXIdxDeclFlag_Skipped;
-  return handleDecl(D, D->getLocation(), getCursor(D), DInfo);
+  return handleDecl(D, Loc, getCursor(D), DInfo);
 }
 
 bool CXIndexDataConsumer::handleSynthesizedObjCProperty(
@@ -1142,7 +1143,7 @@ void CXIndexDataConsumer::translateLoc(SourceLocation Loc,
 
 static CXIdxEntityKind getEntityKindFromSymbolKind(SymbolKind K, SymbolLanguage L);
 static CXIdxEntityCXXTemplateKind
-getEntityKindFromSymbolSubKinds(SymbolSubKindSet K);
+getEntityKindFromSymbolProperties(SymbolPropertySet K);
 static CXIdxEntityLanguage getEntityLangFromSymbolLang(SymbolLanguage L);
 
 void CXIndexDataConsumer::getEntityInfo(const NamedDecl *D,
@@ -1158,7 +1159,7 @@ void CXIndexDataConsumer::getEntityInfo(const NamedDecl *D,
 
   SymbolInfo SymInfo = getSymbolInfo(D);
   EntityInfo.kind = getEntityKindFromSymbolKind(SymInfo.Kind, SymInfo.Lang);
-  EntityInfo.templateKind = getEntityKindFromSymbolSubKinds(SymInfo.SubKinds);
+  EntityInfo.templateKind = getEntityKindFromSymbolProperties(SymInfo.Properties);
   EntityInfo.lang = getEntityLangFromSymbolLang(SymInfo.Lang);
 
   if (D->hasAttrs()) {
@@ -1293,17 +1294,18 @@ static CXIdxEntityKind getEntityKindFromSymbolKind(SymbolKind K, SymbolLanguage 
   case SymbolKind::Constructor: return CXIdxEntity_CXXConstructor;
   case SymbolKind::Destructor: return CXIdxEntity_CXXDestructor;
   case SymbolKind::ConversionFunction: return CXIdxEntity_CXXConversionFunction;
+  case SymbolKind::Parameter: return CXIdxEntity_Variable;
   }
   llvm_unreachable("invalid symbol kind");
 }
 
 static CXIdxEntityCXXTemplateKind
-getEntityKindFromSymbolSubKinds(SymbolSubKindSet K) {
-  if (K & (unsigned)SymbolSubKind::TemplatePartialSpecialization)
+getEntityKindFromSymbolProperties(SymbolPropertySet K) {
+  if (K & (unsigned)SymbolProperty::TemplatePartialSpecialization)
     return CXIdxEntity_TemplatePartialSpecialization;
-  if (K & (unsigned)SymbolSubKind::TemplateSpecialization)
+  if (K & (unsigned)SymbolProperty::TemplateSpecialization)
     return CXIdxEntity_TemplateSpecialization;
-  if (K & (unsigned)SymbolSubKind::Generic)
+  if (K & (unsigned)SymbolProperty::Generic)
     return CXIdxEntity_Template;
   return CXIdxEntity_NonTemplate;
 }
@@ -1313,6 +1315,7 @@ static CXIdxEntityLanguage getEntityLangFromSymbolLang(SymbolLanguage L) {
   case SymbolLanguage::C: return CXIdxEntityLang_C;
   case SymbolLanguage::ObjC: return CXIdxEntityLang_ObjC;
   case SymbolLanguage::CXX: return CXIdxEntityLang_CXX;
+  case SymbolLanguage::Swift: return CXIdxEntityLang_Swift;
   }
   llvm_unreachable("invalid symbol language");
 }

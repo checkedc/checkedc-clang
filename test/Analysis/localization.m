@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -analyze -fblocks -analyzer-store=region -analyzer-output=text -analyzer-checker=optin.osx.cocoa.localizability.NonLocalizedStringChecker -analyzer-checker=alpha.osx.cocoa.localizability.PluralMisuseChecker -verify  %s
+// RUN: %clang_analyze_cc1 -fblocks -analyzer-store=region -analyzer-output=text -analyzer-checker=optin.osx.cocoa.localizability.NonLocalizedStringChecker -analyzer-checker=alpha.osx.cocoa.localizability.PluralMisuseChecker -verify  %s
 
 // The larger set of tests in located in localization.m. These are tests
 // specific for non-aggressive reporting.
@@ -61,7 +61,7 @@ NSString *KHLocalizedString(NSString* key, NSString* comment) {
   UILabel *testLabel = [[UILabel alloc] init];
   NSString *bar = NSLocalizedString(@"Hello", @"Comment");
 
-  if (random()) { // expected-note {{Taking true branch}}
+  if (random()) { // expected-note {{Assuming the condition is true}} expected-note {{Taking true branch}}
     bar = @"Unlocalized string"; // expected-note {{Non-localized string literal here}}
   }
 

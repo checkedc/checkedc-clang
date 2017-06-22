@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 #ifndef _UTILS_H
 #define _UTILS_H
+#include <set>
 #include "llvm/Support/CommandLine.h"
 #include "PersistentSourceLoc.h"
 

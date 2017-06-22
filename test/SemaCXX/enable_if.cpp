@@ -246,11 +246,11 @@ namespace FnPtrs {
 
   int noOvlNoCandidate(int m) __attribute__((enable_if(false, "")));
   void test8() {
-    int (*p)(int) = noOvlNoCandidate; // expected-error{{cannot take address of function 'noOvlNoCandidate' becuase it has one or more non-tautological enable_if conditions}}
-    int (*p2)(int) = &noOvlNoCandidate; // expected-error{{cannot take address of function 'noOvlNoCandidate' becuase it has one or more non-tautological enable_if conditions}}
+    int (*p)(int) = noOvlNoCandidate; // expected-error{{cannot take address of function 'noOvlNoCandidate' because it has one or more non-tautological enable_if conditions}}
+    int (*p2)(int) = &noOvlNoCandidate; // expected-error{{cannot take address of function 'noOvlNoCandidate' because it has one or more non-tautological enable_if conditions}}
     int (*a)(int);
-    a = noOvlNoCandidate; // expected-error{{cannot take address of function 'noOvlNoCandidate' becuase it has one or more non-tautological enable_if conditions}}
-    a = &noOvlNoCandidate; // expected-error{{cannot take address of function 'noOvlNoCandidate' becuase it has one or more non-tautological enable_if conditions}}
+    a = noOvlNoCandidate; // expected-error{{cannot take address of function 'noOvlNoCandidate' because it has one or more non-tautological enable_if conditions}}
+    a = &noOvlNoCandidate; // expected-error{{cannot take address of function 'noOvlNoCandidate' because it has one or more non-tautological enable_if conditions}}
   }
 }
 
@@ -438,5 +438,64 @@ void testFoo() {
   foo(1, 0); // expected-error{{no matching}}
   foo(1, 0, m); // expected-error{{no matching}}
   foo(1, 0, m, 3); // expected-error{{no matching}}
+}
+}
+
+// Tests that we emit errors at the point of the method call, rather than the
+// beginning of the expression that happens to be a member call.
+namespace member_loc {
+  struct Foo { void bar() __attribute__((enable_if(0, ""))); }; // expected-note{{disabled}}
+  void testFoo() {
+    Foo()
+      .bar(); // expected-error{{no matching member function}}
+  }
+}
+
+// Prior bug: we wouldn't properly convert conditions to bools when
+// instantiating templates in some cases.
+namespace template_instantiation {
+template <typename T>
+struct Foo {
+  void bar(int a) __attribute__((enable_if(a, ""))); // expected-note{{disabled}}
+};
+
+void runFoo() {
+  Foo<double>().bar(0); // expected-error{{no matching}}
+  Foo<double>().bar(1);
+}
+}
+
+namespace instantiate_constexpr_in_enable_if {
+  template<typename T> struct X {
+    static constexpr bool ok() { return true; }
+    void f() __attribute__((enable_if(ok(), "")));
+  };
+  void g() { X<int>().f(); }
+}
+
+namespace PR31934 {
+int foo(int a) __attribute__((enable_if(a, "")));
+int runFn(int (&)(int));
+
+void run() {
+  {
+    int (&bar)(int) = foo; // expected-error{{cannot take address of function 'foo'}}
+    int baz = runFn(foo); // expected-error{{cannot take address of function 'foo'}}
+  }
+
+  {
+    int (&bar)(int) = (foo); // expected-error{{cannot take address of function 'foo'}}
+    int baz = runFn((foo)); // expected-error{{cannot take address of function 'foo'}}
+  }
+
+  {
+    int (&bar)(int) = static_cast<int (&)(int)>(foo); // expected-error{{cannot take address of function 'foo'}}
+    int baz = runFn(static_cast<int (&)(int)>(foo)); // expected-error{{cannot take address of function 'foo'}}
+  }
+
+  {
+    int (&bar)(int) = static_cast<int (&)(int)>((foo)); // expected-error{{cannot take address of function 'foo'}}
+    int baz = runFn(static_cast<int (&)(int)>((foo))); // expected-error{{cannot take address of function 'foo'}}
+  }
 }
 }

@@ -160,12 +160,23 @@ public:
 
   ~LexingFor_PragmaRAII() {
     if (InMacroArgPreExpansion) {
+      // When committing/backtracking the cached pragma tokens in a macro
+      // argument pre-expansion we want to ensure that either the tokens which
+      // have been committed will be removed from the cache or that the tokens
+      // over which we just backtracked won't remain in the cache after they're
+      // consumed and that the caching will stop after consuming them.
+      // Otherwise the caching will interfere with the way macro expansion
+      // works, because we will continue to cache tokens after consuming the
+      // backtracked tokens, which shouldn't happen when we're dealing with
+      // macro argument pre-expansion.
+      auto CachedTokenRange = PP.LastCachedTokenRange();
       if (Failed) {
         PP.CommitBacktrackedTokens();
       } else {
         PP.Backtrack();
         OutTok = PragmaTok;
       }
+      PP.EraseCachedTokens(CachedTokenRange);
     }
   }
 
@@ -281,7 +292,7 @@ void Preprocessor::Handle_Pragma(Token &Tok) {
 
     // Remove escaped quotes and escapes.
     unsigned ResultPos = 1;
-    for (unsigned i = 1, e = StrVal.size() - 1; i != e; ++i) {
+    for (size_t i = 1, e = StrVal.size() - 1; i != e; ++i) {
       // Skip escapes.  \\ -> '\' and \" -> '"'.
       if (StrVal[i] == '\\' && i + 1 < e &&
           (StrVal[i + 1] == '\\' || StrVal[i + 1] == '"'))
@@ -372,8 +383,10 @@ void Preprocessor::HandleMicrosoft__pragma(Token &Tok) {
 ///
 void Preprocessor::HandlePragmaOnce(Token &OnceTok) {
   // Don't honor the 'once' when handling the primary source file, unless
-  // this is a prefix to a TU, which indicates we're generating a PCH file.
-  if (isInPrimaryFile() && TUKind != TU_Prefix) {
+  // this is a prefix to a TU, which indicates we're generating a PCH file, or
+  // when the main file is a header (e.g. when -xc-header is provided on the
+  // commandline).
+  if (isInPrimaryFile() && TUKind != TU_Prefix && !getLangOpts().IsHeaderFile) {
     Diag(OnceTok, diag::pp_pragma_once_in_main_file);
     return;
   }
@@ -393,7 +406,7 @@ void Preprocessor::HandlePragmaMark() {
 
 /// HandlePragmaPoison - Handle \#pragma GCC poison.  PoisonTok is the 'poison'.
 ///
-void Preprocessor::HandlePragmaPoison(Token &PoisonTok) {
+void Preprocessor::HandlePragmaPoison() {
   Token Tok;
 
   while (true) {
@@ -495,7 +508,7 @@ void Preprocessor::HandlePragmaDependency(Token &DependencyTok) {
   const DirectoryLookup *CurDir;
   const FileEntry *File =
       LookupFile(FilenameTok.getLocation(), Filename, isAngled, nullptr,
-                 nullptr, CurDir, nullptr, nullptr, nullptr);
+                 nullptr, CurDir, nullptr, nullptr, nullptr, nullptr);
   if (!File) {
     if (!SuppressIncludeNotFoundError)
       Diag(FilenameTok, diag::err_pp_file_not_found) << Filename;
@@ -519,6 +532,47 @@ void Preprocessor::HandlePragmaDependency(Token &DependencyTok) {
       Message.erase(Message.end()-1);
     Diag(FilenameTok, diag::pp_out_of_date_dependency) << Message;
   }
+}
+
+void Preprocessor::HandlePragmaModuleImport(Token &ImportTok) {
+  SourceLocation ImportLoc = ImportTok.getLocation();
+
+  Token Tok;
+
+  llvm::SmallVector<std::pair<IdentifierInfo *, SourceLocation>, 8> ModuleName;
+  while (true) {
+    LexUnexpandedToken(Tok);
+    if (Tok.isNot(tok::identifier)) {
+      Diag(Tok.getLocation(),
+           diag::err_pragma_module_import_expected_module_name) << 0;
+      return;
+    }
+
+    ModuleName.emplace_back(Tok.getIdentifierInfo(), Tok.getLocation());
+
+    LexUnexpandedToken(Tok);
+    assert(Tok.isNot(tok::eof));
+    if (Tok.is(tok::eod))
+      break;
+    if (Tok.isNot(tok::period)) {
+      Diag(Tok.getLocation(),
+           diag::err_pragma_module_import_expected_module_name) << 1;
+      return;
+    }
+  }
+
+  // If we have a non-empty module path, load the named module.
+  Module *Imported =
+      TheModuleLoader.loadModule(ImportLoc, ModuleName, Module::Hidden,
+                                 /*IsIncludeDirective=*/false);
+  if (!Imported)
+    return;
+
+  makeModuleVisible(Imported, ImportLoc);
+  EnterAnnotationToken(SourceRange(ImportLoc, Tok.getLocation()),
+                       tok::annot_module_include, Imported);
+  if (Callbacks)
+    Callbacks->moduleImport(ImportLoc, ModuleName, Imported);
 }
 
 /// ParsePragmaPushOrPopMacro - Handle parsing of pragma push_macro/pop_macro.
@@ -853,7 +907,7 @@ struct PragmaPoisonHandler : public PragmaHandler {
 
   void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
                     Token &PoisonTok) override {
-    PP.HandlePragmaPoison(PoisonTok);
+    PP.HandlePragmaPoison();
   }
 };
 
@@ -976,9 +1030,9 @@ struct PragmaDebugHandler : public PragmaHandler {
 #ifdef _MSC_VER
     #pragma warning(disable : 4717)
 #endif
-  static void DebugOverflowStack() {
-    void (*volatile Self)() = DebugOverflowStack;
-    Self();
+  static void DebugOverflowStack(void (*P)() = nullptr) {
+    void (*volatile Self)(void(*P)()) = DebugOverflowStack;
+    Self(reinterpret_cast<void(*)()>(Self));
   }
 #ifdef _MSC_VER
     #pragma warning(default : 4717)
@@ -1288,6 +1342,19 @@ public:
   }
 };
 
+/// Handle the clang \#pragma module import extension. The syntax is:
+/// \code
+///   #pragma clang module import some.module.name
+/// \endcode
+struct PragmaModuleImportHandler : public PragmaHandler {
+  PragmaModuleImportHandler() : PragmaHandler("import") {}
+
+  void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
+                    Token &ImportTok) override {
+    PP.HandlePragmaModuleImport(ImportTok);
+  }
+};
+
 /// PragmaPushMacroHandler - "\#pragma push_macro" saves the value of the
 /// macro on the top of the stack.
 struct PragmaPushMacroHandler : public PragmaHandler {
@@ -1510,6 +1577,11 @@ void Preprocessor::RegisterBuiltinPragmas() {
   AddPragmaHandler("clang", new PragmaDiagnosticHandler("clang"));
   AddPragmaHandler("clang", new PragmaARCCFCodeAuditedHandler());
   AddPragmaHandler("clang", new PragmaAssumeNonNullHandler());
+
+  // #pragma clang module ...
+  auto *ModuleHandler = new PragmaNamespace("module");
+  AddPragmaHandler("clang", ModuleHandler);
+  ModuleHandler->AddPragma(new PragmaModuleImportHandler());
 
   AddPragmaHandler("STDC", new PragmaSTDC_FENV_ACCESSHandler());
   AddPragmaHandler("STDC", new PragmaSTDC_CX_LIMITED_RANGEHandler());

@@ -56,7 +56,7 @@ class ArgKind {
   /// \param To the requested destination type.
   ///
   /// \param Specificity value corresponding to the "specificity" of the
-  ///   convertion.
+  ///   conversion.
   bool isConvertibleTo(ArgKind To, unsigned *Specificity) const;
 
   bool operator<(const ArgKind &Other) const {
@@ -119,9 +119,9 @@ class VariantMatcher {
   /// \brief Payload interface to be specialized by each matcher type.
   ///
   /// It follows a similar interface as VariantMatcher itself.
-  class Payload : public RefCountedBaseVPTR {
+  class Payload {
   public:
-    ~Payload() override;
+    virtual ~Payload();
     virtual llvm::Optional<DynTypedMatcher> getSingleMatcher() const = 0;
     virtual std::string getTypeAsString() const = 0;
     virtual llvm::Optional<DynTypedMatcher>
@@ -182,7 +182,7 @@ public:
   /// \param Kind the requested destination type.
   ///
   /// \param Specificity value corresponding to the "specificity" of the
-  ///   convertion.
+  ///   conversion.
   bool isConvertibleTo(ast_type_traits::ASTNodeKind Kind,
                        unsigned *Specificity) const {
     if (Value)
@@ -208,7 +208,8 @@ public:
   std::string getTypeAsString() const;
 
 private:
-  explicit VariantMatcher(Payload *Value) : Value(Value) {}
+  explicit VariantMatcher(std::shared_ptr<Payload> Value)
+      : Value(std::move(Value)) {}
 
   template <typename T> struct TypedMatcherOps;
 
@@ -216,7 +217,7 @@ private:
   class PolymorphicPayload;
   class VariadicOpPayload;
 
-  IntrusiveRefCntPtr<const Payload> Value;
+  std::shared_ptr<const Payload> Value;
 };
 
 template <typename T>
@@ -280,7 +281,7 @@ public:
   /// \param Kind the requested destination type.
   ///
   /// \param Specificity value corresponding to the "specificity" of the
-  ///   convertion.
+  ///   conversion.
   bool isConvertibleTo(ArgKind Kind, unsigned* Specificity) const;
 
   /// \brief Determines if the contained value can be converted to any kind
@@ -289,7 +290,7 @@ public:
   /// \param Kinds the requested destination types.
   ///
   /// \param Specificity value corresponding to the "specificity" of the
-  ///   convertion. It is the maximum specificity of all the possible
+  ///   conversion. It is the maximum specificity of all the possible
   ///   conversions.
   bool isConvertibleTo(ArrayRef<ArgKind> Kinds, unsigned *Specificity) const;
 

@@ -39,7 +39,7 @@ CompilationDatabase::~CompilationDatabase() {}
 std::unique_ptr<CompilationDatabase>
 CompilationDatabase::loadFromDirectory(StringRef BuildDirectory,
                                        std::string &ErrorMessage) {
-  std::stringstream ErrorStream;
+  llvm::raw_string_ostream ErrorStream(ErrorMessage);
   for (CompilationDatabasePluginRegistry::iterator
        It = CompilationDatabasePluginRegistry::begin(),
        Ie = CompilationDatabasePluginRegistry::end();
@@ -51,7 +51,6 @@ CompilationDatabase::loadFromDirectory(StringRef BuildDirectory,
       return DB;
     ErrorStream << It->getName() << ": " << DatabaseErrorMessage << "\n";
   }
-  ErrorMessage = ErrorStream.str();
   return nullptr;
 }
 
@@ -301,7 +300,8 @@ FixedCompilationDatabase(Twine Directory, ArrayRef<std::string> CommandLine) {
   ToolCommandLine.insert(ToolCommandLine.end(),
                          CommandLine.begin(), CommandLine.end());
   CompileCommands.emplace_back(Directory, StringRef(),
-                               std::move(ToolCommandLine));
+                               std::move(ToolCommandLine),
+                               StringRef());
 }
 
 std::vector<CompileCommand>

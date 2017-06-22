@@ -92,12 +92,35 @@ void Preprocessor::appendMacroDirective(IdentifierInfo *II, MacroDirective *MD){
 }
 
 void Preprocessor::setLoadedMacroDirective(IdentifierInfo *II,
+                                           MacroDirective *ED,
                                            MacroDirective *MD) {
+  // Normally, when a macro is defined, it goes through appendMacroDirective()
+  // above, which chains a macro to previous defines, undefs, etc.
+  // However, in a pch, the whole macro history up to the end of the pch is
+  // stored, so ASTReader goes through this function instead.
+  // However, built-in macros are already registered in the Preprocessor
+  // ctor, and ASTWriter stops writing the macro chain at built-in macros,
+  // so in that case the chain from the pch needs to be spliced to the existing
+  // built-in.
+
   assert(II && MD);
   MacroState &StoredMD = CurSubmoduleState->Macros[II];
-  assert(!StoredMD.getLatest() &&
-         "the macro history was modified before initializing it from a pch");
-  StoredMD = MD;
+
+  if (auto *OldMD = StoredMD.getLatest()) {
+    // shouldIgnoreMacro() in ASTWriter also stops at macros from the
+    // predefines buffer in module builds. However, in module builds, modules
+    // are loaded completely before predefines are processed, so StoredMD
+    // will be nullptr for them when they're loaded. StoredMD should only be
+    // non-nullptr for builtins read from a pch file.
+    assert(OldMD->getMacroInfo()->isBuiltinMacro() &&
+           "only built-ins should have an entry here");
+    assert(!OldMD->getPrevious() && "builtin should only have a single entry");
+    ED->setPrevious(OldMD);
+    StoredMD.setLatest(MD);
+  } else {
+    StoredMD = MD;
+  }
+
   // Setup the identifier as having associated macro history.
   II->setHasMacroDefinition(true);
   if (!MD->isDefined() && LeafModuleMacros.find(II) == LeafModuleMacros.end())
@@ -411,8 +434,7 @@ bool Preprocessor::isNextPPTokenLParen() {
     // macro stack.
     if (CurPPLexer)
       return false;
-    for (unsigned i = IncludeMacroStack.size(); i != 0; --i) {
-      IncludeStackInfo &Entry = IncludeMacroStack[i-1];
+    for (const IncludeStackInfo &Entry : llvm::reverse(IncludeMacroStack)) {
       if (Entry.TheLexer)
         Val = Entry.TheLexer->isNextPPTokenLParen();
       else if (Entry.ThePTHLexer)
@@ -501,9 +523,7 @@ bool Preprocessor::HandleMacroExpandedIdentifier(Token &Identifier,
     } else {
       Callbacks->MacroExpands(Identifier, M, ExpansionRange, Args);
       if (!DelayedMacroExpandsCallbacks.empty()) {
-        for (unsigned i = 0, e = DelayedMacroExpandsCallbacks.size(); i != e;
-             ++i) {
-          MacroExpandsInfo &Info = DelayedMacroExpandsCallbacks[i];
+        for (const MacroExpandsInfo &Info : DelayedMacroExpandsCallbacks) {
           // FIXME: We lose macro args info with delayed callback.
           Callbacks->MacroExpands(Info.Tok, Info.MD, Info.Range,
                                   /*Args=*/nullptr);
@@ -757,7 +777,7 @@ MacroArgs *Preprocessor::ReadFunctionLikeMacroArgs(Token &MacroName,
     assert(Tok.isOneOf(tok::l_paren, tok::comma) &&
            "only expect argument separators here");
 
-    unsigned ArgTokenStart = ArgTokens.size();
+    size_t ArgTokenStart = ArgTokens.size();
     SourceLocation ArgStartLoc = Tok.getLocation();
 
     // C99 6.10.3p11: Keep track of the number of l_parens we have seen.  Note
@@ -1009,10 +1029,10 @@ Token *Preprocessor::cacheMacroExpandedTokens(TokenLexer *tokLexer,
   if (cacheNeedsToGrow) {
     // Go through all the TokenLexers whose 'Tokens' pointer points in the
     // buffer and update the pointers to the (potential) new buffer array.
-    for (unsigned i = 0, e = MacroExpandingLexersStack.size(); i != e; ++i) {
+    for (const auto &Lexer : MacroExpandingLexersStack) {
       TokenLexer *prevLexer;
       size_t tokIndex;
-      std::tie(prevLexer, tokIndex) = MacroExpandingLexersStack[i];
+      std::tie(prevLexer, tokIndex) = Lexer;
       prevLexer->Tokens = MacroExpandedTokens.data() + tokIndex;
     }
   }
@@ -1111,6 +1131,7 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       .Case("cxx_rtti", LangOpts.RTTI && LangOpts.RTTIData)
       .Case("enumerator_attributes", true)
       .Case("nullability", true)
+      .Case("nullability_on_arrays", true)
       .Case("memory_sanitizer", LangOpts.Sanitize.has(SanitizerKind::Memory))
       .Case("thread_sanitizer", LangOpts.Sanitize.has(SanitizerKind::Thread))
       .Case("dataflow_sanitizer", LangOpts.Sanitize.has(SanitizerKind::DataFlow))
@@ -1162,6 +1183,7 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       .Case("cxx_attributes", LangOpts.CPlusPlus11)
       .Case("cxx_auto_type", LangOpts.CPlusPlus11)
       .Case("cxx_constexpr", LangOpts.CPlusPlus11)
+      .Case("cxx_constexpr_string_builtins", LangOpts.CPlusPlus11)
       .Case("cxx_decltype", LangOpts.CPlusPlus11)
       .Case("cxx_decltype_incomplete_return_types", LangOpts.CPlusPlus11)
       .Case("cxx_default_function_template_args", LangOpts.CPlusPlus11)
@@ -1192,7 +1214,7 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       .Case("cxx_unrestricted_unions", LangOpts.CPlusPlus11)
       .Case("cxx_user_literals", LangOpts.CPlusPlus11)
       .Case("cxx_variadic_templates", LangOpts.CPlusPlus11)
-      // C++1y features
+      // C++14 features
       .Case("cxx_aggregate_nsdmi", LangOpts.CPlusPlus14)
       .Case("cxx_binary_literals", LangOpts.CPlusPlus14)
       .Case("cxx_contextual_conversions", LangOpts.CPlusPlus14)
@@ -1202,6 +1224,9 @@ static bool HasFeature(const Preprocessor &PP, StringRef Feature) {
       .Case("cxx_relaxed_constexpr", LangOpts.CPlusPlus14)
       .Case("cxx_return_type_deduction", LangOpts.CPlusPlus14)
       .Case("cxx_variable_templates", LangOpts.CPlusPlus14)
+      // NOTE: For features covered by SD-6, it is preferable to provide *only*
+      // the SD-6 macro and not a __has_feature check.
+
       // C++ TSes
       //.Case("cxx_runtime_arrays", LangOpts.CPlusPlusTSArrays)
       //.Case("cxx_concepts", LangOpts.CPlusPlusTSConcepts)
@@ -1285,7 +1310,7 @@ static bool HasExtension(const Preprocessor &PP, StringRef Extension) {
            .Case("cxx_reference_qualified_functions", LangOpts.CPlusPlus)
            .Case("cxx_rvalue_references", LangOpts.CPlusPlus)
            .Case("cxx_variadic_templates", LangOpts.CPlusPlus)
-           // C++1y features supported by other languages as extensions.
+           // C++14 features supported by other languages as extensions.
            .Case("cxx_binary_literals", true)
            .Case("cxx_init_captures", LangOpts.CPlusPlus11)
            .Case("cxx_variable_templates", LangOpts.CPlusPlus)
@@ -1397,7 +1422,7 @@ static bool EvaluateHasIncludeCommon(Token &Tok,
   const DirectoryLookup *CurDir;
   const FileEntry *File =
       PP.LookupFile(FilenameLoc, Filename, isAngled, LookupFrom, LookupFromFile,
-                    CurDir, nullptr, nullptr, nullptr);
+                    CurDir, nullptr, nullptr, nullptr, nullptr);
 
   // Get the result value.  A result of true means the file exists.
   return File != nullptr;
@@ -1421,7 +1446,11 @@ static bool EvaluateHasIncludeNext(Token &Tok,
   // Preprocessor::HandleIncludeNextDirective.
   const DirectoryLookup *Lookup = PP.GetCurDirLookup();
   const FileEntry *LookupFromFile = nullptr;
-  if (PP.isInPrimaryFile()) {
+  if (PP.isInPrimaryFile() && PP.getLangOpts().IsHeaderFile) {
+    // If the main file is a header, then it's either for PCH/AST generation,
+    // or libclang opened it. Either way, handle it as a normal include below
+    // and do not complain about __has_include_next.
+  } else if (PP.isInPrimaryFile()) {
     Lookup = nullptr;
     PP.Diag(Tok, diag::pp_include_next_in_primary);
   } else if (PP.getCurrentSubmodule()) {
@@ -1717,6 +1746,7 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
           return llvm::StringSwitch<bool>(II->getName())
                       .Case("__make_integer_seq", LangOpts.CPlusPlus)
                       .Case("__type_pack_element", LangOpts.CPlusPlus)
+                      .Case("__builtin_available", true)
                       .Default(false);
         }
       });

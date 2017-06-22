@@ -53,12 +53,19 @@ types::ID types::getPrecompiledType(ID Id) {
 }
 
 const char *types::getTypeTempSuffix(ID Id, bool CLMode) {
-  if (Id == TY_Object && CLMode)
-    return "obj";
-  if (Id == TY_Image && CLMode)
-    return "exe";
-  if (Id == TY_PP_Asm && CLMode)
-    return "asm";
+  if (CLMode) {
+    switch (Id) {
+    case TY_Object:
+    case TY_LTO_BC:
+      return "obj";
+    case TY_Image:
+      return "exe";
+    case TY_PP_Asm:
+      return "asm";
+    default:
+      break;
+    }
+  }
   return getInfo(Id).TempSuffix;
 }
 
@@ -163,7 +170,11 @@ bool types::isCuda(ID Id) {
   }
 }
 
-types::ID types::lookupTypeForExtension(const char *Ext) {
+bool types::isSrcFile(ID Id) {
+  return Id != TY_Object && getPreprocessedType(Id) != TY_INVALID;
+}
+
+types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
   return llvm::StringSwitch<types::ID>(Ext)
            .Case("c", TY_C)
            .Case("C", TY_CXX)
@@ -254,7 +265,7 @@ void types::getCompilationPhases(ID Id, llvm::SmallVectorImpl<phases::ID> &P) {
     }
   }
 
-  if (!onlyPrecompileType(Id) && Id != TY_CUDA_DEVICE) {
+  if (!onlyPrecompileType(Id)) {
     P.push_back(phases::Link);
   }
   assert(0 < P.size() && "Not enough phases in list");

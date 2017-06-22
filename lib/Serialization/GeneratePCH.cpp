@@ -24,13 +24,14 @@ using namespace clang;
 PCHGenerator::PCHGenerator(
     const Preprocessor &PP, StringRef OutputFile, StringRef isysroot,
     std::shared_ptr<PCHBuffer> Buffer,
-    ArrayRef<llvm::IntrusiveRefCntPtr<ModuleFileExtension>> Extensions,
+    ArrayRef<std::shared_ptr<ModuleFileExtension>> Extensions,
     bool AllowASTWithErrors, bool IncludeTimestamps)
     : PP(PP), OutputFile(OutputFile), isysroot(isysroot.str()),
-      SemaPtr(nullptr), Buffer(Buffer), Stream(Buffer->Data),
-      Writer(Stream, Extensions, IncludeTimestamps),
+      SemaPtr(nullptr), Buffer(std::move(Buffer)), Stream(this->Buffer->Data),
+      Writer(Stream, this->Buffer->Data, PP.getPCMCache(), Extensions,
+             IncludeTimestamps),
       AllowASTWithErrors(AllowASTWithErrors) {
-  Buffer->IsComplete = false;
+  this->Buffer->IsComplete = false;
 }
 
 PCHGenerator::~PCHGenerator() {

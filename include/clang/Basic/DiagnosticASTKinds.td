@@ -44,7 +44,8 @@ def note_constexpr_non_global : Note<
 def note_constexpr_uninitialized : Note<
   "%select{|sub}0object of type %1 is not initialized">;
 def note_constexpr_array_index : Note<"cannot refer to element %0 of "
-  "%select{array of %2 elements|non-array object}1 in a constant expression">;
+  "%select{array of %2 element%plural{1:|:s}2|non-array object}1 "
+  "in a constant expression">;
 def note_constexpr_float_arithmetic : Note<
   "floating point arithmetic produces %select{an infinity|a NaN}0">;
 def note_constexpr_pointer_subtraction_not_same_array : Note<
@@ -153,12 +154,14 @@ def note_constexpr_baa_insufficient_alignment : Note<
 def note_constexpr_baa_value_insufficient_alignment : Note<
   "value of the aligned pointer (%0) is not a multiple of the asserted %1 "
   "%plural{1:byte|:bytes}1">;
+def note_constexpr_array_unknown_bound_arithmetic : Note<
+  "cannot perform pointer arithmetic on pointer to array without constant bound">;
 
 def warn_integer_constant_overflow : Warning<
   "overflow in expression; result is %0 with type %1">,
   InGroup<DiagGroup<"integer-overflow">>;
 
-// This is a temporary diagnostic, and shall be removed once our 
+// This is a temporary diagnostic, and shall be removed once our
 // implementation is complete, and like the preceding constexpr notes belongs
 // in Sema.
 def note_unimplemented_constexpr_lambda_feature_ast : Note<

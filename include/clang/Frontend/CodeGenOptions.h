@@ -44,7 +44,6 @@ protected:
 class CodeGenOptions : public CodeGenOptionsBase {
 public:
   enum InliningMethod {
-    NoInlining,         // Perform no inlining whatsoever.
     NormalInlining,     // Use the standard function inlining pass.
     OnlyHintInlining,   // Inline only (implicitly) hinted functions.
     OnlyAlwaysInlining  // Only run the always inlining pass.
@@ -68,12 +67,6 @@ public:
     LocalDynamicTLSModel,
     InitialExecTLSModel,
     LocalExecTLSModel
-  };
-
-  enum FPContractModeKind {
-    FPC_Off,        // Form fused FP ops only where result will not be affected.
-    FPC_On,         // Form fused FP ops according to FP_CONTRACT rules.
-    FPC_Fast        // Aggressively fuse FP ops (E.g. FMA).
   };
 
   enum StructReturnConventionKind {
@@ -131,8 +124,21 @@ public:
   /// The float precision limit to use, if non-empty.
   std::string LimitFloatPrecision;
 
-  /// The name of the bitcode file to link before optzns.
-  std::vector<std::pair<unsigned, std::string>> LinkBitcodeFiles;
+  struct BitcodeFileToLink {
+    /// The filename of the bitcode file to link in.
+    std::string Filename;
+    /// If true, we set attributes functions in the bitcode library according to
+    /// our CodeGenOptions, much as we set attrs on functions that we generate
+    /// ourselves.
+    bool PropagateAttrs = false;
+    /// If true, we use LLVM module internalizer.
+    bool Internalize = false;
+    /// Bitwise combination of llvm::Linker::Flags, passed to the LLVM linker.
+    unsigned LinkFlags = 0;
+  };
+
+  /// The files specified here are linked in to the module before optimizations.
+  std::vector<BitcodeFileToLink> LinkBitcodeFiles;
 
   /// The user provided name for the "main file", if non-empty. This is useful
   /// in situations where the input file name does not match the original input
@@ -176,10 +182,19 @@ public:
   /// importing.
   std::string ThinLTOIndexFile;
 
+  /// Name of a file that can optionally be written with minimized bitcode
+  /// to be used as input for the ThinLTO thin link step, which only needs
+  /// the summary and module symbol table (and not, e.g. any debug metadata).
+  std::string ThinLinkBitcodeFile;
+
   /// A list of file names passed with -fcuda-include-gpubinary options to
   /// forward to CUDA runtime back-end for incorporating them into host-side
   /// object file.
   std::vector<std::string> CudaGpuBinaryFileNames;
+
+  /// The name of the file to which the backend should save YAML optimization
+  /// records.
+  std::string OptRecordFile;
 
   /// Regular expression to select optimizations for which we should enable
   /// optimization remarks. Transformation passes whose name matches this
@@ -203,7 +218,7 @@ public:
   /// flag.
   std::shared_ptr<llvm::Regex> OptimizationRemarkAnalysisPattern;
 
-  /// Set of files definining the rules for the symbol rewriting.
+  /// Set of files defining the rules for the symbol rewriting.
   std::vector<std::string> RewriteMapFiles;
 
   /// Set of sanitizer checks that are non-fatal (i.e. execution should be

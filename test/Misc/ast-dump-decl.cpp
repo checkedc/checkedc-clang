@@ -223,6 +223,10 @@ namespace testClassTemplateDecl {
   class D { };
 
   template<typename T> class TestClassTemplate {
+  public:
+    TestClassTemplate();
+    ~TestClassTemplate();
+    int j();
     int i;
   };
 
@@ -252,10 +256,18 @@ namespace testClassTemplateDecl {
 // CHECK-NEXT:   TemplateTypeParmDecl
 // CHECK-NEXT:   CXXRecordDecl{{.*}} class TestClassTemplate
 // CHECK-NEXT:     CXXRecordDecl{{.*}} class TestClassTemplate
+// CHECK-NEXT:     AccessSpecDecl{{.*}} public
+// CHECK-NEXT:     CXXConstructorDecl{{.*}} <line:{{.*}}:5, col:23>
+// CHECK-NEXT:     CXXDestructorDecl{{.*}} <line:{{.*}}:5, col:24>
+// CHECK-NEXT:     CXXMethodDecl{{.*}} <line:{{.*}}:5, col:11>
 // CHECK-NEXT:     FieldDecl{{.*}} i
 // CHECK-NEXT:   ClassTemplateSpecializationDecl{{.*}} class TestClassTemplate
 // CHECK-NEXT:     TemplateArgument{{.*}}A
 // CHECK-NEXT:     CXXRecordDecl{{.*}} class TestClassTemplate
+// CHECK-NEXT:     AccessSpecDecl{{.*}} public
+// CHECK-NEXT:     CXXConstructorDecl{{.*}} <line:{{.*}}:5, col:23>
+// CHECK-NEXT:     CXXDestructorDecl{{.*}} <line:{{.*}}:5, col:24>
+// CHECK-NEXT:     CXXMethodDecl{{.*}} <line:{{.*}}:5, col:11>
 // CHECK-NEXT:     FieldDecl{{.*}} i
 // CHECK:        ClassTemplateSpecialization{{.*}} 'TestClassTemplate'
 // CHECK-NEXT:   ClassTemplateSpecialization{{.*}} 'TestClassTemplate'
@@ -269,11 +281,19 @@ namespace testClassTemplateDecl {
 // CHECK:      ClassTemplateSpecializationDecl{{.*}} class TestClassTemplate
 // CHECK-NEXT:   TemplateArgument{{.*}}C
 // CHECK-NEXT:   CXXRecordDecl{{.*}} class TestClassTemplate
+// CHECK-NEXT:   AccessSpecDecl{{.*}} public
+// CHECK-NEXT:   CXXConstructorDecl{{.*}} <line:{{.*}}:5, col:23>
+// CHECK-NEXT:   CXXDestructorDecl{{.*}} <line:{{.*}}:5, col:24>
+// CHECK-NEXT:   CXXMethodDecl{{.*}} <line:{{.*}}:5, col:11>
 // CHECK-NEXT:   FieldDecl{{.*}} i
 
 // CHECK:      ClassTemplateSpecializationDecl{{.*}} class TestClassTemplate
 // CHECK-NEXT:   TemplateArgument{{.*}}D
 // CHECK-NEXT:   CXXRecordDecl{{.*}} class TestClassTemplate
+// CHECK-NEXT:   AccessSpecDecl{{.*}} public
+// CHECK-NEXT:   CXXConstructorDecl{{.*}} <line:{{.*}}:5, col:23>
+// CHECK-NEXT:   CXXDestructorDecl{{.*}} <line:{{.*}}:5, col:24>
+// CHECK-NEXT:   CXXMethodDecl{{.*}} <line:{{.*}}:5, col:11>
 // CHECK-NEXT:   FieldDecl{{.*}} i
 
 // CHECK:      ClassTemplatePartialSpecializationDecl{{.*}} class TestClassTemplatePartial
@@ -316,7 +336,6 @@ namespace testCanonicalTemplate {
   // CHECK-NEXT:       ClassTemplateDecl{{.*}} TestClassTemplate
   // CHECK-NEXT:         TemplateTypeParmDecl
   // CHECK-NEXT:         CXXRecordDecl{{.*}} class TestClassTemplate
-  // CHECK-NEXT:         ClassTemplateSpecialization{{.*}} 'TestClassTemplate'
   // CHECK-NEXT:   ClassTemplateSpecializationDecl{{.*}} class TestClassTemplate
   // CHECK-NEXT:     TemplateArgument{{.*}}A
   // CHECK-NEXT:     CXXRecordDecl{{.*}} class TestClassTemplate
@@ -336,8 +355,8 @@ namespace TestTemplateTypeParmDecl {
 }
 // CHECK:      NamespaceDecl{{.*}} TestTemplateTypeParmDecl
 // CHECK-NEXT:   FunctionTemplateDecl
-// CHECK-NEXT:     TemplateTypeParmDecl{{.*}} typename ... T
-// CHECK-NEXT:     TemplateTypeParmDecl{{.*}} class U
+// CHECK-NEXT:     TemplateTypeParmDecl{{.*}} typename depth 0 index 0 ... T
+// CHECK-NEXT:     TemplateTypeParmDecl{{.*}} class depth 0 index 1 U
 // CHECK-NEXT:       TemplateArgument type 'int'
 
 namespace TestNonTypeTemplateParmDecl {
@@ -345,10 +364,10 @@ namespace TestNonTypeTemplateParmDecl {
 }
 // CHECK:      NamespaceDecl{{.*}} TestNonTypeTemplateParmDecl
 // CHECK-NEXT:   FunctionTemplateDecl
-// CHECK-NEXT:     NonTypeTemplateParmDecl{{.*}} 'int' I
+// CHECK-NEXT:     NonTypeTemplateParmDecl{{.*}} 'int' depth 0 index 0 I
 // CHECK-NEXT:       TemplateArgument expr
 // CHECK-NEXT:         IntegerLiteral{{.*}} 'int' 1
-// CHECK-NEXT:     NonTypeTemplateParmDecl{{.*}} 'int' ... J
+// CHECK-NEXT:     NonTypeTemplateParmDecl{{.*}} 'int' depth 0 index 1 ... J
 
 namespace TestTemplateTemplateParmDecl {
   template<typename T> class A;

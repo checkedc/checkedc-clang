@@ -1209,6 +1209,53 @@ void StmtPrinter::VisitOMPTeamsDistributeDirective(
   PrintOMPExecutableDirective(Node);
 }
 
+void StmtPrinter::VisitOMPTeamsDistributeSimdDirective(
+    OMPTeamsDistributeSimdDirective *Node) {
+  Indent() << "#pragma omp teams distribute simd ";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTeamsDistributeParallelForSimdDirective(
+    OMPTeamsDistributeParallelForSimdDirective *Node) {
+  Indent() << "#pragma omp teams distribute parallel for simd ";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTeamsDistributeParallelForDirective(
+    OMPTeamsDistributeParallelForDirective *Node) {
+  Indent() << "#pragma omp teams distribute parallel for ";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTargetTeamsDirective(OMPTargetTeamsDirective *Node) {
+  Indent() << "#pragma omp target teams ";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTargetTeamsDistributeDirective(
+    OMPTargetTeamsDistributeDirective *Node) {
+  Indent() << "#pragma omp target teams distribute ";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTargetTeamsDistributeParallelForDirective(
+    OMPTargetTeamsDistributeParallelForDirective *Node) {
+  Indent() << "#pragma omp target teams distribute parallel for ";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTargetTeamsDistributeParallelForSimdDirective(
+    OMPTargetTeamsDistributeParallelForSimdDirective *Node) {
+  Indent() << "#pragma omp target teams distribute parallel for simd ";
+  PrintOMPExecutableDirective(Node);
+}
+
+void StmtPrinter::VisitOMPTargetTeamsDistributeSimdDirective(
+    OMPTargetTeamsDistributeSimdDirective *Node) {
+  Indent() << "#pragma omp target teams distribute simd ";
+  PrintOMPExecutableDirective(Node);
+}
+
 //===----------------------------------------------------------------------===//
 //  Expr printing methods.
 //===----------------------------------------------------------------------===//
@@ -1685,6 +1732,18 @@ void StmtPrinter::VisitInitListExpr(InitListExpr* Node) {
       OS << "{}";
   }
   OS << "}";
+}
+
+void StmtPrinter::VisitArrayInitLoopExpr(ArrayInitLoopExpr *Node) {
+  // There's no way to express this expression in any of our supported
+  // languages, so just emit something terse and (hopefully) clear.
+  OS << "{";
+  PrintExpr(Node->getSubExpr());
+  OS << "}";
+}
+
+void StmtPrinter::VisitArrayInitIndexExpr(ArrayInitIndexExpr *Node) {
+  OS << "*";
 }
 
 void StmtPrinter::VisitParenListExpr(ParenListExpr* Node) {
@@ -2535,6 +2594,13 @@ void StmtPrinter::VisitCoawaitExpr(CoawaitExpr *S) {
   OS << "co_await ";
   PrintExpr(S->getOperand());
 }
+
+
+void StmtPrinter::VisitDependentCoawaitExpr(DependentCoawaitExpr *S) {
+  OS << "co_await ";
+  PrintExpr(S->getOperand());
+}
+
 
 void StmtPrinter::VisitCoyieldExpr(CoyieldExpr *S) {
   OS << "co_yield ";

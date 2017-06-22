@@ -27,7 +27,7 @@
 // CHECK-NEXT: note: diagnostic msg: {{.*}}.m
 // CHECK-NEXT: note: diagnostic msg: {{.*}}.cache
 
-// CHECKSRC: @import cstd.stdio;
+// CHECKSRC: #pragma clang module import cstd.stdio
 
 // CHECKSH: # Crash reproducer
 // CHECKSH-NEXT: # Driver args: "-fsyntax-only"
@@ -37,7 +37,7 @@
 // CHECKSH-NOT: "-fmodules-cache-path="
 // CHECKSH: "crash-vfs-{{[^ ]*}}.m"
 // CHECKSH: "-ivfsoverlay" "crash-vfs-{{[^ ]*}}.cache/vfs/vfs.yaml"
-// CHECKSH: "-fmodules-cache-path=crash-vfs-{{[^ ]*}}.cache/modules"
+// CHECKSH: "-fmodules-cache-path=crash-vfs-{{[^ ]*}}.cache/repro-modules"
 
 // CHECKYAML: 'type': 'directory',
 // CHECKYAML: 'name': "",

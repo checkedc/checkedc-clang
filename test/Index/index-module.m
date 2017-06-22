@@ -28,7 +28,7 @@ int glob;
 // CHECK-DMOD-NEXT: [ppIncludedFile]: [[DMOD_OTHER_H:.*/Modules/Inputs/DependsOnModule\.framework[/\\]Headers[/\\]other\.h]] | {{.*}} | hash loc: <invalid> | {{.*}} | module: DependsOnModule
 // CHECK-DMOD-NEXT: [ppIncludedFile]: [[DMOD_NOT_CXX_H:.*/Modules/Inputs/DependsOnModule\.framework[/\\]Headers[/\\]not_cxx\.h]] | {{.*}} | hash loc: <invalid> | {{.*}} | module: DependsOnModule.NotCXX
 // CHECK-DMOD-NEXT: [ppIncludedFile]: [[DMOD_SUB_H:.*/Modules/Inputs/DependsOnModule\.framework[/\\]Frameworks[/\\]SubFramework\.framework[/\\]Headers[/\\]SubFramework\.h]] | {{.*}} | hash loc: <invalid> | {{.*}} | module: DependsOnModule.SubFramework
-// CHECK-DMOD-NEXT: [ppIncludedFile]: [[DMOD_SUB_OTHER_H:.*/Modules/Inputs/DependsOnModule.framework[/\\]Frameworks/SubFramework\.framework/Headers/Other\.h]] | name: "SubFramework/Other.h" | hash loc: [[DMOD_SUB_H]]:1:1 | isImport: 0 | isAngled: 0 | isModule: 0 | module: DependsOnModule.SubFramework.Other
+// CHECK-DMOD-NEXT: [ppIncludedFile]: [[DMOD_SUB_OTHER_H:.*/Modules/Inputs/DependsOnModule.framework[/\\]Frameworks[/\\]SubFramework\.framework[/\\]Headers[/\\]Other\.h]] | name: "SubFramework/Other.h" | hash loc: [[DMOD_SUB_H]]:1:1 | isImport: 0 | isAngled: 0 | isModule: 0 | module: DependsOnModule.SubFramework.Other
 // CHECK-DMOD-NEXT: [ppIncludedFile]: [[DMOD_PRIVATE_H:.*/Modules/Inputs/DependsOnModule.framework[/\\]PrivateHeaders[/\\]DependsOnModulePrivate.h]] | {{.*}} | hash loc: <invalid> | {{.*}} | module: DependsOnModule.Private.DependsOnModule
 // CHECK-DMOD-NEXT: [importedASTFile]: {{.*}}.cache{{(.sys)?[/\\]}}Module.pcm | loc: [[DMOD_MODULE_H]]:1:1 | name: "Module" | isImplicit: 1
 // CHECK-DMOD-NEXT: [indexDeclaration]: kind: variable | name: depends_on_module_other | {{.*}} | loc: [[DMOD_OTHER_H]]:1:5
@@ -52,7 +52,7 @@ int glob;
 // CHECK-TMOD-NEXT: [indexDeclaration]: kind: objc-class | name: Module | {{.*}} | loc: [[TMOD_MODULE_H]]:15:12
 // CHECK-TMOD-NEXT:      <ObjCContainerInfo>: kind: interface
 // CHECK-TMOD-NEXT: [indexDeclaration]: kind: objc-class-method | name: version | {{.*}} | loc: [[TMOD_MODULE_H]]:16:1
-// CHECK-TMOD-NEXT: [indexDeclaration]: kind: objc-class-method | name: alloc | {{.*}} | loc: [[TMOD_MODULE_H]]:17:1
+// CHECK-TMOD-NEXT: [indexDeclaration]: kind: objc-class-method | name: alloc | {{.*}} | loc: [[TMOD_MODULE_H]]:17:2
 // CHECK-TMOD-NEXT: [indexDeclaration]: kind: typedef | name: FILE | {{.*}} | loc: [[TMOD_MODULE_H]]:30:3
 // CHECK-TMOD-NEXT: [indexDeclaration]: kind: struct | name: __sFILE | {{.*}} | loc: [[TMOD_MODULE_H]]:28:16
 // CHECK-TMOD-NEXT: [indexDeclaration]: kind: field | name: _offset | {{.*}} | loc: [[TMOD_MODULE_H]]:29:7

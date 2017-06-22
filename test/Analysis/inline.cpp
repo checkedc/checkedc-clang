@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -analyze -analyzer-checker=core,unix.Malloc,debug.ExprInspection -analyzer-config ipa=inlining -analyzer-config c++-allocator-inlining=true -verify %s
+// RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.Malloc,debug.ExprInspection -analyzer-config ipa=inlining -analyzer-config c++-allocator-inlining=true -verify %s
 
 void clang_analyzer_eval(bool);
 void clang_analyzer_checkInlined(bool);
@@ -441,6 +441,6 @@ namespace rdar12409977  {
 namespace bug16307 {
   void one_argument(int a) { }
   void call_with_less() {
-    reinterpret_cast<void (*)()>(one_argument)(); // expected-warning{{Function taking 1 argument}}
+    reinterpret_cast<void (*)()>(one_argument)(); // expected-warning{{Function taking 1 argument is called with fewer (0)}}
   }
 }

@@ -669,7 +669,7 @@ TEST(Matcher, VarDecl_Storage) {
 
 TEST(Matcher, VarDecl_StorageDuration) {
   std::string T =
-    "void f() { int x; static int y; } int a;";
+    "void f() { int x; static int y; } int a;static int b;extern int c;";
 
   EXPECT_TRUE(matches(T, varDecl(hasName("x"), hasAutomaticStorageDuration())));
   EXPECT_TRUE(
@@ -679,6 +679,8 @@ TEST(Matcher, VarDecl_StorageDuration) {
 
   EXPECT_TRUE(matches(T, varDecl(hasName("y"), hasStaticStorageDuration())));
   EXPECT_TRUE(matches(T, varDecl(hasName("a"), hasStaticStorageDuration())));
+  EXPECT_TRUE(matches(T, varDecl(hasName("b"), hasStaticStorageDuration())));
+  EXPECT_TRUE(matches(T, varDecl(hasName("c"), hasStaticStorageDuration())));
   EXPECT_TRUE(notMatches(T, varDecl(hasName("x"), hasStaticStorageDuration())));
 
   // FIXME: It is really hard to test with thread_local itself because not all
@@ -846,6 +848,15 @@ TEST(IsExternC, MatchesExternCVariableDeclarations) {
   EXPECT_TRUE(matches("extern \"C\" int i;", varDecl(isExternC())));
   EXPECT_TRUE(matches("extern \"C\" { int i; }", varDecl(isExternC())));
   EXPECT_TRUE(notMatches("int i;", varDecl(isExternC())));
+}
+
+TEST(IsStaticStorageClass, MatchesStaticDeclarations) {
+  EXPECT_TRUE(
+      matches("static void f() {}", functionDecl(isStaticStorageClass())));
+  EXPECT_TRUE(matches("static int i = 1;", varDecl(isStaticStorageClass())));
+  EXPECT_TRUE(notMatches("int i = 1;", varDecl(isStaticStorageClass())));
+  EXPECT_TRUE(notMatches("extern int i;", varDecl(isStaticStorageClass())));
+  EXPECT_TRUE(notMatches("void f() {}", functionDecl(isStaticStorageClass())));
 }
 
 TEST(IsDefaulted, MatchesDefaultedFunctionDeclarations) {
@@ -1391,6 +1402,16 @@ TEST(Member, BitFields) {
                          fieldDecl(isBitField(), hasName("b"))));
   EXPECT_TRUE(matches("class C { int a : 2; int b : 4; };",
                       fieldDecl(isBitField(), hasBitWidth(2), hasName("a"))));
+}
+
+TEST(Member, InClassInitializer) {
+  EXPECT_TRUE(
+      matches("class C { int a = 2; int b; };",
+              fieldDecl(hasInClassInitializer(integerLiteral(equals(2))),
+                        hasName("a"))));
+  EXPECT_TRUE(
+      notMatches("class C { int a = 2; int b; };",
+                 fieldDecl(hasInClassInitializer(anything()), hasName("b"))));
 }
 
 TEST(Member, UnderstandsAccess) {

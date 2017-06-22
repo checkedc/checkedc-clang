@@ -1,7 +1,7 @@
 // RUN: rm -f %t
-// RUN: %clang_cc1 -analyze -analyzer-checker=debug.DumpCFG -analyzer-config cfg-temporary-dtors=true -std=c++98 %s > %t 2>&1
+// RUN: %clang_analyze_cc1 -analyzer-checker=debug.DumpCFG -analyzer-config cfg-temporary-dtors=true -std=c++98 %s > %t 2>&1
 // RUN: FileCheck --input-file=%t -check-prefix=CXX98 -check-prefix=CHECK %s
-// RUN: %clang_cc1 -analyze -analyzer-checker=debug.DumpCFG -analyzer-config cfg-temporary-dtors=true -std=c++11 %s > %t 2>&1
+// RUN: %clang_analyze_cc1 -analyzer-checker=debug.DumpCFG -analyzer-config cfg-temporary-dtors=true -std=c++11 %s > %t 2>&1
 // RUN: FileCheck --input-file=%t -check-prefix=CXX11 -check-prefix=CHECK %s
 
 class A {
@@ -1093,9 +1093,9 @@ int testConsistencyNestedNormalReturn(bool value) {
 // CHECK:     1: int a;
 // CHECK:     2: NoReturn() (CXXConstructExpr, class NoReturn)
 // CHECK:     3: [B2.2] (BindTemporary)
-// CHECK:     4: [B2.3].f
-// CHECK:     5: [B2.4]()
-// CHECK:     6: ~NoReturn() (Temporary object destructor)
+// CHECK:     [[MEMBER:[45]]]: [B2.{{[34]}}].f
+// CHECK:     {{[56]}}: [B2.[[MEMBER]]]()
+// CHECK:     {{[67]}}: ~NoReturn() (Temporary object destructor)
 // CHECK:     Preds (1): B3
 // CHECK:     Succs (1): B0
 // CHECK:   [B0 (EXIT)]

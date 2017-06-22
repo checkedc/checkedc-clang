@@ -363,7 +363,7 @@ namespace {
                                           ExprValueKind::VK_RValue,
                                           ExprObjectKind::OK_Ordinary,
                                           SourceLocation(),
-                                          false);
+                                          FPOptions());
           return new (Context) RangeBoundsExpr(LowerBound, UpperBound,
                                                SourceLocation(),
                                                SourceLocation());

@@ -27,13 +27,13 @@ using namespace clang;
 Module::Module(StringRef Name, SourceLocation DefinitionLoc, Module *Parent,
                bool IsFramework, bool IsExplicit, unsigned VisibilityID)
     : Name(Name), DefinitionLoc(DefinitionLoc), Parent(Parent), Directory(),
-      Umbrella(), Signature(0), ASTFile(nullptr), VisibilityID(VisibilityID),
+      Umbrella(), ASTFile(nullptr), VisibilityID(VisibilityID),
       IsMissingRequirement(false), HasIncompatibleModuleFile(false),
       IsAvailable(true), IsFromModuleFile(false), IsFramework(IsFramework),
       IsExplicit(IsExplicit), IsSystem(false), IsExternC(false),
       IsInferred(false), InferSubmodules(false), InferExplicitSubmodules(false),
       InferExportWildcard(false), ConfigMacrosExhaustive(false),
-      NameVisibility(Hidden) {
+      NoUndeclaredIncludes(false), NameVisibility(Hidden) {
   if (Parent) {
     if (!Parent->isAvailable())
       IsAvailable = false;
@@ -41,6 +41,8 @@ Module::Module(StringRef Name, SourceLocation DefinitionLoc, Module *Parent,
       IsSystem = true;
     if (Parent->IsExternC)
       IsExternC = true;
+    if (Parent->NoUndeclaredIncludes)
+      NoUndeclaredIncludes = true;
     IsMissingRequirement = Parent->IsMissingRequirement;
     
     Parent->SubModuleIndex[Name] = Parent->SubModules.size();
@@ -181,6 +183,11 @@ bool Module::directlyUses(const Module *Requested) const {
   for (auto *Use : Top->DirectUses)
     if (Requested->isSubModuleOf(Use))
       return true;
+
+  // Anyone is allowed to use our builtin stddef.h and its accompanying module.
+  if (!Requested->Parent && Requested->Name == "_Builtin_stddef_max_align_t")
+    return true;
+
   return false;
 }
 

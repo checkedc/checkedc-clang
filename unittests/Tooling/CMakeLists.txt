@@ -6,13 +6,14 @@ set(LLVM_LINK_COMPONENTS
 # By default MSVC has a 2^16 limit on the number of sections in an object file,
 # and this needs more than that.
 if (MSVC)
+  set_source_files_properties(RecursiveASTVisitorTest.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(RecursiveASTVisitorTestExprVisitor.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
 add_clang_unittest(ToolingTests
   CommentHandlerTest.cpp
   CompilationDatabaseTest.cpp
-  FixItTest.cpp  
+  FixItTest.cpp
   LookupTest.cpp
   QualTypeNamesTest.cpp
   RecursiveASTVisitorTest.cpp
@@ -37,4 +38,5 @@ target_link_libraries(ToolingTests
   clangRewrite
   clangTooling
   clangToolingCore
+  clangToolingRefactor
   )

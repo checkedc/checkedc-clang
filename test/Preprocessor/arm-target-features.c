@@ -9,6 +9,15 @@
 // CHECK-V8A: #define __ARM_FP16_ARGS 1
 // CHECK-V8A: #define __ARM_FP16_FORMAT_IEEE 1
 
+// RUN: %clang -target armv8r-none-linux-gnu -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-V8R %s
+// CHECK-V8R: #define __ARMEL__ 1
+// CHECK-V8R: #define __ARM_ARCH 8
+// CHECK-V8R: #define __ARM_ARCH_8R__ 1
+// CHECK-V8R: #define __ARM_FEATURE_CRC32 1
+// CHECK-V8R: #define __ARM_FEATURE_DIRECTED_ROUNDING 1
+// CHECK-V8R: #define __ARM_FEATURE_NUMERIC_MAXMIN 1
+// CHECK-V8R: #define __ARM_FP 0xE
+
 // RUN: %clang -target armv7a-none-linux-gnu -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-V7 %s
 // CHECK-V7: #define __ARMEL__ 1
 // CHECK-V7: #define __ARM_ARCH 7
@@ -17,6 +26,13 @@
 // CHECK-V7-NOT: __ARM_FEATURE_NUMERIC_MAXMIN
 // CHECK-V7-NOT: __ARM_FEATURE_DIRECTED_ROUNDING
 // CHECK-V7: #define __ARM_FP 0xC
+
+// RUN: %clang -target armv7ve-none-linux-gnu -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-V7VE %s
+// CHECK-V7VE: #define __ARMEL__ 1
+// CHECK-V7VE: #define __ARM_ARCH 7
+// CHECK-V7VE: #define __ARM_ARCH_7VE__ 1
+// CHECK-V7VE: #define __ARM_ARCH_EXT_IDIV__ 1
+// CHECK-V7VE: #define __ARM_FP 0xC
 
 // RUN: %clang -target x86_64-apple-macosx10.10 -arch armv7s -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=CHECK-V7S %s
 // CHECK-V7S: #define __ARMEL__ 1
@@ -380,6 +396,32 @@
 // M7-THUMB:#define __ARM_ARCH_EXT_IDIV__ 1
 // M7-THUMB:#define __ARM_FEATURE_DSP 1
 // M7-THUMB:#define __ARM_FP 0xE
+// M7-THUMB:#define __ARM_FPV5__ 1
+
+// Test whether predefines are as expected when targeting v8m cores
+// RUN: %clang -target arm -mcpu=cortex-m23 -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=M23 %s
+// M23: #define __ARM_ARCH 8
+// M23: #define __ARM_ARCH_8M_BASE__ 1
+// M23: #define __ARM_ARCH_EXT_IDIV__ 1
+// M23-NOT: __ARM_ARCH_ISA_ARM
+// M23: #define __ARM_ARCH_ISA_THUMB 1
+// M23: #define __ARM_ARCH_PROFILE 'M'
+// M23-NOT: __ARM_FEATURE_CRC32
+// M23-NOT: __ARM_FEATURE_DSP
+// M23-NOT: __ARM_FP 0x{{.*}}
+// M23-NOT: __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1
+
+// RUN: %clang -target arm -mcpu=cortex-m33 -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=M33 %s
+// M33: #define __ARM_ARCH 8
+// M33: #define __ARM_ARCH_8M_MAIN__ 1
+// M33: #define __ARM_ARCH_EXT_IDIV__ 1
+// M33-NOT: __ARM_ARCH_ISA_ARM
+// M33: #define __ARM_ARCH_ISA_THUMB 2
+// M33: #define __ARM_ARCH_PROFILE 'M'
+// M33-NOT: __ARM_FEATURE_CRC32
+// M33: #define __ARM_FEATURE_DSP 1
+// M33: #define __ARM_FP 0x6
+// M33: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1 1
 
 // Test whether predefines are as expected when targeting krait.
 // RUN: %clang -target armv7 -mcpu=krait -x c -E -dM %s -o - | FileCheck -match-full-lines --check-prefix=KRAIT %s

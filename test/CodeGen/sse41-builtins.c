@@ -1,8 +1,6 @@
-// RUN: %clang_cc1 %s -triple=x86_64-apple-darwin -target-feature +sse4.1 -emit-llvm -o - -Wall -Werror | FileCheck %s
-// RUN: %clang_cc1 %s -triple=x86_64-apple-darwin -target-feature +sse4.1 -fno-signed-char -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse4.1 -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse4.1 -fno-signed-char -emit-llvm -o - -Wall -Werror | FileCheck %s
 
-// Don't include mm_malloc.h, it's system specific.
-#define __MM_MALLOC_H
 
 #include <x86intrin.h>
 
@@ -356,7 +354,7 @@ __m128 test_mm_round_ss(__m128 x, __m128 y) {
 
 __m128i test_mm_stream_load_si128(__m128i const *a) {
   // CHECK-LABEL: test_mm_stream_load_si128
-  // CHECK: call <2 x i64> @llvm.x86.sse41.movntdqa(i8* %{{.*}})
+  // CHECK: load <2 x i64>, <2 x i64>* %{{.*}}, align 16, !nontemporal
   return _mm_stream_load_si128(a);
 }
 

@@ -528,6 +528,11 @@ TEST(Matcher, ConstructorCall) {
   EXPECT_TRUE(matches("class X {}; void x(int) { X x; }", Constructor));
 }
 
+TEST(Match, ConstructorInitializers) {
+  EXPECT_TRUE(matches("class C { int i; public: C(int ii) : i(ii) {} };",
+                      cxxCtorInitializer(forField(hasName("i")))));
+}
+
 TEST(Matcher, ThisExpr) {
   EXPECT_TRUE(
     matches("struct X { int a; int f () { return a; } };", cxxThisExpr()));
@@ -589,7 +594,7 @@ TEST(MaterializeTemporaryExpr, MatchesTemporary) {
                materializeTemporaryExpr()));
 
   EXPECT_TRUE(
-    notMatches(ClassString +
+    matches(ClassString +
                  "string GetStringByValue();"
                    "void run() { int k = GetStringByValue().length(); }",
                materializeTemporaryExpr()));
@@ -1489,15 +1494,32 @@ TEST(TypedefNameDeclMatcher, Match) {
                       typedefNameDecl(hasName("typedefNameDeclTest2"))));
 }
 
+TEST(TypeAliasTemplateDeclMatcher, Match) {
+  std::string Code = R"(
+    template <typename T>
+    class X { T t; };
+
+    template <typename T>
+    using typeAliasTemplateDecl = X<T>;
+
+    using typeAliasDecl = X<int>;
+  )";
+  EXPECT_TRUE(
+      matches(Code, typeAliasTemplateDecl(hasName("typeAliasTemplateDecl"))));
+  EXPECT_TRUE(
+      notMatches(Code, typeAliasTemplateDecl(hasName("typeAliasDecl"))));
+}
+
 TEST(ObjCMessageExprMatcher, SimpleExprs) {
   // don't find ObjCMessageExpr where none are present
   EXPECT_TRUE(notMatchesObjC("", objcMessageExpr(anything())));
 
   std::string Objc1String =
     "@interface Str "
-      " - (Str *)uppercaseString:(Str *)str;"
+      " - (Str *)uppercaseString;"
       "@end "
       "@interface foo "
+      "- (void)contents;"
       "- (void)meth:(Str *)text;"
       "@end "
       " "
@@ -1533,6 +1555,46 @@ TEST(ObjCMessageExprMatcher, SimpleExprs) {
     objcMessageExpr(matchesSelector("uppercase*"),
                     argumentCountIs(0)
     )));
+}
+
+TEST(ObjCDeclMacher, CoreDecls) {
+  std::string ObjCString =
+    "@protocol Proto "
+    "- (void)protoDidThing; "
+    "@end "
+    "@interface Thing "
+    "@property int enabled; "
+    "@end "
+    "@interface Thing (ABC) "
+    "- (void)abc_doThing; "
+    "@end "
+    "@implementation Thing "
+    "{ id _ivar; } "
+    "- (void)anything {} "
+    "@end "
+    ;
+
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
+    objcProtocolDecl(hasName("Proto"))));
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
+    objcCategoryDecl(hasName("ABC"))));
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
+    objcMethodDecl(hasName("protoDidThing"))));
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
+    objcMethodDecl(hasName("abc_doThing"))));
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
+    objcMethodDecl(hasName("anything"))));
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
+    objcIvarDecl(hasName("_ivar"))));
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
+    objcPropertyDecl(hasName("enabled"))));
 }
 
 } // namespace ast_matchers

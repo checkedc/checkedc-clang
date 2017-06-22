@@ -34,10 +34,13 @@ class SanitizerArgs {
   bool CfiCrossDso = false;
   int AsanFieldPadding = 0;
   bool AsanSharedRuntime = false;
-  bool AsanUseAfterScope = false;
+  bool AsanUseAfterScope = true;
   bool LinkCXXRuntimes = false;
   bool NeedPIE = false;
   bool Stats = false;
+  bool TsanMemoryAccess = true;
+  bool TsanFuncEntryExit = true;
+  bool TsanAtomics = true;
 
  public:
   /// Parses the sanitizer arguments from an argument list.
@@ -47,6 +50,7 @@ class SanitizerArgs {
   bool needsSharedAsanRt() const { return AsanSharedRuntime; }
   bool needsTsanRt() const { return Sanitizers.has(SanitizerKind::Thread); }
   bool needsMsanRt() const { return Sanitizers.has(SanitizerKind::Memory); }
+  bool needsFuzzer() const { return Sanitizers.has(SanitizerKind::Fuzzer); }
   bool needsLsanRt() const {
     return Sanitizers.has(SanitizerKind::Leak) &&
            !Sanitizers.has(SanitizerKind::Address);

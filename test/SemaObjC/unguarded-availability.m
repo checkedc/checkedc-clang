@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -triple x86_64-apple-macosx-10.9 -Wunguarded-availability -fblocks -fsyntax-only -verify %s
-// RUN: %clang_cc1 -xobjective-c++ -DOBJCPP -triple x86_64-apple-macosx-10.9 -Wunguarded-availability -fblocks -fsyntax-only -verify %s
+// RUN: %clang_cc1 -xobjective-c++ -std=c++11 -DOBJCPP -triple x86_64-apple-macosx-10.9 -Wunguarded-availability -fblocks -fsyntax-only -verify %s
 
 #define AVAILABLE_10_0  __attribute__((availability(macos, introduced = 10.0)))
 #define AVAILABLE_10_11 __attribute__((availability(macos, introduced = 10.11)))
@@ -8,9 +8,9 @@
 int func_10_11() AVAILABLE_10_11; // expected-note 4 {{'func_10_11' has been explicitly marked partial here}}
 
 #ifdef OBJCPP
-// expected-note@+2 {{marked partial here}}
+// expected-note@+2 2 {{marked partial here}}
 #endif
-int func_10_12() AVAILABLE_10_12; // expected-note 5 {{'func_10_12' has been explicitly marked partial here}}
+int func_10_12() AVAILABLE_10_12; // expected-note 6 {{'func_10_12' has been explicitly marked partial here}}
 
 int func_10_0() AVAILABLE_10_0;
 
@@ -63,7 +63,7 @@ typedef int int_10_11 AVAILABLE_10_11; // expected-note {{'int_10_11' has been e
 #ifdef OBJCPP
 // expected-note@+2 {{marked partial here}}
 #endif
-typedef int int_10_12 AVAILABLE_10_12; // expected-note 3 {{'int_10_12' has been explicitly marked partial here}}
+typedef int int_10_12 AVAILABLE_10_12; // expected-note 2 {{'int_10_12' has been explicitly marked partial here}}
 
 void use_typedef() {
   int_10_11 x; // expected-warning{{'int_10_11' is only available on macOS 10.11 or newer}} expected-note{{enclose 'int_10_11' in an @available check to silence this warning}}
@@ -127,8 +127,13 @@ void test_blocks() {
 
 void test_params(int_10_12 x); // expected-warning {{'int_10_12' is partial: introduced in macOS 10.12}} expected-note{{redeclare}}
 
-// FIXME: This should be fine!
-void test_params2(int_10_12 x) AVAILABLE_10_12; // expected-warning {{'int_10_12' is partial: introduced in macOS 10.12}} expected-note{{redeclare}}
+void test_params2(int_10_12 x) AVAILABLE_10_12; // no warn
+
+void (^topLevelBlockDecl)() = ^ {
+  func_10_12(); // expected-warning{{'func_10_12' is only available on macOS 10.12 or newer}} expected-note{{@available}}
+  if (@available(macos 10.12, *))
+    func_10_12();
+};
 
 #ifdef OBJCPP
 
@@ -176,5 +181,11 @@ int instantiate_availability() {
   else
     with_availability_attr<int_10_12>(); // expected-warning{{'with_availability_attr<int>' is only available on macOS 10.11 or newer}} expected-warning{{'int_10_12' is only available on macOS 10.12 or newer}} expected-note 2 {{enclose}}
 }
+
+auto topLevelLambda = [] () {
+  func_10_12(); // expected-warning{{'func_10_12' is only available on macOS 10.12 or newer}} expected-note{{@available}}
+  if (@available(macos 10.12, *))
+    func_10_12();
+};
 
 #endif

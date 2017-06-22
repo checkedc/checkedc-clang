@@ -1,4 +1,4 @@
-//===--- SortJavaScriptImports.h - Sort ES6 Imports -------------*- C++ -*-===//
+//===--- SortJavaScriptImports.cpp - Sort ES6 Imports -----------*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -12,7 +12,6 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "SortJavaScriptImports.h"
 #include "SortJavaScriptImports.h"
 #include "TokenAnalyzer.h"
 #include "TokenAnnotator.h"
@@ -198,9 +197,10 @@ public:
         ReferencesText));
     // FIXME: better error handling. For now, just print error message and skip
     // the replacement for the release version.
-    if (Err)
+    if (Err) {
       llvm::errs() << llvm::toString(std::move(Err)) << "\n";
-    assert(!Err);
+      assert(false);
+    }
 
     return Result;
   }
@@ -293,14 +293,19 @@ private:
         // of the import that immediately follows them by using the previously
         // set Start.
         Start = Line->First->Tok.getLocation();
-      if (!Current)
-        continue; // Only comments on this line.
+      if (!Current) {
+        // Only comments on this line. Could be the first non-import line.
+        FirstNonImportLine = Line;
+        continue;
+      }
       JsModuleReference Reference;
       Reference.Range.setBegin(Start);
       if (!parseModuleReference(Keywords, Reference)) {
-        FirstNonImportLine = Line;
+        if (!FirstNonImportLine)
+          FirstNonImportLine = Line; // if no comment before.
         break;
       }
+      FirstNonImportLine = nullptr;
       AnyImportAffected = AnyImportAffected || Line->Affected;
       Reference.Range.setEnd(LineEnd->Tok.getEndLoc());
       DEBUG({

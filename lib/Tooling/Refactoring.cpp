@@ -28,7 +28,7 @@ namespace tooling {
 RefactoringTool::RefactoringTool(
     const CompilationDatabase &Compilations, ArrayRef<std::string> SourcePaths,
     std::shared_ptr<PCHContainerOperations> PCHContainerOps)
-    : ClangTool(Compilations, SourcePaths, PCHContainerOps) {}
+    : ClangTool(Compilations, SourcePaths, std::move(PCHContainerOps)) {}
 
 std::map<std::string, Replacements> &RefactoringTool::getReplacements() {
   return FileToReplaces;
@@ -57,7 +57,8 @@ int RefactoringTool::runAndSave(FrontendActionFactory *ActionFactory) {
 
 bool RefactoringTool::applyAllReplacements(Rewriter &Rewrite) {
   bool Result = true;
-  for (const auto &Entry : FileToReplaces)
+  for (const auto &Entry : groupReplacementsByFile(
+           Rewrite.getSourceMgr().getFileManager(), FileToReplaces))
     Result = tooling::applyAllReplacements(Entry.second, Rewrite) && Result;
   return Result;
 }
@@ -67,13 +68,14 @@ int RefactoringTool::saveRewrittenFiles(Rewriter &Rewrite) {
 }
 
 bool formatAndApplyAllReplacements(
-    const std::map<std::string, Replacements> &FileToReplaces, Rewriter &Rewrite,
-    StringRef Style) {
+    const std::map<std::string, Replacements> &FileToReplaces,
+    Rewriter &Rewrite, StringRef Style) {
   SourceManager &SM = Rewrite.getSourceMgr();
   FileManager &Files = SM.getFileManager();
 
   bool Result = true;
-  for (const auto &FileAndReplaces : FileToReplaces) {
+  for (const auto &FileAndReplaces : groupReplacementsByFile(
+           Rewrite.getSourceMgr().getFileManager(), FileToReplaces)) {
     const std::string &FilePath = FileAndReplaces.first;
     auto &CurReplaces = FileAndReplaces.second;
 
@@ -81,9 +83,14 @@ bool formatAndApplyAllReplacements(
     FileID ID = SM.getOrCreateFileID(Entry, SrcMgr::C_User);
     StringRef Code = SM.getBufferData(ID);
 
-    format::FormatStyle CurStyle = format::getStyle(Style, FilePath, "LLVM");
+    auto CurStyle = format::getStyle(Style, FilePath, "LLVM");
+    if (!CurStyle) {
+      llvm::errs() << llvm::toString(CurStyle.takeError()) << "\n";
+      return false;
+    }
+
     auto NewReplacements =
-        format::formatReplacements(Code, CurReplaces, CurStyle);
+        format::formatReplacements(Code, CurReplaces, *CurStyle);
     if (!NewReplacements) {
       llvm::errs() << llvm::toString(NewReplacements.takeError()) << "\n";
       return false;

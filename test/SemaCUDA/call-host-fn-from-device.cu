@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 %s --std=c++11 -triple nvptx-unknown-unknown -fcuda-is-device -emit-llvm -o - -verify
+// RUN: %clang_cc1 %s --std=c++11 -triple nvptx-unknown-unknown -fcuda-is-device \
+// RUN:   -emit-llvm -o /dev/null -verify -verify-ignore-unexpected=note
 
 // Note: This test won't work with -fsyntax-only, because some of these errors
 // are emitted during codegen.
@@ -6,17 +7,13 @@
 #include "Inputs/cuda.h"
 
 extern "C" void host_fn() {}
-// expected-note@-1 {{'host_fn' declared here}}
-// expected-note@-2 {{'host_fn' declared here}}
-// expected-note@-3 {{'host_fn' declared here}}
-// expected-note@-4 {{'host_fn' declared here}}
-// expected-note@-5 {{'host_fn' declared here}}
-// expected-note@-6 {{'host_fn' declared here}}
+// expected-note@-1 7 {{'host_fn' declared here}}
+
+struct Dummy {};
 
 struct S {
   S() {}
-  // expected-note@-1 {{'S' declared here}}
-  // expected-note@-2 {{'S' declared here}}
+  // expected-note@-1 2 {{'S' declared here}}
   ~S() { host_fn(); }
   // expected-note@-1 {{'~S' declared here}}
   int x;
@@ -34,6 +31,23 @@ struct T {
 
   void h() {}
   // expected-note@-1 {{'h' declared here}}
+
+  void operator+();
+  // expected-note@-1 {{'operator+' declared here}}
+
+  void operator-(const T&) {}
+  // expected-note@-1 {{'operator-' declared here}}
+
+  operator Dummy() { return Dummy(); }
+  // expected-note@-1 {{'operator Dummy' declared here}}
+
+  __host__ void operator delete(void*);
+  __device__ void operator delete(void*, size_t);
+};
+
+struct U {
+  __device__ void operator delete(void*, size_t) = delete;
+  __host__ __device__ void operator delete(void*);
 };
 
 __host__ __device__ void T::hd3() {
@@ -70,6 +84,11 @@ __host__ __device__ void explicit_destructor(S *s) {
   // expected-error@-1 {{reference to __host__ function '~S' in __host__ __device__ function}}
 }
 
+__host__ __device__ void class_specific_delete(T *t, U *u) {
+  delete t; // ok, call sized device delete even though host has preferable non-sized version
+  delete u; // ok, call non-sized HD delete rather than sized D delete
+}
+
 __host__ __device__ void hd_member_fn() {
   T t;
   // Necessary to trigger an error on T::hd.  It's (implicitly) inline, so
@@ -92,3 +111,30 @@ template <typename T>
 __host__ __device__ void fn_ptr_template() {
   auto* ptr = &host_fn;  // Not an error because the template isn't instantiated.
 }
+
+__host__ __device__ void unaryOp() {
+  T t;
+  (void) +t; // expected-error {{reference to __host__ function 'operator+' in __host__ __device__ function}}
+}
+
+__host__ __device__ void binaryOp() {
+  T t;
+  (void) (t - t); // expected-error {{reference to __host__ function 'operator-' in __host__ __device__ function}}
+}
+
+__host__ __device__ void implicitConversion() {
+  T t;
+  Dummy d = t; // expected-error {{reference to __host__ function 'operator Dummy' in __host__ __device__ function}}
+}
+
+template <typename T>
+struct TmplStruct {
+  template <typename U> __host__ __device__ void fn() {}
+};
+
+template <>
+template <>
+__host__ __device__ void TmplStruct<int>::fn<int>() { host_fn(); }
+// expected-error@-1 {{reference to __host__ function 'host_fn' in __host__ __device__ function}}
+
+__device__ void double_specialization() { TmplStruct<int>().fn<int>(); }

@@ -1,5 +1,5 @@
 =======================================
-Clang 4.0.0 (In-Progress) Release Notes
+Clang 5.0.0 (In-Progress) Release Notes
 =======================================
 
 .. contents::
@@ -10,15 +10,15 @@ Written by the `LLVM Team <http://llvm.org/>`_
 
 .. warning::
 
-   These are in-progress notes for the upcoming Clang 4.0.0 release. You may
-   prefer the `Clang 3.8 Release Notes
-   <http://llvm.org/releases/3.8.0/tools/clang/docs/ReleaseNotes.html>`_.
+   These are in-progress notes for the upcoming Clang 5 release.
+   Release notes for previous releases can be found on
+   `the Download Page <http://releases.llvm.org/download.html>`_.
 
 Introduction
 ============
 
 This document contains the release notes for the Clang C/C++/Objective-C
-frontend, part of the LLVM Compiler Infrastructure, release 4.0.0. Here we
+frontend, part of the LLVM Compiler Infrastructure, release 5.0.0. Here we
 describe the status of Clang in some detail, including major
 improvements from the previous release and new feature work. For the
 general LLVM release notes, see `the LLVM
@@ -36,7 +36,7 @@ main Clang web page, this document applies to the *next* release, not
 the current one. To see the release notes for a specific release, please
 see the `releases page <http://llvm.org/releases/>`_.
 
-What's New in Clang 4.0.0?
+What's New in Clang 5.0.0?
 ==========================
 
 Some of the major new features and improvements to Clang are listed
@@ -52,13 +52,13 @@ Major New Features
 Improvements to Clang's diagnostics
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
--  ...
+-  -Wunused-lambda-capture warns when a variable explicitly captured
+   by a lambda is not used in the body of the lambda.
 
 New Compiler Flags
 ------------------
 
 The option ....
-
 
 New Pragmas in Clang
 -----------------------
@@ -117,7 +117,7 @@ OpenMP Support in Clang
 Internal API Changes
 --------------------
 
-These are major API changes that have happened since the 3.8 release of
+These are major API changes that have happened since the 4.0.0 release of
 Clang. If upgrading an external codebase that uses Clang as a library,
 this section should help get you past the largest hurdles of upgrading.
 
@@ -128,13 +128,58 @@ AST Matchers
 
 ...
 
+
+clang-format
+------------
+
+* Option **BreakBeforeInheritanceComma** added to break before ``:`` and ``,``  in case of
+  multiple inheritance in a class declaration. Enabled by default in the Mozilla coding style.
+
+  +---------------------+----------------------------------------+
+  | true                | false                                  |
+  +=====================+========================================+
+  | .. code-block:: c++ | .. code-block:: c++                    |
+  |                     |                                        |
+  |   class MyClass     |   class MyClass : public X, public Y { |
+  |       : public X    |   };                                   |
+  |       , public Y {  |                                        |
+  |   };                |                                        |
+  +---------------------+----------------------------------------+
+
+* Align block comment decorations.
+
+  +----------------------+---------------------+
+  | Before               | After               |
+  +======================+=====================+
+  |  .. code-block:: c++ | .. code-block:: c++ |
+  |                      |                     |
+  |    /* line 1         |   /* line 1         |
+  |      * line 2        |    * line 2         |
+  |     */               |    */               |
+  +----------------------+---------------------+
+
+* The :doc:`ClangFormatStyleOptions` documentation provides detailed examples for most options.
+
+* Namespace end comments are now added or updated automatically.
+
+  +---------------------+---------------------+
+  | Before              | After               |
+  +=====================+=====================+
+  | .. code-block:: c++ | .. code-block:: c++ |
+  |                     |                     |
+  |   namespace A {     |   namespace A {     |
+  |   int i;            |   int i;            |
+  |   int j;            |   int j;            |
+  |   }                 |   }                 |
+  +---------------------+---------------------+
+
+* Comment reflow support added. Overly long comment lines will now be reflown with the rest of
+  the paragraph instead of just broken. Option **ReflowComments** added and enabled by default.
+
 libclang
 --------
 
 ...
-
-With the option --show-description, scan-build's list of defects will also
-show the description of the defects.
 
 
 Static Analyzer

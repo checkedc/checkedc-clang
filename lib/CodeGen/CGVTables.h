@@ -27,6 +27,8 @@ namespace clang {
 
 namespace CodeGen {
   class CodeGenModule;
+  class ConstantArrayBuilder;
+  class ConstantStructBuilder;
 
 class CodeGenVTables {
   CodeGenModule &CGM;
@@ -34,7 +36,7 @@ class CodeGenVTables {
   VTableContextBase *VTContext;
 
   /// VTableAddressPointsMapTy - Address points for a single vtable.
-  typedef llvm::DenseMap<BaseSubobject, uint64_t> VTableAddressPointsMapTy;
+  typedef VTableLayout::AddressPointsMapTy VTableAddressPointsMapTy;
 
   typedef std::pair<const CXXRecordDecl *, BaseSubobject> BaseSubobjectPairTy;
   typedef llvm::DenseMap<BaseSubobjectPairTy, uint64_t> SubVTTIndiciesMapTy;
@@ -62,16 +64,17 @@ class CodeGenVTables {
   /// the ABI.
   void maybeEmitThunkForVTable(GlobalDecl GD, const ThunkInfo &Thunk);
 
-  llvm::Constant *CreateVTableComponent(unsigned Idx,
-                                        const VTableLayout &VTLayout,
-                                        llvm::Constant *RTTI,
-                                        unsigned &NextVTableThunkIndex);
+  void addVTableComponent(ConstantArrayBuilder &builder,
+                          const VTableLayout &layout, unsigned idx,
+                          llvm::Constant *rtti,
+                          unsigned &nextVTableThunkIndex);
 
 public:
-  /// CreateVTableInitializer - Create a vtable initializer with the given
-  /// layout.
-  llvm::Constant *CreateVTableInitializer(const VTableLayout &VTLayout,
-                                          llvm::Constant *RTTI);
+  /// Add vtable components for the given vtable layout to the given
+  /// global initializer.
+  void createVTableInitializer(ConstantStructBuilder &builder,
+                               const VTableLayout &layout,
+                               llvm::Constant *rtti);
 
   CodeGenVTables(CodeGenModule &CGM);
 
@@ -119,6 +122,11 @@ public:
   void GenerateClassData(const CXXRecordDecl *RD);
 
   bool isVTableExternal(const CXXRecordDecl *RD);
+
+  /// Returns the type of a vtable with the given layout. Normally a struct of
+  /// arrays of pointers, with one struct element for each vtable in the vtable
+  /// group.
+  llvm::Type *getVTableType(const VTableLayout &layout);
 };
 
 } // end namespace CodeGen

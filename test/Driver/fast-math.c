@@ -148,19 +148,30 @@
 //
 // One umbrella flag is *really* weird and also changes the semantics of the
 // program by adding a special preprocessor macro. Check that the frontend flag
-// modeling this semantic change is provided. Also check that the semantic
-// impact remains even if every optimization is disabled.
+// modeling this semantic change is provided. Also check that the flag is not
+// present if any of the optimization is disabled.
 // RUN: %clang -### -ffast-math -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-FAST-MATH %s
 // RUN: %clang -### -fno-fast-math -ffast-math -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-FAST-MATH %s
-// RUN: %clang -### -ffast-math -fno-finite-math-only \
-// RUN:     -fno-unsafe-math-optimizations -fmath-errno -c %s 2>&1 \
+// RUN: %clang -### -funsafe-math-optimizations -ffinite-math-only \
+// RUN:     -fno-math-errno -ffp-contract=fast -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-FAST-MATH %s
+// RUN: %clang -### -fno-honor-infinities -fno-honor-nans -fno-math-errno \
+// RUN:     -fassociative-math -freciprocal-math -fno-signed-zeros \
+// RUN:     -fno-trapping-math -ffp-contract=fast -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-FAST-MATH %s
 // CHECK-FAST-MATH: "-cc1"
 // CHECK-FAST-MATH: "-ffast-math"
+// CHECK-FAST-MATH: "-ffinite-math-only"
 //
 // RUN: %clang -### -ffast-math -fno-fast-math -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NO-FAST-MATH %s
+// RUN: %clang -### -ffast-math -fno-finite-math-only -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NO-FAST-MATH %s
+// RUN: %clang -### -ffast-math -fno-unsafe-math-optimizations -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=CHECK-NO-FAST-MATH %s
+// RUN: %clang -### -ffast-math -fmath-errno -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-FAST-MATH %s
 // CHECK-NO-FAST-MATH: "-cc1"
 // CHECK-NO-FAST-MATH-NOT: "-ffast-math"
@@ -179,6 +190,7 @@
 // RUN:   | FileCheck --check-prefix=CHECK-NO-NO-INFS %s
 // CHECK-NO-NO-INFS: "-cc1"
 // CHECK-NO-NO-INFS-NOT: "-menable-no-infs"
+// CHECK-NO-NO-INFS-NOT: "-ffinite-math-only"
 // CHECK-NO-NO-INFS: "-o"
 //
 // RUN: %clang -### -fno-honor-nans -fhonor-nans -c %s 2>&1 \
@@ -193,6 +205,7 @@
 // RUN:   | FileCheck --check-prefix=CHECK-NO-NO-NANS %s
 // CHECK-NO-NO-NANS: "-cc1"
 // CHECK-NO-NO-NANS-NOT: "-menable-no-nans"
+// CHECK-NO-NO-NANS-NOT: "-ffinite-math-only"
 // CHECK-NO-NO-NANS: "-o"
 //
 // RUN: %clang -### -fassociative-math -freciprocal-math -fno-signed-zeros \
@@ -234,13 +247,4 @@
 //
 // RUN: %clang -### -ftrapping-math -fno-trapping-math -c %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-NO-TRAPPING-MATH %s
-// RUN: %clang -### -fdenormal-fp-math=ieee -c %s 2>&1 \
-// RUN:   | FileCheck --check-prefix=CHECK-FP-DENORMAL-IEEE %s
-// RUN: %clang -### -fdenormal-fp-math=preserve-sign -c %s 2>&1 \
-// RUN:   | FileCheck --check-prefix=CHECK-FP-DENORMAL-PS %s
-// RUN: %clang -### -fdenormal-fp-math=positive-zero -c %s 2>&1 \
-// RUN:   | FileCheck --check-prefix=CHECK-FP-DENORMAL-PZ %s
 // CHECK-NO-TRAPPING-MATH: "-fno-trapping-math"
-// CHECK-FP-DENORMAL-IEEE: "-fdenormal-fp-math=ieee"
-// CHECK-FP-DENORMAL-PS: "-fdenormal-fp-math=preserve-sign"
-// CHECK-FP-DENORMAL-PZ: "-fdenormal-fp-math=positive-zero"

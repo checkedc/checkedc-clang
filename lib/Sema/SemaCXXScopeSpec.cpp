@@ -461,6 +461,7 @@ class NestedNameSpecifierValidatorCCC : public CorrectionCandidateCallback {
 ///        are allowed.  The bool value pointed by this parameter is set to
 ///       'true' if the identifier is treated as if it was followed by ':',
 ///        not '::'.
+/// \param OnlyNamespace If true, only considers namespaces in lookup.
 ///
 /// This routine differs only slightly from ActOnCXXNestedNameSpecifier, in
 /// that it contains an extra parameter \p ScopeLookupResult, which provides
@@ -473,15 +474,17 @@ class NestedNameSpecifierValidatorCCC : public CorrectionCandidateCallback {
 /// scope if it *knows* that the result is correct.  It should not return in a
 /// dependent context, for example. Nor will it extend \p SS with the scope
 /// specifier.
-bool Sema::BuildCXXNestedNameSpecifier(Scope *S,
-                                       NestedNameSpecInfo &IdInfo,
-                                       bool EnteringContext,
-                                       CXXScopeSpec &SS,
+bool Sema::BuildCXXNestedNameSpecifier(Scope *S, NestedNameSpecInfo &IdInfo,
+                                       bool EnteringContext, CXXScopeSpec &SS,
                                        NamedDecl *ScopeLookupResult,
                                        bool ErrorRecoveryLookup,
-                                       bool *IsCorrectedToColon) {
+                                       bool *IsCorrectedToColon,
+                                       bool OnlyNamespace) {
+  if (IdInfo.Identifier->isEditorPlaceholder())
+    return true;
   LookupResult Found(*this, IdInfo.Identifier, IdInfo.IdentifierLoc,
-                     LookupNestedNameSpecifierName);
+                     OnlyNamespace ? LookupNamespaceName
+                                   : LookupNestedNameSpecifierName);
   QualType ObjectType = GetTypeFromParser(IdInfo.ObjectType);
 
   // Determine where to perform name lookup
@@ -594,7 +597,9 @@ bool Sema::BuildCXXNestedNameSpecifier(Scope *S,
         return true;
       }
       // Replacement '::' -> ':' is not allowed, just issue respective error.
-      Diag(R.getNameLoc(), diag::err_expected_class_or_namespace)
+      Diag(R.getNameLoc(), OnlyNamespace
+                               ? unsigned(diag::err_expected_namespace_name)
+                               : unsigned(diag::err_expected_class_or_namespace))
           << IdInfo.Identifier << getLangOpts().CPlusPlus;
       if (NamedDecl *ND = R.getAsSingle<NamedDecl>())
         Diag(ND->getLocation(), diag::note_entity_declared_at)
@@ -801,7 +806,7 @@ bool Sema::BuildCXXNestedNameSpecifier(Scope *S,
   if (!Found.empty()) {
     if (TypeDecl *TD = Found.getAsSingle<TypeDecl>())
       Diag(IdInfo.IdentifierLoc, diag::err_expected_class_or_namespace)
-          << QualType(TD->getTypeForDecl(), 0) << getLangOpts().CPlusPlus;
+          << Context.getTypeDeclType(TD) << getLangOpts().CPlusPlus;
     else {
       Diag(IdInfo.IdentifierLoc, diag::err_expected_class_or_namespace)
           << IdInfo.Identifier << getLangOpts().CPlusPlus;
@@ -819,19 +824,17 @@ bool Sema::BuildCXXNestedNameSpecifier(Scope *S,
   return true;
 }
 
-bool Sema::ActOnCXXNestedNameSpecifier(Scope *S,
-                                       NestedNameSpecInfo &IdInfo,
-                                       bool EnteringContext,
-                                       CXXScopeSpec &SS,
+bool Sema::ActOnCXXNestedNameSpecifier(Scope *S, NestedNameSpecInfo &IdInfo,
+                                       bool EnteringContext, CXXScopeSpec &SS,
                                        bool ErrorRecoveryLookup,
-                                       bool *IsCorrectedToColon) {
+                                       bool *IsCorrectedToColon,
+                                       bool OnlyNamespace) {
   if (SS.isInvalid())
     return true;
 
-  return BuildCXXNestedNameSpecifier(S, IdInfo,
-                                     EnteringContext, SS,
+  return BuildCXXNestedNameSpecifier(S, IdInfo, EnteringContext, SS,
                                      /*ScopeLookupResult=*/nullptr, false,
-                                     IsCorrectedToColon);
+                                     IsCorrectedToColon, OnlyNamespace);
 }
 
 bool Sema::ActOnCXXNestedNameSpecifierDecltype(CXXScopeSpec &SS,
@@ -933,8 +936,8 @@ bool Sema::ActOnCXXNestedNameSpecifier(Scope *S,
 
   // We were able to resolve the template name to an actual template. 
   // Build an appropriate nested-name-specifier.
-  QualType T = CheckTemplateIdType(Template.get(), TemplateNameLoc, 
-                                   TemplateArgs);
+  QualType T =
+      CheckTemplateIdType(Template.get(), TemplateNameLoc, TemplateArgs);
   if (T.isNull())
     return true;
 
@@ -975,9 +978,9 @@ void *Sema::SaveNestedNameSpecifierAnnotation(CXXScopeSpec &SS) {
   if (SS.isEmpty() || SS.isInvalid())
     return nullptr;
 
-  void *Mem = Context.Allocate((sizeof(NestedNameSpecifierAnnotation) +
-                                                        SS.location_size()),
-                               llvm::alignOf<NestedNameSpecifierAnnotation>());
+  void *Mem = Context.Allocate(
+      (sizeof(NestedNameSpecifierAnnotation) + SS.location_size()),
+      alignof(NestedNameSpecifierAnnotation));
   NestedNameSpecifierAnnotation *Annotation
     = new (Mem) NestedNameSpecifierAnnotation;
   Annotation->NNS = SS.getScopeRep();
@@ -1000,6 +1003,11 @@ void Sema::RestoreNestedNameSpecifierAnnotation(void *AnnotationPtr,
 
 bool Sema::ShouldEnterDeclaratorScope(Scope *S, const CXXScopeSpec &SS) {
   assert(SS.isSet() && "Parser passed invalid CXXScopeSpec.");
+
+  // Don't enter a declarator context when the current context is an Objective-C
+  // declaration.
+  if (isa<ObjCContainerDecl>(CurContext) || isa<ObjCMethodDecl>(CurContext))
+    return false;
 
   NestedNameSpecifier *Qualifier = SS.getScopeRep();
 

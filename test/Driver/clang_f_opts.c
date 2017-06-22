@@ -59,6 +59,13 @@
 // RUN: %clang -### -S -fauto-profile=%S/Inputs/file.prof %s 2>&1 | FileCheck -check-prefix=CHECK-AUTO-PROFILE %s
 // CHECK-AUTO-PROFILE: "-fprofile-sample-use={{.*}}/file.prof"
 
+// RUN: %clang -### -S -fauto-profile=%S/Inputs/file.prof -fno-profile-sample-use %s 2>&1 | FileCheck -check-prefix=CHECK-NO-AUTO-PROFILE %s
+// RUN: %clang -### -S -fauto-profile=%S/Inputs/file.prof -fno-auto-profile %s 2>&1 | FileCheck -check-prefix=CHECK-NO-AUTO-PROFILE %s
+// CHECK-NO-AUTO-PROFILE-NOT: "-fprofile-sample-use={{.*}}/file.prof"
+
+// RUN: %clang -### -S -fauto-profile=%S/Inputs/file.prof -fno-profile-sample-use -fauto-profile %s 2>&1 | FileCheck -check-prefix=CHECK-AUTO-PROFILE %s
+// RUN: %clang -### -S -fauto-profile=%S/Inputs/file.prof -fno-auto-profile -fprofile-sample-use %s 2>&1 | FileCheck -check-prefix=CHECK-AUTO-PROFILE %s
+
 // RUN: %clang -### -S -fprofile-arcs %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-ARCS %s
 // RUN: %clang -### -S -fno-profile-arcs -fprofile-arcs %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-ARCS %s
 // RUN: %clang -### -S -fno-profile-arcs %s 2>&1 | FileCheck -check-prefix=CHECK-NO-PROFILE-ARCS %s
@@ -469,3 +476,26 @@
 // CHECK-WCHAR2: -fshort-wchar
 // CHECK-WCHAR2-NOT: -fno-short-wchar
 // DELIMITERS: {{^ *"}}
+
+// RUN: %clang -### -fno-experimental-new-pass-manager -fexperimental-new-pass-manager %s 2>&1 | FileCheck --check-prefix=CHECK-PM --check-prefix=CHECK-NEW-PM %s
+// RUN: %clang -### -fexperimental-new-pass-manager -fno-experimental-new-pass-manager %s 2>&1 | FileCheck --check-prefix=CHECK-PM --check-prefix=CHECK-NO-NEW-PM %s
+// CHECK-PM-NOT: argument unused
+// CHECK-NEW-PM: -fexperimental-new-pass-manager
+// CHECK-NEW-PM-NOT: -fno-experimental-new-pass-manager
+// CHECK-NO-NEW-PM: -fno-experimental-new-pass-manager
+// CHECK-NO-NEW-PM-NOT: -fexperimental-new-pass-manager
+
+// RUN: %clang -### -S -fstrict-return %s 2>&1 | FileCheck -check-prefix=CHECK-STRICT-RETURN %s
+// RUN: %clang -### -S -fno-strict-return %s 2>&1 | FileCheck -check-prefix=CHECK-NO-STRICT-RETURN %s
+// CHECK-STRICT-RETURN-NOT: "-fno-strict-return"
+// CHECK-NO-STRICT-RETURN: "-fno-strict-return"
+
+// RUN: %clang -### -S -fno-debug-info-for-profiling -fdebug-info-for-profiling %s 2>&1 | FileCheck -check-prefix=CHECK-PROFILE-DEBUG %s
+// RUN: %clang -### -S -fdebug-info-for-profiling -fno-debug-info-for-profiling %s 2>&1 | FileCheck -check-prefix=CHECK-NO-PROFILE-DEBUG %s
+// CHECK-PROFILE-DEBUG: -fdebug-info-for-profiling
+// CHECK-NO-PROFILE-DEBUG-NOT: -fdebug-info-for-profiling
+
+// RUN: %clang -### -S -fallow-editor-placeholders %s 2>&1 | FileCheck -check-prefix=CHECK-ALLOW-PLACEHOLDERS %s
+// RUN: %clang -### -S -fno-allow-editor-placeholders %s 2>&1 | FileCheck -check-prefix=CHECK-NO-ALLOW-PLACEHOLDERS %s
+// CHECK-ALLOW-PLACEHOLDERS: -fallow-editor-placeholders
+// CHECK-NO-ALLOW-PLACEHOLDERS-NOT: -fallow-editor-placeholders

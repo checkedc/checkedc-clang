@@ -12,10 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "RAIIObjectsForParser.h"
 #include "clang/Basic/Attributes.h"
 #include "clang/Basic/PrettyStackTrace.h"
 #include "clang/Parse/Parser.h"
+#include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/LoopHint.h"
 #include "clang/Sema/PrettyDeclStackTrace.h"
@@ -97,7 +97,7 @@ StmtResult Parser::ParseStatement(SourceLocation *TrailingElseLoc,
 ///
 StmtResult
 Parser::ParseStatementOrDeclaration(StmtVector &Stmts,
-                                    AllowedContsructsKind Allowed,
+                                    AllowedConstructsKind Allowed,
                                     SourceLocation *TrailingElseLoc) {
 
   ParenBraceBracketBalancer BalancerRAIIObj(*this);
@@ -150,7 +150,7 @@ private:
 
 StmtResult
 Parser::ParseStatementOrDeclarationAfterAttributes(StmtVector &Stmts,
-          AllowedContsructsKind Allowed, SourceLocation *TrailingElseLoc,
+          AllowedConstructsKind Allowed, SourceLocation *TrailingElseLoc,
           ParsedAttributesWithRange &Attrs) {
   const char *SemiError = nullptr;
   StmtResult Res;
@@ -347,6 +347,12 @@ Retry:
     ConsumeToken();
     return StmtError();
 
+  case tok::annot_pragma_fp:
+    ProhibitAttributes(Attrs);
+    Diag(Tok, diag::err_pragma_fp_scope);
+    ConsumeToken();
+    return StmtError();
+
   case tok::annot_pragma_opencl_extension:
     ProhibitAttributes(Attrs);
     HandlePragmaOpenCLExtension();
@@ -383,6 +389,10 @@ Retry:
     HandlePragmaDump();
     return StmtEmpty();
 
+  case tok::annot_pragma_attribute:
+    HandlePragmaAttribute();
+    return StmtEmpty();
+
   case tok::annot_pragma_bounds_checked:
     HandlePragmaBoundsChecked();
     return StmtEmpty();
@@ -405,6 +415,8 @@ Retry:
 StmtResult Parser::ParseExprStatement() {
   // If a case keyword is missing, this is where it should be inserted.
   Token OldToken = Tok;
+
+  ExprStatementTokLoc = Tok.getLocation();
 
   // expression[opt] ';'
   ExprResult Expr(ParseExpression());
@@ -935,6 +947,9 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
     case tok::annot_pragma_fp_contract:
       HandlePragmaFPContract();
       break;
+    case tok::annot_pragma_fp:
+      HandlePragmaFP();
+      break;
     case tok::annot_pragma_ms_pointers_to_members:
       HandlePragmaMSPointersToMembers();
       break;
@@ -1222,7 +1237,8 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   StmtResult ThenStmt;
   {
     EnterExpressionEvaluationContext PotentiallyDiscarded(
-        Actions, Sema::DiscardedStatement, nullptr, false,
+        Actions, Sema::ExpressionEvaluationContext::DiscardedStatement, nullptr,
+        false,
         /*ShouldEnter=*/ConstexprCondition && !*ConstexprCondition);
     ThenStmt = ParseStatement(&InnerStatementTrailingElseLoc);
   }
@@ -1255,7 +1271,8 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
                           Tok.is(tok::l_brace));
 
     EnterExpressionEvaluationContext PotentiallyDiscarded(
-        Actions, Sema::DiscardedStatement, nullptr, false,
+        Actions, Sema::ExpressionEvaluationContext::DiscardedStatement, nullptr,
+        false,
         /*ShouldEnter=*/ConstexprCondition && *ConstexprCondition);
     ElseStmt = ParseStatement();
 
@@ -1941,12 +1958,12 @@ StmtResult Parser::ParseReturnStatement() {
     }
   }
   if (IsCoreturn)
-    return Actions.ActOnCoreturnStmt(ReturnLoc, R.get());
+    return Actions.ActOnCoreturnStmt(getCurScope(), ReturnLoc, R.get());
   return Actions.ActOnReturnStmt(ReturnLoc, R.get(), getCurScope());
 }
 
 StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
-                                       AllowedContsructsKind Allowed,
+                                       AllowedConstructsKind Allowed,
                                        SourceLocation *TrailingElseLoc,
                                        ParsedAttributesWithRange &Attrs) {
   // Create temporary attribute list.

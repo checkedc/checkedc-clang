@@ -12,11 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Parse/Parser.h"
-#include "RAIIObjectsForParser.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Parse/ParseDiagnostic.h"
+#include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/ParsedTemplate.h"
 #include "clang/Sema/Scope.h"
@@ -35,26 +35,6 @@ public:
   bool HandleComment(Preprocessor &PP, SourceRange Comment) override {
     S.ActOnComment(Comment);
     return false;
-  }
-};
-
-/// \brief RAIIObject to destroy the contents of a SmallVector of
-/// TemplateIdAnnotation pointers and clear the vector.
-class DestroyTemplateIdAnnotationsRAIIObj {
-  SmallVectorImpl<TemplateIdAnnotation *> &Container;
-
-public:
-  DestroyTemplateIdAnnotationsRAIIObj(
-      SmallVectorImpl<TemplateIdAnnotation *> &Container)
-      : Container(Container) {}
-
-  ~DestroyTemplateIdAnnotationsRAIIObj() {
-    for (SmallVectorImpl<TemplateIdAnnotation *>::iterator I =
-             Container.begin(),
-                                                           E = Container.end();
-         I != E; ++I)
-      (*I)->Destroy();
-    Container.clear();
   }
 };
 } // end anonymous namespace
@@ -77,7 +57,6 @@ Parser::Parser(Preprocessor &pp, Sema &actions, bool skipFunctionBodies)
   Tok.setKind(tok::eof);
   Actions.CurScope = nullptr;
   NumCachedScopes = 0;
-  ParenCount = BracketCount = BraceCount = 0;
   CurParsedObjCImpl = nullptr;
 
   // Add #pragma handlers. These are removed and destroyed in the
@@ -230,6 +209,21 @@ void Parser::ConsumeExtraSemi(ExtraSemiKind Kind, unsigned TST) {
     // A single semicolon is valid after a member function definition.
     Diag(StartLoc, diag::warn_extra_semi_after_mem_fn_def)
       << FixItHint::CreateRemoval(SourceRange(StartLoc, EndLoc));
+}
+
+bool Parser::expectIdentifier() {
+  if (Tok.is(tok::identifier))
+    return false;
+  if (const auto *II = Tok.getIdentifierInfo()) {
+    if (II->isCPlusPlusKeyword(getLangOpts())) {
+      Diag(Tok, diag::err_expected_token_instead_of_objcxx_keyword)
+          << tok::identifier << Tok.getIdentifierInfo();
+      // Objective-C++: Recover by treating this keyword as a valid identifier.
+      return false;
+    }
+  }
+  Diag(Tok, diag::err_expected) << tok::identifier;
+  return true;
 }
 
 //===----------------------------------------------------------------------===//
@@ -523,6 +517,7 @@ void Parser::Initialize() {
     Ident_dynamic_bounds_cast = nullptr;
     Ident_assume_bounds_cast = nullptr;
   }
+  Ident_language = Ident_defined_in = Ident_generated_declaration = nullptr;\
 
   Ident__except = nullptr;
 
@@ -568,23 +563,6 @@ void Parser::LateTemplateParserCleanupCallback(void *P) {
 }
 
 bool Parser::ParseFirstTopLevelDecl(DeclGroupPtrTy &Result) {
-  // C++ Modules TS: module-declaration must be the first declaration in the
-  // file. (There can be no preceding preprocessor directives, but we expect
-  // the lexer to check that.)
-  if (Tok.is(tok::kw_module)) {
-    Result = ParseModuleDecl();
-    return false;
-  } else if (getLangOpts().getCompilingModule() ==
-             LangOptions::CMK_ModuleInterface) {
-    // FIXME: We avoid providing this diagnostic when generating an object file
-    // from an existing PCM file. This is not a good way to detect this
-    // condition; we should provide a mechanism to indicate whether we've
-    // already parsed a declaration in this translation unit and avoid calling
-    // ParseFirstTopLevelDecl in that case.
-    if (Actions.TUKind == TU_Module)
-      Diag(Tok, diag::err_expected_module_interface_decl);
-  }
-
   // C11 6.9p1 says translation units must have at least one top-level
   // declaration. C++ doesn't have this restriction. We also don't want to
   // complain if we have a precompiled header, although technically if the PCH
@@ -621,6 +599,14 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result) {
     Result = ParseModuleImport(SourceLocation());
     return false;
 
+  case tok::kw_export:
+    if (NextToken().isNot(tok::kw_module))
+      break;
+    LLVM_FALLTHROUGH;
+  case tok::kw_module:
+    Result = ParseModuleDecl();
+    return false;
+
   case tok::annot_module_include:
     Actions.ActOnModuleInclude(Tok.getLocation(),
                                reinterpret_cast<Module *>(
@@ -638,6 +624,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result) {
     Actions.ActOnModuleEnd(Tok.getLocation(), reinterpret_cast<Module *>(
                                                   Tok.getAnnotationValue()));
     ConsumeToken();
+    return false;
+
+  case tok::annot_pragma_attribute:
+    HandlePragmaAttribute();
     return false;
 
   case tok::eof:
@@ -723,6 +713,9 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
   case tok::annot_pragma_fp_contract:
     HandlePragmaFPContract();
     return nullptr;
+  case tok::annot_pragma_fp:
+    HandlePragmaFP();
+    break;
   case tok::annot_pragma_opencl_extension:
     HandlePragmaOpenCLExtension();
     return nullptr;
@@ -882,6 +875,10 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
 
   default:
   dont_know:
+    if (Tok.isEditorPlaceholder()) {
+      ConsumeToken();
+      return nullptr;
+    }
     // We can't tell whether this is a function-definition or declaration yet.
     return ParseDeclarationOrFunctionDefinition(attrs, DS);
   }
@@ -974,9 +971,11 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
     Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(getCurScope(), AS_none,
                                                        DS, AnonRecord);
     DS.complete(TheDecl);
+    if (getLangOpts().OpenCL)
+      Actions.setCurrentOpenCLExtensionForDecl(TheDecl);
     if (AnonRecord) {
       Decl* decls[] = {AnonRecord, TheDecl};
-      return Actions.BuildDeclaratorGroup(decls, /*TypeMayContainAuto=*/false);
+      return Actions.BuildDeclaratorGroup(decls);
     }
     return Actions.ConvertDeclToDeclGroup(TheDecl);
   }
@@ -1547,8 +1546,7 @@ Parser::TryAnnotateName(bool IsAddressOfOperand,
     return ANK_Error;
 
   if (Tok.isNot(tok::identifier) || SS.isInvalid()) {
-    if (TryAnnotateTypeOrScopeTokenAfterScopeSpec(EnteringContext, false, SS,
-                                                  !WasScopeAnnotation))
+    if (TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation))
       return ANK_Error;
     return ANK_Unresolved;
   }
@@ -1561,8 +1559,7 @@ Parser::TryAnnotateName(bool IsAddressOfOperand,
   if (isTentativelyDeclared(Name)) {
     // Identifier has been tentatively declared, and thus cannot be resolved as
     // an expression. Fall back to annotating it as a type.
-    if (TryAnnotateTypeOrScopeTokenAfterScopeSpec(EnteringContext, false, SS,
-                                                  !WasScopeAnnotation))
+    if (TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation))
       return ANK_Error;
     return Tok.is(tok::annot_typename) ? ANK_Success : ANK_TentativeDecl;
   }
@@ -1615,6 +1612,8 @@ Parser::TryAnnotateName(bool IsAddressOfOperand,
                                                    NewEndLoc);
       if (NewType.isUsable())
         Ty = NewType.get();
+      else if (Tok.is(tok::eof)) // Nothing to do here, bail out...
+        return ANK_Error;
     }
 
     Tok.setKind(tok::annot_typename);
@@ -1698,7 +1697,7 @@ bool Parser::TryKeywordIdentFallback(bool DisableKeyword) {
 ///
 /// Note that this routine emits an error if you call it with ::new or ::delete
 /// as the current tokens, so only call it in contexts where these are invalid.
-bool Parser::TryAnnotateTypeOrScopeToken(bool EnteringContext, bool NeedType) {
+bool Parser::TryAnnotateTypeOrScopeToken() {
   assert((Tok.is(tok::identifier) || Tok.is(tok::coloncolon) ||
           Tok.is(tok::kw_typename) || Tok.is(tok::annot_cxxscope) ||
           Tok.is(tok::kw_decltype) || Tok.is(tok::annot_template_id) ||
@@ -1715,7 +1714,7 @@ bool Parser::TryAnnotateTypeOrScopeToken(bool EnteringContext, bool NeedType) {
     if (getLangOpts().MSVCCompat && NextToken().is(tok::kw_typedef)) {
       Token TypedefToken;
       PP.Lex(TypedefToken);
-      bool Result = TryAnnotateTypeOrScopeToken(EnteringContext, NeedType);
+      bool Result = TryAnnotateTypeOrScopeToken();
       PP.EnterToken(Tok);
       Tok = TypedefToken;
       if (!Result)
@@ -1740,8 +1739,7 @@ bool Parser::TryAnnotateTypeOrScopeToken(bool EnteringContext, bool NeedType) {
           Tok.is(tok::annot_decltype)) {
         // Attempt to recover by skipping the invalid 'typename'
         if (Tok.is(tok::annot_decltype) ||
-            (!TryAnnotateTypeOrScopeToken(EnteringContext, NeedType) &&
-             Tok.isAnnotation())) {
+            (!TryAnnotateTypeOrScopeToken() && Tok.isAnnotation())) {
           unsigned DiagID = diag::err_expected_qualified_after_typename;
           // MS compatibility: MSVC permits using known types with typename.
           // e.g. "typedef typename T* pointer_type"
@@ -1751,6 +1749,8 @@ bool Parser::TryAnnotateTypeOrScopeToken(bool EnteringContext, bool NeedType) {
           return false;
         }
       }
+      if (Tok.isEditorPlaceholder())
+        return true;
 
       Diag(Tok.getLocation(), diag::err_expected_qualified_after_typename);
       return true;
@@ -1777,6 +1777,7 @@ bool Parser::TryAnnotateTypeOrScopeToken(bool EnteringContext, bool NeedType) {
       Ty = Actions.ActOnTypenameType(getCurScope(), TypenameLoc, SS,
                                      TemplateId->TemplateKWLoc,
                                      TemplateId->Template,
+                                     TemplateId->Name,
                                      TemplateId->TemplateNameLoc,
                                      TemplateId->LAngleLoc,
                                      TemplateArgsPtr,
@@ -1801,33 +1802,25 @@ bool Parser::TryAnnotateTypeOrScopeToken(bool EnteringContext, bool NeedType) {
 
   CXXScopeSpec SS;
   if (getLangOpts().CPlusPlus)
-    if (ParseOptionalCXXScopeSpecifier(SS, nullptr, EnteringContext))
+    if (ParseOptionalCXXScopeSpecifier(SS, nullptr, /*EnteringContext*/false))
       return true;
 
-  return TryAnnotateTypeOrScopeTokenAfterScopeSpec(EnteringContext, NeedType,
-                                                   SS, !WasScopeAnnotation);
+  return TryAnnotateTypeOrScopeTokenAfterScopeSpec(SS, !WasScopeAnnotation);
 }
 
 /// \brief Try to annotate a type or scope token, having already parsed an
 /// optional scope specifier. \p IsNewScope should be \c true unless the scope
 /// specifier was extracted from an existing tok::annot_cxxscope annotation.
-bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(bool EnteringContext,
-                                                       bool NeedType,
-                                                       CXXScopeSpec &SS,
+bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(CXXScopeSpec &SS,
                                                        bool IsNewScope) {
   if (Tok.is(tok::identifier)) {
-    IdentifierInfo *CorrectedII = nullptr;
     // Determine whether the identifier is a type name.
     if (ParsedType Ty = Actions.getTypeName(
             *Tok.getIdentifierInfo(), Tok.getLocation(), getCurScope(), &SS,
             false, NextToken().is(tok::period), nullptr,
             /*IsCtorOrDtorName=*/false,
             /*NonTrivialTypeSourceInfo*/ true,
-            NeedType ? &CorrectedII : nullptr)) {
-      // A FixIt was applied as a result of typo correction
-      if (CorrectedII)
-        Tok.setIdentifierInfo(CorrectedII);
-
+            /*IsClassTemplateDeductionContext*/GreaterThanIsOperator)) {
       SourceLocation BeginLoc = Tok.getLocation();
       if (SS.isNotEmpty()) // it was a C++ qualified type name.
         BeginLoc = SS.getBeginLoc();
@@ -1846,6 +1839,8 @@ bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(bool EnteringContext,
                                                    NewEndLoc);
         if (NewType.isUsable())
           Ty = NewType.get();
+        else if (Tok.is(tok::eof)) // Nothing to do here, bail out...
+          return false;
       }
 
       // This is a typename. Replace the current token in-place with an
@@ -1874,11 +1869,11 @@ bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(bool EnteringContext,
       UnqualifiedId TemplateName;
       TemplateName.setIdentifier(Tok.getIdentifierInfo(), Tok.getLocation());
       bool MemberOfUnknownSpecialization;
-      if (TemplateNameKind TNK =
-              Actions.isTemplateName(getCurScope(), SS,
-                                     /*hasTemplateKeyword=*/false, TemplateName,
-                                     /*ObjectType=*/nullptr, EnteringContext,
-                                     Template, MemberOfUnknownSpecialization)) {
+      if (TemplateNameKind TNK = Actions.isTemplateName(
+              getCurScope(), SS,
+              /*hasTemplateKeyword=*/false, TemplateName,
+              /*ObjectType=*/nullptr, /*EnteringContext*/false, Template,
+              MemberOfUnknownSpecialization)) {
         // Consume the identifier.
         ConsumeToken();
         if (AnnotateTemplateIdToken(Template, TNK, SS, SourceLocation(),
@@ -2047,8 +2042,10 @@ bool Parser::ParseMicrosoftIfExistsCondition(IfExistsCondition& Result) {
 
   // Parse the unqualified-id.
   SourceLocation TemplateKWLoc; // FIXME: parsed, but unused.
-  if (ParseUnqualifiedId(Result.SS, false, true, true, nullptr, TemplateKWLoc,
-                         Result.Name)) {
+  if (ParseUnqualifiedId(
+          Result.SS, /*EnteringContext*/false, /*AllowDestructorName*/true,
+          /*AllowConstructorName*/true, /*AllowDeductionGuide*/false, nullptr,
+          TemplateKWLoc, Result.Name)) {
     T.skipToEnd();
     return true;
   }
@@ -2118,30 +2115,28 @@ void Parser::ParseMicrosoftIfExistsExternalDeclaration() {
 /// Parse a C++ Modules TS module declaration, which appears at the beginning
 /// of a module interface, module partition, or module implementation file.
 ///
-///   module-declaration:   [Modules TS + P0273R0]
-///     'module' module-kind[opt] module-name attribute-specifier-seq[opt] ';'
-///   module-kind:
-///     'implementation'
-///     'partition'
+///   module-declaration:   [Modules TS + P0273R0 + P0629R0]
+///     'export'[opt] 'module' 'partition'[opt]
+///            module-name attribute-specifier-seq[opt] ';'
 ///
-/// Note that the module-kind values are context-sensitive keywords.
+/// Note that 'partition' is a context-sensitive keyword.
 Parser::DeclGroupPtrTy Parser::ParseModuleDecl() {
-  assert(Tok.is(tok::kw_module) && getLangOpts().ModulesTS &&
-         "should not be parsing a module declaration");
+  SourceLocation StartLoc = Tok.getLocation();
+
+  Sema::ModuleDeclKind MDK = TryConsumeToken(tok::kw_export)
+                                 ? Sema::ModuleDeclKind::Module
+                                 : Sema::ModuleDeclKind::Implementation;
+
+  assert(Tok.is(tok::kw_module) && "not a module declaration");
   SourceLocation ModuleLoc = ConsumeToken();
 
-  // Check for a module-kind.
-  Sema::ModuleDeclKind MDK = Sema::ModuleDeclKind::Module;
-  if (Tok.is(tok::identifier) && NextToken().is(tok::identifier)) {
-    if (Tok.getIdentifierInfo()->isStr("implementation"))
-      MDK = Sema::ModuleDeclKind::Implementation;
-    else if (Tok.getIdentifierInfo()->isStr("partition"))
-      MDK = Sema::ModuleDeclKind::Partition;
-    else {
-      Diag(Tok, diag::err_unexpected_module_kind) << Tok.getIdentifierInfo();
-      SkipUntil(tok::semi);
-      return nullptr;
-    }
+  if (Tok.is(tok::identifier) && NextToken().is(tok::identifier) &&
+      Tok.getIdentifierInfo()->isStr("partition")) {
+    // If 'partition' is present, this must be a module interface unit.
+    if (MDK != Sema::ModuleDeclKind::Module)
+      Diag(Tok.getLocation(), diag::err_module_implementation_partition)
+        << FixItHint::CreateInsertion(ModuleLoc, "export ");
+    MDK = Sema::ModuleDeclKind::Partition;
     ConsumeToken();
   }
 
@@ -2149,14 +2144,14 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl() {
   if (ParseModuleName(ModuleLoc, Path, /*IsImport*/false))
     return nullptr;
 
+  // We don't support any module attributes yet; just parse them and diagnose.
   ParsedAttributesWithRange Attrs(AttrFactory);
   MaybeParseCXX11Attributes(Attrs);
-  // We don't support any module attributes yet.
   ProhibitCXX11Attributes(Attrs, diag::err_attribute_not_module_attr);
 
   ExpectAndConsumeSemi(diag::err_module_expected_semi);
 
-  return Actions.ActOnModuleDecl(ModuleLoc, MDK, Path);
+  return Actions.ActOnModuleDecl(StartLoc, ModuleLoc, MDK, Path);
 }
 
 /// Parse a module import declaration. This is essentially the same for
@@ -2241,19 +2236,35 @@ bool Parser::parseMisplacedModuleImport() {
   while (true) {
     switch (Tok.getKind()) {
     case tok::annot_module_end:
+      // If we recovered from a misplaced module begin, we expect to hit a
+      // misplaced module end too. Stay in the current context when this
+      // happens.
+      if (MisplacedModuleBeginCount) {
+        --MisplacedModuleBeginCount;
+        Actions.ActOnModuleEnd(Tok.getLocation(),
+                               reinterpret_cast<Module *>(
+                                   Tok.getAnnotationValue()));
+        ConsumeToken();
+        continue;
+      }
       // Inform caller that recovery failed, the error must be handled at upper
-      // level.
+      // level. This will generate the desired "missing '}' at end of module"
+      // diagnostics on the way out.
       return true;
     case tok::annot_module_begin:
-      Actions.diagnoseMisplacedModuleImport(reinterpret_cast<Module *>(
-        Tok.getAnnotationValue()), Tok.getLocation());
-      return true;
+      // Recover by entering the module (Sema will diagnose).
+      Actions.ActOnModuleBegin(Tok.getLocation(),
+                               reinterpret_cast<Module *>(
+                                   Tok.getAnnotationValue()));
+      ConsumeToken();
+      ++MisplacedModuleBeginCount;
+      continue;
     case tok::annot_module_include:
       // Module import found where it should not be, for instance, inside a
       // namespace. Recover by importing the module.
       Actions.ActOnModuleInclude(Tok.getLocation(),
                                  reinterpret_cast<Module *>(
-                                 Tok.getAnnotationValue()));
+                                     Tok.getAnnotationValue()));
       ConsumeToken();
       // If there is another module import, process it.
       continue;

@@ -16,8 +16,10 @@
 #include "ClangSACheckers.h"
 #include "clang/Analysis/CloneDetection.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/AnalysisManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 
 using namespace clang;
@@ -27,6 +29,7 @@ namespace {
 class CloneChecker
     : public Checker<check::ASTCodeBody, check::EndOfTranslationUnit> {
   mutable CloneDetector Detector;
+  mutable std::unique_ptr<BugType> BT_Exact, BT_Suspicious;
 
 public:
   void checkASTCodeBody(const Decl *D, AnalysisManager &Mgr,
@@ -35,14 +38,15 @@ public:
   void checkEndOfTranslationUnit(const TranslationUnitDecl *TU,
                                  AnalysisManager &Mgr, BugReporter &BR) const;
 
-  /// \brief Reports all clones to the user.
-  void reportClones(SourceManager &SM, AnalysisManager &Mgr,
-                    int MinComplexity) const;
+  /// Reports all clones to the user.
+  void reportClones(BugReporter &BR, AnalysisManager &Mgr,
+                    std::vector<CloneDetector::CloneGroup> &CloneGroups) const;
 
-  /// \brief Reports only suspicious clones to the user along with informaton
-  ///        that explain why they are suspicious.
-  void reportSuspiciousClones(SourceManager &SM, AnalysisManager &Mgr,
-                              int MinComplexity) const;
+  /// Reports only suspicious clones to the user along with informaton
+  /// that explain why they are suspicious.
+  void reportSuspiciousClones(
+      BugReporter &BR, AnalysisManager &Mgr,
+      std::vector<CloneDetector::CloneGroup> &CloneGroups) const;
 };
 } // end anonymous namespace
 
@@ -69,80 +73,120 @@ void CloneChecker::checkEndOfTranslationUnit(const TranslationUnitDecl *TU,
   bool ReportNormalClones = Mgr.getAnalyzerOptions().getBooleanOption(
       "ReportNormalClones", true, this);
 
-  if (ReportSuspiciousClones)
-    reportSuspiciousClones(BR.getSourceManager(), Mgr, MinComplexity);
+  // Let the CloneDetector create a list of clones from all the analyzed
+  // statements. We don't filter for matching variable patterns at this point
+  // because reportSuspiciousClones() wants to search them for errors.
+  std::vector<CloneDetector::CloneGroup> AllCloneGroups;
 
-  if (ReportNormalClones)
-    reportClones(BR.getSourceManager(), Mgr, MinComplexity);
+  Detector.findClones(AllCloneGroups, RecursiveCloneTypeIIConstraint(),
+                      MinComplexityConstraint(MinComplexity),
+                      MinGroupSizeConstraint(2), OnlyLargestCloneConstraint());
+
+  if (ReportSuspiciousClones)
+    reportSuspiciousClones(BR, Mgr, AllCloneGroups);
+
+  // We are done for this translation unit unless we also need to report normal
+  // clones.
+  if (!ReportNormalClones)
+    return;
+
+  // Now that the suspicious clone detector has checked for pattern errors,
+  // we also filter all clones who don't have matching patterns
+  CloneDetector::constrainClones(AllCloneGroups,
+                                 MatchingVariablePatternConstraint(),
+                                 MinGroupSizeConstraint(2));
+
+  reportClones(BR, Mgr, AllCloneGroups);
 }
 
-void CloneChecker::reportClones(SourceManager &SM, AnalysisManager &Mgr,
-                                int MinComplexity) const {
+static PathDiagnosticLocation makeLocation(const StmtSequence &S,
+                                           AnalysisManager &Mgr) {
+  ASTContext &ACtx = Mgr.getASTContext();
+  return PathDiagnosticLocation::createBegin(
+      S.front(), ACtx.getSourceManager(),
+      Mgr.getAnalysisDeclContext(ACtx.getTranslationUnitDecl()));
+}
 
-  std::vector<CloneDetector::CloneGroup> CloneGroups;
-  Detector.findClones(CloneGroups, MinComplexity);
+void CloneChecker::reportClones(
+    BugReporter &BR, AnalysisManager &Mgr,
+    std::vector<CloneDetector::CloneGroup> &CloneGroups) const {
 
-  DiagnosticsEngine &DiagEngine = Mgr.getDiagnostic();
+  if (!BT_Exact)
+    BT_Exact.reset(new BugType(this, "Exact code clone", "Code clone"));
 
-  unsigned WarnID = DiagEngine.getCustomDiagID(DiagnosticsEngine::Warning,
-                                               "Detected code clone.");
-
-  unsigned NoteID = DiagEngine.getCustomDiagID(DiagnosticsEngine::Note,
-                                               "Related code clone is here.");
-
-  for (CloneDetector::CloneGroup &Group : CloneGroups) {
+  for (const CloneDetector::CloneGroup &Group : CloneGroups) {
     // We group the clones by printing the first as a warning and all others
     // as a note.
-    DiagEngine.Report(Group.Sequences.front().getStartLoc(), WarnID);
-    for (unsigned i = 1; i < Group.Sequences.size(); ++i) {
-      DiagEngine.Report(Group.Sequences[i].getStartLoc(), NoteID);
-    }
+    auto R = llvm::make_unique<BugReport>(*BT_Exact, "Duplicate code detected",
+                                          makeLocation(Group.front(), Mgr));
+    R->addRange(Group.front().getSourceRange());
+
+    for (unsigned i = 1; i < Group.size(); ++i)
+      R->addNote("Similar code here", makeLocation(Group[i], Mgr),
+                 Group[i].getSourceRange());
+    BR.emitReport(std::move(R));
   }
 }
 
-void CloneChecker::reportSuspiciousClones(SourceManager &SM,
-                                          AnalysisManager &Mgr,
-                                          int MinComplexity) const {
+void CloneChecker::reportSuspiciousClones(
+    BugReporter &BR, AnalysisManager &Mgr,
+    std::vector<CloneDetector::CloneGroup> &CloneGroups) const {
+  std::vector<VariablePattern::SuspiciousClonePair> Pairs;
 
-  std::vector<CloneDetector::SuspiciousClonePair> Clones;
-  Detector.findSuspiciousClones(Clones, MinComplexity);
+  for (const CloneDetector::CloneGroup &Group : CloneGroups) {
+    for (unsigned i = 0; i < Group.size(); ++i) {
+      VariablePattern PatternA(Group[i]);
 
-  DiagnosticsEngine &DiagEngine = Mgr.getDiagnostic();
+      for (unsigned j = i + 1; j < Group.size(); ++j) {
+        VariablePattern PatternB(Group[j]);
 
-  auto SuspiciousCloneWarning = DiagEngine.getCustomDiagID(
-      DiagnosticsEngine::Warning, "suspicious code clone detected; did you "
-                                  "mean to use %0?");
-
-  auto RelatedCloneNote = DiagEngine.getCustomDiagID(
-      DiagnosticsEngine::Note, "suggestion is based on the usage of this "
-                               "variable in a similar piece of code");
-
-  auto RelatedSuspiciousCloneNote = DiagEngine.getCustomDiagID(
-      DiagnosticsEngine::Note, "suggestion is based on the usage of this "
-                               "variable in a similar piece of code; did you "
-                               "mean to use %0?");
-
-  for (CloneDetector::SuspiciousClonePair &Pair : Clones) {
-    // The first clone always has a suggestion and we report it to the user
-    // along with the place where the suggestion should be used.
-    DiagEngine.Report(Pair.FirstCloneInfo.VarRange.getBegin(),
-                      SuspiciousCloneWarning)
-        << Pair.FirstCloneInfo.VarRange << Pair.FirstCloneInfo.Suggestion;
-
-    // The second clone can have a suggestion and if there is one, we report
-    // that suggestion to the user.
-    if (Pair.SecondCloneInfo.Suggestion) {
-      DiagEngine.Report(Pair.SecondCloneInfo.VarRange.getBegin(),
-                        RelatedSuspiciousCloneNote)
-          << Pair.SecondCloneInfo.VarRange << Pair.SecondCloneInfo.Suggestion;
-      continue;
+        VariablePattern::SuspiciousClonePair ClonePair;
+        // For now, we only report clones which break the variable pattern just
+        // once because multiple differences in a pattern are an indicator that
+        // those differences are maybe intended (e.g. because it's actually a
+        // different algorithm).
+        // FIXME: In very big clones even multiple variables can be unintended,
+        // so replacing this number with a percentage could better handle such
+        // cases. On the other hand it could increase the false-positive rate
+        // for all clones if the percentage is too high.
+        if (PatternA.countPatternDifferences(PatternB, &ClonePair) == 1) {
+          Pairs.push_back(ClonePair);
+          break;
+        }
+      }
     }
+  }
 
-    // If there isn't a suggestion in the second clone, we only inform the
-    // user where we got the idea that his code could contain an error.
-    DiagEngine.Report(Pair.SecondCloneInfo.VarRange.getBegin(),
-                      RelatedCloneNote)
-        << Pair.SecondCloneInfo.VarRange;
+  if (!BT_Suspicious)
+    BT_Suspicious.reset(
+        new BugType(this, "Suspicious code clone", "Code clone"));
+
+  ASTContext &ACtx = BR.getContext();
+  SourceManager &SM = ACtx.getSourceManager();
+  AnalysisDeclContext *ADC =
+      Mgr.getAnalysisDeclContext(ACtx.getTranslationUnitDecl());
+
+  for (VariablePattern::SuspiciousClonePair &Pair : Pairs) {
+    // FIXME: We are ignoring the suggestions currently, because they are
+    // only 50% accurate (even if the second suggestion is unavailable),
+    // which may confuse the user.
+    // Think how to perform more accurate suggestions?
+
+    auto R = llvm::make_unique<BugReport>(
+        *BT_Suspicious,
+        "Potential copy-paste error; did you really mean to use '" +
+            Pair.FirstCloneInfo.Variable->getNameAsString() + "' here?",
+        PathDiagnosticLocation::createBegin(Pair.FirstCloneInfo.Mention, SM,
+                                            ADC));
+    R->addRange(Pair.FirstCloneInfo.Mention->getSourceRange());
+
+    R->addNote("Similar code using '" +
+                   Pair.SecondCloneInfo.Variable->getNameAsString() + "' here",
+               PathDiagnosticLocation::createBegin(Pair.SecondCloneInfo.Mention,
+                                                   SM, ADC),
+               Pair.SecondCloneInfo.Mention->getSourceRange());
+
+    BR.emitReport(std::move(R));
   }
 }
 

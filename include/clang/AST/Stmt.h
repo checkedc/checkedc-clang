@@ -39,6 +39,7 @@ namespace clang {
   class Expr;
   class IdentifierInfo;
   class LabelDecl;
+  class ODRHash;
   class ParmVarDecl;
   class PrinterHelper;
   struct PrintingPolicy;
@@ -56,7 +57,7 @@ namespace clang {
 
 /// Stmt - This represents one statement.
 ///
-class LLVM_ALIGNAS(LLVM_PTR_SIZE) Stmt {
+class alignas(void *) Stmt {
 public:
   enum StmtClass {
     NoStmtClass = 0,
@@ -71,10 +72,10 @@ public:
 
   // Make vanilla 'new' and 'delete' illegal for Stmts.
 protected:
-  void *operator new(size_t bytes) LLVM_NOEXCEPT {
+  void *operator new(size_t bytes) noexcept {
     llvm_unreachable("Stmts cannot be allocated with regular 'new'.");
   }
-  void operator delete(void *data) LLVM_NOEXCEPT {
+  void operator delete(void *data) noexcept {
     llvm_unreachable("Stmts cannot be released with regular 'delete'.");
   }
 
@@ -126,13 +127,13 @@ protected:
     unsigned : NumStmtBits;
 
     unsigned ValueKind : 2;
-    unsigned ObjectKind : 2;
+    unsigned ObjectKind : 3;
     unsigned TypeDependent : 1;
     unsigned ValueDependent : 1;
     unsigned InstantiationDependent : 1;
     unsigned ContainsUnexpandedParameterPack : 1;
   };
-  enum { NumExprBits = 16 };
+  enum { NumExprBits = 17 };
 
   class CharacterLiteralBitfields {
     friend class CharacterLiteral;
@@ -252,6 +253,14 @@ protected:
     unsigned NumArgs : 32 - 8 - 1 - NumExprBits;
   };
 
+  class CoawaitExprBitfields {
+    friend class CoawaitExpr;
+
+    unsigned : NumExprBits;
+
+    unsigned IsImplicit : 1;
+  };
+
   enum { NumBoundsExprKindBits = 3 };
 
   class BoundsExprBitFields {
@@ -277,6 +286,7 @@ protected:
     ObjCIndirectCopyRestoreExprBitfields ObjCIndirectCopyRestoreExprBits;
     InitListExprBitfields InitListExprBits;
     TypeTraitExprBitfields TypeTraitExprBits;
+    CoawaitExprBitfields CoawaitBits;
     BoundsExprBitFields BoundsExprBits;
   };
 
@@ -294,12 +304,12 @@ public:
     return operator new(bytes, *C, alignment);
   }
 
-  void *operator new(size_t bytes, void *mem) LLVM_NOEXCEPT { return mem; }
+  void *operator new(size_t bytes, void *mem) noexcept { return mem; }
 
-  void operator delete(void *, const ASTContext &, unsigned) LLVM_NOEXCEPT {}
-  void operator delete(void *, const ASTContext *, unsigned) LLVM_NOEXCEPT {}
-  void operator delete(void *, size_t) LLVM_NOEXCEPT {}
-  void operator delete(void *, void *) LLVM_NOEXCEPT {}
+  void operator delete(void *, const ASTContext &, unsigned) noexcept {}
+  void operator delete(void *, const ASTContext *, unsigned) noexcept {}
+  void operator delete(void *, size_t) noexcept {}
+  void operator delete(void *, void *) noexcept {}
 
 public:
   /// \brief A placeholder type used to construct an empty shell of a
@@ -350,7 +360,9 @@ protected:
 
 public:
   Stmt(StmtClass SC) {
-    static_assert(sizeof(*this) % llvm::AlignOf<void *>::Alignment == 0,
+    static_assert(sizeof(*this) == sizeof(void *),
+                  "changing bitfields changed sizeof(Stmt)");
+    static_assert(sizeof(*this) % alignof(void *) == 0,
                   "Insufficient alignment!");
     StmtBits.sClass = SC;
     if (StatisticsEnabled) Stmt::addStmtClass(SC);
@@ -397,6 +409,9 @@ public:
   /// Skip past any implicit AST nodes which might surround this
   /// statement, such as ExprWithCleanups or ImplicitCastExpr nodes.
   Stmt *IgnoreImplicit();
+  const Stmt *IgnoreImplicit() const {
+    return const_cast<Stmt *>(this)->IgnoreImplicit();
+  }
 
   /// \brief Skip no-op (attributed, compound) container stmts and skip captured
   /// stmt at the top, if \a IgnoreCaptured is true.
@@ -443,6 +458,15 @@ public:
   /// written in the source.
   void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
                bool Canonical) const;
+
+  /// \brief Calculate a unique representation for a statement that is
+  /// stable across compiler invocations.
+  ///
+  /// \param ID profile information will be stored in ID.
+  ///
+  /// \param Hash an ODRHash object which will be called where pointers would
+  /// have been used in the Profile function.
+  void ProcessODRHash(llvm::FoldingSetNodeID &ID, ODRHash& Hash) const;
 };
 
 /// DeclStmt - Adaptor class for mixing declarations with statements and

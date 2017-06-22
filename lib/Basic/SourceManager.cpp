@@ -386,8 +386,6 @@ SourceManager::~SourceManager() {
       ContentCacheAlloc.Deallocate(I->second);
     }
   }
-
-  llvm::DeleteContainerSeconds(MacroArgsCacheMap);
 }
 
 void SourceManager::clearIDTables() {
@@ -1138,6 +1136,7 @@ unsigned SourceManager::getColumnNumber(FileID FID, unsigned FilePos,
     return 1;
   }
 
+  const char *Buf = MemBuf->getBufferStart();
   // See if we just calculated the line number for this FilePos and can use
   // that to lookup the start of the line instead of searching for it.
   if (LastLineNoFileIDQuery == FID &&
@@ -1146,11 +1145,19 @@ unsigned SourceManager::getColumnNumber(FileID FID, unsigned FilePos,
     unsigned *SourceLineCache = LastLineNoContentCache->SourceLineCache;
     unsigned LineStart = SourceLineCache[LastLineNoResult - 1];
     unsigned LineEnd = SourceLineCache[LastLineNoResult];
-    if (FilePos >= LineStart && FilePos < LineEnd)
+    if (FilePos >= LineStart && FilePos < LineEnd) {
+      // LineEnd is the LineStart of the next line.
+      // A line ends with separator LF or CR+LF on Windows.
+      // FilePos might point to the last separator,
+      // but we need a column number at most 1 + the last column.
+      if (FilePos + 1 == LineEnd && FilePos > LineStart) {
+        if (Buf[FilePos - 1] == '\r' || Buf[FilePos - 1] == '\n')
+          --FilePos;
+      }
       return FilePos - LineStart + 1;
+    }
   }
 
-  const char *Buf = MemBuf->getBufferStart();
   unsigned LineStart = FilePos;
   while (LineStart && Buf[LineStart-1] != '\n' && Buf[LineStart-1] != '\r')
     --LineStart;
@@ -1437,8 +1444,8 @@ SourceManager::getFileCharacteristic(SourceLocation Loc) const {
 /// Return the filename or buffer identifier of the buffer the location is in.
 /// Note that this name does not respect \#line directives.  Use getPresumedLoc
 /// for normal clients.
-const char *SourceManager::getBufferName(SourceLocation Loc, 
-                                         bool *Invalid) const {
+StringRef SourceManager::getBufferName(SourceLocation Loc,
+                                       bool *Invalid) const {
   if (isInvalid(Loc, Invalid)) return "<invalid loc>";
 
   return getBuffer(getFileID(Loc), Invalid)->getBufferIdentifier();
@@ -1470,7 +1477,7 @@ PresumedLoc SourceManager::getPresumedLoc(SourceLocation Loc,
   // To get the source name, first consult the FileEntry (if one exists)
   // before the MemBuffer as this will avoid unnecessarily paging in the
   // MemBuffer.
-  const char *Filename;
+  StringRef Filename;
   if (C->OrigEntry)
     Filename = C->OrigEntry->getName();
   else
@@ -1513,7 +1520,7 @@ PresumedLoc SourceManager::getPresumedLoc(SourceLocation Loc,
     }
   }
 
-  return PresumedLoc(Filename, LineNo, ColNo, IncludeLoc);
+  return PresumedLoc(Filename.data(), LineNo, ColNo, IncludeLoc);
 }
 
 /// \brief Returns whether the PresumedLoc for a given SourceLocation is
@@ -1784,13 +1791,10 @@ SourceLocation SourceManager::translateLineCol(FileID FID,
 ///     0   -> SourceLocation()
 ///     100 -> Expanded macro arg location
 ///     110 -> SourceLocation()
-void SourceManager::computeMacroArgsCache(MacroArgsMap *&CachePtr,
+void SourceManager::computeMacroArgsCache(MacroArgsMap &MacroArgsCache,
                                           FileID FID) const {
   assert(FID.isValid());
-  assert(!CachePtr);
 
-  CachePtr = new MacroArgsMap();
-  MacroArgsMap &MacroArgsCache = *CachePtr;
   // Initially no macro argument chunk is present.
   MacroArgsCache.insert(std::make_pair(0, SourceLocation()));
 
@@ -1940,9 +1944,11 @@ SourceManager::getMacroArgExpandedLocation(SourceLocation Loc) const {
   if (FID.isInvalid())
     return Loc;
 
-  MacroArgsMap *&MacroArgsCache = MacroArgsCacheMap[FID];
-  if (!MacroArgsCache)
-    computeMacroArgsCache(MacroArgsCache, FID);
+  std::unique_ptr<MacroArgsMap> &MacroArgsCache = MacroArgsCacheMap[FID];
+  if (!MacroArgsCache) {
+    MacroArgsCache = llvm::make_unique<MacroArgsMap>();
+    computeMacroArgsCache(*MacroArgsCache, FID);
+  }
 
   assert(!MacroArgsCache->empty());
   MacroArgsMap::iterator I = MacroArgsCache->upper_bound(Offset);
@@ -2095,10 +2101,10 @@ bool SourceManager::isBeforeInTranslationUnit(SourceLocation LHS,
 
   // Clear the lookup cache, it depends on a common location.
   IsBeforeInTUCache.clear();
-  const char *LB = getBuffer(LOffs.first)->getBufferIdentifier();
-  const char *RB = getBuffer(ROffs.first)->getBufferIdentifier();
-  bool LIsBuiltins = strcmp("<built-in>", LB) == 0;
-  bool RIsBuiltins = strcmp("<built-in>", RB) == 0;
+  StringRef LB = getBuffer(LOffs.first)->getBufferIdentifier();
+  StringRef RB = getBuffer(ROffs.first)->getBufferIdentifier();
+  bool LIsBuiltins = LB == "<built-in>";
+  bool RIsBuiltins = RB == "<built-in>";
   // Sort built-in before non-built-in.
   if (LIsBuiltins || RIsBuiltins) {
     if (LIsBuiltins != RIsBuiltins)
@@ -2107,8 +2113,8 @@ bool SourceManager::isBeforeInTranslationUnit(SourceLocation LHS,
     // lower IDs come first.
     return LOffs.first < ROffs.first;
   }
-  bool LIsAsm = strcmp("<inline asm>", LB) == 0;
-  bool RIsAsm = strcmp("<inline asm>", RB) == 0;
+  bool LIsAsm = LB == "<inline asm>";
+  bool RIsAsm = RB == "<inline asm>";
   // Sort assembler after built-ins, but before the rest.
   if (LIsAsm || RIsAsm) {
     if (LIsAsm != RIsAsm)
@@ -2116,8 +2122,8 @@ bool SourceManager::isBeforeInTranslationUnit(SourceLocation LHS,
     assert(LOffs.first == ROffs.first);
     return false;
   }
-  bool LIsScratch = strcmp("<scratch space>", LB) == 0;
-  bool RIsScratch = strcmp("<scratch space>", RB) == 0;
+  bool LIsScratch = LB == "<scratch space>";
+  bool RIsScratch = RB == "<scratch space>";
   // Sort scratch after inline asm, but before the rest.
   if (LIsScratch || RIsScratch) {
     if (LIsScratch != RIsScratch)

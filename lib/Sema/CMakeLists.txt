@@ -4,6 +4,7 @@ set(LLVM_LINK_COMPONENTS
 
 if (MSVC)
   set_source_files_properties(SemaExpr.cpp PROPERTIES COMPILE_FLAGS /bigobj)
+  set_source_files_properties(SemaBounds.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
 add_clang_library(clangSema

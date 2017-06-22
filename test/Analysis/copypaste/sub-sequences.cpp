@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -analyze -std=c++11 -analyzer-checker=alpha.clone.CloneChecker -verify %s
+// RUN: %clang_analyze_cc1 -std=c++11 -analyzer-checker=alpha.clone.CloneChecker -verify %s
 
 // This tests if sub-sequences can match with normal sequences.
 
@@ -7,14 +7,14 @@ void log();
 
 int max(int a, int b) {
   log2(a);
-  log(); // expected-warning{{Detected code clone.}}
+  log(); // expected-warning{{Duplicate code detected}}
   if (a > b)
     return a;
   return b;
 }
 
 int maxClone(int a, int b) {
-  log(); // expected-note{{Related code clone is here.}}
+  log(); // expected-note{{Similar code here}}
   if (a > b)
     return a;
   return b;

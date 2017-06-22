@@ -34,7 +34,8 @@ class CallGraphNode;
 class CallGraph : public RecursiveASTVisitor<CallGraph> {
   friend class CallGraphNode;
 
-  typedef llvm::DenseMap<const Decl *, CallGraphNode *> FunctionMapTy;
+  typedef llvm::DenseMap<const Decl *, std::unique_ptr<CallGraphNode>>
+      FunctionMapTy;
 
   /// FunctionMap owns all CallGraphNodes.
   FunctionMapTy FunctionMap;
@@ -97,7 +98,7 @@ public:
   bool VisitFunctionDecl(FunctionDecl *FD) {
     // We skip function template definitions, as their semantics is
     // only determined when they are instantiated.
-    if (includeInGraph(FD)) {
+    if (includeInGraph(FD) && FD->isThisDeclarationADefinition()) {
       // Add all blocks declared inside this function to the graph.
       addNodesForBlocks(FD);
       // If this function has external linkage, anything could call it.
@@ -156,7 +157,7 @@ public:
   inline bool empty() const {return CalledFunctions.empty(); }
   inline unsigned size() const {return CalledFunctions.size(); }
 
-  void addCallee(CallGraphNode *N, CallGraph *CG) {
+  void addCallee(CallGraphNode *N) {
     CalledFunctions.push_back(N);
   }
 
@@ -198,9 +199,11 @@ template <> struct GraphTraits<clang::CallGraph*>
   static NodeType *getEntryNode(clang::CallGraph *CGN) {
     return CGN->getRoot();  // Start at the external node!
   }
-  typedef std::pair<const clang::Decl*, clang::CallGraphNode*> PairTy;
 
-  static clang::CallGraphNode *CGGetValue(PairTy P) { return P.second; }
+  static clang::CallGraphNode *
+  CGGetValue(clang::CallGraph::const_iterator::value_type &P) {
+    return P.second.get();
+  }
 
   // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
   typedef mapped_iterator<clang::CallGraph::iterator, decltype(&CGGetValue)>
@@ -223,9 +226,11 @@ template <> struct GraphTraits<const clang::CallGraph*> :
   static NodeType *getEntryNode(const clang::CallGraph *CGN) {
     return CGN->getRoot();
   }
-  typedef std::pair<const clang::Decl*, clang::CallGraphNode*> PairTy;
 
-  static clang::CallGraphNode *CGGetValue(PairTy P) { return P.second; }
+  static clang::CallGraphNode *
+  CGGetValue(clang::CallGraph::const_iterator::value_type &P) {
+    return P.second.get();
+  }
 
   // nodes_iterator/begin/end - Allow iteration over all nodes in the graph
   typedef mapped_iterator<clang::CallGraph::const_iterator,

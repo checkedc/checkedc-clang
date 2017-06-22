@@ -458,6 +458,8 @@ struct ComputeRegionCounts : public ConstStmtVisitor<ComputeRegionCounts> {
 
   void VisitSwitchStmt(const SwitchStmt *S) {
     RecordStmtCount(S);
+    if (S->getInit())
+      Visit(S->getInit());
     Visit(S->getCond());
     CurrentCount = 0;
     BreakContinueStack.push_back(BreakContinue());
@@ -488,6 +490,8 @@ struct ComputeRegionCounts : public ConstStmtVisitor<ComputeRegionCounts> {
   void VisitIfStmt(const IfStmt *S) {
     RecordStmtCount(S);
     uint64_t ParentCount = CurrentCount;
+    if (S->getInit())
+      Visit(S->getInit());
     Visit(S->getCond());
 
     // Counter tracks the "then" part of an if statement. The count for
@@ -608,7 +612,7 @@ uint64_t PGOHash::finalize() {
   llvm::MD5::MD5Result Result;
   MD5.final(Result);
   using namespace llvm::support;
-  return endian::read<uint64_t, little, unaligned>(Result);
+  return Result.low();
 }
 
 void CodeGenPGO::assignRegionCounters(GlobalDecl GD, llvm::Function *Fn) {
@@ -622,12 +626,14 @@ void CodeGenPGO::assignRegionCounters(GlobalDecl GD, llvm::Function *Fn) {
   // Constructors and destructors may be represented by several functions in IR.
   // If so, instrument only base variant, others are implemented by delegation
   // to the base one, it would be counted twice otherwise.
-  if (CGM.getTarget().getCXXABI().hasConstructorVariants() &&
-      ((isa<CXXConstructorDecl>(GD.getDecl()) &&
-        GD.getCtorType() != Ctor_Base) ||
-       (isa<CXXDestructorDecl>(GD.getDecl()) &&
-        GD.getDtorType() != Dtor_Base))) {
+  if (CGM.getTarget().getCXXABI().hasConstructorVariants()) {
+    if (isa<CXXDestructorDecl>(D) && GD.getDtorType() != Dtor_Base)
       return;
+
+    if (const auto *CCD = dyn_cast<CXXConstructorDecl>(D))
+      if (GD.getCtorType() != Ctor_Base &&
+          CodeGenFunction::IsConstructorDelegationValid(CCD))
+        return;
   }
   CGM.ClearUnusedCoverageMapping(D);
   setFuncName(Fn);
@@ -660,7 +666,7 @@ void CodeGenPGO::mapRegionCounters(const Decl *D) {
 }
 
 bool CodeGenPGO::skipRegionMappingForDecl(const Decl *D) {
-  if (SkipCoverageMapping)
+  if (!D->getBody())
     return true;
 
   // Don't map the functions in system headers.
@@ -733,7 +739,8 @@ CodeGenPGO::applyFunctionAttributes(llvm::IndexedInstrProfReader *PGOReader,
   Fn->setEntryCount(FunctionCount);
 }
 
-void CodeGenPGO::emitCounterIncrement(CGBuilderTy &Builder, const Stmt *S) {
+void CodeGenPGO::emitCounterIncrement(CGBuilderTy &Builder, const Stmt *S,
+                                      llvm::Value *StepV) {
   if (!CGM.getCodeGenOpts().hasProfileClangInstr() || !RegionCounterMap)
     return;
   if (!Builder.GetInsertBlock())
@@ -741,11 +748,18 @@ void CodeGenPGO::emitCounterIncrement(CGBuilderTy &Builder, const Stmt *S) {
 
   unsigned Counter = (*RegionCounterMap)[S];
   auto *I8PtrTy = llvm::Type::getInt8PtrTy(CGM.getLLVMContext());
-  Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::instrprof_increment),
-                     {llvm::ConstantExpr::getBitCast(FuncNameVar, I8PtrTy),
-                      Builder.getInt64(FunctionHash),
-                      Builder.getInt32(NumRegionCounters),
-                      Builder.getInt32(Counter)});
+
+  llvm::Value *Args[] = {llvm::ConstantExpr::getBitCast(FuncNameVar, I8PtrTy),
+                         Builder.getInt64(FunctionHash),
+                         Builder.getInt32(NumRegionCounters),
+                         Builder.getInt32(Counter), StepV};
+  if (!StepV)
+    Builder.CreateCall(CGM.getIntrinsic(llvm::Intrinsic::instrprof_increment),
+                       makeArrayRef(Args, 4));
+  else
+    Builder.CreateCall(
+        CGM.getIntrinsic(llvm::Intrinsic::instrprof_increment_step),
+        makeArrayRef(Args));
 }
 
 // This method either inserts a call to the profile run-time during

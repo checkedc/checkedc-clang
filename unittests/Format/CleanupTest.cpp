@@ -33,6 +33,15 @@ protected:
     EXPECT_TRUE(static_cast<bool>(Result));
     return *Result;
   }
+
+  // Returns code after cleanup around \p Offsets.
+  std::string cleanupAroundOffsets(llvm::ArrayRef<unsigned> Offsets,
+                                   llvm::StringRef Code) {
+    std::vector<tooling::Range> Ranges;
+    for (auto Offset : Offsets)
+      Ranges.push_back(tooling::Range(Offset, 0));
+    return cleanup(Code, Ranges);
+  }
 };
 
 TEST_F(CleanupTest, DeleteEmptyNamespaces) {
@@ -47,12 +56,7 @@ TEST_F(CleanupTest, DeleteEmptyNamespaces) {
   std::string Expected = "\n\n\n\n\nnamespace C {\n"
                          "namespace D { int i; }\n   \n"
                          "}";
-  std::vector<tooling::Range> Ranges;
-  Ranges.push_back(tooling::Range(28, 0));
-  Ranges.push_back(tooling::Range(91, 6));
-  Ranges.push_back(tooling::Range(132, 0));
-  std::string Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({28, 91, 132}, Code));
 }
 
 TEST_F(CleanupTest, NamespaceWithSyntaxError) {
@@ -68,8 +72,7 @@ TEST_F(CleanupTest, NamespaceWithSyntaxError) {
                          "namespace D int i; }\n   \n"
                          "}";
   std::vector<tooling::Range> Ranges(1, tooling::Range(0, Code.size()));
-  std::string Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanup(Code, Ranges));
 }
 
 TEST_F(CleanupTest, EmptyNamespaceNotAffected) {
@@ -80,9 +83,7 @@ TEST_F(CleanupTest, EmptyNamespaceNotAffected) {
   std::string Expected = "namespace A {\n\n"
                          "namespace {\n\n}}";
   // Set the changed range to be the second "\n".
-  std::vector<tooling::Range> Ranges(1, tooling::Range(14, 0));
-  std::string Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({14}, Code));
 }
 
 TEST_F(CleanupTest, EmptyNamespaceWithCommentsNoBreakBeforeBrace) {
@@ -118,55 +119,94 @@ TEST_F(CleanupTest, EmptyNamespaceWithCommentsBreakBeforeBrace) {
   EXPECT_EQ(Expected, Result);
 }
 
-TEST_F(CleanupTest, CtorInitializationSimpleRedundantComma) {
-  std::string Code = "class A {\nA() : , {} };";
-  std::string Expected = "class A {\nA()  {} };";
-  std::vector<tooling::Range> Ranges;
-  Ranges.push_back(tooling::Range(17, 0));
-  Ranges.push_back(tooling::Range(19, 0));
-  std::string Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
-
-  Code = "class A {\nA() : x(1), {} };";
-  Expected = "class A {\nA() : x(1) {} };";
-  Ranges.clear();
-  Ranges.push_back(tooling::Range(23, 0));
-  Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
-
-  Code = "class A {\nA() :,,,,{} };";
-  Expected = "class A {\nA() {} };";
-  Ranges.clear();
-  Ranges.push_back(tooling::Range(15, 0));
-  Result = cleanup(Code, Ranges);
+TEST_F(CleanupTest, EmptyNamespaceAroundConditionalCompilation) {
+  std::string Code = "#ifdef A\n"
+                     "int a;\n"
+                     "int b;\n"
+                     "#else\n"
+                     "#endif\n"
+                     "namespace {}";
+  std::string Expected = "#ifdef A\n"
+                         "int a;\n"
+                         "int b;\n"
+                         "#else\n"
+                         "#endif\n";
+  std::vector<tooling::Range> Ranges(1, tooling::Range(0, Code.size()));
+  FormatStyle Style = getLLVMStyle();
+  std::string Result = cleanup(Code, Ranges, Style);
   EXPECT_EQ(Expected, Result);
 }
 
-TEST_F(CleanupTest, ListSimpleRedundantComma) {
+TEST_F(CleanupTest, CtorInitializationSimpleRedundantComma) {
+  std::string Code = "class A {\nA() : , {} };";
+  std::string Expected = "class A {\nA()  {} };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({17, 19}, Code));
+
+  Code = "class A {\nA() : x(1), {} };";
+  Expected = "class A {\nA() : x(1) {} };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({23}, Code));
+
+  Code = "class A {\nA() :,,,,{} };";
+  Expected = "class A {\nA() {} };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({15}, Code));
+}
+
+TEST_F(CleanupTest, CtorInitializationSimpleRedundantColon) {
+  std::string Code = "class A {\nA() : =default; };";
+  std::string Expected = "class A {\nA()  =default; };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({15}, Code));
+
+  Code = "class A {\nA() : , =default; };";
+  Expected = "class A {\nA()  =default; };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({15}, Code));
+}
+
+TEST_F(CleanupTest, ListRedundantComma) {
   std::string Code = "void f() { std::vector<int> v = {1,2,,,3,{4,5}}; }";
   std::string Expected = "void f() { std::vector<int> v = {1,2,3,{4,5}}; }";
-  std::vector<tooling::Range> Ranges;
-  Ranges.push_back(tooling::Range(40, 0));
-  std::string Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({40}, Code));
 
   Code = "int main() { f(1,,2,3,,4);}";
   Expected = "int main() { f(1,2,3,4);}";
-  Ranges.clear();
-  Ranges.push_back(tooling::Range(17, 0));
-  Ranges.push_back(tooling::Range(22, 0));
-  Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({17, 22}, Code));
+}
+
+TEST_F(CleanupTest, TrailingCommaInParens) {
+  std::string Code = "int main() { f(,1,,2,3,f(1,2,),4,,);}";
+  std::string Expected = "int main() { f(1,2,3,f(1,2),4);}";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({15, 18, 29, 33}, Code));
+}
+
+TEST_F(CleanupTest, TrailingCommaInBraces) {
+  // Trainling comma is allowed in brace list.
+  // If there was trailing comma in the original code, then trailing comma is
+  // preserved. In this example, element between the last two commas is deleted
+  // causing the second-last comma to be redundant.
+  std::string Code = "void f() { std::vector<int> v = {1,2,3,,}; }";
+  std::string Expected = "void f() { std::vector<int> v = {1,2,3,}; }";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({39}, Code));
+
+  // If there was no trailing comma in the original code, then trainling comma
+  // introduced by replacements should be cleaned up. In this example, the
+  // element after the last comma is deleted causing the last comma to be
+  // redundant.
+  Code = "void f() { std::vector<int> v = {1,2,3,}; }";
+  // FIXME: redundant trailing comma should be removed.
+  Expected = "void f() { std::vector<int> v = {1,2,3,}; }";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({39}, Code));
+
+  // Still no trailing comma in the original code, but two elements are deleted,
+  // which makes it seems like there was trailing comma.
+  Code = "void f() { std::vector<int> v = {1, 2, 3, , }; }";
+  // FIXME: redundant trailing comma should also be removed.
+  Expected = "void f() { std::vector<int> v = {1, 2, 3,  }; }";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({42, 44}, Code));
 }
 
 TEST_F(CleanupTest, CtorInitializationBracesInParens) {
   std::string Code = "class A {\nA() : x({1}),, {} };";
   std::string Expected = "class A {\nA() : x({1}) {} };";
-  std::vector<tooling::Range> Ranges;
-  Ranges.push_back(tooling::Range(24, 0));
-  Ranges.push_back(tooling::Range(26, 0));
-  std::string Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({24, 26}, Code));
 }
 
 TEST_F(CleanupTest, RedundantCommaNotInAffectedRanges) {
@@ -192,35 +232,31 @@ TEST_F(CleanupTest, RemoveCommentsAroundDeleteCode) {
   std::string Code =
       "class A {\nA() : x({1}), /* comment */, /* comment */ {} };";
   std::string Expected = "class A {\nA() : x({1}) {} };";
-  std::vector<tooling::Range> Ranges;
-  Ranges.push_back(tooling::Range(25, 0));
-  Ranges.push_back(tooling::Range(40, 0));
-  std::string Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({25, 40}, Code));
 
   Code = "class A {\nA() : x({1}), // comment\n {} };";
   Expected = "class A {\nA() : x({1})\n {} };";
-  Ranges = std::vector<tooling::Range>(1, tooling::Range(25, 0));
-  Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({25}, Code));
 
   Code = "class A {\nA() : x({1}), // comment\n , y(1),{} };";
   Expected = "class A {\nA() : x({1}),  y(1){} };";
-  Ranges = std::vector<tooling::Range>(1, tooling::Range(38, 0));
-  Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({38}, Code));
 
   Code = "class A {\nA() : x({1}), \n/* comment */, y(1),{} };";
   Expected = "class A {\nA() : x({1}), \n y(1){} };";
-  Ranges = std::vector<tooling::Range>(1, tooling::Range(40, 0));
-  Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({40}, Code));
 
   Code = "class A {\nA() : , // comment\n y(1),{} };";
   Expected = "class A {\nA() :  // comment\n y(1){} };";
-  Ranges = std::vector<tooling::Range>(1, tooling::Range(17, 0));
-  Result = cleanup(Code, Ranges);
-  EXPECT_EQ(Expected, Result);
+  EXPECT_EQ(Expected, cleanupAroundOffsets({17}, Code));
+
+  Code = "class A {\nA() // comment\n : ,,{} };";
+  Expected = "class A {\nA() // comment\n {} };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({30}, Code));
+
+  Code = "class A {\nA() // comment\n : ,,=default; };";
+  Expected = "class A {\nA() // comment\n =default; };";
+  EXPECT_EQ(Expected, cleanupAroundOffsets({30}, Code));
 }
 
 TEST_F(CleanupTest, CtorInitializerInNamespace) {
@@ -247,12 +283,16 @@ protected:
     return tooling::Replacement(FileName, Offset, Length, Text);
   }
 
-  tooling::Replacement createInsertion(StringRef HeaderName) {
-    return createReplacement(UINT_MAX, 0, HeaderName);
+  tooling::Replacement createInsertion(StringRef IncludeDirective) {
+    return createReplacement(UINT_MAX, 0, IncludeDirective);
+  }
+
+  tooling::Replacement createDeletion(StringRef HeaderName) {
+    return createReplacement(UINT_MAX, 1, HeaderName);
   }
 
   inline std::string apply(StringRef Code,
-                           const tooling::Replacements Replaces) {
+                           const tooling::Replacements &Replaces) {
     auto CleanReplaces = cleanupAroundReplacements(Code, Replaces, Style);
     EXPECT_TRUE(static_cast<bool>(CleanReplaces))
         << llvm::toString(CleanReplaces.takeError()) << "\n";
@@ -262,8 +302,7 @@ protected:
   }
 
   inline std::string formatAndApply(StringRef Code,
-                                    const tooling::Replacements Replaces) {
-
+                                    const tooling::Replacements &Replaces) {
     auto CleanReplaces = cleanupAroundReplacements(Code, Replaces, Style);
     EXPECT_TRUE(static_cast<bool>(CleanReplaces))
         << llvm::toString(CleanReplaces.takeError()) << "\n";
@@ -674,6 +713,19 @@ TEST_F(CleanUpReplacementsTest, IfNDefWithNoDefine) {
   EXPECT_EQ(Expected, apply(Code, Replaces));
 }
 
+TEST_F(CleanUpReplacementsTest, FakeHeaderGuard) {
+  std::string Code = "// comment \n"
+                     "#ifndef X\n"
+                     "#define 1\n";
+  std::string Expected = "// comment \n"
+                         "#include <vector>\n"
+                         "#ifndef X\n"
+                         "#define 1\n";
+  tooling::Replacements Replaces =
+      toReplacements({createInsertion("#include <vector>")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
 TEST_F(CleanUpReplacementsTest, HeaderGuardWithComment) {
   std::string Code = "// comment \n"
                      "#ifndef X // comment\n"
@@ -705,13 +757,21 @@ TEST_F(CleanUpReplacementsTest, EmptyCode) {
   EXPECT_EQ(Expected, apply(Code, Replaces));
 }
 
-// FIXME: although this case does not crash, the insertion is wrong. A '\n'
-// should be inserted between the two #includes.
 TEST_F(CleanUpReplacementsTest, NoNewLineAtTheEndOfCode) {
   std::string Code = "#include <map>";
-  std::string Expected = "#include <map>#include <vector>\n";
+  std::string Expected = "#include <map>\n#include <vector>\n";
   tooling::Replacements Replaces =
       toReplacements({createInsertion("#include <vector>")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, NoNewLineAtTheEndOfCodeMultipleInsertions) {
+  std::string Code = "#include <map>";
+  std::string Expected =
+      "#include <map>\n#include <string>\n#include <vector>\n";
+  tooling::Replacements Replaces =
+      toReplacements({createInsertion("#include <string>"),
+                      createInsertion("#include <vector>")});
   EXPECT_EQ(Expected, apply(Code, Replaces));
 }
 
@@ -737,6 +797,168 @@ TEST_F(CleanUpReplacementsTest, AddIncludesWithDifferentForms) {
   tooling::Replacements Replaces =
       toReplacements({createInsertion("#include \"vector\""),
                       createInsertion("#include <a.h>")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, SimpleDeleteIncludes) {
+  std::string Code = "#include \"abc.h\"\n"
+                     "#include \"xyz.h\" // comment\n"
+                     "#include \"xyz\"\n"
+                     "int x;\n";
+  std::string Expected = "#include \"xyz\"\n"
+                         "int x;\n";
+  tooling::Replacements Replaces =
+      toReplacements({createDeletion("abc.h"), createDeletion("xyz.h")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, DeleteAllCode) {
+  std::string Code = "#include \"xyz.h\"\n"
+                     "#include <xyz.h>";
+  std::string Expected = "";
+  tooling::Replacements Replaces = toReplacements({createDeletion("xyz.h")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, DeleteAllIncludesWithSameNameIfNoType) {
+  std::string Code = "#include \"xyz.h\"\n"
+                     "#include \"xyz\"\n"
+                     "#include <xyz.h>\n";
+  std::string Expected = "#include \"xyz\"\n";
+  tooling::Replacements Replaces = toReplacements({createDeletion("xyz.h")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, OnlyDeleteHeaderWithType) {
+  std::string Code = "#include \"xyz.h\"\n"
+                     "#include \"xyz\"\n"
+                     "#include <xyz.h>";
+  std::string Expected = "#include \"xyz.h\"\n"
+                         "#include \"xyz\"\n";
+  tooling::Replacements Replaces = toReplacements({createDeletion("<xyz.h>")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, InsertionAndDeleteHeader) {
+  std::string Code = "#include \"a.h\"\n"
+                     "\n"
+                     "#include <vector>\n";
+  std::string Expected = "#include \"a.h\"\n"
+                         "\n"
+                         "#include <map>\n";
+  tooling::Replacements Replaces = toReplacements(
+      {createDeletion("<vector>"), createInsertion("#include <map>")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, NoInsertionAfterCode) {
+  std::string Code = "#include \"a.h\"\n"
+                     "void f() {}\n"
+                     "#include \"b.h\"\n";
+  std::string Expected = "#include \"a.h\"\n"
+                         "#include \"c.h\"\n"
+                         "void f() {}\n"
+                         "#include \"b.h\"\n";
+  tooling::Replacements Replaces = toReplacements(
+      {createInsertion("#include \"c.h\"")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, NoInsertionInStringLiteral) {
+  std::string Code = "#include \"a.h\"\n"
+                     "const char[] = R\"(\n"
+                     "#include \"b.h\"\n"
+                     ")\";\n";
+  std::string Expected = "#include \"a.h\"\n"
+                         "#include \"c.h\"\n"
+                         "const char[] = R\"(\n"
+                         "#include \"b.h\"\n"
+                         ")\";\n";
+  tooling::Replacements Replaces =
+      toReplacements({createInsertion("#include \"c.h\"")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, NoInsertionAfterOtherDirective) {
+  std::string Code = "#include \"a.h\"\n"
+                     "#ifdef X\n"
+                     "#include \"b.h\"\n"
+                     "#endif\n";
+  std::string Expected = "#include \"a.h\"\n"
+                         "#include \"c.h\"\n"
+                         "#ifdef X\n"
+                         "#include \"b.h\"\n"
+                         "#endif\n";
+  tooling::Replacements Replaces = toReplacements(
+      {createInsertion("#include \"c.h\"")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, CanInsertAfterLongSystemInclude) {
+  std::string Code = "#include \"a.h\"\n"
+                     "// comment\n\n"
+                     "#include <a/b/c/d/e.h>\n";
+  std::string Expected = "#include \"a.h\"\n"
+                         "// comment\n\n"
+                         "#include <a/b/c/d/e.h>\n"
+                         "#include <x.h>\n";
+  tooling::Replacements Replaces =
+      toReplacements({createInsertion("#include <x.h>")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, CanInsertAfterComment) {
+  std::string Code = "#include \"a.h\"\n"
+                     "// Comment\n"
+                     "\n"
+                     "/* Comment */\n"
+                     "// Comment\n"
+                     "\n"
+                     "#include \"b.h\"\n";
+  std::string Expected = "#include \"a.h\"\n"
+                         "// Comment\n"
+                         "\n"
+                         "/* Comment */\n"
+                         "// Comment\n"
+                         "\n"
+                         "#include \"b.h\"\n"
+                         "#include \"c.h\"\n";
+  tooling::Replacements Replaces =
+      toReplacements({createInsertion("#include \"c.h\"")});
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, LongCommentsInTheBeginningOfFile) {
+  std::string Code = "// Loooooooooooooooooooooooooong comment\n"
+                     "// Loooooooooooooooooooooooooong comment\n"
+                     "// Loooooooooooooooooooooooooong comment\n"
+                     "#include <string>\n"
+                     "#include <vector>\n"
+                     "\n"
+                     "#include \"a.h\"\n"
+                     "#include \"b.h\"\n";
+  std::string Expected = "// Loooooooooooooooooooooooooong comment\n"
+                         "// Loooooooooooooooooooooooooong comment\n"
+                         "// Loooooooooooooooooooooooooong comment\n"
+                         "#include <string>\n"
+                         "#include <vector>\n"
+                         "\n"
+                         "#include \"a.h\"\n"
+                         "#include \"b.h\"\n"
+                         "#include \"third.h\"\n";
+  tooling::Replacements Replaces =
+      toReplacements({createInsertion("#include \"third.h\"")});
+  Style = format::getGoogleStyle(format::FormatStyle::LanguageKind::LK_Cpp);
+  EXPECT_EQ(Expected, apply(Code, Replaces));
+}
+
+TEST_F(CleanUpReplacementsTest, CanDeleteAfterCode) {
+  std::string Code = "#include \"a.h\"\n"
+                     "void f() {}\n"
+                     "#include \"b.h\"\n";
+  std::string Expected = "#include \"a.h\"\n"
+                         "void f() {}\n";
+  tooling::Replacements Replaces = toReplacements({createDeletion("\"b.h\"")});
   EXPECT_EQ(Expected, apply(Code, Replaces));
 }
 

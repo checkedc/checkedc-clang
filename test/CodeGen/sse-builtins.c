@@ -1,7 +1,5 @@
-// RUN: %clang_cc1 %s -triple=x86_64-apple-darwin -target-feature +sse -emit-llvm -o - -Wall -Werror | FileCheck %s
+// RUN: %clang_cc1 -ffreestanding %s -triple=x86_64-apple-darwin -target-feature +sse -emit-llvm -o - -Wall -Werror | FileCheck %s
 
-// Don't include mm_malloc.h, it's system specific.
-#define __MM_MALLOC_H
 
 #include <x86intrin.h>
 
@@ -804,7 +802,7 @@ int test_mm_ucomineq_ss(__m128 A, __m128 B) {
 
 __m128 test_mm_undefined_ps() {
   // CHECK-LABEL: @test_mm_undefined_ps
-  // CHECK: ret <4 x float> undef
+  // CHECK: ret <4 x float> zeroinitializer
   return _mm_undefined_ps();
 }
 

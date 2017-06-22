@@ -40,10 +40,10 @@ bool Preprocessor::isInPrimaryFile() const {
   // If there are any stacked lexers, we're in a #include.
   assert(IsFileLexer(IncludeMacroStack[0]) &&
          "Top level include stack isn't our primary lexer?");
-  for (unsigned i = 1, e = IncludeMacroStack.size(); i != e; ++i)
-    if (IsFileLexer(IncludeMacroStack[i]))
-      return false;
-  return true;
+  return std::none_of(IncludeMacroStack.begin() + 1, IncludeMacroStack.end(),
+                      [this](const IncludeStackInfo &ISI) -> bool {
+    return IsFileLexer(ISI);
+  });
 }
 
 /// getCurrentLexer - Return the current file lexer being lexed from.  Note
@@ -54,8 +54,7 @@ PreprocessorLexer *Preprocessor::getCurrentFileLexer() const {
     return CurPPLexer;
 
   // Look for a stacked lexer.
-  for (unsigned i = IncludeMacroStack.size(); i != 0; --i) {
-    const IncludeStackInfo& ISI = IncludeMacroStack[i-1];
+  for (const IncludeStackInfo &ISI : llvm::reverse(IncludeMacroStack)) {
     if (IsFileLexer(ISI))
       return ISI.ThePPLexer;
   }
@@ -288,6 +287,48 @@ const char *Preprocessor::getCurLexerEndPos() {
   return EndPos;
 }
 
+static void collectAllSubModulesWithUmbrellaHeader(
+    const Module &Mod, SmallVectorImpl<const Module *> &SubMods) {
+  if (Mod.getUmbrellaHeader())
+    SubMods.push_back(&Mod);
+  for (auto *M : Mod.submodules())
+    collectAllSubModulesWithUmbrellaHeader(*M, SubMods);
+}
+
+void Preprocessor::diagnoseMissingHeaderInUmbrellaDir(const Module &Mod) {
+  assert(Mod.getUmbrellaHeader() && "Module must use umbrella header");
+  SourceLocation StartLoc =
+      SourceMgr.getLocForStartOfFile(SourceMgr.getMainFileID());
+  if (getDiagnostics().isIgnored(diag::warn_uncovered_module_header, StartLoc))
+    return;
+
+  ModuleMap &ModMap = getHeaderSearchInfo().getModuleMap();
+  const DirectoryEntry *Dir = Mod.getUmbrellaDir().Entry;
+  vfs::FileSystem &FS = *FileMgr.getVirtualFileSystem();
+  std::error_code EC;
+  for (vfs::recursive_directory_iterator Entry(FS, Dir->getName(), EC), End;
+       Entry != End && !EC; Entry.increment(EC)) {
+    using llvm::StringSwitch;
+
+    // Check whether this entry has an extension typically associated with
+    // headers.
+    if (!StringSwitch<bool>(llvm::sys::path::extension(Entry->getName()))
+             .Cases(".h", ".H", ".hh", ".hpp", true)
+             .Default(false))
+      continue;
+
+    if (const FileEntry *Header = getFileManager().getFile(Entry->getName()))
+      if (!getSourceManager().hasFileInfo(Header)) {
+        if (!ModMap.isHeaderInUnavailableModule(Header)) {
+          // Find the relative path that would access this header.
+          SmallString<128> RelativePath;
+          computeRelativePath(FileMgr, Dir, Header, RelativePath);
+          Diag(StartLoc, diag::warn_uncovered_module_header)
+              << Mod.getFullModuleName() << RelativePath;
+        }
+      }
+  }
+}
 
 /// HandleEndOfFile - This callback is invoked when the lexer hits the end of
 /// the current file.  This either returns the EOF token or pops a level off
@@ -304,9 +345,8 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
       if (const FileEntry *FE = CurPPLexer->getFileEntry()) {
         HeaderInfo.SetFileControllingMacro(FE, ControllingMacro);
         if (MacroInfo *MI =
-              getMacroInfo(const_cast<IdentifierInfo*>(ControllingMacro))) {
-          MI->UsedForHeaderGuard = true;
-        }
+              getMacroInfo(const_cast<IdentifierInfo*>(ControllingMacro)))
+          MI->setUsedForHeaderGuard(true);
         if (const IdentifierInfo *DefinedMacro =
               CurPPLexer->MIOpt.GetDefinedMacro()) {
           if (!isMacroDefined(ControllingMacro) &&
@@ -475,44 +515,14 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
   }
 
   // If we are building a module that has an umbrella header, make sure that
-  // each of the headers within the directory covered by the umbrella header
-  // was actually included by the umbrella header.
+  // each of the headers within the directory, including all submodules, is
+  // covered by the umbrella header was actually included by the umbrella
+  // header.
   if (Module *Mod = getCurrentModule()) {
-    if (Mod->getUmbrellaHeader()) {
-      SourceLocation StartLoc
-        = SourceMgr.getLocForStartOfFile(SourceMgr.getMainFileID());
-
-      if (!getDiagnostics().isIgnored(diag::warn_uncovered_module_header,
-                                      StartLoc)) {
-        ModuleMap &ModMap = getHeaderSearchInfo().getModuleMap();
-        const DirectoryEntry *Dir = Mod->getUmbrellaDir().Entry;
-        vfs::FileSystem &FS = *FileMgr.getVirtualFileSystem();
-        std::error_code EC;
-        for (vfs::recursive_directory_iterator Entry(FS, Dir->getName(), EC), End;
-             Entry != End && !EC; Entry.increment(EC)) {
-          using llvm::StringSwitch;
-          
-          // Check whether this entry has an extension typically associated with
-          // headers.
-          if (!StringSwitch<bool>(llvm::sys::path::extension(Entry->getName()))
-                 .Cases(".h", ".H", ".hh", ".hpp", true)
-                 .Default(false))
-            continue;
-
-          if (const FileEntry *Header =
-                  getFileManager().getFile(Entry->getName()))
-            if (!getSourceManager().hasFileInfo(Header)) {
-              if (!ModMap.isHeaderInUnavailableModule(Header)) {
-                // Find the relative path that would access this header.
-                SmallString<128> RelativePath;
-                computeRelativePath(FileMgr, Dir, Header, RelativePath);              
-                Diag(StartLoc, diag::warn_uncovered_module_header)
-                  << Mod->getFullModuleName() << RelativePath;
-              }
-            }
-        }
-      }
-    }
+    llvm::SmallVector<const Module *, 4> AllMods;
+    collectAllSubModulesWithUmbrellaHeader(*Mod, AllMods);
+    for (auto *M : AllMods)
+      diagnoseMissingHeaderInUmbrellaDir(*M);
   }
 
   return true;
@@ -566,8 +576,7 @@ void Preprocessor::HandleMicrosoftCommentPaste(Token &Tok) {
   // explicit EOD token.
   PreprocessorLexer *FoundLexer = nullptr;
   bool LexerWasInPPMode = false;
-  for (unsigned i = 0, e = IncludeMacroStack.size(); i != e; ++i) {
-    IncludeStackInfo &ISI = *(IncludeMacroStack.end()-i-1);
+  for (const IncludeStackInfo &ISI : llvm::reverse(IncludeMacroStack)) {
     if (ISI.ThePPLexer == nullptr) continue;  // Scan for a real lexer.
 
     // Once we find a real lexer, mark it as raw mode (disabling macro

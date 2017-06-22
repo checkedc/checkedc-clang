@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_SEMA_ATTRIBUTELIST_H
 #define LLVM_CLANG_SEMA_ATTRIBUTELIST_H
 
+#include "clang/Basic/AttrSubjectMatchRules.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/VersionTuple.h"
@@ -509,9 +510,14 @@ public:
   unsigned getMaxArgs() const;
   bool hasVariadicArg() const;
   bool diagnoseAppertainsTo(class Sema &S, const Decl *D) const;
+  bool appliesToDecl(const Decl *D, attr::SubjectMatchRule MatchRule) const;
+  void getMatchRules(const LangOptions &LangOpts,
+                     SmallVectorImpl<std::pair<attr::SubjectMatchRule, bool>>
+                         &MatchRules) const;
   bool diagnoseLangOpts(class Sema &S) const;
   bool existsInTarget(const TargetInfo &Target) const;
   bool isKnownToGCC() const;
+  bool isSupportedByPragmaAttribute() const;
 
   /// \brief If the parsed attribute has a semantic equivalent, and it would
   /// have a semantic Spelling enumeration (due to having semantically-distinct
@@ -748,6 +754,19 @@ public:
     list = newList;
   }
 
+  void addAllAtEnd(AttributeList *newList) {
+    if (!list) {
+      list = newList;
+      return;
+    }
+
+    AttributeList *lastInList = list;
+    while (AttributeList *next = lastInList->getNext())
+      lastInList = next;
+
+    lastInList->setNext(newList);
+  }
+
   void set(AttributeList *newList) {
     list = newList;
   }
@@ -760,6 +779,8 @@ public:
 
   void clear() { list = nullptr; pool.clear(); }
   AttributeList *getList() const { return list; }
+
+  void clearListOnly() { list = nullptr; }
 
   /// Returns a reference to the attribute list.  Try not to introduce
   /// dependencies on this method, it may not be long-lived.
@@ -872,12 +893,14 @@ enum AttributeDeclKind {
   ExpectedFunction,
   ExpectedUnion,
   ExpectedVariableOrFunction,
+  ExpectedFunctionOrGlobalVar,
   ExpectedFunctionVariableOrObjCInterface,
   ExpectedFunctionOrMethod,
   ExpectedParameter,
   ExpectedFunctionMethodOrBlock,
   ExpectedFunctionMethodOrClass,
   ExpectedFunctionMethodOrParameter,
+  ExpectedFunctionMethodOrGlobalVar,
   ExpectedClass,
   ExpectedEnum,
   ExpectedVariable,
@@ -910,7 +933,9 @@ enum AttributeDeclKind {
   ExpectedVariableEnumFieldOrTypedef,
   ExpectedFunctionMethodEnumOrClass,
   ExpectedStructClassVariableFunctionOrInlineNamespace,
-  ExpectedForMaybeUnused
+  ExpectedForMaybeUnused,
+  ExpectedEnumOrClass,
+  ExpectedNamedDecl,
 };
 
 }  // end namespace clang

@@ -113,16 +113,28 @@ public:
       Diag.Report(WarnLoc, WarnID) << PD->getShortDescription()
                                    << PD->path.back()->getRanges();
 
+      // First, add extra notes, even if paths should not be included.
+      for (const auto &Piece : PD->path) {
+        if (!isa<PathDiagnosticNotePiece>(Piece.get()))
+          continue;
+
+        SourceLocation NoteLoc = Piece->getLocation().asLocation();
+        Diag.Report(NoteLoc, NoteID) << Piece->getString()
+                                     << Piece->getRanges();
+      }
+
       if (!IncludePath)
         continue;
 
+      // Then, add the path notes if necessary.
       PathPieces FlatPath = PD->path.flatten(/*ShouldFlattenMacros=*/true);
-      for (PathPieces::const_iterator PI = FlatPath.begin(),
-                                      PE = FlatPath.end();
-           PI != PE; ++PI) {
-        SourceLocation NoteLoc = (*PI)->getLocation().asLocation();
-        Diag.Report(NoteLoc, NoteID) << (*PI)->getString()
-                                     << (*PI)->getRanges();
+      for (const auto &Piece : FlatPath) {
+        if (isa<PathDiagnosticNotePiece>(Piece.get()))
+          continue;
+
+        SourceLocation NoteLoc = Piece->getLocation().asLocation();
+        Diag.Report(NoteLoc, NoteID) << Piece->getString()
+                                     << Piece->getRanges();
       }
     }
   }
@@ -188,14 +200,16 @@ public:
         Injector(injector) {
     DigestAnalyzerOptions();
     if (Opts->PrintStats) {
-      llvm::EnableStatistics();
-      TUTotalTimer = new llvm::Timer("Analyzer Total Time");
+      llvm::EnableStatistics(false);
+      TUTotalTimer = new llvm::Timer("time", "Analyzer Total Time");
     }
   }
 
   ~AnalysisConsumer() override {
-    if (Opts->PrintStats)
+    if (Opts->PrintStats) {
       delete TUTotalTimer;
+      llvm::PrintStatistics();
+    }
   }
 
   void DigestAnalyzerOptions() {
@@ -601,8 +615,8 @@ std::string AnalysisConsumer::getFunctionName(const Decl *D) {
            << OC->getIdentifier()->getNameStart() << ')';
       }
     } else if (const auto *OCD = dyn_cast<ObjCCategoryImplDecl>(DC)) {
-      OS << ((const NamedDecl *)OCD)->getIdentifier()->getNameStart() << '('
-         << OCD->getIdentifier()->getNameStart() << ')';
+      OS << OCD->getClassInterface()->getName() << '('
+         << OCD->getName() << ')';
     } else if (isa<ObjCProtocolDecl>(DC)) {
       // We can extract the type of the class from the self pointer.
       if (ImplicitParamDecl *SelfDecl = OMD->getSelfDecl()) {
@@ -652,6 +666,12 @@ void AnalysisConsumer::HandleCode(Decl *D, AnalysisMode Mode,
   if (Mode == AM_None)
     return;
 
+  // Clear the AnalysisManager of old AnalysisDeclContexts.
+  Mgr->ClearContexts();
+  // Ignore autosynthesized code.
+  if (Mgr->getAnalysisDeclContext(D)->isBodyAutosynthesized())
+    return;
+
   DisplayFunction(D, Mode, IMode);
   CFG *DeclCFG = Mgr->getCFG(D);
   if (DeclCFG) {
@@ -659,8 +679,6 @@ void AnalysisConsumer::HandleCode(Decl *D, AnalysisMode Mode,
     MaxCFGSize = MaxCFGSize < CFGSize ? CFGSize : MaxCFGSize;
   }
 
-  // Clear the AnalysisManager of old AnalysisDeclContexts.
-  Mgr->ClearContexts();
   BugReporter BR(*Mgr);
 
   if (Mode & AM_Syntax)

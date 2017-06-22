@@ -257,7 +257,7 @@ private:
 
   struct BeforeInfo {
     BeforeInfo() : Visited(0) {}
-    BeforeInfo(BeforeInfo &&O) : Vect(std::move(O.Vect)), Visited(O.Visited) {}
+    BeforeInfo(BeforeInfo &&) = default;
 
     BeforeVect Vect;
     int Visited;
@@ -1583,7 +1583,7 @@ void BuildLockset::warnIfMutexHeld(const NamedDecl *D, const Expr *Exp,
 /// a pointer marked with pt_guarded_by.
 void BuildLockset::checkAccess(const Expr *Exp, AccessKind AK,
                                ProtectedOperationKind POK) {
-  Exp = Exp->IgnoreParenCasts();
+  Exp = Exp->IgnoreImplicit()->IgnoreParenCasts();
 
   SourceLocation Loc = Exp->getExprLoc();
 
