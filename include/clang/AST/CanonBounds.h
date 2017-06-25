@@ -53,6 +53,7 @@ namespace clang {
   private:
     EqualityRelation *EqualVars;
     ASTContext &Context;
+    bool Trace;
 
     Result CompareInteger(signed I1, signed I2);
     Result CompareInteger(unsigned I1, unsigned I2);
@@ -85,9 +86,7 @@ namespace clang {
     Result CompareScope(const DeclContext *DC1, const DeclContext *DC2);
 
   public:
-    Lexicographic(ASTContext &Ctx, EqualityRelation *EV) : 
-      Context(Ctx), EqualVars(EV) {
-    }
+    Lexicographic(ASTContext &Ctx, EqualityRelation *EV);
 
     /// \brief Lexicographic comparison of expressions that can occur in
     /// bounds expressions.

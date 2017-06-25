@@ -15,12 +15,17 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/support/raw_ostream.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
 
 using namespace clang;
+
+Lexicographic::Lexicographic(ASTContext &Ctx, EqualityRelation *EV) :
+  Context(Ctx), EqualVars(EV), Trace(false) {
+}
 
 Lexicographic::Result Lexicographic::CompareInteger(signed I1, signed I2) {
   if (I1 < I2)
@@ -117,6 +122,26 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) {
   if (Cmp != Result::Equal)
     return Cmp;
 
+  // Compare parameter variables by position and scope depth, not
+  // name.
+  const ParmVarDecl *Parm1 = dyn_cast<ParmVarDecl>(D1);
+  const ParmVarDecl *Parm2 = dyn_cast<ParmVarDecl>(D2);
+  if (Parm1 && Parm2) {
+    Cmp = CompareInteger(Parm1->getFunctionScopeIndex(),
+                         Parm2->getFunctionScopeIndex());
+    if (Cmp != Result::Equal)
+      return Cmp;
+
+    Cmp = CompareInteger(Parm1->getFunctionScopeDepth(),
+                         Parm2->getFunctionScopeDepth());
+    if (Cmp != Result::Equal)
+      return Cmp;
+
+    Cmp = CompareType(Parm1->getType(), Parm2->getType());
+
+    return Cmp;
+  }
+
   const IdentifierInfo *Name1 = D1->getIdentifier();
   const IdentifierInfo *Name2 = D2->getIdentifier();
 
@@ -163,6 +188,15 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) {
 }
 
 Lexicographic::Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
+   if (Trace) {
+     raw_ostream &OS = llvm::outs();
+     OS << "Lexicographic comparing expressions\n";
+     OS << "E1:\n";
+     E1->dump(OS);
+     OS << "E2:\n";
+     E2->dump(OS);
+   }
+
    if (E1 == E2)
      return Result::Equal;
 
@@ -279,7 +313,7 @@ Lexicographic::Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2)
    return Lexicographic::Result::Equal;
 }
 
-// Lexicogrpahic comparion of properties specific to each expression type. 
+// Lexicographic comparion of properties specific to each expression type.
 // Does not check children of expressions.
 #define CHECK_WRAPPER(N) \
 Lexicographic::Result \
@@ -481,8 +515,7 @@ CHECK_WRAPPER(PositionalParameterExpr)
   Result Cmp = CompareInteger(E1->getIndex(), E2->getIndex());
   if (Cmp != Result::Equal)
     return Cmp;
-  return Result::Equal;
-  // return CompareType(E1->getType(), E2->getType());
+  return CompareType(E1->getType(), E2->getType());
 }
 
 CHECK_WRAPPER(BoundsCastExpr)
