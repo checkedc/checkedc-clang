@@ -15,6 +15,7 @@
 #include "CXXABI.h"
 #include "clang/AST/ASTMutationListener.h"
 #include "clang/AST/Attr.h"
+#include "clang/AST/CanonBounds.h"
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/Comment.h"
 #include "clang/AST/CommentCommandTraits.h"
@@ -8868,11 +8869,8 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
 }
 
 bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2) {
-  llvm::FoldingSetNodeID ID1;
-  llvm::FoldingSetNodeID ID2;
-  Expr1->Profile(ID1, *this, true);
-  Expr2->Profile(ID2, *this, true);
-  return ID1 == ID2;
+  Lexicographic::Result Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
+  return Cmp == Lexicographic::Result::Equal;
 }
 
 //===----------------------------------------------------------------------===//

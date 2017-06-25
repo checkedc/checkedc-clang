@@ -42,7 +42,7 @@ namespace clang {
      virtual VarDecl *getRepresentative(VarDecl *V);
   };
 
-  class LexicographicCompare {
+  class Lexicographic {
   public:
     enum class Result {
       LessThan,
@@ -60,11 +60,11 @@ namespace clang {
     Result CompareDeclRefExpr(const Expr *E1, const Expr *E2);
     Result CompareIntegerLiteral(const Expr *E1, const Expr *E2);
     Result CompareFloatingLiteral(const Expr *E1, const Expr *E2);
-    Result CompareImaginaryLiteral(const Expr *E1, const Expr *E2);
     Result CompareStringLiteral(const Expr *E1, const Expr *E2);
     Result CompareCharacterLiteral(const Expr *E1, const Expr *E2);
     Result CompareUnaryOperator(const Expr *E1, const Expr *E2);
     Result CompareOffsetOfExpr(const Expr *E1, const Expr *E2);
+    Result CompareUnaryExprOrTypeTraitExpr(const Expr *E1, const Expr *E2);
     Result CompareMemberExpr(const Expr *E1, const Expr *E2);
     Result CompareBinaryOperator(const Expr *E1, const Expr *E2);
     Result CompareCompoundAssignOperator(const Expr *E1, const Expr *E2);
@@ -74,20 +74,29 @@ namespace clang {
     Result CompareGenericSelectionExpr(const Expr *E1, const Expr *E2);
     Result CompareNullaryBoundsExpr(const Expr *E1, const Expr *E2);
     Result CompareCountBoundsExpr(const Expr *E1, const Expr *E2);
+    Result CompareRangeBoundsExpr(const Expr *E1, const Expr *E2);
     Result CompareInteropTypeBoundsAnnotation(const Expr *E1, const Expr *E2);
     Result ComparePositionalParameterExpr(const Expr *E1, const Expr *E2);
+    Result CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
+                                       const RelativeBoundsClause *RC2);
     Result CompareBoundsCastExpr(const Expr *E1, const Expr *E2);
+    Result CompareAtomicExpr(const Expr *E1, const Expr *E2);
     Result CompareBlockExpr(const Expr *E1, const Expr *E2);
+    Result CompareScope(const DeclContext *DC1, const DeclContext *DC2);
 
   public:
-    LexicographicCompare(ASTContext &Ctx, EqualityRelation *EV) : 
+    Lexicographic(ASTContext &Ctx, EqualityRelation *EV) : 
       Context(Ctx), EqualVars(EV) {
     }
 
     /// \brief Lexicographic comparison of expressions that can occur in
     /// bounds expressions.
     Result CompareExpr(const Expr *E1, const Expr *E2);
-    Result CompareDecl(const ValueDecl *D1, const ValueDecl *D2);
+
+    /// \brief Compare declarations that may be used by expressions or
+    /// or types.
+    Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2);
+    Result CompareType(QualType T1, QualType T2);
   };
 }  // end namespace clang
 
