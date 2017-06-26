@@ -4478,6 +4478,7 @@ public:
                                          ArrayRef<ParmVarDecl *> Params);
   BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
                                        BoundsExpr *Bounds);
+  BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args);
 
   /// GetArrayPtrDereference - determine if an lvalue expression is
   /// a dereference of an Array_ptr (via '*" or an array subscript operator).

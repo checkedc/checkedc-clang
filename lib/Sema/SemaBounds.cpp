@@ -140,7 +140,56 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
   ExprResult ConcreteBounds = ConcretizeBoundsExpr(*this, Params).TransformExpr(Expr);
   if (ConcreteBounds.isInvalid()) {
     llvm_unreachable("unexpected failure in making bounds concrete");
-    Result = nullptr;
+    return nullptr;
+  }
+  else {
+    Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
+    assert(Result && "unexpected dyn_cast failure");
+    return Result;
+  }
+}
+
+namespace {
+  class ConcretizeBoundsExprWithArgs : public TreeTransform<ConcretizeBoundsExprWithArgs> {
+    typedef TreeTransform<ConcretizeBoundsExprWithArgs> BaseTransform;
+
+  private:
+    const ArrayRef<Expr *> Arguments;
+
+  public:
+    ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args) :
+      BaseTransform(SemaRef),
+      Arguments(Args) { }
+
+    ExprResult TransformPositionalParameterExpr(PositionalParameterExpr *E) {
+      unsigned index = E->getIndex();
+      if (index < Arguments.size()) {
+        Expr *AE = Arguments[index];
+
+        // We may only substitute if this argument expression is
+        // a non-modifying expression.
+        if (!SemaRef.CheckIsNonModifyingExpr(AE,
+                                             Sema::NonModifiyingExprRequirement::NMER_Unknown,
+                                             /*ReportError=*/false))
+          return ExprResult();
+
+        return AE;
+      } else {
+        llvm_unreachable("out of range index for positional argument");
+        return ExprResult();
+      }
+    }
+  };
+}
+
+BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args) {
+  if (!Bounds)
+    return Bounds;
+
+  BoundsExpr *Result;
+  ExprResult ConcreteBounds = ConcretizeBoundsExprWithArgs(*this, Args).TransformExpr(Bounds);
+  if (ConcreteBounds.isInvalid()) {
+    return nullptr;
   }
   else {
     Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
@@ -262,10 +311,37 @@ namespace {
                                              SourceLocation());
     }
 
+    // This describes a bounds of empty range. We use this
+    // for example for function pointers.
+    BoundsExpr *CreateBoundsEmpty() {
+      return CreateBoundsNone();
+    }
+
+    // This describes that this is an expression we will never
+    // be able to infer bounds for.
+    BoundsExpr *CreateBoundsUnknown() {
+      return CreateBoundsNone();
+    }
+
+    // If we have an error in our bounds inference that we can't
+    // recover from, bounds(none) is our error value
+    BoundsExpr *CreateBoundsInferenceError() {
+      return CreateBoundsNone();
+    }
+
+    // This describes the bounds of null, which is compatible with every
+    // other bounds annotation.
     BoundsExpr *CreateBoundsAny() {
       return new (Context) NullaryBoundsExpr(BoundsExpr::Kind::Any,
                                              SourceLocation(),
                                              SourceLocation());
+    }
+
+    // Currently our inference algorithm has some limitations,
+    // where we cannot compute bounds for things that we want to be able
+    // to compute bounds for.
+    BoundsExpr *CreateBoundsAllowedButUncomputable() {
+      return CreateBoundsAny();
     }
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
@@ -314,7 +390,7 @@ namespace {
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
       const ConstantArrayType *CAT = Context.getAsConstantArrayType(QT);
       if (!CAT)
-        return CreateBoundsNone();
+        return CreateBoundsUnknown();
 
       IntegerLiteral *Size = CreateIntegerLiteral(CAT->getSize());
 
@@ -339,7 +415,7 @@ namespace {
           CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
           if (!BC) {
             llvm_unreachable("unexpected cast failure");
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
           }
           Expr *Count = BC->getCountExpr();
           QualType ResultTy;
@@ -369,7 +445,7 @@ namespace {
                                                SourceLocation());
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
-          return CreateBoundsNone();
+          return CreateBoundsAllowedButUncomputable();
         default:
           return B;
       }
@@ -401,7 +477,7 @@ namespace {
     BoundsExpr *LValueBounds(Expr *E) {
       // E may not be an lvalue if there is a typechecking error when struct 
       // accesses member array incorrectly.
-      if (!E->isLValue()) return CreateBoundsNone();
+      if (!E->isLValue()) return CreateBoundsInferenceError();
       // TODO: handle side effects within E
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
@@ -409,7 +485,7 @@ namespace {
         DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
         if (!DR) {
           llvm_unreachable("unexpected cast failure");
-          return CreateBoundsNone();
+          return CreateBoundsInferenceError();
         }
 
         if (DR->getType()->isArrayType())
@@ -419,7 +495,7 @@ namespace {
         // references.  This should only apply to function
         // references.
         if (DR->getType()->isFunctionType())
-          return CreateBoundsNone();
+          return CreateBoundsEmpty();
 
         Expr *AddrOf = CreateAddressOfOperator(DR);
         return CreateSingleElementBounds(AddrOf);
@@ -428,13 +504,13 @@ namespace {
         UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
         if (!UO) {
           llvm_unreachable("unexpected cast failure");
-          return CreateBoundsNone();
+          return CreateBoundsInferenceError();
         }
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
           return RValueBounds(UO->getSubExpr());
         else {
           llvm_unreachable("unexpected lvalue unary operator");
-          return CreateBoundsNone();
+          return CreateBoundsInferenceError();
         }
       }
       case Expr::ArraySubscriptExprClass: {
@@ -444,7 +520,7 @@ namespace {
         ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
         if (!AS) {
           llvm_unreachable("unexpected cast failure");
-          return CreateBoundsNone();
+          return CreateBoundsInferenceError();
         }
         // getBase returns the pointer-typed expression.
         return RValueBounds(AS->getBase());
@@ -453,31 +529,33 @@ namespace {
         MemberExpr *ME = dyn_cast<MemberExpr>(E);
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
-          return CreateBoundsNone();
+          return CreateBoundsInferenceError();
         if (!SemaRef.CheckIsNonModifyingExpr(ME->getBase(),
                              Sema::NonModifiyingExprRequirement::NMER_Unknown,
                                            /*ReportError=*/false))
-          return CreateBoundsNone();
+          return CreateBoundsAllowedButUncomputable();
 
         if (ME->getType()->isArrayType())
           return ArrayExprBounds(ME);
 
-        // TODO: can a member have a function type, or is it adjusted
-        // to be a pointer function type?
+        // It is an error for a member to have function type
         if (ME->getType()->isFunctionType())
-          return CreateBoundsNone();
+          return CreateBoundsInferenceError();
 
-        if (ME->isRValue())
-          return CreateBoundsNone();
+        // If E is an L-value, the ME must be an L-value too.
+        if (ME->isRValue()) {
+          llvm_unreachable("unexpected MemberExpr r-value");
+          return CreateBoundsInferenceError();
+        }
 
         Expr *AddrOf = CreateAddressOfOperator(ME);
         return CreateSingleElementBounds(AddrOf);
       }
       // TODO: fill in these cases.
       case Expr::CompoundLiteralExprClass:
-        return CreateBoundsAny();
+        return CreateBoundsAllowedButUncomputable();
       default:
-        return CreateBoundsNone();
+        return CreateBoundsUnknown();
       }
     }
 
@@ -485,17 +563,23 @@ namespace {
     // the lvalue must satisfy these bounds.   Values read through the
     // lvalue will meet these bounds.
     BoundsExpr *LValueTargetBounds(Expr *E) {
-      assert(E->isLValue());
+      if (!E->isLValue()) return CreateBoundsInferenceError();
       // TODO: handle side effects within E
       E = E->IgnoreParens();
       QualType QT = E->getType();
+
+      // The type here cannot ever be an array type, as these are dealt with
+      // by an array conversion, not an lvalue conversion. The bounds for an
+      // array conversion are the same as the lvalue bounds of the
+      // array-typed expression.
+      assert(!QT->isArrayType() && "Unexpected Array-typed lvalue in LValueTargetBounds");
 
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
       // bounds.
       if (QT->isCheckedPointerPtrType()) {
          if (QT->isFunctionPointerType())
-           return CreateBoundsNone();
+           return CreateBoundsEmpty();
 
         Expr *Base = CreateImplicitCast(E->getType(),
                                         CastKind::CK_LValueToRValue, E);
@@ -507,15 +591,15 @@ namespace {
           DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
           if (!DR) {
             llvm_unreachable("unexpected cast failure");
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
           }
           VarDecl *D = dyn_cast<VarDecl>(DR->getDecl());
           if (!D)
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
 
           BoundsExpr *B = D->getBoundsExpr();
           if (!B || B->isNone())
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
 
            Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
            return ExpandToRange(Base, B);
@@ -524,25 +608,25 @@ namespace {
           MemberExpr *M = dyn_cast<MemberExpr>(E);
           if (!M) {
             llvm_unreachable("unexpected cast failure");
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
           }
 
           FieldDecl *F = dyn_cast<FieldDecl>(M->getMemberDecl());
           if (!F)
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
 
           BoundsExpr *B = F->getBoundsExpr();
           if (!B || B->isNone() || B->isInteropTypeAnnotation())
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
 
           Expr *MemberBaseExpr = M->getBase();
           if (!SemaRef.CheckIsNonModifyingExpr(MemberBaseExpr,
               Sema::NonModifiyingExprRequirement::NMER_Unknown,
               /*ReportError=*/false))
-            return CreateBoundsNone();
+            return CreateBoundsAllowedButUncomputable();
           B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
           if (!B)
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
           if (B->isElementCount() || B->isByteCount()) {
              Expr *MemberRValue;
             if (M->isLValue())
@@ -554,7 +638,7 @@ namespace {
           return B;
         }
         default:
-          return CreateBoundsNone();
+          return CreateBoundsUnknown();
       }
     }
 
@@ -578,43 +662,29 @@ namespace {
         case CastKind::CK_ArrayToPointerDecay:
           return LValueBounds(E);
         default:
-          return CreateBoundsNone();
+          return CreateBoundsUnknown();
       }
     }
 
     // Compute the bounds of an expression that produces an rvalue.
     BoundsExpr *RValueBounds(Expr *E) {
-      assert(E->isRValue());
+      if (!E->isRValue()) return CreateBoundsInferenceError();
+
       E = E->IgnoreParens();
+
+      // Null Ptrs always have bounds(any)
+      // This is the correct way to detect all the different ways that
+      // C can make a null ptr.
+      if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent)) {
+        return CreateBoundsAny();
+      }
+
       switch (E->getStmtClass()) {
-        case Expr::IntegerLiteralClass: {
-         IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(E);
-         if (!Lit) {
-           llvm_unreachable("unexpected cast failure");
-           return CreateBoundsNone();
-         }
-         if (Lit->getValue() == 0)
-           return CreateBoundsAny();
-
-         return CreateBoundsNone();
-        }
-        case Expr::DeclRefExprClass: {
-          DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
-          if (!DR) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsNone();
-          }
-          EnumConstantDecl *ECD = dyn_cast<EnumConstantDecl>(DR->getDecl());
-          if (ECD->getInitVal() == 0)
-            return CreateBoundsAny();
-
-          return CreateBoundsNone();
-        }
         case Expr::BoundsCastExprClass: {
           CastExpr *CE = dyn_cast<CastExpr>(E);
           if (!E) {
             llvm_unreachable("unexpected cast failure");
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
           }
 
           Expr *subExpr = CE->getSubExpr();
@@ -628,7 +698,7 @@ namespace {
           CastExpr *CE = dyn_cast<CastExpr>(E);
           if (!E) {
             llvm_unreachable("unexpected cast failure");
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
           }
           return RValueCastBounds(CE->getCastKind(), CE->getSubExpr());
         }
@@ -636,85 +706,204 @@ namespace {
           UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
           if (!UO) {
             llvm_unreachable("unexpected cast failure");
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
           }
           UnaryOperatorKind Op = UO->getOpcode();
+          Expr *SubExpr = UO->getSubExpr();
 
+          // `*e` is not an r-value.
+          if (Op == UnaryOperatorKind::UO_Deref) {
+            llvm_unreachable("unexpected dereference expression in RValue Bounds inference");
+            return CreateBoundsInferenceError();
+          }
+
+          // `&e` has the bounds of `e`.
+          // `e` is an lvalue, so its bounds are its lvalue bounds.
           if (Op == UnaryOperatorKind::UO_AddrOf) {
-            Expr *SubExpr = UO->getSubExpr();
+
+            // Functions have bounds corresponding to the empty range
             if (SubExpr->getType()->isFunctionType())
-              return CreateBoundsNone();
+              return CreateBoundsEmpty();
 
             return LValueBounds(SubExpr);
           }
 
+          // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
+          // `e` is an LValue, so its bounds are its lvalue target bounds.
           if (UnaryOperator::isIncrementDecrementOp(Op))
-            return LValueTargetBounds(UO->getSubExpr());
+            return LValueTargetBounds(SubExpr);
 
+          // `+e`, `-e`, `~e` all have bounds of `e`. `e` is an RValue.
           if (Op == UnaryOperatorKind::UO_Plus ||
               Op == UnaryOperatorKind::UO_Minus ||
               Op == UnaryOperatorKind::UO_Not)
-            return RValueBounds(UO->getSubExpr());
-          return CreateBoundsNone();
+            return RValueBounds(SubExpr);
+
+          // `!e` has empty bounds
+          if (Op == UnaryOperatorKind::UO_LNot)
+            return CreateBoundsEmpty();
+
+          // We cannot infer the bounds of other unary operators
+          return CreateBoundsUnknown();
         }
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass: {
           BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
           if (!BO) {
             llvm_unreachable("unexpected cast failure");
-            return CreateBoundsNone();
+            return CreateBoundsInferenceError();
           }
           Expr *LHS = BO->getLHS();
           Expr *RHS = BO->getRHS();
           BinaryOperatorKind Op = BO->getOpcode();
 
-          if (Op == BinaryOperatorKind::BO_Assign)
-            return RValueBounds(RHS);
+          BoundsExpr *RHSBounds = RValueBounds(RHS);
 
+          // Floating point expressions have empty bounds
+          if (BO->getType()->isFloatingType())
+            return CreateBoundsEmpty();
+
+          // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
+          if (Op == BinaryOperatorKind::BO_Assign)
+            return RHSBounds;
+
+          // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
+          // are RValues.
+          if (Op == BinaryOperatorKind::BO_Comma)
+            return RHSBounds;
+
+          // Compound Assignments function like assignments mostly,
+          // except the LHS is an L-Value, so we'll use its lvalue target bounds
           bool IsCompoundAssignment = false;
+          BoundsExpr *LHSBounds;
           if (BinaryOperator::isCompoundAssignmentOp(Op)) {
             Op = BinaryOperator::getOpForCompoundAssignment(Op);
             IsCompoundAssignment = true;
+            LHSBounds = LValueTargetBounds(LHS);
+          }
+          else {
+            LHSBounds = RValueBounds(LHS);
           }
 
           // Pointer arithmetic.
+          //
+          // `p + i` has the bounds of `p`. `p` is an RValue.
+          // `p += i` has the lvalue target bounds of `p`. `p` is an LValue.
+          // same applies for `-` and `-=` respectively
           if (LHS->getType()->isPointerType() &&
               RHS->getType()->isIntegerType() &&
               BinaryOperator::isAdditiveOp(Op)) {
-            return IsCompoundAssignment ?
-              LValueTargetBounds(LHS) : RValueBounds(LHS);
+            return LHSBounds;
           }
+          // `i + p` has the bounds of `p`. `p` is an RValue.
+          // `i += p` has the bounds of `p`. `p` is an RValue.
           if (LHS->getType()->isIntegerType() &&
               RHS->getType()->isPointerType() &&
-              BinaryOperator::isAdditiveOp(Op)) {
-            assert(!IsCompoundAssignment);
-            return RValueBounds(RHS);
+              Op == BinaryOperatorKind::BO_Add) {
+            return RHSBounds;
+          }
+          // `e - p` has empty bounds, regardless of the bounds of p.
+          // `e -= p` has empty bounds, regardless of the bounds of p.
+          if (RHS->getType()->isPointerType() &&
+              Op == BinaryOperatorKind::BO_Sub) {
+            return CreateBoundsEmpty();
           }
 
           // Arithmetic on integers with bounds.
+          //
+          // `e1 @ e2` has the bounds of whichever of `e1` or `e2` has bounds.
+          // if both `e1` and `e2` have bounds, then they must be equal.
+          // Both `e1` and `e2` are RValues
+          //
+          // `e1 @= e2` has the bounds of whichever of `e1` or `e2` has bounds.
+          // if both `e1` and `e2` have bounds, then they must be equal.
+          // `e1` is an LValue, its bounds are the lvalue target bounds.
+          // `e2` is an RValue
+          //
+          // @ can stand for: +, -, *, /, %, &, |, ^, >>, <<
           if (LHS->getType()->isIntegerType() &&
               RHS->getType()->isIntegerType() &&
               (BinaryOperator::isAdditiveOp(Op) ||
                BinaryOperator::isMultiplicativeOp(Op) ||
-               BinaryOperator::isBitwiseOp(Op))) {
-            BoundsExpr *LHSBounds = IsCompoundAssignment ?
-              LValueTargetBounds(LHS) : RValueBounds(LHS);
-            BoundsExpr *RHSBounds = RValueBounds(RHS);
+               BinaryOperator::isBitwiseOp(Op) ||
+               BinaryOperator::isShiftOp(Op))) {
             if (LHSBounds->isNone() && !RHSBounds->isNone())
               return RHSBounds;
             if (!LHSBounds->isNone() && RHSBounds->isNone())
               return LHSBounds;
-            // TODO: check if both LHS and RHS have bounds and
-            // indicate cause of failure to have bounds.
+            if (!LHSBounds->isNone() && !RHSBounds->isNone()) {
+              // TODO: Check if LHSBounds and RHSBounds are equal.
+              // if so, return one of them. If not, return bounds(none)
+              return CreateBoundsAllowedButUncomputable();
+            }
+            if (LHSBounds->isNone() && RHSBounds->isNone())
+              return CreateBoundsEmpty();
           }
-          return CreateBoundsNone();
+
+          // Comparisons and Logical Ops
+          //
+          // `e1 @ e2` have empty bounds if @ is:
+          // ==, !=, <=, <, >=, >, &&, ||
+          if (BinaryOperator::isComparisonOp(Op) ||
+              BinaryOperator::isLogicalOp(Op)) {
+            return CreateBoundsEmpty();
+          }
+
+          // All Other Binary Operators we don't know how to deal with
+          return CreateBoundsEmpty();
         }
-        case Expr::CallExprClass:
+        case Expr::CallExprClass: {
+          const CallExpr *CE = dyn_cast<CallExpr>(E);
+          if (!CE) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsInferenceError();
+          }
+
+          // Get function prototype.
+          // The Callee is a function *pointer*, almost always.
+          const FunctionProtoType* CalleeTy = dyn_cast<FunctionProtoType>(CE->getCallee()->getType()->getPointeeType());
+          if (!CalleeTy)
+            // K&R functions have no prototype, and we cannot perform inference on them,
+            // so we return bounds(none) for their results.
+            return CreateBoundsEmpty();
+
+          BoundsExpr *FunBounds = const_cast<BoundsExpr *>(CalleeTy->getReturnBounds());
+          if (!FunBounds)
+            // This function has no return bounds
+            return CreateBoundsEmpty();
+
+          if (FunBounds->isInteropTypeAnnotation())
+            return CreateBoundsAllowedButUncomputable();
+
+          ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
+                                                         CE->getNumArgs());
+
+          // Concretize Call Bounds with argument expressions.
+          // We can only do this if the argument expressions are non-modifying
+          BoundsExpr *ReturnBounds = SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs);
+
+          // If concretization failed, we can't yet compute static bounds
+          // for the return type of this function.
+          if (!ReturnBounds)
+            return CreateBoundsAllowedButUncomputable();
+
+          // Currently we cannot yet concretize function bounds of the forms
+          // count(e) or byte_count(e) becuase we need a way of referring
+          // to the function's return value which we currently lack in the
+          // general case.
+          if (ReturnBounds->isElementCount() ||
+              ReturnBounds->isByteCount())
+            return CreateBoundsAllowedButUncomputable();
+
+          return ReturnBounds;
+        }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
-          return CreateBoundsAny();
+          // TODO: infer correct bounds for conditional operators
+          return CreateBoundsAllowedButUncomputable();
         default:
-          return CreateBoundsNone();
+          // All other cases are unknowable
+          return CreateBoundsUnknown();
       }
     }
   };

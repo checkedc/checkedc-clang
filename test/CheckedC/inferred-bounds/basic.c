@@ -15,7 +15,7 @@
 // The description uses AST dumps.
 //
 // This line is for the clang test infrastructure:
-// RUN: %clang_cc1 -fcheckedc-extension -verify -fdump-inferred-bounds %s | FileCheck %s
+// RUN: %clang_cc1 -fcheckedc-extension -verify -verify-ignore-unexpected=warning -fdump-inferred-bounds %s | FileCheck %s
 
 //-------------------------------------------------------------------------//
 // Test assignment of integers to _Array_ptr variables.  This covers both  //
@@ -158,6 +158,66 @@ void f7(void) {
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
 // CHECK:`-CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <IntegralToPointer>
 // CHECK:`-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: Initializer Bounds:
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+
+void f8(_Array_ptr<int> a, _Array_ptr<int> b : count(5)) {
+  _Array_ptr<int> c : count(5) = (a, b);
+}
+
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} c '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
+// CHECK: `-ParenExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>'
+// CHECK:   `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' ','
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>'
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: Initializer Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>'
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+
+void f9(int a) {
+  _Array_ptr<int> b : count(5) = (_Array_ptr<int>) !a; // expected-error {{expression has no bounds}}
+}
+
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
+// CHECK: `-CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <IntegralToPointer>
+// CHECK:   `-UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' prefix '!'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int'
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: Initializer Bounds:
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+
+void f10(float a) {
+  _Array_ptr<int> b : count(5) = (_Array_ptr<int>)((int)a); // expected-error {{expression has no bounds}}
+}
+
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} b '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
+// CHECK: `-CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <IntegralToPointer>
+// CHECK: `-ParenExpr {{0x[0-9a-f]+}} {{.*}} 'int'
+// CHECK:   `-CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <FloatingToIntegral>
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'float' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'float' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'float'
 // CHECK: Declared Bounds:
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
