@@ -183,12 +183,9 @@ private:
 };
 
 struct PragmaCheckedScopeHandler : public PragmaHandler {
-  PragmaCheckedScopeHandler(Sema &S)
-      : PragmaHandler("BOUNDS_CHECKED"), Actions(S) {}
+  PragmaCheckedScopeHandler() : PragmaHandler("BOUNDS_CHECKED") {}
   void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
                     Token &FirstToken) override;
-private:
-  Sema &Actions;
 };
 
 /// PragmaAttributeHandler - "\#pragma clang attribute ...".
@@ -298,7 +295,7 @@ void Parser::initializePragmaHandlers() {
   AttributePragmaHandler.reset(new PragmaAttributeHandler(AttrFactory));
   PP.AddPragmaHandler("clang", AttributePragmaHandler.get());
 
-  CheckedScopeHandler.reset(new PragmaCheckedScopeHandler(Actions));
+  CheckedScopeHandler.reset(new PragmaCheckedScopeHandler());
   PP.AddPragmaHandler(CheckedScopeHandler.get());
 }
 
