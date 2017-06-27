@@ -3029,56 +3029,56 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
   Expr *resExpr = Res.get();
   // Have to make sure that resExpr down to FunctionDecl is not null, because
   // if there is a parsing error before, one of these may be null.
-  if (resExpr && isa<DeclRefExpr>(resExpr)) {
-    DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(resExpr);
-    ValueDecl *resDecl = declRef->getDecl();
-    if (resDecl && isa<FunctionDecl>(resDecl)) {
-      FunctionDecl* funDecl = dyn_cast<FunctionDecl>(resDecl);
-      // Only parse for a list of type specifiers if it's a generic function.
-      if (funDecl->IsGenericFunction()) {
+  if (!resExpr || !isa<DeclRefExpr>(resExpr)) return false;
+  DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(resExpr);
+  ValueDecl *resDecl = declRef->getDecl();
+  if (!resDecl || !isa<FunctionDecl>(resDecl)) return false;
+  FunctionDecl* funDecl = dyn_cast<FunctionDecl>(resDecl);
+  // Only parse for a list of type specifiers if it's a generic function.
+  if (!funDecl->IsGenericFunction()) return false;
 
-        // Expect a '<' to denote that a list of type specifiers are incoming.
-        if (ExpectAndConsume(tok::less, 
-            diag::err_expected_list_of_types_expr_for_generic_function)) {
-          // We want to consume greater, but not consume semi
-          SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
-          if (Tok.getKind() == tok::greater) ConsumeToken();
-          return true;
-        }
+  // Expect a '<' to denote that a list of type specifiers are incoming.
+  if (ExpectAndConsume(tok::less,
+    diag::err_expected_list_of_types_expr_for_generic_function)) {
+    // We want to consume greater, but not consume semi
+    SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+    if (Tok.getKind() == tok::greater) ConsumeToken();
+    return true;
+  }
 
-        // If '<' is immediately followed by '>' consider parsing for a list of
-        // type names done, and exit after consuming '>'.
+  // If '<' is immediately followed by '>' consider parsing for a list of
+  // type names done, and exit after consuming '>'.
+  if (Tok.getKind() == tok::greater) {
+    ConsumeToken();
+    return false;
+  }
+  else {
+    // Expect to see a list of type names, followed by a '>'.
+    while (true) {
+      // Expect to see type name.
+      TypeResult Ty = ParseTypeName();
+      if (Ty.isInvalid()) {
+        // We do not need to write error message since ParseTypeName does
+        // We want to consume greater, but not consume semi
+        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
         if (Tok.getKind() == tok::greater) ConsumeToken();
-        else {
-          // Expect to see a list of type names, followed by a '>'.
-          while (true) {
-            // Expect to see type name.
-            TypeResult Ty = ParseTypeName();
-            if (Ty.isInvalid()) {
-              // We do not need to write error message since ParseTypeName does
-              // We want to consume greater, but not consume semi
-              SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
-              if (Tok.getKind() == tok::greater) ConsumeToken();
-              return true;
-            }
+        return true;
+      }
 
-            // If next token is comma, consume and look for more type name
-            if (Tok.getKind() == tok::comma) ConsumeToken();
-            // If next token is '>', consume and finish.
-            else if (Tok.getKind() == tok::greater) {
-              ConsumeToken();
-              break;
-            }
-            // Otherwise, we encountered an unexpected token.
-            else {
-              Diag(Tok, diag::err_type_function_comma_or_greater_expected);
-              // We want to consume greater, but not consume semi
-              SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
-              if (Tok.getKind() == tok::greater) ConsumeToken();
-              return true;
-            }
-          }
-        }
+      // If next token is comma, consume and look for more type name
+      if (Tok.getKind() == tok::comma) ConsumeToken();
+      // If next token is '>', consume and finish.
+      else if (Tok.getKind() == tok::greater) {
+        ConsumeToken();
+        return false;
+      }
+      // Otherwise, we encountered an unexpected token.
+      else {
+        Diag(Tok, diag::err_type_function_comma_or_greater_expected);
+        // We want to consume greater, but not consume semi
+        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+        if (Tok.getKind() == tok::greater) ConsumeToken();
+        return true;
       }
     }
   }
