@@ -94,6 +94,8 @@ public:
   bool isConstrained(uint32_t K) { 
     return ConstrainedVars.find(K) != ConstrainedVars.end(); 
   }
+
+  virtual ~ConstraintVariable() {};
 };
 
 class PointerVariableConstraint;
@@ -158,6 +160,8 @@ public:
   void dump() const { print(llvm::errs()); }
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
+
+  virtual ~PointerVariableConstraint() {};
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -206,6 +210,8 @@ public:
   void dump() const { print(llvm::errs()); }
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
+
+  virtual ~FunctionVariableConstraint() {};
 };
 
 typedef FunctionVariableConstraint FVConstraint;

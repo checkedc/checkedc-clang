@@ -8563,6 +8563,7 @@ QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
     case InitializedEntity::EK_Temporary:
     case InitializedEntity::EK_VectorElement:
     case InitializedEntity::EK_Parameter_CF_Audited:
+    case InitializedEntity::EK_LambdaToBlockConversionBlockElement:
       break;
   }
   return QualType();
