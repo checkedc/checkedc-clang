@@ -327,6 +327,8 @@ Lexicographic::Compare##N(const Expr *Raw1, const Expr *Raw2) { \
 
 Lexicographic::Result
 Lexicographic::CompareType(QualType QT1, QualType QT2) {
+  QT1 = QT1.getCanonicalType();
+  QT2 = QT2.getCanonicalType();
   if (QT1 == QT2)
     return Result::Equal;
   else
