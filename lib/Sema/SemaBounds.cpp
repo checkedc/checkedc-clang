@@ -871,7 +871,7 @@ namespace {
             return CreateBoundsEmpty();
 
           if (FunBounds->isInteropTypeAnnotation())
-            return CreateBoundsInferenceError();
+            return CreateBoundsAllowedButUncomputable();
 
           ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
                                                          CE->getNumArgs());
