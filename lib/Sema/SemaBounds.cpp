@@ -709,13 +709,18 @@ namespace {
             return CreateBoundsInferenceError();
           }
           UnaryOperatorKind Op = UO->getOpcode();
-          Expr *SubExpr = UO->getSubExpr();
 
           // `*e` is not an r-value.
           if (Op == UnaryOperatorKind::UO_Deref) {
             llvm_unreachable("unexpected dereference expression in RValue Bounds inference");
             return CreateBoundsInferenceError();
           }
+
+          // `!e` has empty bounds
+          if (Op == UnaryOperatorKind::UO_LNot)
+            return CreateBoundsEmpty();
+
+          Expr *SubExpr = UO->getSubExpr();
 
           // `&e` has the bounds of `e`.
           // `e` is an lvalue, so its bounds are its lvalue bounds.
@@ -738,10 +743,6 @@ namespace {
               Op == UnaryOperatorKind::UO_Minus ||
               Op == UnaryOperatorKind::UO_Not)
             return RValueBounds(SubExpr);
-
-          // `!e` has empty bounds
-          if (Op == UnaryOperatorKind::UO_LNot)
-            return CreateBoundsEmpty();
 
           // We cannot infer the bounds of other unary operators
           return CreateBoundsUnknown();
