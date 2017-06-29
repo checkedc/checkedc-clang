@@ -15,7 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/APInt.h"
-#include "llvm/support/raw_ostream.h"
+#include "llvm/Support/raw_ostream.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
