@@ -757,32 +757,25 @@ namespace {
           Expr *RHS = BO->getRHS();
           BinaryOperatorKind Op = BO->getOpcode();
 
-          BoundsExpr *RHSBounds = RValueBounds(RHS);
-
           // Floating point expressions have empty bounds
           if (BO->getType()->isFloatingType())
             return CreateBoundsEmpty();
 
           // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
           if (Op == BinaryOperatorKind::BO_Assign)
-            return RHSBounds;
+            return RValueBounds(RHS);
 
           // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
           // are RValues.
           if (Op == BinaryOperatorKind::BO_Comma)
-            return RHSBounds;
+            return RValueBounds(RHS);
 
           // Compound Assignments function like assignments mostly,
           // except the LHS is an L-Value, so we'll use its lvalue target bounds
           bool IsCompoundAssignment = false;
-          BoundsExpr *LHSBounds;
           if (BinaryOperator::isCompoundAssignmentOp(Op)) {
             Op = BinaryOperator::getOpForCompoundAssignment(Op);
             IsCompoundAssignment = true;
-            LHSBounds = LValueTargetBounds(LHS);
-          }
-          else {
-            LHSBounds = RValueBounds(LHS);
           }
 
           // Pointer arithmetic.
@@ -793,14 +786,15 @@ namespace {
           if (LHS->getType()->isPointerType() &&
               RHS->getType()->isIntegerType() &&
               BinaryOperator::isAdditiveOp(Op)) {
-            return LHSBounds;
+            return IsCompoundAssignment ?
+              LValueTargetBounds(LHS) : RValueBounds(LHS);
           }
           // `i + p` has the bounds of `p`. `p` is an RValue.
           // `i += p` has the bounds of `p`. `p` is an RValue.
           if (LHS->getType()->isIntegerType() &&
               RHS->getType()->isPointerType() &&
               Op == BinaryOperatorKind::BO_Add) {
-            return RHSBounds;
+            return RValueBounds(RHS);
           }
           // `e - p` has empty bounds, regardless of the bounds of p.
           // `e -= p` has empty bounds, regardless of the bounds of p.
@@ -827,6 +821,9 @@ namespace {
                BinaryOperator::isMultiplicativeOp(Op) ||
                BinaryOperator::isBitwiseOp(Op) ||
                BinaryOperator::isShiftOp(Op))) {
+            BoundsExpr *LHSBounds = IsCompoundAssignment ?
+              LValueTargetBounds(LHS) : RValueBounds(LHS);
+            BoundsExpr *RHSBounds = RValueBounds(RHS);
             if (LHSBounds->isNone() && !RHSBounds->isNone())
               return RHSBounds;
             if (!LHSBounds->isNone() && RHSBounds->isNone())
