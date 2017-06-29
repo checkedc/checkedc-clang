@@ -51,6 +51,7 @@ class TypeAliasTemplateDecl;
 class TypeLoc;
 class UnresolvedSetImpl;
 class VarTemplateDecl;
+class TypedefDecl;
 
 /// \brief A container of type source information.
 ///
@@ -1642,6 +1643,7 @@ private:
   /// parameters of this function.  This is null if a prototype or if there are
   /// no formals.
   ParmVarDecl **ParamInfo;
+  TypedefDecl **TypeVarInfo;
 
   LazyDeclStmtPtr Body;
 
@@ -1746,6 +1748,7 @@ private:
                                         TemplateSpecializationKind TSK);
 
   void setParams(ASTContext &C, ArrayRef<ParmVarDecl *> NewParamInfo);
+  void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo);
 
 protected:
   FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
@@ -1764,7 +1767,7 @@ protected:
         IsLateTemplateParsed(false), IsConstexpr(isConstexprSpecified),
         UsesSEHTry(false), HasSkippedBody(false), WillHaveBody(false),
         EndRangeLoc(NameInfo.getEndLoc()), TemplateOrSpecialization(),
-        DNLoc(NameInfo.getInfo()) {}
+        DNLoc(NameInfo.getInfo()), TypeVarInfo(nullptr) {}
 
   typedef Redeclarable<FunctionDecl> redeclarable_base;
   FunctionDecl *getNextRedeclarationImpl() override {
@@ -2070,6 +2073,13 @@ public:
     return {ParamInfo, getNumParams()};
   }
 
+  ArrayRef<TypedefDecl *> typevariables() const {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+  MutableArrayRef<TypedefDecl *> typevariables() {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+
   // Iterator access to formal parameters.
   typedef MutableArrayRef<ParmVarDecl *>::iterator param_iterator;
   typedef ArrayRef<ParmVarDecl *>::const_iterator param_const_iterator;
@@ -2084,6 +2094,7 @@ public:
   /// based on its FunctionType.  This is the length of the ParamInfo array
   /// after it has been created.
   unsigned getNumParams() const;
+  unsigned getNumTypeVars() const;
 
   const ParmVarDecl *getParamDecl(unsigned i) const {
     assert(i < getNumParams() && "Illegal param #");
@@ -2095,6 +2106,9 @@ public:
   }
   void setParams(ArrayRef<ParmVarDecl *> NewParamInfo) {
     setParams(getASTContext(), NewParamInfo);
+  }
+  void setTypeVars(ArrayRef<TypedefDecl *> NewTypeVarInfo) {
+    setTypeVars(getASTContext(), NewTypeVarInfo);
   }
 
   /// getMinRequiredArguments - Returns the minimum number of arguments
@@ -2768,9 +2782,11 @@ private:
 /// TypedefDecl - Represents the declaration of a typedef-name via the 'typedef'
 /// type specifier.
 class TypedefDecl : public TypedefNameDecl {
+  bool isTypeVariableDecl;
   TypedefDecl(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
-              SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo)
-      : TypedefNameDecl(Typedef, C, DC, StartLoc, IdLoc, Id, TInfo) {}
+              SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo, bool isTypeVarDecl=false)
+      : TypedefNameDecl(Typedef, C, DC, StartLoc, IdLoc, Id, TInfo),
+      isTypeVariableDecl(isTypeVarDecl) {}
 
 public:
   static TypedefDecl *Create(ASTContext &C, DeclContext *DC,
@@ -2779,6 +2795,8 @@ public:
   static TypedefDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
   SourceRange getSourceRange() const override LLVM_READONLY;
+  bool IsTypeVariableDecl(void) { return isTypeVariableDecl; }
+  void SetTypeVariableDeclFlag(bool isTypeVarDecl) { isTypeVariableDecl = isTypeVarDecl; }
 
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }

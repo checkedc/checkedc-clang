@@ -7082,8 +7082,21 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
     return;
   }
   tok::TokenKind prevToken = tok::l_paren;
-  // Obtain list of type variables bound to for any.
+
+  SmallVector<TypedefDecl*, 16> typevars;
   bool breakOutOfWhileLoop = false;
+  unsigned int deBruijnPos = 0;
+
+  // Calculate the depth of deBruijn index for our generic types
+  unsigned int deBruijnDepth = 0;
+  Scope *tempScope = getCurScope()->getParent();
+  while (!tempScope) {
+    if (tempScope->isForanyScope())
+      deBruijnDepth++;
+    tempScope = tempScope->getParent();
+  }
+
+  // Obtain list of type variables bound to for any.
   while (!breakOutOfWhileLoop) {
     // The tokens should be one of the three. tok::identifier, tok::comma, 
     // tok::r_paren. Anything else will be an error.
@@ -7096,36 +7109,22 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
         break;
       }
 
-      // Add type variable to scope.
-      SourceLocation StartLoc = Tok.getLocation();
-      DeclSpec genericType(AttrFactory);
-      PrintingPolicy Policy = Actions.getPrintingPolicy();
-      const char *PrevSpec = nullptr;
-      unsigned DiagID;
       // Introduce typedef name that will be bound to type variable. Create a 
       // DeclSpec of typedef, in order to use clang code for checking whether 
       // the type name already exists. TODO: For now we bind to void*. Change 
-      // the binding to type variable.
-      genericType.SetStorageClassSpec(Actions, DeclSpec::SCS_typedef, StartLoc,
-                                 PrevSpec, DiagID, Policy);
-      genericType.SetTypeSpecType(DeclSpec::TST_void, StartLoc, PrevSpec, DiagID,
-                             Policy);
-      DS.SetRangeStart(ForAnyStartLoc);
-      DS.SetRangeEnd(SourceLocation());
-      Declarator D(genericType, Declarator::TheContext::BlockContext);
-      D.SetRangeBegin(ForAnyStartLoc);
-      D.SetRangeEnd(SourceLocation());
-      D.AddTypeInfo(DeclaratorChunk::getPointer(genericType.getTypeQualifiers(), StartLoc,
-                                                genericType.getConstSpecLoc(),
-                                                genericType.getVolatileSpecLoc(),
-                                                genericType.getRestrictSpecLoc(),
-                                                genericType.getAtomicSpecLoc(),
-                                                genericType.getUnalignedSpecLoc()),
-                                                genericType.getAttributes(),
-                                                SourceLocation());
-      D.SetIdentifier(Tok.getIdentifierInfo(), Tok.getLocation());
-      D.SetRangeEnd(Tok.getLocation());
-      Decl* genericTypeDecl = Actions.ActOnDeclarator(getCurScope(), D);
+      // the binding to type variable.      
+      QualType R = Actions.Context.getMyTypeVariableType(0, deBruijnPos);
+      TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
+      TypedefDecl *NewTD = TypedefDecl::Create(Actions.Context, Actions.CurContext,
+        ForAnyStartLoc,
+        Tok.getLocation(),
+        Tok.getIdentifierInfo(),
+        TInfo);
+      NewTD->SetTypeVariableDeclFlag(true);
+      Actions.PushOnScopeChains(NewTD, getCurScope(), true);
+      typevars.push_back(NewTD);
+
+      deBruijnPos++;
       prevToken = tok::identifier;
       ConsumeToken();
     } else if (Tok.getKind() == tok::comma) {
@@ -7146,6 +7145,8 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
         breakOutOfWhileLoop = true;
         break;
       }
+      // Add parsed type variables to Decl Spec.
+      DS.setTypeVars(Actions.getASTContext(), typevars, deBruijnPos);
       ConsumeParen();
       breakOutOfWhileLoop = true;
     } else {

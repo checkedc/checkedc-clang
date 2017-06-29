@@ -5376,6 +5376,8 @@ TreeTransform<Derived>::TransformUnresolvedUsingType(TypeLocBuilder &TLB,
   return Result;
 }
 
+
+
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformTypedefType(TypeLocBuilder &TLB,
                                                       TypedefTypeLoc TL) {
@@ -5431,6 +5433,12 @@ QualType TreeTransform<Derived>::TransformTypeOfExprType(TypeLocBuilder &TLB,
   NewTL.setRParenLoc(TL.getRParenLoc());
 
   return Result;
+}
+
+template<typename Derived>
+QualType TreeTransform<Derived>::TransformMyTypeVariableType(TypeLocBuilder &TLB,
+                                                             MyTypeVariableTypeLoc TL) {
+  return QualType();
 }
 
 template<typename Derived>

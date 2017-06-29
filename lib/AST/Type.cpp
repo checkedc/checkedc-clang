@@ -2665,7 +2665,7 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
       Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
       HasParamBounds(epi.ParamBounds != nullptr),
-      ReturnBounds(epi.ReturnBounds) {
+      ReturnBounds(epi.ReturnBounds), NumTypeVars(epi.numTypeVars) {
   assert(NumParams == params.size() && "function has too many parameters");
 
   FunctionTypeBits.TypeQuals = epi.TypeQuals;
@@ -3666,6 +3666,7 @@ bool Type::canHaveNullability() const {
   case Type::ObjCInterface:
   case Type::Atomic:
   case Type::Pipe:
+  case Type::MyTypeVariable:
     return false;
   }
   llvm_unreachable("bad type kind!");

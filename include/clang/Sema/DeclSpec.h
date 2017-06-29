@@ -231,6 +231,7 @@ public:
   /// \note The order of these enumerators is important for diagnostics.
   enum SCS {
     SCS_unspecified = 0,
+    SCS_typevariable,
     SCS_typedef,
     SCS_extern,
     SCS_static,
@@ -385,6 +386,9 @@ private:
   // attributes.
   ParsedAttributes Attrs;
 
+  TypedefDecl **TypeVarInfo;
+  unsigned NumTypeVars : 15;
+
   // Scope specifier for the type spec, if applicable.
   CXXScopeSpec TypeScope;
 
@@ -415,7 +419,7 @@ private:
 
   ObjCDeclSpec *ObjCQualifiers;
 
-  static bool isTypeRep(TST T) {
+  static bool isTypeRep(TST T) { 
     return (T == TST_typename || T == TST_typeofType ||
             T == TST_underlyingType || T == TST_atomic ||
             T == TST_plainPtr || T == TST_arrayPtr);
@@ -455,12 +459,14 @@ public:
       // Checked C - checked function
       FS_checked_specified(CFS_None),
       FS_forany_specified(false),
+      TypeVarInfo(nullptr),
+      NumTypeVars(0),
       Friend_specified(false),
       Constexpr_specified(false),
       Concept_specified(false),
       Attrs(attrFactory),
       writtenBS(),
-      ObjCQualifiers(nullptr) {
+      ObjCQualifiers(nullptr){
   }
 
   // storage-class-specifier
@@ -600,6 +606,17 @@ public:
 
   bool isForanySpecified() const { return FS_forany_specified; }
   SourceLocation getForanySpecLoc() const { return FS_foranyLoc; }
+
+  void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars);
+  void setNumTypeVars(unsigned NewNumTypeVars) { NumTypeVars = NewNumTypeVars; }
+  unsigned getNumTypeVars(void) const { return NumTypeVars; }
+
+  ArrayRef<TypedefDecl *> typevariables() const {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+  MutableArrayRef<TypedefDecl *> typevariables() {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
 
   void ClearFunctionSpecs() {
     FS_inline_specified = false;

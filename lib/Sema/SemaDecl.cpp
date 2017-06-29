@@ -8317,6 +8317,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   if (!NewFD) return nullptr;
 
   NewFD->setGenericFunctionFlag(D.getDeclSpec().isForanySpecified());
+  if (D.getDeclSpec().getNumTypeVars()) NewFD->setTypeVars(D.getDeclSpec().typevariables());
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();

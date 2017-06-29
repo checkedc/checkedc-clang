@@ -3089,6 +3089,11 @@ void CXXNameMangler::mangleType(const DependentTemplateSpecializationType *T) {
   Out << 'E';
 }
 
+void CXXNameMangler::mangleType(const MyTypeVariableType *T) {
+  // TODO: I have no clue what mangle type is.
+  Out << "tv";
+}
+
 void CXXNameMangler::mangleType(const TypeOfType *T) {
   // FIXME: this is pretty unsatisfactory, but there isn't an obvious
   // "extension with parameters" mangling.

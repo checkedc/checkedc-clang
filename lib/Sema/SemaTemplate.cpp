@@ -4939,6 +4939,10 @@ bool UnnamedLocalNoLinkageFinder::VisitTypeOfExprType(const TypeOfExprType*) {
   return false;
 }
 
+bool UnnamedLocalNoLinkageFinder::VisitMyTypeVariableType(const MyTypeVariableType*) {
+  return false;
+}
+
 bool UnnamedLocalNoLinkageFinder::VisitTypeOfType(const TypeOfType* T) {
   return Visit(T->getUnderlyingType());
 }

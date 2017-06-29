@@ -2483,6 +2483,20 @@ QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
   return QualType(New, 0);
 }
 
+QualType ASTContext::getMyTypeVariableType(unsigned int dbDepth, unsigned int dbPos) const {
+  llvm::FoldingSetNodeID ID;
+  MyTypeVariableType::Profile(ID, dbDepth, dbPos);
+
+  void *InsertPos = nullptr;
+  if (MyTypeVariableType *PT = MyTypeVariableTypes.FindNodeOrInsertPos(ID, InsertPos))
+    return QualType(PT, 0);
+
+  MyTypeVariableType *New = new (*this, TypeAlignment) MyTypeVariableType(dbDepth, dbPos);
+  Types.push_back(New);
+  MyTypeVariableTypes.InsertNode(New, InsertPos);
+  return QualType(New, 0);
+}
+
 QualType ASTContext::getAdjustedType(QualType Orig, QualType New) const {
   llvm::FoldingSetNodeID ID;
   AdjustedType::Profile(ID, Orig, New);
@@ -8058,6 +8072,10 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
       }
     }
 
+    // Compatible functions must have the same number of type variables
+    if (lproto->getNumTypeVars() != rproto->getNumTypeVars())
+      return QualType();
+
     // Check parameter type compatibility
     SmallVector<QualType, 10> types;
     SmallVector<const BoundsExpr *, 10> bounds;
@@ -8114,6 +8132,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (hasParamBounds)
       EPI.ParamBounds = bounds.data();
     EPI.ReturnBounds = returnBounds;
+    EPI.numTypeVars = lproto->getNumTypeVars();
     return getFunctionType(retType, types, EPI);
   }
 

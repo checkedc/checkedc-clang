@@ -3296,12 +3296,12 @@ public:
     ExtProtoInfo()
         : Variadic(false), HasTrailingReturn(false), TypeQuals(0),
           RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr), ReturnBounds(nullptr) {}
+          ParamBounds(nullptr), ReturnBounds(nullptr), numTypeVars(0) {}
 
     ExtProtoInfo(CallingConv CC)
         : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), TypeQuals(0),
           RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr), ReturnBounds(nullptr) {}
+          ParamBounds(nullptr), ReturnBounds(nullptr), numTypeVars(0) {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
       ExtProtoInfo Result(*this);
@@ -3318,6 +3318,7 @@ public:
     const ExtParameterInfo *ExtParameterInfos;
     const BoundsExpr *const *ParamBounds;
     const BoundsExpr *ReturnBounds;
+    unsigned numTypeVars : 15;
   };
 
 private:
@@ -3337,6 +3338,7 @@ private:
 
   /// The number of parameters this function has, not counting '...'.
   unsigned NumParams : 15;
+  unsigned NumTypeVars : 15;
 
   /// The number of types in the exception spec, if any.
   unsigned NumExceptions : 9;
@@ -3416,6 +3418,7 @@ public:
     assert(i < NumParams && "invalid parameter index");
     return param_type_begin()[i];
   }
+  unsigned getNumTypeVars() const { return NumTypeVars; }
   ArrayRef<QualType> getParamTypes() const {
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
@@ -3450,6 +3453,7 @@ public:
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
     EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
     EPI.ReturnBounds = hasReturnBounds() ? getReturnBounds() : nullptr;
+    EPI.numTypeVars = getNumTypeVars();
     return EPI;
   }
 
@@ -3689,8 +3693,38 @@ public:
 };
 
 
+class MyTypeVariableType : public Type, llvm::FoldingSetNode {
+  unsigned int deBruijnDepth;
+  unsigned int deBruijnPos;
+  unsigned int width;
+protected:
+  MyTypeVariableType(unsigned int dbDepth, unsigned int dbPos)
+    : Type(MyTypeVariable, QualType(), false, false, false, false),
+    deBruijnDepth(dbDepth), deBruijnPos(dbPos) { }
+  friend class ASTContext;
+public:
+  bool isSugared(void) const { return false; }
+  QualType desugar(void) const { return QualType(this, 0); }
+  static bool classof(const Type *T) { return T->getTypeClass() == MyTypeVariable; }
+  unsigned int GetDeBruijnDepth(void) const { return deBruijnDepth; }
+  void SetDeBruijnDepth(unsigned int i) { deBruijnDepth = i; }
+  unsigned int GetDeBruijnPos(void) const { return deBruijnPos; }
+  void SetDeBruijnPos(unsigned int i) { deBruijnPos = i; }
+  unsigned int GetWidth(void) { return width; }
+
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, deBruijnDepth, deBruijnPos);
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int dbDepth, unsigned int dbPos) {
+    ID.AddInteger(dbDepth);
+    ID.AddInteger(dbPos);
+  }
+};
+
+
 class TypedefType : public Type {
   TypedefNameDecl *Decl;
+  bool isTypeVariable;
 protected:
   TypedefType(TypeClass tc, const TypedefNameDecl *D, QualType can)
     : Type(tc, can, can->isDependentType(),
@@ -3700,6 +3734,8 @@ protected:
       Decl(const_cast<TypedefNameDecl*>(D)) {
     assert(!isa<TypedefType>(can) && "Invalid canonical type");
   }
+
+
   friend class ASTContext;  // ASTContext creates these.
 public:
 

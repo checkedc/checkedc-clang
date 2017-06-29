@@ -334,6 +334,11 @@ void ASTTypeWriter::VisitTypedefType(const TypedefType *T) {
   Code = TYPE_TYPEDEF;
 }
 
+void ASTTypeWriter::VisitMyTypeVariableType(const MyTypeVariableType *T) {
+  Record.AddTypeRef(T->desugar());
+  Record.push_back(T->GetDeBruijnDepth());
+}
+
 void ASTTypeWriter::VisitTypeOfExprType(const TypeOfExprType *T) {
   Record.AddStmt(T->getUnderlyingExpr());
   Code = TYPE_TYPEOF_EXPR;
@@ -674,6 +679,9 @@ void TypeLocWriter::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 void TypeLocWriter::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
+  Record.AddSourceLocation(TL.getNameLoc());
+}
+void TypeLocWriter::VisitMyTypeVariableTypeLoc(MyTypeVariableTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 void TypeLocWriter::VisitObjCTypeParamTypeLoc(ObjCTypeParamTypeLoc TL) {
