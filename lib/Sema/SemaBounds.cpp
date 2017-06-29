@@ -831,7 +831,7 @@ namespace {
             if (!LHSBounds->isNone() && !RHSBounds->isNone()) {
               // TODO: Check if LHSBounds and RHSBounds are equal.
               // if so, return one of them. If not, return bounds(none)
-              return CreateBoundsAllowedButUncomputable();
+              return CreateBoundsUnknown();
             }
             if (LHSBounds->isNone() && RHSBounds->isNone())
               return CreateBoundsEmpty();
