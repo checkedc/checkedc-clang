@@ -3687,14 +3687,14 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
                                               true);
       }
       case Type::DependentSizedArray:
-      case Type::VariableArray: 
+      case Type::VariableArray:
         // Checked versions of these arrays cannot be created. An error
         // message is produced by BuildArrayType for the outer error type
         // because these result in the outer array type being
         // dependently-typed or variably-sized.
         break;
       default:
-          assert("unexpected array type");
+          llvm_unreachable("unexpected array type");
           break;
     }
   } else if (const TypedefType *TD = dyn_cast<TypedefType>(T)) {

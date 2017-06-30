@@ -3281,8 +3281,6 @@ ExprResult Parser::ParseBoundsCastExpression() {
         RAngleBracketLoc, RelativeClause, LParenLoc, RParenLoc, E1.get(),
         E2.get(), E3.get());
     break;
-  default:
-    llvm_unreachable("unexpected expression kind");
   }
 
   return Result;

@@ -2559,7 +2559,6 @@ void ASTDumper::dumpBoundsKind(BoundsExpr::Kind K) {
     case BoundsExpr::Kind::ByteCount: OS << " Byte"; break;
     case BoundsExpr::Kind::Range: OS << " Range"; break;
     case BoundsExpr::Kind::InteropTypeAnnotation: OS << " InteropTypeAnnotation"; break;
-    default: OS << " <<err>>"; break;
   }
 }
 
