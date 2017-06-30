@@ -22,12 +22,13 @@
 #include "clang/AST/Stmt.h"
 
 using namespace clang;
+using Result = Lexicographic::Result;
 
 Lexicographic::Lexicographic(ASTContext &Ctx, EqualityRelation *EV) :
   Context(Ctx), EqualVars(EV), Trace(false) {
 }
 
-Lexicographic::Result Lexicographic::CompareInteger(signed I1, signed I2) {
+Result Lexicographic::CompareInteger(signed I1, signed I2) {
   if (I1 < I2)
     return Result::LessThan;
   else if (I1 > I2)
@@ -36,7 +37,7 @@ Lexicographic::Result Lexicographic::CompareInteger(signed I1, signed I2) {
     return Result::Equal;
 }
 
-Lexicographic::Result Lexicographic::CompareInteger(unsigned I1, unsigned I2) {
+Result Lexicographic::CompareInteger(unsigned I1, unsigned I2) {
   if (I1 < I2)
     return Result::LessThan;
   else if (I1 > I2)
@@ -45,41 +46,41 @@ Lexicographic::Result Lexicographic::CompareInteger(unsigned I1, unsigned I2) {
     return Result::Equal;
 }
 
-static Lexicographic::Result CompareAPInt(const llvm::APInt &I1, const llvm::APInt &I2) {
+static Result CompareAPInt(const llvm::APInt &I1, const llvm::APInt &I2) {
   if (I1.slt(I2))
-    return Lexicographic::Result::LessThan;
+    return Result::LessThan;
   else if (I1.eq(I2))
-    return Lexicographic::Result::Equal;
+    return Result::Equal;
   else
-    return Lexicographic::Result::GreaterThan;
+    return Result::GreaterThan;
 }
 
-static Lexicographic::Result TranslateInt(int i) {
+static Result TranslateInt(int i) {
   if (i == 0) 
-    return Lexicographic::Result::Equal;
+    return Result::Equal;
   else if  (i > 0)
-    return Lexicographic::Result::GreaterThan;
+    return Result::GreaterThan;
   else
-    return Lexicographic::Result::LessThan;
+    return Result::LessThan;
 }
 
 // \brief See if two pointers can be ordered based on nullness or
 // pointer equality.   Set the parameter 'ordered' based on whether
 // they can be.  If they can be ordered, return the ordering.
 template<typename T> 
-static Lexicographic::Result ComparePointers(T *P1, T *P2, bool &ordered) {
+static Result ComparePointers(T *P1, T *P2, bool &ordered) {
   ordered = true;
   if (P1 == P2)
-    return Lexicographic::Result::Equal;
+    return Result::Equal;
   if (P1 == nullptr && P2 != nullptr)
-    return Lexicographic::Result::LessThan;
+    return Result::LessThan;
   if (P1 != nullptr && P2 == nullptr)
-    return Lexicographic::Result::GreaterThan;
+    return Result::GreaterThan;
   ordered = false;
-  return Lexicographic::Result::LessThan;
+  return Result::LessThan;
 }
 
-Lexicographic::Result 
+Result
 Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) {
    DC1 = DC1->getPrimaryContext();
    DC2 = DC2->getPrimaryContext();
@@ -106,7 +107,7 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) {
   }
 }
 
-Lexicographic::Result 
+Result
 Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) {
   const NamedDecl *D1 = dyn_cast<NamedDecl>(D1Arg->getCanonicalDecl());
   const NamedDecl *D2 = dyn_cast<NamedDecl>(D2Arg->getCanonicalDecl());
@@ -187,7 +188,7 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) {
   return Result::LessThan;
 }
 
-Lexicographic::Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
+Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
    if (Trace) {
      raw_ostream &OS = llvm::outs();
      OS << "Lexicographic comparing expressions\n";
@@ -214,35 +215,35 @@ Lexicographic::Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2)
 #define EXPR(Kind, Base)
 #include "clang/AST/StmtNodes.inc"
        llvm_unreachable("cannot compare a statement");  
-     case Expr::PredefinedExprClass: Cmp = ComparePredefinedExpr(E1, E2); break;
-     case Expr::DeclRefExprClass: return CompareDeclRefExpr(E1, E2);
-     case Expr::IntegerLiteralClass: return CompareIntegerLiteral(E1, E2);
-     case Expr::FloatingLiteralClass: return CompareFloatingLiteral(E1, E2);
+     case Expr::PredefinedExprClass: Cmp = Compare<PredefinedExpr>(E1, E2); break;
+     case Expr::DeclRefExprClass: return Compare<DeclRefExpr>(E1, E2);
+     case Expr::IntegerLiteralClass: return Compare<IntegerLiteral>(E1, E2);
+     case Expr::FloatingLiteralClass: return Compare<FloatingLiteral>(E1, E2);
      case Expr::ImaginaryLiteralClass: break;
-     case Expr::StringLiteralClass: return CompareStringLiteral(E1, E2);
-     case Expr::CharacterLiteralClass: return CompareCharacterLiteral(E1, E2);
+     case Expr::StringLiteralClass: return Compare<StringLiteral>(E1, E2);
+     case Expr::CharacterLiteralClass: return Compare<CharacterLiteral>(E1, E2);
      case Expr::ParenExprClass: break;
-     case Expr::UnaryOperatorClass: Cmp = CompareUnaryOperator(E1, E2); break;
-     case Expr::OffsetOfExprClass: Cmp = CompareOffsetOfExpr(E1, E2); break;
+     case Expr::UnaryOperatorClass: Cmp = Compare<UnaryOperator>(E1, E2); break;
+     case Expr::OffsetOfExprClass: Cmp = Compare<OffsetOfExpr>(E1, E2); break;
      case Expr::UnaryExprOrTypeTraitExprClass:
-       Cmp = CompareUnaryExprOrTypeTraitExpr(E1, E2); break;
+       Cmp = Compare<UnaryExprOrTypeTraitExpr>(E1, E2); break;
      case Expr::ArraySubscriptExprClass: break;
      case Expr::CallExprClass: break;
-     case Expr::MemberExprClass: Cmp = CompareMemberExpr(E1, E2); break;
-     case Expr::BinaryOperatorClass: Cmp = CompareBinaryOperator(E1, E2); break;
+     case Expr::MemberExprClass: Cmp = Compare<MemberExpr>(E1, E2); break;
+     case Expr::BinaryOperatorClass: Cmp = Compare<BinaryOperator>(E1, E2); break;
      case Expr::CompoundAssignOperatorClass:
-       Cmp = CompareCompoundAssignOperator(E1, E2); break;
+       Cmp = Compare<CompoundAssignOperator>(E1, E2); break;
      case Expr::BinaryConditionalOperatorClass: break;
-     case Expr::ImplicitCastExprClass: Cmp = CompareImplicitCastExpr(E1, E2); break;
-     case Expr::CStyleCastExprClass: Cmp = CompareCStyleCastExpr(E1, E2); break;
-     case Expr::CompoundLiteralExprClass: Cmp = CompareCompoundLiteralExpr(E1, E2); break;
+     case Expr::ImplicitCastExprClass: Cmp = Compare<ImplicitCastExpr>(E1, E2); break;
+     case Expr::CStyleCastExprClass: Cmp = Compare<CStyleCastExpr>(E1, E2); break;
+     case Expr::CompoundLiteralExprClass: Cmp = Compare<CompoundLiteralExpr>(E1, E2); break;
      // TODO:
      // case: ExtVectorElementExpr
      case Expr::VAArgExprClass: break;
-     case Expr::GenericSelectionExprClass: Cmp = CompareGenericSelectionExpr(E1, E2); break;
+     case Expr::GenericSelectionExprClass: Cmp = Compare<GenericSelectionExpr>(E1, E2); break;
 
      // Atomic expressions.
-     case Expr::AtomicExprClass: CompareAtomicExpr(E1, E2); break;
+     case Expr::AtomicExprClass: Compare<AtomicExpr>(E1, E2); break;
 
      // GNU Extensions.
      case Expr::AddrLabelExprClass: break;
@@ -251,17 +252,17 @@ Lexicographic::Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2)
      case Expr::GNUNullExprClass: break;
 
      // Bounds expressions
-     case Expr::NullaryBoundsExprClass: Cmp = CompareNullaryBoundsExpr(E1, E2); break;
-     case Expr::CountBoundsExprClass: Cmp = CompareCountBoundsExpr(E1, E2); break;
-     case Expr::RangeBoundsExprClass:  Cmp = CompareRangeBoundsExpr(E1, E2); break; break;
-     case Expr::InteropTypeBoundsAnnotationClass: Cmp = CompareInteropTypeBoundsAnnotation(E1, E2); break;
-     case Expr::PositionalParameterExprClass: Cmp = ComparePositionalParameterExpr(E1, E2); break;
-     case Expr::BoundsCastExprClass: Cmp = CompareBoundsCastExpr(E1, E2); break;
+     case Expr::NullaryBoundsExprClass: Cmp = Compare<NullaryBoundsExpr>(E1, E2); break;
+     case Expr::CountBoundsExprClass: Cmp = Compare<CountBoundsExpr>(E1, E2); break;
+     case Expr::RangeBoundsExprClass:  Cmp = Compare<RangeBoundsExpr>(E1, E2); break; break;
+     case Expr::InteropTypeBoundsAnnotationClass: Cmp = Compare<InteropTypeBoundsAnnotation>(E1, E2); break;
+     case Expr::PositionalParameterExprClass: Cmp = Compare<PositionalParameterExpr>(E1, E2); break;
+     case Expr::BoundsCastExprClass: Cmp = Compare<BoundsCastExpr>(E1, E2); break;
 
      // Clang extensions
      case Expr::ShuffleVectorExprClass: break;
      case Expr::ConvertVectorExprClass: break;
-     case Expr::BlockExprClass: Cmp = CompareBlockExpr(E1, E2); break;
+     case Expr::BlockExprClass: Cmp = Compare<BlockExpr>(E1, E2); break;
      case Expr::OpaqueValueExprClass: break;
      case Expr::TypoExprClass: break;
      // TODO:
@@ -310,22 +311,10 @@ Lexicographic::Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2)
    if (I1 != E1->child_end() && I2 == E2->child_end())
      return Result::GreaterThan;
 
-   return Lexicographic::Result::Equal;
+   return Result::Equal;
 }
 
-// Lexicographic comparion of properties specific to each expression type.
-// Does not check children of expressions.
-#define CHECK_WRAPPER(N) \
-Lexicographic::Result \
-Lexicographic::Compare##N(const Expr *Raw1, const Expr *Raw2) { \
-  const N *E1 = dyn_cast<N>(Raw1); \
-  const N *E2 = dyn_cast<N>(Raw2); \
-  if (!E1 || !E2)  { \
-    llvm_unreachable("dyn_cast failed"); \
-    return Result::LessThan; \
-  } 
-
-Lexicographic::Result
+Result
 Lexicographic::CompareType(QualType QT1, QualType QT2) {
   QT1 = QT1.getCanonicalType();
   QT2 = QT2.getCanonicalType();
@@ -336,15 +325,18 @@ Lexicographic::CompareType(QualType QT1, QualType QT2) {
     return Result::LessThan;
 }
 
-CHECK_WRAPPER(PredefinedExpr)
+Result
+Lexicographic::CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2) {
   return CompareInteger(E1->getIdentType(), E2->getIdentType());
 }
 
-CHECK_WRAPPER(DeclRefExpr)
+Result
+Lexicographic::CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2) {
   return CompareDecl(E1->getDecl(), E2->getDecl());
 }
 
-CHECK_WRAPPER(IntegerLiteral)
+Result
+Lexicographic::CompareImpl(const IntegerLiteral *E1, const IntegerLiteral *E2) {
   BuiltinType::Kind Kind1 = E1->getType()->castAs<BuiltinType>()->getKind();
   BuiltinType::Kind Kind2 = E2->getType()->castAs<BuiltinType>()->getKind();
   Result Cmp = CompareInteger(Kind1, Kind2);
@@ -353,7 +345,9 @@ CHECK_WRAPPER(IntegerLiteral)
   return CompareAPInt(E1->getValue(), E2->getValue());
 }
 
-CHECK_WRAPPER(FloatingLiteral)
+Result
+Lexicographic::CompareImpl(const FloatingLiteral *E1,
+                           const FloatingLiteral *E2) {
   BuiltinType::Kind Kind1 = E1->getType()->castAs<BuiltinType>()->getKind();
   BuiltinType::Kind Kind2 = E2->getType()->castAs<BuiltinType>()->getKind();
   Result Cmp = CompareInteger(Kind1, Kind2);
@@ -367,25 +361,32 @@ CHECK_WRAPPER(FloatingLiteral)
   return CompareAPInt(E1BitPattern, E2BitPattern);
 }
 
-CHECK_WRAPPER(StringLiteral)
+Result
+Lexicographic::CompareImpl(const StringLiteral *E1,
+                           const StringLiteral *E2) {
   Result Cmp = CompareInteger(E1->getKind(), E2->getKind());
   if (Cmp != Result::Equal)
     return Cmp;
   return TranslateInt(E1->getBytes().compare(E2->getBytes()));
 }
 
-CHECK_WRAPPER(CharacterLiteral)
+Result
+Lexicographic::CompareImpl(const CharacterLiteral *E1,
+                           const CharacterLiteral *E2) {
   Result Cmp = CompareInteger(E1->getKind(), E2->getKind());
   if (Cmp != Result::Equal)
     return Cmp;
   return CompareInteger(E1->getValue(), E2->getValue());
 }
 
-CHECK_WRAPPER(UnaryOperator)
+Result
+Lexicographic::CompareImpl(const UnaryOperator *E1, const UnaryOperator *E2) {
   return CompareInteger(E1->getOpcode(), E2->getOpcode());
 }
 
-CHECK_WRAPPER(UnaryExprOrTypeTraitExpr)
+Result
+Lexicographic::CompareImpl(const UnaryExprOrTypeTraitExpr *E1,
+                           const UnaryExprOrTypeTraitExpr *E2) {
   Result Cmp = CompareInteger(E1->getKind(), E2->getKind());
   if (Cmp != Result::Equal)
     return Cmp;
@@ -400,39 +401,53 @@ CHECK_WRAPPER(UnaryExprOrTypeTraitExpr)
     return CompareExpr(E1->getArgumentExpr(), E2->getArgumentExpr());
 }
 
-CHECK_WRAPPER(OffsetOfExpr)
+Result
+Lexicographic::CompareImpl(const OffsetOfExpr *E1, const OffsetOfExpr *E2) {
   // TODO: fill this in 
   return Result::Equal;
 }
 
-CHECK_WRAPPER(MemberExpr)
+Result
+Lexicographic::CompareImpl(const MemberExpr *E1, const MemberExpr *E2) {
   Result Cmp = CompareInteger(E1->isArrow(), E2->isArrow());
   if (Cmp != Result::Equal)
     return Cmp;
   return CompareDecl(E1->getMemberDecl(), E2->getMemberDecl());
 }
 
-CHECK_WRAPPER(BinaryOperator)
+Result
+Lexicographic::CompareImpl(const BinaryOperator *E1,
+                           const BinaryOperator *E2) {
   return CompareInteger(E1->getOpcode(), E2->getOpcode());
 }
 
-CHECK_WRAPPER(CompoundAssignOperator)
+Result
+Lexicographic::CompareImpl(const CompoundAssignOperator *E1,
+                           const CompoundAssignOperator *E2) {
   return CompareInteger(E1->getOpcode(), E2->getOpcode());
 }
 
-CHECK_WRAPPER(ImplicitCastExpr)
+Result
+Lexicographic::CompareImpl(const ImplicitCastExpr *E1,
+                           const ImplicitCastExpr *E2) {
   return CompareInteger(E1->getValueKind(), E2->getValueKind());
 }
 
-CHECK_WRAPPER(CStyleCastExpr)
+Result
+Lexicographic::CompareImpl(const CStyleCastExpr *E1,
+                           const CStyleCastExpr *E2) {
   return CompareType(E1->getType(), E2->getType());
 }
 
-CHECK_WRAPPER(CompoundLiteralExpr)
+Result
+Lexicographic::CompareImpl(const CompoundLiteralExpr *E1,
+                           const CompoundLiteralExpr *E2) {
   return CompareInteger(E1->isFileScope(), E2->isFileScope());
 }
 
-CHECK_WRAPPER(GenericSelectionExpr)
+Result
+Lexicographic::CompareImpl(const GenericSelectionExpr *E1,
+                           const GenericSelectionExpr *E2) {
   unsigned E1AssocCount = E1->getNumAssocs();
   Result Cmp = CompareInteger(E1AssocCount, E2->getNumAssocs());
   if (Cmp != Result::Equal)
@@ -449,19 +464,24 @@ CHECK_WRAPPER(GenericSelectionExpr)
   return Result::Equal;
 }
 
-CHECK_WRAPPER(AtomicExpr)
+Result
+Lexicographic::CompareImpl(const AtomicExpr *E1, const AtomicExpr *E2) {
   return CompareInteger(E1->getOp(), E2->getOp());
 }
 
-CHECK_WRAPPER(NullaryBoundsExpr)
+Result
+Lexicographic::CompareImpl(const NullaryBoundsExpr *E1,
+                           const NullaryBoundsExpr *E2) {
   return CompareInteger(E1->getKind(), E2->getKind());
 }
 
-CHECK_WRAPPER(CountBoundsExpr)
+Result
+Lexicographic::CompareImpl(const CountBoundsExpr *E1,
+                           const CountBoundsExpr *E2) {
   return CompareInteger(E1->getKind(), E2->getKind());
 }
 
-Lexicographic::Result
+Result
 Lexicographic::CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
                                            const RelativeBoundsClause *RC2) {
   bool ordered;
@@ -496,7 +516,9 @@ Lexicographic::CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
   }
 }
 
-CHECK_WRAPPER(RangeBoundsExpr)
+Result
+Lexicographic::CompareImpl(const RangeBoundsExpr *E1,
+                           const RangeBoundsExpr *E2) {
   Result Cmp = CompareInteger(E1->getKind(), E2->getKind());
   if (Cmp != Result::Equal)
     return Cmp;
@@ -506,27 +528,34 @@ CHECK_WRAPPER(RangeBoundsExpr)
   return CompareRelativeBoundsClause(RB1, RB2);
 }
 
-CHECK_WRAPPER(InteropTypeBoundsAnnotation)
+Result
+Lexicographic::CompareImpl(const InteropTypeBoundsAnnotation *E1,
+                           const InteropTypeBoundsAnnotation *E2) {
   Result Cmp = CompareInteger(E1->getKind(), E2->getKind());
   if (Cmp != Result::Equal)
     return Cmp;
   return CompareType(E1->getType(), E2->getType());
 }
 
-CHECK_WRAPPER(PositionalParameterExpr)
+Result
+Lexicographic::CompareImpl(const PositionalParameterExpr *E1,
+                           const PositionalParameterExpr *E2) {
   Result Cmp = CompareInteger(E1->getIndex(), E2->getIndex());
   if (Cmp != Result::Equal)
     return Cmp;
   return CompareType(E1->getType(), E2->getType());
 }
 
-CHECK_WRAPPER(BoundsCastExpr)
+Result
+Lexicographic::CompareImpl(const BoundsCastExpr *E1,
+                           const BoundsCastExpr *E2) {
   Result Cmp = CompareExpr(E1->getBoundsExpr(), E2->getBoundsExpr());
   if (Cmp != Result::Equal)
     return Cmp;
   return CompareType(E1->getType(), E2->getType());
 }
 
-CHECK_WRAPPER(BlockExpr)
+Result
+Lexicographic::CompareImpl(const BlockExpr *E1, const BlockExpr *E2) {
   return Result::Equal;
 }

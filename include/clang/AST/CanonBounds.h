@@ -55,35 +55,55 @@ namespace clang {
     ASTContext &Context;
     bool Trace;
 
+    template <typename T>
+    Lexicographic::Result Compare(const Expr *Raw1, const Expr *Raw2) {
+      const T *E1 = dyn_cast<T>(Raw1);
+      const T *E2 = dyn_cast<T>(Raw2);
+      if (!E1 || !E2) {
+        llvm_unreachable("dyn_cast failed");
+        return Result::LessThan;
+      }
+      return Lexicographic::CompareImpl(E1, E2);
+    }
+
     Result CompareInteger(signed I1, signed I2);
     Result CompareInteger(unsigned I1, unsigned I2);
-    Result ComparePredefinedExpr(const Expr *E1, const Expr *E2);
-    Result CompareDeclRefExpr(const Expr *E1, const Expr *E2);
-    Result CompareIntegerLiteral(const Expr *E1, const Expr *E2);
-    Result CompareFloatingLiteral(const Expr *E1, const Expr *E2);
-    Result CompareStringLiteral(const Expr *E1, const Expr *E2);
-    Result CompareCharacterLiteral(const Expr *E1, const Expr *E2);
-    Result CompareUnaryOperator(const Expr *E1, const Expr *E2);
-    Result CompareOffsetOfExpr(const Expr *E1, const Expr *E2);
-    Result CompareUnaryExprOrTypeTraitExpr(const Expr *E1, const Expr *E2);
-    Result CompareMemberExpr(const Expr *E1, const Expr *E2);
-    Result CompareBinaryOperator(const Expr *E1, const Expr *E2);
-    Result CompareCompoundAssignOperator(const Expr *E1, const Expr *E2);
-    Result CompareImplicitCastExpr(const Expr *E1, const Expr *E2);
-    Result CompareCStyleCastExpr(const Expr *E1, const Expr *E2);
-    Result CompareCompoundLiteralExpr(const Expr *E1, const Expr *E2);
-    Result CompareGenericSelectionExpr(const Expr *E1, const Expr *E2);
-    Result CompareNullaryBoundsExpr(const Expr *E1, const Expr *E2);
-    Result CompareCountBoundsExpr(const Expr *E1, const Expr *E2);
-    Result CompareRangeBoundsExpr(const Expr *E1, const Expr *E2);
-    Result CompareInteropTypeBoundsAnnotation(const Expr *E1, const Expr *E2);
-    Result ComparePositionalParameterExpr(const Expr *E1, const Expr *E2);
     Result CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
                                        const RelativeBoundsClause *RC2);
-    Result CompareBoundsCastExpr(const Expr *E1, const Expr *E2);
-    Result CompareAtomicExpr(const Expr *E1, const Expr *E2);
-    Result CompareBlockExpr(const Expr *E1, const Expr *E2);
     Result CompareScope(const DeclContext *DC1, const DeclContext *DC2);
+
+    Result CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2);
+    Result CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2);
+    Result CompareImpl(const IntegerLiteral *E1, const IntegerLiteral *E2);
+    Result CompareImpl(const FloatingLiteral *E1, const FloatingLiteral *E2);
+    Result CompareImpl(const StringLiteral *E1, const StringLiteral *E2);
+    Result CompareImpl(const CharacterLiteral *E1, const CharacterLiteral *E2);
+    Result CompareImpl(const UnaryOperator *E1, const UnaryOperator *E2);
+    Result CompareImpl(const OffsetOfExpr *E1, const OffsetOfExpr *E2);
+    Result CompareImpl(const UnaryExprOrTypeTraitExpr *E1,
+                   const UnaryExprOrTypeTraitExpr *E2);
+    Result CompareImpl(const MemberExpr *E1, const MemberExpr *E2);
+    Result CompareImpl(const BinaryOperator *E1, const BinaryOperator *E2);
+    Result CompareImpl(const CompoundAssignOperator *E1,
+                   const CompoundAssignOperator *E2);
+    Result CompareImpl(const ImplicitCastExpr *E1, const ImplicitCastExpr *E2);
+    Result CompareImpl(const CStyleCastExpr *E1, const CStyleCastExpr *E2);
+    Result CompareImpl(const CompoundLiteralExpr *E1,
+                   const CompoundLiteralExpr *E2);
+    Result CompareImpl(const GenericSelectionExpr *E1,
+                   const GenericSelectionExpr *E2);
+    Result CompareImpl(const NullaryBoundsExpr *E1,
+                       const NullaryBoundsExpr *E2);
+    Result CompareImpl(const CountBoundsExpr *E1, const CountBoundsExpr *E2);
+    Result CompareImpl(const RangeBoundsExpr *E1, const RangeBoundsExpr *E2);
+    Result CompareImpl(const InteropTypeBoundsAnnotation *E1,
+                   const InteropTypeBoundsAnnotation *E2);
+    Result CompareImpl(const PositionalParameterExpr *E1,
+                   const PositionalParameterExpr *E2);
+    Result CompareImpl(const BoundsCastExpr *E1, const BoundsCastExpr *E2);
+    Result CompareImpl(const AtomicExpr *E1, const AtomicExpr *E2);
+    Result CompareImpl(const BlockExpr *E1, const BlockExpr *E2);
+
 
   public:
     Lexicographic(ASTContext &Ctx, EqualityRelation *EV);
