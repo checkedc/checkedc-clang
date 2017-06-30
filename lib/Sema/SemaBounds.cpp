@@ -31,6 +31,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "llvm/ADT/SmallBitVector.h"
 #include "TreeTransform.h"
 
 using namespace clang;
@@ -155,12 +156,16 @@ namespace {
 
   private:
     const ArrayRef<Expr *> Arguments;
+    // This stores whether we've emitted an error for a particular substitution
+    // so that we don't duplicate error messages.
+    llvm::SmallBitVector ErroredForArgument;
     bool SubstututedModifyingExpression;
 
   public:
     ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args) :
       BaseTransform(SemaRef),
       Arguments(Args),
+      ErroredForArgument(Args.size()),
       SubstututedModifyingExpression(false) { }
 
     bool substututedModifyingExpression() {
@@ -171,13 +176,16 @@ namespace {
       unsigned index = E->getIndex();
       if (index < Arguments.size()) {
         Expr *AE = Arguments[index];
+        bool ShouldReportError = !ErroredForArgument[index];
 
         // We may only substitute if this argument expression is
         // a non-modifying expression.
         if (!SemaRef.CheckIsNonModifyingExpr(AE,
                                              Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Args,
-                                             /*ReportError=*/true))
+                                             ShouldReportError)) {
           SubstututedModifyingExpression = true;
+          ErroredForArgument.set(index);
+        }
 
         return AE;
       } else {
