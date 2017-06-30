@@ -1386,6 +1386,10 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   // are compiling for OpenCL, we need to return an error as this implies
   // that the address of the function is being taken, which is illegal in CL.
 
+  // Check to see if resExpr is a generic function call. In this case, we must
+  // parse a list of type names that follows generic function decl identifier.
+  if (ParseGenericFunctionExpression(Res)) return ExprError();
+
   // These can be followed by postfix-expr pieces.
   Res = ParsePostfixExpressionSuffix(Res);
   if (getLangOpts().OpenCL)
@@ -3017,6 +3021,68 @@ ExprResult Parser::ParseBoundsExpression() {
   PT.consumeClose();
 
   return Result;
+}
+
+// With primary-expression, before parsing postfix-expression, check to make
+// sure that Expr is declRefExpr of generic function with _For_any specifier
+bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
+  Expr *resExpr = Res.get();
+  // Have to make sure that resExpr down to FunctionDecl is not null, because
+  // if there is a parsing error before, one of these may be null.
+  if (!resExpr || !isa<DeclRefExpr>(resExpr)) return false;
+  DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(resExpr);
+  ValueDecl *resDecl = declRef->getDecl();
+  if (!resDecl || !isa<FunctionDecl>(resDecl)) return false;
+  FunctionDecl* funDecl = dyn_cast<FunctionDecl>(resDecl);
+  // Only parse for a list of type specifiers if it's a generic function.
+  if (!funDecl->IsGenericFunction()) return false;
+
+  // Expect a '<' to denote that a list of type specifiers are incoming.
+  if (ExpectAndConsume(tok::less,
+    diag::err_expected_list_of_types_expr_for_generic_function)) {
+    // We want to consume greater, but not consume semi
+    SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+    if (Tok.getKind() == tok::greater) ConsumeToken();
+    return true;
+  }
+
+  // If '<' is immediately followed by '>' consider parsing for a list of
+  // type names done, and exit after consuming '>'.
+  if (Tok.getKind() == tok::greater) {
+    ConsumeToken();
+    return false;
+  }
+  else {
+    // Expect to see a list of type names, followed by a '>'.
+    while (true) {
+      // Expect to see type name.
+      TypeResult Ty = ParseTypeName();
+      if (Ty.isInvalid()) {
+        // We do not need to write error message since ParseTypeName does
+        // We want to consume greater, but not consume semi
+        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+        if (Tok.getKind() == tok::greater) ConsumeToken();
+        return true;
+      }
+
+      // If next token is comma, consume and look for more type name
+      if (Tok.getKind() == tok::comma) ConsumeToken();
+      // If next token is '>', consume and finish.
+      else if (Tok.getKind() == tok::greater) {
+        ConsumeToken();
+        return false;
+      }
+      // Otherwise, we encountered an unexpected token.
+      else {
+        Diag(Tok, diag::err_type_function_comma_or_greater_expected);
+        // We want to consume greater, but not consume semi
+        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+        if (Tok.getKind() == tok::greater) ConsumeToken();
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {

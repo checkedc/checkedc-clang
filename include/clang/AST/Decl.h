@@ -1666,6 +1666,7 @@ private:
   unsigned HasImplicitReturnZero : 1;
   unsigned IsLateTemplateParsed : 1;
   unsigned IsConstexpr : 1;
+  unsigned genericFunction : 1;
 
   /// \brief Indicates if the function uses __try.
   unsigned UsesSEHTry : 1;
@@ -1756,7 +1757,7 @@ protected:
         DeclContext(DK), redeclarable_base(C), ParamInfo(nullptr), Body(),
         SClass(S), IsInline(isInlineSpecified),
         IsInlineSpecified(isInlineSpecified), IsExplicitSpecified(false),
-        IsVirtualAsWritten(false), IsPure(false),
+        IsVirtualAsWritten(false), IsPure(false), genericFunction(false),
         HasInheritedPrototype(false), HasWrittenPrototype(true),
         IsDeleted(false), IsTrivial(false), IsDefaulted(false),
         IsExplicitlyDefaulted(false), HasImplicitReturnZero(false),
@@ -1822,6 +1823,9 @@ public:
   void setRangeEnd(SourceLocation E) { EndRangeLoc = E; }
 
   SourceRange getSourceRange() const override LLVM_READONLY;
+
+  void setGenericFunctionFlag(bool f) { genericFunction = f; }
+  bool IsGenericFunction() { return genericFunction; }
 
   /// \brief Returns true if the function has a body (definition). The
   /// function body might be in any of the (re-)declarations of this

@@ -1737,6 +1737,7 @@ private:
   ExprResult ParseBoundsCastExpression();
 
   ExprResult ParseBoundsExpression();
+  bool ParseGenericFunctionExpression(ExprResult &Res);
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
   ExprResult ParseBoundsExpressionOrInteropType(const Declarator &D,
                                                 bool IsReturn=false);
