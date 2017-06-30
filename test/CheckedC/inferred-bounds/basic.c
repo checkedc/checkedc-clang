@@ -41,7 +41,7 @@ void f1(_Array_ptr<int> a : bounds(a, a + 5)) {
 // CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: RHS Bounds:
-// CHECK:  NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'Any
+// CHECK:  NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
 
 void f2(_Array_ptr<int> b : count(5)) {
   b = 0;
@@ -60,7 +60,7 @@ void f2(_Array_ptr<int> b : count(5)) {
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: RHS Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'Any
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
 
 void f3(_Array_ptr<int> c : byte_count(sizeof(int) * 5)) {
   c = 0;
@@ -84,7 +84,7 @@ void f3(_Array_ptr<int> c : byte_count(sizeof(int) * 5)) {
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'unsigned {{.*}}' <IntegralCast>
 // CHECK:       `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: RHS Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'Any
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
 
 //  Test assignment of an integer constant expressed as
 // an enum constant.
@@ -110,7 +110,7 @@ void f4(_Array_ptr<int> d : count(5)) {
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'd' '_Array_ptr<int>'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: RHS Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'Any
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
 
 void f5(void) {
   _Array_ptr<int> d : count(5) = 0;
@@ -128,7 +128,7 @@ void f5(void) {
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'Any
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
 
 void f6(_Array_ptr<int> a : bounds(a, a + 5)) {
   a = (_Array_ptr<int>) 5; // expected-error {{expression has no bounds}}
@@ -218,6 +218,26 @@ void f10(float a) {
 // CHECK:   `-CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <FloatingToIntegral>
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'float' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'float' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'float'
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: Initializer Bounds:
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
+
+void f11(_Array_ptr<int> a, _Array_ptr<int> b) {
+  _Array_ptr<int> c : count(5) = (_Array_ptr<int>)(a - b); // expected-error {{expression has no bounds}}
+}
+
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} c '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
+// CHECK: `-CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <IntegralToPointer>
+// CHECK: `-ParenExpr {{0x[0-9a-f]+}} {{.*}} 'long'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'long' '-'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>'
 // CHECK: Declared Bounds:
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
