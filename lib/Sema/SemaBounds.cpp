@@ -155,11 +155,17 @@ namespace {
 
   private:
     const ArrayRef<Expr *> Arguments;
+    bool SubstututedModifyingExpression;
 
   public:
     ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args) :
       BaseTransform(SemaRef),
-      Arguments(Args) { }
+      Arguments(Args),
+      SubstututedModifyingExpression(false) { }
+
+    bool substututedModifyingExpression() {
+      return SubstututedModifyingExpression;
+    }
 
     ExprResult TransformPositionalParameterExpr(PositionalParameterExpr *E) {
       unsigned index = E->getIndex();
@@ -171,7 +177,7 @@ namespace {
         if (!SemaRef.CheckIsNonModifyingExpr(AE,
                                              Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Args,
                                              /*ReportError=*/true))
-          return ExprResult();
+          SubstututedModifyingExpression = true;
 
         return AE;
       } else {
@@ -187,8 +193,13 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRe
     return Bounds;
 
   BoundsExpr *Result;
-  ExprResult ConcreteBounds = ConcretizeBoundsExprWithArgs(*this, Args).TransformExpr(Bounds);
-  if (ConcreteBounds.isInvalid()) {
+  auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args);
+  ExprResult ConcreteBounds = Concretizer.TransformExpr(Bounds);
+  if (Concretizer.substututedModifyingExpression()) {
+      return nullptr;
+  }
+  else if (ConcreteBounds.isInvalid()) {
+    llvm_unreachable("unexpected failure in making function bounds concrete with arguments");
     return nullptr;
   }
   else {
