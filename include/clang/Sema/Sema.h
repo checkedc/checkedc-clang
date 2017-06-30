@@ -4515,7 +4515,8 @@ public:
     NMER_Dynamic_Check,
     NMER_Bounds_Count,
     NMER_Bounds_Byte_Count,
-    NMER_Bounds_Range
+    NMER_Bounds_Range,
+    NMER_Bounds_Function_Args,
   };
 
   /// CheckNonModifyingExpr - checks whether an expression is non-modifying

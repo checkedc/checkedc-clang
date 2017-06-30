@@ -169,8 +169,8 @@ namespace {
         // We may only substitute if this argument expression is
         // a non-modifying expression.
         if (!SemaRef.CheckIsNonModifyingExpr(AE,
-                                             Sema::NonModifiyingExprRequirement::NMER_Unknown,
-                                             /*ReportError=*/false))
+                                             Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Args,
+                                             /*ReportError=*/true))
           return ExprResult();
 
         return AE;
@@ -338,10 +338,19 @@ namespace {
     }
 
     // Currently our inference algorithm has some limitations,
-    // where we cannot compute bounds for things that we want to be able
-    // to compute bounds for.
+    // where we cannot express bounds for things that will have bounds
+    //
+    // This is for the case where we want to allow these today,
+    // but we need to re-visit these places and disallow some instances
+    // when we can accurately calculate these bounds.
     BoundsExpr *CreateBoundsAllowedButUncomputable() {
       return CreateBoundsAny();
+    }
+    // This is for the opposite case, where we want to return bounds(none)
+    // at the moment, but we want to re-visit these parts of inference
+    // and in some cases compute bounds.
+    BoundsExpr *CreateBoundsNotAllowedYet() {
+      return CreateBoundsNone();
     }
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
@@ -445,7 +454,7 @@ namespace {
                                                SourceLocation());
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
-          return CreateBoundsAllowedButUncomputable();
+          return CreateBoundsNotAllowedYet();
         default:
           return B;
       }
@@ -533,7 +542,7 @@ namespace {
         if (!SemaRef.CheckIsNonModifyingExpr(ME->getBase(),
                              Sema::NonModifiyingExprRequirement::NMER_Unknown,
                                            /*ReportError=*/false))
-          return CreateBoundsAllowedButUncomputable();
+          return CreateBoundsNotAllowedYet();
 
         if (ME->getType()->isArrayType())
           return ArrayExprBounds(ME);
@@ -623,7 +632,7 @@ namespace {
           if (!SemaRef.CheckIsNonModifyingExpr(MemberBaseExpr,
               Sema::NonModifiyingExprRequirement::NMER_Unknown,
               /*ReportError=*/false))
-            return CreateBoundsAllowedButUncomputable();
+            return CreateBoundsNotAllowedYet();
           B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
           if (!B)
             return CreateBoundsInferenceError();
@@ -879,11 +888,10 @@ namespace {
           // Concretize Call Bounds with argument expressions.
           // We can only do this if the argument expressions are non-modifying
           BoundsExpr *ReturnBounds = SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs);
-
-          // If concretization failed, we can't yet compute static bounds
-          // for the return type of this function.
+          // If concretization failed, this means we tried to substitute with a non-modifying
+          // expression, which is not allowed by the specification.
           if (!ReturnBounds)
-            return CreateBoundsAllowedButUncomputable();
+            return CreateBoundsInferenceError();
 
           // Currently we cannot yet concretize function bounds of the forms
           // count(e) or byte_count(e) becuase we need a way of referring
