@@ -159,17 +159,17 @@ namespace {
     // This stores whether we've emitted an error for a particular substitution
     // so that we don't duplicate error messages.
     llvm::SmallBitVector ErroredForArgument;
-    bool SubstututedModifyingExpression;
+    bool SubstitutedModifyingExpression;
 
   public:
     ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args) :
       BaseTransform(SemaRef),
       Arguments(Args),
       ErroredForArgument(Args.size()),
-      SubstututedModifyingExpression(false) { }
+      SubstitutedModifyingExpression(false) { }
 
-    bool substututedModifyingExpression() {
-      return SubstututedModifyingExpression;
+    bool substitutedModifyingExpression() {
+      return SubstitutedModifyingExpression;
     }
 
     ExprResult TransformPositionalParameterExpr(PositionalParameterExpr *E) {
@@ -183,7 +183,7 @@ namespace {
         if (!SemaRef.CheckIsNonModifyingExpr(AE,
                                              Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Args,
                                              ShouldReportError)) {
-          SubstututedModifyingExpression = true;
+          SubstitutedModifyingExpression = true;
           ErroredForArgument.set(index);
         }
 
@@ -203,7 +203,7 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRe
   BoundsExpr *Result;
   auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args);
   ExprResult ConcreteBounds = Concretizer.TransformExpr(Bounds);
-  if (Concretizer.substututedModifyingExpression()) {
+  if (Concretizer.substitutedModifyingExpression()) {
       return nullptr;
   }
   else if (ConcreteBounds.isInvalid()) {
@@ -362,7 +362,7 @@ namespace {
     // This is for the case where we want to allow these today,
     // but we need to re-visit these places and disallow some instances
     // when we can accurately calculate these bounds.
-    BoundsExpr *CreateBoundsAllowedButUncomputable() {
+    BoundsExpr *CreateBoundsAllowedButNotComputed() {
       return CreateBoundsAny();
     }
     // This is for the opposite case, where we want to return bounds(none)
@@ -473,7 +473,7 @@ namespace {
                                                SourceLocation());
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
-          return CreateBoundsNotAllowedYet();
+          return CreateBoundsAllowedButNotComputed();
         default:
           return B;
       }
@@ -581,7 +581,7 @@ namespace {
       }
       // TODO: fill in these cases.
       case Expr::CompoundLiteralExprClass:
-        return CreateBoundsAllowedButUncomputable();
+        return CreateBoundsAllowedButNotComputed();
       default:
         return CreateBoundsUnknown();
       }
@@ -627,7 +627,7 @@ namespace {
 
           BoundsExpr *B = D->getBoundsExpr();
           if (!B || B->isNone())
-            return CreateBoundsInferenceError();
+            return CreateBoundsUnknown();
 
            Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
            return ExpandToRange(Base, B);
@@ -644,8 +644,11 @@ namespace {
             return CreateBoundsInferenceError();
 
           BoundsExpr *B = F->getBoundsExpr();
-          if (!B || B->isNone() || B->isInteropTypeAnnotation())
-            return CreateBoundsInferenceError();
+          if (!B || B->isNone())
+            return CreateBoundsUnknown();
+
+          if (B->isInteropTypeAnnotation())
+            return CreateBoundsAllowedButNotComputed();
 
           Expr *MemberBaseExpr = M->getBase();
           if (!SemaRef.CheckIsNonModifyingExpr(MemberBaseExpr,
@@ -810,7 +813,7 @@ namespace {
           // Pointer arithmetic.
           //
           // `p + i` has the bounds of `p`. `p` is an RValue.
-          // `p += i` has the lvalue target bounds of `p`. `p` is an LValue.
+          // `p += i` has the lvalue target bounds of `p`. `p` is an LValue. `p += i` is an RValue
           // same applies for `-` and `-=` respectively
           if (LHS->getType()->isPointerType() &&
               RHS->getType()->isIntegerType() &&
@@ -887,19 +890,19 @@ namespace {
 
           // Get function prototype.
           // The Callee is a function *pointer*, almost always.
-          const FunctionProtoType* CalleeTy = dyn_cast<FunctionProtoType>(CE->getCallee()->getType()->getPointeeType());
+          const FunctionProtoType *CalleeTy = dyn_cast<FunctionProtoType>(CE->getCallee()->getType()->getPointeeType());
           if (!CalleeTy)
             // K&R functions have no prototype, and we cannot perform inference on them,
             // so we return bounds(none) for their results.
-            return CreateBoundsEmpty();
+            return CreateBoundsUnknown();
 
           BoundsExpr *FunBounds = const_cast<BoundsExpr *>(CalleeTy->getReturnBounds());
           if (!FunBounds)
             // This function has no return bounds
-            return CreateBoundsEmpty();
+            return CreateBoundsUnknown();
 
           if (FunBounds->isInteropTypeAnnotation())
-            return FunBounds;
+            return CreateBoundsAllowedButNotComputed();
 
           ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
                                                          CE->getNumArgs());
@@ -918,14 +921,14 @@ namespace {
           // general case.
           if (ReturnBounds->isElementCount() ||
               ReturnBounds->isByteCount())
-            return CreateBoundsAllowedButUncomputable();
+            return CreateBoundsAllowedButNotComputed();
 
           return ReturnBounds;
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
           // TODO: infer correct bounds for conditional operators
-          return CreateBoundsAllowedButUncomputable();
+          return CreateBoundsAllowedButNotComputed();
         default:
           // All other cases are unknowable
           return CreateBoundsUnknown();
