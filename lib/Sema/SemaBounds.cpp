@@ -330,8 +330,14 @@ namespace {
                                              SourceLocation());
     }
 
-    // This describes a bounds of empty range. We use this
-    // for example for function pointers.
+    // This describes an empty range. We use this where semantically the value
+    // can never point to any range of memory, and statically understanding this
+    // is useful.
+    // We use this for example for function pointers or float-typed expressions.
+    //
+    // This is better than represenging the empty range as bounds(e, e), or even
+    // bounds(e1, e2), because in these cases we need to do further analysis to
+    // understand that the upper and lower bounds of the range are equal.
     BoundsExpr *CreateBoundsEmpty() {
       return CreateBoundsNone();
     }
