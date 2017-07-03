@@ -888,8 +888,8 @@ namespace {
             return CreateBoundsInferenceError();
           }
 
-          // Get function prototype.
-          // The Callee is a function *pointer*, almost always.
+          // Get the function prototype, where the abstract function return bounds are kept.
+          // The callee is always a function pointer.
           const FunctionProtoType *CalleeTy = dyn_cast<FunctionProtoType>(CE->getCallee()->getType()->getPointeeType());
           if (!CalleeTy)
             // K&R functions have no prototype, and we cannot perform inference on them,
