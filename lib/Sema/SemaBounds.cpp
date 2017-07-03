@@ -894,32 +894,42 @@ namespace {
             return CreateBoundsInferenceError();
           }
 
-          // Get the function prototype, where the abstract function return bounds are kept.
-          // The callee is always a function pointer.
-          const FunctionProtoType *CalleeTy = dyn_cast<FunctionProtoType>(CE->getCallee()->getType()->getPointeeType());
-          if (!CalleeTy)
-            // K&R functions have no prototype, and we cannot perform inference on them,
-            // so we return bounds(none) for their results.
-            return CreateBoundsUnknown();
+          BoundsExpr *ReturnBounds = nullptr;
+          if (E->getType()->isCheckedPointerPtrType()) {
+            IntegerLiteral *One =
+              CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
+            ReturnBounds =  new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                                          One, SourceLocation(),
+                                                          SourceLocation());
+          }
+          else {
+            // Get the function prototype, where the abstract function return bounds are kept.
+            // The callee is always a function pointer.
+            const FunctionProtoType *CalleeTy = dyn_cast<FunctionProtoType>(CE->getCallee()->getType()->getPointeeType());
+            if (!CalleeTy)
+              // K&R functions have no prototype, and we cannot perform inference on them,
+              // so we return bounds(none) for their results.
+              return CreateBoundsUnknown();
 
-          BoundsExpr *FunBounds = const_cast<BoundsExpr *>(CalleeTy->getReturnBounds());
-          if (!FunBounds)
-            // This function has no return bounds
-            return CreateBoundsUnknown();
+            BoundsExpr *FunBounds = const_cast<BoundsExpr *>(CalleeTy->getReturnBounds());
+            if (!FunBounds)
+              // This function has no return bounds
+              return CreateBoundsUnknown();
 
-          if (FunBounds->isInteropTypeAnnotation())
-            return CreateBoundsAllowedButNotComputed();
+            if (FunBounds->isInteropTypeAnnotation())
+              return CreateBoundsAllowedButNotComputed();
 
-          ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
-                                                         CE->getNumArgs());
+            ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
+                                                          CE->getNumArgs());
 
-          // Concretize Call Bounds with argument expressions.
-          // We can only do this if the argument expressions are non-modifying
-          BoundsExpr *ReturnBounds = SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs);
-          // If concretization failed, this means we tried to substitute with a non-modifying
-          // expression, which is not allowed by the specification.
-          if (!ReturnBounds)
-            return CreateBoundsInferenceError();
+            // Concretize Call Bounds with argument expressions.
+            // We can only do this if the argument expressions are non-modifying
+            ReturnBounds = SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs);
+            // If concretization failed, this means we tried to substitute with a non-modifying
+            // expression, which is not allowed by the specification.
+            if (!ReturnBounds)
+              return CreateBoundsInferenceError();
+          }
 
           // Currently we cannot yet concretize function bounds of the forms
           // count(e) or byte_count(e) becuase we need a way of referring
@@ -1119,10 +1129,15 @@ namespace {
       // Bounds of the right-hand side of the assignment
       BoundsExpr *RHSBounds = nullptr;
 
-      // Check that the value being assigned has bounds if the
-      // target of the LHS lvalue has bounds.
-      if (LHSType->isCheckedPointerType() ||
+      if (!E->isCompoundAssignmentOp() &&
+          LHSType->isCheckedPointerPtrType() &&
+          RHS->getType()->isCheckedPointerPtrType()) {
+        // ptr<T> to ptr<T> assignment, no obligation to infer any bounds for either side
+      }
+      else if (LHSType->isCheckedPointerType() ||
           LHSType->isIntegerType()) {
+        // Check that the value being assigned has bounds if the
+        // target of the LHS lvalue has bounds.
         LHSTargetBounds = S.InferLValueTargetBounds(LHS);
         if (!LHSTargetBounds->isNone()) {
           if (E->isCompoundAssignmentOp())
