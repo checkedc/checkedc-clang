@@ -1,5 +1,18 @@
+// Test to make sure the AST is correctly generated for generic types.
+//
+// More specifically, test the AST dump of generic function declaration and 
+// generic function types associated to it. Generic types are bound to 
+// TypedefDecl, which stores the identifier name for the generic type. Also,
+// the TypeVariable is is stored inside of FunctionDecl, and should be dumped
+// underneath FunctionDecl, before ParmVarDecl.
+//
+// Also, the test sees if TypeVariable types are correctly displaying for
+// variables that has the type TypeVariable.
+//
+// RUN: %clang_cc1 -ast-dump -fcheckedc-extension %s | FileCheck %s
+
 _For_any(T, S, R) T foo(T test, S steve, R ray) {
-  // CHECK: TypedefDecl {{0x[0-9a-f]+}} <polymorphic.c:{{[0-9]+}}:{{[0-9]+}}, col:[[TPOS:[0-9]+]]> col:[[TPOS]] referenced T '(0, 0)'
+  // CHECK: TypedefDecl {{0x[0-9a-f]+}} <{{.+}}.c:{{[0-9]+}}:{{[0-9]+}}, col:[[TPOS:[0-9]+]]> col:[[TPOS]] referenced T '(0, 0)'
   // CHECK-NEXT: TypeVariableType {{0x[0-9a-f]+}} '(0, 0)'
   // CHECK-NEXT: TypedefDecl {{0x[0-9a-f]+}} <col:{{[0-9]+}}, col:[[SPOS:[0-9]+]]> col:[[SPOS]] referenced S '(0, 1)'
   // CHECK-NEXT: TypeVariableType {{0x[0-9a-f]+}} '(0, 1)'
