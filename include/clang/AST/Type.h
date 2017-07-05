@@ -3693,7 +3693,7 @@ public:
 };
 
 
-class TypeVariableType : public Type, llvm::FoldingSetNode {
+class TypeVariableType : public Type, public llvm::FoldingSetNode {
   unsigned int deBruijnDepth;
   unsigned int deBruijnPos;
   unsigned int width;
