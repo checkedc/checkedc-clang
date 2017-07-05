@@ -998,7 +998,7 @@ DEF_TRAVERSE_TYPE(FunctionProtoType, {
 
 DEF_TRAVERSE_TYPE(UnresolvedUsingType, {})
 DEF_TRAVERSE_TYPE(TypedefType, {})
-DEF_TRAVERSE_TYPE(MyTypeVariableType, {})
+DEF_TRAVERSE_TYPE(TypeVariableType, {})
 
 DEF_TRAVERSE_TYPE(TypeOfExprType,
                   { TRY_TO(TraverseStmt(T->getUnderlyingExpr())); })
@@ -1221,7 +1221,7 @@ DEF_TRAVERSE_TYPELOC(FunctionProtoType, {
 
 DEF_TRAVERSE_TYPELOC(UnresolvedUsingType, {})
 DEF_TRAVERSE_TYPELOC(TypedefType, {})
-DEF_TRAVERSE_TYPELOC(MyTypeVariableType, {})
+DEF_TRAVERSE_TYPELOC(TypeVariableType, {})
 
 DEF_TRAVERSE_TYPELOC(TypeOfExprType,
                      { TRY_TO(TraverseStmt(TL.getUnderlyingExpr())); })

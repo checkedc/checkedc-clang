@@ -1529,8 +1529,8 @@ bool CursorVisitor::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   return Visit(MakeCursorTypeRef(TL.getTypedefNameDecl(), TL.getNameLoc(), TU));
 }
 
-bool CursorVisitor::VisitMyTypeVariableTypeLoc(MyTypeVariableTypeLoc TL) {
-  return Visit(TL.getUnqualifiedLoc());
+bool CursorVisitor::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
+  return false;
 }
 
 bool CursorVisitor::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {

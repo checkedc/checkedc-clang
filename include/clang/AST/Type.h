@@ -3693,19 +3693,19 @@ public:
 };
 
 
-class MyTypeVariableType : public Type, llvm::FoldingSetNode {
+class TypeVariableType : public Type, llvm::FoldingSetNode {
   unsigned int deBruijnDepth;
   unsigned int deBruijnPos;
   unsigned int width;
 protected:
-  MyTypeVariableType(unsigned int dbDepth, unsigned int dbPos)
-    : Type(MyTypeVariable, QualType(), false, false, false, false),
+  TypeVariableType(unsigned int dbDepth, unsigned int dbPos)
+    : Type(TypeVariable, QualType(), false, false, false, false),
     deBruijnDepth(dbDepth), deBruijnPos(dbPos) { }
   friend class ASTContext;
 public:
   bool isSugared(void) const { return false; }
   QualType desugar(void) const { return QualType(this, 0); }
-  static bool classof(const Type *T) { return T->getTypeClass() == MyTypeVariable; }
+  static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
   unsigned int GetDeBruijnDepth(void) const { return deBruijnDepth; }
   void SetDeBruijnDepth(unsigned int i) { deBruijnDepth = i; }
   unsigned int GetDeBruijnPos(void) const { return deBruijnPos; }

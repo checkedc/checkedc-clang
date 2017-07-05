@@ -5436,8 +5436,8 @@ QualType TreeTransform<Derived>::TransformTypeOfExprType(TypeLocBuilder &TLB,
 }
 
 template<typename Derived>
-QualType TreeTransform<Derived>::TransformMyTypeVariableType(TypeLocBuilder &TLB,
-                                                             MyTypeVariableTypeLoc TL) {
+QualType TreeTransform<Derived>::TransformTypeVariableType(TypeLocBuilder &TLB,
+                                                           TypeVariableTypeLoc TL) {
   return QualType();
 }
 

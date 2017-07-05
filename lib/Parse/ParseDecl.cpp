@@ -7113,7 +7113,7 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
       // DeclSpec of typedef, in order to use clang code for checking whether 
       // the type name already exists. TODO: For now we bind to void*. Change 
       // the binding to type variable.      
-      QualType R = Actions.Context.getMyTypeVariableType(0, deBruijnPos);
+      QualType R = Actions.Context.getTypeVariableType(0, deBruijnPos);
       TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
       TypedefDecl *NewTD = TypedefDecl::Create(Actions.Context, Actions.CurContext,
         ForAnyStartLoc,

@@ -2759,7 +2759,6 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
       // Owned declaration is embedded in declarator.
       OwnedTagDecl->setEmbeddedInDeclarator(true);
     }
-    T.dump();
     break;
 
   case UnqualifiedId::IK_ConstructorName:
@@ -5088,8 +5087,6 @@ TypeSourceInfo *Sema::GetTypeForDeclarator(Declarator &D, Scope *S) {
   TypeSourceInfo *ReturnTypeInfo = nullptr;
   QualType T = GetDeclSpecTypeForDeclarator(state, ReturnTypeInfo);
 
-  T.dump();
-
   if (D.isPrototypeContext() && getLangOpts().ObjCAutoRefCount)
     inferARCWriteback(state, T);
 
@@ -5341,7 +5338,7 @@ namespace {
     void VisitTypedefTypeLoc(TypedefTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
     }
-    void VisitMyTypeVariableTypeLoc(MyTypeVariableTypeLoc TL) {
+    void VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeNameLoc());
     }
     void VisitObjCInterfaceTypeLoc(ObjCInterfaceTypeLoc TL) {

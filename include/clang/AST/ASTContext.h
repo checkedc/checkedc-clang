@@ -132,7 +132,7 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::FoldingSet<ExtQuals> ExtQualNodes;
   mutable llvm::FoldingSet<ComplexType> ComplexTypes;
   mutable llvm::FoldingSet<PointerType> PointerTypes;
-  mutable llvm::FoldingSet<MyTypeVariableType> MyTypeVariableTypes;
+  mutable llvm::FoldingSet<TypeVariableType> TypeVariableTypes;
   mutable llvm::FoldingSet<AdjustedType> AdjustedTypes;
   mutable llvm::FoldingSet<BlockPointerType> BlockPointerTypes;
   mutable llvm::FoldingSet<LValueReferenceType> LValueReferenceTypes;
@@ -1183,7 +1183,7 @@ public:
   /// pointer to blocks.
   QualType getBlockDescriptorExtendedType() const;
 
-  QualType getMyTypeVariableType(unsigned int dbDepth, unsigned int dbPos) const;
+  QualType getTypeVariableType(unsigned int dbDepth, unsigned int dbPos) const;
 
   void setcudaConfigureCallDecl(FunctionDecl *FD) {
     cudaConfigureCallDecl = FD;

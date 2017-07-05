@@ -1828,7 +1828,7 @@ public:
   SourceRange getSourceRange() const override LLVM_READONLY;
 
   void setGenericFunctionFlag(bool f) { genericFunction = f; }
-  bool IsGenericFunction() { return genericFunction; }
+  bool IsGenericFunction() const { return genericFunction; }
 
   /// \brief Returns true if the function has a body (definition). The
   /// function body might be in any of the (re-)declarations of this

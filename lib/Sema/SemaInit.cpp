@@ -7093,6 +7093,15 @@ InitializationSequence::Perform(Sema &S,
       CurInit = CurInitExprRes;
 
       bool Complained;
+
+      // FIXME : This code is inserted only as a hotfix for type variable
+      // compatibility check. Proper compatibility check should be implemented
+      if (const TypedefType *td = dyn_cast<TypedefType>(LHSType.getTypePtr())) {
+        if (isa<TypeVariableType>(td->getDecl()->getUnderlyingType())) {
+          ConvTy = Sema::Compatible;
+        }
+      }
+
       if (S.DiagnoseAssignmentResult(ConvTy, Kind.getLocation(),
                                      Step->Type, SourceType,
                                      InitialCurInit.get(),

@@ -231,7 +231,6 @@ public:
   /// \note The order of these enumerators is important for diagnostics.
   enum SCS {
     SCS_unspecified = 0,
-    SCS_typevariable,
     SCS_typedef,
     SCS_extern,
     SCS_static,

@@ -1080,12 +1080,12 @@ void ASTDumper::dumpDecl(const Decl *D) {
       OS << " used";
     else if (D->isThisDeclarationReferenced())
       OS << " referenced";
+
     if (D->isInvalidDecl())
       OS << " invalid";
-    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) 
       if (FD->isConstexpr())
         OS << " constexpr";
-
 
     ConstDeclVisitor<ASTDumper>::Visit(D);
 
@@ -1101,6 +1101,8 @@ void ASTDumper::dumpDecl(const Decl *D) {
     if (!isa<FunctionDecl>(*D) && !isa<ObjCMethodDecl>(*D) &&
         hasNodes(dyn_cast<DeclContext>(D)))
       dumpDeclContext(cast<DeclContext>(D));
+
+    
   });
 }
 
@@ -1193,6 +1195,21 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
     }
   }
 
+  // If the function is generic function, dump information about type variable.
+  // Type variable is stored as a TypedefDecl.
+  if (D->IsGenericFunction() && D->getNumTypeVars() > 0) {
+    for (const TypedefDecl* Typevar : D->typevariables()) {
+      dumpChild([=] {
+        OS << "TypeVariable";
+        dumpPointer(Typevar);
+        OS << " ";
+        dumpLocation(Typevar->getLocation());
+        OS << " " << Typevar->getIdentifier()->getName();
+        dumpType(Typevar->getUnderlyingType());
+      });
+    }
+  }
+
   if (const FunctionTemplateSpecializationInfo *FTSI =
           D->getTemplateSpecializationInfo())
     dumpTemplateArgumentList(*FTSI->TemplateArguments);
@@ -1215,6 +1232,8 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (D->doesThisDeclarationHaveABody())
     dumpStmt(D->getBody());
 }
+
+
 
 void ASTDumper::VisitFieldDecl(const FieldDecl *D) {
   dumpName(D);

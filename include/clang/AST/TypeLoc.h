@@ -634,9 +634,9 @@ public:
 };
 
 
-class MyTypeVariableTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
-                                                               MyTypeVariableTypeLoc,
-                                                               MyTypeVariableType> {
+class TypeVariableTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
+                                                             TypeVariableTypeLoc,
+                                                             TypeVariableType> {
 
 };
 

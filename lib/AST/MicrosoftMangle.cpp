@@ -2438,7 +2438,7 @@ void MicrosoftCXXNameMangler::mangleType(const PackExpansionType *T, Qualifiers,
     << Range;
 }
 
-void MicrosoftCXXNameMangler::mangleType(const MyTypeVariableType *T, Qualifiers,
+void MicrosoftCXXNameMangler::mangleType(const TypeVariableType *T, Qualifiers,
   SourceRange Range) {
   DiagnosticsEngine &Diags = Context.getDiags();
   unsigned DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,

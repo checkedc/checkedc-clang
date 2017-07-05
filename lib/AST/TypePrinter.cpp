@@ -853,7 +853,6 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
 
 void TypePrinter::printFunctionNoProtoBefore(const FunctionNoProtoType *T, 
                                              raw_ostream &OS) { 
-  OS << "Hello2! ";
   // If needed for precedence reasons, wrap the inner part in grouping parens.
   SaveAndRestore<bool> PrevPHIsEmpty(HasEmptyPlaceHolder, false);
   printBefore(T->getReturnType(), OS);
@@ -893,12 +892,12 @@ void TypePrinter::printUnresolvedUsingBefore(const UnresolvedUsingType *T,
 void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                              raw_ostream &OS) { }
 
-void TypePrinter::printMyTypeVariableBefore(const MyTypeVariableType *T,
+void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
                                              raw_ostream &OS) {
   OS << "(" << T->GetDeBruijnDepth() << ", " << T->GetDeBruijnPos() << ")";
 }
 
-void TypePrinter::printMyTypeVariableAfter(const MyTypeVariableType *T, raw_ostream &OS) { }
+void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream &OS) { }
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) { 
   printTypeSpec(T->getDecl(), OS);

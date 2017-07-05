@@ -3089,9 +3089,8 @@ void CXXNameMangler::mangleType(const DependentTemplateSpecializationType *T) {
   Out << 'E';
 }
 
-void CXXNameMangler::mangleType(const MyTypeVariableType *T) {
-  // TODO: I have no clue what mangle type is.
-  Out << "tv";
+void CXXNameMangler::mangleType(const TypeVariableType *T) {
+  llvm_unreachable("TypeVariableType cannot be mangled.");
 }
 
 void CXXNameMangler::mangleType(const TypeOfType *T) {

@@ -2905,6 +2905,7 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
   }
   epi.ExtInfo.Profile(ID);
   ID.AddBoolean(epi.HasTrailingReturn);
+  ID.AddInteger(epi.numTypeVars);
 }
 
 void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
@@ -3666,7 +3667,7 @@ bool Type::canHaveNullability() const {
   case Type::ObjCInterface:
   case Type::Atomic:
   case Type::Pipe:
-  case Type::MyTypeVariable:
+  case Type::TypeVariable:
     return false;
   }
   llvm_unreachable("bad type kind!");

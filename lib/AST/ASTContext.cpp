@@ -1909,7 +1909,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     }
     Width = Info.Width;
     break;
-  }
+  }    
+  
+  case Type::TypeVariable:
+    Width = Target->getPointerWidth(0);
+    Align = Target->getPointerAlign(0);
+    break;
 
   case Type::Elaborated:
     return getTypeInfo(cast<ElaboratedType>(T)->getNamedType().getTypePtr());
@@ -2483,17 +2488,17 @@ QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
   return QualType(New, 0);
 }
 
-QualType ASTContext::getMyTypeVariableType(unsigned int dbDepth, unsigned int dbPos) const {
+QualType ASTContext::getTypeVariableType(unsigned int dbDepth, unsigned int dbPos) const {
   llvm::FoldingSetNodeID ID;
-  MyTypeVariableType::Profile(ID, dbDepth, dbPos);
+  TypeVariableType::Profile(ID, dbDepth, dbPos);
 
   void *InsertPos = nullptr;
-  if (MyTypeVariableType *PT = MyTypeVariableTypes.FindNodeOrInsertPos(ID, InsertPos))
+  if (TypeVariableType *PT = TypeVariableTypes.FindNodeOrInsertPos(ID, InsertPos))
     return QualType(PT, 0);
 
-  MyTypeVariableType *New = new (*this, TypeAlignment) MyTypeVariableType(dbDepth, dbPos);
+  TypeVariableType *New = new (*this, TypeAlignment) TypeVariableType(dbDepth, dbPos);
   Types.push_back(New);
-  MyTypeVariableTypes.InsertNode(New, InsertPos);
+  TypeVariableTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
 }
 
@@ -2796,6 +2801,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::BlockPointer:
   case Type::MemberPointer:
   case Type::Pipe:
+  case Type::TypeVariable:
     return type;
 
   // These types can be variably-modified.  All these modifications
@@ -6397,6 +6403,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string& S,
   // Just ignore it.
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
+  case Type::TypeVariable:
     return;
 
   case Type::Pipe:
@@ -8518,6 +8525,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
            "Equivalent pipe types should have already been handled!");
     return QualType();
   }
+  case Type::TypeVariable:
+    return QualType();
   }
 
   llvm_unreachable("Invalid Type::Class!");

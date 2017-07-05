@@ -6342,7 +6342,7 @@ void TypeLocReader::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
 void TypeLocReader::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation());
 }
-void TypeLocReader::VisitMyTypeVariableTypeLoc(MyTypeVariableTypeLoc TL) {
+void TypeLocReader::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation());
 }
 void TypeLocReader::VisitTypeOfExprTypeLoc(TypeOfExprTypeLoc TL) {

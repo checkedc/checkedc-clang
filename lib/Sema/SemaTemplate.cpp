@@ -4939,7 +4939,7 @@ bool UnnamedLocalNoLinkageFinder::VisitTypeOfExprType(const TypeOfExprType*) {
   return false;
 }
 
-bool UnnamedLocalNoLinkageFinder::VisitMyTypeVariableType(const MyTypeVariableType*) {
+bool UnnamedLocalNoLinkageFinder::VisitTypeVariableType(const TypeVariableType*) {
   return false;
 }
 

@@ -933,7 +933,7 @@ namespace clang {
       TYPE_DEDUCED_TEMPLATE_SPECIALIZATION = 45,
       /// \brief A DependentSizedExtVectorType record.
       TYPE_DEPENDENT_SIZED_EXT_VECTOR = 46,
-      TYPE_MYTYPEVARIABLE        = 47
+      TYPE_TYPEVARIABLE        = 47
     };
 
     /// \brief The type IDs for special types constructed by semantic
