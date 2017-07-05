@@ -995,6 +995,9 @@ void ASTStmtReader::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   E->setUpperExpr(Record.readSubExpr());
   E->StartLoc = ReadSourceLocation();
   E->EndLoc = ReadSourceLocation();
+  // TODO: Github issue #332.  RelativeBoundsClause expressions are
+  // not being serialized.
+  E->setRelativeBoundsClause(nullptr);
 }
 
 void ASTStmtReader::VisitInteropTypeBoundsAnnotation(

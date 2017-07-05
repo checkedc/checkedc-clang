@@ -1760,7 +1760,7 @@ protected:
         DeclContext(DK), redeclarable_base(C), ParamInfo(nullptr), 
         TypeVarInfo(nullptr), Body(), SClass(S), IsInline(isInlineSpecified),
         IsInlineSpecified(isInlineSpecified), IsExplicitSpecified(false),
-        IsVirtualAsWritten(false), IsPure(false), 
+        IsVirtualAsWritten(false), IsPure(false),
         HasInheritedPrototype(false), HasWrittenPrototype(true),
         IsDeleted(false), IsTrivial(false), IsDefaulted(false),
         IsExplicitlyDefaulted(false), HasImplicitReturnZero(false),
