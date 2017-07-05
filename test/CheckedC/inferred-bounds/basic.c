@@ -224,26 +224,6 @@ void f10(float a) {
 // CHECK: Initializer Bounds:
 // CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
 
-void f11(_Array_ptr<int> a, _Array_ptr<int> b) {
-  _Array_ptr<int> c : count(5) = (_Array_ptr<int>)(a - b); // expected-error {{expression has no bounds}}
-}
-
-// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} c '_Array_ptr<int>' cinit
-// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
-// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 5
-// CHECK: `-CStyleCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <IntegralToPointer>
-// CHECK: `-ParenExpr {{0x[0-9a-f]+}} {{.*}} 'long'
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} {{.*}} 'long' '-'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>'
-// CHECK: Declared Bounds:
-// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
-// CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Invalid
-
 //-------------------------------------------------------------------------//
 // Test assignment of variables to _Array_ptr variables.  This covers both //
 // variables with bounds and variables without bounds.                     //
