@@ -1757,17 +1757,18 @@ protected:
                bool isConstexprSpecified)
       : DeclaratorDecl(DK, DC, NameInfo.getLoc(), NameInfo.getName(), T, TInfo,
                        StartLoc),
-        DeclContext(DK), redeclarable_base(C), ParamInfo(nullptr), Body(),
-        SClass(S), IsInline(isInlineSpecified),
+        DeclContext(DK), redeclarable_base(C), ParamInfo(nullptr), 
+        TypeVarInfo(nullptr), Body(), SClass(S), IsInline(isInlineSpecified),
         IsInlineSpecified(isInlineSpecified), IsExplicitSpecified(false),
-        IsVirtualAsWritten(false), IsPure(false), genericFunction(false),
+        IsVirtualAsWritten(false), IsPure(false), 
         HasInheritedPrototype(false), HasWrittenPrototype(true),
         IsDeleted(false), IsTrivial(false), IsDefaulted(false),
         IsExplicitlyDefaulted(false), HasImplicitReturnZero(false),
         IsLateTemplateParsed(false), IsConstexpr(isConstexprSpecified),
+        genericFunction(false),
         UsesSEHTry(false), HasSkippedBody(false), WillHaveBody(false),
         EndRangeLoc(NameInfo.getEndLoc()), TemplateOrSpecialization(),
-        DNLoc(NameInfo.getInfo()), TypeVarInfo(nullptr) {}
+        DNLoc(NameInfo.getInfo()) {}
 
   typedef Redeclarable<FunctionDecl> redeclarable_base;
   FunctionDecl *getNextRedeclarationImpl() override {

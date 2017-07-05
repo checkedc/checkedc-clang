@@ -458,12 +458,12 @@ public:
       // Checked C - checked function
       FS_checked_specified(CFS_None),
       FS_forany_specified(false),
-      TypeVarInfo(nullptr),
-      NumTypeVars(0),
       Friend_specified(false),
       Constexpr_specified(false),
       Concept_specified(false),
       Attrs(attrFactory),
+      TypeVarInfo(nullptr),
+      NumTypeVars(0),
       writtenBS(),
       ObjCQualifiers(nullptr){
   }
