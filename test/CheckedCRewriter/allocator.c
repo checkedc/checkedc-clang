@@ -7,7 +7,7 @@
 // expected-no-diagnostics
 //
 typedef __SIZE_TYPE__ size_t;
-extern void *malloc(size_t);
+extern void *malloc(size_t n) : byte_count(n);
 extern void free(void *);
 
 void dosomething(void) {
