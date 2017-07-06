@@ -5376,8 +5376,6 @@ TreeTransform<Derived>::TransformUnresolvedUsingType(TypeLocBuilder &TLB,
   return Result;
 }
 
-
-
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformTypedefType(TypeLocBuilder &TLB,
                                                       TypedefTypeLoc TL) {

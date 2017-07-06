@@ -8081,6 +8081,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     }
 
     // Compatible functions must have the same number of type variables
+    // FIXME : Make sure to pass correct QualType.
     if (lproto->getNumTypeVars() != rproto->getNumTypeVars())
       return QualType();
 

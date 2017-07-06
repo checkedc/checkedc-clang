@@ -1080,14 +1080,14 @@ void ASTDumper::dumpDecl(const Decl *D) {
       OS << " used";
     else if (D->isThisDeclarationReferenced())
       OS << " referenced";
-
     if (D->isInvalidDecl())
       OS << " invalid";
-    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) 
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
       if (FD->isConstexpr())
         OS << " constexpr";
 
     ConstDeclVisitor<ASTDumper>::Visit(D);
+
 
     for (Decl::attr_iterator I = D->attr_begin(), E = D->attr_end(); I != E;
          ++I)
@@ -1101,8 +1101,6 @@ void ASTDumper::dumpDecl(const Decl *D) {
     if (!isa<FunctionDecl>(*D) && !isa<ObjCMethodDecl>(*D) &&
         hasNodes(dyn_cast<DeclContext>(D)))
       dumpDeclContext(cast<DeclContext>(D));
-
-    
   });
 }
 
@@ -1232,8 +1230,6 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (D->doesThisDeclarationHaveABody())
     dumpStmt(D->getBody());
 }
-
-
 
 void ASTDumper::VisitFieldDecl(const FieldDecl *D) {
   dumpName(D);

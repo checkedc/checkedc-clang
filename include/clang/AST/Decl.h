@@ -2783,11 +2783,9 @@ private:
 /// TypedefDecl - Represents the declaration of a typedef-name via the 'typedef'
 /// type specifier.
 class TypedefDecl : public TypedefNameDecl {
-  bool isTypeVariableDecl;
   TypedefDecl(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
-              SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo, bool isTypeVarDecl=false)
-      : TypedefNameDecl(Typedef, C, DC, StartLoc, IdLoc, Id, TInfo),
-      isTypeVariableDecl(isTypeVarDecl) {}
+              SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo)
+      : TypedefNameDecl(Typedef, C, DC, StartLoc, IdLoc, Id, TInfo) {}
 
 public:
   static TypedefDecl *Create(ASTContext &C, DeclContext *DC,
@@ -2796,8 +2794,6 @@ public:
   static TypedefDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
   SourceRange getSourceRange() const override LLVM_READONLY;
-  bool IsTypeVariableDecl(void) { return isTypeVariableDecl; }
-  void SetTypeVariableDeclFlag(bool isTypeVarDecl) { isTypeVariableDecl = isTypeVarDecl; }
 
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }

@@ -3696,7 +3696,6 @@ public:
 class TypeVariableType : public Type, public llvm::FoldingSetNode {
   unsigned int deBruijnDepth;
   unsigned int deBruijnPos;
-  unsigned int width;
 protected:
   TypeVariableType(unsigned int dbDepth, unsigned int dbPos)
     : Type(TypeVariable, QualType(), false, false, false, false),
@@ -3710,7 +3709,6 @@ public:
   void SetDeBruijnDepth(unsigned int i) { deBruijnDepth = i; }
   unsigned int GetDeBruijnPos(void) const { return deBruijnPos; }
   void SetDeBruijnPos(unsigned int i) { deBruijnPos = i; }
-  unsigned int GetWidth(void) { return width; }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, deBruijnDepth, deBruijnPos);
@@ -3724,7 +3722,6 @@ public:
 
 class TypedefType : public Type {
   TypedefNameDecl *Decl;
-  bool isTypeVariable;
 protected:
   TypedefType(TypeClass tc, const TypedefNameDecl *D, QualType can)
     : Type(tc, can, can->isDependentType(),
@@ -3734,8 +3731,6 @@ protected:
       Decl(const_cast<TypedefNameDecl*>(D)) {
     assert(!isa<TypedefType>(can) && "Invalid canonical type");
   }
-
-
   friend class ASTContext;  // ASTContext creates these.
 public:
 

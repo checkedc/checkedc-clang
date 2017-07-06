@@ -640,7 +640,6 @@ class TypeVariableTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
 
 };
 
-
 /// \brief Wrapper for source info for typedefs.
 class TypedefTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
                                                         TypedefTypeLoc,

@@ -418,7 +418,7 @@ private:
 
   ObjCDeclSpec *ObjCQualifiers;
 
-  static bool isTypeRep(TST T) { 
+  static bool isTypeRep(TST T) {
     return (T == TST_typename || T == TST_typeofType ||
             T == TST_underlyingType || T == TST_atomic ||
             T == TST_plainPtr || T == TST_arrayPtr);
@@ -465,7 +465,7 @@ public:
       TypeVarInfo(nullptr),
       NumTypeVars(0),
       writtenBS(),
-      ObjCQualifiers(nullptr){
+      ObjCQualifiers(nullptr) {
   }
 
   // storage-class-specifier

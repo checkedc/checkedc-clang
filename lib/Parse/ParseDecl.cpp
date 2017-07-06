@@ -7120,7 +7120,6 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
         Tok.getLocation(),
         Tok.getIdentifierInfo(),
         TInfo);
-      NewTD->SetTypeVariableDeclFlag(true);
       Actions.PushOnScopeChains(NewTD, getCurScope(), true);
       typevars.push_back(NewTD);
 
