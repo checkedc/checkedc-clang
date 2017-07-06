@@ -1086,8 +1086,8 @@ void ASTDumper::dumpDecl(const Decl *D) {
       if (FD->isConstexpr())
         OS << " constexpr";
 
-    ConstDeclVisitor<ASTDumper>::Visit(D);
 
+    ConstDeclVisitor<ASTDumper>::Visit(D);
 
     for (Decl::attr_iterator I = D->attr_begin(), E = D->attr_end(); I != E;
          ++I)
