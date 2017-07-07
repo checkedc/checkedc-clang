@@ -2489,15 +2489,15 @@ QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
   return QualType(New, 0);
 }
 
-QualType ASTContext::getTypeVariableType(unsigned int dbDepth, unsigned int dbPos) const {
+QualType ASTContext::getTypeVariableType(unsigned int inDepth, unsigned int inIndex) const {
   llvm::FoldingSetNodeID ID;
-  TypeVariableType::Profile(ID, dbDepth, dbPos);
+  TypeVariableType::Profile(ID, inDepth, inIndex);
 
   void *InsertPos = nullptr;
   if (TypeVariableType *PT = TypeVariableTypes.FindNodeOrInsertPos(ID, InsertPos))
     return QualType(PT, 0);
 
-  TypeVariableType *New = new (*this, TypeAlignment) TypeVariableType(dbDepth, dbPos);
+  TypeVariableType *New = new (*this, TypeAlignment) TypeVariableType(inDepth, inIndex);
   Types.push_back(New);
   TypeVariableTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
@@ -8049,6 +8049,10 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (lproto->getNumParams() != rproto->getNumParams())
       return QualType();
 
+    // Compatible functions must have the same number of type variables.
+    if (lproto->getNumTypeVars() != rproto->getNumTypeVars())
+      return QualType();
+
     // Variadic and non-variadic functions aren't compatible
     if (lproto->isVariadic() != rproto->isVariadic())
       return QualType();
@@ -8079,11 +8083,6 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         }
       }
     }
-
-    // Compatible functions must have the same number of type variables
-    // FIXME : Make sure to pass correct QualType.
-    if (lproto->getNumTypeVars() != rproto->getNumTypeVars())
-      return QualType();
 
     // Check parameter type compatibility
     SmallVector<QualType, 10> types;
@@ -8528,6 +8527,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     return QualType();
   }
   case Type::TypeVariable:
+    assert(LHS != RHS &&
+           "Equivalent type variable types should have already been handled!");
     return QualType();
   }
 

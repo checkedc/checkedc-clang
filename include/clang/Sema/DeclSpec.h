@@ -610,11 +610,11 @@ public:
   void setNumTypeVars(unsigned NewNumTypeVars) { NumTypeVars = NewNumTypeVars; }
   unsigned getNumTypeVars(void) const { return NumTypeVars; }
 
-  ArrayRef<TypedefDecl *> typevariables() const {
-    return{ TypeVarInfo, getNumTypeVars() };
+  ArrayRef<TypedefDecl *> typeVariables() const {
+    return { TypeVarInfo, getNumTypeVars() };
   }
-  MutableArrayRef<TypedefDecl *> typevariables() {
-    return{ TypeVarInfo, getNumTypeVars() };
+  MutableArrayRef<TypedefDecl *> typeVariables() {
+    return { TypeVarInfo, getNumTypeVars() };
   }
 
   void ClearFunctionSpecs() {

@@ -7085,14 +7085,14 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
 
   SmallVector<TypedefDecl*, 16> typevars;
   bool breakOutOfWhileLoop = false;
-  unsigned int deBruijnPos = 0;
+  unsigned int typeVariableIndex = 0;
 
-  // Calculate the depth of deBruijn index for our generic types
-  unsigned int deBruijnDepth = 0;
+  // Calculate the depth of for any scope for our generic types
+  unsigned int forAnyDepth = 0;
   Scope *tempScope = getCurScope()->getParent();
   while (!tempScope) {
     if (tempScope->isForanyScope())
-      deBruijnDepth++;
+      forAnyDepth++;
     tempScope = tempScope->getParent();
   }
 
@@ -7111,9 +7111,9 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
 
       // Introduce typedef name that will be bound to type variable. Create a 
       // DeclSpec of typedef, in order to use clang code for checking whether 
-      // the type name already exists. TODO: For now we bind to void*. Change 
-      // the binding to type variable.      
-      QualType R = Actions.Context.getTypeVariableType(0, deBruijnPos);
+      // the type name already exists. The underlying type of typedef is
+      // TypeVariableType.
+      QualType R = Actions.Context.getTypeVariableType(forAnyDepth, typeVariableIndex);
       TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
       TypedefDecl *NewTD = TypedefDecl::Create(Actions.Context, Actions.CurContext,
         ForAnyStartLoc,
@@ -7123,7 +7123,7 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
       Actions.PushOnScopeChains(NewTD, getCurScope(), true);
       typevars.push_back(NewTD);
 
-      deBruijnPos++;
+      typeVariableIndex++;
       prevToken = tok::identifier;
       ConsumeToken();
     } else if (Tok.getKind() == tok::comma) {
@@ -7145,7 +7145,7 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
         break;
       }
       // Add parsed type variables to Decl Spec.
-      DS.setTypeVars(Actions.getASTContext(), typevars, deBruijnPos);
+      DS.setTypeVars(Actions.getASTContext(), typevars, typeVariableIndex);
       ConsumeParen();
       breakOutOfWhileLoop = true;
     } else {

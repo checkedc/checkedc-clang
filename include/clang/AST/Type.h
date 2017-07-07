@@ -3294,14 +3294,14 @@ public:
   /// Extra information about a function prototype.
   struct ExtProtoInfo {
     ExtProtoInfo()
-        : Variadic(false), HasTrailingReturn(false), TypeQuals(0),
-          RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr), ReturnBounds(nullptr), numTypeVars(0) {}
+        : Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
+          TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
+          ParamBounds(nullptr), ReturnBounds(nullptr) {}
 
     ExtProtoInfo(CallingConv CC)
-        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), TypeQuals(0),
-          RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr), ReturnBounds(nullptr), numTypeVars(0) {}
+        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
+          TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
+          ParamBounds(nullptr), ReturnBounds(nullptr) {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
       ExtProtoInfo Result(*this);
@@ -3312,13 +3312,13 @@ public:
     FunctionType::ExtInfo ExtInfo;
     bool Variadic : 1;
     bool HasTrailingReturn : 1;
+    unsigned numTypeVars : 15;
     unsigned char TypeQuals;
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos;
     const BoundsExpr *const *ParamBounds;
     const BoundsExpr *ReturnBounds;
-    unsigned numTypeVars : 15;
   };
 
 private:
@@ -3694,28 +3694,30 @@ public:
 
 
 class TypeVariableType : public Type, public llvm::FoldingSetNode {
-  unsigned int deBruijnDepth;
-  unsigned int deBruijnPos;
+  // Similar to ParmVarDecl's depth. However, instead of keeping track of
+  // prototype scope depth, this keeps track of the depth of forany scope.
+  unsigned int depth;
+  unsigned int index;
 protected:
-  TypeVariableType(unsigned int dbDepth, unsigned int dbPos)
+  TypeVariableType(unsigned int inDepth, unsigned int inIndex)
     : Type(TypeVariable, QualType(), false, false, false, false),
-    deBruijnDepth(dbDepth), deBruijnPos(dbPos) { }
+    depth(inDepth), index(inIndex) { }
   friend class ASTContext;
 public:
   bool isSugared(void) const { return false; }
   QualType desugar(void) const { return QualType(this, 0); }
   static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
-  unsigned int GetDeBruijnDepth(void) const { return deBruijnDepth; }
-  void SetDeBruijnDepth(unsigned int i) { deBruijnDepth = i; }
-  unsigned int GetDeBruijnPos(void) const { return deBruijnPos; }
-  void SetDeBruijnPos(unsigned int i) { deBruijnPos = i; }
+  unsigned int GetDepth(void) const { return depth; }
+  void SetDepth(unsigned int i) { depth = i; }
+  unsigned int GetIndex(void) const { return index; }
+  void SetIndex(unsigned int i) { index = i; }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, deBruijnDepth, deBruijnPos);
+    Profile(ID, depth, index);
   }
-  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int dbDepth, unsigned int dbPos) {
-    ID.AddInteger(dbDepth);
-    ID.AddInteger(dbPos);
+  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex) {
+    ID.AddInteger(inDepth);
+    ID.AddInteger(inIndex);
   }
 };
 

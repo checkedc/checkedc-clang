@@ -5436,7 +5436,9 @@ QualType TreeTransform<Derived>::TransformTypeOfExprType(TypeLocBuilder &TLB,
 template<typename Derived>
 QualType TreeTransform<Derived>::TransformTypeVariableType(TypeLocBuilder &TLB,
                                                            TypeVariableTypeLoc TL) {
-  return QualType();
+  TypeVariableTypeLoc NewT = TLB.push<TypeVariableTypeLoc>(TL.getType());
+  NewT.setNameLoc(TL.getNameLoc());
+  return TL.getType();
 }
 
 template<typename Derived>

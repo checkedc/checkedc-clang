@@ -1183,7 +1183,10 @@ public:
   /// pointer to blocks.
   QualType getBlockDescriptorExtendedType() const;
 
-  QualType getTypeVariableType(unsigned int dbDepth, unsigned int dbPos) const;
+  /// Returns a type variable type based on the depth of the for any scope 
+  /// where type variable is declared, and the position of the type variable in
+  /// _For_any qualifier.
+  QualType getTypeVariableType(unsigned int depth, unsigned int position) const;
 
   void setcudaConfigureCallDecl(FunctionDecl *FD) {
     cudaConfigureCallDecl = FD;

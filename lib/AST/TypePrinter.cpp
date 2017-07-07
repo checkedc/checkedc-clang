@@ -894,7 +894,7 @@ void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
 
 void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
                                              raw_ostream &OS) {
-  OS << "(" << T->GetDeBruijnDepth() << ", " << T->GetDeBruijnPos() << ")";
+  OS << "(" << T->GetDepth() << ", " << T->GetIndex() << ")";
 }
 
 void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream &OS) { }

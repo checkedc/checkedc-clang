@@ -290,6 +290,7 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
 
   Record.push_back(T->isVariadic());
   Record.push_back(T->hasTrailingReturn());
+  Record.push_back(T->getNumTypeVars());
   Record.push_back(T->hasParamBounds());
   Record.push_back(T->getTypeQuals());
   Record.push_back(static_cast<unsigned>(T->getRefQualifier()));
@@ -335,9 +336,8 @@ void ASTTypeWriter::VisitTypedefType(const TypedefType *T) {
 }
 
 void ASTTypeWriter::VisitTypeVariableType(const TypeVariableType *T) {
-  Record.AddTypeRef(T->desugar());
-  Record.push_back(T->GetDeBruijnDepth());
-  Record.push_back(T->GetDeBruijnPos());
+  Record.push_back(T->GetDepth());
+  Record.push_back(T->GetIndex());
   Code = TYPE_TYPEVARIABLE;
 }
 

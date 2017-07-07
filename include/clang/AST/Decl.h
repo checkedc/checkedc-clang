@@ -1643,6 +1643,8 @@ private:
   /// parameters of this function.  This is null if a prototype or if there are
   /// no formals.
   ParmVarDecl **ParamInfo;
+  /// TypeVarInfo - new []'d array of pointers to TypedefDecls for the type
+  /// variables of this function.  This is null if not generic function.
   TypedefDecl **TypeVarInfo;
 
   LazyDeclStmtPtr Body;
@@ -2074,10 +2076,10 @@ public:
     return {ParamInfo, getNumParams()};
   }
 
-  ArrayRef<TypedefDecl *> typevariables() const {
+  ArrayRef<TypedefDecl *> typeVariables() const {
     return{ TypeVarInfo, getNumTypeVars() };
   }
-  MutableArrayRef<TypedefDecl *> typevariables() {
+  MutableArrayRef<TypedefDecl *> typeVariables() {
     return{ TypeVarInfo, getNumTypeVars() };
   }
 
