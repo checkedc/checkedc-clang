@@ -1113,6 +1113,33 @@ namespace {
       return false;
     }
 
+    // Given an assignment target = e, where target has declared bounds
+    // DeclaredBounds and and e has inferred bounds SrcBounds, make sure
+    // that SrcBounds implies that DeclaredBounds is provably true.
+    void CheckBoundsDeclIsProvable(SourceLocation ExprLoc, Expr *Target,
+                                   BoundsExpr *DeclaredBounds, Expr *Src,
+                                   BoundsExpr *SrcBounds) {
+      if (S.Diags.isIgnored(diag::warn_bounds_declaration_not_true, ExprLoc))
+        return;
+
+      // source bounds(any) implies that any other bounds is valid.
+      if (SrcBounds->isAny())
+        return;
+
+      // target bounds(none) implied by any other bounds.
+      if (DeclaredBounds->isNone())
+        return;
+
+      if (!S.Context.EquivalentBounds(DeclaredBounds, SrcBounds)) {
+         S.Diag(ExprLoc, diag::warn_bounds_declaration_not_true) << Target
+          << Target->getSourceRange() << Src->getSourceRange();
+         S.Diag(Target->getExprLoc(), diag::note_declared_bounds_for_expr) <<
+           Target << DeclaredBounds << Target->getSourceRange();
+         S.Diag(Src->getExprLoc(), diag::note_inferred_bounds_for_expr) <<
+           SrcBounds << Src->getSourceRange();
+      }
+    }
+
   public:
     CheckBoundsDeclarations(Sema &S) : S(S),
      DumpBounds(S.getLangOpts().DumpInferredBounds) {}
@@ -1145,9 +1172,13 @@ namespace {
           else
             RHSBounds = S.InferRValueBounds(RHS);
           if (RHSBounds->isNone()) {
-             S.Diag(RHS->getLocStart(), diag::err_expected_bounds_for_assignment) << RHS->getSourceRange();
+             S.Diag(RHS->getLocStart(),
+                    diag::err_expected_bounds_for_assignment)
+                    << RHS->getSourceRange();
              RHSBounds = S.CreateInvalidBoundsExpr();
-          }
+          } else
+            CheckBoundsDeclIsProvable(E->getExprLoc(), LHS, LHSTargetBounds,
+                                      RHS, RHSBounds);
         }
       }
 
@@ -1200,7 +1231,9 @@ namespace {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(E->getSubExpr());
         if (SrcBounds->isNone()) {
-          S.Diag(E->getSubExpr()->getLocStart(), diag::err_expected_bounds_for_ptr_cast)  << E->getSubExpr()->getSourceRange();
+          S.Diag(E->getSubExpr()->getLocStart(),
+                 diag::err_expected_bounds_for_ptr_cast)
+                 << E->getSubExpr()->getSourceRange();
           SrcBounds = S.CreateInvalidBoundsExpr();
         }
         assert(SrcBounds);
