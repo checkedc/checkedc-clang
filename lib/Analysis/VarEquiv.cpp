@@ -20,150 +20,327 @@
 using namespace clang;
 
 namespace {
-// Represent a set of equivalence classes.
-class EquivalenceClasses {
+
+// Represent a set of equivalence classes of the set of integers in 0 ... n - 1,
+// providing efficient operations for partition refinement of the equivalence 
+// classes.
+//
+// Partition refinements works as follows: given a partitioning of a set of
+// set of integers into sets S1, ... SN, and set R, divide each set SI 
+// that contains a mmeber of R into two new sets:
+// - SI intersected with R
+// - SI minus R
+//
+// This can be used to intersect multiple sets of equivalence 
+// class efficiently.
+//
+// With  the right representation, these operations can be done in
+// time proportional to the number of elements in R.
+//
+// We optimize this for space usage:
+// 1. We optionally omit trivial equivalence classes with singleton
+//    members.
+/// 2. We use space proportional to the number of elements in the
+//    in non-trivial equivalence classes.
+// 
+class PartitionRefinement {
 public:
   typedef int Element;
   static const int Sentinel = -1;
-
-private:
-  typedef int Index;
-  typedef int SetId;
-
   static const unsigned BaseCount = 4;
 
+private:
+  // We need to efficently map equivalence sets to unique representatives.
+  // To do this, we assign a unique integer to each equivalence set and keep
+  // the unique integers in a small range.
+
+  // Wrapper type to keep set ids distinct from integers in the equivalent set.
+  struct SetName {
+    SetName(int Id) : Id(Id) {}
+    int Id;
+  };
+
+  // Set Manager tracks the set names in use and the available set names.
+  // It also tracks the number of unique integers in use.  If no set name
+  // is available, it allocates a set name with the next higher available id.
+  class SetManager {
+  private:
+    // List of set names, divided into those in use and those available for
+    // re-use.
+    SmallVector<SetName, BaseCount> SetNames;
+    SmallVector<int, BaseCount> IdToSlot;
+    int InUse;
+  public:
+    void freeSetName(SetName S) {
+      assert(InUse >= 1);
+      if (InUse > 1) {
+        // Move the current name to the end of the list of set names
+        // and decrement the number of names in the list that are in use.
+        int Slot = IdToSlot[S.Id];
+        assert(Slot >= 0 && Slot < InUse);
+        SetNames[Slot] = SetNames[InUse - 1];
+        IdToSlot[SetNames[Slot].Id] = Slot;
+      }
+      IdToSlot[S.Id] = Sentinel;
+      InUse--;
+    }
+
+    SetName allocSetName() {
+      if (InUse < SetNames.size()) {
+        // If there is an available set name, use it.
+        int NextSlot = InUse;
+        SetName N = SetNames[NextSlot];
+        IdToSlot[N.Id] = NextSlot;
+        return N;
+      } else {
+        assert(InUse == SetNames.size());
+        int NextSetId = InUse;
+        SetName S(NextSetId);
+        SetNames.push_back(S);
+        IdToSlot[NextSetId] = NextSetId;
+        InUse += 1;
+        return S;
+      }    
+    }
+
+    void getNewSplitSet(SetName S, SetName &NewSet) {
+    }
+
+    void resetSplitSets() {}
+  };
+
+  // We represent each equivalence class as an unordered doubly-linked list so 
+  // that we can easily add/remove elements from the set. For efficiency, the
+  // list nodes are allocated in a SmallVector and we use indices to
+  // the slots in the SmallVector.  This avoids lots of small allocations
+  // and frees as we operate on the equivalance sets.
+
+  // Wrapper type to make sure that we don't confuse indices with the
+  // integer members in equivalence sets.
+
+  struct IndexType {
+    int Index;
+    IndexType(int I) : Index(I) {}
+  };
+
   struct ListNode {    
-    ListNode(Element E) : Elem(E) {
+    ListNode(Element E, SetName Name) : Elem(E), Set(Name) {
     }
 
     Element Elem;
-    Index Prev;
-    Index Next;
+    IndexType Prev;
+    IndexType Next;
+    SetName Set;
   };
 
-  struct ElementMapNode {
-    ElementMapNode(Element E, Index I) : Elem(E), Current(I) {
+  // Map an equivalence set element to its list node index.
+  // Conceptually, this is just an array that maps elements to
+  // list node indices, but we implement it in a more complicated
+  // fashion to save space because the equivalence sets
+  // may be sparse.
+
+  class ElementMap {
+  private:
+    // This is implemented as a list that is searched linearly, provding space
+    // efficiency.
+    //
+    // TODO: switch between several data strutures to provide a better trade-off 
+    // between space usage and lookup efficiency as the number of elements grows.
+    struct ElementMapNode {
+      ElementMapNode(Element E, IndexType I) : Elem(E), Current(I) {
+      }
+
+      Element Elem;
+      IndexType Current;
+    };
+
+    SmallVector<ElementMapNode, BaseCount> SmallMap;
+  public:
+    IndexType getIndex(Element Elem) {
+      unsigned Count = SmallMap.size();
+      for (unsigned i = 0; i < Count; i++) {
+        if (SmallMap[i].Elem == Elem)
+          return SmallMap[i].Current;
+      }
+      return Sentinel;
     }
 
-    Element Elem;
-    Index Current;
-  };
-
-  // Each set is represented as a doubly-linked list.  The
-  // list nodes are stored in Nodes.
-  SmallVector<ListNode, BaseCount> Nodes;
-  // Map an element to the index of its corresponding ListNode.
-  //
-  // This is implemented as a list that is searched linearly, provding space
-  // efficiency.  For lookup efficiency, we could use an array.  TODO: use
-  // several data strutures to provide a better trade-off between space usage
-  // and lookup efficiency as the number of elements grows.
-  SmallVector<ElementMapNode, BaseCount> SmallMap;
-  int Size;
-
-  Index getListNodeIndex(Element Elem) { 
-    unsigned Count = SmallMap.size();
-    for (unsigned i = 0; i < Count; i++) {
-       if (SmallMap[i].Elem == Elem)
-         return SmallMap[i].Current;
+    void addNewMapping(Element Elem, IndexType Index) {
+      SmallMap.push_back(ElementMapNode(Elem, Index));
     }
-    return Sentinel;
-  }
 
-  void addMapping(Element Elem, int Index) {
-    SmallMap.push_back(ElementMapNode(Elem, Index));
-  }
-
-  void removeMapping(Element Elem) {
-    unsigned Count = SmallMap.size();
-    for (unsigned i = 0; i < Count; i++) {
-      if (SmallMap[i].Elem == Elem) {
-        // Copy the last element to the current element
-        // and remove the last element.
-        if (i < Count-1)
-          SmallMap[i] = SmallMap[Count - 1];
-        SmallMap.pop_back();
+    void setMapping(Element Elem, IndexType Index) {
+      unsigned Count = SmallMap.size();
+      for (unsigned i = 0; i < Count; i++) {
+        if (SmallMap[i].Elem == Elem)
+          SmallMap[i].Current = Index;
       }
     }
-  }
-   
+
+    void removeMapping(Element Elem) {
+      unsigned Count = SmallMap.size();
+      for (unsigned i = 0; i < Count; i++) {
+        if (SmallMap[i].Elem == Elem) {
+          // Copy the last element to the current element
+          // and remove the last element.
+          if (i < Count - 1)
+            SmallMap[i] = SmallMap[Count - 1];
+          SmallMap.pop_back();
+        }
+      }
+    }
+  };
+
+  // The list nodes
+  SmallVector<ListNode, BaseCount> Nodes;
+  // Map an element to the index of its corresponding ListNode.
+  ElementMap ElementToIndex;
+  SetManager Sets;
+  int Size;
+
 public:
-  EquivalenceClasses(int Size) :Size(Size) {
+  PartitionRefinement(int Size) :Size(Size) {
   };
 
   // Add Elem to the set S for Member.  If Member does not have
   // a set, create a new set that contains Elem and Member.
   // It is an error of Elem already exists in another set.
   void add(Element Elem, Element Member) {
-    assert(getListNodeIndex(Elem) == Sentinel);
-    Index MemberIndex = getListNodeIndex(Member);
-    if (MemberIndex == Sentinel) {
+    assert(ElementToIndex.getIndex(Elem).Index == Sentinel);
+    IndexType MemberIndex = ElementToIndex.getIndex(Member);
+    if (MemberIndex.Index == Sentinel) {
+       SetName S = Sets.allocSetName();
        int Next = Nodes.size();
-       ListNode N1(Elem), N2(Member);;
-       Index N1Index = Next;
-       Index N2Index = Next + 1;
+       ListNode N1(Elem, S), N2(Member, S);
+       IndexType N1Index(Next);  
+       IndexType N2Index(Next + 1);
        N1.Prev = Sentinel;
        N1.Next = N2Index;
        N2.Prev = Next;
        N2.Next = Sentinel;
        Nodes.push_back(N1);
        Nodes.push_back(N2);
-       addMapping(Elem, N1Index);
-       addMapping(Member, N2Index);
+       ElementToIndex.addNewMapping(Elem, N1Index);
+       ElementToIndex.addNewMapping(Member, N2Index);
     } else {
       ListNode &N1 = Nodes[MemberIndex];
-      Index N2Index = Nodes.size() + 1;
+      IndexType N2Index = Nodes.size() + 1;
       // insert new node for Elem after the
       // node for Member;
-      ListNode N2(Elem);
+      ListNode N2(Elem, N1.Set);
       N2.Prev = MemberIndex;
       N2.Next = N1.Next;
       N1.Next = N2Index;
       Nodes.push_back(N2);
-      addMapping(Elem, N2Index);
+      ElementToIndex.addNewMapping(Elem, N2Index);
     }
+  }
+
+private:
+  static bool isLastNode(ListNode &Node) {
+    return Node.Next.Index == Sentinel;
+  }
+
+  static bool isFirstNode(ListNode &Node) {
+    return Node.Prev.Index == Sentinel;
+  }
+
+  static bool isSingleton(ListNode &Node) {
+    return isFirstNode(Node) && isLastNode(Node);
+  }
+
+  int removeHelper(IndexType NodeIndex) {
+    ListNode &Node = Nodes[NodeIndex.Index];
+    if (Nodes.size() >= 2) {
+      ListNode LastNode = Nodes[Nodes.size() - 1];
+      Node = LastNode;
+      ElementToIndex.removeMapping(Node.Elem);
+      ElementToIndex.setMapping(LastNode.Elem, NodeIndex);
+      if (LastNode.Prev.Index != Sentinel) {
+        Nodes[LastNode.Prev.Index].Next = NodeIndex;
+      }
+      if (LastNode.Next.Index != Sentinel) {
+        Nodes[LastNode.Next.Index].Prev = NodeIndex;
+      }
+    }
+    Nodes.pop_back();
+  }
+
+public:
+  bool isMember(Element Elem) {
+    return ElementToIndex.getIndex(Elem).Index != Sentinel;
   }
 
   // Remove Element from its current set.
   void remove(Element Elem) {
-    Index MemberIndex = getListNodeIndex(Elem);
-    if (MemberIndex != Sentinel) {
-      ListNode &Node = Nodes[MemberIndex];
-      if (Node.Prev != Sentinel)
-        Nodes[Node.Prev].Next = Node.Next;
-      if (Node.Next != Sentinel)
-        Nodes[Node.Next].Prev = Node.Prev;
-      removeMapping(Elem);
+    IndexType MemberIndex = ElementToIndex.getIndex(Elem);
+    if (MemberIndex.Index != Sentinel) {
+      ListNode Node = Nodes[MemberIndex.Index];
+      IndexType Prev = Node.Prev;
+      IndexType Next = Node.Next;
+      if (Prev.Index != Sentinel)
+        Nodes[Prev.Index].Next = Node.Next;
+      if (Node.Next.Index != Sentinel)
+        Nodes[Next.Index].Prev = Node.Prev;\
+      removeHelper(MemberIndex);
+      if (isSingleton(Node))
+        Sets.freeSetName(Node.Set);
     }
+  }
+
+private:
+  void refineSet(ListNode &S) {
+  }
+
+  void refine(PartitionRefinement R) {
+    // Check that all elements of the current equivalence classes
+    // are members of at least one equivalence class in R.  Elements
+    // not in any equivalence class in R are in singleton equivalence
+    // classes.  We could represent them, but we just delete them
+    // now to save time.
+    int i = 0;
+    while (i < Nodes.size()) {
+      // Don't increment if we remove an element, as the
+      // last element in the list of nodes will replace the
+      // removed element.
+      Element Elem = Nodes[i].Elem;
+      if (R.isMember(Elem))
+        i++;
+      else removeHelper(Elem);
+    }
+
+    for (i = 0; i < R.Nodes.size(); i++)
+      if (isFirstNode(R.Nodes[i]))
+        refineSet(R.Nodes[i]);
   }
 
   // If Elem is a member of a set, return the representative
   // element.  Otherwise return the Sentinel value.
   Element getRepresentative(Element Elem) {
-    Index MemberIndex = getListNodeIndex(Elem);
-    if (MemberIndex == Sentinel)
+    IndexType MemberIndex = getIndex(Elem);
+    if (MemberIndex.Index == Sentinel)
       return Sentinel;
     ListNode &Node = Nodes[MemberIndex];
-    while (Node.Prev != Sentinel)
+    while (Node.Prev.Index != Sentinel)
       Node = Nodes[Node.Prev];
     return Node.Elem;
   }
 
   // Dump the set that elem is equivalent to.
   void Dump(raw_ostream &OS, Element Elem) {
-    Index MemberIndex = getListNodeIndex(Elem);
+    IndexType MemberIndex = ElementToIndex.getIndex(Elem);
     OS << Elem;
     OS << ": ";
-    if (MemberIndex == Sentinel) {
+    if (MemberIndex.Index == Sentinel) {
       OS << "Nothing";
       return;
     }
     ListNode &Node = Nodes[MemberIndex];
-    while (Node.Prev != Sentinel)
+    while (Node.Prev.Index != Sentinel)
       Node = Nodes[Node.Prev];
     OS << "{";
     OS << Node.Elem;
-    while (Node.Next != Sentinel) {
+    while (Node.Next.Index != Sentinel) {
       Node = Nodes[Node.Next];
       OS << ", ";
       OS << Node.Elem;
@@ -180,7 +357,7 @@ public:
       
     for (unsigned i = 0; i < Count; i++) {
       ListNode &Node = Nodes[i];
-      if (Node.Prev == Sentinel)
+      if (Node.Prev.Index == Sentinel)
         Dump(OS, Node.Elem);
     }
   }
