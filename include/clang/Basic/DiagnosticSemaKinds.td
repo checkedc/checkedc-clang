@@ -9310,7 +9310,7 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def err_not_non_modifying_expr : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
-	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression}1">;
+	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression|argument mentioned in function return bounds expression}1">;
 
   def err_checked_scope_type_for_declaration : Error<
     "%select{parameter|return|variable|member}0 cannot have an unchecked "
@@ -9350,6 +9350,17 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def err_bounds_cast_error_with_array_syntax
       : Error<"invalid bounds cast: expected _Array_ptr type">;
+
+  def warn_bounds_declaration_not_true : Warning<
+    "bounds declaration for '%0' may not be true after assignment">,
+    DefaultIgnore,
+    InGroup<DiagGroup<"check-bounds-decls">>;
+
+  def note_declared_bounds_for_expr : Note<
+    "declared bounds for '%0' are '%1'">;
+
+  def note_inferred_bounds_for_expr : Note<
+    "inferred bounds for right-hand side are '%0'">;
 
 } // end of Checked C Category
 
