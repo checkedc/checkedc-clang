@@ -7093,6 +7093,16 @@ InitializationSequence::Perform(Sema &S,
       CurInit = CurInitExprRes;
 
       bool Complained;
+
+      // This is a workaround for not having an implementation of instantiating
+      // generic types in generic functions. TODO : Implement instantiation of
+      // generic types in generic function declaration.
+      if (const TypedefType *td = dyn_cast<TypedefType>(LHSType.getTypePtr())) {
+        if (isa<TypeVariableType>(td->getDecl()->getUnderlyingType())) {
+          ConvTy = Sema::Compatible;
+        }
+      }
+
       if (S.DiagnoseAssignmentResult(ConvTy, Kind.getLocation(),
                                      Step->Type, SourceType,
                                      InitialCurInit.get(),

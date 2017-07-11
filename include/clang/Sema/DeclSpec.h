@@ -385,6 +385,9 @@ private:
   // attributes.
   ParsedAttributes Attrs;
 
+  TypedefDecl **TypeVarInfo;
+  unsigned NumTypeVars : 15;
+
   // Scope specifier for the type spec, if applicable.
   CXXScopeSpec TypeScope;
 
@@ -459,6 +462,8 @@ public:
       Constexpr_specified(false),
       Concept_specified(false),
       Attrs(attrFactory),
+      TypeVarInfo(nullptr),
+      NumTypeVars(0),
       writtenBS(),
       ObjCQualifiers(nullptr) {
   }
@@ -600,6 +605,17 @@ public:
 
   bool isForanySpecified() const { return FS_forany_specified; }
   SourceLocation getForanySpecLoc() const { return FS_foranyLoc; }
+
+  void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars);
+  void setNumTypeVars(unsigned NewNumTypeVars) { NumTypeVars = NewNumTypeVars; }
+  unsigned getNumTypeVars(void) const { return NumTypeVars; }
+
+  ArrayRef<TypedefDecl *> typeVariables() const {
+    return { TypeVarInfo, getNumTypeVars() };
+  }
+  MutableArrayRef<TypedefDecl *> typeVariables() {
+    return { TypeVarInfo, getNumTypeVars() };
+  }
 
   void ClearFunctionSpecs() {
     FS_inline_specified = false;

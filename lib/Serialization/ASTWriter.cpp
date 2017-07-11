@@ -290,6 +290,7 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
 
   Record.push_back(T->isVariadic());
   Record.push_back(T->hasTrailingReturn());
+  Record.push_back(T->getNumTypeVars());
   Record.push_back(T->hasParamBounds());
   Record.push_back(T->getTypeQuals());
   Record.push_back(static_cast<unsigned>(T->getRefQualifier()));
@@ -332,6 +333,12 @@ void ASTTypeWriter::VisitTypedefType(const TypedefType *T) {
   assert(!T->isCanonicalUnqualified() && "Invalid typedef ?");
   Record.AddTypeRef(T->getCanonicalTypeInternal());
   Code = TYPE_TYPEDEF;
+}
+
+void ASTTypeWriter::VisitTypeVariableType(const TypeVariableType *T) {
+  Record.push_back(T->GetDepth());
+  Record.push_back(T->GetIndex());
+  Code = TYPE_TYPEVARIABLE;
 }
 
 void ASTTypeWriter::VisitTypeOfExprType(const TypeOfExprType *T) {
@@ -674,6 +681,9 @@ void TypeLocWriter::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 void TypeLocWriter::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
+  Record.AddSourceLocation(TL.getNameLoc());
+}
+void TypeLocWriter::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 void TypeLocWriter::VisitObjCTypeParamTypeLoc(ObjCTypeParamTypeLoc TL) {

@@ -680,6 +680,8 @@ FunctionProtoType::printExceptionSpecification(raw_ostream &OS,
 
 void TypePrinter::printFunctionProtoBefore(const FunctionProtoType *T, 
                                            raw_ostream &OS) {
+  if (T->getNumTypeVars() > 0)
+    OS << "_For_any(" << T->getNumTypeVars() << ") ";
   if (T->hasTrailingReturn()) {
     OS << "auto ";
     if (!HasEmptyPlaceHolder)
@@ -889,6 +891,13 @@ void TypePrinter::printUnresolvedUsingBefore(const UnresolvedUsingType *T,
 }
 void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                              raw_ostream &OS) { }
+
+void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
+                                             raw_ostream &OS) {
+  OS << "(" << T->GetDepth() << ", " << T->GetIndex() << ")";
+}
+
+void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream &OS) { }
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) { 
   printTypeSpec(T->getDecl(), OS);

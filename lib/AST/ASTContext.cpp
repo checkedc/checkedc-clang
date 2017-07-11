@@ -1910,7 +1910,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     }
     Width = Info.Width;
     break;
-  }
+  }    
+  
+  case Type::TypeVariable:
+    Width = Target->getPointerWidth(0);
+    Align = Target->getPointerAlign(0);
+    break;
 
   case Type::Elaborated:
     return getTypeInfo(cast<ElaboratedType>(T)->getNamedType().getTypePtr());
@@ -2484,6 +2489,20 @@ QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
   return QualType(New, 0);
 }
 
+QualType ASTContext::getTypeVariableType(unsigned int inDepth, unsigned int inIndex) const {
+  llvm::FoldingSetNodeID ID;
+  TypeVariableType::Profile(ID, inDepth, inIndex);
+
+  void *InsertPos = nullptr;
+  if (TypeVariableType *PT = TypeVariableTypes.FindNodeOrInsertPos(ID, InsertPos))
+    return QualType(PT, 0);
+
+  TypeVariableType *New = new (*this, TypeAlignment) TypeVariableType(inDepth, inIndex);
+  Types.push_back(New);
+  TypeVariableTypes.InsertNode(New, InsertPos);
+  return QualType(New, 0);
+}
+
 QualType ASTContext::getAdjustedType(QualType Orig, QualType New) const {
   llvm::FoldingSetNodeID ID;
   AdjustedType::Profile(ID, Orig, New);
@@ -2783,6 +2802,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::BlockPointer:
   case Type::MemberPointer:
   case Type::Pipe:
+  case Type::TypeVariable:
     return type;
 
   // These types can be variably-modified.  All these modifications
@@ -6384,6 +6404,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string& S,
   // Just ignore it.
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
+  case Type::TypeVariable:
     return;
 
   case Type::Pipe:
@@ -8028,6 +8049,10 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (lproto->getNumParams() != rproto->getNumParams())
       return QualType();
 
+    // Compatible functions must have the same number of type variables.
+    if (lproto->getNumTypeVars() != rproto->getNumTypeVars())
+      return QualType();
+
     // Variadic and non-variadic functions aren't compatible
     if (lproto->isVariadic() != rproto->isVariadic())
       return QualType();
@@ -8115,6 +8140,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (hasParamBounds)
       EPI.ParamBounds = bounds.data();
     EPI.ReturnBounds = returnBounds;
+    EPI.numTypeVars = lproto->getNumTypeVars();
     return getFunctionType(retType, types, EPI);
   }
 
@@ -8500,6 +8526,10 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
            "Equivalent pipe types should have already been handled!");
     return QualType();
   }
+  case Type::TypeVariable:
+    assert(LHS != RHS &&
+           "Equivalent type variable types should have already been handled!");
+    return QualType();
   }
 
   llvm_unreachable("Invalid Type::Class!");

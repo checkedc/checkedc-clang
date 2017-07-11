@@ -51,6 +51,7 @@ class TypeAliasTemplateDecl;
 class TypeLoc;
 class UnresolvedSetImpl;
 class VarTemplateDecl;
+class TypedefDecl;
 
 /// \brief A container of type source information.
 ///
@@ -1642,6 +1643,9 @@ private:
   /// parameters of this function.  This is null if a prototype or if there are
   /// no formals.
   ParmVarDecl **ParamInfo;
+  /// TypeVarInfo - new []'d array of pointers to TypedefDecls for the type
+  /// variables of this function.  This is null if not generic function.
+  TypedefDecl **TypeVarInfo;
 
   LazyDeclStmtPtr Body;
 
@@ -1746,6 +1750,7 @@ private:
                                         TemplateSpecializationKind TSK);
 
   void setParams(ASTContext &C, ArrayRef<ParmVarDecl *> NewParamInfo);
+  void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo);
 
 protected:
   FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
@@ -1754,8 +1759,8 @@ protected:
                bool isConstexprSpecified)
       : DeclaratorDecl(DK, DC, NameInfo.getLoc(), NameInfo.getName(), T, TInfo,
                        StartLoc),
-        DeclContext(DK), redeclarable_base(C), ParamInfo(nullptr), Body(),
-        SClass(S), IsInline(isInlineSpecified),
+        DeclContext(DK), redeclarable_base(C), ParamInfo(nullptr), 
+        TypeVarInfo(nullptr), Body(), SClass(S), IsInline(isInlineSpecified),
         IsInlineSpecified(isInlineSpecified), IsExplicitSpecified(false),
         IsVirtualAsWritten(false), IsPure(false),
         HasInheritedPrototype(false), HasWrittenPrototype(true),
@@ -1826,7 +1831,7 @@ public:
   SourceRange getSourceRange() const override LLVM_READONLY;
 
   void setGenericFunctionFlag(bool f) { genericFunction = f; }
-  bool IsGenericFunction() { return genericFunction; }
+  bool IsGenericFunction() const { return genericFunction; }
 
   /// \brief Returns true if the function has a body (definition). The
   /// function body might be in any of the (re-)declarations of this
@@ -2071,6 +2076,13 @@ public:
     return {ParamInfo, getNumParams()};
   }
 
+  ArrayRef<TypedefDecl *> typeVariables() const {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+  MutableArrayRef<TypedefDecl *> typeVariables() {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+
   // Iterator access to formal parameters.
   typedef MutableArrayRef<ParmVarDecl *>::iterator param_iterator;
   typedef ArrayRef<ParmVarDecl *>::const_iterator param_const_iterator;
@@ -2085,6 +2097,7 @@ public:
   /// based on its FunctionType.  This is the length of the ParamInfo array
   /// after it has been created.
   unsigned getNumParams() const;
+  unsigned getNumTypeVars() const;
 
   const ParmVarDecl *getParamDecl(unsigned i) const {
     assert(i < getNumParams() && "Illegal param #");
@@ -2096,6 +2109,9 @@ public:
   }
   void setParams(ArrayRef<ParmVarDecl *> NewParamInfo) {
     setParams(getASTContext(), NewParamInfo);
+  }
+  void setTypeVars(ArrayRef<TypedefDecl *> NewTypeVarInfo) {
+    setTypeVars(getASTContext(), NewTypeVarInfo);
   }
 
   /// getMinRequiredArguments - Returns the minimum number of arguments
