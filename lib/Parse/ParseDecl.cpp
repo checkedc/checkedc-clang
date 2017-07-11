@@ -7087,7 +7087,7 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
   bool breakOutOfWhileLoop = false;
   unsigned int typeVariableIndex = 0;
 
-  // Calculate the depth of for any scope for our generic types
+  // Calculate the depth of "for any" scope for our generic types
   unsigned int forAnyDepth = 0;
   Scope *tempScope = getCurScope()->getParent();
   while (!tempScope) {

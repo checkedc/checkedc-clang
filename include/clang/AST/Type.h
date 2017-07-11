@@ -3706,7 +3706,6 @@ protected:
 public:
   bool isSugared(void) const { return false; }
   QualType desugar(void) const { return QualType(this, 0); }
-  static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
   unsigned int GetDepth(void) const { return depth; }
   void SetDepth(unsigned int i) { depth = i; }
   unsigned int GetIndex(void) const { return index; }
@@ -3719,6 +3718,8 @@ public:
     ID.AddInteger(inDepth);
     ID.AddInteger(inIndex);
   }
+
+  static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
 };
 
 
