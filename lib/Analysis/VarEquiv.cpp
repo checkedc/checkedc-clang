@@ -66,9 +66,10 @@ private:
   public:
     struct ListNode *Head;
     Set *Intersected; // scratch pointer used during refinement.
-    int Id;                  // Internal id of set; may change as sets are removed/added.
+    int InternalId;   // Internal id of set use by SetManager. May change
+                      // as sets are removed/added.
 
-    Set() : Head(nullptr), Intersected(nullptr), Id(Sentinel) {}
+    Set() : Head(nullptr), Intersected(nullptr), InternalId(Sentinel) {}
 
     bool isEmpty() {
       return Head == nullptr;
@@ -90,14 +91,14 @@ private:
     // Add S to the list of sets. Return the position where S was
     // added.  We don't set the id because sometimes a set needs
     // to be tracked in two lists.
-    int add(Set *S) {
-      int Id = Sets.size();
+    void add(Set *S) {
+      assert(S->InternalId == Set::Sentinel);
+      S->InternalId = Sets.size();
       Sets.push_back(S);
-      return Id;
     }
 
-    void assign(SetManager *SM) {
-      Sets.assign(SM->Sets.begin(), SM->Sets.end());
+    void assignTo(std::vector<Set *> Target) {
+      Target.assign(Sets.begin(), Sets.end());
     }
 
     Set *get(unsigned i) {
@@ -111,13 +112,13 @@ private:
     // set at the end of the list with this set.  Updates
     // the Id for the swapped set.
     void remove(Set *S) {
-      int Id = S->Id;
+      int Id = S->InternalId;
       int size = Sets.size();
       assert(Id >= 0 && Id < size);
       if (Id != size - 1) {
         Set *SwapTarget = Sets[size - 1];
         Sets[Id] = SwapTarget;
-        SwapTarget->Id = Id;
+        SwapTarget->InternalId = Id;
       }
       Sets.pop_back();
     }
@@ -162,7 +163,7 @@ private:
 
   ElementMap NodeMap;
   SetManager Sets;
-  SetManager Scratch;
+  std::vector<Set *> Scratch;
 
   // Unlink the node from its current set.
   void unlinkNode(ListNode *Node) {
@@ -230,15 +231,14 @@ public:
     ListNode *Node = NodeMap.get(Member);
     if (Node == nullptr) {
       Set *S = new Set();
-      int Id = Sets.add(S);
-      S->Id = Id;
+      Sets.add(S);
       Node = add(S , Member);
     }
     add(Node->Set, Elem);
   }
 
-  bool isMember(Element Elem) {
-    return NodeMap.get(Elem) != nullptr;
+  bool isSingleton(Element Elem) {
+    return NodeMap.get(Elem) == nullptr;
   }
 
   // Remove Elem from its current equivalence class.  Elem
@@ -276,17 +276,16 @@ private:
         Set *Intersected = TargetSet->Intersected;
         if (Intersected == nullptr) {
           Intersected = new Set();
-          int Id = Sets.add(Intersected);
-          Intersected->Id = Id;
+          Sets.add(Intersected);
           TargetSet->Intersected = Intersected;
-          Scratch.add(TargetSet);
+          Scratch.push_back(TargetSet);
         }
         moveNode(Intersected, Target);
       }
     }
     unsigned count = Scratch.size();
     for (unsigned i = 0; i < count; i++) {
-      Set *Split = Scratch.get(i);
+      Set *Split = Scratch[i];
       Split->Intersected = nullptr;
       Set *Intersected = Split->Intersected;
       remove_if_trivial(Split);
@@ -303,15 +302,15 @@ private:
     // not in any equivalence class in R are in singleton equivalence
     // classes.  These are not represented in sets and need to be deleted.
 
-    Scratch.assign(&Sets);  // avoid modifying list of sets we are iterating over.
+    Sets.assignTo(Scratch);  // avoid modifying list of sets we are iterating over.
     unsigned count = Scratch.size();
     for (unsigned i = 0; i < count; i++) {
-      Set *S = Scratch.get(i);
+      Set *S = Scratch[i];
       ListNode *Current = S->Head;
       while (Current != nullptr) {
         // Save next pointer now in case we delete Current.
         ListNode *Next = Current->Next;
-        if (!R->isMember(Current->Elem)) {
+        if (R->isSingleton(Current->Elem)) {
           unlinkNode(Current);
           NodeMap.remove(Current->Elem);
           delete Current;
@@ -344,7 +343,7 @@ private:
   void Dump(raw_ostream &OS, Set *S) {
     ListNode *Current = S->Head;
     OS << "Set ";
-    OS << S->Id;
+    OS << "(Internal Id " << S->InternalId << ") ";
     OS << "{";
     OS << Current->Elem;
     while (Current != nullptr) {
@@ -362,7 +361,7 @@ public:
     OS << Elem;
     OS << ": ";
     if (Node == nullptr) {
-      OS << "Nothing";
+      OS << "Itself";
       return;
     }
     Dump(OS, Node->Set);
