@@ -32,7 +32,7 @@ namespace {
 // - SI minus R
 //
 // This can be used to intersect multiple sets of equivalence 
-// class efficiently.
+// classes efficiently.
 //
 // With  the right representation, these operations can be done in
 // time proportional to the number of elements in R.
@@ -46,319 +46,340 @@ namespace {
 class PartitionRefinement {
 public:
   typedef int Element;
-  static const int Sentinel = -1;
-  static const unsigned BaseCount = 4;
 
 private:
-  // We need to efficently map equivalence sets to unique representatives.
-  // To do this, we assign a unique integer to each equivalence set and keep
-  // the unique integers in a small range.
-
-  // Wrapper type to keep set ids distinct from integers in the equivalent set.
-  struct SetName {
-    SetName(int Id) : Id(Id) {}
-    int Id;
-  };
-
-  // Set Manager tracks the set names in use and the available set names.
-  // It also tracks the number of unique integers in use.  If no set name
-  // is available, it allocates a set name with the next higher available id.
-  class SetManager {
-  private:
-    // List of set names, divided into those in use and those available for
-    // re-use.
-    SmallVector<SetName, BaseCount> SetNames;
-    SmallVector<int, BaseCount> IdToSlot;
-    int InUse;
-  public:
-    void freeSetName(SetName S) {
-      assert(InUse >= 1);
-      if (InUse > 1) {
-        // Move the current name to the end of the list of set names
-        // and decrement the number of names in the list that are in use.
-        int Slot = IdToSlot[S.Id];
-        assert(Slot >= 0 && Slot < InUse);
-        SetNames[Slot] = SetNames[InUse - 1];
-        IdToSlot[SetNames[Slot].Id] = Slot;
-      }
-      IdToSlot[S.Id] = Sentinel;
-      InUse--;
-    }
-
-    SetName allocSetName() {
-      if (InUse < SetNames.size()) {
-        // If there is an available set name, use it.
-        int NextSlot = InUse;
-        SetName N = SetNames[NextSlot];
-        IdToSlot[N.Id] = NextSlot;
-        return N;
-      } else {
-        assert(InUse == SetNames.size());
-        int NextSetId = InUse;
-        SetName S(NextSetId);
-        SetNames.push_back(S);
-        IdToSlot[NextSetId] = NextSetId;
-        InUse += 1;
-        return S;
-      }    
-    }
-
-    void getNewSplitSet(SetName S, SetName &NewSet) {
-    }
-
-    void resetSplitSets() {}
-  };
-
   // We represent each equivalence class as an unordered doubly-linked list so 
-  // that we can easily add/remove elements from the set. For efficiency, the
-  // list nodes are allocated in a SmallVector and we use indices to
-  // the slots in the SmallVector.  This avoids lots of small allocations
-  // and frees as we operate on the equivalance sets.
+  // that we can easily add/remove elements from the set.
+  class Set;
 
-  // Wrapper type to make sure that we don't confuse indices with the
-  // integer members in equivalence sets.
-
-  struct IndexType {
-    int Index;
-    IndexType(int I) : Index(I) {}
-  };
-
-  struct ListNode {    
-    ListNode(Element E, SetName Name) : Elem(E), Set(Name) {
+  struct ListNode {
+    ListNode(Element E, Set *S) : Elem(E), Set(S), Prev(nullptr), Next(nullptr) {
     }
 
     Element Elem;
-    IndexType Prev;
-    IndexType Next;
-    SetName Set;
+    Set *Set;
+    ListNode *Prev;
+    ListNode *Next;
   };
 
-  // Map an equivalence set element to its list node index.
-  // Conceptually, this is just an array that maps elements to
-  // list node indices, but we implement it in a more complicated
-  // fashion to save space because the equivalence sets
-  // may be sparse.
+  class Set {
+  public:
+    struct ListNode *Head;
+    Set *Intersected; // scratch pointer used during refinement.
+    int Id;                  // Internal id of set; may change as sets are removed/added.
 
+    Set() : Head(nullptr), Intersected(nullptr), Id(Sentinel) {}
+
+    bool isEmpty() {
+      return Head == nullptr;
+    }
+
+    bool isSingleton() {
+      return Head != nullptr && Head->Prev == nullptr && Head->Next == nullptr;
+    }
+
+    static const int Sentinel = -1;
+  };
+
+  // SetManager tracks a list of sets.
+  class SetManager {
+  private:
+    std::vector<Set *> Sets;
+
+  public:
+    // Add S to the list of sets. Return the position where S was
+    // added.  We don't set the id because sometimes a set needs
+    // to be tracked in two lists.
+    int add(Set *S) {
+      int Id = Sets.size();
+      Sets.push_back(S);
+      return Id;
+    }
+
+    void assign(SetManager *SM) {
+      Sets.assign(SM->Sets.begin(), SM->Sets.end());
+    }
+
+    Set *get(unsigned i) {
+      if (i >= 0 && i < Sets.size())
+        return Sets[i];
+      else
+        return nullptr;
+    }
+
+    // Remove a set from the list of set by swapping the 
+    // set at the end of the list with this set.  Updates
+    // the Id for the swapped set.
+    void remove(Set *S) {
+      int Id = S->Id;
+      int size = Sets.size();
+      assert(Id >= 0 && Id < size);
+      if (Id != size - 1) {
+        Set *SwapTarget = Sets[size - 1];
+        Sets[Id] = SwapTarget;
+        SwapTarget->Id = Id;
+      }
+      Sets.pop_back();
+    }
+
+    void clear() {
+      Sets.clear();
+    }
+
+    int size() {
+      return Sets.size();
+    }
+  };
+
+  // Map an equivalence set element to its list node.
   class ElementMap {
   private:
-    // This is implemented as a list that is searched linearly, provding space
-    // efficiency.
-    //
-    // TODO: switch between several data strutures to provide a better trade-off 
-    // between space usage and lookup efficiency as the number of elements grows.
-    struct ElementMapNode {
-      ElementMapNode(Element E, IndexType I) : Elem(E), Current(I) {
-      }
+     std::map<Element, ListNode *> Tree;
 
-      Element Elem;
-      IndexType Current;
-    };
-
-    SmallVector<ElementMapNode, BaseCount> SmallMap;
   public:
-    IndexType getIndex(Element Elem) {
-      unsigned Count = SmallMap.size();
-      for (unsigned i = 0; i < Count; i++) {
-        if (SmallMap[i].Elem == Elem)
-          return SmallMap[i].Current;
-      }
-      return Sentinel;
+    ElementMap(int Size) {
+    }
+      
+    ListNode *get(Element Elem) {
+      auto Lookup = Tree.find(Elem);
+      if (Lookup == Tree.end())
+        return nullptr;
+      else
+        return Lookup->second;
     }
 
-    void addNewMapping(Element Elem, IndexType Index) {
-      SmallMap.push_back(ElementMapNode(Elem, Index));
+    void remove(Element Elem) {
+      auto Lookup = Tree.find(Elem);
+      if (Lookup == Tree.end())
+        return;
+      Tree.erase(Lookup);
     }
 
-    void setMapping(Element Elem, IndexType Index) {
-      unsigned Count = SmallMap.size();
-      for (unsigned i = 0; i < Count; i++) {
-        if (SmallMap[i].Elem == Elem)
-          SmallMap[i].Current = Index;
-      }
-    }
-
-    void removeMapping(Element Elem) {
-      unsigned Count = SmallMap.size();
-      for (unsigned i = 0; i < Count; i++) {
-        if (SmallMap[i].Elem == Elem) {
-          // Copy the last element to the current element
-          // and remove the last element.
-          if (i < Count - 1)
-            SmallMap[i] = SmallMap[Count - 1];
-          SmallMap.pop_back();
-        }
-      }
+    void set(Element Elem,ListNode *Node) {
+      Tree[Elem] = Node;
     }
   };
 
-  // The list nodes
-  SmallVector<ListNode, BaseCount> Nodes;
-  // Map an element to the index of its corresponding ListNode.
-  ElementMap ElementToIndex;
+  ElementMap NodeMap;
   SetManager Sets;
-  int Size;
+  SetManager Scratch;
+
+  // Unlink the node from its current set.
+  void unlinkNode(ListNode *Node) {
+    if (Node->Prev) {
+      Node->Prev->Next = Node->Next;
+    }
+    if (Node->Next) {
+      Node->Next->Prev = Node->Prev;
+    }
+    if (Node == Node->Set->Head) {
+      assert(Node->Prev == nullptr);
+      Node->Set->Head = Node->Next;
+    }
+  }
+
+  // Link the node to set S
+  void linkNode(Set *S, ListNode *Node) {
+    Node->Set = S;
+    ListNode *Head = S->Head;
+    Node->Prev = nullptr;
+    Node->Next = Head;
+    S->Head = Node;
+    if (Head != nullptr) {
+      Head->Prev = Node;
+    }
+  }
+
+  // Move a node from is current set to set S.
+  void moveNode(Set *S, ListNode *Node) {
+    unlinkNode(Node);
+    linkNode(S, Node);
+  }
+
+  void remove_if_trivial(Set *S) {
+    if (S->isEmpty()) {
+      Sets.remove(S);
+      delete S;
+    }
+    else if (S->isSingleton()) {
+      Sets.remove(S);
+      NodeMap.remove(S->Head->Elem);
+      delete S->Head;
+      delete S;
+    }
+  }
 
 public:
-  PartitionRefinement(int Size) :Size(Size) {
+  PartitionRefinement(int Size) : NodeMap(Size) {
   };
+
+  // Add Elem to the set S.  It is an error if Elem is already a member 
+  // of another set.
+  ListNode *add(Set *S, Element Elem) {
+    assert(NodeMap.get(Elem) == nullptr || NodeMap.get(Elem)->Set != S);
+    ListNode *Node = new ListNode(Elem, S);
+    NodeMap.set(Elem, Node);
+    linkNode(S, Node);
+    return Node;
+  }
 
   // Add Elem to the set S for Member.  If Member does not have
-  // a set, create a new set that contains Elem and Member.
-  // It is an error of Elem already exists in another set.
-  void add(Element Elem, Element Member) {
-    assert(ElementToIndex.getIndex(Elem).Index == Sentinel);
-    IndexType MemberIndex = ElementToIndex.getIndex(Member);
-    if (MemberIndex.Index == Sentinel) {
-       SetName S = Sets.allocSetName();
-       int Next = Nodes.size();
-       ListNode N1(Elem, S), N2(Member, S);
-       IndexType N1Index(Next);  
-       IndexType N2Index(Next + 1);
-       N1.Prev = Sentinel;
-       N1.Next = N2Index;
-       N2.Prev = Next;
-       N2.Next = Sentinel;
-       Nodes.push_back(N1);
-       Nodes.push_back(N2);
-       ElementToIndex.addNewMapping(Elem, N1Index);
-       ElementToIndex.addNewMapping(Member, N2Index);
-    } else {
-      ListNode &N1 = Nodes[MemberIndex];
-      IndexType N2Index = Nodes.size() + 1;
-      // insert new node for Elem after the
-      // node for Member;
-      ListNode N2(Elem, N1.Set);
-      N2.Prev = MemberIndex;
-      N2.Next = N1.Next;
-      N1.Next = N2Index;
-      Nodes.push_back(N2);
-      ElementToIndex.addNewMapping(Elem, N2Index);
+  // a set, create a new set to contain Elem and Member.
+  // It is an error of Elem is already a member of another set.
+  void add(Element Member, Element Elem) {
+    ListNode *Node = NodeMap.get(Member);
+    if (Node == nullptr) {
+      Set *S = new Set();
+      int Id = Sets.add(S);
+      S->Id = Id;
+      Node = add(S , Member);
     }
+    add(Node->Set, Elem);
   }
 
-private:
-  static bool isLastNode(ListNode &Node) {
-    return Node.Next.Index == Sentinel;
-  }
-
-  static bool isFirstNode(ListNode &Node) {
-    return Node.Prev.Index == Sentinel;
-  }
-
-  static bool isSingleton(ListNode &Node) {
-    return isFirstNode(Node) && isLastNode(Node);
-  }
-
-  int removeHelper(IndexType NodeIndex) {
-    ListNode &Node = Nodes[NodeIndex.Index];
-    if (Nodes.size() >= 2) {
-      ListNode LastNode = Nodes[Nodes.size() - 1];
-      Node = LastNode;
-      ElementToIndex.removeMapping(Node.Elem);
-      ElementToIndex.setMapping(LastNode.Elem, NodeIndex);
-      if (LastNode.Prev.Index != Sentinel) {
-        Nodes[LastNode.Prev.Index].Next = NodeIndex;
-      }
-      if (LastNode.Next.Index != Sentinel) {
-        Nodes[LastNode.Next.Index].Prev = NodeIndex;
-      }
-    }
-    Nodes.pop_back();
-  }
-
-public:
   bool isMember(Element Elem) {
-    return ElementToIndex.getIndex(Elem).Index != Sentinel;
+    return NodeMap.get(Elem) != nullptr;
   }
 
-  // Remove Element from its current set.
+  // Remove Elem from its current equivalence class.  Elem
+  // becomes a member of a singleton equivalence class.
   void remove(Element Elem) {
-    IndexType MemberIndex = ElementToIndex.getIndex(Elem);
-    if (MemberIndex.Index != Sentinel) {
-      ListNode Node = Nodes[MemberIndex.Index];
-      IndexType Prev = Node.Prev;
-      IndexType Next = Node.Next;
-      if (Prev.Index != Sentinel)
-        Nodes[Prev.Index].Next = Node.Next;
-      if (Node.Next.Index != Sentinel)
-        Nodes[Next.Index].Prev = Node.Prev;\
-      removeHelper(MemberIndex);
-      if (isSingleton(Node))
-        Sets.freeSetName(Node.Set);
+    ListNode *Node = NodeMap.get(Elem);
+    if (Node != nullptr) {
+      Set *S = Node->Set;
+      assert(S != nullptr);
+      unlinkNode(Node);
+      NodeMap.remove(Elem);
+      delete Node;
+      remove_if_trivial(S); // S may point to freed memory after this.
     }
   }
 
 private:
-  void refineSet(ListNode &S) {
+  // For each equivalence class C with a member in S,
+  // split C into two sets:
+  // * C intersected with S
+  // * C - S.
+  //
+  // S must be a set from a different PartitionEquivalence.
+  // We create a new set for C intersectd with S and use
+  // the original set for S to hold C - S.
+
+  void refine(Set *S) {  // TODO: mark as const
+    Scratch.clear();
+    ListNode *Current = S->Head;
+    while (Current != nullptr) {
+      Element CurrentElem = Current->Elem;
+      ListNode *Target = NodeMap.get(CurrentElem);
+      if (Target != nullptr) {
+        Set *TargetSet = Target->Set;
+        Set *Intersected = TargetSet->Intersected;
+        if (Intersected == nullptr) {
+          Intersected = new Set();
+          int Id = Sets.add(Intersected);
+          Intersected->Id = Id;
+          TargetSet->Intersected = Intersected;
+          Scratch.add(TargetSet);
+        }
+        moveNode(Intersected, Target);
+      }
+    }
+    unsigned count = Scratch.size();
+    for (unsigned i = 0; i < count; i++) {
+      Set *Split = Scratch.get(i);
+      Split->Intersected = nullptr;
+      Set *Intersected = Split->Intersected;
+      remove_if_trivial(Split);
+      remove_if_trivial(Intersected);
+    }
+    Scratch.clear();
   }
 
-  void refine(PartitionRefinement R) {
-    // Check that all elements of the current equivalence classes
+ public:
+  void refine(PartitionRefinement *R) { // TODO: mark R as const?
+    assert(R != this);
+    // First check that all elements of the current equivalence classes
     // are members of at least one equivalence class in R.  Elements
     // not in any equivalence class in R are in singleton equivalence
-    // classes.  We could represent them, but we just delete them
-    // now to save time.
-    int i = 0;
-    while (i < Nodes.size()) {
-      // Don't increment if we remove an element, as the
-      // last element in the list of nodes will replace the
-      // removed element.
-      Element Elem = Nodes[i].Elem;
-      if (R.isMember(Elem))
-        i++;
-      else removeHelper(Elem);
+    // classes.  These are not represented in sets and need to be deleted.
+
+    Scratch.assign(&Sets);  // avoid modifying list of sets we are iterating over.
+    unsigned count = Scratch.size();
+    for (unsigned i = 0; i < count; i++) {
+      Set *S = Scratch.get(i);
+      ListNode *Current = S->Head;
+      while (Current != nullptr) {
+        // Save next pointer now in case we delete Current.
+        ListNode *Next = Current->Next;
+        if (!R->isMember(Current->Elem)) {
+          unlinkNode(Current);
+          NodeMap.remove(Current->Elem);
+          delete Current;
+        }
+        Current = Next;
+      }
+      remove_if_trivial(S); 
     }
 
-    for (i = 0; i < R.Nodes.size(); i++)
-      if (isFirstNode(R.Nodes[i]))
-        refineSet(R.Nodes[i]);
+    count = R->Sets.size();
+    for (unsigned i = 0; i < count; i++)
+      refine(R->Sets.get(i));
   }
 
   // If Elem is a member of a set, return the representative
-  // element.  Otherwise return the Sentinel value.
-  Element getRepresentative(Element Elem) {
-    IndexType MemberIndex = getIndex(Elem);
-    if (MemberIndex.Index == Sentinel)
-      return Sentinel;
-    ListNode &Node = Nodes[MemberIndex];
-    while (Node.Prev.Index != Sentinel)
-      Node = Nodes[Node.Prev];
-    return Node.Elem;
+  // element in Representative.  The return value indicates 
+  // if Elem was a member of a set and Representative is valid.
+  bool getRepresentative(Element Elem,Element &Representative) {
+    ListNode *Node = NodeMap.get(Elem);
+    if (Node == nullptr) {
+      Representative = 0;
+      return false;
+    } else {
+      Representative = Node->Set->Head->Elem;
+      return true;
+    }
   }
 
-  // Dump the set that elem is equivalent to.
+private:
+  void Dump(raw_ostream &OS, Set *S) {
+    ListNode *Current = S->Head;
+    OS << "Set ";
+    OS << S->Id;
+    OS << "{";
+    OS << Current->Elem;
+    while (Current != nullptr) {
+      Current = Current->Next;
+      OS << ", ";
+      OS << Current->Elem;
+    }
+    OS << "}";
+  }
+
+public:
+  // Dump the set that Elem is equivalent to.
   void Dump(raw_ostream &OS, Element Elem) {
-    IndexType MemberIndex = ElementToIndex.getIndex(Elem);
+    ListNode *Node = NodeMap.get(Elem);
     OS << Elem;
     OS << ": ";
-    if (MemberIndex.Index == Sentinel) {
+    if (Node == nullptr) {
       OS << "Nothing";
       return;
     }
-    ListNode &Node = Nodes[MemberIndex];
-    while (Node.Prev.Index != Sentinel)
-      Node = Nodes[Node.Prev];
-    OS << "{";
-    OS << Node.Elem;
-    while (Node.Next.Index != Sentinel) {
-      Node = Nodes[Node.Next];
-      OS << ", ";
-      OS << Node.Elem;
-    }
-    OS << "}\n";;
+    Dump(OS, Node->Set);
+    OS << "\n";
   }
 
+  // Dump all the sets
   void Dump(raw_ostream &OS) {
-    unsigned Count = Nodes.size();
+    unsigned Count = Sets.size();
     if (Count == 0)
       OS << "Equivalence classes are empty\n";
     else
       OS << "Equivalence classes:\n";
       
     for (unsigned i = 0; i < Count; i++) {
-      ListNode &Node = Nodes[i];
-      if (Node.Prev.Index == Sentinel)
-        Dump(OS, Node.Elem);
+      Dump(OS, Sets.get(i));
+      OS << "\n";
     }
   }
 };
