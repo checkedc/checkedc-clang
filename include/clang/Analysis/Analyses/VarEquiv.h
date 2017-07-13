@@ -24,6 +24,37 @@ namespace clang {
 class CFG;
 class CFGBlock;
 class SourceManager;
+
+namespace PartitionRefinement {
+  typedef int Element;
+  class ElementMap;
+  struct ListNode;
+  class Set;
+  class SetManager;
+
+  class Partition {
+  public:
+    Partition(int size);
+    ~Partition();
+    void add(Element Member, Element Elem);
+    bool isSingleton(Element Elem);
+    void makeSingleton(Element Elem);
+    Element getRepresentative(Element Elem);
+    void refine(Partition *R);
+    void dump(raw_ostream &OS, Element Elem);
+    void dump(raw_ostream &OS);
+
+  private:
+    ListNode *add(Set *S, Element Elem);
+    void remove_if_trivial(Set *S);
+    void refine(Set *S);
+    void dump(raw_ostream &OS, Set *S);
+
+    ElementMap *NodeMap;
+    SetManager *Sets;
+    std::vector<Set *> Scratch;
+  };
+}
   
 class VarEquiv : EqualityRelation {
 public:

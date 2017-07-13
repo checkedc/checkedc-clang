@@ -19,8 +19,6 @@
 
 using namespace clang;
 
-namespace {
-
 // Represent a set of equivalence classes of the set of integers in 0 ... n - 1,
 // providing efficient operations for partition refinement of the equivalence 
 // classes.
@@ -43,219 +41,219 @@ namespace {
 /// 2. We use space proportional to the number of elements in the
 //    in non-trivial equivalence classes.
 // 
-class PartitionRefinement {
-public:
+namespace clang {
+namespace PartitionRefinement {
   typedef int Element;
 
+// We represent each equivalence class as an unordered doubly-linked list so 
+// that we can easily add/remove elements from the set.
+class Set;
+
+struct ListNode {
+  ListNode(Element E, Set *S) : Elem(E), Set(S), Prev(nullptr), Next(nullptr) {
+  }
+
+  Element Elem;
+  Set *Set;
+  ListNode *Prev;
+  ListNode *Next;
+};
+
+class Set {
+public:
+  struct ListNode *Head;
+  Set *Intersected; // scratch pointer used during refinement.
+  int InternalId;   // Internal id of set use by SetManager. May change
+                    // as sets are removed/added.
+
+  Set() : Head(nullptr), Intersected(nullptr), InternalId(Sentinel) {}
+
+  bool isEmpty() {
+    return Head == nullptr;
+  }
+
+  bool isSingleton() {
+    return Head != nullptr && Head->Prev == nullptr && Head->Next == nullptr;
+  }
+
+  static const int Sentinel = -1;
+};
+
+// SetManager tracks a list of sets.
+class SetManager {
 private:
-  // We represent each equivalence class as an unordered doubly-linked list so 
-  // that we can easily add/remove elements from the set.
-  class Set;
-
-  struct ListNode {
-    ListNode(Element E, Set *S) : Elem(E), Set(S), Prev(nullptr), Next(nullptr) {
-    }
-
-    Element Elem;
-    Set *Set;
-    ListNode *Prev;
-    ListNode *Next;
-  };
-
-  class Set {
-  public:
-    struct ListNode *Head;
-    Set *Intersected; // scratch pointer used during refinement.
-    int InternalId;   // Internal id of set use by SetManager. May change
-                      // as sets are removed/added.
-
-    Set() : Head(nullptr), Intersected(nullptr), InternalId(Sentinel) {}
-
-    bool isEmpty() {
-      return Head == nullptr;
-    }
-
-    bool isSingleton() {
-      return Head != nullptr && Head->Prev == nullptr && Head->Next == nullptr;
-    }
-
-    static const int Sentinel = -1;
-  };
-
-  // SetManager tracks a list of sets.
-  class SetManager {
-  private:
-    std::vector<Set *> Sets;
-
-  public:
-    // Add S to the list of sets. Return the position where S was
-    // added.  We don't set the id because sometimes a set needs
-    // to be tracked in two lists.
-    void add(Set *S) {
-      assert(S->InternalId == Set::Sentinel);
-      S->InternalId = Sets.size();
-      Sets.push_back(S);
-    }
-
-    void assignTo(std::vector<Set *> Target) {
-      Target.assign(Sets.begin(), Sets.end());
-    }
-
-    Set *get(unsigned i) {
-      if (i >= 0 && i < Sets.size())
-        return Sets[i];
-      else
-        return nullptr;
-    }
-
-    // Remove a set from the list of set by swapping the 
-    // set at the end of the list with this set.  Updates
-    // the Id for the swapped set.
-    void remove(Set *S) {
-      int Id = S->InternalId;
-      int size = Sets.size();
-      assert(Id >= 0 && Id < size);
-      if (Id != size - 1) {
-        Set *SwapTarget = Sets[size - 1];
-        Sets[Id] = SwapTarget;
-        SwapTarget->InternalId = Id;
-      }
-      Sets.pop_back();
-    }
-
-    void clear() {
-      Sets.clear();
-    }
-
-    int size() {
-      return Sets.size();
-    }
-  };
-
-  // Map an equivalence set element to its list node.
-  class ElementMap {
-  private:
-     std::map<Element, ListNode *> Tree;
-
-  public:
-    ElementMap(int Size) {
-    }
-      
-    ListNode *get(Element Elem) {
-      auto Lookup = Tree.find(Elem);
-      if (Lookup == Tree.end())
-        return nullptr;
-      else
-        return Lookup->second;
-    }
-
-    void remove(Element Elem) {
-      auto Lookup = Tree.find(Elem);
-      if (Lookup == Tree.end())
-        return;
-      Tree.erase(Lookup);
-    }
-
-    void set(Element Elem,ListNode *Node) {
-      Tree[Elem] = Node;
-    }
-  };
-
-  ElementMap NodeMap;
-  SetManager Sets;
-  std::vector<Set *> Scratch;
-
-  // Unlink the node from its current set.
-  void unlinkNode(ListNode *Node) {
-    if (Node->Prev) {
-      Node->Prev->Next = Node->Next;
-    }
-    if (Node->Next) {
-      Node->Next->Prev = Node->Prev;
-    }
-    if (Node == Node->Set->Head) {
-      assert(Node->Prev == nullptr);
-      Node->Set->Head = Node->Next;
-    }
-  }
-
-  // Link the node to set S
-  void linkNode(Set *S, ListNode *Node) {
-    Node->Set = S;
-    ListNode *Head = S->Head;
-    Node->Prev = nullptr;
-    Node->Next = Head;
-    S->Head = Node;
-    if (Head != nullptr) {
-      Head->Prev = Node;
-    }
-  }
-
-  // Move a node from is current set to set S.
-  void moveNode(Set *S, ListNode *Node) {
-    unlinkNode(Node);
-    linkNode(S, Node);
-  }
-
-  void remove_if_trivial(Set *S) {
-    if (S->isEmpty()) {
-      Sets.remove(S);
-      delete S;
-    }
-    else if (S->isSingleton()) {
-      Sets.remove(S);
-      NodeMap.remove(S->Head->Elem);
-      delete S->Head;
-      delete S;
-    }
-  }
+  std::vector<Set *> Sets;
 
 public:
-  PartitionRefinement(int Size) : NodeMap(Size) {
-  };
-
-  // Add Elem to the set S.  It is an error if Elem is already a member 
-  // of another set.
-  ListNode *add(Set *S, Element Elem) {
-    assert(NodeMap.get(Elem) == nullptr || NodeMap.get(Elem)->Set != S);
-    ListNode *Node = new ListNode(Elem, S);
-    NodeMap.set(Elem, Node);
-    linkNode(S, Node);
-    return Node;
+  // Add S to the list of sets. Return the position where S was
+  // added.  We don't set the id because sometimes a set needs
+  // to be tracked in two lists.
+  void add(Set *S) {
+    assert(S->InternalId == Set::Sentinel);
+    S->InternalId = Sets.size();
+    Sets.push_back(S);
   }
 
-  // Add Elem to the set S for Member.  If Member does not have
-  // a set, create a new set to contain Elem and Member.
-  // It is an error of Elem is already a member of another set.
-  void add(Element Member, Element Elem) {
-    ListNode *Node = NodeMap.get(Member);
-    if (Node == nullptr) {
-      Set *S = new Set();
-      Sets.add(S);
-      Node = add(S , Member);
+  void assignTo(std::vector<Set *> Target) {
+    Target.assign(Sets.begin(), Sets.end());
+  }
+
+  Set *get(unsigned i) {
+    if (i >= 0 && i < Sets.size())
+      return Sets[i];
+    else
+      return nullptr;
+  }
+
+  // Remove a set from the list of set by swapping the 
+  // set at the end of the list with this set.  Updates
+  // the Id for the swapped set.
+  void remove(Set *S) {
+    int Id = S->InternalId;
+    int size = Sets.size();
+    assert(Id >= 0 && Id < size);
+    if (Id != size - 1) {
+      Set *SwapTarget = Sets[size - 1];
+      Sets[Id] = SwapTarget;
+      SwapTarget->InternalId = Id;
     }
-    add(Node->Set, Elem);
+    Sets.pop_back();
   }
 
-  bool isSingleton(Element Elem) {
-    return NodeMap.get(Elem) == nullptr;
+  void clear() {
+    Sets.clear();
   }
 
-  // Remove Elem from its current equivalence class.  Elem
-  // becomes a member of a singleton equivalence class.
-  void remove(Element Elem) {
-    ListNode *Node = NodeMap.get(Elem);
-    if (Node != nullptr) {
-      Set *S = Node->Set;
-      assert(S != nullptr);
-      unlinkNode(Node);
-      NodeMap.remove(Elem);
-      delete Node;
-      remove_if_trivial(S); // S may point to freed memory after this.
-    }
+  int size() {
+    return Sets.size();
   }
+};
 
+// Map an equivalence set element to its list node.
+class ElementMap {
 private:
+    std::map<Element, ListNode *> Tree;
+
+public:
+  ElementMap(int Size) {
+  }
+      
+  ListNode *get(Element Elem) {
+    auto Lookup = Tree.find(Elem);
+    if (Lookup == Tree.end())
+      return nullptr;
+    else
+      return Lookup->second;
+  }
+
+  void remove(Element Elem) {
+    auto Lookup = Tree.find(Elem);
+    if (Lookup == Tree.end())
+      return;
+    Tree.erase(Lookup);
+  }
+
+  void set(Element Elem,ListNode *Node) {
+    Tree[Elem] = Node;
+  }
+};
+
+// Unlink the node from its current set.
+void unlinkNode(ListNode *Node) {
+  if (Node->Prev) {
+    Node->Prev->Next = Node->Next;
+  }
+  if (Node->Next) {
+    Node->Next->Prev = Node->Prev;
+  }
+  if (Node == Node->Set->Head) {
+    assert(Node->Prev == nullptr);
+    Node->Set->Head = Node->Next;
+  }
+}
+
+// Link the node to set S
+void linkNode(Set *S, ListNode *Node) {
+  Node->Set = S;
+  ListNode *Head = S->Head;
+  Node->Prev = nullptr;
+  Node->Next = Head;
+  S->Head = Node;
+  if (Head != nullptr) {
+    Head->Prev = Node;
+  }
+}
+
+// Move a node from is current set to set S.
+void moveNode(Set *S, ListNode *Node) {
+  unlinkNode(Node);
+  linkNode(S, Node);
+}
+
+void Partition::remove_if_trivial(Set *S) {
+  if (S->isEmpty()) {
+    Sets->remove(S);
+    delete S;
+  }
+  else if (S->isSingleton()) {
+    Sets->remove(S);
+    NodeMap->remove(S->Head->Elem);
+    delete S->Head;
+    delete S;
+  }
+}
+
+Partition::Partition(int Size) {
+  Sets = new SetManager();
+  NodeMap = new ElementMap(Size);
+};
+
+Partition::~Partition() {
+  delete Sets;
+  delete NodeMap;
+}
+
+// Add Elem to the set S.  It is an error if Elem is already a member 
+// of another set.
+ListNode *Partition::add(Set *S, Element Elem) {
+  assert(NodeMap->get(Elem) == nullptr || NodeMap->get(Elem)->Set != S);
+  ListNode *Node = new ListNode(Elem, S);
+  NodeMap->set(Elem, Node);
+  linkNode(S, Node);
+  return Node;
+}
+
+// Add Elem to the set S for Member.  If Member does not have
+// a set, create a new set to contain Elem and Member.
+// It is an error of Elem is already a member of another set.
+void Partition::add(Element Member, Element Elem) {
+  ListNode *Node = NodeMap->get(Member);
+  if (Node == nullptr) {
+    Set *S = new Set();
+    Sets->add(S);
+    Node = add(S , Member);
+  }
+  add(Node->Set, Elem);
+}
+
+bool Partition::isSingleton(Element Elem) {
+  return NodeMap->get(Elem) == nullptr;
+}
+
+// Make Elem a singleton equivalance class and remove it
+// from any other equivalence classes that is a member of.
+void Partition::makeSingleton(Element Elem) {
+  ListNode *Node = NodeMap->get(Elem);
+  if (Node != nullptr) {
+    Set *S = Node->Set;
+    assert(S != nullptr);
+    unlinkNode(Node);
+    NodeMap->remove(Elem);
+    delete Node;
+    remove_if_trivial(S); // S may point to freed memory after this.
+  }
+}
+
   // For each equivalence class C with a member in S,
   // split C into two sets:
   // * C intersected with S
@@ -265,124 +263,118 @@ private:
   // We create a new set for C intersectd with S and use
   // the original set for S to hold C - S.
 
-  void refine(Set *S) {  // TODO: mark as const
-    Scratch.clear();
+void Partition::refine(Set *S) {  // TODO: mark as const
+  Scratch.clear();
+  ListNode *Current = S->Head;
+  while (Current != nullptr) {
+    Element CurrentElem = Current->Elem;
+    ListNode *Target = NodeMap->get(CurrentElem);
+    if (Target != nullptr) {
+      Set *TargetSet = Target->Set;
+      Set *Intersected = TargetSet->Intersected;
+      if (Intersected == nullptr) {
+        Intersected = new Set();
+        Sets->add(Intersected);
+        TargetSet->Intersected = Intersected;
+        Scratch.push_back(TargetSet);
+      }
+      moveNode(Intersected, Target);
+    }
+  }
+  unsigned count = Scratch.size();
+  for (unsigned i = 0; i < count; i++) {
+    Set *Split = Scratch[i];
+    Split->Intersected = nullptr;
+    Set *Intersected = Split->Intersected;
+    remove_if_trivial(Split);
+    remove_if_trivial(Intersected);
+  }
+  Scratch.clear();
+}
+
+void Partition::refine(Partition *R) { // TODO: mark R as const?
+  assert(R != this);
+  // First check that all elements of the current equivalence classes
+  // are members of at least one equivalence class in R.  Elements
+  // not in any equivalence class in R are in singleton equivalence
+  // classes.  These are not represented in sets and need to be deleted.
+
+  Sets->assignTo(Scratch);  // avoid modifying list of sets we are iterating over.
+  unsigned count = Scratch.size();
+  for (unsigned i = 0; i < count; i++) {
+    Set *S = Scratch[i];
     ListNode *Current = S->Head;
     while (Current != nullptr) {
-      Element CurrentElem = Current->Elem;
-      ListNode *Target = NodeMap.get(CurrentElem);
-      if (Target != nullptr) {
-        Set *TargetSet = Target->Set;
-        Set *Intersected = TargetSet->Intersected;
-        if (Intersected == nullptr) {
-          Intersected = new Set();
-          Sets.add(Intersected);
-          TargetSet->Intersected = Intersected;
-          Scratch.push_back(TargetSet);
-        }
-        moveNode(Intersected, Target);
+      // Save next pointer now in case we delete Current.
+      ListNode *Next = Current->Next;
+      if (R->isSingleton(Current->Elem)) {
+        unlinkNode(Current);
+        NodeMap->remove(Current->Elem);
+        delete Current;
       }
+      Current = Next;
     }
-    unsigned count = Scratch.size();
-    for (unsigned i = 0; i < count; i++) {
-      Set *Split = Scratch[i];
-      Split->Intersected = nullptr;
-      Set *Intersected = Split->Intersected;
-      remove_if_trivial(Split);
-      remove_if_trivial(Intersected);
-    }
-    Scratch.clear();
+    remove_if_trivial(S); 
   }
 
- public:
-  void refine(PartitionRefinement *R) { // TODO: mark R as const?
-    assert(R != this);
-    // First check that all elements of the current equivalence classes
-    // are members of at least one equivalence class in R.  Elements
-    // not in any equivalence class in R are in singleton equivalence
-    // classes.  These are not represented in sets and need to be deleted.
+  count = R->Sets->size();
+  for (unsigned i = 0; i < count; i++)
+    refine(R->Sets->get(i));
+}
 
-    Sets.assignTo(Scratch);  // avoid modifying list of sets we are iterating over.
-    unsigned count = Scratch.size();
-    for (unsigned i = 0; i < count; i++) {
-      Set *S = Scratch[i];
-      ListNode *Current = S->Head;
-      while (Current != nullptr) {
-        // Save next pointer now in case we delete Current.
-        ListNode *Next = Current->Next;
-        if (R->isSingleton(Current->Elem)) {
-          unlinkNode(Current);
-          NodeMap.remove(Current->Elem);
-          delete Current;
-        }
-        Current = Next;
-      }
-      remove_if_trivial(S); 
-    }
-
-    count = R->Sets.size();
-    for (unsigned i = 0; i < count; i++)
-      refine(R->Sets.get(i));
+// Return a representative element from the equivalence set
+// for Elem.
+  Element Partition::getRepresentative(Element Elem) {
+  ListNode *Node = NodeMap->get(Elem);
+  if (Node == nullptr) {
+    return Elem;
+  } else {
+    return Node->Set->Head->Elem;
   }
+}
 
-  // If Elem is a member of a set, return the representative
-  // element in Representative.  The return value indicates 
-  // if Elem was a member of a set and Representative is valid.
-  bool getRepresentative(Element Elem,Element &Representative) {
-    ListNode *Node = NodeMap.get(Elem);
-    if (Node == nullptr) {
-      Representative = 0;
-      return false;
-    } else {
-      Representative = Node->Set->Head->Elem;
-      return true;
-    }
-  }
-
-private:
-  void Dump(raw_ostream &OS, Set *S) {
-    ListNode *Current = S->Head;
-    OS << "Set ";
-    OS << "(Internal Id " << S->InternalId << ") ";
-    OS << "{";
+void Partition::dump(raw_ostream &OS, Set *S) {
+  ListNode *Current = S->Head;
+  OS << "Set ";
+  OS << "(Internal Id " << S->InternalId << ") ";
+  OS << "{";
+  OS << Current->Elem;
+  while (Current != nullptr) {
+    Current = Current->Next;
+    OS << ", ";
     OS << Current->Elem;
-    while (Current != nullptr) {
-      Current = Current->Next;
-      OS << ", ";
-      OS << Current->Elem;
-    }
-    OS << "}";
   }
+  OS << "}";
+}
 
-public:
-  // Dump the set that Elem is equivalent to.
-  void Dump(raw_ostream &OS, Element Elem) {
-    ListNode *Node = NodeMap.get(Elem);
-    OS << Elem;
-    OS << ": ";
-    if (Node == nullptr) {
-      OS << "Itself";
-      return;
-    }
-    Dump(OS, Node->Set);
+// Dump the set that Elem is equivalent to.
+void Partition::dump(raw_ostream &OS, Element Elem) {
+  ListNode *Node = NodeMap->get(Elem);
+  OS << Elem;
+  OS << ": ";
+  if (Node == nullptr) {
+    OS << "Itself";
+    return;
+  }
+  dump(OS, Node->Set);
+  OS << "\n";
+}
+
+// Dump all the sets
+void Partition::dump(raw_ostream &OS) {
+  unsigned Count = Sets->size();
+  if (Count == 0)
+    OS << "Equivalence classes are all trivial\n";
+  else
+    OS << "Non-trivial equivalence classes:\n";
+      
+  for (unsigned i = 0; i < Count; i++) {
+    dump(OS, Sets->get(i));
     OS << "\n";
   }
-
-  // Dump all the sets
-  void Dump(raw_ostream &OS) {
-    unsigned Count = Sets.size();
-    if (Count == 0)
-      OS << "Equivalence classes are empty\n";
-    else
-      OS << "Equivalence classes:\n";
-      
-    for (unsigned i = 0; i < Count; i++) {
-      Dump(OS, Sets.get(i));
-      OS << "\n";
-    }
-  }
-};
-} // namespace
+}
+} // namespace PartitionRefinement
+} // namespace Clang
 
 namespace {
 class AddressTakenAnalysis: public StmtVisitor<AddressTakenAnalysis> {
