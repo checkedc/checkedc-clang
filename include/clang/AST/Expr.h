@@ -955,8 +955,52 @@ class DeclRefExpr final
       private llvm::TrailingObjects<DeclRefExpr, NestedNameSpecifierLoc,
                                     NamedDecl *, ASTTemplateKWAndArgsInfo,
                                     TemplateArgumentLoc> {
+public :
+  /// \brief extra information for DeclRefExprInfo.
+  class GenericFunctionCallInfo {
+  public:
+    struct TypeNameInfo {
+      QualType typeName;
+      TypeSourceInfo *sourceInfo;
+    };
+
+  private :
+    /// \brief If DeclRefExpr references generic function, it must store
+    /// extra information about type names for generic function initialization
+    TypeNameInfo *TypeNameInfos;
+    unsigned int NumTypeNameInfo;
+
+    GenericFunctionCallInfo()
+      : TypeNameInfos(nullptr), NumTypeNameInfo(0) {}
+
+  public :
+    static GenericFunctionCallInfo *Create(ASTContext &C,
+      ArrayRef<TypeNameInfo> NewTypeVariableNames) {
+      GenericFunctionCallInfo *retVal = new (C) GenericFunctionCallInfo();
+
+      if (!NewTypeVariableNames.empty()) {
+        retVal->NumTypeNameInfo = NewTypeVariableNames.size();
+        retVal->TypeNameInfos = new (C) TypeNameInfo[retVal->NumTypeNameInfo];
+        std::copy(NewTypeVariableNames.begin(), 
+                  NewTypeVariableNames.end(), retVal->TypeNameInfos);
+      }
+      return retVal;
+    }
+
+    ArrayRef<TypeNameInfo> typeNameInfos() const {
+      return{ TypeNameInfos, NumTypeNameInfo };
+    }
+
+    MutableArrayRef<TypeNameInfo> typeNameInfos() {
+      return{ TypeNameInfos, NumTypeNameInfo };
+    }
+  };
+
+private :
   /// \brief The declaration that we are referencing.
   ValueDecl *D;
+
+  GenericFunctionCallInfo *GenFuncInfo;
 
   /// \brief The location of the declaration name itself.
   SourceLocation Loc;
@@ -992,7 +1036,7 @@ class DeclRefExpr final
 
   /// \brief Construct an empty declaration reference expression.
   explicit DeclRefExpr(EmptyShell Empty)
-    : Expr(DeclRefExprClass, Empty) { }
+    : Expr(DeclRefExprClass, Empty), GenFuncInfo(nullptr) { }
 
   /// \brief Computes the type- and value-dependence flags for this
   /// declaration reference expression.
@@ -1003,7 +1047,7 @@ public:
               ExprValueKind VK, SourceLocation L,
               const DeclarationNameLoc &LocInfo = DeclarationNameLoc())
     : Expr(DeclRefExprClass, T, VK, OK_Ordinary, false, false, false, false),
-      D(D), Loc(L), DNLoc(LocInfo) {
+      D(D), GenFuncInfo(nullptr), Loc(L), DNLoc(LocInfo) {
     DeclRefExprBits.HasQualifier = 0;
     DeclRefExprBits.HasTemplateKWAndArgsInfo = 0;
     DeclRefExprBits.HasFoundDecl = 0;
@@ -1081,6 +1125,17 @@ public:
   const NamedDecl *getFoundDecl() const {
     return hasFoundDecl() ? *getTrailingObjects<NamedDecl *>() : D;
   }
+
+  void SetGenericFunctionCallInfo(ASTContext &C,
+       ArrayRef<GenericFunctionCallInfo::TypeNameInfo> NewTypeVariableNames) {
+    GenFuncInfo = GenericFunctionCallInfo::Create(C, NewTypeVariableNames);
+  }
+
+  void SetGenericFunctionCallInfo(GenericFunctionCallInfo *newInfo) {
+    GenFuncInfo = newInfo;
+  }
+
+  GenericFunctionCallInfo *GetGenericFunctionCallInfo() const { return GenFuncInfo; }
 
   bool hasTemplateKWAndArgsInfo() const {
     return DeclRefExprBits.HasTemplateKWAndArgsInfo;

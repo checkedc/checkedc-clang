@@ -383,6 +383,8 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   Record.push_back(E->hasTemplateKWAndArgsInfo());
   Record.push_back(E->hadMultipleCandidates());
   Record.push_back(E->refersToEnclosingVariableOrCapture());
+  bool isGenericFunction = E->GetGenericFunctionCallInfo() != nullptr;
+  Record.push_back(isGenericFunction);
 
   if (E->hasTemplateKWAndArgsInfo()) {
     unsigned NumTemplateArgs = E->getNumTemplateArgs();
@@ -393,6 +395,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
 
   if ((!E->hasTemplateKWAndArgsInfo()) && (!E->hasQualifier()) &&
       (E->getDecl() == E->getFoundDecl()) &&
+      !isGenericFunction &&
       nk == DeclarationName::Identifier) {
     AbbrevToUse = Writer.getDeclRefExprAbbrev();
   }
@@ -407,9 +410,19 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
     AddTemplateKWAndArgsInfo(*E->getTrailingObjects<ASTTemplateKWAndArgsInfo>(),
                              E->getTrailingObjects<TemplateArgumentLoc>());
 
+  if (isGenericFunction) {
+    Record.push_back(E->GetGenericFunctionCallInfo()->typeNameInfos().size());
+    for (DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo tn :
+         E->GetGenericFunctionCallInfo()->typeNameInfos()) {
+      Record.AddTypeRef(tn.typeName);
+      Record.AddTypeSourceInfo(tn.sourceInfo);
+    }
+  }
+
   Record.AddDeclRef(E->getDecl());
   Record.AddSourceLocation(E->getLocation());
   Record.AddDeclarationNameLoc(E->DNLoc, E->getDecl()->getDeclName());
+  
   Code = serialization::EXPR_DECL_REF;
 }
 

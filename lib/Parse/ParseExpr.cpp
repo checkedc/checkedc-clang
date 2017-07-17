@@ -1401,7 +1401,6 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
         return ExprError();
       }
     }
-
   return Res;
 }
 
@@ -3053,6 +3052,7 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
     return false;
   }
   else {
+    SmallVector<DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo, 16> typeNameInfos;
     // Expect to see a list of type names, followed by a '>'.
     while (true) {
       // Expect to see type name.
@@ -3065,11 +3065,59 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
         return true;
       }
 
+      TypeSourceInfo *TInfo;
+      QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
+      typeNameInfos.push_back({ realType, TInfo });
+
       // If next token is comma, consume and look for more type name
       if (Tok.getKind() == tok::comma) ConsumeToken();
       // If next token is '>', consume and finish.
       else if (Tok.getKind() == tok::greater) {
         ConsumeToken();
+        const FunctionProtoType *funcType =
+          dyn_cast<FunctionProtoType>(funDecl->getType().getTypePtr());
+
+        // Sanity check to make sure that the number of type names equals the
+        // number of type variables in func Type.
+        if (funcType->getNumTypeVars() != typeNameInfos.size()) {
+          // The location of beginning of _For_any is stored in typeVariables
+          Diag(funDecl->typeVariables()[0]->getLocStart(), 
+               diag::err_type_list_and_type_variable_num_mismatch);
+          return true;
+        }
+
+        // Add parsed list of type names to declRefExpr for future references
+        declRef->SetGenericFunctionCallInfo(Actions.getASTContext(), typeNameInfos);
+        
+        // Initialize return type if it's type variable
+        QualType returnQualType = funcType->getReturnType();
+        if (const TypedefType *tdType = dyn_cast<TypedefType>(returnQualType.getTypePtr())) {
+          const Type *underType = tdType->getDecl()->getUnderlyingType().getTypePtr();
+          if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underType)) {
+            returnQualType = typeNameInfos[tvType->GetIndex()].typeName;
+          }
+        }
+
+        // Initialize parameter types if it's type variable
+        SmallVector<QualType, 16> newParamTypes;
+        for (QualType opt : funcType->getParamTypes()) {
+          if (const TypedefType *tdType = dyn_cast<TypedefType>(opt.getTypePtr())) {
+            const Type *underType = tdType->getDecl()->getUnderlyingType().getTypePtr();
+            if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underType)) {
+              newParamTypes.push_back(typeNameInfos[tvType->GetIndex()].typeName);
+            }
+          }
+        }
+
+        // Indicate that this function type is fully instantiated
+        FunctionProtoType::ExtProtoInfo newExtProtoInfo = funcType->getExtProtoInfo();
+        newExtProtoInfo.numTypeVars = 0;
+
+        // Recreate FunctionProtoType, and set it as the new type for declRefExpr
+        QualType newFunctionProtoType = 
+          Actions.getASTContext().getFunctionType(returnQualType, newParamTypes, 
+                                                  newExtProtoInfo);
+        declRef->setType(newFunctionProtoType);
         return false;
       }
       // Otherwise, we encountered an unexpected token.

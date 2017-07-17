@@ -2008,11 +2008,22 @@ void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
   VisitExpr(Node);
 
   OS << " ";
+  if (Node->GetGenericFunctionCallInfo() &&
+      !Node->GetGenericFunctionCallInfo()->typeNameInfos().empty()) {
+    OS << "instantiated ";
+  }
   dumpBareDeclRef(Node->getDecl());
   if (Node->getDecl() != Node->getFoundDecl()) {
     OS << " (";
     dumpBareDeclRef(Node->getFoundDecl());
     OS << ")";
+  }
+  if (Node->GetGenericFunctionCallInfo() &&
+      !Node->GetGenericFunctionCallInfo()->typeNameInfos().empty()) {
+    for (DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo tn :
+         Node->GetGenericFunctionCallInfo()->typeNameInfos()) {
+      dumpTypeAsChild(tn.typeName);
+    }
   }
 }
 

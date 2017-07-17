@@ -445,6 +445,8 @@ void ASTStmtReader::VisitDeclRefExpr(DeclRefExpr *E) {
   E->DeclRefExprBits.HasTemplateKWAndArgsInfo = Record.readInt();
   E->DeclRefExprBits.HadMultipleCandidates = Record.readInt();
   E->DeclRefExprBits.RefersToEnclosingVariableOrCapture = Record.readInt();
+  bool isGenericFunction = Record.readInt();
+
   unsigned NumTemplateArgs = 0;
   if (E->hasTemplateKWAndArgsInfo())
     NumTemplateArgs = Record.readInt();
@@ -460,6 +462,17 @@ void ASTStmtReader::VisitDeclRefExpr(DeclRefExpr *E) {
     ReadTemplateKWAndArgsInfo(
         *E->getTrailingObjects<ASTTemplateKWAndArgsInfo>(),
         E->getTrailingObjects<TemplateArgumentLoc>(), NumTemplateArgs);
+
+  if (isGenericFunction) {
+    unsigned numTypeNameInfos = Record.readInt();
+    SmallVector<DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo, 16> typeNameInfos;
+    for (unsigned i = 0; i < numTypeNameInfos; i++) {
+      QualType tempType = Record.readType();
+      TypeSourceInfo *tempSourceInfo = Record.getTypeSourceInfo();
+      typeNameInfos.push_back({tempType, tempSourceInfo});
+    }
+    E->SetGenericFunctionCallInfo(Record.getContext(), typeNameInfos);
+  }
 
   E->setDecl(ReadDeclAs<ValueDecl>());
   E->setLocation(ReadSourceLocation());
@@ -3150,7 +3163,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
         /*HasFoundDecl=*/Record[ASTStmtReader::NumExprFields + 1],
         /*HasTemplateKWAndArgsInfo=*/Record[ASTStmtReader::NumExprFields + 2],
         /*NumTemplateArgs=*/Record[ASTStmtReader::NumExprFields + 2] ?
-          Record[ASTStmtReader::NumExprFields + 5] : 0);
+          Record[ASTStmtReader::NumExprFields + 6] : 0);
       break;
 
     case EXPR_INTEGER_LITERAL:

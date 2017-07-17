@@ -1193,5 +1193,7 @@ def err_expected_list_of_types_expr_for_generic_function : Error<
 def err_type_function_comma_or_greater_expected : Error<
   "expected , or >">;
 
+def err_type_list_and_type_variable_num_mismatch : Error<
+  "Mismatch between the number of types listed and number of type variables">;
 
 } // end of Parser diagnostics
