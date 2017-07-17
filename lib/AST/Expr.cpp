@@ -458,6 +458,20 @@ SourceLocation DeclRefExpr::getLocEnd() const {
   return getNameInfo().getLocEnd();
 }
 
+DeclRefExpr::GenericFunctionCallInfo 
+  *DeclRefExpr::GenericFunctionCallInfo::Create(ASTContext &C,
+  ArrayRef<TypeNameInfo> NewTypeVariableNames) {
+  GenericFunctionCallInfo *retVal = new (C) GenericFunctionCallInfo();
+
+  if (!NewTypeVariableNames.empty()) {
+    retVal->NumTypeNameInfo = NewTypeVariableNames.size();
+    retVal->TypeNameInfos = new (C) TypeNameInfo[retVal->NumTypeNameInfo];
+    std::copy(NewTypeVariableNames.begin(),
+      NewTypeVariableNames.end(), retVal->TypeNameInfos);
+  }
+  return retVal;
+}
+
 PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentType IT,
                                StringLiteral *SL)
     : Expr(PredefinedExprClass, FNTy, VK_LValue, OK_Ordinary,

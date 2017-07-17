@@ -975,17 +975,7 @@ public :
 
   public :
     static GenericFunctionCallInfo *Create(ASTContext &C,
-      ArrayRef<TypeNameInfo> NewTypeVariableNames) {
-      GenericFunctionCallInfo *retVal = new (C) GenericFunctionCallInfo();
-
-      if (!NewTypeVariableNames.empty()) {
-        retVal->NumTypeNameInfo = NewTypeVariableNames.size();
-        retVal->TypeNameInfos = new (C) TypeNameInfo[retVal->NumTypeNameInfo];
-        std::copy(NewTypeVariableNames.begin(), 
-                  NewTypeVariableNames.end(), retVal->TypeNameInfos);
-      }
-      return retVal;
-    }
+      ArrayRef<TypeNameInfo> NewTypeVariableNames);
 
     ArrayRef<TypeNameInfo> typeNameInfos() const {
       return{ TypeNameInfos, NumTypeNameInfo };
