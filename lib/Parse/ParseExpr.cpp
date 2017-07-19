@@ -3064,7 +3064,6 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   }
   case Type::DependentSizedArray: {
     const DependentSizedArrayType *dsaType = dyn_cast<DependentSizedArrayType>(T);
-
     QualType EltTy = SubstituteTypeVariable(dsaType->getElementType(), typeNames);
     Expr *NumElts = dsaType->getSizeExpr();
     ArrayType::ArraySizeModifier ASM = dsaType->getSizeModifier();
@@ -3073,7 +3072,23 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     return Actions.getASTContext().getDependentSizedArrayType(EltTy, NumElts, 
                                                 ASM, IndexTypeQuals, Brackets);
   }
-
+  case Type::FunctionProto: {
+    const FunctionProtoType *fpType = dyn_cast<FunctionProtoType>(T);
+    // Initialize return type if it's type variable
+    QualType returnQualType =
+      SubstituteTypeVariable(fpType->getReturnType(), typeNames);
+    // Initialize parameter types if it's type variable
+    SmallVector<QualType, 16> newParamTypes;
+    for (QualType opt : fpType->getParamTypes()) {
+      newParamTypes.push_back(SubstituteTypeVariable(opt, typeNames));
+    }
+    // Indicate that this function type is fully instantiated
+    FunctionProtoType::ExtProtoInfo newExtProtoInfo = fpType->getExtProtoInfo();
+    newExtProtoInfo.numTypeVars = 0;
+    // Recreate FunctionProtoType, and set it as the new type for declRefExpr
+    return Actions.getASTContext().getFunctionType(returnQualType, 
+                                              newParamTypes, newExtProtoInfo);
+  }
   case Type::Typedef: {
     // If underlying type is TypeVariableType, must replace the entire
     // TypedefType. If underlying type is not TypeVariableType, there cannot be
@@ -3157,25 +3172,8 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
         // Add parsed list of type names to declRefExpr for future references
         declRef->SetGenericFunctionCallInfo(Actions.getASTContext(), typeNameInfos);
         
-        // Initialize return type if it's type variable
-        QualType returnQualType = 
-          SubstituteTypeVariable(funcType->getReturnType(), typeNameInfos);
-
-        // Initialize parameter types if it's type variable
-        SmallVector<QualType, 16> newParamTypes;
-        for (QualType opt : funcType->getParamTypes()) {
-          newParamTypes.push_back(SubstituteTypeVariable(opt, typeNameInfos));
-        }
-
-        // Indicate that this function type is fully instantiated
-        FunctionProtoType::ExtProtoInfo newExtProtoInfo = funcType->getExtProtoInfo();
-        newExtProtoInfo.numTypeVars = 0;
-
-        // Recreate FunctionProtoType, and set it as the new type for declRefExpr
-        QualType newFunctionProtoType = 
-          Actions.getASTContext().getFunctionType(returnQualType, newParamTypes, 
-                                                  newExtProtoInfo);
-        declRef->setType(newFunctionProtoType);
+        // Substitute Type Variables of Function Type in DeclRefExpr
+        declRef->setType(SubstituteTypeVariable(funDecl->getType(), typeNameInfos));
         return false;
       }
       // Otherwise, we encountered an unexpected token.
