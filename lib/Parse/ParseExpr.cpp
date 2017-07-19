@@ -3022,6 +3022,74 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
+// Recurse through types and substitute any TypedefType with TypeVariableType
+// as the underlying type.
+QualType Parser::SubstituteTypeVariable(QualType QT,
+  SmallVector<DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo, 16> &typeNames) {
+  const Type *T = QT.getTypePtr();
+  switch (T->getTypeClass()) {
+  case Type::Pointer: {
+    const PointerType *pType = dyn_cast<PointerType>(T);
+    QualType newPointee = SubstituteTypeVariable(pType->getPointeeType(), typeNames);
+    return Actions.getASTContext().getPointerType(newPointee, pType->getKind());
+  }
+  case Type::ConstantArray: {
+    const ConstantArrayType *caType = dyn_cast<ConstantArrayType>(T);
+    QualType EltTy = SubstituteTypeVariable(caType->getElementType(), typeNames);
+    const llvm::APInt ArySize = caType->getSize();
+    ArrayType::ArraySizeModifier ASM = caType->getSizeModifier();
+    unsigned IndexTypeQuals = caType->getIndexTypeCVRQualifiers();
+    bool isChecked = caType->isChecked();
+    return Actions.getASTContext().getConstantArrayType(EltTy, ArySize, ASM, 
+                                                  IndexTypeQuals, isChecked);
+  }
+  case Type::VariableArray: {
+    const VariableArrayType *vaType = dyn_cast<VariableArrayType>(T);
+    QualType EltTy = SubstituteTypeVariable(vaType->getElementType(), typeNames);
+    Expr *NumElts = vaType->getSizeExpr();
+    ArrayType::ArraySizeModifier ASM = vaType->getSizeModifier();
+    unsigned IndexTypeQuals = vaType->getIndexTypeCVRQualifiers();
+    SourceRange Brackets = vaType->getBracketsRange();
+    return Actions.getASTContext().getVariableArrayType(EltTy, NumElts, ASM, 
+                                                    IndexTypeQuals, Brackets);
+  }
+  case Type::IncompleteArray: {
+    const IncompleteArrayType *iaType = dyn_cast<IncompleteArrayType>(T);
+    QualType EltTy = SubstituteTypeVariable(iaType->getElementType(), typeNames);
+    ArrayType::ArraySizeModifier ASM = iaType->getSizeModifier();
+    unsigned IndexTypeQuals = iaType->getIndexTypeCVRQualifiers();
+    bool isChecked = iaType->isChecked();
+    return Actions.getASTContext().getIncompleteArrayType(EltTy, ASM, 
+                                                    IndexTypeQuals, isChecked);
+  }
+  case Type::DependentSizedArray: {
+    const DependentSizedArrayType *dsaType = dyn_cast<DependentSizedArrayType>(T);
+
+    QualType EltTy = SubstituteTypeVariable(dsaType->getElementType(), typeNames);
+    Expr *NumElts = dsaType->getSizeExpr();
+    ArrayType::ArraySizeModifier ASM = dsaType->getSizeModifier();
+    unsigned IndexTypeQuals = dsaType->getIndexTypeCVRQualifiers();
+    SourceRange Brackets = dsaType->getBracketsRange();
+    return Actions.getASTContext().getDependentSizedArrayType(EltTy, NumElts, 
+                                                ASM, IndexTypeQuals, Brackets);
+  }
+
+  case Type::Typedef: {
+    // If underlying type is TypeVariableType, must replace the entire
+    // TypedefType. If underlying type is not TypeVariableType, there cannot be
+    // a type variable type that this context can replace.
+    const TypedefType *tdType = dyn_cast<TypedefType>(T);
+    const Type *underlying = tdType->getDecl()->getUnderlyingType().getTypePtr();
+    if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underlying))
+      return typeNames[tvType->GetIndex()].typeName;
+    else
+      return QT;
+  }
+  default :
+    return QT;
+  }
+}
+
 // With primary-expression, before parsing postfix-expression, check to make
 // sure that Expr is declRefExpr of generic function with _For_any specifier
 bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
@@ -3090,23 +3158,13 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
         declRef->SetGenericFunctionCallInfo(Actions.getASTContext(), typeNameInfos);
         
         // Initialize return type if it's type variable
-        QualType returnQualType = funcType->getReturnType();
-        if (const TypedefType *tdType = dyn_cast<TypedefType>(returnQualType.getTypePtr())) {
-          const Type *underType = tdType->getDecl()->getUnderlyingType().getTypePtr();
-          if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underType)) {
-            returnQualType = typeNameInfos[tvType->GetIndex()].typeName;
-          }
-        }
+        QualType returnQualType = 
+          SubstituteTypeVariable(funcType->getReturnType(), typeNameInfos);
 
         // Initialize parameter types if it's type variable
         SmallVector<QualType, 16> newParamTypes;
         for (QualType opt : funcType->getParamTypes()) {
-          if (const TypedefType *tdType = dyn_cast<TypedefType>(opt.getTypePtr())) {
-            const Type *underType = tdType->getDecl()->getUnderlyingType().getTypePtr();
-            if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underType)) {
-              newParamTypes.push_back(typeNameInfos[tvType->GetIndex()].typeName);
-            }
-          }
+          newParamTypes.push_back(SubstituteTypeVariable(opt, typeNameInfos));
         }
 
         // Indicate that this function type is fully instantiated
