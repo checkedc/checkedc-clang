@@ -955,8 +955,45 @@ class DeclRefExpr final
       private llvm::TrailingObjects<DeclRefExpr, NestedNameSpecifierLoc,
                                     NamedDecl *, ASTTemplateKWAndArgsInfo,
                                     TemplateArgumentLoc> {
+public :
+  /// \brief Information for an instantiation of generic function. Stores type
+  /// name list and location required to instantiate generic function.
+  class GenericInstInfo {
+  public:
+    struct TypeArgument {
+      QualType typeName;
+      TypeSourceInfo *sourceInfo;
+    };
+
+  private :
+    /// \brief references to generic functions in code must always be
+    /// instantiated (applied to type arguments). Type arguments are stored in
+    /// DeclRefExpr.
+    TypeArgument *TypeArguments;
+    unsigned int NumTypeArguments;
+
+    GenericInstInfo()
+      : TypeArguments(nullptr), NumTypeArguments(0) {}
+
+  public :
+    static GenericInstInfo *Create(ASTContext &C,
+      ArrayRef<TypeArgument> NewTypeVariableNames);
+
+    ArrayRef<TypeArgument> typeArgumentss() const {
+      return{ TypeArguments, NumTypeArguments };
+    }
+
+    MutableArrayRef<TypeArgument> typeArgumentss() {
+      return{ TypeArguments, NumTypeArguments };
+    }
+  };
+
+private :
   /// \brief The declaration that we are referencing.
   ValueDecl *D;
+
+  /// \brief Type arguments for generic function instantiation.
+  GenericInstInfo *TypeArgumentInfo;
 
   /// \brief The location of the declaration name itself.
   SourceLocation Loc;
@@ -992,7 +1029,7 @@ class DeclRefExpr final
 
   /// \brief Construct an empty declaration reference expression.
   explicit DeclRefExpr(EmptyShell Empty)
-    : Expr(DeclRefExprClass, Empty) { }
+    : Expr(DeclRefExprClass, Empty), TypeArgumentInfo(nullptr) { }
 
   /// \brief Computes the type- and value-dependence flags for this
   /// declaration reference expression.
@@ -1003,7 +1040,7 @@ public:
               ExprValueKind VK, SourceLocation L,
               const DeclarationNameLoc &LocInfo = DeclarationNameLoc())
     : Expr(DeclRefExprClass, T, VK, OK_Ordinary, false, false, false, false),
-      D(D), Loc(L), DNLoc(LocInfo) {
+      D(D), TypeArgumentInfo(nullptr), Loc(L), DNLoc(LocInfo) {
     DeclRefExprBits.HasQualifier = 0;
     DeclRefExprBits.HasTemplateKWAndArgsInfo = 0;
     DeclRefExprBits.HasFoundDecl = 0;
@@ -1081,6 +1118,17 @@ public:
   const NamedDecl *getFoundDecl() const {
     return hasFoundDecl() ? *getTrailingObjects<NamedDecl *>() : D;
   }
+
+  void SetGenericInstInfo(ASTContext &C,
+       ArrayRef<GenericInstInfo::TypeArgument> NewTypeVariableNames) {
+    TypeArgumentInfo = GenericInstInfo::Create(C, NewTypeVariableNames);
+  }
+
+  void SetGenericInstInfo(GenericInstInfo *newInfo) {
+    TypeArgumentInfo = newInfo;
+  }
+
+  GenericInstInfo *GetTypeArgumentInfo() const { return TypeArgumentInfo; }
 
   bool hasTemplateKWAndArgsInfo() const {
     return DeclRefExprBits.HasTemplateKWAndArgsInfo;
