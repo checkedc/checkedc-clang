@@ -383,7 +383,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   Record.push_back(E->hasTemplateKWAndArgsInfo());
   Record.push_back(E->hadMultipleCandidates());
   Record.push_back(E->refersToEnclosingVariableOrCapture());
-  bool isGenericFunction = E->GetGenericFunctionCallInfo() != nullptr;
+  bool isGenericFunction = E->GetTypeArgumentInfo() != nullptr;
   Record.push_back(isGenericFunction);
 
   if (E->hasTemplateKWAndArgsInfo()) {
@@ -411,9 +411,9 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
                              E->getTrailingObjects<TemplateArgumentLoc>());
 
   if (isGenericFunction) {
-    Record.push_back(E->GetGenericFunctionCallInfo()->typeNameInfos().size());
+    Record.push_back(E->GetTypeArgumentInfo()->typeArgumentss().size());
     for (DeclRefExpr::GenericInstInfo::TypeArgument tn :
-         E->GetGenericFunctionCallInfo()->typeNameInfos()) {
+         E->GetTypeArgumentInfo()->typeArgumentss()) {
       Record.AddTypeRef(tn.typeName);
       Record.AddTypeSourceInfo(tn.sourceInfo);
     }

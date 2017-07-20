@@ -464,8 +464,8 @@ DeclRefExpr::GenericInstInfo
   GenericInstInfo *retVal = new (C) GenericInstInfo();
 
   if (!NewTypeVariableNames.empty()) {
-    retVal->NumTypeNameInfo = NewTypeVariableNames.size();
-    retVal->TypeArguments = new (C) TypeArgument[retVal->NumTypeNameInfo];
+    retVal->NumTypeArguments = NewTypeVariableNames.size();
+    retVal->TypeArguments = new (C) TypeArgument[retVal->NumTypeArguments];
     std::copy(NewTypeVariableNames.begin(),
       NewTypeVariableNames.end(), retVal->TypeArguments);
   }

@@ -3173,6 +3173,7 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
   if (!funDecl->IsGenericFunction()) return false;
 
   // Expect a '<' to denote that a list of type specifiers are incoming.
+  SourceLocation lessLoc = Tok.getLocation();
   if (ExpectAndConsume(tok::less,
     diag::err_expected_list_of_types_expr_for_generic_function)) {
     // We want to consume greater, but not consume semi
@@ -3217,8 +3218,10 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
         // number of type variables in func Type.
         if (funcType->getNumTypeVars() != typeArgumentInfos.size()) {
           // The location of beginning of _For_any is stored in typeVariables
-          Diag(funDecl->typeVariables()[0]->getLocStart(), 
+          Diag(lessLoc,
                diag::err_type_list_and_type_variable_num_mismatch);
+          Diag(funDecl->typeVariables()[0]->getLocStart(),
+               diag::note_type_variables_declared_at);
           return true;
         }
 

@@ -970,21 +970,21 @@ public :
     /// instantiated (applied to type arguments). Type arguments are stored in
     /// DeclRefExpr.
     TypeArgument *TypeArguments;
-    unsigned int NumTypeNameInfo;
+    unsigned int NumTypeArguments;
 
     GenericInstInfo()
-      : TypeArguments(nullptr), NumTypeNameInfo(0) {}
+      : TypeArguments(nullptr), NumTypeArguments(0) {}
 
   public :
     static GenericInstInfo *Create(ASTContext &C,
       ArrayRef<TypeArgument> NewTypeVariableNames);
 
-    ArrayRef<TypeArgument> typeNameInfos() const {
-      return{ TypeArguments, NumTypeNameInfo };
+    ArrayRef<TypeArgument> typeArgumentss() const {
+      return{ TypeArguments, NumTypeArguments };
     }
 
-    MutableArrayRef<TypeArgument> typeNameInfos() {
-      return{ TypeArguments, NumTypeNameInfo };
+    MutableArrayRef<TypeArgument> typeArgumentss() {
+      return{ TypeArguments, NumTypeArguments };
     }
   };
 
@@ -1128,7 +1128,7 @@ public:
     TypeArgumentInfo = newInfo;
   }
 
-  GenericInstInfo *GetGenericFunctionCallInfo() const { return TypeArgumentInfo; }
+  GenericInstInfo *GetTypeArgumentInfo() const { return TypeArgumentInfo; }
 
   bool hasTemplateKWAndArgsInfo() const {
     return DeclRefExprBits.HasTemplateKWAndArgsInfo;
