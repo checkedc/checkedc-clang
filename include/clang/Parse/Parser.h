@@ -1738,7 +1738,7 @@ private:
 
   ExprResult ParseBoundsExpression();
   bool ParseGenericFunctionExpression(ExprResult &Res);
-  QualType Parser::SubstituteTypeVariable(QualType QT,
+  QualType SubstituteTypeVariable(QualType QT,
     SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 16> &typeNames);
 
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
