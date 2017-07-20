@@ -2020,7 +2020,7 @@ void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
   }
   if (Node->GetGenericFunctionCallInfo() &&
       !Node->GetGenericFunctionCallInfo()->typeNameInfos().empty()) {
-    for (DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo tn :
+    for (DeclRefExpr::GenericInstInfo::TypeArgument tn :
          Node->GetGenericFunctionCallInfo()->typeNameInfos()) {
       dumpTypeAsChild(tn.typeName);
     }

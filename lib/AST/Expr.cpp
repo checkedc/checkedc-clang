@@ -351,7 +351,7 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx,
                          const TemplateArgumentListInfo *TemplateArgs,
                          QualType T, ExprValueKind VK)
   : Expr(DeclRefExprClass, T, VK, OK_Ordinary, false, false, false, false),
-    D(D), GenFuncInfo(nullptr), Loc(NameInfo.getLoc()), DNLoc(NameInfo.getInfo()) {
+    D(D), TypeArgumentInfo(nullptr), Loc(NameInfo.getLoc()), DNLoc(NameInfo.getInfo()) {
   DeclRefExprBits.HasQualifier = QualifierLoc ? 1 : 0;
   if (QualifierLoc) {
     new (getTrailingObjects<NestedNameSpecifierLoc>())
@@ -458,16 +458,16 @@ SourceLocation DeclRefExpr::getLocEnd() const {
   return getNameInfo().getLocEnd();
 }
 
-DeclRefExpr::GenericFunctionCallInfo 
-  *DeclRefExpr::GenericFunctionCallInfo::Create(ASTContext &C,
-  ArrayRef<TypeNameInfo> NewTypeVariableNames) {
-  GenericFunctionCallInfo *retVal = new (C) GenericFunctionCallInfo();
+DeclRefExpr::GenericInstInfo 
+  *DeclRefExpr::GenericInstInfo::Create(ASTContext &C,
+  ArrayRef<TypeArgument> NewTypeVariableNames) {
+  GenericInstInfo *retVal = new (C) GenericInstInfo();
 
   if (!NewTypeVariableNames.empty()) {
     retVal->NumTypeNameInfo = NewTypeVariableNames.size();
-    retVal->TypeNameInfos = new (C) TypeNameInfo[retVal->NumTypeNameInfo];
+    retVal->TypeArguments = new (C) TypeArgument[retVal->NumTypeNameInfo];
     std::copy(NewTypeVariableNames.begin(),
-      NewTypeVariableNames.end(), retVal->TypeNameInfos);
+      NewTypeVariableNames.end(), retVal->TypeArguments);
   }
   return retVal;
 }

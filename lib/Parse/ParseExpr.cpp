@@ -3025,16 +3025,24 @@ ExprResult Parser::ParseBoundsExpression() {
 // Recurse through types and substitute any TypedefType with TypeVariableType
 // as the underlying type.
 QualType Parser::SubstituteTypeVariable(QualType QT,
-  SmallVector<DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo, 16> &typeNames) {
+  SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 16> &typeNames) {
   const Type *T = QT.getTypePtr();
   switch (T->getTypeClass()) {
   case Type::Pointer: {
     const PointerType *pType = dyn_cast<PointerType>(T);
+    if (!pType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
     QualType newPointee = SubstituteTypeVariable(pType->getPointeeType(), typeNames);
     return Actions.getASTContext().getPointerType(newPointee, pType->getKind());
   }
   case Type::ConstantArray: {
     const ConstantArrayType *caType = dyn_cast<ConstantArrayType>(T);
+    if (!caType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
     QualType EltTy = SubstituteTypeVariable(caType->getElementType(), typeNames);
     const llvm::APInt ArySize = caType->getSize();
     ArrayType::ArraySizeModifier ASM = caType->getSizeModifier();
@@ -3045,6 +3053,10 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   }
   case Type::VariableArray: {
     const VariableArrayType *vaType = dyn_cast<VariableArrayType>(T);
+    if (!vaType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
     QualType EltTy = SubstituteTypeVariable(vaType->getElementType(), typeNames);
     Expr *NumElts = vaType->getSizeExpr();
     ArrayType::ArraySizeModifier ASM = vaType->getSizeModifier();
@@ -3055,6 +3067,10 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   }
   case Type::IncompleteArray: {
     const IncompleteArrayType *iaType = dyn_cast<IncompleteArrayType>(T);
+    if (!iaType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
     QualType EltTy = SubstituteTypeVariable(iaType->getElementType(), typeNames);
     ArrayType::ArraySizeModifier ASM = iaType->getSizeModifier();
     unsigned IndexTypeQuals = iaType->getIndexTypeCVRQualifiers();
@@ -3064,6 +3080,10 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   }
   case Type::DependentSizedArray: {
     const DependentSizedArrayType *dsaType = dyn_cast<DependentSizedArrayType>(T);
+    if (!dsaType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
     QualType EltTy = SubstituteTypeVariable(dsaType->getElementType(), typeNames);
     Expr *NumElts = dsaType->getSizeExpr();
     ArrayType::ArraySizeModifier ASM = dsaType->getSizeModifier();
@@ -3072,8 +3092,22 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     return Actions.getASTContext().getDependentSizedArrayType(EltTy, NumElts, 
                                                 ASM, IndexTypeQuals, Brackets);
   }
+  case Type::Paren: {
+    const ParenType *pType = dyn_cast<ParenType>(T);
+    if (!pType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
+    QualType InnerType = SubstituteTypeVariable(pType->getInnerType(), typeNames);
+    return Actions.getASTContext().getParenType(InnerType);
+  }
+
   case Type::FunctionProto: {
     const FunctionProtoType *fpType = dyn_cast<FunctionProtoType>(T);
+    if (!fpType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
     // Initialize return type if it's type variable
     QualType returnQualType =
       SubstituteTypeVariable(fpType->getReturnType(), typeNames);
@@ -3094,11 +3128,30 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     // TypedefType. If underlying type is not TypeVariableType, there cannot be
     // a type variable type that this context can replace.
     const TypedefType *tdType = dyn_cast<TypedefType>(T);
+    if (!tdType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
     const Type *underlying = tdType->getDecl()->getUnderlyingType().getTypePtr();
-    if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underlying))
+    if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underlying)) {
+      if (!tvType) {
+        llvm_unreachable("Type cannot be empty when substituting type variable.");
+        return QT;
+      }
       return typeNames[tvType->GetIndex()].typeName;
+    }
     else
       return QT;
+  }
+  case Type::TypeVariable: {
+    // Although Type Variable Type is wrapped with Typedef Type, there may be
+    // transformations in clang that eliminates Typedef.
+    const TypeVariableType *tvType = dyn_cast<TypeVariableType>(T);
+    if (!tvType) {
+      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      return QT;
+    }
+    return typeNames[tvType->GetIndex()].typeName;
   }
   default :
     return QT;
@@ -3135,7 +3188,7 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
     return false;
   }
   else {
-    SmallVector<DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo, 16> typeNameInfos;
+    SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 16> typeArgumentInfos;
     // Expect to see a list of type names, followed by a '>'.
     while (true) {
       // Expect to see type name.
@@ -3150,7 +3203,7 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
 
       TypeSourceInfo *TInfo;
       QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
-      typeNameInfos.push_back({ realType, TInfo });
+      typeArgumentInfos.push_back({ realType, TInfo });
 
       // If next token is comma, consume and look for more type name
       if (Tok.getKind() == tok::comma) ConsumeToken();
@@ -3162,7 +3215,7 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
 
         // Sanity check to make sure that the number of type names equals the
         // number of type variables in func Type.
-        if (funcType->getNumTypeVars() != typeNameInfos.size()) {
+        if (funcType->getNumTypeVars() != typeArgumentInfos.size()) {
           // The location of beginning of _For_any is stored in typeVariables
           Diag(funDecl->typeVariables()[0]->getLocStart(), 
                diag::err_type_list_and_type_variable_num_mismatch);
@@ -3170,10 +3223,10 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
         }
 
         // Add parsed list of type names to declRefExpr for future references
-        declRef->SetGenericFunctionCallInfo(Actions.getASTContext(), typeNameInfos);
+        declRef->SetGenericInstInfo(Actions.getASTContext(), typeArgumentInfos);
         
         // Substitute Type Variables of Function Type in DeclRefExpr
-        declRef->setType(SubstituteTypeVariable(funDecl->getType(), typeNameInfos));
+        declRef->setType(SubstituteTypeVariable(funDecl->getType(), typeArgumentInfos));
         return false;
       }
       // Otherwise, we encountered an unexpected token.

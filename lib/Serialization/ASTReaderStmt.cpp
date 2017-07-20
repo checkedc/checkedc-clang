@@ -465,13 +465,13 @@ void ASTStmtReader::VisitDeclRefExpr(DeclRefExpr *E) {
 
   if (isGenericFunction) {
     unsigned numTypeNameInfos = Record.readInt();
-    SmallVector<DeclRefExpr::GenericFunctionCallInfo::TypeNameInfo, 16> typeNameInfos;
+    SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 16> typeArgumentInfos;
     for (unsigned i = 0; i < numTypeNameInfos; i++) {
       QualType tempType = Record.readType();
       TypeSourceInfo *tempSourceInfo = Record.getTypeSourceInfo();
-      typeNameInfos.push_back({tempType, tempSourceInfo});
+      typeArgumentInfos.push_back({tempType, tempSourceInfo});
     }
-    E->SetGenericFunctionCallInfo(Record.getContext(), typeNameInfos);
+    E->SetGenericInstInfo(Record.getContext(), typeArgumentInfos);
   }
 
   E->setDecl(ReadDeclAs<ValueDecl>());
