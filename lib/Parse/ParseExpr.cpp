@@ -3025,13 +3025,13 @@ ExprResult Parser::ParseBoundsExpression() {
 // Recurse through types and substitute any TypedefType with TypeVariableType
 // as the underlying type.
 QualType Parser::SubstituteTypeVariable(QualType QT,
-  SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 16> &typeNames) {
+  SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames) {
   const Type *T = QT.getTypePtr();
   switch (T->getTypeClass()) {
   case Type::Pointer: {
     const PointerType *pType = dyn_cast<PointerType>(T);
     if (!pType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     QualType newPointee = SubstituteTypeVariable(pType->getPointeeType(), typeNames);
@@ -3040,7 +3040,7 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   case Type::ConstantArray: {
     const ConstantArrayType *caType = dyn_cast<ConstantArrayType>(T);
     if (!caType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     QualType EltTy = SubstituteTypeVariable(caType->getElementType(), typeNames);
@@ -3054,7 +3054,7 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   case Type::VariableArray: {
     const VariableArrayType *vaType = dyn_cast<VariableArrayType>(T);
     if (!vaType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     QualType EltTy = SubstituteTypeVariable(vaType->getElementType(), typeNames);
@@ -3068,7 +3068,7 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   case Type::IncompleteArray: {
     const IncompleteArrayType *iaType = dyn_cast<IncompleteArrayType>(T);
     if (!iaType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     QualType EltTy = SubstituteTypeVariable(iaType->getElementType(), typeNames);
@@ -3081,7 +3081,7 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   case Type::DependentSizedArray: {
     const DependentSizedArrayType *dsaType = dyn_cast<DependentSizedArrayType>(T);
     if (!dsaType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     QualType EltTy = SubstituteTypeVariable(dsaType->getElementType(), typeNames);
@@ -3095,7 +3095,7 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   case Type::Paren: {
     const ParenType *pType = dyn_cast<ParenType>(T);
     if (!pType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     QualType InnerType = SubstituteTypeVariable(pType->getInnerType(), typeNames);
@@ -3105,7 +3105,7 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
   case Type::FunctionProto: {
     const FunctionProtoType *fpType = dyn_cast<FunctionProtoType>(T);
     if (!fpType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     // Initialize return type if it's type variable
@@ -3129,17 +3129,12 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     // a type variable type that this context can replace.
     const TypedefType *tdType = dyn_cast<TypedefType>(T);
     if (!tdType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     const Type *underlying = tdType->getDecl()->getUnderlyingType().getTypePtr();
-    if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underlying)) {
-      if (!tvType) {
-        llvm_unreachable("Type cannot be empty when substituting type variable.");
-        return QT;
-      }
+    if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underlying)) 
       return typeNames[tvType->GetIndex()].typeName;
-    }
     else
       return QT;
   }
@@ -3148,10 +3143,21 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     // transformations in clang that eliminates Typedef.
     const TypeVariableType *tvType = dyn_cast<TypeVariableType>(T);
     if (!tvType) {
-      llvm_unreachable("Type cannot be empty when substituting type variable.");
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
       return QT;
     }
     return typeNames[tvType->GetIndex()].typeName;
+  }
+  case Type::Decayed: {
+    const DecayedType *dType = dyn_cast<DecayedType>(T);
+    QualType decayedType = SubstituteTypeVariable(dType->getOriginalType(), typeNames);
+    return Actions.getASTContext().getDecayedType(decayedType);
+  }
+  case Type::Adjusted: {
+    const AdjustedType *aType = dyn_cast<AdjustedType>(T);
+    QualType origType = SubstituteTypeVariable(aType->getOriginalType(), typeNames);
+    QualType newType = SubstituteTypeVariable(aType->getAdjustedType(), typeNames);
+    return Actions.getASTContext().getAdjustedType(origType, newType);
   }
   default :
     return QT;
@@ -3189,7 +3195,7 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
     return false;
   }
   else {
-    SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 16> typeArgumentInfos;
+    SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
     // Expect to see a list of type names, followed by a '>'.
     while (true) {
       // Expect to see type name.
