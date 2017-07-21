@@ -390,34 +390,3 @@ void Partition::dump(raw_ostream &OS) const {
 }
 } // namespace PartitionRefinement
 } // namespace Clang
-
-namespace {
-class AddressTakenAnalysis: public StmtVisitor<AddressTakenAnalysis> {
-private:
-  SmallVector<VarDecl *, 8> Vars;
-
-  AddressTakenAnalysis() {}
-
-public:
-  void VisitUnaryAddrOf(const UnaryOperator *E) {
-    Expr *Operand = E->getSubExpr();
-    DeclRefExpr *DR = dyn_cast<DeclRefExpr>(Operand);
-    if (DR) {
-      VarDecl *VD = dyn_cast<VarDecl>(DR->getDecl());
-      if (VD)
-        Vars.push_back(VD);
-      return;
-    }
-  }
-
-  void analyze(Stmt *Body) {
-    Visit(Body);
-    std::sort(Vars.begin(), Vars.end());
-    std::unique(Vars.begin(), Vars.end());
-  }
-
-  bool isAddressTaken(VarDecl *VD) {
-    return std::binary_search(Vars.begin(), Vars.end(), VD);
-  }
-};
-}

@@ -1020,7 +1020,6 @@ namespace {
     public RecursiveASTVisitor<CheckBoundsDeclarations> {
   private:
     Sema &S;
-
     bool DumpBounds;
 
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
