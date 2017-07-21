@@ -30,8 +30,6 @@
 //    numbers.
 //===----------------------------------------------------------------------===//
 
-#include "clang/Analysis/CFG.h"
-#include "clang/Analysis/Analyses/VarEquiv.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "TreeTransform.h"
@@ -1022,9 +1020,6 @@ namespace {
     public RecursiveASTVisitor<CheckBoundsDeclarations> {
   private:
     Sema &S;
-    const Stmt *FunctionBody;
-    std::unique_ptr<CFG> Cfg;
-    VarEquiv *EquivalenceRelation;
 
     bool DumpBounds;
 
@@ -1120,22 +1115,8 @@ namespace {
     }
 
   public:
-    CheckBoundsDeclarations(Sema &S, FunctionDecl *FD, Stmt *Body) : S(S),
-      DumpBounds(S.getLangOpts().DumpInferredBounds), FunctionBody(Body) {
-
-      if (Body) {
-        Cfg = CFG::buildCFG(FD, Body, &S.getASTContext(), CFG::BuildOptions());
-        EquivalenceRelation = new VarEquiv(Cfg.get());
-      }
-      else {
-        Cfg = nullptr;
-        EquivalenceRelation = nullptr;
-      }
-    }
-
-    CheckBoundsDeclarations(Sema &S) :
-      CheckBoundsDeclarations(S, nullptr, nullptr) {
-    }
+    CheckBoundsDeclarations(Sema &S) : S(S),
+      DumpBounds(S.getLangOpts().DumpInferredBounds) {}
 
     bool VisitBinaryOperator(BinaryOperator *E) {
       Expr *LHS = E->getLHS();
@@ -1570,7 +1551,7 @@ namespace {
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
-  CheckBoundsDeclarations(*this, FD, Body).TraverseStmt(Body);
+  CheckBoundsDeclarations(*this).TraverseStmt(Body);
 }
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {

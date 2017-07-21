@@ -72,25 +72,5 @@ namespace PartitionRefinement {
     std::vector<Set *> Scratch;
   };
 }
-  
-class VarEquiv : EqualityRelation {
-public:
-  VarEquiv(CFG *cfg);
-
-  void analyze();
-  void setCurrentBlock(CFGBlock block);
-  void moveAfterNextStmt();
-  const VarDecl *getRepresentative(const VarDecl *V);
-
-  /// Print to stderr the equivalence information associated with
-  /// each basic block.
-  void dumpAll(const SourceManager& M);
-
-  /// Print to stderr the equivalence information associated with
-  /// the current statement.
-  void dumpCurrentStmt(const SourceManager& M);
-private:
-  CFG *cfg;
-};
 }
 #endif
