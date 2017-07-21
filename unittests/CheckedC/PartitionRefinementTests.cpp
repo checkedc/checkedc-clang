@@ -9,6 +9,7 @@
 
 #include "clang/Analysis/Analyses/VarEquiv.h"
 #include "gtest/gtest.h"
+#include <regex>
 
 using namespace llvm;
 using namespace clang;
@@ -16,7 +17,7 @@ using namespace PartitionRefinement;
 
 // Test individual operations on a partition with one to three sets.
 TEST(PartitionRefinementTest, individualElementOperations) {
-  Partition *P1 = new Partition(5);
+  Partition *P1 = new Partition();
   P1->add(0, 1);
   EXPECT_EQ(P1->getRepresentative(0), P1->getRepresentative(1));
   EXPECT_NE(P1->getRepresentative(0), P1->getRepresentative(3));
@@ -143,7 +144,7 @@ TEST(PartitionRefinementTest, OrderDifference) {
   const int size = 20;  // must be even
   assert(size % 2 == 0);
 
-  Partition *P1 = new Partition(size);
+  Partition *P1 = new Partition();
   // Put everything into one set.
   for (int i = 0; i < size/2; i++) {
     P1->add(0, i);
@@ -195,7 +196,7 @@ TEST(PartitionRefinementTest, OrderDifference) {
 TEST(PartitionRefinementTest, SameOrder) {
   const int size = 20;
 
-  Partition *P1 = new Partition(size);
+  Partition *P1 = new Partition();
 
   // Put everything into one set.
   for (int i = 0; i < size; i++)
@@ -231,7 +232,7 @@ TEST(PartitionRefinementTest, SameOrder) {
 TEST(PartitionRefinementTest, ReverseOrder) {
   const int size = 20;
 
-  Partition *P1 = new Partition(size);
+  Partition *P1 = new Partition();
 
   // Put everything into one set.
   for (int i = 0; i < size; i++)
@@ -345,9 +346,9 @@ static void checkIntersectedPartitions(Partition &P) {
 }
 
 TEST(PartitionRefinementTest, SimplePartition) {
-  Partition P1(20);
-  Partition P2(20);
-  Partition P3(20);
+  Partition P1;
+  Partition P2;
+  Partition P3;
   initPartition1(P1);
   initPartition1(P2);
   // By default, everything in P3 in a singleton.
@@ -370,4 +371,65 @@ TEST(PartitionRefinementTest, SimplePartition) {
  initPartition2(P3);
  P1.refine(&P3);
  checkIntersectedPartitions(P1);
+}
+
+TEST(PartitionRefinementTest, DumpTrivial) {
+  Partition P1;
+  const std::string TrivialMessage = "Equivalence classes are all trivial\n";
+  std::string Result;
+  raw_string_ostream OS(Result);
+  P1.dump(OS);
+  OS.flush();
+  EXPECT_EQ(TrivialMessage, Result);
+}
+
+TEST(PartitionRefinementTest, DumpSingleton) {
+  Partition P1;
+  const std::string Expected = "Equivalence classes are all trivial\n";
+  std::string Result;
+  raw_string_ostream OS(Result);
+  P1.dump(OS);
+  OS.flush();
+  EXPECT_EQ(Expected, Result);
+}
+
+TEST(PartitionRefinementTest, DumpElementSet1) {
+  Partition P1;
+  const std::string Output = "10: Itself";
+  std::string Result;
+  raw_string_ostream OS(Result);
+  P1.dump(OS, 10);
+  OS.flush();
+  EXPECT_EQ(Output, Result);
+}
+
+TEST(PartitionRefinementTest, DumpElementSet2) {
+  Partition P1;
+  P1.add(10, 15);
+  std::string Result;
+  raw_string_ostream OS(Result);
+  P1.dump(OS, 10);
+  // We expect a string of the form 10: Set (Internal Id {0-9}+) {10, 15},
+  // where the 10 and 15 between the brackets can appear in any order.
+  // \\s(10, 15)|(15, 10)\\s
+  std::regex Output
+   ("10: Set \\(Internal Id [0-9]+\\) \\{(10, 15)|(15, 10)\\}");
+  OS.flush();
+  EXPECT_TRUE(std::regex_search(Result, Output));
+}
+
+TEST(PartitionRefinementTest, DumpAll) {
+  Partition P1;
+  P1.add(10, 15);
+  std::string Result;
+  raw_string_ostream OS(Result);
+  P1.dump(OS, 10);
+  // We expect a string of the form 10: Set (Internal Id {0-9}+) {10, 15},
+  // where the 10 and 15 between the brackets can appear in any order.
+  // \\s(10, 15)|(15, 10)\\s
+  std::regex Output("Non-trivial equivalence classes:\n"
+                    "10: Set \\(Internal Id [0-9]+\\) "
+                    "\\{(10, 15)|(15, 10)\\}");
+  OS.flush();
+  EXPECT_TRUE(std::regex_search(Result, Output));
 }

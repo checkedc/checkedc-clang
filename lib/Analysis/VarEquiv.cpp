@@ -19,28 +19,35 @@
 
 using namespace clang;
 
-// Represent a set of equivalence classes of the set of integers in 0 ... n - 1,
-// providing efficient operations for partition refinement of the equivalence 
-// classes.
+// Represent equivalence classes of a set of integers, providing efficient
+// operations for partition refinement of the equivalence classes.
 //
-// Partition refinements works as follows: given a partitioning of a set of
-// set of integers into sets S1, ... SN, and set R, divide each set SI 
-// that contains a mmeber of R into two new sets:
+// Partition refinement works as follows: suppose we have a partitioning of a
+// set of/ integers into sets S1, ... SN. Given a set R (the refinement set),
+// divide each set SI that  contains a member of R into two new sets:
 // - SI intersected with R
 // - SI minus R
 //
-// This can be used to intersect multiple sets of equivalence 
-// classes efficiently.
+// This "refines" the partition into equal or smaller sets.  This operation
+// can be used to intersect multiple sets of equivalence lasses efficiently.
 //
-// With  the right representation, these operations can be done in
-// time proportional to the number of elements in R.
+// Partition refinement can be implemented so that the intersection can
+// be done in time O(R) and space O(maximum integer in the set) by using
+// a clever representation.  The representation is described at
+// https://en.wikipedia.org/wiki/Partition_refinement.
 //
-// We optimize this for space usage:
-// 1. We optionally omit trivial equivalence classes with singleton
-//    members.
-/// 2. We use space proportional to the number of elements in the
-//    in non-trivial equivalence classes.
-// 
+// We expect equivalence classes to be sparse (consist mostly of singleton
+// equivalence classes), so we implement partition refinment in a more
+// space-efficient fashion. Our implementation uses time O(R * log(N)),
+// where N is the number of integers not in singleton/ equivalence classes,
+// and uses space O(N) to represent a partition.
+//
+// The original algorithm requires a mapping operation from individual
+// integers that is constant time.  This is done using a dense array.
+// We use a tree instead.   We did not use a hash table because we
+// expect on average for there to be only a few integers in non-singleton
+// equivalence classes, and a hash table would be less efficient for that.
+
 namespace clang {
 namespace PartitionRefinement {
   typedef int Element;
@@ -72,7 +79,7 @@ public:
     return Head == nullptr;
   }
 
-  bool isSingleton() {
+  bool isSingleton() const {
     return Head != nullptr && Head->Prev == nullptr && Head->Next == nullptr;
   }
 
@@ -94,11 +101,11 @@ public:
     Sets.push_back(S);
   }
 
-  void assignTo(std::vector<Set *> &Target) {
+  void assignTo(std::vector<Set *> &Target) const {
     Target.assign(Sets.begin(), Sets.end());
   }
 
-  Set *get(unsigned i) {
+  Set *get(unsigned i) const {
     if (i >= 0 && i < Sets.size())
       return Sets[i];
     else
@@ -124,7 +131,7 @@ public:
     Sets.clear();
   }
 
-  int size() {
+  int size() const {
     return Sets.size();
   }
 };
@@ -135,10 +142,10 @@ private:
     std::map<Element, ListNode *> Tree;
 
 public:
-  ElementMap(int Size) {
+  ElementMap() {
   }
       
-  ListNode *get(Element Elem) {
+  ListNode *get(Element Elem) const {
     auto Lookup = Tree.find(Elem);
     if (Lookup == Tree.end())
       return nullptr;
@@ -203,9 +210,9 @@ void Partition::remove_if_trivial(Set *S) {
   }
 }
 
-Partition::Partition(int Size) {
+Partition::Partition() {
   Sets = new SetManager();
-  NodeMap = new ElementMap(Size);
+  NodeMap = new ElementMap();
 };
 
 Partition::~Partition() {
@@ -240,7 +247,7 @@ void Partition::add(Element Member, Element Elem) {
   add(Node->Set, Elem);
 }
 
-bool Partition::isSingleton(Element Elem) {
+bool Partition::isSingleton(Element Elem) const {
   return NodeMap->get(Elem) == nullptr;
 }
 
@@ -267,7 +274,7 @@ void Partition::makeSingleton(Element Elem) {
   // We create a new set for C intersectd with S and use
   // the original set for S to hold C - S.
 
-void Partition::refine(Set *S) {  // TODO: mark as const
+void Partition::refine(const Set *S) {
   Scratch.clear();
 
   for (ListNode *Current = S->Head; Current != nullptr;
@@ -298,7 +305,7 @@ void Partition::refine(Set *S) {  // TODO: mark as const
   Scratch.clear();
 }
 
-void Partition::refine(Partition *R) { // TODO: mark R as const?
+void Partition::refine(const Partition *R) { // TODO: mark R as const?
   assert(R != this);
   // First check that all elements of the current equivalence classes
   // are members of at least one equivalence class in R.  Elements
@@ -331,7 +338,7 @@ void Partition::refine(Partition *R) { // TODO: mark R as const?
 
 // Return a representative element from the equivalence set
 // for Elem.
-  Element Partition::getRepresentative(Element Elem) {
+  Element Partition::getRepresentative(Element Elem) const {
   ListNode *Node = NodeMap->get(Elem);
   if (Node == nullptr) {
     return Elem;
@@ -340,7 +347,7 @@ void Partition::refine(Partition *R) { // TODO: mark R as const?
   }
 }
 
-void Partition::dump(raw_ostream &OS, Set *S) {
+void Partition::dump(raw_ostream &OS, Set *S) const {
   ListNode *Current = S->Head;
   OS << "Set ";
   OS << "(Internal Id " << S->InternalId << ") ";
@@ -357,7 +364,7 @@ void Partition::dump(raw_ostream &OS, Set *S) {
 }
 
 // Dump the set that Elem is equivalent to.
-void Partition::dump(raw_ostream &OS, Element Elem) {
+void Partition::dump(raw_ostream &OS, Element Elem) const {
   ListNode *Node = NodeMap->get(Elem);
   OS << Elem;
   OS << ": ";
@@ -366,11 +373,10 @@ void Partition::dump(raw_ostream &OS, Element Elem) {
     return;
   }
   dump(OS, Node->Set);
-  OS << "\n";
 }
 
 // Dump all the sets
-void Partition::dump(raw_ostream &OS) {
+void Partition::dump(raw_ostream &OS) const {
   unsigned Count = Sets->size();
   if (Count == 0)
     OS << "Equivalence classes are all trivial\n";

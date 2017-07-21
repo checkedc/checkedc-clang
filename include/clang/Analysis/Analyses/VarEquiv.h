@@ -32,23 +32,40 @@ namespace PartitionRefinement {
   class Set;
   class SetManager;
 
+  // Represent a partitioning of a set of integers into
+  // equivalence classes.  Provide operations for refining
+  // the partition (dividing existing classes into smaller
+  // classes).
   class Partition {
   public:
-    Partition(int size);
+    Partition();
     ~Partition();
+    /// \brief Add Elem to the equivalence class for Member.  Elem must
+    /// currently be a member of a singleton equivalence class and
+    /// cannot be a member of a non-trivial equivalence class.
     void add(Element Member, Element Elem);
-    bool isSingleton(Element Elem);
+    /// \brief Returns true if Elem is is a member of a singleton
+    /// equivalence class.
+    bool isSingleton(Element Elem) const;
+    /// \brief Refine the partition so that Elem is in a singleton
+    /// equivalence class.
     void makeSingleton(Element Elem);
-    Element getRepresentative(Element Elem);
-    void refine(Partition *R);
-    void dump(raw_ostream &OS, Element Elem);
-    void dump(raw_ostream &OS);
+    /// \brief Return a representative element of the equivalence class
+    /// containing Elem.
+    Element getRepresentative(Element Elem) const;
+    /// \brief Refine the existing partition by each of the equivalence
+    /// classes in R.  For each equivalence class C in 'this' partition that
+    /// contains an element of R, divide it into two equivalence classes:
+    /// intersection(C, R) and C - R.
+    void refine(const Partition *R);
+    void dump(raw_ostream &OS, Element Elem) const;
+    void dump(raw_ostream &OS) const;
 
   private:
     ListNode *add(Set *S, Element Elem);
     void remove_if_trivial(Set *S);
-    void refine(Set *S);
-    void dump(raw_ostream &OS, Set *S);
+    void refine(const Set *S);
+    void dump(raw_ostream &OS, Set *S) const;
 
     ElementMap *NodeMap;
     SetManager *Sets;
