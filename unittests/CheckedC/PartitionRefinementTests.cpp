@@ -411,7 +411,6 @@ TEST(PartitionRefinementTest, DumpElementSet2) {
   P1.dump(OS, 10);
   // We expect a string of the form 10: Set (Internal Id {0-9}+) {10, 15},
   // where the 10 and 15 between the brackets can appear in any order.
-  // \\s(10, 15)|(15, 10)\\s
   std::regex Output
    ("10: Set \\(Internal Id [0-9]+\\) \\{(10, 15)|(15, 10)\\}");
   OS.flush();
@@ -426,7 +425,6 @@ TEST(PartitionRefinementTest, DumpAll) {
   P1.dump(OS, 10);
   // We expect a string of the form 10: Set (Internal Id {0-9}+) {10, 15},
   // where the 10 and 15 between the brackets can appear in any order.
-  // \\s(10, 15)|(15, 10)\\s
   std::regex Output("Non-trivial equivalence classes:\n"
                     "10: Set \\(Internal Id [0-9]+\\) "
                     "\\{(10, 15)|(15, 10)\\}");
