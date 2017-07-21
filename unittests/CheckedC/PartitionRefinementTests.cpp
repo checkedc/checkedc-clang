@@ -28,7 +28,6 @@ TEST(PartitionRefinementTest, individualElementOperations) {
   EXPECT_TRUE(P1->isSingleton(4));
 
   P1->makeSingleton(0);
-  EXPECT_TRUE(P1->isSingleton(0));
 
   EXPECT_TRUE(P1->isSingleton(0));
   EXPECT_TRUE(P1->isSingleton(1));
@@ -123,7 +122,6 @@ TEST(PartitionRefinementTest, individualElementOperations) {
   EXPECT_EQ(P1->getRepresentative(4), P1->getRepresentative(1));
   EXPECT_NE(P1->getRepresentative(4), P1->getRepresentative(2));
   EXPECT_NE(P1->getRepresentative(4), P1->getRepresentative(3));
-  EXPECT_EQ(P1->getRepresentative(4), P1->getRepresentative(4));
   EXPECT_EQ(P1->getRepresentative(4), P1->getRepresentative(4));
 
   // Make equivalence sets be {1}, {4}, {0, 2, 3}

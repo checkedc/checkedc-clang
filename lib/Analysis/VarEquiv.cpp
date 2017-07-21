@@ -9,7 +9,7 @@
 //
 //  Conservatively determine for each program point in a function which 
 //  variables must be equal to each other, constants, or address-expressions 
-//  whose values do not vary during during the lifetime of the function.
+//  whose values do not vary during the lifetime of the function.
 //
 //===----------------------------------------------------------------------===//
 
@@ -191,7 +191,7 @@ void linkNode(Set *S, ListNode *Node) {
   }
 }
 
-// Move a node from is current set to set S.
+// Move a node from its current set to set S.
 void moveNode(Set *S, ListNode *Node) {
   unlinkNode(Node);
   linkNode(S, Node);
@@ -233,7 +233,7 @@ ListNode *Partition::add(Set *S, Element Elem) {
 
 // Add Elem to the set S for Member.  If Member does not have
 // a set, create a new set to contain Elem and Member.
-// It is an error of Elem is already a member of another set.
+// It is an error if Elem is already a member of another set.
 void Partition::add(Element Member, Element Elem) {
   if (Member == Elem)  // nothing to do - this is a singleton set.
     return;
@@ -338,7 +338,7 @@ void Partition::refine(const Partition *R) { // TODO: mark R as const?
 
 // Return a representative element from the equivalence set
 // for Elem.
-  Element Partition::getRepresentative(Element Elem) const {
+Element Partition::getRepresentative(Element Elem) const {
   ListNode *Node = NodeMap->get(Elem);
   if (Node == nullptr) {
     return Elem;

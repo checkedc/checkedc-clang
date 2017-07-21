@@ -44,7 +44,7 @@ namespace PartitionRefinement {
     /// currently be a member of a singleton equivalence class and
     /// cannot be a member of a non-trivial equivalence class.
     void add(Element Member, Element Elem);
-    /// \brief Returns true if Elem is is a member of a singleton
+    /// \brief Returns true if Elem is a member of a singleton
     /// equivalence class.
     bool isSingleton(Element Elem) const;
     /// \brief Refine the partition so that Elem is in a singleton
