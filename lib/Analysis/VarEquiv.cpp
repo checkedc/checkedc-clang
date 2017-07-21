@@ -94,7 +94,7 @@ public:
     Sets.push_back(S);
   }
 
-  void assignTo(std::vector<Set *> Target) {
+  void assignTo(std::vector<Set *> &Target) {
     Target.assign(Sets.begin(), Sets.end());
   }
 
@@ -216,7 +216,8 @@ Partition::~Partition() {
 // Add Elem to the set S.  It is an error if Elem is already a member 
 // of another set.
 ListNode *Partition::add(Set *S, Element Elem) {
-  assert(NodeMap->get(Elem) == nullptr || NodeMap->get(Elem)->Set != S);
+  assert((NodeMap->get(Elem) == nullptr || NodeMap->get(Elem)->Set == S) &&
+         "add operation makes this no longer a partition");
   ListNode *Node = new ListNode(Elem, S);
   NodeMap->set(Elem, Node);
   linkNode(S, Node);
@@ -227,6 +228,9 @@ ListNode *Partition::add(Set *S, Element Elem) {
 // a set, create a new set to contain Elem and Member.
 // It is an error of Elem is already a member of another set.
 void Partition::add(Element Member, Element Elem) {
+  if (Member == Elem)  // nothing to do - this is a singleton set.
+    return;
+
   ListNode *Node = NodeMap->get(Member);
   if (Node == nullptr) {
     Set *S = new Set();
@@ -265,8 +269,9 @@ void Partition::makeSingleton(Element Elem) {
 
 void Partition::refine(Set *S) {  // TODO: mark as const
   Scratch.clear();
-  ListNode *Current = S->Head;
-  while (Current != nullptr) {
+
+  for (ListNode *Current = S->Head; Current != nullptr;
+       Current = Current->Next) {
     Element CurrentElem = Current->Elem;
     ListNode *Target = NodeMap->get(CurrentElem);
     if (Target != nullptr) {
@@ -281,11 +286,12 @@ void Partition::refine(Set *S) {  // TODO: mark as const
       moveNode(Intersected, Target);
     }
   }
+
   unsigned count = Scratch.size();
   for (unsigned i = 0; i < count; i++) {
     Set *Split = Scratch[i];
-    Split->Intersected = nullptr;
     Set *Intersected = Split->Intersected;
+    Split->Intersected = nullptr;
     remove_if_trivial(Split);
     remove_if_trivial(Intersected);
   }
@@ -317,6 +323,7 @@ void Partition::refine(Partition *R) { // TODO: mark R as const?
     remove_if_trivial(S); 
   }
 
+
   count = R->Sets->size();
   for (unsigned i = 0; i < count; i++)
     refine(R->Sets->get(i));
@@ -338,11 +345,13 @@ void Partition::dump(raw_ostream &OS, Set *S) {
   OS << "Set ";
   OS << "(Internal Id " << S->InternalId << ") ";
   OS << "{";
-  OS << Current->Elem;
+  bool first = true;
   while (Current != nullptr) {
-    Current = Current->Next;
-    OS << ", ";
+    if (!first)
+      OS << ", ";
     OS << Current->Elem;
+    first = false;
+    Current = Current->Next;
   }
   OS << "}";
 }
