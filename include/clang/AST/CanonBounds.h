@@ -51,8 +51,8 @@ namespace clang {
     };
 
   private:
-    EqualityRelation *EqualVars;
     ASTContext &Context;
+    EqualityRelation *EqualVars;
     bool Trace;
 
     template <typename T>

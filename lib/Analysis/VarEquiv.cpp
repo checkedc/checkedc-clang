@@ -57,11 +57,11 @@ namespace PartitionRefinement {
 class Set;
 
 struct ListNode {
-  ListNode(Element E, Set *S) : Elem(E), Set(S), Prev(nullptr), Next(nullptr) {
+  ListNode(Element E, Set *S) : Elem(E), ContainingSet(S), Prev(nullptr), Next(nullptr) {
   }
 
   Element Elem;
-  Set *Set;
+  Set *ContainingSet;
   ListNode *Prev;
   ListNode *Next;
 };
@@ -106,7 +106,7 @@ public:
   }
 
   Set *get(unsigned i) const {
-    if (i >= 0 && i < Sets.size())
+    if (i < Sets.size())
       return Sets[i];
     else
       return nullptr;
@@ -173,15 +173,15 @@ void unlinkNode(ListNode *Node) {
   if (Node->Next) {
     Node->Next->Prev = Node->Prev;
   }
-  if (Node == Node->Set->Head) {
+  if (Node == Node->ContainingSet->Head) {
     assert(Node->Prev == nullptr);
-    Node->Set->Head = Node->Next;
+    Node->ContainingSet->Head = Node->Next;
   }
 }
 
 // Link the node to set S
 void linkNode(Set *S, ListNode *Node) {
-  Node->Set = S;
+  Node->ContainingSet = S;
   ListNode *Head = S->Head;
   Node->Prev = nullptr;
   Node->Next = Head;
@@ -213,7 +213,7 @@ void Partition::remove_if_trivial(Set *S) {
 Partition::Partition() {
   Sets = new SetManager();
   NodeMap = new ElementMap();
-};
+}
 
 Partition::~Partition() {
   delete Sets;
@@ -223,7 +223,8 @@ Partition::~Partition() {
 // Add Elem to the set S.  It is an error if Elem is already a member 
 // of another set.
 ListNode *Partition::add(Set *S, Element Elem) {
-  assert((NodeMap->get(Elem) == nullptr || NodeMap->get(Elem)->Set == S) &&
+  assert((NodeMap->get(Elem) == nullptr || 
+          NodeMap->get(Elem)->ContainingSet == S) &&
          "add operation makes this no longer a partition");
   ListNode *Node = new ListNode(Elem, S);
   NodeMap->set(Elem, Node);
@@ -244,7 +245,7 @@ void Partition::add(Element Member, Element Elem) {
     Sets->add(S);
     Node = add(S , Member);
   }
-  add(Node->Set, Elem);
+  add(Node->ContainingSet, Elem);
 }
 
 bool Partition::isSingleton(Element Elem) const {
@@ -256,7 +257,7 @@ bool Partition::isSingleton(Element Elem) const {
 void Partition::makeSingleton(Element Elem) {
   ListNode *Node = NodeMap->get(Elem);
   if (Node != nullptr) {
-    Set *S = Node->Set;
+    Set *S = Node->ContainingSet;
     assert(S != nullptr);
     unlinkNode(Node);
     NodeMap->remove(Elem);
@@ -282,7 +283,7 @@ void Partition::refine(const Set *S) {
     Element CurrentElem = Current->Elem;
     ListNode *Target = NodeMap->get(CurrentElem);
     if (Target != nullptr) {
-      Set *TargetSet = Target->Set;
+      Set *TargetSet = Target->ContainingSet;
       Set *Intersected = TargetSet->Intersected;
       if (Intersected == nullptr) {
         Intersected = new Set();
@@ -343,7 +344,7 @@ Element Partition::getRepresentative(Element Elem) const {
   if (Node == nullptr) {
     return Elem;
   } else {
-    return Node->Set->Head->Elem;
+    return Node->ContainingSet->Head->Elem;
   }
 }
 
@@ -372,7 +373,7 @@ void Partition::dump(raw_ostream &OS, Element Elem) const {
     OS << "Itself";
     return;
   }
-  dump(OS, Node->Set);
+  dump(OS, Node->ContainingSet);
 }
 
 // Dump all the sets
