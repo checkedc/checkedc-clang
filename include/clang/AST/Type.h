@@ -3294,13 +3294,13 @@ public:
   /// Extra information about a function prototype.
   struct ExtProtoInfo {
     ExtProtoInfo()
-        : Variadic(false), HasTrailingReturn(false), TypeQuals(0),
-          RefQualifier(RQ_None), ExtParameterInfos(nullptr),
+        : Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
+          TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
           ParamBounds(nullptr), ReturnBounds(nullptr) {}
 
     ExtProtoInfo(CallingConv CC)
-        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), TypeQuals(0),
-          RefQualifier(RQ_None), ExtParameterInfos(nullptr),
+        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
+          TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
           ParamBounds(nullptr), ReturnBounds(nullptr) {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
@@ -3312,6 +3312,7 @@ public:
     FunctionType::ExtInfo ExtInfo;
     bool Variadic : 1;
     bool HasTrailingReturn : 1;
+    unsigned numTypeVars : 15;
     unsigned char TypeQuals;
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
@@ -3337,6 +3338,7 @@ private:
 
   /// The number of parameters this function has, not counting '...'.
   unsigned NumParams : 15;
+  unsigned NumTypeVars : 15;
 
   /// The number of types in the exception spec, if any.
   unsigned NumExceptions : 9;
@@ -3416,6 +3418,7 @@ public:
     assert(i < NumParams && "invalid parameter index");
     return param_type_begin()[i];
   }
+  unsigned getNumTypeVars() const { return NumTypeVars; }
   ArrayRef<QualType> getParamTypes() const {
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
@@ -3450,6 +3453,7 @@ public:
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
     EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
     EPI.ReturnBounds = hasReturnBounds() ? getReturnBounds() : nullptr;
+    EPI.numTypeVars = getNumTypeVars();
     return EPI;
   }
 
@@ -3686,6 +3690,36 @@ public:
                       UnresolvedUsingTypenameDecl *D) {
     ID.AddPointer(D);
   }
+};
+
+
+class TypeVariableType : public Type, public llvm::FoldingSetNode {
+  // Similar to ParmVarDecl's depth. However, instead of keeping track of
+  // prototype scope depth, this keeps track of the depth of forany scope.
+  unsigned int depth;
+  unsigned int index;
+protected:
+  TypeVariableType(unsigned int inDepth, unsigned int inIndex)
+    : Type(TypeVariable, QualType(), false, false, false, false),
+    depth(inDepth), index(inIndex) { }
+  friend class ASTContext;
+public:
+  bool isSugared(void) const { return false; }
+  QualType desugar(void) const { return QualType(this, 0); }
+  unsigned int GetDepth(void) const { return depth; }
+  void SetDepth(unsigned int i) { depth = i; }
+  unsigned int GetIndex(void) const { return index; }
+  void SetIndex(unsigned int i) { index = i; }
+
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, depth, index);
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex) {
+    ID.AddInteger(inDepth);
+    ID.AddInteger(inIndex);
+  }
+
+  static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
 };
 
 

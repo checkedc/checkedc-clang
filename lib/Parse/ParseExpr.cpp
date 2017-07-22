@@ -1401,7 +1401,6 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
         return ExprError();
       }
     }
-
   return Res;
 }
 
@@ -3023,6 +3022,148 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
+// Recurse through types and substitute any TypedefType with TypeVariableType
+// as the underlying type.
+QualType Parser::SubstituteTypeVariable(QualType QT,
+  SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames) {
+  const Type *T = QT.getTypePtr();
+  switch (T->getTypeClass()) {
+  case Type::Pointer: {
+    const PointerType *pType = dyn_cast<PointerType>(T);
+    if (!pType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    QualType newPointee = SubstituteTypeVariable(pType->getPointeeType(), typeNames);
+    return Actions.getASTContext().getPointerType(newPointee, pType->getKind());
+  }
+  case Type::ConstantArray: {
+    const ConstantArrayType *caType = dyn_cast<ConstantArrayType>(T);
+    if (!caType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    QualType EltTy = SubstituteTypeVariable(caType->getElementType(), typeNames);
+    const llvm::APInt ArySize = caType->getSize();
+    ArrayType::ArraySizeModifier ASM = caType->getSizeModifier();
+    unsigned IndexTypeQuals = caType->getIndexTypeCVRQualifiers();
+    bool isChecked = caType->isChecked();
+    return Actions.getASTContext().getConstantArrayType(EltTy, ArySize, ASM, 
+                                                  IndexTypeQuals, isChecked);
+  }
+  case Type::VariableArray: {
+    const VariableArrayType *vaType = dyn_cast<VariableArrayType>(T);
+    if (!vaType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    QualType EltTy = SubstituteTypeVariable(vaType->getElementType(), typeNames);
+    Expr *NumElts = vaType->getSizeExpr();
+    ArrayType::ArraySizeModifier ASM = vaType->getSizeModifier();
+    unsigned IndexTypeQuals = vaType->getIndexTypeCVRQualifiers();
+    SourceRange Brackets = vaType->getBracketsRange();
+    return Actions.getASTContext().getVariableArrayType(EltTy, NumElts, ASM, 
+                                                    IndexTypeQuals, Brackets);
+  }
+  case Type::IncompleteArray: {
+    const IncompleteArrayType *iaType = dyn_cast<IncompleteArrayType>(T);
+    if (!iaType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    QualType EltTy = SubstituteTypeVariable(iaType->getElementType(), typeNames);
+    ArrayType::ArraySizeModifier ASM = iaType->getSizeModifier();
+    unsigned IndexTypeQuals = iaType->getIndexTypeCVRQualifiers();
+    bool isChecked = iaType->isChecked();
+    return Actions.getASTContext().getIncompleteArrayType(EltTy, ASM, 
+                                                    IndexTypeQuals, isChecked);
+  }
+  case Type::DependentSizedArray: {
+    const DependentSizedArrayType *dsaType = dyn_cast<DependentSizedArrayType>(T);
+    if (!dsaType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    QualType EltTy = SubstituteTypeVariable(dsaType->getElementType(), typeNames);
+    Expr *NumElts = dsaType->getSizeExpr();
+    ArrayType::ArraySizeModifier ASM = dsaType->getSizeModifier();
+    unsigned IndexTypeQuals = dsaType->getIndexTypeCVRQualifiers();
+    SourceRange Brackets = dsaType->getBracketsRange();
+    return Actions.getASTContext().getDependentSizedArrayType(EltTy, NumElts, 
+                                                ASM, IndexTypeQuals, Brackets);
+  }
+  case Type::Paren: {
+    const ParenType *pType = dyn_cast<ParenType>(T);
+    if (!pType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    QualType InnerType = SubstituteTypeVariable(pType->getInnerType(), typeNames);
+    return Actions.getASTContext().getParenType(InnerType);
+  }
+
+  case Type::FunctionProto: {
+    const FunctionProtoType *fpType = dyn_cast<FunctionProtoType>(T);
+    if (!fpType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    // Initialize return type if it's type variable
+    QualType returnQualType =
+      SubstituteTypeVariable(fpType->getReturnType(), typeNames);
+    // Initialize parameter types if it's type variable
+    SmallVector<QualType, 16> newParamTypes;
+    for (QualType opt : fpType->getParamTypes()) {
+      newParamTypes.push_back(SubstituteTypeVariable(opt, typeNames));
+    }
+    // Indicate that this function type is fully instantiated
+    FunctionProtoType::ExtProtoInfo newExtProtoInfo = fpType->getExtProtoInfo();
+    newExtProtoInfo.numTypeVars = 0;
+    // Recreate FunctionProtoType, and set it as the new type for declRefExpr
+    return Actions.getASTContext().getFunctionType(returnQualType, 
+                                              newParamTypes, newExtProtoInfo);
+  }
+  case Type::Typedef: {
+    // If underlying type is TypeVariableType, must replace the entire
+    // TypedefType. If underlying type is not TypeVariableType, there cannot be
+    // a type variable type that this context can replace.
+    const TypedefType *tdType = dyn_cast<TypedefType>(T);
+    if (!tdType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    const Type *underlying = tdType->getDecl()->getUnderlyingType().getTypePtr();
+    if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underlying)) 
+      return typeNames[tvType->GetIndex()].typeName;
+    else
+      return QT;
+  }
+  case Type::TypeVariable: {
+    // Although Type Variable Type is wrapped with Typedef Type, there may be
+    // transformations in clang that eliminates Typedef.
+    const TypeVariableType *tvType = dyn_cast<TypeVariableType>(T);
+    if (!tvType) {
+      llvm_unreachable("Dynamic cast failed unexpectedly.");
+      return QT;
+    }
+    return typeNames[tvType->GetIndex()].typeName;
+  }
+  case Type::Decayed: {
+    const DecayedType *dType = dyn_cast<DecayedType>(T);
+    QualType decayedType = SubstituteTypeVariable(dType->getOriginalType(), typeNames);
+    return Actions.getASTContext().getDecayedType(decayedType);
+  }
+  case Type::Adjusted: {
+    const AdjustedType *aType = dyn_cast<AdjustedType>(T);
+    QualType origType = SubstituteTypeVariable(aType->getOriginalType(), typeNames);
+    QualType newType = SubstituteTypeVariable(aType->getAdjustedType(), typeNames);
+    return Actions.getASTContext().getAdjustedType(origType, newType);
+  }
+  default :
+    return QT;
+  }
+}
+
 // With primary-expression, before parsing postfix-expression, check to make
 // sure that Expr is declRefExpr of generic function with _For_any specifier
 bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
@@ -3038,6 +3179,7 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
   if (!funDecl->IsGenericFunction()) return false;
 
   // Expect a '<' to denote that a list of type specifiers are incoming.
+  SourceLocation lessLoc = Tok.getLocation();
   if (ExpectAndConsume(tok::less,
     diag::err_expected_list_of_types_expr_for_generic_function)) {
     // We want to consume greater, but not consume semi
@@ -3053,6 +3195,7 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
     return false;
   }
   else {
+    SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
     // Expect to see a list of type names, followed by a '>'.
     while (true) {
       // Expect to see type name.
@@ -3065,11 +3208,34 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
         return true;
       }
 
+      TypeSourceInfo *TInfo;
+      QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
+      typeArgumentInfos.push_back({ realType, TInfo });
+
       // If next token is comma, consume and look for more type name
       if (Tok.getKind() == tok::comma) ConsumeToken();
       // If next token is '>', consume and finish.
       else if (Tok.getKind() == tok::greater) {
         ConsumeToken();
+        const FunctionProtoType *funcType =
+          dyn_cast<FunctionProtoType>(funDecl->getType().getTypePtr());
+
+        // Sanity check to make sure that the number of type names equals the
+        // number of type variables in func Type.
+        if (funcType->getNumTypeVars() != typeArgumentInfos.size()) {
+          // The location of beginning of _For_any is stored in typeVariables
+          Diag(lessLoc,
+               diag::err_type_list_and_type_variable_num_mismatch);
+          Diag(funDecl->typeVariables()[0]->getLocStart(),
+               diag::note_type_variables_declared_at);
+          return true;
+        }
+
+        // Add parsed list of type names to declRefExpr for future references
+        declRef->SetGenericInstInfo(Actions.getASTContext(), typeArgumentInfos);
+        
+        // Substitute Type Variables of Function Type in DeclRefExpr
+        declRef->setType(SubstituteTypeVariable(funDecl->getType(), typeArgumentInfos));
         return false;
       }
       // Otherwise, we encountered an unexpected token.

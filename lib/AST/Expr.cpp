@@ -351,7 +351,7 @@ DeclRefExpr::DeclRefExpr(const ASTContext &Ctx,
                          const TemplateArgumentListInfo *TemplateArgs,
                          QualType T, ExprValueKind VK)
   : Expr(DeclRefExprClass, T, VK, OK_Ordinary, false, false, false, false),
-    D(D), Loc(NameInfo.getLoc()), DNLoc(NameInfo.getInfo()) {
+    D(D), TypeArgumentInfo(nullptr), Loc(NameInfo.getLoc()), DNLoc(NameInfo.getInfo()) {
   DeclRefExprBits.HasQualifier = QualifierLoc ? 1 : 0;
   if (QualifierLoc) {
     new (getTrailingObjects<NestedNameSpecifierLoc>())
@@ -456,6 +456,20 @@ SourceLocation DeclRefExpr::getLocEnd() const {
   if (hasExplicitTemplateArgs())
     return getRAngleLoc();
   return getNameInfo().getLocEnd();
+}
+
+DeclRefExpr::GenericInstInfo 
+  *DeclRefExpr::GenericInstInfo::Create(ASTContext &C,
+  ArrayRef<TypeArgument> NewTypeVariableNames) {
+  GenericInstInfo *retVal = new (C) GenericInstInfo();
+
+  if (!NewTypeVariableNames.empty()) {
+    retVal->NumTypeArguments = NewTypeVariableNames.size();
+    retVal->TypeArguments = new (C) TypeArgument[retVal->NumTypeArguments];
+    std::copy(NewTypeVariableNames.begin(),
+      NewTypeVariableNames.end(), retVal->TypeArguments);
+  }
+  return retVal;
 }
 
 PredefinedExpr::PredefinedExpr(SourceLocation L, QualType FNTy, IdentType IT,

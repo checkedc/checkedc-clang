@@ -2846,6 +2846,23 @@ unsigned FunctionDecl::getNumParams() const {
   return FPT ? FPT->getNumParams() : 0;
 }
 
+unsigned FunctionDecl::getNumTypeVars() const {
+  const auto *FPT = getType()->getAs<FunctionProtoType>();
+  return FPT ? FPT->getNumTypeVars() : 0;
+}
+
+void FunctionDecl::setTypeVars(ASTContext &C, 
+                               ArrayRef<TypedefDecl *> NewTypeVarInfo) {
+  assert(!TypeVarInfo && "Already has type variable info!");
+  assert(NewTypeVarInfo.size() == getNumTypeVars() && "Type variable count mismatch!");
+
+  // Zero params -> null pointer.
+  if (!NewTypeVarInfo.empty()) {
+    TypeVarInfo = new (C) TypedefDecl*[NewTypeVarInfo.size()];
+    std::copy(NewTypeVarInfo.begin(), NewTypeVarInfo.end(), TypeVarInfo);
+  }
+}
+
 void FunctionDecl::setParams(ASTContext &C,
                              ArrayRef<ParmVarDecl *> NewParamInfo) {
   assert(!ParamInfo && "Already has param info!");

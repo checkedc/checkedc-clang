@@ -4773,6 +4773,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
               [&](unsigned i) { return FTI.Params[i].Param->getLocation(); });
         }
 
+        EPI.numTypeVars = D.getDeclSpec().getNumTypeVars();
+
         SmallVector<QualType, 4> Exceptions;
         SmallVector<ParsedType, 2> DynamicExceptions;
         SmallVector<SourceRange, 2> DynamicExceptionRanges;
@@ -5335,6 +5337,9 @@ namespace {
     }
     void VisitTypedefTypeLoc(TypedefTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
+    }
+    void VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
+      TL.setNameLoc(DS.getTypeSpecTypeNameLoc());
     }
     void VisitObjCInterfaceTypeLoc(ObjCInterfaceTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());

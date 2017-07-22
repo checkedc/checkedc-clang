@@ -132,6 +132,7 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::FoldingSet<ExtQuals> ExtQualNodes;
   mutable llvm::FoldingSet<ComplexType> ComplexTypes;
   mutable llvm::FoldingSet<PointerType> PointerTypes;
+  mutable llvm::FoldingSet<TypeVariableType> TypeVariableTypes;
   mutable llvm::FoldingSet<AdjustedType> AdjustedTypes;
   mutable llvm::FoldingSet<BlockPointerType> BlockPointerTypes;
   mutable llvm::FoldingSet<LValueReferenceType> LValueReferenceTypes;
@@ -1181,6 +1182,11 @@ public:
   /// Gets the struct used to keep track of the extended descriptor for
   /// pointer to blocks.
   QualType getBlockDescriptorExtendedType() const;
+
+  /// Returns a type variable type based on the depth of the "for any" scope 
+  /// where type variable is declared, and the position of the type variable in
+  /// _For_any qualifier.
+  QualType getTypeVariableType(unsigned int depth, unsigned int position) const;
 
   void setcudaConfigureCallDecl(FunctionDecl *FD) {
     cudaConfigureCallDecl = FD;

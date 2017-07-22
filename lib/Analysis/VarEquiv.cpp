@@ -62,6 +62,7 @@ struct ListNode {
 
   Element Elem;
   Set *ContainingSet;
+
   ListNode *Prev;
   ListNode *Next;
 };

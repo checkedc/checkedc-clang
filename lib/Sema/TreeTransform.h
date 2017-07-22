@@ -5434,6 +5434,14 @@ QualType TreeTransform<Derived>::TransformTypeOfExprType(TypeLocBuilder &TLB,
 }
 
 template<typename Derived>
+QualType TreeTransform<Derived>::TransformTypeVariableType(TypeLocBuilder &TLB,
+                                                           TypeVariableTypeLoc TL) {
+  TypeVariableTypeLoc NewT = TLB.push<TypeVariableTypeLoc>(TL.getType());
+  NewT.setNameLoc(TL.getNameLoc());
+  return TL.getType();
+}
+
+template<typename Derived>
 QualType TreeTransform<Derived>::TransformTypeOfType(TypeLocBuilder &TLB,
                                                      TypeOfTypeLoc TL) {
   TypeSourceInfo* Old_Under_TI = TL.getUnderlyingTInfo();

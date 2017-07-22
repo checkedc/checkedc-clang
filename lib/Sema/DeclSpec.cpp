@@ -431,6 +431,16 @@ unsigned DeclSpec::getParsedSpecifiers() const {
   return Res;
 }
 
+void DeclSpec::setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars) {
+  assert(!TypeVarInfo && "Already has type variable info!");
+  assert(NewTypeVarInfo.size() == NewNumTypeVars && "Type variable count mismatch!");
+  NumTypeVars = NewNumTypeVars;
+
+  if (NewTypeVarInfo.empty()) return;
+  TypeVarInfo = new (C) TypedefDecl*[NewTypeVarInfo.size()];
+  std::copy(NewTypeVarInfo.begin(), NewTypeVarInfo.end(), TypeVarInfo);
+}
+
 template <class T> static bool BadSpecifier(T TNew, T TPrev,
                                             const char *&PrevSpec,
                                             unsigned &DiagID,

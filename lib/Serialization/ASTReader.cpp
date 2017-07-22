@@ -5830,6 +5830,7 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
 
     EPI.Variadic = Record[Idx++];
     EPI.HasTrailingReturn = Record[Idx++];
+    EPI.numTypeVars = Record[Idx++];
     bool HasParamBounds = Record[Idx++];
     EPI.TypeQuals = Record[Idx++];
     EPI.RefQualifier = static_cast<RefQualifierKind>(Record[Idx++]);
@@ -5894,6 +5895,12 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     }
     QualType UnderlyingType = readType(*Loc.F, Record, Idx);
     return Context.getTypeOfType(UnderlyingType);
+  }
+
+  case TYPE_TYPEVARIABLE: {
+    unsigned int depth = Record[0];
+    unsigned int index = Record[1];
+    return Context.getTypeVariableType(depth, index);
   }
 
   case TYPE_DECLTYPE: {
@@ -6340,6 +6347,9 @@ void TypeLocReader::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation());
 }
 void TypeLocReader::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
+  TL.setNameLoc(ReadSourceLocation());
+}
+void TypeLocReader::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation());
 }
 void TypeLocReader::VisitTypeOfExprTypeLoc(TypeOfExprTypeLoc TL) {

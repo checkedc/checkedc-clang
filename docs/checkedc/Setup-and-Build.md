@@ -226,3 +226,16 @@ Most developers can ignore this section. We periodically update the Checked C so
 to newer versions of the source code for clang/LLVM.  The directions for the process of updating the
 baseline and master branches to newer versions of LLVM/clang are
 [here](Update-to-latest-LLVM-sources.md).
+
+## Tips for a faster build on Linux/Mac OS X
+
+[ccache](https://ccache.samba.org) is a smart cache for GCC or Clang. It works as a shim, and
+uses the hash of source files and their included headers and build options to decide if an output
+needs recompiling, instead of file modification time (which Make uses). In some circumstances,
+this can cut second-build (i.e. `make` where some of the files are already built) time down
+from 5 minutes to 30 seconds. This still depends on how your header files and includes are organised.
+
+To make your LLVM/Clang builds get this speedup, install ccache (packages available for most systems,
+on Mac OS X it's in Homebrew), then run cmake with `LLVM_CCACHE_BUILD=On`. There are ways to share and
+control the size of the cache directory, which is where ccache stores a copy of any object files
+it has compiled.
