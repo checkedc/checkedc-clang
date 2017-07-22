@@ -1142,7 +1142,7 @@ namespace {
 
   public:
     CheckBoundsDeclarations(Sema &S) : S(S),
-     DumpBounds(S.getLangOpts().DumpInferredBounds) {}
+      DumpBounds(S.getLangOpts().DumpInferredBounds) {}
 
     bool VisitBinaryOperator(BinaryOperator *E) {
       Expr *LHS = E->getLHS();
