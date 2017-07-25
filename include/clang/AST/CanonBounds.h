@@ -39,7 +39,7 @@ namespace clang {
   // currently are equal to each other.
   class EqualityRelation {
   public:
-     virtual VarDecl *getRepresentative(VarDecl *V);
+     virtual const VarDecl *getRepresentative(const VarDecl *V) = 0;
   };
 
   class Lexicographic {
@@ -51,8 +51,8 @@ namespace clang {
     };
 
   private:
-    EqualityRelation *EqualVars;
     ASTContext &Context;
+    EqualityRelation *EqualVars;
     bool Trace;
 
     template <typename T>
