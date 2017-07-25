@@ -219,6 +219,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::Enum:
     case Type::ObjCObjectPointer:
     case Type::Pipe:
+    case Type::TypeVariable:
       return TEK_Scalar;
 
     // Complexes.

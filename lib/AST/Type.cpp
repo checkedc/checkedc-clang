@@ -1939,6 +1939,9 @@ bool Type::isIncompleteType(NamedDecl **Def) const {
     // Void is the only incomplete builtin type.  Per C99 6.2.5p19, it can never
     // be completed.
     return isVoidType();
+  case TypeVariable:
+    // Type Variables are treated like Void type - An incomplete type.
+    return true;
   case Enum: {
     EnumDecl *EnumD = cast<EnumType>(CanonicalType)->getDecl();
     if (Def)
@@ -3432,6 +3435,8 @@ static CachedProperties computeCachedProperties(const Type *T) {
     return Cache::get(cast<AtomicType>(T)->getValueType());
   case Type::Pipe:
     return Cache::get(cast<PipeType>(T)->getElementType());
+  case Type::TypeVariable:
+    return CachedProperties(ExternalLinkage, false);
   }
 
   llvm_unreachable("unhandled type class");
@@ -3517,6 +3522,8 @@ static LinkageInfo computeLinkageInfo(const Type *T) {
     return computeLinkageInfo(cast<AtomicType>(T)->getValueType());
   case Type::Pipe:
     return computeLinkageInfo(cast<PipeType>(T)->getElementType());
+  case Type::TypeVariable:
+    return LinkageInfo::external();
   }
 
   llvm_unreachable("unhandled type class");
