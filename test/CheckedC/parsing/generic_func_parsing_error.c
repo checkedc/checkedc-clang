@@ -7,8 +7,7 @@
 //
 // RUN: %clang_cc1 -fcheckedc-extension -verify %s
 
-_For_any(T) T Foo(T a, T b) {
-  T a;
+_For_any(T) T *Foo(T *a, T *b) {
   return a;
 }
 
@@ -19,7 +18,7 @@ void Bar() {
   // saying you cannot do isa<> on NULL pointer, crashing compiler. I fixed the
   // code to check whether the Expr* is NULL or not.
   void* x, y; //expected-error{{variable has incomplete type 'void'}}
-  Foo<void*>(x, y);
+  Foo<void>(x, y);
   return;
 }
 

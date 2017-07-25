@@ -1913,8 +1913,8 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   }    
   
   case Type::TypeVariable:
-    Width = Target->getPointerWidth(0);
-    Align = Target->getPointerAlign(0);
+    Width = 0;
+    Align = 8;
     break;
 
   case Type::Elaborated:
