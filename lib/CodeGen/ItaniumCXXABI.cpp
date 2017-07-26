@@ -2829,7 +2829,7 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
     llvm_unreachable("Pipe types shouldn't get here");
 
   case Type::TypeVariable:
-    llvm_unreachable("Type Variable shouldn't get here");
+    llvm_unreachable("BuildVTablePointer for Type Variable is not yet implemented");
 
   case Type::Builtin:
   // GCC treats vector and complex types as fundamental types.
