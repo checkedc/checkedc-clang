@@ -28,6 +28,7 @@ namespace {
   STATISTIC(NumDynamicChecksNonNull, "The # of dynamic non-null checks found");
   STATISTIC(NumDynamicChecksOverflow, "The # of dynamic overflow checks found");
   STATISTIC(NumDynamicChecksRange, "The # of dynamic bounds checks found");
+  STATISTIC(NumDynamicChecksCast, "The # of dynamic cast checks found");
 }
 
 //
@@ -93,19 +94,24 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
   ++NumDynamicChecksRange;
 
   // Emit the code to generate the pointer values
-  Address Lower = EmitPointerWithAlignment(BoundsRange->getLowerExpr());
-  Address Upper = EmitPointerWithAlignment(BoundsRange->getUpperExpr());
+  Address Lower = Builder.CreateBitCast(
+      EmitPointerWithAlignment(BoundsRange->getLowerExpr()), VoidPtrTy,
+      "_Dynamic_check.lower_ptr");
+  Address Upper = Builder.CreateBitCast(
+      EmitPointerWithAlignment(BoundsRange->getUpperExpr()), VoidPtrTy,
+      "_Dynamic_check.upper_ptr");
 
-  // Emit the address as an int
-  Value *PtrInt = Builder.CreatePtrToInt(PtrAddr.getPointer(), IntPtrTy, "_Dynamic_check.addr");
+  // Keep the pointer address
+  Address PtrVal =
+      Builder.CreateBitCast(PtrAddr, VoidPtrTy, "_Dynamic_check.ptr");
 
   // Make the lower check
-  Value *LowerInt = Builder.CreatePtrToInt(Lower.getPointer(), IntPtrTy, "_Dynamic_check.lower");
-  Value *LowerChk = Builder.CreateICmpULE(LowerInt, PtrInt, "_Dynamic_check.lower_cmp");
+  Value *LowerChk = Builder.CreateICmpULE(
+      Lower.getPointer(), PtrVal.getPointer(), "_Dynamic_check.lower");
 
   // Make the upper check
-  Value* UpperInt = Builder.CreatePtrToInt(Upper.getPointer(), IntPtrTy, "_Dynamic_check.upper");
-  Value* UpperChk = Builder.CreateICmpULT(PtrInt, UpperInt, "_Dynamic_check.upper_cmp");
+  Value *UpperChk = Builder.CreateICmpULT(
+      PtrVal.getPointer(), Upper.getPointer(), "_Dynamic_check.upper");
 
   // Emit both checks
   EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
@@ -139,24 +145,80 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address BaseAddr,
   const RangeBoundsExpr *SubRange = dyn_cast<RangeBoundsExpr>(SubExprBounds);
   const RangeBoundsExpr *CastRange = dyn_cast<RangeBoundsExpr>(CastBounds);
 
-  ++NumDynamicChecksRange;
+  ++NumDynamicChecksCast;
 
-  // Dynamic_check(Base == NULL || (Lower <= CastLower && CastUpper <= Upper))
-  // Emit code blocks as follows:
-  // if (Base == NULL) {...}
-  // else {
-  // if (Lower <= CastLower && CastUpper <= Upper) {...}
-  // else { trap(); llvm_unreachable(); }
-  // }
+  // Emits code as follows:
+  // %entry:
+  //   ...
+  //   %is_null = %base == null
+  //   br i1 %is_null, %success, %subsumption
+  // %subsumption:
+  //   %subsumes = (%lower <= %cast_lower && %cast_upper <= %upper)
+  //   br i1 %subsumes, %success, %failure
+  // %success:
+  //   ...
+  // %failure:
+  //   trap()
 
-  Value *Cond1 =
-            Builder.CreateIsNull(BaseAddr.getPointer(), "_Dynamic_check.null");
+  Address BaseVal =
+      Builder.CreateBitCast(BaseAddr, VoidPtrTy, "_Dynamic_check.ptr");
+  Value *IsNull =
+      Builder.CreateIsNull(BaseVal.getPointer(), "_Dynamic_check.is_null");
 
   // Constant Folding:
-  // If we have generated a constant condition, and the condition is true,
-  // then the check will always pass and we can elide it.
-  if (const ConstantInt *ConditionConstant = dyn_cast<ConstantInt>(Cond1)) {
-    if (ConditionConstant->isOne()) {
+  // If IsNull is true (one), then a) we don't need to insert the rest
+  // of the check, computation will continue with success.
+  if (const ConstantInt *IsNullConstant = dyn_cast<ConstantInt>(IsNull)) {
+    if (IsNullConstant->isOne()) {
+      ++NumDynamicChecksElided;
+      return;
+    }
+  }
+
+  BasicBlock *DyCkSubsumption = createBasicBlock("_Dynamic_check.subsumption");
+  BasicBlock *DyCkSuccess = createBasicBlock("_Dynamic_check.success");
+  BasicBlock *DyCkFail = EmitDynamicCheckFailedBlock();
+
+  // Insert the IsNull Branch
+  Builder.CreateCondBr(IsNull, DyCkSuccess, DyCkSubsumption);
+
+  // This ensures the subsumption block comes directly after the is_null branch
+  EmitBlock(DyCkSubsumption);
+
+  Builder.SetInsertPoint(DyCkSubsumption);
+
+  // SubRange - bounds(lb, ub) vs CastRange - bounds(castlb, castub)
+  // Dynamic_check(lb <= castlb && castub <= ub)
+
+  // Emit the code to generate lb and ub
+  Address Lower = Builder.CreateBitCast(
+      EmitPointerWithAlignment(SubRange->getLowerExpr()), VoidPtrTy, "");
+  Address Upper = Builder.CreateBitCast(
+      EmitPointerWithAlignment(SubRange->getUpperExpr()), VoidPtrTy, "");
+
+  // Emit the code to generate castlb and castub
+  Address CastLower = Builder.CreateBitCast(
+      EmitPointerWithAlignment(CastRange->getLowerExpr()), VoidPtrTy, "");
+  Address CastUpper = Builder.CreateBitCast(
+      EmitPointerWithAlignment(CastRange->getUpperExpr()), VoidPtrTy, "");
+
+  // Make the lower check (Lower <= CastLower)
+  Value *LowerChk = Builder.CreateICmpULE(
+      Lower.getPointer(), CastLower.getPointer(), "_Dynamic_check.lower");
+
+  // Make the upper check (CastUpper <= Upper)
+  Value *UpperChk = Builder.CreateICmpULE(
+      CastUpper.getPointer(), Upper.getPointer(), "_Dynamic_check.upper");
+
+  // Make Both Checks
+  Value *CastCond =
+      Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.cast");
+
+  // Constant Folding:
+  // If IsNull is true (one), then a) we don't need to insert the rest
+  // of the check, computation will continue with success.
+  if (const ConstantInt *CastCondConstant = dyn_cast<ConstantInt>(CastCond)) {
+    if (CastCondConstant->isOne()) {
       ++NumDynamicChecksElided;
       return;
     }
@@ -164,53 +226,10 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address BaseAddr,
 
   ++NumDynamicChecksInserted;
 
-  BasicBlock *Begin, *DyCkSuccess, *DyCkFail, *DyCkFallThrough;
-  Begin = Builder.GetInsertBlock();
-  DyCkSuccess = createBasicBlock("_Dynamic_check.succeeded");
-  DyCkFallThrough = createBasicBlock("_Dynamic_check.fallthrough", this->CurFn);
-  DyCkFail = createBasicBlock("_Dynamic_check.failed", this->CurFn);
+  // Insert the CastCond Branch
+  Builder.CreateCondBr(CastCond, DyCkSuccess, DyCkFail);
 
-  Builder.SetInsertPoint(DyCkFallThrough);
-  // SubRange - bounds(lb, ub) vs CastRange - bounds(castlb, castub)
-  // Dynamic_check(lb <= castlb && castub <= ub)
-
-  // Emit the code to generate the pointer values
-  Address Lower = EmitPointerWithAlignment(SubRange->getLowerExpr());
-  Address Upper = EmitPointerWithAlignment(SubRange->getUpperExpr());
-
-  Value *LowerInt = Builder.CreatePtrToInt(Lower.getPointer(), IntPtrTy,
-                                           "_Dynamic_check.lower");
-  Value *UpperInt = Builder.CreatePtrToInt(Upper.getPointer(), IntPtrTy,
-                                           "_Dynamic_check.upper");
-
-  Address CastLower = EmitPointerWithAlignment(CastRange->getLowerExpr());
-  Address CastUpper = EmitPointerWithAlignment(CastRange->getUpperExpr());
-
-  Value *CastLowerInt = Builder.CreatePtrToInt(CastLower.getPointer(), IntPtrTy,
-                                               "_Dynamic_check.castlower");
-  Value *CastUpperInt = Builder.CreatePtrToInt(CastUpper.getPointer(), IntPtrTy,
-                                               "_Dynamic_check.castupper");
-
-  // Make the lower check (Lower <= CastLower)
-  Value *LowerChk =
-      Builder.CreateICmpULE(LowerInt, CastLowerInt, "_Dynamic_check.lower_cmp");
-
-  // Make the upper check (CastUpper <= Upper)
-  Value *UpperChk =
-      Builder.CreateICmpULE(CastUpperInt, UpperInt, "_Dynamic_check.upper_cmp");
-
-  Value *Cond2 = Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range");
-  Builder.CreateCondBr(Cond2, DyCkSuccess, DyCkFail);
-
-  Builder.SetInsertPoint(DyCkFail);
-  CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(Intrinsic::trap));
-  TrapCall->setDoesNotReturn();
-  TrapCall->setDoesNotThrow();
-  Builder.CreateUnreachable();
-
-  Builder.SetInsertPoint(Begin);
-  Builder.CreateCondBr(Cond1, DyCkSuccess, DyCkFallThrough);
-  // This ensures the success block comes directly after the branch
+  // This ensures the success block comes directly after the subsumption branch
   EmitBlock(DyCkSuccess);
 
   Builder.SetInsertPoint(DyCkSuccess);
@@ -232,22 +251,29 @@ void CodeGenFunction::EmitDynamicCheckBlocks(Value *Condition) {
 
   ++NumDynamicChecksInserted;
 
-  BasicBlock *Begin, *DyCkSuccess, *DyCkFail;
-  Begin = Builder.GetInsertBlock();
-  DyCkSuccess = createBasicBlock("_Dynamic_check.succeeded");
-  DyCkFail = createBasicBlock("_Dynamic_check.failed", this->CurFn);
+  BasicBlock *DyCkSuccess = createBasicBlock("_Dynamic_check.succeeded");
+  BasicBlock *DyCkFail = EmitDynamicCheckFailedBlock();
 
+  Builder.CreateCondBr(Condition, DyCkSuccess, DyCkFail);
+  // This ensures the success block comes directly after the branch
+  EmitBlock(DyCkSuccess);
+  Builder.SetInsertPoint(DyCkSuccess);
+}
+
+BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
+  // Save current insert point
+  BasicBlock *Begin = Builder.GetInsertBlock();
+
+  // Add a "failed block", which will be inserted at the end of CurFn
+  BasicBlock *DyCkFail = createBasicBlock("_Dynamic_check.failed", CurFn);
   Builder.SetInsertPoint(DyCkFail);
   CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(Intrinsic::trap));
   TrapCall->setDoesNotReturn();
   TrapCall->setDoesNotThrow();
   Builder.CreateUnreachable();
 
+  // Return the insert point back to the saved insert point
   Builder.SetInsertPoint(Begin);
-  Builder.CreateCondBr(Condition, DyCkSuccess, DyCkFail);
-  // This ensures the success block comes directly after the branch
-  EmitBlock(DyCkSuccess);
 
-  Builder.SetInsertPoint(DyCkSuccess);
+  return DyCkFail;
 }
-
