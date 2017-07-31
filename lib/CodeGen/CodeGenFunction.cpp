@@ -1844,6 +1844,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::ObjCObject:
     case Type::ObjCInterface:
     case Type::ObjCObjectPointer:
+    case Type::TypeVariable:
       llvm_unreachable("type class is never variably-modified!");
 
     case Type::Adjusted:

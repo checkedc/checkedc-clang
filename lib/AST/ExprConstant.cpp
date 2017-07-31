@@ -7201,6 +7201,8 @@ static int EvaluateBuiltinClassifyType(const CallExpr *E,
   case Type::VariableArray:
   case Type::IncompleteArray:
     return LangOpts.CPlusPlus ? array_type_class : pointer_type_class;
+  case Type::TypeVariable:
+    return void_type_class;
 
   case Type::BlockPointer:
   case Type::LValueReference:
