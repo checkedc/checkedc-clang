@@ -1194,9 +1194,9 @@ def err_type_function_comma_or_greater_expected : Error<
   "expected , or >">;
 
 def err_type_list_and_type_variable_num_mismatch : Error<
-  "Mismatch between the number of types listed and number of type variables">;
+  "mismatch between the number of types listed and number of type variables">;
 
 def note_type_variables_declared_at : Note<
-  "Type variable(s) declared here">;
+  "type variable(s) declared here">;
 
 } // end of Parser diagnostics

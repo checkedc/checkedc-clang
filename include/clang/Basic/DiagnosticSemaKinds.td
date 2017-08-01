@@ -9362,6 +9362,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_inferred_bounds_for_expr : Note<
     "inferred bounds for right-hand side are '%0'">;
 
+  def no_prototype_generic_function : Error<
+    "expected prototype for a generic function">;
+
 } // end of Checked C Category
 
 } // end of sema component.

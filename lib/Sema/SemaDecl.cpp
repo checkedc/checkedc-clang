@@ -8316,8 +8316,15 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                                               isVirtualOkay);
   if (!NewFD) return nullptr;
 
-  NewFD->setGenericFunctionFlag(D.getDeclSpec().isForanySpecified());
-  if (D.getDeclSpec().getNumTypeVars()) NewFD->setTypeVars(D.getDeclSpec().typeVariables());
+  if (D.getDeclSpec().isForanySpecified()) {
+    if (NewFD->hasPrototype()) {
+      NewFD->setGenericFunctionFlag(true);
+      NewFD->setTypeVars(D.getDeclSpec().typeVariables());
+    } else {
+      Diag(NewFD->getLocation(), diag::no_prototype_generic_function);
+      NewFD->setInvalidDecl();
+    }
+  }
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();
@@ -8878,10 +8885,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       Diag(NewFD->getLocStart(), diag::err_checked_scope_no_variadic_func_for_declaration);
       NewFD->setInvalidDecl();
     }
-    // FTI.NumParams = number of formal parameter
-    // NewFD->getNumParams() = number of actual parameter
-    // f(void) - FIT.NumParams = 1, getNumParams() = 0
-    if (!D.getFunctionTypeInfo().NumParams) {
+    if (!NewFD->hasPrototype()) {
       Diag(NewFD->getLocStart(), diag::err_checked_scope_no_prototype_func);
       NewFD->setInvalidDecl();
     }
