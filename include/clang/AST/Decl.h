@@ -1670,7 +1670,9 @@ private:
   unsigned HasImplicitReturnZero : 1;
   unsigned IsLateTemplateParsed : 1;
   unsigned IsConstexpr : 1;
-  unsigned genericFunction : 1;
+  unsigned IsGenericFunction : 1; 
+  // indicate the function declared with an _Checked or _Unchecked specifier
+  unsigned CheckedSpecifier : 2; 
 
   /// \brief Indicates if the function uses __try.
   unsigned UsesSEHTry : 1;
@@ -1767,7 +1769,8 @@ protected:
         IsDeleted(false), IsTrivial(false), IsDefaulted(false),
         IsExplicitlyDefaulted(false), HasImplicitReturnZero(false),
         IsLateTemplateParsed(false), IsConstexpr(isConstexprSpecified),
-        genericFunction(false),
+        IsGenericFunction(false), 
+        CheckedSpecifier(CheckedFunctionSpecifiers::CFS_None),
         UsesSEHTry(false), HasSkippedBody(false), WillHaveBody(false),
         EndRangeLoc(NameInfo.getEndLoc()), TemplateOrSpecialization(),
         DNLoc(NameInfo.getInfo()) {}
@@ -1830,8 +1833,13 @@ public:
 
   SourceRange getSourceRange() const override LLVM_READONLY;
 
-  void setGenericFunctionFlag(bool f) { genericFunction = f; }
-  bool IsGenericFunction() const { return genericFunction; }
+  void setGenericFunctionFlag(bool f) { IsGenericFunction = f; }
+  bool isGenericFunction() const { return IsGenericFunction; }
+
+  void setCheckedSpecifier(CheckedFunctionSpecifiers CS) { CheckedSpecifier = CS; }
+  CheckedFunctionSpecifiers getCheckedSpecifier() {
+    return (CheckedFunctionSpecifiers) CheckedSpecifier;
+  }
 
   /// \brief Returns true if the function has a body (definition). The
   /// function body might be in any of the (re-)declarations of this

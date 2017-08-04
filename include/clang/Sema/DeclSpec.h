@@ -329,12 +329,10 @@ public:
     PQ_FunctionSpecifier     = 8
   };
 
-  /// Checked C - checked function specifiers
-  enum CheckedFunctionSpecifiers {
-    CFS_None       = 0,
-    CFS_Checked    = 1,
-    CFS_Unchecked  = 2
-  };
+  typedef CheckedFunctionSpecifiers CFS;
+  static const CFS CFS_None = clang::CFS_None;
+  static const CFS CFS_Checked = clang::CFS_Checked;
+  static const CFS CFS_Unchecked = clang::CFS_Unchecked;
 
 private:
   // storage-class-specifier

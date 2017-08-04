@@ -8324,7 +8324,13 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       Diag(NewFD->getLocation(), diag::no_prototype_generic_function);
       NewFD->setInvalidDecl();
     }
+
   }
+
+  if (D.getDeclSpec().isCheckedSpecified())
+    NewFD->setCheckedSpecifier(CheckedFunctionSpecifiers::CFS_Checked);
+  else if (D.getDeclSpec().isUncheckedSpecified())
+    NewFD->setCheckedSpecifier(CheckedFunctionSpecifiers::CFS_UnChecked);
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();
@@ -8868,8 +8874,9 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Function parameters & return are not allowed to use unchecked type
   // in checked block.
   // Checked function specifier & top level scope checked property can be used.
-  if (D.getDeclSpec().isCheckedSpecified() ||
-      (!D.getDeclSpec().isUncheckedSpecified() && S->isCheckedScope())) {
+  CheckedFunctionSpecifiers CFS = NewFD->getCheckedSpecifier();
+  if (CFS == CheckedFunctionSpecifiers::CFS_Checked ||
+      (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
     // Current scope checked property is from checked function or
     // checked scope keyword.
     // In checked function, check function return/param types.
@@ -12785,6 +12792,19 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
 
   if (FD) {
     FD->setBody(Body);
+
+    CheckedFunctionSpecifiers CFS = FD->getCheckedSpecifier();
+    if (CFS == CheckedFunctionSpecifiers::CFS_Checked ||
+      (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
+      if (FD->isVariadic()) {
+        Diag(FD->getLocStart(), diag::err_checked_scope_no_variadic_func_for_declaration);
+        FD->setInvalidDecl();
+      }
+      if (!FD->hasPrototype()) {
+        Diag(FD->getLocStart(), diag::err_checked_scope_no_prototype_func);
+        FD->setInvalidDecl();
+      }
+    }
 
     if (getLangOpts().CPlusPlus14) {
       if (!FD->isInvalidDecl() && Body && !FD->isDependentContext() &&
