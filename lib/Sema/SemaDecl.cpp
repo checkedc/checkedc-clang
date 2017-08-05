@@ -8965,9 +8965,9 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
       // Disallow no prototype function declarators within a checked scope.
       //
-      // We also disallow K&R style definitions of functions in checked scopes
+      // This includes K&R style definitions of functions in checked scopes
       // that aren't preceded by a prototype. clang gives K&R style
-      // definitions prototypes, even though the C11 standard does not say
+      // definitions prototype types, even though the C11 standard does not say
       // that K&R definitions create prototypes.
       if (isa<FunctionNoProtoType>(FT) ||
           (D.isFunctionDefinition() && isKNRDeclarationOnly(NewFD))) {

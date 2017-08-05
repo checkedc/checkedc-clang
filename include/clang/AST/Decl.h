@@ -1671,7 +1671,8 @@ private:
   unsigned IsLateTemplateParsed : 1;
   unsigned IsConstexpr : 1;
   unsigned IsGenericFunction : 1;
-  // indicate the function declared with an _Checked or _Unchecked specifier
+  // Indicates whether the function is declared with a _Checked or
+  // _Unchecked specifier.
   unsigned CheckedSpecifier : 2;
 
   /// \brief Indicates if the function uses __try.
