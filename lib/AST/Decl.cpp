@@ -2854,7 +2854,6 @@ unsigned FunctionDecl::getNumTypeVars() const {
 void FunctionDecl::setTypeVars(ASTContext &C, 
                                ArrayRef<TypedefDecl *> NewTypeVarInfo) {
   assert(!TypeVarInfo && "Already has type variable info!");
-  assert(NewTypeVarInfo.size() == getNumTypeVars() && "Type variable count mismatch!");
 
   // Zero params -> null pointer.
   if (!NewTypeVarInfo.empty()) {
