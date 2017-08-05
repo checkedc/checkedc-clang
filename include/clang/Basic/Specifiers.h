@@ -279,7 +279,6 @@ namespace clang {
     SD_Dynamic         ///< Dynamic storage duration.
   };
 
-
   /// Describes the nullability of a particular type.
   enum class NullabilityKind : uint8_t {
     /// Values of this type can never be null.

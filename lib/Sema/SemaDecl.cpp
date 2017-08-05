@@ -8327,11 +8327,11 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   if (!NewFD) return nullptr;
 
   if (D.getDeclSpec().isForanySpecified()) {
-    NewFD->setGenericFunctionFlag(true);
-    NewFD->setTypeVars(D.getDeclSpec().typeVariables());
-
-    // Diagnose generic no-prototype function declarator
-    if (!NewFD->hasPrototype()) {
+    if (NewFD->hasPrototype()) {
+      NewFD->setGenericFunctionFlag(true);
+      NewFD->setTypeVars(D.getDeclSpec().typeVariables());
+    } else {
+      // Diagnose generic no-prototype function declarator
       Diag(NewFD->getLocation(), diag::no_prototype_generic_function);
       NewFD->setInvalidDecl();
     }
