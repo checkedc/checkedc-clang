@@ -317,6 +317,13 @@ namespace clang {
   };
 
   llvm::StringRef getParameterABISpelling(ParameterABI kind);
+
+  /// Checked C - checked function specifiers
+  enum CheckedFunctionSpecifiers {
+    CFS_None = 0,
+    CFS_Checked = 1,
+    CFS_Unchecked = 2
+  };
 } // end namespace clang
 
 #endif // LLVM_CLANG_BASIC_SPECIFIERS_H

@@ -8275,6 +8275,16 @@ static Scope *getTagInjectionScope(Scope *S, const LangOptions &LangOpts) {
   return S;
 }
 
+/// Is this a K&R old-style function declaration without a
+/// preceding prototype?
+static bool isKNRDeclarationOnly(FunctionDecl *Decl) {
+  if (!Decl->hasPrototype()) {
+    const FunctionDecl *Previous = Decl->getPreviousDecl();
+    return (!Previous || !Previous->getType()->isFunctionProtoType());
+  }
+  return false;
+}
+
 NamedDecl*
 Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                               TypeSourceInfo *TInfo, LookupResult &Previous,
@@ -8321,10 +8331,16 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       NewFD->setGenericFunctionFlag(true);
       NewFD->setTypeVars(D.getDeclSpec().typeVariables());
     } else {
+      // Diagnose generic no-prototype function declarator
       Diag(NewFD->getLocation(), diag::no_prototype_generic_function);
       NewFD->setInvalidDecl();
     }
   }
+
+  if (D.getDeclSpec().isCheckedSpecified())
+    NewFD->setCheckedSpecifier(CheckedFunctionSpecifiers::CFS_Checked);
+  else if (D.getDeclSpec().isUncheckedSpecified())
+    NewFD->setCheckedSpecifier(CheckedFunctionSpecifiers::CFS_Unchecked);
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();
@@ -8864,33 +8880,6 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
-  // Checked C - type restrictions on declarations in checked blocks.
-  // Function parameters & return are not allowed to use unchecked type
-  // in checked block.
-  // Checked function specifier & top level scope checked property can be used.
-  if (D.getDeclSpec().isCheckedSpecified() ||
-      (!D.getDeclSpec().isUncheckedSpecified() && S->isCheckedScope())) {
-    // Current scope checked property is from checked function or
-    // checked scope keyword.
-    // In checked function, check function return/param types.
-    // In checked block, no prototypes functions are not allowed.
-    if (!DiagnoseCheckedDecl(NewFD))
-      NewFD->setInvalidDecl();
-    for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
-      ParmVarDecl *PVD = NewFD->getParamDecl(I);
-      if (!DiagnoseCheckedDecl(PVD))
-        PVD->setInvalidDecl();
-    }
-    if (NewFD->isVariadic()) {
-      Diag(NewFD->getLocStart(), diag::err_checked_scope_no_variadic_func_for_declaration);
-      NewFD->setInvalidDecl();
-    }
-    if (!NewFD->hasPrototype()) {
-      Diag(NewFD->getLocStart(), diag::err_checked_scope_no_prototype_func);
-      NewFD->setInvalidDecl();
-    }
-  }
-
   if (D.getDeclSpec().isNoreturnSpecified())
     NewFD->addAttr(
         ::new(Context) C11NoReturnAttr(D.getDeclSpec().getNoreturnSpecLoc(),
@@ -8965,6 +8954,31 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
             CC == CC_X86StdCall ? diag::warn_cconv_knr : diag::err_cconv_knr;
         Diag(NewFD->getLocation(), DiagID)
             << FunctionType::getNameForCallConv(CC);
+      }
+    }
+
+    // Diagnose no-prototype or variadic functions declared in checked scopes or
+    // with a _Checked specifier.  Do this after merging possibly prototyped
+    // prior declarations to form a composite type.
+    CheckedFunctionSpecifiers CFS = NewFD->getCheckedSpecifier();
+    if (CFS == CheckedFunctionSpecifiers::CFS_Checked ||
+      (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
+      // Disallow no prototype function declarators within a checked scope.
+      //
+      // This includes K&R style definitions of functions in checked scopes
+      // that aren't preceded by a prototype. clang gives K&R style
+      // definitions prototype types, even though the C11 standard does not say
+      // that K&R definitions create prototypes.
+      if (isa<FunctionNoProtoType>(FT) ||
+          (D.isFunctionDefinition() && isKNRDeclarationOnly(NewFD))) {
+        Diag(NewFD->getLocStart(), diag::err_checked_scope_no_prototype_func);
+        NewFD->setInvalidDecl();
+      }
+
+      const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(FT);
+      if (FPT && FPT->isVariadic()) {
+        Diag(NewFD->getLocStart(), diag::err_checked_scope_no_variadic_func_for_declaration);
+        NewFD->setInvalidDecl();
       }
     }
   } else {
@@ -9329,6 +9343,22 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
             D.setInvalidType();
           }
       }
+    }
+  }
+
+  // Checked C - type restrictions on declarations in checked blocks.
+  // Check that function parameters and the return value do not
+  // have an unchecked pointer type in a checked block.
+  CheckedFunctionSpecifiers CFS = NewFD->getCheckedSpecifier();
+  // Decide if we are in checked scope/function.
+  if (CFS == CheckedFunctionSpecifiers::CFS_Checked ||
+    (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
+    if (!DiagnoseCheckedDecl(NewFD))
+      NewFD->setInvalidDecl();
+    for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
+      ParmVarDecl *PVD = NewFD->getParamDecl(I);
+      if (!DiagnoseCheckedDecl(PVD))
+        PVD->setInvalidDecl();
     }
   }
 

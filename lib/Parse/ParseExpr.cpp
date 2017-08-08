@@ -3177,8 +3177,8 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
   ValueDecl *resDecl = declRef->getDecl();
   if (!resDecl || !isa<FunctionDecl>(resDecl)) return false;
   FunctionDecl* funDecl = dyn_cast<FunctionDecl>(resDecl);
-  // Only parse for a list of type specifiers if it's a generic function.
-  if (!funDecl->IsGenericFunction()) return false;
+  // Only parse the list of type arguments if it's a generic function.
+  if (!funDecl->isGenericFunction()) return false;
 
   // Expect a '<' to denote that a list of type specifiers are incoming.
   SourceLocation lessLoc = Tok.getLocation();
