@@ -4500,6 +4500,11 @@ public:
   /// expression evaluates is in range.
   BoundsExpr *InferRValueBounds(Expr *E);
 
+  enum BoundsDeclarationCheck {
+      BDC_Assignment,
+      BDC_Initialization
+  };
+
   /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
   /// body.
   void CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body);

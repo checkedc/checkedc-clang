@@ -9351,16 +9351,17 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_bounds_cast_error_with_array_syntax
       : Error<"invalid bounds cast: expected _Array_ptr type">;
 
-  def warn_bounds_declaration_not_true : Warning<
-    "bounds declaration for '%0' may not be true after assignment">,
+  def warn_bounds_declaration_invalid : Warning<
+    "declared bounds for %1 may be invalid after "
+    " %select{assignment|initialization}0">,
     DefaultIgnore,
     InGroup<DiagGroup<"check-bounds-decls">>;
 
-  def note_declared_bounds_for_expr : Note<
-    "declared bounds for '%0' are '%1'">;
+  def note_declared_bounds : Note<
+    "declared bounds are '%0'">;
 
-  def note_inferred_bounds_for_expr : Note<
-    "inferred bounds for right-hand side are '%0'">;
+  def note_inferred_bounds : Note<
+    "inferred bounds are '%0'">;
 
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;

@@ -1075,11 +1075,11 @@ namespace {
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
           assert(!UO->hasBoundsExpr());
           UO->setBoundsExpr(LValueBounds);
-        }
-        else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
+        } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
           assert(!AS->hasBoundsExpr());
           AS->setBoundsExpr(LValueBounds);
-        } else
+        }
+        else
           llvm_unreachable("unexpected expression kind");
       }
       return NeedsBoundsCheck;
@@ -1100,7 +1100,7 @@ namespace {
       }
 
       // E->F.  This is equivalent to (*E).F.
-      if (Base->getType()->isCheckedPointerArrayType()){
+      if (Base->getType()->isCheckedPointerArrayType()) {
         BoundsExpr *Bounds = S.InferRValueBounds(Base);
         if (Bounds->isNone()) {
           S.Diag(Base->getLocStart(), diag::err_expected_bounds) << Base->getSourceRange();
@@ -1113,32 +1113,61 @@ namespace {
       return false;
     }
 
-    // Given an assignment target = e, where target has declared bounds
-    // DeclaredBounds and and e has inferred bounds SrcBounds, make sure
-    // that SrcBounds implies that DeclaredBounds is provably true.
-    void CheckBoundsDeclIsProvable(SourceLocation ExprLoc, Expr *Target,
-                                   BoundsExpr *DeclaredBounds, Expr *Src,
-                                   BoundsExpr *SrcBounds) {
-      if (S.Diags.isIgnored(diag::warn_bounds_declaration_not_true, ExprLoc))
-        return;
 
+    // Check that SrcBounds implies that DeclaredBounds are provably
+    // true.
+    bool CheckBoundsDeclIsProvable(BoundsExpr *DeclaredBounds,
+                                   BoundsExpr *SrcBounds) {
       // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
-        return;
+        return true;
 
       // target bounds(none) implied by any other bounds.
       if (DeclaredBounds->isNone())
+        return true;
+
+      return S.Context.EquivalentBounds(DeclaredBounds, SrcBounds);
+    }
+
+    // Given an assignment target = e, where target has declared bounds
+    // DeclaredBounds and and e has inferred bounds SrcBounds, make sure
+    // that SrcBounds implies that DeclaredBounds are provably true.
+    void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
+                                     BoundsExpr *DeclaredBounds, Expr *Src,
+                                     BoundsExpr *SrcBounds) {
+      if (S.Diags.isIgnored(diag::warn_bounds_declaration_invalid, ExprLoc))
         return;
 
-      if (!S.Context.EquivalentBounds(DeclaredBounds, SrcBounds)) {
-         S.Diag(ExprLoc, diag::warn_bounds_declaration_not_true) << Target
+      if (!CheckBoundsDeclIsProvable(DeclaredBounds, SrcBounds)) {
+        S.Diag(ExprLoc, diag::warn_bounds_declaration_invalid)
+          << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
           << Target->getSourceRange() << Src->getSourceRange();
-         S.Diag(Target->getExprLoc(), diag::note_declared_bounds_for_expr) <<
-           Target << DeclaredBounds << Target->getSourceRange();
-         S.Diag(Src->getExprLoc(), diag::note_inferred_bounds_for_expr) <<
-           SrcBounds << Src->getSourceRange();
+        S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
+          << DeclaredBounds << DeclaredBounds->getSourceRange();
+        S.Diag(Src->getExprLoc(), diag::note_inferred_bounds)
+          << SrcBounds << Src->getSourceRange();
       }
     }
+
+    // Given an initializer v = e, where v is a variable that has declared
+    // bounds DeclaredBounds and and e has inferred bounds SrcBounds, make sure
+    // that SrcBounds implies that DeclaredBounds are provably true.
+    void CheckBoundsDeclAtInitializer(SourceLocation ExprLoc, VarDecl *D,
+                                      BoundsExpr *DeclaredBounds, Expr *Src,
+                                      BoundsExpr *SrcBounds) {
+      if (S.Diags.isIgnored(diag::warn_bounds_declaration_invalid, ExprLoc))
+        return;
+
+      if (!CheckBoundsDeclIsProvable(DeclaredBounds, SrcBounds)) {
+        S.Diag(ExprLoc, diag::warn_bounds_declaration_invalid)
+          << Sema::BoundsDeclarationCheck::BDC_Initialization << D
+          << D->getLocation() << Src->getSourceRange();
+        S.Diag(D->getLocation(), diag::note_declared_bounds)
+          << DeclaredBounds << D->getLocation();
+        S.Diag(Src->getExprLoc(), diag::note_inferred_bounds)
+          << SrcBounds << Src->getSourceRange();
+      }
+  }
 
   public:
     CheckBoundsDeclarations(Sema &S) : S(S),
@@ -1177,8 +1206,8 @@ namespace {
                     << RHS->getSourceRange();
              RHSBounds = S.CreateInvalidBoundsExpr();
           } else
-            CheckBoundsDeclIsProvable(E->getExprLoc(), LHS, LHSTargetBounds,
-                                      RHS, RHSBounds);
+            CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
+                                        RHS, RHSBounds);
         }
       }
 
@@ -1320,6 +1349,9 @@ namespace {
          S.Diag(Init->getLocStart(), diag::err_expected_bounds_for_initializer)
              << Init->getSourceRange();
          InitBounds = S.CreateInvalidBoundsExpr();
+       } else {
+         CheckBoundsDeclAtInitializer(D->getLocation(), D, DeclaredBounds,
+           Init, InitBounds);
        }
        if (DumpBounds)
          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
@@ -1329,7 +1361,7 @@ namespace {
         // Make sure that automatic variables that are not arrays are
         // initialized.
         if (D->hasLocalStorage() && !D->getType()->isArrayType())
-          S.Diag(D->getLocation(),
+          S.Diag(D->getInitializerStartLoc(),
                  diag::err_initializer_expected_with_bounds) << D;
         // Static variables are always initialized to a valid initialization
         // value for bounds, if there is no initializer.  See the prior comment
