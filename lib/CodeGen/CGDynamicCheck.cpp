@@ -117,9 +117,9 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
   EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
 }
 
-void CodeGenFunction::EmitDynamicBoundsCheck(const Address BaseAddr,
-                                             const BoundsExpr *CastBounds,
-                                             const BoundsExpr *SubExprBounds) {
+void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
+                                                 const BoundsExpr *CastBounds,
+                                                 const BoundsExpr *SubExprBounds) {
   if (!getLangOpts().CheckedC)
     return;
 
