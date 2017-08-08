@@ -94,24 +94,21 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
   ++NumDynamicChecksRange;
 
   // Emit the code to generate the pointer values
-  Address Lower = Builder.CreateBitCast(
-      EmitPointerWithAlignment(BoundsRange->getLowerExpr()), VoidPtrTy,
-      "_Dynamic_check.lower_ptr");
-  Address Upper = Builder.CreateBitCast(
-      EmitPointerWithAlignment(BoundsRange->getUpperExpr()), VoidPtrTy,
-      "_Dynamic_check.upper_ptr");
+  Address Lower = EmitPointerWithAlignment(BoundsRange->getLowerExpr());
+  if (Lower.getType() != PtrAddr.getType())
+    Lower = Builder.CreateBitCast(Lower, PtrAddr.getType());
 
-  // Keep the pointer address
-  Address PtrVal =
-      Builder.CreateBitCast(PtrAddr, VoidPtrTy, "_Dynamic_check.ptr");
+  Address Upper = EmitPointerWithAlignment(BoundsRange->getUpperExpr());
+  if (Upper.getType() != PtrAddr.getType())
+    Upper = Builder.CreateBitCast(Upper, PtrAddr.getType());
 
   // Make the lower check
   Value *LowerChk = Builder.CreateICmpULE(
-      Lower.getPointer(), PtrVal.getPointer(), "_Dynamic_check.lower");
+      Lower.getPointer(), PtrAddr.getPointer(), "_Dynamic_check.lower");
 
   // Make the upper check
   Value *UpperChk = Builder.CreateICmpULT(
-      PtrVal.getPointer(), Upper.getPointer(), "_Dynamic_check.upper");
+      PtrAddr.getPointer(), Upper.getPointer(), "_Dynamic_check.upper");
 
   // Emit both checks
   EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
@@ -160,10 +157,8 @@ void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
   // %failure:
   //   trap()
 
-  Address BaseVal =
-      Builder.CreateBitCast(BaseAddr, VoidPtrTy, "_Dynamic_check.ptr");
   Value *IsNull =
-      Builder.CreateIsNull(BaseVal.getPointer(), "_Dynamic_check.is_null");
+      Builder.CreateIsNull(BaseAddr.getPointer(), "_Dynamic_check.is_null");
 
   // Constant Folding:
   // If IsNull is true (one), then a) we don't need to insert the rest
@@ -191,16 +186,17 @@ void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
   // Dynamic_check(lb <= castlb && castub <= ub)
 
   // Emit the code to generate lb and ub
-  Address Lower = Builder.CreateBitCast(
-      EmitPointerWithAlignment(SubRange->getLowerExpr()), VoidPtrTy, "");
-  Address Upper = Builder.CreateBitCast(
-      EmitPointerWithAlignment(SubRange->getUpperExpr()), VoidPtrTy, "");
+  Address Lower = EmitPointerWithAlignment(SubRange->getLowerExpr());
+  Address Upper = EmitPointerWithAlignment(SubRange->getUpperExpr());
 
   // Emit the code to generate castlb and castub
-  Address CastLower = Builder.CreateBitCast(
-      EmitPointerWithAlignment(CastRange->getLowerExpr()), VoidPtrTy, "");
-  Address CastUpper = Builder.CreateBitCast(
-      EmitPointerWithAlignment(CastRange->getUpperExpr()), VoidPtrTy, "");
+  Address CastLower = EmitPointerWithAlignment(CastRange->getLowerExpr());
+  if (CastLower.getType() != Lower.getType())
+    CastLower = Builder.CreateBitCast(CastLower, Lower.getType());
+
+  Address CastUpper = EmitPointerWithAlignment(CastRange->getUpperExpr());
+  if (CastUpper.getType() != Upper.getType())
+    CastUpper = Builder.CreateBitCast(CastUpper, Upper.getType());
 
   // Make the lower check (Lower <= CastLower)
   Value *LowerChk = Builder.CreateICmpULE(
