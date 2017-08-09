@@ -389,11 +389,13 @@ namespace {
       return ExpandToRange(LowerBounds, &CBE);
     }
 
+  public:
     Expr *CreateImplicitCast(QualType Target, CastKind CK, Expr *E) {
       return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
                                        ExprValueKind::VK_RValue);
     }
 
+  private:
     Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E) {
       return CStyleCastExpr::Create(Context, Target, ExprValueKind::VK_RValue,
                                       CK, E, nullptr, nullptr, SourceLocation(),
@@ -435,7 +437,6 @@ namespace {
       return CBE;
     }
 
-  private:
     // Given a byte_count or count bounds expression for the expression Base,
     // expand it to a range bounds expression:
     //  E : Count(C) expands to Bounds(E, E + C)
@@ -1015,6 +1016,24 @@ BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
   return BoundsInference(*this).CreateBoundsForArrayType(QT);
 }
 
+BoundsExpr *Sema::ExpandToRange(Expr *Base, BoundsExpr *B) {
+  return BoundsInference(*this).ExpandToRange(Base, B);
+}
+
+BoundsExpr *Sema::ExpandToRange(VarDecl *D, BoundsExpr *B) {
+  QualType QT = D->getType();
+  ExprResult ER = BuildDeclRefExpr(D, QT,
+                                   clang::ExprValueKind::VK_LValue, SourceLocation());
+  if (ER.isInvalid())
+    return nullptr;
+  Expr *Base = ER.get();
+  BoundsInference BI(*this);
+  if (!QT->isArrayType())
+    Base = BI.CreateImplicitCast(QT, CastKind::CK_LValueToRValue, Base);
+  return BI.ExpandToRange(Base, B);
+}
+
+
 namespace {
   class CheckBoundsDeclarations :
     public RecursiveASTVisitor<CheckBoundsDeclarations> {
@@ -1158,12 +1177,13 @@ namespace {
       if (S.Diags.isIgnored(diag::warn_bounds_declaration_invalid, ExprLoc))
         return;
 
-      if (!CheckBoundsDeclIsProvable(DeclaredBounds, SrcBounds)) {
+      BoundsExpr *NormalizedBounds = S.ExpandToRange(D, DeclaredBounds);
+      if (!CheckBoundsDeclIsProvable(NormalizedBounds, SrcBounds)) {
         S.Diag(ExprLoc, diag::warn_bounds_declaration_invalid)
           << Sema::BoundsDeclarationCheck::BDC_Initialization << D
           << D->getLocation() << Src->getSourceRange();
         S.Diag(D->getLocation(), diag::note_declared_bounds)
-          << DeclaredBounds << D->getLocation();
+          << NormalizedBounds << D->getLocation();
         S.Diag(Src->getExprLoc(), diag::note_inferred_bounds)
           << SrcBounds << Src->getSourceRange();
       }

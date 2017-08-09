@@ -4495,10 +4495,13 @@ public:
   /// target of an lvalue.
   BoundsExpr *InferLValueTargetBounds(Expr *E);
 
-  /// InferRVa;ieBounds - infer a bounds expression for an rvalue.
+  /// InferRValueBounds - infer a bounds expression for an rvalue.
   /// The bounds determine whether the rvalue to which an
   /// expression evaluates is in range.
   BoundsExpr *InferRValueBounds(Expr *E);
+
+  BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B);
+  BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B);
 
   enum BoundsDeclarationCheck {
       BDC_Assignment,

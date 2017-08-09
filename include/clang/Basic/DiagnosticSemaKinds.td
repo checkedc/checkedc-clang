@@ -9358,10 +9358,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     InGroup<DiagGroup<"check-bounds-decls">>;
 
   def note_declared_bounds : Note<
-    "declared bounds are '%0'">;
+    "(expanded) declared bounds are '%0'">;
 
   def note_inferred_bounds : Note<
-    "inferred bounds are '%0'">;
+    "(expanded) inferred bounds are '%0'">;
 
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;

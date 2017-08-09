@@ -3,7 +3,7 @@
 // mostly unimplemented, we only issue warnings when bounds declarations
 // cannot be provided to hold.
 //
-// RUN: %clang -cc1 -fcheckedc-extension -Wcheck-bounds-decls -verify -verify-ignore-unexpected=note %s
+// RUN: %clang -cc1 -fcheckedc-extension -Wcheck-bounds-decls -verify %s
 
 // Initialization by null - no warning.
 void f1(_Array_ptr<int> p : bounds(p, p + x), int x) {
@@ -19,7 +19,9 @@ void f2(_Array_ptr<int> p : bounds(p, p + x), int x) {
 // Initialization by expression without syntactically identical 
 // normalized bounds - warning expected.
 void f3(_Array_ptr<int> p : bounds(p, p + x), int x) {
-  _Array_ptr<int> r : count(x) = p;     // expected-warning {{may be invalid}}
+  _Array_ptr<int> r : count(x) = p;     // expected-warning {{may be invalid}} \
+                                        // expected-note {{(expanded) declared bounds are 'bounds(r, r + x)'}} \
+                                        // expected-note {{(expanded) inferred bounds are 'bounds(p, p + x)'}}
 }
 
 
@@ -40,5 +42,7 @@ void f5(_Array_ptr<int> p : count(x), int x) {
 // no warning.
 void f6(_Array_ptr<int> p : count(x), int x) {
   _Array_ptr<int> r : count(x) = 0;
-  r = p;      // expected-warning {{may be invalid}}
+  r = p;      // expected-warning {{may be invalid}} \
+              // expected-note {{(expanded) declared bounds are 'bounds(r, r + x)'}} \
+              // expected-note {{(expanded) inferred bounds are 'bounds(p, p + x)'}}
 }
