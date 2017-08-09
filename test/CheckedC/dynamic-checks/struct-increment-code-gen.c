@@ -48,12 +48,9 @@ void f1(void) {
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** @gp1
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** @gp1
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG3]], {{i[0-9]+}} 1
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG1]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG4]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG2]], [[REG1]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG1]], [[REG4]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG1]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
@@ -83,12 +80,9 @@ void f1(void) {
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** @gp3
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** @gp3
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG3]], {{i[0-9]+}} 3
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG1]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG4]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG2]], [[REG1]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG1]], [[REG4]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG1]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
@@ -123,12 +117,9 @@ void f1(void) {
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** @gp3
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** @gp3
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG4]], {{i[0-9]+}} 3
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG3]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG5]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG3]], [[REG2]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG2]], [[REG5]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
@@ -175,12 +166,9 @@ void f2(_Array_ptr<S1> lp1 : count(1),
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %lp1.addr
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %lp1.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG3]], {{i[0-9]+}} 1
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG1]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG4]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG2]], [[REG1]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG1]], [[REG4]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG1]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
@@ -211,12 +199,9 @@ void f2(_Array_ptr<S1> lp1 : count(1),
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %lp3.addr
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %lp3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG3]], {{i[0-9]+}} 3
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG1]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG4]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG2]], [[REG1]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG1]], [[REG4]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG1]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
@@ -251,12 +236,9 @@ void f2(_Array_ptr<S1> lp1 : count(1),
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %lp3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %lp3.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG4]], {{i[0-9]+}} 3
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG3]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG5]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG3]], [[REG2]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG2]], [[REG5]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
@@ -299,11 +281,11 @@ void f3(void) {
   // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
-  // CHECK-IR: br i1 icmp ult ({{i[0-9]+}} ptrtoint ([1 x %struct.S1]* @ga1 to {{i[0-9]+}}),
-  // CHECK-IR-SAME: {{i[0-9]+}} ptrtoint (%struct.S1* getelementptr inbounds
-  // CHECK-IR-SAME: (%struct.S1, %struct.S1* getelementptr inbounds
-  // CHECK-IR-SAME: ([1 x %struct.S1], [1 x %struct.S1]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
-  // CHECK-IR-SAME: {{i[0-9]+}} 1) to {{i[0-9]+}})),
+  // CHECK-IR:      br i1 icmp ult (
+  // CHECK-IR-SAME:   %struct.S1* getelementptr inbounds ([1 x %struct.S1], [1 x %struct.S1]* @ga1, i32 0, i32 0),
+  // CHECK-IR-SAME:   %struct.S1* getelementptr inbounds (%struct.S1,
+  // CHECK-IR-SAME:     %struct.S1* getelementptr inbounds ([1 x %struct.S1], [1 x %struct.S1]* @ga1, i32 0, i32 0),
+  // CHECK-IR-SAME:     i64 1)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -329,11 +311,11 @@ void f3(void) {
   // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
-  // CHECK-IR: br i1 icmp ult ({{i[0-9]+}} ptrtoint ([3 x %struct.S1]* @ga3 to {{i[0-9]+}}),
-  // CHECK-IR-SAME: {{i[0-9]+}} ptrtoint (%struct.S1* getelementptr inbounds
-  // CHECK-IR-SAME: (%struct.S1, %struct.S1* getelementptr inbounds
-  // CHECK-IR-SAME: ([3 x %struct.S1], [3 x %struct.S1]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
-  // CHECK-IR-SAME: {{i[0-9]+}} 3) to {{i[0-9]+}})),
+  // CHECK-IR:      br i1 icmp ult (
+  // CHECK-IR-SAME:   %struct.S1* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, i32 0, i32 0),
+  // CHECK-IR-SAME:   %struct.S1* getelementptr inbounds (%struct.S1,
+  // CHECK-IR-SAME:     %struct.S1* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, i32 0, i32 0),
+  // CHECK-IR-SAME:     i64 3)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -362,12 +344,11 @@ void f3(void) {
   // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
-  // CHECK-IR: br i1 and
-  // CHECK-IR-SAME: (i1 icmp ule ({{i[0-9]+}} ptrtoint ([3 x %struct.S1]* @ga3 to {{i[0-9]+}}),
-  // CHECK-IR-SAME: {{i[0-9]+}} ptrtoint (%struct.S1* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 2) to {{i[0-9]+}})),
-  // CHECK-IR-SAME: i1 icmp ult ({{i[0-9]+}} ptrtoint (%struct.S1* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 2) to {{i[0-9]+}}),
-  // CHECK-IR-SAME: {{i[0-9]+}} ptrtoint (%struct.S1* getelementptr inbounds
-  // CHECK-IR-SAME: (%struct.S1, %struct.S1* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0), {{i[0-9]+}} 3) to {{i[0-9]+}}))),
+  // CHECK-IR:      br i1 icmp ult (
+  // CHECK-IR-SAME:   %struct.S1* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, i32 0, i64 2),
+  // CHECK-IR-SAME:   %struct.S1* getelementptr inbounds (%struct.S1,
+  // CHECK-IR-SAME:     %struct.S1* getelementptr inbounds ([3 x %struct.S1], [3 x %struct.S1]* @ga3, i32 0, i32 0),
+  // CHECK-IR-SAME:     i64 3)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -411,12 +392,9 @@ void f4(S1 la1 _Checked[1],
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %la1.addr
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %la1.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG3]], {{i[0-9]+}} 1
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG1]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG4]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG2]], [[REG1]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG1]], [[REG4]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG1]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
@@ -446,12 +424,9 @@ void f4(S1 la1 _Checked[1],
   // CHECK-IR-NEXT: [[REG2:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %la3.addr
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %la3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG3]], {{i[0-9]+}} 3
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG1]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG4]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG2]], [[REG1]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG1]], [[REG4]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG1]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
@@ -486,12 +461,9 @@ void f4(S1 la1 _Checked[1],
   // CHECK-IR-NEXT: [[REG3:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %la3.addr
   // CHECK-IR-NEXT: [[REG4:%[a-zA-Z0-9.]*]] = load %struct.S1*, %struct.S1** %la3.addr
   // CHECK-IR-NEXT: [[REG5:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG4]], {{i[0-9]+}} 3
-  // CHECK-IR-NEXT: [[REG_DYADDR:%_Dynamic_check.addr[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG2]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG3]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYLOWC:%_Dynamic_check.lower_cmp[a-zA-Z0-9.]*]] = icmp ule {{i[0-9]+}} [[REG_DYLOW]], [[REG_DYADDR]]
-  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = ptrtoint %struct.S1* [[REG5]] to {{i[0-9]+}}
-  // CHECK-IR-NEXT: [[REG_DYUPPC:%_Dynamic_check.upper_cmp[a-zA-Z0-9.]*]] = icmp ult {{i[0-9]+}} [[REG_DYADDR]], [[REG_DYUPP]]
-  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOWC]], [[REG_DYUPPC]]
+  // CHECK-IR-NEXT: [[REG_DYLOW:%_Dynamic_check.lower[a-zA-Z0-9.]*]] = icmp ule %struct.S1* [[REG3]], [[REG2]]
+  // CHECK-IR-NEXT: [[REG_DYUPP:%_Dynamic_check.upper[a-zA-Z0-9.]*]] = icmp ult %struct.S1* [[REG2]], [[REG5]]
+  // CHECK-IR-NEXT: [[REG_DYRNG:%_Dynamic_check.range[a-zA-Z0-9.]*]] = and i1 [[REG_DYLOW]], [[REG_DYUPP]]
   // CHECK-IR-NEXT: br i1 [[REG_DYRNG]], label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]], label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
   // CHECK-IR-NEXT: [[REG6:%[a-zA-Z0-9.]*]] = getelementptr inbounds %struct.S1, %struct.S1* [[REG2]], {{i[0-9]+}} 0, {{i[0-9]+}} 0
