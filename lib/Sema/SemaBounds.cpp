@@ -1379,7 +1379,7 @@ namespace {
         // Make sure that automatic variables that are not arrays are
         // initialized.
         if (D->hasLocalStorage() && !D->getType()->isArrayType())
-          S.Diag(D->getInitializerStartLoc(),
+          S.Diag(D->getLocation(),
                  diag::err_initializer_expected_with_bounds) << D;
         // Static variables are always initialized to a valid initialization
         // value for bounds, if there is no initializer.  See the prior comment
