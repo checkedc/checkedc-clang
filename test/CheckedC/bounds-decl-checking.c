@@ -10,13 +10,13 @@ void f1(_Array_ptr<int> p : bounds(p, p + x), int x) {
     _Array_ptr<int> r : bounds(p, p + x) = 0;
 }
 
-// Initialization by expression with syntactically identical 
+// Initialization by expression with syntactically identical
 // normalized bounds - no warning.
 void f2(_Array_ptr<int> p : bounds(p, p + x), int x) {
   _Array_ptr<int> r : bounds(p, p + x) = 0;
 }
 
-// Initialization by expression without syntactically identical 
+// Initialization by expression without syntactically identical
 // normalized bounds - warning expected.
 void f3(_Array_ptr<int> p : bounds(p, p + x), int x) {
   _Array_ptr<int> r : count(x) = p;     // expected-warning {{may be invalid}} \

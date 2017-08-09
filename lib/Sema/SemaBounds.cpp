@@ -1097,8 +1097,7 @@ namespace {
         } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
           assert(!AS->hasBoundsExpr());
           AS->setBoundsExpr(LValueBounds);
-        }
-        else
+        } else
           llvm_unreachable("unexpected expression kind");
       }
       return NeedsBoundsCheck;
@@ -1376,8 +1375,7 @@ namespace {
        if (DumpBounds)
          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
        // TODO: check that it meets the bounds requirements for the variable.
-      }
-      else {
+      } else {
         // Make sure that automatic variables that are not arrays are
         // initialized.
         if (D->hasLocalStorage() && !D->getType()->isArrayType())
