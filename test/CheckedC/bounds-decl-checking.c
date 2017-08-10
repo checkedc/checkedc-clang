@@ -13,7 +13,7 @@ void f1(_Array_ptr<int> p : bounds(p, p + x), int x) {
 // Initialization by expression with syntactically identical
 // normalized bounds - no warning.
 void f2(_Array_ptr<int> p : bounds(p, p + x), int x) {
-  _Array_ptr<int> r : bounds(p, p + x) = 0;
+  _Array_ptr<int> r : bounds(p, p + x) = p;
 }
 
 // Initialization by expression without syntactically identical
@@ -34,7 +34,7 @@ void f4(_Array_ptr<int> p : count(x), int x) {
 // Assignment of expression with syntactically identical normalized bounds -
 //- no warning.
 void f5(_Array_ptr<int> p : count(x), int x) {
-  _Array_ptr<int> r : bounds(p, p + x) = 0;
+  _Array_ptr<int> r : bounds(p, p + x) = p;
   r = p;
 }
 
