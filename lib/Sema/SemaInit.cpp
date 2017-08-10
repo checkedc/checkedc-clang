@@ -2879,7 +2879,7 @@ ExprResult Sema::ActOnDesignatedInitializer(Designation &Desig,
 
 InitializedEntity::InitializedEntity(ASTContext &Context, unsigned Index,
                                      const InitializedEntity &Parent)
-  : Parent(&Parent), Index(Index)
+  : Parent(&Parent), Index(Index), Bounds(nullptr)
 {
   if (const ArrayType *AT = Context.getAsArrayType(Parent.getType())) {
     Kind = EK_ArrayElement;
@@ -7067,10 +7067,17 @@ InitializationSequence::Perform(Sema &S,
         // it modifies the RHS or produces diagnostic messages.  We want the
         // side-effects to happen exactly once, so we carefully compute the
         // right type and pass it to the call.
-        QualType LHSInteropType = S.GetCheckedCInteropType(Entity);
-        if (!LHSInteropType.isNull())
-          LHSType = S.ResolveSingleAssignmentType(LHSType, LHSInteropType,
-                                                  Result);
+        const BoundsExpr *Bounds = Entity.getBounds();
+        if (Bounds && Bounds->isInteropTypeAnnotation()) {
+          const InteropTypeBoundsAnnotation *InteropAnnotation = 
+            dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
+          if (InteropAnnotation) {
+            QualType LHSInteropType = InteropAnnotation->getType();
+            LHSType = S.ResolveSingleAssignmentType(LHSType, LHSInteropType,
+                                                    Result);
+          } else 
+            llvm_unreachable("unexpected cast failure");
+        }
       }
 
       Sema::AssignConvertType ConvTy =

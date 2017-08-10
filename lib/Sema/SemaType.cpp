@@ -3790,6 +3790,47 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
   return ResultType;
 }
 
+// Get the corresponding Checked C interop type for Ty, given a
+// a bounds expression Bounds.
+QualType Sema::GetCheckedCInteropType(QualType Ty,
+                                      const BoundsExpr *Bounds,
+                                      bool isParameter) {
+
+  QualType ResultTy = QualType();
+  if (Ty.isNull() || Bounds == nullptr)
+    return ResultTy;
+
+  switch (Bounds->getKind()) {
+    case BoundsExpr::Kind::InteropTypeAnnotation: {
+      const InteropTypeBoundsAnnotation *Annot =
+        dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
+      assert(Annot && "unexpected dyn_cast failure");
+      if (Annot != nullptr)
+        ResultTy = Annot->getType();
+      break;
+    }
+    case BoundsExpr::Kind::ByteCount:
+    case BoundsExpr::Kind::ElementCount:
+    case BoundsExpr::Kind::Range: {
+      if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
+        if (PtrType->isUnchecked()) {
+          ResultTy = Context.getPointerType(PtrType->getPointeeType(),
+                                              CheckedPointerKind::Array);
+          ResultTy.setLocalFastQualifiers(Ty.getCVRQualifiers());
+        }
+      }
+      else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType()) {
+        ResultTy = MakeCheckedArrayType(Ty);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  return ResultTy;
+}
+
 Sema::CheckedTypeClassification Sema::classifyForCheckedTypeDiagnostic(QualType QT) {
   if (QT->isStructureType())
     return CheckedTypeClassification::CCT_Struct;

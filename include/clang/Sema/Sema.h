@@ -9427,6 +9427,10 @@ public:
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(const InitializedEntity &Entity);
 
+  QualType Sema::GetCheckedCInteropType(QualType originalType,
+                                        const BoundsExpr *Bounds,
+                                        bool isParameter);
+
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
