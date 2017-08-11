@@ -12073,7 +12073,7 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
   }
 }
 
-// checkBoundsDeclForBoundsExpr: check whether a bounds-safe interface
+// checkBoundsDeclWithTypeAnnotation: check whether a bounds-safe interface
 // type can be used with type Ty.
 // * Ty is the type of a variable declaration or the return type
 //   of a function.
@@ -12184,7 +12184,7 @@ static bool checkBoundsDeclWithTypeAnnotation(Sema &S, QualType DeclaredTy,
 
 }
 
-// checkBoundsDeclForBoundsExpr: check whether a bounds expression
+// checkBoundsDeclWithBoundsExpr: check whether a bounds expression
 // can be used with type Ty.
 // * Ty is the type of a variable declaration or the return type
 //   of a function.

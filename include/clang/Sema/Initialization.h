@@ -199,7 +199,7 @@ private:
   InitializedEntity(FieldDecl *Member, const InitializedEntity *Parent,
                     bool Implicit) 
     : Kind(EK_Member), Parent(Parent), Type(Member->getType()),
-      ManglingNumber(0), Variable{Member, Implicit}, 
+      ManglingNumber(0), Variable{Member, Implicit},
       Bounds(Member->getBoundsExpr()) {
   }
   

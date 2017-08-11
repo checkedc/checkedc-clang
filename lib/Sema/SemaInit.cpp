@@ -7068,16 +7068,11 @@ InitializationSequence::Perform(Sema &S,
         // side-effects to happen exactly once, so we carefully compute the
         // right type and pass it to the call.
         const BoundsExpr *Bounds = Entity.getBounds();
-        if (Bounds && Bounds->isInteropTypeAnnotation()) {
-          const InteropTypeBoundsAnnotation *InteropAnnotation = 
-            dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
-          if (InteropAnnotation) {
-            QualType LHSInteropType = InteropAnnotation->getType();
+        bool isParam = Entity.isParameterKind();
+        QualType LHSInteropType = S.GetCheckedCInteropType(LHSType, Bounds, isParam);
+        if (!LHSInteropType.isNull())
             LHSType = S.ResolveSingleAssignmentType(LHSType, LHSInteropType,
                                                     Result);
-          } else 
-            llvm_unreachable("unexpected cast failure");
-        }
       }
 
       Sema::AssignConvertType ConvTy =

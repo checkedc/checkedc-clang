@@ -283,10 +283,10 @@ void f31(int (*fn)(_Array_ptr<int> arr : bounds(arr, arr + len), int len));
 
 void f32(int (*fn)(int *arr : itype(_Ptr<int>)));
 
-// CHECK: |-FunctionDecl 
+// CHECK: |-FunctionDecl
 // CHECK: f32
 // CHECK: 'void (int (*)(int * : _Ptr<int>))'
-// CHECK: armVarDecl 
+// CHECK: ParmVarDecl
 // CHECK fn
 // CHECK 'int (*)(int * : _Ptr<int>)'
 

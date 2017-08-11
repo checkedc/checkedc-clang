@@ -9429,7 +9429,7 @@ public:
 
   QualType Sema::GetCheckedCInteropType(QualType originalType,
                                         const BoundsExpr *Bounds,
-                                        bool isParameter);
+                                        bool isParam);
 
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.

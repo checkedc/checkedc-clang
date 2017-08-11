@@ -4978,7 +4978,7 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
                                                          ProtoArgType,
                                                          Bounds)
                 : InitializedEntity::InitializeParameter(
-                      Context, ProtoArgType, Proto->isParamConsumed(i), 
+                      Context, ProtoArgType, Proto->isParamConsumed(i),
                       Bounds);
 
       // Remember that parameter belongs to a CF audited API.

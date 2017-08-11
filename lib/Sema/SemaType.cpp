@@ -3753,13 +3753,7 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
       case BoundsExpr::Kind::ElementCount:
       case BoundsExpr::Kind::Range: {
         QualType Ty;
-        // The types for parameter variables that have array types are adjusted
-        // to be pointer type.  We'll work with the original array type instead.
-        // For multi-dimensional array types, the nested array types need to
-        // become checked array types too.
-        if (const ParmVarDecl *ParmVar = dyn_cast<ParmVarDecl>(TargetDecl))
-          Ty = ParmVar->getOriginalType();
-        else if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(TargetDecl))
+        if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(TargetDecl))
           Ty = FD->getReturnType();
         else
           Ty = Decl->getType();
@@ -3781,12 +3775,6 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
     }
   }
 
-  // When a parameter variable declaration is created, array types for parameter
-  // variables are adjusted to be pointer types.  We have to do the same here.
-  if (isa<ParmVarDecl>(TargetDecl) && !ResultType.isNull() &&
-      ResultType->isArrayType())
-    ResultType = Context.getAdjustedParameterType(ResultType);
-
   return ResultType;
 }
 
@@ -3794,7 +3782,7 @@ QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
 // a bounds expression Bounds.
 QualType Sema::GetCheckedCInteropType(QualType Ty,
                                       const BoundsExpr *Bounds,
-                                      bool isParameter) {
+                                      bool isParam) {
 
   QualType ResultTy = QualType();
   if (Ty.isNull() || Bounds == nullptr)
@@ -3805,8 +3793,16 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
       const InteropTypeBoundsAnnotation *Annot =
         dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
       assert(Annot && "unexpected dyn_cast failure");
-      if (Annot != nullptr)
+      if (Annot != nullptr) {
         ResultTy = Annot->getType();
+        // When a parameter variable declaration is created, array types
+        // for parameter variables are adjusted to be pointer types. 
+        // We don't adjust array types in itypes because that wo9uld
+        // lose information for bounds checking, so we have to do the
+        // adjustment here.
+        if (isParam && ResultTy->isArrayType())
+          ResultTy = Context.getAdjustedParameterType(ResultTy);
+      }
       break;
     }
     case BoundsExpr::Kind::ByteCount:
@@ -3814,12 +3810,17 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
     case BoundsExpr::Kind::Range: {
       if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
         if (PtrType->isUnchecked()) {
-          ResultTy = Context.getPointerType(PtrType->getPointeeType(),
-                                              CheckedPointerKind::Array);
+          QualType PointeeType = PtrType->getPointeeType();
+          if (isParam && (PointeeType->isConstantArrayType() ||
+                          PointeeType->isIncompleteArrayType()))
+            PointeeType = MakeCheckedArrayType(PointeeType);
+          ResultTy = Context.getPointerType(PointeeType,
+                                            CheckedPointerKind::Array);
           ResultTy.setLocalFastQualifiers(Ty.getCVRQualifiers());
         }
       }
       else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType()) {
+        assert(!isParam);
         ResultTy = MakeCheckedArrayType(Ty);
       }
       break;
