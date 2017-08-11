@@ -414,10 +414,10 @@ void f3(void) {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, i64 0, i64 0),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
   // CHECK-IR-SAME:   i32* getelementptr inbounds (i32,
-  // CHECK-IR-SAME:     i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 1)),
+  // CHECK-IR-SAME:     i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 1)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -445,10 +445,10 @@ void f3(void) {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, i32 0, i32 0),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
   // CHECK-IR-SAME:   i32* getelementptr inbounds (i32,
-  // CHECK-IR-SAME:     i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 1)),
+  // CHECK-IR-SAME:     i32* getelementptr inbounds ([1 x i32], [1 x i32]* @ga1, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 1)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -478,10 +478,10 @@ void f3(void) {
   // The following line of LLVM IR is very long
 
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i64 0, i64 0),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
   // CHECK-IR-SAME:   i32* getelementptr inbounds (i32,
-  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 3)),
+  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 3)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -509,10 +509,10 @@ void f3(void) {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i64 0, i64 2),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 2),
   // CHECK-IR-SAME:   i32* getelementptr inbounds (i32,
-  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 3)),
+  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 3)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -539,10 +539,10 @@ void f3(void) {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 0),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
   // CHECK-IR-SAME:   i32* getelementptr inbounds (i32,
-  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 3)),
+  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x i32], [3 x i32]* @ga3, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 3)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -772,10 +772,10 @@ void f5() {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i64 0, i64 0, i64 0),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
   // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32],
-  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 3, i32 0)),
+  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 3, {{i[0-9]+}} 0)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -806,10 +806,10 @@ void f5() {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i64 0, i64 2, i64 2),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 2),
   // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32],
-  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 3, i32 0)),
+  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 3, {{i[0-9]+}} 0)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -841,10 +841,10 @@ void f5() {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i64 0, i64 1, i64 2),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 1, {{i[0-9]+}} 2),
   // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32],
-  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 3, i32 0)),
+  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 3, {{i[0-9]+}} 0)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -877,13 +877,13 @@ void f5() {
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 and (
   // CHECK-IR-SAME:   i1 icmp ule (
-  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0, i32 0),
-  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i64 0, i64 2, i64 -2)),
+  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} -2)),
   // CHECK-IR-SAME:   i1 icmp ult (
-  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i64 0, i64 2, i64 -2),
+  // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} -2),
   // CHECK-IR-SAME:     i32* getelementptr inbounds ([3 x i32],
-  // CHECK-IR-SAME:       [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
-  // CHECK-IR-SAME:       i64 3, i32 0))),
+  // CHECK-IR-SAME:       [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:       {{i[0-9]+}} 3, {{i[0-9]+}} 0))),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -912,10 +912,10 @@ void f5() {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0, i32 0),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
   // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32],
-  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 3, i32 0)),
+  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 3, {{i[0-9]+}} 0)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
@@ -945,10 +945,10 @@ void f5() {
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
   // The following line of LLVM IR is very long
   // CHECK-IR:      br i1 icmp ult (
-  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i64 0, i64 2, i32 0),
+  // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 2, {{i[0-9]+}} 0),
   // CHECK-IR-SAME:   i32* getelementptr inbounds ([3 x i32],
-  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, i32 0, i32 0),
-  // CHECK-IR-SAME:     i64 3, i32 0)),
+  // CHECK-IR-SAME:     [3 x i32]* getelementptr inbounds ([3 x [3 x i32]], [3 x [3 x i32]]* @gma, {{i[0-9]+}} 0, {{i[0-9]+}} 0),
+  // CHECK-IR-SAME:     {{i[0-9]+}} 3, {{i[0-9]+}} 0)),
   // CHECK-IR-SAME: label %[[LAB_DYSUC:_Dynamic_check.succeeded[a-zA-Z0-9.]*]],
   // CHECK-IR-SAME: label %{{_Dynamic_check.failed[a-zA-Z0-9.]*}}
   // CHECK-IR: [[LAB_DYSUC]]:
