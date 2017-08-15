@@ -95,10 +95,18 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
 
   // Emit the code to generate the pointer values
   Address Lower = EmitPointerWithAlignment(BoundsRange->getLowerExpr());
+
+  // We don't infer an expression with the correct cast for
+  // multidimensional array access, but icmp requires that
+  // its operands are of the same type, so we bitcast Lower to
+  // match the type of PtrAddr at the LLVM IR Level.
   if (Lower.getType() != PtrAddr.getType())
     Lower = Builder.CreateBitCast(Lower, PtrAddr.getType());
 
   Address Upper = EmitPointerWithAlignment(BoundsRange->getUpperExpr());
+
+  // As above, we may need to bitcast Upper to match the type
+  // of PtrAddr at the LLVM IR Level.
   if (Upper.getType() != PtrAddr.getType())
     Upper = Builder.CreateBitCast(Upper, PtrAddr.getType());
 
@@ -145,15 +153,16 @@ void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
   ++NumDynamicChecksCast;
 
   // Emits code as follows:
+  //
   // %entry:
-  //   ...
+  //   ... (prior code)
   //   %is_null = %base == null
   //   br i1 %is_null, %success, %subsumption
   // %subsumption:
   //   %subsumes = (%lower <= %cast_lower && %cast_upper <= %upper)
   //   br i1 %subsumes, %success, %failure
   // %success:
-  //   ...
+  //   ... (following code)
   // %failure:
   //   trap()
 
@@ -161,40 +170,60 @@ void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
       Builder.CreateIsNull(BaseAddr.getPointer(), "_Dynamic_check.is_null");
 
   // Constant Folding:
-  // If IsNull is true (one), then a) we don't need to insert the rest
-  // of the check, computation will continue with success.
+  // If IsNull is true (one), then we don't need to insert the rest
+  // of the check, as computation should continue without inserting
+  // the branch.
   if (const ConstantInt *IsNullConstant = dyn_cast<ConstantInt>(IsNull)) {
     if (IsNullConstant->isOne()) {
       ++NumDynamicChecksElided;
+
+      // We have not emitted any blocks or any branches so far,
+      // so we can just return here, which leaves the Builder
+      // in the right position to add instructions to the end of
+      // the entry block.
+      //
+      // The code will look like:
+      // %entry:
+      //   ... (prior code)
+      //   %is_null = true
+      //   ... (following code)
+      // (No %failure Block)
+
       return;
     }
   }
 
   BasicBlock *DyCkSubsumption = createBasicBlock("_Dynamic_check.subsumption");
   BasicBlock *DyCkSuccess = createBasicBlock("_Dynamic_check.success");
-  BasicBlock *DyCkFail = EmitDynamicCheckFailedBlock();
 
   // Insert the IsNull Branch
   Builder.CreateCondBr(IsNull, DyCkSuccess, DyCkSubsumption);
 
-  // This ensures the subsumption block comes directly after the is_null branch
+  // This ensures the subsumption block comes directly after the IsNull branch
   EmitBlock(DyCkSubsumption);
 
   Builder.SetInsertPoint(DyCkSubsumption);
 
   // SubRange - bounds(lb, ub) vs CastRange - bounds(castlb, castub)
   // Dynamic_check(lb <= castlb && castub <= ub)
+  // If required, we will be bitcasting castlb and castub at the
+  // LLVM IR level to match the types of lb and ub respectively.
 
-  // Emit the code to generate lb and ub
+  // Emit the code to generate pointers for SubRange, lb and ub
   Address Lower = EmitPointerWithAlignment(SubRange->getLowerExpr());
   Address Upper = EmitPointerWithAlignment(SubRange->getUpperExpr());
 
-  // Emit the code to generate castlb and castub
+  // Emit the code to generate pointers for CastRange, castlb and castub
+
   Address CastLower = EmitPointerWithAlignment(CastRange->getLowerExpr());
+  // We will be comparing CastLower to Lower. Their types may not match,
+  // so we're going to bitcast CastLower to match the type of Lower if needed.
   if (CastLower.getType() != Lower.getType())
     CastLower = Builder.CreateBitCast(CastLower, Lower.getType());
 
   Address CastUpper = EmitPointerWithAlignment(CastRange->getUpperExpr());
+  // Again we're going to bitcast CastUpper to match the type of Upper
+  // if needed.
   if (CastUpper.getType() != Upper.getType())
     CastUpper = Builder.CreateBitCast(CastUpper, Upper.getType());
 
@@ -211,23 +240,48 @@ void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
       Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.cast");
 
   // Constant Folding:
-  // If IsNull is true (one), then a) we don't need to insert the rest
-  // of the check, computation will continue with success.
+  // If CastCond is true (one), then we need to insert a direct branch
+  // to the success block, emit it, and set the insert point there for
+  // further code generation.
   if (const ConstantInt *CastCondConstant = dyn_cast<ConstantInt>(CastCond)) {
     if (CastCondConstant->isOne()) {
       ++NumDynamicChecksElided;
+
+      // We have emitted a branch to the failure block, along with the
+      // failure block, so we have to emit a direct branch to success,
+      //
+      // The code will look like this:
+      // %entry:
+      //   ... (prior code)
+      //   %is_null = %base == null
+      //   br i1 %is_null, %success, %subsumption
+      // %subsumption:
+      //   %subsumes = true
+      //   br %success
+      // %success:
+      //   ... (following code)
+      // (No %failure Block)
+
+      // This check will always pass, directly jump to the success block.
+      Builder.CreateBr(DyCkSuccess);
+
+      // This ensures the success block comes directly after the subsumption branch
+      EmitBlock(DyCkSuccess);
+      Builder.SetInsertPoint(DyCkSuccess);
+
       return;
     }
   }
 
   ++NumDynamicChecksInserted;
 
+  BasicBlock *DyCkFail = EmitDynamicCheckFailedBlock();
+
   // Insert the CastCond Branch
   Builder.CreateCondBr(CastCond, DyCkSuccess, DyCkFail);
 
   // This ensures the success block comes directly after the subsumption branch
   EmitBlock(DyCkSuccess);
-
   Builder.SetInsertPoint(DyCkSuccess);
 }
 
@@ -261,8 +315,8 @@ BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
   BasicBlock *Begin = Builder.GetInsertBlock();
 
   // Add a "failed block", which will be inserted at the end of CurFn
-  BasicBlock *DyCkFail = createBasicBlock("_Dynamic_check.failed", CurFn);
-  Builder.SetInsertPoint(DyCkFail);
+  BasicBlock *FailBlock = createBasicBlock("_Dynamic_check.failed", CurFn);
+  Builder.SetInsertPoint(FailBlock);
   CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(Intrinsic::trap));
   TrapCall->setDoesNotReturn();
   TrapCall->setDoesNotThrow();
@@ -271,5 +325,5 @@ BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
   // Return the insert point back to the saved insert point
   Builder.SetInsertPoint(Begin);
 
-  return DyCkFail;
+  return FailBlock;
 }
