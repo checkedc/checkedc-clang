@@ -8545,38 +8545,3 @@ QualType Sema::DeduceTemplateSpecializationFromInitializer(
   //  by overload resolution for class template deduction.
   return SubstAutoType(TSInfo->getType(), Best->Function->getReturnType());
 }
-
-/// Get the bounds-safe interface type for the Entity being initialized, if
-/// there is one.  Return a null QualType otherwise. For entities being
-/// initialized, bounds-safe interfaces are allowed only for global variables,
-/// parameters, and members of structures/unions.
-QualType Sema::GetCheckedCInteropType(const InitializedEntity &Entity) {
-  switch (Entity.getKind()) {
-    case InitializedEntity::EntityKind::EK_Variable:
-    case InitializedEntity::EntityKind::EK_Parameter:
-    case InitializedEntity::EntityKind::EK_Member: {
-      ValueDecl *D = Entity.getDecl();
-      if (D != nullptr)
-        return GetCheckedCInteropType(D);
-      break;
-    }
-    case InitializedEntity::EK_ArrayElement:
-    case InitializedEntity::EK_Base:
-    case InitializedEntity::EK_Binding:
-    case InitializedEntity::EK_BlockElement:
-    case InitializedEntity::EK_ComplexElement:
-    case InitializedEntity::EK_CompoundLiteralInit:
-    case InitializedEntity::EK_Delegating:
-    case InitializedEntity::EK_Exception:
-    case InitializedEntity::EK_LambdaCapture:
-    case InitializedEntity::EK_New:
-    case InitializedEntity::EK_RelatedResult:
-    case InitializedEntity::EK_Result:
-    case InitializedEntity::EK_Temporary:
-    case InitializedEntity::EK_VectorElement:
-    case InitializedEntity::EK_Parameter_CF_Audited:
-    case InitializedEntity::EK_LambdaToBlockConversionBlockElement:
-      break;
-  }
-  return QualType();
-}

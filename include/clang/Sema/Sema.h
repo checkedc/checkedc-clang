@@ -9421,13 +9421,11 @@ public:
       bool DiagnoseCFAudited = false, bool ConvertRHS = true);
 
 private:
-  QualType GetCheckedCInteropType(const ValueDecl *Decl);
+  QualType GetCheckedCInteropType(const DeclaratorDecl *Decl);
 public:
-  /// \brief Get the bounds-safe interface type for Entity.
-  /// Returns a null QualType if there isn't one.
-  QualType GetCheckedCInteropType(const InitializedEntity &Entity);
-
-  QualType Sema::GetCheckedCInteropType(QualType originalType,
+  /// \brief Given a value with type Ty and bounds Bounds,
+  /// compute the bounds-safe interface type.
+  QualType Sema::GetCheckedCInteropType(QualType Ty,
                                         const BoundsExpr *Bounds,
                                         bool isParam);
 
