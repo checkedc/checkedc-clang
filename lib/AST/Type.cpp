@@ -3877,36 +3877,31 @@ bool Type::hasCheckedType() const {
 
 // hasUncheckedType - check whether a type is a unchecked type or is a
 // constructed type (array, pointer, function) that uses a unchecked type.
-// If it has unchecked pointer type, Kind is 0. Otherwise, Kind is 1
-bool Type::hasUncheckedType(unsigned& Kind) const {
+bool Type::hasUncheckedType() const {
   const Type *current = CanonicalType.getTypePtr();
   switch (current->getTypeClass()) {
     case Type::Pointer: {
       const PointerType *ptr = cast<PointerType>(current);
-      if (ptr->isUncheckedPointerType()) {
-        Kind = 0;
+      if (ptr->isUncheckedPointerType())
         return true;
-      }
-      return ptr->getPointeeType()->hasUncheckedType(Kind);
+      return ptr->getPointeeType()->hasUncheckedType();
     }
     case Type::ConstantArray:
     case Type::DependentSizedArray:
     case Type::IncompleteArray:
     case Type::VariableArray: {
      const ArrayType *arr = cast<ArrayType>(current);
-      if (!arr->isChecked()) {
-        Kind = 1;
+      if (!arr->isChecked())
         return true;
-      }
-      return arr->getElementType()->hasUncheckedType(Kind);
+      return arr->getElementType()->hasUncheckedType();
     }
     case Type::FunctionProto: {
       const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
-      if (fpt->getReturnType()->hasUncheckedType(Kind))
+      if (fpt->getReturnType()->hasUncheckedType())
         return true;
       unsigned int paramCount = fpt->getNumParams();
       for (unsigned int i = 0; i < paramCount; i++) {
-        if (fpt->getParamType(i)->hasUncheckedType(Kind))
+        if (fpt->getParamType(i)->hasUncheckedType())
           return true;
       }
       return false;

@@ -11559,12 +11559,52 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                                         << RHSExpr->getSourceRange();
 }
 
+bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
+                                 bool IsParam, CheckedScopeTypeLocation Loc,
+                                 CheckedScopeTypeLocation &ProblemLoc) {
+  if (Ty.isNull())
+    return true;
+
+  CheckedScopeTypeLocation CurrentLoc = Loc;
+  if (Loc == CSTL_TopLevel)
+    Loc = CSTL_Nested;
+
+  if (Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) {
+    if (!Bounds) {
+      ProblemLoc = CurrentLoc;
+      return false;
+    }
+    if (Bounds->isInteropTypeAnnotation()) {
+      Ty = GetCheckedCInteropType(Ty, Bounds, IsParam);
+      Loc = CSTL_BoundsSafeInterface;
+      if (!(Ty->isPointerType() || Ty->isArrayType())) {
+        llvm_unreachable("unexpected interop type");
+        return false;
+      }
+    }
+    return AllowedInCheckedScope(Ty->getPointeeType(), nullptr, false, Loc,
+                                 ProblemLoc);
+  } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
+    const BoundsExpr *ReturnBounds = fpt->getReturnBounds();
+    if (!AllowedInCheckedScope(fpt->getReturnType(), ReturnBounds, false, Loc,
+                               ProblemLoc))
+      return false;
+    unsigned int paramCount = fpt->getNumParams();
+    for (unsigned int i = 0; i < paramCount; i++) {
+      const BoundsExpr *ParamBounds = fpt->getParamBounds(i);
+      if (!AllowedInCheckedScope(fpt->getParamType(i), ParamBounds, true, Loc,
+                                 ProblemLoc))
+        return false;
+    }
+  }
+  return true;
+}
 
 //===--- CHECK: Checked scope -------------------------===//
 // Checked C - type restrictions on declarations in checked blocks.
 bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   // Checked pointer type or unchecked pointer type with bounds-safe interface
-  // is only allowed in checked scope or funcion.
+  // is only allowed in checked scope or function.
   const DeclaratorDecl *TargetDecl = nullptr;
   int DeclKind;
   QualType Ty;
@@ -11582,46 +11622,43 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   }
   else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
     TargetDecl = Var;
-    DeclKind = 2; // decl var
+    DeclKind = Var->isLocalVarDecl() ? 2 : 3; // decl var
     Ty = Var->getType();
   }
   else if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl)) {
     TargetDecl = Field;
-    DeclKind = 3; // member
+    DeclKind = 4; // member
     Ty = Field->getType();
   }
   else {
     Ty = Decl->getType();
   }
 
+  if (!TargetDecl)
+    return true;
+
+  unsigned IsUse = !UseLoc.isInvalid();
+  SourceLocation Loc = IsUse ? UseLoc : TargetDecl->getLocStart();
   bool Result = true;
-  unsigned TypeKind = 0;
-  bool HasUncheckedType = Ty->hasUncheckedType(TypeKind);
-  bool HasVariadicType = Ty->hasVariadicType();
-  if (TargetDecl) {
-    // If declared type is unchecked pointer/array type
-    // without bounds-safe interface, it is wrong declaration.
-    QualType InterOpTy = GetCheckedCInteropType(TargetDecl);
-    if ((HasUncheckedType || HasVariadicType) && InterOpTy.isNull())
-      Result = false;
-  }
-  if (!Result) {
-    if (UseLoc.isInvalid()) {
-      SourceLocation DefLoc = TargetDecl->getLocStart();
-      if (HasUncheckedType)
-        Diag(DefLoc, diag::err_checked_scope_type_for_declaration) << DeclKind
-                                                                   << TypeKind;
-      else
-        Diag(DefLoc, diag::err_checked_scope_no_variable_args_for_declaration)
-            << DeclKind;
-    } else {
-      if (HasUncheckedType)
-        Diag(UseLoc, diag::err_checked_scope_type_for_expression) << DeclKind;
-      else
-        Diag(UseLoc, diag::err_checked_scope_no_variable_args_for_expression)
-            << DeclKind;
+  CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
+  if (!AllowedInCheckedScope(Ty, TargetDecl->getBoundsExpr(),
+                             isa<ParmVarDecl>(TargetDecl), CSTL_TopLevel,
+                             ProblemLoc)) {
+    Diag(Loc, diag::err_checked_scope_type) << DeclKind << IsUse
+      << ProblemLoc;
+    if (IsUse) {
+      Diag(TargetDecl->getLocStart(), diag::note_checked_scope_declaration)
+        << DeclKind;
     }
+    Result = false;
   }
+
+  if (Ty->hasVariadicType()) {
+    Diag(Loc, diag::err_checked_scope_no_variable_args) << DeclKind
+      << IsUse;
+    Result = false;
+  }
+
   return Result;
 }
 

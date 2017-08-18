@@ -1859,8 +1859,9 @@ public:
   /// \brief Whether this type is or contains a checked type
   bool hasCheckedType() const;
 
-  /// \brief Whether this type is or contains a unchecked type
-  bool hasUncheckedType(unsigned& Kind) const;
+  /// \brief Whether this type is or contains a unchecked type.
+  /// This ignore the presence of bounds-safe interface types.
+  bool hasUncheckedType() const;
 
   /// \brief Whether this type is or contains a variadic type
   bool hasVariadicType() const;

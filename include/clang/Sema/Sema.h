@@ -3795,10 +3795,26 @@ public:
   void DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                         SourceLocation OpLoc);
 
+  enum CheckedScopeTypeLocation {
+    CSTL_TopLevel,
+    CSTL_Nested,
+    CSTL_BoundsSafeInterface
+  };
+
+  /// Returns true if Ty is allowed in a checked scope:
+  /// - If Ty is a pointer or array type, it must be a checked pointer or
+  ///   array type or an unchecked pointer or array type with a bound-safe
+  ///   interface.
+  /// - This rules applies recursively to any types nested within Ty.
+  /// - All other types are allowed in checked scopes.
+  /// Return false if Ty is not allowed.
+  bool AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
+                             bool IsParam, CheckedScopeTypeLocation Loc,
+                             CheckedScopeTypeLocation &ProblemLoc);
+
   /// \param D - target declaration
   /// \param UseLoc - default invalid location at declaration
   /// it is valid only if it is regarded as use of variable
-
   /// \returns true if target declaration is valid checked decl
   bool DiagnoseCheckedDecl(const ValueDecl *D,
                            SourceLocation UseLoc = SourceLocation());

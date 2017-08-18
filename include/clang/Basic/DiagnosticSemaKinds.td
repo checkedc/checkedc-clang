@@ -9312,26 +9312,23 @@ def err_bounds_type_annotation_lost_checking : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
 	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression|argument mentioned in function return bounds expression}1">;
 
-  def err_checked_scope_type_for_declaration : Error<
-    "%select{parameter|return|variable|member}0 cannot have an unchecked "
-    "%select{pointer|array}1 type in a checked scope or function">;
+  def err_checked_scope_type: Error<
+    "%select{parameter|return|local variable|variable|member}0 %select{used |}1in a checked scope must have "
+    "%select{a |a pointer, array or function type that uses only |a bounds-safe interface type that uses only }2"
+    "checked %plural{0:type %plural{2:|:or a bounds-safe interface}0|:types or parameter/return types with bounds-safe interfaces}2">;
 
-  def err_checked_scope_type_for_expression : Error<
-    "cannot use a %select{parameter|return|variable|member}0 with an unchecked type in a checked scope or function">;
+  def note_checked_scope_declaration : Note<
+    "%select{parameter|return|local variable|variable|member}0 declared here">;
 
   def err_checked_scope_type_for_casting : Error<
-    "invalid casting to unchecked %select{pointer|array}0 type in a checked scope or function">;
+    "invalid casting to unchecked type %0 in a checked scope or function">;
 
   def err_checked_scope_no_prototype_func : Error<
     "function without a prototype cannot be used or declared in a checked scope">;
 
-  def err_checked_scope_no_variable_args_for_declaration : Error<
-    "%select{parameter|return|variable|member}0 cannot have variable arguments "
-    "in a checked scope or function">;
-
-  def err_checked_scope_no_variable_args_for_expression : Error<
-    "cannot use a %select{parameter|return|variable|member}0 having variable arguments "
-    "in a checked scope or function">;
+  def err_checked_scope_no_variable_args : Error<
+    "%select{parameter|return|local variable|variable|member}0 %select{used |}1 in a checked scope "
+    "cannot have variable arguments">;
 
   def err_checked_scope_no_variable_args_for_casting : Error<
     "invalid casting to type having variable arguments in a checked scope or function">;
