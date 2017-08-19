@@ -9313,28 +9313,28 @@ def err_bounds_type_annotation_lost_checking : Error<
 	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression|argument mentioned in function return bounds expression}1">;
 
   def err_checked_scope_type: Error<
-    "%select{parameter|return|local variable|variable|member}0 %select{used |}1in a checked scope must have "
+    "%select{parameter|return|local variable|global variable|member}0 %select{|used }1in a checked scope must have "
     "%select{a |a pointer, array or function type that uses only |a bounds-safe interface type that uses only }2"
     "checked %plural{0:type %plural{2:|:or a bounds-safe interface}0|:types or parameter/return types with bounds-safe interfaces}2">;
 
   def note_checked_scope_declaration : Note<
-    "%select{parameter|return|local variable|variable|member}0 declared here">;
+    "%select{parameter|return|local variable|global variable|member}0 declared here">;
 
   def err_checked_scope_type_for_casting : Error<
-    "invalid casting to unchecked type %0 in a checked scope or function">;
+    "invalid casting to unchecked type %0 in a checked scope">;
 
   def err_checked_scope_no_prototype_func : Error<
     "function without a prototype cannot be used or declared in a checked scope">;
 
   def err_checked_scope_no_variable_args : Error<
-    "%select{parameter|return|local variable|variable|member}0 %select{used |}1 in a checked scope "
+    "%select{parameter|return|local variable|global variable|member}0 %select{|used }1in a checked scope "
     "cannot have variable arguments">;
 
   def err_checked_scope_no_variable_args_for_casting : Error<
-    "invalid casting to type having variable arguments in a checked scope or function">;
+    "invalid casting to type having variable arguments in a checked scope">;
 
   def err_checked_scope_no_variadic_func_for_declaration : Error<
-    "variable arguments function cannot be made in a checked scope or function">;
+    "variable arguments function cannot be made in a checked scope">;
 
   def err_checked_scope_no_variadic_func_for_expression : Error<
     "cannot use a variable arguments function in a checked scope or function">;

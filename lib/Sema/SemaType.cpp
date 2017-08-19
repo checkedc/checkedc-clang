@@ -4363,6 +4363,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                  break;
             }
             if (!parentIsChecked) {
+              D.setInvalidType(true);;
               if (const TypedefType *TD = dyn_cast<TypedefType>(T))
                 S.Diag(DeclType.Loc, 
                        diag::err_unchecked_array_of_typedef_checked_array) <<

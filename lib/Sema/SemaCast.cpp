@@ -2654,7 +2654,7 @@ void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
     } else if (HasUncheckedType || HasVariadicType) {
       if (HasUncheckedType) {
         Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
-            << DestType;
+          << DestType;
       } else {
         Self.Diag(OpRange.getBegin(),
                   diag::err_checked_scope_no_variable_args_for_casting);

@@ -11569,12 +11569,16 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
   if (Loc == CSTL_TopLevel)
     Loc = CSTL_Nested;
 
-  if (Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) {
-    if (!Bounds) {
+  if (Ty->isPointerType() || Ty->isArrayType()) {
+    if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
+        !Bounds) {
       ProblemLoc = CurrentLoc;
       return false;
     }
-    if (Bounds->isInteropTypeAnnotation()) {
+
+    // Any interop type annotation must be "at least as checked" as the
+    // original type, so use that instead.
+    if (Bounds && Bounds->isInteropTypeAnnotation()) {
       Ty = GetCheckedCInteropType(Ty, Bounds, IsParam);
       Loc = CSTL_BoundsSafeInterface;
       if (!(Ty->isPointerType() || Ty->isArrayType())) {
@@ -11596,13 +11600,19 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
                                  ProblemLoc))
         return false;
     }
-  }
+  } else
+    assert((!Bounds || !Bounds->isInteropTypeAnnotation()) &&
+           "unexpected interop type annotation on type");
+
   return true;
 }
 
 //===--- CHECK: Checked scope -------------------------===//
 // Checked C - type restrictions on declarations in checked blocks.
 bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
+  if (Decl->isInvalidDecl())
+    return true;
+
   // Checked pointer type or unchecked pointer type with bounds-safe interface
   // is only allowed in checked scope or function.
   const DeclaratorDecl *TargetDecl = nullptr;
@@ -11611,9 +11621,7 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(Decl)) {
     TargetDecl = Parm;
     DeclKind = 0; // function param
-    // default type conversion from array type to pointer type for parameter
-    // To get original type of parameter not adjusted type, use it
-    Ty = Parm->getOriginalType();
+    Ty = Parm->getType();
   }
   else if (const FunctionDecl *Func = dyn_cast<FunctionDecl>(Decl)) {
     TargetDecl = Func;

@@ -9353,13 +9353,13 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Decide if we are in checked scope/function.
   if (CFS == CheckedFunctionSpecifiers::CFS_Checked ||
     (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
-    if (!DiagnoseCheckedDecl(NewFD))
-      NewFD->setInvalidDecl();
     for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
       ParmVarDecl *PVD = NewFD->getParamDecl(I);
       if (!DiagnoseCheckedDecl(PVD))
         PVD->setInvalidDecl();
     }
+    if (!DiagnoseCheckedDecl(NewFD))
+      NewFD->setInvalidDecl();
   }
 
   MarkUnusedFileScopedDecl(NewFD);
@@ -12204,6 +12204,9 @@ static bool checkBoundsDeclWithBoundsExpr(Sema &S, QualType Ty,
          !Expr->isInteropTypeAnnotation());
 
   unsigned DiagId = 0;
+
+  if (Ty.isNull())
+    return false;
 
   // Check for errors. Order the error messages from broader
   // problems to more specific problems.   We don't want to suggest
