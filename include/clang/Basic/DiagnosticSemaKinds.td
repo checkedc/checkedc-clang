@@ -9263,6 +9263,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     "out-of-scope variable for bounds in a function type (a function type "
     "cannot reference local variables)">;
 
+  def err_out_of_scope_function_type_global : Error<
+    "out-of-scope variable for bounds in a function type (a function type "
+    "cannot reference global variables)">;
+
   def err_out_of_scope_function_type_parameter : Error<
     "out-of-scope variable for bounds in a function type (a function type can "
     "only reference parameters from its own parameter list)">;
