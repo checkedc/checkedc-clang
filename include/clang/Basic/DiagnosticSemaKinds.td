@@ -9320,6 +9320,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_checked_scope_declaration : Note<
     "%select{parameter|return|local variable|global variable|member}0 declared here">;
 
+  def note_checked_scope_problem_type : Note<
+     "%0 is not allowed in a checked scope">;
+
   def err_checked_scope_type_for_casting : Error<
     "invalid casting to unchecked type %0 in a checked scope">;
 

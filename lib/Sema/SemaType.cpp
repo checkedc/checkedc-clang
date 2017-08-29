@@ -3777,9 +3777,8 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
           ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
         }
       }
-      else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType()) {
+      else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType())
         ResultType = MakeCheckedArrayType(Ty);
-      }
       break;
     }
     default:
@@ -3788,9 +3787,8 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
 
   // When a parameter variable declaration is created, array types for parameter
   // variables are adjusted to be pointer types.  We have to do the same here.
-  if (isParam && !ResultType.isNull() && ResultType->isArrayType()) {
+  if (isParam && !ResultType.isNull() && ResultType->isArrayType())
     ResultType = Context.getAdjustedParameterType(ResultType);
-  }
   return ResultType;
 }
 

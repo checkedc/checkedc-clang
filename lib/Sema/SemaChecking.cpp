@@ -11561,7 +11561,8 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
 
 bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
                                  bool IsParam, CheckedScopeTypeLocation Loc,
-                                 CheckedScopeTypeLocation &ProblemLoc) {
+                                 CheckedScopeTypeLocation &ProblemLoc,
+                                 QualType &ProblemTy) {
   if (Ty.isNull())
     return true;
 
@@ -11573,6 +11574,7 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
     if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
         !Bounds) {
       ProblemLoc = CurrentLoc;
+      ProblemTy = Ty;
       return false;
     }
 
@@ -11587,17 +11589,17 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
       }
     }
     return AllowedInCheckedScope(Ty->getPointeeType(), nullptr, false, Loc,
-                                 ProblemLoc);
+                                 ProblemLoc, ProblemTy);
   } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
     const BoundsExpr *ReturnBounds = fpt->getReturnBounds();
     if (!AllowedInCheckedScope(fpt->getReturnType(), ReturnBounds, false, Loc,
-                               ProblemLoc))
+                               ProblemLoc, ProblemTy))
       return false;
     unsigned int paramCount = fpt->getNumParams();
     for (unsigned int i = 0; i < paramCount; i++) {
       const BoundsExpr *ParamBounds = fpt->getParamBounds(i);
       if (!AllowedInCheckedScope(fpt->getParamType(i), ParamBounds, true, Loc,
-                                 ProblemLoc))
+                                 ProblemLoc, ProblemTy))
         return false;
     }
   } else
@@ -11605,6 +11607,12 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
            "unexpected interop type annotation on type");
 
   return true;
+}
+
+static bool DisplaysAsArrayOrPointer(QualType QT) {
+  QT = QT.IgnoreParens();
+  const Type *Ty = QT.getTypePtr();
+  return (isa<PointerType>(Ty) || isa<ArrayType>(Ty));
 }
 
 //===--- CHECK: Checked scope -------------------------===//
@@ -11649,15 +11657,30 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   SourceLocation Loc = IsUse ? UseLoc : TargetDecl->getLocStart();
   bool Result = true;
   CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
+  QualType ProblemTy = Ty;
   if (!AllowedInCheckedScope(Ty, TargetDecl->getBoundsExpr(),
                              isa<ParmVarDecl>(TargetDecl), CSTL_TopLevel,
-                             ProblemLoc)) {
+                             ProblemLoc, ProblemTy)) {
     Diag(Loc, diag::err_checked_scope_type) << DeclKind << IsUse
       << ProblemLoc;
     if (IsUse) {
       Diag(TargetDecl->getLocStart(), diag::note_checked_scope_declaration)
         << DeclKind;
     }
+
+    // Undo adjustments involving array types so that the error message
+    // displays the source-level type.  We leave adjustments from function 
+    // types alone, though. It is not obvious that the source-level function
+    // type is adjust to be an unchecked type.
+    if (const AdjustedType *AdjustedTy = dyn_cast<AdjustedType>(ProblemTy)) {
+      QualType Original = AdjustedTy->getOriginalType();
+      if (Original->isArrayType())
+        ProblemTy = Original;
+    }
+
+    // Print a note about the problem type if it might not be obvious.
+    if (ProblemLoc != CSTL_TopLevel || !DisplaysAsArrayOrPointer(ProblemTy))
+      Diag(Loc, diag::note_checked_scope_problem_type) << ProblemTy;
     Result = false;
   }
 
