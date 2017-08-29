@@ -4950,6 +4950,7 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
   // Continue to check argument types (even if we have too few/many args).
   for (unsigned i = FirstParam; i < NumParams; i++) {
     QualType ProtoArgType = Proto->getParamType(i);
+    const BoundsExpr *Bounds = Proto->getParamBounds(i);
 
     Expr *Arg;
     ParmVarDecl *Param = FDecl ? FDecl->getParamDecl(i) : nullptr;
@@ -4974,9 +4975,11 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
 
       InitializedEntity Entity =
           Param ? InitializedEntity::InitializeParameter(Context, Param,
-                                                         ProtoArgType)
+                                                         ProtoArgType,
+                                                         Bounds)
                 : InitializedEntity::InitializeParameter(
-                      Context, ProtoArgType, Proto->isParamConsumed(i));
+                      Context, ProtoArgType, Proto->isParamConsumed(i),
+                      Bounds);
 
       // Remember that parameter belongs to a CF audited API.
       if (CFAudited)
@@ -5600,7 +5603,8 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
 
       if (Proto && i < Proto->getNumParams()) {
         InitializedEntity Entity = InitializedEntity::InitializeParameter(
-            Context, Proto->getParamType(i), Proto->isParamConsumed(i));
+            Context, Proto->getParamType(i), Proto->isParamConsumed(i),
+            Proto->getParamBounds(i));
         ExprResult ArgE =
             PerformCopyInitialization(Entity, SourceLocation(), Arg);
         if (ArgE.isInvalid())
@@ -8202,11 +8206,14 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
     Expr *LHSExpr = LHS.get();
     if (const MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
       if (const FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
-        return GetCheckedCInteropType(Field);
+        if (const BoundsExpr *Bounds = Field->getBoundsExpr())
+          return GetCheckedCInteropType(Field->getType(), Bounds, false);
     }
     else if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
       if (const VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
-        return GetCheckedCInteropType(Var);
+        if (const BoundsExpr *Bounds = Var->getBoundsExpr())
+          return GetCheckedCInteropType(Var->getType(), Bounds,
+                                        isa<ParmVarDecl>(Var));
     }
   }
   return QualType();

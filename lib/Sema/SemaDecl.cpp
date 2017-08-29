@@ -9353,13 +9353,13 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Decide if we are in checked scope/function.
   if (CFS == CheckedFunctionSpecifiers::CFS_Checked ||
     (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
-    if (!DiagnoseCheckedDecl(NewFD))
-      NewFD->setInvalidDecl();
     for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
       ParmVarDecl *PVD = NewFD->getParamDecl(I);
       if (!DiagnoseCheckedDecl(PVD))
         PVD->setInvalidDecl();
     }
+    if (!DiagnoseCheckedDecl(NewFD))
+      NewFD->setInvalidDecl();
   }
 
   MarkUnusedFileScopedDecl(NewFD);
@@ -12073,7 +12073,7 @@ void Sema::ActOnFinishKNRParamDeclarations(Scope *S, Declarator &D,
   }
 }
 
-// checkBoundsDeclForBoundsExpr: check whether a bounds-safe interface
+// checkBoundsDeclWithTypeAnnotation: check whether a bounds-safe interface
 // type can be used with type Ty.
 // * Ty is the type of a variable declaration or the return type
 //   of a function.
@@ -12184,7 +12184,7 @@ static bool checkBoundsDeclWithTypeAnnotation(Sema &S, QualType DeclaredTy,
 
 }
 
-// checkBoundsDeclForBoundsExpr: check whether a bounds expression
+// checkBoundsDeclWithBoundsExpr: check whether a bounds expression
 // can be used with type Ty.
 // * Ty is the type of a variable declaration or the return type
 //   of a function.
@@ -12204,6 +12204,9 @@ static bool checkBoundsDeclWithBoundsExpr(Sema &S, QualType Ty,
          !Expr->isInteropTypeAnnotation());
 
   unsigned DiagId = 0;
+
+  if (Ty.isNull())
+    return false;
 
   // Check for errors. Order the error messages from broader
   // problems to more specific problems.   We don't want to suggest

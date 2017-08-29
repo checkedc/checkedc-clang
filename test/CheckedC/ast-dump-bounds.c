@@ -280,6 +280,34 @@ void f31(int (*fn)(_Array_ptr<int> arr : bounds(arr, arr + len), int len));
 // CHECK: fn
 // CHECK: 'int (*)(_Array_ptr<int> : bounds(arg #0, arg #0 + arg #1), int)'
 
+
+void f32(int (*fn)(int *arr : itype(_Ptr<int>)));
+
+// CHECK: |-FunctionDecl
+// CHECK: f32
+// CHECK: 'void (int (*)(int * : _Ptr<int>))'
+// CHECK: ParmVarDecl
+// CHECK fn
+// CHECK 'int (*)(int * : _Ptr<int>)'
+
+void f33(int (*fn)(int **arr : itype(_Ptr<_Ptr<int>>)));
+
+// CHECK: FunctionDecl
+// CHECK: f33
+// CHECK: 'void (int (*)(int ** : _Ptr<_Ptr<int>>))'
+// CHECK: ParmVarDecl
+// CHECK: fn
+// CHECK: 'int (*)(int ** : _Ptr<_Ptr<int>>)'
+
+void f34(int (*fn)(int **arr : itype(_Array_ptr<_Ptr<int>>)));
+
+// CHECK: FunctionDecl
+// CHECK: f34
+// CHECK: 'void (int (*)(int ** : _Array_ptr<_Ptr<int>>))'
+// CHECK: ParmVarDecl
+// CHECK: fn
+// CHECK: 'int (*)(int ** : _Array_ptr<_Ptr<int>>)'
+
 typedef float fn_sum1(int lower, int upper,
                      _Array_ptr<float> arr : bounds(arr - lower, arr + upper));
 

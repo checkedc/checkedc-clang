@@ -172,19 +172,25 @@ private:
     struct C Capture;
   };
 
-  InitializedEntity() : ManglingNumber(0) {}
+  /// \brief The declared bounds of the object or reference being initialized,
+  /// if any.
+  const BoundsExpr *Bounds;
+
+  InitializedEntity() : ManglingNumber(0), Bounds(nullptr) {}
 
   /// \brief Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
     : Kind(EK), Parent(nullptr), Type(Var->getType()),
-      ManglingNumber(0), Variable{Var, false} { }
+      ManglingNumber(0), Variable{Var, false}, Bounds(Var->getBoundsExpr()) { }
   
   /// \brief Create the initialization entity for the result of a
   /// function, throwing an object, performing an explicit cast, or
   /// initializing a parameter for which there is no declaration.
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
                     bool NRVO = false)
-    : Kind(Kind), Parent(nullptr), Type(Type), ManglingNumber(0)
+    : Kind(Kind), Parent(nullptr), Type(Type), ManglingNumber(0),
+      Bounds(nullptr)
+
   {
     LocAndNRVO.Location = Loc.getRawEncoding();
     LocAndNRVO.NRVO = NRVO;
@@ -194,7 +200,8 @@ private:
   InitializedEntity(FieldDecl *Member, const InitializedEntity *Parent,
                     bool Implicit) 
     : Kind(EK_Member), Parent(Parent), Type(Member->getType()),
-      ManglingNumber(0), Variable{Member, Implicit} {
+      ManglingNumber(0), Variable{Member, Implicit},
+      Bounds(Member->getBoundsExpr()) {
   }
   
   /// \brief Create the initialization entity for an array element.
@@ -204,7 +211,7 @@ private:
   /// \brief Create the initialization entity for a lambda capture.
   InitializedEntity(IdentifierInfo *VarID, QualType FieldType, SourceLocation Loc)
     : Kind(EK_LambdaCapture), Parent(nullptr), Type(FieldType),
-      ManglingNumber(0)
+      ManglingNumber(0), Bounds(nullptr)
   {
     Capture.VarID = VarID;
     Capture.Location = Loc.getRawEncoding();
@@ -219,14 +226,15 @@ public:
   /// \brief Create the initialization entity for a parameter.
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                const ParmVarDecl *Parm) {
-    return InitializeParameter(Context, Parm, Parm->getType());
+    return InitializeParameter(Context, Parm, Parm->getType(), Parm->getBoundsExpr());
   }
 
   /// \brief Create the initialization entity for a parameter, but use
   /// another type.
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                const ParmVarDecl *Parm,
-                                               QualType Type) {
+                                               QualType Type,
+                                               const BoundsExpr *Bounds) {
     bool Consumed = (Context.getLangOpts().ObjCAutoRefCount &&
                      Parm->hasAttr<NSConsumedAttr>());
 
@@ -237,6 +245,7 @@ public:
     Entity.Parent = nullptr;
     Entity.Parameter
       = (static_cast<uintptr_t>(Consumed) | reinterpret_cast<uintptr_t>(Parm));
+    Entity.Bounds = Bounds;
     return Entity;
   }
 
@@ -244,10 +253,12 @@ public:
   /// only known by its type.
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                QualType Type,
-                                               bool Consumed) {
+                                               bool Consumed,
+                                          const BoundsExpr *Bounds = nullptr) {
     InitializedEntity Entity;
     Entity.Kind = EK_Parameter;
     Entity.Type = Context.getVariableArrayDecayedType(Type);
+    Entity.Bounds = Bounds;
     Entity.Parent = nullptr;
     Entity.Parameter = (Consumed);
     return Entity;
@@ -373,7 +384,7 @@ public:
 
   /// \brief Retrieve type being initialized.
   QualType getType() const { return Type; }
-  
+
   /// \brief Retrieve complete type-source information for the object being 
   /// constructed, if known.
   TypeSourceInfo *getTypeSourceInfo() const {
@@ -383,6 +394,8 @@ public:
     return nullptr;
   }
   
+  const BoundsExpr *getBounds() const { return Bounds; }
+
   /// \brief Retrieve the name of the entity being initialized.
   DeclarationName getName() const;
 

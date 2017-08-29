@@ -3714,9 +3714,8 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
   return T;
 }
 
-/// If a declaration has a Checked C bounds-safe interface attached to it,
-/// construct and return the checked type for the interface. Otherwise
-/// return a null QualType.
+/// Get the corresponding Checked C interop type for Ty, given a
+/// a bounds expression Bounds.
 ///
 /// This falls into two cases:
 /// 1. The interface is a type annotation: return the type in the
@@ -3725,68 +3724,54 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
 /// type should be an _Array_ptr type or checked Array type.  Construct
 /// the appropriate type from the unchecked type for the declaration and
 /// return it.
-QualType Sema::GetCheckedCInteropType(const ValueDecl *Decl) {
-  const DeclaratorDecl *TargetDecl = nullptr;
-  if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl))
-    TargetDecl = Field;
-  else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl))
-    TargetDecl = Var;
-  else if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(Decl)) {
-    TargetDecl = FD;
-  }
-
+QualType Sema::GetCheckedCInteropType(QualType Ty,
+                                      const BoundsExpr *Bounds,
+                                      bool isParam) {
   QualType ResultType = QualType();
-  if (!TargetDecl)
+  if (Ty.isNull() || Bounds == nullptr)
     return ResultType;
 
-  if (const BoundsExpr *Bounds = TargetDecl->getBoundsExpr()) {
-    switch (Bounds->getKind()) {
-      case BoundsExpr::Kind::InteropTypeAnnotation: {
-        const InteropTypeBoundsAnnotation *Annot =
-          dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
-        assert(Annot && "unexpected dyn_cast failure");
-        if (Annot != nullptr)
-          ResultType = Annot->getType();
-        break;
-      }
-      case BoundsExpr::Kind::ByteCount:
-      case BoundsExpr::Kind::ElementCount:
-      case BoundsExpr::Kind::Range: {
-        QualType Ty;
-        // The types for parameter variables that have array types are adjusted
-        // to be pointer type.  We'll work with the original array type instead.
-        // For multi-dimensional array types, the nested array types need to
-        // become checked array types too.
-        if (const ParmVarDecl *ParmVar = dyn_cast<ParmVarDecl>(TargetDecl))
-          Ty = ParmVar->getOriginalType();
-        else if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(TargetDecl))
-          Ty = FD->getReturnType();
-        else
-          Ty = Decl->getType();
-
-        if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
-          if (PtrType->isUnchecked()) {
-            ResultType = Context.getPointerType(PtrType->getPointeeType(),
-                                                CheckedPointerKind::Array);
-            ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
-          }
-        }
-        else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType()) {
-          ResultType = MakeCheckedArrayType(Ty);
-        }
-        break;
-      }
-      default:
-        break;
+  // Parameter types that are array types are adusted to be
+  // pointer types.  We'll work with the original type instead.
+  // For multi-dimensional array types, the nested array types need
+  // to become checked array types too.
+  if (isParam) {
+    if (const DecayedType *Decayed = dyn_cast<DecayedType>(Ty)) {
+      Ty = Decayed->getOriginalType();
     }
+  }
+
+  switch (Bounds->getKind()) {
+    case BoundsExpr::Kind::InteropTypeAnnotation: {
+      const InteropTypeBoundsAnnotation *Annot =
+        dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
+      assert(Annot && "unexpected dyn_cast failure");
+      if (Annot != nullptr)
+        ResultType = Annot->getType();
+      break;
+    }
+    case BoundsExpr::Kind::ByteCount:
+    case BoundsExpr::Kind::ElementCount:
+    case BoundsExpr::Kind::Range: {
+      if (const PointerType  *PtrType = Ty->getAs<PointerType>()) {
+        if (PtrType->isUnchecked()) {
+          ResultType = Context.getPointerType(PtrType->getPointeeType(),
+                                              CheckedPointerKind::Array);
+          ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
+        }
+      }
+      else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType())
+        ResultType = MakeCheckedArrayType(Ty);
+      break;
+    }
+    default:
+      break;
   }
 
   // When a parameter variable declaration is created, array types for parameter
   // variables are adjusted to be pointer types.  We have to do the same here.
-  if (isa<ParmVarDecl>(TargetDecl) && !ResultType.isNull() &&
-      ResultType->isArrayType())
+  if (isParam && !ResultType.isNull() && ResultType->isArrayType())
     ResultType = Context.getAdjustedParameterType(ResultType);
-
   return ResultType;
 }
 
@@ -4359,6 +4344,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                  break;
             }
             if (!parentIsChecked) {
+              D.setInvalidType(true);;
               if (const TypedefType *TD = dyn_cast<TypedefType>(T))
                 S.Diag(DeclType.Loc, 
                        diag::err_unchecked_array_of_typedef_checked_array) <<
