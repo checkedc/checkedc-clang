@@ -176,20 +176,21 @@ private:
     struct C Capture;
   };
 
-  InitializedEntity() : ManglingNumber(0), Bounds(nullptr) {}
+  InitializedEntity() : Bounds(nullptr), ManglingNumber(0) {}
 
   /// \brief Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
     : Kind(EK), Parent(nullptr), Type(Var->getType()),
-      ManglingNumber(0), Variable{Var, false}, Bounds(Var->getBoundsExpr()) { }
+      Bounds(Var->getBoundsExpr()), ManglingNumber(0), Variable{Var, false} { }
   
   /// \brief Create the initialization entity for the result of a
   /// function, throwing an object, performing an explicit cast, or
   /// initializing a parameter for which there is no declaration.
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
                     bool NRVO = false)
-    : Kind(Kind), Parent(nullptr), Type(Type), ManglingNumber(0),
-      Bounds(nullptr)
+    : Kind(Kind), Parent(nullptr), Type(Type), Bounds(nullptr),
+      ManglingNumber(0)
+
   {
     LocAndNRVO.Location = Loc.getRawEncoding();
     LocAndNRVO.NRVO = NRVO;
@@ -210,7 +211,7 @@ private:
   /// \brief Create the initialization entity for a lambda capture.
   InitializedEntity(IdentifierInfo *VarID, QualType FieldType, SourceLocation Loc)
     : Kind(EK_LambdaCapture), Parent(nullptr), Type(FieldType),
-      ManglingNumber(0), Bounds(nullptr)
+    Bounds(nullptr), ManglingNumber(0)
   {
     Capture.VarID = VarID;
     Capture.Location = Loc.getRawEncoding();

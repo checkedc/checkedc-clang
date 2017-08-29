@@ -2663,12 +2663,13 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
                    result->isVariablyModifiedType(),
                    result->containsUnexpandedParameterPack(), epi.ExtInfo),
       NumParams(params.size()),
+      NumTypeVars(epi.numTypeVars),
       NumExceptions(epi.ExceptionSpec.Exceptions.size()),
       ExceptionSpecType(epi.ExceptionSpec.Type),
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
       Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
       HasParamBounds(epi.ParamBounds != nullptr),
-      ReturnBounds(epi.ReturnBounds), NumTypeVars(epi.numTypeVars) {
+      ReturnBounds(epi.ReturnBounds) {
   assert(NumParams == params.size() && "function has too many parameters");
 
   FunctionTypeBits.TypeQuals = epi.TypeQuals;
