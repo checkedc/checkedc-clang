@@ -8206,11 +8206,14 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
     Expr *LHSExpr = LHS.get();
     if (const MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
       if (const FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
-        return GetCheckedCInteropType(Field);
+        if (const BoundsExpr *Bounds = Field->getBoundsExpr())
+          return GetCheckedCInteropType(Field->getType(), Bounds, false);
     }
     else if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
       if (const VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
-        return GetCheckedCInteropType(Var);
+        if (const BoundsExpr *Bounds = Var->getBoundsExpr())
+          return GetCheckedCInteropType(Var->getType(), Bounds,
+                                        isa<ParmVarDecl>(Var));
     }
   }
   return QualType();

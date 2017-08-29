@@ -9447,8 +9447,6 @@ public:
       QualType LHSType, ExprResult &RHS, bool Diagnose = true,
       bool DiagnoseCFAudited = false, bool ConvertRHS = true);
 
-private:
-  QualType GetCheckedCInteropType(const DeclaratorDecl *Decl);
 public:
   /// \brief Given a value with type Ty and bounds Bounds,
   /// compute the bounds-safe interface type.

@@ -3714,23 +3714,6 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
   return T;
 }
 
-/// If a declaration has a Checked C bounds-safe interface attached to it,
-/// construct and return the checked type for the interface. Otherwise
-/// return a null QualType.
-QualType Sema::GetCheckedCInteropType(const DeclaratorDecl *Decl) {
-  const BoundsExpr *Bounds = Decl->getBoundsExpr();
-  if (!Bounds)
-    return QualType();
-
-  QualType Ty;
-  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(Decl))
-    Ty = FD->getReturnType();
-  else
-    Ty = Decl->getType();
-
-  return GetCheckedCInteropType(Ty, Bounds, isa<ParmVarDecl>(Decl));
-}
-
 /// Get the corresponding Checked C interop type for Ty, given a
 /// a bounds expression Bounds.
 ///
