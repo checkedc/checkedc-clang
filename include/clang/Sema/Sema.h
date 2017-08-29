@@ -3813,6 +3813,16 @@ public:
                              CheckedScopeTypeLocation &ProblemLoc,
                              QualType &ProblemTy);
 
+  // Enum for diagnostic message that describes the type of declaration
+  // being checked.
+  enum CheckedDeclKind {
+    CDK_Parameter,
+    CDK_FunctionReturn,
+    CDK_LocalVariable,
+    CDK_GlobalVariable,
+    CDK_Member
+  };
+
   /// \param D - target declaration
   /// \param UseLoc - default invalid location at declaration
   /// it is valid only if it is regarded as use of variable
@@ -9442,9 +9452,9 @@ private:
 public:
   /// \brief Given a value with type Ty and bounds Bounds,
   /// compute the bounds-safe interface type.
-  QualType Sema::GetCheckedCInteropType(QualType Ty,
-                                        const BoundsExpr *Bounds,
-                                        bool isParam);
+  QualType GetCheckedCInteropType(QualType Ty,
+                                  const BoundsExpr *Bounds,
+                                  bool isParam);
 
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.

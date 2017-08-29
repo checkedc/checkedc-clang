@@ -11624,26 +11624,26 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   // Checked pointer type or unchecked pointer type with bounds-safe interface
   // is only allowed in checked scope or function.
   const DeclaratorDecl *TargetDecl = nullptr;
-  int DeclKind;
+  CheckedDeclKind DeclKind;
   QualType Ty;
   if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(Decl)) {
     TargetDecl = Parm;
-    DeclKind = 0; // function param
+    DeclKind = CDK_Parameter;
     Ty = Parm->getType();
   }
   else if (const FunctionDecl *Func = dyn_cast<FunctionDecl>(Decl)) {
     TargetDecl = Func;
-    DeclKind = 1; // function return
+    DeclKind = CDK_FunctionReturn;
     Ty = Func->getReturnType();
   }
   else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
     TargetDecl = Var;
-    DeclKind = Var->isLocalVarDecl() ? 2 : 3; // decl var
+    DeclKind = Var->isLocalVarDecl() ? CDK_LocalVariable : CDK_GlobalVariable; // decl var
     Ty = Var->getType();
   }
   else if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl)) {
     TargetDecl = Field;
-    DeclKind = 4; // member
+    DeclKind = CDK_Member;
     Ty = Field->getType();
   }
   else {
