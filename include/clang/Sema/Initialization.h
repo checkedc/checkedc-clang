@@ -108,10 +108,6 @@ private:
   /// \brief The type of the object or reference being initialized.
   QualType Type;
 
-  /// \brief The declared bounds of the object or reference being initialized,
-  /// if any.
-  const BoundsExpr *Bounds;
-
   /// \brief The mangling number for the next reference temporary to be created.
   mutable unsigned ManglingNumber;
 
@@ -176,20 +172,24 @@ private:
     struct C Capture;
   };
 
-  InitializedEntity() : Bounds(nullptr), ManglingNumber(0) {}
+  /// \brief The declared bounds of the object or reference being initialized,
+  /// if any.
+  const BoundsExpr *Bounds;
+
+  InitializedEntity() : ManglingNumber(0), Bounds(nullptr) {}
 
   /// \brief Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
     : Kind(EK), Parent(nullptr), Type(Var->getType()),
-      Bounds(Var->getBoundsExpr()), ManglingNumber(0), Variable{Var, false} { }
+      ManglingNumber(0), Variable{Var, false}, Bounds(Var->getBoundsExpr()) { }
   
   /// \brief Create the initialization entity for the result of a
   /// function, throwing an object, performing an explicit cast, or
   /// initializing a parameter for which there is no declaration.
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
                     bool NRVO = false)
-    : Kind(Kind), Parent(nullptr), Type(Type), Bounds(nullptr),
-      ManglingNumber(0)
+    : Kind(Kind), Parent(nullptr), Type(Type), ManglingNumber(0),
+      Bounds(nullptr)
 
   {
     LocAndNRVO.Location = Loc.getRawEncoding();
@@ -211,7 +211,7 @@ private:
   /// \brief Create the initialization entity for a lambda capture.
   InitializedEntity(IdentifierInfo *VarID, QualType FieldType, SourceLocation Loc)
     : Kind(EK_LambdaCapture), Parent(nullptr), Type(FieldType),
-    Bounds(nullptr), ManglingNumber(0)
+      ManglingNumber(0), Bounds(nullptr)
   {
     Capture.VarID = VarID;
     Capture.Location = Loc.getRawEncoding();
