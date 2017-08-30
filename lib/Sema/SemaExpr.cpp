@@ -7474,37 +7474,41 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // version of void...
 
   // Allow conversion from any unchecked pointer to any kind of void pointer,
-  // including void *.  In Checked C, conversions from checked pointers to void
-  // pointers are allowed only for matching pointer kinds.
-  if (lhptee->isVoidType() && (rhkind == CheckedPointerKind::Unchecked || lhkind == rhkind)) {
+  // including void *.  In Checked C, also allow conversions from any checked
+  // pointer to any kind of checked void pointer.
+  if (lhptee->isVoidType() && (rhkind == CheckedPointerKind::Unchecked ||
+    (lhkind != CheckedPointerKind::Unchecked &&
+     rhkind != CheckedPointerKind::Unchecked))) {
     if (rhptee->isIncompleteOrObjectType())
       return ConvTy;
 
-    // As an extension, we allow cast to/from void* to function pointer.
-    assert(rhptee->isFunctionType());
-    return Sema::FunctionVoidPointer;
+    if (lhkind == CheckedPointerKind::Unchecked &&
+        rhkind == CheckedPointerKind::Unchecked) {
+      // As an extension, we allow cast to/from void* to function pointer.
+      assert(rhptee->isFunctionType());
+      return Sema::FunctionVoidPointer;
+    }
   }
 
   // Only void * can be converted implicitly to another pointer type. In
   // Checked C, _Ptr<void> and _Array_ptr<void> cannot be converted implicitly
-  // to other pointer types.
+  // to non-void checked pointer types. They can be converted implicitly to
+  // each other, though.
   if (rhptee->isVoidType() && rhkind == CheckedPointerKind::Unchecked) {
     if (lhptee->isIncompleteOrObjectType())
       return ConvTy;
 
-    // As an extension, we allow cast to/from void* to function pointer.
-    assert(lhptee->isFunctionType());
-    return Sema::FunctionVoidPointer;
+    if (lhkind == CheckedPointerKind::Unchecked &&
+        rhkind == CheckedPointerKind::Unchecked) {
+      // As an extension, we allow cast to/from void* to function pointer.
+      assert(lhptee->isFunctionType());
+      return Sema::FunctionVoidPointer;
+    }
   }
 
-  // Pointer kinds must match.  If they do not, this is an implicit conversion
-  // between checked and unchecked pointers or between different kinds of checked
-  // pointers. Only implicit conversions between unchecked pointers or from
-  // unchecked to checked pointers are allowed.
-  // Also, implicit conversion between checked pointers is added
-  // to handle properly address-of (&) operator in checked block.
-  // Except for implicit conversion from checked to unchecked pointers,
-  // all other implicit conversions are allowed.
+  // Do not allow implicit conversions from checked pointers to
+  // unchecked pointers.  Implicit conversions between different kinds
+  // of checked pointers with compatible referent types are allowed.
   if (rhkind != CheckedPointerKind::Unchecked &&
       lhkind == CheckedPointerKind::Unchecked)
     return Sema::Incompatible;
