@@ -9466,13 +9466,6 @@ public:
   QualType MakeCheckedArrayType(QualType T, bool Diagnose = false,
                                 SourceLocation Loc = SourceLocation());
 
-  /// \brief Helper function for type checking an assignment whose LHS has a
-  /// Checked C bounds-safe interface.  This function chooses which type to
-  /// use for the LHS of the assignment.
-  QualType ResolveSingleAssignmentType(QualType LHSType, 
-                                       QualType LHSInteropType, 
-                                       ExprResult &RHS);
-
   // \brief If the lhs type is a transparent union, check whether we
   // can initialize the transparent union with the given expression.
   AssignConvertType CheckTransparentUnionArgumentConstraints(QualType ArgType,

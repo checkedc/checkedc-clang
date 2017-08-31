@@ -8217,7 +8217,7 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   }
 
   // If we can't convert to the LHS type, try the LHS interop type instead.
-  // Note that we have to insert a a cast that "downgrades" the checkedness.
+  // Note that we have to insert a cast that "downgrades" the checkedness.
   if (result == Incompatible && !LHSInteropType.isNull()) {
     result = CheckAssignmentConstraints(LHSInteropType, RHS, Kind, ConvertRHS);
     assert(!LHSType->isReferenceType());
@@ -8255,31 +8255,6 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
     }
   }
   return QualType();
-}
-
-/// Helper function for type checking an assignment whose left-hande side has a
-/// Checked C bounds-safe interface.  This function chooses which type to use
-/// for the LHS of the assignment: the type computed via normal C type checking
-/// (LHSType) or the Checked C interoperation type for the LHS.  It tries type
-/// checking the assignment using LHSType. If that does not work, it tries
-/// LHSInteropType.  It returns the first type that works.  If neither type
-/// works, it returns the LHSType (this will cause any diagnostic messages for
-/// the type checking failure to refer to the LHSType).
-QualType Sema::ResolveSingleAssignmentType(QualType LHSType,
-                                           QualType LHSInteropType,
-                                           ExprResult &RHS) {
-  assert(!LHSType.isNull() && !LHSInteropType.isNull());
-  QualType Result = LHSType;
-  Sema::AssignConvertType TrialConvTy =
-    CheckSingleAssignmentConstraints(LHSType, RHS, false, false, false);
-  if (TrialConvTy == Sema::AssignConvertType::Incompatible) {
-    TrialConvTy = 
-      CheckSingleAssignmentConstraints(LHSInteropType, RHS,
-                                       false, false, false);
-    if (TrialConvTy != Sema::AssignConvertType::Incompatible)
-      Result = LHSInteropType;
-  }
-  return Result;
 }
 
 QualType Sema::InvalidOperands(SourceLocation Loc, ExprResult &LHS,
