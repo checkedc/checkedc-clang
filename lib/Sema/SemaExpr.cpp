@@ -8179,8 +8179,6 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   Sema::AssignConvertType result =
     CheckAssignmentConstraints(LHSType, RHS, Kind, ConvertRHS);
 
-
-
   // C99 6.5.16.1p2: The value of the right operand is converted to the
   // type of the assignment expression.
   // CheckAssignmentConstraints allows the left-hand side to be a reference,
