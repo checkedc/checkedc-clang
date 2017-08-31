@@ -8078,7 +8078,8 @@ Sema::AssignConvertType
 Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
                                        bool Diagnose,
                                        bool DiagnoseCFAudited,
-                                       bool ConvertRHS) {
+                                       bool ConvertRHS,
+                                       QualType LHSInteropType) {
   // We need to be able to tell the caller whether we diagnosed a problem, if
   // they ask us to issue diagnostics.
   assert((ConvertRHS || !Diagnose) && "can't indicate whether we diagnosed");
@@ -8178,6 +8179,8 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   Sema::AssignConvertType result =
     CheckAssignmentConstraints(LHSType, RHS, Kind, ConvertRHS);
 
+
+
   // C99 6.5.16.1p2: The value of the right operand is converted to the
   // type of the assignment expression.
   // CheckAssignmentConstraints allows the left-hand side to be a reference,
@@ -8211,6 +8214,23 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
     
     if (ConvertRHS)
       RHS = ImpCastExprToType(E, Ty, Kind);
+  }
+
+  // If we can't convert to the LHS type, try the LHS interop type instead.
+  // Note that we have to insert a a cast that "downgrades" the checkedness.
+  if (result == Incompatible && !LHSInteropType.isNull()) {
+    result = CheckAssignmentConstraints(LHSInteropType, RHS, Kind, ConvertRHS);
+    assert(!LHSType->isReferenceType());
+    assert(!LHSInteropType->isReferenceType());
+    Expr *E = RHS.get();
+    if (ConvertRHS) {
+      if (Kind != Compatible) {
+        RHS = ImpCastExprToType(E, LHSInteropType, Kind);
+        E = RHS.get();
+      }
+      // Downgrade checked pointer to unchecked LHSType
+      RHS = ImpCastExprToType(E, LHSType, CK_BitCast);
+    }
   }
   return result;
 }
@@ -10584,18 +10604,13 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
     CheckIdentityFieldAssignment(LHSExpr, RHSCheck, Loc, *this);
 
     QualType LHSTy(LHSType);
-    if (getLangOpts().CheckedC && LHSTy->isUncheckedPointerType()) {
-      // Tap-dance around the side-effecting behavior of
-      // CheckSingleAssignmentConstraints.  The call to
-      // CheckSingleAssignmentConstraints below can have side-effects where
-      // it modifies the RHS or produces diagnostic messages.  We want the
-      // side-effects to happen exactly once, so we carefully compute the
-      // right type and pass it to the call.
-      QualType LHSInteropType = GetCheckedCInteropType(LHSExpr);
-      if (!LHSInteropType.isNull())
-        LHSTy = ResolveSingleAssignmentType(LHSTy, LHSInteropType, RHS);
-    }
-    ConvTy = CheckSingleAssignmentConstraints(LHSTy, RHS);
+    QualType LHSInteropType;
+    if (getLangOpts().CheckedC && LHSTy->isUncheckedPointerType())
+      LHSInteropType = GetCheckedCInteropType(LHSExpr);
+    ConvTy = CheckSingleAssignmentConstraints(LHSTy, RHS, /*Diagnose=*/true,
+                                              /*DiagnoseCFAudited=*/false,
+                                              /*ConvertRHS=*/true,
+                                              LHSInteropType);
     if (RHS.isInvalid())
       return QualType();
     // Special case of NSObject attributes on c-style pointer types.

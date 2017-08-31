@@ -9445,7 +9445,8 @@ public:
   ///        \p Diagnose must also be \c false.
   AssignConvertType CheckSingleAssignmentConstraints(
       QualType LHSType, ExprResult &RHS, bool Diagnose = true,
-      bool DiagnoseCFAudited = false, bool ConvertRHS = true);
+      bool DiagnoseCFAudited = false, bool ConvertRHS = true,
+      QualType LHSInteropType = QualType());
 
 public:
   /// \brief Given a value with type Ty and bounds Bounds,
