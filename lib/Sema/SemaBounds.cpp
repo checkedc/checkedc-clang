@@ -974,6 +974,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
 
       return nullptr;
     }
+
     case Expr::ArraySubscriptExprClass: {
       // e1[e2] is a synonym for *(e1 + e2).
       ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
@@ -991,6 +992,16 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
       if (AS->getBase()->getType()->isCheckedPointerArrayType())
         return E;
 
+      return nullptr;
+    }
+    case Expr::ImplicitCastExprClass: {
+      ImplicitCastExpr *IC = dyn_cast<ImplicitCastExpr>(E);
+      if (!IC) {
+        llvm_unreachable("unexpected cast failure");
+        return nullptr;
+      }
+      if (IC->getCastKind() == CK_LValueBitCast)
+        return GetArrayPtrDereference(IC->getSubExpr());
       return nullptr;
     }
     default: {

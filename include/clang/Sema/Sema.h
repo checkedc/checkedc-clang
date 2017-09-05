@@ -9448,11 +9448,19 @@ public:
       bool DiagnoseCFAudited = false, bool ConvertRHS = true);
 
 public:
-  /// \brief Given a value with type Ty and bounds Bounds,
-  /// compute the bounds-safe interface type.
+  /// \brief Given a value with type Ty and bounds Bounds, compute the
+  /// bounds-safe interface type.
   QualType GetCheckedCInteropType(QualType Ty,
                                   const BoundsExpr *Bounds,
                                   bool isParam);
+
+  /// Rewrite function types with bounds-safe interfaces on unchecked
+  /// types to use the checked types specified by the interfaces.  Recursively
+  /// apply the rewrite to function types occurring within pointer, array,
+  // or function types.
+  QualType RewriteBoundsSafeInterfaceTypes(QualType Ty, bool &Modified);
+
+  QualType RewriteBoundsSafeInterfaceTypes(QualType Ty);
 
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.

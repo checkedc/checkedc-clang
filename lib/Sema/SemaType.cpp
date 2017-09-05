@@ -3772,7 +3772,63 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
   // variables are adjusted to be pointer types.  We have to do the same here.
   if (isParam && !ResultType.isNull() && ResultType->isArrayType())
     ResultType = Context.getAdjustedParameterType(ResultType);
+
   return ResultType;
+}
+
+
+// Helper for rewriting function types with bounds-safe interfaces
+// on parameters/returns to use checked types.
+QualType Sema::RewriteBoundsSafeInterfaceTypes(QualType Ty, bool &Modified) {
+  if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
+    QualType pointeeType =
+      RewriteBoundsSafeInterfaceTypes(PtrType->getPointeeType(), Modified);
+    if (!Modified)
+      return Ty;
+    QualType ResultType =
+      Context.getPointerType(pointeeType, PtrType->getKind());
+    ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
+    return ResultType;
+  } else if (Ty->isArrayType()) {
+    ASTContext &Context = this->Context;
+    const ArrayType *arrTy = cast<ArrayType>(Ty.getCanonicalType().getTypePtr());
+    QualType elemTy =
+      RewriteBoundsSafeInterfaceTypes(arrTy->getElementType(), Modified);
+    bool isChecked = arrTy->isChecked();
+    if (!Modified)
+      return Ty;
+
+    switch (arrTy->getTypeClass()) {
+      case Type::ConstantArray: {
+        const ConstantArrayType *constArrTy = cast<ConstantArrayType>(arrTy);
+        return Context.getConstantArrayType(elemTy,
+                                            constArrTy->getSize(),
+                                            constArrTy->getSizeModifier(),
+                                            Ty.getCVRQualifiers(),
+                                            isChecked);
+      }
+      case Type::IncompleteArray: {
+        const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(arrTy);
+        return Context.getIncompleteArrayType(elemTy,
+                                              incArrTy->getSizeModifier(),
+                                              Ty.getCVRQualifiers(),
+                                              isChecked);
+      }
+      default:
+        return Ty;
+   }
+  } else if (Ty->isFunctionProtoType()) {
+    const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(Ty);
+    // TODO: fill this in.
+    return Ty;
+  }
+
+  return Ty;
+}
+
+QualType Sema::RewriteBoundsSafeInterfaceTypes(QualType Ty) {
+  bool Modified = false;
+  return RewriteBoundsSafeInterfaceTypes(Ty, Modified);
 }
 
 Sema::CheckedTypeClassification Sema::classifyForCheckedTypeDiagnostic(QualType QT) {

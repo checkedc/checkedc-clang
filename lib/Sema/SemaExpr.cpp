@@ -1765,7 +1765,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   return BuildDeclRefExpr(D, Ty, VK, NameInfo, SS);
 }
 
-/// BuildDeclRefExpr - Build an expression that references a
+/// BuildDeclRefExpr - Build an expression that references aB
 /// declaration that does not require a closure capture.
 ExprResult
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
@@ -1827,6 +1827,34 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   if (auto *BD = dyn_cast<BindingDecl>(D))
     if (auto *BE = BD->getBinding())
       E->setObjectKind(BE->getObjectKind());
+
+  if (getCurScope()->isCheckedScope() && Ty->hasUncheckedType()) {
+    QualType CheckedTy;
+    assert(!D->isInvalidDecl());
+    if (isa<FunctionDecl>(D))
+      CheckedTy = RewriteBoundsSafeInterfaceTypes(Ty);
+    else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
+      BoundsExpr *B = DD->getBoundsExpr();
+      if (B != nullptr)
+        CheckedTy = GetCheckedCInteropType(Ty, B, isa<ParmVarDecl>(D));
+      else
+        CheckedTy = Ty;
+      CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
+    } else
+      llvm_unreachable("unexpected DeclRef in checked scope");
+
+    // TODO: enable after function type rewriting is implemented.
+    // assert(!CheckedTy->hasUncheckedType());
+    if (VK == ExprValueKind::VK_RValue) {
+      ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK);
+      return ER;
+    } else if (VK == ExprValueKind::VK_LValue) {
+      ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_LValueBitCast, VK);
+      return ER;
+    }
+    else
+      llvm_unreachable("unexpected value kind in in checked scope");
+  }
 
   return E;
 }
