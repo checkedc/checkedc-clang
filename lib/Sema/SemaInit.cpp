@@ -7060,24 +7060,17 @@ InitializationSequence::Perform(Sema &S,
       ExprResult Result = CurInit;
 
       QualType LHSType = Step->Type;
+      QualType LHSInteropType;
       if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
-        // Tap-dance around the side-effecting behavior of
-        // CheckSingleAssignmentConstraints.  The call to
-        // CheckSingleAssignmentConstraints below can have side-effects where
-        // it modifies the RHS or produces diagnostic messages.  We want the
-        // side-effects to happen exactly once, so we carefully compute the
-        // right type and pass it to the call.
         const BoundsExpr *Bounds = Entity.getBounds();
         bool isParam = Entity.isParameterKind();
-        QualType LHSInteropType = S.GetCheckedCInteropType(LHSType, Bounds, isParam);
-        if (!LHSInteropType.isNull())
-            LHSType = S.ResolveSingleAssignmentType(LHSType, LHSInteropType,
-                                                    Result);
+        LHSInteropType = S.GetCheckedCInteropType(LHSType, Bounds, isParam);
       }
 
       Sema::AssignConvertType ConvTy =
         S.CheckSingleAssignmentConstraints(LHSType, Result, true,
-           Entity.getKind() == InitializedEntity::EK_Parameter_CF_Audited);
+           Entity.getKind() == InitializedEntity::EK_Parameter_CF_Audited,
+                                           true, LHSInteropType);
 
       if (Result.isInvalid())
         return ExprError();

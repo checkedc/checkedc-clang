@@ -45,6 +45,10 @@ namespace {
   private:
     const ParamsInfo Params;
 
+    // TODO: change this constant when we want to error on global variables
+    // in parameter bounds declarations.
+    const bool errorOnGlobals = false;
+
   public:
     AbstractBoundsExpr(Sema &SemaRef, ParamsInfo Params) :
       BaseTransform(SemaRef), Params(Params) {}
@@ -57,9 +61,21 @@ namespace {
       ValueDecl *D = E->getDecl();
       if (VarDecl *V = dyn_cast<VarDecl>(D)) {
         if (V->isLocalVarDecl())
+          // Parameter bounds may not be in terms of local variables
           SemaRef.Diag(E->getLocation(),
                        diag::err_out_of_scope_function_type_local);
+        else if (V->isFileVarDecl() || V->isExternC()) {
+          // Parameter bounds may not be in terms of "global" variables
+          // TODO: This is guarded by a flag right now, as we don't yet
+          // want to error everywhere.
+          if (errorOnGlobals) {
+            SemaRef.Diag(E->getLocation(),
+                          diag::err_out_of_scope_function_type_global);
+          }
+        }
         else if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
+          // Parameter bounds may be in terms of other parameters,
+          // in which case we'll convert to a position-based representation.
           for (auto &ParamInfo : Params)
             if (PD == ParamInfo.Param) {
               return SemaRef.CreatePositionalParameterExpr(

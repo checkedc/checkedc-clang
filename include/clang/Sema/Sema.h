@@ -9445,7 +9445,8 @@ public:
   ///        \p Diagnose must also be \c false.
   AssignConvertType CheckSingleAssignmentConstraints(
       QualType LHSType, ExprResult &RHS, bool Diagnose = true,
-      bool DiagnoseCFAudited = false, bool ConvertRHS = true);
+      bool DiagnoseCFAudited = false, bool ConvertRHS = true,
+      QualType LHSInteropType = QualType());
 
 public:
   /// \brief Given a value with type Ty and bounds Bounds, compute the
@@ -9472,13 +9473,6 @@ public:
   /// print a diagnostic message for the problem.
   QualType MakeCheckedArrayType(QualType T, bool Diagnose = false,
                                 SourceLocation Loc = SourceLocation());
-
-  /// \brief Helper function for type checking an assignment whose LHS has a
-  /// Checked C bounds-safe interface.  This function chooses which type to
-  /// use for the LHS of the assignment.
-  QualType ResolveSingleAssignmentType(QualType LHSType, 
-                                       QualType LHSInteropType, 
-                                       ExprResult &RHS);
 
   // \brief If the lhs type is a transparent union, check whether we
   // can initialize the transparent union with the given expression.

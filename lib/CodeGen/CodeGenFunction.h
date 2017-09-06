@@ -3699,13 +3699,6 @@ public:
 
   template<typename T>
   static bool isObjCMethodWithTypeParams(const T *) { return false; }
-
-  // Determine whether the given argument is FunctionProtoType
-  // that have parameter bounds information within it
-  static bool isFunctionProtoType(const FunctionProtoType* FPT) { return true; }
-
-  template<typename T>
-  static bool isFunctionProtoType(const T *) { return false; }
 #endif
 
   enum class EvaluationOrder {
@@ -3732,73 +3725,22 @@ public:
     if (CallArgTypeInfo) {
 #ifndef NDEBUG
       bool isGenericMethod = isObjCMethodWithTypeParams(CallArgTypeInfo);
-      bool isFunctionProto= isFunctionProtoType(CallArgTypeInfo);
 #endif
 
       // First, use the argument types that the type info knows about
-      int N = 0;
       for (auto I = CallArgTypeInfo->param_type_begin() + ParamsToSkip,
                 E = CallArgTypeInfo->param_type_end();
-           I != E; ++I, ++Arg, ++N) {
+           I != E; ++I, ++Arg) {
         assert(Arg != ArgRange.end() && "Running over edge of argument list!");
-#ifndef NDEBUG
-        const Type *ty1 = getContext()
-                              .getCanonicalType((*I).getNonReferenceType())
-                              .getTypePtr();
-        const Type *ty2 =
-            getContext().getCanonicalType((*Arg)->getType()).getTypePtr();
-        const Type *interop_ty1 = ty1;
-
-        // Checked C consideration
-        // In case of function prototype, it has parameter type information
-        // that involves also itype as bounds information
-        // To check interop type properly, it SHOULD consider additional bounds
-        // info likely Sema (semantic)
-        if (isFunctionProto) {
-          const FunctionProtoType *FPT =
-              (const FunctionProtoType *)CallArgTypeInfo;
-          if (FPT && FPT->hasParamBounds()) {
-            const BoundsExpr *Bounds = FPT->getParamBounds(N);
-            if (Bounds) {
-              switch (Bounds->getKind()) {
-              case BoundsExpr::Kind::InteropTypeAnnotation: {
-                const InteropTypeBoundsAnnotation *Annot =
-                    dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
-                interop_ty1 = getContext()
-                                  .getCanonicalType(Annot->getType())
-                                  .getTypePtr();
-                break;
-              }
-              case BoundsExpr::Kind::ByteCount:
-              case BoundsExpr::Kind::ElementCount:
-              case BoundsExpr::Kind::Range: {
-                QualType Ty = FPT->getParamType(N);
-                if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
-                  if (PtrType->isUnchecked()) {
-                    interop_ty1 =
-                        getContext()
-                            .getCanonicalType(getContext().getPointerType(
-                                PtrType->getPointeeType(),
-                                CheckedPointerKind::Array))
-                            .getTypePtr();
-                  }
-                }
-                break;
-              }
-              default:
-                break;
-              }
-            }
-          }
-        }
-#endif
-
         assert((isGenericMethod ||
                 ((*I)->isVariablyModifiedType() ||
                  (*I).getNonReferenceType()->isObjCRetainableType() ||
-                 (ty1 == ty2) ||
-                 // interopType checking as well as original type checking is done
-                 (interop_ty1 == ty2))) &&
+                 getContext()
+                         .getCanonicalType((*I).getNonReferenceType())
+                         .getTypePtr() ==
+                     getContext()
+                         .getCanonicalType((*Arg)->getType())
+                         .getTypePtr())) &&
                "type mismatch in call argument!");
         ArgTypes.push_back(*I);
       }
