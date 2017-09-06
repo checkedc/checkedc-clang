@@ -187,9 +187,9 @@ private:
   /// function, throwing an object, performing an explicit cast, or
   /// initializing a parameter for which there is no declaration.
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
-                    bool NRVO = false)
+                    bool NRVO = false, const BoundsExpr *Bounds = nullptr)
     : Kind(Kind), Parent(nullptr), Type(Type), ManglingNumber(0),
-      Bounds(nullptr)
+      Bounds(Bounds)
 
   {
     LocAndNRVO.Location = Loc.getRawEncoding();
@@ -266,8 +266,9 @@ public:
 
   /// \brief Create the initialization entity for the result of a function.
   static InitializedEntity InitializeResult(SourceLocation ReturnLoc,
-                                            QualType Type, bool NRVO) {
-    return InitializedEntity(EK_Result, ReturnLoc, Type, NRVO);
+                                            QualType Type, bool NRVO,
+                                          const BoundsExpr *Bounds = nullptr) {
+    return InitializedEntity(EK_Result, ReturnLoc, Type, NRVO, Bounds);
   }
 
   static InitializedEntity InitializeBlock(SourceLocation BlockVarLoc,
