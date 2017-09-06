@@ -3192,16 +3192,20 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   if (RetValExp && DiagnoseUnexpandedParameterPack(RetValExp))
     return StmtError();
 
-  if (isa<CapturingScopeInfo>(getCurFunction()))
+  if (isa<CapturingScopeInfo>(getCurFunction())) {
+    assert(!getLangOpts().CheckedC);
     return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp);
+  }
 
   QualType FnRetType;
+  const BoundsExpr *FnRetBounds = nullptr;
   QualType RelatedRetType;
   const AttrVec *Attrs = nullptr;
   bool isObjCMethod = false;
 
   if (const FunctionDecl *FD = getCurFunctionDecl()) {
     FnRetType = FD->getReturnType();
+    FnRetBounds = FD->getBoundsExpr();
     if (FD->hasAttrs())
       Attrs = &FD->getAttrs();
     if (FD->isNoReturn())
@@ -3373,7 +3377,8 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       // we have a non-void function with an expression, continue checking
       InitializedEntity Entity = InitializedEntity::InitializeResult(ReturnLoc,
                                                                      RetType,
-                                                      NRVOCandidate != nullptr);
+                                                      NRVOCandidate != nullptr,
+                                                                     FnRetBounds);
       ExprResult Res = PerformMoveOrCopyInitialization(Entity, NRVOCandidate,
                                                        RetType, RetValExp);
       if (Res.isInvalid()) {
