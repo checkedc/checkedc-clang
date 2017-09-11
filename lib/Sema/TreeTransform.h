@@ -2278,9 +2278,9 @@ public:
                                    TypeSourceInfo *TInfo,
                                    SourceRange AngleBrackets,
                                    SourceLocation RParenLoc, Expr *SubExpr,
-                                   BoundsExpr *bounds) {
+                                   BoundsExpr *Bounds) {
     return getSema().BuildBoundsCastExpr(OpLoc, Kind, TInfo, AngleBrackets,
-                                         RParenLoc, SubExpr, bounds);
+                                         RParenLoc, SubExpr, Bounds);
   }
 
   /// \brief Build a new compound literal expression.
@@ -5148,6 +5148,7 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   //
   SmallVector<QualType, 4> ParamTypes;
   SmallVector<ParmVarDecl*, 4> ParamDecls;
+  SmallVector<BoundsExpr *, 4> ParamBounds;
   Sema::ExtParameterInfoBuilder ExtParamInfos;
   const FunctionProtoType *T = TL.getTypePtr();
 
@@ -5206,6 +5207,54 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   } else if (EPI.ExtParameterInfos) {
     EPIChanged = true;
     EPI.ExtParameterInfos = nullptr;
+  }
+
+  // Handle bounds expression for return.
+  BoundsExpr *ExistingReturnBounds = const_cast<BoundsExpr *>(EPI.ReturnBounds);
+  if (ExistingReturnBounds) {
+    ExprResult Result = getDerived().TransformExpr(ExistingReturnBounds);
+    if (Result.isInvalid())
+      return QualType();
+    BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(Result.get());
+    if (!NewBounds) {
+      assert("unexpected dynamic cast failure");
+      return QualType();
+    }
+    EPI.ReturnBounds = NewBounds;
+    if (ExistingReturnBounds != NewBounds)
+      EPIChanged = true;
+  }
+
+  // Handle bounds expressions for parameters.
+  const BoundsExpr *const *ExistingParamBounds = EPI.ParamBounds;
+  if (ExistingParamBounds) {
+    bool ParamBoundsChanged = false;
+    unsigned ExistingParamCount = TL.getNumParams();
+    unsigned NewParamCount = ParamTypes.size();
+    ParamBounds.reserve(NewParamCount);
+    for (unsigned i = 0; i < NewParamCount; i++) {
+      BoundsExpr *ExistingBounds = nullptr;
+      BoundsExpr *NewBounds = nullptr;
+      if (i < ExistingParamCount) {
+        ExistingBounds = const_cast<BoundsExpr *>(ExistingParamBounds[i]);
+        ExprResult Result = TransformExpr(ExistingBounds);
+        if (Result.isInvalid())
+          return QualType();
+        NewBounds = dyn_cast<BoundsExpr>(Result.get());
+        if (!NewBounds) {
+          assert("unexpected dynamic cast failure");
+          return QualType();
+        }
+      }
+      ParamBounds.push_back(NewBounds);
+      if (ExistingBounds != NewBounds)
+        ParamBoundsChanged = true;
+    }
+
+    if (ParamBoundsChanged) {
+      EPIChanged = true;
+      EPI.ParamBounds = ParamBounds.data();
+    }
   }
 
   QualType Result = TL.getType();
@@ -8864,6 +8913,10 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformUnaryOperator(UnaryOperator *E) {
   ExprResult SubExpr;
+
+  assert(E->getBoundsExpr() == nullptr &&
+         "inferred bounds checks should not be present");
+
   if (E->getOpcode() == UO_AddrOf)
     SubExpr = TransformAddressOfOperand(E->getSubExpr());
   else
@@ -9035,6 +9088,8 @@ TreeTransform<Derived>::TransformUnaryExprOrTypeTraitExpr(
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformArraySubscriptExpr(ArraySubscriptExpr *E) {
+  assert(E->getBoundsExpr() == nullptr &&
+         "inferred bounds checks should not be present");
   ExprResult LHS = getDerived().TransformExpr(E->getLHS());
   if (LHS.isInvalid())
     return ExprError();
@@ -9116,6 +9171,8 @@ TreeTransform<Derived>::TransformCallExpr(CallExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformMemberExpr(MemberExpr *E) {
+  assert(E->getBoundsExpr() == nullptr &&
+         "inferred bounds checks should not be present");
   ExprResult Base = getDerived().TransformExpr(E->getBase());
   if (Base.isInvalid())
     return ExprError();
@@ -9293,6 +9350,8 @@ TreeTransform<Derived>::TransformImplicitCastExpr(ImplicitCastExpr *E) {
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCStyleCastExpr(CStyleCastExpr *E) {
+  assert(E->getBoundsExpr() == nullptr &&
+         "inferred bounds checks should not be present");
   TypeSourceInfo *Type = getDerived().TransformType(E->getTypeInfoAsWritten());
   if (!Type)
     return ExprError();
@@ -12150,17 +12209,24 @@ ExprResult TreeTransform<Derived>::TransformBoundsCastExpr(BoundsCastExpr *E) {
   if (SubExpr.isInvalid())
     return ExprError();
 
-  BoundsExpr *bounds = E->getBoundsExpr();
+  ExprResult BoundsExprResult = getDerived().TransformExpr(E->getBoundsExpr());
+  if (BoundsExprResult.isInvalid())
+    return ExprError();
+  BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsExprResult.get());
+  if (!Bounds) {
+    assert("unexpected dyn_cast failure");
+    return ExprError();
+  }
 
   if (!getDerived().AlwaysRebuild() && Type == E->getTypeInfoAsWritten() &&
-      SubExpr.get() == E->getSubExpr())
+      SubExpr.get() == E->getSubExpr() && Bounds == E->getBoundsExpr())
     return E;
 
   return getDerived().RebuildBoundsCastExpr(
       E->getOperatorLoc(), (E->getCastKind() == CK_DynamicPtrBounds)
                                ? tok::TokenKind::kw__Dynamic_bounds_cast
                                : tok::TokenKind::kw__Assume_bounds_cast,
-      Type, E->getAngleBrackets(), E->getRParenLoc(), SubExpr.get(), bounds);
+      Type, E->getAngleBrackets(), E->getRParenLoc(), SubExpr.get(), Bounds);
 }
 
 template<typename Derived>
