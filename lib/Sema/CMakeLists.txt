@@ -10,6 +10,7 @@ endif()
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   AttributeList.cpp
+  CheckedCInterop.cpp
   CodeCompleteConsumer.cpp
   DeclSpec.cpp
   DelayedDiagnostic.cpp

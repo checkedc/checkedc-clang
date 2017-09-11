@@ -80,8 +80,15 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
   return ResultType;
 }
 
+/*
 class RewriteBoundsSafeInterfaces : TreeTransform<RewriteBoundsSafeInterfaces> {
+  QualType TransformFunctionNoProtoType(
+    TypeLocBuilder &TLB,
+    FunctionNoProtoTypeLoc TL) {
+
+  }
 };
+*/
 
 // Helper for rewriting function types with bounds-safe interfaces
 // on parameters/returns to use checked types.
