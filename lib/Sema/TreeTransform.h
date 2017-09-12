@@ -636,6 +636,23 @@ public:
       SmallVectorImpl<QualType> &PTypes, SmallVectorImpl<ParmVarDecl *> *PVars,
       Sema::ExtParameterInfoBuilder &PInfos);
 
+  /// \brief Transform the extended parameter information for
+  /// a function prototype.
+  ///
+  /// Updates EPI with the transformed information.  Sets
+  /// EPIChanged to true if something changed, false otherwise.
+  ///
+  /// Return true on error.
+  template<typename Fn>
+  bool TransformExtendedParameterInfo(
+    FunctionProtoType::ExtProtoInfo &EPI,
+    SmallVector<QualType, 4> &ParamTypes,
+    SmallVector<BoundsExpr *, 4> &ParamBounds,
+    Sema::ExtParameterInfoBuilder &ExtParamInfos,
+    FunctionProtoTypeLoc &TL,
+    Fn TransformExceptionSpec,
+    bool &EPIChanged);
+
   /// \brief Transforms a single function-type parameter.  Return null
   /// on error.
   ///
@@ -5120,6 +5137,84 @@ bool TreeTransform<Derived>::TransformFunctionTypeParams(
   return false;
 }
 
+template <typename Derived> template<typename Fn>
+bool TreeTransform<Derived>::TransformExtendedParameterInfo(
+  FunctionProtoType::ExtProtoInfo &EPI,
+  SmallVector<QualType, 4> &ParamTypes,
+  SmallVector<BoundsExpr *, 4> &ParamBounds,
+  Sema::ExtParameterInfoBuilder &ExtParamInfos,
+  FunctionProtoTypeLoc &TL,
+  Fn TransformExceptionSpec,
+  bool &EPIChanged) {
+  EPIChanged = false;
+  if (TransformExceptionSpec(EPI.ExceptionSpec, EPIChanged))
+    return false;
+
+  // Handle extended parameter information.
+  if (auto NewExtParamInfos =
+      ExtParamInfos.getPointerOrNull(ParamTypes.size())) {
+    if (!EPI.ExtParameterInfos ||
+        llvm::makeArrayRef(EPI.ExtParameterInfos, TL.getNumParams())
+        != llvm::makeArrayRef(NewExtParamInfos, ParamTypes.size())) {
+      EPIChanged = true;
+    }
+    EPI.ExtParameterInfos = NewExtParamInfos;
+  }
+  else if (EPI.ExtParameterInfos) {
+    EPIChanged = true;
+    EPI.ExtParameterInfos = nullptr;
+  }
+
+  // Handle bounds expression for return.
+  BoundsExpr *ExistingReturnBounds = const_cast<BoundsExpr *>(EPI.ReturnBounds);
+  if (ExistingReturnBounds) {
+    ExprResult Result = getDerived().TransformExpr(ExistingReturnBounds);
+    if (Result.isInvalid())
+      return true;
+    BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(Result.get());
+    if (!NewBounds) {
+      assert("unexpected dynamic cast failure");
+      return true;
+    }
+    EPI.ReturnBounds = NewBounds;
+    if (ExistingReturnBounds != NewBounds)
+      EPIChanged = true;
+  }
+
+  // Handle bounds expressions for parameters.
+  const BoundsExpr *const *ExistingParamBounds = EPI.ParamBounds;
+  if (ExistingParamBounds) {
+    bool ParamBoundsChanged = false;
+    unsigned ExistingParamCount = TL.getNumParams();
+    unsigned NewParamCount = ParamTypes.size();
+    ParamBounds.reserve(NewParamCount);
+    for (unsigned i = 0; i < NewParamCount; i++) {
+      BoundsExpr *ExistingBounds = nullptr;
+      BoundsExpr *NewBounds = nullptr;
+      if (i < ExistingParamCount) {
+        ExistingBounds = const_cast<BoundsExpr *>(ExistingParamBounds[i]);
+        ExprResult Result = TransformExpr(ExistingBounds);
+        if (Result.isInvalid())
+          return true;
+        NewBounds = dyn_cast<BoundsExpr>(Result.get());
+        if (!NewBounds) {
+          assert("unexpected dynamic cast failure");
+          return true;
+        }
+      }
+      ParamBounds.push_back(NewBounds);
+      if (ExistingBounds != NewBounds)
+        ParamBoundsChanged = true;
+    }
+
+    if (ParamBoundsChanged) {
+      EPIChanged = true;
+      EPI.ParamBounds = ParamBounds.data();
+    }
+  }
+  return false;
+}
+
 template<typename Derived>
 QualType
 TreeTransform<Derived>::TransformFunctionProtoType(TypeLocBuilder &TLB,
@@ -5190,72 +5285,12 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   }
 
   FunctionProtoType::ExtProtoInfo EPI = T->getExtProtoInfo();
-
   bool EPIChanged = false;
-  if (TransformExceptionSpec(EPI.ExceptionSpec, EPIChanged))
+  if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamBounds,
+                                                  ExtParamInfos, TL,
+                                                  TransformExceptionSpec,
+                                                  EPIChanged))
     return QualType();
-
-  // Handle extended parameter information.
-  if (auto NewExtParamInfos =
-        ExtParamInfos.getPointerOrNull(ParamTypes.size())) {
-    if (!EPI.ExtParameterInfos ||
-        llvm::makeArrayRef(EPI.ExtParameterInfos, TL.getNumParams())
-          != llvm::makeArrayRef(NewExtParamInfos, ParamTypes.size())) {
-      EPIChanged = true;
-    }
-    EPI.ExtParameterInfos = NewExtParamInfos;
-  } else if (EPI.ExtParameterInfos) {
-    EPIChanged = true;
-    EPI.ExtParameterInfos = nullptr;
-  }
-
-  // Handle bounds expression for return.
-  BoundsExpr *ExistingReturnBounds = const_cast<BoundsExpr *>(EPI.ReturnBounds);
-  if (ExistingReturnBounds) {
-    ExprResult Result = getDerived().TransformExpr(ExistingReturnBounds);
-    if (Result.isInvalid())
-      return QualType();
-    BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(Result.get());
-    if (!NewBounds) {
-      assert("unexpected dynamic cast failure");
-      return QualType();
-    }
-    EPI.ReturnBounds = NewBounds;
-    if (ExistingReturnBounds != NewBounds)
-      EPIChanged = true;
-  }
-
-  // Handle bounds expressions for parameters.
-  const BoundsExpr *const *ExistingParamBounds = EPI.ParamBounds;
-  if (ExistingParamBounds) {
-    bool ParamBoundsChanged = false;
-    unsigned ExistingParamCount = TL.getNumParams();
-    unsigned NewParamCount = ParamTypes.size();
-    ParamBounds.reserve(NewParamCount);
-    for (unsigned i = 0; i < NewParamCount; i++) {
-      BoundsExpr *ExistingBounds = nullptr;
-      BoundsExpr *NewBounds = nullptr;
-      if (i < ExistingParamCount) {
-        ExistingBounds = const_cast<BoundsExpr *>(ExistingParamBounds[i]);
-        ExprResult Result = TransformExpr(ExistingBounds);
-        if (Result.isInvalid())
-          return QualType();
-        NewBounds = dyn_cast<BoundsExpr>(Result.get());
-        if (!NewBounds) {
-          assert("unexpected dynamic cast failure");
-          return QualType();
-        }
-      }
-      ParamBounds.push_back(NewBounds);
-      if (ExistingBounds != NewBounds)
-        ParamBoundsChanged = true;
-    }
-
-    if (ParamBoundsChanged) {
-      EPIChanged = true;
-      EPI.ParamBounds = ParamBounds.data();
-    }
-  }
 
   QualType Result = TL.getType();
   if (getDerived().AlwaysRebuild() || ResultType != T->getReturnType() ||
