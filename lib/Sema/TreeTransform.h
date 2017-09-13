@@ -5193,13 +5193,15 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
       BoundsExpr *NewBounds = nullptr;
       if (i < ExistingParamCount) {
         ExistingBounds = const_cast<BoundsExpr *>(ExistingParamBounds[i]);
-        ExprResult Result = TransformExpr(ExistingBounds);
-        if (Result.isInvalid())
-          return true;
-        NewBounds = dyn_cast<BoundsExpr>(Result.get());
-        if (!NewBounds) {
-          assert("unexpected dynamic cast failure");
-          return true;
+        if (ExistingBounds) {
+          ExprResult Result = TransformExpr(ExistingBounds);
+          if (Result.isInvalid())
+            return true;
+          NewBounds = dyn_cast<BoundsExpr>(Result.get());
+          if (!NewBounds) {
+            assert("unexpected dynamic cast failure");
+            return true;
+          }
         }
       }
       ParamBounds.push_back(NewBounds);

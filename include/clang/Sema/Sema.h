@@ -9457,10 +9457,7 @@ public:
 
   /// Rewrite function types with bounds-safe interfaces on unchecked
   /// types to use the checked types specified by the interfaces.  Recursively
-  /// apply the rewrite to function types occurring within pointer, array,
-  // or function types.
-  QualType RewriteBoundsSafeInterfaceTypes(QualType Ty, bool &Modified);
-
+  /// apply the rewrite to function types nested within the type.
   QualType RewriteBoundsSafeInterfaceTypes(QualType Ty);
 
   /// \brief Get the bounds-safe interface type for LHS.

@@ -1843,6 +1843,9 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     } else
       llvm_unreachable("unexpected DeclRef in checked scope");
 
+    if (CheckedTy.isNull())
+      return ExprError();
+
     // TODO: enable after function type rewriting is implemented.
     // assert(!CheckedTy->hasUncheckedType());
     if (VK == ExprValueKind::VK_RValue) {

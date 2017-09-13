@@ -31,8 +31,12 @@ using namespace sema;
 QualType Sema::GetCheckedCInteropType(QualType Ty,
                                       const BoundsExpr *Bounds,
                                       bool isParam) {
+  // Nothing to do.
+  if (Ty.isNull() || Ty->isCheckedArrayType() || Ty->isCheckedPointerType())
+    return Ty;
+
   QualType ResultType = QualType();
-  if (Ty.isNull() || Bounds == nullptr)
+  if (Bounds == nullptr)
     return ResultType;
 
   // Parameter types that are array types are adusted to be
@@ -46,6 +50,11 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
   }
 
   switch (Bounds->getKind()) {
+    case BoundsExpr::Kind::Invalid:
+      break;
+    case BoundsExpr::Kind::None:
+      llvm_unreachable("should not be getting interop type for bounds(none)");
+      break;
     case BoundsExpr::Kind::InteropTypeAnnotation: {
       const InteropTypeBoundsAnnotation *Annot =
         dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
@@ -54,6 +63,7 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
         ResultType = Annot->getType();
       break;
     }
+    case BoundsExpr::Kind::Any:
     case BoundsExpr::Kind::ByteCount:
     case BoundsExpr::Kind::ElementCount:
     case BoundsExpr::Kind::Range: {
@@ -63,13 +73,17 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
                                               CheckedPointerKind::Array);
           ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
         }
+        else {
+          assert(PtrType->isChecked());
+          ResultType = Ty;
+        }
       }
       else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType())
         ResultType = MakeCheckedArrayType(Ty);
+      else
+        llvm_unreachable("unexpected type with bounds annotation");
       break;
     }
-    default:
-      break;
   }
 
   // When a parameter variable declaration is created, array types for parameter
@@ -80,80 +94,183 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
   return ResultType;
 }
 
-/*
-class RewriteBoundsSafeInterfaces : TreeTransform<RewriteBoundsSafeInterfaces> {
-  QualType TransformFunctionNoProtoType(
-    TypeLocBuilder &TLB,
-    FunctionNoProtoTypeLoc TL) {
+// Transform function type that have parameters or returns with bounds
+// or bounds-safe interface types to ones that have checked types for
+// those parameters or returns. The checked types are determined based
+// on the bounds information comibned with the type.
+//
+// This is tricky to do because function types may have function types
+// embedded within them, and bounds or bounds-safe interfaces may also
+// have function types embeddedwith in them.  We rely on the AST TreeTransform
+// functionality to do a thorough rewrite.
 
+namespace {
+class TransformFunctionTypeToChecked :
+  public TreeTransform<TransformFunctionTypeToChecked> {
+
+  typedef TreeTransform<TransformFunctionTypeToChecked> BaseTransform;
+
+  // This method has been copied from TreeTransform.h and modified to add
+  // an additional rewrite step that updates parameter/return types based
+  // on bounds information.
+  //
+  // This code has been specialized to assert on trailing returning types
+  // instead of handling them. That's a C++ feature that we could not test
+  // for now.  Teh code could be added back later.
+
+public:
+  TransformFunctionTypeToChecked(Sema &SemaRef) : BaseTransform(SemaRef) {}
+
+  QualType TransformFunctionProtoType(TypeLocBuilder &TLB,
+                                      FunctionProtoTypeLoc TL) {
+    SmallVector<QualType, 4> ExceptionStorage;
+    TreeTransform *This = this; // Work around gcc.gnu.org/PR56135.
+    return getDerived().TransformFunctionProtoType(
+        TLB, TL, nullptr, 0,
+        [&](FunctionProtoType::ExceptionSpecInfo &ESI, bool &Changed) {
+          return This->TransformExceptionSpec(TL.getBeginLoc(), ESI,
+                                              ExceptionStorage, Changed);
+        });
+  }
+  template<typename Fn>
+  QualType TransformFunctionProtoType(
+    TypeLocBuilder &TLB, FunctionProtoTypeLoc TL, CXXRecordDecl *ThisContext,
+    unsigned ThisTypeQuals, Fn TransformExceptionSpec) {
+
+    // First rewrite any subcomponents so that nested function types are
+    // handled.
+
+    // Transform the parameters and return type.
+    //
+    // We are required to instantiate the params and return type in source order.
+    //
+    SmallVector<QualType, 4> ParamTypes;
+    SmallVector<ParmVarDecl*, 4> ParamDecls;
+    SmallVector<BoundsExpr *, 4> ParamBounds;
+    Sema::ExtParameterInfoBuilder ExtParamInfos;
+    const FunctionProtoType *T = TL.getTypePtr();
+
+    QualType ResultType;
+    if (T->hasTrailingReturn()) {
+      assert("Unexpected trailing return type for Checked C");
+      return QualType();
+    }
+
+    ResultType = getDerived().TransformType(TLB, TL.getReturnLoc());
+    if (ResultType.isNull())
+      return QualType();
+
+    if (getDerived().TransformFunctionTypeParams(
+      TL.getBeginLoc(), TL.getParams(),
+      TL.getTypePtr()->param_type_begin(),
+      T->getExtParameterInfosOrNull(),
+      ParamTypes, &ParamDecls, ExtParamInfos))
+      return QualType();
+
+    FunctionProtoType::ExtProtoInfo EPI = T->getExtProtoInfo();
+    bool EPIChanged = false;
+    if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamBounds,
+                                                    ExtParamInfos, TL,
+                                                    TransformExceptionSpec,
+                                                    EPIChanged))
+      return QualType();
+
+    // Now rewrite types based on bounds information.  Remove any
+    // interop type annotations form bounds information also.
+
+    if (const BoundsExpr *Bounds = EPI.ReturnBounds) {
+#if TRACE_INTEROP
+      llvm::outs() << "return bounds = ";
+      EPI.ReturnBounds->dump(llvm::outs());
+      llvm::outs() << "\nreturn type = ";
+      ResultType.dump(llvm::outs());
+      ResultType = SemaRef.GetCheckedCInteropType(ResultType, Bounds, false);
+      llvm::outs() << "\nresult type = ";
+      ResultType.dump(llvm::outs());
+#endif
+      TLB.TypeWasModifiedSafely(ResultType);
+
+      // A return that has checked type should not have an interop type
+      // annotation. If there is one, remove the return bounds.
+      if (Bounds->isInteropTypeAnnotation()) {
+        EPI.ReturnBounds = nullptr;
+        EPIChanged = true;
+      }
+    }
+
+    if (EPI.ParamBounds) {
+      // Track whether there are parameter bounds left after removing interop
+      // annotations.
+      bool hasParamBounds = false;
+      for (unsigned int i = 0; i < ParamTypes.size(); i++) {
+        const BoundsExpr *IndividualBounds = ParamBounds[i];
+        if (IndividualBounds) {
+          QualType ParamType =
+            SemaRef.GetCheckedCInteropType(ParamTypes[i], IndividualBounds,
+                                           true);
+          if (ParamType.isNull()) {
+#if TRACE_INTEROP
+            llvm::outs() << "encountered null parameter type with bounds";
+            llvm::outs() << "\noriginal param type = ";
+            ParamTypes[i]->dump(llvm::outs());
+            llvm::outs() << "\nparam bounds are:";
+            IndividualBounds->dump(llvm::outs());
+            llvm::outs() << "\n";
+            llvm::outs().flush();
+#endif
+            return QualType();
+          }
+
+          ParamTypes[i] = ParamType;
+          // A parameter that has checked type should not have an interop type
+          // annotation. If there is one, remove the bounds for the parameter
+          // in the vector of new parameter bounds.
+          if (IndividualBounds->isInteropTypeAnnotation()) {
+            ParamBounds[i] = nullptr;
+            EPIChanged = true;
+          }
+          else
+            hasParamBounds = true;
+        }
+      }
+
+      // If there are no parameter bounds left, null out the pointer to the
+      // param bounds array.
+      if (!hasParamBounds)
+        EPI.ParamBounds = nullptr;
+    }
+
+    // Rebuild the type if something changed.
+    QualType Result = TL.getType();
+    if (getDerived().AlwaysRebuild() || ResultType != T->getReturnType() ||
+        T->getParamTypes() != llvm::makeArrayRef(ParamTypes) || EPIChanged) {
+      Result = getDerived().RebuildFunctionProtoType(ResultType, ParamTypes, EPI);
+      if (Result.isNull()) {
+#if TRACE_INTEROP
+        llvm::outs() << "Rebuild function prototype failed";
+#endif
+        return QualType();
+      }
+    }
+
+    FunctionProtoTypeLoc NewTL = TLB.push<FunctionProtoTypeLoc>(Result);
+    NewTL.setLocalRangeBegin(TL.getLocalRangeBegin());
+    NewTL.setLParenLoc(TL.getLParenLoc());
+    NewTL.setRParenLoc(TL.getRParenLoc());
+    NewTL.setExceptionSpecRange(TL.getExceptionSpecRange());
+    NewTL.setLocalRangeEnd(TL.getLocalRangeEnd());
+    for (unsigned i = 0, e = NewTL.getNumParams(); i != e; ++i)
+      NewTL.setParam(i, ParamDecls[i]);
+#if TRACE_INTEROP
+    llvm::outs() << "Result function type = ";
+    Result.dump(llvm::outs());
+    llvm::outs() << "\n";
+#endif
+    return Result;
   }
 };
-*/
-
-// Helper for rewriting function types with bounds-safe interfaces
-// on parameters/returns to use checked types.
-QualType Sema::RewriteBoundsSafeInterfaceTypes(QualType Ty, bool &Modified) {
-  if (const PointerType *PtrType = Ty->getAs<PointerType>()) {
-    QualType pointeeType =
-      RewriteBoundsSafeInterfaceTypes(PtrType->getPointeeType(), Modified);
-    if (!Modified)
-      return Ty;
-    QualType ResultType =
-      Context.getPointerType(pointeeType, PtrType->getKind());
-    ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
-    return ResultType;
-  }
-  else if (Ty->isArrayType()) {
-    ASTContext &Context = this->Context;
-    const ArrayType *arrTy = cast<ArrayType>(Ty.getCanonicalType().getTypePtr());
-    QualType elemTy =
-      RewriteBoundsSafeInterfaceTypes(arrTy->getElementType(), Modified);
-    bool isChecked = arrTy->isChecked();
-    if (!Modified)
-      return Ty;
-
-    switch (arrTy->getTypeClass()) {
-      case Type::ConstantArray: {
-        const ConstantArrayType *constArrTy = cast<ConstantArrayType>(arrTy);
-        return Context.getConstantArrayType(elemTy,
-                                            constArrTy->getSize(),
-                                            constArrTy->getSizeModifier(),
-                                            Ty.getCVRQualifiers(),
-                                            isChecked);
-      }
-      case Type::IncompleteArray: {
-        const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(arrTy);
-        return Context.getIncompleteArrayType(elemTy,
-                                              incArrTy->getSizeModifier(),
-                                              Ty.getCVRQualifiers(),
-                                              isChecked);
-      }
-      default:
-        return Ty;
-    }
-  }
-  else if (Ty->isFunctionProtoType()) {
-  /*/
-    const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(Ty);
-    bool IsModified = false,
-      bool ReturnTypeModified = false;
-    QualType ReturnType = RewriteBoundsSafeInterfaceTypes(FPT->getReturnType(),
-                                                          ReturnTypeModified);
-    unsigned NumParams = FPT->getNumParams();
-    IsModified |= ReturnTypeModified;
-
-
-    )
-    QualType Result = BuildFunctionType()
-      // TODO: fill this in.
-  */
-    return Ty;
-  }
-
-  return Ty;
 }
 
 QualType Sema::RewriteBoundsSafeInterfaceTypes(QualType Ty) {
-  bool Modified = false;
-  return RewriteBoundsSafeInterfaceTypes(Ty, Modified);
+  return TransformFunctionTypeToChecked(*this).TransformType(Ty);
 }
