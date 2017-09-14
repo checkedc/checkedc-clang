@@ -2959,6 +2959,7 @@ protected:
     SubExprs[CASTBOUNDS] = nullptr;
     SubExprs[SUBEXPRBOUNDS] = nullptr;
     CastExprBits.Kind = kind;
+    CastExprBits.BoundsSafeInterface = false;
     setBasePathSize(BasePathSize);
     assert(CastConsistency());
   }
@@ -2977,6 +2978,14 @@ public:
   CastKind getCastKind() const { return (CastKind) CastExprBits.Kind; }
   void setCastKind(CastKind K) { CastExprBits.Kind = K; }
   const char *getCastKindName() const;
+
+  bool isBoundsSafeInterface() const {
+    return (bool) CastExprBits.BoundsSafeInterface;
+  }
+
+  void setBoundsSafeInterface(bool b) {
+    CastExprBits.BoundsSafeInterface = b;
+  }
 
   Expr *getSubExpr() { return cast<Expr>(SubExprs[OP]); }
   const Expr *getSubExpr() const { return cast<Expr>(SubExprs[OP]); }

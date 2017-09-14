@@ -184,7 +184,8 @@ protected:
     unsigned : NumExprBits;
 
     unsigned Kind : 6;
-    unsigned BasePathSize : 32 - 6 - NumExprBits;
+    unsigned BoundsSafeInterface : 1;
+    unsigned BasePathSize : 32 - 7 - NumExprBits;
   };
 
   class CallExprBitfields {

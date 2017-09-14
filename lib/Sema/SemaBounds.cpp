@@ -1474,14 +1474,23 @@ namespace {
         return;
       }
 
+      // 0c. Always trust casts inserted according to bounds-safe interface rules.
+      if (E->isBoundsSafeInterface())
+        return;
+
       const Expr *Needle = E->getSubExpr();
       while (true) {
         Needle = Needle->IgnoreParens();
         QualType NeedleTy = Needle->getType();
 
         if (Needle->isNullPointerConstant(S.Context, Expr::NPC_NeverValueDependent))
-          // 1. We've got to a null pointer, so this cast is allowed, stop
+          // 1a. We've got to a null pointer, so this cast is allowed, stop
           return;
+
+        if (const CastExpr *CE = dyn_cast<ImplicitCastExpr>(Needle))
+          if (CE->isBoundsSafeInterface())
+            // 1b. We've hit a cast inserted according to bounds-safe interface rules.
+            return;
 
         if (NeedleTy->isCheckedPointerPtrType()) {
           // 2. We've found something with ptr<> type, check compatibility.

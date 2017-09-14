@@ -663,6 +663,7 @@ void ASTStmtWriter::VisitCastExpr(CastExpr *E) {
   Record.push_back(E->path_size());
   Record.AddStmt(E->getSubExpr());
   Record.push_back(E->getCastKind()); // FIXME: stable encoding
+  Record.push_back(E->isBoundsSafeInterface());
   Record.push_back(E->hasBoundsExpr());
   if (E->hasBoundsExpr()) {
     Record.AddStmt(E->getBoundsExpr());

@@ -677,6 +677,7 @@ void ASTStmtReader::VisitCastExpr(CastExpr *E) {
   assert(NumBaseSpecs == E->path_size());
   E->setSubExpr(Record.readSubExpr());
   E->setCastKind((CastKind)Record.readInt());
+  E->setBoundsSafeInterface((bool)Record.readInt());
   bool hasBoundsExpr = Record.readInt();
   if (hasBoundsExpr) {
     E->setBoundsExpr(Record.readBoundsExpr());

@@ -1026,6 +1026,7 @@ void StmtProfiler::VisitCompoundLiteralExpr(const CompoundLiteralExpr *S) {
 
 void StmtProfiler::VisitCastExpr(const CastExpr *S) {
   VisitExpr(S);
+  ID.AddBoolean(S->isBoundsSafeInterface());
 }
 
 void StmtProfiler::VisitImplicitCastExpr(const ImplicitCastExpr *S) {

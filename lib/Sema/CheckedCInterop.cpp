@@ -179,12 +179,12 @@ public:
     // interop type annotations form bounds information also.
 
     if (const BoundsExpr *Bounds = EPI.ReturnBounds) {
+      ResultType = SemaRef.GetCheckedCInteropType(ResultType, Bounds, false);
 #if TRACE_INTEROP
       llvm::outs() << "return bounds = ";
       EPI.ReturnBounds->dump(llvm::outs());
       llvm::outs() << "\nreturn type = ";
       ResultType.dump(llvm::outs());
-      ResultType = SemaRef.GetCheckedCInteropType(ResultType, Bounds, false);
       llvm::outs() << "\nresult type = ";
       ResultType.dump(llvm::outs());
 #endif

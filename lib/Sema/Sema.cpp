@@ -390,7 +390,8 @@ void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
 ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
                                    CastKind Kind, ExprValueKind VK,
                                    const CXXCastPath *BasePath,
-                                   CheckedConversionKind CCK) {
+                                   CheckedConversionKind CCK,
+                                   bool isBoundsSafeInterfaceCast) {
 #ifndef NDEBUG
   if (VK == VK_RValue && !E->isRValue()) {
     switch (Kind) {
@@ -431,11 +432,15 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
     if (ImpCast->getCastKind() == Kind && (!BasePath || BasePath->empty())) {
       ImpCast->setType(Ty);
       ImpCast->setValueKind(VK);
+      ImpCast->setBoundsSafeInterface(isBoundsSafeInterfaceCast ||
+                                      ImpCast->isBoundsSafeInterface());
       return E;
     }
   }
 
-  return ImplicitCastExpr::Create(Context, Ty, Kind, E, BasePath, VK);
+  ImplicitCastExpr *ICE = ImplicitCastExpr::Create(Context, Ty, Kind, E, BasePath, VK);
+  ICE->setBoundsSafeInterface(isBoundsSafeInterfaceCast);
+  return ICE;
 }
 
 /// ScalarTypeToBooleanCastKind - Returns the cast kind corresponding

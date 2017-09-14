@@ -1995,6 +1995,9 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
   dumpBasePath(OS, Node);
   OS << ">";
 
+  if (Node->isBoundsSafeInterface())
+    OS << " BoundsSafeInterface";
+
   if (Node->getStmtClass() != Expr::BoundsCastExprClass)
     if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
       dumpChild([=] {

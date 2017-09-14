@@ -9221,7 +9221,8 @@ public:
                                ExprValueKind VK = VK_RValue,
                                const CXXCastPath *BasePath = nullptr,
                                CheckedConversionKind CCK
-                                  = CCK_ImplicitConversion);
+                                  = CCK_ImplicitConversion,
+                               bool isBoundsSafeInterfaceCast = false);
 
   /// ScalarTypeToBooleanCastKind - Returns the cast kind corresponding
   /// to the conversion from scalar type ScalarTy to the Boolean type.
