@@ -496,7 +496,7 @@ namespace {
                                                SourceLocation());
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
-          return CreateBoundsAllowedButNotComputed();
+          return CreateBoundsNone();
         default:
           return B;
       }
@@ -578,6 +578,10 @@ namespace {
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = dyn_cast<MemberExpr>(E);
+        if (!ME) {
+          llvm_unreachable("unexpected cast failure");
+          return CreateBoundsInferenceError();
+        }
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
           return CreateBoundsInferenceError();
@@ -602,12 +606,47 @@ namespace {
         Expr *AddrOf = CreateAddressOfOperator(ME);
         return CreateSingleElementBounds(AddrOf);
       }
+      case Expr::ImplicitCastExprClass: {
+        ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
+        if (!ICE) {
+          llvm_unreachable("unexpected cast failure");
+          return CreateBoundsInferenceError();
+        }
+        // An LValueBitCast adjusts the type of the lvalue, but
+        // the bounds are not changed.
+        if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
+          return LValueBounds(ICE->getSubExpr());
+         return CreateBoundsUnknown();
+      }
       // TODO: fill in these cases.
       case Expr::CompoundLiteralExprClass:
         return CreateBoundsAllowedButNotComputed();
       default:
         return CreateBoundsUnknown();
       }
+    }
+
+    BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam) {
+      // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
+      // it is a function pointer type, in which case it has no required
+      // bounds.
+      if (Ty->isCheckedPointerPtrType()) {
+        if (Ty->isFunctionPointerType())
+          return CreateBoundsEmpty();
+
+        // TODO: if Ty is from an interop bounds annotation, mark this
+        // cast as a bounds-safe interface cast.
+        Expr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        return CreateSingleElementBounds(Base);
+      } else if (Ty->isCheckedArrayType() && IsParam) {
+        BoundsExpr *BE = CreateBoundsForArrayType(Ty);
+        // TODO: Ty is definitely from an interop bounds annotation, mark this
+        // cast as a bounds-safe interface cast.
+        Expr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        return ExpandToRange(Base, BE);
+      }
+   
+       return CreateBoundsEmpty();
     }
 
     // Compute bounds for the target of an lvalue.  Values assigned through
@@ -624,18 +663,8 @@ namespace {
       // array conversion are the same as the lvalue bounds of the
       // array-typed expression.
       assert(!QT->isArrayType() && "Unexpected Array-typed lvalue in LValueTargetBounds");
-
-      // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
-      // it is a function pointer type, in which case it has no required
-      // bounds.
-      if (QT->isCheckedPointerPtrType()) {
-         if (QT->isFunctionPointerType())
-           return CreateBoundsEmpty();
-
-        Expr *Base = CreateImplicitCast(E->getType(),
-                                        CastKind::CK_LValueToRValue, E);
-        return CreateSingleElementBounds(Base);
-      }
+      if (QT->isCheckedPointerPtrType())
+         return CreateTypeBasedBounds(E, QT, false);
 
       switch (E->getStmtClass()) {
         case Expr::DeclRefExprClass: {
@@ -649,8 +678,15 @@ namespace {
             return CreateBoundsInferenceError();
 
           BoundsExpr *B = D->getBoundsExpr();
+
           if (!B || B->isNone())
             return CreateBoundsUnknown();
+
+          if (B->isInteropTypeAnnotation())
+            // TODO: eventually we need to support an interop type annotation with
+            // a bounds declaration too. For now, we can't have that, so we must
+            // infer bounds based solely on the type.
+            return CreateTypeBasedBounds(E, B->getType(),isa<ParmVarDecl>(D));
 
            Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
            return ExpandToRange(Base, B);
@@ -670,17 +706,22 @@ namespace {
           if (!B || B->isNone())
             return CreateBoundsUnknown();
 
-          if (B->isInteropTypeAnnotation())
-            return CreateBoundsAllowedButNotComputed();
-
           Expr *MemberBaseExpr = M->getBase();
           if (!SemaRef.CheckIsNonModifyingExpr(MemberBaseExpr,
               Sema::NonModifiyingExprRequirement::NMER_Unknown,
               /*ReportError=*/false))
             return CreateBoundsNotAllowedYet();
+
+          if (B->isInteropTypeAnnotation())
+            // TODO: eventually we need to support an interop type annotation with
+            // a bounds declaration too. For now, we can't have that, so we must
+            // infer bounds based solely on the type.
+            return CreateTypeBasedBounds(MemberBaseExpr, B->getType(), false);
+
           B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
           if (!B)
             return CreateBoundsInferenceError();
+
           if (B->isElementCount() || B->isByteCount()) {
              Expr *MemberRValue;
             if (M->isLValue())
@@ -690,6 +731,16 @@ namespace {
             return ExpandToRange(MemberRValue, B);
           }
           return B;
+        }
+        case Expr::ImplicitCastExprClass: {
+          ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
+          if (!ICE) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsInferenceError();
+          }
+          if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
+            return LValueTargetBounds(ICE->getSubExpr());
+          return CreateBoundsUnknown();
         }
         default:
           return CreateBoundsUnknown();
@@ -933,6 +984,7 @@ namespace {
               // This function has no return bounds
               return CreateBoundsUnknown();
 
+            // TODO:handle interop type annotation on return bounds
             if (FunBounds->isInteropTypeAnnotation())
               return CreateBoundsAllowedButNotComputed();
 
@@ -1132,7 +1184,7 @@ namespace {
 
     // Add bounds check to the base expression of a member reference, if the
     // base expression is an Array_ptr dereference.  Such base expressions
-    // always need bounds checka, even though their lvalues are only used for an
+    // always need bounds checks, even though their lvalues are only used for an
     // address computation.
     bool AddMemberBaseBoundsCheck(MemberExpr *E) {
       Expr *Base = E->getBase();
