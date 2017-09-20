@@ -1355,13 +1355,18 @@ namespace {
           continue;
 
         // TODO: Github issue #334.  As part of addressing that,
-        // we should be able to remove this check.
+        // we should be able to remove these checks.
         // An itype(array_ptr<T>) has bounds(none), so skip checking
-        // it.
+        // it.   itype(ptr<... function type>) has bounds(none) also,
+        // so skip that too.
         if (const InteropTypeBoundsAnnotation *ITA =
-            dyn_cast<InteropTypeBoundsAnnotation>(ParamBounds))
+            dyn_cast<InteropTypeBoundsAnnotation>(ParamBounds)) {
           if (ITA->getType()->isCheckedPointerArrayType())
             continue;
+          if (ITA->getType()->isCheckedPointerPtrType() &&
+              ITA->getType()->getPointeeType()->isFunctionType())
+            continue;
+        }
 
         Expr *Arg = CE->getArg(i);
         BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
