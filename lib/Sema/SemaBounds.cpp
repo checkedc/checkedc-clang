@@ -1221,7 +1221,8 @@ namespace {
       if (S.Diags.isIgnored(diag::warn_bounds_declaration_invalid, ArgLoc))
         return;
 
-      if (!CheckBoundsDeclIsProvable(ExpectedArgBounds, ArgBounds)) {
+      BoundsExpr *NormalizedBounds = S.ExpandToRange(Arg, ExpectedArgBounds);
+      if (!CheckBoundsDeclIsProvable(NormalizedBounds, ArgBounds)) {
         S.Diag(ArgLoc, diag::warn_argument_bounds_invalid) << (ParamNum + 1)
           << Arg->getSourceRange();
         S.Diag(ArgLoc, diag::note_expected_argument_bounds) << ExpectedArgBounds;
@@ -1341,7 +1342,8 @@ namespace {
                                                      CE->getNumArgs());
       for (unsigned i = 0; i < Count; i++) {
         if (FuncProtoTy->getParamType(i)->isUncheckedPointerType()) {
-          // skip checking bounds, unless this is a bounds-safe interface cast.
+          // Skip checking bounds for unchecked pointer parameters, unless
+          // the argument was subject to a bounds-safe interface cast.
           ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(CE->getArg(i));
           if (!(ICE && ICE->getCastKind() == CK_BitCast &&
                 ICE->getSubExpr()->getType()->isCheckedPointerType()))
@@ -1351,6 +1353,16 @@ namespace {
         const BoundsExpr *ParamBounds = FuncProtoTy->getParamBounds(i);
         if (!ParamBounds)
           continue;
+
+        // TODO: Github issue #334.  As part of addressing that,
+        // we should be able to remove this check.
+        // An itype(array_ptr<T>) has bounds(none), so skip checking
+        // it.
+        if (const InteropTypeBoundsAnnotation *ITA =
+            dyn_cast<InteropTypeBoundsAnnotation>(ParamBounds))
+          if (ITA->getType()->isCheckedPointerArrayType())
+            continue;
+
         Expr *Arg = CE->getArg(i);
         BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
         if (ArgBounds->isNone()) {
