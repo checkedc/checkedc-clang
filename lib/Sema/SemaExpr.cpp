@@ -8218,16 +8218,15 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   // Note that we have to insert a cast that "downgrades" the checkedness.
   if (result == Incompatible && !LHSInteropType.isNull()) {
     result = CheckAssignmentConstraints(LHSInteropType, RHS, Kind, ConvertRHS);
-    assert(!LHSType->isReferenceType());
-    assert(!LHSInteropType->isReferenceType());
-    Expr *E = RHS.get();
-    if (ConvertRHS) {
-      if (Kind != Compatible) {
-        RHS = ImpCastExprToType(E, LHSInteropType, Kind);
-        E = RHS.get();
+    if (result != Incompatible) {
+      assert(!LHSType->isReferenceType());
+      assert(!LHSInteropType->isReferenceType());
+      if (ConvertRHS) {
+        if (RHS.get()->getType() != LHSInteropType)
+          RHS = ImpCastExprToType(RHS.get(), LHSInteropType, Kind);
+        // Downgrade checked pointer to unchecked LHSType
+        RHS = ImpCastExprToType(RHS.get(), LHSType, CK_BitCast);
       }
-      // Downgrade checked pointer to unchecked LHSType
-      RHS = ImpCastExprToType(E, LHSType, CK_BitCast);
     }
   }
   return result;
