@@ -46,3 +46,22 @@ void f6(_Array_ptr<int> p : count(x), int x) {
               // expected-note {{(expanded) declared bounds are 'bounds(r, r + x)'}} \
               // expected-note {{(expanded) inferred bounds are 'bounds(p, p + x)'}}
 }
+
+// Parameter passing
+
+void test_f1(_Array_ptr<int> arg : bounds(arg, arg + 1));
+
+void test_f2(_Array_ptr<int> arg : count(1)) {
+}
+
+void test_calls(_Array_ptr<int> arg1 : count(1)) {
+  // Passing null, no warning
+  test_f1(0);
+
+  _Array_ptr<int> t1 : bounds(t1, t1 + 1) = 0;
+  // Syntactically identical bounds
+  test_f1(t1);
+
+  // Syntactically identical after expanding count
+  test_f2(t1);
+}

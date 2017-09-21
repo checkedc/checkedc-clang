@@ -175,13 +175,17 @@ namespace {
     // This stores whether we've emitted an error for a particular substitution
     // so that we don't duplicate error messages.
     llvm::SmallBitVector ErroredForArgument;
+    Sema::NonModifiyingExprRequirement ErrorKind;
     bool SubstitutedModifyingExpression;
 
+
   public:
-    ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args) :
+    ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args,
+                                 Sema::NonModifiyingExprRequirement ErrorKind) :
       BaseTransform(SemaRef),
       Arguments(Args),
       ErroredForArgument(Args.size()),
+      ErrorKind(ErrorKind),
       SubstitutedModifyingExpression(false) { }
 
     bool substitutedModifyingExpression() {
@@ -196,8 +200,7 @@ namespace {
 
         // We may only substitute if this argument expression is
         // a non-modifying expression.
-        if (!SemaRef.CheckIsNonModifyingExpr(AE,
-                                             Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Args,
+        if (!SemaRef.CheckIsNonModifyingExpr(AE, ErrorKind,
                                              ShouldReportError)) {
           SubstitutedModifyingExpression = true;
           ErroredForArgument.set(index);
@@ -212,12 +215,14 @@ namespace {
   };
 }
 
-BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args) {
+BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
+  BoundsExpr *Bounds, ArrayRef<Expr *> Args,
+  NonModifiyingExprRequirement ErrorKind) {
   if (!Bounds)
     return Bounds;
 
   BoundsExpr *Result;
-  auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args);
+  auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args, ErrorKind);
   ExprResult ConcreteBounds = Concretizer.TransformExpr(Bounds);
   if (Concretizer.substitutedModifyingExpression()) {
       return nullptr;
@@ -293,6 +298,26 @@ BoundsExpr *Sema::MakeMemberBoundsConcrete(
     BoundsExpr *Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
     return Result;
   }
+}
+
+namespace {
+// Compute what positional parameters are used by an expression.
+class CollectPositionalParameters : public RecursiveASTVisitor<CollectPositionalParameters> {
+
+private:
+  llvm::SmallBitVector Used;
+
+public:
+  CollectPositionalParameters(unsigned ParamCount) : Used(ParamCount) {}
+
+  bool VisitPositionalParameterExpr(PositionalParameterExpr *PE) {
+    Used.set(PE->getIndex());
+  }
+
+  bool IsUsed(unsigned Index) {
+    return Used.test(Index);
+  }
+};
 }
 
 namespace {
@@ -993,7 +1018,9 @@ namespace {
 
             // Concretize Call Bounds with argument expressions.
             // We can only do this if the argument expressions are non-modifying
-            ReturnBounds = SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs);
+            ReturnBounds =
+              SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
+                                Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Return);
             // If concretization failed, this means we tried to substitute with a non-modifying
             // expression, which is not allowed by the specification.
             if (!ReturnBounds)
@@ -1213,8 +1240,8 @@ namespace {
 
     // Check that SrcBounds implies that DeclaredBounds are provably
     // true.
-    bool CheckBoundsDeclIsProvable(BoundsExpr *DeclaredBounds,
-                                   BoundsExpr *SrcBounds) {
+    bool CheckBoundsDeclIsProvable(const BoundsExpr *DeclaredBounds,
+                                   const BoundsExpr *SrcBounds) {
       // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
         return true;
@@ -1243,6 +1270,27 @@ namespace {
           << DeclaredBounds << DeclaredBounds->getSourceRange();
         S.Diag(Src->getExprLoc(), diag::note_inferred_bounds)
           << SrcBounds << Src->getSourceRange();
+      }
+    }
+
+    // Check that the bounds for an argument imply the expected
+    // bounds for the argument.   The expected bounds are computed
+    // by substituting the arguments into the bounds expression for
+    // the corresponding parameter.
+    void CheckBoundsDeclAtCallArg(unsigned ParamNum,
+                                  BoundsExpr *ExpectedArgBounds, Expr *Arg,
+                                  BoundsExpr *ArgBounds) {
+      SourceLocation ArgLoc = Arg->getLocStart();
+      if (S.Diags.isIgnored(diag::warn_bounds_declaration_invalid, ArgLoc))
+        return;
+
+      BoundsExpr *NormalizedBounds = S.ExpandToRange(Arg, ExpectedArgBounds);
+      if (!CheckBoundsDeclIsProvable(NormalizedBounds, ArgBounds)) {
+        S.Diag(ArgLoc, diag::warn_argument_bounds_invalid) << (ParamNum + 1)
+          << Arg->getSourceRange();
+        S.Diag(ArgLoc, diag::note_expected_argument_bounds) << ExpectedArgBounds;
+        S.Diag(Arg->getExprLoc(), diag::note_inferred_bounds)
+          << ArgBounds << Arg->getSourceRange();
       }
     }
 
@@ -1318,6 +1366,94 @@ namespace {
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return true;
     }
+
+    bool VisitCallExpr(CallExpr *CE) {
+      const PointerType *FuncPtrTy = CE->getCallee()->getType()->getAs<PointerType>();
+      assert(FuncPtrTy);
+      const FunctionType *FuncTy =
+        FuncPtrTy->getPointeeType()->getAs<FunctionType>();
+      assert(FuncTy);
+      const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
+      if (!FuncProtoTy)
+        return true;
+      if (!FuncProtoTy->hasParamBounds())
+        return true;
+      unsigned NumParams = FuncProtoTy->getNumParams();
+      unsigned NumArgs = CE->getNumArgs();
+      unsigned Count = (NumParams < NumArgs) ? NumParams : NumArgs;
+      if (false) {
+        // TODO: need RecursiveASTVisitor.h to visit bounds expressions
+        // in functions for this to work.
+        CollectPositionalParameters Uses(NumParams);
+        Uses.VisitFunctionProtoType(const_cast<FunctionProtoType *>(FuncProtoTy));
+
+        // If arguments are used in bounds expressions and are modifying expressions, issue
+        // an error.  TODO: If an argument expression has side-effects, but we can represent
+        // the value of the expression in terms of the values of variables before the call,
+        // we should use that instead and not issue an error.
+        for (unsigned i = 0; i < NumParams; i++)
+          if (Uses.IsUsed(i) && i < NumArgs &&
+              !S.CheckIsNonModifyingExpr(CE->getArg(i),
+                 Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Parameter,
+                                        false)) {
+            S.Diag(CE->getArg(i)->getLocStart(), diag::err_modifying_expr_not_supported) <<
+              (i + 1) << CE->getArg(i)->getSourceRange();
+          }
+      }
+
+      ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
+                                                     CE->getNumArgs());
+      for (unsigned i = 0; i < Count; i++) {
+        if (FuncProtoTy->getParamType(i)->isUncheckedPointerType()) {
+          // Skip checking bounds for unchecked pointer parameters, unless
+          // the argument was subject to a bounds-safe interface cast.
+          ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(CE->getArg(i));
+          if (!(ICE && ICE->getCastKind() == CK_BitCast &&
+                ICE->getSubExpr()->getType()->isCheckedPointerType()))
+            continue;
+        }
+
+        const BoundsExpr *ParamBounds = FuncProtoTy->getParamBounds(i);
+        if (!ParamBounds)
+          continue;
+
+        // TODO: Github issue #334.  As part of addressing that,
+        // we should be able to remove these checks.
+        // An itype(array_ptr<T>) has bounds(none), so skip checking
+        // it.   itype(ptr<... function type>) has bounds(none) also,
+        // so skip that too.
+        if (const InteropTypeBoundsAnnotation *ITA =
+            dyn_cast<InteropTypeBoundsAnnotation>(ParamBounds)) {
+          if (ITA->getType()->isCheckedPointerArrayType())
+            continue;
+          if (ITA->getType()->isCheckedPointerPtrType() &&
+              ITA->getType()->getPointeeType()->isFunctionType())
+            continue;
+        }
+
+        Expr *Arg = CE->getArg(i);
+        BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
+        if (ArgBounds->isNone()) {
+          S.Diag(Arg->getLocStart(),
+                 diag::err_expected_bounds_for_argument) << (i + 1) <<
+            Arg->getSourceRange();
+          ArgBounds = S.CreateInvalidBoundsExpr();
+        }
+        else {
+          // Concretize parameter bounds with argument expressions. This fails
+          // and return null if an argument expression is a modifying
+          // expression, but we've already issued an error about about that.
+          BoundsExpr *SubstParamBounds =
+            S.ConcretizeFromFunctionTypeWithArgs(
+              const_cast<BoundsExpr *>(ParamBounds),
+              ArgExprs,
+           Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Parameter);
+          if (SubstParamBounds)
+            CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds);
+        }
+      }
+      return true;
+   }
 
     // This includes both ImplicitCastExprs and CStyleCastExprs
     bool VisitCastExpr(CastExpr *E) {
