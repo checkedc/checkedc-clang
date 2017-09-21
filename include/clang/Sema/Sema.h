@@ -4496,8 +4496,27 @@ public:
   // \#pragma BOUNDS_CHECKED.
   void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
 
+  // Represents where the requirement that the checked expression is non-modifying
+  // comes from.
+  enum NonModifiyingExprRequirement {
+    NMER_Unknown,
+    NMER_Dynamic_Check,
+    NMER_Bounds_Count,
+    NMER_Bounds_Byte_Count,
+    NMER_Bounds_Range,
+    NMER_Bounds_Function_Return,
+    NMER_Bounds_Function_Parameter
+  };
+
   BoundsExpr *CreateInvalidBoundsExpr();
   BoundsExpr *CreateCountForArrayType(QualType QT);
+
+  /// CheckNonModifyingExpr - checks whether an expression is non-modifying
+  /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
+  /// false otherwise.
+  bool CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req =
+                               NonModifiyingExprRequirement::NMER_Unknown,
+                               bool ReportError = true);
 
   BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr,
                                       ArrayRef<DeclaratorChunk::ParamInfo> Params);
@@ -4505,7 +4524,8 @@ public:
                                          ArrayRef<ParmVarDecl *> Params);
   BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
                                        BoundsExpr *Bounds);
-  BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args);
+  BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args,
+                                                 NonModifiyingExprRequirement ErrorKind);
 
   /// GetArrayPtrDereference - determine if an lvalue expression is
   /// a dereference of an Array_ptr (via '*" or an array subscript operator).
@@ -4543,22 +4563,6 @@ public:
   /// not within a function body.
   void CheckTopLevelBoundsDecls(VarDecl *VD);
 
-  // Represents where the requirement that the checked expression is non-modifying
-  // comes from.
-  enum NonModifiyingExprRequirement {
-    NMER_Unknown,
-    NMER_Dynamic_Check,
-    NMER_Bounds_Count,
-    NMER_Bounds_Byte_Count,
-    NMER_Bounds_Range,
-    NMER_Bounds_Function_Args,
-  };
-
-  /// CheckNonModifyingExpr - checks whether an expression is non-modifying
-  /// (see Checked C Spec, 3.6.1)
-  bool CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req =
-                               NonModifiyingExprRequirement::NMER_Unknown,
-                               bool ReportError = true);
 
   // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check
   // will always fail.

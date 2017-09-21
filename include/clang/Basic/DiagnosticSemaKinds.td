@@ -9286,6 +9286,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     "expression has no bounds"
     ", initializer expected to have bounds because the variable being declared has bounds">;
 
+  def err_expected_bounds_for_argument : Error<
+    "argument has no bounds, bounds expected because the "
+    "%ordinal0 parameter has bounds">;
+
   def err_initializer_expected_with_bounds : Error<
     "automatic variable %0 with bounds must have initializer">;
 
@@ -9313,8 +9317,11 @@ def err_bounds_type_annotation_lost_checking : Error<
 	InGroup<CheckedC>;
 
   def err_not_non_modifying_expr : Error<
-	"%select{assignment|increment|decrement|call|volatile}0 expression not allowed in "
-	"%select{expression|dynamic check expression|count expression|byte count expression|bounds expression|argument mentioned in function return bounds expression}1">;
+	"%select{assignment|increment|decrement|call|volatile}0 expression not "
+    "allowed in %select{expression|dynamic check expression|count expression"
+    "|byte count expression|bounds expression"
+    "|argument for parameter used in function return bounds expression"
+    "|argument for parameter used in function parameter bounds expression}1">;
 
   def err_checked_scope_type: Error<
     "%select{parameter|return|local variable|global variable|member}0 %select{|used }1in a checked scope must have "
@@ -9359,13 +9366,25 @@ def err_bounds_type_annotation_lost_checking : Error<
     "declared bounds for %1 may be invalid after "
     " %select{assignment|initialization}0">,
     DefaultIgnore,
-    InGroup<DiagGroup<"check-bounds-decls">>;
+    InGroup<CheckBoundsDecls>;
 
   def note_declared_bounds : Note<
     "(expanded) declared bounds are '%0'">;
 
   def note_inferred_bounds : Note<
     "(expanded) inferred bounds are '%0'">;
+
+  def err_modifying_expr_not_supported : Error<
+   "argument must be a non-modifying expression because %ordinal0 parameter "
+   "is used in a bounds expression">;
+
+  def warn_argument_bounds_invalid : Warning<
+    "argument may not meet declared bounds for %ordinal0 parameter">,
+    DefaultIgnore,
+    InGroup<CheckBoundsDecls>;
+
+  def note_expected_argument_bounds : Note<
+    "(expanded) expected argument bounds are '%0'">;
 
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;
