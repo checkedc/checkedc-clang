@@ -384,7 +384,9 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           std::string ext = sys::path::extension(fileName).str();
           std::string stem = sys::path::stem(fileName).str();
           std::string nFileName = stem + "." + OutputPostfix + ext;
-          std::string nFile = dirName + sys::path::get_separator().str() + nFileName;
+          std::string nFile = nFileName;
+          if (dirName.size() > 0)
+            nFile = dirName + sys::path::get_separator().str() + nFileName;
           
           // Write this file out if it was specified as a file on the command
           // line.
