@@ -4083,14 +4083,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
             Actions.ActOnInvalidBoundsDecl(Field);
           else
             Actions.ActOnBoundsDecl(Field, BoundsAnnotation);
-	 }
-         // Checked C - type restrictions on declarations in checked blocks.
-         // Member declaration is not allowed to use unchecked type in checked
-         // block.
-         // Bounds-safe interface type is applied to decl after building Field
-         if (getCurScope()->isCheckedScope() &&
-             !Actions.DiagnoseCheckedDecl(Field))
-           Field->setInvalidDecl();
+	     }
       };
 
       // Parse all the comma separated declarators.
@@ -4156,6 +4149,20 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
       Actions.ActOnInvalidBoundsDecl(FieldDecl);
     else
       Actions.ActOnBoundsDecl(FieldDecl, cast<BoundsExpr>(Bounds.get()));
+  }
+
+  // For Checked C, check type restrictions on declarations in checked scopes.
+  // We wait to do this until parsing of deferred bounds expressions is complete.
+  // A member declaration in a checked scope cannot use unchecked types, unless
+  // there is a bounds-safe interface,
+  if (getLangOpts().CheckedC && getCurScope()->isCheckedScope()) {
+    for (ArrayRef<Decl *>::iterator i = FieldDecls.begin(),
+                                  end = FieldDecls.end();
+         i != end; ++i) {
+      FieldDecl *FD = cast<FieldDecl>(*i);
+      if (!FD->isInvalidDecl() && !Actions.DiagnoseCheckedDecl(FD))
+        FD->setInvalidDecl();
+    }
   }
   StructScope.Exit();
   Actions.ActOnTagFinishDefinition(getCurScope(), TagDecl, T.getRange());

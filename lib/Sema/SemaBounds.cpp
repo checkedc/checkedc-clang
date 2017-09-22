@@ -419,6 +419,15 @@ namespace {
       return CreateBoundsNone();
     }
 
+    BoundsExpr *CreateSingleElementBounds() {
+      IntegerLiteral *One =
+        CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
+      BoundsExpr *Count = new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                                        One, SourceLocation(),
+                                                        SourceLocation());
+      return Count;
+    }
+
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
       // Create an unsigned integer 1
@@ -649,6 +658,20 @@ namespace {
       default:
         return CreateBoundsUnknown();
       }
+    }
+
+    BoundsExpr *CreateTypeBasedBounds(QualType Ty, bool IsParam) {
+      // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
+      // it is a function pointer type, in which case it has no required
+      // bounds.
+      if (Ty->isCheckedPointerPtrType()) {
+        if (Ty->isFunctionPointerType())
+          return CreateBoundsEmpty();
+        else return CreateSingleElementBounds();
+      } else if (Ty->isCheckedArrayType() && IsParam)
+        return CreateBoundsForArrayType(Ty);
+
+      return CreateBoundsEmpty();
     }
 
     BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam) {
@@ -988,13 +1011,8 @@ namespace {
           }
 
           BoundsExpr *ReturnBounds = nullptr;
-          if (E->getType()->isCheckedPointerPtrType()) {
-            IntegerLiteral *One =
-              CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
-            ReturnBounds =  new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                                          One, SourceLocation(),
-                                                          SourceLocation());
-          }
+          if (E->getType()->isCheckedPointerPtrType())
+            ReturnBounds = CreateSingleElementBounds();
           else {
             // Get the function prototype, where the abstract function return bounds are kept.
             // The callee is always a function pointer.
@@ -1108,6 +1126,10 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
 
 BoundsExpr *Sema::InferLValueBounds(Expr *E) {
   return BoundsInference(*this).LValueBounds(E);
+}
+
+BoundsExpr *Sema::CreateTypeBasedBounds(QualType QT, bool IsParam) {
+  return BoundsInference(*this).CreateTypeBasedBounds(QT, IsParam);
 }
 
 BoundsExpr *Sema::InferLValueTargetBounds(Expr *E) {
@@ -1417,19 +1439,11 @@ namespace {
         if (!ParamBounds)
           continue;
 
-        // TODO: Github issue #334.  As part of addressing that,
-        // we should be able to remove these checks.
-        // An itype(array_ptr<T>) has bounds(none), so skip checking
-        // it.   itype(ptr<... function type>) has bounds(none) also,
-        // so skip that too.
-        if (const InteropTypeBoundsAnnotation *ITA =
-            dyn_cast<InteropTypeBoundsAnnotation>(ParamBounds)) {
-          if (ITA->getType()->isCheckedPointerArrayType())
-            continue;
-          if (ITA->getType()->isCheckedPointerPtrType() &&
-              ITA->getType()->getPointeeType()->isFunctionType())
-            continue;
-        }
+        if (ParamBounds->isInteropTypeAnnotation())
+          ParamBounds = S.CreateTypeBasedBounds(ParamBounds->getType(), true);
+
+        if (ParamBounds->isNone())
+          continue;
 
         Expr *Arg = CE->getArg(i);
         BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);

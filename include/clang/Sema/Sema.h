@@ -4538,6 +4538,10 @@ public:
   /// expression evaluates in in range.
   BoundsExpr *InferLValueBounds(Expr *E);
 
+  /// CreateTypeBasedBounds: the bounds that can be inferred from
+  /// the type alone.  Useful for Ptr types and interop types.
+  BoundsExpr *CreateTypeBasedBounds(QualType QT, bool IsParam);
+
   /// InferLValueTargetBounds - infer the bounds for the
   /// target of an lvalue.
   BoundsExpr *InferLValueTargetBounds(Expr *E);

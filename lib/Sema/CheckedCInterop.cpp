@@ -223,13 +223,23 @@ public:
 
           ParamTypes[i] = ParamType;
           // A parameter that has checked type should not have an interop type
-          // annotation. If there is one, remove the bounds for the parameter
-          // in the vector of new parameter bounds.
+          // annotation.  We need to remove the interop type annotation if there
+          // is one.  There are two cases:
+          // - the interop annotation is an array type: use the array type to determine
+          // the new bounds for the parameter.
+          // - the interop type annotation is not an array type.  Reme the bounds for the
+          // parameter in the vector of new parameter bounds.
           if (IndividualBounds->isInteropTypeAnnotation()) {
-            ParamBounds[i] = nullptr;
-            EPIChanged = true;
-          }
-          else
+            if (IndividualBounds->getType()->isCheckedArrayType()) {
+              ParamBounds[i] =
+                SemaRef.CreateCountForArrayType(IndividualBounds->getType());
+              EPIChanged = true;
+              hasParamBounds = true;
+            } else {
+              ParamBounds[i] = nullptr;
+              EPIChanged = true;
+            }
+          } else
             hasParamBounds = true;
         }
       }
