@@ -4527,6 +4527,13 @@ public:
   BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args,
                                                  NonModifiyingExprRequirement ErrorKind);
 
+  /// ConvertToFullyCheckedType: convert an expression E to a fully checked type. This
+  /// is used to retype declrefs and member exprs in checked scopes with bounds-safe
+  /// interfaces. The Checked C spec that says that such uses in checked scopes shall be 
+  /// treated as having "checked type".
+  ExprResult ConvertToFullyCheckedType(Expr *E, BoundsExpr *B, bool IsParamUse,
+                                       ExprValueKind VK);
+
   /// GetArrayPtrDereference - determine if an lvalue expression is
   /// a dereference of an Array_ptr (via '*" or an array subscript operator).
   /// Returns the expression with the dereference (skipping parenthesis expressions)

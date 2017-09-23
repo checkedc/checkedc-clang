@@ -1855,6 +1855,19 @@ Sema::BuildFieldReferenceExpr(Expr *BaseExpr, bool IsArrow,
     if (auto *PrivateCopy = IsOpenMPCapturedDecl(Field))
       return getOpenMPCapturedExpr(PrivateCopy, VK, OK, OpLoc);
   }
+
+  // For Checked C, if we are in a checked scope, cast expression member
+  // accesses with with unchecked types to checked types based on their
+  // bounds-safe interfaces.
+  //
+  // We skip uses of array types here.  They are handled later as part of
+  // array-to-pointer decay.
+  if (getCurScope()->isCheckedScope() && !MemberType->isArrayType() && 
+      MemberType->hasUncheckedType()) {
+    assert(!MemberType->isFunctionType());
+    return ConvertToFullyCheckedType(ME, Field->getBoundsExpr(), false, VK);
+  }
+
   return ME;
 }
 

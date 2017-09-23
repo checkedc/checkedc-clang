@@ -587,19 +587,29 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
     //
     if (getLangOpts().C99 || getLangOpts().CPlusPlus || E->isLValue()) {
       bool isBoundsSafeInterfaceCast = false;
-      if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
-        if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-          // For Checked C, for uses of arrays with bounds-safe
-          // interfaces, we change the array-to-pointer decay
-          // cast in checked scopes to make the target type
-          // completely checked.
-          if (getCurScope()->isCheckedScope() && Ty->hasUncheckedType()) {
+
+      // For Checked C, for uses of arrays with bounds-safe interfaces, we
+      // change the array-to-pointer decay cast in checked scopes to make the
+      // target type completely checked.
+      if (getCurScope()->isCheckedScope() && Ty->hasUncheckedType()) {        
+        BoundsExpr *B = nullptr;
+        Expr *IgnoreParenCasts = E->IgnoreParenCasts();        
+        if (auto *DRE = dyn_cast<DeclRefExpr>(IgnoreParenCasts)) {
+          if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
             assert(!(isa<ParmVarDecl>(VD))); // parameter variables should not have array type.
-            Ty = GetCheckedCInteropType(Ty, VD->getBoundsExpr(), false);
-            Ty = RewriteBoundsSafeInterfaceTypes(Ty);
-            isBoundsSafeInterfaceCast = true;
+            B = VD->getBoundsExpr();
           }
+        } else if (auto *ME = dyn_cast<MemberExpr>(IgnoreParenCasts)) {
+          if (auto *MD = dyn_cast<FieldDecl>(ME->getMemberDecl()))
+            B = MD->getBoundsExpr();
         }
+
+        if (B != nullptr) {
+          Ty = GetCheckedCInteropType(Ty, B, false);
+          Ty = RewriteBoundsSafeInterfaceTypes(Ty);
+          isBoundsSafeInterfaceCast = true;
+        }
+      }      
 
       E = ImpCastExprToType(E, Context.getArrayDecayedType(Ty),
                             CK_ArrayToPointerDecay, VK_RValue,
@@ -1882,37 +1892,47 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   // handled later as part of function-to-pointer and array-to-pointer decay.
   if (getCurScope()->isCheckedScope() && !Ty->isFunctionType() &&
       !Ty->isArrayType() && Ty->hasUncheckedType()) {
-    QualType CheckedTy;
-    assert(!D->isInvalidDecl());
-    if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
-      BoundsExpr *B = DD->getBoundsExpr();
-      if (B != nullptr)
-        CheckedTy = GetCheckedCInteropType(Ty, B, isa<ParmVarDecl>(D));
-      else
-        CheckedTy = Ty;
-      CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
-    } else
+    DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
+    if (!DD)
       llvm_unreachable("unexpected DeclRef in checked scope");
-
-    if (CheckedTy.isNull())
-      return ExprError();
-
-    // TODO: enable after function type rewriting is implemented.
-    // assert(!CheckedTy->hasUncheckedType());
-    if (VK == ExprValueKind::VK_RValue) {
-      ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK, nullptr,
-                                        Sema::CCK_ImplicitConversion, true);
-      return ER;
-    } else if (VK == ExprValueKind::VK_LValue) {
-      ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_LValueBitCast, VK, nullptr,
-                                        CCK_ImplicitConversion, true);
-      return ER;
-    }
-    else
-      llvm_unreachable("unexpected value kind in in checked scope");
+    BoundsExpr *B = DD->getBoundsExpr();
+    return ConvertToFullyCheckedType(E, B, isa<ParmVarDecl>(D), VK);
   }
 
   return E;
+}
+
+ExprResult Sema::ConvertToFullyCheckedType(Expr *E, BoundsExpr *B,
+                                           bool IsParamUse,
+                                           ExprValueKind VK) {
+  assert(E != nullptr);
+  QualType Ty = E->getType();
+  QualType CheckedTy;
+  if (B != nullptr)
+    CheckedTy = GetCheckedCInteropType(Ty, B, IsParamUse);
+  else
+    CheckedTy = Ty;
+  CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
+
+  if (CheckedTy.isNull())
+    return ExprError();
+
+  // TODO: enable after function type rewriting is implemented.
+  // assert(!CheckedTy->hasUncheckedType());
+  if (VK == ExprValueKind::VK_RValue) {
+    ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK, nullptr,
+                                      Sema::CCK_ImplicitConversion, true);
+    return ER;
+  }
+  else if (VK == ExprValueKind::VK_LValue) {
+    ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_LValueBitCast, VK, nullptr,
+                                      CCK_ImplicitConversion, true);
+    return ER;
+  }
+  else {
+    llvm_unreachable("unexpected value kind in in checked scope");
+    return ExprError();
+  }
 }
 
 /// Decomposes the given name into a DeclarationNameInfo, its location, and
