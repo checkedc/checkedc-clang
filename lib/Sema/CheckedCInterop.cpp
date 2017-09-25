@@ -278,6 +278,37 @@ public:
 #endif
     return Result;
   }
+
+  QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
+    // Preserve typedef information, unless the underlying type has a function type
+    // embedded in it that changes after information.
+    const TypedefType *T = TL.getTypePtr();
+    // See if the underlying type changes.
+    QualType UnderlyingType = T->desugar();
+    QualType TransformedType = TransformType(UnderlyingType);
+    if (UnderlyingType == TransformedType) {
+      QualType Result = TL.getType();
+      // It didn't change, so just copy the original type location information.
+      TypedefTypeLoc NewTL = TLB.push<TypedefTypeLoc>(Result);
+      NewTL.setNameLoc(TL.getNameLoc());
+      return Result;
+    }
+    // Something changed, so we need to delete the typedef from the AST and
+    // and use the underlying transformed type.
+
+    // Synthesize some dummy type source information.
+    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(TransformedType,
+                                                getDerived().getBaseLocation());
+    // Use that to get dummy location information.
+    TypeLoc NewTL = DI->getTypeLoc();
+    TLB.reserve(NewTL.getFullDataSize());
+    // Re-run the type transformation with the dummy location information so
+    // that the type location class pushed on to the TypeBuilder is the matching
+    // class for the underlying type.
+    QualType Result = getDerived().TransformType(TLB, NewTL);
+    assert(Result == TransformedType);
+    return Result;
+  }
 };
 }
 

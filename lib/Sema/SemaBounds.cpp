@@ -1016,7 +1016,9 @@ namespace {
           else {
             // Get the function prototype, where the abstract function return bounds are kept.
             // The callee is always a function pointer.
-            const FunctionProtoType *CalleeTy = dyn_cast<FunctionProtoType>(CE->getCallee()->getType()->getPointeeType());
+            const PointerType *PtrTy = CE->getCallee()->getType()->getAs<PointerType>();
+            assert(PtrTy != nullptr);
+            const FunctionProtoType *CalleeTy = PtrTy->getPointeeType()->getAs<FunctionProtoType>();
             if (!CalleeTy)
               // K&R functions have no prototype, and we cannot perform inference on them,
               // so we return bounds(none) for their results.
@@ -1670,15 +1672,15 @@ namespace {
         !ToType->isFunctionPointerType())
         return;
 
-      // 0b. Check the top-level cast is one that is value-preserving.
+      // 0b. Always trust casts inserted according to bounds-safe interface rules.
+      if (E->isBoundsSafeInterface())
+        return;
+
+      // 0c. Check the top-level cast is one that is value-preserving.
       if (!CheckValuePreservingCast(E, ToType)) {
         // it's non-value-preserving, stop
         return;
       }
-
-      // 0c. Always trust casts inserted according to bounds-safe interface rules.
-      if (E->isBoundsSafeInterface())
-        return;
 
       const Expr *Needle = E->getSubExpr();
       while (true) {
