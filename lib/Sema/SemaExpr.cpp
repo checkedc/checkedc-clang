@@ -550,15 +550,29 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       return ExprError();
     }
 
+    bool isCheckedScope = getCurScope()->isCheckedScope();
+    bool isBoundsSafeInterfaceCast = false;
     if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
-      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+      if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
         if (!checkAddressOfFunctionIsAvailable(FD, Diagnose, E->getExprLoc()))
           return ExprError();
-    CheckedPointerKind kind = CheckedPointerKind::Unchecked;
-    if (getCurScope()->isCheckedScope())
-      kind = CheckedPointerKind::Ptr;
+        // For Checked C, for uses of functions with bounds-safe
+        // interfaces, we change the function-to-pointer decay
+        // cast in checked scopes to make the target type
+        // completely checked.
+        if (isCheckedScope && Ty->hasUncheckedType()) {
+          Ty = RewriteBoundsSafeInterfaceTypes(Ty);
+          isBoundsSafeInterfaceCast = true;
+        }
+      }
+
+    CheckedPointerKind kind = isCheckedScope ?
+      CheckedPointerKind::Ptr : CheckedPointerKind::Unchecked;
     E = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
-                          CK_FunctionToPointerDecay).get();
+                          CK_FunctionToPointerDecay, VK_RValue,
+                          nullptr, Sema::CCK_ImplicitConversion,
+                          isBoundsSafeInterfaceCast).get();
+
   } else if (Ty->isArrayType()) {
     // In C90 mode, arrays only promote to pointers if the array expression is
     // an lvalue.  The relevant legalese is C90 6.2.2.1p3: "an lvalue that has
@@ -571,9 +585,37 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
     // An lvalue or rvalue of type "array of N T" or "array of unknown bound of
     // T" can be converted to an rvalue of type "pointer to T".
     //
-    if (getLangOpts().C99 || getLangOpts().CPlusPlus || E->isLValue())
+    if (getLangOpts().C99 || getLangOpts().CPlusPlus || E->isLValue()) {
+      bool isBoundsSafeInterfaceCast = false;
+
+      // For Checked C, for uses of arrays with bounds-safe interfaces, we
+      // change the array-to-pointer decay cast in checked scopes to make the
+      // target type completely checked.
+      if (getCurScope()->isCheckedScope() && Ty->hasUncheckedType()) {        
+        BoundsExpr *B = nullptr;
+        Expr *IgnoreParenCasts = E->IgnoreParenCasts();        
+        if (auto *DRE = dyn_cast<DeclRefExpr>(IgnoreParenCasts)) {
+          if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            assert(!(isa<ParmVarDecl>(VD))); // parameter variables should not have array type.
+            B = VD->getBoundsExpr();
+          }
+        } else if (auto *ME = dyn_cast<MemberExpr>(IgnoreParenCasts)) {
+          if (auto *MD = dyn_cast<FieldDecl>(ME->getMemberDecl()))
+            B = MD->getBoundsExpr();
+        }
+
+        if (B != nullptr) {
+          Ty = GetCheckedCInteropType(Ty, B, false);
+          Ty = RewriteBoundsSafeInterfaceTypes(Ty);
+          isBoundsSafeInterfaceCast = true;
+        }
+      }      
+
       E = ImpCastExprToType(E, Context.getArrayDecayedType(Ty),
-                            CK_ArrayToPointerDecay).get();
+                            CK_ArrayToPointerDecay, VK_RValue,
+                            nullptr, Sema::CCK_ImplicitConversion,
+                            isBoundsSafeInterfaceCast).get();
+    }
   }
   return E;
 }
@@ -767,11 +809,25 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
   // Only do implicit cast for a function type, but not for a pointer
   // to function type.
   if (Ty->isFunctionType()) {
+    // For Checked C, at uses of functions in checked scopes,
+    // we also convert the function type to be fully checked
+    // as part of the function-to-pointer decay.
     CheckedPointerKind kind = CheckedPointerKind::Unchecked;
-    if (getCurScope()->isCheckedScope())
+    bool isBoundsSafeInterfaceCast = false;
+    if (getCurScope()->isCheckedScope()) {
       kind = CheckedPointerKind::Ptr;
+      if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
+        if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+          if (Ty->hasUncheckedType()) {
+            isBoundsSafeInterfaceCast = true;
+            Ty = RewriteBoundsSafeInterfaceTypes(E->getType());
+          }
+    }
+
     Res = ImpCastExprToType(E, Context.getPointerType(Ty, kind),
-                            CK_FunctionToPointerDecay).get();
+                            CK_FunctionToPointerDecay, VK_RValue,
+                            nullptr, Sema::CCK_ImplicitConversion,
+                            isBoundsSafeInterfaceCast).get();
     if (Res.isInvalid())
       return ExprError();
   }
@@ -1765,7 +1821,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   return BuildDeclRefExpr(D, Ty, VK, NameInfo, SS);
 }
 
-/// BuildDeclRefExpr - Build an expression that references a
+/// BuildDeclRefExpr - Build an expression that references aB
 /// declaration that does not require a closure capture.
 ExprResult
 Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
@@ -1828,7 +1884,54 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     if (auto *BE = BD->getBinding())
       E->setObjectKind(BE->getObjectKind());
 
+  // For Checked C, if we are in a checked scope, cast uses of declarations
+  // with unchecked types to checked types based on their bounds-safe
+  // interfaces.
+  //
+  // We skip declarations with function and array types here.  They are
+  // handled later as part of function-to-pointer and array-to-pointer decay.
+  if (getCurScope()->isCheckedScope() && !Ty->isFunctionType() &&
+      !Ty->isArrayType() && Ty->hasUncheckedType()) {
+    DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
+    if (!DD)
+      llvm_unreachable("unexpected DeclRef in checked scope");
+    BoundsExpr *B = DD->getBoundsExpr();
+    return ConvertToFullyCheckedType(E, B, isa<ParmVarDecl>(D), VK);
+  }
+
   return E;
+}
+
+ExprResult Sema::ConvertToFullyCheckedType(Expr *E, BoundsExpr *B,
+                                           bool IsParamUse,
+                                           ExprValueKind VK) {
+  assert(E != nullptr);
+  QualType Ty = E->getType();
+  QualType CheckedTy;
+  if (B != nullptr)
+    CheckedTy = GetCheckedCInteropType(Ty, B, IsParamUse);
+  else
+    CheckedTy = Ty;
+  CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
+
+  if (CheckedTy.isNull())
+    return ExprError();
+
+  assert(!CheckedTy->hasUncheckedType());
+  if (VK == ExprValueKind::VK_RValue) {
+    ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK, nullptr,
+                                      Sema::CCK_ImplicitConversion, true);
+    return ER;
+  }
+  else if (VK == ExprValueKind::VK_LValue) {
+    ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_LValueBitCast, VK, nullptr,
+                                      CCK_ImplicitConversion, true);
+    return ER;
+  }
+  else {
+    llvm_unreachable("unexpected value kind in in checked scope");
+    return ExprError();
+  }
 }
 
 /// Decomposes the given name into a DeclarationNameInfo, its location, and
@@ -7508,12 +7611,17 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     }
 
     // Allow void * to be converted implicitly to a checked pointer type (it
-    // will still need to have the appropriate bounds).  Do not allow
-    // _Ptr<void> or _Array_ptr<void> to be converted implicitly to another
-    // checked pointer type.
-    if (rhptee->isVoidType() && rhkind == CheckedPointerKind::Unchecked &&
-       lhptee->isIncompleteOrObjectType())
+    // will still need to have the appropriate bounds).  Allow _Array_ptr<void>
+    // to be converted implicitly to another checked pointer type.  Do not allow
+    // _Ptr<void> to be converted implicitly to another checked type.
+    if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType()) {
+      if (rhkind == CheckedPointerKind::Unchecked)
+        return ConvTy;
+
+      if (rhkind == CheckedPointerKind::Array &&
+          lhkind != CheckedPointerKind::Unchecked)
       return ConvTy;
+    }
   }
 
   // We are done handling pointers void. Now apply restrictions based on
@@ -8225,7 +8333,9 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
         if (RHS.get()->getType() != LHSInteropType)
           RHS = ImpCastExprToType(RHS.get(), LHSInteropType, Kind);
         // Downgrade checked pointer to unchecked LHSType
-        RHS = ImpCastExprToType(RHS.get(), LHSType, CK_BitCast);
+        RHS = ImpCastExprToType(RHS.get(), LHSType, CK_BitCast, VK_RValue,
+                                nullptr, CCK_ImplicitConversion,
+                                /*IsBoundsSafeInterfaceCast=*/true);
       }
     }
   }

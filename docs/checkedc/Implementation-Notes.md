@@ -68,7 +68,24 @@ They can appear syntactically where bounds expressions can apppear.
 The type for the type annotation is stored as the type of the
 type annotation expression.
 
-### Other expressions
+The repesentation for type annotation causes some awkwardness in the IR.
+We will likely move the type annotation to a separate field.   Currently,
+there is no
+way to represent a bounds-safe interface type with a bounds annotation.
+This is needed for bounds-safe interface for pointers to
+pointers, such as `int **`.  This type may have a bounds-safe interface
+type of `array_ptr<ptr<int>>` and need bounds for the outer
+`array_ptr`.
+In addition, for parameters, clang
+alters the types of the parameters when the types are array types
+to be pointer types. We do not make this alteration for bounds-safe
+interfaces types for parameters  (`itype(checked int[5])`,
+for example).  The size of the array is used to infer bounds
+annd altering the bounds-safe itnerface type would lose this
+information. The fact that we do not make this alteration leads to
+to special case code for handling bounds interface types for parameters.
+
+### Parameters in bounds
 
 The `PositionalParameterExpr` class represents a reference to a parameter
 that has been abstracted to the index of the parameter in an argument list.
@@ -116,7 +133,7 @@ int f(_Array_ptr<int> arr : bounds(arr, arr + len), int len) {
 }
 ```
 The implication is that most dataflow analyses of variables
-can ignore function types. An exception is dataflow analysis
+can ignore function types. An exception is dataflow
 analyses that are checking the correctness of bounds declarations.
 
 ### Declarations
@@ -133,6 +150,86 @@ of a function.
 - Field member declarations (`FieldDecl`).  The bounds declaration describe the bounds
 of values stored in a member.   The bounds expression may refer to other field members
 in the structure or union type.
+
+### Bounds checks and bounds information for expressions.
+
+Bounds checks are represented in the AST by attaching bounds expressions to some
+lvalue-producing expressions:
+- Dereference expressions. In the clang IR, these are represented as `UnaryOperator`
+expressions.
+- Array subscript expressions.   In the clang IR, these are represented
+as `ArraySubscriptExpr` expressions.
+- Member access expressions via the arrow operator.  Here the bounds check
+represents the bounds for the base expression of the lvalue.
+
+Bounds checks are attached to dereference and subscript operations
+when:
+1. The pointer operand to these expressions has type `array_ptr`.
+2. The result of the expression is used to access memory or
+in a member base expression.  The result is used to
+access memory when it is used by the left-hand side of
+an assignment or by `LValueToRevalue` cast.
+The bounds checks ensure that the lvalue produced by the
+expression is within bounds.
+
+Bounds checks are attached to member access expressions involving the
+arrow operator when the base operand has type `array_ptr`.
+
+Bounds expressions are also attached to various cast operators.
+For casts to `ptr` type, the bounds expressions are used during
+static checking of the cast. For dynamic bounds cast operators,
+the bounds expressions are used during dynamic checking of the
+cast.
+
+### Bounds-safe interface transitions
+Declarations that have unchecked pointer types may have bounds-safe interfaces.
+At uses of those declarations, rules specific to bounds-safe interfaces
+apply:
+
+- A value with checked type can be assigned to an lvalue with unchecked
+type, provided that that the types are otherwise structurally identical 
+and that the bounds-safe interface is satisfied.
+- In a checked scope, the use should be retyped as though it only has
+a fully checked type.
+
+We represent these typing changes using implicit cast expressions
+in the IR, as is done for assignment conversion.
+We add a bit to `CastExpr` that tells whether a cast was inserted because
+of bounds-safe interface rules.  These casts are trusted during
+checking: normally we would not allow an implicit conversion from a
+checked type to an unchecked type, for example.
+
+At assignments, we insert a `bitcast` from the checked type
+to an unchecked type, if the left-hand side of the assignment has
+an unchecked type with a bounds-safe interface.  This is provided that
+the bounds-safe interface type for the left-hand side
+is compatible with the right-hand side type.
+
+In checked scopes, the cast that is inserted depends on
+whether the use is an lvalue or rvalue and the C type
+pf the use.   For arrays and function types,
+we do the casts as part  of `array-to-pointer ` type decay and
+`function-to-pointer` type decay respectively. We did not want
+to insert new casts underneath those operations.
+For other types, the cast depends on whether the use
+is an lvalue or an value.  For lvalues, we insert
+an `lvalue bitcast` and for rvalues we use a plain
+`bitcast`. 
+
+In checked scopes, we compute the checked type to use as the target
+of the cast in two steps: first, we compute a type based on
+the bounds-safe interface for the declaration.  Then, we
+recursively rewrite the type to replace any function types
+that have bounds-safe interfaces on parameters or return values
+with checked function types.
+
+While `lvalue bitcasts` are ugly,
+the nice thing about retyping uses at such a low level
+is that the machinery for type checking and
+inserting bounds checks for checked types just works
+for checked scopes.  It avoids special cases that
+lead to more complex code.
+
 
 ## Processing Checked C extensions
 

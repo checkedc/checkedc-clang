@@ -3714,67 +3714,6 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
   return T;
 }
 
-/// Get the corresponding Checked C interop type for Ty, given a
-/// a bounds expression Bounds.
-///
-/// This falls into two cases:
-/// 1. The interface is a type annotation: return the type in the
-///    annotation.
-/// 2. The interface is a bounds expression.  This implies the checked
-/// type should be an _Array_ptr type or checked Array type.  Construct
-/// the appropriate type from the unchecked type for the declaration and
-/// return it.
-QualType Sema::GetCheckedCInteropType(QualType Ty,
-                                      const BoundsExpr *Bounds,
-                                      bool isParam) {
-  QualType ResultType = QualType();
-  if (Ty.isNull() || Bounds == nullptr)
-    return ResultType;
-
-  // Parameter types that are array types are adusted to be
-  // pointer types.  We'll work with the original type instead.
-  // For multi-dimensional array types, the nested array types need
-  // to become checked array types too.
-  if (isParam) {
-    if (const DecayedType *Decayed = dyn_cast<DecayedType>(Ty)) {
-      Ty = Decayed->getOriginalType();
-    }
-  }
-
-  switch (Bounds->getKind()) {
-    case BoundsExpr::Kind::InteropTypeAnnotation: {
-      const InteropTypeBoundsAnnotation *Annot =
-        dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
-      assert(Annot && "unexpected dyn_cast failure");
-      if (Annot != nullptr)
-        ResultType = Annot->getType();
-      break;
-    }
-    case BoundsExpr::Kind::ByteCount:
-    case BoundsExpr::Kind::ElementCount:
-    case BoundsExpr::Kind::Range: {
-      if (const PointerType  *PtrType = Ty->getAs<PointerType>()) {
-        if (PtrType->isUnchecked()) {
-          ResultType = Context.getPointerType(PtrType->getPointeeType(),
-                                              CheckedPointerKind::Array);
-          ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
-        }
-      }
-      else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType())
-        ResultType = MakeCheckedArrayType(Ty);
-      break;
-    }
-    default:
-      break;
-  }
-
-  // When a parameter variable declaration is created, array types for parameter
-  // variables are adjusted to be pointer types.  We have to do the same here.
-  if (isParam && !ResultType.isNull() && ResultType->isArrayType())
-    ResultType = Context.getAdjustedParameterType(ResultType);
-  return ResultType;
-}
-
 Sema::CheckedTypeClassification Sema::classifyForCheckedTypeDiagnostic(QualType QT) {
   if (QT->isStructureType())
     return CheckedTypeClassification::CCT_Struct;

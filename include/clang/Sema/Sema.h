@@ -4527,6 +4527,13 @@ public:
   BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args,
                                                  NonModifiyingExprRequirement ErrorKind);
 
+  /// ConvertToFullyCheckedType: convert an expression E to a fully checked type. This
+  /// is used to retype declrefs and member exprs in checked scopes with bounds-safe
+  /// interfaces. The Checked C spec that says that such uses in checked scopes shall be 
+  /// treated as having "checked type".
+  ExprResult ConvertToFullyCheckedType(Expr *E, BoundsExpr *B, bool IsParamUse,
+                                       ExprValueKind VK);
+
   /// GetArrayPtrDereference - determine if an lvalue expression is
   /// a dereference of an Array_ptr (via '*" or an array subscript operator).
   /// Returns the expression with the dereference (skipping parenthesis expressions)
@@ -4537,6 +4544,10 @@ public:
   /// The bounds determine whether the lvalue to which an
   /// expression evaluates in in range.
   BoundsExpr *InferLValueBounds(Expr *E);
+
+  /// CreateTypeBasedBounds: the bounds that can be inferred from
+  /// the type alone.  Useful for Ptr types and interop types.
+  BoundsExpr *CreateTypeBasedBounds(QualType QT, bool IsParam);
 
   /// InferLValueTargetBounds - infer the bounds for the
   /// target of an lvalue.
@@ -9225,7 +9236,8 @@ public:
                                ExprValueKind VK = VK_RValue,
                                const CXXCastPath *BasePath = nullptr,
                                CheckedConversionKind CCK
-                                  = CCK_ImplicitConversion);
+                                  = CCK_ImplicitConversion,
+                               bool isBoundsSafeInterfaceCast = false);
 
   /// ScalarTypeToBooleanCastKind - Returns the cast kind corresponding
   /// to the conversion from scalar type ScalarTy to the Boolean type.
@@ -9453,11 +9465,16 @@ public:
       QualType LHSInteropType = QualType());
 
 public:
-  /// \brief Given a value with type Ty and bounds Bounds,
-  /// compute the bounds-safe interface type.
+  /// \brief Given a value with type Ty and bounds Bounds, compute the
+  /// bounds-safe interface type.
   QualType GetCheckedCInteropType(QualType Ty,
                                   const BoundsExpr *Bounds,
                                   bool isParam);
+
+  /// Rewrite function types with bounds-safe interfaces on unchecked
+  /// types to use the checked types specified by the interfaces.  Recursively
+  /// apply the rewrite to function types nested within the type.
+  QualType RewriteBoundsSafeInterfaceTypes(QualType Ty);
 
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.

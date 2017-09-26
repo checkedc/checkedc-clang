@@ -419,6 +419,15 @@ namespace {
       return CreateBoundsNone();
     }
 
+    BoundsExpr *CreateSingleElementBounds() {
+      IntegerLiteral *One =
+        CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
+      BoundsExpr *Count = new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                                        One, SourceLocation(),
+                                                        SourceLocation());
+      return Count;
+    }
+
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
       // Create an unsigned integer 1
@@ -431,7 +440,8 @@ namespace {
     }
 
   public:
-    Expr *CreateImplicitCast(QualType Target, CastKind CK, Expr *E) {
+    ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
+                                         Expr *E) {
       return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
                                        ExprValueKind::VK_RValue);
     }
@@ -521,7 +531,7 @@ namespace {
                                                SourceLocation());
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
-          return CreateBoundsAllowedButNotComputed();
+          return CreateBoundsNone();
         default:
           return B;
       }
@@ -603,6 +613,10 @@ namespace {
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = dyn_cast<MemberExpr>(E);
+        if (!ME) {
+          llvm_unreachable("unexpected cast failure");
+          return CreateBoundsInferenceError();
+        }
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
           return CreateBoundsInferenceError();
@@ -627,12 +641,64 @@ namespace {
         Expr *AddrOf = CreateAddressOfOperator(ME);
         return CreateSingleElementBounds(AddrOf);
       }
+      case Expr::ImplicitCastExprClass: {
+        ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
+        if (!ICE) {
+          llvm_unreachable("unexpected cast failure");
+          return CreateBoundsInferenceError();
+        }
+        // An LValueBitCast adjusts the type of the lvalue, but
+        // the bounds are not changed.
+        // TODO: when we add relative alignment support, we may need
+        // to adjust the relative alignment of the bounds.
+        if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
+          return LValueBounds(ICE->getSubExpr());
+         return CreateBoundsUnknown();
+      }
       // TODO: fill in these cases.
       case Expr::CompoundLiteralExprClass:
         return CreateBoundsAllowedButNotComputed();
       default:
         return CreateBoundsUnknown();
       }
+    }
+
+    BoundsExpr *CreateTypeBasedBounds(QualType Ty, bool IsParam) {
+      // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
+      // it is a function pointer type, in which case it has no required
+      // bounds.
+      if (Ty->isCheckedPointerPtrType()) {
+        if (Ty->isFunctionPointerType())
+          return CreateBoundsEmpty();
+        else return CreateSingleElementBounds();
+      } else if (Ty->isCheckedArrayType() && IsParam)
+        return CreateBoundsForArrayType(Ty);
+
+      return CreateBoundsEmpty();
+    }
+
+    // This is a specialized version of CreateTypeBasedBounds that
+    // lets us avoid allocating an intermediate count bounds expression.
+    BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
+                                      bool IsBoundsSafeInterface) {
+      // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
+      // it is a function pointer type, in which case it has no required
+      // bounds.
+      if (Ty->isCheckedPointerPtrType()) {
+        if (Ty->isFunctionPointerType())
+          return CreateBoundsEmpty();
+        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        Base->setBoundsSafeInterface(IsBoundsSafeInterface);
+        return CreateSingleElementBounds(Base);
+      } else if (Ty->isCheckedArrayType() && IsParam) {
+        assert(IsBoundsSafeInterface && "unexpected checked array type for parameter");
+        BoundsExpr *BE = CreateBoundsForArrayType(Ty);
+        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        Base->setBoundsSafeInterface(IsBoundsSafeInterface);
+        return ExpandToRange(Base, BE);
+      }
+   
+       return CreateBoundsEmpty();
     }
 
     // Compute bounds for the target of an lvalue.  Values assigned through
@@ -648,18 +714,15 @@ namespace {
       // by an array conversion, not an lvalue conversion. The bounds for an
       // array conversion are the same as the lvalue bounds of the
       // array-typed expression.
-      assert(!QT->isArrayType() && "Unexpected Array-typed lvalue in LValueTargetBounds");
-
-      // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
-      // it is a function pointer type, in which case it has no required
-      // bounds.
+      assert(!QT->isArrayType() &&
+             "Unexpected Array-typed lvalue in LValueTargetBounds");
       if (QT->isCheckedPointerPtrType()) {
-         if (QT->isFunctionPointerType())
-           return CreateBoundsEmpty();
+        bool IsParam = false;
+        if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E))
+          IsParam = isa<ParmVarDecl>(DR->getDecl());
 
-        Expr *Base = CreateImplicitCast(E->getType(),
-                                        CastKind::CK_LValueToRValue, E);
-        return CreateSingleElementBounds(Base);
+        return CreateTypeBasedBounds(E, QT,/*IsParam=*/IsParam,
+                                     /*IsBoundsSafeInterface="*/false);
       }
 
       switch (E->getStmtClass()) {
@@ -674,8 +737,18 @@ namespace {
             return CreateBoundsInferenceError();
 
           BoundsExpr *B = D->getBoundsExpr();
+
           if (!B || B->isNone())
             return CreateBoundsUnknown();
+
+          if (B->isInteropTypeAnnotation())
+            // TODO: eventually we need to support an interop type annotation
+            // with a bounds declaration too.  For now, we can't have that, so
+            // we infer bounds based on the type and do not check to see if
+            // the programmer declared bounds.
+            return CreateTypeBasedBounds(E, B->getType(),
+                                         /*IsParam=*/isa<ParmVarDecl>(D),
+                                         /*IsBoundsSafeInterface=*/true);
 
            Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
            return ExpandToRange(Base, B);
@@ -695,26 +768,45 @@ namespace {
           if (!B || B->isNone())
             return CreateBoundsUnknown();
 
-          if (B->isInteropTypeAnnotation())
-            return CreateBoundsAllowedButNotComputed();
-
           Expr *MemberBaseExpr = M->getBase();
           if (!SemaRef.CheckIsNonModifyingExpr(MemberBaseExpr,
               Sema::NonModifiyingExprRequirement::NMER_Unknown,
               /*ReportError=*/false))
             return CreateBoundsNotAllowedYet();
+
+          if (B->isInteropTypeAnnotation())
+            // TODO: eventually we need to support an interop type annotation
+            // with a bounds declaration too.  For now, we can't have that, so
+            // we infer bounds based on the type and do not check to see if
+            // the programmer declared bounds.
+            return CreateTypeBasedBounds(MemberBaseExpr, B->getType(),
+                                         /*IsParam=*/false,
+                                         /*IsInteropTypeAnnotation=*/true);
+
           B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
           if (!B)
             return CreateBoundsInferenceError();
+
           if (B->isElementCount() || B->isByteCount()) {
              Expr *MemberRValue;
             if (M->isLValue())
-               MemberRValue = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
+              MemberRValue = CreateImplicitCast(QT, CastKind::CK_LValueToRValue,
+                                                E);
             else
               MemberRValue = M;
             return ExpandToRange(MemberRValue, B);
           }
           return B;
+        }
+        case Expr::ImplicitCastExprClass: {
+          ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
+          if (!ICE) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsInferenceError();
+          }
+          if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
+            return LValueTargetBounds(ICE->getSubExpr());
+          return CreateBoundsUnknown();
         }
         default:
           return CreateBoundsUnknown();
@@ -937,17 +1029,14 @@ namespace {
           }
 
           BoundsExpr *ReturnBounds = nullptr;
-          if (E->getType()->isCheckedPointerPtrType()) {
-            IntegerLiteral *One =
-              CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
-            ReturnBounds =  new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                                          One, SourceLocation(),
-                                                          SourceLocation());
-          }
+          if (E->getType()->isCheckedPointerPtrType())
+            ReturnBounds = CreateSingleElementBounds();
           else {
             // Get the function prototype, where the abstract function return bounds are kept.
             // The callee is always a function pointer.
-            const FunctionProtoType *CalleeTy = dyn_cast<FunctionProtoType>(CE->getCallee()->getType()->getPointeeType());
+            const PointerType *PtrTy = CE->getCallee()->getType()->getAs<PointerType>();
+            assert(PtrTy != nullptr);
+            const FunctionProtoType *CalleeTy = PtrTy->getPointeeType()->getAs<FunctionProtoType>();
             if (!CalleeTy)
               // K&R functions have no prototype, and we cannot perform inference on them,
               // so we return bounds(none) for their results.
@@ -958,6 +1047,9 @@ namespace {
               // This function has no return bounds
               return CreateBoundsUnknown();
 
+            // TODO:handle interop type annotation on return bounds
+            // Github issue #205.  We have no way of rerepresenting
+            // CurrentExprValue in the IR yet.
             if (FunBounds->isInteropTypeAnnotation())
               return CreateBoundsAllowedButNotComputed();
 
@@ -1017,6 +1109,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
 
       return nullptr;
     }
+
     case Expr::ArraySubscriptExprClass: {
       // e1[e2] is a synonym for *(e1 + e2).
       ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
@@ -1036,6 +1129,16 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
 
       return nullptr;
     }
+    case Expr::ImplicitCastExprClass: {
+      ImplicitCastExpr *IC = dyn_cast<ImplicitCastExpr>(E);
+      if (!IC) {
+        llvm_unreachable("unexpected cast failure");
+        return nullptr;
+      }
+      if (IC->getCastKind() == CK_LValueBitCast)
+        return GetArrayPtrDereference(IC->getSubExpr());
+      return nullptr;
+    }
     default: {
       llvm_unreachable("unexpected lvalue expression");
       return nullptr;
@@ -1045,6 +1148,10 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
 
 BoundsExpr *Sema::InferLValueBounds(Expr *E) {
   return BoundsInference(*this).LValueBounds(E);
+}
+
+BoundsExpr *Sema::CreateTypeBasedBounds(QualType QT, bool IsParam) {
+  return BoundsInference(*this).CreateTypeBasedBounds(QT, IsParam);
 }
 
 BoundsExpr *Sema::InferLValueTargetBounds(Expr *E) {
@@ -1148,7 +1255,7 @@ namespace {
 
     // Add bounds check to the base expression of a member reference, if the
     // base expression is an Array_ptr dereference.  Such base expressions
-    // always need bounds checka, even though their lvalues are only used for an
+    // always need bounds checks, even though their lvalues are only used for an
     // address computation.
     bool AddMemberBaseBoundsCheck(MemberExpr *E) {
       Expr *Base = E->getBase();
@@ -1319,7 +1426,8 @@ namespace {
       unsigned NumArgs = CE->getNumArgs();
       unsigned Count = (NumParams < NumArgs) ? NumParams : NumArgs;
       if (false) {
-        // TODO: need RecursiveASTVisitor.h to visit bounds expressions
+        // TODO: Github issue #374.
+        // Need RecursiveASTVisitor.h to visit bounds expressions
         // in functions for this to work.
         CollectPositionalParameters Uses(NumParams);
         Uses.VisitFunctionProtoType(const_cast<FunctionProtoType *>(FuncProtoTy));
@@ -1354,19 +1462,11 @@ namespace {
         if (!ParamBounds)
           continue;
 
-        // TODO: Github issue #334.  As part of addressing that,
-        // we should be able to remove these checks.
-        // An itype(array_ptr<T>) has bounds(none), so skip checking
-        // it.   itype(ptr<... function type>) has bounds(none) also,
-        // so skip that too.
-        if (const InteropTypeBoundsAnnotation *ITA =
-            dyn_cast<InteropTypeBoundsAnnotation>(ParamBounds)) {
-          if (ITA->getType()->isCheckedPointerArrayType())
-            continue;
-          if (ITA->getType()->isCheckedPointerPtrType() &&
-              ITA->getType()->getPointeeType()->isFunctionType())
-            continue;
-        }
+        if (ParamBounds->isInteropTypeAnnotation())
+          ParamBounds = S.CreateTypeBasedBounds(ParamBounds->getType(), true);
+
+        if (ParamBounds->isNone())
+          continue;
 
         Expr *Arg = CE->getArg(i);
         BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
@@ -1593,7 +1693,11 @@ namespace {
         !ToType->isFunctionPointerType())
         return;
 
-      // 0b. Check the top-level cast is one that is value-preserving.
+      // 0b. Always trust casts inserted according to bounds-safe interface rules.
+      if (E->isBoundsSafeInterface())
+        return;
+
+      // 0c. Check the top-level cast is one that is value-preserving.
       if (!CheckValuePreservingCast(E, ToType)) {
         // it's non-value-preserving, stop
         return;
@@ -1605,8 +1709,13 @@ namespace {
         QualType NeedleTy = Needle->getType();
 
         if (Needle->isNullPointerConstant(S.Context, Expr::NPC_NeverValueDependent))
-          // 1. We've got to a null pointer, so this cast is allowed, stop
+          // 1a. We've got to a null pointer, so this cast is allowed, stop
           return;
+
+        if (const CastExpr *CE = dyn_cast<ImplicitCastExpr>(Needle))
+          if (CE->isBoundsSafeInterface())
+            // 1b. We've hit a cast inserted according to bounds-safe interface rules.
+            return;
 
         if (NeedleTy->isCheckedPointerPtrType()) {
           // 2. We've found something with ptr<> type, check compatibility.
