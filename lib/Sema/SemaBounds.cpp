@@ -710,7 +710,8 @@ namespace {
       // by an array conversion, not an lvalue conversion. The bounds for an
       // array conversion are the same as the lvalue bounds of the
       // array-typed expression.
-      assert(!QT->isArrayType() && "Unexpected Array-typed lvalue in LValueTargetBounds");
+      assert(!QT->isArrayType() &&
+             "Unexpected Array-typed lvalue in LValueTargetBounds");
       if (QT->isCheckedPointerPtrType()) {
         bool IsParam = false;
         if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E))
@@ -737,9 +738,10 @@ namespace {
             return CreateBoundsUnknown();
 
           if (B->isInteropTypeAnnotation())
-            // TODO: eventually we need to support an interop type annotation with
-            // a bounds declaration too. For now, we can't have that, so we must
-            // infer bounds based solely on the type.
+            // TODO: eventually we need to support an interop type annotation
+            // with a bounds declaration too.  For now, we can't have that, so
+            // we infer bounds based on the type and do not check to see if
+            // the programmer declared bounds.
             return CreateTypeBasedBounds(E, B->getType(),
                                          /*IsParam=*/isa<ParmVarDecl>(D),
                                          /*IsBoundsSafeInterface=*/true);
@@ -769,9 +771,10 @@ namespace {
             return CreateBoundsNotAllowedYet();
 
           if (B->isInteropTypeAnnotation())
-            // TODO: eventually we need to support an interop type annotation with
-            // a bounds declaration too. For now, we can't have that, so we must
-            // infer bounds based solely on the type.
+            // TODO: eventually we need to support an interop type annotation
+            // with a bounds declaration too.  For now, we can't have that, so
+            // we infer bounds based on the type and do not check to see if
+            // the programmer declared bounds.
             return CreateTypeBasedBounds(MemberBaseExpr, B->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
@@ -783,7 +786,8 @@ namespace {
           if (B->isElementCount() || B->isByteCount()) {
              Expr *MemberRValue;
             if (M->isLValue())
-               MemberRValue = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
+              MemberRValue = CreateImplicitCast(QT, CastKind::CK_LValueToRValue,
+                                                E);
             else
               MemberRValue = M;
             return ExpandToRange(MemberRValue, B);

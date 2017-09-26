@@ -94,7 +94,7 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
   return ResultType;
 }
 
-// Transform function type that have parameters or returns with bounds
+// Transform function types that have parameters or returns with bounds
 // or bounds-safe interface types to ones that have checked types for
 // those parameters or returns. The checked types are determined based
 // on the bounds information combined with the type.

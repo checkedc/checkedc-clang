@@ -1884,7 +1884,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     if (auto *BE = BD->getBinding())
       E->setObjectKind(BE->getObjectKind());
 
-  // For Checked C, if we are in a checked scope, cast use of declarations
+  // For Checked C, if we are in a checked scope, cast uses of declarations
   // with unchecked types to checked types based on their bounds-safe
   // interfaces.
   //
