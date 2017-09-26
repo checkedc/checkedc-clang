@@ -440,7 +440,8 @@ namespace {
     }
 
   public:
-    Expr *CreateImplicitCast(QualType Target, CastKind CK, Expr *E) {
+    ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
+                                         Expr *E) {
       return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
                                        ExprValueKind::VK_RValue);
     }
@@ -674,23 +675,22 @@ namespace {
       return CreateBoundsEmpty();
     }
 
-    BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam) {
+    BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
+                                      bool IsBoundsSafeInterface) {
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
       // bounds.
       if (Ty->isCheckedPointerPtrType()) {
         if (Ty->isFunctionPointerType())
           return CreateBoundsEmpty();
-
-        // TODO: if Ty is from an interop bounds annotation, mark this
-        // cast as a bounds-safe interface cast.
-        Expr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        Base->setBoundsSafeInterface(IsBoundsSafeInterface);
         return CreateSingleElementBounds(Base);
       } else if (Ty->isCheckedArrayType() && IsParam) {
+        assert(IsBoundsSafeInterface && "unexpected checked array type for parameter");
         BoundsExpr *BE = CreateBoundsForArrayType(Ty);
-        // TODO: Ty is definitely from an interop bounds annotation, mark this
-        // cast as a bounds-safe interface cast.
-        Expr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        Base->setBoundsSafeInterface(IsBoundsSafeInterface);
         return ExpandToRange(Base, BE);
       }
    
@@ -711,8 +711,14 @@ namespace {
       // array conversion are the same as the lvalue bounds of the
       // array-typed expression.
       assert(!QT->isArrayType() && "Unexpected Array-typed lvalue in LValueTargetBounds");
-      if (QT->isCheckedPointerPtrType())
-         return CreateTypeBasedBounds(E, QT, false);
+      if (QT->isCheckedPointerPtrType()) {
+        bool IsParam = false;
+        if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E))
+          IsParam = isa<ParmVarDecl>(DR->getDecl());
+
+        return CreateTypeBasedBounds(E, QT,/*IsParam=*/IsParam,
+                                     /*IsBoundsSafeInterface="*/false);
+      }
 
       switch (E->getStmtClass()) {
         case Expr::DeclRefExprClass: {
@@ -734,7 +740,9 @@ namespace {
             // TODO: eventually we need to support an interop type annotation with
             // a bounds declaration too. For now, we can't have that, so we must
             // infer bounds based solely on the type.
-            return CreateTypeBasedBounds(E, B->getType(),isa<ParmVarDecl>(D));
+            return CreateTypeBasedBounds(E, B->getType(),
+                                         /*IsParam=*/isa<ParmVarDecl>(D),
+                                         /*IsBoundsSafeInterface=*/true);
 
            Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
            return ExpandToRange(Base, B);
@@ -764,7 +772,9 @@ namespace {
             // TODO: eventually we need to support an interop type annotation with
             // a bounds declaration too. For now, we can't have that, so we must
             // infer bounds based solely on the type.
-            return CreateTypeBasedBounds(MemberBaseExpr, B->getType(), false);
+            return CreateTypeBasedBounds(MemberBaseExpr, B->getType(),
+                                         /*IsParam=*/false,
+                                         /*IsInteropTypeAnnotation=*/true);
 
           B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
           if (!B)
@@ -1030,6 +1040,8 @@ namespace {
               return CreateBoundsUnknown();
 
             // TODO:handle interop type annotation on return bounds
+            // Github issue #205.  We have no way of rerepresenting
+            // CurrentExprValue in the IR yet.
             if (FunBounds->isInteropTypeAnnotation())
               return CreateBoundsAllowedButNotComputed();
 
@@ -1406,7 +1418,8 @@ namespace {
       unsigned NumArgs = CE->getNumArgs();
       unsigned Count = (NumParams < NumArgs) ? NumParams : NumArgs;
       if (false) {
-        // TODO: need RecursiveASTVisitor.h to visit bounds expressions
+        // TODO: Github issue #374.
+        // Need RecursiveASTVisitor.h to visit bounds expressions
         // in functions for this to work.
         CollectPositionalParameters Uses(NumParams);
         Uses.VisitFunctionProtoType(const_cast<FunctionProtoType *>(FuncProtoTy));

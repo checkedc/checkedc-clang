@@ -1917,8 +1917,7 @@ ExprResult Sema::ConvertToFullyCheckedType(Expr *E, BoundsExpr *B,
   if (CheckedTy.isNull())
     return ExprError();
 
-  // TODO: enable after function type rewriting is implemented.
-  // assert(!CheckedTy->hasUncheckedType());
+  assert(!CheckedTy->hasUncheckedType());
   if (VK == ExprValueKind::VK_RValue) {
     ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK, nullptr,
                                       Sema::CCK_ImplicitConversion, true);
@@ -8334,7 +8333,9 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
         if (RHS.get()->getType() != LHSInteropType)
           RHS = ImpCastExprToType(RHS.get(), LHSInteropType, Kind);
         // Downgrade checked pointer to unchecked LHSType
-        RHS = ImpCastExprToType(RHS.get(), LHSType, CK_BitCast);
+        RHS = ImpCastExprToType(RHS.get(), LHSType, CK_BitCast, VK_RValue,
+                                nullptr, CCK_ImplicitConversion,
+                                /*IsBoundsSafeInterfaceCast=*/true);
       }
     }
   }

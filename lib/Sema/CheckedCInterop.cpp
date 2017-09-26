@@ -97,11 +97,11 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
 // Transform function type that have parameters or returns with bounds
 // or bounds-safe interface types to ones that have checked types for
 // those parameters or returns. The checked types are determined based
-// on the bounds information comibned with the type.
+// on the bounds information combined with the type.
 //
 // This is tricky to do because function types may have function types
 // embedded within them, and bounds or bounds-safe interfaces may also
-// have function types embeddedwith in them.  We rely on the AST TreeTransform
+// have function types embedded within them.  We rely on the AST TreeTransform
 // functionality to do a thorough rewrite.
 
 namespace {
@@ -176,7 +176,7 @@ public:
       return QualType();
 
     // Now rewrite types based on bounds information.  Remove any
-    // interop type annotations form bounds information also.
+    // interop type annotations from bounds information also.
 
     if (const BoundsExpr *Bounds = EPI.ReturnBounds) {
       ResultType = SemaRef.GetCheckedCInteropType(ResultType, Bounds, false);
