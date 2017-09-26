@@ -116,7 +116,7 @@ class TransformFunctionTypeToChecked :
   //
   // This code has been specialized to assert on trailing returning types
   // instead of handling them. That's a C++ feature that we could not test
-  // for now.  Teh code could be added back later.
+  // for now.  The code could be added back later.
 
 public:
   TransformFunctionTypeToChecked(Sema &SemaRef) : BaseTransform(SemaRef) {}
@@ -188,11 +188,16 @@ public:
       llvm::outs() << "\nresult type = ";
       ResultType.dump(llvm::outs());
 #endif
+      // The types are structurally identical except for the checked bit,
+      // so the type location information can still be used.
       TLB.TypeWasModifiedSafely(ResultType);
 
       // A return that has checked type should not have an interop type
-      // annotation. If there is one, remove the return bounds.
+      // annotation. If there is one, remove the annotation.  Array
+      // types imply bounds annotations, but they can't appear as
+      // the return type.
       if (Bounds->isInteropTypeAnnotation()) {
+        assert(!Bounds->getType()->isCheckedArrayType());
         EPI.ReturnBounds = nullptr;
         EPIChanged = true;
       }
@@ -225,10 +230,10 @@ public:
           // A parameter that has checked type should not have an interop type
           // annotation.  We need to remove the interop type annotation if there
           // is one.  There are two cases:
-          // - the interop annotation is an array type: use the array type to determine
-          // the new bounds for the parameter.
-          // - the interop type annotation is not an array type.  Reme the bounds for the
-          // parameter in the vector of new parameter bounds.
+          // - the interop annotation is an array type: use the array type to
+          // determine the new bounds for the parameter.
+          // - the interop type annotation is not an array type.  Remove the
+          // bounds for the parameter in the vector of new parameter bounds.
           if (IndividualBounds->isInteropTypeAnnotation()) {
             if (IndividualBounds->getType()->isCheckedArrayType()) {
               ParamBounds[i] =
@@ -281,7 +286,7 @@ public:
 
   QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
     // Preserve typedef information, unless the underlying type has a function type
-    // embedded in it that changes after information.
+    // embedded in it with a bounds-safe interface.
     const TypedefType *T = TL.getTypePtr();
     // See if the underlying type changes.
     QualType UnderlyingType = T->desugar();

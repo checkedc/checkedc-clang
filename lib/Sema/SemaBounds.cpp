@@ -649,6 +649,8 @@ namespace {
         }
         // An LValueBitCast adjusts the type of the lvalue, but
         // the bounds are not changed.
+        // TODO: when we add relative alignment support, we may need
+        // to adjust the relative alignment of the bounds.
         if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
           return LValueBounds(ICE->getSubExpr());
          return CreateBoundsUnknown();
@@ -675,6 +677,8 @@ namespace {
       return CreateBoundsEmpty();
     }
 
+    // This is a specialized version of CreateTypeBasedBounds that
+    // lets us avoid allocating an intermediate count bounds expression.
     BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
                                       bool IsBoundsSafeInterface) {
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
