@@ -112,6 +112,12 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
       errs() << "with " << N.second << "\n";
     }
 
+    // Get a FullSourceLoc for the start location and add it to the
+    // list of file ID's we've touched.
+    SourceRange tTR = D->getSourceRange();
+    FullSourceLoc tFSL(tTR.getBegin(), S);
+    Files.insert(tFSL.getFileID());
+
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == NULL);
       // Is it a parameter type?
@@ -176,11 +182,6 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
 
         // Is it a variable type? This is the easy case, we can re-write it
         // locally, at the site of the declaration.
-
-        // Get a FullSourceLoc for the start location and add it to the
-        // list of file ID's we've touched.
-        FullSourceLoc FSL(TR.getBegin(), S);
-        Files.insert(FSL.getFileID());
         if (Where->isSingleDecl()) {
           if (canRewrite(R, TR)) {
             R.ReplaceText(TR, sRewrite);
@@ -383,7 +384,9 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           std::string ext = sys::path::extension(fileName).str();
           std::string stem = sys::path::stem(fileName).str();
           std::string nFileName = stem + "." + OutputPostfix + ext;
-          std::string nFile = dirName + sys::path::get_separator().str() + nFileName;
+          std::string nFile = nFileName;
+          if (dirName.size() > 0)
+            nFile = dirName + sys::path::get_separator().str() + nFileName;
           
           // Write this file out if it was specified as a file on the command
           // line.
