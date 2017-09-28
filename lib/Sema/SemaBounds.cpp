@@ -556,6 +556,7 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
+
     // Infer bounds for an lvalue.  The bounds determine whether
     // it is valid to access memory using the lvalue.  The bounds
     // should be the range of an object in memory or a subrange of
@@ -574,15 +575,31 @@ namespace {
           return CreateBoundsInferenceError();
         }
 
-        if (DR->getType()->isArrayType())
+        if (DR->getType()->isArrayType()) {
+          VarDecl *VD = dyn_cast<VarDecl>(DR->getDecl());
+          if (!VD) {
+            llvm_unreachable("declref with array type not a vardecl");
+            return CreateBoundsInferenceError();
+          }
+          // Declared bounds override the bounds based on the array type.
+          BoundsExpr *B = VD->getBoundsExpr();
+          if (B && !B->isInteropTypeAnnotation()) {
+            Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
+                                            CastKind::CK_ArrayToPointerDecay,
+                                            E);
+            return ExpandToRange(Base, B);
+          }
+          // If B is an interop type annotation, the type must be identical
+          // to the declared type, modulo checkedness.  So it is OK to
+          // compute the array bounds based on the original type.
           return ArrayExprBounds(DR);
+        }
 
-        // TODO: distinguish between variable vs. function
-        // references.  This should only apply to function
-        // references.
-        if (DR->getType()->isFunctionType())
+        if (DR->getType()->isFunctionType()) {
+          // Only function decl refs should have function type
+          assert(isa<FunctionDecl>(DR->getDecl()));
           return CreateBoundsEmpty();
-
+        }
         Expr *AddrOf = CreateAddressOfOperator(DR);
         return CreateSingleElementBounds(AddrOf);
       }
@@ -625,8 +642,25 @@ namespace {
                                            /*ReportError=*/false))
           return CreateBoundsNotAllowedYet();
 
-        if (ME->getType()->isArrayType())
+        if (ME->getType()->isArrayType()) {
+          // Declared bounds override the bounds based on the array type.
+          BoundsExpr *B = FD->getBoundsExpr();
+          if (B && !B->isInteropTypeAnnotation()) {
+            B = SemaRef.MakeMemberBoundsConcrete(ME->getBase(), ME->isArrow(), B);
+            if (B->isElementCount() || B->isByteCount()) {
+              Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
+                                              CastKind::CK_ArrayToPointerDecay,
+                                              E);
+              return ExpandToRange(Base, B);
+            } else
+              return B;
+          }
+
+          // If B is an interop type annotation, the type must be identical
+          // to the declared type, modulo checkedness.  So it is OK to
+          // compute the array bounds based on the original type.
           return ArrayExprBounds(ME);
+        }
 
         // It is an error for a member to have function type
         if (ME->getType()->isFunctionType())
