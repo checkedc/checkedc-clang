@@ -4496,26 +4496,27 @@ public:
   // \#pragma BOUNDS_CHECKED.
   void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
 
-  // Represents where the requirement that the checked expression is non-modifying
-  // comes from.
-  enum NonModifiyingExprRequirement {
-    NMER_Unknown,
-    NMER_Dynamic_Check,
-    NMER_Bounds_Count,
-    NMER_Bounds_Byte_Count,
-    NMER_Bounds_Range,
-    NMER_Bounds_Function_Return,
-    NMER_Bounds_Function_Parameter
+  // Represents the context where an expression must be non-modifying.
+  enum NonModifyingContext {
+    NMC_Unknown,
+    NMC_Dynamic_Check,
+    NMC_Count,                   // Bounds count expression.
+    NMC_Byte_Count,              // Bounds byte count expression.
+    NMC_Range,                   // Bounds range expression.
+    NMC_Function_Return,         // Argument for parameter used in function
+                                 // return bounds.
+    NMC_Function_Parameter       // Argument for parameter used in function
+                                 // parameter bounds.
   };
 
   BoundsExpr *CreateInvalidBoundsExpr();
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
-  /// CheckNonModifyingExpr - checks whether an expression is non-modifying
+  /// CheckNonModifying - checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
   /// false otherwise.
-  bool CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req =
-                               NonModifiyingExprRequirement::NMER_Unknown,
+  bool CheckIsNonModifying(Expr *E, NonModifyingContext Req =
+                               NonModifyingContext::NMC_Unknown,
                                bool ReportError = true);
 
   BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr,
@@ -4525,7 +4526,7 @@ public:
   BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
                                        BoundsExpr *Bounds);
   BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args,
-                                                 NonModifiyingExprRequirement ErrorKind);
+                                                 NonModifyingContext ErrorKind);
 
   /// ConvertToFullyCheckedType: convert an expression E to a fully checked type. This
   /// is used to retype declrefs and member exprs in checked scopes with bounds-safe

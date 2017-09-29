@@ -1857,11 +1857,11 @@ public:
   bool hasUnnamedOrLocalType() const;
 
   /// \brief Whether this type is or contains a checked type
-  bool hasCheckedType() const;
+  bool isOrContainsCheckedType() const;
 
   /// \brief Whether this type is or contains an unchecked type.
   /// This ignores the presence of bounds-safe interface types.
-  bool hasUncheckedType() const;
+  bool isOrContainsUncheckedType() const;
 
   /// \brief Whether this type is or contains a variadic type
   bool hasVariadicType() const;
