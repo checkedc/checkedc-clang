@@ -1628,22 +1628,6 @@ namespace {
       if (defKind == VarDecl::DefinitionKind::DeclarationOnly)
         return true;
 
-      // D must be a tentative definition or an actual definition.
-
-      if (D->getType()->isCheckedPointerPtrType()) {
-        // Make sure that automatic variables are initialized.
-        if (D->hasLocalStorage() && !D->hasInit())
-          S.Diag(D->getLocation(), diag::err_initializer_expected_for_ptr) << D;
-
-        // Static variables are always initialized to a valid initialization
-        // value for bounds, if there is no initializer.
-        // * If this is an actual definition, the variable will be initialized
-        //   to 0 (a valid value for any bounds).
-        // * If this is a tentative definition, the variable will be initialized
-        //   to 0 or a valid value by an initializer elsewhere.
-        return true;
-     }
-
      if (Expr *Init = D->getInit()) {
        if (Init->getStmtClass() == Expr::BoundsCastExprClass) {
          S.InferRValueBounds(Init);
@@ -1673,15 +1657,6 @@ namespace {
        if (DumpBounds)
          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
        // TODO: check that it meets the bounds requirements for the variable.
-      } else {
-        // Make sure that automatic variables that are not arrays are
-        // initialized.
-        if (D->hasLocalStorage() && !D->getType()->isArrayType())
-          S.Diag(D->getLocation(),
-                 diag::err_initializer_expected_with_bounds) << D;
-        // Static variables are always initialized to a valid initialization
-        // value for bounds, if there is no initializer.  See the prior comment
-        // for isCheckedPointerPtrType.
       }
 
       return true;

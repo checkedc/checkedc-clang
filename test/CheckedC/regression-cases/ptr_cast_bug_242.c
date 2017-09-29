@@ -15,7 +15,7 @@ void f(int *p) {
   _Ptr<int> r = (_Ptr<int>)(p);    // expected-error {{expression has no bounds, cast to ptr<T> expects source to have bounds}}
   // Test implicit cast.
   _Ptr<int> s = p;                 // expected-error {{expression has no bounds, cast to ptr<T> expects source to have bounds}}
-  _Array_ptr<int> t : count(1) = 0; 
+  _Array_ptr<int> t : count(1) = 0;
   // Test explicit cast involving assignment;
   t = (_Ptr<int>)(p);              // expected-error {{expression has no bounds, cast to ptr<T> expects source to have bounds}}
   _Ptr<int> u = 0;
