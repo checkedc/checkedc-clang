@@ -312,6 +312,7 @@ public:
 
   bool VisitPositionalParameterExpr(PositionalParameterExpr *PE) {
     Used.set(PE->getIndex());
+    return true;
   }
 
   bool IsUsed(unsigned Index) {
@@ -721,11 +722,18 @@ namespace {
       if (Ty->isCheckedPointerPtrType()) {
         if (Ty->isFunctionPointerType())
           return CreateBoundsEmpty();
-        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
-        Base->setBoundsSafeInterface(IsBoundsSafeInterface);
+        Expr *Base;
+        if (E->isLValue()) {
+          ImplicitCastExpr *ICE = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+          ICE->setBoundsSafeInterface(IsBoundsSafeInterface);
+          Base = ICE;
+        } else
+          Base = E;
         return CreateSingleElementBounds(Base);
+
       } else if (Ty->isCheckedArrayType() && IsParam) {
         assert(IsBoundsSafeInterface && "unexpected checked array type for parameter");
+        assert(E->isLValue());
         BoundsExpr *BE = CreateBoundsForArrayType(Ty);
         ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
         Base->setBoundsSafeInterface(IsBoundsSafeInterface);
@@ -905,6 +913,10 @@ namespace {
             llvm_unreachable("unexpected cast failure");
             return CreateBoundsInferenceError();
           }
+          // Casts to _Ptr narrow the bounds.  If the cast to
+          // _Ptr is invalid, that will be diagnosed separately.
+          if (E->getType()->isCheckedPointerPtrType())
+            return CreateTypeBasedBounds(E, E->getType(), false, false);
           return RValueCastBounds(CE->getCastKind(), CE->getSubExpr());
         }
         case Expr::UnaryOperatorClass: {

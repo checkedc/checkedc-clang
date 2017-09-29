@@ -817,7 +817,7 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
     if (getCurScope()->isCheckedScope()) {
       kind = CheckedPointerKind::Ptr;
       if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
-        if (auto *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+        if (isa<FunctionDecl>(DRE->getDecl()))
           if (Ty->hasUncheckedType()) {
             isBoundsSafeInterfaceCast = true;
             Ty = RewriteBoundsSafeInterfaceTypes(E->getType());
