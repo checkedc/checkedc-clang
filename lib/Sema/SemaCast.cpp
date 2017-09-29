@@ -2574,18 +2574,18 @@ void CastOperation::CheckCStyleCast() {
   // Checked C - No C-style casts to unchecked pointer/array type or variadic
   // type in a checked block.
   if (Self.getCurScope()->isCheckedScope()) {
-    bool HasUncheckedType = DestType->hasUncheckedType();
+    bool IsUnchecked = DestType->isOrContainsUncheckedType();
     bool HasVariadicType = DestType->hasVariadicType();
     bool ConstructsNullPointer = false;
-    if (HasUncheckedType)
+    if (IsUnchecked)
       if (DestType->isVoidPointerType() &&
           !SrcExpr.isInvalid()) {
         const IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(SrcExpr.get());
         if (Lit && !Lit->getValue())
          ConstructsNullPointer = true;
       }
-    if ((HasUncheckedType && !ConstructsNullPointer) || HasVariadicType) {
-      if (HasUncheckedType) {
+    if ((IsUnchecked && !ConstructsNullPointer) || HasVariadicType) {
+      if (IsUnchecked) {
         Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
           << DestType;
       } else {
@@ -2644,15 +2644,15 @@ void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
   // Checked C - No C-style casts to unchecked pointer/array type or variadic
   // type in a checked block.
   if (Self.getCurScope()->isCheckedScope()) {
-    bool HasUncheckedType = DestType->hasUncheckedType();
+    bool IsUnchecked = DestType->isOrContainsUncheckedType();
     bool HasVariadicType = DestType->hasVariadicType();
     if (Kind == CK_AssumePtrBounds) {
       Self.Diag(OpRange.getBegin(),
                 diag::err_checked_scope_no_assume_bounds_casting);
       SrcExpr = ExprError();
       return;
-    } else if (HasUncheckedType || HasVariadicType) {
-      if (HasUncheckedType) {
+    } else if (IsUnchecked || HasVariadicType) {
+      if (IsUnchecked) {
         Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
           << DestType;
       } else {

@@ -175,13 +175,13 @@ namespace {
     // This stores whether we've emitted an error for a particular substitution
     // so that we don't duplicate error messages.
     llvm::SmallBitVector ErroredForArgument;
-    Sema::NonModifiyingExprRequirement ErrorKind;
+    Sema::NonModifyingContext ErrorKind;
     bool SubstitutedModifyingExpression;
 
 
   public:
     ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args,
-                                 Sema::NonModifiyingExprRequirement ErrorKind) :
+                                 Sema::NonModifyingContext ErrorKind) :
       BaseTransform(SemaRef),
       Arguments(Args),
       ErroredForArgument(Args.size()),
@@ -200,8 +200,8 @@ namespace {
 
         // We may only substitute if this argument expression is
         // a non-modifying expression.
-        if (!SemaRef.CheckIsNonModifyingExpr(AE, ErrorKind,
-                                             ShouldReportError)) {
+        if (!SemaRef.CheckIsNonModifying(AE, ErrorKind,
+                                         ShouldReportError)) {
           SubstitutedModifyingExpression = true;
           ErroredForArgument.set(index);
         }
@@ -217,7 +217,7 @@ namespace {
 
 BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
   BoundsExpr *Bounds, ArrayRef<Expr *> Args,
-  NonModifiyingExprRequirement ErrorKind) {
+  NonModifyingContext ErrorKind) {
   if (!Bounds)
     return Bounds;
 
@@ -638,9 +638,9 @@ namespace {
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
           return CreateBoundsInferenceError();
-        if (!SemaRef.CheckIsNonModifyingExpr(ME->getBase(),
-                             Sema::NonModifiyingExprRequirement::NMER_Unknown,
-                                           /*ReportError=*/false))
+        if (!SemaRef.CheckIsNonModifying(ME->getBase(),
+                                         Sema::NonModifyingContext::NMC_Unknown,
+                                         /*ReportError=*/false))
           return CreateBoundsNotAllowedYet();
 
         if (ME->getType()->isArrayType()) {
@@ -811,8 +811,8 @@ namespace {
             return CreateBoundsUnknown();
 
           Expr *MemberBaseExpr = M->getBase();
-          if (!SemaRef.CheckIsNonModifyingExpr(MemberBaseExpr,
-              Sema::NonModifiyingExprRequirement::NMER_Unknown,
+          if (!SemaRef.CheckIsNonModifying(MemberBaseExpr,
+                                         Sema::NonModifyingContext::NMC_Unknown,
               /*ReportError=*/false))
             return CreateBoundsNotAllowedYet();
 
@@ -1078,17 +1078,20 @@ namespace {
           if (E->getType()->isCheckedPointerPtrType())
             ReturnBounds = CreateSingleElementBounds();
           else {
-            // Get the function prototype, where the abstract function return bounds are kept.
-            // The callee is always a function pointer.
-            const PointerType *PtrTy = CE->getCallee()->getType()->getAs<PointerType>();
+            // Get the function prototype, where the abstract function return
+            // bounds are kept. The callee is always a function pointer.
+            const PointerType *PtrTy =
+              CE->getCallee()->getType()->getAs<PointerType>();
             assert(PtrTy != nullptr);
-            const FunctionProtoType *CalleeTy = PtrTy->getPointeeType()->getAs<FunctionProtoType>();
+            const FunctionProtoType *CalleeTy =
+              PtrTy->getPointeeType()->getAs<FunctionProtoType>();
             if (!CalleeTy)
-              // K&R functions have no prototype, and we cannot perform inference on them,
-              // so we return bounds(none) for their results.
+              // K&R functions have no prototype, and we cannot perform
+              // inference on them, so we return bounds(none) for their results.
               return CreateBoundsUnknown();
 
-            BoundsExpr *FunBounds = const_cast<BoundsExpr *>(CalleeTy->getReturnBounds());
+            BoundsExpr *FunBounds =
+              const_cast<BoundsExpr *>(CalleeTy->getReturnBounds());
             if (!FunBounds)
               // This function has no return bounds
               return CreateBoundsUnknown();
@@ -1099,16 +1102,18 @@ namespace {
             if (FunBounds->isInteropTypeAnnotation())
               return CreateBoundsAllowedButNotComputed();
 
-            ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
-                                                          CE->getNumArgs());
+            ArrayRef<Expr *> ArgExprs =
+              llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
+                                 CE->getNumArgs());
 
             // Concretize Call Bounds with argument expressions.
             // We can only do this if the argument expressions are non-modifying
             ReturnBounds =
               SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
-                                Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Return);
-            // If concretization failed, this means we tried to substitute with a non-modifying
-            // expression, which is not allowed by the specification.
+                               Sema::NonModifyingContext::NMC_Function_Return);
+            // If concretization failed, this means we tried to substitute with
+            // a non-modifying expression, which is not allowed by the
+            // specification.
             if (!ReturnBounds)
               return CreateBoundsInferenceError();
           }
@@ -1478,17 +1483,19 @@ namespace {
         CollectPositionalParameters Uses(NumParams);
         Uses.VisitFunctionProtoType(const_cast<FunctionProtoType *>(FuncProtoTy));
 
-        // If arguments are used in bounds expressions and are modifying expressions, issue
-        // an error.  TODO: If an argument expression has side-effects, but we can represent
-        // the value of the expression in terms of the values of variables before the call,
-        // we should use that instead and not issue an error.
+        // If arguments are used in bounds expressions and are modifying
+        // expressions, issue an error.  TODO: If an argument expression has
+        // side-effects, but we can represent the value of the expression in
+        // terms of the values of variables before the call, we should use that
+        // instead and not issue an error.
         for (unsigned i = 0; i < NumParams; i++)
           if (Uses.IsUsed(i) && i < NumArgs &&
-              !S.CheckIsNonModifyingExpr(CE->getArg(i),
-                 Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Parameter,
-                                        false)) {
-            S.Diag(CE->getArg(i)->getLocStart(), diag::err_modifying_expr_not_supported) <<
-              (i + 1) << CE->getArg(i)->getSourceRange();
+              !S.CheckIsNonModifying(CE->getArg(i),
+                              Sema::NonModifyingContext::NMC_Function_Parameter,
+                                    false)) {
+            S.Diag(CE->getArg(i)->getLocStart(),
+                   diag::err_modifying_expr_not_supported)
+              << (i + 1) << CE->getArg(i)->getSourceRange();
           }
       }
 
@@ -1530,7 +1537,7 @@ namespace {
             S.ConcretizeFromFunctionTypeWithArgs(
               const_cast<BoundsExpr *>(ParamBounds),
               ArgExprs,
-           Sema::NonModifiyingExprRequirement::NMER_Bounds_Function_Parameter);
+              Sema::NonModifyingContext::NMC_Function_Parameter);
           if (SubstParamBounds)
             CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds);
         }
@@ -1938,8 +1945,10 @@ namespace {
     };
 
   public:
-    NonModifiyingExprSema(Sema &S, Sema::NonModifiyingExprRequirement From, bool ReportError) :
-      S(S), FoundModifyingExpr(false), ReqFrom(From), ReportError(ReportError) {}
+    NonModifiyingExprSema(Sema &S, Sema::NonModifyingContext From,
+                          bool ReportError) :
+      S(S), FoundModifyingExpr(false), ReqFrom(From),
+      ReportError(ReportError) {}
 
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
@@ -1993,7 +2002,7 @@ namespace {
   private:
     Sema &S;
     bool FoundModifyingExpr;
-    Sema::NonModifiyingExprRequirement ReqFrom;
+    Sema::NonModifyingContext ReqFrom;
     bool ReportError;
 
     void addError(Expr *E, ModifyingExprKind Kind) {
@@ -2004,8 +2013,8 @@ namespace {
   };
 }
 
-bool Sema::CheckIsNonModifyingExpr(Expr *E, NonModifiyingExprRequirement Req,
-                                   bool ReportError) {
+bool Sema::CheckIsNonModifying(Expr *E, NonModifyingContext Req,
+                               bool ReportError) {
   NonModifiyingExprSema Checker(*this, Req, ReportError);
   Checker.TraverseStmt(E);
 

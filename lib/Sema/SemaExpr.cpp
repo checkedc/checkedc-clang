@@ -560,7 +560,7 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
         // interfaces, we change the function-to-pointer decay
         // cast in checked scopes to make the target type
         // completely checked.
-        if (isCheckedScope && Ty->hasUncheckedType()) {
+        if (isCheckedScope && Ty->isOrContainsUncheckedType()) {
           Ty = RewriteBoundsSafeInterfaceTypes(Ty);
           isBoundsSafeInterfaceCast = true;
         }
@@ -591,12 +591,13 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       // For Checked C, for uses of arrays with bounds-safe interfaces, we
       // change the array-to-pointer decay cast in checked scopes to make the
       // target type completely checked.
-      if (getCurScope()->isCheckedScope() && Ty->hasUncheckedType()) {        
+      if (getCurScope()->isCheckedScope() && Ty->isOrContainsUncheckedType()) {
         BoundsExpr *B = nullptr;
-        Expr *IgnoreParenCasts = E->IgnoreParenCasts();        
+        Expr *IgnoreParenCasts = E->IgnoreParenCasts();
         if (auto *DRE = dyn_cast<DeclRefExpr>(IgnoreParenCasts)) {
           if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-            assert(!(isa<ParmVarDecl>(VD))); // parameter variables should not have array type.
+            // parameter variables should not have array type.
+            assert(!(isa<ParmVarDecl>(VD)));
             B = VD->getBoundsExpr();
           }
         } else if (auto *ME = dyn_cast<MemberExpr>(IgnoreParenCasts)) {
@@ -818,7 +819,7 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
       kind = CheckedPointerKind::Ptr;
       if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
         if (isa<FunctionDecl>(DRE->getDecl()))
-          if (Ty->hasUncheckedType()) {
+          if (Ty->isOrContainsUncheckedType()) {
             isBoundsSafeInterfaceCast = true;
             Ty = RewriteBoundsSafeInterfaceTypes(E->getType());
           }
@@ -1891,7 +1892,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   // We skip declarations with function and array types here.  They are
   // handled later as part of function-to-pointer and array-to-pointer decay.
   if (getCurScope()->isCheckedScope() && !Ty->isFunctionType() &&
-      !Ty->isArrayType() && Ty->hasUncheckedType()) {
+      !Ty->isArrayType() && Ty->isOrContainsUncheckedType()) {
     DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
     if (!DD)
       llvm_unreachable("unexpected DeclRef in checked scope");
@@ -1917,7 +1918,7 @@ ExprResult Sema::ConvertToFullyCheckedType(Expr *E, BoundsExpr *B,
   if (CheckedTy.isNull())
     return ExprError();
 
-  assert(!CheckedTy->hasUncheckedType());
+  assert(!CheckedTy->isOrContainsUncheckedType());
   if (VK == ExprValueKind::VK_RValue) {
     ExprResult ER = ImpCastExprToType(E, CheckedTy, CK_BitCast, VK, nullptr,
                                       Sema::CCK_ImplicitConversion, true);
@@ -7641,7 +7642,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   if (!S.Context.pointeeTypesAreAssignable(ltrans, rtrans)) {
      // None of the language extensions below are allowed for pointers
      // that are checked pointers or that contain checked types.
-     if (LHSType->hasCheckedType() || RHSType->hasCheckedType())
+     if (LHSType->isOrContainsCheckedType() || RHSType->isOrContainsCheckedType())
          return Sema::Incompatible;
 
     // Check if the pointee types are compatible ignoring the sign.

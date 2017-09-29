@@ -12177,7 +12177,7 @@ static bool checkBoundsDeclWithTypeAnnotation(Sema &S, QualType DeclaredTy,
   }
 
   // Make sure that the annotation type is a checked type.
-  if (!(Errors & Annot_Illegal_Type) && !AnnotTy->hasCheckedType()) {
+  if (!(Errors & Annot_Illegal_Type) && !AnnotTy->isOrContainsCheckedType()) {
     S.Diag(AnnotTyLoc,
            diag::err_typecheck_bounds_type_annotation_must_be_checked_type);
     Errors |= Annot_Unchecked;
@@ -12370,15 +12370,15 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
     return;
 
   if (Expr) {
-    NonModifiyingExprRequirement req = NMER_Unknown;
+    NonModifyingContext req = NMC_Unknown;
     if (isa<RangeBoundsExpr>(Expr)) {
-      req = NMER_Bounds_Range;
+      req = NMC_Range;
     }
     else if (const CountBoundsExpr *CountBounds = dyn_cast<CountBoundsExpr>(Expr)) {
-      req = CountBounds->isByteCount() ? NMER_Bounds_Byte_Count : NMER_Bounds_Count;
+      req = CountBounds->isByteCount() ? NMC_Byte_Count : NMC_Count;
     }
 
-    if (!CheckIsNonModifyingExpr(Expr, req)) {
+    if (!CheckIsNonModifying(Expr, req)) {
       ActOnInvalidBoundsDecl(D);
       return;
     }

@@ -1098,7 +1098,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     Expr *Conditional = TheCall->getArg(0);
 
-    if (!CheckIsNonModifyingExpr(Conditional, NMER_Dynamic_Check))
+    if (!CheckIsNonModifying(Conditional, NMC_Dynamic_Check))
       return ExprError();
 
     WarnDynamicCheckAlwaysFails(Conditional);
