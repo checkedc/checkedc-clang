@@ -10942,6 +10942,27 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       return;
     }
 
+    // Checked C: automatic variables with (1) type _Ptr or (2) a bounds
+    // declaration and not having an array type must be initialized.
+    //
+    // Static variables are initialized to 0 if there is no initializer.
+    // This is a valid initialization value, so we don't have to issue an
+    // error message for them.
+    if (!Var->isInvalidDecl() && Var->hasLocalStorage() &&
+        !isa<ParmVarDecl>(Var)) {
+      QualType Ty = Var->getType();
+      BoundsExpr *B = Var->getBoundsExpr();
+      if (getCurScope()->isCheckedScope() && Ty->isUncheckedPointerType() && B)
+        Ty = GetCheckedCInteropType(Ty, B, isa<ParmVarDecl>(Var));
+      if (Ty->isCheckedPointerPtrType())
+        Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
+          << Var;
+      else if (B && !B->isInteropTypeAnnotation() && !B->isInvalid() &&
+               !B->isNone() && !Ty->isArrayType())
+        Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
+          << Var;
+    }
+
     switch (Var->isThisDeclarationADefinition()) {
     case VarDecl::Definition:
       if (!Var->isStaticDataMember() || !Var->getAnyInitializer())
