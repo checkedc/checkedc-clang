@@ -312,6 +312,7 @@ public:
 
   bool VisitPositionalParameterExpr(PositionalParameterExpr *PE) {
     Used.set(PE->getIndex());
+    return true;
   }
 
   bool IsUsed(unsigned Index) {

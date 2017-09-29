@@ -1,5 +1,5 @@
 //
-// These are regression tests case for 
+// These are regression tests cases for 
 // https://github.com/Microsoft/checkedc-clang/issues/242.
 //
 // The tests check that there are not duplicate error messages when a cast to _Ptr
