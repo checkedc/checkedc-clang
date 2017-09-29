@@ -10946,7 +10946,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     // declaration and not having an array type must be initialized.
     //
     // Static variables are initialized to 0 if there is no initializer.
-    // This is a valid initialization value, so we don't have ot issue an
+    // This is a valid initialization value, so we don't have to issue an
     // error message for them.
     if (!Var->isInvalidDecl() && Var->hasLocalStorage() &&
         !isa<ParmVarDecl>(Var)) {
