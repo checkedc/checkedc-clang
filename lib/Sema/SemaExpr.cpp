@@ -7603,37 +7603,41 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // Handle Checked C cases (where one pointer is checked).
   if (lhkind != CheckedPointerKind::Unchecked ||
       rhkind != CheckedPointerKind::Unchecked) {
-    // Allow conversions from any pointer to any kind of checked void
-    // pointer. Do not have an extension allowing casts from checked void
+    // Implicit conversions to checked void pointers:
+    // - Allow conversions from any pointer to a _Ptr or _Array_ptr void
+    // pointer.
+    // - Do not allow conversions to an _Nt_array_ptr void pointer.
+    // - Do not have an extension allowing casts from checked void
     // pointers to function pointers.
-    if (lhptee->isVoidType() && lhkind != CheckedPointerKind::Unchecked &&
+    if (lhptee->isVoidType() && (lhkind == CheckedPointerKind::Ptr ||
+                                 lhkind == CheckedPointerKind::Array) &&
         rhptee->isIncompleteOrObjectType()) {
       return ConvTy;
     }
 
-    // Allow void * to be converted implicitly to a checked pointer type (it
-    // will still need to have the appropriate bounds).  Allow _Array_ptr<void>
-    // to be converted implicitly to another checked pointer type.  Do not allow
-    // _Ptr<void> to be converted implicitly to another checked type.
+    // Implicit conversions from void pointers to checked pointers.
+    // - Allow any void pointer except _Ptr to be converted to a _Ptr or
+    // _Array_ptr type (the void pointer must still have  appropriate bounds).
+    // - Do not allow conversions to Nt_array_ptr type.
+    // types.
     if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType()) {
-      if (rhkind == CheckedPointerKind::Unchecked)
+      if (rhkind != CheckedPointerKind::Ptr &&
+          (lhkind == CheckedPointerKind::Ptr ||
+           lhkind == CheckedPointerKind::Array))
         return ConvTy;
-
-      if (rhkind == CheckedPointerKind::Array &&
-          lhkind != CheckedPointerKind::Unchecked)
-      return ConvTy;
     }
   }
 
-  // We are done handling pointers void. Now apply restrictions based on
+  // We are done handling pointers to void. Now apply restrictions based on
   // checkedness of pointers.
   // - Disallow implicit conversions from checked pointers to unchecked
-  // pointers.
+  // pointers or Nt_array_ptr pointers.
   // - Allow:
-  // * Implicit conversions from unchecked pointers to checked pointers.
-  // * Implicit conversions between different kinds of checked pointers.
+  // * Implicit conversions from any kind of pointter to _Ptr or _Array_ptr
+  //   pointers.
   if (rhkind != CheckedPointerKind::Unchecked &&
-      lhkind == CheckedPointerKind::Unchecked)
+      (lhkind == CheckedPointerKind::Unchecked ||
+       lhkind == CheckedPointerKind::NtArray))
     return Sema::Incompatible;
 
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or

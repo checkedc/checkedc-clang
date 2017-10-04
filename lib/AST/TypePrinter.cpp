@@ -346,11 +346,19 @@ void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
     OS << '*';
   }
   else {
-    if (T->getKind() == CheckedPointerKind::Ptr) {
-      OS << "_Ptr<";
-    }
-    else {
-      OS << "_Array_ptr<";
+    switch (T->getKind()) {
+      case CheckedPointerKind::Unchecked:
+        llvm_unreachable("should have been handled already");
+        break;
+      case CheckedPointerKind::Ptr:
+        OS << "_Ptr<";
+        break;
+      case CheckedPointerKind::Array:
+        OS << "_Array_ptr<";
+        break;
+      case CheckedPointerKind::NtArray:
+        OS << "_Nt_array_ptr<";
+        break;
     }
     print(T->getPointeeType(), OS, StringRef());
     OS << '>';

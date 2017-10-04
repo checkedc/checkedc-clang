@@ -9110,6 +9110,15 @@ let CategoryName = "Checked C" in {
 def err_checked_vla : Error<
   "checked variable-length array not allowed">;
 
+def err_illegal_decl_nullterm_array_of_nonscalar : Error<
+  "'%0' declared as null-terminated array of type %1; only integer and pointer types allowed">;
+
+def err_illegal_decl_array_ptr_to_function : Error<
+  "'%0' declared as _Array_ptr to function of type %1; use _Ptr to function instead">;
+
+def err_illegal_decl_nt_array_ptr_of_nonscalar : Error<
+  "'%0' declared as _Nt_array_ptr of type %1; only integer and pointer types are allowed">;
+
 def err_checked_cplusplus : Error<
   "checked extension not supported for C++">;
 

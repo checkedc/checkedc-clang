@@ -214,7 +214,7 @@ void ASTTypeWriter::VisitArrayType(const ArrayType *T) {
   Record.AddTypeRef(T->getElementType());
   Record.push_back(T->getSizeModifier()); // FIXME: stable values
   Record.push_back(T->getIndexTypeCVRQualifiers()); // FIXME: stable values
-  Record.push_back(T->isChecked());
+  Record.push_back((unsigned)T->getKind());
 }
 
 void ASTTypeWriter::VisitConstantArrayType(const ConstantArrayType *T) {

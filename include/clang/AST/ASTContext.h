@@ -1141,8 +1141,12 @@ public:
 
   /// \brief Return the uniqued reference to the type for a pointer to
   /// the specified type.
-  QualType getPointerType(QualType T, CheckedPointerKind kind = CheckedPointerKind::Unchecked) const;
-  CanQualType getPointerType(CanQualType T, CheckedPointerKind kind = CheckedPointerKind::Unchecked) const {
+  QualType getPointerType(QualType T,
+                          CheckedPointerKind kind =
+                            CheckedPointerKind::Unchecked) const;
+  CanQualType getPointerType(CanQualType T,
+                             CheckedPointerKind kind =
+                               CheckedPointerKind::Unchecked) const {
     return CanQualType::CreateUnsafe(getPointerType((QualType) T, kind));
   }
 
@@ -1243,14 +1247,16 @@ public:
   QualType getIncompleteArrayType(QualType EltTy,
                                   ArrayType::ArraySizeModifier ASM,
                                   unsigned IndexTypeQuals,
-                                  bool isChecked) const;
+                                  CheckedArrayKind =
+                                    CheckedArrayKind::Unchecked) const;
 
   /// \brief Return the unique reference to the type for a constant array of
   /// the specified element type.
   QualType getConstantArrayType(QualType EltTy, const llvm::APInt &ArySize,
                                 ArrayType::ArraySizeModifier ASM,
                                 unsigned IndexTypeQuals,
-                                bool isChecked = false) const;
+                                CheckedArrayKind Kind =
+                                  CheckedArrayKind::Unchecked) const;
   
   /// \brief Returns a vla type where known sizes are replaced with [*].
   QualType getVariableArrayDecayedType(QualType Ty) const;

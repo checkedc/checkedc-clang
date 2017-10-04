@@ -7164,7 +7164,7 @@ InitializationSequence::Perform(Sema &S,
                                              IncompleteDest->getElementType(),
                                              ConstantSource->getSize(),
                                              ArrayType::Normal, 0,
-                                             IncompleteDest->isChecked());
+                                             IncompleteDest->getKind());
           }
         }
       }

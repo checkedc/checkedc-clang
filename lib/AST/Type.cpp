@@ -127,10 +127,9 @@ DependentSizedArrayType::DependentSizedArrayType(const ASTContext &Context,
                                                  SourceRange brackets)
     : ArrayType(DependentSizedArray, et, can, sm, tq, 
                 (et->containsUnexpandedParameterPack() ||
-                 (e && e->containsUnexpandedParameterPack())), /*IsChecked=*/false),
-      Context(Context), SizeExpr((Stmt*) e), Brackets(brackets) 
-{
-}
+                 (e && e->containsUnexpandedParameterPack())),
+                CheckedArrayKind::Unchecked),
+      Context(Context), SizeExpr((Stmt*) e), Brackets(brackets) {}
 
 void DependentSizedArrayType::Profile(llvm::FoldingSetNodeID &ID,
                                       const ASTContext &Context,
@@ -768,7 +767,7 @@ public:
     return Ctx.getConstantArrayType(elementType, T->getSize(),
                                     T->getSizeModifier(),
                                     T->getIndexTypeCVRQualifiers(),
-                                    T->isChecked());
+                                    T->getKind());
   }
 
   QualType VisitVariableArrayType(const VariableArrayType *T) {
@@ -795,7 +794,7 @@ public:
 
     return Ctx.getIncompleteArrayType(elementType, T->getSizeModifier(),
                                       T->getIndexTypeCVRQualifiers(),
-                                      T->isChecked());
+                                      T->getKind());
   }
 
   QualType VisitVectorType(const VectorType *T) { 
