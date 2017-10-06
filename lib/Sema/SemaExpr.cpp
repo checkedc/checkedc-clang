@@ -7606,9 +7606,10 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     // Implicit conversions to checked void pointers:
     // - Allow conversions from any pointer to a _Ptr or _Array_ptr void
     // pointer.
-    // - Do not allow conversions to an _Nt_array_ptr void pointer.
-    // - Do not have an extension allowing casts from checked void
-    // pointers to function pointers.
+    // - Note that Nt_array_ptr<void> is not a legal type. This
+    // code would not allow conversions to it, if it were.
+    // - Do not have an extension allowing casts from checked function
+    // pointers to checked void pointers.
     if (lhptee->isVoidType() && (lhkind == CheckedPointerKind::Ptr ||
                                  lhkind == CheckedPointerKind::Array) &&
         rhptee->isIncompleteOrObjectType()) {
@@ -7618,8 +7619,9 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     // Implicit conversions from void pointers to checked pointers.
     // - Allow any void pointer except _Ptr to be converted to a _Ptr or
     // _Array_ptr type (the void pointer must still have  appropriate bounds).
-    // - Do not allow conversions to Nt_array_ptr type.
-    // types.
+    // - Do not allow conversions to Nt_array_ptr types.
+    // - Do not have an extension allowing casts from checked void pointers
+    // to checked function pointers.
     if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType()) {
       if (rhkind != CheckedPointerKind::Ptr &&
           (lhkind == CheckedPointerKind::Ptr ||
@@ -7628,16 +7630,21 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     }
   }
 
-  // We are done handling pointers to void. Now apply restrictions based on
-  // checkedness of pointers.
-  // - Disallow implicit conversions from checked pointers to unchecked
-  // pointers or Nt_array_ptr pointers.
-  // - Allow:
-  // * Implicit conversions from any kind of pointter to _Ptr or _Array_ptr
-  //   pointers.
+  // We are done handling pointers to void. Now apply restrictions for
+  // checked pointers.
+  // - Disallow conversons from checked pointers to unchecked pointers.  This
+  //   would allow silent subverison of bounds.
+  // - Disallow conversions from another pionter types to Nt_array_ptr.
+  //   The source may not be null-terminated.
+  // - Allow implicit conversions from any kind of pointer to _Ptr 
+  //   or _Array_ptr
+
   if (rhkind != CheckedPointerKind::Unchecked &&
-      (lhkind == CheckedPointerKind::Unchecked ||
-       lhkind == CheckedPointerKind::NtArray))
+      lhkind == CheckedPointerKind::Unchecked)
+    return Sema::Incompatible;
+
+  if (lhkind == CheckedPointerKind::NtArray &&
+      rhkind != CheckedPointerKind::NtArray)
     return Sema::Incompatible;
 
   // C99 6.5.16.1p1 (constraint 3): both operands are pointers to qualified or
