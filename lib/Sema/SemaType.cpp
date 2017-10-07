@@ -3692,9 +3692,9 @@ static bool hasOuterPointerLikeChunk(const Declarator &D, unsigned endIndex) {
   return false;
 }
 
-// Propagate checked property to directly-nested array types.  Stops at 
-// typedefs, non-array types, and array types that cannot be checked array
-// types (such as variable-length array types).
+// Propagate checked property to directly-nested array types.  Stops at arrays
+// that are already checked, typedefs, non-array types, and array types that
+// cannot be checked array types (such as variable-length array types).
 //
 // Issue an error message if the propagation stops at a typedef that is an
 // unchecked array type.  Dimensions of multi-dimensional arrays must either 
@@ -3706,6 +3706,8 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
     SplitQualType split = T.split();
     const Type *ty = split.Ty;
     const ArrayType *arrTy = cast<ArrayType>(ty);
+    if (arrTy->isChecked())
+      return T;
     QualType elemTy = MakeCheckedArrayType(arrTy->getElementType(), Diagnose,
                                            Loc);
     switch (ty->getTypeClass()) {
@@ -4298,16 +4300,16 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       // - The checked property propagates to nested array types, if the array
       //   types are unchecked.  The nested array types must be declared as part
       //   of this declaration.
-      //
-      // Note that we can ignore null-termined arrays here.  Null-terminated
-      // arrays of arrays are not allowed.
       if (const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType())) {
         if (Kind != AT->getKind()) {
           if (Kind == CheckedArrayKind::Checked)
-            // The new array type is checked. Propagate this to nested array types
-            // declared as part of this declaration.
+            // The new array type is checked. Propagate this to nested array
+            // types declared as part of this declaration.
             T = S.MakeCheckedArrayType(T, true, DeclType.Loc);
-          else {
+          else if (Kind == CheckedArrayKind::NtChecked) {
+            // Do not propagate - null-terminated arrays of arrays are not
+            // allowed and BuildArrayType will issue an error.
+          } else {
             // The new array type is unchecked and the nested array type is checked,
             // See if an enclosing array type will eventually make the new array
             // type a checked array.

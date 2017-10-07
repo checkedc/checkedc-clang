@@ -6600,13 +6600,18 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        // For checked pointers, the pointee types must merge.
        incompatibleCheckedPointer = resultKind != CheckedPointerKind::Unchecked && CompositeTy.isNull();
      }
-     else if (lhsKind == CheckedPointerKind::Unchecked) {
-       // One pointer is an unchecked pointer and the other is a checked pointer
-       // Implicit conversion of unchecked to checked is allowed, provided that the
-       // pointee types are compatible or the pointee types are array types
-       // that differ in compatibility only because one is more "checked" than the
-       // other.
-       resultKind = rhsKind;
+     else if ((lhsKind == CheckedPointerKind::Unchecked ||
+               lhsKind == CheckedPointerKind::NtArray)
+              && (rhsKind == CheckedPointerKind::Array || 
+                  rhsKind == CheckedPointerKind::NtArray)) {
+       // The least upper bound is compute as always Array:
+       //    Unchecked ^ Array =  Array
+       //    Unchecked ^ NtArray = Array
+       //    NtArray ^ Array = Array
+       // This is provided that the pointee types are compatible or the 
+       // pointee types are array types that differ in compatibility only
+       // because one is more "checked" than the other.
+       resultKind = CheckedPointerKind::Array;
        // Again, maybe the lhptee and rhptee did not merge because the array types
        // differ in whether they are checked. Only the rhsptee can be checked because
        // otherwise this implicitly casts away checkedness, which is not allowed.
@@ -6615,17 +6620,21 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        }
        incompatibleCheckedPointer = CompositeTy.isNull();
      }
-     else if (rhsKind == CheckedPointerKind::Unchecked) {
+     else if ((rhsKind == CheckedPointerKind::Unchecked ||
+               rhsKind == CheckedPointerKind::NtArray)
+              && (lhsKind == CheckedPointerKind::Array ||
+                  lhsKind == CheckedPointerKind::NtArray)) {
        // Same as above, but reversed.
-       resultKind = lhsKind;
+       resultKind = CheckedPointerKind::Array;
        if (CompositeTy.isNull() && S.Context.pointeeTypesAreAssignable(lhptee, rhptee)) {
          CompositeTy = lhptee;
        }
        incompatibleCheckedPointer = CompositeTy.isNull();
      }
      else {
-       // Must have different kinds of checked pointers (_Ptr vs. _Array_ptr).
-       // Implicit conversions between the different kinds are not allowed.
+       // Must have different kinds of checked pointers (_Ptr vs.
+       // _Array_ptr or _Nt_Array_ptr). Implicit conversions between these
+       // kinds of pointers are not allowed.
        incompatibleCheckedPointer = true;
        // _Array_ptr is less likely to cause spurious downstream warnings.
        resultKind = CheckedPointerKind::Array;
@@ -6734,6 +6743,9 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
   // ignore qualifiers on void (C99 6.5.15p3, clause 6)
   if (lhptee->isVoidType() && rhptee->isIncompleteOrObjectType() && 
       (lhkind == rhkind || rhkind == CheckedPointerKind::Unchecked)) {
+    // Null-terminated void pointers are illegal, so we don't have to worry
+    // about that case.
+    assert(lhkind != CheckedPointerKind::NtArray); 
     // Figure out necessary qualifiers (C99 6.5.15p6)
     QualType destPointee
       = S.Context.getQualifiedType(lhptee, rhptee.getQualifiers());
@@ -6746,9 +6758,12 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
   }
   if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType() &&
      (lhkind == rhkind || lhkind == CheckedPointerKind::Unchecked)) {
+    // Null-terminated void pointers are illegal, so we don't have to worry
+    // about that case.
+    assert(rhkind != CheckedPointerKind::NtArray);
     QualType destPointee
       = S.Context.getQualifiedType(rhptee, lhptee.getQualifiers());
-    QualType destType = S.Context.getPointerType(destPointee, lhkind);
+    QualType destType = S.Context.getPointerType(destPointee, rhkind);
     // Add qualifiers if necessary.
     RHS = S.ImpCastExprToType(RHS.get(), destType, CK_NoOp);
     // Promote to void*.
@@ -7634,7 +7649,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // checked pointers.
   // - Disallow conversons from checked pointers to unchecked pointers.  This
   //   would allow silent subverison of bounds.
-  // - Disallow conversions from another pionter types to Nt_array_ptr.
+  // - Disallow conversions from another pointer types to Nt_array_ptr.
   //   The source may not be null-terminated.
   // - Allow implicit conversions from any kind of pointer to _Ptr 
   //   or _Array_ptr

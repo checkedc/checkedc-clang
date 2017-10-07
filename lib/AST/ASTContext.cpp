@@ -7889,28 +7889,32 @@ bool ASTContext::pointeeTypesAreAssignable(QualType lhsptee, QualType rhsptee) {
 }
 
 /// matchArrayCheckedness:  Given a pointer assignment, if the LHS and RHS
-/// pointee types are arrays and the LHS pointee is checked, make the RHS
-/// pointee array checked.  To handle multi-dimensional arrays, also
+/// pointee types are arrays, the LHS pointee is a checked array and not
+/// a null-terminated array, and the RHS pointee is an unchecked array, make
+/// the RHS pointee array checked.  To handle multi-dimensional arrays, also
 /// do this recursively for element types of the pointee arrays.
 ///  Examples:
 ///     LHS = int checked[10], RHS=int [10].  new RHS = int checked[10].
 ///     LHS = int checked[10]checked[10], RHS=int [10][10].  new RHS =
 ///           int checked[10]checked[10].
-///     LHS = int[10], RHS = int[10]: rhs does not change
+///     LHS = int[10], RHS = int[10]: RHS does not change
 ///     LHS = int checked[10]checked[10], RHS=int checked[10][10].  new RHS =
 ///           int checked[10]checked[10].
 ///     LHS = checked[10], RHS=int[].   new RHS=int checked[]
+///     LHS = nt_checked[10], RHS=int[10]: RHS does not change.
+///     LHS = checked[10], RHS=nt_checked[10]: RHS does not change.
 QualType ASTContext::matchArrayCheckedness(QualType LHS, QualType RHS) {
   LHS = getCanonicalType(LHS);
   RHS = getCanonicalType(RHS);
   if (LHS->isArrayType() && RHS->isArrayType()) {
     const ArrayType *lhsTy = cast<ArrayType>(LHS);
     const ArrayType *rhsTy = cast<ArrayType>(RHS);
-    if (!lhsTy->isChecked()) {
+    if (!(lhsTy->getKind() == CheckedArrayKind::Checked &&
+          rhsTy->getKind() == CheckedArrayKind::Unchecked))
       return RHS;
-    }
     assert((lhsTy->isConstantArrayType() || lhsTy->isIncompleteArrayType()) && 
            "unexpected checked array type");
+
     Type::TypeClass rhsTypeClass = rhsTy->getTypeClass();
     if (rhsTypeClass == Type::ConstantArray || rhsTypeClass == Type::IncompleteArray) {
         QualType elemTy = matchArrayCheckedness(lhsTy->getElementType(),
@@ -8699,6 +8703,13 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
       return false;
 
     if (lessThan(T1ArrayType->isChecked(), T2ArrayType->isChecked()))
+      return false;
+
+    // If both arrays are checked, but they differ in kind, then
+    // one must be a null-terminated array and other must be a
+    // regular array.
+    if (T1ArrayType->isChecked() && T2ArrayType->isChecked() &&
+        T1ArrayType->getKind() != T2ArrayType->getKind())
       return false;
 
     QualType T1ElementType = T1ArrayType->getElementType();

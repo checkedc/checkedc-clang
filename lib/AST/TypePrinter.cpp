@@ -475,8 +475,10 @@ void TypePrinter::printConstantArrayBefore(const ConstantArrayType *T,
 // printer that recursively calls itself with the state.
 void TypePrinter::printArrayAfter(const ArrayType *T, Qualifiers Quals, raw_ostream &OS,
                                   bool checkedOuterDimension) {
-  if (T->isChecked() && !checkedOuterDimension)
+  if (T->isExactlyChecked() && !checkedOuterDimension)
     OS << "checked";
+  else if (T->isNtChecked())
+      OS << "nt_checked";
   else if (checkedOuterDimension && !T->isChecked()) {
     // This case is never supposed to happen, but print an accurate type name if it does.
     OS << "unchecked";
