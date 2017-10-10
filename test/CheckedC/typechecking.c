@@ -33,7 +33,7 @@ _Ptr<int> f100(a, b)
 ///////////////////////////////////////////////////////////////////////////////
 
 void f101(void) {
-  _Array_ptr<int> void a; // expected-error {{cannot combine with previous '_ArrayPtr' declaration specifier}}
+  _Array_ptr<int> void a; // expected-error {{cannot combine with previous '_Array_ptr' declaration specifier}}
   int _Array_ptr<int> b;  // expected-error {{cannot combine with previous 'int' declaration specifier}}
   _Ptr<int> void c = 0;   // expected-error {{cannot combine with previous '_Ptr' declaration specifier}}
   int _Ptr<int> d;        // expected-error {{cannot combine with previous 'int' declaration specifier}}
