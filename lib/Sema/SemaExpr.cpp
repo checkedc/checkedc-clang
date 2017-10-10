@@ -6600,18 +6600,17 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        // For checked pointers, the pointee types must merge.
        incompatibleCheckedPointer = resultKind != CheckedPointerKind::Unchecked && CompositeTy.isNull();
      }
-     else if ((lhsKind == CheckedPointerKind::Unchecked ||
-               lhsKind == CheckedPointerKind::NtArray)
-              && (rhsKind == CheckedPointerKind::Array || 
-                  rhsKind == CheckedPointerKind::NtArray)) {
-       // The least upper bound is compute as always Array:
+     else if (lhsKind == CheckedPointerKind::Unchecked) {
+       // The rhs must be a checked ponter type. The least upper bound is determined
+       // as follows:
        //    Unchecked ^ Array =  Array
        //    Unchecked ^ NtArray = Array
-       //    NtArray ^ Array = Array
+       //    Unchecked ^ Ptr = Ptr
        // This is provided that the pointee types are compatible or the 
        // pointee types are array types that differ in compatibility only
        // because one is more "checked" than the other.
-       resultKind = CheckedPointerKind::Array;
+       resultKind = (rhsKind == CheckedPointerKind::NtArray) ?
+         CheckedPointerKind::Array : rhsKind;
        // Again, maybe the lhptee and rhptee did not merge because the array types
        // differ in whether they are checked. Only the rhsptee can be checked because
        // otherwise this implicitly casts away checkedness, which is not allowed.
@@ -6620,18 +6619,23 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
        }
        incompatibleCheckedPointer = CompositeTy.isNull();
      }
-     else if ((rhsKind == CheckedPointerKind::Unchecked ||
-               rhsKind == CheckedPointerKind::NtArray)
-              && (lhsKind == CheckedPointerKind::Array ||
-                  lhsKind == CheckedPointerKind::NtArray)) {
+     else if (rhsKind == CheckedPointerKind::Unchecked) {
        // Same as above, but reversed.
-       resultKind = CheckedPointerKind::Array;
+       resultKind = (rhsKind == CheckedPointerKind::NtArray) ?
+         CheckedPointerKind::Array : rhsKind;
        if (CompositeTy.isNull() && S.Context.pointeeTypesAreAssignable(lhptee, rhptee)) {
          CompositeTy = lhptee;
        }
        incompatibleCheckedPointer = CompositeTy.isNull();
-     }
-     else {
+     } else if ((lhsKind == CheckedPointerKind::NtArray &&
+                 rhsKind == CheckedPointerKind::Array) ||
+                (rhsKind == CheckedPointerKind::NtArray &&
+                 lhsKind == CheckedPointerKind::Array)) {
+       // NtArray can't be the upper bound type because the Array value may not
+       // have have a null terminator.
+       resultKind = CheckedPointerKind::Array;
+       incompatibleCheckedPointer = CompositeTy.isNull();
+     } else {
        // Must have different kinds of checked pointers (_Ptr vs.
        // _Array_ptr or _Nt_Array_ptr). Implicit conversions between these
        // kinds of pointers are not allowed.
