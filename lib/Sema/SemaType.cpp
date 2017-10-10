@@ -4307,8 +4307,10 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             // types declared as part of this declaration.
             T = S.MakeCheckedArrayType(T, true, DeclType.Loc);
           else if (Kind == CheckedArrayKind::NtChecked) {
-            // Do not propagate - null-terminated arrays of arrays are not
-            // allowed and BuildArrayType will issue an error.
+            // Do not propagate. Null-terminated arrays of arrays are illegal to
+            // declare, so we don't care about the checkedness of arrays nested
+            // with them.  The call to BuildArrayType below will issue a
+            // diagnostic message about the illegal array type.
           } else {
             // The new array type is unchecked and the nested array type is checked,
             // See if an enclosing array type will eventually make the new array
