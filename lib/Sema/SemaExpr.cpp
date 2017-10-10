@@ -6621,8 +6621,8 @@ static QualType checkConditionalPointerCompatibility(Sema &S, ExprResult &LHS,
      }
      else if (rhsKind == CheckedPointerKind::Unchecked) {
        // Same as above, but reversed.
-       resultKind = (rhsKind == CheckedPointerKind::NtArray) ?
-         CheckedPointerKind::Array : rhsKind;
+       resultKind = (lhsKind == CheckedPointerKind::NtArray) ?
+         CheckedPointerKind::Array : lhsKind;
        if (CompositeTy.isNull() && S.Context.pointeeTypesAreAssignable(lhptee, rhptee)) {
          CompositeTy = lhptee;
        }
