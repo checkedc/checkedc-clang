@@ -302,6 +302,7 @@ public:
   static const TST TST_atomic = clang::TST_atomic;
   static const TST TST_plainPtr = clang::TST_plainPtr;
   static const TST TST_arrayPtr = clang::TST_arrayPtr;
+  static const TST TST_nt_arrayPtr = clang::TST_ntarrayPtr;
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   static const TST TST_##ImgType##_t = clang::TST_##ImgType##_t;
 #include "clang/Basic/OpenCLImageTypes.def"
@@ -419,7 +420,8 @@ private:
   static bool isTypeRep(TST T) {
     return (T == TST_typename || T == TST_typeofType ||
             T == TST_underlyingType || T == TST_atomic ||
-            T == TST_plainPtr || T == TST_arrayPtr);
+            T == TST_plainPtr || T == TST_arrayPtr ||
+            T == TST_nt_arrayPtr);
   }
   static bool isExprRep(TST T) {
     return (T == TST_typeofExpr || T == TST_decltype);
@@ -1242,8 +1244,8 @@ struct DeclaratorChunk {
     /// True if this dimension was [*].  In this case, NumElts is null.
     unsigned isStar : 1;
 
-    // Checked C - True if this is a checked array.
-    bool isChecked: 1;
+    // Checked C - the kind of checked array
+    unsigned kind: 2;
 
     /// This is the size of the array, or null if [] or [*] was specified.
     /// Since the parser is multi-purpose, and we don't want to impose a root
@@ -1630,7 +1632,7 @@ struct DeclaratorChunk {
   /// \brief Return a DeclaratorChunk for an array.
   static DeclaratorChunk getArray(unsigned TypeQuals,
                                   bool isStatic, bool isStar,
-                                  bool isChecked, Expr *NumElts,
+                                  CheckedArrayKind kind, Expr *NumElts,
                                   SourceLocation LBLoc, SourceLocation RBLoc) {
     DeclaratorChunk I;
     I.Kind          = Array;
@@ -1640,7 +1642,7 @@ struct DeclaratorChunk {
     I.Arr.TypeQuals = TypeQuals;
     I.Arr.hasStatic = isStatic;
     I.Arr.isStar    = isStar;
-    I.Arr.isChecked = (unsigned) isChecked;
+    I.Arr.kind = (unsigned) kind;
     I.Arr.NumElts   = NumElts;
     return I;
   }

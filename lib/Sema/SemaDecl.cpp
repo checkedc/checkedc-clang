@@ -12312,7 +12312,7 @@ static bool checkBoundsDeclWithBoundsExpr(Sema &S, QualType Ty,
 bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                                   BoundsExpr *Expr, bool IsReturnBounds) {
   assert(D != nullptr || IsReturnBounds);
-  if (Expr->isInvalid())
+  if ((D != nullptr && D->isInvalidDecl()) || Expr->isInvalid())
     return false;
 
   bool result = true;
@@ -12361,7 +12361,7 @@ static void HandleVarDeclBounds(Sema &S, VarDecl *D, BoundsExpr *Expr) {
 // - For VarDecls, make sure that a bounds expression on a redeclaration
 // is valid.
 void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
-  if (!D)
+  if (!D || D->isInvalidDecl())
     return;
 
   assert(!isa<FunctionDecl>(D) && "unexpected function decl");

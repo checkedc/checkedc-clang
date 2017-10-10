@@ -3047,9 +3047,9 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     const llvm::APInt ArySize = caType->getSize();
     ArrayType::ArraySizeModifier ASM = caType->getSizeModifier();
     unsigned IndexTypeQuals = caType->getIndexTypeCVRQualifiers();
-    bool isChecked = caType->isChecked();
+    CheckedArrayKind Kind = caType->getKind();
     return Actions.getASTContext().getConstantArrayType(EltTy, ArySize, ASM, 
-                                                  IndexTypeQuals, isChecked);
+                                                  IndexTypeQuals, Kind);
   }
   case Type::VariableArray: {
     const VariableArrayType *vaType = dyn_cast<VariableArrayType>(T);
@@ -3074,9 +3074,9 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     QualType EltTy = SubstituteTypeVariable(iaType->getElementType(), typeNames);
     ArrayType::ArraySizeModifier ASM = iaType->getSizeModifier();
     unsigned IndexTypeQuals = iaType->getIndexTypeCVRQualifiers();
-    bool isChecked = iaType->isChecked();
+    CheckedArrayKind Kind = iaType->getKind();
     return Actions.getASTContext().getIncompleteArrayType(EltTy, ASM, 
-                                                    IndexTypeQuals, isChecked);
+                                                    IndexTypeQuals, Kind);
   }
   case Type::DependentSizedArray: {
     const DependentSizedArrayType *dsaType = dyn_cast<DependentSizedArrayType>(T);

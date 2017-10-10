@@ -850,7 +850,7 @@ void Sema::ActOnEndOfTranslationUnit() {
       llvm::APInt One(Context.getTypeSize(Context.getSizeType()), true);
       QualType T = Context.getConstantArrayType(ArrayT->getElementType(),
                                                 One, ArrayType::Normal, 0,
-                                                ArrayT->isChecked());
+                                                ArrayT->getKind());
       VD->setType(T);
     } else if (RequireCompleteType(VD->getLocation(), VD->getType(),
                                    diag::err_tentative_def_incomplete_type))

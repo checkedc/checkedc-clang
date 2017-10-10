@@ -5753,20 +5753,20 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    bool IsChecked = Record[3];
+    CheckedArrayKind Kind = (CheckedArrayKind) Record[3];
     unsigned Idx = 4;
     llvm::APInt Size = ReadAPInt(Record, Idx);
     return Context.getConstantArrayType(ElementType, Size,
-                                         ASM, IndexTypeQuals, IsChecked);
+                                         ASM, IndexTypeQuals, Kind);
   }
 
   case TYPE_INCOMPLETE_ARRAY: {
     QualType ElementType = readType(*Loc.F, Record, Idx);
     ArrayType::ArraySizeModifier ASM = (ArrayType::ArraySizeModifier)Record[1];
     unsigned IndexTypeQuals = Record[2];
-    bool isChecked = Record[3];
+    CheckedArrayKind Kind = (CheckedArrayKind) Record[3];
     return Context.getIncompleteArrayType(ElementType, ASM, IndexTypeQuals,
-                                          isChecked);
+                                          Kind);
   }
 
   case TYPE_VARIABLE_ARRAY: {

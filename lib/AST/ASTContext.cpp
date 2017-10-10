@@ -2708,7 +2708,7 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
                                           const llvm::APInt &ArySizeIn,
                                           ArrayType::ArraySizeModifier ASM,
                                           unsigned IndexTypeQuals,
-                                          bool IsChecked) const {
+                                          CheckedArrayKind Kind) const {
   assert((EltTy->isDependentType() ||
           EltTy->isIncompleteType() || EltTy->isConstantSizeType()) &&
          "Constant array of VLAs is illegal!");
@@ -2720,7 +2720,7 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
 
   llvm::FoldingSetNodeID ID;
   ConstantArrayType::Profile(ID, EltTy, ArySize, ASM, IndexTypeQuals,
-                             IsChecked);
+                             Kind);
 
   void *InsertPos = nullptr;
   if (ConstantArrayType *ATP =
@@ -2733,7 +2733,7 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
   if (!EltTy.isCanonical() || EltTy.hasLocalQualifiers()) {
     SplitQualType canonSplit = getCanonicalType(EltTy).split();
     Canon = getConstantArrayType(QualType(canonSplit.Ty, 0), ArySize,
-                                 ASM, IndexTypeQuals, IsChecked);
+                                 ASM, IndexTypeQuals, Kind);
     Canon = getQualifiedType(Canon, canonSplit.Quals);
 
     // Get the new insert position for the node we care about.
@@ -2744,7 +2744,7 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
 
   ConstantArrayType *New = new(*this,TypeAlignment)
     ConstantArrayType(EltTy, Canon, ArySize, ASM, IndexTypeQuals,
-                      IsChecked);
+                      Kind);
   ConstantArrayTypes.InsertNode(New, InsertPos);
   Types.push_back(New);
   return QualType(New, 0);
@@ -2842,7 +2842,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
                                   cat->getSize(),
                                   cat->getSizeModifier(),
                                   cat->getIndexTypeCVRQualifiers(),
-                                  cat->isChecked());
+                                  cat->getKind());
     break;
   }
 
@@ -2987,10 +2987,10 @@ QualType ASTContext::getDependentSizedArrayType(QualType elementType,
 QualType ASTContext::getIncompleteArrayType(QualType elementType,
                                             ArrayType::ArraySizeModifier ASM,
                                             unsigned elementTypeQuals,
-                                            bool isChecked) const {
+                                            CheckedArrayKind Kind) const {
   llvm::FoldingSetNodeID ID;
   IncompleteArrayType::Profile(ID, elementType, ASM, elementTypeQuals,
-                               isChecked);
+                               Kind);
 
   void *insertPos = nullptr;
   if (IncompleteArrayType *iat =
@@ -3005,7 +3005,7 @@ QualType ASTContext::getIncompleteArrayType(QualType elementType,
   if (!elementType.isCanonical() || elementType.hasLocalQualifiers()) {
     SplitQualType canonSplit = getCanonicalType(elementType).split();
     canon = getIncompleteArrayType(QualType(canonSplit.Ty, 0),
-                                   ASM, elementTypeQuals, isChecked);
+                                   ASM, elementTypeQuals, Kind);
     canon = getQualifiedType(canon, canonSplit.Quals);
 
     // Get the new insert position for the node we care about.
@@ -3015,7 +3015,7 @@ QualType ASTContext::getIncompleteArrayType(QualType elementType,
   }
 
   IncompleteArrayType *newType = new (*this, TypeAlignment)
-    IncompleteArrayType(elementType, canon, ASM, elementTypeQuals, isChecked);
+    IncompleteArrayType(elementType, canon, ASM, elementTypeQuals, Kind);
 
   IncompleteArrayTypes.InsertNode(newType, insertPos);
   Types.push_back(newType);
@@ -4660,12 +4660,12 @@ QualType ASTContext::getUnqualifiedArrayType(QualType type,
 
   if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(AT)) {
     return getConstantArrayType(unqualElementType, CAT->getSize(),
-                                CAT->getSizeModifier(), 0, CAT->isChecked());
+                                CAT->getSizeModifier(), 0, CAT->getKind());
   }
 
   if (const IncompleteArrayType *IAT = dyn_cast<IncompleteArrayType>(AT)) {
     return getIncompleteArrayType(unqualElementType, IAT->getSizeModifier(), 0,
-                                  IAT->isChecked());
+                                  IAT->getKind());
   }
 
   if (const VariableArrayType *VAT = dyn_cast<VariableArrayType>(AT)) {
@@ -4966,12 +4966,12 @@ const ArrayType *ASTContext::getAsArrayType(QualType T) const {
     return cast<ArrayType>(getConstantArrayType(NewEltTy, CAT->getSize(),
                                                 CAT->getSizeModifier(),
                                            CAT->getIndexTypeCVRQualifiers(),
-                                                CAT->isChecked()));
+                                                CAT->getKind()));
   if (const IncompleteArrayType *IAT = dyn_cast<IncompleteArrayType>(ATy))
     return cast<ArrayType>(getIncompleteArrayType(NewEltTy,
                                                   IAT->getSizeModifier(),
                                            IAT->getIndexTypeCVRQualifiers(),
-                                                  IAT->isChecked()));
+                                                  IAT->getKind()));
 
   if (const DependentSizedArrayType *DSAT
         = dyn_cast<DependentSizedArrayType>(ATy))
@@ -5022,7 +5022,8 @@ QualType ASTContext::getExceptionObjectType(QualType T) const {
 ///
 /// See C99 6.7.5.3p7 and C99 6.3.2.1p3.
 ///
-/// For Checked C, a checked array type can decay to an _Array_ptr type.
+/// For Checked C, a checked array type can decay to an _Array_ptr type or
+/// an Nt_array_ptr type.
 QualType ASTContext::getArrayDecayedType(QualType Ty) const {
   // Get the element type with 'getAsArrayType' so that we don't lose any
   // typedefs in the element type of the array.  This also handles propagation
@@ -5031,9 +5032,18 @@ QualType ASTContext::getArrayDecayedType(QualType Ty) const {
   const ArrayType *PrettyArrayType = getAsArrayType(Ty);
   assert(PrettyArrayType && "Not an array type!");
 
-  CheckedPointerKind checkedKind = PrettyArrayType->isChecked() ?
-    CheckedPointerKind::Array : CheckedPointerKind::Unchecked;
-
+  CheckedArrayKind Kind = PrettyArrayType->getKind();
+  CheckedPointerKind checkedKind = CheckedPointerKind::Unchecked;
+  switch (Kind) {
+    case CheckedArrayKind::Unchecked:
+      checkedKind = CheckedPointerKind::Unchecked;
+      break;
+    case CheckedArrayKind::Checked:
+      checkedKind = CheckedPointerKind::Array;
+      break;
+    case CheckedArrayKind::NtChecked:
+      checkedKind = CheckedPointerKind::NtArray;
+  }
   QualType PtrTy = getPointerType(PrettyArrayType->getElementType(),
                                   checkedKind);
 
@@ -7879,28 +7889,32 @@ bool ASTContext::pointeeTypesAreAssignable(QualType lhsptee, QualType rhsptee) {
 }
 
 /// matchArrayCheckedness:  Given a pointer assignment, if the LHS and RHS
-/// pointee types are arrays and the LHS pointee is checked, make the RHS
-/// pointee array checked.  To handle multi-dimensional arrays, also
+/// pointee types are arrays, the LHS pointee is a checked array and not
+/// a null-terminated array, and the RHS pointee is an unchecked array, make
+/// the RHS pointee array checked.  To handle multi-dimensional arrays, also
 /// do this recursively for element types of the pointee arrays.
 ///  Examples:
 ///     LHS = int checked[10], RHS=int [10].  new RHS = int checked[10].
 ///     LHS = int checked[10]checked[10], RHS=int [10][10].  new RHS =
 ///           int checked[10]checked[10].
-///     LHS = int[10], RHS = int[10]: rhs does not change
+///     LHS = int[10], RHS = int[10]: RHS does not change
 ///     LHS = int checked[10]checked[10], RHS=int checked[10][10].  new RHS =
 ///           int checked[10]checked[10].
 ///     LHS = checked[10], RHS=int[].   new RHS=int checked[]
+///     LHS = nt_checked[10], RHS=int[10]: RHS does not change.
+///     LHS = checked[10], RHS=nt_checked[10]: RHS does not change.
 QualType ASTContext::matchArrayCheckedness(QualType LHS, QualType RHS) {
   LHS = getCanonicalType(LHS);
   RHS = getCanonicalType(RHS);
   if (LHS->isArrayType() && RHS->isArrayType()) {
     const ArrayType *lhsTy = cast<ArrayType>(LHS);
     const ArrayType *rhsTy = cast<ArrayType>(RHS);
-    if (!lhsTy->isChecked()) {
+    if (!(lhsTy->getKind() == CheckedArrayKind::Checked &&
+          rhsTy->getKind() == CheckedArrayKind::Unchecked))
       return RHS;
-    }
     assert((lhsTy->isConstantArrayType() || lhsTy->isIncompleteArrayType()) && 
            "unexpected checked array type");
+
     Type::TypeClass rhsTypeClass = rhsTy->getTypeClass();
     if (rhsTypeClass == Type::ConstantArray || rhsTypeClass == Type::IncompleteArray) {
         QualType elemTy = matchArrayCheckedness(lhsTy->getElementType(),
@@ -7909,13 +7923,14 @@ QualType ASTContext::matchArrayCheckedness(QualType LHS, QualType RHS) {
           const ConstantArrayType *rhsca = cast<ConstantArrayType>(rhsTy);
           QualType result = getConstantArrayType(elemTy, rhsca->getSize(),
                                                  rhsca->getSizeModifier(), RHS.getCVRQualifiers(),
-                                                 true);
+                                                 CheckedArrayKind::Checked);
           return result;
       }
       else if (rhsTypeClass == Type::IncompleteArray) {
           const IncompleteArrayType *rhsic = cast<IncompleteArrayType>(rhsTy);
           QualType result = getIncompleteArrayType(elemTy, rhsic->getSizeModifier(),
-                                                   RHS.getCVRQualifiers(), true);
+                                                   RHS.getCVRQualifiers(),
+                                                   CheckedArrayKind::Checked);
           return result;
       }
     }
@@ -8422,8 +8437,8 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   {
     const ArrayType *LHSArrayType = getAsArrayType(LHS);
     const ArrayType *RHSArrayType = getAsArrayType(RHS);
-    bool isChecked = LHSArrayType->isChecked();
-    if (isChecked != RHSArrayType->isChecked()) {
+    CheckedArrayKind Kind = LHSArrayType->getKind();
+    if (Kind != RHSArrayType->getKind()) {
       return QualType();
     }
 
@@ -8448,10 +8463,10 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
       return RHS;
     if (LCAT) return getConstantArrayType(ResultType, LCAT->getSize(),
                                           ArrayType::ArraySizeModifier(), 0,
-                                          isChecked);
+                                          Kind);
     if (RCAT) return getConstantArrayType(ResultType, RCAT->getSize(),
                                           ArrayType::ArraySizeModifier(), 0,
-                                          isChecked);
+                                          Kind);
     const VariableArrayType* LVAT = getAsVariableArrayType(LHS);
     const VariableArrayType* RVAT = getAsVariableArrayType(RHS);
     if (LVAT && getCanonicalType(LHSElem) == getCanonicalType(ResultType))
@@ -8474,7 +8489,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     if (getCanonicalType(RHSElem) == getCanonicalType(ResultType)) return RHS;
     return getIncompleteArrayType(ResultType,
                                   ArrayType::ArraySizeModifier(), 0,
-                                  isChecked);
+                                  Kind);
   }
   case Type::FunctionNoProto:
     return mergeFunctionTypes(LHS, RHS, OfBlockPointer, Unqualified,
@@ -8688,6 +8703,13 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
       return false;
 
     if (lessThan(T1ArrayType->isChecked(), T2ArrayType->isChecked()))
+      return false;
+
+    // If both arrays are checked, but they differ in kind, then
+    // one must be a null-terminated array and other must be a
+    // regular array.
+    if (T1ArrayType->isChecked() && T2ArrayType->isChecked() &&
+        T1ArrayType->getKind() != T2ArrayType->getKind())
       return false;
 
     QualType T1ElementType = T1ArrayType->getElementType();

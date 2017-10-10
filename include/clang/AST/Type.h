@@ -1289,7 +1289,16 @@ enum class CheckedPointerKind {
   /// \brief Checked C _Ptr type.
   Ptr,
   /// \brief Checked C _Array_ptr type.
-  Array
+  Array,
+  /// \brief Checked C _Nt_array_ptr type (pointer-to null-terminated array)
+  NtArray,
+};
+
+/// Checked C generalizes arrays to 3 different kinds of arrays.
+enum class CheckedArrayKind {
+  Unchecked = 0,
+  Checked,        // Checked array
+  NtChecked       // Null-terminated checked array
 };
 
 /// The base class of the type hierarchy.
@@ -1405,8 +1414,8 @@ protected:
     /// Actually an ArrayType::ArraySizeModifier.
     unsigned SizeModifier : 3;
 
-    // Is this a checked array type?
-    unsigned IsChecked : 1;
+    // Kind of checked array
+    unsigned CheckedArrayKind : 2;
   };
 
   class BuiltinTypeBitfields {
@@ -1713,9 +1722,11 @@ public:
   bool isPointerType() const;
   bool isCheckedPointerType() const;
   bool isUncheckedPointerType() const;
-  // Checked C ptr type
-  bool isCheckedPointerPtrType() const;
-  bool isCheckedPointerArrayType() const;
+  bool isCheckedPointerPtrType() const;            // Checked C _Ptr type.
+  bool isCheckedPointerArrayType() const;          // Checked C _Array_ptr or
+                                                   // _Nt_array_ptr type.
+  bool isExactlyCheckedPointerArrayType() const;   // Checked C _Array_ptr type.
+  bool isCheckedPointerNtArrayType() const;        // Checked C Nt_Array type.
   bool isAnyPointerType() const;   // Any C pointer or ObjC object pointer
   bool isBlockPointerType() const;
   bool isVoidPointerType() const;
@@ -1732,7 +1743,9 @@ public:
   bool isVariableArrayType() const;
   bool isDependentSizedArrayType() const;
   /// \brief whether this is a Checked C checked array type.
-  bool isCheckedArrayType() const;
+  bool isCheckedArrayType() const; // includes _Nt_checked arrays
+  bool isExactlyCheckedArrayType() const;
+  bool isNtCheckedArrayType() const;
   bool isUncheckedArrayType() const;
   bool isRecordType() const;
   bool isClassType() const;
@@ -2568,7 +2581,7 @@ protected:
   ArrayType(TypeClass tc, QualType et, QualType can,
             ArraySizeModifier sm, unsigned tq,
             bool ContainsUnexpandedParameterPack,
-            bool IsChecked)
+            CheckedArrayKind k)
     : Type(tc, can, et->isDependentType() || tc == DependentSizedArray,
            et->isInstantiationDependentType() || tc == DependentSizedArray,
            (tc == VariableArray || et->isVariablyModifiedType()),
@@ -2576,15 +2589,21 @@ protected:
       ElementType(et) {
     ArrayTypeBits.IndexTypeQuals = tq;
     ArrayTypeBits.SizeModifier = sm;
-    ArrayTypeBits.IsChecked = IsChecked;
+    ArrayTypeBits.CheckedArrayKind = (unsigned) k;
   }
 
   friend class ASTContext;  // ASTContext creates these.
 
 public:
-  bool isChecked() const {
-      return ArrayTypeBits.IsChecked;
+  CheckedArrayKind getKind() const {
+    return CheckedArrayKind(ArrayTypeBits.CheckedArrayKind);
   }
+  bool isChecked() const { return getKind() != CheckedArrayKind::Unchecked; }
+  bool isUnchecked() const { return getKind() == CheckedArrayKind::Unchecked; }
+  bool isExactlyChecked() const {
+    return  getKind() == CheckedArrayKind::Checked;
+  }
+  bool isNtChecked() const { return getKind() == CheckedArrayKind::NtChecked; }
   QualType getElementType() const { return ElementType; }
   ArraySizeModifier getSizeModifier() const {
     return ArraySizeModifier(ArrayTypeBits.SizeModifier);
@@ -2611,16 +2630,16 @@ class ConstantArrayType : public ArrayType {
   llvm::APInt Size; // Allows us to unique the type.
 
   ConstantArrayType(QualType et, QualType can, const llvm::APInt &size,
-                    ArraySizeModifier sm, unsigned tq, bool IsChecked)
+                    ArraySizeModifier sm, unsigned tq, CheckedArrayKind kind)
     : ArrayType(ConstantArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack(), IsChecked),
+                et->containsUnexpandedParameterPack(), kind),
       Size(size) {}
 protected:
   ConstantArrayType(TypeClass tc, QualType et, QualType can,
                     const llvm::APInt &size, ArraySizeModifier sm, unsigned tq,
-                    bool IsChecked)
+                    CheckedArrayKind kind)
     : ArrayType(tc, et, can, sm, tq, et->containsUnexpandedParameterPack(),
-                IsChecked),
+                kind),
       Size(size) {}
   friend class ASTContext;  // ASTContext creates these.
 public:
@@ -2641,16 +2660,16 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getElementType(), getSize(),
-            getSizeModifier(), getIndexTypeCVRQualifiers(), isChecked());
+            getSizeModifier(), getIndexTypeCVRQualifiers(), getKind());
   }
   static void Profile(llvm::FoldingSetNodeID &ID, QualType ET,
                       const llvm::APInt &ArraySize, ArraySizeModifier SizeMod,
-                      unsigned TypeQuals, bool IsChecked) {
+                      unsigned TypeQuals, CheckedArrayKind kind) {
     ID.AddPointer(ET.getAsOpaquePtr());
     ID.AddInteger(ArraySize.getZExtValue());
     ID.AddInteger(SizeMod);
     ID.AddInteger(TypeQuals);
-    ID.AddBoolean(IsChecked);
+    ID.AddInteger((unsigned)kind);
   }
   static bool classof(const Type *T) {
     return T->getTypeClass() == ConstantArray;
@@ -2663,9 +2682,9 @@ public:
 class IncompleteArrayType : public ArrayType {
 
   IncompleteArrayType(QualType et, QualType can,
-                      ArraySizeModifier sm, unsigned tq, bool IsChecked)
+                      ArraySizeModifier sm, unsigned tq, CheckedArrayKind kind)
     : ArrayType(IncompleteArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack(), IsChecked) {}
+                et->containsUnexpandedParameterPack(), kind) {}
   friend class ASTContext;  // ASTContext creates these.
 public:
   bool isSugared() const { return false; }
@@ -2679,16 +2698,16 @@ public:
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, getElementType(), getSizeModifier(),
-            getIndexTypeCVRQualifiers(), isChecked());
+            getIndexTypeCVRQualifiers(), getKind());
   }
 
   static void Profile(llvm::FoldingSetNodeID &ID, QualType ET,
                       ArraySizeModifier SizeMod, unsigned TypeQuals,
-                      bool IsChecked) {
+                      CheckedArrayKind  Kind) {
     ID.AddPointer(ET.getAsOpaquePtr());
     ID.AddInteger(SizeMod);
     ID.AddInteger(TypeQuals);
-    ID.AddBoolean(IsChecked);
+    ID.AddInteger((unsigned)Kind);
   }
 };
 
@@ -2718,7 +2737,8 @@ class VariableArrayType : public ArrayType {
                     ArraySizeModifier sm, unsigned tq,
                     SourceRange brackets)
     : ArrayType(VariableArray, et, can, sm, tq,
-                et->containsUnexpandedParameterPack(), /*isChecked=*/false),
+                et->containsUnexpandedParameterPack(),
+                CheckedArrayKind::Unchecked),
       SizeExpr((Stmt*) e), Brackets(brackets) {}
   friend class ASTContext;  // ASTContext creates these.
 
@@ -5860,27 +5880,34 @@ inline bool Type::isPointerType() const {
   return isa<PointerType>(CanonicalType);
 }
 inline bool Type::isCheckedPointerType() const {
-    if (const PointerType *T = getAs<PointerType>()) {
-      return T->getKind() != CheckedPointerKind::Unchecked;
-    }
-    return false;
+  if (const PointerType *T = getAs<PointerType>())
+    return T->isChecked();
+  return false;
 }
 inline bool Type::isUncheckedPointerType() const {
-  if (const PointerType *T = getAs<PointerType>()) {
-    return T->getKind() == CheckedPointerKind::Unchecked;
-  }
+  if (const PointerType *T = getAs<PointerType>())
+    return T->isUnchecked();
   return false;
 }
 inline bool Type::isCheckedPointerPtrType() const {
-    if (const PointerType *T = getAs<PointerType>()) {
-        return T->getKind() == CheckedPointerKind::Ptr;
-    }
-    return false;
+  if (const PointerType *T = getAs<PointerType>())
+    return T->getKind() == CheckedPointerKind::Ptr;
+  return false;
 }
 inline bool Type::isCheckedPointerArrayType() const {
-  if (const PointerType *T = getAs<PointerType>()) {
+  if (const PointerType *T = getAs<PointerType>())
+    return T->getKind() == CheckedPointerKind::Array ||
+           T->getKind() == CheckedPointerKind::NtArray;
+  return false;
+}
+inline bool Type::isExactlyCheckedPointerArrayType() const {
+  if (const PointerType *T = getAs<PointerType>())
     return T->getKind() == CheckedPointerKind::Array;
-  }
+  return false;
+}
+inline bool Type::isCheckedPointerNtArrayType() const {
+  if (const PointerType *T = getAs<PointerType>())
+    return T->getKind() == CheckedPointerKind::NtArray;
   return false;
 }
 inline bool Type::isAnyPointerType() const {
@@ -5942,10 +5969,23 @@ inline bool Type::isCheckedArrayType() const {
 }
 inline bool Type::isUncheckedArrayType() const {
   if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
-    return !T->isChecked();
+    return T->isUnchecked();
   else
     return false;
 }
+inline bool Type::isExactlyCheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return T->isExactlyChecked();
+  else
+    return false;
+}
+inline bool Type::isNtCheckedArrayType() const {
+  if (const ArrayType *T = dyn_cast<ArrayType>(CanonicalType))
+    return T->isNtChecked();
+  else
+    return false;
+}
+
 inline bool Type::isBuiltinType() const {
   return isa<BuiltinType>(CanonicalType);
 }

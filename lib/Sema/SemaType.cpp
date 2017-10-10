@@ -1483,20 +1483,36 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     break;
   }
   case DeclSpec::TST_plainPtr:
-  case DeclSpec::TST_arrayPtr: {
+  case DeclSpec::TST_arrayPtr:
+  case DeclSpec::TST_nt_arrayPtr: {
       Result = S.GetTypeFromParser(DS.getRepAsType());
-      assert(!Result.isNull() && "Didn't get a type for _Ptr or _Array_ptr?");
+      assert(!Result.isNull() &&
+             "Didn't get a type for _Ptr, _Array_ptr, or _Nt_array_ptr?");
       // The name we're declaring, if any.
       DeclarationName Name;
       if (declarator.getIdentifier())
         Name = declarator.getIdentifier();
-      CheckedPointerKind kind;
-      if (DS.getTypeSpecType() == DeclSpec::TST_plainPtr) {
-        kind = CheckedPointerKind::Ptr;
-      } else {
-        kind = CheckedPointerKind::Array;
+      CheckedPointerKind Kind = CheckedPointerKind::Ptr;
+      TypeSpecifierType TS = DS.getTypeSpecType();
+      switch (TS) {
+        case DeclSpec::TST_plainPtr:
+          Kind = CheckedPointerKind::Ptr;
+          break;
+        case DeclSpec::TST_arrayPtr:
+          Kind = CheckedPointerKind::Array;
+          break;
+        case DeclSpec::TST_nt_arrayPtr:
+          Kind = CheckedPointerKind::NtArray;
+          break;
+        default:
+            llvm_unreachable("unexpected type spec type");
+            break;
       }
-      Result = S.BuildPointerType(Result, kind, DS.getTypeSpecTypeLoc(), Name);
+      Result = S.BuildPointerType(Result, Kind, DS.getTypeSpecTypeLoc(), Name);
+      if (Result.isNull()) {
+        Result = Context.IntTy;
+        declarator.setInvalidType(true);
+      }
       break;
   }
   case DeclSpec::TST_decltype: {
@@ -1910,6 +1926,23 @@ QualType Sema::BuildPointerType(QualType T, CheckedPointerKind kind,
   if (getLangOpts().ObjCAutoRefCount)
     T = inferARCLifetimeForPointee(*this, T, Loc, /*reference*/ false);
 
+  // In Checked C, _Array_ptr of functions is not allowed
+  if ((kind == CheckedPointerKind::Array ||
+       kind == CheckedPointerKind::NtArray) && T->isFunctionType()) {
+    Diag(Loc, diag::err_illegal_decl_array_ptr_to_function)
+      << getPrintableNameForEntity(Entity) << T;
+    return QualType();
+  }
+
+  // In Checked C, null-terminated array_ptr of non-integer/non-pointer are not
+  // allowed
+  if (kind == CheckedPointerKind::NtArray && !T->isIntegerType() &&
+      !T->isPointerType()) {
+    Diag(Loc, diag::err_illegal_decl_nt_array_ptr_of_nonscalar)
+      << getPrintableNameForEntity(Entity) << T;
+    return QualType();
+  }
+
   // Build the pointer type.
   return Context.getPointerType(T, kind);
 }
@@ -2039,7 +2072,7 @@ static bool isArraySizeVLA(Sema &S, Expr *ArraySize, llvm::APSInt &SizeVal) {
 /// returns a NULL type.
 QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
                               Expr *ArraySize, unsigned Quals,
-                              bool IsChecked, SourceRange Brackets,
+                              CheckedArrayKind Kind, SourceRange Brackets,
                               DeclarationName Entity) {
 
   SourceLocation Loc = Brackets.getBegin();
@@ -2091,6 +2124,13 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     return QualType();
   }
 
+  if (Kind == CheckedArrayKind::NtChecked && !T->isIntegerType() &&
+      !T->isPointerType()) {
+    Diag(Loc, diag::err_illegal_decl_nullterm_array_of_nonscalar)
+      << getPrintableNameForEntity(Entity) << T;
+    return QualType();
+  }
+
   if (const RecordType *EltTy = T->getAs<RecordType>()) {
     // If the element type is a struct or union that contains a variadic
     // array, accept it as a GNU extension: C99 6.7.2.1p2.
@@ -2132,7 +2172,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     if (ASM == ArrayType::Star)
       T = Context.getVariableArrayType(T, nullptr, ASM, Quals, Brackets);
     else
-      T = Context.getIncompleteArrayType(T, ASM, Quals, IsChecked);
+      T = Context.getIncompleteArrayType(T, ASM, Quals, Kind);
   } else if (ArraySize->isTypeDependent() || ArraySize->isValueDependent()) {
     T = Context.getDependentSizedArrayType(T, ArraySize, ASM, Quals, Brackets);
   } else if ((!T->isDependentType() && !T->isIncompleteType() &&
@@ -2190,8 +2230,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
       }
     }
 
-    T = Context.getConstantArrayType(T, ConstVal, ASM, Quals,
-                                     IsChecked);
+    T = Context.getConstantArrayType(T, ConstVal, ASM, Quals, Kind);
   }
 
   // OpenCL v1.2 s6.9.d: variable length arrays are not supported.
@@ -2204,7 +2243,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
   if (getLangOpts().CUDA && T->isVariableArrayType())
     CUDADiagIfDeviceCode(Loc, diag::err_cuda_vla) << CurrentCUDATarget();
 
-  if (getLangOpts().CheckedC && IsChecked) {
+  if (getLangOpts().CheckedC && Kind != CheckedArrayKind::Unchecked) {
     // checked extensions are not supported for variable length arrays.
     if (T->isVariableArrayType()) {
       Diag(Loc, diag::err_checked_vla);
@@ -3653,9 +3692,9 @@ static bool hasOuterPointerLikeChunk(const Declarator &D, unsigned endIndex) {
   return false;
 }
 
-// Propagate checked property to directly-nested array types.  Stops at 
-// typedefs, non-array types, and array types that cannot be checked array
-// types (such as variable-length array types).
+// Propagate checked property to directly-nested array types.  Stops at arrays
+// that are already checked, typedefs, non-array types, and array types that
+// cannot be checked array types (such as variable-length array types).
 //
 // Issue an error message if the propagation stops at a typedef that is an
 // unchecked array type.  Dimensions of multi-dimensional arrays must either 
@@ -3667,6 +3706,8 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
     SplitQualType split = T.split();
     const Type *ty = split.Ty;
     const ArrayType *arrTy = cast<ArrayType>(ty);
+    if (arrTy->isChecked())
+      return T;
     QualType elemTy = MakeCheckedArrayType(arrTy->getElementType(), Diagnose,
                                            Loc);
     switch (ty->getTypeClass()) {
@@ -3676,14 +3717,14 @@ QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
                                             constArrTy->getSize(),
                                             constArrTy->getSizeModifier(),
                                             T.getCVRQualifiers(),
-                                            true);
+                                            CheckedArrayKind::Checked);
       }
       case Type::IncompleteArray: {
         const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
         return Context.getIncompleteArrayType(elemTy,
                                               incArrTy->getSizeModifier(),
                                               T.getCVRQualifiers(),
-                                              true);
+                                              CheckedArrayKind::Checked);
       }
       case Type::DependentSizedArray:
       case Type::VariableArray:
@@ -4252,7 +4293,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         checkNullabilityConsistency(S, SimplePointerKind::Array, DeclType.Loc);
       }
 
-      bool isChecked = ATI.isChecked;
+      CheckedArrayKind Kind = (CheckedArrayKind) ATI.kind;
       // Handle multi-dimensional arrays for Checked C. A multi-dimensional
       // array is an array of arrays, so look for a nested type that is an array.
       // - Dimensions must either all be checked or all be unchecked.
@@ -4260,12 +4301,17 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       //   types are unchecked.  The nested array types must be declared as part
       //   of this declaration.
       if (const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType())) {
-        if (isChecked != AT->isChecked()) {
-          if (isChecked) 
-            // The new array type is checked. Propagate this to nested array types
-            // declared as part of this declaration.
+        if (Kind != AT->getKind()) {
+          if (Kind == CheckedArrayKind::Checked)
+            // The new array type is checked. Propagate this to nested array
+            // types declared as part of this declaration.
             T = S.MakeCheckedArrayType(T, true, DeclType.Loc);
-          else {
+          else if (Kind == CheckedArrayKind::NtChecked) {
+            // Do not propagate. Null-terminated arrays of arrays are illegal to
+            // declare, so we don't care about the checkedness of arrays nested
+            // with them.  The call to BuildArrayType below will issue a
+            // diagnostic message about the illegal array type.
+          } else {
             // The new array type is unchecked and the nested array type is checked,
             // See if an enclosing array type will eventually make the new array
             // type a checked array.
@@ -4275,7 +4321,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
               const DeclaratorChunk &DC = D.getTypeObject(x);
               if (DC.Kind == DeclaratorChunk::Array) {
                 const DeclaratorChunk::ArrayTypeInfo &ParentInfo = DC.Arr;
-                if (ParentInfo.isChecked) {
+                if ((CheckedArrayKind) ParentInfo.kind == CheckedArrayKind::Checked) {
                   parentIsChecked = true;
                   break;
                 }
@@ -4297,7 +4343,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         }
       }
 
-      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals, isChecked,
+      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals, Kind,
                            SourceRange(DeclType.Loc, DeclType.EndLoc), Name);
       break;
     }

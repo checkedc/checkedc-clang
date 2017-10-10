@@ -1775,6 +1775,7 @@ bool Parser::MightBeDeclarator(unsigned Context) {
     case tok::kw_alignas:
     case tok::kw_asm:
     case tok::kw__Checked:
+    case tok::kw__Nt_checked:
     case tok::kw___attribute:
     case tok::l_brace:
     case tok::l_paren:
@@ -2486,7 +2487,8 @@ void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
 ///    int (x)
 ///
 static bool isValidAfterIdentifierInDeclarator(const Token &T) {
-  return T.isOneOf(tok::l_square, tok::kw__Checked, tok::l_paren, tok::r_paren,
+  return T.isOneOf(tok::l_square, tok::kw__Checked, tok::kw__Nt_checked,
+                   tok::l_paren, tok::r_paren,
                    tok::semi, tok::comma, tok::equal, tok::kw_asm,
                    tok::l_brace, tok::colon);
 }
@@ -2656,6 +2658,7 @@ bool Parser::ParseImplicitInt(DeclSpec &DS, CXXScopeSpec *SS,
     case tok::l_brace:
     case tok::l_square:
     case tok::kw__Checked:
+    case tok::kw__Nt_checked:
     case tok::semi:
       // This looks like a variable or function declaration. The type is
       // probably missing. We're done parsing decl-specifiers.
@@ -3019,6 +3022,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
           isInvalid = DS.setFunctionSpecUnchecked(Loc, PrevSpec, DiagID);
         break;
       }
+    case tok::kw__Nt_checked:
+      goto DoneWithDeclSpec;
     case tok::kw__For_any:
       isInvalid = DS.setFunctionSpecForany(Loc, PrevSpec, DiagID);
       if (!isInvalid) ParseForanySpecifier(DS);
@@ -3687,7 +3692,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       break;
 
     case tok::kw__Ptr:
-    case tok::kw__Array_ptr: {
+    case tok::kw__Array_ptr:
+    case tok::kw__Nt_array_ptr: {
       ParseCheckedPointerSpecifiers(DS);
       // continue to keep the current token from being consumed.
       continue; 
@@ -4736,6 +4742,7 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
 
   // Checked C pointer types
   case tok::kw__Array_ptr:
+  case tok::kw__Nt_array_ptr:
   case tok::kw__Ptr:
 
     return true;
@@ -4857,6 +4864,7 @@ bool Parser::isTypeSpecifierQualifier() {
   // Checked C pointer types
   case tok::kw__Ptr:
   case tok::kw__Array_ptr:
+  case tok::kw__Nt_array_ptr:
 
     return true;
 
@@ -5009,6 +5017,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   // Checked C new pointer types
   case tok::kw__Ptr:
   case tok::kw__Array_ptr:
+  case tok::kw__Nt_array_ptr:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
@@ -5911,7 +5920,8 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
     // as well as checked scope
     // distinguish checked array type from other uses of checked keyword
     else if (Tok.is(tok::l_square) ||
-             (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_square))) {
+             ((Tok.is(tok::kw__Checked) || Tok.is(tok::kw__Nt_checked))
+              && NextToken().is(tok::l_square))) {
        // distinguish checked array from checked scope
        ParseBracketDeclarator(D);
      } else {
@@ -6710,12 +6720,21 @@ void Parser::ParseParameterDeclarationClause(
 /// checked to indicate a checked array.
 void Parser::ParseBracketDeclarator(Declarator &D) {
   SourceLocation startLocation = Tok.getLocation();
-  bool isChecked = false;
+  CheckedArrayKind kind = CheckedArrayKind::Unchecked;
   if (Tok.is(tok::kw__Checked)) {
-    isChecked = true;
+    kind = CheckedArrayKind::Checked;
     ConsumeToken();
     if (!Tok.is(tok::l_square)) {
-      Diag(Tok.getLocation(), diag::err_expected_lbracket_after) << "checked";
+      Diag(Tok.getLocation(), diag::err_expected_lbracket_after) << "_Checked";
+      return;
+    }
+  }
+
+  if (Tok.is(tok::kw__Nt_checked)) {
+    kind = CheckedArrayKind::NtChecked;
+    ConsumeToken();
+    if (!Tok.is(tok::l_square)) {
+      Diag(Tok.getLocation(), diag::err_expected_lbracket_after) << "_Nt_checked";
       return;
     }
   }
@@ -6734,7 +6753,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(attrs);
 
     // Remember that we parsed the empty array type.
-    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, isChecked,
+    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, kind,
                                             nullptr, startLocation,
                                             T.getCloseLocation()),
                   attrs, T.getCloseLocation());
@@ -6750,7 +6769,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(attrs);
 
     // Remember that we parsed a array type, and remember its features.
-    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, isChecked,
+    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, kind,
                                             ExprRes.get(),
                                             startLocation,
                                             T.getCloseLocation()),
@@ -6829,7 +6848,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
   // Remember that we parsed a array type, and remember its features.
   D.AddTypeInfo(DeclaratorChunk::getArray(DS.getTypeQualifiers(),
                                           StaticLoc.isValid(), isStar,
-                                          isChecked,
+                                          kind,
                                           NumElements.get(),
                                           startLocation,
                                           T.getCloseLocation()),
@@ -7033,10 +7052,11 @@ void Parser::ParseAtomicSpecifier(DeclSpec &DS) {
 /// [Checked C]  new pointer types:
 ///           _Ptr &lt type name &gt
 ///           _Array_ptr &lt type name &gt
+///           _Nt_array_ptr &lt type name & gt
 void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
-    assert((Tok.is(tok::kw__Ptr) || Tok.is(tok::kw__Array_ptr)) &&
+    assert((Tok.is(tok::kw__Ptr) || Tok.is(tok::kw__Array_ptr) ||
+            Tok.is(tok::kw__Nt_array_ptr)) &&
            "Not a checked pointer specifier");
-
     tok::TokenKind Kind = Tok.getKind();
     SourceLocation StartLoc = ConsumeToken();
     if (ExpectAndConsume(tok::less)) {
@@ -7074,7 +7094,14 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
 
     const char *PrevSpec = nullptr;
     unsigned DiagID;
-    auto pointerKind = (Kind == tok::kw__Ptr) ? TST_plainPtr : TST_arrayPtr;
+    TypeSpecifierType pointerKind = TST_plainPtr;
+    if (Kind == tok::kw__Ptr)
+      pointerKind = TST_plainPtr;
+    else if (Kind == tok::kw__Array_ptr)
+      pointerKind = TST_arrayPtr;
+    else if (Kind == tok::kw__Nt_array_ptr)
+      pointerKind = TST_ntarrayPtr;
+
     if (DS.SetTypeSpecType(pointerKind, StartLoc, PrevSpec,
         DiagID, Result.get(),
         Actions.getASTContext().getPrintingPolicy()))

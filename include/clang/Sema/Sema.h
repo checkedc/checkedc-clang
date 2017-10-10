@@ -1304,8 +1304,9 @@ public:
   QualType BuildReferenceType(QualType T, bool LValueRef,
                               SourceLocation Loc, DeclarationName Entity);
   QualType BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
-                          Expr *ArraySize, unsigned Quals, bool IsChecked,
-                          SourceRange Brackets, DeclarationName Entity);
+                          Expr *ArraySize, unsigned Quals,
+                          CheckedArrayKind Kind, SourceRange Brackets,
+                          DeclarationName Entity);
   QualType BuildExtVectorType(QualType T, Expr *ArraySize,
                               SourceLocation AttrLoc);
 

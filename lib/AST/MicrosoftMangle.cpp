@@ -1545,7 +1545,7 @@ void MicrosoftCXXNameMangler::mangleArgumentType(QualType T,
       OriginalType = getASTContext().getIncompleteArrayType(
           AT->getElementType(), AT->getSizeModifier(),
           AT->getIndexTypeCVRQualifiers(),
-          AT->isChecked());
+          AT->getKind());
 
     TypePtr = OriginalType.getCanonicalType().getAsOpaquePtr();
     // If the original parameter was textually written as an array,
