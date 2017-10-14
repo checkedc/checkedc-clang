@@ -160,7 +160,8 @@ static void CheckStringInit(Expr *Str, QualType &DeclT, const ArrayType *AT,
     // Return a new array type (C99 6.7.8p22).
     DeclT = S.Context.getConstantArrayType(IAT->getElementType(),
                                            ConstVal,
-                                           ArrayType::Normal, 0);
+                                           ArrayType::Normal, 0,
+                                           IAT->getKind());
     updateStringLiteralType(Str, DeclT);
     return;
   }
@@ -1698,7 +1699,8 @@ void InitListChecker::CheckArrayType(const InitializedEntity &Entity,
     }
 
     DeclType = SemaRef.Context.getConstantArrayType(elementType, maxElements,
-                                                     ArrayType::Normal, 0);
+                                                     ArrayType::Normal, 0,
+                                                    arrayType->getKind());
   }
   if (!hadError && VerifyOnly) {
     // If there are any members of the array that get value-initialized, check
