@@ -9347,9 +9347,6 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_checked_scope_problem_type : Note<
      "%0 is not allowed in a checked scope">;
 
-  def err_checked_scope_type_for_casting : Error<
-    "invalid casting to unchecked type %0 in a checked scope">;
-
   def err_checked_scope_no_prototype_func : Error<
     "function without a prototype cannot be used or declared in a checked scope">;
 
@@ -9359,9 +9356,6 @@ def err_bounds_type_annotation_lost_checking : Error<
 
  def err_checked_scope_type_variable_args : Error<
     "type in a checked scope cannot have variable arguments">;
-
-  def err_checked_scope_no_variable_args_for_casting : Error<
-    "invalid casting to type having variable arguments in a checked scope">;
 
   def err_checked_scope_no_variadic_func_for_declaration : Error<
     "variable arguments function cannot be made in a checked scope">;
