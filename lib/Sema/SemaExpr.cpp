@@ -8226,10 +8226,11 @@ Sema::CheckTransparentUnionArgumentConstraints(QualType ArgType,
 }
 
 // If the LHS type is a checked pointer type and the RHS is an array literal,
-// retype the RHS to have the same kind of checked pointer.  We assume
-// array-to-pointer casts have been inserted for the RHS.
+// retype the RHS to have the same kind of checked pointer.   We assume
+// array-to-pointer converison has already been done.
 static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
                                            ExprResult &RHS) {
+  // Recognize the syntax for the constant.
   ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(RHS.get());
   if (!ICE)
     return false;
@@ -8242,6 +8243,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
       !isa<CompoundLiteralExpr>(Child))
     return false;
 
+  // See if the constant needs to be retyped.
   QualType RHSType = RHS.get()->getType();
   const PointerType *RHSPointerType = dyn_cast<PointerType>(RHSType);
   const PointerType *LHSPointerType = dyn_cast<PointerType>(LHSType);
@@ -8251,7 +8253,11 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
     return false;
 
   QualType RHSPointee = RHSPointerType->getPointeeType();
-  // Only allow valid checked null-terminated pointers.
+
+  // Retype the constant.
+
+  // For checked null-terminated pointers, only retype the constant if the
+  // type would be a valid null-termianted ponter type.
   if (LHSType->isCheckedPointerNtArrayType() && !RHSPointee->isIntegerType() &&
       !RHSPointee->isPointerType())
     return false;
@@ -8354,8 +8360,9 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
       return Incompatible;
   }
 
-  // Checked C: implicitly convert array constants to checked
-  // pointer types when the LHS is a checked pointer type.
+  // Checked C: implicitly convert array constants to checked pointer types
+  // when the LHS is a checked pointer type, This is done after array-to-pointer
+  // conversion to avoid duplicating the type conversion logic there.
   if (arrayConstantCheckedConversion(*this, LHSType, RHS)) {
     if (RHS.isInvalid())
        return Incompatible;
