@@ -5799,6 +5799,14 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
                SourceRange(LParenLoc, LiteralExpr->getSourceRange().getEnd())))
     return ExprError();
 
+  if (getCurScope()->isCheckedScope()) {
+    if (literalType->isArrayType())
+      literalType = MakeCheckedArrayType(literalType);
+    if (!DiagnoseTypeInCheckedScope(literalType, LParenLoc, RParenLoc))
+      return ExprError();
+    literalType = RewriteBoundsSafeInterfaceTypes(literalType);
+  }
+
   InitializedEntity Entity
     = InitializedEntity::InitializeCompoundLiteralInit(TInfo);
   InitializationKind Kind
@@ -8229,7 +8237,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
   if (ICE->getCastKind() != CK_ArrayToPointerDecay)
     return false;
 
-  Expr *Child = ICE->getSubExpr();
+  Expr *Child = ICE->getSubExpr()->IgnoreParens();
   if (!isa<InitListExpr>(Child) && !isa<StringLiteral>(Child) &&
       !isa<CompoundLiteralExpr>(Child))
     return false;

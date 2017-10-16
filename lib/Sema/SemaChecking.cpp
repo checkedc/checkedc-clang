@@ -11588,7 +11588,8 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
         return false;
       }
     }
-    return AllowedInCheckedScope(Ty->getPointeeType(), nullptr, false, Loc,
+    QualType ReferentType = QualType(Ty->getPointeeOrArrayElementType(), 0);
+    return AllowedInCheckedScope(ReferentType, nullptr, false, Loc,
                                  ProblemLoc, ProblemTy);
   } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
     const BoundsExpr *ReturnBounds = fpt->getReturnBounds();
@@ -11661,7 +11662,7 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   if (!AllowedInCheckedScope(Ty, TargetDecl->getBoundsExpr(),
                              isa<ParmVarDecl>(TargetDecl), CSTL_TopLevel,
                              ProblemLoc, ProblemTy)) {
-    Diag(Loc, diag::err_checked_scope_type) << DeclKind << IsUse
+    Diag(Loc, diag::err_checked_scope_decl_type) << DeclKind << IsUse
       << ProblemLoc;
     if (IsUse) {
       Diag(TargetDecl->getLocStart(), diag::note_checked_scope_declaration)
@@ -11685,7 +11686,7 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   }
 
   if (Ty->hasVariadicType()) {
-    Diag(Loc, diag::err_checked_scope_no_variable_args) << DeclKind
+    Diag(Loc, diag::err_checked_scope_decl_variable_args) << DeclKind
       << IsUse;
     Result = false;
   }
@@ -11693,6 +11694,29 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   return Result;
 }
 
+bool Sema::DiagnoseTypeInCheckedScope(QualType Ty, SourceLocation StartLoc,
+                                      SourceLocation EndLoc) {
+  CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
+  QualType ProblemTy = Ty;
+  if (!AllowedInCheckedScope(Ty, nullptr, false, CSTL_TopLevel,
+                             ProblemLoc, ProblemTy)) {
+    Diag(StartLoc, diag::err_checked_scope_type) << ProblemLoc
+      << SourceRange(StartLoc, EndLoc);
+
+    // Print a note about the problem type if it might not be obvious.
+    if (ProblemLoc != CSTL_TopLevel || !DisplaysAsArrayOrPointer(ProblemTy))
+      Diag(StartLoc, diag::note_checked_scope_problem_type) << ProblemTy;
+    return false;
+  }
+
+  if (Ty->hasVariadicType()) {
+    Diag(StartLoc, diag::err_checked_scope_type_variable_args) <<
+      SourceRange(StartLoc, EndLoc);
+    return false;
+  }
+
+  return true;
+}
 
 //===--- Layout compatibility ----------------------------------------------//
 
