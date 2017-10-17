@@ -3831,6 +3831,8 @@ public:
   bool DiagnoseCheckedDecl(const ValueDecl *D,
                            SourceLocation UseLoc = SourceLocation());
 
+  bool DiagnoseTypeInCheckedScope(QualType Ty, SourceLocation Start, SourceLocation End);
+
   /// \brief Warn if we're implicitly casting from a _Nullable pointer type to a
   /// _Nonnull one.
   void diagnoseNullableToNonnullConversion(QualType DstType, QualType SrcType,

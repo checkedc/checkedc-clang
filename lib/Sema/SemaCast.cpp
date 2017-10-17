@@ -2574,24 +2574,15 @@ void CastOperation::CheckCStyleCast() {
   // Checked C - No C-style casts to unchecked pointer/array type or variadic
   // type in a checked block.
   if (Self.getCurScope()->isCheckedScope()) {
-    bool IsUnchecked = DestType->isOrContainsUncheckedType();
-    bool HasVariadicType = DestType->hasVariadicType();
-    bool ConstructsNullPointer = false;
-    if (IsUnchecked)
-      if (DestType->isVoidPointerType() &&
-          !SrcExpr.isInvalid()) {
-        const IntegerLiteral *Lit = dyn_cast<IntegerLiteral>(SrcExpr.get());
-        if (Lit && !Lit->getValue())
-         ConstructsNullPointer = true;
-      }
-    if ((IsUnchecked && !ConstructsNullPointer) || HasVariadicType) {
-      if (IsUnchecked) {
-        Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
-          << DestType;
-      } else {
-        Self.Diag(OpRange.getBegin(),
-                  diag::err_checked_scope_no_variable_args_for_casting);
-      }
+    bool isNullPointerConstant =
+      DestType->isVoidPointerType() &&
+      DestType->isUncheckedPointerType() &&
+      !SrcExpr.isInvalid() &&
+      SrcExpr.get()->isNullPointerConstant(Self.Context,
+                                           Expr::NPC_NeverValueDependent);
+    if (!isNullPointerConstant &&
+        !Self.DiagnoseTypeInCheckedScope(DestType, OpRange.getBegin(),
+                                         OpRange.getEnd())) {
       SrcExpr = ExprError();
       return;
     }
@@ -2644,21 +2635,13 @@ void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
   // Checked C - No C-style casts to unchecked pointer/array type or variadic
   // type in a checked block.
   if (Self.getCurScope()->isCheckedScope()) {
-    bool IsUnchecked = DestType->isOrContainsUncheckedType();
-    bool HasVariadicType = DestType->hasVariadicType();
     if (Kind == CK_AssumePtrBounds) {
       Self.Diag(OpRange.getBegin(),
                 diag::err_checked_scope_no_assume_bounds_casting);
       SrcExpr = ExprError();
       return;
-    } else if (IsUnchecked || HasVariadicType) {
-      if (IsUnchecked) {
-        Self.Diag(OpRange.getBegin(), diag::err_checked_scope_type_for_casting)
-          << DestType;
-      } else {
-        Self.Diag(OpRange.getBegin(),
-                  diag::err_checked_scope_no_variable_args_for_casting);
-      }
+    } else if (!Self.DiagnoseTypeInCheckedScope(DestType, OpRange.getBegin(),
+                                                OpRange.getEnd())) {
       SrcExpr = ExprError();
       return;
     }

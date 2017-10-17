@@ -690,8 +690,10 @@ namespace {
           return LValueBounds(ICE->getSubExpr());
          return CreateBoundsUnknown();
       }
-      // TODO: fill in these cases.
+      // TODO: these cases need CurrentExprValue to be implemented to express
+      // the bounds.
       case Expr::CompoundLiteralExprClass:
+      case Expr::StringLiteralClass:
         return CreateBoundsAllowedButNotComputed();
       default:
         return CreateBoundsUnknown();

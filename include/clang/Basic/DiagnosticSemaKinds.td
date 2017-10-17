@@ -9332,10 +9332,14 @@ def err_bounds_type_annotation_lost_checking : Error<
     "|argument for parameter used in function return bounds expression"
     "|argument for parameter used in function parameter bounds expression}1">;
 
-  def err_checked_scope_type: Error<
+  def err_checked_scope_decl_type: Error<
     "%select{parameter|return|local variable|global variable|member}0 %select{|used }1in a checked scope must have "
     "%select{a |a pointer, array or function type that uses only |a bounds-safe interface type that uses only }2"
     "checked %plural{0:type %plural{2:|:or a bounds-safe interface}0|:types or parameter/return types with bounds-safe interfaces}2">;
+
+  def err_checked_scope_type: Error<
+    "type in a checked scope must %plural{0:be a checked pointer or array type"
+    "|:use only checked types or parameter/return types with bounds-safe interfaces}0">;
 
   def note_checked_scope_declaration : Note<
     "%select{parameter|return|local variable|global variable|member}0 declared here">;
@@ -9343,18 +9347,15 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_checked_scope_problem_type : Note<
      "%0 is not allowed in a checked scope">;
 
-  def err_checked_scope_type_for_casting : Error<
-    "invalid casting to unchecked type %0 in a checked scope">;
-
   def err_checked_scope_no_prototype_func : Error<
     "function without a prototype cannot be used or declared in a checked scope">;
 
-  def err_checked_scope_no_variable_args : Error<
+  def err_checked_scope_decl_variable_args : Error<
     "%select{parameter|return|local variable|global variable|member}0 %select{|used }1in a checked scope "
     "cannot have variable arguments">;
 
-  def err_checked_scope_no_variable_args_for_casting : Error<
-    "invalid casting to type having variable arguments in a checked scope">;
+ def err_checked_scope_type_variable_args : Error<
+    "type in a checked scope cannot have variable arguments">;
 
   def err_checked_scope_no_variadic_func_for_declaration : Error<
     "variable arguments function cannot be made in a checked scope">;

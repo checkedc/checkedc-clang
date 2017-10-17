@@ -1731,9 +1731,13 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   // Get an array type for the string, according to C99 6.4.5.  This includes
   // the nul terminator character as well as the string length for pascal
   // strings.
+  CheckedArrayKind ArrayKind = getCurScope()->isCheckedScope() ?
+    CheckedArrayKind::NtChecked : CheckedArrayKind::Unchecked;
+
   QualType StrTy = Context.getConstantArrayType(CharTyConst,
-                                 llvm::APInt(32, Literal.GetNumStringChars()+1),
-                                 ArrayType::Normal, 0);
+                                                llvm::APInt(32, Literal.GetNumStringChars() + 1),
+                                                ArrayType::Normal, 0,
+                                                ArrayKind);
 
   // OpenCL v1.1 s6.5.3: a string literal is in the constant address space.
   if (getLangOpts().OpenCL) {
@@ -5795,6 +5799,14 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
                SourceRange(LParenLoc, LiteralExpr->getSourceRange().getEnd())))
     return ExprError();
 
+  if (getCurScope()->isCheckedScope()) {
+    if (literalType->isArrayType())
+      literalType = MakeCheckedArrayType(literalType);
+    if (!DiagnoseTypeInCheckedScope(literalType, LParenLoc, RParenLoc))
+      return ExprError();
+    literalType = RewriteBoundsSafeInterfaceTypes(literalType);
+  }
+
   InitializedEntity Entity
     = InitializedEntity::InitializeCompoundLiteralInit(TInfo);
   InitializationKind Kind
@@ -8213,6 +8225,50 @@ Sema::CheckTransparentUnionArgumentConstraints(QualType ArgType,
   return Compatible;
 }
 
+// If the LHS type is a checked pointer type and the RHS is an array literal,
+// retype the RHS to have the same kind of checked pointer.   We assume
+// array-to-pointer converison has already been done.
+static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
+                                           ExprResult &RHS) {
+  // Recognize the syntax for the constant.
+  ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(RHS.get());
+  if (!ICE)
+    return false;
+
+  if (ICE->getCastKind() != CK_ArrayToPointerDecay)
+    return false;
+
+  Expr *Child = ICE->getSubExpr()->IgnoreParens();
+  if (!isa<InitListExpr>(Child) && !isa<StringLiteral>(Child) &&
+      !isa<CompoundLiteralExpr>(Child))
+    return false;
+
+  // See if the constant needs to be retyped.
+  QualType RHSType = RHS.get()->getType();
+  const PointerType *RHSPointerType = dyn_cast<PointerType>(RHSType);
+  const PointerType *LHSPointerType = dyn_cast<PointerType>(LHSType);
+
+  if (!LHSType->isCheckedPointerType() || !RHSPointerType ||
+      LHSPointerType->getKind() == RHSPointerType->getKind())
+    return false;
+
+  QualType RHSPointee = RHSPointerType->getPointeeType();
+
+  // Retype the constant.
+
+  // For checked null-terminated pointers, only retype the constant if the
+  // type would be a valid null-termianted ponter type.
+  if (LHSType->isCheckedPointerNtArrayType() && !RHSPointee->isIntegerType() &&
+      !RHSPointee->isPointerType())
+    return false;
+
+  RHSType = S.Context.getPointerType(RHSPointee, LHSPointerType->getKind());
+  RHS = S.ImpCastExprToType(RHS.get(), RHSType, CK_ArrayToPointerDecay,
+                            clang::VK_RValue, nullptr,
+                            Sema::CCK_ImplicitConversion, true);
+  return true;
+}
+
 Sema::AssignConvertType
 Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
                                        bool Diagnose,
@@ -8228,7 +8284,6 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   // to put the updated value.
   ExprResult LocalRHS = CallerRHS;
   ExprResult &RHS = ConvertRHS ? CallerRHS : LocalRHS;
-
   if (getLangOpts().CPlusPlus) {
     if (!LHSType->isRecordType() && !LHSType->isAtomicType()) {
       // C++ 5.17p3: If the left operand is not of class type, the
@@ -8303,6 +8358,14 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
     RHS = DefaultFunctionArrayLvalueConversion(RHS.get(), Diagnose);
     if (RHS.isInvalid())
       return Incompatible;
+  }
+
+  // Checked C: implicitly convert array constants to checked pointer types
+  // when the LHS is a checked pointer type, This is done after array-to-pointer
+  // conversion to avoid duplicating the type conversion logic there.
+  if (arrayConstantCheckedConversion(*this, LHSType, RHS)) {
+    if (RHS.isInvalid())
+       return Incompatible;
   }
 
   Expr *PRE = RHS.get()->IgnoreParenCasts();
