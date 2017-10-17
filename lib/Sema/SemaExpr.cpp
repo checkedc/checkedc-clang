@@ -1732,7 +1732,7 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   // the nul terminator character as well as the string length for pascal
   // strings.
   CheckedArrayKind ArrayKind = getCurScope()->isCheckedScope() ?
-    CheckedArrayKind::Checked : CheckedArrayKind::Unchecked;
+    CheckedArrayKind::NtChecked : CheckedArrayKind::Unchecked;
 
   QualType StrTy = Context.getConstantArrayType(CharTyConst,
                                                 llvm::APInt(32, Literal.GetNumStringChars() + 1),
