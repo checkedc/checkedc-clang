@@ -157,9 +157,9 @@ void f5(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
 // CHECK: |   | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |   |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
-// CHECK: |   |     | `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S checked[12]' lvalue
-// CHECK: |   |     |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>' <LValueToRValue>
-// CHECK: |   |     |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>'
+// CHECK: |   |     | `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S _Checked[12]' lvalue
+// CHECK: |   |     |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' <LValueToRValue>
+// CHECK: |   |     |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>'
 // CHECK: |   |     |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: |   |     |     `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: |   |     `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
@@ -169,9 +169,9 @@ void f5(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
 // CHECK: |     | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |     |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
-// CHECK: |     |     | `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S checked[12]' lvalue
-// CHECK: |     |     |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>' <LValueToRValue>
-// CHECK: |     |     |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>'
+// CHECK: |     |     | `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S _Checked[12]' lvalue
+// CHECK: |     |     |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' <LValueToRValue>
+// CHECK: |     |     |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>'
 // CHECK: |     |     |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: |     |     |     `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: |     |     `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
@@ -182,9 +182,9 @@ void f5(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
 // CHECK:     `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK:       `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK:         |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
-// CHECK:         | `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S checked[12]' lvalue
-// CHECK:         |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>' <LValueToRValue>
-// CHECK:         |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S checked[12]>':'_Array_ptr<struct S checked[12]>'
+// CHECK:         | `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S _Checked[12]' lvalue
+// CHECK:         |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' <LValueToRValue>
+// CHECK:         |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arr' '_Array_ptr<struct S _Checked[12]>':'_Array_ptr<struct S _Checked[12]>'
 // CHECK:         |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK:         |     `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK:         `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>

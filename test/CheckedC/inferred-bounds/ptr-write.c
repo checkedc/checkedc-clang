@@ -69,13 +69,13 @@ int f2(void) {
 // CHECK: |-Bounds
 // CHECK: | | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: | |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK: | |   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int checked[6]'
+// CHECK: | |   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int _Checked[6]'
 // CHECK: | |   `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
 // CHECK: | |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK: | |     | `-DeclRefExpr {{0x[0-9a-f]+}} 'int checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int checked[6]'
+// CHECK: | |     | `-DeclRefExpr {{0x[0-9a-f]+}} 'int _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int _Checked[6]'
 // CHECK: | |     `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 6
 // CHECK: | `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} 'int checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int checked[6]'
+// CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} 'int _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int _Checked[6]'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
 // CHECK: Target Bounds:
 // CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
@@ -87,13 +87,13 @@ int f2(void) {
 // CHECK: |-Bounds
 // CHECK: | | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: | |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK: | |   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int checked[6]'
+// CHECK: | |   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int _Checked[6]'
 // CHECK: | |   `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
 // CHECK: | |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK: | |     | `-DeclRefExpr {{0x[0-9a-f]+}} 'int checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int checked[6]'
+// CHECK: | |     | `-DeclRefExpr {{0x[0-9a-f]+}} 'int _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int _Checked[6]'
 // CHECK: |     `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 6
 // CHECK: | |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK: | | `-DeclRefExpr {{0x[0-9a-f]+}} 'int checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int checked[6]'
+// CHECK: | | `-DeclRefExpr {{0x[0-9a-f]+}} 'int _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int _Checked[6]'
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 2
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 4
 // CHECK: Target Bounds:
@@ -161,16 +161,16 @@ void f4(int arg _Checked[10][10]) {
 // CHECK: |-ArraySubscriptExpr {{0x[0-9a-f]+}} 'int' lvalue
 // CHECK: |-Bounds
 // CHECK: | | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: | |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>' <LValueToRValue>
-// CHECK: | |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arg' '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>'
-// CHECK: | |   `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>' '+'
-// CHECK: | |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>' <LValueToRValue>
-// CHECK: | |     | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arg' '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>'
+// CHECK: | |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>' <LValueToRValue>
+// CHECK: | |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arg' '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>'
+// CHECK: | |   `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>' '+'
+// CHECK: | |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>' <LValueToRValue>
+// CHECK: | |     | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arg' '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>'
 // CHECK: | |     `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 10
 // CHECK: | |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK: | | `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'int checked[10]' lvalue
-// CHECK: | |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>' <LValueToRValue>
-// CHECK: | |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arg' '_Array_ptr<int checked[10]>':'_Array_ptr<int checked[10]>'
+// CHECK: | | `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'int _Checked[10]' lvalue
+// CHECK: | |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>' <LValueToRValue>
+// CHECK: | |   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>' lvalue ParmVar {{0x[0-9a-f]+}} 'arg' '_Array_ptr<int _Checked[10]>':'_Array_ptr<int _Checked[10]>'
 // CHECK: | |   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 314

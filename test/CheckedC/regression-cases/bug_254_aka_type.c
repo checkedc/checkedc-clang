@@ -15,7 +15,7 @@ void test(DefArrTy arr); // expected-note {{passing argument to parameter 'arr' 
 void f(void) {
   int i = 0;
   DefTy p = i; // expected-error {{initializing 'DefTy' (aka '_Ptr<int>') with an expression of incompatible type 'int'}}
-  test(i);     // expected-error {{passing 'int' to parameter of incompatible type 'DefArrTy' (aka '_Ptr<int checked[10]>')}}
+  test(i);     // expected-error {{passing 'int' to parameter of incompatible type 'DefArrTy' (aka '_Ptr<int _Checked[10]>')}}
 }
 
 
