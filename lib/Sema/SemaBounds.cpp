@@ -1281,8 +1281,8 @@ namespace {
     // Add bounds check to an lvalue expression, if it is an Array_ptr
     // dereference.  The caller has determined that the lvalue is being
     // used in a way that requies a bounds check if the lvalue is an
-    // Array_ptr dereferences.  The lvalue uses are to read or write memory
-    // or as the base expression of a member reference.
+    // _Array_ptr or _Nt_array_ptr dereference.  The lvalue uses are to read
+    // or write memory or as the base expression of a member reference.
     //
     // If the Array_ptr has unknown bounds, this is a compile-time error.
     // Generate an error message and set the bounds to an invalid bounds
@@ -1292,6 +1292,7 @@ namespace {
       bool NeedsBoundsCheck = false;
       QualType PtrType;
       if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
+        NeedsBoundsCheck = true;
         BoundsExpr *LValueBounds = S.InferLValueBounds(E);
         BoundsCheckKind Kind = BCK_Normal;
         if (IsOnlyMemoryRead && PtrType->isCheckedPointerNtArrayType())
