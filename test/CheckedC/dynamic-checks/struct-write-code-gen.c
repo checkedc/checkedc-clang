@@ -251,13 +251,13 @@ void f3(void) {
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'S1 checked[1]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'S1 _Checked[1]'
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'S1 checked[1]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'S1 _Checked[1]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'S1 checked[1]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'S1 _Checked[1]'
 
   // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
@@ -278,13 +278,13 @@ void f3(void) {
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 checked[3]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 checked[3]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 checked[3]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
 
   // NOTE: No Non-null check inserted
   // NOTE: Only (addr LT upper) check generated, constant folder removes (lower LE addr) check
@@ -305,15 +305,15 @@ void f3(void) {
   // CHECK-AST-NEXT: Bounds
   // CHECK-AST-NEXT: RangeBoundsExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 checked[3]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 checked[3]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
   // CHECK-AST-NEXT: ParenExpr
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
-  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 checked[3]'
+  // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
 
   // NOTE: No Non-null check inserted

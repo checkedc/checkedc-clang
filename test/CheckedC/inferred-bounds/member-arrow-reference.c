@@ -70,7 +70,7 @@ void f1(struct S1 *a1, struct S2 *b2) {
 // CHECK: |-CountBoundsExpr {{.*}} 'NULL TYPE' Element
 // CHECK: | `-IntegerLiteral {{.*}} 'int' 5
 // CHECK: `-ImplicitCastExpr {{.*}} '_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK:   `-MemberExpr {{.*}} 'int checked[5]' lvalue ->arr {{0x[0-9a-f]+}}
+// CHECK:   `-MemberExpr {{.*}} 'int _Checked[5]' lvalue ->arr {{0x[0-9a-f]+}}
 // CHECK:     `-ImplicitCastExpr {{.*}} 'struct S2 *' <LValueToRValue>
 // CHECK:       `-DeclRefExpr {{.*}} 'struct S2 *' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct S2 *'
 // CHECK: Declared Bounds:
@@ -79,12 +79,12 @@ void f1(struct S1 *a1, struct S2 *b2) {
 // CHECK: Initializer Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int checked[5]' lvalue ->arr {{0x[0-9a-f]+}}
+// CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int _Checked[5]' lvalue ->arr {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'struct S2 *' <LValueToRValue>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S2 *' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct S2 *'
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
 // CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
-// CHECK:   | `-MemberExpr {{0x[0-9a-f]+}} 'int checked[5]' lvalue ->arr {{0x[0-9a-f]+}}
+// CHECK:   | `-MemberExpr {{0x[0-9a-f]+}} 'int _Checked[5]' lvalue ->arr {{0x[0-9a-f]+}}
 // CHECK:   |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'struct S2 *' <LValueToRValue>
 // CHECK:   |     `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S2 *' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct S2 *'
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
