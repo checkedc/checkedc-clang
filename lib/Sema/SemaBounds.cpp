@@ -366,8 +366,8 @@ namespace {
     Sema &SemaRef;
     ASTContext &Context;
 
-    BoundsExpr *CreateBoundsNone() {
-      return new (Context) NullaryBoundsExpr(BoundsExpr::Kind::None,
+    BoundsExpr *CreateBoundsUnknown() {
+      return new (Context) NullaryBoundsExpr(BoundsExpr::Kind::Unknown,
                                              SourceLocation(),
                                              SourceLocation());
     }
@@ -381,19 +381,19 @@ namespace {
     // bounds(e1, e2), because in these cases we need to do further analysis to
     // understand that the upper and lower bounds of the range are equal.
     BoundsExpr *CreateBoundsEmpty() {
-      return CreateBoundsNone();
+      return CreateBoundsUnknown();
     }
 
     // This describes that this is an expression we will never
     // be able to infer bounds for.
-    BoundsExpr *CreateBoundsUnknown() {
-      return CreateBoundsNone();
+    BoundsExpr *CreateBoundsAlwaysUnknown() {
+      return CreateBoundsUnknown();
     }
 
     // If we have an error in our bounds inference that we can't
     // recover from, bounds(none) is our error value
     BoundsExpr *CreateBoundsInferenceError() {
-      return CreateBoundsNone();
+      return CreateBoundsUnknown();
     }
 
     // This describes the bounds of null, which is compatible with every
@@ -417,7 +417,7 @@ namespace {
     // at the moment, but we want to re-visit these parts of inference
     // and in some cases compute bounds.
     BoundsExpr *CreateBoundsNotAllowedYet() {
-      return CreateBoundsNone();
+      return CreateBoundsUnknown();
     }
 
     BoundsExpr *CreateSingleElementBounds() {
@@ -478,7 +478,7 @@ namespace {
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
       const ConstantArrayType *CAT = Context.getAsConstantArrayType(QT);
       if (!CAT)
-        return CreateBoundsUnknown();
+        return CreateBoundsAlwaysUnknown();
 
       IntegerLiteral *Size = CreateIntegerLiteral(CAT->getSize());
 
@@ -532,7 +532,7 @@ namespace {
                                                SourceLocation());
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
-          return CreateBoundsNone();
+          return CreateBoundsUnknown();
         default:
           return B;
       }
@@ -548,7 +548,7 @@ namespace {
       DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
       assert((DR && dyn_cast<VarDecl>(DR->getDecl())) || isa<MemberExpr>(E));
       BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
-      if (BE->isNone())
+      if (BE->isUnknown())
         return BE;
 
       Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
@@ -688,7 +688,7 @@ namespace {
         // to adjust the relative alignment of the bounds.
         if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
           return LValueBounds(ICE->getSubExpr());
-         return CreateBoundsUnknown();
+         return CreateBoundsAlwaysUnknown();
       }
       // TODO: these cases need CurrentExprValue to be implemented to express
       // the bounds.
@@ -696,7 +696,7 @@ namespace {
       case Expr::StringLiteralClass:
         return CreateBoundsAllowedButNotComputed();
       default:
-        return CreateBoundsUnknown();
+        return CreateBoundsAlwaysUnknown();
       }
     }
 
@@ -782,8 +782,8 @@ namespace {
 
           BoundsExpr *B = D->getBoundsExpr();
 
-          if (!B || B->isNone())
-            return CreateBoundsUnknown();
+          if (!B || B->isUnknown())
+            return CreateBoundsAlwaysUnknown();
 
           if (B->isInteropTypeAnnotation())
             // TODO: eventually we need to support an interop type annotation
@@ -809,8 +809,8 @@ namespace {
             return CreateBoundsInferenceError();
 
           BoundsExpr *B = F->getBoundsExpr();
-          if (!B || B->isNone())
-            return CreateBoundsUnknown();
+          if (!B || B->isUnknown())
+            return CreateBoundsAlwaysUnknown();
 
           Expr *MemberBaseExpr = M->getBase();
           if (!SemaRef.CheckIsNonModifying(MemberBaseExpr,
@@ -850,10 +850,10 @@ namespace {
           }
           if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
             return LValueTargetBounds(ICE->getSubExpr());
-          return CreateBoundsUnknown();
+          return CreateBoundsAlwaysUnknown();
         }
         default:
-          return CreateBoundsUnknown();
+          return CreateBoundsAlwaysUnknown();
       }
     }
 
@@ -877,7 +877,7 @@ namespace {
         case CastKind::CK_ArrayToPointerDecay:
           return LValueBounds(E);
         default:
-          return CreateBoundsUnknown();
+          return CreateBoundsAlwaysUnknown();
       }
     }
 
@@ -964,7 +964,7 @@ namespace {
             return RValueBounds(SubExpr);
 
           // We cannot infer the bounds of other unary operators
-          return CreateBoundsUnknown();
+          return CreateBoundsAlwaysUnknown();
         }
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass: {
@@ -1044,16 +1044,16 @@ namespace {
             BoundsExpr *LHSBounds = IsCompoundAssignment ?
               LValueTargetBounds(LHS) : RValueBounds(LHS);
             BoundsExpr *RHSBounds = RValueBounds(RHS);
-            if (LHSBounds->isNone() && !RHSBounds->isNone())
+            if (LHSBounds->isUnknown() && !RHSBounds->isUnknown())
               return RHSBounds;
-            if (!LHSBounds->isNone() && RHSBounds->isNone())
+            if (!LHSBounds->isUnknown() && RHSBounds->isUnknown())
               return LHSBounds;
-            if (!LHSBounds->isNone() && !RHSBounds->isNone()) {
+            if (!LHSBounds->isUnknown() && !RHSBounds->isUnknown()) {
               // TODO: Check if LHSBounds and RHSBounds are equal.
               // if so, return one of them. If not, return bounds(none)
-              return CreateBoundsUnknown();
+              return CreateBoundsAlwaysUnknown();
             }
-            if (LHSBounds->isNone() && RHSBounds->isNone())
+            if (LHSBounds->isUnknown() && RHSBounds->isUnknown())
               return CreateBoundsEmpty();
           }
 
@@ -1090,13 +1090,13 @@ namespace {
             if (!CalleeTy)
               // K&R functions have no prototype, and we cannot perform
               // inference on them, so we return bounds(none) for their results.
-              return CreateBoundsUnknown();
+              return CreateBoundsAlwaysUnknown();
 
             BoundsExpr *FunBounds =
               const_cast<BoundsExpr *>(CalleeTy->getReturnBounds());
             if (!FunBounds)
               // This function has no return bounds
-              return CreateBoundsUnknown();
+              return CreateBoundsAlwaysUnknown();
 
             // TODO:handle interop type annotation on return bounds
             // Github issue #205.  We have no way of rerepresenting
@@ -1136,7 +1136,7 @@ namespace {
           return CreateBoundsAllowedButNotComputed();
         default:
           // All other cases are unknowable
-          return CreateBoundsUnknown();
+          return CreateBoundsAlwaysUnknown();
       }
     }
   };
@@ -1297,7 +1297,7 @@ namespace {
         BoundsCheckKind Kind = BCK_Normal;
         if (IsOnlyMemoryRead && PtrType->isCheckedPointerNtArrayType())
           Kind = BCK_NullTermRead;
-        if (LValueBounds->isNone()) {
+        if (LValueBounds->isUnknown()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
         }
@@ -1332,7 +1332,7 @@ namespace {
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()) {
         BoundsExpr *Bounds = S.InferRValueBounds(Base);
-        if (Bounds->isNone()) {
+        if (Bounds->isUnknown()) {
           S.Diag(Base->getLocStart(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
         }
@@ -1353,7 +1353,7 @@ namespace {
         return true;
 
       // target bounds(none) implied by any other bounds.
-      if (DeclaredBounds->isNone())
+      if (DeclaredBounds->isUnknown())
         return true;
 
       return S.Context.EquivalentBounds(DeclaredBounds, SrcBounds);
@@ -1447,12 +1447,12 @@ namespace {
         // Check that the value being assigned has bounds if the
         // target of the LHS lvalue has bounds.
         LHSTargetBounds = S.InferLValueTargetBounds(LHS);
-        if (!LHSTargetBounds->isNone()) {
+        if (!LHSTargetBounds->isUnknown()) {
           if (E->isCompoundAssignmentOp())
             RHSBounds = S.InferRValueBounds(E);
           else
             RHSBounds = S.InferRValueBounds(RHS);
-          if (RHSBounds->isNone()) {
+          if (RHSBounds->isUnknown()) {
              S.Diag(RHS->getLocStart(),
                     diag::err_expected_bounds_for_assignment)
                     << RHS->getSourceRange();
@@ -1468,7 +1468,7 @@ namespace {
       bool LHSNeedsBoundsCheck = false;
       LHSNeedsBoundsCheck = AddBoundsCheck(LHS, false);
       if (DumpBounds && (LHSNeedsBoundsCheck ||
-                         (LHSTargetBounds && !LHSTargetBounds->isNone())))
+                         (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return true;
     }
@@ -1529,12 +1529,12 @@ namespace {
         if (ParamBounds->isInteropTypeAnnotation())
           ParamBounds = S.CreateTypeBasedBounds(ParamBounds->getType(), true);
 
-        if (ParamBounds->isNone())
+        if (ParamBounds->isUnknown())
           continue;
 
         Expr *Arg = CE->getArg(i);
         BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
-        if (ArgBounds->isNone()) {
+        if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getLocStart(),
                  diag::err_expected_bounds_for_argument) << (i + 1) <<
             Arg->getSourceRange();
@@ -1579,7 +1579,7 @@ namespace {
         BoundsExpr *SubExprBounds = S.InferRValueBounds(SubExpr);
         BoundsExpr *CastBounds = S.InferRValueBounds(E);
 
-        if (SubExprBounds->isNone()) {
+        if (SubExprBounds->isUnknown()) {
           S.Diag(SubExpr->getLocStart(), diag::err_expected_bounds);
         }
 
@@ -1594,7 +1594,7 @@ namespace {
           !E->getType()->isFunctionPointerType()) {
         BoundsExpr *SrcBounds =
           S.InferRValueBounds(E->getSubExpr());
-        if (SrcBounds->isNone()) {
+        if (SrcBounds->isUnknown()) {
           S.Diag(E->getSubExpr()->getLocStart(),
                  diag::err_expected_bounds_for_ptr_cast)
                  << E->getSubExpr()->getSourceRange();
@@ -1655,7 +1655,7 @@ namespace {
      // Handle variables with bounds declarations
      BoundsExpr *DeclaredBounds = D->getBoundsExpr();
      if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
-         DeclaredBounds->isNone())
+         DeclaredBounds->isUnknown())
        return true;
 
      // If there is an initializer, check that the initializer meets the bounds
@@ -1663,7 +1663,7 @@ namespace {
      if (Expr *Init = D->getInit()) {
        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
        BoundsExpr *InitBounds = S.InferRValueBounds(Init);
-       if (InitBounds->isNone()) {
+       if (InitBounds->isUnknown()) {
          // TODO: need some place to record the initializer bounds
          S.Diag(Init->getLocStart(), diag::err_expected_bounds_for_initializer)
              << Init->getSourceRange();

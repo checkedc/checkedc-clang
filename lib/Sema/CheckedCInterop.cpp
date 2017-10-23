@@ -52,8 +52,8 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
   switch (Bounds->getKind()) {
     case BoundsExpr::Kind::Invalid:
       break;
-    case BoundsExpr::Kind::None:
-      llvm_unreachable("should not be getting interop type for bounds(none)");
+    case BoundsExpr::Kind::Unknown:
+      llvm_unreachable("should not be getting interop type for bounds(unknown)");
       break;
     case BoundsExpr::Kind::InteropTypeAnnotation: {
       const InteropTypeBoundsAnnotation *Annot =

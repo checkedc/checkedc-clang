@@ -1905,8 +1905,8 @@ void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
     case BoundsExpr::Any:
       OS << "bounds(any)";
       break;
-    case BoundsExpr::None:
-      OS << "bounds(none)";
+    case BoundsExpr::Unknown:
+      OS << "bounds(Unknown)";
       break;
     default:
       llvm_unreachable("unexpected bounds kind for nullary bounds expr");

@@ -2850,8 +2850,8 @@ public:
     // expressions and prevent spurious downstream error messages
     // in bounds declaration checking.
     Invalid = 0,
-    // bounds(none)
-    None = 1,
+    // bounds(unknown)
+    Unknown = 1,
     // bounds(any)
     Any = 2,
     // count(e)
@@ -2906,8 +2906,8 @@ public:
     return getKind() == Invalid;
   }
 
-  bool isNone() const {
-    return getKind() == None;
+  bool isUnknown() const {
+    return getKind() == Unknown;
   }
 
   bool isAny() const {
@@ -5134,7 +5134,7 @@ class NullaryBoundsExpr : public BoundsExpr {
 public:
   NullaryBoundsExpr(Kind Kind, SourceLocation StartLoc, SourceLocation RParenLoc)
     : BoundsExpr(NullaryBoundsExprClass, Kind, StartLoc, RParenLoc)  {
-    assert(Kind == Invalid || Kind == None || Kind == Any);
+    assert(Kind == Invalid || Kind == Unknown || Kind == Any);
   }
 
   explicit NullaryBoundsExpr(EmptyShell Empty)
