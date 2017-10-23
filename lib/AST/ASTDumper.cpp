@@ -606,6 +606,7 @@ namespace  {
     void VisitInteropTypeBoundsAnnotation(
       const InteropTypeBoundsAnnotation *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
+    void dumpBoundsCheckKind(BoundsCheckKind kind);
     void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
   };
 }
@@ -2120,6 +2121,8 @@ void ASTDumper::VisitUnaryOperator(const UnaryOperator *Node) {
     dumpChild([=] {
       OS << "Bounds";
       dumpStmt(Bounds);
+      OS << "BoundsCheckKind ";
+      dumpBoundsCheckKind(Node->getBoundsCheckKind());
     });
   }
 }
@@ -2195,6 +2198,8 @@ void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
     dumpChild([=] {
       OS << "Bounds";
       dumpStmt(Bounds);
+      OS << "BoundsCheckKind ";
+      dumpBoundsCheckKind(Node->getBoundsCheckKind());
       });
   }
 }
@@ -2588,6 +2593,14 @@ void ASTDumper::dumpBoundsKind(BoundsExpr::Kind K) {
     case BoundsExpr::Kind::ByteCount: OS << " Byte"; break;
     case BoundsExpr::Kind::Range: OS << " Range"; break;
     case BoundsExpr::Kind::InteropTypeAnnotation: OS << " InteropTypeAnnotation"; break;
+  }
+}
+
+void ASTDumper::dumpBoundsCheckKind(BoundsCheckKind K) {
+  switch (K) {
+    case BoundsCheckKind::BCK_None: OS << "None"; break;
+    case BoundsCheckKind::BCK_Normal: OS << "Normal"; break;
+    case BoundsCheckKind::BCK_NullTermRead: OS << "Null-terminated read"; break;
   }
 }
 

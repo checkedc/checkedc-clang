@@ -271,6 +271,22 @@ protected:
     unsigned Kind : NumBoundsExprKindBits;
   };
 
+  enum { NumBoundsCheckKindBits = 2 };
+
+  class ArraySubscriptExprBitFields {
+    friend class ArraySubscriptExpr;
+
+    unsigned : NumExprBits;
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
+  };
+
+  class UnaryOperatorBitFields {
+    friend class UnaryOperator;
+
+    unsigned : NumExprBits;
+    unsigned BoundsCheckKind : NumBoundsCheckKindBits;
+  };
+
   union {
     StmtBitfields StmtBits;
     CompoundStmtBitfields CompoundStmtBits;
@@ -289,6 +305,8 @@ protected:
     TypeTraitExprBitfields TypeTraitExprBits;
     CoawaitExprBitfields CoawaitBits;
     BoundsExprBitFields BoundsExprBits;
+    ArraySubscriptExprBitFields ArraySubscriptExprBits;
+    UnaryOperatorBitFields UnaryOperatorBits;
   };
 
   friend class ASTStmtReader;

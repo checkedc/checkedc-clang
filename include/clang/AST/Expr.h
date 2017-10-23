@@ -1749,6 +1749,14 @@ public:
   }
 };
 
+enum BoundsCheckKind {
+  BCK_None,
+  BCK_NullTermRead,
+  BCK_Normal,
+  BCK_MaxKind = BCK_Normal
+};
+
+
 /// UnaryOperator - This represents the unary-expression's (except sizeof and
 /// alignof), the postinc/postdec operators from postfix-expression, and various
 /// extensions.
@@ -1881,6 +1889,18 @@ public:
 
   /// \brief Set the bounds to use during the bounds check of this expression.
   void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
+
+  static_assert(BCK_MaxKind < (1 << NumBoundsCheckKindBits), "kind field too small");
+
+  /// \brief Return the kind of bounds check to do.
+  BoundsCheckKind getBoundsCheckKind() const {
+    return (BoundsCheckKind)UnaryOperatorBits.BoundsCheckKind;
+  }
+
+  /// \brief Set the kind of bounds check to do.
+  void setBoundsCheckKind(BoundsCheckKind Kind) {
+    UnaryOperatorBits.BoundsCheckKind = Kind;
+  }
 };
 
 /// Helper class for OffsetOfExpr.
@@ -2286,6 +2306,16 @@ public:
 
   /// \brief Set the bounds to use during the bounds check of this expression.
   void setBoundsExpr(BoundsExpr *E) { Bounds = E; }
+
+  /// \brief Return the kind of bounds check to do.
+  BoundsCheckKind getBoundsCheckKind() const {
+    return (BoundsCheckKind) ArraySubscriptExprBits.BoundsCheckKind;
+  }
+
+  /// \brief Set the kind of bounds check to do.
+  void setBoundsCheckKind(BoundsCheckKind Kind) {
+    ArraySubscriptExprBits.BoundsCheckKind = Kind;
+  }
 };
 
 /// CallExpr - Represents a function call (C99 6.5.2.2, C++ [expr.call]).
