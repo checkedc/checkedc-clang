@@ -4538,11 +4538,12 @@ public:
   ExprResult ConvertToFullyCheckedType(Expr *E, BoundsExpr *B, bool IsParamUse,
                                        ExprValueKind VK);
 
-  /// GetArrayPtrDereference - determine if an lvalue expression is
-  /// a dereference of an Array_ptr (via '*" or an array subscript operator).
-  /// Returns the expression with the dereference (skipping parenthesis expressions)
-  /// or null, if this is not a dereference of an Array_ptr
-  Expr *GetArrayPtrDereference(Expr *E);
+  /// GetArrayPtrDereference - determine if an lvalue expression is a
+  /// dereference of an _Array_ptr or _Nt_array_ptr (via '*" or an array
+  /// subscript operator).  If it is, return the actual dereference expression
+  /// and set Result to the pointer type being dereferenced.  Otherwise, return
+  /// null.
+  Expr *GetArrayPtrDereference(Expr *E, QualType &Result);
 
   /// InferLValueBounds - infer a bounds expression for an lvalue.
   /// The bounds determine whether the lvalue to which an

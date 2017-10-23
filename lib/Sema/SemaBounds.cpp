@@ -1142,7 +1142,7 @@ namespace {
   };
 }
 
-Expr *Sema::GetArrayPtrDereference(Expr *E) {
+Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
   assert(E->isLValue());
   E = E->IgnoreParens();
   switch (E->getStmtClass()) {
@@ -1157,8 +1157,10 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
         return nullptr;
       }
       if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
-          UO->getSubExpr()->getType()->isCheckedPointerArrayType())
+          UO->getSubExpr()->getType()->isCheckedPointerArrayType()) {
+        Result = UO->getSubExpr()->getType();
         return E;
+      }
 
       return nullptr;
     }
@@ -1177,8 +1179,10 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
       //  the "checkedness" of the outermost array.
 
       // getBase returns the pointer-typed expression.
-      if (AS->getBase()->getType()->isCheckedPointerArrayType())
+      if (AS->getBase()->getType()->isCheckedPointerArrayType()) {
+        Result = AS->getBase()->getType();
         return E;
+      }
 
       return nullptr;
     }
@@ -1189,7 +1193,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E) {
         return nullptr;
       }
       if (IC->getCastKind() == CK_LValueBitCast)
-        return GetArrayPtrDereference(IC->getSubExpr());
+        return GetArrayPtrDereference(IC->getSubExpr(), Result);
       return nullptr;
     }
     default: {
@@ -1277,19 +1281,22 @@ namespace {
     // Add bounds check to an lvalue expression, if it is an Array_ptr
     // dereference.  The caller has determined that the lvalue is being
     // used in a way that requies a bounds check if the lvalue is an
-    // Array_ptr dereferences.  The lvalue uses are to read or write memory
-    // or as the base expression of a member reference.
+    // _Array_ptr or _Nt_array_ptr dereference.  The lvalue uses are to read
+    // or write memory or as the base expression of a member reference.
     //
     // If the Array_ptr has unknown bounds, this is a compile-time error.
     // Generate an error message and set the bounds to an invalid bounds
     // expression.
-    bool AddBoundsCheck(Expr *E) {
+    bool AddBoundsCheck(Expr *E, bool IsOnlyMemoryRead) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
-      BoundsExpr *LValueBounds = nullptr;
-      if (Expr *Deref = S.GetArrayPtrDereference(E)) {
+      QualType PtrType;
+      if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
         NeedsBoundsCheck = true;
-        LValueBounds = S.InferLValueBounds(E);
+        BoundsExpr *LValueBounds = S.InferLValueBounds(E);
+        BoundsCheckKind Kind = BCK_Normal;
+        if (IsOnlyMemoryRead && PtrType->isCheckedPointerNtArrayType())
+          Kind = BCK_NullTermRead;
         if (LValueBounds->isNone()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
@@ -1297,9 +1304,11 @@ namespace {
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
           assert(!UO->hasBoundsExpr());
           UO->setBoundsExpr(LValueBounds);
+          UO->setBoundsCheckKind(Kind);
         } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
           assert(!AS->hasBoundsExpr());
           AS->setBoundsExpr(LValueBounds);
+          AS->setBoundsCheckKind(Kind);
         } else
           llvm_unreachable("unexpected expression kind");
       }
@@ -1316,7 +1325,7 @@ namespace {
       if (!E->isArrow()) {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
-          return AddBoundsCheck(Base);
+          return AddBoundsCheck(Base, false);
         return false;
       }
 
@@ -1457,7 +1466,7 @@ namespace {
       // Check that the LHS lvalue of the assignment has bounds, if it is an
       // lvalue that was produced by dereferencing an _Array_ptr.
       bool LHSNeedsBoundsCheck = false;
-      LHSNeedsBoundsCheck = AddBoundsCheck(LHS);
+      LHSNeedsBoundsCheck = AddBoundsCheck(LHS, false);
       if (DumpBounds && (LHSNeedsBoundsCheck ||
                          (LHSTargetBounds && !LHSTargetBounds->isNone())))
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
@@ -1553,7 +1562,7 @@ namespace {
 
       CastKind CK = E->getCastKind();
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr());
+        bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), true);
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
 
@@ -1620,7 +1629,7 @@ namespace {
       if (!E->isIncrementDecrementOp())
         return true;
 
-      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr());
+      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), false);
       if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
       return true;

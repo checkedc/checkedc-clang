@@ -2546,8 +2546,10 @@ public:
 
   void EmitExplicitDynamicCheck(const Expr *Condition);
   void EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy);
-  void EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy, const Address PtrAddr);
-  void EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds);
+  void EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy,
+                                const Address PtrAddr);
+  void EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds,
+                              BoundsCheckKind Kind);
   void EmitDynamicBoundsCastCheck(const Address BaseAddr,
                                   const BoundsExpr *CastBounds,
                                   const BoundsExpr *SubExprBounds);

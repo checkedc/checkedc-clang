@@ -73,7 +73,8 @@ void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr, const Qua
   // EmitDynamicCheckBlocks(Condition);
 }
 
-void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds) {
+void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds,
+                                             BoundsCheckKind CheckKind) {
   if (!getLangOpts().CheckedC)
     return;
 
@@ -115,8 +116,16 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
       Lower.getPointer(), PtrAddr.getPointer(), "_Dynamic_check.lower");
 
   // Make the upper check
-  Value *UpperChk = Builder.CreateICmpULT(
-      PtrAddr.getPointer(), Upper.getPointer(), "_Dynamic_check.upper");
+  Value *UpperChk;
+  assert(CheckKind != BCK_None);
+  if (CheckKind != BCK_NullTermRead)
+    UpperChk = Builder.CreateICmpULT(PtrAddr.getPointer(), Upper.getPointer(),
+                                     "_Dynamic_check.upper");
+  else
+    // For reads of null-terminated pointers, we allow the element exactly
+    // at the upper bound to be read.
+    UpperChk = Builder.CreateICmpULE(PtrAddr.getPointer(), Upper.getPointer(),
+                                     "_Dynamic_check.upper");
 
   // Emit both checks
   EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
