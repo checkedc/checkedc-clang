@@ -33,7 +33,7 @@ void f1(_Array_ptr<int> a : bounds(a, a + 5)) {
 // CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<int>'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 100
 // CHECK: Target Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Unknown
 
   a[3] = 101;
 
@@ -52,7 +52,7 @@ void f1(_Array_ptr<int> a : bounds(a, a + 5)) {
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 101
 // CHECK: Target Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Unknown
 
 }
 
@@ -78,7 +78,7 @@ int f2(void) {
 // CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} 'int _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int _Checked[6]'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
 // CHECK: Target Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Unknown
 
   arr[2] = 4;
 
@@ -97,7 +97,7 @@ int f2(void) {
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 2
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 4
 // CHECK: Target Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Unknown
 
   return arr[2];
 }
@@ -124,7 +124,7 @@ void f3(int b _Checked[7]) {
 // CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<int>':'_Array_ptr<int>'
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 102
 // CHECK: Target Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Unknown
 
   b[3] = 103;
 
@@ -143,7 +143,7 @@ void f3(int b _Checked[7]) {
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 103
 // CHECK: Target Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Unknown
 
 }
 
@@ -175,4 +175,4 @@ void f4(int arg _Checked[10][10]) {
 // CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 314
 // CHECK: Target Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' None
+// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Unknown

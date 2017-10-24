@@ -60,7 +60,7 @@ _Array_ptr<int> byte_arr : byte_count(sizeof(int));
 
 // NullaryBounds
 _Array_ptr<int> null_arr : count(1); // expected-error{{variable redeclaration has conflicting bounds}}
-_Array_ptr<int> null_arr : bounds(none);
+_Array_ptr<int> null_arr : bounds(unknown);
 
 // RangeBounds
 int two_arr[2];
@@ -89,10 +89,10 @@ _Array_ptr<int> byte_count_fn2(void) : byte_count(sizeof(int) + 1); // expected-
 _Array_ptr<int> byte_count_fn2(void) : byte_count(sizeof(int));
 
 // NullaryBounds
-int none_fn(_Array_ptr<int> null_arr : count(1)); // expected-error{{function redeclaration has conflicting parameter bounds}}
-int none_fn(_Array_ptr<int> null_arr : bounds(none));
-_Array_ptr<int> none_fn2(void) : count(1); // expected-error{{function redeclaration has conflicting return bounds}}
-_Array_ptr<int> none_fn2(void) : bounds(none);
+int unknown_fn(_Array_ptr<int> null_arr : count(1)); // expected-error{{function redeclaration has conflicting parameter bounds}}
+int unknown_fn(_Array_ptr<int> null_arr : bounds(unknown));
+_Array_ptr<int> unknown_fn2(void) : count(1); // expected-error{{function redeclaration has conflicting return bounds}}
+_Array_ptr<int> unknown_fn2(void) : bounds(unknown);
 
 // RangeBounds + PositionalParamater
 int range_fn(_Array_ptr<int> start : bounds(start, end - 1), _Array_ptr<int> end); // expected-error{{function redeclaration has conflicting parameter bounds}}
@@ -134,7 +134,7 @@ void uses_S2(struct S2 data) {
 // NullaryBounds
 struct S3;
 void uses_S3(struct S3 data) {
-  _Array_ptr<int> arr : bounds(none) = data.arr;
+  _Array_ptr<int> arr : bounds(unknown) = data.arr;
 }
 
 // RangeBounds

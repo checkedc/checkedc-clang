@@ -167,8 +167,8 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "count".
   IdentifierInfo *Ident_count;
 
-  /// \brief Identifier for "none".
-  IdentifierInfo *Ident_none;
+  /// \brief Identifier for "unknown".
+  IdentifierInfo *Ident_unknown;
 
   /// \brief Identifier for "itype"
   IdentifierInfo *Ident_itype;

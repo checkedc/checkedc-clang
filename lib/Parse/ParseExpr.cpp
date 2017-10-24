@@ -2961,17 +2961,17 @@ ExprResult Parser::ParseBoundsExpression() {
                                             Result.get(),
                                            Tok.getLocation());
   } else if (Ident == Ident_bounds) {
-    // Parse bounds(none) or bounds(e1, e2)
+    // Parse bounds(unknown) or bounds(e1, e2)
     bool FoundNullaryOperator = false;
 
     // Start with "none"
     if (Tok.getKind() == tok::identifier) {
       IdentifierInfo *NextIdent = Tok.getIdentifierInfo();
-      if (NextIdent == Ident_none) {
+      if (NextIdent == Ident_unknown) {
         FoundNullaryOperator = true;
         ConsumeToken();
         Result = Actions.ActOnNullaryBoundsExpr(BoundsKWLoc, 
-                                                BoundsExpr::Kind::None,
+                                                BoundsExpr::Kind::Unknown,
                                                 Tok.getLocation());
       }
     }

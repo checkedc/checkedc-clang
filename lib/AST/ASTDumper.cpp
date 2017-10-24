@@ -2587,7 +2587,7 @@ void ASTDumper::visitVerbatimLineComment(const VerbatimLineComment *C) {
 void ASTDumper::dumpBoundsKind(BoundsExpr::Kind K) {
   switch (K) {
     case BoundsExpr::Kind::Invalid: OS << " Invalid"; break;
-    case BoundsExpr::Kind::None: OS << " None"; break;
+    case BoundsExpr::Kind::Unknown: OS << " Unknown"; break;
     case BoundsExpr::Kind::Any: OS << " Any"; break;
     case BoundsExpr::Kind::ElementCount: OS << " Element"; break;
     case BoundsExpr::Kind::ByteCount: OS << " Byte"; break;

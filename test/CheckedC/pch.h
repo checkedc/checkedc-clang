@@ -27,7 +27,7 @@ _Array_ptr<int> one_arr : count(1);
 _Array_ptr<int> byte_arr : byte_count(sizeof(int));
 
 // NullaryBounds
-_Array_ptr<int> null_arr : bounds(none);
+_Array_ptr<int> null_arr : bounds(unknown);
 
 // RangeBounds
 int two_arr[2];
@@ -49,8 +49,8 @@ int byte_count_fn(_Array_ptr<int> arr : byte_count(sizeof(int)));
 _Array_ptr<int> byte_count_fn2(void) : byte_count(sizeof(int));
 
 // NullaryBounds
-int none_fn(_Array_ptr<int> null_arr : bounds(none));
-_Array_ptr<int> none_fn2(void) : bounds(none);
+int unknown_fn(_Array_ptr<int> null_arr : bounds(unknown));
+_Array_ptr<int> unknown_fn2(void) : bounds(unknown);
 
 // RangeBounds + PositionalParameter
 int range_fn(_Array_ptr<int> start : bounds(start, end), _Array_ptr<int> end);
@@ -80,7 +80,7 @@ struct S2 {
 
 // NullaryBounds
 struct S3 {
-  _Array_ptr<int> arr : bounds(none);
+  _Array_ptr<int> arr : bounds(unknown);
 };
 
 // RangeBounds

@@ -10958,7 +10958,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
         Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
           << Var;
       else if (B && !B->isInteropTypeAnnotation() && !B->isInvalid() &&
-               !B->isNone() && !Ty->isArrayType())
+               !B->isUnknown() && !Ty->isArrayType())
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
     }
