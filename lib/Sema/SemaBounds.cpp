@@ -391,7 +391,7 @@ namespace {
     }
 
     // If we have an error in our bounds inference that we can't
-    // recover from, bounds(none) is our error value
+    // recover from, bounds(unknown) is our error value
     BoundsExpr *CreateBoundsInferenceError() {
       return CreateBoundsUnknown();
     }
@@ -413,12 +413,33 @@ namespace {
     BoundsExpr *CreateBoundsAllowedButNotComputed() {
       return CreateBoundsAny();
     }
-    // This is for the opposite case, where we want to return bounds(none)
+    // This is for the opposite case, where we want to return bounds(unknown)
     // at the moment, but we want to re-visit these parts of inference
     // and in some cases compute bounds.
     BoundsExpr *CreateBoundsNotAllowedYet() {
       return CreateBoundsUnknown();
     }
+
+    BoundsExpr *CreateZeroElementBounds() {
+      IntegerLiteral *Zero =
+        CreateIntegerLiteral(llvm::APInt(1, 0, /*isSigned=*/false));
+      BoundsExpr *Count = new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                                        Zero, SourceLocation(),
+                                                        SourceLocation());
+      return Count;
+    }
+
+    BoundsExpr *CreateZeroElementBounds(Expr *LowerBounds) {
+      assert(LowerBounds->isRValue());
+      // Create an unsigned integer 0
+      IntegerLiteral *Zero =
+        CreateIntegerLiteral(llvm::APInt(1, 0, /*isSigned=*/false));
+      CountBoundsExpr CBE = CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                            Zero, SourceLocation(),
+                                            SourceLocation());
+      return ExpandToRange(LowerBounds, &CBE);
+    }
+
 
     BoundsExpr *CreateSingleElementBounds() {
       IntegerLiteral *One =
@@ -428,6 +449,7 @@ namespace {
                                                         SourceLocation());
       return Count;
     }
+
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
@@ -480,8 +502,14 @@ namespace {
       if (!CAT)
         return CreateBoundsAlwaysUnknown();
 
-      IntegerLiteral *Size = CreateIntegerLiteral(CAT->getSize());
-
+      llvm::APInt size = CAT->getSize();
+      // Null-terminated arrays of size n have bounds of count(n - 1).
+      // The null terminator is excluded from the count.
+      if (CAT->getKind() == CheckedArrayKind::NtChecked) {
+        assert(size.uge(1) && "must have at least one element");
+        size = size - 1;
+      }
+      IntegerLiteral *Size = CreateIntegerLiteral(size);
       CountBoundsExpr *CBE =
          new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                        Size, SourceLocation(),
@@ -700,6 +728,8 @@ namespace {
       }
     }
 
+    // Given a Ptr type or a bounds-safe interface type, create the
+    // bounds implied by the type.
     BoundsExpr *CreateTypeBasedBounds(QualType Ty, bool IsParam) {
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
@@ -708,8 +738,12 @@ namespace {
         if (Ty->isFunctionPointerType())
           return CreateBoundsEmpty();
         else return CreateSingleElementBounds();
-      } else if (Ty->isCheckedArrayType() && IsParam)
+      } else if (Ty->isCheckedArrayType() && IsParam) {
         return CreateBoundsForArrayType(Ty);
+      } else if (Ty->isCheckedPointerNtArrayType()) {
+        // Null-terminated pointers get a zero element bounds.
+        return CreateZeroElementBounds();
+      }
 
       return CreateBoundsEmpty();
     }
@@ -732,7 +766,6 @@ namespace {
         } else
           Base = E;
         return CreateSingleElementBounds(Base);
-
       } else if (Ty->isCheckedArrayType() && IsParam) {
         assert(IsBoundsSafeInterface && "unexpected checked array type for parameter");
         assert(E->isLValue());
@@ -740,6 +773,9 @@ namespace {
         ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
         Base->setBoundsSafeInterface(IsBoundsSafeInterface);
         return ExpandToRange(Base, BE);
+      } else if (Ty->isCheckedPointerNtArrayType()) {
+        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        return CreateZeroElementBounds(Base);
       }
    
        return CreateBoundsEmpty();
@@ -782,6 +818,11 @@ namespace {
 
           BoundsExpr *B = D->getBoundsExpr();
 
+          // Null-terminated pointers with no bounds get a zero-element
+          // bounds.
+          if (!B && DR->getType()->isCheckedPointerNtArrayType())
+            B = CreateZeroElementBounds();
+
           if (!B || B->isUnknown())
             return CreateBoundsAlwaysUnknown();
 
@@ -809,6 +850,12 @@ namespace {
             return CreateBoundsInferenceError();
 
           BoundsExpr *B = F->getBoundsExpr();
+
+          // Null-terminated pointers with no bounds get a zero-element
+          // bounds.
+          if (!B && F->getType()->isCheckedPointerNtArrayType())
+            B = CreateZeroElementBounds();
+
           if (!B || B->isUnknown())
             return CreateBoundsAlwaysUnknown();
 
@@ -1050,7 +1097,7 @@ namespace {
               return LHSBounds;
             if (!LHSBounds->isUnknown() && !RHSBounds->isUnknown()) {
               // TODO: Check if LHSBounds and RHSBounds are equal.
-              // if so, return one of them. If not, return bounds(none)
+              // if so, return one of them. If not, return bounds(unknown)
               return CreateBoundsAlwaysUnknown();
             }
             if (LHSBounds->isUnknown() && RHSBounds->isUnknown())
@@ -1089,7 +1136,7 @@ namespace {
               PtrTy->getPointeeType()->getAs<FunctionProtoType>();
             if (!CalleeTy)
               // K&R functions have no prototype, and we cannot perform
-              // inference on them, so we return bounds(none) for their results.
+              // inference on them, so we return bounds(unknown) for their results.
               return CreateBoundsAlwaysUnknown();
 
             BoundsExpr *FunBounds =
@@ -1352,7 +1399,7 @@ namespace {
       if (SrcBounds->isAny())
         return true;
 
-      // target bounds(none) implied by any other bounds.
+      // target bounds(unknown) implied by any other bounds.
       if (DeclaredBounds->isUnknown())
         return true;
 
@@ -1523,6 +1570,7 @@ namespace {
         }
 
         const BoundsExpr *ParamBounds = FuncProtoTy->getParamBounds(i);
+
         if (!ParamBounds)
           continue;
 
@@ -1569,7 +1617,7 @@ namespace {
         return true;
       }
 
-      // If inferred bounds of e1 are bounds(none), compile-time error.
+      // If inferred bounds of e1 are bounds(unknown), compile-time error.
       // If inferred bounds of e1 are bounds(any), no runtime checks.
       // Otherwise, the inferred bounds is bounds(lb, ub).
       // bounds of cast operation is bounds(e2, e3).
