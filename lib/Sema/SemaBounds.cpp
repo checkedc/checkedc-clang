@@ -838,6 +838,36 @@ namespace {
            Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
            return ExpandToRange(Base, B);
         }
+        case Expr::UnaryOperatorClass: {
+          UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
+          if (!UO) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsInferenceError();
+          }
+          // Currently, we don't know the bounds of a pointer returned
+          // by a pointer dereference, unless it is a _Ptr type (handled
+          // earlier) or an _Nt_array_ptr.
+          if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
+              UO->getType()->isCheckedPointerNtArrayType())
+              return CreateTypeBasedBounds(UO, UO->getType(), false, false);
+          return CreateBoundsAlwaysUnknown();
+        }
+        case Expr::ArraySubscriptExprClass: {
+          //  e1[e2] is a synonym for *(e1 + e2).  The bounds are
+          // the bounds of e1 + e2, which reduces to the bounds
+          // of whichever subexpression has pointer type.
+          ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
+          if (!AS) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsInferenceError();
+          }
+          // Currently, we don't know the bounds of a pointer returned
+          // by a subscripting operation, unless it is a _Ptr type (handled
+          // earlier) or an _Nt_array_ptr.
+          if (AS->getType()->isCheckedPointerNtArrayType())
+            return CreateTypeBasedBounds(AS, AS->getType(), false, false);
+          return CreateBoundsAlwaysUnknown();
+        }
         case Expr::MemberExprClass: {
           MemberExpr *M = dyn_cast<MemberExpr>(E);
           if (!M) {
