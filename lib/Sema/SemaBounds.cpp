@@ -420,27 +420,6 @@ namespace {
       return CreateBoundsUnknown();
     }
 
-    BoundsExpr *CreateZeroElementBounds() {
-      IntegerLiteral *Zero =
-        CreateIntegerLiteral(llvm::APInt(1, 0, /*isSigned=*/false));
-      BoundsExpr *Count = new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                                        Zero, SourceLocation(),
-                                                        SourceLocation());
-      return Count;
-    }
-
-    BoundsExpr *CreateZeroElementBounds(Expr *LowerBounds) {
-      assert(LowerBounds->isRValue());
-      // Create an unsigned integer 0
-      IntegerLiteral *Zero =
-        CreateIntegerLiteral(llvm::APInt(1, 0, /*isSigned=*/false));
-      CountBoundsExpr CBE = CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                            Zero, SourceLocation(),
-                                            SourceLocation());
-      return ExpandToRange(LowerBounds, &CBE);
-    }
-
-
     BoundsExpr *CreateSingleElementBounds() {
       IntegerLiteral *One =
         CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
@@ -449,7 +428,6 @@ namespace {
                                                         SourceLocation());
       return Count;
     }
-
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
@@ -742,7 +720,7 @@ namespace {
         return CreateBoundsForArrayType(Ty);
       } else if (Ty->isCheckedPointerNtArrayType()) {
         // Null-terminated pointers get a zero element bounds.
-        return CreateZeroElementBounds();
+        return Context.getPrebuiltCountZero();
       }
 
       return CreateBoundsEmpty();
@@ -775,7 +753,7 @@ namespace {
         return ExpandToRange(Base, BE);
       } else if (Ty->isCheckedPointerNtArrayType()) {
         ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
-        return CreateZeroElementBounds(Base);
+        return ExpandToRange(Base, Context.getPrebuiltCountZero());
       }
    
        return CreateBoundsEmpty();
@@ -821,7 +799,7 @@ namespace {
           // Null-terminated pointers with no bounds get a zero-element
           // bounds.
           if (!B && DR->getType()->isCheckedPointerNtArrayType())
-            B = CreateZeroElementBounds();
+            B = Context.getPrebuiltCountZero();
 
           if (!B || B->isUnknown())
             return CreateBoundsAlwaysUnknown();
@@ -884,7 +862,7 @@ namespace {
           // Null-terminated pointers with no bounds get a zero-element
           // bounds.
           if (!B && F->getType()->isCheckedPointerNtArrayType())
-            B = CreateZeroElementBounds();
+            B = Context.getPrebuiltCountZero();
 
           if (!B || B->isUnknown())
             return CreateBoundsAlwaysUnknown();

@@ -756,7 +756,9 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       PrintingPolicy(LOpts), Idents(idents), Selectors(sels),
       BuiltinInfo(builtins), DeclarationNames(*this), ExternalSource(nullptr),
       Listener(nullptr), Comments(SM), CommentsLoaded(false),
-      CommentCommandTraits(BumpAlloc, LOpts.CommentOpts), LastSDM(nullptr, 0) {
+      CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
+      PrebuiltCountZero(nullptr), PrebuiltCountOne(nullptr),
+      PrebuiltBoundsUnknown(nullptr), LastSDM(nullptr, 0) {
   TUDecl = TranslationUnitDecl::Create(*this);
 }
 
@@ -8923,6 +8925,40 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
 bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2) {
   Lexicographic::Result Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
   return Cmp == Lexicographic::Result::Equal;
+}
+
+BoundsExpr *ASTContext::getPrebuiltCountZero() {
+  if (!PrebuiltCountZero) {
+    llvm::APInt Zero(getIntWidth(IntTy), 0);
+    IntegerLiteral *ZeroLiteral = new (*this) IntegerLiteral(*this, Zero, IntTy, SourceLocation());
+    PrebuiltCountZero =
+      new (*this) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                  ZeroLiteral, SourceLocation(), SourceLocation());
+  }
+  return PrebuiltCountZero;
+}
+
+BoundsExpr *ASTContext::getPrebuiltCountOne() {
+  if (!PrebuiltCountOne) {
+    llvm::APInt One(getIntWidth(IntTy), 1);
+    IntegerLiteral *OneLiteral = new (*this) IntegerLiteral(*this, One, IntTy,
+                                                            SourceLocation());
+    PrebuiltCountOne =
+      new (*this) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                  OneLiteral, SourceLocation(),
+                                  SourceLocation());
+  }
+  return PrebuiltCountOne;
+
+}
+
+BoundsExpr *ASTContext::getPrebuiltBoundsUnknown() {
+  if (!PrebuiltBoundsUnknown) {
+    PrebuiltBoundsUnknown =
+      new (*this) NullaryBoundsExpr(BoundsExpr::Kind::Unknown,
+                                    SourceLocation(), SourceLocation());
+  }
+  return PrebuiltBoundsUnknown;
 }
 
 //===----------------------------------------------------------------------===//

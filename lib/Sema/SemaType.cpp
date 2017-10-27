@@ -4707,7 +4707,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             // _Nt_array_ptr parameters with no bounds have the default
             // bounds of count(0).
             HasAnyParameterBounds = true;
-            Bounds = S.CreateTypeBasedBounds(ParamTy, true);
+            Bounds = S.Context.getPrebuiltCountZero();
           }
           ParamBounds.push_back(Bounds);
 
