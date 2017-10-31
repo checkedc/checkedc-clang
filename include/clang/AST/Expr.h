@@ -2876,6 +2876,7 @@ public:
     : Expr(StmtClass, Ty, VK_RValue, OK_Ordinary, false,
            false, false, false), StartLoc(StartLoc), EndLoc(EndLoc) {
     setKind(BoundsKind);
+    setCompilerGenerated(false);
   }
 
   BoundsExpr(StmtClass StmtClass, Kind BoundsKind, SourceLocation StartLoc,
@@ -2886,6 +2887,7 @@ public:
   explicit BoundsExpr(StmtClass StmtClass, EmptyShell Empty) :
     Expr(StmtClass, Empty) {
     setKind(Invalid);
+    setCompilerGenerated(false);
   }
 
 
@@ -2900,6 +2902,14 @@ public:
   void setKind(Kind Kind) {
     assert(validateKind(Kind));
     BoundsExprBits.Kind = Kind;
+  }
+
+  bool isCompilerGenerated() const {
+    return BoundsExprBits.IsCompilerGenerated;
+  }
+
+  void setCompilerGenerated(bool IsGenerated) {
+    BoundsExprBits.IsCompilerGenerated = IsGenerated;
   }
 
   bool isInvalid() const {

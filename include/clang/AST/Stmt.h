@@ -269,6 +269,7 @@ protected:
 
     unsigned : NumExprBits;
     unsigned Kind : NumBoundsExprKindBits;
+    unsigned IsCompilerGenerated : 1;
   };
 
   enum { NumBoundsCheckKindBits = 2 };

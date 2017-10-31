@@ -8934,6 +8934,7 @@ BoundsExpr *ASTContext::getPrebuiltCountZero() {
     PrebuiltCountZero =
       new (*this) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                   ZeroLiteral, SourceLocation(), SourceLocation());
+    PrebuiltCountZero->setCompilerGenerated(true);
   }
   return PrebuiltCountZero;
 }
@@ -8947,6 +8948,7 @@ BoundsExpr *ASTContext::getPrebuiltCountOne() {
       new (*this) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                   OneLiteral, SourceLocation(),
                                   SourceLocation());
+    PrebuiltCountOne->setCompilerGenerated(true);
   }
   return PrebuiltCountOne;
 
@@ -8957,6 +8959,7 @@ BoundsExpr *ASTContext::getPrebuiltBoundsUnknown() {
     PrebuiltBoundsUnknown =
       new (*this) NullaryBoundsExpr(BoundsExpr::Kind::Unknown,
                                     SourceLocation(), SourceLocation());
+    PrebuiltBoundsUnknown->setCompilerGenerated(true);
   }
   return PrebuiltBoundsUnknown;
 }

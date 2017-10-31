@@ -1429,7 +1429,7 @@ namespace {
           << Target->getSourceRange() << Src->getSourceRange();
         S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
           << DeclaredBounds << DeclaredBounds->getSourceRange();
-        S.Diag(Src->getExprLoc(), diag::note_inferred_bounds)
+        S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
           << SrcBounds << Src->getSourceRange();
       }
     }
@@ -1450,7 +1450,7 @@ namespace {
         S.Diag(ArgLoc, diag::warn_argument_bounds_invalid) << (ParamNum + 1)
           << Arg->getSourceRange();
         S.Diag(ArgLoc, diag::note_expected_argument_bounds) << ExpectedArgBounds;
-        S.Diag(Arg->getExprLoc(), diag::note_inferred_bounds)
+        S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
           << ArgBounds << Arg->getSourceRange();
       }
     }
@@ -1471,7 +1471,7 @@ namespace {
           << D->getLocation() << Src->getSourceRange();
         S.Diag(D->getLocation(), diag::note_declared_bounds)
           << NormalizedBounds << D->getLocation();
-        S.Diag(Src->getExprLoc(), diag::note_inferred_bounds)
+        S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
           << SrcBounds << Src->getSourceRange();
       }
   }
@@ -1714,9 +1714,15 @@ namespace {
          DeclaredBounds->isUnknown())
        return true;
 
-     // If there is an initializer, check that the initializer meets the bounds
-     // requirements for the variable.
-     if (Expr *Init = D->getInit()) {
+     // TODO: for array types, check that any declared bounds at the point
+     // of initialization are true based on the array size.
+
+     // If there is a scalar initializer, check that the initializer meets the bounds
+     // requirements for the variable.  For non-scalar types (arrays, structs, and
+     // unions), the amount of storage allocated depends on the type, so we don't
+     // to check the initializer bounds.
+     Expr *Init = D->getInit();
+     if (Init && D->getType()->isScalarType()) {
        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
        BoundsExpr *InitBounds = S.InferRValueBounds(Init);
        if (InitBounds->isUnknown()) {

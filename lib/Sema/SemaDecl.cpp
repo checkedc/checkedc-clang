@@ -3451,6 +3451,10 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
     Loc = New->getLocation();
   S.Diag(Loc, DiagId) << (unsigned) Kind;
 
+  if (New->getBoundsExpr() && New->getBoundsExpr()->isCompilerGenerated()) {
+    S.Diag(Loc, diag::note_inferred_bounds)
+      << const_cast<BoundsExpr *>(New->getBoundsExpr());
+  }
   // Emit a note pointing to the prior bounds or declaration. Try to point
   // at the relevant bounds expression if possible so that the user has the
   // right context for understanding the error.  If there isn't one, fall
@@ -3458,6 +3462,14 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 
   // First determine the prior relevant bounds expression, if there is one.
   const BoundsExpr *PrevBoundsExpr = Old->getBoundsExpr();
+  // If the bounds were inferred by the compiler, there is nothing to point to.
+  // Print a note giving the inferred bounds.
+  if (PrevBoundsExpr && PrevBoundsExpr->isCompilerGenerated()) {
+    S.Diag(Old->getLocation(), diag::note_inferred_bounds)
+      << const_cast<BoundsExpr *>(PrevBoundsExpr);
+    return;
+  }
+
   // The bounds expression for an unchecked pointer or array type may have
   // been inherited from an earlier declaration than Old that
   // was compatible with Old.  If there's no bounds expression on Old,
@@ -3522,9 +3534,9 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 // report the error.  If there is no bounds expression, this will be an invalid
 // source location. (We don't use the location from the new bounds expression
 // beacuse it is canonicalized and may not have valid line information.)
-// * OldBounds and NewBounds are canoncialized bounds expressions.  For
+// * OldBounds and NewBounds are canonicalized bounds expressions.  For
 // parameters and returns, they are bounds expressions from function types.
-// It is important to use canonicalized bound expressions these for bounds
+// It is important to use these canonicalized bound expressions for bounds
 // comparisons.
 // * OldDecl and NewDecl provide the declarations for use in error messages.
 // OldDecl may have a bounds expression attached to it.  A bounds expression
@@ -3555,10 +3567,27 @@ static bool diagnoseBoundsError(Sema &S,
       // bounds already diagnosed.
       return true;
 
-    if (!S.Context.EquivalentBounds(OldBounds, NewBounds))
-       DiagId = diag::err_decl_conflicting_bounds;
-  } else if (!IsUncheckedType && !NewBounds) {
-    assert(OldBounds);
+    if (!S.Context.EquivalentBounds(OldBounds, NewBounds)) {
+      // OK, now that we used canonicalized bounds for the comparison,
+      // use the declared bounds from the program to decided what error
+      // message to generate.  If the bounds were default bounds inferred by
+      // the compiler, they aren't present in the source text and we want to
+      // to talk about adding/removing bounds.  Otherwise, we want
+      // to say that there is a conflict.
+      const BoundsExpr *declaredOldBounds = OldDecl->getBoundsExpr();
+      const BoundsExpr *declaredNewBounds = NewDecl->getBoundsExpr();
+      if (!declaredOldBounds || !declaredNewBounds)
+        DiagId = diag::err_decl_conflicting_bounds;
+      else if (declaredOldBounds->isCompilerGenerated() &&
+          !declaredNewBounds->isCompilerGenerated())
+        DiagId = diag::err_decl_added_bounds_differ_from_inferred;
+      else if (!declaredOldBounds->isCompilerGenerated() &&
+               declaredNewBounds->isCompilerGenerated())
+        DiagId = diag::err_decl_dropped_bounds_differ_from_declared;
+      else
+        DiagId = diag::err_decl_conflicting_bounds;
+    }
+  } else if (OldBounds || NewBounds) {
     if (!IsUncheckedType)
       DiagId = NewBounds ? diag::err_decl_added_bounds :
                            diag::err_decl_dropped_bounds;
@@ -12358,6 +12387,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
     if (!CheckIsNonModifying(Expr, req)) {
       ActOnInvalidBoundsDecl(D);
       return;
+    }
 
     if (Expr->isInvalid()) {
       D->setBoundsExpr(Expr);
@@ -12398,13 +12428,21 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
     }
   }
 
+  // Set a default bounds expression based on the type.
+
   if (!Expr) {
-    // Get the default bounds expression, if there is one for
-    // the type.
-    if (Ty->isCheckedPointerArrayType() || Ty->isIntegerType())
+    // Handle parameters that originally had a checked array type.
+    if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
+      if (PV->getOriginalType()->isCheckedArrayType())
+        Expr = CreateCountForArrayType(PV->getOriginalType());
+    }
+  }
+
+  if (!Expr) {
+    if (Ty->isExactlyCheckedPointerArrayType() || Ty->isIntegerType())
       Expr = Context.getPrebuiltBoundsUnknown();
     else if (Ty->isCheckedPointerNtArrayType())
-      Expr = Context.getPrebuiltCountOne();
+      Expr = Context.getPrebuiltCountZero();
   }
 
   // If this is a VarDecl, handle already existing bounds from a prior
