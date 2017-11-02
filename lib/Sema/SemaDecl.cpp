@@ -3556,30 +3556,30 @@ static bool diagnoseBoundsError(Sema &S,
                                 QualType OldType,
                                 QualType NewType,
                                 Sema::CheckedCBoundsError Kind) {
+  if (S.Context.EquivalentBounds(OldBounds, NewBounds))
+    return false;
+
+  if ((OldBounds && OldBounds->isInvalid()) ||
+      (NewBounds && NewBounds->isInvalid()))
+    // There must have been an earlier error involving
+    // bounds already diagnosed.
+    return true;
+
   int DiagId = 0;
+  bool IsUncheckedType =
+    (OldType->isUncheckedPointerType() && NewType->isUncheckedPointerType()) ||
+    (OldType->isUncheckedArrayType() && NewType->isUncheckedArrayType());
 
-  if (!S.Context.EquivalentBounds(OldBounds, NewBounds)) {
-    bool IsUncheckedType =
-      (OldType->isUncheckedPointerType() && NewType->isUncheckedPointerType()) ||
-      (OldType->isUncheckedArrayType() && NewType->isUncheckedArrayType());
+  if (OldBounds && NewBounds)
+    DiagId = diag::err_decl_conflicting_bounds;
+  else if (!IsUncheckedType)
+    DiagId = NewBounds ? diag::err_decl_added_bounds :
+                         diag::err_decl_dropped_bounds;
 
-    if ((OldBounds && OldBounds->isInvalid()) ||
-        (NewBounds && NewBounds->isInvalid()))
-      // There must have been an earlier error involving
-      // bounds already diagnosed.
-      return true;
-
-    if (OldBounds && NewBounds)
-      DiagId = diag::err_decl_conflicting_bounds;
-    else if (!IsUncheckedType)
-      DiagId = NewBounds ? diag::err_decl_added_bounds :
-                           diag::err_decl_dropped_bounds;
-
-    if (DiagId) {
-      emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
-                                IsUncheckedType, Kind);
-      return true;
-    }
+  if (DiagId) {
+    emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
+                              IsUncheckedType, Kind);
+    return true;
   }
 
   // TODO: produce better error messages when types for parameters, returns,
