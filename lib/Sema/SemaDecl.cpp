@@ -3462,14 +3462,6 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 
   // First determine the prior relevant bounds expression, if there is one.
   const BoundsExpr *PrevBoundsExpr = Old->getBoundsExpr();
-  // If the bounds were inferred by the compiler, there is nothing to point to.
-  // Print a note giving the inferred bounds.
-  if (PrevBoundsExpr && PrevBoundsExpr->isCompilerGenerated()) {
-    S.Diag(Old->getLocation(), diag::note_inferred_bounds)
-      << const_cast<BoundsExpr *>(PrevBoundsExpr);
-    return;
-  }
-
   // The bounds expression for an unchecked pointer or array type may have
   // been inherited from an earlier declaration than Old that
   // was compatible with Old.  If there's no bounds expression on Old,
@@ -3509,8 +3501,15 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
   }
 
   if (PrevBoundsExpr) {
-      int NoteId = diag::note_previous_bounds_decl;
-      S.Diag(PrevBoundsExpr->getStartLoc(), NoteId);
+    if (!PrevBoundsExpr->isCompilerGenerated())
+      S.Diag(PrevBoundsExpr->getStartLoc(), diag::note_previous_bounds_decl);
+    else {
+      // If the bounds were inferred by the compiler, there is nothing to point to.
+      // Print notes pointing at the previous declaration and giving the bounds.
+      S.Diag(Old->getLocation(), diag::note_previous_decl) << Old;
+      S.Diag(Old->getLocation(), diag::note_inferred_bounds)
+          << const_cast<BoundsExpr *>(PrevBoundsExpr);
+    }
   } else if  (const FunctionDecl *OldDecl = dyn_cast<FunctionDecl>(Old)) {
     const FunctionDecl *NewDecl = dyn_cast<FunctionDecl>(New);
     if (NewDecl) {
@@ -3581,7 +3580,6 @@ static bool diagnoseBoundsError(Sema &S,
                               IsUncheckedType, Kind);
     return true;
   }
-
   // TODO: produce better error messages when types for parameters, returns,
   // or variables have bounds mismatches embedded within them. The current
   // diagnostic will be "type mismatch"
@@ -8879,7 +8877,6 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
         const_cast<BoundsExpr *>(FT->getReturnBounds());
       DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
       BoundsExpr *DeclaredReturnBounds = FTI.getReturnBounds();
-
       // Check the return bounds on the type to determine if the bounds
       // expression is valid for the return type.  Construction of the function
       // type for the declarator checked whether the return bounds was valid for
