@@ -8084,20 +8084,22 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (!IgnoreBounds) {
       const BoundsExpr *lReturnBounds = lproto->ReturnBounds;
       const BoundsExpr *rReturnBounds = rproto->ReturnBounds;
-      if (lReturnBounds && rReturnBounds) {
-        if (!EquivalentBounds(lReturnBounds, rReturnBounds))
+      if (EquivalentBounds(lReturnBounds, rReturnBounds))
+        returnBounds = lReturnBounds;
+      else {
+        // For unchecked return types, a return with
+        // bounds is compatible with a return without bounds.
+        // The merged type includes the bounds.
+        if (!retType->isUncheckedPointerType())
           return QualType();
-      } else if (lReturnBounds || rReturnBounds) {
-        if (retType->isCheckedPointerType())
-          return QualType();
-        if (lReturnBounds) {
+        if (lReturnBounds && !rReturnBounds) {
           returnBounds = lReturnBounds;
           allRTypes = false;
-        }
-        if (rReturnBounds) {
+        } else if (rReturnBounds && !lReturnBounds) {
           returnBounds = rReturnBounds;
           allLTypes = false;
-        }
+        } else
+          return QualType();
       }
     }
 
@@ -8130,21 +8132,22 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
       if (!IgnoreBounds && hasParamBounds) {
         const BoundsExpr *lBounds = lproto->getParamBounds(i);
         const BoundsExpr *rBounds = rproto->getParamBounds(i);
-        if (lBounds && rBounds) {
-          if (!EquivalentBounds(lBounds, rBounds))
-            return QualType();
+        if (EquivalentBounds(lBounds, rBounds))
           bounds.push_back(lBounds);
-        } else if (lBounds || rBounds) {
-          if (paramType->isCheckedPointerType())
+        else {
+          // For unchecked parameter types, a parameter with
+          // bounds is compatible with a parameter without bounds.
+          // The merged type includes the bounds.
+          if (!paramType->isUncheckedPointerType())
             return QualType();
-          if (lBounds) {
+          if (lBounds && !rBounds) {
             bounds.push_back(lBounds);
             allRTypes = false;
-          }
-          if (rBounds) {
+          } else if (rBounds && !lBounds) {
             bounds.push_back(rBounds);
             allLTypes = false;
-          }
+          } else
+            return QualType();
         }
       }
     }
@@ -8923,8 +8926,20 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
 }
 
 bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2) {
-  Lexicographic::Result Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
-  return Cmp == Lexicographic::Result::Equal;
+  if (Expr1 && Expr2) {
+    Lexicographic::Result Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
+    return Cmp == Lexicographic::Result::Equal;
+  }
+
+  // One or both bounds expressions are null pointers.
+  if (Expr1 && !Expr2)
+    return Expr1->isUnknown();
+
+  if (!Expr1 && Expr2)
+    return Expr2->isUnknown();
+
+ // Both must be null pointers.
+  return true;
 }
 
 BoundsExpr *ASTContext::getPrebuiltCountZero() {

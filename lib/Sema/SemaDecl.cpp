@@ -3557,46 +3557,31 @@ static bool diagnoseBoundsError(Sema &S,
                                 QualType NewType,
                                 Sema::CheckedCBoundsError Kind) {
   int DiagId = 0;
-  bool IsUncheckedType =
-    (OldType->isUncheckedPointerType() && NewType->isUncheckedPointerType()) ||
-    (OldType->isUncheckedArrayType() && NewType->isUncheckedArrayType());
 
-  if (OldBounds && NewBounds) {
-    if (OldBounds->isInvalid() || NewBounds->isInvalid())
+  if (!S.Context.EquivalentBounds(OldBounds, NewBounds)) {
+    bool IsUncheckedType =
+      (OldType->isUncheckedPointerType() && NewType->isUncheckedPointerType()) ||
+      (OldType->isUncheckedArrayType() && NewType->isUncheckedArrayType());
+
+    if ((OldBounds && OldBounds->isInvalid()) ||
+        (NewBounds && NewBounds->isInvalid()))
       // There must have been an earlier error involving
       // bounds already diagnosed.
       return true;
 
-    if (!S.Context.EquivalentBounds(OldBounds, NewBounds)) {
-      // OK, now that we used canonicalized bounds for the comparison,
-      // use the declared bounds from the program to decided what error
-      // message to generate.  If the bounds were default bounds inferred by
-      // the compiler, they aren't present in the source text and we want to
-      // to talk about adding/removing bounds.  Otherwise, we want
-      // to say that there is a conflict.
-      const BoundsExpr *declaredOldBounds = OldDecl->getBoundsExpr();
-      const BoundsExpr *declaredNewBounds = NewDecl->getBoundsExpr();
-      if (!declaredOldBounds || !declaredNewBounds)
-        DiagId = diag::err_decl_conflicting_bounds;
-      else if (declaredOldBounds->isCompilerGenerated() &&
-          !declaredNewBounds->isCompilerGenerated())
-        DiagId = diag::err_decl_added_bounds_differ_from_inferred;
-      else if (!declaredOldBounds->isCompilerGenerated() &&
-               declaredNewBounds->isCompilerGenerated())
-        DiagId = diag::err_decl_dropped_bounds_differ_from_declared;
-      else
-        DiagId = diag::err_decl_conflicting_bounds;
-    }
-  } else if (OldBounds || NewBounds) {
-    if (!IsUncheckedType)
+    if (OldBounds && NewBounds)
+      DiagId = diag::err_decl_conflicting_bounds;
+    else if (!IsUncheckedType)
       DiagId = NewBounds ? diag::err_decl_added_bounds :
                            diag::err_decl_dropped_bounds;
+
+    if (DiagId) {
+      emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
+                                IsUncheckedType, Kind);
+      return true;
+    }
   }
-  if (DiagId) {
-    emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
-                              IsUncheckedType, Kind);
-    return true;
-  }
+
   // TODO: produce better error messages when types for parameters, returns,
   // or variables have bounds mismatches embedded within them. The current
   // diagnostic will be "type mismatch"
@@ -12428,7 +12413,8 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
     }
   }
 
-  // Set a default bounds expression based on the type.
+  // If a declaration has no declared bounds, set the default bounds for types.
+  // that have default bounds other than bounds(unknown),
 
   if (!Expr) {
     // Handle parameters that originally had a checked array type.
@@ -12436,13 +12422,10 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
       if (PV->getOriginalType()->isCheckedArrayType())
         Expr = CreateCountForArrayType(PV->getOriginalType());
     }
-  }
 
-  if (!Expr) {
-    if (Ty->isExactlyCheckedPointerArrayType() || Ty->isIntegerType())
-      Expr = Context.getPrebuiltBoundsUnknown();
-    else if (Ty->isCheckedPointerNtArrayType())
-      Expr = Context.getPrebuiltCountZero();
+    if (!Expr)
+      if (Ty->isCheckedPointerNtArrayType())
+        Expr = Context.getPrebuiltCountZero();
   }
 
   // If this is a VarDecl, handle already existing bounds from a prior
