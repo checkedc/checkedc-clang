@@ -4703,12 +4703,6 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             HasAnyParameterBounds = true;
             Bounds = S.AbstractForFunctionType(Bounds, ParamInfo);
           }
-          else if (ParamTy->isCheckedPointerNtArrayType()) {
-            // _Nt_array_ptr parameters with no bounds have the default
-            // bounds of count(0).
-            HasAnyParameterBounds = true;
-            Bounds = S.Context.getPrebuiltCountZero();
-          }
           ParamBounds.push_back(Bounds);
 
           if (LangOpts.ObjCAutoRefCount && Param->hasAttr<NSConsumedAttr>()) {
@@ -4736,10 +4730,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             ReturnBounds = S.CreateInvalidBoundsExpr();
           else
             ReturnBounds = S.AbstractForFunctionType(ReturnBounds, ParamInfo);
-        } else if (T->isCheckedPointerNtArrayType()) {
-          // Return values with type _Nt_array_ptr and no bounds are given a
-          // default bounds of count(0).
-          ReturnBounds = S.CreateTypeBasedBounds(T, false);
+        } else {
+          if (T->isCheckedPointerNtArrayType())
+            ReturnBounds = Context.getPrebuiltCountZero();
         }
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are

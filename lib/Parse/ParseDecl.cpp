@@ -4082,15 +4082,16 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
         if (FD.BoundsExprTokens != nullptr)
           deferredBoundsExpressions.emplace_back(Field,
             std::move(FD.BoundsExprTokens));
-        else  if (InteropTypeBoundsAnnotation *BoundsAnnotation =
+
+        if (InteropTypeBoundsAnnotation *BoundsAnnotation =
             FD.BoundsAnnotation) {
           if (BoundsAnnotation->isInvalid())
             Actions.ActOnInvalidBoundsDecl(Field);
           else
             Actions.ActOnBoundsDecl(Field, BoundsAnnotation);
 	    } else
-           // Set a default bounds declaration, if necessary.
-           Actions.ActOnBoundsDecl(Field, nullptr);
+          // Set a default bounds declaration, if necessary.
+          Actions.ActOnBoundsDecl(Field, nullptr);
       };
 
       // Parse all the comma separated declarators.

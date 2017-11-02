@@ -8879,6 +8879,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
         const_cast<BoundsExpr *>(FT->getReturnBounds());
       DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
       BoundsExpr *DeclaredReturnBounds = FTI.getReturnBounds();
+
       // Check the return bounds on the type to determine if the bounds
       // expression is valid for the return type.  Construction of the function
       // type for the declarator checked whether the return bounds was valid for
@@ -12033,10 +12034,6 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
   ParmVarDecl *New = ParmVarDecl::Create(Context, DC, StartLoc, NameLoc, Name,
                                          Context.getAdjustedParameterType(T),
                                          TSInfo, SC, nullptr);
-  if (T->isCheckedArrayType()) {
-     New->setBoundsExpr(CreateCountForArrayType(T));
-  }
-
   // Parameters can not be abstract class types.
   // For record types, this is done by the AbstractClassUsageDiagnoser once
   // the class has been completely parsed.

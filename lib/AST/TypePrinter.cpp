@@ -742,8 +742,7 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
 
       print(T->getParamType(i), OS, StringRef());
       if (HasBounds) {
-        const BoundsExpr *const Bounds = T->getParamBounds(i);
-        if (Bounds && !Bounds->isCompilerGenerated()) {
+        if (const BoundsExpr *const Bounds = T->getParamBounds(i)) {
           OS << " : ";
           Bounds->printPretty(OS, nullptr, Policy);
         }

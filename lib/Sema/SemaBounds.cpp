@@ -796,11 +796,6 @@ namespace {
 
           BoundsExpr *B = D->getBoundsExpr();
 
-          // Null-terminated pointers with no bounds get a zero-element
-          // bounds.
-          if (!B && DR->getType()->isCheckedPointerNtArrayType())
-            B = Context.getPrebuiltCountZero();
-
           if (!B || B->isUnknown())
             return CreateBoundsAlwaysUnknown();
 
@@ -858,12 +853,6 @@ namespace {
             return CreateBoundsInferenceError();
 
           BoundsExpr *B = F->getBoundsExpr();
-
-          // Null-terminated pointers with no bounds get a zero-element
-          // bounds.
-          if (!B && F->getType()->isCheckedPointerNtArrayType())
-            B = Context.getPrebuiltCountZero();
-
           if (!B || B->isUnknown())
             return CreateBoundsAlwaysUnknown();
 

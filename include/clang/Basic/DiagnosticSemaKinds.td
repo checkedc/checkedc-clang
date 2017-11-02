@@ -9261,20 +9261,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{function redeclaration added bounds for parameter|function "
     "redeclaration added return bounds|variable redeclaration added bounds}0">;
 
-  def err_decl_added_bounds_differ_from_inferred : Error<
-    "%select{function redeclaration added bounds for parameter|function "
-    "redeclaration added return bounds|variable redeclaration added bounds}0; "
-    "declared bounds differ from prior inferred bounds">;
-
   def err_decl_dropped_bounds : Error<
     "%select{function redeclaration dropped bounds for parameter|function "
     "redeclaration dropped return bounds|variable redeclaration dropped "
     "bounds}0">;
-
-  def err_decl_dropped_bounds_differ_from_declared : Error<
-    "%select{function redeclaration dropped bounds for parameter|function "
-    "redeclaration dropped return bounds|variable redeclaration dropped "
-    "bounds}0; inferred bounds differ from prior declared bounds">;
 
   def err_conflicting_bounds : Error<"conflicting bounds for %0">;
 
