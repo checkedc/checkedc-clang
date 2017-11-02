@@ -476,6 +476,13 @@ namespace {
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
+      const IncompleteArrayType *IAT = Context.getAsIncompleteArrayType(QT);
+      if (IAT) {
+        if (IAT->getKind() == CheckedArrayKind::NtChecked)
+          return Context.getPrebuiltCountZero();
+        else
+          return CreateBoundsAlwaysUnknown();
+      }
       const ConstantArrayType *CAT = Context.getAsConstantArrayType(QT);
       if (!CAT)
         return CreateBoundsAlwaysUnknown();
