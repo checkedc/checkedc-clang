@@ -1425,6 +1425,28 @@ namespace {
     CheckBoundsDeclarations(Sema &S) : S(S),
       DumpBounds(S.getLangOpts().DumpInferredBounds) {}
 
+    // RecursiveASTVisitor visits both syntactic and semantic forms of
+    // initializer lists, causing AST nodes used in both forms to be visited
+    // twice by default. The statement in RecursiveASTVisitors that AST nodes
+    // are visit exactly once isn't quite correct.
+    //
+    // To fix this, override the traverse method for initializer lists to visit
+    // only the semantic form. That's what we need to check to verify
+    // correctness of bounds information.  We also want to avoid duplicate error
+    // messages and for sanity checking, we assert elsewhere in this class that
+    // bounds information is only computed once.
+    bool TraverseInitListExpr(InitListExpr *S,
+                              DataRecursionQueue *Q = nullptr) {
+      InitListExpr *SemaForm = S->isSemanticForm() ? S : S->getSemanticForm();
+      if (SemaForm) {
+        for (Stmt *SubStmt : SemaForm->children()) {
+          if (!TraverseStmt(SubStmt, Q))
+            return false;
+        }
+      }
+      return true;
+    }
+
     bool VisitBinaryOperator(BinaryOperator *E) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
