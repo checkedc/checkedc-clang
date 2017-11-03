@@ -357,10 +357,17 @@ canWrite(std::string filePath, std::set<std::string> &iof, std::string b) {
 
 void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           std::set<std::string> &InOutFiles) {
+
   // Check if we are outputing to stdout or not, if we are, just output the
   // main file ID to stdout.
   if (Verbose)
     errs() << "Writing files out\n";
+
+  SmallString<254> baseAbs(BaseDir);
+  std::error_code ec = sys::fs::make_absolute(baseAbs);
+  assert(!ec);
+  sys::path::remove_filename(baseAbs);
+  std::string base = baseAbs.str();
 
   SourceManager &SM = C.getSourceManager();
   if (OutputPostfix == "-") {
@@ -396,9 +403,9 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
             if (Verbose)
               errs() << "could not make path absolote\n";
           } else
-            feAbsS = feAbs.str();
+            feAbsS = sys::path::remove_leading_dotslash(feAbs.str());
 
-          if(canWrite(feAbsS, InOutFiles, BaseDir)) {
+          if(canWrite(feAbsS, InOutFiles, base)) {
             std::error_code EC;
             raw_fd_ostream out(nFile, EC, sys::fs::F_None);
 
@@ -699,7 +706,6 @@ int main(int argc, const char **argv) {
       inoutPaths.insert(abs_path.str());
   }
 
-  //if (OutputPostfix == "-" && RewriteHeaders == true) {
   if (OutputPostfix == "-" && inoutPaths.size() > 1) {
     errs() << "If rewriting more than one , can't output to stdout\n";
     return 1;
