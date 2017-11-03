@@ -9382,6 +9382,9 @@ def err_bounds_type_annotation_lost_checking : Error<
     "(expanded) declared bounds are '%0'">;
 
   def note_inferred_bounds : Note<
+    "inferred bounds are '%0'">;
+
+  def note_expanded_inferred_bounds : Note<
     "(expanded) inferred bounds are '%0'">;
 
   def err_modifying_expr_not_supported : Error<

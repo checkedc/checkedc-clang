@@ -4089,7 +4089,9 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
             Actions.ActOnInvalidBoundsDecl(Field);
           else
             Actions.ActOnBoundsDecl(Field, BoundsAnnotation);
-	     }
+	    } else
+          // Set a default bounds declaration, if necessary.
+          Actions.ActOnBoundsDecl(Field, nullptr);
       };
 
       // Parse all the comma separated declarators.
@@ -6573,37 +6575,43 @@ void Parser::ParseParameterDeclarationClause(
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.
       ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
-
-      // Parse an optional Checked C bounds expression or bounds-safe interface
-      // type annotation.  Bounds expressions must be delay parsed because they
-      // can refer to parameters declared after this one.
-      if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
-        ConsumeToken();
-        if (StartsBoundsExpression(Tok)) {
-          // Consume and store tokens until a bounds-like expression has been
-          // read or a parsing error has happened.  Store the tokens even if a
-          // parsing error occurs so that ParseBoundsExpression can generate
-          // the error message.  This way the error messages from parsing of bounds
-          // expressions will be the same or very similar regardless of whether
-          // parsing is deferred or not.
-          std::unique_ptr<CachedTokens> BoundsExprTokens{ new CachedTokens };
-          bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-          deferredBoundsExpressions.emplace_back(Param, std::move(BoundsExprTokens));
-          if (ParsingError)
-            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
-        }
+      // Handle Checked C bounds expression or bounds-safe interface type annotation.
+      if (getLangOpts().CheckedC) {
+        if (!Tok.is(tok::colon))
+          // There is no bounds expression or type annotation.  Set the default
+          // bounds expression, if any.
+          Actions.ActOnBoundsDecl(Param, nullptr);
         else {
-           // fall back to general code that eagerly parses a bounds expression
-           // bounds-safe interface type annotation
-          ExprResult BoundsAnnotation =
-            ParseBoundsExpressionOrInteropType(ParmDeclarator);
-          if (BoundsAnnotation.isInvalid()) {
-            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
-            Actions.ActOnInvalidBoundsDecl(Param);
+          ConsumeToken();
+          if (StartsBoundsExpression(Tok)) {
+            // Bounds expressions are delay parsed because they can refer to 
+            // parameters declared after this one.
+            //
+            // Consume and store tokens until a bounds-like expression has been
+            // read or a parsing error has happened.  Store the tokens even if a
+            // parsing error occurs so that ParseBoundsExpression can generate
+            // the error message.  This way the error messages from parsing of bounds
+            // expressions will be the same or very similar regardless of whether
+            // parsing is deferred or not.
+            std::unique_ptr<CachedTokens> BoundsExprTokens{ new CachedTokens };
+            bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
+            deferredBoundsExpressions.emplace_back(Param, std::move(BoundsExprTokens));
+            if (ParsingError)
+              SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
           }
-          else
-            Actions.ActOnBoundsDecl(Param,
-                                    cast<BoundsExpr>(BoundsAnnotation.get()));
+          else {
+             // Fall back to general code that eagerly parses a bounds expression
+             // bounds-safe interface type annotation.
+            ExprResult BoundsAnnotation =
+              ParseBoundsExpressionOrInteropType(ParmDeclarator);
+            if (BoundsAnnotation.isInvalid()) {
+              SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+              Actions.ActOnInvalidBoundsDecl(Param);
+            }
+            else
+              Actions.ActOnBoundsDecl(Param,
+                                      cast<BoundsExpr>(BoundsAnnotation.get()));
+          }
         }
       }
 

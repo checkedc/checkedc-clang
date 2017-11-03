@@ -2442,8 +2442,19 @@ public:
 private:
   QualType matchArrayCheckedness(QualType LHS, QualType RHS);
 
+  BoundsExpr *PrebuiltCountZero;
+  BoundsExpr *PrebuiltCountOne;
+  BoundsExpr *PrebuiltBoundsUnknown;
+
 public:
   bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
+
+  BoundsExpr *getPrebuiltCountZero();
+  BoundsExpr *getPrebuiltCountOne();
+  BoundsExpr *getPrebuiltBoundsUnknown();
+
+
+
 
   //===--------------------------------------------------------------------===//
   //                    Integer Predicates

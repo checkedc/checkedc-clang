@@ -756,7 +756,9 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       PrintingPolicy(LOpts), Idents(idents), Selectors(sels),
       BuiltinInfo(builtins), DeclarationNames(*this), ExternalSource(nullptr),
       Listener(nullptr), Comments(SM), CommentsLoaded(false),
-      CommentCommandTraits(BumpAlloc, LOpts.CommentOpts), LastSDM(nullptr, 0) {
+      CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
+      PrebuiltCountZero(nullptr), PrebuiltCountOne(nullptr),
+      PrebuiltBoundsUnknown(nullptr), LastSDM(nullptr, 0) {
   TUDecl = TranslationUnitDecl::Create(*this);
 }
 
@@ -8082,20 +8084,22 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (!IgnoreBounds) {
       const BoundsExpr *lReturnBounds = lproto->ReturnBounds;
       const BoundsExpr *rReturnBounds = rproto->ReturnBounds;
-      if (lReturnBounds && rReturnBounds) {
-        if (!EquivalentBounds(lReturnBounds, rReturnBounds))
+      if (EquivalentBounds(lReturnBounds, rReturnBounds))
+        returnBounds = lReturnBounds;
+      else {
+        // For unchecked return types, a return with
+        // bounds is compatible with a return without bounds.
+        // The merged type includes the bounds.
+        if (!retType->isUncheckedPointerType())
           return QualType();
-      } else if (lReturnBounds || rReturnBounds) {
-        if (retType->isCheckedPointerType())
-          return QualType();
-        if (lReturnBounds) {
+        if (lReturnBounds && !rReturnBounds) {
           returnBounds = lReturnBounds;
           allRTypes = false;
-        }
-        if (rReturnBounds) {
+        } else if (rReturnBounds && !lReturnBounds) {
           returnBounds = rReturnBounds;
           allLTypes = false;
-        }
+        } else
+          return QualType();
       }
     }
 
@@ -8128,21 +8132,22 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
       if (!IgnoreBounds && hasParamBounds) {
         const BoundsExpr *lBounds = lproto->getParamBounds(i);
         const BoundsExpr *rBounds = rproto->getParamBounds(i);
-        if (lBounds && rBounds) {
-          if (!EquivalentBounds(lBounds, rBounds))
-            return QualType();
+        if (EquivalentBounds(lBounds, rBounds))
           bounds.push_back(lBounds);
-        } else if (lBounds || rBounds) {
-          if (paramType->isCheckedPointerType())
+        else {
+          // For unchecked parameter types, a parameter with
+          // bounds is compatible with a parameter without bounds.
+          // The merged type includes the bounds.
+          if (!paramType->isUncheckedPointerType())
             return QualType();
-          if (lBounds) {
+          if (lBounds && !rBounds) {
             bounds.push_back(lBounds);
             allRTypes = false;
-          }
-          if (rBounds) {
+          } else if (rBounds && !lBounds) {
             bounds.push_back(rBounds);
             allLTypes = false;
-          }
+          } else
+            return QualType();
         }
       }
     }
@@ -8921,8 +8926,57 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
 }
 
 bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2) {
-  Lexicographic::Result Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
-  return Cmp == Lexicographic::Result::Equal;
+  if (Expr1 && Expr2) {
+    Lexicographic::Result Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
+    return Cmp == Lexicographic::Result::Equal;
+  }
+
+  // One or both bounds expressions are null pointers.
+  if (Expr1 && !Expr2)
+    return Expr1->isUnknown();
+
+  if (!Expr1 && Expr2)
+    return Expr2->isUnknown();
+
+ // Both must be null pointers.
+  return true;
+}
+
+BoundsExpr *ASTContext::getPrebuiltCountZero() {
+  if (!PrebuiltCountZero) {
+    llvm::APInt Zero(getIntWidth(IntTy), 0);
+    IntegerLiteral *ZeroLiteral = new (*this) IntegerLiteral(*this, Zero, IntTy, SourceLocation());
+    PrebuiltCountZero =
+      new (*this) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                  ZeroLiteral, SourceLocation(), SourceLocation());
+    PrebuiltCountZero->setCompilerGenerated(true);
+  }
+  return PrebuiltCountZero;
+}
+
+BoundsExpr *ASTContext::getPrebuiltCountOne() {
+  if (!PrebuiltCountOne) {
+    llvm::APInt One(getIntWidth(IntTy), 1);
+    IntegerLiteral *OneLiteral = new (*this) IntegerLiteral(*this, One, IntTy,
+                                                            SourceLocation());
+    PrebuiltCountOne =
+      new (*this) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                  OneLiteral, SourceLocation(),
+                                  SourceLocation());
+    PrebuiltCountOne->setCompilerGenerated(true);
+  }
+  return PrebuiltCountOne;
+
+}
+
+BoundsExpr *ASTContext::getPrebuiltBoundsUnknown() {
+  if (!PrebuiltBoundsUnknown) {
+    PrebuiltBoundsUnknown =
+      new (*this) NullaryBoundsExpr(BoundsExpr::Kind::Unknown,
+                                    SourceLocation(), SourceLocation());
+    PrebuiltBoundsUnknown->setCompilerGenerated(true);
+  }
+  return PrebuiltBoundsUnknown;
 }
 
 //===----------------------------------------------------------------------===//

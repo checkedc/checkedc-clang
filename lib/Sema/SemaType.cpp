@@ -4730,6 +4730,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             ReturnBounds = S.CreateInvalidBoundsExpr();
           else
             ReturnBounds = S.AbstractForFunctionType(ReturnBounds, ParamInfo);
+        } else {
+          if (T->isCheckedPointerNtArrayType())
+            ReturnBounds = Context.getPrebuiltCountZero();
         }
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are

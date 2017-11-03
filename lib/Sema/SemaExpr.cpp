@@ -8245,8 +8245,8 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
 
   // See if the constant needs to be retyped.
   QualType RHSType = RHS.get()->getType();
-  const PointerType *RHSPointerType = dyn_cast<PointerType>(RHSType);
-  const PointerType *LHSPointerType = dyn_cast<PointerType>(LHSType);
+  const PointerType *RHSPointerType = RHSType->getAs<PointerType>();
+  const PointerType *LHSPointerType = LHSType->getAs<PointerType>();
 
   if (!LHSType->isCheckedPointerType() || !RHSPointerType ||
       LHSPointerType->getKind() == RHSPointerType->getKind())
@@ -8257,7 +8257,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
   // Retype the constant.
 
   // For checked null-terminated pointers, only retype the constant if the
-  // type would be a valid null-termianted ponter type.
+  // type would be a valid null-terminated ponter type.
   if (LHSType->isCheckedPointerNtArrayType() && !RHSPointee->isIntegerType() &&
       !RHSPointee->isPointerType())
     return false;

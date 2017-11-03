@@ -32,12 +32,17 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
                                       const BoundsExpr *Bounds,
                                       bool isParam) {
   // Nothing to do.
-  if (Ty.isNull() || Ty->isCheckedArrayType() || Ty->isCheckedPointerType())
+  if (Ty.isNull() || Ty->isCheckedArrayType() ||
+      Ty->isCheckedPointerType())
+    return Ty;
+
+  if (Bounds == nullptr)
+    return QualType();
+
+  if (Bounds->isUnknown())
     return Ty;
 
   QualType ResultType = QualType();
-  if (Bounds == nullptr)
-    return ResultType;
 
   // Parameter types that are array types are adusted to be
   // pointer types.  We'll work with the original type instead.
@@ -53,7 +58,7 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
     case BoundsExpr::Kind::Invalid:
       break;
     case BoundsExpr::Kind::Unknown:
-      llvm_unreachable("should not be getting interop type for bounds(unknown)");
+      llvm_unreachable("should already have been handled");
       break;
     case BoundsExpr::Kind::InteropTypeAnnotation: {
       const InteropTypeBoundsAnnotation *Annot =

@@ -3451,6 +3451,10 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
     Loc = New->getLocation();
   S.Diag(Loc, DiagId) << (unsigned) Kind;
 
+  if (New->getBoundsExpr() && New->getBoundsExpr()->isCompilerGenerated()) {
+    S.Diag(Loc, diag::note_inferred_bounds)
+      << const_cast<BoundsExpr *>(New->getBoundsExpr());
+  }
   // Emit a note pointing to the prior bounds or declaration. Try to point
   // at the relevant bounds expression if possible so that the user has the
   // right context for understanding the error.  If there isn't one, fall
@@ -3497,8 +3501,15 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
   }
 
   if (PrevBoundsExpr) {
-      int NoteId = diag::note_previous_bounds_decl;
-      S.Diag(PrevBoundsExpr->getStartLoc(), NoteId);
+    if (!PrevBoundsExpr->isCompilerGenerated())
+      S.Diag(PrevBoundsExpr->getStartLoc(), diag::note_previous_bounds_decl);
+    else {
+      // If the bounds were inferred by the compiler, there is nothing to point to.
+      // Print notes pointing at the previous declaration and giving the bounds.
+      S.Diag(Old->getLocation(), diag::note_previous_decl) << Old;
+      S.Diag(Old->getLocation(), diag::note_inferred_bounds)
+          << const_cast<BoundsExpr *>(PrevBoundsExpr);
+    }
   } else if  (const FunctionDecl *OldDecl = dyn_cast<FunctionDecl>(Old)) {
     const FunctionDecl *NewDecl = dyn_cast<FunctionDecl>(New);
     if (NewDecl) {
@@ -3522,9 +3533,9 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 // report the error.  If there is no bounds expression, this will be an invalid
 // source location. (We don't use the location from the new bounds expression
 // beacuse it is canonicalized and may not have valid line information.)
-// * OldBounds and NewBounds are canoncialized bounds expressions.  For
+// * OldBounds and NewBounds are canonicalized bounds expressions.  For
 // parameters and returns, they are bounds expressions from function types.
-// It is important to use canonicalized bound expressions these for bounds
+// It is important to use these canonicalized bound expressions for bounds
 // comparisons.
 // * OldDecl and NewDecl provide the declarations for use in error messages.
 // OldDecl may have a bounds expression attached to it.  A bounds expression
@@ -3544,24 +3555,26 @@ static bool diagnoseBoundsError(Sema &S,
                                 QualType OldType,
                                 QualType NewType,
                                 Sema::CheckedCBoundsError Kind) {
+  if (S.Context.EquivalentBounds(OldBounds, NewBounds))
+    return false;
+
+  if ((OldBounds && OldBounds->isInvalid()) ||
+      (NewBounds && NewBounds->isInvalid()))
+    // There must have been an earlier error involving
+    // bounds already diagnosed.
+    return true;
+
   int DiagId = 0;
   bool IsUncheckedType =
     (OldType->isUncheckedPointerType() && NewType->isUncheckedPointerType()) ||
     (OldType->isUncheckedArrayType() && NewType->isUncheckedArrayType());
 
-  if (OldBounds && NewBounds) {
-    if (OldBounds->isInvalid() || NewBounds->isInvalid())
-      // There must have been an earlier error involving
-      // bounds already diagnosed.
-      return true;
+  if (OldBounds && NewBounds)
+    DiagId = diag::err_decl_conflicting_bounds;
+  else if (!IsUncheckedType)
+    DiagId = NewBounds ? diag::err_decl_added_bounds :
+                         diag::err_decl_dropped_bounds;
 
-    if (!S.Context.EquivalentBounds(OldBounds, NewBounds))
-       DiagId = diag::err_decl_conflicting_bounds;
-  } else if (OldBounds || NewBounds) {
-    if (!IsUncheckedType)
-      DiagId = NewBounds ? diag::err_decl_added_bounds :
-                           diag::err_decl_dropped_bounds;
-  }
   if (DiagId) {
     emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
                               IsUncheckedType, Kind);
@@ -12018,10 +12031,6 @@ ParmVarDecl *Sema::CheckParameter(DeclContext *DC, SourceLocation StartLoc,
   ParmVarDecl *New = ParmVarDecl::Create(Context, DC, StartLoc, NameLoc, Name,
                                          Context.getAdjustedParameterType(T),
                                          TSInfo, SC, nullptr);
-  if (T->isCheckedArrayType()) {
-     New->setBoundsExpr(CreateCountForArrayType(T));
-  }
-
   // Parameters can not be abstract class types.
   // For record types, this is done by the AbstractClassUsageDiagnoser once
   // the class has been completely parsed.
@@ -12327,35 +12336,10 @@ bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
   return result;
 }
 
-// Attach a bounds expression to a variable declaration.  First check that the
-// bounds expression does not conflict with the bounds expression for the prior
-// declaration, if there is a prior declaration.
-static void HandleVarDeclBounds(Sema &S, VarDecl *D, BoundsExpr *Expr) {
-  VarDecl *Old = D->getPreviousDecl();
-  if (!Old) {
-    // There is no prior declaration, so there is nothing more to do.
-    D->setBoundsExpr(Expr);
-    return;
-  }
-  SourceLocation BoundsLoc = Expr ? Expr->getStartLoc() : SourceLocation();
-  BoundsExpr *OldBounds = Old->getBoundsExpr();
-  if (diagnoseBoundsError(S, BoundsLoc, OldBounds, Expr,  Old, D,
-                          Old->getType(), D->getType(),
-                          Sema::CheckedCBoundsError::CCBE_Variable)) {
-    S.ActOnInvalidBoundsDecl(D);
-    return;
-  }
-
-  if (OldBounds && !Expr)
-    Expr = OldBounds;
-
-  D->setBoundsExpr(Expr);
-}
-
 // Attach a Checked C bounds expression to a declaration.  If there is no
 // bounds expression, Expr is null.  (This method needs to be called even when
-// a bounds expression is omitted for a variable because dropping a bounds
-// expression may be an error for a variable redeclaration).
+// a bounds expression is omitted for a declaration because there may be a
+// default bounds expression for a type).
 // - Check that the bounds expression is valid for the declarator.
 //   It must meet typing requirements and be valid for the declaration.
 // - For VarDecls, make sure that a bounds expression on a redeclaration
@@ -12369,6 +12353,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
   if (Ty.isNull())
     return;
 
+  VarDecl *VD = dyn_cast<VarDecl>(D);
   if (Expr) {
     NonModifyingContext req = NMC_Unknown;
     if (isa<RangeBoundsExpr>(Expr)) {
@@ -12382,54 +12367,79 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
       ActOnInvalidBoundsDecl(D);
       return;
     }
-  }
 
-  if (Expr && Expr->isInvalid()) {
-    D->setBoundsExpr(Expr);
-    return;
-  }
-
-  VarDecl *VD = dyn_cast<VarDecl>(D);
-  if (Expr && VD && VD->isLocalVarDecl()) {
-    // - Local variables cannot have bounds-safe interface type annotations.
-    // - Local variables with unchecked pointer or array types cannot have
-    // bounds declarations. For bounds declarations, this reduces the chance
-    // that programmers accidentally declare variables with unchecked types
-    // to have bounds declarations and think uses of the variables will be
-    // bounds checked.
-    //
-    // Other declarations (parameters, globally-scoped variables, and members)
-    // can have unchecked pointer or array types with bounds declarations
-    // because that is a way bounds-safe interfaces are declared.
-    int DiagId = 0;
-    if (Expr->isInteropTypeAnnotation())
-      DiagId = diag::err_bounds_safe_interface_type_annotation_local_variable;
-    else {
-      if (Ty->isPointerType() && !Ty->isCheckedPointerType())
-        DiagId = diag::err_bounds_declaration_unchecked_local_pointer;
-      else if (Ty->isArrayType() && !Ty->isCheckedArrayType())
-        DiagId = diag::err_bounds_declaration_unchecked_local_array;
+    if (Expr->isInvalid()) {
+      D->setBoundsExpr(Expr);
+      return;
     }
 
-    if (DiagId) {
-      Diag(Expr->getLocStart(), DiagId) << D;
+    if (VD && VD->isLocalVarDecl()) {
+      // - Local variables cannot have bounds-safe interface type annotations.
+      // - Local variables with unchecked pointer or array types cannot have
+      // bounds declarations. For bounds declarations, this reduces the chance
+      // that programmers accidentally declare variables with unchecked types
+      // to have bounds declarations and think uses of the variables will be
+      // bounds checked.
+      //
+      // Other declarations (parameters, globally-scoped variables, and members)
+      // can have unchecked pointer or array types with bounds declarations
+      // because that is a way bounds-safe interfaces are declared.
+      int DiagId = 0;
+      if (Expr->isInteropTypeAnnotation())
+        DiagId = diag::err_bounds_safe_interface_type_annotation_local_variable;
+      else {
+        if (Ty->isPointerType() && !Ty->isCheckedPointerType())
+          DiagId = diag::err_bounds_declaration_unchecked_local_pointer;
+        else if (Ty->isArrayType() && !Ty->isCheckedArrayType())
+          DiagId = diag::err_bounds_declaration_unchecked_local_array;
+      }
+
+      if (DiagId) {
+        Diag(Expr->getLocStart(), DiagId) << D;
+        ActOnInvalidBoundsDecl(D);
+        return;
+      }
+    }
+
+    if (DiagnoseBoundsDeclType(Ty, D, Expr, /*IsReturnBounds=*/false)) {
       ActOnInvalidBoundsDecl(D);
       return;
     }
   }
 
-  if (Expr && DiagnoseBoundsDeclType(Ty, D, Expr, /*IsReturnBounds=*/false)) {
-    ActOnInvalidBoundsDecl(D);
-    return;
+  // If a declaration has no declared bounds, set the default bounds for types.
+  // that have default bounds other than bounds(unknown),
+
+  if (!Expr) {
+    // Handle parameters that originally had a checked array type.
+    if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
+      if (PV->getOriginalType()->isCheckedArrayType())
+        Expr = CreateCountForArrayType(PV->getOriginalType());
+    }
+
+    if (!Expr)
+      if (Ty->isCheckedPointerNtArrayType())
+        Expr = Context.getPrebuiltCountZero();
   }
 
-  // Handle VarDecls specially. There needs to be a check that the bounds
-  // do not conflict with bounds for a prior declaration (if there is one)
-  // before attaching the bounds.
-  if (VD)
-    HandleVarDeclBounds(*this, VD, Expr);
-  else
-    D->setBoundsExpr(Expr);
+  // If this is a VarDecl, handle already existing bounds from a prior
+  // declaration, if there is a prior declaration.
+  if (VD) {
+    if (VarDecl *Old = VD->getPreviousDecl()) {
+      BoundsExpr *OldBounds = Old->getBoundsExpr();
+      SourceLocation BoundsLoc = Expr ? Expr->getStartLoc() : SourceLocation();
+      if (diagnoseBoundsError(*this, BoundsLoc, Old->getBoundsExpr(), Expr,
+                              Old, D, Old->getType(), D->getType(),
+                              Sema::CheckedCBoundsError::CCBE_Variable)) {
+        ActOnInvalidBoundsDecl(D);
+        return;
+      }
+      if (!Expr)
+        Expr = OldBounds;
+    }
+  }
+
+  D->setBoundsExpr(Expr);
 }
 
 void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {

@@ -391,7 +391,7 @@ namespace {
     }
 
     // If we have an error in our bounds inference that we can't
-    // recover from, bounds(none) is our error value
+    // recover from, bounds(unknown) is our error value
     BoundsExpr *CreateBoundsInferenceError() {
       return CreateBoundsUnknown();
     }
@@ -413,7 +413,7 @@ namespace {
     BoundsExpr *CreateBoundsAllowedButNotComputed() {
       return CreateBoundsAny();
     }
-    // This is for the opposite case, where we want to return bounds(none)
+    // This is for the opposite case, where we want to return bounds(unknown)
     // at the moment, but we want to re-visit these parts of inference
     // and in some cases compute bounds.
     BoundsExpr *CreateBoundsNotAllowedYet() {
@@ -476,12 +476,25 @@ namespace {
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
+      const IncompleteArrayType *IAT = Context.getAsIncompleteArrayType(QT);
+      if (IAT) {
+        if (IAT->getKind() == CheckedArrayKind::NtChecked)
+          return Context.getPrebuiltCountZero();
+        else
+          return CreateBoundsAlwaysUnknown();
+      }
       const ConstantArrayType *CAT = Context.getAsConstantArrayType(QT);
       if (!CAT)
         return CreateBoundsAlwaysUnknown();
 
-      IntegerLiteral *Size = CreateIntegerLiteral(CAT->getSize());
-
+      llvm::APInt size = CAT->getSize();
+      // Null-terminated arrays of size n have bounds of count(n - 1).
+      // The null terminator is excluded from the count.
+      if (CAT->getKind() == CheckedArrayKind::NtChecked) {
+        assert(size.uge(1) && "must have at least one element");
+        size = size - 1;
+      }
+      IntegerLiteral *Size = CreateIntegerLiteral(size);
       CountBoundsExpr *CBE =
          new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                        Size, SourceLocation(),
@@ -700,6 +713,8 @@ namespace {
       }
     }
 
+    // Given a Ptr type or a bounds-safe interface type, create the
+    // bounds implied by the type.
     BoundsExpr *CreateTypeBasedBounds(QualType Ty, bool IsParam) {
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
@@ -708,8 +723,12 @@ namespace {
         if (Ty->isFunctionPointerType())
           return CreateBoundsEmpty();
         else return CreateSingleElementBounds();
-      } else if (Ty->isCheckedArrayType() && IsParam)
+      } else if (Ty->isCheckedArrayType() && IsParam) {
         return CreateBoundsForArrayType(Ty);
+      } else if (Ty->isCheckedPointerNtArrayType()) {
+        // Null-terminated pointers get a zero element bounds.
+        return Context.getPrebuiltCountZero();
+      }
 
       return CreateBoundsEmpty();
     }
@@ -732,7 +751,6 @@ namespace {
         } else
           Base = E;
         return CreateSingleElementBounds(Base);
-
       } else if (Ty->isCheckedArrayType() && IsParam) {
         assert(IsBoundsSafeInterface && "unexpected checked array type for parameter");
         assert(E->isLValue());
@@ -740,6 +758,9 @@ namespace {
         ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
         Base->setBoundsSafeInterface(IsBoundsSafeInterface);
         return ExpandToRange(Base, BE);
+      } else if (Ty->isCheckedPointerNtArrayType()) {
+        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
+        return ExpandToRange(Base, Context.getPrebuiltCountZero());
       }
    
        return CreateBoundsEmpty();
@@ -796,6 +817,36 @@ namespace {
 
            Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
            return ExpandToRange(Base, B);
+        }
+        case Expr::UnaryOperatorClass: {
+          UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
+          if (!UO) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsInferenceError();
+          }
+          // Currently, we don't know the bounds of a pointer returned
+          // by a pointer dereference, unless it is a _Ptr type (handled
+          // earlier) or an _Nt_array_ptr.
+          if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
+              UO->getType()->isCheckedPointerNtArrayType())
+              return CreateTypeBasedBounds(UO, UO->getType(), false, false);
+          return CreateBoundsAlwaysUnknown();
+        }
+        case Expr::ArraySubscriptExprClass: {
+          //  e1[e2] is a synonym for *(e1 + e2).  The bounds are
+          // the bounds of e1 + e2, which reduces to the bounds
+          // of whichever subexpression has pointer type.
+          ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
+          if (!AS) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsInferenceError();
+          }
+          // Currently, we don't know the bounds of a pointer returned
+          // by a subscripting operation, unless it is a _Ptr type (handled
+          // earlier) or an _Nt_array_ptr.
+          if (AS->getType()->isCheckedPointerNtArrayType())
+            return CreateTypeBasedBounds(AS, AS->getType(), false, false);
+          return CreateBoundsAlwaysUnknown();
         }
         case Expr::MemberExprClass: {
           MemberExpr *M = dyn_cast<MemberExpr>(E);
@@ -1050,7 +1101,7 @@ namespace {
               return LHSBounds;
             if (!LHSBounds->isUnknown() && !RHSBounds->isUnknown()) {
               // TODO: Check if LHSBounds and RHSBounds are equal.
-              // if so, return one of them. If not, return bounds(none)
+              // if so, return one of them. If not, return bounds(unknown)
               return CreateBoundsAlwaysUnknown();
             }
             if (LHSBounds->isUnknown() && RHSBounds->isUnknown())
@@ -1089,7 +1140,7 @@ namespace {
               PtrTy->getPointeeType()->getAs<FunctionProtoType>();
             if (!CalleeTy)
               // K&R functions have no prototype, and we cannot perform
-              // inference on them, so we return bounds(none) for their results.
+              // inference on them, so we return bounds(unknown) for their results.
               return CreateBoundsAlwaysUnknown();
 
             BoundsExpr *FunBounds =
@@ -1352,7 +1403,7 @@ namespace {
       if (SrcBounds->isAny())
         return true;
 
-      // target bounds(none) implied by any other bounds.
+      // target bounds(unknown) implied by any other bounds.
       if (DeclaredBounds->isUnknown())
         return true;
 
@@ -1374,7 +1425,7 @@ namespace {
           << Target->getSourceRange() << Src->getSourceRange();
         S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
           << DeclaredBounds << DeclaredBounds->getSourceRange();
-        S.Diag(Src->getExprLoc(), diag::note_inferred_bounds)
+        S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
           << SrcBounds << Src->getSourceRange();
       }
     }
@@ -1395,7 +1446,7 @@ namespace {
         S.Diag(ArgLoc, diag::warn_argument_bounds_invalid) << (ParamNum + 1)
           << Arg->getSourceRange();
         S.Diag(ArgLoc, diag::note_expected_argument_bounds) << ExpectedArgBounds;
-        S.Diag(Arg->getExprLoc(), diag::note_inferred_bounds)
+        S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
           << ArgBounds << Arg->getSourceRange();
       }
     }
@@ -1416,7 +1467,7 @@ namespace {
           << D->getLocation() << Src->getSourceRange();
         S.Diag(D->getLocation(), diag::note_declared_bounds)
           << NormalizedBounds << D->getLocation();
-        S.Diag(Src->getExprLoc(), diag::note_inferred_bounds)
+        S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
           << SrcBounds << Src->getSourceRange();
       }
   }
@@ -1548,6 +1599,7 @@ namespace {
         }
 
         const BoundsExpr *ParamBounds = FuncProtoTy->getParamBounds(i);
+
         if (!ParamBounds)
           continue;
 
@@ -1594,7 +1646,7 @@ namespace {
         return true;
       }
 
-      // If inferred bounds of e1 are bounds(none), compile-time error.
+      // If inferred bounds of e1 are bounds(unknown), compile-time error.
       // If inferred bounds of e1 are bounds(any), no runtime checks.
       // Otherwise, the inferred bounds is bounds(lb, ub).
       // bounds of cast operation is bounds(e2, e3).
@@ -1683,9 +1735,15 @@ namespace {
          DeclaredBounds->isUnknown())
        return true;
 
-     // If there is an initializer, check that the initializer meets the bounds
-     // requirements for the variable.
-     if (Expr *Init = D->getInit()) {
+     // TODO: for array types, check that any declared bounds at the point
+     // of initialization are true based on the array size.
+
+     // If there is a scalar initializer, check that the initializer meets the bounds
+     // requirements for the variable.  For non-scalar types (arrays, structs, and
+     // unions), the amount of storage allocated depends on the type, so we don't
+     // to check the initializer bounds.
+     Expr *Init = D->getInit();
+     if (Init && D->getType()->isScalarType()) {
        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
        BoundsExpr *InitBounds = S.InferRValueBounds(Init);
        if (InitBounds->isUnknown()) {
