@@ -459,7 +459,7 @@ namespace {
 
     // Determine if the mathemtical value of I (an unsigned integer) fits within
     // the range of Ty, a signed integer type.  APInt requires that bitsizes
-    // match exactly, so if it does, fit, return an integer via Result with
+    // match exactly, so if I does fit, return an APInt via Result with
     // exactly the bitsize of Ty.
     bool Fits(QualType Ty, const llvm::APInt &I, llvm::APInt &Result) {
       assert(Ty->isSignedIntegerType());
