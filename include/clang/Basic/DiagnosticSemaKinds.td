@@ -9378,6 +9378,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     DefaultIgnore,
     InGroup<CheckBoundsDecls>;
 
+  def error_bounds_declaration_invalid : Error<
+    "declared bounds for %1 are invalid after "
+    "%select{assignment|initialization}0">;
+
   def note_declared_bounds : Note<
     "(expanded) declared bounds are '%0'">;
 
@@ -9395,6 +9399,12 @@ def err_bounds_type_annotation_lost_checking : Error<
     "argument may not meet declared bounds for %ordinal0 parameter">,
     DefaultIgnore,
     InGroup<CheckBoundsDecls>;
+
+  def error_argument_bounds_invalid : Error<
+    "argument does not meet declared bounds for %ordinal0 parameter">;
+
+  def note_bounds_too_narrow : Note<
+    "destination bounds are wider than the source bounds">;
 
   def note_expected_argument_bounds : Note<
     "(expanded) expected argument bounds are '%0'">;

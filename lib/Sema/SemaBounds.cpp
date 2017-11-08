@@ -30,9 +30,13 @@
 //    numbers.
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/CanonBounds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/SmallString.h"
 #include "TreeTransform.h"
+
+
 
 using namespace clang;
 using namespace sema;
@@ -449,8 +453,10 @@ namespace {
 
   private:
     Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E) {
+      // Synthesize some dummy type source source information.
+      TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);
       return CStyleCastExpr::Create(Context, Target, ExprValueKind::VK_RValue,
-                                      CK, E, nullptr, nullptr, SourceLocation(),
+                                      CK, E, nullptr, DI, SourceLocation(),
                                       SourceLocation());
     }
 
@@ -1394,20 +1400,197 @@ namespace {
       return false;
     }
 
+    enum class ProofResult {
+      True,  // Definitely provable.
+      False, // Definitely false (an error)
+      Maybe  // We're not sure yet.
+    };
+
+    class ConstantSizedRange {
+    private:
+      Sema &S;
+      const Expr *Base;
+      llvm::APSInt LowerOffset;
+      llvm::APSInt UpperOffset;
+
+    public:
+      ConstantSizedRange(Sema &S) : S(S), Base(nullptr), LowerOffset(1, true),
+        UpperOffset(1, true) {
+      }
+
+      ConstantSizedRange(Sema &S, const BoundsExpr *Base,
+                         llvm::APSInt &LowerOffset,
+                         llvm::APSInt &UpperOffset) :
+        S(S), Base(Base), LowerOffset(LowerOffset), UpperOffset(UpperOffset) {
+      }
+
+      ProofResult InRange(ConstantSizedRange &R) {
+        if (Lexicographic(S.Context, nullptr).CompareExpr(Base, R.Base) ==
+            Lexicographic::Result::Equal) {
+          if (LowerOffset <= R.LowerOffset && UpperOffset >= R.UpperOffset)
+            return ProofResult::True;
+          else
+            return ProofResult::False;
+        }
+        return ProofResult::Maybe;
+      }
+
+      llvm::APSInt GetWidth() {
+        return UpperOffset - LowerOffset;
+      }
+
+      void SetBase(const Expr *B) {
+        Base = B;
+      }
+
+      void SetLower(llvm::APSInt &Lower) {
+        LowerOffset = Lower;
+      }
+
+      void SetUpper(llvm::APSInt &Upper) {
+        UpperOffset = Upper;
+      }
+
+      void Dump(raw_ostream &OS) {
+        OS << "ConstantRange:\n";
+        OS << "Base: ";
+        if (Base)
+          Base->dump(OS);
+        else
+          OS << "nullptr\n";
+        SmallString<12> Str1;
+        SmallString<12> Str2;
+        LowerOffset.toString(Str1);
+        UpperOffset.toString(Str2);
+        OS << "Lower offset:" << Str1 << "\nUpper offset:" << Str2 << "\n";
+      }
+    };
+
+    bool SplitIntoBaseAndOffset(const Expr *E, unsigned PointerWidth,
+                                const Expr *&Base, llvm::APSInt &Offset) {
+      Base = E->IgnoreParens();
+      if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Base)) {
+        if (BO->isAdditiveOp()) {
+          Expr *Other = nullptr;
+          if (BO->getLHS()->getType()->isPointerType()) {
+            Base = BO->getLHS();
+            Other = BO->getRHS();
+          } else if (BO->getRHS()->getType()->isPointerType()) {
+            Base = BO->getRHS();
+            Other = BO->getLHS();
+          } else
+            return false;
+          assert(Other->getType()->isIntegerType());
+          if (Other->isIntegerConstantExpr(Offset, S.Context)) {
+            // Widen the integer to the number of bits in a pointer.
+            if (Offset.getBitWidth() > PointerWidth)
+              return false;
+            else if (Offset.getBitWidth() < PointerWidth)
+              Offset = Offset.extend(PointerWidth);
+            // If the offset is an unsigned integer, convert it to a signed integer.
+            if (Offset.isUnsigned()) {
+              if (Offset > llvm::APSInt(Offset.getSignedMaxValue(PointerWidth)))
+                return false;
+              Offset = llvm::APSInt(Offset, false);
+            }
+            // Normalize the operation by negating the offset of necessary.
+            if (BO->getOpcode() == BO_Sub)
+              Offset = llvm::APSInt(PointerWidth, false) - Offset;
+            uint64_t ElemBitSize = S.Context.getTypeSize(Base->getType()->getPointeeOrArrayElementType());
+            uint64_t ElemSize = S.Context.toCharUnitsFromBits(ElemBitSize).getQuantity();
+            llvm::APSInt ElemInt = llvm::APSInt(llvm::APInt(PointerWidth, ElemSize), false);
+            bool Overflow;
+            Offset = Offset.smul_ov(ElemInt, Overflow);
+            if (Overflow)
+              return false;
+            return true;
+          }
+          // It wasn't an integer constant.
+          return false;
+        }
+      }
+      Offset = llvm::APSInt(PointerWidth, false);
+      return true;
+    }
+
+    bool CreateConstantRange(const BoundsExpr *Bounds, ConstantSizedRange *R) {
+      switch (Bounds->getKind()) {
+        case BoundsExpr::Kind::Invalid:
+        case BoundsExpr::Kind::Unknown:
+        case BoundsExpr::Kind::Any:
+          return false;
+        case BoundsExpr::Kind::InteropTypeAnnotation: {
+          llvm_unreachable("did not expect interop type annotation");
+          return false;
+        }
+        case BoundsExpr::Kind::ByteCount:
+        case BoundsExpr::Kind::ElementCount:
+          // TODO: fill these cases in.
+          return false;
+        case BoundsExpr::Kind::Range: {
+          const RangeBoundsExpr *RB = dyn_cast<RangeBoundsExpr>(Bounds);
+          if (!RB) {
+            llvm_unreachable("unexpected case failure");
+            return false;
+          }
+          Expr *Lower = RB->getLowerExpr();
+          Expr *Upper = RB->getUpperExpr();
+          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
+          const Expr *LowerBase, *UpperBase;
+          llvm::APSInt LowerOffset, UpperOffset;
+          if (SplitIntoBaseAndOffset(Lower, PointerWidth, LowerBase, LowerOffset) &&
+              SplitIntoBaseAndOffset(Upper, PointerWidth, UpperBase, UpperOffset))
+            if (Lexicographic(S.Context, nullptr).CompareExpr(LowerBase, UpperBase) ==
+                Lexicographic::Result::Equal) {
+              R->SetBase(LowerBase);
+              R->SetLower(LowerOffset);
+              R->SetUpper(UpperOffset);
+              return true;
+            }
+          return false;
+        }
+      }
+      return false;
+    }
 
     // Check that SrcBounds implies that DeclaredBounds are provably
     // true.
-    bool CheckBoundsDeclIsProvable(const BoundsExpr *DeclaredBounds,
-                                   const BoundsExpr *SrcBounds) {
+    ProofResult CheckBoundsDeclIsProvable(const BoundsExpr *DeclaredBounds,
+                                          const BoundsExpr *SrcBounds) {
       // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
-        return true;
+        return ProofResult::True;
 
       // target bounds(unknown) implied by any other bounds.
       if (DeclaredBounds->isUnknown())
-        return true;
+        return ProofResult::True;
 
-      return S.Context.EquivalentBounds(DeclaredBounds, SrcBounds);
+      if (S.Context.EquivalentBounds(DeclaredBounds, SrcBounds))
+        return ProofResult::True;
+
+      ConstantSizedRange DeclaredRange(S);
+      ConstantSizedRange SrcRange(S);
+      if (CreateConstantRange(DeclaredBounds, &DeclaredRange) &&
+          CreateConstantRange(SrcBounds, &SrcRange)) {
+#ifdef TRACE_RANGE
+        llvm::outs() << "Found constant ranges:\n";
+        llvm::outs() << "Declared bounds";
+        DeclaredBounds->dump(llvm::outs());
+        llvm::outs() << "\nSource bounds";
+        SrcBounds->dump(llvm::outs());
+        llvm::outs() << "\nDeclared range:";
+        DeclaredRange.Dump(llvm::outs());
+        llvm::outs() << "\nSource range:";
+        SrcRange.Dump(llvm::outs());
+#endif
+        ProofResult R = SrcRange.InRange(DeclaredRange);
+        if (R != ProofResult::Maybe)
+          return R;
+        if (DeclaredRange.GetWidth() > SrcRange.GetWidth())
+          return ProofResult::False;
+      }
+
+      return ProofResult::Maybe;
     }
 
     // Given an assignment target = e, where target has declared bounds
@@ -1416,13 +1599,16 @@ namespace {
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds) {
-      if (S.Diags.isIgnored(diag::warn_bounds_declaration_invalid, ExprLoc))
-        return;
-
-      if (!CheckBoundsDeclIsProvable(DeclaredBounds, SrcBounds)) {
-        S.Diag(ExprLoc, diag::warn_bounds_declaration_invalid)
+      ProofResult Result = CheckBoundsDeclIsProvable(DeclaredBounds, SrcBounds);
+      if (Result != ProofResult::True) {
+        unsigned DiagId = (Result == ProofResult::False) ?
+          diag::error_bounds_declaration_invalid :
+          diag::warn_bounds_declaration_invalid;
+        S.Diag(ExprLoc, DiagId)
           << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
           << Target->getSourceRange() << Src->getSourceRange();
+        if (Result == ProofResult::False)
+          S.Diag(ExprLoc, diag::note_bounds_too_narrow);
         S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
           << DeclaredBounds << DeclaredBounds->getSourceRange();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
@@ -1438,14 +1624,16 @@ namespace {
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
                                   BoundsExpr *ArgBounds) {
       SourceLocation ArgLoc = Arg->getLocStart();
-      if (S.Diags.isIgnored(diag::warn_bounds_declaration_invalid, ArgLoc))
-        return;
-
       BoundsExpr *NormalizedBounds = S.ExpandToRange(Arg, ExpectedArgBounds);
-      if (!CheckBoundsDeclIsProvable(NormalizedBounds, ArgBounds)) {
-        S.Diag(ArgLoc, diag::warn_argument_bounds_invalid) << (ParamNum + 1)
-          << Arg->getSourceRange();
-        S.Diag(ArgLoc, diag::note_expected_argument_bounds) << ExpectedArgBounds;
+      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedBounds, ArgBounds);
+      if (Result != ProofResult::True) {
+        unsigned DiagId = (Result == ProofResult::False) ?
+          diag::error_argument_bounds_invalid :
+          diag::warn_argument_bounds_invalid;
+        S.Diag(ArgLoc, DiagId) << (ParamNum + 1) << Arg->getSourceRange();
+        if (Result == ProofResult::False)
+          S.Diag(ArgLoc, diag::note_bounds_too_narrow);
+        S.Diag(ArgLoc, diag::note_expected_argument_bounds) << NormalizedBounds;
         S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
           << ArgBounds << Arg->getSourceRange();
       }
@@ -1457,14 +1645,17 @@ namespace {
     void CheckBoundsDeclAtInitializer(SourceLocation ExprLoc, VarDecl *D,
                                       BoundsExpr *DeclaredBounds, Expr *Src,
                                       BoundsExpr *SrcBounds) {
-      if (S.Diags.isIgnored(diag::warn_bounds_declaration_invalid, ExprLoc))
-        return;
-
       BoundsExpr *NormalizedBounds = S.ExpandToRange(D, DeclaredBounds);
-      if (!CheckBoundsDeclIsProvable(NormalizedBounds, SrcBounds)) {
-        S.Diag(ExprLoc, diag::warn_bounds_declaration_invalid)
+      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedBounds, SrcBounds);
+      if (Result != ProofResult::True) {
+        unsigned DiagId = (Result == ProofResult::False) ?
+          diag::error_bounds_declaration_invalid :
+          diag::warn_bounds_declaration_invalid;
+        S.Diag(ExprLoc, DiagId)
           << Sema::BoundsDeclarationCheck::BDC_Initialization << D
           << D->getLocation() << Src->getSourceRange();
+        if (Result == ProofResult::False)
+          S.Diag(ExprLoc, diag::note_bounds_too_narrow);
         S.Diag(D->getLocation(), diag::note_declared_bounds)
           << NormalizedBounds << D->getLocation();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
