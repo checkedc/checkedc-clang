@@ -421,23 +421,12 @@ namespace {
     }
 
     BoundsExpr *CreateSingleElementBounds() {
-      IntegerLiteral *One =
-        CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
-      BoundsExpr *Count = new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                                        One, SourceLocation(),
-                                                        SourceLocation());
-      return Count;
+      return Context.getPrebuiltCountOne();
     }
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
-      // Create an unsigned integer 1
-      IntegerLiteral *One =
-        CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
-      CountBoundsExpr CBE = CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                            One, SourceLocation(),
-                                            SourceLocation());
-      return ExpandToRange(LowerBounds, &CBE);
+      return ExpandToRange(LowerBounds, Context.getPrebuiltCountOne());
     }
 
   public:
@@ -462,12 +451,35 @@ namespace {
                                          SourceLocation());
     }
 
+    bool Fits(QualType Ty, const llvm::APInt &I, llvm::APInt &Result) {
+      unsigned bitSize = Context.getTypeSize(Ty);
+      if (bitSize < I.getBitWidth())
+        return false;
+      else if (bitSize > I.getBitWidth())
+        Result = I.zext(bitSize);
+      else
+        Result = I;
+      llvm::APInt MaxSignedInt = llvm::APInt::getSignedMaxValue(bitSize);
+      return Result.ult(MaxSignedInt);
+    }
+
     IntegerLiteral *CreateIntegerLiteral(const llvm::APInt &I) {
-      uint64_t Bits = I.getZExtValue();
-      unsigned Width = Context.getIntWidth(Context.UnsignedLongLongTy);
-      llvm::APInt ResultVal(Width, Bits);
-      IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal,
-                                                   Context.UnsignedLongLongTy,
+      QualType Ty;
+      // Choose the type of an integer constant following the rules in Section 6.4.4
+      // of the C11 specification: the small integer type in which the integer fits.
+      llvm::APInt ResultVal;
+      if (Fits(Context.IntTy, I, ResultVal))
+        Ty = Context.IntTy;
+      else if (Fits(Context.LongTy, I, ResultVal))
+        Ty = Context.LongTy;
+      else if (Fits(Context.LongLongTy, I, ResultVal))
+        Ty = Context.LongLongTy;
+      else {
+        assert(I.getBitWidth() <= Context.getIntWidth(Context.UnsignedLongLongTy));
+        ResultVal = I;
+        Ty = Context.UnsignedLongLongTy;
+      }
+      IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal, Ty,
                                                    SourceLocation());
       return Lit;
     }

@@ -405,7 +405,7 @@ void f3(void) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int _Checked[1]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int _Checked[1]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 0
@@ -437,7 +437,7 @@ void f3(void) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int _Checked[1]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'int _Checked[1]'
 
@@ -468,7 +468,7 @@ void f3(void) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int _Checked[3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int _Checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 0
@@ -500,7 +500,7 @@ void f3(void) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int _Checked[3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int _Checked[3]'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
@@ -531,7 +531,7 @@ void f3(void) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int _Checked[3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'int _Checked[3]'
 
@@ -577,7 +577,7 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>':'_Array_ptr<int>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>':'_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 0
@@ -610,7 +610,7 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>':'_Array_ptr<int>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<int>':'_Array_ptr<int>'
 
@@ -641,7 +641,7 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>':'_Array_ptr<int>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>':'_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 0
@@ -674,7 +674,7 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>':'_Array_ptr<int>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>':'_Array_ptr<int>'
   // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 2
@@ -707,7 +707,7 @@ void f4(int la1 _Checked[1],
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>':'_Array_ptr<int>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<int>':'_Array_ptr<int>'
 
@@ -760,7 +760,7 @@ void f5() {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int _Checked[3][3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
@@ -794,7 +794,7 @@ void f5() {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int _Checked[3][3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
@@ -829,7 +829,7 @@ void f5() {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int _Checked[3][3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
@@ -864,7 +864,7 @@ void f5() {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int _Checked[3][3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
@@ -902,7 +902,7 @@ void f5() {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int _Checked[3][3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
@@ -934,7 +934,7 @@ void f5() {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'gma' 'int _Checked[3][3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
@@ -980,7 +980,7 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -1022,7 +1022,7 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -1065,7 +1065,7 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -1108,7 +1108,7 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -1151,7 +1151,7 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: UnaryOperator {{.*}} '*'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
@@ -1190,7 +1190,7 @@ void f6(int lma _Checked[3][3]) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'lma' '_Array_ptr<int _Checked[3]>':'_Array_ptr<int _Checked[3]>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: ArraySubscriptExpr
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>

@@ -323,7 +323,7 @@ void f30(_Array_ptr<int> a : count(3)) {
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *':'int *' '+'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int *':'int *' <ArrayToPointerDecay>
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5]'
-// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
 void f31(void) {
   int arr[5];
@@ -346,7 +346,7 @@ void f31(void) {
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *':'int *' '+'
 // CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int *':'int *' <ArrayToPointerDecay>
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5]'
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
 //---------------------------------------------------------------------------//
 // Test inference of bounds for address-of (&) expressions. The & operator  //
@@ -375,7 +375,7 @@ void f40(void) {
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
 // CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
 // CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue Var {{0x[0-9a-f]+}} 'x' 'int'
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 1
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 
 // Address-of array variable.
 void f41(void) {
@@ -399,7 +399,7 @@ void f41(void) {
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *':'int *' '+'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int *':'int *' <ArrayToPointerDecay>
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'x' 'int [5]'
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
 // Address-of dereference of a pointer.
 void f42(void) {
@@ -488,7 +488,7 @@ void f43(void) {
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' '+'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' <ArrayToPointerDecay>
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
   p = arr[0];
 
@@ -515,7 +515,7 @@ void f43(void) {
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' '+'
 // CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]':'int (*)[5]' <ArrayToPointerDecay>
 // CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
-// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
   r = &p[0];
 
