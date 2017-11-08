@@ -78,7 +78,7 @@ void f1(struct S1 a1, struct S2 b2) {
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int _Checked[5]' lvalue .arr {{0x[0-9a-f]+}}
 // CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S2':'struct S2' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct S2':'struct S2'
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 }
 
 //-------------------------------------------------------------------------//
@@ -115,7 +115,7 @@ void f2(struct S1 a3) {
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *':'int *' '+'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int *':'int *' <ArrayToPointerDecay>
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'local_arr1' 'int [5]'
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 5
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
   a3.len = 5;
 }
@@ -160,6 +160,6 @@ void f3(struct S3 c1) {
 // CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S3':'struct S3' lvalue ParmVar {{0x[0-9a-f]+}} 'c1' 'struct S3':'struct S3'
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'unsigned long long' 1
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 
 }

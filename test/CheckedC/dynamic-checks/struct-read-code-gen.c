@@ -268,7 +268,7 @@ void f3(void) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'S1 _Checked[1]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga1' 'S1 _Checked[1]'
 
@@ -297,7 +297,7 @@ void f3(void) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
 
@@ -326,7 +326,7 @@ void f3(void) {
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'ga3' 'S1 _Checked[3]'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ParenExpr
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <ArrayToPointerDecay>
@@ -372,7 +372,7 @@ void f4(S1 la1 _Checked[1],
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<S1>':'_Array_ptr<S1>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 1
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 1
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la1' '_Array_ptr<S1>':'_Array_ptr<S1>'
 
@@ -403,7 +403,7 @@ void f4(S1 la1 _Checked[1],
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<S1>':'_Array_ptr<S1>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<S1>':'_Array_ptr<S1>'
 
@@ -434,7 +434,7 @@ void f4(S1 la1 _Checked[1],
   // CHECK-AST-NEXT: BinaryOperator {{.*}} '_Array_ptr<S1>':'_Array_ptr<S1>' '+'
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>
   // CHECK-AST-NEXT: DeclRefExpr {{.*}} 'la3' '_Array_ptr<S1>':'_Array_ptr<S1>'
-  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'unsigned long long' 3
+  // CHECK-AST-NEXT: IntegerLiteral {{.*}} 'int' 3
   // CHECK-AST-NEXT: ParenExpr
   // CHECK-AST-NEXT: BinaryOperator
   // CHECK-AST-NEXT: ImplicitCastExpr {{.*}} <LValueToRValue>

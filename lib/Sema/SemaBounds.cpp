@@ -421,23 +421,12 @@ namespace {
     }
 
     BoundsExpr *CreateSingleElementBounds() {
-      IntegerLiteral *One =
-        CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
-      BoundsExpr *Count = new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                                        One, SourceLocation(),
-                                                        SourceLocation());
-      return Count;
+      return Context.getPrebuiltCountOne();
     }
 
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
-      // Create an unsigned integer 1
-      IntegerLiteral *One =
-        CreateIntegerLiteral(llvm::APInt(1, 1, /*isSigned=*/false));
-      CountBoundsExpr CBE = CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                            One, SourceLocation(),
-                                            SourceLocation());
-      return ExpandToRange(LowerBounds, &CBE);
+      return ExpandToRange(LowerBounds, Context.getPrebuiltCountOne());
     }
 
   public:
@@ -462,12 +451,47 @@ namespace {
                                          SourceLocation());
     }
 
+    // Determine if the mathemtical value of I (an unsigned integer) fits within
+    // the range of Ty, a signed integer type.  APInt requires that bitsizes
+    // match exactly, so if I does fit, return an APInt via Result with
+    // exactly the bitsize of Ty.
+    bool Fits(QualType Ty, const llvm::APInt &I, llvm::APInt &Result) {
+      assert(Ty->isSignedIntegerType());
+      unsigned bitSize = Context.getTypeSize(Ty);
+      if (bitSize < I.getBitWidth()) {
+        if (bitSize < I.getActiveBits())
+         // Number of bits in use exceeds bitsize
+         return false;
+        else Result = I.trunc(bitSize);
+      } else if (bitSize > I.getBitWidth())
+        Result = I.zext(bitSize);
+      else
+        Result = I;
+      return Result.isNonNegative();
+    }
+
+    // Create an integer literal from I.  I is interpreted as an
+    // unsigned integer.
     IntegerLiteral *CreateIntegerLiteral(const llvm::APInt &I) {
-      uint64_t Bits = I.getZExtValue();
-      unsigned Width = Context.getIntWidth(Context.UnsignedLongLongTy);
-      llvm::APInt ResultVal(Width, Bits);
-      IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal,
-                                                   Context.UnsignedLongLongTy,
+      QualType Ty;
+      // Choose the type of an integer constant following the rules in
+      // Section 6.4.4 of the C11 specification: the smallest integer
+      // type chosen from int, long int, long long int, unsigned long long
+      // in which the integer fits.
+      llvm::APInt ResultVal;
+      if (Fits(Context.IntTy, I, ResultVal))
+        Ty = Context.IntTy;
+      else if (Fits(Context.LongTy, I, ResultVal))
+        Ty = Context.LongTy;
+      else if (Fits(Context.LongLongTy, I, ResultVal))
+        Ty = Context.LongLongTy;
+      else {
+        assert(I.getBitWidth() <=
+               Context.getIntWidth(Context.UnsignedLongLongTy));
+        ResultVal = I;
+        Ty = Context.UnsignedLongLongTy;
+      }
+      IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal, Ty,
                                                    SourceLocation());
       return Lit;
     }
