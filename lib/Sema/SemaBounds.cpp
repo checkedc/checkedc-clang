@@ -452,15 +452,18 @@ namespace {
     }
 
     bool Fits(QualType Ty, const llvm::APInt &I, llvm::APInt &Result) {
+      assert(Ty->isSignedIntegerType());
       unsigned bitSize = Context.getTypeSize(Ty);
-      if (bitSize < I.getBitWidth())
-        return false;
-      else if (bitSize > I.getBitWidth())
+      if (bitSize < I.getBitWidth()) {
+        if (bitSize < I.getActiveBits())
+         // Number of bits in use exceeds bitsize
+         return false;
+        else Result = I.trunc(bitSize);
+      } else if (bitSize > I.getBitWidth())
         Result = I.zext(bitSize);
       else
         Result = I;
-      llvm::APInt MaxSignedInt = llvm::APInt::getSignedMaxValue(bitSize);
-      return Result.ult(MaxSignedInt);
+      return Result.isNonNegative();
     }
 
     IntegerLiteral *CreateIntegerLiteral(const llvm::APInt &I) {
