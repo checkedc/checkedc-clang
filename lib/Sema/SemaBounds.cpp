@@ -451,6 +451,10 @@ namespace {
                                          SourceLocation());
     }
 
+    // Determine if the mathemtical value of I (an unsigned integer) fits within
+    // the range of Ty, a signed integer type.  APInt requires that bitsizes
+    // match exactly, so if it does, fit, return an integer via Result with
+    // exactly the bitsize of Ty.
     bool Fits(QualType Ty, const llvm::APInt &I, llvm::APInt &Result) {
       assert(Ty->isSignedIntegerType());
       unsigned bitSize = Context.getTypeSize(Ty);
@@ -466,10 +470,14 @@ namespace {
       return Result.isNonNegative();
     }
 
+    // Create an integer literal from I.  I is interpreted as an
+    // unsigned integer.
     IntegerLiteral *CreateIntegerLiteral(const llvm::APInt &I) {
       QualType Ty;
-      // Choose the type of an integer constant following the rules in Section 6.4.4
-      // of the C11 specification: the small integer type in which the integer fits.
+      // Choose the type of an integer constant following the rules in
+      // Section 6.4.4 of the C11 specification: the smallest integer
+      // type chosen from int, long int, long long int, unsigned long long
+      // in which the integer fits.
       llvm::APInt ResultVal;
       if (Fits(Context.IntTy, I, ResultVal))
         Ty = Context.IntTy;
@@ -478,7 +486,8 @@ namespace {
       else if (Fits(Context.LongLongTy, I, ResultVal))
         Ty = Context.LongLongTy;
       else {
-        assert(I.getBitWidth() <= Context.getIntWidth(Context.UnsignedLongLongTy));
+        assert(I.getBitWidth() <=
+               Context.getIntWidth(Context.UnsignedLongLongTy));
         ResultVal = I;
         Ty = Context.UnsignedLongLongTy;
       }
