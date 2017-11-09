@@ -369,6 +369,10 @@ namespace {
     // TODO: be more flexible about where bounds expression are allocated.
     Sema &SemaRef;
     ASTContext &Context;
+    // When this flag is set to true, include the null terminator in the
+    // bounds of a null-terminated array.  This is used when calculating
+    // physical sizes during casts to pointers to null-terminated arrays.
+    bool IncludeNullTerminator;
 
     BoundsExpr *CreateBoundsUnknown() {
       return new (Context) NullaryBoundsExpr(BoundsExpr::Kind::Unknown,
@@ -520,7 +524,8 @@ namespace {
       llvm::APInt size = CAT->getSize();
       // Null-terminated arrays of size n have bounds of count(n - 1).
       // The null terminator is excluded from the count.
-      if (CAT->getKind() == CheckedArrayKind::NtChecked) {
+      if (!IncludeNullTerminator &&
+          CAT->getKind() == CheckedArrayKind::NtChecked) {
         assert(size.uge(1) && "must have at least one element");
         size = size - 1;
       }
@@ -582,7 +587,8 @@ namespace {
     }
 
   public:
-    BoundsInference(Sema &S) : SemaRef(S), Context(S.getASTContext()) {
+    BoundsInference(Sema &S, bool IncludeNullTerminator = false) : SemaRef(S),
+      Context(S.getASTContext()), IncludeNullTerminator(IncludeNullTerminator) {
     }
 
     // Compute bounds for a variable expression or member reference expression
@@ -1296,8 +1302,8 @@ BoundsExpr *Sema::InferLValueTargetBounds(Expr *E) {
   return BoundsInference(*this).LValueTargetBounds(E);
 }
 
-BoundsExpr *Sema::InferRValueBounds(Expr *E) {
-  return BoundsInference(*this).RValueBounds(E);
+BoundsExpr *Sema::InferRValueBounds(Expr *E, bool IncludeNullTerminator) {
+  return BoundsInference(*this, IncludeNullTerminator).RValueBounds(E);
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
@@ -1970,8 +1976,10 @@ namespace {
       if ((CK == CK_BitCast || CK == CK_IntegralToPointer) &&
           E->getType()->isCheckedPointerPtrType() &&
           !E->getType()->isFunctionPointerType()) {
+        bool IncludeNullTerminator =
+          E->getType()->getPointeeOrArrayElementType()->isNtCheckedArrayType();
         BoundsExpr *SrcBounds =
-          S.InferRValueBounds(E->getSubExpr());
+          S.InferRValueBounds(E->getSubExpr(), IncludeNullTerminator);
         if (SrcBounds->isUnknown()) {
           S.Diag(E->getSubExpr()->getLocStart(),
                  diag::err_expected_bounds_for_ptr_cast)

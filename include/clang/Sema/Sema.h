@@ -4561,7 +4561,12 @@ public:
   /// InferRValueBounds - infer a bounds expression for an rvalue.
   /// The bounds determine whether the rvalue to which an
   /// expression evaluates is in range.
-  BoundsExpr *InferRValueBounds(Expr *E);
+  ///
+  /// IncludeNullTerminator controls whether a null terminator
+  /// for an nt_array is included in the bounds (it gives
+  /// us physical bounds, not logical bounds).
+  BoundsExpr *InferRValueBounds(Expr *E,
+                                bool IncludeNullTerminator = false);
 
   BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B);
   BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B);
