@@ -9391,6 +9391,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_expanded_inferred_bounds : Note<
     "(expanded) inferred bounds are '%0'">;
 
+  def note_required_bounds : Note<
+    "(expanded) required bounds are '%0'">;
+
   def err_modifying_expr_not_supported : Error<
    "argument must be a non-modifying expression because %ordinal0 parameter "
    "is used in a bounds expression">;
@@ -9403,21 +9406,29 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_argument_bounds_invalid : Error<
     "argument does not meet declared bounds for %ordinal0 parameter">;
 
-  def note_bounds_too_narrow : Note<
-    "destination bounds are wider than the source bounds">;
-
-  def note_lower_out_of_bounds : Note<
-    "destination lower bound is below source lower bound">;
-
-  def note_upper_out_of_bounds : Note<
-    "destination upper bound is above source upper bound">;
-
-  def note_upper_lower_out_of_bounds : Note<
-    "destination lower bound is below source lower bound and "
-    "destination upper bound is above source upper bound">;
-
   def note_expected_argument_bounds : Note<
     "(expanded) expected argument bounds are '%0'">;
+
+  def warn_static_cast_bounds_invalid : Warning<
+    "cast source bounds may be too narrow for %0">,
+    DefaultIgnore,
+    InGroup<CheckBoundsDecls>;
+
+  def error_static_cast_bounds_invalid : Error<
+    "cast source bounds are too narrow for %0">;
+
+  def note_bounds_too_narrow : Note<
+    "%select{destination|target}0 bounds are wider than the source bounds">;
+
+  def note_lower_out_of_bounds : Note<
+    "%select{destination|target}0 lower bound is below source lower bound">;
+
+  def note_upper_out_of_bounds : Note<
+    "%select{destination|target}0 upper bound is above source upper bound">;
+
+  def note_upper_lower_out_of_bounds : Note<
+    "%select{destination|target}0 lower bound is below source lower bound and "
+    "%select{destination|target}0 upper bound is above source upper bound">;
 
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;

@@ -1437,6 +1437,11 @@ namespace {
       Width = 0x4
     };
 
+    enum class DiagnosticNameForTarget {
+      Destination = 0x0,
+      Target = 0x1
+    };
+
     static constexpr ProofFailure CombineFailures(ProofFailure A,
                                                   ProofFailure B) {
       return static_cast<ProofFailure>(static_cast<unsigned>(A) |
@@ -1649,18 +1654,21 @@ namespace {
       return ProofResult::Maybe;
     }
 
-    void ExplainProofFailure(SourceLocation Loc, ProofFailure Cause) {
-      if (TestFailure(Cause, ProofFailure::Width))
-        S.Diag(Loc, diag::note_bounds_too_narrow);
+    void ExplainProofFailure(SourceLocation Loc, ProofFailure Cause,
+                             DiagnosticNameForTarget Name =
+                               DiagnosticNameForTarget::Destination,
+                             bool SuppressWidthMessage = false) {
+      if (!SuppressWidthMessage && TestFailure(Cause, ProofFailure::Width))
+        S.Diag(Loc, diag::note_bounds_too_narrow) << (unsigned) Name;
 
       if (TestFailure(Cause, CombineFailures(ProofFailure::LowerBound,
                                              ProofFailure::UpperBound))) {
-        S.Diag(Loc, diag::note_upper_lower_out_of_bounds);
+        S.Diag(Loc, diag::note_upper_lower_out_of_bounds) << (unsigned) Name;
       } else {
         if (TestFailure(Cause, ProofFailure::LowerBound))
-          S.Diag(Loc, diag::note_lower_out_of_bounds);
+          S.Diag(Loc, diag::note_lower_out_of_bounds) << (unsigned) Name;
         if (TestFailure(Cause, ProofFailure::UpperBound))
-          S.Diag(Loc, diag::note_upper_out_of_bounds);
+          S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Name;
       }
     }
 
@@ -1738,7 +1746,32 @@ namespace {
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
           << SrcBounds << Src->getSourceRange();
       }
-  }
+    }
+
+    // Given a static cast to a Ptr type, where the Ptr type has
+    // TargetBounds and the source has SrcBounds, make sure that SrcBounds
+    // implies target TargetBounds are provably true.
+    void CheckBoundsDeclAtStaticPtrCast(CastExpr *Cast,
+                                        BoundsExpr *TargetBounds,
+                                        Expr *Src,
+                                        BoundsExpr *SrcBounds) {
+      ProofFailure Cause;
+      BoundsExpr *NormalizedTargetBounds = S.ExpandToRange(Cast, TargetBounds);
+      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedTargetBounds,
+                                                     SrcBounds, Cause);
+      if (Result != ProofResult::True) {
+        unsigned DiagId = (Result == ProofResult::False) ?
+          diag::error_static_cast_bounds_invalid :
+          diag::warn_static_cast_bounds_invalid;
+        SourceLocation ExprLoc = Cast->getExprLoc();
+        S.Diag(ExprLoc, DiagId) << Cast->getType() << Cast->getSourceRange();
+        if (Result == ProofResult::False)
+          ExplainProofFailure(ExprLoc, Cause, DiagnosticNameForTarget::Target,
+                              true);
+        S.Diag(ExprLoc, diag::note_required_bounds) << NormalizedTargetBounds;
+        S.Diag(ExprLoc, diag::note_expanded_inferred_bounds) << SrcBounds;
+      }
+    }
 
   public:
     CheckBoundsDeclarations(Sema &S) : S(S),
@@ -1944,6 +1977,11 @@ namespace {
                  diag::err_expected_bounds_for_ptr_cast)
                  << E->getSubExpr()->getSourceRange();
           SrcBounds = S.CreateInvalidBoundsExpr();
+        } else {
+          BoundsExpr *TargetBounds =
+            S.CreateTypeBasedBounds(E->getType(), false);
+          CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, E->getSubExpr(),
+                                         SrcBounds);
         }
         assert(SrcBounds);
         assert(!E->getBoundsExpr());

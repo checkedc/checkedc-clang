@@ -168,6 +168,17 @@ void f22(_Array_ptr<int> q : count(5)) {
 
 }
 
+struct S {
+  int x;
+  int y;
+};
+
 void test_ptr_void_cast(_Ptr<void> p) {
-  _Ptr<int> ip = (_Ptr<int>) p;
+  _Ptr<int> ip = (_Ptr<int>) p; // expected-error {{cast source bounds are too narrow for '_Ptr<int>'}} \
+                                // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int>)p, (_Ptr<int>)p + 1)'}} \
+                                // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 1)'}}
+  _Ptr<struct S> sp = (_Ptr<struct S>) p; // expected-error {{cast source bounds are too narrow for '_Ptr<struct S>'}} \
+                                          // expected-note {{(expanded) required bounds are 'bounds((_Ptr<struct S>)p, (_Ptr<struct S>)p + 1)'}} \
+                                          // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 1)'}}
+  // TODO: _Ptr<char> cp = (_Ptr<char>) p;  _Ptr<void> should be treated as being 1 character wide, not 0 characters wide.
 }
