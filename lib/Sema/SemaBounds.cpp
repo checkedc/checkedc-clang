@@ -1430,6 +1430,24 @@ namespace {
       Maybe  // We're not sure yet.
     };
 
+    enum class ProofFailure : unsigned {
+      None = 0x0,
+      LowerBound = 0x1,
+      UpperBound = 0x2,
+      Width = 0x4
+    };
+
+    static constexpr ProofFailure CombineFailures(ProofFailure A,
+                                                  ProofFailure B) {
+      return static_cast<ProofFailure>(static_cast<unsigned>(A) |
+                                       static_cast<unsigned>(B));
+    }
+
+    static constexpr bool TestFailure(ProofFailure A, ProofFailure Test) {
+      return ((static_cast<unsigned>(A) &  static_cast<unsigned>(Test)) ==
+              static_cast<unsigned>(Test));
+    }
+
     class ConstantSizedRange {
     private:
       Sema &S;
@@ -1448,13 +1466,20 @@ namespace {
         S(S), Base(Base), LowerOffset(LowerOffset), UpperOffset(UpperOffset) {
       }
 
-      ProofResult InRange(ConstantSizedRange &R) {
+      // Is R in range of this range?
+      ProofResult InRange(ConstantSizedRange &R, ProofFailure &Cause) {
         if (Lexicographic(S.Context, nullptr).CompareExpr(Base, R.Base) ==
             Lexicographic::Result::Equal) {
-          if (LowerOffset <= R.LowerOffset && UpperOffset >= R.UpperOffset)
-            return ProofResult::True;
-          else
-            return ProofResult::False;
+          ProofResult Result = ProofResult::True;
+          if (LowerOffset > R.LowerOffset) {
+            Cause = CombineFailures(Cause, ProofFailure::LowerBound);
+            Result = ProofResult::False;
+          }
+          if (UpperOffset < R.UpperOffset) {
+            Cause = CombineFailures(Cause, ProofFailure::UpperBound);
+            Result = ProofResult::False;
+          }
+          return Result;
         }
         return ProofResult::Maybe;
       }
@@ -1580,7 +1605,9 @@ namespace {
     // Check that SrcBounds implies that DeclaredBounds are provably
     // true.
     ProofResult CheckBoundsDeclIsProvable(const BoundsExpr *DeclaredBounds,
-                                          const BoundsExpr *SrcBounds) {
+                                          const BoundsExpr *SrcBounds,
+                                          ProofFailure &Cause) {
+      Cause = ProofFailure::None;
       // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
         return ProofResult::True;
@@ -1607,14 +1634,34 @@ namespace {
         llvm::outs() << "\nSource range:";
         SrcRange.Dump(llvm::outs());
 #endif
-        ProofResult R = SrcRange.InRange(DeclaredRange);
-        if (R != ProofResult::Maybe)
+        ProofResult R = SrcRange.InRange(DeclaredRange, Cause);
+        if (R == ProofResult::True)
           return R;
-        if (DeclaredRange.GetWidth() > SrcRange.GetWidth())
-          return ProofResult::False;
-      }
 
+        if (R == ProofResult::False || R == ProofResult::Maybe) {
+          if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
+            Cause = CombineFailures(Cause, ProofFailure::Width);
+            R = ProofResult::False;
+          }
+        }
+        return R;
+      }
       return ProofResult::Maybe;
+    }
+
+    void ExplainProofFailure(SourceLocation Loc, ProofFailure Cause) {
+      if (TestFailure(Cause, ProofFailure::Width))
+        S.Diag(Loc, diag::note_bounds_too_narrow);
+
+      if (TestFailure(Cause, CombineFailures(ProofFailure::LowerBound,
+                                             ProofFailure::UpperBound))) {
+        S.Diag(Loc, diag::note_upper_lower_out_of_bounds);
+      } else {
+        if (TestFailure(Cause, ProofFailure::LowerBound))
+          S.Diag(Loc, diag::note_lower_out_of_bounds);
+        if (TestFailure(Cause, ProofFailure::UpperBound))
+          S.Diag(Loc, diag::note_upper_out_of_bounds);
+      }
     }
 
     // Given an assignment target = e, where target has declared bounds
@@ -1623,7 +1670,9 @@ namespace {
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds) {
-      ProofResult Result = CheckBoundsDeclIsProvable(DeclaredBounds, SrcBounds);
+      ProofFailure Cause;
+      ProofResult Result = CheckBoundsDeclIsProvable(DeclaredBounds, SrcBounds,
+                                                     Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1632,7 +1681,7 @@ namespace {
           << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
           << Target->getSourceRange() << Src->getSourceRange();
         if (Result == ProofResult::False)
-          S.Diag(ExprLoc, diag::note_bounds_too_narrow);
+          ExplainProofFailure(ExprLoc, Cause);
         S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
           << DeclaredBounds << DeclaredBounds->getSourceRange();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
@@ -1649,14 +1698,16 @@ namespace {
                                   BoundsExpr *ArgBounds) {
       SourceLocation ArgLoc = Arg->getLocStart();
       BoundsExpr *NormalizedBounds = S.ExpandToRange(Arg, ExpectedArgBounds);
-      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedBounds, ArgBounds);
+      ProofFailure Cause;
+      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedBounds,
+                                                     ArgBounds, Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
           diag::warn_argument_bounds_invalid;
         S.Diag(ArgLoc, DiagId) << (ParamNum + 1) << Arg->getSourceRange();
         if (Result == ProofResult::False)
-          S.Diag(ArgLoc, diag::note_bounds_too_narrow);
+          ExplainProofFailure(ArgLoc, Cause);
         S.Diag(ArgLoc, diag::note_expected_argument_bounds) << NormalizedBounds;
         S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
           << ArgBounds << Arg->getSourceRange();
@@ -1670,7 +1721,9 @@ namespace {
                                       BoundsExpr *DeclaredBounds, Expr *Src,
                                       BoundsExpr *SrcBounds) {
       BoundsExpr *NormalizedBounds = S.ExpandToRange(D, DeclaredBounds);
-      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedBounds, SrcBounds);
+      ProofFailure Cause;
+      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedBounds,
+                                                     SrcBounds, Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1679,7 +1732,7 @@ namespace {
           << Sema::BoundsDeclarationCheck::BDC_Initialization << D
           << D->getLocation() << Src->getSourceRange();
         if (Result == ProofResult::False)
-          S.Diag(ExprLoc, diag::note_bounds_too_narrow);
+          ExplainProofFailure(ExprLoc, Cause);
         S.Diag(D->getLocation(), diag::note_declared_bounds)
           << NormalizedBounds << D->getLocation();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)

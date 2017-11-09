@@ -9406,6 +9406,16 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_bounds_too_narrow : Note<
     "destination bounds are wider than the source bounds">;
 
+  def note_lower_out_of_bounds : Note<
+    "destination lower bound is below source lower bound">;
+
+  def note_upper_out_of_bounds : Note<
+    "destination upper bound is above source upper bound">;
+
+  def note_upper_lower_out_of_bounds : Note<
+    "destination lower bound is below source lower bound and "
+    "destination upper bound is above source upper bound">;
+
   def note_expected_argument_bounds : Note<
     "(expanded) expected argument bounds are '%0'">;
 
