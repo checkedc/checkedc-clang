@@ -1574,7 +1574,7 @@ namespace {
                 goto exit;
               Offset = llvm::APSInt(Offset, false);
             }
-            // Normalize the operation by negating the offset of necessary.
+            // Normalize the operation by negating the offset if necessary.
             if (BO->getOpcode() == BO_Sub)
               Offset = llvm::APSInt(PointerWidth, false) - Offset;
             uint64_t ElemBitSize = S.Context.getTypeSize(Base->getType()->getPointeeOrArrayElementType());
@@ -1639,8 +1639,8 @@ namespace {
 
     // Check that SrcBounds implies that DeclaredBounds are provably true.
     //
-    // If IsStaticCast is true, check whether a static cast from
-    // SrcBounds to DestBounds is legal.
+    // If IsStaticCast is true, check whether a static cast between Ptr
+    // types from SrcBounds to DestBounds is legal.
     ProofResult CheckBoundsDeclIsProvable(const BoundsExpr *DeclaredBounds,
                                           const BoundsExpr *SrcBounds,
                                           ProofFailure &Cause,
@@ -1680,8 +1680,8 @@ namespace {
             Cause = CombineFailures(Cause, ProofFailure::Width);
             R = ProofResult::False;
           }  else if (IsStaticCast) {
-            // For checking static casts, we only need to prove that
-            // the declared width <= the source width.
+            // For checking static casts between Ptr types, we only need to
+            // prove that the declared width <= the source width.
             return ProofResult::True;
           }
         }
@@ -1796,8 +1796,11 @@ namespace {
                                         BoundsExpr *SrcBounds) {
       ProofFailure Cause;
       BoundsExpr *NormalizedTargetBounds = S.ExpandToRange(Cast, TargetBounds);
+      bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
+                              Cast->getType()->isCheckedPointerPtrType());
       ProofResult Result = CheckBoundsDeclIsProvable(NormalizedTargetBounds,
-                                                     SrcBounds, Cause, true);
+                                                     SrcBounds, Cause,
+                                                     IsStaticPtrCast);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
