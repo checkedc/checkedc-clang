@@ -2441,7 +2441,7 @@ public:
   bool pointeeTypesAreAssignable(QualType lhsptee, QualType rhsptee);
 private:
   QualType matchArrayCheckedness(QualType LHS, QualType RHS);
-
+  BoundsExpr *PrebuiltByteCountOne;
   BoundsExpr *PrebuiltCountZero;
   BoundsExpr *PrebuiltCountOne;
   BoundsExpr *PrebuiltBoundsUnknown;
@@ -2449,6 +2449,7 @@ private:
 public:
   bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
 
+  BoundsExpr *getPrebuiltByteCountOne();
   BoundsExpr *getPrebuiltCountZero();
   BoundsExpr *getPrebuiltCountOne();
   BoundsExpr *getPrebuiltBoundsUnknown();

@@ -428,10 +428,6 @@ namespace {
       return CreateBoundsUnknown();
     }
 
-    BoundsExpr *CreateSingleElementBounds() {
-      return Context.getPrebuiltCountOne();
-    }
-
     BoundsExpr *CreateSingleElementBounds(Expr *LowerBounds) {
       assert(LowerBounds->isRValue());
       return ExpandToRange(LowerBounds, Context.getPrebuiltCountOne());
@@ -758,7 +754,10 @@ namespace {
       if (Ty->isCheckedPointerPtrType()) {
         if (Ty->isFunctionPointerType())
           return CreateBoundsEmpty();
-        else return CreateSingleElementBounds();
+        if (Ty->isVoidPointerType())
+          return Context.getPrebuiltByteCountOne();
+        else
+          return Context.getPrebuiltCountOne();
       } else if (Ty->isCheckedArrayType() && IsParam) {
         return CreateBoundsForArrayType(Ty);
       } else if (Ty->isCheckedPointerNtArrayType()) {
@@ -786,7 +785,10 @@ namespace {
           Base = ICE;
         } else
           Base = E;
-        return CreateSingleElementBounds(Base);
+        if (Ty->isVoidPointerType()) {
+          return ExpandToRange(Base, Context.getPrebuiltByteCountOne());
+        } else
+          return ExpandToRange(Base, Context.getPrebuiltCountOne());
       } else if (Ty->isCheckedArrayType() && IsParam) {
         assert(IsBoundsSafeInterface && "unexpected checked array type for parameter");
         assert(E->isLValue());
@@ -1164,8 +1166,12 @@ namespace {
           }
 
           BoundsExpr *ReturnBounds = nullptr;
-          if (E->getType()->isCheckedPointerPtrType())
-            ReturnBounds = CreateSingleElementBounds();
+          if (E->getType()->isCheckedPointerPtrType()) {
+            if (E->getType()->isVoidPointerType())
+              ReturnBounds = Context.getPrebuiltByteCountOne();
+            else
+              ReturnBounds = Context.getPrebuiltCountOne();
+          }
           else {
             // Get the function prototype, where the abstract function return
             // bounds are kept. The callee is always a function pointer.
@@ -1617,7 +1623,8 @@ namespace {
     // true.
     ProofResult CheckBoundsDeclIsProvable(const BoundsExpr *DeclaredBounds,
                                           const BoundsExpr *SrcBounds,
-                                          ProofFailure &Cause) {
+                                          ProofFailure &Cause,
+                                          bool IsStaticCast = false) {
       Cause = ProofFailure::None;
       // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
@@ -1648,11 +1655,14 @@ namespace {
         ProofResult R = SrcRange.InRange(DeclaredRange, Cause);
         if (R == ProofResult::True)
           return R;
-
         if (R == ProofResult::False || R == ProofResult::Maybe) {
           if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
             Cause = CombineFailures(Cause, ProofFailure::Width);
             R = ProofResult::False;
+          }  else if (IsStaticCast) {
+            // For checking static casts, we only need to prove that
+            // the declared width <= the source width.
+            return ProofResult::True;
           }
         }
         return R;
@@ -1764,7 +1774,7 @@ namespace {
       ProofFailure Cause;
       BoundsExpr *NormalizedTargetBounds = S.ExpandToRange(Cast, TargetBounds);
       ProofResult Result = CheckBoundsDeclIsProvable(NormalizedTargetBounds,
-                                                     SrcBounds, Cause);
+                                                     SrcBounds, Cause, true);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :

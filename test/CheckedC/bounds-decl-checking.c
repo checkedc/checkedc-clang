@@ -168,20 +168,45 @@ void f22(_Array_ptr<int> q : count(5)) {
 
 }
 
-struct S {
+struct S1 {
   int x;
   int y;
 };
 
+struct S2 {
+  int x;
+  int y;
+  int z;
+};
+
+void test_cast(_Ptr<struct S1> s1, _Ptr<struct S2> s2) {
+  _Ptr<int> p = (_Ptr<int>)s1;
+  _Ptr<char> cp = 0;
+  cp = (_Ptr<char>) p;
+  p = (_Ptr<int>) cp; // expected-error {{cast source bounds are too narrow for '_Ptr<int>'}} \
+                      // expected-note{{(expanded) required bounds are 'bounds((_Ptr<int>)cp, (_Ptr<int>)cp + 1)'}} \
+                      // expected-note {{(expanded) inferred bounds are 'bounds(cp, cp + 1)'}} \
+  _Ptr<struct S1> prefix = (_Ptr<struct S1>) s2;
+  _Ptr<struct S2> suffix = (_Ptr<struct S2>) s1; // expected-error {{cast source bounds are too narrow for '_Ptr<struct S2>'}} \
+                                                 // expected-note {{(expanded) required bounds are 'bounds((_Ptr<struct S2>)s1, (_Ptr<struct S2>)s1 + 1)'}} \
+                                                 // expected-note{{(expanded) inferred bounds are 'bounds(s1, s1 + 1)'}}
+
+}
+
+_Ptr<void> test_void(void);
+
 void test_ptr_void_cast(_Ptr<void> p) {
   _Ptr<int> ip = (_Ptr<int>) p; // expected-error {{cast source bounds are too narrow for '_Ptr<int>'}} \
                                 // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int>)p, (_Ptr<int>)p + 1)'}} \
-                                // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 1)'}}
-  _Ptr<struct S> sp = (_Ptr<struct S>) p; // expected-error {{cast source bounds are too narrow for '_Ptr<struct S>'}} \
-                                          // expected-note {{(expanded) required bounds are 'bounds((_Ptr<struct S>)p, (_Ptr<struct S>)p + 1)'}} \
-                                          // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 1)'}}
-  // TODO: _Ptr<char> cp = (_Ptr<char>) p;  _Ptr<void> should be treated as being 1 character wide, not 0 characters wide.
+                                // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 1)'}}
+  _Ptr<struct S1> sp = (_Ptr<struct S1>) p; // expected-error {{cast source bounds are too narrow for '_Ptr<struct S1>'}} \
+                                            // expected-note {{(expanded) required bounds are 'bounds((_Ptr<struct S1>)p, (_Ptr<struct S1>)p + 1)'}} \
+                                            // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 1)'}}
+  _Ptr<char> cp = (_Ptr<char>) p;
+  cp = (_Ptr<char>) test_void();
 }
+
+
 
 // Test casts between pointers to nt_arrays and pointers to arrays.
 void test_nt_array_casts(void) {
