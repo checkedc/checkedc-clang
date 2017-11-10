@@ -36,8 +36,6 @@
 #include "llvm/ADT/SmallString.h"
 #include "TreeTransform.h"
 
-
-
 using namespace clang;
 using namespace sema;
 
@@ -1436,17 +1434,22 @@ namespace {
       return false;
     }
 
+    // The result of trying to prove a statement about bounds declarations.
+    // The proof system is incomplete, so there are will be statements that
+    // cannot be proved true or false.  That's why "maybe" is a result.
     enum class ProofResult {
       True,  // Definitely provable.
       False, // Definitely false (an error)
       Maybe  // We're not sure yet.
     };
 
+    // ProofFailure: codes that explain why a statement is false.  This is a
+    // bitmask because there may be multiple reasons why a statement false.
     enum class ProofFailure : unsigned {
       None = 0x0,
-      LowerBound = 0x1,
-      UpperBound = 0x2,
-      Width = 0x4
+      LowerBound = 0x1,   // The lower bound is out-of-range.
+      UpperBound = 0x2,   // The upper bound is out-of-range.
+      Width = 0x4         // The source value is not wide enough.
     };
 
     enum class DiagnosticNameForTarget {
@@ -1454,17 +1457,23 @@ namespace {
       Target = 0x1
     };
 
+    // Combine proof failure codes.
     static constexpr ProofFailure CombineFailures(ProofFailure A,
                                                   ProofFailure B) {
       return static_cast<ProofFailure>(static_cast<unsigned>(A) |
                                        static_cast<unsigned>(B));
     }
 
+    // Check that all the conditions in "Test" are in the failure code.
     static constexpr bool TestFailure(ProofFailure A, ProofFailure Test) {
       return ((static_cast<unsigned>(A) &  static_cast<unsigned>(Test)) ==
               static_cast<unsigned>(Test));
     }
 
+    // Representation and operations on constant-sized ranges.  A constant-sized
+    // range is a range that has the form (e1 + const1, e1 + const2), where e1
+    // is an expression.  For now, we represent const1 and const2 as signed (APSInt)
+    // integers.  They must have the same bitsize.
     class ConstantSizedRange {
     private:
       Sema &S;
@@ -1532,10 +1541,16 @@ namespace {
       }
     };
 
-    bool SplitIntoBaseAndOffset(const Expr *E, unsigned PointerWidth,
+    // Convert an expression E into a base and offset form.
+    // - If E is pointer arithmetic involving addition or subtraction of a
+    //   constant integer, return the base and offset.
+    // - Otherwise set base to E and offset to 0.
+    // TODO: we use signed integers to represent the result of the Offset.
+    // We can't represent unsigned offsets larger the the maximum signed
+    // integer that will fit pointer width.
+    void SplitIntoBaseAndOffset(const Expr *E, unsigned PointerWidth,
                                 const Expr *&Base, llvm::APSInt &Offset) {
-      Base = E->IgnoreParens();
-      if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Base)) {
+      if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
         if (BO->isAdditiveOp()) {
           Expr *Other = nullptr;
           if (BO->getLHS()->getType()->isPointerType()) {
@@ -1545,18 +1560,18 @@ namespace {
             Base = BO->getRHS();
             Other = BO->getLHS();
           } else
-            return false;
+            goto exit;
           assert(Other->getType()->isIntegerType());
           if (Other->isIntegerConstantExpr(Offset, S.Context)) {
             // Widen the integer to the number of bits in a pointer.
             if (Offset.getBitWidth() > PointerWidth)
-              return false;
+              goto exit;
             else if (Offset.getBitWidth() < PointerWidth)
               Offset = Offset.extend(PointerWidth);
             // If the offset is an unsigned integer, convert it to a signed integer.
             if (Offset.isUnsigned()) {
               if (Offset > llvm::APSInt(Offset.getSignedMaxValue(PointerWidth)))
-                return false;
+                goto exit;
               Offset = llvm::APSInt(Offset, false);
             }
             // Normalize the operation by negating the offset of necessary.
@@ -1568,17 +1583,20 @@ namespace {
             bool Overflow;
             Offset = Offset.smul_ov(ElemInt, Overflow);
             if (Overflow)
-              return false;
-            return true;
+              goto exit;
+            return;
           }
-          // It wasn't an integer constant.
-          return false;
         }
       }
+
+    exit:
+      Base = Base = E->IgnoreParens();
       Offset = llvm::APSInt(PointerWidth, false);
-      return true;
+
     }
 
+    // Convert a bounds expression to a constant-sized range.  Returns true if the
+    // the bounds expression can be converted and false if it cannot be converted.
     bool CreateConstantRange(const BoundsExpr *Bounds, ConstantSizedRange *R) {
       switch (Bounds->getKind()) {
         case BoundsExpr::Kind::Invalid:
@@ -1604,23 +1622,25 @@ namespace {
           uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
           const Expr *LowerBase, *UpperBase;
           llvm::APSInt LowerOffset, UpperOffset;
-          if (SplitIntoBaseAndOffset(Lower, PointerWidth, LowerBase, LowerOffset) &&
-              SplitIntoBaseAndOffset(Upper, PointerWidth, UpperBase, UpperOffset))
-            if (Lexicographic(S.Context, nullptr).CompareExpr(LowerBase, UpperBase) ==
-                Lexicographic::Result::Equal) {
-              R->SetBase(LowerBase);
-              R->SetLower(LowerOffset);
-              R->SetUpper(UpperOffset);
-              return true;
-            }
+          SplitIntoBaseAndOffset(Lower, PointerWidth, LowerBase, LowerOffset);
+          SplitIntoBaseAndOffset(Upper, PointerWidth, UpperBase, UpperOffset);
+          if (Lexicographic(S.Context, nullptr).CompareExpr(LowerBase, UpperBase) ==
+              Lexicographic::Result::Equal) {
+            R->SetBase(LowerBase);
+            R->SetLower(LowerOffset);
+            R->SetUpper(UpperOffset);
+            return true;
+          }
           return false;
         }
       }
       return false;
     }
 
-    // Check that SrcBounds implies that DeclaredBounds are provably
-    // true.
+    // Check that SrcBounds implies that DeclaredBounds are provably true.
+    //
+    // If IsStaticCast is true, check whether a static cast from
+    // SrcBounds to DestBounds is legal.
     ProofResult CheckBoundsDeclIsProvable(const BoundsExpr *DeclaredBounds,
                                           const BoundsExpr *SrcBounds,
                                           ProofFailure &Cause,
@@ -1670,6 +1690,8 @@ namespace {
       return ProofResult::Maybe;
     }
 
+    // Convert ProofFailure codes into diagnostic notes explaining why the
+    // statement involving bounds is false.
     void ExplainProofFailure(SourceLocation Loc, ProofFailure Cause,
                              DiagnosticNameForTarget Name =
                                DiagnosticNameForTarget::Destination,
@@ -1765,8 +1787,9 @@ namespace {
     }
 
     // Given a static cast to a Ptr type, where the Ptr type has
-    // TargetBounds and the source has SrcBounds, make sure that SrcBounds
-    // implies target TargetBounds are provably true.
+    // TargetBounds and the source has SrcBounds, make sure that (1) SrcBounds
+    // implies Targetbounds or (2) the SrcBounds is at least as wide as
+    // the TargetBounds.
     void CheckBoundsDeclAtStaticPtrCast(CastExpr *Cast,
                                         BoundsExpr *TargetBounds,
                                         Expr *Src,

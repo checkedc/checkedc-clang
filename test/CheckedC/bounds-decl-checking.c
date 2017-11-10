@@ -232,3 +232,9 @@ void test_nt_array_casts(void) {
                     // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int _Checked[5]>)&nt_arr, (_Ptr<int _Checked[5]>)&nt_arr + 1)'}} \
                     // expected-note {{(expanded) inferred bounds are 'bounds(nt_arr, nt_arr + 4)'}}
 }
+
+void test_addition_commutativity(void) {
+  _Array_ptr<int> p : bounds(p + 1, p + 5) = 0;
+  _Array_ptr<int> q : bounds(1 + p, p + 5) = p;
+  _Array_ptr<int> r : bounds(p + 1, 5 + p) = p;
+}
