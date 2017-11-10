@@ -212,23 +212,26 @@ void test_ptr_void_cast(_Ptr<void> p) {
 void test_nt_array_casts(void) {
   int nt_arr _Nt_checked[5];
 
-  // TODO: enable understanding of equality of values of lhs and rhs.  Comment out for now to avoid "may be too narrow warning.
-  // _Ptr<int _Nt_checked[5]> nt_parr1 = 0;
-  // nt_parr1 = (_Ptr<int _Nt_checked[5]>) &nt_arr;
+  _Ptr<int _Nt_checked[5]> nt_parr1 = 0;
+  nt_parr1 = (_Ptr<int _Nt_checked[5]>) &nt_arr;
 
   _Ptr<int _Nt_checked[6]> nt_parr2 = 0;
   nt_parr2 = (_Ptr<int _Nt_checked[6]>) &nt_arr; // expected-error {{cast source bounds are too narrow for '_Ptr<int _Nt_checked[6]>'}} \
                     // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int _Nt_checked[6]>)&nt_arr, (_Ptr<int _Nt_checked[6]>)&nt_arr + 1)'}} \
                     // expected-note {{(expanded) inferred bounds are 'bounds(nt_arr, nt_arr + 5)'}}
 
-  // TODO: enable understanding of equality of values of lhs and rhs.  Comment out for now to avoid "may be too narrow warning.
-  // _Ptr<int _Nt_checked[5]> nt_parr1 = 0;
-  // nt_parr1 = (_Ptr<int _Nt_checked[5]>) &nt_arr;
-  // _Ptr<int _Checked[4]> parr3 = 0;
-  // parr3 = (_Ptr<int _Checked[4]>) &nt_arr;
+  _Ptr<int _Nt_checked[5]> nt_parr3 = 0;
+  nt_parr3 = (_Ptr<int _Nt_checked[5]>) &nt_arr;
+  _Ptr<int _Checked[4]> parr4 = 0;
+  parr4 = (_Ptr<int _Checked[4]>) &nt_arr;
 
-  _Ptr<int _Checked[5]> parr4 = 0;
-  parr4 = (_Ptr<int _Checked[5]>) &nt_arr;  // expected-error {{cast source bounds are too narrow for '_Ptr<int _Checked[5]>'}} \
+  _Ptr<int _Checked[5]> parr5 = 0;
+  parr5 = (_Ptr<int _Checked[5]>) &nt_arr; // expected-error {{cast source bounds are too narrow for '_Ptr<int _Checked[5]>'}} \
+                                           // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int _Checked[5]>)&nt_arr, (_Ptr<int _Checked[5]>)&nt_arr + 1)'}} \
+                                           // expected-note {{(expanded) inferred bounds are 'bounds(nt_arr, nt_arr + 4)}}
+
+  _Ptr<int _Checked[5]> parr6 = 0;
+  parr6 = (_Ptr<int _Checked[5]>) &nt_arr;  // expected-error {{cast source bounds are too narrow for '_Ptr<int _Checked[5]>'}} \
                     // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int _Checked[5]>)&nt_arr, (_Ptr<int _Checked[5]>)&nt_arr + 1)'}} \
                     // expected-note {{(expanded) inferred bounds are 'bounds(nt_arr, nt_arr + 4)'}}
 }
