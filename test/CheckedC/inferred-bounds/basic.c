@@ -460,7 +460,7 @@ void f43(void) {
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used p '_Array_ptr<int>' cinit
 // Skip remaining details of this declaration.
-  _Array_ptr<int> r : bounds(arr, arr + 5) = 0;
+  _Array_ptr<int> r : bounds(arr, arr + 1) = 0;
 
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used r '_Array_ptr<int>' cinit
 // Skip remaining details of this declaration.
@@ -534,7 +534,7 @@ void f43(void) {
 // CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int (*)[5]' '+'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} 'int (*)[5]' <ArrayToPointerDecay>
 // CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} 'int [5][5]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'int [5][5]'
-// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 // CHECK: RHS Bounds:
 // CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>

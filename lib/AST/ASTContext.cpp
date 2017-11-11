@@ -757,8 +757,9 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       BuiltinInfo(builtins), DeclarationNames(*this), ExternalSource(nullptr),
       Listener(nullptr), Comments(SM), CommentsLoaded(false),
       CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
-      PrebuiltCountZero(nullptr), PrebuiltCountOne(nullptr),
-      PrebuiltBoundsUnknown(nullptr), LastSDM(nullptr, 0) {
+      PrebuiltByteCountOne(nullptr), PrebuiltCountZero(nullptr),
+      PrebuiltCountOne(nullptr), PrebuiltBoundsUnknown(nullptr),
+      LastSDM(nullptr, 0) {
   TUDecl = TranslationUnitDecl::Create(*this);
 }
 
@@ -8966,7 +8967,20 @@ BoundsExpr *ASTContext::getPrebuiltCountOne() {
     PrebuiltCountOne->setCompilerGenerated(true);
   }
   return PrebuiltCountOne;
+}
 
+BoundsExpr *ASTContext::getPrebuiltByteCountOne() {
+  if (!PrebuiltByteCountOne) {
+    llvm::APInt One(getIntWidth(IntTy), 1);
+    IntegerLiteral *OneLiteral = new (*this) IntegerLiteral(*this, One, IntTy,
+                                                            SourceLocation());
+    PrebuiltByteCountOne =
+      new (*this) CountBoundsExpr(BoundsExpr::Kind::ByteCount,
+                                  OneLiteral, SourceLocation(),
+                                  SourceLocation());
+    PrebuiltByteCountOne->setCompilerGenerated(true);
+  }
+  return PrebuiltByteCountOne;
 }
 
 BoundsExpr *ASTContext::getPrebuiltBoundsUnknown() {
