@@ -1544,7 +1544,8 @@ namespace {
     // Convert an expression E into a base and offset form.
     // - If E is pointer arithmetic involving addition or subtraction of a
     //   constant integer, return the base and offset.
-    // - Otherwise set base to E and offset to 0.
+    // - If it is not or we run into issues such as pointer arithmetic overflow,
+    // return a default expression of (E, 0).
     // TODO: we use signed integers to represent the result of the Offset.
     // We can't represent unsigned offsets larger the the maximum signed
     // integer that will fit pointer width.
@@ -1590,9 +1591,9 @@ namespace {
       }
 
     exit:
-      Base = Base = E->IgnoreParens();
+      // Return (E, 0).
+      Base = E->IgnoreParens();
       Offset = llvm::APSInt(PointerWidth, false);
-
     }
 
     // Convert a bounds expression to a constant-sized range.  Returns true if the
