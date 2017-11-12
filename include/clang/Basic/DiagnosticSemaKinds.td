@@ -9417,6 +9417,12 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_static_cast_bounds_invalid : Error<
     "cast source bounds are too narrow for %0">;
 
+  def warn_out_of_bounds_memory_access : Warning<
+    "out-of-bounds memory access">,
+    InGroup<CheckMemoryAccesses>;
+
+  def note_source_bounds_empty : Note<"source bounds are an empty range">;
+
   def note_bounds_too_narrow : Note<
     "%select{destination|target}0 bounds are wider than the source bounds">;
 
@@ -9429,6 +9435,15 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_upper_lower_out_of_bounds : Note<
     "%select{destination|target}0 lower bound is below source lower bound and "
     "%select{destination|target}0 upper bound is above source upper bound">;
+
+   def note_bounds_partially_overlap : Note<
+    "accesses memory that is only partially in bounds">;
+
+   def note_accesses_memory_below_lower_bound : Note<
+   "accesses memory below the lower bound">;
+
+   def note_accesses_memory_at_or_above_upper_bound : Note<
+   "accesses memory at or above the upper bound">;
 
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;

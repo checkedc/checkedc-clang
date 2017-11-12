@@ -828,6 +828,9 @@ def MicrosoftEndOfFile : DiagGroup<"microsoft-end-of-file">;
 
 // Checked C warnings for bounds declaration checking.
 def CheckBoundsDecls : DiagGroup<"check-bounds-decls">;
+// Checked C warnings about memory accesses determined to be out of
+// declared bounds.
+def CheckMemoryAccesses : DiagGroup<"check-memory-accesses">;
 
 // Aliases.
 def : DiagGroup<"msvc-include", [MicrosoftInclude]>;
