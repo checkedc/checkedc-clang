@@ -88,7 +88,8 @@ void f20(_Array_ptr<int> p: count(5)) {
                                             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
   _Array_ptr<int> t : bounds(p - 1, p + 6) = p;  // expected-error {{declared bounds for 't' are invalid after initialization}} \
                                             // expected-note {{destination bounds are wider than the source bounds}} \
-                                            // expected-note {{destination lower bound is below source lower bound and destination upper bound is above source upper bound}} \
+                                            // expected-note {{destination lower bound is below source lower bound}} \
+                                            // expected-note {{destination upper bound is above source upper bound}} \
                                             // expected-note {{(expanded) declared bounds are 'bounds(p - 1, p + 6)'}} \
                                             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 }
@@ -118,7 +119,8 @@ void f21(_Array_ptr<int> p: count(5)) {
   _Array_ptr<int> t : bounds(p - 1, p + 6) = 0;
   t = p;  // expected-error {{declared bounds for t are invalid after assignment}} \
           // expected-note {{destination bounds are wider than the source bounds}} \
-          // expected-note {{destination lower bound is below source lower bound and destination upper bound is above source upper bound}} \
+          // expected-note {{destination lower bound is below source lower bound}} \
+          // expected-note {{destination upper bound is above source upper bound}} \
           // expected-note {{(expanded) declared bounds are 'bounds(p - 1, p + 6)'}} \
           // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 }

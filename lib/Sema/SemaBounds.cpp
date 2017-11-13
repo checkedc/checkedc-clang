@@ -1430,6 +1430,8 @@ namespace {
         if (Bounds->isUnknown()) {
           S.Diag(Base->getLocStart(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
+        } else {
+          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal);
         }
         E->setBoundsExpr(Bounds);
         return true;
@@ -1438,6 +1440,7 @@ namespace {
       return false;
     }
 
+
     // The result of trying to prove a statement about bounds declarations.
     // The proof system is incomplete, so there are will be statements that
     // cannot be proved true or false.  That's why "maybe" is a result.
@@ -1445,6 +1448,18 @@ namespace {
       True,  // Definitely provable.
       False, // Definitely false (an error)
       Maybe  // We're not sure yet.
+    };
+
+    // The kind of statement that we are trying to prove true or false.
+    //
+    // This enum is used in generating diagnostic messages. If you change the order,
+    // update the messages in DiagnosticSemaKinds.td used in
+    // ExplainProofFailure
+    enum class ProofStmtKind : unsigned {
+      BoundsDeclaration,
+      StaticBoundsCast,
+      MemoryAccess,
+      MemberArrowBase
     };
 
     // ProofFailure: codes that explain why a statement is false.  This is a
@@ -1633,10 +1648,11 @@ namespace {
             if (Overflow)
               goto exit;
             // Normalize the operation by negating the offset if necessary.
-            if (BO->getOpcode() == BO_Sub)
+            if (BO->getOpcode() == BO_Sub) {
               Offset = llvm::APSInt(PointerWidth, false).ssub_ov(Offset, Overflow);
-            if (Overflow)
-              goto exit;
+              if (Overflow)
+                goto exit;
+            }
             llvm::APSInt ElemSize = getReferentSizeInChars(Base->getType());
             Offset = Offset.smul_ov(ElemSize, Overflow);
             if (Overflow)
@@ -1697,12 +1713,13 @@ namespace {
 
     // Try to prove that SrcBounds implies the validity of DeclaredBounds.
     //
-    // If IsStaticCast is true, check whether a static cast between Ptr
+    // If Kind is StaticBoundsCast, check whether a static cast between Ptr
     // types from SrcBounds to DestBounds is legal.
     ProofResult ProveBoundsDeclValidity(const BoundsExpr *DeclaredBounds,
                                         const BoundsExpr *SrcBounds,
                                         ProofFailure &Cause,
-                                        bool IsStaticCast = false) {
+                                        ProofStmtKind Kind =
+                                          ProofStmtKind::BoundsDeclaration) {
       Cause = ProofFailure::None;
       // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
@@ -1739,7 +1756,7 @@ namespace {
           if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
             Cause = CombineFailures(Cause, ProofFailure::Width);
             R = ProofResult::False;
-          } else if (IsStaticCast) {
+          } else if (Kind == ProofStmtKind::StaticBoundsCast) {
             // For checking static casts between Ptr types, we only need to
             // prove that the declared width <= the source width.
             return ProofResult::True;
@@ -1754,6 +1771,17 @@ namespace {
     // Offset is optional and may be a nullptr.
     ProofResult ProveMemoryAccessInRange(Expr *PtrBase, Expr *Offset, BoundsExpr *Bounds,
                                          BoundsCheckKind Kind, ProofFailure &Cause) {
+#ifdef TRACE_RANGE
+      llvm::outs() << "Examining:\nPtrBase\n";
+      PtrBase->dump(llvm::outs());
+      llvm::outs() << "Offset = ";
+      if (Offset != nullptr) {
+        Offset->dump(llvm::outs());
+      } else
+        llvm::outs() << "nullptr\n";
+      llvm::outs() << "Bounds\n";
+      Bounds->dump(llvm::outs());
+#endif
       Cause = ProofFailure::None;
       ConstantSizedRange ValidRange(S);
       if (!CreateConstantRange(Bounds, &ValidRange))
@@ -1761,7 +1789,7 @@ namespace {
 
       bool Overflow;
       llvm::APSInt ElementSize = getReferentSizeInChars(PtrBase->getType());
-      if (BoundsCheckKind::BCK_NullTermRead) {
+      if (Kind == BoundsCheckKind::BCK_NullTermRead) {
         Overflow = ValidRange.AddToUpper(ElementSize);
         if (Overflow)
           return ProofResult::Maybe;
@@ -1789,7 +1817,12 @@ namespace {
       Overflow = MemoryAccessRange.AddToUpper(ElementSize);
       if (Overflow)
         return ProofResult::Maybe;
-
+#ifdef TRACE_RANGE
+      llvm::outs() << "Memory access range:\n";
+      MemoryAccessRange.Dump(llvm::outs());
+      llvm::outs() << "Valid range:\n";
+      ValidRange.Dump(llvm::outs());
+#endif
       ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause);
       if (R == ProofResult::True)
         return R;
@@ -1810,39 +1843,25 @@ namespace {
     // Convert ProofFailure codes into diagnostic notes explaining why the
     // statement involving bounds is false.
     void ExplainProofFailure(SourceLocation Loc, ProofFailure Cause,
-                             DiagnosticNameForTarget Name =
-                               DiagnosticNameForTarget::Destination,
-                             bool SuppressWidthMessage = false,
-                             bool IsMemoryAccess = false) {
+                             ProofStmtKind Kind) {
       // Prefer diagnosis of empty bounds over bounds being too narrow.
       if (TestFailure(Cause, ProofFailure::Empty))
         S.Diag(Loc, diag::note_source_bounds_empty);
-      else if (!SuppressWidthMessage && TestFailure(Cause, ProofFailure::Width))
-        S.Diag(Loc, diag::note_bounds_too_narrow) << (unsigned)Name;
+      else if (Kind != ProofStmtKind::StaticBoundsCast &&
+               TestFailure(Cause, ProofFailure::Width))
+        S.Diag(Loc, diag::note_bounds_too_narrow) << (unsigned)Kind;
 
-      // Memory access error messages.
-      if (IsMemoryAccess) {
+      // Memory access/struct base error message.
+      if (Kind == ProofStmtKind::MemoryAccess || Kind == ProofStmtKind::MemberArrowBase) {
         if (TestFailure(Cause, ProofFailure::PartialOverlap)) {
           S.Diag(Loc, diag::note_bounds_partially_overlap);
         }
-        if (TestFailure(Cause, ProofFailure::LowerBound))
-          S.Diag(Loc, diag::note_accesses_memory_below_lower_bound);
-        if (TestFailure(Cause, ProofFailure::UpperBound)) {
-          S.Diag(Loc, diag::note_accesses_memory_at_or_above_upper_bound);
-        }
-        return;
       }
 
-      // Bounds declaration and static cast error messages.
-      if (TestFailure(Cause, CombineFailures(ProofFailure::LowerBound,
-                                             ProofFailure::UpperBound))) {
-        S.Diag(Loc, diag::note_upper_lower_out_of_bounds) << (unsigned) Name;
-      } else {
-        if (TestFailure(Cause, ProofFailure::LowerBound))
-          S.Diag(Loc, diag::note_lower_out_of_bounds) << (unsigned) Name;
-        if (TestFailure(Cause, ProofFailure::UpperBound))
-          S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Name;
-      }
+      if (TestFailure(Cause, ProofFailure::LowerBound))
+        S.Diag(Loc, diag::note_lower_out_of_bounds) << (unsigned) Kind;
+      if (TestFailure(Cause, ProofFailure::UpperBound))
+        S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Kind;
     }
 
     // Given an assignment target = e, where target has declared bounds
@@ -1853,7 +1872,7 @@ namespace {
                                      BoundsExpr *SrcBounds) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                     Cause);
+                                                   Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1862,7 +1881,7 @@ namespace {
           << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
           << Target->getSourceRange() << Src->getSourceRange();
         if (Result == ProofResult::False)
-          ExplainProofFailure(ExprLoc, Cause);
+          ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
         S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
           << DeclaredBounds << DeclaredBounds->getSourceRange();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
@@ -1881,14 +1900,14 @@ namespace {
       BoundsExpr *NormalizedBounds = S.ExpandToRange(Arg, ExpectedArgBounds);
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(NormalizedBounds,
-                                                     ArgBounds, Cause);
+                                                   ArgBounds, Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
           diag::warn_argument_bounds_invalid;
         S.Diag(ArgLoc, DiagId) << (ParamNum + 1) << Arg->getSourceRange();
         if (Result == ProofResult::False)
-          ExplainProofFailure(ArgLoc, Cause);
+          ExplainProofFailure(ArgLoc, Cause, ProofStmtKind::BoundsDeclaration);
         S.Diag(ArgLoc, diag::note_expected_argument_bounds) << NormalizedBounds;
         S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
           << ArgBounds << Arg->getSourceRange();
@@ -1904,7 +1923,7 @@ namespace {
       BoundsExpr *NormalizedBounds = S.ExpandToRange(D, DeclaredBounds);
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(NormalizedBounds,
-                                                     SrcBounds, Cause);
+                                                   SrcBounds, Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1913,7 +1932,7 @@ namespace {
           << Sema::BoundsDeclarationCheck::BDC_Initialization << D
           << D->getLocation() << Src->getSourceRange();
         if (Result == ProofResult::False)
-          ExplainProofFailure(ExprLoc, Cause);
+          ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
         S.Diag(D->getLocation(), diag::note_declared_bounds)
           << NormalizedBounds << D->getLocation();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
@@ -1933,9 +1952,10 @@ namespace {
       BoundsExpr *NormalizedTargetBounds = S.ExpandToRange(Cast, TargetBounds);
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
                               Cast->getType()->isCheckedPointerPtrType());
-      ProofResult Result = ProveBoundsDeclValidity(NormalizedTargetBounds,
-                                                     SrcBounds, Cause,
-                                                     IsStaticPtrCast);
+      ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
+                             ProofStmtKind::BoundsDeclaration;
+      ProofResult Result =
+        ProveBoundsDeclValidity(NormalizedTargetBounds, SrcBounds, Cause, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
@@ -1943,28 +1963,39 @@ namespace {
         SourceLocation ExprLoc = Cast->getExprLoc();
         S.Diag(ExprLoc, DiagId) << Cast->getType() << Cast->getSourceRange();
         if (Result == ProofResult::False)
-          ExplainProofFailure(ExprLoc, Cause, DiagnosticNameForTarget::Target,
-                              true);
+          ExplainProofFailure(ExprLoc, Cause,
+                              ProofStmtKind::StaticBoundsCast);
         S.Diag(ExprLoc, diag::note_required_bounds) << NormalizedTargetBounds;
         S.Diag(ExprLoc, diag::note_expanded_inferred_bounds) << SrcBounds;
       }
     }
 
     void CheckBoundsAtMemoryAccess(Expr *Deref, BoundsExpr *ValidRange,
-                                   BoundsCheckKind Kind) {
+                                   BoundsCheckKind CheckKind) {
       ProofFailure Cause;
       ProofResult Result;
+      ProofStmtKind ProofKind;
       if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
-        Result = ProveMemoryAccessInRange(UO->getSubExpr(), nullptr, ValidRange, Kind, Cause);
+        ProofKind = ProofStmtKind::MemoryAccess;
+        Result = ProveMemoryAccessInRange(UO->getSubExpr(), nullptr, ValidRange,
+                                          CheckKind, Cause);
       } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
-        Result = ProveMemoryAccessInRange(AS->getBase(), AS->getIdx(), ValidRange, Kind, Cause);
-      } else return; // TODO: handle arrow operator
+        ProofKind = ProofStmtKind::MemoryAccess;
+        Result = ProveMemoryAccessInRange(AS->getBase(), AS->getIdx(),
+                                          ValidRange, CheckKind, Cause);
+      } else if (MemberExpr *ME = dyn_cast<MemberExpr>(Deref)) {
+        assert(ME->isArrow());
+        ProofKind = ProofStmtKind::MemberArrowBase;
+        Result = ProveMemoryAccessInRange(ME->getBase(), nullptr, ValidRange, CheckKind, Cause);
+      } else {
+        llvm_unreachable("unexpected expression kind");
+      }
 
       if (Result == ProofResult::False) {
-        unsigned DiagId = diag::warn_out_of_bounds_memory_access;
+        unsigned DiagId = diag::warn_out_of_bounds_access;
         SourceLocation ExprLoc = Deref->getExprLoc();
-        S.Diag(ExprLoc, DiagId) << Deref->getSourceRange();
-        ExplainProofFailure(ExprLoc, Cause, DiagnosticNameForTarget::Target, false, true);
+        S.Diag(ExprLoc, DiagId) << (unsigned) ProofKind << Deref->getSourceRange();
+        ExplainProofFailure(ExprLoc, Cause, ProofKind);
         S.Diag(ExprLoc, diag::note_expanded_inferred_bounds) << ValidRange;
       }
     }
