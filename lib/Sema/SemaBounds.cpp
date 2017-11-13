@@ -1338,6 +1338,7 @@ namespace {
   private:
     Sema &S;
     bool DumpBounds;
+    uint64_t PointerWidth;
 
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
                               BoundsExpr *LValueTargetBounds,
@@ -1391,11 +1392,14 @@ namespace {
         if (LValueBounds->isUnknown()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
+        } else {
+          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind);
         }
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
           assert(!UO->hasBoundsExpr());
           UO->setBoundsExpr(LValueBounds);
           UO->setBoundsCheckKind(Kind);
+
         } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
           assert(!AS->hasBoundsExpr());
           AS->setBoundsExpr(LValueBounds);
@@ -1426,6 +1430,8 @@ namespace {
         if (Bounds->isUnknown()) {
           S.Diag(Base->getLocStart(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
+        } else {
+          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal);
         }
         E->setBoundsExpr(Bounds);
         return true;
@@ -1433,6 +1439,7 @@ namespace {
 
       return false;
     }
+
 
     // The result of trying to prove a statement about bounds declarations.
     // The proof system is incomplete, so there are will be statements that
@@ -1443,13 +1450,28 @@ namespace {
       Maybe  // We're not sure yet.
     };
 
+    // The kind of statement that we are trying to prove true or false.
+    //
+    // This enum is used in generating diagnostic messages. If you change the order,
+    // update the messages in DiagnosticSemaKinds.td used in
+    // ExplainProofFailure
+    enum class ProofStmtKind : unsigned {
+      BoundsDeclaration,
+      StaticBoundsCast,
+      MemoryAccess,
+      MemberArrowBase
+    };
+
     // ProofFailure: codes that explain why a statement is false.  This is a
     // bitmask because there may be multiple reasons why a statement false.
     enum class ProofFailure : unsigned {
       None = 0x0,
-      LowerBound = 0x1,   // The lower bound is out-of-range.
-      UpperBound = 0x2,   // The upper bound is out-of-range.
-      Width = 0x4         // The source value is not wide enough.
+      LowerBound = 0x1,     // The destination lower bound is below the source lower bound.
+      UpperBound = 0x2,     // The destination upper bound is above the source upper bound.
+      Empty = 0x4,          // The source bounds are empty.
+      Width = 0x8,          // The source bounds are narrower than the destination bounds.
+      PartialOverlap = 0x16 // There was only partial overlap of the destination bounds with
+                            // the source bounds.
     };
 
     enum class DiagnosticNameForTarget {
@@ -1486,7 +1508,7 @@ namespace {
         UpperOffset(1, true) {
       }
 
-      ConstantSizedRange(Sema &S, const BoundsExpr *Base,
+      ConstantSizedRange(Sema &S, const Expr *Base,
                          llvm::APSInt &LowerOffset,
                          llvm::APSInt &UpperOffset) :
         S(S), Base(Base), LowerOffset(LowerOffset), UpperOffset(UpperOffset) {
@@ -1508,6 +1530,35 @@ namespace {
           return Result;
         }
         return ProofResult::Maybe;
+      }
+
+      bool IsEmpty() {
+        return UpperOffset <= LowerOffset;
+      }
+
+      // Does R partially overlap this range?
+      ProofResult PartialOverlap(ConstantSizedRange &R) {
+        if (Lexicographic(S.Context, nullptr).CompareExpr(Base, R.Base) ==
+            Lexicographic::Result::Equal) {
+          if (!IsEmpty() && !R.IsEmpty()) {
+            // R.LowerOffset is within this range, but R.UpperOffset is above the range
+            if (LowerOffset <= R.LowerOffset && R.LowerOffset < UpperOffset &&
+                UpperOffset < R.UpperOffset)
+              return ProofResult::True;
+            // Or R.UpperOffset is within this range, but R.LowerOffset is below the range.
+            if (LowerOffset < R.UpperOffset && R.UpperOffset <= UpperOffset &&
+                R.LowerOffset < LowerOffset)
+              return ProofResult::True;
+          }
+          return ProofResult::False;
+        }
+        return ProofResult::Maybe;
+      }
+
+      bool AddToUpper(llvm::APSInt &Num) {
+        bool Overflow;
+        UpperOffset = UpperOffset.sadd_ov(Num, Overflow);
+        return Overflow;
       }
 
       llvm::APSInt GetWidth() {
@@ -1541,6 +1592,33 @@ namespace {
       }
     };
 
+    llvm::APSInt getReferentSizeInChars(QualType Ty) {
+      assert(Ty->isPointerType());
+      uint64_t ElemBitSize = S.Context.getTypeSize(Ty->getPointeeOrArrayElementType());
+      uint64_t ElemSize = S.Context.toCharUnitsFromBits(ElemBitSize).getQuantity();
+      return llvm::APSInt(llvm::APInt(PointerWidth, ElemSize), false);
+    }
+
+    // Convert I to a signed integer with PointerWidth.
+    llvm::APSInt ConvertToSignedPointerWidth(llvm::APSInt I,bool &Overflow) {
+      Overflow = false;
+      if (I.getBitWidth() > PointerWidth) {
+        Overflow = true;
+        goto exit;
+      }
+      if (I.getBitWidth() < PointerWidth)
+         I = I.extend(PointerWidth);
+      if (I.isUnsigned()) {
+        if (I > llvm::APSInt(I.getSignedMaxValue(PointerWidth))) {
+          Overflow = true;
+          goto exit;
+        }
+        I = llvm::APSInt(I, false);
+      }
+      exit:
+        return I;
+     }
+
     // Convert an expression E into a base and offset form.
     // - If E is pointer arithmetic involving addition or subtraction of a
     //   constant integer, return the base and offset.
@@ -1549,8 +1627,8 @@ namespace {
     // TODO: we use signed integers to represent the result of the Offset.
     // We can't represent unsigned offsets larger the the maximum signed
     // integer that will fit pointer width.
-    void SplitIntoBaseAndOffset(const Expr *E, unsigned PointerWidth,
-                                const Expr *&Base, llvm::APSInt &Offset) {
+    void SplitIntoBaseAndOffset(const Expr *E, const Expr *&Base,
+                                llvm::APSInt &Offset) {
       if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
         if (BO->isAdditiveOp()) {
           Expr *Other = nullptr;
@@ -1565,24 +1643,18 @@ namespace {
           assert(Other->getType()->isIntegerType());
           if (Other->isIntegerConstantExpr(Offset, S.Context)) {
             // Widen the integer to the number of bits in a pointer.
-            if (Offset.getBitWidth() > PointerWidth)
-              goto exit;
-            else if (Offset.getBitWidth() < PointerWidth)
-              Offset = Offset.extend(PointerWidth);
-            // If the offset is an unsigned integer, convert it to a signed integer.
-            if (Offset.isUnsigned()) {
-              if (Offset > llvm::APSInt(Offset.getSignedMaxValue(PointerWidth)))
-                goto exit;
-              Offset = llvm::APSInt(Offset, false);
-            }
-            // Normalize the operation by negating the offset if necessary.
-            if (BO->getOpcode() == BO_Sub)
-              Offset = llvm::APSInt(PointerWidth, false) - Offset;
-            uint64_t ElemBitSize = S.Context.getTypeSize(Base->getType()->getPointeeOrArrayElementType());
-            uint64_t ElemSize = S.Context.toCharUnitsFromBits(ElemBitSize).getQuantity();
-            llvm::APSInt ElemInt = llvm::APSInt(llvm::APInt(PointerWidth, ElemSize), false);
             bool Overflow;
-            Offset = Offset.smul_ov(ElemInt, Overflow);
+            Offset = ConvertToSignedPointerWidth(Offset, Overflow);
+            if (Overflow)
+              goto exit;
+            // Normalize the operation by negating the offset if necessary.
+            if (BO->getOpcode() == BO_Sub) {
+              Offset = llvm::APSInt(PointerWidth, false).ssub_ov(Offset, Overflow);
+              if (Overflow)
+                goto exit;
+            }
+            llvm::APSInt ElemSize = getReferentSizeInChars(Base->getType());
+            Offset = Offset.smul_ov(ElemSize, Overflow);
             if (Overflow)
               goto exit;
             return;
@@ -1620,11 +1692,10 @@ namespace {
           }
           Expr *Lower = RB->getLowerExpr();
           Expr *Upper = RB->getUpperExpr();
-          uint64_t PointerWidth = S.Context.getTargetInfo().getPointerWidth(0);
           const Expr *LowerBase, *UpperBase;
           llvm::APSInt LowerOffset, UpperOffset;
-          SplitIntoBaseAndOffset(Lower, PointerWidth, LowerBase, LowerOffset);
-          SplitIntoBaseAndOffset(Upper, PointerWidth, UpperBase, UpperOffset);
+          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset);
+          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset);
           if (Lexicographic(S.Context, nullptr).CompareExpr(LowerBase, UpperBase) ==
               Lexicographic::Result::Equal) {
             R->SetBase(LowerBase);
@@ -1638,14 +1709,17 @@ namespace {
       return false;
     }
 
-    // Check that SrcBounds implies that DeclaredBounds are provably true.
+
+
+    // Try to prove that SrcBounds implies the validity of DeclaredBounds.
     //
-    // If IsStaticCast is true, check whether a static cast between Ptr
+    // If Kind is StaticBoundsCast, check whether a static cast between Ptr
     // types from SrcBounds to DestBounds is legal.
-    ProofResult CheckBoundsDeclIsProvable(const BoundsExpr *DeclaredBounds,
-                                          const BoundsExpr *SrcBounds,
-                                          ProofFailure &Cause,
-                                          bool IsStaticCast = false) {
+    ProofResult ProveBoundsDeclValidity(const BoundsExpr *DeclaredBounds,
+                                        const BoundsExpr *SrcBounds,
+                                        ProofFailure &Cause,
+                                        ProofStmtKind Kind =
+                                          ProofStmtKind::BoundsDeclaration) {
       Cause = ProofFailure::None;
       // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
@@ -1677,10 +1751,12 @@ namespace {
         if (R == ProofResult::True)
           return R;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
+          if (SrcRange.IsEmpty())
+            Cause = CombineFailures(Cause, ProofFailure::Empty);
           if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
             Cause = CombineFailures(Cause, ProofFailure::Width);
             R = ProofResult::False;
-          }  else if (IsStaticCast) {
+          } else if (Kind == ProofStmtKind::StaticBoundsCast) {
             // For checking static casts between Ptr types, we only need to
             // prove that the declared width <= the source width.
             return ProofResult::True;
@@ -1691,24 +1767,101 @@ namespace {
       return ProofResult::Maybe;
     }
 
+    // Try to prove that PtrBase + Offset is within Bounds, where PtrBase has pointer type.
+    // Offset is optional and may be a nullptr.
+    ProofResult ProveMemoryAccessInRange(Expr *PtrBase, Expr *Offset, BoundsExpr *Bounds,
+                                         BoundsCheckKind Kind, ProofFailure &Cause) {
+#ifdef TRACE_RANGE
+      llvm::outs() << "Examining:\nPtrBase\n";
+      PtrBase->dump(llvm::outs());
+      llvm::outs() << "Offset = ";
+      if (Offset != nullptr) {
+        Offset->dump(llvm::outs());
+      } else
+        llvm::outs() << "nullptr\n";
+      llvm::outs() << "Bounds\n";
+      Bounds->dump(llvm::outs());
+#endif
+      Cause = ProofFailure::None;
+      ConstantSizedRange ValidRange(S);
+      if (!CreateConstantRange(Bounds, &ValidRange))
+        return ProofResult::Maybe;
+
+      bool Overflow;
+      llvm::APSInt ElementSize = getReferentSizeInChars(PtrBase->getType());
+      if (Kind == BoundsCheckKind::BCK_NullTermRead) {
+        Overflow = ValidRange.AddToUpper(ElementSize);
+        if (Overflow)
+          return ProofResult::Maybe;
+      }
+
+      const Expr *AccessBase;
+      llvm::APSInt AccessStartOffset;
+      SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset);
+      if (Offset) {
+        llvm::APSInt IntVal;
+        if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
+          return ProofResult::Maybe;
+        IntVal = ConvertToSignedPointerWidth(IntVal, Overflow);
+        if (Overflow)
+          return ProofResult::Maybe;
+        IntVal = IntVal.smul_ov(ElementSize, Overflow);
+        if (Overflow)
+          return ProofResult::Maybe;
+        AccessStartOffset = AccessStartOffset.sadd_ov(IntVal, Overflow);
+        if (Overflow)
+          return ProofResult::Maybe;
+      }
+      ConstantSizedRange MemoryAccessRange(S, AccessBase, AccessStartOffset,
+                                           AccessStartOffset);
+      Overflow = MemoryAccessRange.AddToUpper(ElementSize);
+      if (Overflow)
+        return ProofResult::Maybe;
+#ifdef TRACE_RANGE
+      llvm::outs() << "Memory access range:\n";
+      MemoryAccessRange.Dump(llvm::outs());
+      llvm::outs() << "Valid range:\n";
+      ValidRange.Dump(llvm::outs());
+#endif
+      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause);
+      if (R == ProofResult::True)
+        return R;
+      if (R == ProofResult::False || R == ProofResult::Maybe) {
+        if (R == ProofResult::False &&
+            ValidRange.PartialOverlap(MemoryAccessRange) == ProofResult::True)
+          Cause = CombineFailures(Cause, ProofFailure::PartialOverlap);
+        if (ValidRange.IsEmpty())
+          Cause = CombineFailures(Cause, ProofFailure::Empty);
+        if (MemoryAccessRange.GetWidth() > ValidRange.GetWidth()) {
+          Cause = CombineFailures(Cause, ProofFailure::Width);
+          R = ProofResult::False;
+        }
+      }
+      return R;
+    }
+
     // Convert ProofFailure codes into diagnostic notes explaining why the
     // statement involving bounds is false.
     void ExplainProofFailure(SourceLocation Loc, ProofFailure Cause,
-                             DiagnosticNameForTarget Name =
-                               DiagnosticNameForTarget::Destination,
-                             bool SuppressWidthMessage = false) {
-      if (!SuppressWidthMessage && TestFailure(Cause, ProofFailure::Width))
-        S.Diag(Loc, diag::note_bounds_too_narrow) << (unsigned) Name;
+                             ProofStmtKind Kind) {
+      // Prefer diagnosis of empty bounds over bounds being too narrow.
+      if (TestFailure(Cause, ProofFailure::Empty))
+        S.Diag(Loc, diag::note_source_bounds_empty);
+      else if (Kind != ProofStmtKind::StaticBoundsCast &&
+               TestFailure(Cause, ProofFailure::Width))
+        S.Diag(Loc, diag::note_bounds_too_narrow) << (unsigned)Kind;
 
-      if (TestFailure(Cause, CombineFailures(ProofFailure::LowerBound,
-                                             ProofFailure::UpperBound))) {
-        S.Diag(Loc, diag::note_upper_lower_out_of_bounds) << (unsigned) Name;
-      } else {
-        if (TestFailure(Cause, ProofFailure::LowerBound))
-          S.Diag(Loc, diag::note_lower_out_of_bounds) << (unsigned) Name;
-        if (TestFailure(Cause, ProofFailure::UpperBound))
-          S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Name;
+      // Memory access/struct base error message.
+      if (Kind == ProofStmtKind::MemoryAccess || Kind == ProofStmtKind::MemberArrowBase) {
+        if (TestFailure(Cause, ProofFailure::PartialOverlap)) {
+          S.Diag(Loc, diag::note_bounds_partially_overlap);
+        }
       }
+
+      if (TestFailure(Cause, ProofFailure::LowerBound))
+        S.Diag(Loc, diag::note_lower_out_of_bounds) << (unsigned) Kind;
+      if (TestFailure(Cause, ProofFailure::UpperBound))
+        S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Kind;
     }
 
     // Given an assignment target = e, where target has declared bounds
@@ -1718,8 +1871,8 @@ namespace {
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds) {
       ProofFailure Cause;
-      ProofResult Result = CheckBoundsDeclIsProvable(DeclaredBounds, SrcBounds,
-                                                     Cause);
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
+                                                   Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1728,7 +1881,7 @@ namespace {
           << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
           << Target->getSourceRange() << Src->getSourceRange();
         if (Result == ProofResult::False)
-          ExplainProofFailure(ExprLoc, Cause);
+          ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
         S.Diag(Target->getExprLoc(), diag::note_declared_bounds)
           << DeclaredBounds << DeclaredBounds->getSourceRange();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
@@ -1746,15 +1899,15 @@ namespace {
       SourceLocation ArgLoc = Arg->getLocStart();
       BoundsExpr *NormalizedBounds = S.ExpandToRange(Arg, ExpectedArgBounds);
       ProofFailure Cause;
-      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedBounds,
-                                                     ArgBounds, Cause);
+      ProofResult Result = ProveBoundsDeclValidity(NormalizedBounds,
+                                                   ArgBounds, Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
           diag::warn_argument_bounds_invalid;
         S.Diag(ArgLoc, DiagId) << (ParamNum + 1) << Arg->getSourceRange();
         if (Result == ProofResult::False)
-          ExplainProofFailure(ArgLoc, Cause);
+          ExplainProofFailure(ArgLoc, Cause, ProofStmtKind::BoundsDeclaration);
         S.Diag(ArgLoc, diag::note_expected_argument_bounds) << NormalizedBounds;
         S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
           << ArgBounds << Arg->getSourceRange();
@@ -1769,8 +1922,8 @@ namespace {
                                       BoundsExpr *SrcBounds) {
       BoundsExpr *NormalizedBounds = S.ExpandToRange(D, DeclaredBounds);
       ProofFailure Cause;
-      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedBounds,
-                                                     SrcBounds, Cause);
+      ProofResult Result = ProveBoundsDeclValidity(NormalizedBounds,
+                                                   SrcBounds, Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1779,7 +1932,7 @@ namespace {
           << Sema::BoundsDeclarationCheck::BDC_Initialization << D
           << D->getLocation() << Src->getSourceRange();
         if (Result == ProofResult::False)
-          ExplainProofFailure(ExprLoc, Cause);
+          ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
         S.Diag(D->getLocation(), diag::note_declared_bounds)
           << NormalizedBounds << D->getLocation();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
@@ -1799,9 +1952,10 @@ namespace {
       BoundsExpr *NormalizedTargetBounds = S.ExpandToRange(Cast, TargetBounds);
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
                               Cast->getType()->isCheckedPointerPtrType());
-      ProofResult Result = CheckBoundsDeclIsProvable(NormalizedTargetBounds,
-                                                     SrcBounds, Cause,
-                                                     IsStaticPtrCast);
+      ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
+                             ProofStmtKind::BoundsDeclaration;
+      ProofResult Result =
+        ProveBoundsDeclValidity(NormalizedTargetBounds, SrcBounds, Cause, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
@@ -1809,16 +1963,47 @@ namespace {
         SourceLocation ExprLoc = Cast->getExprLoc();
         S.Diag(ExprLoc, DiagId) << Cast->getType() << Cast->getSourceRange();
         if (Result == ProofResult::False)
-          ExplainProofFailure(ExprLoc, Cause, DiagnosticNameForTarget::Target,
-                              true);
+          ExplainProofFailure(ExprLoc, Cause,
+                              ProofStmtKind::StaticBoundsCast);
         S.Diag(ExprLoc, diag::note_required_bounds) << NormalizedTargetBounds;
         S.Diag(ExprLoc, diag::note_expanded_inferred_bounds) << SrcBounds;
       }
     }
 
+    void CheckBoundsAtMemoryAccess(Expr *Deref, BoundsExpr *ValidRange,
+                                   BoundsCheckKind CheckKind) {
+      ProofFailure Cause;
+      ProofResult Result;
+      ProofStmtKind ProofKind;
+      if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
+        ProofKind = ProofStmtKind::MemoryAccess;
+        Result = ProveMemoryAccessInRange(UO->getSubExpr(), nullptr, ValidRange,
+                                          CheckKind, Cause);
+      } else if (ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(Deref)) {
+        ProofKind = ProofStmtKind::MemoryAccess;
+        Result = ProveMemoryAccessInRange(AS->getBase(), AS->getIdx(),
+                                          ValidRange, CheckKind, Cause);
+      } else if (MemberExpr *ME = dyn_cast<MemberExpr>(Deref)) {
+        assert(ME->isArrow());
+        ProofKind = ProofStmtKind::MemberArrowBase;
+        Result = ProveMemoryAccessInRange(ME->getBase(), nullptr, ValidRange, CheckKind, Cause);
+      } else {
+        llvm_unreachable("unexpected expression kind");
+      }
+
+      if (Result == ProofResult::False) {
+        unsigned DiagId = diag::warn_out_of_bounds_access;
+        SourceLocation ExprLoc = Deref->getExprLoc();
+        S.Diag(ExprLoc, DiagId) << (unsigned) ProofKind << Deref->getSourceRange();
+        ExplainProofFailure(ExprLoc, Cause, ProofKind);
+        S.Diag(ExprLoc, diag::note_expanded_inferred_bounds) << ValidRange;
+      }
+    }
+
   public:
     CheckBoundsDeclarations(Sema &S) : S(S),
-      DumpBounds(S.getLangOpts().DumpInferredBounds) {}
+      DumpBounds(S.getLangOpts().DumpInferredBounds),
+      PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)) {}
 
     // RecursiveASTVisitor visits both syntactic and semantic forms of
     // initializer lists, causing AST nodes used in both forms to be visited

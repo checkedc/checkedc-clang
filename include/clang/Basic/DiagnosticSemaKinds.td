@@ -9417,18 +9417,23 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_static_cast_bounds_invalid : Error<
     "cast source bounds are too narrow for %0">;
 
+  def warn_out_of_bounds_access : Warning<
+    "out-of-bounds %select{||memory access|base value}0">,
+    InGroup<CheckMemoryAccesses>;
+
+  def note_source_bounds_empty : Note<"source bounds are an empty range">;
+
   def note_bounds_too_narrow : Note<
-    "%select{destination|target}0 bounds are wider than the source bounds">;
+    "%select{destination bounds are|target bounds are|memory accessed is|struct/union pointed to by base is}0 wider than the %select{source|source||}0 bounds">;
 
   def note_lower_out_of_bounds : Note<
-    "%select{destination|target}0 lower bound is below source lower bound">;
+    "%select{destination lower bound is|target lower bound is|accesses memory|base value is}0 below %select{source|source|the|its}0 lower bound">;
 
   def note_upper_out_of_bounds : Note<
-    "%select{destination|target}0 upper bound is above source upper bound">;
+    "%select{destination upper bound is|target upper bound is|accesses memory at or|base value is}0 above %select{source|source|the|its}0 upper bound">;
 
-  def note_upper_lower_out_of_bounds : Note<
-    "%select{destination|target}0 lower bound is below source lower bound and "
-    "%select{destination|target}0 upper bound is above source upper bound">;
+   def note_bounds_partially_overlap : Note<
+    "%select{||accesses memory that|struct/union pointed to by base value}0 is only partially in bounds">;
 
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;
