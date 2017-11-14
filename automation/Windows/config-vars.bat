@@ -163,7 +163,7 @@ if NOT DEFINED MSBUILD_CPU_COUNT (
 
 if NOT DEFINED CL_CPU_COUNT (
   rem It would be better to calculate this based on total physical memory availablity.
-  set CL_CPU_COUNT=6
+  set CL_CPU_COUNT=4
 )
 
 echo Configured environment variables:
