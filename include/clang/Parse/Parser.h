@@ -1815,7 +1815,8 @@ private:
   StmtResult ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
                                     CheckedScopeKind Kind = CSK_None);
   void ParseCompoundStatementLeadingPragmas();
-  StmtResult ParseCompoundStatementBody(bool isStmtExpr = false);
+  StmtResult ParseCompoundStatementBody(bool isStmtExpr = false,
+                                        CheckedScopeKind Kind = CSK_None);
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
                                  Sema::ConditionResult &CondResult,
                                  SourceLocation Loc,
@@ -1989,7 +1990,8 @@ private:
       Declarator &D,
       const ParsedTemplateInfo &TemplateInfo = ParsedTemplateInfo(),
       ForRangeInit *FRI = nullptr);
-  Decl *ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope);
+  Decl *ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope,
+                                   CheckedScopeKind Kind=CSK_None);
   Decl *ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope);
 
   /// \brief When in code-completion, skip parsing of the function/method body

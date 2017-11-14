@@ -408,7 +408,8 @@ QualType ASTNodeImporter::VisitPointerType(const PointerType *T) {
   if (ToPointeeType.isNull())
     return QualType();
   
-  return Importer.getToContext().getPointerType(ToPointeeType);
+  return Importer.getToContext().getPointerType(ToPointeeType,
+                                                T->getKind());
 }
 
 QualType ASTNodeImporter::VisitBlockPointerType(const BlockPointerType *T) {
@@ -3936,7 +3937,9 @@ Stmt *ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
   SourceLocation ToRBraceLoc = Importer.Import(S->getRBracLoc());
   return new (Importer.getToContext()) CompoundStmt(Importer.getToContext(),
                                                     ToStmts,
-                                                    ToLBraceLoc, ToRBraceLoc);
+                                                    ToLBraceLoc, ToRBraceLoc,
+                                                    S->isChecked(),
+                                                    S->isCheckedPropertyDeclared());
 }
 
 Stmt *ASTNodeImporter::VisitCaseStmt(CaseStmt *S) {

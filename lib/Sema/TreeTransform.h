@@ -1192,9 +1192,12 @@ public:
   StmtResult RebuildCompoundStmt(SourceLocation LBraceLoc,
                                        MultiStmtArg Statements,
                                        SourceLocation RBraceLoc,
-                                       bool IsStmtExpr) {
+                                       bool IsStmtExpr,
+                                       bool IsChecked,
+                                       bool CheckedPropertyDeclared) {
     return getSema().ActOnCompoundStmt(LBraceLoc, RBraceLoc, Statements,
-                                       IsStmtExpr);
+                                       IsStmtExpr, IsChecked,
+                                       CheckedPropertyDeclared);
   }
 
   /// \brief Build a new case statement.
@@ -6526,7 +6529,9 @@ TreeTransform<Derived>::TransformCompoundStmt(CompoundStmt *S,
   return getDerived().RebuildCompoundStmt(S->getLBracLoc(),
                                           Statements,
                                           S->getRBracLoc(),
-                                          IsStmtExpr);
+                                          IsStmtExpr,
+                                          S->isChecked(),
+                                          S->isCheckedPropertyDeclared());
 }
 
 template<typename Derived>

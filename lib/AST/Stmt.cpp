@@ -280,11 +280,14 @@ SourceLocation Stmt::getLocEnd() const {
 }
 
 CompoundStmt::CompoundStmt(const ASTContext &C, ArrayRef<Stmt*> Stmts,
-                           SourceLocation LB, SourceLocation RB)
+                           SourceLocation LB, SourceLocation RB,
+                           bool IsCheckedScope, bool CheckedPropertyDeclared)
   : Stmt(CompoundStmtClass), LBraceLoc(LB), RBraceLoc(RB) {
   CompoundStmtBits.NumStmts = Stmts.size();
   assert(CompoundStmtBits.NumStmts == Stmts.size() &&
          "NumStmts doesn't fit in bits of CompoundStmtBits.NumStmts!");
+  CompoundStmtBits.IsCheckedScope = IsCheckedScope;
+  CompoundStmtBits.CheckedPropertyDeclared = CheckedPropertyDeclared;
 
   if (Stmts.size() == 0) {
     Body = nullptr;

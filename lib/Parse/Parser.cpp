@@ -1281,7 +1281,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   if (LateParsedAttrs)
     ParseLexedAttributeList(*LateParsedAttrs, Res, false, true);
 
-  return ParseFunctionStatementBody(Res, BodyScope);
+  return ParseFunctionStatementBody(Res, BodyScope, CSK);
 }
 
 void Parser::SkipFunctionBody() {
