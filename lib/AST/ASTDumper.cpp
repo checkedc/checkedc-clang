@@ -517,6 +517,7 @@ namespace  {
     void VisitStmt(const Stmt *Node);
     void VisitDeclStmt(const DeclStmt *Node);
     void VisitAttributedStmt(const AttributedStmt *Node);
+    void VisitCompoundStmt(const CompoundStmt *Node);
     void VisitLabelStmt(const LabelStmt *Node);
     void VisitGotoStmt(const GotoStmt *Node);
     void VisitCXXCatchStmt(const CXXCatchStmt *Node);
@@ -1865,6 +1866,12 @@ void ASTDumper::VisitAttributedStmt(const AttributedStmt *Node) {
                                         E = Node->getAttrs().end();
        I != E; ++I)
     dumpAttr(*I);
+}
+
+void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
+  VisitStmt(Node);
+  OS << (Node->isCheckedPropertyDeclared() ? " declared-" : " inherited-");
+  OS << (Node->isChecked() ? "checked" : "unchecked");
 }
 
 void ASTDumper::VisitLabelStmt(const LabelStmt *Node) {

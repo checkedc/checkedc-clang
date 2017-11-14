@@ -853,7 +853,7 @@ StmtResult Parser::ParseDefaultStatement() {
 StmtResult Parser::ParseCheckedScopeStatement() {
   assert((Tok.is(tok::kw__Checked) || Tok.is(tok::kw__Unchecked)) &&
          "Not a checked scope keyword(checked/unchecked)!");
-  CheckedScopeKind Kind;
+  CheckedScopeKind Kind = CSK_None;
   if (Tok.is(tok::kw__Checked))
     Kind = CSK_Checked;
   else if (Tok.is(tok::kw__Unchecked))
@@ -872,7 +872,7 @@ StmtResult Parser::ParseCheckedScopeStatement() {
 }
 
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
-  return ParseCompoundStatement(isStmtExpr, Scope::DeclScope);
+  return ParseCompoundStatement(isStmtExpr, Scope::DeclScope, CSK_None);
 }
 
 /// ParseCompoundStatement - Parse a "{}" block.
@@ -910,7 +910,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
-  return ParseCompoundStatementBody(isStmtExpr);
+  return ParseCompoundStatementBody(isStmtExpr, Kind);
 }
 
 /// Parse any pragmas at the start of the compound expression. We handle these
@@ -977,7 +977,8 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
 /// ActOnCompoundStmt action.  This expects the '{' to be the current token, and
 /// consume the '}' at the end of the block.  It does not manipulate the scope
 /// stack.
-StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
+StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
+                                              CheckedScopeKind Kind) {
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
                                 Tok.getLocation(),
                                 "in compound statement ('{}')");
@@ -995,7 +996,8 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   // 1. checked function -> function definition scope -> compound statement
   // 2. checked scope keyword -> scope -> compound statement
   Sema::CompoundScopeRAII CompoundScope(Actions);
-  if (getCurScope()->isCheckedScope())
+  bool isCheckedScope = getCurScope()->isCheckedScope();
+  if (isCheckedScope)
     CompoundScope.setCheckedScope();
 
   // Parse any pragmas at the beginning of the compound statement.
@@ -1096,7 +1098,8 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
     CloseLoc = T.getCloseLocation();
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
-                                   Stmts, isStmtExpr);
+                                   Stmts, isStmtExpr, isCheckedScope,
+                                   Kind != CSK_None);
 }
 
 /// ParseParenExprOrCondition:
@@ -1992,7 +1995,8 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
   return S;
 }
 
-Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
+Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope,
+                                         CheckedScopeKind Kind) {
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();
 
@@ -2003,19 +2007,22 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   bool IsCXXMethod =
       getLangOpts().CPlusPlus && Decl && isa<CXXMethodDecl>(Decl);
   Sema::PragmaStackSentinelRAII
-    PragmaStackSentinel(Actions, "InternalPragmaState", IsCXXMethod);
+    PragmaStackSentinel(Actions, "InternalPragmaState", IsCXXMethod );
 
   // Do not enter a scope for the brace, as the arguments are in the same scope
   // (the function body) as the body itself.  Instead, just read the statement
   // list and put it into a CompoundStmt for safe keeping.
-  StmtResult FnBody(ParseCompoundStatementBody());
+  StmtResult FnBody(ParseCompoundStatementBody(/*IsExpr=*/false, Kind));
 
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    if (getCurScope()->isCheckedScope())
+    bool IsCheckedScope = getCurScope()->isCheckedScope();
+    if (IsCheckedScope)
       CompoundScope.setCheckedScope();
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
+    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None,
+                                       false, IsCheckedScope,
+                                       Kind != CSK_None);
   }
 
   BodyScope.Exit();
@@ -2052,7 +2059,8 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
   // compound statement as the body.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
+    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false,
+                                       false, false);
   }
 
   BodyScope.Exit();

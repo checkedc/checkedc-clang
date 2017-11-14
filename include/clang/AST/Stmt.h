@@ -90,8 +90,12 @@ protected:
   class CompoundStmtBitfields {
     friend class CompoundStmt;
     unsigned : NumStmtBits;
+    // Is this compound statement checked or unchecked?
+    unsigned IsCheckedScope : 1;
+    // Was the property declared explicitly in the code?
+    unsigned CheckedPropertyDeclared : 1;
 
-    unsigned NumStmts : 32 - NumStmtBits;
+    unsigned NumStmts : 32 - 2 - NumStmtBits;
   };
 
   class IfStmtBitfields {
@@ -610,24 +614,42 @@ class CompoundStmt : public Stmt {
 
 public:
   CompoundStmt(const ASTContext &C, ArrayRef<Stmt*> Stmts,
-               SourceLocation LB, SourceLocation RB);
+               SourceLocation LB, SourceLocation RB,
+               bool IsChecked, bool CheckedPropertyDeclared);
 
   // \brief Build an empty compound statement with a location.
   explicit CompoundStmt(SourceLocation Loc)
     : Stmt(CompoundStmtClass), Body(nullptr), LBraceLoc(Loc), RBraceLoc(Loc) {
     CompoundStmtBits.NumStmts = 0;
+    CompoundStmtBits.IsCheckedScope = false;
+    CompoundStmtBits.CheckedPropertyDeclared = false;
   }
 
   // \brief Build an empty compound statement.
   explicit CompoundStmt(EmptyShell Empty)
     : Stmt(CompoundStmtClass, Empty), Body(nullptr) {
     CompoundStmtBits.NumStmts = 0;
+    CompoundStmtBits.IsCheckedScope = false;
+    CompoundStmtBits.CheckedPropertyDeclared = false;
   }
 
   void setStmts(const ASTContext &C, ArrayRef<Stmt *> Stmts);
 
   bool body_empty() const { return CompoundStmtBits.NumStmts == 0; }
   unsigned size() const { return CompoundStmtBits.NumStmts; }
+
+  bool isChecked() const{ return CompoundStmtBits.IsCheckedScope != 0;  }
+  bool setChecked(bool IsCheckedScope) {
+    CompoundStmtBits.IsCheckedScope = IsCheckedScope;
+  }
+
+  bool isCheckedPropertyDeclared() const {
+    return CompoundStmtBits.CheckedPropertyDeclared != 0;
+  }
+
+  bool setCheckedPropertyDeclared(bool CheckedPropertyDeclared) {
+    CompoundStmtBits.CheckedPropertyDeclared = CheckedPropertyDeclared;
+  }
 
   typedef Stmt** body_iterator;
   typedef llvm::iterator_range<body_iterator> body_range;

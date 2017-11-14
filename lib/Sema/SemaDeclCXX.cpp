@@ -12177,7 +12177,8 @@ void Sema::DefineImplicitLambdaToFunctionPointerConversion(
    Stmt *Return = BuildReturnStmt(Conv->getLocation(), FunctionRef).get();
    Conv->setBody(new (Context) CompoundStmt(Context, Return,
                                             Conv->getLocation(),
-                                            Conv->getLocation()));
+                                            Conv->getLocation(),
+                                            false, false));
 
   Conv->markUsed(Context);
   Conv->setReferenced();
@@ -12243,7 +12244,8 @@ void Sema::DefineImplicitLambdaToBlockPointerConversion(
   Stmt *ReturnS = Return.get();
   Conv->setBody(new (Context) CompoundStmt(Context, ReturnS,
                                            Conv->getLocation(),
-                                           Conv->getLocation()));
+                                           Conv->getLocation(),
+                                           false, false));
   
   // We're done; notify the mutation listener, if any.
   if (ASTMutationListener *L = getASTMutationListener()) {
