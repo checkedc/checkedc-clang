@@ -1333,8 +1333,7 @@ BoundsExpr *Sema::ExpandToRange(VarDecl *D, BoundsExpr *B) {
 
 
 namespace {
-  class CheckBoundsDeclarations :
-    public RecursiveASTVisitor<CheckBoundsDeclarations> {
+  class CheckBoundsDeclarations {
   private:
     Sema &S;
     bool DumpBounds;
@@ -2005,29 +2004,57 @@ namespace {
       DumpBounds(S.getLangOpts().DumpInferredBounds),
       PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)) {}
 
-    // RecursiveASTVisitor visits both syntactic and semantic forms of
-    // initializer lists, causing AST nodes used in both forms to be visited
-    // twice by default. The statement in RecursiveASTVisitors that AST nodes
-    // are visited exactly once isn't quite correct.
-    //
-    // We assume in this class that nodes are only traversed once.  We want
-    // to sanity check that bounds information is not being recomputed
-    // and to avoid duplicate error messages.
-    //
-    // Achieve this by overriding the traverse method for initializer lists to
-    // visit only the semantic form of initializer lists.  We'll need to use the
-    // semantic form when checking that struct initializers meet member bounds
-    // requirements anyway.
-    bool TraverseInitListExpr(InitListExpr *S,
-                              DataRecursionQueue *Q = nullptr) {
-      InitListExpr *SemaForm = S->isSemanticForm() ? S : S->getSemanticForm();
-      if (SemaForm) {
-        for (Stmt *SubStmt : SemaForm->children()) {
-          if (!TraverseStmt(SubStmt, Q))
-            return false;
+    void TraverseStmt(Stmt *S, bool IsChecked) {
+      if (!S)
+        return;
+
+      switch (S->getStmtClass()) {
+        case Expr::UnaryOperatorClass:
+          VisitUnaryOperator(cast<UnaryOperator>(S));
+          break;
+        case Expr::CallExprClass:
+          VisitCallExpr(cast<CallExpr>(S));
+          break;
+        case Expr::MemberExprClass:
+          VisitMemberExpr(cast<MemberExpr>(S));
+          break;
+        case Expr::ImplicitCastExprClass:
+        case Expr::CStyleCastExprClass:
+        case Expr::BoundsCastExprClass:
+          VisitCastExpr(cast<CastExpr>(S));
+          break;
+        case Expr::BinaryOperatorClass:
+        case Expr::CompoundAssignOperatorClass:
+          VisitBinaryOperator(cast<BinaryOperator>(S));
+          break;
+        case Stmt::CompoundStmtClass: {
+          CompoundStmt *CS = cast<CompoundStmt>(S);
+          IsChecked = CS->isChecked();
+          break;
         }
+        case Stmt::DeclStmtClass: {
+          DeclStmt *DS = cast<DeclStmt>(S);
+          auto BeginDecls = DS->decl_begin(), EndDecls = DS->decl_end();
+          for (auto I = BeginDecls; I != EndDecls; ++I) {
+            Decl *D = *I;
+            if (VarDecl *VD = dyn_cast<VarDecl>(D))
+              VisitVarDecl(VD);
+          }
+          break;
+        }
+        default: 
+          break;
       }
-      return true;
+      auto Begin = S->child_begin(), End = S->child_end();
+      for (auto I = Begin; I != End; ++I) {
+        TraverseStmt(*I, IsChecked);
+      }
+    }
+
+    void TraverseVarDecl(VarDecl *VD, bool IsChecked) {
+      VisitVarDecl(VD);
+      if (Expr *Init = VD->getInit())
+        TraverseStmt(Init, IsChecked);
     }
 
     bool VisitBinaryOperator(BinaryOperator *E) {
@@ -2552,12 +2579,14 @@ namespace {
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
-  CheckBoundsDeclarations(*this).TraverseStmt(Body);
+  // The IsChecked arguemnt to TraverseStmt doesn't matter - the body will be a
+  // compound statement and we'll pick up the checked-ness from that.
+  CheckBoundsDeclarations(*this).TraverseStmt(Body, false);
 }
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm())
-    CheckBoundsDeclarations(*this).TraverseVarDecl(D);
+    CheckBoundsDeclarations(*this).TraverseVarDecl(D, getCurScope()->isCheckedScope());
 }
 
 
