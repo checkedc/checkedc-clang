@@ -1870,8 +1870,13 @@ void ASTDumper::VisitAttributedStmt(const AttributedStmt *Node) {
 
 void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
   VisitStmt(Node);
-  OS << (Node->isCheckedPropertyDeclared() ? " declared-" : " inherited-");
-  OS << (Node->isChecked() ? "checked" : "unchecked");
+  // To avoid having to change existing tests, we don't print
+  // inherited-unchecked information.  We only print information
+  // related to checked blocks or explicit declarations.
+  if (Node->isCheckedPropertyDeclared() || Node->isChecked()) {
+    OS << (Node->isCheckedPropertyDeclared() ? " declared-" : " inherited-");
+    OS << (Node->isChecked() ? "checked" : "unchecked");
+  }
 }
 
 void ASTDumper::VisitLabelStmt(const LabelStmt *Node) {

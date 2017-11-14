@@ -13,13 +13,17 @@ void f1(void) {
 // CHECK: FunctionDecl
 // CHECK: f1
 // CHECK-NEXT: CompoundStmt
-// CHECK: inherited-unchecked
+// For inherited-unchecked, we don't print anything to avoid breaking
+// existing tests.
+// CHECK-NOT: {{.*-checked}}
 // CHECK-NEXT: CompoundStmt
 // CHECK: declared-checked
 // CHECK: CompoundStmt
 // CHECK: declared-unchecked
 // CHECK: CompoundStmt
-// CHECK: inherited-unchecked
+// For inherited-unchecked, we don't print anything to avoid breaking
+// existing tests.
+// CHECK-NOT: {{.*-checked}}
 
 void f2(void) _Checked {}
 
@@ -47,4 +51,6 @@ _Unchecked void f5(void) {}
 // CHECK-NEXT: FunctionDecl
 // CHECK: f5
 // CHECK-NEXT: CompoundStmt
-// CHECK: inherited-unchecked
+// For inherited-unchecked, we don't print anything to avoid breaking
+// existing tests.
+// CHECK-NOT: {{.*-checked}}

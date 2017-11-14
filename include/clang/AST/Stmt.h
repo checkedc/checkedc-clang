@@ -639,7 +639,7 @@ public:
   unsigned size() const { return CompoundStmtBits.NumStmts; }
 
   bool isChecked() const{ return CompoundStmtBits.IsCheckedScope != 0;  }
-  bool setChecked(bool IsCheckedScope) {
+  void setChecked(bool IsCheckedScope) {
     CompoundStmtBits.IsCheckedScope = IsCheckedScope;
   }
 
@@ -647,7 +647,7 @@ public:
     return CompoundStmtBits.CheckedPropertyDeclared != 0;
   }
 
-  bool setCheckedPropertyDeclared(bool CheckedPropertyDeclared) {
+  void setCheckedPropertyDeclared(bool CheckedPropertyDeclared) {
     CompoundStmtBits.CheckedPropertyDeclared = CheckedPropertyDeclared;
   }
 
