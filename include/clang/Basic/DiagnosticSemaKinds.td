@@ -9373,9 +9373,14 @@ def err_bounds_type_annotation_lost_checking : Error<
       : Error<"invalid bounds cast: expected _Array_ptr type">;
 
   def warn_bounds_declaration_invalid : Warning<
-    "declared bounds for %1 may be invalid after "
-    " %select{assignment|initialization}0">,
+    "cannot prove declared bounds for %1 are valid after "
+    "%select{assignment|initialization}0">,
     DefaultIgnore,
+    InGroup<CheckBoundsDecls>;
+
+  def warn_checked_scope_bounds_declaration_invalid : Warning<
+    "cannot prove declared bounds for %1 are valid after "
+    "%select{assignment|initialization}0">,
     InGroup<CheckBoundsDecls>;
 
   def error_bounds_declaration_invalid : Error<
@@ -9399,8 +9404,12 @@ def err_bounds_type_annotation_lost_checking : Error<
    "is used in a bounds expression">;
 
   def warn_argument_bounds_invalid : Warning<
-    "argument may not meet declared bounds for %ordinal0 parameter">,
+    "cannot prove argument meets declared bounds for %ordinal0 parameter">,
     DefaultIgnore,
+    InGroup<CheckBoundsDecls>;
+
+  def warn_checked_scope_argument_bounds_invalid : Warning<
+    "cannot prove argument meets declared bounds for %ordinal0 parameter">,
     InGroup<CheckBoundsDecls>;
 
   def error_argument_bounds_invalid : Error<
@@ -9410,8 +9419,12 @@ def err_bounds_type_annotation_lost_checking : Error<
     "(expanded) expected argument bounds are '%0'">;
 
   def warn_static_cast_bounds_invalid : Warning<
-    "cast source bounds may be too narrow for %0">,
+    "cannot prove cast source bounds are wide enough for %0">,
     DefaultIgnore,
+    InGroup<CheckBoundsDecls>;
+
+  def warn_checked_scopestatic_cast_bounds_invalid : Warning<
+    "cannot prove cast source bounds are wide enough for %0">,
     InGroup<CheckBoundsDecls>;
 
   def error_static_cast_bounds_invalid : Error<
