@@ -19,7 +19,7 @@ void f2(_Array_ptr<int> p : bounds(p, p + x), int x) {
 // Initialization by expression without syntactically identical
 // normalized bounds - warning expected.
 void f3(_Array_ptr<int> p : bounds(p, p + x), int x) {
-  _Array_ptr<int> r : count(x) = p;     // expected-warning {{may be invalid}} \
+  _Array_ptr<int> r : count(x) = p;     // expected-warning {{cannot prove declared bounds}} \
                                         // expected-note {{(expanded) declared bounds are 'bounds(r, r + x)'}} \
                                         // expected-note {{(expanded) inferred bounds are 'bounds(p, p + x)'}}
 }
@@ -42,7 +42,7 @@ void f5(_Array_ptr<int> p : count(x), int x) {
 // no warning.
 void f6(_Array_ptr<int> p : count(x), int x) {
   _Array_ptr<int> r : count(x) = 0;
-  r = p;      // expected-warning {{may be invalid}} \
+  r = p;      // expected-warning {{cannot prove declared bounds}} \
               // expected-note {{(expanded) declared bounds are 'bounds(r, r + x)'}} \
               // expected-note {{(expanded) inferred bounds are 'bounds(p, p + x)'}}
 }
@@ -162,7 +162,7 @@ void f22(_Array_ptr<int> q : count(5)) {
           // expected-note {{destination lower bound is below source lower bound}} \
           // expected-note {{(expanded) expected argument bounds are 'bounds(q - 1, q + 4)'}} \
           // expected-note {{(expanded) inferred bounds are 'bounds(q, q + 5)'}}
-  constant_sized_bound2(q + 1);  // expected-warning {{argument may not meet declared bounds for 1st parameter}} \
+  constant_sized_bound2(q + 1);  // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
                                  // expected-note {{(expanded) expected argument bounds are 'bounds(q + 1 - 1, q + 1 + 4)'}} \
                                  // expected-note {{(expanded) inferred bounds are 'bounds(q, q + 5)'}}
                                 // TODO: no warning/error expected.  We need reassocation of arithmetic
@@ -186,10 +186,12 @@ void test_cast(_Ptr<struct S1> s1, _Ptr<struct S2> s2) {
   _Ptr<char> cp = 0;
   cp = (_Ptr<char>) p;
   p = (_Ptr<int>) cp; // expected-error {{cast source bounds are too narrow for '_Ptr<int>'}} \
+                      // expected-note {{target upper bound is above source upper bound}} \
                       // expected-note{{(expanded) required bounds are 'bounds((_Ptr<int>)cp, (_Ptr<int>)cp + 1)'}} \
                       // expected-note {{(expanded) inferred bounds are 'bounds(cp, cp + 1)'}} \
   _Ptr<struct S1> prefix = (_Ptr<struct S1>) s2;
   _Ptr<struct S2> suffix = (_Ptr<struct S2>) s1; // expected-error {{cast source bounds are too narrow for '_Ptr<struct S2>'}} \
+                                                 // expected-note {{target upper bound is above source upper bound}} \
                                                  // expected-note {{(expanded) required bounds are 'bounds((_Ptr<struct S2>)s1, (_Ptr<struct S2>)s1 + 1)'}} \
                                                  // expected-note{{(expanded) inferred bounds are 'bounds(s1, s1 + 1)'}}
 
@@ -199,9 +201,11 @@ _Ptr<void> test_void(void);
 
 void test_ptr_void_cast(_Ptr<void> p) {
   _Ptr<int> ip = (_Ptr<int>) p; // expected-error {{cast source bounds are too narrow for '_Ptr<int>'}} \
+                                // expected-note {{target upper bound is above source upper bound}} \
                                 // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int>)p, (_Ptr<int>)p + 1)'}} \
                                 // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 1)'}}
   _Ptr<struct S1> sp = (_Ptr<struct S1>) p; // expected-error {{cast source bounds are too narrow for '_Ptr<struct S1>'}} \
+                                            // expected-note {{target upper bound is above source upper bound}} \
                                             // expected-note {{(expanded) required bounds are 'bounds((_Ptr<struct S1>)p, (_Ptr<struct S1>)p + 1)'}} \
                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 1)'}}
   _Ptr<char> cp = (_Ptr<char>) p;
@@ -220,6 +224,7 @@ void test_nt_array_casts(void) {
 
   _Ptr<int _Nt_checked[6]> nt_parr2 = 0;
   nt_parr2 = (_Ptr<int _Nt_checked[6]>) &nt_arr; // expected-error {{cast source bounds are too narrow for '_Ptr<int _Nt_checked[6]>'}} \
+                    // expected-note {{target upper bound is above source upper bound}} \
                     // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int _Nt_checked[6]>)&nt_arr, (_Ptr<int _Nt_checked[6]>)&nt_arr + 1)'}} \
                     // expected-note {{(expanded) inferred bounds are 'bounds(nt_arr, nt_arr + 5)'}}
 
@@ -232,11 +237,13 @@ void test_nt_array_casts(void) {
 
   _Ptr<int _Checked[5]> parr5 = 0;
   parr5 = (_Ptr<int _Checked[5]>) &nt_arr; // expected-error {{cast source bounds are too narrow for '_Ptr<int _Checked[5]>'}} \
+                                           // expected-note {{target upper bound is above source upper bound}} \
                                            // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int _Checked[5]>)&nt_arr, (_Ptr<int _Checked[5]>)&nt_arr + 1)'}} \
                                            // expected-note {{(expanded) inferred bounds are 'bounds(nt_arr, nt_arr + 4)}}
 
   _Ptr<int _Checked[5]> parr6 = 0;
   parr6 = (_Ptr<int _Checked[5]>) &nt_arr;  // expected-error {{cast source bounds are too narrow for '_Ptr<int _Checked[5]>'}} \
+                    // expected-note {{target upper bound is above source upper bound}} \
                     // expected-note {{(expanded) required bounds are 'bounds((_Ptr<int _Checked[5]>)&nt_arr, (_Ptr<int _Checked[5]>)&nt_arr + 1)'}} \
                     // expected-note {{(expanded) inferred bounds are 'bounds(nt_arr, nt_arr + 4)'}}
 }

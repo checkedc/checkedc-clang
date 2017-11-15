@@ -1378,7 +1378,7 @@ namespace {
     // If the Array_ptr has unknown bounds, this is a compile-time error.
     // Generate an error message and set the bounds to an invalid bounds
     // expression.
-    bool AddBoundsCheck(Expr *E, bool IsOnlyMemoryRead) {
+    bool AddBoundsCheck(Expr *E, bool IsOnlyMemoryRead, bool InCheckedScope) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
       QualType PtrType;
@@ -1392,7 +1392,7 @@ namespace {
           S.Diag(E->getLocStart(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
         } else {
-          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind);
+          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind, InCheckedScope);
         }
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
           assert(!UO->hasBoundsExpr());
@@ -1413,13 +1413,13 @@ namespace {
     // base expression is an Array_ptr dereference.  Such base expressions
     // always need bounds checks, even though their lvalues are only used for an
     // address computation.
-    bool AddMemberBaseBoundsCheck(MemberExpr *E) {
+    bool AddMemberBaseBoundsCheck(MemberExpr *E, bool InCheckedScope) {
       Expr *Base = E->getBase();
       // E.F
       if (!E->isArrow()) {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
-          return AddBoundsCheck(Base, false);
+          return AddBoundsCheck(Base, false, InCheckedScope);
         return false;
       }
 
@@ -1430,7 +1430,7 @@ namespace {
           S.Diag(Base->getLocStart(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
         } else {
-          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal);
+          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal, InCheckedScope);
         }
         E->setBoundsExpr(Bounds);
         return true;
@@ -1515,8 +1515,7 @@ namespace {
 
       // Is R in range of this range?
       ProofResult InRange(ConstantSizedRange &R, ProofFailure &Cause) {
-        if (Lexicographic(S.Context, nullptr).CompareExpr(Base, R.Base) ==
-            Lexicographic::Result::Equal) {
+        if (EqualValue(S.Context, Base, R.Base)) {
           ProofResult Result = ProofResult::True;
           if (LowerOffset > R.LowerOffset) {
             Cause = CombineFailures(Cause, ProofFailure::LowerBound);
@@ -1618,7 +1617,8 @@ namespace {
         return I;
      }
 
-    // Convert an expression E into a base and offset form.
+    // Convert an expression E into a base and offset form.  The offset is
+    // in characters.
     // - If E is pointer arithmetic involving addition or subtraction of a
     //   constant integer, return the base and offset.
     // - If it is not or we run into issues such as pointer arithmetic overflow,
@@ -1667,6 +1667,104 @@ namespace {
       Offset = llvm::APSInt(PointerWidth, false);
     }
 
+    // Return true if this cast preserve the bits of the value,
+    // false otherwise.
+    static bool IsValuePreserving(CastKind CK) {
+      switch (CK) {
+        case CK_BitCast:
+        case CK_LValueBitCast:
+        case CK_NoOp:
+        case CK_ArrayToPointerDecay:
+        case CK_FunctionToPointerDecay:
+        case CK_NullToPointer:
+        case CK_AssumePtrBounds:
+        case CK_DynamicPtrBounds:
+          return true;
+        default:
+          return false;
+      }
+    }
+
+    static bool isPointerToArrayType(QualType Ty) {
+      if (const PointerType *T = Ty->getAs<PointerType>())
+        return T->getPointeeType()->isArrayType();
+      else
+        return false;
+    }
+
+    // Ignore operations that don't change runtime values: parens, some cast operations,
+    // and array/function address-of and dereference operators.
+    //
+    // The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
+    // do enough filtering (it'll allow LValueToRValue casts for example).
+    // TODO: reconcile with CheckValuePreservingCast
+    static const Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, const Expr *E) {;
+      while (true) {
+        E = E->IgnoreParens();
+
+        if (const CastExpr *P = dyn_cast<CastExpr>(E)) {
+          CastKind CK = P->getCastKind();
+          const Expr *SE = P->getSubExpr();
+          if (IsValuePreserving(CK)) {
+            E = SE;
+            continue;
+          }
+
+          // Ignore integer <-> casts that are of the same width, ptr<->ptr
+          // and ptr<->int casts of the same width.
+          if (CK == CK_IntegralToPointer || CK != CK_PointerToIntegral ||
+              CK == CK_IntegralCast) {
+            if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
+              E = SE;
+              continue;
+            }
+
+            if ((E->getType()->isPointerType() ||
+                  E->getType()->isIntegralType(Ctx)) &&
+                  (SE->getType()->isPointerType() ||
+                  SE->getType()->isIntegralType(Ctx)) &&
+                Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
+              E = SE;
+              continue;
+            }
+          }
+        } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+          QualType ETy = UO->getType();
+          const Expr *SE = UO->getSubExpr();
+          QualType SETy = SE->getType();
+
+          UnaryOperator::Opcode Op = UO->getOpcode();
+          if (Op == UO_Deref) {
+              // This may be more conservative than necessary.
+              bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
+              bool between_arrays = ETy->isArrayType() && isPointerToArrayType(SETy);
+              if (between_functions || between_arrays) {
+                E = SE;
+                continue;
+              }
+          } else if (Op == UO_AddrOf) {
+            // This may be more conservative than necessary.
+            bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
+            bool between_arrays = isPointerToArrayType(ETy) && SETy->isArrayType();
+            if (between_functions || between_arrays) {
+              E = SE;
+              continue;
+            }
+          }
+        }
+
+        return E;
+      }
+    }
+
+    static bool EqualValue(ASTContext &Ctx, const Expr *E1, const Expr *E2) {
+      const Expr *NormalizedE1 = IgnoreValuePreservingOperations(Ctx, E1);
+      const Expr *NormalizedE2 = IgnoreValuePreservingOperations(Ctx, E2);
+      Lexicographic::Result R =
+        Lexicographic(Ctx, nullptr).CompareExpr(NormalizedE1, NormalizedE2);
+      return R == Lexicographic::Result::Equal;
+    }
+
     // Convert a bounds expression to a constant-sized range.  Returns true if the
     // the bounds expression can be converted and false if it cannot be converted.
     bool CreateConstantRange(const BoundsExpr *Bounds, ConstantSizedRange *R) {
@@ -1695,8 +1793,7 @@ namespace {
           llvm::APSInt LowerOffset, UpperOffset;
           SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset);
           SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset);
-          if (Lexicographic(S.Context, nullptr).CompareExpr(LowerBase, UpperBase) ==
-              Lexicographic::Result::Equal) {
+          if (EqualValue(S.Context, LowerBase, UpperBase)) {
             R->SetBase(LowerBase);
             R->SetLower(LowerOffset);
             R->SetUpper(UpperOffset);
@@ -1868,14 +1965,17 @@ namespace {
     // that SrcBounds implies that DeclaredBounds are provably true.
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
-                                     BoundsExpr *SrcBounds) {
+                                     BoundsExpr *SrcBounds,
+                                     bool InCheckedScope) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
                                                    Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
-          diag::warn_bounds_declaration_invalid;
+          (InCheckedScope ?
+           diag::warn_checked_scope_bounds_declaration_invalid :
+           diag::warn_bounds_declaration_invalid);
         S.Diag(ExprLoc, DiagId)
           << Sema::BoundsDeclarationCheck::BDC_Assignment << Target
           << Target->getSourceRange() << Src->getSourceRange();
@@ -1894,7 +1994,8 @@ namespace {
     // the corresponding parameter.
     void CheckBoundsDeclAtCallArg(unsigned ParamNum,
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
-                                  BoundsExpr *ArgBounds) {
+                                  BoundsExpr *ArgBounds,
+                                  bool InCheckedScope) {
       SourceLocation ArgLoc = Arg->getLocStart();
       BoundsExpr *NormalizedBounds = S.ExpandToRange(Arg, ExpectedArgBounds);
       ProofFailure Cause;
@@ -1903,7 +2004,9 @@ namespace {
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
-          diag::warn_argument_bounds_invalid;
+          (InCheckedScope ?
+           diag::warn_checked_scope_argument_bounds_invalid :
+           diag::warn_argument_bounds_invalid);
         S.Diag(ArgLoc, DiagId) << (ParamNum + 1) << Arg->getSourceRange();
         if (Result == ProofResult::False)
           ExplainProofFailure(ArgLoc, Cause, ProofStmtKind::BoundsDeclaration);
@@ -1918,7 +2021,8 @@ namespace {
     // that SrcBounds implies that DeclaredBounds are provably true.
     void CheckBoundsDeclAtInitializer(SourceLocation ExprLoc, VarDecl *D,
                                       BoundsExpr *DeclaredBounds, Expr *Src,
-                                      BoundsExpr *SrcBounds) {
+                                      BoundsExpr *SrcBounds,
+                                      bool InCheckedScope) {
       BoundsExpr *NormalizedBounds = S.ExpandToRange(D, DeclaredBounds);
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(NormalizedBounds,
@@ -1926,7 +2030,9 @@ namespace {
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
-          diag::warn_bounds_declaration_invalid;
+          (InCheckedScope ?
+           diag::warn_checked_scope_bounds_declaration_invalid :
+           diag::warn_bounds_declaration_invalid);
         S.Diag(ExprLoc, DiagId)
           << Sema::BoundsDeclarationCheck::BDC_Initialization << D
           << D->getLocation() << Src->getSourceRange();
@@ -1946,7 +2052,8 @@ namespace {
     void CheckBoundsDeclAtStaticPtrCast(CastExpr *Cast,
                                         BoundsExpr *TargetBounds,
                                         Expr *Src,
-                                        BoundsExpr *SrcBounds) {
+                                        BoundsExpr *SrcBounds,
+                                        bool InCheckedScope) {
       ProofFailure Cause;
       BoundsExpr *NormalizedTargetBounds = S.ExpandToRange(Cast, TargetBounds);
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
@@ -1958,7 +2065,9 @@ namespace {
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
-          diag::warn_static_cast_bounds_invalid;
+          (InCheckedScope ?
+           diag::warn_checked_scopestatic_cast_bounds_invalid :
+           diag::warn_static_cast_bounds_invalid);
         SourceLocation ExprLoc = Cast->getExprLoc();
         S.Diag(ExprLoc, DiagId) << Cast->getType() << Cast->getSourceRange();
         if (Result == ProofResult::False)
@@ -1970,7 +2079,8 @@ namespace {
     }
 
     void CheckBoundsAtMemoryAccess(Expr *Deref, BoundsExpr *ValidRange,
-                                   BoundsCheckKind CheckKind) {
+                                   BoundsCheckKind CheckKind,
+                                   bool InCheckedScope) {
       ProofFailure Cause;
       ProofResult Result;
       ProofStmtKind ProofKind;
@@ -2004,32 +2114,32 @@ namespace {
       DumpBounds(S.getLangOpts().DumpInferredBounds),
       PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)) {}
 
-    void TraverseStmt(Stmt *S, bool IsChecked) {
+    void TraverseStmt(Stmt *S, bool InCheckedScope) {
       if (!S)
         return;
 
       switch (S->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          VisitUnaryOperator(cast<UnaryOperator>(S));
+          VisitUnaryOperator(cast<UnaryOperator>(S), InCheckedScope);
           break;
         case Expr::CallExprClass:
-          VisitCallExpr(cast<CallExpr>(S));
+          VisitCallExpr(cast<CallExpr>(S), InCheckedScope);
           break;
         case Expr::MemberExprClass:
-          VisitMemberExpr(cast<MemberExpr>(S));
+          VisitMemberExpr(cast<MemberExpr>(S), InCheckedScope);
           break;
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          VisitCastExpr(cast<CastExpr>(S));
+          VisitCastExpr(cast<CastExpr>(S), InCheckedScope);
           break;
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
-          VisitBinaryOperator(cast<BinaryOperator>(S));
+          VisitBinaryOperator(cast<BinaryOperator>(S), InCheckedScope);
           break;
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
-          IsChecked = CS->isChecked();
+          InCheckedScope = CS->isChecked();
           break;
         }
         case Stmt::DeclStmtClass: {
@@ -2038,7 +2148,7 @@ namespace {
           for (auto I = BeginDecls; I != EndDecls; ++I) {
             Decl *D = *I;
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
-              VisitVarDecl(VD);
+              VisitVarDecl(VD, InCheckedScope);
           }
           break;
         }
@@ -2047,17 +2157,17 @@ namespace {
       }
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
-        TraverseStmt(*I, IsChecked);
+        TraverseStmt(*I, InCheckedScope);
       }
     }
 
-    void TraverseVarDecl(VarDecl *VD, bool IsChecked) {
-      VisitVarDecl(VD);
+    void TraverseVarDecl(VarDecl *VD, bool InCheckedScope) {
+      VisitVarDecl(VD, InCheckedScope);
       if (Expr *Init = VD->getInit())
-        TraverseStmt(Init, IsChecked);
+        TraverseStmt(Init, InCheckedScope);
     }
 
-    bool VisitBinaryOperator(BinaryOperator *E) {
+    bool VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
       QualType LHSType = LHS->getType();
@@ -2091,21 +2201,21 @@ namespace {
              RHSBounds = S.CreateInvalidBoundsExpr();
           } else
             CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RHSBounds);
+                                        RHS, RHSBounds, InCheckedScope);
         }
       }
 
       // Check that the LHS lvalue of the assignment has bounds, if it is an
       // lvalue that was produced by dereferencing an _Array_ptr.
       bool LHSNeedsBoundsCheck = false;
-      LHSNeedsBoundsCheck = AddBoundsCheck(LHS, false);
+      LHSNeedsBoundsCheck = AddBoundsCheck(LHS, false, InCheckedScope);
       if (DumpBounds && (LHSNeedsBoundsCheck ||
                          (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return true;
     }
 
-    bool VisitCallExpr(CallExpr *CE) {
+    bool VisitCallExpr(CallExpr *CE, bool InCheckedScope) {
       const PointerType *FuncPtrTy = CE->getCallee()->getType()->getAs<PointerType>();
       assert(FuncPtrTy);
       const FunctionType *FuncTy =
@@ -2183,19 +2293,19 @@ namespace {
               ArgExprs,
               Sema::NonModifyingContext::NMC_Function_Parameter);
           if (SubstParamBounds)
-            CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds);
+            CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
         }
       }
       return true;
    }
 
     // This includes both ImplicitCastExprs and CStyleCastExprs
-    bool VisitCastExpr(CastExpr *E) {
+    bool VisitCastExpr(CastExpr *E, bool InCheckedScope) {
       CheckDisallowedFunctionPtrCasts(E);
 
       CastKind CK = E->getCastKind();
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), true);
+        bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), true, InCheckedScope);
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
 
@@ -2238,7 +2348,7 @@ namespace {
           BoundsExpr *TargetBounds =
             S.CreateTypeBasedBounds(E->getType(), false);
           CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, E->getSubExpr(),
-                                         SrcBounds);
+                                         SrcBounds, InCheckedScope);
         }
         assert(SrcBounds);
         assert(!E->getBoundsExpr());
@@ -2257,25 +2367,25 @@ namespace {
     // member points to a valid range of memory given by
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
-    bool VisitMemberExpr(MemberExpr *E) {
-      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E);
+    bool VisitMemberExpr(MemberExpr *E, bool InCheckedScope) {
+      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, InCheckedScope);
       if (NeedsBoundsCheck && DumpBounds)
         DumpExpression(llvm::outs(), E);
 
       return true;
     }
 
-    bool VisitUnaryOperator(UnaryOperator *E) {
+    bool VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
       if (!E->isIncrementDecrementOp())
         return true;
 
-      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), false);
+      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), false, InCheckedScope);
       if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
       return true;
     }
 
-    bool VisitVarDecl(VarDecl *D) {
+    bool VisitVarDecl(VarDecl *D, bool InCheckedScope) {
       if (D->isInvalidDecl())
         return true;
 
@@ -2316,7 +2426,7 @@ namespace {
          InitBounds = S.CreateInvalidBoundsExpr();
        } else {
          CheckBoundsDeclAtInitializer(D->getLocation(), D, DeclaredBounds,
-           Init, InitBounds);
+           Init, InitBounds, InCheckedScope);
        }
        if (DumpBounds)
          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
