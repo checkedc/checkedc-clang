@@ -253,3 +253,22 @@ void test_addition_commutativity(void) {
   _Array_ptr<int> q : bounds(1 + p, p + 5) = p;
   _Array_ptr<int> r : bounds(p + 1, 5 + p) = p;
 }
+
+
+// Test uses of incomplete types
+
+struct S;
+extern void test_f30(const void* p_ptr : byte_count(1));
+
+int f30(_Ptr<struct S> p) {
+  // TODO: Github Checked C repo issue #422: Extend constant-sized ranges to cover Ptr to an incomplete type
+  test_f30(p); // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
+               // expected-note {{(expanded) expected argument bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 1)'}} \
+               // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 1)'}}
+  return 0;
+}
+
+int f31(_Ptr<void> p) {
+  test_f30(p);
+  return 0;
+}

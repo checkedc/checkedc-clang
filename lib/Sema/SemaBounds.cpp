@@ -1590,11 +1590,15 @@ namespace {
       }
     };
 
-    llvm::APSInt getReferentSizeInChars(QualType Ty) {
+    bool getReferentSizeInChars(QualType Ty, llvm::APSInt &Size) {
       assert(Ty->isPointerType());
-      uint64_t ElemBitSize = S.Context.getTypeSize(Ty->getPointeeOrArrayElementType());
+      const Type *Pointee = Ty->getPointeeOrArrayElementType();
+      if (Pointee->isIncompleteType())
+        return false;
+      uint64_t ElemBitSize = S.Context.getTypeSize(Pointee);
       uint64_t ElemSize = S.Context.toCharUnitsFromBits(ElemBitSize).getQuantity();
-      return llvm::APSInt(llvm::APInt(PointerWidth, ElemSize), false);
+      Size = llvm::APSInt(llvm::APInt(PointerWidth, ElemSize), false);
+      return true;
     }
 
     // Convert I to a signed integer with PointerWidth.
@@ -1652,7 +1656,9 @@ namespace {
               if (Overflow)
                 goto exit;
             }
-            llvm::APSInt ElemSize = getReferentSizeInChars(Base->getType());
+            llvm::APSInt ElemSize;
+            if (!getReferentSizeInChars(Base->getType(), ElemSize))
+                goto exit;
             Offset = Offset.smul_ov(ElemSize, Overflow);
             if (Overflow)
               goto exit;
@@ -1884,7 +1890,9 @@ namespace {
         return ProofResult::Maybe;
 
       bool Overflow;
-      llvm::APSInt ElementSize = getReferentSizeInChars(PtrBase->getType());
+      llvm::APSInt ElementSize;
+      if (!getReferentSizeInChars(PtrBase->getType(), ElementSize))
+          return ProofResult::Maybe;
       if (Kind == BoundsCheckKind::BCK_NullTermRead) {
         Overflow = ValidRange.AddToUpper(ElementSize);
         if (Overflow)
