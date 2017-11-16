@@ -373,9 +373,7 @@ namespace {
     bool IncludeNullTerminator;
 
     BoundsExpr *CreateBoundsUnknown() {
-      return new (Context) NullaryBoundsExpr(BoundsExpr::Kind::Unknown,
-                                             SourceLocation(),
-                                             SourceLocation());
+      return Context.getPrebuiltBoundsUnknown();
     }
 
     // This describes an empty range. We use this where semantically the value
