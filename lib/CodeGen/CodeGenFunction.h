@@ -2548,15 +2548,20 @@ public:
   void EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy);
   void EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy,
                                 const Address PtrAddr);
+  /// \brief Emit a dynamic bounds check.  ValueToStore is optional and is
+  /// used for bounds checking writes to NUL-terminated pointers.
   void EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds,
-                              BoundsCheckKind Kind);
+                              BoundsCheckKind Kind, llvm::Value *ValueToStore);
   void EmitDynamicBoundsCastCheck(const Address BaseAddr,
                                   const BoundsExpr *CastBounds,
                                   const BoundsExpr *SubExprBounds);
-  /// \brief Create a basic block that will call the trap intrinsic, and emit
-  /// a conditional branch to it, for Checked C's dynamic checks.
   void EmitDynamicCheckBlocks(llvm::Value *Condition);
   llvm::BasicBlock *EmitDynamicCheckFailedBlock();
+  llvm::BasicBlock *EmitNulltermWriteAdditionalCheck(const Address PtrAddr,
+                                                     const Address Upper,
+                                                     llvm::Value *Val,
+                                                     llvm::BasicBlock *Suceeded);
+  BoundsExpr *GetNullTermBoundsCheck(Expr *LHS);
 
   llvm::Value *EmitBoundsCast(CastExpr *CE);
 

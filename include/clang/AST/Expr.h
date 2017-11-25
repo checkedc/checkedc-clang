@@ -1752,6 +1752,7 @@ public:
 enum BoundsCheckKind {
   BCK_None,
   BCK_NullTermRead,
+  BCK_NullTermWriteAssign,  // assignment through a pointer to a null-terminated array.
   BCK_Normal,
   BCK_MaxKind = BCK_Normal
 };

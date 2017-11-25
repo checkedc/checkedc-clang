@@ -2613,6 +2613,7 @@ void ASTDumper::dumpBoundsCheckKind(BoundsCheckKind K) {
     case BoundsCheckKind::BCK_None: OS << "None"; break;
     case BoundsCheckKind::BCK_Normal: OS << "Normal"; break;
     case BoundsCheckKind::BCK_NullTermRead: OS << "Null-terminated read"; break;
+    case BoundsCheckKind::BCK_NullTermWriteAssign: OS << "Null-terminated assignment"; break;
   }
 }
 

@@ -74,7 +74,7 @@ void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr, const Qua
 }
 
 void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds,
-                                             BoundsCheckKind CheckKind) {
+                                             BoundsCheckKind CheckKind, llvm::Value *Val) {
   if (!getLangOpts().CheckedC)
     return;
 
@@ -82,6 +82,11 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
     return;
 
   if (Bounds->isAny() || Bounds->isInvalid())
+    return;
+
+  // We'll insert the bounds check for an assignment through a null-terminated pointer
+  // later, when we know the value.
+  if (CheckKind == BoundsCheckKind::BCK_NullTermWriteAssign && !Val)
     return;
 
   // We can only generate the check if we have the bounds as a range.
@@ -126,9 +131,21 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
     // at the upper bound to be read.
     UpperChk = Builder.CreateICmpULE(PtrAddr.getPointer(), Upper.getPointer(),
                                      "_Dynamic_check.upper");
-
-  // Emit both checks
-  EmitDynamicCheckBlocks(Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range"));
+  llvm::Value *Condition = Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range");
+  if (const ConstantInt *ConditionConstant = dyn_cast<ConstantInt>(Condition)) {
+    if (ConditionConstant->isOne())
+      return;
+  }
+  BasicBlock *DyCkSuccess = createBasicBlock("_Dynamic_check.succeeded");
+  BasicBlock *DyCkFailure;
+  if (CheckKind == BCK_NullTermWriteAssign)
+    DyCkFailure = EmitNulltermWriteAdditionalCheck(PtrAddr, Upper, Val, DyCkSuccess);
+  else
+    DyCkFailure = EmitDynamicCheckFailedBlock();
+  Builder.CreateCondBr(Condition, DyCkSuccess, DyCkFailure);
+  // This ensures the success block comes directly after the branch
+  EmitBlock(DyCkSuccess);
+  Builder.SetInsertPoint(DyCkSuccess);
 }
 
 void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
@@ -335,4 +352,48 @@ BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
   Builder.SetInsertPoint(Begin);
 
   return FailBlock;
+}
+
+BasicBlock *CodeGenFunction::EmitNulltermWriteAdditionalCheck(
+   const Address PtrAddr,
+   const Address Upper,
+   llvm::Value *Val,
+   BasicBlock *Succeeded) {
+  // Save current insert point
+  BasicBlock *Begin = Builder.GetInsertBlock();
+
+  // Add a "failed block", which will be inserted at the end of CurFn
+  BasicBlock *FailBlock = createBasicBlock("_Nullterm_range_check.failed", CurFn);
+  Builder.SetInsertPoint(FailBlock);
+  Value *AtUpper = Builder.CreateICmpEQ(PtrAddr.getPointer(), Upper.getPointer(),
+                                        "_Dynamic_check.at_upper");
+  Value *IsZero = Builder.CreateIsNull(Val, "_Dynamic_check.write_nul");
+  BasicBlock *OnFailure = EmitDynamicCheckFailedBlock();
+  llvm::Value *Condition = Builder.CreateAnd(AtUpper, IsZero, "_Dynamic_check.allowed_write");
+  Builder.CreateCondBr(Condition, Succeeded, OnFailure);
+  // Return the insert point back to the saved insert point
+  Builder.SetInsertPoint(Begin);
+
+  return FailBlock;
+}
+
+BoundsExpr *CodeGenFunction::GetNullTermBoundsCheck(Expr *E) {
+  E = E->IgnoreParenCasts();
+  switch (E->getStmtClass()) {
+    case Expr::UnaryOperatorClass: {
+      UnaryOperator *UO = cast<UnaryOperator>(E);
+      if (UO->getBoundsCheckKind() == BoundsCheckKind::BCK_NullTermWriteAssign)
+        return UO->getBoundsExpr();
+      break;
+    }
+    case Expr::ArraySubscriptExprClass: {
+      ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
+      if (AS->getBoundsCheckKind() == BoundsCheckKind::BCK_NullTermWriteAssign)
+        return AS->getBoundsExpr();
+      break;
+    }
+    default:
+      break;
+  }
+  return nullptr;
 }
