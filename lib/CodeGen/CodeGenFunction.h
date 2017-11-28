@@ -2559,6 +2559,7 @@ public:
   llvm::BasicBlock *EmitDynamicCheckFailedBlock();
   llvm::BasicBlock *EmitNulltermWriteAdditionalCheck(const Address PtrAddr,
                                                      const Address Upper,
+                                                     llvm::Value *LowerChk,
                                                      llvm::Value *Val,
                                                      llvm::BasicBlock *Suceeded);
   BoundsExpr *GetNullTermBoundsCheck(Expr *LHS);

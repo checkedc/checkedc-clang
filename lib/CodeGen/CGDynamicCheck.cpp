@@ -139,7 +139,8 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
   BasicBlock *DyCkSuccess = createBasicBlock("_Dynamic_check.succeeded");
   BasicBlock *DyCkFailure;
   if (CheckKind == BCK_NullTermWriteAssign)
-    DyCkFailure = EmitNulltermWriteAdditionalCheck(PtrAddr, Upper, Val, DyCkSuccess);
+    DyCkFailure = EmitNulltermWriteAdditionalCheck(PtrAddr, Upper, LowerChk,
+                                                   Val, DyCkSuccess);
   else
     DyCkFailure = EmitDynamicCheckFailedBlock();
   Builder.CreateCondBr(Condition, DyCkSuccess, DyCkFailure);
@@ -357,6 +358,7 @@ BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
 BasicBlock *CodeGenFunction::EmitNulltermWriteAdditionalCheck(
    const Address PtrAddr,
    const Address Upper,
+   llvm::Value *LowerChk,
    llvm::Value *Val,
    BasicBlock *Succeeded) {
   // Save current insert point
@@ -367,10 +369,11 @@ BasicBlock *CodeGenFunction::EmitNulltermWriteAdditionalCheck(
   Builder.SetInsertPoint(FailBlock);
   Value *AtUpper = Builder.CreateICmpEQ(PtrAddr.getPointer(), Upper.getPointer(),
                                         "_Dynamic_check.at_upper");
-  Value *IsZero = Builder.CreateIsNull(Val, "_Dynamic_check.write_nul");
   BasicBlock *OnFailure = EmitDynamicCheckFailedBlock();
-  llvm::Value *Condition = Builder.CreateAnd(AtUpper, IsZero, "_Dynamic_check.allowed_write");
-  Builder.CreateCondBr(Condition, Succeeded, OnFailure);
+  llvm::Value *Condition1 = Builder.CreateAnd(LowerChk, AtUpper, "_Dynamic_check.nt_upper_bound");
+  Value *IsZero = Builder.CreateIsNull(Val, "_Dynamic_check.write_nul");
+  llvm::Value *Condition2 = Builder.CreateAnd(Condition1, IsZero, "_Dynamic_check.allowed_write");
+  Builder.CreateCondBr(Condition2, Succeeded, OnFailure);
   // Return the insert point back to the saved insert point
   Builder.SetInsertPoint(Begin);
 
