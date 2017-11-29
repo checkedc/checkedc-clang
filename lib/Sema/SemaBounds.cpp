@@ -611,12 +611,7 @@ namespace {
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
       case Expr::DeclRefExprClass: {
-        DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
-        if (!DR) {
-          llvm_unreachable("unexpected cast failure");
-          return CreateBoundsInferenceError();
-        }
-
+        DeclRefExpr *DR = cast<DeclRefExpr>(E);
         if (DR->getType()->isArrayType()) {
           VarDecl *VD = dyn_cast<VarDecl>(DR->getDecl());
           if (!VD) {
@@ -646,11 +641,7 @@ namespace {
         return CreateSingleElementBounds(AddrOf);
       }
       case Expr::UnaryOperatorClass: {
-        UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
-        if (!UO) {
-          llvm_unreachable("unexpected cast failure");
-          return CreateBoundsInferenceError();
-        }
+        UnaryOperator *UO = cast<UnaryOperator>(E);
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
           return RValueBounds(UO->getSubExpr());
         else {
@@ -662,20 +653,12 @@ namespace {
         //  e1[e2] is a synonym for *(e1 + e2).  The bounds are
         // the bounds of e1 + e2, which reduces to the bounds
         // of whichever subexpression has pointer type.
-        ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
-        if (!AS) {
-          llvm_unreachable("unexpected cast failure");
-          return CreateBoundsInferenceError();
-        }
+        ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
         // getBase returns the pointer-typed expression.
         return RValueBounds(AS->getBase());
       }
       case Expr::MemberExprClass: {
-        MemberExpr *ME = dyn_cast<MemberExpr>(E);
-        if (!ME) {
-          llvm_unreachable("unexpected cast failure");
-          return CreateBoundsInferenceError();
-        }
+        MemberExpr *ME = cast<MemberExpr>(E);
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
           return CreateBoundsInferenceError();
@@ -718,11 +701,7 @@ namespace {
         return CreateSingleElementBounds(AddrOf);
       }
       case Expr::ImplicitCastExprClass: {
-        ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
-        if (!ICE) {
-          llvm_unreachable("unexpected cast failure");
-          return CreateBoundsInferenceError();
-        }
+        ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
         // An LValueBitCast adjusts the type of the lvalue, but
         // the bounds are not changed.
         // TODO: when we add relative alignment support, we may need
@@ -826,11 +805,7 @@ namespace {
 
       switch (E->getStmtClass()) {
         case Expr::DeclRefExprClass: {
-          DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
-          if (!DR) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
+          DeclRefExpr *DR = cast<DeclRefExpr>(E);
           VarDecl *D = dyn_cast<VarDecl>(DR->getDecl());
           if (!D)
             return CreateBoundsInferenceError();
@@ -853,11 +828,7 @@ namespace {
            return ExpandToRange(Base, B);
         }
         case Expr::UnaryOperatorClass: {
-          UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
-          if (!UO) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
+          UnaryOperator *UO = cast<UnaryOperator>(E);
           // Currently, we don't know the bounds of a pointer returned
           // by a pointer dereference, unless it is a _Ptr type (handled
           // earlier) or an _Nt_array_ptr.
@@ -870,11 +841,7 @@ namespace {
           //  e1[e2] is a synonym for *(e1 + e2).  The bounds are
           // the bounds of e1 + e2, which reduces to the bounds
           // of whichever subexpression has pointer type.
-          ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
-          if (!AS) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
+          ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
           // Currently, we don't know the bounds of a pointer returned
           // by a subscripting operation, unless it is a _Ptr type (handled
           // earlier) or an _Nt_array_ptr.
@@ -883,12 +850,7 @@ namespace {
           return CreateBoundsAlwaysUnknown();
         }
         case Expr::MemberExprClass: {
-          MemberExpr *M = dyn_cast<MemberExpr>(E);
-          if (!M) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
-
+          MemberExpr *M = cast<MemberExpr>(E);
           FieldDecl *F = dyn_cast<FieldDecl>(M->getMemberDecl());
           if (!F)
             return CreateBoundsInferenceError();
@@ -928,11 +890,7 @@ namespace {
           return B;
         }
         case Expr::ImplicitCastExprClass: {
-          ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
-          if (!ICE) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
+          ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
           if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
             return LValueTargetBounds(ICE->getSubExpr());
           return CreateBoundsAlwaysUnknown();
@@ -981,12 +939,7 @@ namespace {
 
       switch (E->getStmtClass()) {
         case Expr::BoundsCastExprClass: {
-          CastExpr *CE = dyn_cast<CastExpr>(E);
-          if (!E) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
-
+          CastExpr *CE = cast<CastExpr>(E);
           Expr *subExpr = CE->getSubExpr();
           BoundsExpr *Bounds = CE->getBoundsExpr();
 
@@ -995,11 +948,7 @@ namespace {
         }
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass: {
-          CastExpr *CE = dyn_cast<CastExpr>(E);
-          if (!E) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
+          CastExpr *CE = cast<CastExpr>(E);
           // Casts to _Ptr narrow the bounds.  If the cast to
           // _Ptr is invalid, that will be diagnosed separately.
           if (E->getType()->isCheckedPointerPtrType())
@@ -1007,11 +956,7 @@ namespace {
           return RValueCastBounds(CE->getCastKind(), CE->getSubExpr());
         }
         case Expr::UnaryOperatorClass: {
-          UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
-          if (!UO) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
+          UnaryOperator *UO = cast<UnaryOperator>(E);
           UnaryOperatorKind Op = UO->getOpcode();
 
           // `*e` is not an r-value.
@@ -1053,11 +998,7 @@ namespace {
         }
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass: {
-          BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
-          if (!BO) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
+          BinaryOperator *BO = cast<BinaryOperator>(E);
           Expr *LHS = BO->getLHS();
           Expr *RHS = BO->getRHS();
           BinaryOperatorKind Op = BO->getOpcode();
@@ -1155,12 +1096,7 @@ namespace {
           return CreateBoundsEmpty();
         }
         case Expr::CallExprClass: {
-          const CallExpr *CE = dyn_cast<CallExpr>(E);
-          if (!CE) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
-
+          const CallExpr *CE = cast<CallExpr>(E);
           BoundsExpr *ReturnBounds = nullptr;
           if (E->getType()->isCheckedPointerPtrType()) {
             if (E->getType()->isVoidPointerType())
@@ -1240,11 +1176,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
     case Expr::CompoundLiteralExprClass:
       return nullptr;
     case Expr::UnaryOperatorClass: {
-      UnaryOperator *UO = dyn_cast<UnaryOperator>(E);
-      if (!UO) {
-        llvm_unreachable("unexpected cast failure");
-        return nullptr;
-      }
+      UnaryOperator *UO = cast<UnaryOperator>(E);
       if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
           UO->getSubExpr()->getType()->isCheckedPointerArrayType()) {
         Result = UO->getSubExpr()->getType();
@@ -1256,11 +1188,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
 
     case Expr::ArraySubscriptExprClass: {
       // e1[e2] is a synonym for *(e1 + e2).
-      ArraySubscriptExpr *AS = dyn_cast<ArraySubscriptExpr>(E);
-      if (!AS) {
-        llvm_unreachable("unexpected cast failure");
-        return nullptr;
-      }
+      ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
       // An important invariant for array types in Checked C is that all
       // dimensions of a multi-dimensional array are either checked or
       // unchecked.  This ensures that the intermediate values for
@@ -1276,11 +1204,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
       return nullptr;
     }
     case Expr::ImplicitCastExprClass: {
-      ImplicitCastExpr *IC = dyn_cast<ImplicitCastExpr>(E);
-      if (!IC) {
-        llvm_unreachable("unexpected cast failure");
-        return nullptr;
-      }
+      ImplicitCastExpr *IC = cast<ImplicitCastExpr>(E);
       if (IC->getCastKind() == CK_LValueBitCast)
         return GetArrayPtrDereference(IC->getSubExpr(), Result);
       return nullptr;
@@ -1786,11 +1710,7 @@ namespace {
           // TODO: fill these cases in.
           return false;
         case BoundsExpr::Kind::Range: {
-          const RangeBoundsExpr *RB = dyn_cast<RangeBoundsExpr>(Bounds);
-          if (!RB) {
-            llvm_unreachable("unexpected case failure");
-            return false;
-          }
+          const RangeBoundsExpr *RB = cast<RangeBoundsExpr>(Bounds);
           Expr *Lower = RB->getLowerExpr();
           Expr *Upper = RB->getUpperExpr();
           const Expr *LowerBase, *UpperBase;
