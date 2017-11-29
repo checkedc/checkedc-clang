@@ -2352,8 +2352,8 @@ LValue CodeGenFunction::EmitUnaryOpLValue(const UnaryOperator *E) {
     LV.getQuals().setAddressSpace(ExprTy.getAddressSpace());
 
     EmitDynamicNonNullCheck(Addr, BaseTy);
-    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind());
-
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind(),
+                           nullptr);
     // We should not generate __weak write barrier on indirect reference
     // of a pointer to object; as in void foo (__weak id *param); *param = 0;
     // But, we continue to generate __strong write barrier on indirect write
@@ -3089,9 +3089,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     LValue LV =  LValue::MakeVectorElt(LHS.getAddress(), Idx,
                                        E->getBase()->getType(),
                                        LHS.getAlignmentSource());
-
     EmitDynamicBoundsCheck(LV.getVectorAddress(), E->getBoundsExpr(),
-                           E->getBoundsCheckKind());
+                            E->getBoundsCheckKind(), nullptr);
 
     return LV;
   }
@@ -3108,9 +3107,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     QualType EltType = LV.getType()->castAs<VectorType>()->getElementType();
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, EltType, /*inbounds*/ true);
     LValue AddrLV = MakeAddrLValue(Addr, EltType, LV.getAlignmentSource());
-
-    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind());
-
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind(),
+                           nullptr);
     return AddrLV;
   }
 
@@ -3205,10 +3203,11 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
   }
 
   LValue LV = MakeAddrLValue(Addr, E->getType(), AlignSource);
-
+ 
   // TODO: Preserve/extend path TBAA metadata?
 
-  EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind());
+  EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind(),
+                         nullptr);
 
   if (getLangOpts().ObjC1 &&
       getLangOpts().getGC() != LangOptions::NonGC) {
@@ -3489,7 +3488,7 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
     // unchecked, or is a checked array with its own bounds.
     // A second reason for always checking the BaseLV is that it is the same for
     // all the fields in the struct, so more of the checks should optimize away.
-    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), BCK_Normal);
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), BCK_Normal, nullptr);
 
   } else
     BaseLV = EmitCheckedLValue(BaseExpr, TCK_MemberAccess);

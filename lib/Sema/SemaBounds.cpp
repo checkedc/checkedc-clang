@@ -1300,7 +1300,13 @@ namespace {
     // If the Array_ptr has unknown bounds, this is a compile-time error.
     // Generate an error message and set the bounds to an invalid bounds
     // expression.
-    bool AddBoundsCheck(Expr *E, bool IsOnlyMemoryRead, bool InCheckedScope) {
+    enum class OperationKind {
+      Read,   // just reads memory
+      Assign, // simple assignment to memory
+      Other   // reads and writes memory, struct base check
+    };
+
+    bool AddBoundsCheck(Expr *E, OperationKind OpKind, bool InCheckedScope) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
       QualType PtrType;
@@ -1308,8 +1314,15 @@ namespace {
         NeedsBoundsCheck = true;
         BoundsExpr *LValueBounds = S.InferLValueBounds(E);
         BoundsCheckKind Kind = BCK_Normal;
-        if (IsOnlyMemoryRead && PtrType->isCheckedPointerNtArrayType())
-          Kind = BCK_NullTermRead;
+        // Null-terminated array pointers have special semantics for
+        // bounds checks.
+        if (PtrType->isCheckedPointerNtArrayType()) {
+          if (OpKind == OperationKind::Read)
+            Kind = BCK_NullTermRead;
+          else if (OpKind == OperationKind::Assign)
+            Kind = BCK_NullTermWriteAssign;
+          // Otherwise, use the default range check for bounds.
+        }
         if (LValueBounds->isUnknown()) {
           S.Diag(E->getLocStart(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
@@ -1341,7 +1354,7 @@ namespace {
       if (!E->isArrow()) {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
-          return AddBoundsCheck(Base, false, InCheckedScope);
+          return AddBoundsCheck(Base, OperationKind::Other, InCheckedScope);
         return false;
       }
 
@@ -2134,7 +2147,9 @@ namespace {
       // Check that the LHS lvalue of the assignment has bounds, if it is an
       // lvalue that was produced by dereferencing an _Array_ptr.
       bool LHSNeedsBoundsCheck = false;
-      LHSNeedsBoundsCheck = AddBoundsCheck(LHS, false, InCheckedScope);
+      OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
+        OperationKind::Assign : OperationKind::Other;
+      LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, InCheckedScope);
       if (DumpBounds && (LHSNeedsBoundsCheck ||
                          (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
@@ -2231,7 +2246,7 @@ namespace {
 
       CastKind CK = E->getCastKind();
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), true, InCheckedScope);
+        bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), OperationKind::Read, InCheckedScope);
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
 
@@ -2305,7 +2320,7 @@ namespace {
       if (!E->isIncrementDecrementOp())
         return true;
 
-      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), false, InCheckedScope);
+      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), OperationKind::Other, InCheckedScope);
       if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
       return true;

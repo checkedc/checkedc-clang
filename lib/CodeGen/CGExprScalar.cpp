@@ -3155,6 +3155,13 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     // this should improve codegen just a little.
     RHS = Visit(E->getRHS());
     LHS = EmitCheckedLValue(E->getLHS(), CodeGenFunction::TCK_Store);
+    if (E->getOpcode() == BO_Assign) {
+      BoundsExpr *BoundsCheck = CGF.GetNullTermBoundsCheck(E->getLHS());
+      if (BoundsCheck)
+        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), BoundsCheck,
+                                   BoundsCheckKind::BCK_NullTermWriteAssign,
+                                   RHS);
+    }
 
     // Store the value into the LHS.  Bit-fields are handled specially
     // because the result is altered by the store, i.e., [C99 6.5.16p1]
