@@ -9281,22 +9281,22 @@ def err_bounds_type_annotation_lost_checking : Error<
     "only reference parameters from its own parameter list)">;
 
   def err_expected_bounds : Error<
-    "expression has no bounds">;
+    "expression has unknown bounds">;
 
   def err_expected_bounds_for_ptr_cast : Error<
-    "expression has no bounds"
+    "expression has unknown bounds"
     ", cast to ptr<T> expects source to have bounds">;
 
   def err_expected_bounds_for_assignment : Error<
-    "expression has no bounds"
+    "expression has unknown bounds"
     ", right-hand side of assignment expected to have bounds because the left-hand side has bounds">;
 
   def err_expected_bounds_for_initializer : Error<
-    "expression has no bounds"
+    "expression has unknown bounds"
     ", initializer expected to have bounds because the variable being declared has bounds">;
 
   def err_expected_bounds_for_argument : Error<
-    "argument has no bounds, bounds expected because the "
+    "argument has unknown bounds, bounds expected because the "
     "%ordinal0 parameter has bounds">;
 
   def err_initializer_expected_with_bounds : Error<
