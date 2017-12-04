@@ -1,7 +1,7 @@
 rem Create directories and sync files
 
 if "%TEST_TARGET_ARCH%"=="AMD64" (
-  set CMAKE_GENERATOR=-G "Visual Studio 14 2015 Win64"
+  set CMAKE_GENERATOR=-G "Visual Studio 15 2017 Win64"
 ) else (
   rem There is intentionally a blank space after the equal here, to force this to be
   rem an empty string.
