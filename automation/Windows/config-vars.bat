@@ -150,7 +150,8 @@ if not defined CLANG_COMMIT (
 )
 
 if NOT DEFINED MSBUILD_BIN (
-  set "MSBUILD_BIN=%programfiles(x86)%\MSBuild\14.0\Bin\MSBuild.exe"
+ @rem used to be: set "MSBUILD_BIN=%programfiles(x86)%\MSBuild\15.0\Bin\MSBuild.exe"
+ set "MSBUILD_BIN=%programfiles(x86)%\Microsoft Visual Studio\2017\Enterprise\MSBuild\15.0\Bin\MSBuild.exe"
 )
 
 if NOT DEFINED MSBUILD_CPU_COUNT (
