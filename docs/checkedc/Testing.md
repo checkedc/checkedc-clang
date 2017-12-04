@@ -29,8 +29,8 @@ Load the solution and the open it using the Solution explorer (View->Solution Ex
 Set up the build system and then change to your new object directory.  Use the following commands to run tests:
 
 - Checked C tests: `msbuild projects\checkedc-wrapper\check-checkedc.vcxproj /p:CL_MPCount=3 /m`
-- Clang tests: `msbuild tools\clang\test\check-clang.vcxproj /p:CL_MPCount=6 /m`
-- All LLVM and clang tests: `msbuild check-all.vcxproj /p:CL_MPCount=6 /m`
+- Clang tests: `msbuild tools\clang\test\check-clang.vcxproj /p:CL_MPCount=3 /m`
+- All LLVM and clang tests: `msbuild check-all.vcxproj /p:CL_MPCount=3 /m`
 
 ### Using make
 In your build directory,
