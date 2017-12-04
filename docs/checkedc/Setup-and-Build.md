@@ -3,8 +3,8 @@
 ## Setting up your machine
 
 See the clang [Getting started guide](http://clang.llvm.org/get_started.html) for information
-on how to set up your machine. If you will be developing on Windows, you should have CMake 3.8
-or later installed on your machine.
+on how to set up your machine. If you will be developing on Windows, you should install CMake 3.8
+or later on your machine.
 
 ### Developing on Windows
 
@@ -18,8 +18,8 @@ of Windows too.
  
 You will need to install the following before building: 
 
-- Visual Studio 2013 or later, CMake (version 3.8 or later), Python (version 2.7), and versions of UNIX command
-line tools.  We recommend using Visual Studio 2015 or later.
+- Visual Studio 2015 or later, CMake (version 3.8 or later), Python (version 2.7), and versions of UNIX command
+line tools.  We recommend using Visual Studio 2017.
 - For UNIX command-line tools, we recommend installing them via Cygwin because these are well-maintained. 
 Go to [http://www.cygwin.com](http://www.cygwin.com) and download the installer (put it in a known place).
 Then run it and use the GUI to install the coreutils and diffutils packages.  Add the bin subdirectory to your system path.
@@ -32,13 +32,13 @@ to start paging.  This will make your machine unresponsive and slow down your bu
 See the Wiki page on [Parallel builds of clang on Windows](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 for more details.
 
-in VS 2015, go to _Debug->Options->Projects and Solutions->VC++ Project Solutions_ and set
-the `Maximum Number of concurrent C++ compilations` to 6, if your development machine has
+in VS 2017, go to _Debug->Options->Projects and Solutions->VC++ Project Solutions_ and set
+the `Maximum Number of concurrent C++ compilations` to 3, if your development machine has
 1 GByte of memory or more per core.  If not, see the
 [Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 to figure out what number to use.
 By default, 0 causes it to be the number of available CPU cores on your machine, which is too much.
-You may want to go to  _Debug->Options->Projects and Solutions ->Build and Run_ and 
+You should also to go to  _Debug->Options->Projects and Solutions ->Build and Run_ and
 set the maximum number of parallel project builds to be 3/4 of the actual number of CPU cores on
 your machine.  
 
@@ -205,11 +205,11 @@ To build
 
 Follow the earlier instruction to set up the build system.  Form the build directory, use the following comamnd to build clang only:
 
-	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_MPCount=6 /m
+	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_MPCount=3 /m
 
 To build everything:
 
-	msbuild LLVM.sln /p:CL_MPCount=6 /m
+	msbuild LLVM.sln /p:CL_MPCount=3 /m
 
 To clean the build directory:
 
