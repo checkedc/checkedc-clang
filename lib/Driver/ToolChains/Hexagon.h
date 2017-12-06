@@ -50,6 +50,10 @@ public:
                     const llvm::opt::ArgList &TCArgs,
                     const char *LinkingOutput) const override;
 };
+
+void getHexagonTargetFeatures(const Driver &D, const llvm::opt::ArgList &Args,
+                              std::vector<StringRef> &Features);
+
 } // end namespace hexagon.
 } // end namespace tools
 
@@ -69,7 +73,8 @@ public:
   ~HexagonToolChain() override;
 
   void addClangTargetOptions(const llvm::opt::ArgList &DriverArgs,
-                             llvm::opt::ArgStringList &CC1Args) const override;
+                             llvm::opt::ArgStringList &CC1Args,
+                             Action::OffloadKind DeviceOffloadKind) const override;
   void
   AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;

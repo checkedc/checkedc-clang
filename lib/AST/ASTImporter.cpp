@@ -319,6 +319,9 @@ namespace clang {
     bool ImportArrayChecked(const InContainerTy &InContainer, OIter Obegin) {
       return ImportArrayChecked(InContainer.begin(), InContainer.end(), Obegin);
     }
+
+    // Importing overrides.
+    void ImportOverrides(CXXMethodDecl *ToMethod, CXXMethodDecl *FromMethod);
   };
 }
 
@@ -956,12 +959,16 @@ bool ASTNodeImporter::ImportDefinition(RecordDecl *From, RecordDecl *To,
     ToData.HasUninitializedFields = FromData.HasUninitializedFields;
     ToData.HasInheritedConstructor = FromData.HasInheritedConstructor;
     ToData.HasInheritedAssignment = FromData.HasInheritedAssignment;
+    ToData.NeedOverloadResolutionForCopyConstructor
+      = FromData.NeedOverloadResolutionForCopyConstructor;
     ToData.NeedOverloadResolutionForMoveConstructor
       = FromData.NeedOverloadResolutionForMoveConstructor;
     ToData.NeedOverloadResolutionForMoveAssignment
       = FromData.NeedOverloadResolutionForMoveAssignment;
     ToData.NeedOverloadResolutionForDestructor
       = FromData.NeedOverloadResolutionForDestructor;
+    ToData.DefaultedCopyConstructorIsDeleted
+      = FromData.DefaultedCopyConstructorIsDeleted;
     ToData.DefaultedMoveConstructorIsDeleted
       = FromData.DefaultedMoveConstructorIsDeleted;
     ToData.DefaultedMoveAssignmentIsDeleted
@@ -973,6 +980,7 @@ bool ASTNodeImporter::ImportDefinition(RecordDecl *From, RecordDecl *To,
       = FromData.HasConstexprNonCopyMoveConstructor;
     ToData.HasDefaultedDefaultConstructor
       = FromData.HasDefaultedDefaultConstructor;
+    ToData.CanPassInRegisters = FromData.CanPassInRegisters;
     ToData.DefaultedDefaultConstructorIsConstexpr
       = FromData.DefaultedDefaultConstructorIsConstexpr;
     ToData.HasConstexprDefaultConstructor
@@ -1625,10 +1633,18 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
 
   // We may already have a record of the same name; try to find and match it.
   RecordDecl *AdoptDecl = nullptr;
+  RecordDecl *PrevDecl = nullptr;
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     SmallVector<NamedDecl *, 2> FoundDecls;
     DC->getRedeclContext()->localUncachedLookup(SearchName, FoundDecls);
+
+    if (!FoundDecls.empty()) {
+      // We're going to have to compare D against potentially conflicting Decls, so complete it.
+      if (D->hasExternalLexicalStorage() && !D->isCompleteDefinition())
+        D->getASTContext().getExternalSource()->CompleteType(D);
+    }
+
     for (unsigned I = 0, N = FoundDecls.size(); I != N; ++I) {
       if (!FoundDecls[I]->isInIdentifierNamespace(IDNS))
         continue;
@@ -1654,6 +1670,8 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
             }
           }
         }
+
+        PrevDecl = FoundRecord;
 
         if (RecordDecl *FoundDef = FoundRecord->getDefinition()) {
           if ((SearchName && !D->isCompleteDefinition())
@@ -1747,6 +1765,10 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
     LexicalDC->addDeclInternal(D2);
     if (D->isAnonymousStructOrUnion())
       D2->setAnonymousStructOrUnion(true);
+    if (PrevDecl) {
+      // FIXME: do this for all Redeclarables, not just RecordDecls.
+      D2->setPreviousDecl(PrevDecl);
+    }
   }
   
   Importer.Imported(D, D2);
@@ -1827,6 +1849,8 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   if (ToD)
     return ToD;
 
+  const FunctionDecl *FoundWithoutBody = nullptr;
+
   // Try to find a function in our own ("to") context with the same name, same
   // type, and in the same context as the function we're importing.
   if (!LexicalDC->isFunctionOrMethod()) {
@@ -1844,6 +1868,13 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
           if (Importer.IsStructurallyEquivalent(D->getType(), 
                                                 FoundFunction->getType())) {
             // FIXME: Actually try to merge the body and other attributes.
+            const FunctionDecl *FromBodyDecl = nullptr;
+            D->hasBody(FromBodyDecl);
+            if (D == FromBodyDecl && !FoundFunction->hasBody()) {
+              // This function is needed to merge completely.
+              FoundWithoutBody = FoundFunction;
+              break;
+            }
             return Importer.Imported(D, FoundFunction);
           }
 
@@ -1994,6 +2025,12 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   }
   ToFunction->setParams(Parameters);
 
+  if (FoundWithoutBody) {
+    auto *Recent = const_cast<FunctionDecl *>(
+          FoundWithoutBody->getMostRecentDecl());
+    ToFunction->setPreviousDecl(Recent);
+  }
+
   if (usedDifferentExceptionSpec) {
     // Update FunctionProtoType::ExtProtoInfo.
     QualType T = Importer.Import(D->getType());
@@ -2013,6 +2050,9 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
   // Add this function to the lexical context.
   LexicalDC->addDeclInternal(ToFunction);
+
+  if (auto *FromCXXMethod = dyn_cast<CXXMethodDecl>(D))
+    ImportOverrides(cast<CXXMethodDecl>(ToFunction), FromCXXMethod);
 
   return ToFunction;
 }
@@ -2451,10 +2491,9 @@ Decl *ASTNodeImporter::VisitImplicitParamDecl(ImplicitParamDecl *D) {
     return nullptr;
 
   // Create the imported parameter.
-  ImplicitParamDecl *ToParm
-    = ImplicitParamDecl::Create(Importer.getToContext(), DC,
-                                Loc, Name.getAsIdentifierInfo(),
-                                T);
+  auto *ToParm = ImplicitParamDecl::Create(Importer.getToContext(), DC, Loc,
+                                           Name.getAsIdentifierInfo(), T,
+                                           D->getParameterKind());
   return Importer.Imported(D, ToParm);
 }
 
@@ -3949,12 +3988,16 @@ Stmt *ASTNodeImporter::VisitCaseStmt(CaseStmt *S) {
   Expr *ToRHS = Importer.Import(S->getRHS());
   if (!ToRHS && S->getRHS())
     return nullptr;
+  Stmt *ToSubStmt = Importer.Import(S->getSubStmt());
+  if (!ToSubStmt && S->getSubStmt())
+    return nullptr;
   SourceLocation ToCaseLoc = Importer.Import(S->getCaseLoc());
   SourceLocation ToEllipsisLoc = Importer.Import(S->getEllipsisLoc());
   SourceLocation ToColonLoc = Importer.Import(S->getColonLoc());
-  return new (Importer.getToContext()) CaseStmt(ToLHS, ToRHS,
-                                                ToCaseLoc, ToEllipsisLoc,
-                                                ToColonLoc);
+  CaseStmt *ToStmt = new (Importer.getToContext())
+      CaseStmt(ToLHS, ToRHS, ToCaseLoc, ToEllipsisLoc, ToColonLoc);
+  ToStmt->setSubStmt(ToSubStmt);
+  return ToStmt;
 }
 
 Stmt *ASTNodeImporter::VisitDefaultStmt(DefaultStmt *S) {
@@ -5489,6 +5532,14 @@ Expr *ASTNodeImporter::VisitSubstNonTypeTemplateParmExpr(
   return new (Importer.getToContext()) SubstNonTypeTemplateParmExpr(
         T, E->getValueKind(), Importer.Import(E->getExprLoc()), Param,
         Replacement);
+}
+
+void ASTNodeImporter::ImportOverrides(CXXMethodDecl *ToMethod,
+                                      CXXMethodDecl *FromMethod) {
+  for (auto *FromOverriddenMethod : FromMethod->overridden_methods())
+    ToMethod->addOverriddenMethod(
+      cast<CXXMethodDecl>(Importer.Import(const_cast<CXXMethodDecl*>(
+                                            FromOverriddenMethod))));
 }
 
 ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,

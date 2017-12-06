@@ -666,6 +666,12 @@ TEST(Matcher, IntegerLiterals) {
   EXPECT_TRUE(notMatches("int i = 'a';", HasIntLiteral));
   EXPECT_TRUE(notMatches("int i = 1e10;", HasIntLiteral));
   EXPECT_TRUE(notMatches("int i = 10.0;", HasIntLiteral));
+
+  // Negative integers.
+  EXPECT_TRUE(
+      matches("int i = -10;",
+              unaryOperator(hasOperatorName("-"),
+                            hasUnaryOperand(integerLiteral(equals(10))))));
 }
 
 TEST(Matcher, FloatLiterals) {
@@ -1020,6 +1026,29 @@ TEST(InitListExpression, MatchesInitListExpression) {
     matches("int i[1] = {42, [0] = 43};", integerLiteral(equals(42))));
 }
 
+TEST(CXXStdInitializerListExpression, MatchesCXXStdInitializerListExpression) {
+  const std::string code = "namespace std {"
+                           "template <typename> class initializer_list {"
+                           "  public: initializer_list() noexcept {}"
+                           "};"
+                           "}"
+                           "struct A {"
+                           "  A(std::initializer_list<int>) {}"
+                           "};";
+  EXPECT_TRUE(matches(code + "A a{0};",
+                      cxxConstructExpr(has(cxxStdInitializerListExpr()),
+                                       hasDeclaration(cxxConstructorDecl(
+                                           ofClass(hasName("A")))))));
+  EXPECT_TRUE(matches(code + "A a = {0};",
+                      cxxConstructExpr(has(cxxStdInitializerListExpr()),
+                                       hasDeclaration(cxxConstructorDecl(
+                                           ofClass(hasName("A")))))));
+
+  EXPECT_TRUE(notMatches("int a[] = { 1, 2 };", cxxStdInitializerListExpr()));
+  EXPECT_TRUE(notMatches("struct B { int x, y; }; B b = { 5, 6 };",
+                         cxxStdInitializerListExpr()));
+}
+
 TEST(UsingDeclaration, MatchesUsingDeclarations) {
   EXPECT_TRUE(matches("namespace X { int x; } using X::x;",
                       usingDecl()));
@@ -1154,6 +1183,10 @@ TEST(TypeMatching, MatchesAutoTypes) {
   EXPECT_TRUE(matches("auto i = 2;", autoType()));
   EXPECT_TRUE(matches("int v[] = { 2, 3 }; void f() { for (int i : v) {} }",
                       autoType()));
+
+  EXPECT_TRUE(matches("auto i = 2;", varDecl(hasType(isInteger()))));
+  EXPECT_TRUE(matches("struct X{}; auto x = X{};",
+                      varDecl(hasType(recordDecl(hasName("X"))))));
 
   // FIXME: Matching against the type-as-written can't work here, because the
   //        type as written was not deduced.
@@ -1557,7 +1590,7 @@ TEST(ObjCMessageExprMatcher, SimpleExprs) {
     )));
 }
 
-TEST(ObjCDeclMacher, CoreDecls) {
+TEST(ObjCDeclMatcher, CoreDecls) {
   std::string ObjCString =
     "@protocol Proto "
     "- (void)protoDidThing; "
@@ -1572,6 +1605,9 @@ TEST(ObjCDeclMacher, CoreDecls) {
     "{ id _ivar; } "
     "- (void)anything {} "
     "@end "
+    "@implementation Thing (ABC) "
+    "- (void)abc_doThing {} "
+    "@end "
     ;
 
   EXPECT_TRUE(matchesObjC(
@@ -1579,7 +1615,13 @@ TEST(ObjCDeclMacher, CoreDecls) {
     objcProtocolDecl(hasName("Proto"))));
   EXPECT_TRUE(matchesObjC(
     ObjCString,
+    objcImplementationDecl(hasName("Thing"))));
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
     objcCategoryDecl(hasName("ABC"))));
+  EXPECT_TRUE(matchesObjC(
+    ObjCString,
+    objcCategoryImplDecl(hasName("ABC"))));
   EXPECT_TRUE(matchesObjC(
     ObjCString,
     objcMethodDecl(hasName("protoDidThing"))));

@@ -15,6 +15,7 @@
 #define LLVM_CLANG_LIB_CODEGEN_CODEGENTYPECACHE_H
 
 #include "clang/AST/CharUnits.h"
+#include "clang/Basic/AddressSpaces.h"
 #include "llvm/IR/CallingConv.h"
 
 namespace llvm {
@@ -94,6 +95,8 @@ struct CodeGenTypeCache {
     unsigned char SizeAlignInBytes;
   };
 
+  LangAS ASTAllocaAddressSpace;
+
   CharUnits getSizeSize() const {
     return CharUnits::fromQuantity(SizeSizeInBytes);
   }
@@ -111,6 +114,8 @@ struct CodeGenTypeCache {
   llvm::CallingConv::ID getRuntimeCC() const { return RuntimeCC; }
   llvm::CallingConv::ID BuiltinCC;
   llvm::CallingConv::ID getBuiltinCC() const { return BuiltinCC; }
+
+  LangAS getASTAllocaAddressSpace() const { return ASTAllocaAddressSpace; }
 };
 
 }  // end namespace CodeGen

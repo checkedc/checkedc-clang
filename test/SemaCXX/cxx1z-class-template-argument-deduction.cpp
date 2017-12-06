@@ -1,4 +1,9 @@
-// RUN: %clang_cc1 -std=c++1z -verify %s
+// RUN: %clang_cc1 -std=c++1z -verify %s -DERRORS -Wundefined-func-template
+// RUN: %clang_cc1 -std=c++1z -verify %s -UERRORS -Wundefined-func-template
+
+// This test is split into two because we only produce "undefined internal"
+// warnings if we didn't produce any errors.
+#if ERRORS
 
 namespace std {
   using size_t = decltype(sizeof(0));
@@ -248,3 +253,76 @@ namespace variadic {
   };
   Z z(1, a, b);
 }
+
+namespace tuple_tests {
+  // The converting n-ary constructor appears viable, deducing T as an empty
+  // pack (until we check its SFINAE constraints).
+  namespace libcxx_1 {
+    template<class ...T> struct tuple {
+      template<class ...Args> struct X { static const bool value = false; };
+      template<class ...U, bool Y = X<U...>::value> tuple(U &&...u);
+    };
+    tuple a = {1, 2, 3};
+  }
+
+  // Don't get caught by surprise when X<...> doesn't even exist in the
+  // selected specialization!
+  namespace libcxx_2 {
+    template<class ...T> struct tuple { // expected-note {{candidate}}
+      template<class ...Args> struct X { static const bool value = false; };
+      template<class ...U, bool Y = X<U...>::value> tuple(U &&...u);
+      // expected-note@-1 {{substitution failure [with T = <>, U = <int, int, int>]: cannot reference member of primary template because deduced class template specialization 'tuple<>' is an explicit specialization}}
+    };
+    template <> class tuple<> {};
+    tuple a = {1, 2, 3}; // expected-error {{no viable constructor or deduction guide}}
+  }
+
+  namespace libcxx_3 {
+    template<typename ...T> struct scoped_lock {
+      scoped_lock(T...);
+    };
+    template<> struct scoped_lock<> {};
+    scoped_lock l = {};
+  }
+}
+
+namespace dependent {
+  template<typename T> struct X {
+    X(T);
+  };
+  template<typename T> int Var(T t) {
+    X x(t);
+    return X(x) + 1; // expected-error {{invalid operands}}
+  }
+  template<typename T> int Cast(T t) {
+    return X(X(t)) + 1; // expected-error {{invalid operands}}
+  }
+  template<typename T> int New(T t) {
+    return X(new X(t)) + 1; // expected-error {{invalid operands}}
+  };
+  template int Var(float); // expected-note {{instantiation of}}
+  template int Cast(float); // expected-note {{instantiation of}}
+  template int New(float); // expected-note {{instantiation of}}
+  template<typename T> int operator+(X<T>, int);
+  template int Var(int);
+  template int Cast(int);
+  template int New(int);
+}
+
+#else
+
+// expected-no-diagnostics
+namespace undefined_warnings {
+  // Make sure we don't get an "undefined but used internal symbol" warning for the deduction guide here.
+  namespace {
+    template <typename T>
+    struct TemplDObj {
+      explicit TemplDObj(T func) noexcept {}
+    };
+    auto test1 = TemplDObj(0);
+
+    TemplDObj(float) -> TemplDObj<double>;
+    auto test2 = TemplDObj(.0f);
+  }
+}
+#endif

@@ -134,8 +134,7 @@ bool GeneratePCHAction::shouldEraseOutputFiles() {
   return ASTFrontendAction::shouldEraseOutputFiles();
 }
 
-bool GeneratePCHAction::BeginSourceFileAction(CompilerInstance &CI,
-                                              StringRef Filename) {
+bool GeneratePCHAction::BeginSourceFileAction(CompilerInstance &CI) {
   CI.getLangOpts().CompilingPCH = true;
   return true;
 }
@@ -165,8 +164,13 @@ GenerateModuleAction::CreateASTConsumer(CompilerInstance &CI,
 }
 
 bool GenerateModuleFromModuleMapAction::BeginSourceFileAction(
-    CompilerInstance &CI, StringRef Filename) {
-  return GenerateModuleAction::BeginSourceFileAction(CI, Filename);
+    CompilerInstance &CI) {
+  if (!CI.getLangOpts().Modules) {
+    CI.getDiagnostics().Report(diag::err_module_build_requires_fmodules);
+    return false;
+  }
+
+  return GenerateModuleAction::BeginSourceFileAction(CI);
 }
 
 std::unique_ptr<raw_pwrite_stream>
@@ -181,8 +185,8 @@ GenerateModuleFromModuleMapAction::CreateOutputFile(CompilerInstance &CI,
 
     HeaderSearch &HS = CI.getPreprocessor().getHeaderSearchInfo();
     CI.getFrontendOpts().OutputFile =
-        HS.getModuleFileName(CI.getLangOpts().CurrentModule, ModuleMapFile,
-                             /*UsePrebuiltPath=*/false);
+        HS.getCachedModuleFileName(CI.getLangOpts().CurrentModule,
+                                   ModuleMapFile);
   }
 
   // We use createOutputFile here because this is exposed via libclang, and we
@@ -194,8 +198,8 @@ GenerateModuleFromModuleMapAction::CreateOutputFile(CompilerInstance &CI,
                              /*CreateMissingDirectories=*/true);
 }
 
-bool GenerateModuleInterfaceAction::BeginSourceFileAction(CompilerInstance &CI,
-                                                          StringRef Filename) {
+bool GenerateModuleInterfaceAction::BeginSourceFileAction(
+    CompilerInstance &CI) {
   if (!CI.getLangOpts().ModulesTS) {
     CI.getDiagnostics().Report(diag::err_module_interface_requires_modules_ts);
     return false;
@@ -203,7 +207,7 @@ bool GenerateModuleInterfaceAction::BeginSourceFileAction(CompilerInstance &CI,
 
   CI.getLangOpts().setCompilingModule(LangOptions::CMK_ModuleInterface);
 
-  return GenerateModuleAction::BeginSourceFileAction(CI, Filename);
+  return GenerateModuleAction::BeginSourceFileAction(CI);
 }
 
 std::unique_ptr<raw_pwrite_stream>
@@ -236,7 +240,7 @@ void VerifyPCHAction::ExecuteAction() {
   bool Preamble = CI.getPreprocessorOpts().PrecompiledPreambleBytes.first != 0;
   const std::string &Sysroot = CI.getHeaderSearchOpts().Sysroot;
   std::unique_ptr<ASTReader> Reader(new ASTReader(
-      CI.getPreprocessor(), CI.getASTContext(), CI.getPCHContainerReader(),
+      CI.getPreprocessor(), &CI.getASTContext(), CI.getPCHContainerReader(),
       CI.getFrontendOpts().ModuleFileExtensions,
       Sysroot.empty() ? "" : Sysroot.c_str(),
       /*DisableValidation*/ false,
@@ -523,7 +527,7 @@ void PrintPreprocessedAction::ExecuteAction() {
     // file.  This is mostly a sanity check in case the file has no 
     // newlines whatsoever.
     if (end - cur > 256) end = cur + 256;
-	  
+
     while (next < end) {
       if (*cur == 0x0D) {  // CR
         if (*next == 0x0A)  // CRLF
@@ -541,6 +545,21 @@ void PrintPreprocessedAction::ExecuteAction() {
   std::unique_ptr<raw_ostream> OS =
       CI.createDefaultOutputFile(BinaryMode, getCurrentFile());
   if (!OS) return;
+
+  // If we're preprocessing a module map, start by dumping the contents of the
+  // module itself before switching to the input buffer.
+  auto &Input = getCurrentInput();
+  if (Input.getKind().getFormat() == InputKind::ModuleMap) {
+    if (Input.isFile()) {
+      (*OS) << "# 1 \"";
+      OS->write_escaped(Input.getFile());
+      (*OS) << "\"\n";
+    }
+    // FIXME: Include additional information here so that we don't need the
+    // original source files to exist on disk.
+    getCurrentModule()->print(*OS);
+    (*OS) << "#pragma clang module contents\n";
+  }
 
   DoPrintPreprocessedInput(CI.getPreprocessor(), OS.get(),
                            CI.getPreprocessorOutputOpts());
@@ -572,7 +591,7 @@ void PrintPreambleAction::ExecuteAction() {
   auto Buffer = CI.getFileManager().getBufferForFile(getCurrentFile());
   if (Buffer) {
     unsigned Preamble =
-        Lexer::ComputePreamble((*Buffer)->getBuffer(), CI.getLangOpts()).first;
+        Lexer::ComputePreamble((*Buffer)->getBuffer(), CI.getLangOpts()).Size;
     llvm::outs().write((*Buffer)->getBufferStart(), Preamble);
   }
 }

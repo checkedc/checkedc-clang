@@ -252,6 +252,11 @@ void is_pod()
   { int arr[F(__is_pod(void))]; }
   { int arr[F(__is_pod(cvoid))]; }
 // { int arr[F(__is_pod(NonPODUnion))]; }
+
+  { int arr[T(__is_pod(ACompleteType))]; }
+  { int arr[F(__is_pod(AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_pod(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_pod(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
 }
 
 typedef Empty EmptyAr[10];
@@ -287,6 +292,11 @@ void is_empty()
   { int arr[F(__is_empty(IntArNB))]; }
   { int arr[F(__is_empty(HasAnonymousUnion))]; }
 //  { int arr[F(__is_empty(DerivesVirt))]; }
+
+  { int arr[T(__is_empty(ACompleteType))]; }
+  { int arr[F(__is_empty(AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_empty(AnIncompleteType[]))]; }
+  { int arr[F(__is_empty(AnIncompleteType[1]))]; }
 }
 
 typedef Derives ClassType;
@@ -511,6 +521,8 @@ void is_aggregate()
   constexpr bool TrueAfterCpp14 = __cplusplus > 201402L;
 
   __is_aggregate(AnIncompleteType); // expected-error {{incomplete type}}
+  __is_aggregate(AnIncompleteType[]); // expected-error {{incomplete type}}
+  __is_aggregate(AnIncompleteType[1]); // expected-error {{incomplete type}}
   __is_aggregate(AnIncompleteTypeAr); // expected-error {{incomplete type}}
   __is_aggregate(AnIncompleteTypeArNB); // expected-error {{incomplete type}}
   __is_aggregate(AnIncompleteTypeArMB); // expected-error {{incomplete type}}
@@ -1220,6 +1232,13 @@ void is_trivial2()
   int t32[F(__is_trivial(SuperNonTrivialStruct))];
   int t33[F(__is_trivial(NonTCStruct))];
   int t34[F(__is_trivial(ExtDefaulted))];
+
+  int t40[T(__is_trivial(ACompleteType))];
+  int t41[F(__is_trivial(AnIncompleteType))]; // expected-error {{incomplete type}}
+  int t42[F(__is_trivial(AnIncompleteType[]))]; // expected-error {{incomplete type}}
+  int t43[F(__is_trivial(AnIncompleteType[1]))]; // expected-error {{incomplete type}}
+  int t44[F(__is_trivial(void))];
+  int t45[F(__is_trivial(const volatile void))];
 }
 
 void is_trivially_copyable2()
@@ -1256,7 +1275,14 @@ void is_trivially_copyable2()
   int t33[F(__is_trivially_copyable(ExtDefaulted))];
 
   int t34[T(__is_trivially_copyable(const int))];
-  int t35[F(__is_trivially_copyable(volatile int))];
+  int t35[T(__is_trivially_copyable(volatile int))];
+
+  int t40[T(__is_trivially_copyable(ACompleteType))];
+  int t41[F(__is_trivially_copyable(AnIncompleteType))]; // expected-error {{incomplete type}}
+  int t42[F(__is_trivially_copyable(AnIncompleteType[]))]; // expected-error {{incomplete type}}
+  int t43[F(__is_trivially_copyable(AnIncompleteType[1]))]; // expected-error {{incomplete type}}
+  int t44[F(__is_trivially_copyable(void))];
+  int t45[F(__is_trivially_copyable(const volatile void))];
 }
 
 struct CStruct {
@@ -1320,6 +1346,13 @@ void is_standard_layout()
   int t15[F(__is_standard_layout(CppStructNonStandardByBaseAr))];
   int t16[F(__is_standard_layout(CppStructNonStandardBySameBase))];
   int t17[F(__is_standard_layout(CppStructNonStandardBy2ndVirtBase))];
+
+  int t40[T(__is_standard_layout(ACompleteType))];
+  int t41[F(__is_standard_layout(AnIncompleteType))]; // expected-error {{incomplete type}}
+  int t42[F(__is_standard_layout(AnIncompleteType[]))]; // expected-error {{incomplete type}}
+  int t43[F(__is_standard_layout(AnIncompleteType[1]))]; // expected-error {{incomplete type}}
+  int t44[F(__is_standard_layout(void))];
+  int t45[F(__is_standard_layout(const volatile void))];
 }
 
 void is_signed()
@@ -1414,7 +1447,9 @@ void has_trivial_default_constructor() {
   { int arr[T(__has_trivial_constructor(const Int))]; }
   { int arr[T(__has_trivial_constructor(AllDefaulted))]; }
   { int arr[T(__has_trivial_constructor(AllDeleted))]; }
+  { int arr[T(__has_trivial_constructor(ACompleteType[]))]; }
 
+  { int arr[F(__has_trivial_constructor(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_trivial_constructor(HasCons))]; }
   { int arr[F(__has_trivial_constructor(HasRef))]; }
   { int arr[F(__has_trivial_constructor(HasCopy))]; }
@@ -1445,7 +1480,9 @@ void has_trivial_move_constructor() {
   { int arr[T(__has_trivial_move_constructor(HasCons))]; }
   { int arr[T(__has_trivial_move_constructor(HasStaticMemberMoveCtor))]; }
   { int arr[T(__has_trivial_move_constructor(AllDeleted))]; }
-  
+  { int arr[T(__has_trivial_move_constructor(ACompleteType[]))]; }
+
+  { int arr[F(__has_trivial_move_constructor(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_trivial_move_constructor(HasVirt))]; }
   { int arr[F(__has_trivial_move_constructor(DerivesVirt))]; }
   { int arr[F(__has_trivial_move_constructor(HasMoveCtor))]; }
@@ -1475,7 +1512,9 @@ void has_trivial_copy_constructor() {
   { int arr[T(__has_trivial_copy(AllDeleted))]; }
   { int arr[T(__has_trivial_copy(DerivesAr))]; }
   { int arr[T(__has_trivial_copy(DerivesHasRef))]; }
+  { int arr[T(__has_trivial_copy(ACompleteType[]))]; }
 
+  { int arr[F(__has_trivial_copy(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_trivial_copy(HasCopy))]; }
   { int arr[F(__has_trivial_copy(HasTemplateCons))]; }
   { int arr[F(__has_trivial_copy(VirtAr))]; }
@@ -1503,7 +1542,9 @@ void has_trivial_copy_assignment() {
   { int arr[T(__has_trivial_assign(AllDeleted))]; }
   { int arr[T(__has_trivial_assign(DerivesAr))]; }
   { int arr[T(__has_trivial_assign(DerivesHasRef))]; }
+  { int arr[T(__has_trivial_assign(ACompleteType[]))]; }
 
+  { int arr[F(__has_trivial_assign(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_trivial_assign(IntRef))]; }
   { int arr[F(__has_trivial_assign(HasCopyAssign))]; }
   { int arr[F(__has_trivial_assign(const Int))]; }
@@ -1539,8 +1580,10 @@ void has_trivial_destructor() {
   { int arr[T(__has_trivial_destructor(AllDefaulted))]; }
   { int arr[T(__has_trivial_destructor(AllDeleted))]; }
   { int arr[T(__has_trivial_destructor(DerivesHasRef))]; }
+  { int arr[T(__has_trivial_destructor(ACompleteType[]))]; }
 
   { int arr[F(__has_trivial_destructor(HasDest))]; }
+  { int arr[F(__has_trivial_destructor(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_trivial_destructor(void))]; }
   { int arr[F(__has_trivial_destructor(cvoid))]; }
   { int arr[F(__has_trivial_destructor(AllPrivate))]; }
@@ -1592,7 +1635,9 @@ void has_nothrow_assign() {
   { int arr[T(__has_nothrow_assign(AllPrivate))]; }
   { int arr[T(__has_nothrow_assign(UsingAssign))]; }
   { int arr[T(__has_nothrow_assign(DerivesAr))]; }
+  { int arr[T(__has_nothrow_assign(ACompleteType[]))]; }
 
+  { int arr[F(__has_nothrow_assign(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_nothrow_assign(IntRef))]; }
   { int arr[F(__has_nothrow_assign(HasCopyAssign))]; }
   { int arr[F(__has_nothrow_assign(HasMultipleCopyAssign))]; }
@@ -1617,8 +1662,9 @@ void has_nothrow_move_assign() {
   { int arr[T(__has_nothrow_move_assign(HasMemberNoThrowMoveAssign))]; }
   { int arr[T(__has_nothrow_move_assign(HasMemberNoExceptNoThrowMoveAssign))]; }
   { int arr[T(__has_nothrow_move_assign(AllDeleted))]; }
+  { int arr[T(__has_nothrow_move_assign(ACompleteType[]))]; }
 
-
+  { int arr[F(__has_nothrow_move_assign(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_nothrow_move_assign(HasThrowMoveAssign))]; }
   { int arr[F(__has_nothrow_move_assign(HasNoExceptFalseMoveAssign))]; }
   { int arr[F(__has_nothrow_move_assign(HasMemberThrowMoveAssign))]; }
@@ -1650,7 +1696,9 @@ void has_trivial_move_assign() {
   { int arr[T(__has_trivial_move_assign(Int))]; }
   { int arr[T(__has_trivial_move_assign(HasStaticMemberMoveAssign))]; }
   { int arr[T(__has_trivial_move_assign(AllDeleted))]; }
+  { int arr[T(__has_trivial_move_assign(ACompleteType[]))]; }
 
+  { int arr[F(__has_trivial_move_assign(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_trivial_move_assign(HasVirt))]; }
   { int arr[F(__has_trivial_move_assign(DerivesVirt))]; }
   { int arr[F(__has_trivial_move_assign(HasMoveAssign))]; }
@@ -1684,7 +1732,9 @@ void has_nothrow_copy() {
   { int arr[T(__has_nothrow_copy(HasTemplateCons))]; }
   { int arr[T(__has_nothrow_copy(AllPrivate))]; }
   { int arr[T(__has_nothrow_copy(DerivesAr))]; }
+  { int arr[T(__has_nothrow_copy(ACompleteType[]))]; }
 
+  { int arr[F(__has_nothrow_copy(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_nothrow_copy(HasCopy))]; }
   { int arr[F(__has_nothrow_copy(HasMultipleCopy))]; }
   { int arr[F(__has_nothrow_copy(VirtAr))]; }
@@ -1710,7 +1760,9 @@ void has_nothrow_constructor() {
   { int arr[T(__has_nothrow_constructor(HasVirtDest))]; }
   // { int arr[T(__has_nothrow_constructor(VirtAr))]; } // not implemented
   { int arr[T(__has_nothrow_constructor(AllPrivate))]; }
+  { int arr[T(__has_nothrow_constructor(ACompleteType[]))]; }
 
+  { int arr[F(__has_nothrow_constructor(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[F(__has_nothrow_constructor(HasCons))]; }
   { int arr[F(__has_nothrow_constructor(HasRef))]; }
   { int arr[F(__has_nothrow_constructor(HasCopy))]; }
@@ -1746,7 +1798,9 @@ void has_virtual_destructor() {
   { int arr[F(__has_virtual_destructor(HasMoveAssign))]; }
   { int arr[F(__has_virtual_destructor(IntRef))]; }
   { int arr[F(__has_virtual_destructor(VirtAr))]; }
+  { int arr[F(__has_virtual_destructor(ACompleteType[]))]; }
 
+  { int arr[F(__has_virtual_destructor(AnIncompleteType[]))]; } // expected-error {{incomplete type}}
   { int arr[T(__has_virtual_destructor(HasVirtDest))]; }
   { int arr[T(__has_virtual_destructor(DerivedVirtDest))]; }
   { int arr[F(__has_virtual_destructor(VirtDestAr))]; }
@@ -2133,6 +2187,13 @@ void trivial_checks()
                                TrivialMoveButNotCopy)))]; }
   { int arr[T((__is_assignable(TrivialMoveButNotCopy &,
                                TrivialMoveButNotCopy &&)))]; }
+
+  { int arr[T(__is_assignable(ACompleteType, ACompleteType))]; }
+  { int arr[F(__is_assignable(AnIncompleteType, AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_assignable(AnIncompleteType[], AnIncompleteType[]))]; }
+  { int arr[F(__is_assignable(AnIncompleteType[1], AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_assignable(void, void))]; }
+  { int arr[F(__is_assignable(const volatile void, const volatile void))]; }
 }
 
 void constructible_checks() {
@@ -2164,6 +2225,19 @@ void constructible_checks() {
 
   // PR25513
   { int arr[F(__is_constructible(int(int)))]; }
+
+  { int arr[T(__is_constructible(ACompleteType))]; }
+  { int arr[T(__is_nothrow_constructible(ACompleteType))]; }
+  { int arr[F(__is_constructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_nothrow_constructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_constructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_nothrow_constructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_constructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_nothrow_constructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_constructible(void))]; }
+  { int arr[F(__is_nothrow_constructible(void))]; }
+  { int arr[F(__is_constructible(const volatile void))]; }
+  { int arr[F(__is_nothrow_constructible(const volatile void))]; }
 }
 
 // Instantiation of __is_trivially_constructible
@@ -2192,6 +2266,13 @@ void is_trivially_constructible_test() {
   { int arr[F((is_trivially_constructible<NonTrivialDefault>::value))]; }
   { int arr[F((is_trivially_constructible<ThreeArgCtor, int*, char*, int&>::value))]; }
   { int arr[F((is_trivially_constructible<Abstract>::value))]; } // PR19178
+
+  { int arr[T(__is_trivially_constructible(ACompleteType))]; }
+  { int arr[F(__is_trivially_constructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_trivially_constructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_trivially_constructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_trivially_constructible(void))]; }
+  { int arr[F(__is_trivially_constructible(const volatile void))]; }
 }
 
 void array_rank() {
@@ -2218,6 +2299,13 @@ void is_destructible_test() {
   { int arr[F(__is_destructible(AllDeleted))]; }
   { int arr[T(__is_destructible(ThrowingDtor))]; }
   { int arr[T(__is_destructible(NoThrowDtor))]; }
+
+  { int arr[T(__is_destructible(ACompleteType))]; }
+  { int arr[F(__is_destructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_destructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_destructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_destructible(void))]; }
+  { int arr[F(__is_destructible(const volatile void))]; }
 }
 
 void is_nothrow_destructible_test() {
@@ -2234,4 +2322,266 @@ void is_nothrow_destructible_test() {
   { int arr[F(__is_nothrow_destructible(ThrowingDtor))]; }
   { int arr[T(__is_nothrow_destructible(NoExceptDtor))]; }
   { int arr[T(__is_nothrow_destructible(NoThrowDtor))]; }
+
+  { int arr[T(__is_nothrow_destructible(ACompleteType))]; }
+  { int arr[F(__is_nothrow_destructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_nothrow_destructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_nothrow_destructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_nothrow_destructible(void))]; }
+  { int arr[F(__is_nothrow_destructible(const volatile void))]; }
 }
+
+void is_trivially_destructible_test() {
+  { int arr[T(__is_trivially_destructible(int))]; }
+  { int arr[T(__is_trivially_destructible(int[2]))]; }
+  { int arr[F(__is_trivially_destructible(int[]))]; }
+  { int arr[F(__is_trivially_destructible(void))]; }
+  { int arr[T(__is_trivially_destructible(int &))]; }
+  { int arr[F(__is_trivially_destructible(HasDest))]; }
+  { int arr[F(__is_trivially_destructible(AllPrivate))]; }
+  { int arr[F(__is_trivially_destructible(SuperNonTrivialStruct))]; }
+  { int arr[T(__is_trivially_destructible(AllDefaulted))]; }
+  { int arr[F(__is_trivially_destructible(AllDeleted))]; }
+  { int arr[F(__is_trivially_destructible(ThrowingDtor))]; }
+  { int arr[F(__is_trivially_destructible(NoThrowDtor))]; }
+
+  { int arr[T(__is_trivially_destructible(ACompleteType))]; }
+  { int arr[F(__is_trivially_destructible(AnIncompleteType))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_trivially_destructible(AnIncompleteType[]))]; }
+  { int arr[F(__is_trivially_destructible(AnIncompleteType[1]))]; } // expected-error {{incomplete type}}
+  { int arr[F(__is_trivially_destructible(void))]; }
+  { int arr[F(__is_trivially_destructible(const volatile void))]; }
+}
+
+// Instantiation of __has_unique_object_representations
+template <typename T>
+struct has_unique_object_representations {
+  static const bool value = __has_unique_object_representations(T);
+};
+
+static_assert(!has_unique_object_representations<void>::value, "void is never unique");
+static_assert(!has_unique_object_representations<const void>::value, "void is never unique");
+static_assert(!has_unique_object_representations<volatile void>::value, "void is never unique");
+static_assert(!has_unique_object_representations<const volatile void>::value, "void is never unique");
+
+static_assert(has_unique_object_representations<int>::value, "integrals are");
+static_assert(has_unique_object_representations<const int>::value, "integrals are");
+static_assert(has_unique_object_representations<volatile int>::value, "integrals are");
+static_assert(has_unique_object_representations<const volatile int>::value, "integrals are");
+
+static_assert(has_unique_object_representations<void *>::value, "as are pointers");
+static_assert(has_unique_object_representations<const void *>::value, "as are pointers");
+static_assert(has_unique_object_representations<volatile void *>::value, "are pointers");
+static_assert(has_unique_object_representations<const volatile void *>::value, "as are pointers");
+
+static_assert(has_unique_object_representations<int *>::value, "as are pointers");
+static_assert(has_unique_object_representations<const int *>::value, "as are pointers");
+static_assert(has_unique_object_representations<volatile int *>::value, "as are pointers");
+static_assert(has_unique_object_representations<const volatile int *>::value, "as are pointers");
+
+class C {};
+using FP = int (*)(int);
+using PMF = int (C::*)(int);
+using PMD = int C::*;
+
+static_assert(has_unique_object_representations<FP>::value, "even function pointers");
+static_assert(has_unique_object_representations<const FP>::value, "even function pointers");
+static_assert(has_unique_object_representations<volatile FP>::value, "even function pointers");
+static_assert(has_unique_object_representations<const volatile FP>::value, "even function pointers");
+
+static_assert(has_unique_object_representations<PMF>::value, "and pointer to members");
+static_assert(has_unique_object_representations<const PMF>::value, "and pointer to members");
+static_assert(has_unique_object_representations<volatile PMF>::value, "and pointer to members");
+static_assert(has_unique_object_representations<const volatile PMF>::value, "and pointer to members");
+
+static_assert(has_unique_object_representations<PMD>::value, "and pointer to members");
+static_assert(has_unique_object_representations<const PMD>::value, "and pointer to members");
+static_assert(has_unique_object_representations<volatile PMD>::value, "and pointer to members");
+static_assert(has_unique_object_representations<const volatile PMD>::value, "and pointer to members");
+
+static_assert(has_unique_object_representations<bool>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<char>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<signed char>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<unsigned char>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<short>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<unsigned short>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<int>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<unsigned int>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<long>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<unsigned long>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<long long>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<unsigned long long>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<wchar_t>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<char16_t>::value, "yes, all integral types");
+static_assert(has_unique_object_representations<char32_t>::value, "yes, all integral types");
+
+static_assert(!has_unique_object_representations<void>::value, "but not void!");
+static_assert(!has_unique_object_representations<decltype(nullptr)>::value, "or nullptr_t");
+static_assert(!has_unique_object_representations<float>::value, "definitely not Floating Point");
+static_assert(!has_unique_object_representations<double>::value, "definitely not Floating Point");
+static_assert(!has_unique_object_representations<long double>::value, "definitely not Floating Point");
+
+struct NoPadding {
+  int a;
+  int b;
+};
+
+static_assert(has_unique_object_representations<NoPadding>::value, "types without padding are");
+
+struct InheritsFromNoPadding : NoPadding {
+  int c;
+  int d;
+};
+
+static_assert(has_unique_object_representations<InheritsFromNoPadding>::value, "types without padding are");
+
+struct VirtuallyInheritsFromNoPadding : virtual NoPadding {
+  int c;
+  int d;
+};
+
+static_assert(!has_unique_object_representations<VirtuallyInheritsFromNoPadding>::value, "No virtual inheritence");
+
+struct Padding {
+  char a;
+  int b;
+};
+
+static_assert(!has_unique_object_representations<Padding>::value, "but not with padding");
+
+struct InheritsFromPadding : Padding {
+  int c;
+  int d;
+};
+
+static_assert(!has_unique_object_representations<InheritsFromPadding>::value, "or its subclasses");
+
+struct TailPadding {
+  int a;
+  char b;
+};
+
+static_assert(!has_unique_object_representations<TailPadding>::value, "even at the end");
+
+struct TinyStruct {
+  char a;
+};
+
+static_assert(has_unique_object_representations<TinyStruct>::value, "Should be no padding");
+
+struct InheritsFromTinyStruct : TinyStruct {
+  int b;
+};
+
+static_assert(!has_unique_object_representations<InheritsFromTinyStruct>::value, "Inherit causes padding");
+
+union NoPaddingUnion {
+  int a;
+  unsigned int b;
+};
+
+static_assert(has_unique_object_representations<NoPaddingUnion>::value, "unions follow the same rules as structs");
+
+union PaddingUnion {
+  int a;
+  long long b;
+};
+
+static_assert(!has_unique_object_representations<PaddingUnion>::value, "unions follow the same rules as structs");
+
+struct NotTriviallyCopyable {
+  int x;
+  NotTriviallyCopyable(const NotTriviallyCopyable &) {}
+};
+
+static_assert(!has_unique_object_representations<NotTriviallyCopyable>::value, "must be trivially copyable");
+
+struct HasNonUniqueMember {
+  float x;
+};
+
+static_assert(!has_unique_object_representations<HasNonUniqueMember>::value, "all members must be unique");
+
+enum ExampleEnum { xExample,
+                   yExample };
+enum LLEnum : long long { xLongExample,
+                          yLongExample };
+
+static_assert(has_unique_object_representations<ExampleEnum>::value, "Enums are integrals, so unique!");
+static_assert(has_unique_object_representations<LLEnum>::value, "Enums are integrals, so unique!");
+
+enum class ExampleEnumClass { xExample,
+                              yExample };
+enum class LLEnumClass : long long { xLongExample,
+                                     yLongExample };
+
+static_assert(has_unique_object_representations<ExampleEnumClass>::value, "Enums are integrals, so unique!");
+static_assert(has_unique_object_representations<LLEnumClass>::value, "Enums are integrals, so unique!");
+
+// because reference types aren't object types
+static_assert(!has_unique_object_representations<int &>::value, "No references!");
+static_assert(!has_unique_object_representations<const int &>::value, "No references!");
+static_assert(!has_unique_object_representations<volatile int &>::value, "No references!");
+static_assert(!has_unique_object_representations<const volatile int &>::value, "No references!");
+
+static_assert(!has_unique_object_representations<Empty>::value, "No empty types!");
+
+class Compressed : Empty {
+  int x;
+};
+
+static_assert(has_unique_object_representations<Compressed>::value, "But inheriting from one is ok");
+
+class EmptyInheritor : Compressed {};
+
+static_assert(has_unique_object_representations<EmptyInheritor>::value, "As long as the base has items, empty is ok");
+
+class Dynamic {
+  virtual void A();
+  int i;
+};
+
+static_assert(!has_unique_object_representations<Dynamic>::value, "Dynamic types are not valid");
+
+class InheritsDynamic : Dynamic {
+  int j;
+};
+
+static_assert(!has_unique_object_representations<InheritsDynamic>::value, "Dynamic types are not valid");
+
+static_assert(has_unique_object_representations<int[42]>::value, "Arrays are fine, as long as their value type is");
+static_assert(has_unique_object_representations<int[]>::value, "Arrays are fine, as long as their value type is");
+static_assert(has_unique_object_representations<int[][42]>::value, "Arrays are fine, as long as their value type is");
+static_assert(!has_unique_object_representations<double[42]>::value, "So no array of doubles!");
+static_assert(!has_unique_object_representations<double[]>::value, "So no array of doubles!");
+static_assert(!has_unique_object_representations<double[][42]>::value, "So no array of doubles!");
+
+static_assert(!has_unique_object_representations<int(int)>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) const>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) volatile>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) const volatile>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) &>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) const &>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) volatile &>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) const volatile &>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) &&>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) const &&>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) volatile &&>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int) const volatile &&>::value, "Functions are not unique");
+
+static_assert(!has_unique_object_representations<int(int, ...)>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) const>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) volatile>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) const volatile>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) &>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) const &>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) volatile &>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) const volatile &>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) &&>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) const &&>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) volatile &&>::value, "Functions are not unique");
+static_assert(!has_unique_object_representations<int(int, ...) const volatile &&>::value, "Functions are not unique");
+
+static auto lambda = []() {};
+static_assert(!has_unique_object_representations<decltype(lambda)>::value, "Lambdas are not unique");
+

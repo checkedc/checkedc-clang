@@ -68,7 +68,7 @@ BaseDir("base-dir",
   cl::init(""),
   cl::cat(ConvertCategory));
 
-const Type *getNextTy(const Type *Ty) {
+const clang::Type *getNextTy(const clang::Type *Ty) {
   if(Ty->isPointerType()) {
     // TODO: how to keep the qualifiers around, and what qualifiers do
     //       we want to keep?
@@ -556,7 +556,7 @@ public:
       Stmt *S = nullptr;
       Decl *D = nullptr;
       DeclStmt *DS = nullptr;
-      Type *T = nullptr;
+      clang::Type *T = nullptr;
 
       std::tie(S, D, T) = PSLMap[PLoc];
 

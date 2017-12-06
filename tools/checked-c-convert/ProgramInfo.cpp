@@ -13,7 +13,6 @@
 #include <sstream>
 
 using namespace clang;
-using namespace llvm;
 
 // Helper method to print a Type in a way that can be represented in the source.
 static
@@ -602,7 +601,7 @@ bool ProgramInfo::link() {
   // For every global symbol in all the global symbols that we have found
   // go through and apply rules for whether they are functions or variables.
   if (Verbose)
-    errs() << "Linking!\n";
+    llvm::errs() << "Linking!\n";
 
   // Multiple Variables can be at the same PersistentSourceLoc. We should
   // constrain that everything that is at the same location is explicitly

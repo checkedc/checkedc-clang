@@ -76,11 +76,13 @@
 // RUN:             | FileCheck -check-prefix=NOCI %s
 // RUN: %clang -### -c %s -g -gcolumn-info -target x86_64-scei-ps4 2>&1 \
 // RUN:             | FileCheck -check-prefix=CI %s
+// RUN: %clang -### -c %s -gsce -target x86_64-unknown-linux 2>&1 \
+// RUN:             | FileCheck -check-prefix=NOCI %s
 
 // RUN: %clang -### -c -gdwarf-2 %s 2>&1 \
 // RUN:             | FileCheck -check-prefix=G_ONLY_DWARF2 %s
 //
-// RUN: %clang -### -c -gfoo %s 2>&1 | FileCheck -check-prefix=G_NO %s
+// RUN: not %clang -### -c -gfoo %s 2>&1 | FileCheck -check-prefix=G_ERR %s
 // RUN: %clang -### -c -g -g0 %s 2>&1 | FileCheck -check-prefix=G_NO %s
 // RUN: %clang -### -c -ggdb0 %s 2>&1 | FileCheck -check-prefix=G_NO %s
 // RUN: %clang -### -c -glldb -g0 %s 2>&1 | FileCheck -check-prefix=G_NO %s
@@ -171,6 +173,8 @@
 // G_PS4: "-dwarf-version=
 // G_PS4: "-generate-arange-section"
 //
+// G_ERR: error: unknown argument:
+//
 // G_NO: "-cc1"
 // G_NO-NOT: -debug-info-kind=
 //
@@ -217,7 +221,7 @@
 //
 // GIGNORE-NOT: "argument unused during compilation"
 //
-// GOPT: -generate-gnu-dwarf-pub-sections
+// GOPT: -ggnu-pubnames
 //
 // GARANGE: -generate-arange-section
 //

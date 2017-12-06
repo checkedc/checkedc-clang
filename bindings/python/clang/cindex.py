@@ -94,6 +94,9 @@ if sys.version_info[0] == 3:
                 return cls(param)
             if isinstance(param, bytes):
                 return cls(param)
+            if param is None:
+                # Support passing null to C functions expecting char arrays
+                return None
             raise TypeError("Cannot convert '{}' to '{}'".format(type(param).__name__, cls.__name__))
 
         @staticmethod
@@ -207,7 +210,7 @@ class _CXString(Structure):
         conf.lib.clang_disposeString(self)
 
     @staticmethod
-    def from_result(res, fn, args):
+    def from_result(res, fn=None, args=None):
         assert isinstance(res, _CXString)
         return conf.lib.clang_getCString(res)
 
@@ -459,8 +462,7 @@ class Diagnostic(object):
         """The command-line option that disables this diagnostic."""
         disable = _CXString()
         conf.lib.clang_getDiagnosticOption(self, byref(disable))
-
-        return conf.lib.clang_getCString(disable)
+        return _CXString.from_result(disable)
 
     def format(self, options=None):
         """
@@ -473,8 +475,7 @@ class Diagnostic(object):
             options = conf.lib.clang_defaultDiagnosticDisplayOptions()
         if options & ~Diagnostic._FormatOptionsMask:
             raise ValueError('Invalid format options')
-        formatted = conf.lib.clang_formatDiagnostic(self, options)
-        return conf.lib.clang_getCString(formatted)
+        return conf.lib.clang_formatDiagnostic(self, options)
 
     def __repr__(self):
         return "<Diagnostic severity %r, location %r, spelling %r>" % (
@@ -782,7 +783,7 @@ CursorKind.CONVERSION_FUNCTION = CursorKind(26)
 # A C++ template type parameter
 CursorKind.TEMPLATE_TYPE_PARAMETER = CursorKind(27)
 
-# A C++ non-type template paramater.
+# A C++ non-type template parameter.
 CursorKind.TEMPLATE_NON_TYPE_PARAMETER = CursorKind(28)
 
 # A C++ template template parameter.
@@ -1367,6 +1368,30 @@ TemplateArgumentKind.DECLARATION = TemplateArgumentKind(2)
 TemplateArgumentKind.NULLPTR = TemplateArgumentKind(3)
 TemplateArgumentKind.INTEGRAL = TemplateArgumentKind(4)
 
+### Exception Specification Kinds ###
+class ExceptionSpecificationKind(BaseEnumeration):
+    """
+    An ExceptionSpecificationKind describes the kind of exception specification
+    that a function has.
+    """
+
+    # The required BaseEnumeration declarations.
+    _kinds = []
+    _name_map = None
+
+    def __repr__(self):
+        return 'ExceptionSpecificationKind.{}'.format(self.name)
+
+ExceptionSpecificationKind.NONE = ExceptionSpecificationKind(0)
+ExceptionSpecificationKind.DYNAMIC_NONE = ExceptionSpecificationKind(1)
+ExceptionSpecificationKind.DYNAMIC = ExceptionSpecificationKind(2)
+ExceptionSpecificationKind.MS_ANY = ExceptionSpecificationKind(3)
+ExceptionSpecificationKind.BASIC_NOEXCEPT = ExceptionSpecificationKind(4)
+ExceptionSpecificationKind.COMPUTED_NOEXCEPT = ExceptionSpecificationKind(5)
+ExceptionSpecificationKind.UNEVALUATED = ExceptionSpecificationKind(6)
+ExceptionSpecificationKind.UNINSTANTIATED = ExceptionSpecificationKind(7)
+ExceptionSpecificationKind.UNPARSED = ExceptionSpecificationKind(8)
+
 ### Cursors ###
 
 class Cursor(Structure):
@@ -1454,6 +1479,11 @@ class Cursor(Structure):
         """
         return conf.lib.clang_CXXMethod_isVirtual(self)
 
+    def is_scoped_enum(self):
+        """Returns True if the cursor refers to a scoped enum declaration.
+        """
+        return conf.lib.clang_EnumDecl_isScoped(self)
+
     def get_definition(self):
         """
         If the cursor is a reference to a declaration or a declaration of
@@ -1522,6 +1552,22 @@ class Cursor(Structure):
         return self._loc
 
     @property
+    def linkage(self):
+        """Return the linkage of this cursor."""
+        if not hasattr(self, '_linkage'):
+            self._linkage = conf.lib.clang_getCursorLinkage(self)
+
+        return LinkageKind.from_id(self._linkage)
+
+    @property
+    def tls_kind(self):
+        """Return the thread-local storage (TLS) kind of this cursor."""
+        if not hasattr(self, '_tls_kind'):
+            self._tls_kind = conf.lib.clang_getCursorTLSKind(self)
+
+        return TLSKind.from_id(self._tls_kind)
+
+    @property
     def extent(self):
         """
         Return the source range (the range of text) occupied by the entity
@@ -1542,6 +1588,16 @@ class Cursor(Structure):
             self._storage_class = conf.lib.clang_Cursor_getStorageClass(self)
 
         return StorageClass.from_id(self._storage_class)
+
+    @property
+    def availability(self):
+        """
+        Retrieves the availability of the entity pointed at by the cursor.
+        """
+        if not hasattr(self, '_availability'):
+            self._availability = conf.lib.clang_getCursorAvailability(self)
+
+        return AvailabilityKind.from_id(self._availability)
 
     @property
     def access_specifier(self):
@@ -1585,6 +1641,18 @@ class Cursor(Structure):
             self._result_type = conf.lib.clang_getResultType(self.type)
 
         return self._result_type
+
+    @property
+    def exception_specification_kind(self):
+        '''
+        Retrieve the exception specification kind, which is one of the values
+        from the ExceptionSpecificationKind enumeration.
+        '''
+        if not hasattr(self, '_exception_specification_kind'):
+            exc_kind = conf.lib.clang_getCursorExceptionSpecificationType(self)
+            self._exception_specification_kind = ExceptionSpecificationKind.from_id(exc_kind)
+
+        return self._exception_specification_kind
 
     @property
     def underlying_typedef_type(self):
@@ -1868,6 +1936,24 @@ StorageClass.OPENCLWORKGROUPLOCAL = StorageClass(5)
 StorageClass.AUTO = StorageClass(6)
 StorageClass.REGISTER = StorageClass(7)
 
+### Availability Kinds ###
+
+class AvailabilityKind(BaseEnumeration):
+    """
+    Describes the availability of an entity.
+    """
+
+    # The unique kind objects, indexed by id.
+    _kinds = []
+    _name_map = None
+
+    def __repr__(self):
+        return 'AvailabilityKind.%s' % (self.name,)
+
+AvailabilityKind.AVAILABLE = AvailabilityKind(0)
+AvailabilityKind.DEPRECATED = AvailabilityKind(1)
+AvailabilityKind.NOT_AVAILABLE = AvailabilityKind(2)
+AvailabilityKind.NOT_ACCESSIBLE = AvailabilityKind(3)
 
 ### C++ access specifiers ###
 
@@ -1963,6 +2049,47 @@ TypeKind.DEPENDENTSIZEDARRAY = TypeKind(116)
 TypeKind.MEMBERPOINTER = TypeKind(117)
 TypeKind.AUTO = TypeKind(118)
 TypeKind.ELABORATED = TypeKind(119)
+TypeKind.PIPE = TypeKind(120)
+TypeKind.OCLIMAGE1DRO = TypeKind(121)
+TypeKind.OCLIMAGE1DARRAYRO = TypeKind(122)
+TypeKind.OCLIMAGE1DBUFFERRO = TypeKind(123)
+TypeKind.OCLIMAGE2DRO = TypeKind(124)
+TypeKind.OCLIMAGE2DARRAYRO = TypeKind(125)
+TypeKind.OCLIMAGE2DDEPTHRO = TypeKind(126)
+TypeKind.OCLIMAGE2DARRAYDEPTHRO = TypeKind(127)
+TypeKind.OCLIMAGE2DMSAARO = TypeKind(128)
+TypeKind.OCLIMAGE2DARRAYMSAARO = TypeKind(129)
+TypeKind.OCLIMAGE2DMSAADEPTHRO = TypeKind(130)
+TypeKind.OCLIMAGE2DARRAYMSAADEPTHRO = TypeKind(131)
+TypeKind.OCLIMAGE3DRO = TypeKind(132)
+TypeKind.OCLIMAGE1DWO = TypeKind(133)
+TypeKind.OCLIMAGE1DARRAYWO = TypeKind(134)
+TypeKind.OCLIMAGE1DBUFFERWO = TypeKind(135)
+TypeKind.OCLIMAGE2DWO = TypeKind(136)
+TypeKind.OCLIMAGE2DARRAYWO = TypeKind(137)
+TypeKind.OCLIMAGE2DDEPTHWO = TypeKind(138)
+TypeKind.OCLIMAGE2DARRAYDEPTHWO = TypeKind(139)
+TypeKind.OCLIMAGE2DMSAAWO = TypeKind(140)
+TypeKind.OCLIMAGE2DARRAYMSAAWO = TypeKind(141)
+TypeKind.OCLIMAGE2DMSAADEPTHWO = TypeKind(142)
+TypeKind.OCLIMAGE2DARRAYMSAADEPTHWO = TypeKind(143)
+TypeKind.OCLIMAGE3DWO = TypeKind(144)
+TypeKind.OCLIMAGE1DRW = TypeKind(145)
+TypeKind.OCLIMAGE1DARRAYRW = TypeKind(146)
+TypeKind.OCLIMAGE1DBUFFERRW = TypeKind(147)
+TypeKind.OCLIMAGE2DRW = TypeKind(148)
+TypeKind.OCLIMAGE2DARRAYRW = TypeKind(149)
+TypeKind.OCLIMAGE2DDEPTHRW = TypeKind(150)
+TypeKind.OCLIMAGE2DARRAYDEPTHRW = TypeKind(151)
+TypeKind.OCLIMAGE2DMSAARW = TypeKind(152)
+TypeKind.OCLIMAGE2DARRAYMSAARW = TypeKind(153)
+TypeKind.OCLIMAGE2DMSAADEPTHRW = TypeKind(154)
+TypeKind.OCLIMAGE2DARRAYMSAADEPTHRW = TypeKind(155)
+TypeKind.OCLIMAGE3DRW = TypeKind(156)
+TypeKind.OCLSAMPLER = TypeKind(157)
+TypeKind.OCLEVENT = TypeKind(158)
+TypeKind.OCLQUEUE = TypeKind(159)
+TypeKind.OCLRESERVEID = TypeKind(160)
 
 class RefQualifierKind(BaseEnumeration):
     """Describes a specific ref-qualifier of a type."""
@@ -1980,6 +2107,42 @@ class RefQualifierKind(BaseEnumeration):
 RefQualifierKind.NONE = RefQualifierKind(0)
 RefQualifierKind.LVALUE = RefQualifierKind(1)
 RefQualifierKind.RVALUE = RefQualifierKind(2)
+
+class LinkageKind(BaseEnumeration):
+    """Describes the kind of linkage of a cursor."""
+
+    # The unique kind objects, indexed by id.
+    _kinds = []
+    _name_map = None
+
+    def from_param(self):
+        return self.value
+
+    def __repr__(self):
+        return 'LinkageKind.%s' % (self.name,)
+
+LinkageKind.INVALID = LinkageKind(0)
+LinkageKind.NO_LINKAGE = LinkageKind(1)
+LinkageKind.INTERNAL = LinkageKind(2)
+LinkageKind.UNIQUE_EXTERNAL = LinkageKind(3)
+LinkageKind.EXTERNAL = LinkageKind(4)
+
+class TLSKind(BaseEnumeration):
+    """Describes the kind of thread-local storage (TLS) of a cursor."""
+
+    # The unique kind objects, indexed by id.
+    _kinds = []
+    _name_map = None
+
+    def from_param(self):
+        return self.value
+
+    def __repr__(self):
+        return 'TLSKind.%s' % (self.name,)
+
+TLSKind.NONE = TLSKind(0)
+TLSKind.DYNAMIC = TLSKind(1)
+TLSKind.STATIC = TLSKind(2)
 
 class Type(Structure):
     """
@@ -2121,6 +2284,12 @@ class Type(Structure):
 
         return conf.lib.clang_isFunctionTypeVariadic(self)
 
+    def get_address_space(self):
+        return conf.lib.clang_getAddressSpace(self)
+
+    def get_typedef_name(self):
+        return conf.lib.clang_getTypedefName(self)
+
     def is_pod(self):
         """Determine whether this Type represents plain old data (POD)."""
         return conf.lib.clang_isPODType(self)
@@ -2206,6 +2375,14 @@ class Type(Structure):
         conf.lib.clang_Type_visitFields(self,
                             callbacks['fields_visit'](visitor), fields)
         return iter(fields)
+
+    def get_exception_specification_kind(self):
+        """
+        Return the kind of the exception specification; a value from
+        the ExceptionSpecificationKind enumeration.
+        """
+        return ExceptionSpecificationKind.from_id(
+                conf.lib.clang.getExceptionSpecificationType(self))
 
     @property
     def spelling(self):
@@ -3097,6 +3274,7 @@ class Token(Structure):
     def cursor(self):
         """The Cursor this Token corresponds to."""
         cursor = Cursor()
+        cursor._tu = self._tu
 
         conf.lib.clang_annotateTokens(self._tu, byref(self), 1, byref(cursor))
 
@@ -3223,6 +3401,10 @@ functionList = [
    [Cursor],
    bool),
 
+  ("clang_EnumDecl_isScoped",
+   [Cursor],
+   bool),
+
   ("clang_defaultDiagnosticDisplayOptions",
    [],
    c_uint),
@@ -3339,6 +3521,10 @@ functionList = [
   ("clang_getCursor",
    [TranslationUnit, SourceLocation],
    Cursor),
+
+  ("clang_getCursorAvailability",
+   [Cursor],
+   c_int),
 
   ("clang_getCursorDefinition",
    [Cursor],
@@ -3623,6 +3809,11 @@ functionList = [
    [Cursor],
    Type,
    Type.from_result),
+
+  ("clang_getTypedefName",
+   [Type],
+   _CXString,
+   _CXString.from_result),
 
   ("clang_getTypeKindSpelling",
    [c_uint],
@@ -3950,6 +4141,7 @@ conf = Config()
 register_enumerations()
 
 __all__ = [
+    'AvailabilityKind',
     'Config',
     'CodeCompletionResults',
     'CompilationDatabase',
@@ -3961,8 +4153,10 @@ __all__ = [
     'File',
     'FixIt',
     'Index',
+    'LinkageKind',
     'SourceLocation',
     'SourceRange',
+    'TLSKind',
     'TokenKind',
     'Token',
     'TranslationUnitLoadError',

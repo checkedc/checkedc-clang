@@ -2705,6 +2705,9 @@ ExprResult Sema::BuildInstanceMessage(Expr *Receiver,
     }
   }
 
+  if (ReceiverType->isObjCIdType() && !isImplicit)
+    Diag(Receiver->getExprLoc(), diag::warn_messaging_unqualified_id);
+
   // There's a somewhat weird interaction here where we assume that we
   // won't actually have a method unless we also don't need to do some
   // of the more detailed type-checking on the receiver.
@@ -4241,8 +4244,7 @@ void Sema::diagnoseARCUnbridgedCast(Expr *e) {
     castType = cast->getTypeAsWritten();
     CCK = CCK_OtherCast;
   } else {
-    castType = cast->getType();
-    CCK = CCK_ImplicitConversion;
+    llvm_unreachable("Unexpected ImplicitCastExpr");
   }
 
   ARCConversionTypeClass castACTC =
@@ -4315,14 +4317,37 @@ bool Sema::CheckObjCARCUnavailableWeakConversion(QualType castType,
 
 /// Look for an ObjCReclaimReturnedObject cast and destroy it.
 static Expr *maybeUndoReclaimObject(Expr *e) {
-  // For now, we just undo operands that are *immediately* reclaim
-  // expressions, which prevents the vast majority of potential
-  // problems here.  To catch them all, we'd need to rebuild arbitrary
-  // value-propagating subexpressions --- we can't reliably rebuild
-  // in-place because of expression sharing.
-  if (ImplicitCastExpr *ice = dyn_cast<ImplicitCastExpr>(e))
-    if (ice->getCastKind() == CK_ARCReclaimReturnedObject)
-      return ice->getSubExpr();
+  Expr *curExpr = e, *prevExpr = nullptr;
+
+  // Walk down the expression until we hit an implicit cast of kind
+  // ARCReclaimReturnedObject or an Expr that is neither a Paren nor a Cast.
+  while (true) {
+    if (auto *pe = dyn_cast<ParenExpr>(curExpr)) {
+      prevExpr = curExpr;
+      curExpr = pe->getSubExpr();
+      continue;
+    }
+
+    if (auto *ce = dyn_cast<CastExpr>(curExpr)) {
+      if (auto *ice = dyn_cast<ImplicitCastExpr>(ce))
+        if (ice->getCastKind() == CK_ARCReclaimReturnedObject) {
+          if (!prevExpr)
+            return ice->getSubExpr();
+          if (auto *pe = dyn_cast<ParenExpr>(prevExpr))
+            pe->setSubExpr(ice->getSubExpr());
+          else
+            cast<CastExpr>(prevExpr)->setSubExpr(ice->getSubExpr());
+          return e;
+        }
+
+      prevExpr = curExpr;
+      curExpr = ce->getSubExpr();
+      continue;
+    }
+
+    // Break out of the loop if curExpr is neither a Paren nor a Cast.
+    break;
+  }
 
   return e;
 }

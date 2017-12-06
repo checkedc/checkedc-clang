@@ -272,10 +272,6 @@ public:
   /// this identifier is a C++ alternate representation of an operator.
   void setIsCPlusPlusOperatorKeyword(bool Val = true) {
     IsCPPOperatorKeyword = Val;
-    if (Val)
-      NeedsHandleIdentifier = true;
-    else
-      RecomputeNeedsHandleIdentifier();
   }
   bool isCPlusPlusOperatorKeyword() const { return IsCPPOperatorKeyword; }
 
@@ -381,10 +377,9 @@ private:
   /// This method is very tied to the definition of HandleIdentifier.  Any
   /// change to it should be reflected here.
   void RecomputeNeedsHandleIdentifier() {
-    NeedsHandleIdentifier =
-      (isPoisoned() | hasMacroDefinition() | isCPlusPlusOperatorKeyword() |
-       isExtensionToken() | isFutureCompatKeyword() || isOutOfDate() ||
-       isModulesImport());
+    NeedsHandleIdentifier = isPoisoned() || hasMacroDefinition() ||
+                            isExtensionToken() || isFutureCompatKeyword() ||
+                            isOutOfDate() || isModulesImport();
   }
 };
 
@@ -879,11 +874,10 @@ struct DenseMapInfo<clang::Selector> {
 template <>
 struct isPodLike<clang::Selector> { static const bool value = true; };
 
-template <typename T> class PointerLikeTypeTraits;
+template <typename T> struct PointerLikeTypeTraits;
 
 template<>
-class PointerLikeTypeTraits<clang::Selector> {
-public:
+struct PointerLikeTypeTraits<clang::Selector> {
   static inline const void *getAsVoidPointer(clang::Selector P) {
     return P.getAsOpaquePtr();
   }
@@ -898,8 +892,7 @@ public:
 // Provide PointerLikeTypeTraits for IdentifierInfo pointers, which
 // are not guaranteed to be 8-byte aligned.
 template<>
-class PointerLikeTypeTraits<clang::IdentifierInfo*> {
-public:
+struct PointerLikeTypeTraits<clang::IdentifierInfo*> {
   static inline void *getAsVoidPointer(clang::IdentifierInfo* P) {
     return P;
   }
@@ -912,8 +905,7 @@ public:
 };
 
 template<>
-class PointerLikeTypeTraits<const clang::IdentifierInfo*> {
-public:
+struct PointerLikeTypeTraits<const clang::IdentifierInfo*> {
   static inline const void *getAsVoidPointer(const clang::IdentifierInfo* P) {
     return P;
   }

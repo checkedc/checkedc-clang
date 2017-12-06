@@ -125,15 +125,22 @@ public:
     /// We are currently in the filter expression of an SEH except block.
     SEHFilterScope = 0x200000,
 
+    /// This is a compound statement scope.
+    CompoundStmtScope = 0x400000,
+
+    /// We are between inheritance colon and the real class/struct definition scope.
+    ClassInheritanceScope = 0x800000,
+
     /// Checked C - This scope corresponds to checked scope for checkedc.
     /// It is inherited from parent scope.
-    CheckedScope = 0x400000,
+    CheckedScope = 0x1000000,
 
     /// Checked C - It clears checked property & prevents checked inheritance.
-    UncheckedScope = 0x800000,
+    UncheckedScope = 0x2000000,
 
     /// Checked C - _For_any Polymorphic type scopes
-    ForanyScope = 0x1000000
+    ForanyScope = 0x4000000
+
   };
 private:
   /// The parent scope for this scope.  This is null for the translation-unit
@@ -441,6 +448,11 @@ public:
 
   /// \brief Determine whether this scope is a SEH '__except' block.
   bool isSEHExceptScope() const { return getFlags() & Scope::SEHExceptScope; }
+
+  /// \brief Determine whether this scope is a compound statement scope.
+  bool isCompoundStmtScope() const {
+    return getFlags() & Scope::CompoundStmtScope;
+  }
 
   /// \brief Determine whether this scope is a checked scope 'checked'
   bool isCheckedScope() const { return getFlags() & Scope::CheckedScope; }

@@ -206,3 +206,19 @@ void avoidWarningWhenRedefining(int b) { // expected-note {{previous definition 
 }
 
 }
+
+extern "C" {
+typedef int externC; // expected-note {{previous declaration is here}}
+}
+void handleLinkageSpec() {
+  typedef void externC; // expected-warning {{declaration shadows a typedef in the global namespace}}
+}
+
+namespace PR33947 {
+void f(int a) {
+  struct A {
+    void g(int a) {}
+    A() { int a; }
+  };
+}
+}

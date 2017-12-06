@@ -156,6 +156,8 @@
 // CHECK_I686_M32: #define __i686__ 1
 // CHECK_I686_M32: #define __pentiumpro 1
 // CHECK_I686_M32: #define __pentiumpro__ 1
+// CHECK_I686_M32: #define __tune_i686__ 1
+// CHECK_I686_M32: #define __tune_pentiumpro__ 1
 // CHECK_I686_M32: #define i386 1
 // RUN: not %clang -march=i686 -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -783,6 +785,77 @@
 // CHECK_KNL_M64: #define __tune_knl__ 1
 // CHECK_KNL_M64: #define __x86_64 1
 // CHECK_KNL_M64: #define __x86_64__ 1
+
+// RUN: %clang -march=knm -m32 -E -dM %s -o - 2>&1 \
+// RUN:     -target i386-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_KNM_M32
+// CHECK_KNM_M32: #define __AES__ 1
+// CHECK_KNM_M32: #define __AVX2__ 1
+// CHECK_KNM_M32: #define __AVX512CD__ 1
+// CHECK_KNM_M32: #define __AVX512ER__ 1
+// CHECK_KNM_M32: #define __AVX512F__ 1
+// CHECK_KNM_M32: #define __AVX512PF__ 1
+// CHECK_KNM_M32: #define __AVX512VPOPCNTDQ__ 1
+// CHECK_KNM_M32: #define __AVX__ 1
+// CHECK_KNM_M32: #define __BMI2__ 1
+// CHECK_KNM_M32: #define __BMI__ 1
+// CHECK_KNM_M32: #define __F16C__ 1
+// CHECK_KNM_M32: #define __FMA__ 1
+// CHECK_KNM_M32: #define __LZCNT__ 1
+// CHECK_KNM_M32: #define __MMX__ 1
+// CHECK_KNM_M32: #define __PCLMUL__ 1
+// CHECK_KNM_M32: #define __POPCNT__ 1
+// CHECK_KNM_M32: #define __PREFETCHWT1__ 1
+// CHECK_KNM_M32: #define __RDRND__ 1
+// CHECK_KNM_M32: #define __RTM__ 1
+// CHECK_KNM_M32: #define __SSE2__ 1
+// CHECK_KNM_M32: #define __SSE3__ 1
+// CHECK_KNM_M32: #define __SSE4_1__ 1
+// CHECK_KNM_M32: #define __SSE4_2__ 1
+// CHECK_KNM_M32: #define __SSE__ 1
+// CHECK_KNM_M32: #define __SSSE3__ 1
+// CHECK_KNM_M32: #define __XSAVEOPT__ 1
+// CHECK_KNM_M32: #define __XSAVE__ 1
+// CHECK_KNM_M32: #define __i386 1
+// CHECK_KNM_M32: #define __i386__ 1
+// CHECK_KNM_M32: #define i386 1
+
+// RUN: %clang -march=knm -m64 -E -dM %s -o - 2>&1 \
+// RUN:     -target i386-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_KNM_M64
+// CHECK_KNM_M64: #define __AES__ 1
+// CHECK_KNM_M64: #define __AVX2__ 1
+// CHECK_KNM_M64: #define __AVX512CD__ 1
+// CHECK_KNM_M64: #define __AVX512ER__ 1
+// CHECK_KNM_M64: #define __AVX512F__ 1
+// CHECK_KNM_M64: #define __AVX512PF__ 1
+// CHECK_KNM_M64: #define __AVX512VPOPCNTDQ__ 1
+// CHECK_KNM_M64: #define __AVX__ 1
+// CHECK_KNM_M64: #define __BMI2__ 1
+// CHECK_KNM_M64: #define __BMI__ 1
+// CHECK_KNM_M64: #define __F16C__ 1
+// CHECK_KNM_M64: #define __FMA__ 1
+// CHECK_KNM_M64: #define __LZCNT__ 1
+// CHECK_KNM_M64: #define __MMX__ 1
+// CHECK_KNM_M64: #define __PCLMUL__ 1
+// CHECK_KNM_M64: #define __POPCNT__ 1
+// CHECK_KNM_M64: #define __PREFETCHWT1__ 1
+// CHECK_KNM_M64: #define __RDRND__ 1
+// CHECK_KNM_M64: #define __RTM__ 1
+// CHECK_KNM_M64: #define __SSE2_MATH__ 1
+// CHECK_KNM_M64: #define __SSE2__ 1
+// CHECK_KNM_M64: #define __SSE3__ 1
+// CHECK_KNM_M64: #define __SSE4_1__ 1
+// CHECK_KNM_M64: #define __SSE4_2__ 1
+// CHECK_KNM_M64: #define __SSE_MATH__ 1
+// CHECK_KNM_M64: #define __SSE__ 1
+// CHECK_KNM_M64: #define __SSSE3__ 1
+// CHECK_KNM_M64: #define __XSAVEOPT__ 1
+// CHECK_KNM_M64: #define __XSAVE__ 1
+// CHECK_KNM_M64: #define __amd64 1
+// CHECK_KNM_M64: #define __amd64__ 1
+// CHECK_KNM_M64: #define __x86_64 1
+// CHECK_KNM_M64: #define __x86_64__ 1
 //
 // RUN: %clang -march=skylake-avx512 -m32 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -986,6 +1059,67 @@
 // CHECK_ATOM_M64: #define __x86_64 1
 // CHECK_ATOM_M64: #define __x86_64__ 1
 //
+// RUN: %clang -march=goldmont -m32 -E -dM %s -o - 2>&1 \
+// RUN:     -target i386-unknown-linux \
+// RUN:   | FileCheck %s -check-prefix=CHECK_GLM_M32
+// CHECK_GLM_M32: #define __AES__ 1
+// CHECK_GLM_M32: #define __CLFLUSHOPT__ 1
+// CHECK_GLM_M32: #define __FSGSBASE__ 1
+// CHECK_GLM_M32: #define __FXSR__ 1
+// CHECK_GLM_M32: #define __MMX__ 1
+// CHECK_GLM_M32: #define __MPX__ 1
+// CHECK_GLM_M32: #define __PCLMUL__ 1
+// CHECK_GLM_M32: #define __POPCNT__ 1
+// CHECK_GLM_M32: #define __RDRND__ 1
+// CHECK_GLM_M32: #define __RDSEED__ 1
+// CHECK_GLM_M32: #define __SHA__ 1
+// CHECK_GLM_M32: #define __SSE2__ 1
+// CHECK_GLM_M32: #define __SSE3__ 1
+// CHECK_GLM_M32: #define __SSE4_1__ 1
+// CHECK_GLM_M32: #define __SSE4_2__ 1
+// CHECK_GLM_M32: #define __SSE_MATH__ 1
+// CHECK_GLM_M32: #define __SSE__ 1
+// CHECK_GLM_M32: #define __SSSE3__ 1
+// CHECK_GLM_M32: #define __XSAVEC__ 1
+// CHECK_GLM_M32: #define __XSAVEOPT__ 1
+// CHECK_GLM_M32: #define __XSAVES__ 1
+// CHECK_GLM_M32: #define __XSAVE__ 1
+// CHECK_GLM_M32: #define __goldmont 1
+// CHECK_GLM_M32: #define __goldmont__ 1
+// CHECK_GLM_M32: #define __i386 1
+// CHECK_GLM_M32: #define __i386__ 1
+// CHECK_GLM_M32: #define __tune_goldmont__ 1
+// CHECK_GLM_M32: #define i386 1
+//
+// RUN: %clang -march=goldmont -m64 -E -dM %s -o - 2>&1 \
+// RUN:     -target i386-unknown-linux \
+// RUN:   | FileCheck %s -check-prefix=CHECK_GLM_M64
+// CHECK_GLM_M64: #define __AES__ 1
+// CHECK_GLM_M64: #define __CLFLUSHOPT__ 1
+// CHECK_GLM_M64: #define __FSGSBASE__ 1
+// CHECK_GLM_M64: #define __FXSR__ 1
+// CHECK_GLM_M64: #define __MMX__ 1
+// CHECK_GLM_M64: #define __MPX__ 1
+// CHECK_GLM_M64: #define __PCLMUL__ 1
+// CHECK_GLM_M64: #define __POPCNT__ 1
+// CHECK_GLM_M64: #define __RDRND__ 1
+// CHECK_GLM_M64: #define __RDSEED__ 1
+// CHECK_GLM_M64: #define __SSE2__ 1
+// CHECK_GLM_M64: #define __SSE3__ 1
+// CHECK_GLM_M64: #define __SSE4_1__ 1
+// CHECK_GLM_M64: #define __SSE4_2__ 1
+// CHECK_GLM_M64: #define __SSE__ 1
+// CHECK_GLM_M64: #define __SSSE3__ 1
+// CHECK_GLM_M64: #define __XSAVEC__ 1
+// CHECK_GLM_M64: #define __XSAVEOPT__ 1
+// CHECK_GLM_M64: #define __XSAVES__ 1
+// CHECK_GLM_M64: #define __XSAVE__ 1
+// CHECK_GLM_M64: #define __goldmont 1
+// CHECK_GLM_M64: #define __goldmont__ 1
+// CHECK_GLM_M64: #define __tune_goldmont__ 1
+// CHECK_GLM_M64: #define __x86_64 1
+// CHECK_GLM_M64: #define __x86_64__ 1
+//
 // RUN: %clang -march=slm -m32 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SLM_M32
@@ -1024,15 +1158,19 @@
 //
 // RUN: %clang -march=lakemont -m32 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
-// RUN:   | FileCheck %s -check-prefix=CHECK_LMT_M32
-// CHECK_LMT_M32: #define __i386 1
-// CHECK_LMT_M32: #define __i386__ 1
-// CHECK_LMT_M32: #define __tune_lakemont__ 1
-// CHECK_LMT_M32: #define i386 1
+// RUN:   | FileCheck %s -check-prefix=CHECK_LAKEMONT_M32
+// CHECK_LAKEMONT_M32: #define __i386 1
+// CHECK_LAKEMONT_M32: #define __i386__ 1
+// CHECK_LAKEMONT_M32: #define __i586 1
+// CHECK_LAKEMONT_M32: #define __i586__ 1
+// CHECK_LAKEMONT_M32: #define __pentium 1
+// CHECK_LAKEMONT_M32: #define __pentium__ 1
+// CHECK_LAKEMONT_M32: #define __tune_lakemont__ 1
+// CHECK_LAKEMONT_M32: #define i386 1
 // RUN: not %clang -march=lakemont -m64 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
-// RUN:   | FileCheck %s -check-prefix=CHECK_LMT_M64
-// CHECK_LMT_M64: error:
+// RUN:   | FileCheck %s -check-prefix=CHECK_LAKEMONT_M64
+// CHECK_LAKEMONT_M64: error:
 //
 // RUN: %clang -march=geode -m32 -E -dM %s -o - 2>&1 \
 // RUN:     -target i386-unknown-linux \
@@ -1601,6 +1739,7 @@
 // CHECK_BDVER1_M32: #define __AES__ 1
 // CHECK_BDVER1_M32: #define __AVX__ 1
 // CHECK_BDVER1_M32: #define __FMA4__ 1
+// CHECK_BDVER1_M32: #define __LWP__ 1
 // CHECK_BDVER1_M32: #define __LZCNT__ 1
 // CHECK_BDVER1_M32: #define __MMX__ 1
 // CHECK_BDVER1_M32: #define __PCLMUL__ 1
@@ -1630,6 +1769,7 @@
 // CHECK_BDVER1_M64: #define __AES__ 1
 // CHECK_BDVER1_M64: #define __AVX__ 1
 // CHECK_BDVER1_M64: #define __FMA4__ 1
+// CHECK_BDVER1_M64: #define __LWP__ 1
 // CHECK_BDVER1_M64: #define __LZCNT__ 1
 // CHECK_BDVER1_M64: #define __MMX__ 1
 // CHECK_BDVER1_M64: #define __PCLMUL__ 1
@@ -1664,6 +1804,7 @@
 // CHECK_BDVER2_M32: #define __F16C__ 1
 // CHECK_BDVER2_M32: #define __FMA4__ 1
 // CHECK_BDVER2_M32: #define __FMA__ 1
+// CHECK_BDVER2_M32: #define __LWP__ 1
 // CHECK_BDVER2_M32: #define __LZCNT__ 1
 // CHECK_BDVER2_M32: #define __MMX__ 1
 // CHECK_BDVER2_M32: #define __PCLMUL__ 1
@@ -1697,6 +1838,7 @@
 // CHECK_BDVER2_M64: #define __F16C__ 1
 // CHECK_BDVER2_M64: #define __FMA4__ 1
 // CHECK_BDVER2_M64: #define __FMA__ 1
+// CHECK_BDVER2_M64: #define __LWP__ 1
 // CHECK_BDVER2_M64: #define __LZCNT__ 1
 // CHECK_BDVER2_M64: #define __MMX__ 1
 // CHECK_BDVER2_M64: #define __PCLMUL__ 1
@@ -1733,6 +1875,7 @@
 // CHECK_BDVER3_M32: #define __FMA4__ 1
 // CHECK_BDVER3_M32: #define __FMA__ 1
 // CHECK_BDVER3_M32: #define __FSGSBASE__ 1
+// CHECK_BDVER3_M32: #define __LWP__ 1
 // CHECK_BDVER3_M32: #define __LZCNT__ 1
 // CHECK_BDVER3_M32: #define __MMX__ 1
 // CHECK_BDVER3_M32: #define __PCLMUL__ 1
@@ -1768,6 +1911,7 @@
 // CHECK_BDVER3_M64: #define __FMA4__ 1
 // CHECK_BDVER3_M64: #define __FMA__ 1
 // CHECK_BDVER3_M64: #define __FSGSBASE__ 1
+// CHECK_BDVER3_M64: #define __LWP__ 1
 // CHECK_BDVER3_M64: #define __LZCNT__ 1
 // CHECK_BDVER3_M64: #define __MMX__ 1
 // CHECK_BDVER3_M64: #define __PCLMUL__ 1
@@ -1807,6 +1951,7 @@
 // CHECK_BDVER4_M32: #define __FMA4__ 1
 // CHECK_BDVER4_M32: #define __FMA__ 1
 // CHECK_BDVER4_M32: #define __FSGSBASE__ 1
+// CHECK_BDVER4_M32: #define __LWP__ 1
 // CHECK_BDVER4_M32: #define __LZCNT__ 1
 // CHECK_BDVER4_M32: #define __MMX__ 1
 // CHECK_BDVER4_M32: #define __PCLMUL__ 1
@@ -1843,6 +1988,7 @@
 // CHECK_BDVER4_M64: #define __FMA4__ 1
 // CHECK_BDVER4_M64: #define __FMA__ 1
 // CHECK_BDVER4_M64: #define __FSGSBASE__ 1
+// CHECK_BDVER4_M64: #define __LWP__ 1
 // CHECK_BDVER4_M64: #define __LZCNT__ 1
 // CHECK_BDVER4_M64: #define __MMX__ 1
 // CHECK_BDVER4_M64: #define __PCLMUL__ 1
@@ -2052,21 +2198,61 @@
 // RUN:     -target sparcel-unknown-linux \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SPARCEL
 // RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=myriad2 2>&1 \
-// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-1 -check-prefix=CHECK_SPARCEL
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
 // RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=myriad2.1 2>&1 \
-// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-1 -check-prefix=CHECK_SPARCEL
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-1 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
 // RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=myriad2.2 2>&1 \
-// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 -check-prefix=CHECK_SPARCEL
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=myriad2.3 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-3 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2100 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-1 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2150 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2155 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
 // RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2450 2>&1 \
-// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 -check-prefix=CHECK_SPARCEL
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2455 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2x5x 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-2 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2080 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-3 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2085 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-3 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2480 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-3 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2485 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-3 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
+// RUN: %clang -E -dM %s -o - -target sparcel-myriad -mcpu=ma2x8x 2>&1 \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_MYRIAD2-3 \
+// RUN:     -check-prefix=CHECK_SPARCEL -check-prefix=CHECK_MYRIAD2
 // CHECK_SPARCEL: #define __LITTLE_ENDIAN__ 1
+// CHECK_MYRIAD2: #define __leon__ 1
 // CHECK_MYRIAD2-1: #define __myriad2 1
 // CHECK_MYRIAD2-1: #define __myriad2__ 1
 // CHECK_MYRIAD2-2: #define __myriad2 2
 // CHECK_MYRIAD2-2: #define __myriad2__ 2
+// CHECK_MYRIAD2-3: #define __myriad2 3
+// CHECK_MYRIAD2-3: #define __myriad2__ 3
 // CHECK_SPARCEL: #define __sparc 1
 // CHECK_SPARCEL: #define __sparc__ 1
-// CHECK_MYRIAD2-1: #define __sparc_v8__ 1
+// CHECK_MYRIAD2: #define __sparc_v8__ 1
 // CHECK_SPARCEL: #define __sparcv8 1
 //
 // RUN: %clang -E -dM %s -o - 2>&1 \
@@ -2154,6 +2340,25 @@
 // CHECK_SYSTEMZ_ARCH11: #define __s390x__ 1
 // CHECK_SYSTEMZ_ARCH11: #define __zarch__ 1
 //
+// RUN: %clang -march=arch12 -E -dM %s -o - 2>&1 \
+// RUN:     -target s390x-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_ARCH12
+// RUN: %clang -march=z14 -E -dM %s -o - 2>&1 \
+// RUN:     -target s390x-unknown-linux \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_ARCH12
+//
+// CHECK_SYSTEMZ_ARCH12: #define __ARCH__ 12
+// CHECK_SYSTEMZ_ARCH12: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_1 1
+// CHECK_SYSTEMZ_ARCH12: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_2 1
+// CHECK_SYSTEMZ_ARCH12: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_4 1
+// CHECK_SYSTEMZ_ARCH12: #define __GCC_HAVE_SYNC_COMPARE_AND_SWAP_8 1
+// CHECK_SYSTEMZ_ARCH12: #define __HTM__ 1
+// CHECK_SYSTEMZ_ARCH12: #define __LONG_DOUBLE_128__ 1
+// CHECK_SYSTEMZ_ARCH12: #define __VX__ 1
+// CHECK_SYSTEMZ_ARCH12: #define __s390__ 1
+// CHECK_SYSTEMZ_ARCH12: #define __s390x__ 1
+// CHECK_SYSTEMZ_ARCH12: #define __zarch__ 1
+//
 // RUN: %clang -mhtm -E -dM %s -o - 2>&1 \
 // RUN:     -target s390x-unknown-linux \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_HTM
@@ -2173,7 +2378,7 @@
 // RUN:     -target s390x-unknown-linux \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_SYSTEMZ_ZVECTOR
 //
-// CHECK_SYSTEMZ_ZVECTOR: #define __VEC__ 10301
+// CHECK_SYSTEMZ_ZVECTOR: #define __VEC__ 10302
 
 // Begin amdgcn tests ----------------
 //
@@ -2181,6 +2386,9 @@
 // RUN:     -target amdgcn-unknown-unknown \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_AMDGCN
 // CHECK_AMDGCN: #define __AMDGCN__ 1
+// CHECK_AMDGCN: #define __HAS_FMAF__ 1
+// CHECK_AMDGCN: #define __HAS_FP64__ 1
+// CHECK_AMDGCN: #define __HAS_LDEXPF__ 1
 
 // Begin r600 tests ----------------
 //
@@ -2188,3 +2396,10 @@
 // RUN:     -target r600-unknown-unknown \
 // RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_R600
 // CHECK_R600: #define __R600__ 1
+// CHECK_R600-NOT: #define __HAS_FMAF__ 1
+
+// RUN: %clang -march=amdgcn -mcpu=cypress -E -dM %s -o - 2>&1 \
+// RUN:     -target r600-unknown-unknown \
+// RUN:   | FileCheck -match-full-lines %s -check-prefix=CHECK_R600_FP64
+// CHECK_R600_FP64-DAG: #define __R600__ 1
+// CHECK_R600_FP64-DAG: #define __HAS_FMAF__ 1

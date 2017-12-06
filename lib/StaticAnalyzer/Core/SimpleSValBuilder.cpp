@@ -71,18 +71,15 @@ SVal SimpleSValBuilder::dispatchCast(SVal Val, QualType CastTy) {
 }
 
 SVal SimpleSValBuilder::evalCastFromNonLoc(NonLoc val, QualType castTy) {
-
   bool isLocType = Loc::isLocType(castTy);
-
   if (val.getAs<nonloc::PointerToMember>())
     return val;
 
   if (Optional<nonloc::LocAsInteger> LI = val.getAs<nonloc::LocAsInteger>()) {
     if (isLocType)
       return LI->getLoc();
-
     // FIXME: Correctly support promotions/truncations.
-    unsigned castSize = Context.getTypeSize(castTy);
+    unsigned castSize = Context.getIntWidth(castTy);
     if (castSize == LI->getNumBits())
       return val;
     return makeLocAsInteger(LI->getLoc(), castSize);
@@ -163,6 +160,7 @@ SVal SimpleSValBuilder::evalCastFromLoc(Loc val, QualType castTy) {
           return nonloc::SymbolVal(SymR->getSymbol());
 
         // FALL-THROUGH
+        LLVM_FALLTHROUGH;
       }
 
       case loc::GotoLabelKind:
@@ -172,7 +170,7 @@ SVal SimpleSValBuilder::evalCastFromLoc(Loc val, QualType castTy) {
   }
 
   if (castTy->isIntegralOrEnumerationType()) {
-    unsigned BitWidth = Context.getTypeSize(castTy);
+    unsigned BitWidth = Context.getIntWidth(castTy);
 
     if (!val.getAs<loc::ConcreteInt>())
       return makeLocAsInteger(val, BitWidth);
@@ -362,10 +360,18 @@ SVal SimpleSValBuilder::evalBinOpNN(ProgramStateRef state,
       Loc lhsL = lhs.castAs<nonloc::LocAsInteger>().getLoc();
       switch (rhs.getSubKind()) {
         case nonloc::LocAsIntegerKind:
+          // FIXME: at the moment the implementation
+          // of modeling "pointers as integers" is not complete.
+          if (!BinaryOperator::isComparisonOp(op))
+            return UnknownVal();
           return evalBinOpLL(state, op, lhsL,
                              rhs.castAs<nonloc::LocAsInteger>().getLoc(),
                              resultTy);
         case nonloc::ConcreteIntKind: {
+          // FIXME: at the moment the implementation
+          // of modeling "pointers as integers" is not complete.
+          if (!BinaryOperator::isComparisonOp(op))
+            return UnknownVal();
           // Transform the integer into a location and compare.
           // FIXME: This only makes sense for comparisons. If we want to, say,
           // add 1 to a LocAsInteger, we'd better unpack the Loc and add to it,
@@ -720,9 +726,11 @@ SVal SimpleSValBuilder::evalBinOpLL(ProgramStateRef state,
     if (Optional<loc::ConcreteInt> rInt = rhs.getAs<loc::ConcreteInt>()) {
       // If one of the operands is a symbol and the other is a constant,
       // build an expression for use by the constraint manager.
-      if (SymbolRef lSym = lhs.getAsLocSymbol(true))
-        return MakeSymIntVal(lSym, op, rInt->getValue(), resultTy);
-
+      if (SymbolRef lSym = lhs.getAsLocSymbol(true)) {
+        if (BinaryOperator::isComparisonOp(op))
+          return MakeSymIntVal(lSym, op, rInt->getValue(), resultTy);
+        return UnknownVal();
+      }
       // Special case comparisons to NULL.
       // This must come after the test if the LHS is a symbol, which is used to
       // build constraints. The address of any non-symbolic region is guaranteed
@@ -914,6 +922,10 @@ SVal SimpleSValBuilder::evalBinOpLN(ProgramStateRef state,
   if (rhs.isZeroConstant())
     return lhs;
 
+  // Perserve the null pointer so that it can be found by the DerefChecker.
+  if (lhs.isZeroConstant())
+    return lhs;
+
   // We are dealing with pointer arithmetic.
 
   // Handle pointer arithmetic on constant values.
@@ -929,6 +941,8 @@ SVal SimpleSValBuilder::evalBinOpLN(ProgramStateRef state,
 
       // Offset the increment by the pointer size.
       llvm::APSInt Multiplicand(rightI.getBitWidth(), /* isUnsigned */ true);
+      QualType pointeeType = resultTy->getPointeeType();
+      Multiplicand = getContext().getTypeSizeInChars(pointeeType).getQuantity();
       rightI *= Multiplicand;
 
       // Compute the adjusted pointer.
@@ -1018,7 +1032,8 @@ SVal SimpleSValBuilder::simplifySVal(ProgramStateRef State, SVal V) {
               SVB.getKnownValue(State, nonloc::SymbolVal(S)))
         return Loc::isLocType(S->getType()) ? (SVal)SVB.makeIntLocVal(*I)
                                             : (SVal)SVB.makeIntVal(*I);
-      return nonloc::SymbolVal(S);
+      return Loc::isLocType(S->getType()) ? (SVal)SVB.makeLoc(S) 
+                                          : nonloc::SymbolVal(S);
     }
 
     // TODO: Support SymbolCast. Support IntSymExpr when/if we actually

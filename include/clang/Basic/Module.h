@@ -68,7 +68,11 @@ public:
     ModuleMapModule,
 
     /// \brief This is a C++ Modules TS module interface unit.
-    ModuleInterfaceUnit
+    ModuleInterfaceUnit,
+
+    /// \brief This is a fragment of the global module within some C++ Modules
+    /// TS module.
+    GlobalModuleFragment,
   };
 
   /// \brief The kind of this module.
@@ -83,6 +87,10 @@ public:
   /// are found.
   const DirectoryEntry *Directory;
 
+  /// \brief The presumed file name for the module map defining this module.
+  /// Only non-empty when building from preprocessed source.
+  std::string PresumedModuleMapFile;
+
   /// \brief The umbrella header or directory.
   llvm::PointerUnion<const DirectoryEntry *, const FileEntry *> Umbrella;
 
@@ -91,6 +99,10 @@ public:
 
   /// \brief The name of the umbrella entry, as written in the module map.
   std::string UmbrellaAsWritten;
+
+  /// \brief The module through which entities defined in this module will
+  /// eventually be exposed, for use in "private" modules.
+  std::string ExportAsModule;
   
 private:
   /// \brief The submodules of this module, indexed by name.
@@ -150,10 +162,18 @@ public:
   /// \brief Stored information about a header directive that was found in the
   /// module map file but has not been resolved to a file.
   struct UnresolvedHeaderDirective {
+    HeaderKind Kind = HK_Normal;
     SourceLocation FileNameLoc;
     std::string FileName;
-    bool IsUmbrella;
+    bool IsUmbrella = false;
+    bool HasBuiltinHeader = false;
+    Optional<off_t> Size;
+    Optional<time_t> ModTime;
   };
+
+  /// Headers that are mentioned in the module map file but that we have not
+  /// yet attempted to resolve to a file on the file system.
+  SmallVector<UnresolvedHeaderDirective, 1> UnresolvedHeaders;
 
   /// \brief Headers that are mentioned in the module map file but could not be
   /// found on the file system.
@@ -379,9 +399,20 @@ public:
     return IsFramework && Parent && Parent->isPartOfFramework();
   }
 
+  /// Set the parent of this module. This should only be used if the parent
+  /// could not be set during module creation.
+  void setParent(Module *M) {
+    assert(!Parent);
+    Parent = M;
+    Parent->SubModuleIndex[Name] = Parent->SubModules.size();
+    Parent->SubModules.push_back(this);
+  }
+
   /// \brief Retrieve the full name of this module, including the path from
   /// its top-level module.
-  std::string getFullModuleName() const;
+  /// \param AllowStringLiterals If \c true, components that might not be
+  ///        lexically valid as identifiers will be emitted as string literals.
+  std::string getFullModuleName(bool AllowStringLiterals = false) const;
 
   /// \brief Whether the full name of this module is equal to joining
   /// \p nameParts with "."s.

@@ -125,7 +125,7 @@ class CGDebugInfo {
   /// Cache declarations relevant to DW_TAG_imported_declarations (C++
   /// using declarations) that aren't covered by other more specific caches.
   llvm::DenseMap<const Decl *, llvm::TrackingMDRef> DeclCache;
-  llvm::DenseMap<const NamespaceDecl *, llvm::TrackingMDRef> NameSpaceCache;
+  llvm::DenseMap<const NamespaceDecl *, llvm::TrackingMDRef> NamespaceCache;
   llvm::DenseMap<const NamespaceAliasDecl *, llvm::TrackingMDRef>
       NamespaceAliasCache;
   llvm::DenseMap<const Decl *, llvm::TypedTrackingMDRef<llvm::DIDerivedType>>
@@ -195,8 +195,9 @@ class CGDebugInfo {
   getOrCreateFunctionType(const Decl *D, QualType FnType, llvm::DIFile *F);
   /// \return debug info descriptor for vtable.
   llvm::DIType *getOrCreateVTablePtrType(llvm::DIFile *F);
+
   /// \return namespace descriptor for the given namespace decl.
-  llvm::DINamespace *getOrCreateNameSpace(const NamespaceDecl *N);
+  llvm::DINamespace *getOrCreateNamespace(const NamespaceDecl *N);
   llvm::DIType *CreatePointerLikeType(llvm::dwarf::Tag Tag, const Type *Ty,
                                       QualType PointeeTy, llvm::DIFile *F);
   llvm::DIType *getOrCreateStructPtrType(StringRef Name, llvm::DIType *&Cache);
@@ -278,8 +279,8 @@ class CGDebugInfo {
                                 llvm::DIFile *F,
                                 SmallVectorImpl<llvm::Metadata *> &E,
                                 llvm::DIType *RecordTy, const RecordDecl *RD);
-  void CollectRecordNestedRecord(const RecordDecl *RD,
-                                 SmallVectorImpl<llvm::Metadata *> &E);
+  void CollectRecordNestedType(const TypeDecl *RD,
+                               SmallVectorImpl<llvm::Metadata *> &E);
   void CollectRecordFields(const RecordDecl *Decl, llvm::DIFile *F,
                            SmallVectorImpl<llvm::Metadata *> &E,
                            llvm::DICompositeType *RecordTy);
@@ -367,7 +368,7 @@ public:
   void EmitFunctionDecl(GlobalDecl GD, SourceLocation Loc, QualType FnType);
 
   /// Constructs the debug code for exiting a function.
-  void EmitFunctionEnd(CGBuilderTy &Builder);
+  void EmitFunctionEnd(CGBuilderTy &Builder, llvm::Function *Fn);
 
   /// Emit metadata to indicate the beginning of a new lexical block
   /// and push the block onto the stack.
@@ -398,8 +399,8 @@ public:
   /// Emit call to \c llvm.dbg.declare for the block-literal argument
   /// to a block invocation function.
   void EmitDeclareOfBlockLiteralArgVariable(const CGBlockInfo &block,
-                                            llvm::Value *Arg, unsigned ArgNo,
-                                            llvm::Value *LocalAddr,
+                                            StringRef Name, unsigned ArgNo,
+                                            llvm::AllocaInst *LocalAddr,
                                             CGBuilderTy &Builder);
 
   /// Emit information about a global variable.
@@ -557,6 +558,9 @@ private:
   CollectAnonRecordDecls(const RecordDecl *RD, llvm::DIFile *Unit,
                          unsigned LineNo, StringRef LinkageName,
                          llvm::GlobalVariable *Var, llvm::DIScope *DContext);
+
+  /// Get the printing policy for producing names for debug info.
+  PrintingPolicy getPrintingPolicy() const;
 
   /// Get function name for the given FunctionDecl. If the name is
   /// constructed on demand (e.g., C++ destructor) then the name is
