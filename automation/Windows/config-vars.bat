@@ -70,6 +70,19 @@ if NOT DEFINED TEST_TARGET_ARCH (
   exit /b 1;
 )
 
+if NOT DEFINED BUILD_PACKAGE (
+  set BUILD_PACKAGE=No
+) else (
+  if "%BUILD_PACKAGE%"=="Yes" (
+    rem
+  ) else if "%BUILD_PACKAGE%"=="No" (
+    rem
+  ) else (
+    echo Unknown BUILD_PACKAGE value %BUILD_PACKAGE%: must be one of Yes or No
+    exit /b /1
+  )
+)
+
 if not defined BUILD_BINARIESDIRECTORY (
   echo BUILD_BINARIESDIRECTORY not set.  Set it the directory that will contain the object directory.
   exit /b 1

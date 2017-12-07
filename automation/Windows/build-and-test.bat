@@ -20,6 +20,9 @@
 @rem  BUILDOS: The OS that we building upon.  May be one of Windows or WSL.
 @rem           WSL stands for Windows Subsystem for Linux.  Defaults to
 @rem           X86.
+@rem  BUILD_PACKAGE: Build an installation package.  May be one of Yes or No.
+@rem                 Defaults to No.  If this is Yes and the build is a Release
+@rem                 build, assertions are enabled during the build.
 @rem  TEST_TARGET_ARCH: the target architecuture on which testing will be
 @rem                    run.  May be one of X86 or AMD64.  Defaults to X86.
 @rem
@@ -61,6 +64,9 @@ echo.Building and testing clang
 call %DIRNAME%\test-clang.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
+call %DIRNAME\build-package.bat
+if ERRORLEVEL 1 (goto cmdfailed)
+
 :succeeded
   cd %OLD_DIR%
   exit /b 0
@@ -69,5 +75,4 @@ if ERRORLEVEL 1 (goto cmdfailed)
   echo.Build or testing failed.
   cd %OLD_DIR%
   exit /b 1
-
 
