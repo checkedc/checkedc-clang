@@ -607,6 +607,9 @@ namespace clang {
 
       /// \brief Record code for \#pragma pack options.
       PACK_PRAGMA_OPTIONS = 61,
+
+      /// \brief The stack of open #ifs/#ifdefs recorded in a preamble.
+      PP_CONDITIONAL_STACK = 62,
     };
 
     /// \brief Record types used within a source manager block.
@@ -713,6 +716,9 @@ namespace clang {
       /// \brief Specifies some declarations with initializers that must be
       /// emitted to initialize the module.
       SUBMODULE_INITIALIZERS = 16,
+      /// \brief Specifies the name of the module that will eventually
+      /// re-export the entities in this module.
+      SUBMODULE_EXPORT_AS = 17,
     };
 
     /// \brief Record types used within a comments block.
@@ -823,6 +829,8 @@ namespace clang {
       PREDEF_TYPE_OMP_ARRAY_SECTION = 42,
       /// \brief The '__float128' type
       PREDEF_TYPE_FLOAT128_ID = 43,
+      /// \brief The '_Float16' type
+      PREDEF_TYPE_FLOAT16_ID = 44,
       /// \brief OpenCL image types with auto numeration
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix) \
       PREDEF_TYPE_##Id##_ID,
@@ -933,7 +941,9 @@ namespace clang {
       TYPE_DEDUCED_TEMPLATE_SPECIALIZATION = 45,
       /// \brief A DependentSizedExtVectorType record.
       TYPE_DEPENDENT_SIZED_EXT_VECTOR = 46,
-      TYPE_TYPEVARIABLE        = 47
+      /// \brief A DependentAddressSpaceType record.
+      TYPE_DEPENDENT_ADDRESS_SPACE = 47,
+      TYPE_TYPEVARIABLE = 48
     };
 
     /// \brief The type IDs for special types constructed by semantic
@@ -1550,9 +1560,14 @@ namespace clang {
 
       // ARC
       EXPR_OBJC_BRIDGED_CAST,     // ObjCBridgedCastExpr
-      
+
       STMT_MS_DEPENDENT_EXISTS,   // MSDependentExistsStmt
-      EXPR_LAMBDA                 // LambdaExpr
+      EXPR_LAMBDA,                // LambdaExpr
+      STMT_COROUTINE_BODY,
+      STMT_CORETURN,
+      EXPR_COAWAIT,
+      EXPR_COYIELD,
+      EXPR_DEPENDENT_COAWAIT,
     };
 
     /// \brief The kinds of designators that can occur in a

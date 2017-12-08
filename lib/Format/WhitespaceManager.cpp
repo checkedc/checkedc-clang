@@ -67,6 +67,11 @@ void WhitespaceManager::addUntouchableToken(const FormatToken &Tok,
                            /*IsInsideToken=*/false));
 }
 
+llvm::Error
+WhitespaceManager::addReplacement(const tooling::Replacement &Replacement) {
+  return Replaces.add(Replacement);
+}
+
 void WhitespaceManager::replaceWhitespaceInToken(
     const FormatToken &Tok, unsigned Offset, unsigned ReplaceChars,
     StringRef PreviousPostfix, StringRef CurrentPrefix, bool InPPDirective,
@@ -100,18 +105,56 @@ void WhitespaceManager::calculateLineBreakInformation() {
   Changes[0].PreviousEndOfTokenColumn = 0;
   Change *LastOutsideTokenChange = &Changes[0];
   for (unsigned i = 1, e = Changes.size(); i != e; ++i) {
-    unsigned OriginalWhitespaceStart =
-        SourceMgr.getFileOffset(Changes[i].OriginalWhitespaceRange.getBegin());
-    unsigned PreviousOriginalWhitespaceEnd = SourceMgr.getFileOffset(
-        Changes[i - 1].OriginalWhitespaceRange.getEnd());
-    Changes[i - 1].TokenLength = OriginalWhitespaceStart -
-                                 PreviousOriginalWhitespaceEnd +
-                                 Changes[i].PreviousLinePostfix.size() +
-                                 Changes[i - 1].CurrentLinePrefix.size();
+    SourceLocation OriginalWhitespaceStart =
+        Changes[i].OriginalWhitespaceRange.getBegin();
+    SourceLocation PreviousOriginalWhitespaceEnd =
+        Changes[i - 1].OriginalWhitespaceRange.getEnd();
+    unsigned OriginalWhitespaceStartOffset =
+        SourceMgr.getFileOffset(OriginalWhitespaceStart);
+    unsigned PreviousOriginalWhitespaceEndOffset =
+        SourceMgr.getFileOffset(PreviousOriginalWhitespaceEnd);
+    assert(PreviousOriginalWhitespaceEndOffset <=
+           OriginalWhitespaceStartOffset);
+    const char *const PreviousOriginalWhitespaceEndData =
+        SourceMgr.getCharacterData(PreviousOriginalWhitespaceEnd);
+    StringRef Text(PreviousOriginalWhitespaceEndData,
+                   SourceMgr.getCharacterData(OriginalWhitespaceStart) -
+                       PreviousOriginalWhitespaceEndData);
+    // Usually consecutive changes would occur in consecutive tokens. This is
+    // not the case however when analyzing some preprocessor runs of the
+    // annotated lines. For example, in this code:
+    //
+    // #if A // line 1
+    // int i = 1;
+    // #else B // line 2
+    // int i = 2;
+    // #endif // line 3
+    //
+    // one of the runs will produce the sequence of lines marked with line 1, 2
+    // and 3. So the two consecutive whitespace changes just before '// line 2'
+    // and before '#endif // line 3' span multiple lines and tokens:
+    //
+    // #else B{change X}[// line 2
+    // int i = 2;
+    // ]{change Y}#endif // line 3
+    //
+    // For this reason, if the text between consecutive changes spans multiple
+    // newlines, the token length must be adjusted to the end of the original
+    // line of the token.
+    auto NewlinePos = Text.find_first_of('\n');
+    if (NewlinePos == StringRef::npos) {
+      Changes[i - 1].TokenLength = OriginalWhitespaceStartOffset -
+                                   PreviousOriginalWhitespaceEndOffset +
+                                   Changes[i].PreviousLinePostfix.size() +
+                                   Changes[i - 1].CurrentLinePrefix.size();
+    } else {
+      Changes[i - 1].TokenLength =
+          NewlinePos + Changes[i - 1].CurrentLinePrefix.size();
+    }
 
     // If there are multiple changes in this token, sum up all the changes until
     // the end of the line.
-    if (Changes[i - 1].IsInsideToken)
+    if (Changes[i - 1].IsInsideToken && Changes[i - 1].NewlinesBefore == 0)
       LastOutsideTokenChange->TokenLength +=
           Changes[i - 1].TokenLength + Changes[i - 1].Spaces;
     else
@@ -128,15 +171,15 @@ void WhitespaceManager::calculateLineBreakInformation() {
         // BreakableLineCommentSection does comment reflow changes and here is
         // the aligning of trailing comments. Consider the case where we reflow
         // the second line up in this example:
-        // 
+        //
         // // line 1
         // // line 2
-        // 
+        //
         // That amounts to 2 changes by BreakableLineCommentSection:
         //  - the first, delimited by (), for the whitespace between the tokens,
         //  - and second, delimited by [], for the whitespace at the beginning
         //  of the second token:
-        // 
+        //
         // // line 1(
         // )[// ]line 2
         //
@@ -208,12 +251,12 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
 
   for (unsigned i = Start; i != End; ++i) {
     if (ScopeStack.size() != 0 &&
-        Changes[i].nestingAndIndentLevel() <
-            Changes[ScopeStack.back()].nestingAndIndentLevel())
+        Changes[i].indentAndNestingLevel() <
+            Changes[ScopeStack.back()].indentAndNestingLevel())
       ScopeStack.pop_back();
 
-    if (i != Start && Changes[i].nestingAndIndentLevel() >
-                          Changes[i - 1].nestingAndIndentLevel())
+    if (i != Start && Changes[i].indentAndNestingLevel() >
+                          Changes[i - 1].indentAndNestingLevel())
       ScopeStack.push_back(i);
 
     bool InsideNestedScope = ScopeStack.size() != 0;
@@ -289,8 +332,8 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
 
   // Measure the scope level (i.e. depth of (), [], {}) of the first token, and
   // abort when we hit any token in a higher scope than the starting one.
-  auto NestingAndIndentLevel = StartAt < Changes.size()
-                                   ? Changes[StartAt].nestingAndIndentLevel()
+  auto IndentAndNestingLevel = StartAt < Changes.size()
+                                   ? Changes[StartAt].indentAndNestingLevel()
                                    : std::pair<unsigned, unsigned>(0, 0);
 
   // Keep track of the number of commas before the matching tokens, we will only
@@ -321,7 +364,7 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
 
   unsigned i = StartAt;
   for (unsigned e = Changes.size(); i != e; ++i) {
-    if (Changes[i].nestingAndIndentLevel() < NestingAndIndentLevel)
+    if (Changes[i].indentAndNestingLevel() < IndentAndNestingLevel)
       break;
 
     if (Changes[i].NewlinesBefore != 0) {
@@ -337,7 +380,7 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
 
     if (Changes[i].Tok->is(tok::comma)) {
       ++CommasBeforeMatch;
-    } else if (Changes[i].nestingAndIndentLevel() > NestingAndIndentLevel) {
+    } else if (Changes[i].indentAndNestingLevel() > IndentAndNestingLevel) {
       // Call AlignTokens recursively, skipping over this scope block.
       unsigned StoppedAt = AlignTokens(Style, Matches, Changes, i);
       i = StoppedAt - 1;
@@ -434,7 +477,14 @@ void WhitespaceManager::alignTrailingComments() {
       continue;
 
     unsigned ChangeMinColumn = Changes[i].StartOfTokenColumn;
-    unsigned ChangeMaxColumn = Style.ColumnLimit - Changes[i].TokenLength;
+    unsigned ChangeMaxColumn;
+
+    if (Style.ColumnLimit == 0)
+      ChangeMaxColumn = UINT_MAX;
+    else if (Style.ColumnLimit >= Changes[i].TokenLength)
+      ChangeMaxColumn = Style.ColumnLimit - Changes[i].TokenLength;
+    else
+      ChangeMaxColumn = ChangeMinColumn;
 
     // If we don't create a replacement for this change, we have to consider
     // it to be immovable.
@@ -517,8 +567,11 @@ void WhitespaceManager::alignTrailingComments(unsigned Start, unsigned End,
 }
 
 void WhitespaceManager::alignEscapedNewlines() {
-  unsigned MaxEndOfLine =
-      Style.AlignEscapedNewlinesLeft ? 0 : Style.ColumnLimit;
+  if (Style.AlignEscapedNewlines == FormatStyle::ENAS_DontAlign)
+    return;
+
+  bool AlignLeft = Style.AlignEscapedNewlines == FormatStyle::ENAS_Left;
+  unsigned MaxEndOfLine = AlignLeft ? 0 : Style.ColumnLimit;
   unsigned StartOfMacro = 0;
   for (unsigned i = 1, e = Changes.size(); i < e; ++i) {
     Change &C = Changes[i];
@@ -527,7 +580,7 @@ void WhitespaceManager::alignEscapedNewlines() {
         MaxEndOfLine = std::max(C.PreviousEndOfTokenColumn + 2, MaxEndOfLine);
       } else {
         alignEscapedNewlines(StartOfMacro + 1, i, MaxEndOfLine);
-        MaxEndOfLine = Style.AlignEscapedNewlinesLeft ? 0 : Style.ColumnLimit;
+        MaxEndOfLine = AlignLeft ? 0 : Style.ColumnLimit;
         StartOfMacro = i;
       }
     }
@@ -560,8 +613,9 @@ void WhitespaceManager::generateChanges() {
     if (C.CreateReplacement) {
       std::string ReplacementText = C.PreviousLinePostfix;
       if (C.ContinuesPPDirective)
-        appendNewlineText(ReplacementText, C.NewlinesBefore,
-                          C.PreviousEndOfTokenColumn, C.EscapedNewlineColumn);
+        appendEscapedNewlineText(ReplacementText, C.NewlinesBefore,
+                                 C.PreviousEndOfTokenColumn,
+                                 C.EscapedNewlineColumn);
       else
         appendNewlineText(ReplacementText, C.NewlinesBefore);
       appendIndentText(ReplacementText, C.Tok->IndentLevel,
@@ -573,8 +627,7 @@ void WhitespaceManager::generateChanges() {
   }
 }
 
-void WhitespaceManager::storeReplacement(SourceRange Range,
-                                         StringRef Text) {
+void WhitespaceManager::storeReplacement(SourceRange Range, StringRef Text) {
   unsigned WhitespaceLength = SourceMgr.getFileOffset(Range.getEnd()) -
                               SourceMgr.getFileOffset(Range.getBegin());
   // Don't create a replacement, if it does not change anything.
@@ -597,16 +650,16 @@ void WhitespaceManager::appendNewlineText(std::string &Text,
     Text.append(UseCRLF ? "\r\n" : "\n");
 }
 
-void WhitespaceManager::appendNewlineText(std::string &Text, unsigned Newlines,
-                                          unsigned PreviousEndOfTokenColumn,
-                                          unsigned EscapedNewlineColumn) {
+void WhitespaceManager::appendEscapedNewlineText(
+    std::string &Text, unsigned Newlines, unsigned PreviousEndOfTokenColumn,
+    unsigned EscapedNewlineColumn) {
   if (Newlines > 0) {
-    unsigned Offset =
-        std::min<int>(EscapedNewlineColumn - 1, PreviousEndOfTokenColumn);
+    unsigned Spaces =
+        std::max<int>(1, EscapedNewlineColumn - PreviousEndOfTokenColumn - 1);
     for (unsigned i = 0; i < Newlines; ++i) {
-      Text.append(EscapedNewlineColumn - Offset - 1, ' ');
+      Text.append(Spaces, ' ');
       Text.append(UseCRLF ? "\\\r\n" : "\\\n");
-      Offset = 0;
+      Spaces = std::max<int>(0, EscapedNewlineColumn - 1);
     }
   }
 }

@@ -56,6 +56,16 @@ Pass <arg> to fatbinary invocation
 
 Pass <arg> to the ptxas assembler
 
+.. option:: -Xopenmp-target <arg>
+
+Pass <arg> to the target offloading toolchain.
+
+.. program:: clang1
+.. option:: -Xopenmp-target=<arg> <arg2>
+.. program:: clang
+
+Pass <arg> to the specified target offloading toolchain. The triple that identifies the toolchain must be provided after the equals sign.
+
 .. option:: -Z<arg>
 
 .. option:: -a<arg>, --profile-blocks
@@ -95,6 +105,8 @@ Emit ARC errors even if the migrator can fix them
 .. option:: -arcmt-migrate-report-output <arg>
 
 Output path for the plist report
+
+.. option:: --autocomplete=<arg>
 
 .. option:: -bind\_at\_load
 
@@ -292,7 +304,7 @@ Disable builtin #include directories
 
 .. option:: -nomultidefs
 
-.. option:: -nopie
+.. option:: -nopie, -no-pie
 
 .. option:: -noprebind
 
@@ -309,6 +321,10 @@ Disable builtin #include directories
 Disable standard #include directories for the C++ standard library
 
 .. option:: -nostdlib, --no-standard-libraries
+
+.. program:: clang1
+.. option:: -nostdlib++
+.. program:: clang
 
 .. option:: -nostdlibinc
 
@@ -654,6 +670,10 @@ Pass <arg> to the assembler
 
 Pass <arg> to the clang compiler
 
+.. option:: -fclang-abi-compat=<version>
+
+Attempt to match the ABI of Clang <version>
+
 .. option:: -fcomment-block-commands=<arg>,<arg2>...
 
 Treat each comma separated argument in <arg> as a documentation comment block command
@@ -704,6 +724,10 @@ Don't use blacklist file for sanitizers
 
 Level of field padding for AddressSanitizer
 
+.. option:: -fsanitize-address-globals-dead-stripping
+
+Enable linker dead stripping of globals in AddressSanitizer
+
 .. option:: -fsanitize-address-use-after-scope, -fno-sanitize-address-use-after-scope
 
 Enable use-after-scope detection in AddressSanitizer
@@ -715,6 +739,10 @@ Path to blacklist file for sanitizers
 .. option:: -fsanitize-cfi-cross-dso, -fno-sanitize-cfi-cross-dso
 
 Enable control flow integrity (CFI) checks for cross-DSO calls.
+
+.. option:: -fsanitize-cfi-icall-generalize-pointers
+
+Generalize pointers in function type signatures used for Control Flow Integrity (CFI) indirect call checking
 
 .. option:: -fsanitize-coverage=<arg1>,<arg2>..., -fno-sanitize-coverage=<arg1>,<arg2>...
 
@@ -735,6 +763,8 @@ Enable origins tracking in MemorySanitizer
 .. option:: -fsanitize-memory-use-after-dtor
 
 Enable use-after-destroy detection in MemorySanitizer
+
+.. option:: -fsanitize-minimal-runtime, -fno-sanitize-minimal-runtime
 
 .. option:: -fsanitize-recover, -fno-sanitize-recover
 
@@ -845,6 +875,10 @@ Use the last modification time of <file> as the build session timestamp
 .. option:: -fbuild-session-timestamp=<time since Epoch in seconds>
 
 Time when the current build session started
+
+.. option:: -fmodule-file=\[<name>=\]<file>
+
+Specify the mapping of module name to precompiled module file, or load a module file if name is omitted.
 
 .. option:: -fmodules-cache-path=<directory>
 
@@ -1071,6 +1105,10 @@ Target-independent compilation options
 
 Enable C++17 aligned allocation functions
 
+.. option:: -fallow-editor-placeholders, -fno-allow-editor-placeholders
+
+Treat editor placeholders as valid source code
+
 .. option:: -fallow-unsupported
 
 .. option:: -faltivec, -fno-altivec
@@ -1204,6 +1242,10 @@ Print absolute paths in diagnostics
 .. program:: clang1
 .. option:: -fdiagnostics-color=<arg>
 .. program:: clang
+
+.. option:: -fdiagnostics-hotness-threshold=<number>
+
+Prevent optimization remarks from being output if they do not have at least this profile count
 
 .. option:: -fdiagnostics-show-hotness, -fno-diagnostics-show-hotness
 
@@ -1347,10 +1389,6 @@ Specify the maximum alignment to enforce on pointers lacking an explicit alignme
 
 .. option:: -fmodule-file-deps, -fno-module-file-deps
 
-.. option:: -fmodule-file=<file>
-
-Load this precompiled module file
-
 .. option:: -fmodule-map-file=<file>
 
 Load this module map file
@@ -1433,6 +1471,10 @@ Do not treat C++ operator name keywords as synonyms for operators
 
 .. option:: -fno-working-directory
 
+.. option:: -fnoopenmp-relocatable-target
+
+Do not compile OpenMP target code as relocatable.
+
 .. option:: -fnoopenmp-use-tls
 
 .. option:: -fobjc-abi-version=<arg>
@@ -1474,6 +1516,10 @@ Enable ARC-style weak references in Objective-C
 .. option:: -fopenmp, -fno-openmp
 
 .. option:: -fopenmp-dump-offload-linker-script
+
+.. option:: -fopenmp-relocatable-target
+
+OpenMP target code is compiled as relocatable using the -c flag. For OpenMP targets the code is relocatable by default.
 
 .. option:: -fopenmp-use-tls
 
@@ -1553,6 +1599,13 @@ Generate instrumented code to collect execution counts into <file> (overridden b
 
 Use instrumentation data for profile-guided optimization
 
+.. option:: -fprofile-sample-accurate, -fauto-profile-accurate, -fno-profile-sample-accurate
+
+Specifies that the sample profile is accurate. If the sample
+               profile is accurate, callsites without profile samples are marked
+               as cold. Otherwise, treat callsites without profile samples as if
+               we have no profile
+
 .. option:: -fprofile-sample-use, -fauto-profile, -fno-profile-sample-use
 
 .. program:: clang1
@@ -1584,6 +1637,8 @@ Enable C++17 relaxed template template argument matching
 Turn on loop reroller
 
 .. option:: -fretain-comments-from-system-headers
+
+.. option:: -frewrite-imports, -fno-rewrite-imports
 
 .. option:: -frewrite-includes, -fno-rewrite-includes
 
@@ -1638,10 +1693,6 @@ Use SjLj style exceptions
 .. option:: -fslp-vectorize, -fno-slp-vectorize, -ftree-slp-vectorize
 
 Enable the superword-level parallelism vectorization passes
-
-.. option:: -fslp-vectorize-aggressive, -fno-slp-vectorize-aggressive
-
-Enable the BB vectorization passes
 
 .. option:: -fspell-checking, -fno-spell-checking
 
@@ -1889,6 +1940,8 @@ Put objects of at most <size> bytes into small data section (MIPS / Hexagon)
 
 Enable SVR4-style position-independent code (Mips only)
 
+.. option:: -mabs=<arg>
+
 .. option:: -malign-double
 
 Align doubles to two words in structs (x86 only)
@@ -1911,6 +1964,8 @@ Link stack frames through backchain on System Z
 
 .. option:: -mcpu=<arg>, -mv4 (equivalent to -mcpu=hexagonv4), -mv5 (equivalent to -mcpu=hexagonv5), -mv55 (equivalent to -mcpu=hexagonv55), -mv60 (equivalent to -mcpu=hexagonv60), -mv62 (equivalent to -mcpu=hexagonv62)
 
+.. option:: -mdefault-build-attributes<arg>, -mno-default-build-attributes<arg>
+
 .. option:: -mdll<arg>
 
 .. option:: -mdouble-float
@@ -1924,6 +1979,14 @@ Link stack frames through backchain on System Z
 .. option:: -meabi <arg>
 
 Set EABI type, e.g. 4, 5 or gnu (default depends on triple)
+
+.. option:: -membedded-data, -mno-embedded-data
+
+Place constants in the .rodata section instead of the .sdata section even if they meet the -G <size> threshold (MIPS)
+
+.. option:: -mextern-sdata, -mno-extern-sdata
+
+Assume that externally defined data is in the small data if it meets the -G <size> threshold (MIPS)
 
 .. option:: -mfentry
 
@@ -1946,6 +2009,10 @@ Use 64-bit floating point registers (MIPS only)
 .. option:: -mglobal-merge, -mno-global-merge
 
 Enable merging of globals
+
+.. option:: -mgpopt, -mno-gpopt
+
+Use GP relative accesses for symbols known to be in a small data section (MIPS)
 
 .. option:: -mhard-float
 
@@ -1971,13 +2038,23 @@ Use Intel MCU ABI
 
 .. option:: -mldc1-sdc1, -mno-ldc1-sdc1
 
+.. option:: -mlocal-sdata, -mno-local-sdata
+
+Extend the -G behaviour to object local data (MIPS)
+
 .. option:: -mlong-calls, -mno-long-calls
 
 Generate branches with extended addressability, usually via indirect jumps.
 
-.. option:: -mmacosx-version-min=<arg>
+.. option:: -mmacosx-version-min=<arg>, -mmacos-version-min=<arg>
 
 Set Mac OS X deployment target
+
+.. option:: -mmadd4, -mno-madd4
+
+Enable the generation of 4-operand madd.s, madd.d and related instructions.
+
+.. option:: -mmcu=<arg>
 
 .. option:: -mmicromips, -mno-micromips
 
@@ -1988,6 +2065,10 @@ Set the default structure layout to be compatible with the Microsoft compiler st
 .. option:: -mmsa, -mno-msa
 
 Enable MSA ASE (MIPS only)
+
+.. option:: -mmt, -mno-mt
+
+Enable MT ASE (MIPS only)
 
 .. option:: -mnan=<arg>
 
@@ -2203,6 +2284,8 @@ X86
 
 .. option:: -mavx512vl, -mno-avx512vl
 
+.. option:: -mavx512vpopcntdq, -mno-avx512vpopcntdq
+
 .. option:: -mbmi, -mno-bmi
 
 .. option:: -mbmi2, -mno-bmi2
@@ -2224,6 +2307,8 @@ X86
 .. option:: -mfsgsbase, -mno-fsgsbase
 
 .. option:: -mfxsr, -mno-fxsr
+
+.. option:: -mlwp, -mno-lwp
 
 .. option:: -mlzcnt, -mno-lzcnt
 
@@ -2371,6 +2456,16 @@ Debug information flags
 .. option:: -gsplit-dwarf
 
 .. option:: -gstrict-dwarf, -gno-strict-dwarf
+
+.. option:: -gz
+
+DWARF debug sections compression type
+
+.. program:: clang1
+.. option:: -gz=<arg>
+.. program:: clang
+
+DWARF debug sections compression type
 
 Static analyzer flags
 =====================

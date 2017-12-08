@@ -10,7 +10,6 @@
 #include "llvm/Support/Path.h"
 
 using namespace clang;
-using namespace llvm;
 
 bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
   PersistentSourceLoc PSL = PersistentSourceLoc::mkPSL(S, Context);
@@ -28,15 +27,15 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
       Type *T = NULL;
       std::tie<Stmt *, Decl *, Type *>(So, D, T) = PSLtoSDT[PSL];
       if (So != NULL && Verbose) {
-        errs() << "\nOverriding ";
+        llvm::errs() << "\nOverriding ";
         S->dump();
-        errs() << "\n";
-        errs() << "With ";
+        llvm::errs() << "\n";
+        llvm::errs() << "With ";
         So->dump();
-        errs() << "\n";
-        errs() << " at ";
+        llvm::errs() << "\n";
+        llvm::errs() << " at ";
         PSL.dump();
-        errs() << "\n";
+        llvm::errs() << "\n";
       }
 
       if(So == NULL)
@@ -68,12 +67,12 @@ bool MappingVisitor::VisitDecl(Decl *D) {
       Type *T = NULL;
       std::tie<Stmt *, Decl *, Type *>(S, Do, T) = PSLtoSDT[PSL];
       if (Do != NULL && Verbose) {
-        errs() << "Overriding ";
+        llvm::errs() << "Overriding ";
         Do->dump();
-        errs() << " with ";
+        llvm::errs() << " with ";
         D->dump();
-        errs() << " from source location data (they are defined in";
-        errs() << " the same location";
+        llvm::errs() << " from source location data (they are defined in";
+        llvm::errs() << " the same location";
       }
       
       if(Do == NULL)

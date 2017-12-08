@@ -1,4 +1,7 @@
-set(LLVM_LINK_COMPONENTS support)
+set(LLVM_LINK_COMPONENTS
+  BinaryFormat
+  Support
+  )
 
 add_clang_library(clangAST
   APValue.cpp
@@ -18,6 +21,7 @@ add_clang_library(clangAST
   CommentLexer.cpp
   CommentParser.cpp
   CommentSema.cpp
+  DataCollection.cpp
   Decl.cpp
   DeclarationName.cpp
   DeclBase.cpp

@@ -38,8 +38,8 @@ static void PrintMacroDefinition(const IdentifierInfo &II, const MacroInfo &MI,
 
   if (MI.isFunctionLike()) {
     OS << '(';
-    if (!MI.arg_empty()) {
-      MacroInfo::arg_iterator AI = MI.arg_begin(), E = MI.arg_end();
+    if (!MI.param_empty()) {
+      MacroInfo::param_iterator AI = MI.param_begin(), E = MI.param_end();
       for (; AI+1 != E; ++AI) {
         OS << (*AI)->getName();
         OS << ',';
@@ -143,6 +143,8 @@ public:
                      ArrayRef<int> Ids) override;
   void PragmaWarningPush(SourceLocation Loc, int Level) override;
   void PragmaWarningPop(SourceLocation Loc) override;
+  void PragmaAssumeNonNullBegin(SourceLocation Loc) override;
+  void PragmaAssumeNonNullEnd(SourceLocation Loc) override;
 
   bool HandleFirstTokOnLine(Token &Tok);
 
@@ -174,6 +176,9 @@ public:
   void MacroUndefined(const Token &MacroNameTok,
                       const MacroDefinition &MD,
                       const MacroDirective *Undef) override;
+
+  void BeginModule(const Module *M);
+  void EndModule(const Module *M);
 };
 }  // end anonymous namespace
 
@@ -346,7 +351,7 @@ void PrintPPOutputPPCallbacks::InclusionDirective(SourceLocation HashLoc,
     case tok::pp_include_next:
       startNewLineIfNeeded();
       MoveToLine(HashLoc);
-      OS << "#pragma clang module import " << Imported->getFullModuleName()
+      OS << "#pragma clang module import " << Imported->getFullModuleName(true)
          << " /* clang -E: implicit import for "
          << "#" << PP.getSpelling(IncludeTok) << " "
          << (IsAngled ? '<' : '"') << FileName << (IsAngled ? '>' : '"')
@@ -370,6 +375,20 @@ void PrintPPOutputPPCallbacks::InclusionDirective(SourceLocation HashLoc,
       break;
     }
   }
+}
+
+/// Handle entering the scope of a module during a module compilation.
+void PrintPPOutputPPCallbacks::BeginModule(const Module *M) {
+  startNewLineIfNeeded();
+  OS << "#pragma clang module begin " << M->getFullModuleName(true);
+  setEmittedDirectiveOnThisLine();
+}
+
+/// Handle leaving the scope of a module during a module compilation.
+void PrintPPOutputPPCallbacks::EndModule(const Module *M) {
+  startNewLineIfNeeded();
+  OS << "#pragma clang module end /*" << M->getFullModuleName(true) << "*/";
+  setEmittedDirectiveOnThisLine();
 }
 
 /// Ident - Handle #ident directives when read by the preprocessor.
@@ -532,6 +551,22 @@ void PrintPPOutputPPCallbacks::PragmaWarningPop(SourceLocation Loc) {
   setEmittedDirectiveOnThisLine();
 }
 
+void PrintPPOutputPPCallbacks::
+PragmaAssumeNonNullBegin(SourceLocation Loc) {
+  startNewLineIfNeeded();
+  MoveToLine(Loc);
+  OS << "#pragma clang assume_nonnull begin";
+  setEmittedDirectiveOnThisLine();
+}
+
+void PrintPPOutputPPCallbacks::
+PragmaAssumeNonNullEnd(SourceLocation Loc) {
+  startNewLineIfNeeded();
+  MoveToLine(Loc);
+  OS << "#pragma clang assume_nonnull end";
+  setEmittedDirectiveOnThisLine();
+}
+
 /// HandleFirstTokOnLine - When emitting a preprocessed file in -E mode, this
 /// is called for the first token on each new line.  If this really is the start
 /// of a new logical line, handle it and return true, otherwise return false.
@@ -685,11 +720,31 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
       // -traditional-cpp the lexer keeps /all/ whitespace, including comments.
       SourceLocation StartLoc = Tok.getLocation();
       Callbacks->MoveToLine(StartLoc.getLocWithOffset(Tok.getLength()));
-    } else if (Tok.is(tok::annot_module_include) ||
-               Tok.is(tok::annot_module_begin) ||
-               Tok.is(tok::annot_module_end)) {
+    } else if (Tok.is(tok::eod)) {
+      // Don't print end of directive tokens, since they are typically newlines
+      // that mess up our line tracking. These come from unknown pre-processor
+      // directives or hash-prefixed comments in standalone assembly files.
+      PP.Lex(Tok);
+      continue;
+    } else if (Tok.is(tok::annot_module_include)) {
       // PrintPPOutputPPCallbacks::InclusionDirective handles producing
       // appropriate output here. Ignore this token entirely.
+      PP.Lex(Tok);
+      continue;
+    } else if (Tok.is(tok::annot_module_begin)) {
+      // FIXME: We retrieve this token after the FileChanged callback, and
+      // retrieve the module_end token before the FileChanged callback, so
+      // we render this within the file and render the module end outside the
+      // file, but this is backwards from the token locations: the module_begin
+      // token is at the include location (outside the file) and the module_end
+      // token is at the EOF location (within the file).
+      Callbacks->BeginModule(
+          reinterpret_cast<Module *>(Tok.getAnnotationValue()));
+      PP.Lex(Tok);
+      continue;
+    } else if (Tok.is(tok::annot_module_end)) {
+      Callbacks->EndModule(
+          reinterpret_cast<Module *>(Tok.getAnnotationValue()));
       PP.Lex(Tok);
       continue;
     } else if (IdentifierInfo *II = Tok.getIdentifierInfo()) {

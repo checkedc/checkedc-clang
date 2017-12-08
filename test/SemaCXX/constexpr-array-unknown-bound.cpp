@@ -10,13 +10,14 @@ constexpr int x = f(2); // ok
 constexpr int y = f(3); // expected-error {{constant expression}}
 // expected-note-re@-1 {{in call to 'f({{.*}})'}}
 
+// FIXME: consider permitting this case
 struct A {int m[];} a;
-constexpr auto p3 = a.m; // ok
-constexpr auto p4 = a.m + 1; // expected-error {{constant expression}} expected-note {{constant bound}}
+constexpr auto p3 = a.m; // expected-error {{constant expression}} expected-note {{without known bound}}
+constexpr auto p4 = a.m + 1; // expected-error {{constant expression}} expected-note {{without known bound}}
 
 void g(int i) {
   int arr[i];
-  constexpr auto *p = arr + 2; // expected-error {{constant expression}} expected-note {{constant bound}}
+  constexpr auto *p = arr + 2; // expected-error {{constant expression}} expected-note {{without known bound}}
 
   // FIXME: Give a better diagnostic here. The issue is that computing
   // sizeof(*arr2) within the array indexing fails due to the VLA.

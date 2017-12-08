@@ -1186,7 +1186,7 @@ class Predicate
 /// @brief A C++ wrapper class for providing threaded access to a value
 /// of type T.
 ///
-/// A template specilization class.
+/// A template specialization class.
 //----------------------------------------------------------------------
 template<> class Predicate<int, char>
 {
@@ -1282,3 +1282,25 @@ struct HasMoreFields {
 };
 
 }
+
+/*!
+ * Function pointer typedef with variadic params.
+ *
+ * @param a
+ * works
+ *
+ * @param ...
+ * now should work too.
+ */
+typedef void (*VariadicFnType)(int a, ...);
+
+/*!
+ * Function pointer type alias with variadic params.
+ *
+ * @param a
+ * works
+ *
+ * @param ...
+ * now should work too.
+ */
+using VariadicFnType2 = void (*)(int a, ...);

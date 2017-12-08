@@ -20,6 +20,9 @@
 /* Default OpenMP runtime used by -fopenmp. */
 #define CLANG_DEFAULT_OPENMP_RUNTIME "${CLANG_DEFAULT_OPENMP_RUNTIME}"
 
+/* Default architecture for OpenMP offloading to Nvidia GPUs. */
+#define CLANG_OPENMP_NVPTX_DEFAULT_ARCH "${CLANG_OPENMP_NVPTX_DEFAULT_ARCH}"
+
 /* Multilib suffix for libdir. */
 #define CLANG_LIBDIR_SUFFIX "${CLANG_LIBDIR_SUFFIX}"
 
@@ -55,5 +58,10 @@
 
 /* enable x86 relax relocations by default */
 #cmakedefine01 ENABLE_X86_RELAX_RELOCATIONS
+
+/* Enable each functionality of modules */
+#cmakedefine01 CLANG_ENABLE_ARCMT
+#cmakedefine01 CLANG_ENABLE_OBJC_REWRITER
+#cmakedefine01 CLANG_ENABLE_STATIC_ANALYZER
 
 #endif

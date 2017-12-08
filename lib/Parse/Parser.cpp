@@ -337,21 +337,13 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
       ConsumeBrace();
       break;
 
-    case tok::string_literal:
-    case tok::wide_string_literal:
-    case tok::utf8_string_literal:
-    case tok::utf16_string_literal:
-    case tok::utf32_string_literal:
-      ConsumeStringToken();
-      break;
-        
     case tok::semi:
       if (HasFlagsSet(Flags, StopAtSemi))
         return false;
       // FALL THROUGH.
     default:
       // Skip this token.
-      ConsumeToken();
+      ConsumeAnyToken();
       break;
     }
     isFirstTokenSkipped = false;
@@ -563,6 +555,8 @@ void Parser::LateTemplateParserCleanupCallback(void *P) {
 }
 
 bool Parser::ParseFirstTopLevelDecl(DeclGroupPtrTy &Result) {
+  Actions.ActOnStartOfTranslationUnit();
+
   // C11 6.9p1 says translation units must have at least one top-level
   // declaration. C++ doesn't have this restriction. We also don't want to
   // complain if we have a precompiled header, although technically if the PCH
@@ -611,19 +605,19 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result) {
     Actions.ActOnModuleInclude(Tok.getLocation(),
                                reinterpret_cast<Module *>(
                                    Tok.getAnnotationValue()));
-    ConsumeToken();
+    ConsumeAnnotationToken();
     return false;
 
   case tok::annot_module_begin:
     Actions.ActOnModuleBegin(Tok.getLocation(), reinterpret_cast<Module *>(
                                                     Tok.getAnnotationValue()));
-    ConsumeToken();
+    ConsumeAnnotationToken();
     return false;
 
   case tok::annot_module_end:
     Actions.ActOnModuleEnd(Tok.getLocation(), reinterpret_cast<Module *>(
                                                   Tok.getAnnotationValue()));
-    ConsumeToken();
+    ConsumeAnnotationToken();
     return false;
 
   case tok::annot_pragma_attribute:
@@ -792,9 +786,15 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
     SingleDecl = ParseObjCMethodDefinition();
     break;
   case tok::code_completion:
-      Actions.CodeCompleteOrdinaryName(getCurScope(), 
-                             CurParsedObjCImpl? Sema::PCC_ObjCImplementation
-                                              : Sema::PCC_Namespace);
+    if (CurParsedObjCImpl) {
+      // Code-complete Objective-C methods even without leading '-'/'+' prefix.
+      Actions.CodeCompleteObjCMethodDecl(getCurScope(),
+                                         /*IsInstanceMethod=*/None,
+                                         /*ReturnType=*/nullptr);
+    }
+    Actions.CodeCompleteOrdinaryName(
+        getCurScope(),
+        CurParsedObjCImpl ? Sema::PCC_ObjCImplementation : Sema::PCC_Namespace);
     cutOffParsing();
     return nullptr;
   case tok::kw_export:
@@ -804,6 +804,7 @@ Parser::ParseExternalDeclaration(ParsedAttributesWithRange &attrs,
     }
     // This must be 'export template'. Parse it so we can diagnose our lack
     // of support.
+    LLVM_FALLTHROUGH;
   case tok::kw_using:
   case tok::kw_namespace:
   case tok::kw_typedef:
@@ -1126,7 +1127,8 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   // Checked C - checked property nearest to '{' decides scope checked property.
   // Checked scope keyword can override checked function specifier.
   // Add CheckedScope flag into function body scope to propagate property.
-  unsigned FnBodyScopeFlag = Scope::FnScope | Scope::DeclScope;
+  unsigned FnBodyScopeFlag = Scope::FnScope | Scope::DeclScope |
+                               Scope::CompoundStmtScope;
   if (CSK == CSK_Checked)
     FnBodyScopeFlag |= Scope::CheckedScope;
   else if (CSK == CSK_Unchecked)
@@ -1142,6 +1144,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
       TemplateInfo.Kind == ParsedTemplateInfo::Template &&
       Actions.canDelayFunctionBody(D)) {
     MultiTemplateParamsArg TemplateParameterLists(*TemplateInfo.TemplateParams);
+
     // Checked C - consider checked function definition
     ParseScope BodyScope(this, FnBodyScopeFlag);
     Scope *ParentScope = getCurScope()->getParent();
@@ -1958,6 +1961,7 @@ bool Parser::isTokenEqualOrEqualTypo() {
     Diag(Tok, diag::err_invalid_token_after_declarator_suggest_equal)
         << Kind
         << FixItHint::CreateReplacement(SourceRange(Tok.getLocation()), "=");
+    LLVM_FALLTHROUGH;
   case tok::equal:
     return true;
   }
@@ -2124,7 +2128,7 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl() {
   SourceLocation StartLoc = Tok.getLocation();
 
   Sema::ModuleDeclKind MDK = TryConsumeToken(tok::kw_export)
-                                 ? Sema::ModuleDeclKind::Module
+                                 ? Sema::ModuleDeclKind::Interface
                                  : Sema::ModuleDeclKind::Implementation;
 
   assert(Tok.is(tok::kw_module) && "not a module declaration");
@@ -2133,7 +2137,7 @@ Parser::DeclGroupPtrTy Parser::ParseModuleDecl() {
   if (Tok.is(tok::identifier) && NextToken().is(tok::identifier) &&
       Tok.getIdentifierInfo()->isStr("partition")) {
     // If 'partition' is present, this must be a module interface unit.
-    if (MDK != Sema::ModuleDeclKind::Module)
+    if (MDK != Sema::ModuleDeclKind::Interface)
       Diag(Tok.getLocation(), diag::err_module_implementation_partition)
         << FixItHint::CreateInsertion(ModuleLoc, "export ");
     MDK = Sema::ModuleDeclKind::Partition;
@@ -2244,7 +2248,7 @@ bool Parser::parseMisplacedModuleImport() {
         Actions.ActOnModuleEnd(Tok.getLocation(),
                                reinterpret_cast<Module *>(
                                    Tok.getAnnotationValue()));
-        ConsumeToken();
+        ConsumeAnnotationToken();
         continue;
       }
       // Inform caller that recovery failed, the error must be handled at upper
@@ -2256,7 +2260,7 @@ bool Parser::parseMisplacedModuleImport() {
       Actions.ActOnModuleBegin(Tok.getLocation(),
                                reinterpret_cast<Module *>(
                                    Tok.getAnnotationValue()));
-      ConsumeToken();
+      ConsumeAnnotationToken();
       ++MisplacedModuleBeginCount;
       continue;
     case tok::annot_module_include:
@@ -2265,7 +2269,7 @@ bool Parser::parseMisplacedModuleImport() {
       Actions.ActOnModuleInclude(Tok.getLocation(),
                                  reinterpret_cast<Module *>(
                                      Tok.getAnnotationValue()));
-      ConsumeToken();
+      ConsumeAnnotationToken();
       // If there is another module import, process it.
       continue;
     default:

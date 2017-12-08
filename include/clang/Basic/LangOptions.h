@@ -58,6 +58,7 @@ public:
     SOB_Trapping    // -ftrapv
   };
 
+  // FIXME: Unify with TUKind.
   enum CompilingModuleKind {
     CMK_None,           ///< Not compiling a module interface at all.
     CMK_ModuleMap,      ///< Compiling a module from a module map.
@@ -166,6 +167,11 @@ public:
     return getCompilingModule() != CMK_None;
   }
 
+  /// Do we need to track the owning module for a local declaration?
+  bool trackLocalOwningModule() const {
+    return isCompilingModule() || ModulesLocalVisibility || ModulesTS;
+  }
+
   bool isSignedOverflowDefined() const {
     return getSignedOverflowBehavior() == SOB_Defined;
   }
@@ -190,6 +196,10 @@ public:
   /// \brief True if any ObjC types may have non-trivial lifetime qualifiers.
   bool allowsNonTrivialObjCLifetimeQualifiers() const {
     return ObjCAutoRefCount || ObjCWeak;
+  }
+
+  bool assumeFunctionsAreConvergent() const {
+    return (CUDA && CUDAIsDevice) || OpenCL;
   }
 };
 

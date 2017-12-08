@@ -129,6 +129,9 @@ public:
   /// The original path to the clang executable.
   std::string ClangExecutable;
 
+  /// Target and driver mode components extracted from clang executable name.
+  ParsedClangName ClangNameParts;
+
   /// The path to the installed clang directory, if any.
   std::string InstalledDir;
 
@@ -147,9 +150,6 @@ public:
 
   /// Dynamic loader prefix, if present
   std::string DyldPrefix;
-
-  /// If the standard library is used
-  bool UseStdLib;
 
   /// Driver title to use with help.
   std::string DriverTitle;
@@ -287,6 +287,8 @@ public:
 
   void setCheckInputsExist(bool Value) { CheckInputsExist = Value; }
 
+  void setTargetAndMode(const ParsedClangName &TM) { ClangNameParts = TM; }
+
   const std::string &getTitle() { return DriverTitle; }
   void setTitle(std::string Value) { DriverTitle = std::move(Value); }
 
@@ -341,7 +343,8 @@ public:
 
   /// ParseArgStrings - Parse the given list of strings into an
   /// ArgList.
-  llvm::opt::InputArgList ParseArgStrings(ArrayRef<const char *> Args);
+  llvm::opt::InputArgList ParseArgStrings(ArrayRef<const char *> Args,
+                                          bool &ContainsError);
 
   /// BuildInputs - Construct the list of inputs and their types from 
   /// the given arguments.
@@ -421,6 +424,10 @@ public:
   //
   // FIXME: This should be in CompilationInfo.
   std::string GetProgramPath(StringRef Name, const ToolChain &TC) const;
+
+  /// handleAutocompletions - Handle --autocomplete by searching and printing
+  /// possible flags, descriptions, and its arguments.
+  void handleAutocompletions(StringRef PassedFlags) const;
 
   /// HandleImmediateArgs - Handle any arguments which should be
   /// treated before building actions or binding tools.
