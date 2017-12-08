@@ -64,7 +64,7 @@ echo.Building and testing clang
 call %DIRNAME%\test-clang.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
-call %DIRNAME\build-package.bat
+call %DIRNAME%\build-package.bat
 if ERRORLEVEL 1 (goto cmdfailed)
 
 :succeeded
