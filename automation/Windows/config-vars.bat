@@ -145,7 +145,8 @@ if not defined CLANG_BRANCH (
   ) else (
     set CLANG_BRANCH=master
   )
-) else if "%CLANG_BRANCH%"=="" (  set CLANG_BRANCH=master
+) else if "%CLANG_BRANCH%"=="" (
+    set CLANG_BRANCH=master
 )
 
 rem set up source versions (Git commit number)
