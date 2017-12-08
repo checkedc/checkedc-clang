@@ -145,8 +145,7 @@ if not defined CLANG_BRANCH (
   ) else (
     set CLANG_BRANCH=master
   )
-) else if "%CLANG_BRANCH%"=="" (
-  set CLANG_BRANCH=master
+) else if "%CLANG_BRANCH%"=="" (  set CLANG_BRANCH=master
 )
 
 rem set up source versions (Git commit number)
@@ -188,6 +187,7 @@ echo.  TEST_TARGET_ARCH: %TEST_TARGET_ARCH%
 echo.  TEST_SUITE: %TEST_SUITE%
 echo.  SKIP_CHECKEDC_TESTS: %SKIP_CHECKEDC_TESTS%
 echo.  BUILD_CHECKEDC_CLEAN: %BUILD_CHECKEDC_CLEAN%
+echo   BUILD_PACKAGE: %BUILD_PACKAGE%
 echo.
 echo.  Directories:
 echo.    BUILD_SOURCESDIRECTORY: %BUILD_SOURCESDIRECTORY%
