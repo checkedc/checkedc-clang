@@ -7,12 +7,17 @@ rem a script and just invoke MSBuild directly.
 
 set OLD_DIR=%CD%
 
-cd %LLVM_OBJ_DIR%
+rem Put the installer executable in its own subdirectory.  The VSTS build
+rem artifact copy task can only copy directories or specifically named files
+rem (no wild cards), and the installer executable name includes a version
+rem number.
+
+cd %LLVM_OBJ_DIR%\package
 
 if "%BUILD_PACKAGE%" == "No" (goto succeeded)
 
 echo.Building installation package for clang
-"%MSBUILD_BIN%" PACKAGE.vcxproj /v:%MSBUILD_VERBOSITY% /maxcpucount:%MSBUILD_CPU_COUNT% /p:CL_MPCount=%CL_CPU_COUNT%
+"%MSBUILD_BIN%" ..\PACKAGE.vcxproj /v:%MSBUILD_VERBOSITY% /maxcpucount:%MSBUILD_CPU_COUNT% /p:CL_MPCount=%CL_CPU_COUNT%
  if ERRORLEVEL 1 (goto cmdfailed)
 
 :succeeded
