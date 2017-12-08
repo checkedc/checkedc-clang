@@ -72,6 +72,16 @@ if not exist %LLVM_OBJ_DIR% (
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
+rem Set up directory for package
+if exist %LLVM_OBJ_DIR%\package (
+  rmdir /s /q %LLVM_OBJ_DIR%\package
+  if ERRORLEVEL 1 (goto cmdfailed)
+)
+
+if "%BUILD_PACKAGE%"=="Yes" (
+  mkdir %LLVM_OBJ_DIR%\package
+  if ERRORLEVEL 1 (goto cmdfailed)
+)
 
 :succeeded
   cd %OLD_DIR%
