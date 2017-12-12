@@ -230,15 +230,16 @@ are testing the Checked C version of clang on x86 and x64 Windows and on x64 Lin
 ## Building an LLVM package.
 
 If you would like to build an LLVM package, first follow the steps in setting up build directory for
-building a package.
-- On Windows, install [NSIS](http://nsis.sourceforge.net).  Cd to your build directory, and run
+building a package.   On Windows, install [NSIS](http://nsis.sourceforge.net).  Change directory to your
+build directory, and run
 
 	msbuild PACKAGE.sln /p:CL_MPCount=3 /m
 
-- On UNIX, run
+On UNIX, run
 
 	make -j nnn package
 
+where `nnn` is replaced by the number of CPU Cores that youare computer has.
 
 ## Updating sources to the latest sources for clang/LLVM
 
