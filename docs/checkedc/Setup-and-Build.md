@@ -239,7 +239,7 @@ On UNIX, run
 
 	make -j nnn package
 
-where `nnn` is replaced by the number of CPU Cores that youare computer has.
+where `nnn` is replaced by the number of CPU cores that your computer has.
 
 ## Updating sources to the latest sources for clang/LLVM
 
