@@ -134,15 +134,13 @@ git clone https://github.com/Microsoft/checkedc
 1. LLVM and clang use CMake, which is a meta-build system generator. It generates build systems for a specific platform.
 2. Create a build directory that is a sibling of your llvm source tree.  For example, if llvm is in MyDir\llvm, create MyDir\llvm.obj.      
 3. Be sure to exclude the build directory from anti-virus scanning.   On Windows 10, go to Settings->Update & Security->Windows Defender->Add an exclusion.
-4. You may optionally want to create an install directory, which is the place where an installed version of LLVM can be placed. 
-An install directory is different than the build directory, which will contain the results of building LLVM.
-5. Cmake will produce a build system by default that builds code generators for all LLVM-supported architectures.
+3. Cmake will produce a build system by default that builds code generators for all LLVM-supported architectures.
    This can increase buildand link times.  You might want to build the code generator for a specific target, such as x86.  To
    do that,  add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
-6. Make sure that you are using whatever shell you normally do compiles in.  On Linux, cd your build directory and invoke CMake
+4. Make sure that you are using whatever shell you normally do compiles in.  On Linux, cd your build directory and invoke CMake
    with:
 ```
-    cmake -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
+    cmake {llvm-path}
 ```
 where `{llvm-path}` is the path to the root of your LLVM repo.
 
@@ -151,16 +149,25 @@ where `{llvm-path}` is the path to the root of your LLVM repo.
    You can do that by adding the option `-T "host=x64"` to the command-line (note that this
    option is only available using CMake version 3.8 or later).
 ```
-    cmake -T "host=x64" -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
+    cmake -T "host=x64" {llvm-path}
 ```
 
    On Windows, when using Visual Studio, CMake by default produces a build system for x86.  This means that
    the clang tests will run in 32-bit compatiblity mode, even on a 64-bit version of Windows.  To build and run
    tests on x64, specify a different generator using the `-G` option.  For Visual Studio 2015, you can use:
 ```
-    cmake -T "host=x64" -G "Visual Studio 14 2015 Win64" -DCMAKE_INSTALL_PREFIX={path-to-directory-to-install-in} {llvm-path}
+    cmake -T "host=x64" -G "Visual Studio 14 2015 Win64" {llvm-path}
 ```
 `cmake --help` will list all the available generators on your platform.
+
+### Building an LLVM package (advanced topic)
+If you are just trying out Checked C, you can safely ignore this section.  If you plan to build an LLVM package for installation
+on other machines,  we recommend that you build a release build of clang with assertions on and only include the toolchain in
+the package.  You can add the following flags to your cmake command line.
+```
+   -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
+```
+On Unix systems, you can omit `-DLLVM_USE_CRT_RELEASE=MT`. That cmake variable is specific to Windows.
 
 ## Building
 
@@ -219,6 +226,20 @@ To clean the build directory:
 
 See the [Testing](Testing.md) page for directions on how to test the compiler once you have built it.  We
 are testing the Checked C version of clang on x86 and x64 Windows and on x64 Linux.
+
+## Building an LLVM package.
+
+If you would like to build an LLVM package, first follow the steps in setting up build directory for
+building a package.   On Windows, install [NSIS](http://nsis.sourceforge.net).  Change directory to your
+build directory, and run
+
+	msbuild PACKAGE.sln /p:CL_MPCount=3 /m
+
+On UNIX, run
+
+	make -j nnn package
+
+where `nnn` is replaced by the number of CPU cores that your computer has.
 
 ## Updating sources to the latest sources for clang/LLVM
 
