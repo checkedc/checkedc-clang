@@ -160,14 +160,14 @@ where `{llvm-path}` is the path to the root of your LLVM repo.
 ```
 `cmake --help` will list all the available generators on your platform.
 
-### Cmake options for building LLVM package (advanced topic)
+### Building an LLVM package (advanced topic)
 If you are just trying out Checked C, you can safely ignore this section.  If you plan to build an LLVM package for installation
 on other machines,  we recommend that you build a release build of clang with assertions on and only include the toolchain in
 the package.  You can add the following flags to your cmake command line.
 ```
    -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
 ```
-On Unix systems, you can omit `-DLLVM_USE_CRT_RELEASE=MT`. That cmake variable is specific topics.
+On Unix systems, you can omit `-DLLVM_USE_CRT_RELEASE=MT`. That cmake variable is specific to Windows.
 
 ## Building
 
@@ -231,12 +231,14 @@ are testing the Checked C version of clang on x86 and x64 Windows and on x64 Lin
 
 If you would like to build an LLVM package, first follow the steps in setting up build directory for
 building a package.
-- On Windows, install [NSIS](http://nsis.sourceforge.net/].  Cd to your build directory, and run
+- On Windows, install [NSIS](http://nsis.sourceforge.net).  Cd to your build directory, and run
 
 	msbuild PACKAGE.sln /p:CL_MPCount=3 /m
+
 - On UNIX, run
 
 	make -j nnn package
+
 
 ## Updating sources to the latest sources for clang/LLVM
 
