@@ -2,5 +2,5 @@
 
 // Avoid preprocessor diag crash caused by a parser diag left in flight.
 
-int foo: // expected-error {{expected ';' after top level declarator}}
+int foo: // expected-error {{expected bounds expression}} expected-error {{expected ';' after top level declarator}}
 #endif   // expected-error {{#endif without #if}}

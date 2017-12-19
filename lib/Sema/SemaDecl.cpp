@@ -3849,12 +3849,14 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
     if (Err && !NewHasPrototype)
       Diag(New->getLocation(),
            diag::err_checkedc_incompatible_no_prototype_redeclaration);
-    // Print note about prior declaration
-    diag::kind PrevDiag;
-    SourceLocation OldLocation;
-    std::tie(PrevDiag, OldLocation)
-      = getNoteDiagForInvalidRedeclaration(Old, New);
-    Diag(OldLocation, PrevDiag);
+    // Print note about prior declaration.
+    if (Err) {
+      diag::kind PrevDiag;
+      SourceLocation OldLocation;
+      std::tie(PrevDiag, OldLocation)
+        = getNoteDiagForInvalidRedeclaration(Old, New);
+      Diag(OldLocation, PrevDiag);
+    }
     return Err;
   }
 }

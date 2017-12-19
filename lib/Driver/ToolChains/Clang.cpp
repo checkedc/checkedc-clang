@@ -4110,6 +4110,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-fborland-extensions");
 
   Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_extension);
+  Args.AddLastArg(CmdArgs, options::OPT_fno_checkedc_extension);
   Args.AddLastArg(CmdArgs, options::OPT_fdump_inferred_bounds);
 
   // -fno-declspec is default, except for PS4.

@@ -3336,7 +3336,9 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
     return StmtError();
 
   if (isa<CapturingScopeInfo>(getCurFunction())) {
-    assert(!getLangOpts().CheckedC);
+    // In Checked C, there is no way to write the return bounds for clang
+    // extensions to C that capture variables such as __Block, so it is OK
+    // to call this.  There is nothing to check.
     return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp);
   }
 

@@ -314,12 +314,11 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     // has a bounds expression associated with it, substitute the type of that
     // bounds expression for the other type. 
     for (unsigned i = 0; i < FT->getNumParams(); i++) {
-      QualType QT;
+      QualType QT = FT->getParamType(i);
 
-      if(const BoundsExpr *BE = FT->getParamBounds(i))
-        QT = BE->getType();
-      else
-        QT = FT->getParamType(i);
+      if (const BoundsExpr *BE = FT->getParamBounds(i))
+        if (isa<InteropTypeBoundsAnnotation>(BE))
+          QT = BE->getType();
 
       std::string paramName = "";
       DeclaratorDecl *tmpD = D;
@@ -335,8 +334,10 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       C.insert(new PVConstraint(QT, K, tmpD, paramName, CS, Ctx));
       paramVars.push_back(C);
     }
-    if (FT->hasReturnBounds()) 
-      returnType = FT->getReturnBounds()->getType();
+
+    if (const BoundsExpr *RB = FT->getReturnBounds())
+      if (isa<InteropTypeBoundsAnnotation>(RB))
+        returnType = RB->getType();
     hasproto = true;
   }
   else if (Ty->isFunctionNoProtoType()) {

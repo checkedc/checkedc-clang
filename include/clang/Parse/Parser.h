@@ -1746,10 +1746,10 @@ private:
   // Checked C Expressions
 
   /// \brief Return true if this token can start a bounds expression.
-  bool StartsBoundsExpression(Token &Tok);
+  bool StartsBoundsExpression(const Token &Tok);
   /// \brief Return true if this token can start a bounds-safe interface
   /// type annotation.
-  bool StartsInteropTypeAnnotation(Token &tok);
+  bool StartsInteropTypeAnnotation(const Token &tok);
 
   bool StartsRelativeBoundsClause(Token &tok);
 
@@ -1759,7 +1759,7 @@ private:
                                                    IdentifierInfo *Ident,
                                                    SourceLocation BoundsKWLoc);
 
-  void SkipInvalidBoundsExpr(Token &T);
+  void SkipInvalidBoundsExpr(SourceLocation CurrentLoc);
 
   ExprResult ParseBoundsCastExpression();
 
@@ -1770,6 +1770,7 @@ private:
 
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
   ExprResult ParseBoundsExpressionOrInteropType(const Declarator &D,
+                                                SourceLocation ColonLoc,
                                                 bool IsReturn=false);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
   ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,  Declarator &D);
