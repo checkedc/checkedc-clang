@@ -4110,14 +4110,24 @@ LValue CodeGenFunction::EmitCastLValue(const CastExpr *E) {
                           CGM.getTBAAInfoForSubobject(LV, E->getType()));
   }
   case CK_LValueBitCast: {
-    // This must be a reinterpret_cast (or c-style equivalent).
-    const auto *CE = cast<ExplicitCastExpr>(E);
+    QualType AddrType;
+    if (E->isBoundsSafeInterface()) {
+      // The target is an implicit cast introduced for a bounds-safe interface.
+      // The type of the address of the lvalue (which has type T) is T *.
+      assert(isa<ImplicitCastExpr>(E));
+      AddrType = getContext().getPointerType(E->getType());
+    } else {
+      // This must be a reinterpret_cast (or c-style equivalent).  Here, the type in
+      // the source code is a reference to some type S, so it can used as the type
+      // of the address of the lvalue.
+      const auto *CE = dyn_cast<ExplicitCastExpr>(E);
+      CGM.EmitExplicitCastExprType(CE, this);
+      AddrType = CE->getTypeAsWritten();
+    }
 
-    CGM.EmitExplicitCastExprType(CE, this);
     LValue LV = EmitLValue(E->getSubExpr());
     Address V = Builder.CreateBitCast(LV.getAddress(),
-                                      ConvertType(CE->getTypeAsWritten()));
-
+                                      ConvertType(AddrType));
     if (SanOpts.has(SanitizerKind::CFIUnrelatedCast))
       EmitVTablePtrCheckForCast(E->getType(), V.getPointer(),
                                 /*MayBeNull=*/false,
