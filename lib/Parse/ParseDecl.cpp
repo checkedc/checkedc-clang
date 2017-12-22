@@ -2301,8 +2301,9 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     BoundsExpr *Bounds = nullptr;
     // The optional Checked C bounds expression or interop type annotation.
     if (Tok.is(tok::colon)) {
+      SourceLocation BoundsColonLoc = Tok.getLocation();
       ConsumeToken();
-      ExprResult ParsedBounds = ParseBoundsExpressionOrInteropType(D);
+      ExprResult ParsedBounds = ParseBoundsExpressionOrInteropType(D, BoundsColonLoc);
       if (ParsedBounds.isInvalid()) {
         SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
         Bounds = Actions.CreateInvalidBoundsExpr();
@@ -6406,23 +6407,33 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   }
 
   // Parse optional Checked C bounds expression or interop type annotation.
+  //
+  // The optional return bounds expression combined with C11 generic selection
+  // expressions means making a parsing decision only on the presence of the
+  // ":" is ambiguous.  Generic selection expressions allow code of the form
+  // "typename : expr".   Typename could be a function type with an optional
+  // return bounds expression.  Look ahead to the next token to disambiguate.
   if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
-    BoundsColonLoc = Tok.getLocation();
-    ConsumeToken();
-    ExprResult BoundsExprResult =
-      ParseBoundsExpressionOrInteropType(D, /*IsReturn=*/true);
-    if (BoundsExprResult.isInvalid())
-      // We don't have enough context to try to do syntactic error recovery
-      // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
-      // function declarations and function bodies. This allows us to handle
-      // the simple case where there's something wrong syntactically with a
-      // return bounds expression that is followed immediately by a function
-      // body.  Function declarators can also be nested within other
-      //declarators.  We don't have special-case code for recovering
-      // syntactically for that case.
-      ReturnBoundsExpr = Actions.CreateInvalidBoundsExpr();
-    else
-      ReturnBoundsExpr = cast<BoundsExpr>(BoundsExprResult.get());
+    const Token &NextTok = GetLookAheadToken(1);
+    if (StartsBoundsExpression(NextTok) ||
+      StartsInteropTypeAnnotation(NextTok)) {
+      BoundsColonLoc = Tok.getLocation();
+      ConsumeToken();
+      ExprResult BoundsExprResult =
+        ParseBoundsExpressionOrInteropType(D, BoundsColonLoc, /*IsReturn = */true);
+      if (BoundsExprResult.isInvalid())
+        // We don't have enough context to try to do syntactic error recovery
+        // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
+        // function declarations and function bodies. This allows us to handle
+        // the simple case where there's something wrong syntactically with a
+        // return bounds expression that is followed immediately by a function
+        // body.  Function declarators can also be nested within other
+        //declarators.  We don't have special-case code for recovering
+        // syntactically for that case.
+        ReturnBoundsExpr = Actions.CreateInvalidBoundsExpr();
+      else
+        ReturnBoundsExpr = cast<BoundsExpr>(BoundsExprResult.get());
+    }
   }
 
   // Remember that we parsed a function type, and remember the attributes.
@@ -6672,6 +6683,7 @@ void Parser::ParseParameterDeclarationClause(
           // bounds expression, if any.
           Actions.ActOnBoundsDecl(Param, nullptr);
         else {
+          SourceLocation BoundsColonLoc = Tok.getLocation();
           ConsumeToken();
           if (StartsBoundsExpression(Tok)) {
             // Bounds expressions are delay parsed because they can refer to 
@@ -6693,7 +6705,7 @@ void Parser::ParseParameterDeclarationClause(
              // Fall back to general code that eagerly parses a bounds expression
              // bounds-safe interface type annotation.
             ExprResult BoundsAnnotation =
-              ParseBoundsExpressionOrInteropType(ParmDeclarator);
+              ParseBoundsExpressionOrInteropType(ParmDeclarator, BoundsColonLoc);
             if (BoundsAnnotation.isInvalid()) {
               SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
               Actions.ActOnInvalidBoundsDecl(Param);

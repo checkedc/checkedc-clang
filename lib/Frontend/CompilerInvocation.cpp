@@ -1797,6 +1797,8 @@ void CompilerInvocation::setLangDefaults(LangOptions &Opts, InputKind IK,
   Opts.AlignedAllocation = Opts.CPlusPlus1z;
 
   Opts.DollarIdents = !Opts.AsmPreprocessor;
+
+  Opts.CheckedC = (IK.getLanguage() == InputKind::C);
 }
 
 /// Attempt to parse a visibility value out of the given argument.
@@ -2145,6 +2147,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
     } else
       Opts.CheckedC = true;
   }
+  if (Args.hasArg(OPT_fno_checkedc_extension))
+    Opts.CheckedC = false;
+
   if (Args.hasArg(OPT_fdump_inferred_bounds))
     Opts.DumpInferredBounds = true;
 

@@ -2869,7 +2869,7 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   Actions.ActOnBlockArguments(CaretLoc, DeclaratorInfo, getCurScope());
 }
 
-bool Parser::StartsBoundsExpression(Token &T) {
+bool Parser::StartsBoundsExpression(const Token &T) {
   if (T.getKind() == tok::identifier) {
     IdentifierInfo *Ident = T.getIdentifierInfo();
     return (Ident == Ident_byte_count || Ident == Ident_count ||
@@ -2878,7 +2878,7 @@ bool Parser::StartsBoundsExpression(Token &T) {
   return false;
 }
 
-bool Parser::StartsInteropTypeAnnotation(Token &T) {
+bool Parser::StartsInteropTypeAnnotation(const Token &T) {
   if (T.getKind() == tok::identifier) {
     IdentifierInfo *Ident = T.getIdentifierInfo();
     return (Ident == Ident_itype);
@@ -2930,11 +2930,11 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
 }
 
 ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
+                                                      SourceLocation ColonLoc,
                                                       bool IsReturn) {
   ExprResult Result(true);
   bool isBounds = false;
   bool isItype = false;
-  Token TempTok = Tok;
 
   if (StartsBoundsExpression(Tok)) {
     Result = ParseBoundsExpression();
@@ -2945,9 +2945,8 @@ ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
   }
 
   if (!isItype && !isBounds)
-    SkipInvalidBoundsExpr(TempTok);
+    SkipInvalidBoundsExpr(ColonLoc);
 
-  TempTok = Tok;
   if (StartsRelativeBoundsClause(Tok))
     if (ParseRelativeBoundsClauseForDecl(Result)) {
       Result = ExprError();
@@ -2963,13 +2962,16 @@ ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
 // means we do not need to skip bounds expression because it already skiped to
 // the right paren.
 
-void Parser::SkipInvalidBoundsExpr(Token &T) {
-  Diag(T, diag::err_expected_bounds_expr_or_interop_type);
-  Token Next;
-  BalancedDelimiterTracker Paren(*this, tok::l_paren, tok::r_paren);
-  Next = NextToken();
+void Parser::SkipInvalidBoundsExpr(SourceLocation CurrentLoc) {
+  SourceLocation Loc = PP.getLocForEndOfToken(CurrentLoc);
+  Diag(Loc, diag::err_expected_bounds_expr_or_interop_type);
+  if (Tok.is(tok::eof))
+    return;
+  if (Tok.isNot(tok::identifier))
+    return;
   ConsumeToken();
-  if (Next.getKind() == tok::l_paren) {
+  BalancedDelimiterTracker Paren(*this, tok::l_paren, tok::r_paren);
+  if (Tok.getKind() == tok::l_paren) {
     Paren.consumeOpen();
     Paren.skipToEnd();
   }
@@ -3544,7 +3546,7 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
                        // so it isn't lost.
   PP.EnterTokenStream(*Toks, true);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
-  ExprResult Result = ParseBoundsExpressionOrInteropType(D);
+  ExprResult Result = ParseBoundsExpressionOrInteropType(D, SourceLocation());
 
   // There could be leftover tokens because of an error.
   // Skip through them until we reach the eof token.

@@ -1174,6 +1174,7 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
     case Expr::DeclRefExprClass:
     case Expr::MemberExprClass:
     case Expr::CompoundLiteralExprClass:
+    case Expr::ExtVectorElementExprClass:
       return nullptr;
     case Expr::UnaryOperatorClass: {
       UnaryOperator *UO = cast<UnaryOperator>(E);
@@ -2157,10 +2158,20 @@ namespace {
     }
 
     bool VisitCallExpr(CallExpr *CE, bool InCheckedScope) {
-      const PointerType *FuncPtrTy = CE->getCallee()->getType()->getAs<PointerType>();
-      assert(FuncPtrTy);
-      const FunctionType *FuncTy =
-        FuncPtrTy->getPointeeType()->getAs<FunctionType>();
+      QualType CalleeType = CE->getCallee()->getType();
+      // Extract the pointee type.  The caller type could be a regular pointer
+      // type or a block pointer type.
+      QualType PointeeType;
+      if (const PointerType *FuncPtrTy = CalleeType->getAs<PointerType>())
+        PointeeType = FuncPtrTy->getPointeeType();
+      else if (const BlockPointerType *BlockPtrTy = 
+                 CalleeType->getAs<BlockPointerType>())
+        PointeeType = BlockPtrTy->getPointeeType();
+      else {
+        llvm_unreachable("Unexpected callee type");
+        return true;
+      }
+      const FunctionType *FuncTy = PointeeType->getAs<FunctionType>();
       assert(FuncTy);
       const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
       if (!FuncProtoTy)
