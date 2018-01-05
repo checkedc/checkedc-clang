@@ -565,6 +565,22 @@ def warn_suggest_noreturn_block : Warning<
   "block could be declared with attribute 'noreturn'">,
   InGroup<MissingNoreturn>, DefaultIgnore;
 
+// Checked C-specific errors for falling off ends of functions
+def err_maybe_falloff_function_with_checked_return : Error<
+  "control may reach end of function with checked pointer return type">;
+def err_falloff_function_with_checked_return : Error<
+  "control reaches end of function with checked pointer return type">;
+
+def err_maybe_falloff_checked_function : Error<
+  "control may reach end of checked function body">;
+def err_falloff_checked_function : Error<
+  "control reaches end of checked function body">;
+
+def err_maybe_falloff_function_with_bounds : Error<
+  "control may reach end of function with return bounds">;
+def err_falloff_function_with_bounds : Error<
+  "control reaches end of function with return bounds">;
+
 // Unreachable code.
 def warn_unreachable : Warning<
   "code will never be executed">,
@@ -8157,12 +8173,24 @@ def warn_noreturn_function_has_return_expr : Warning<
 def warn_falloff_noreturn_function : Warning<
   "function declared 'noreturn' should not return">,
   InGroup<InvalidNoreturn>;
+
+// Checked C specific error messages about returns
+def err_return_missing_expr : Error<
+  "non-void function %0 must return a value in a checked scope">;
+def err_return_missing_expr_for_checked_pointer : Error<
+  "function %0 with checked pointer return type must return a value">;
+def err_return_missing_expr_for_bounds : Error<
+  "non-void function %0 must return a value when there are return bounds">;
+def err_return_has_expr : Error<
+  "void function %0 cannot return a value in a checked scope">;
+
 def err_noreturn_block_has_return_expr : Error<
   "block declared 'noreturn' should not return">;
 def err_noreturn_missing_on_first_decl : Error<
   "function declared '[[noreturn]]' after its first declaration">;
 def note_noreturn_missing_first_decl : Note<
   "declaration missing '[[noreturn]]' attribute is here">;
+
 def err_carries_dependency_missing_on_first_decl : Error<
   "%select{function|parameter}0 declared '[[carries_dependency]]' "
   "after its first declaration">;

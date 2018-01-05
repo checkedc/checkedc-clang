@@ -1261,6 +1261,8 @@ namespace {
     Sema &S;
     bool DumpBounds;
     uint64_t PointerWidth;
+    BoundsExpr *ReturnBounds; // return bounds expression for enclosing
+                              // function, if any.
 
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
                               BoundsExpr *LValueTargetBounds,
@@ -2050,9 +2052,10 @@ namespace {
     }
 
   public:
-    CheckBoundsDeclarations(Sema &S) : S(S),
+    CheckBoundsDeclarations(Sema &S, BoundsExpr *ReturnBounds) : S(S),
       DumpBounds(S.getLangOpts().DumpInferredBounds),
-      PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)) {}
+      PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)),
+      ReturnBounds(ReturnBounds) {}
 
     void TraverseStmt(Stmt *S, bool InCheckedScope) {
       if (!S)
@@ -2092,6 +2095,10 @@ namespace {
           }
           break;
         }
+        case Stmt::ReturnStmtClass: {
+          ReturnStmt *RS = cast<ReturnStmt>(S);
+          VisitReturnStmt(RS, InCheckedScope);
+        }
         default: 
           break;
       }
@@ -2107,12 +2114,12 @@ namespace {
         TraverseStmt(Init, InCheckedScope);
     }
 
-    bool VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
+    void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
       QualType LHSType = LHS->getType();
       if (!E->isAssignmentOp())
-        return true;
+        return;
 
       // Bounds of the target of the lvalue
       BoundsExpr *LHSTargetBounds = nullptr;
@@ -2154,10 +2161,10 @@ namespace {
       if (DumpBounds && (LHSNeedsBoundsCheck ||
                          (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
-      return true;
+      return;
     }
 
-    bool VisitCallExpr(CallExpr *CE, bool InCheckedScope) {
+    void VisitCallExpr(CallExpr *CE, bool InCheckedScope) {
       QualType CalleeType = CE->getCallee()->getType();
       // Extract the pointee type.  The caller type could be a regular pointer
       // type or a block pointer type.
@@ -2169,15 +2176,15 @@ namespace {
         PointeeType = BlockPtrTy->getPointeeType();
       else {
         llvm_unreachable("Unexpected callee type");
-        return true;
+        return;
       }
       const FunctionType *FuncTy = PointeeType->getAs<FunctionType>();
       assert(FuncTy);
       const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
       if (!FuncProtoTy)
-        return true;
+        return;
       if (!FuncProtoTy->hasParamBounds())
-        return true;
+        return;
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = CE->getNumArgs();
       unsigned Count = (NumParams < NumArgs) ? NumParams : NumArgs;
@@ -2248,11 +2255,11 @@ namespace {
             CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
         }
       }
-      return true;
+      return;
    }
 
     // This includes both ImplicitCastExprs and CStyleCastExprs
-    bool VisitCastExpr(CastExpr *E, bool InCheckedScope) {
+    void VisitCastExpr(CastExpr *E, bool InCheckedScope) {
       CheckDisallowedFunctionPtrCasts(E);
 
       CastKind CK = E->getCastKind();
@@ -2261,7 +2268,7 @@ namespace {
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
 
-        return true;
+        return;
       }
 
       // If inferred bounds of e1 are bounds(unknown), compile-time error.
@@ -2308,9 +2315,9 @@ namespace {
 
         if (DumpBounds)
           DumpExpression(llvm::outs(), E);
-        return true;
+        return;
       }
-      return true;
+      return;
     }
 
     // A member expression is a narrowing operator that shrinks the range of
@@ -2319,34 +2326,32 @@ namespace {
     // member points to a valid range of memory given by
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
-    bool VisitMemberExpr(MemberExpr *E, bool InCheckedScope) {
+    void VisitMemberExpr(MemberExpr *E, bool InCheckedScope) {
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, InCheckedScope);
       if (NeedsBoundsCheck && DumpBounds)
         DumpExpression(llvm::outs(), E);
-
-      return true;
     }
 
-    bool VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
+    void VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
       if (!E->isIncrementDecrementOp())
-        return true;
+        return;
 
       bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), OperationKind::Other, InCheckedScope);
       if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
-      return true;
+      return;
     }
 
-    bool VisitVarDecl(VarDecl *D, bool InCheckedScope) {
+    void VisitVarDecl(VarDecl *D, bool InCheckedScope) {
       if (D->isInvalidDecl())
-        return true;
+        return;
 
       if (isa<ParmVarDecl>(D))
-        return true;
+        return;
 
       VarDecl::DefinitionKind defKind = D->isThisDeclarationADefinition();
       if (defKind == VarDecl::DefinitionKind::DeclarationOnly)
-        return true;
+        return;
 
      if (Expr *Init = D->getInit()) {
        if (Init->getStmtClass() == Expr::BoundsCastExprClass) {
@@ -2358,7 +2363,7 @@ namespace {
      BoundsExpr *DeclaredBounds = D->getBoundsExpr();
      if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
          DeclaredBounds->isUnknown())
-       return true;
+       return;
 
      // TODO: for array types, check that any declared bounds at the point
      // of initialization are true based on the array size.
@@ -2382,10 +2387,20 @@ namespace {
        }
        if (DumpBounds)
          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
-       // TODO: check that it meets the bounds requirements for the variable.
       }
 
-      return true;
+      return;
+    }
+
+    void VisitReturnStmt(ReturnStmt *RS, bool InCheckedScope) {
+      if (!ReturnBounds)
+        return;
+      Expr *RetValue = RS->getRetValue();
+      if (!RetValue)
+        // We already issued an error message for this case.
+        return;
+      // TODO: Actually check that the return expression bounds imply the return bounds.
+      // TODO: Also check that any parameters used in the return bounds are unmodified.
     }
 
   private:
@@ -2641,16 +2656,15 @@ namespace {
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
-  // The IsChecked arguemnt to TraverseStmt doesn't matter - the body will be a
+  // The IsChecked argument to TraverseStmt doesn't matter - the body will be a
   // compound statement and we'll pick up the checked-ness from that.
-  CheckBoundsDeclarations(*this).TraverseStmt(Body, false);
+  CheckBoundsDeclarations(*this, FD->getBoundsExpr()).TraverseStmt(Body, false);
 }
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm())
-    CheckBoundsDeclarations(*this).TraverseVarDecl(D, getCurScope()->isCheckedScope());
+    CheckBoundsDeclarations(*this, nullptr).TraverseVarDecl(D, getCurScope()->isCheckedScope());
 }
-
 
 namespace {
   class NonModifiyingExprSema : public RecursiveASTVisitor<NonModifiyingExprSema> {

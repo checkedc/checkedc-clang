@@ -593,6 +593,36 @@ struct CheckFallThroughDiagnostics {
     D.diag_AlwaysFallThrough_ReturnsNonVoid =
       diag::warn_falloff_nonvoid_function;
 
+    // For Checked C, these are errors, not warnings, in these situations:
+    // * The function has a checked pointer return type.
+    // * The function has return bounds.
+    // * The function body is a checked scope.
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(Func)) {
+      bool isCheckedReturn = FD->getReturnType()->isCheckedPointerType();
+      bool hasReturnBounds = FD->getBoundsExpr() != nullptr;
+      bool isCheckedFunction = false;
+      if (FD->hasBody()) {
+        CompoundStmt *CS = dyn_cast<CompoundStmt>(FD->getBody());
+        isCheckedFunction = CS->isChecked();
+      }
+      if (isCheckedReturn) {
+        D.diag_MaybeFallThrough_ReturnsNonVoid =
+          diag::err_maybe_falloff_function_with_checked_return;
+        D.diag_AlwaysFallThrough_ReturnsNonVoid =
+          diag::err_falloff_function_with_checked_return;
+      } else if (hasReturnBounds) {
+        D.diag_MaybeFallThrough_ReturnsNonVoid =
+          diag::err_maybe_falloff_function_with_bounds;
+        D.diag_AlwaysFallThrough_ReturnsNonVoid =
+          diag::err_falloff_function_with_bounds;
+      } else if (isCheckedFunction) {
+        D.diag_MaybeFallThrough_ReturnsNonVoid =
+          diag::err_maybe_falloff_checked_function;
+        D.diag_AlwaysFallThrough_ReturnsNonVoid =
+          diag::err_falloff_checked_function;
+      }
+    }
+
     // Don't suggest that virtual functions be marked "noreturn", since they
     // might be overridden by non-noreturn functions.
     bool isVirtualMethod = false;

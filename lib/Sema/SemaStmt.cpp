@@ -3430,6 +3430,9 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       } else if (!RetValExp->isTypeDependent()) {
         // C99 6.8.6.4p1 (ext_ since GCC warns)
         unsigned D = diag::ext_return_has_expr;
+        if (getLangOpts().CheckedC)
+          D = diag::err_return_has_expr;
+
         if (RetValExp->getType()->isVoidType()) {
           NamedDecl *CurDecl = getCurFunctionOrMethodDecl();
           if (isa<CXXConstructorDecl>(CurDecl) ||
@@ -3496,6 +3499,17 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
     } else {
       // C90 6.6.6.4p4
       DiagID = diag::warn_return_missing_expr;
+    }
+
+    // In Checked C, it is an error if a return expression is
+    // missing in a checked scope or when there are return bounds.
+    if (getLangOpts().CheckedC) {
+      if (FnRetType->isCheckedPointerType())
+        DiagID = diag::err_return_missing_expr_for_checked_pointer;
+      else if (FnRetBounds)
+        DiagID = diag::err_return_missing_expr_for_bounds;
+      else if (getCurScope()->isCheckedScope())
+        DiagID = diag::err_return_missing_expr;
     }
 
     if (FD)
