@@ -600,11 +600,8 @@ struct CheckFallThroughDiagnostics {
     if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(Func)) {
       bool isCheckedReturn = FD->getReturnType()->isCheckedPointerType();
       bool hasReturnBounds = FD->getBoundsExpr() != nullptr;
-      bool isCheckedFunction = false;
-      if (FD->hasBody()) {
-        CompoundStmt *CS = dyn_cast<CompoundStmt>(FD->getBody());
-        isCheckedFunction = CS->isChecked();
-      }
+      CompoundStmt *CS = dyn_cast_or_null<CompoundStmt>(FD->getBody());
+      bool isCheckedFunction = CS && CS->isChecked();
       if (isCheckedReturn) {
         D.diag_MaybeFallThrough_ReturnsNonVoid =
           diag::err_maybe_falloff_function_with_checked_return;
