@@ -3430,7 +3430,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       } else if (!RetValExp->isTypeDependent()) {
         // C99 6.8.6.4p1 (ext_ since GCC warns)
         unsigned D = diag::ext_return_has_expr;
-        if (getLangOpts().CheckedC)
+        if (getCurScope()->isCheckedScope())
           D = diag::err_return_has_expr;
 
         if (RetValExp->getType()->isVoidType()) {
