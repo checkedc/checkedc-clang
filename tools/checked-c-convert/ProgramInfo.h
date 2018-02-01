@@ -100,8 +100,16 @@ public:
 
   virtual ~ConstraintVariable() {};
 
+  // Constraint atoms may be either constants or variables. The constants are
+  // trivial to compare, but the variables can only really be compared under
+  // a specific valuation. That valuation is stored in the ProgramInfo data 
+  // structure, so these functions (isLt, isEq) compare two ConstraintVariables
+  // with a specific assignment to the variables in mind. 
   virtual bool isLt(const ConstraintVariable &other, ProgramInfo &I) const = 0;
   virtual bool isEq(const ConstraintVariable &other, ProgramInfo &I) const = 0;
+
+  // A helper function for isLt and isEq where the last parameter is a lambda 
+  // for the specific comparison operation to perform. 
   virtual bool liftedOnCVars(const ConstraintVariable &O, 
       ProgramInfo &Info,
       llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const = 0;
@@ -127,7 +135,7 @@ private:
     O_Pointer,
     O_SizedArray,
     O_UnSizedArray
-  };  
+  };
   // Map from constraint variable to original type and size. 
   // If the original variable U was:
   //  * A pointer, then U -> (a,b) , a = O_Pointer, b has no meaning.

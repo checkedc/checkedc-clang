@@ -95,7 +95,7 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 
   for (auto &P : Vs) {
     if (V) {
-      if (V->isLt(*P, Info) && !V->isEq(*P, Info))
+      if (V->isLt(*P, Info))
         V = P;
     } else {
       V = P;

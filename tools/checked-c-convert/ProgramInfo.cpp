@@ -759,7 +759,7 @@ bool ProgramInfo::link() {
 
         // Constrain the return values to be equal
         // TODO: make this behavior optional?
-        if (P1->hasBody() == false && P2->hasBody() == false) {
+        if (!P1->hasBody() && !P2->hasBody()) {
           constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this);
 
           // Constrain the parameters to be equal, if the parameter arity is
