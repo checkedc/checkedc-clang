@@ -120,11 +120,28 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
 
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == NULL);
+
+      // Okay, if this is a parameter, and we're trying to do a modular
+      // conversion, we need to look at all of the constraint variables 
+      // for all of the declarations, take their upper bound, then compare
+      // those constraints to the constraints on the actual function 
+      // definition. Element by element, there are a few cases:
+      //
+      // 1. Formal < Actual, uses of a function are safe, but the function 
+      //    itself is not. Here, there is little we can do, so we should 
+      //    bump the constraints on the call sites up. 
+      // 2. Formal = Actual, the uses of the function and the function itself
+      //    are equally safe. Here, there is nothing we need to do. 
+      // 3. Formal > Actual, uses of the function are not safe, but the function
+      //    itself is safe. This is hopefully the common case, because we can 
+      //    mitigate it with a bounds safe interface. Here, we need to change
+      //    how we re-write the parameter declaration. 
+
       // Is it a parameter type?
 
       // First, find all the declarations of the containing function.
       if (DeclContext *DF = PV->getParentFunctionOrMethod()) {
-        if (FunctionDecl *FD = dyn_cast<FunctionDecl>(DF)) {
+        if (FunctionDecl *FD = cast<FunctionDecl>(DF)) {
           // For each function, determine which parameter in the declaration
           // matches PV, then, get the type location of that parameter
           // declaration and re-write.
@@ -157,11 +174,10 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
                 R.ReplaceText(TR, sRewrite);
             }
           }
-        } else
-          llvm_unreachable("no function or method");
-      } else
+        } 
+      } else {
         llvm_unreachable("no parent function or method for decl");
-
+      }
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       if (Where != NULL) {
         if (Verbose) {
