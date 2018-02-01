@@ -33,6 +33,8 @@
 #include "utils.h"
 #include "PersistentSourceLoc.h"
 
+class ProgramInfo;
+
 // Holds integers representing constraint variables, with semantics as 
 // defined in the comment at the top of the file.
 typedef std::set<uint32_t> CVars;
@@ -61,6 +63,7 @@ protected:
   // so that later on we do not introduce a spurious constraint 
   // making those variables WILD. 
   std::set<uint32_t> ConstrainedVars;
+
 public:
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) : 
     Kind(K),BaseType(T),Name(N) {}
@@ -96,6 +99,21 @@ public:
   }
 
   virtual ~ConstraintVariable() {};
+
+  // Constraint atoms may be either constants or variables. The constants are
+  // trivial to compare, but the variables can only really be compared under
+  // a specific valuation. That valuation is stored in the ProgramInfo data 
+  // structure, so these functions (isLt, isEq) compare two ConstraintVariables
+  // with a specific assignment to the variables in mind. 
+  virtual bool isLt(const ConstraintVariable &other, ProgramInfo &I) const = 0;
+  virtual bool isEq(const ConstraintVariable &other, ProgramInfo &I) const = 0;
+
+  // A helper function for isLt and isEq where the last parameter is a lambda 
+  // for the specific comparison operation to perform. 
+  virtual bool liftedOnCVars(const ConstraintVariable &O, 
+      ProgramInfo &Info,
+      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const = 0;
+ 
 };
 
 class PointerVariableConstraint;
@@ -161,6 +179,12 @@ public:
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
 
+  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
+  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
+  bool liftedOnCVars(const ConstraintVariable &O, 
+      ProgramInfo &Info,
+      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
+
   virtual ~PointerVariableConstraint() {};
 };
 
@@ -178,9 +202,10 @@ private:
   // Name of the function or function variable. Used by mkString.
   std::string name;
   bool hasproto;
+  bool hasbody;
 public:
   FunctionVariableConstraint() : 
-    ConstraintVariable(FunctionVariable, "", ""),name(""),hasproto(false) { }
+    ConstraintVariable(FunctionVariable, "", ""),name(""),hasproto(false),hasbody(false) { }
 
   FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
     Constraints &CS, const clang::ASTContext &C);
@@ -194,6 +219,7 @@ public:
   std::string getName() { return name; }
 
   bool hasProtoType() { return hasproto; }
+  bool hasBody() { return hasbody; }
 
   static bool classof(const ConstraintVariable *S) {
     return S->getKind() == FunctionVariable;
@@ -211,6 +237,12 @@ public:
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
 
+  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
+  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
+  bool liftedOnCVars(const ConstraintVariable &O, 
+      ProgramInfo &Info,
+      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
+ 
   virtual ~FunctionVariableConstraint() {};
 };
 
@@ -283,9 +315,9 @@ public:
   // Given some expression E, what is the top-most constraint variable that
   // E refers to? 
   std::set<ConstraintVariable*>
-    getVariable(clang::Expr *E, clang::ASTContext *C);
+    getVariable(clang::Expr *E, clang::ASTContext *C, bool inFunctionContext = false);
   std::set<ConstraintVariable*>
-    getVariable(clang::Decl *D, clang::ASTContext *C);
+    getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
 
   VariableMap &getVarMap() { return Variables;  }
 

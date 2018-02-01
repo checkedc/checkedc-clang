@@ -16,14 +16,14 @@ using namespace llvm;
 // For Function and Parameter Decls, use the Spelling location, while for
 // variables, use the expansion location. 
 PersistentSourceLoc
-PersistentSourceLoc::mkPSL(Decl *D, ASTContext &C) {
+PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
   SourceLocation SL = D->getLocation();
 
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) 
+  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) 
     SL = C.getSourceManager().getSpellingLoc(FD->getLocation());
-  else if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) 
+  else if (const ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) 
     SL = C.getSourceManager().getSpellingLoc(PV->getLocation());
-  else if(VarDecl *V = dyn_cast<ParmVarDecl>(D))
+  else if(const VarDecl *V = dyn_cast<ParmVarDecl>(D))
     SL = C.getSourceManager().getExpansionLoc(V->getLocation());
   
   return mkPSL(SL, C);
@@ -32,7 +32,7 @@ PersistentSourceLoc::mkPSL(Decl *D, ASTContext &C) {
 
 // Create a PersistentSourceLoc for a Stmt.
 PersistentSourceLoc
-PersistentSourceLoc::mkPSL(Stmt *S, ASTContext &Context) {
+PersistentSourceLoc::mkPSL(const Stmt *S, ASTContext &Context) {
   return mkPSL(S->getLocStart(), Context);
 }
 

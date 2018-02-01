@@ -55,10 +55,10 @@ public:
   void dump() const { print(llvm::errs()); }
 
   static
-    PersistentSourceLoc mkPSL(clang::Decl *D, clang::ASTContext &Context);
+    PersistentSourceLoc mkPSL(const clang::Decl *D, clang::ASTContext &Context);
 
   static
-    PersistentSourceLoc mkPSL(clang::Stmt *S, clang::ASTContext &Context);
+    PersistentSourceLoc mkPSL(const clang::Stmt *S, clang::ASTContext &Context);
 
 private:
   static
