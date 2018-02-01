@@ -87,6 +87,24 @@ bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
 
+ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info) {
+  if (Vs.size() == 0)
+    return nullptr;
+
+  ConstraintVariable *V = nullptr;
+
+  for (auto &P : Vs) {
+    if (V) {
+      if (V->isLt(*P, Info) && !V->isEq(*P, Info))
+        V = P;
+    } else {
+      V = P;
+    }
+  }
+
+  return V;
+}
+
 typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
 typedef std::pair<DeclNStmt, std::string> DAndReplace;
 
