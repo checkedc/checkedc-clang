@@ -108,6 +108,178 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
 typedef std::pair<DeclNStmt, std::string> DAndReplace;
 
+void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite) {
+  // First, find all the declarations of the containing function.
+  DeclContext *DF = PV->getParentFunctionOrMethod();
+  assert(DF != nullptr && "no parent function or method for decl");
+  FunctionDecl *FD = cast<FunctionDecl>(DF);
+
+  // For each function, determine which parameter in the declaration
+  // matches PV, then, get the type location of that parameter
+  // declaration and re-write.
+
+  // This is kind of hacky, maybe we should record the index of the
+  // parameter when we find it, instead of re-discovering it here.
+  int parmIndex = -1;
+  int c = 0;
+  for (const auto &I : FD->parameters()) {
+    if (I == PV) {
+      parmIndex = c;
+      break;
+    }
+    c++;
+  }
+  assert(parmIndex >= 0);
+
+  for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
+       toRewrite = toRewrite->getPreviousDecl()) {
+    int U = toRewrite->getNumParams();
+    if (parmIndex < U) {
+      // TODO these declarations could get us into deeper 
+      // header files.
+      ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
+      assert(Rewrite != NULL);
+      SourceRange TR = Rewrite->getSourceRange();
+
+      if (canRewrite(R, TR))
+        R.ReplaceText(TR, sRewrite);
+    }
+  }
+}
+
+void rewrite( VarDecl               *VD, 
+              Rewriter              &R, 
+              std::string           sRewrite, 
+              DeclStmt              *Where,
+              std::set<DAndReplace> &skip,
+              const DAndReplace     &N,
+              std::set<DAndReplace> &toRewrite,
+              ASTContext            &A) 
+{
+  if (Where != NULL) {
+    if (Verbose) {
+      errs() << "VarDecl at:\n";
+      Where->dump();
+    }
+    SourceRange TR = VD->getSourceRange();
+
+    // Is there an initializer? If there is, change TR so that it points
+    // to the START of the SourceRange of the initializer text, and drop
+    // an '=' token into sRewrite.
+    if (VD->hasInit()) {
+      SourceLocation eqLoc = VD->getInitializerStartLoc();
+      TR.setEnd(eqLoc);
+      sRewrite = sRewrite + " = ";
+    }
+
+    // Is it a variable type? This is the easy case, we can re-write it
+    // locally, at the site of the declaration.
+    if (Where->isSingleDecl()) {
+      if (canRewrite(R, TR)) {
+        R.ReplaceText(TR, sRewrite);
+      } else {
+        // This can happen if SR is within a macro. If that is the case, 
+        // maybe there is still something we can do because Decl refers 
+        // to a non-macro line.
+
+        SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
+          VD->getLocation());
+
+        if (canRewrite(R, possible)) {
+          R.ReplaceText(possible, sRewrite);
+          std::string newStr = " " + VD->getName().str();
+          R.InsertTextAfter(VD->getLocation(), newStr);
+        } else {
+          if (Verbose) {
+            errs() << "Still don't know how to re-write VarDecl\n";
+            VD->dump();
+            errs() << "at\n";
+            Where->dump();
+            errs() << "with " << sRewrite << "\n";
+          }
+        }
+      }
+    } else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
+      // Hack time!
+      // Sometimes, like in the case of a decl on a single line, we'll need to
+      // do multiple NewTyps at once. In that case, in the inner loop, we'll
+      // re-scan and find all of the NewTyps related to that line and do
+      // everything at once. That means sometimes we'll get NewTyps that
+      // we don't want to process twice. We'll skip them here.
+
+      // Step 1: get the re-written types.
+      std::set<DAndReplace> rewritesForThisDecl;
+      auto I = toRewrite.find(N);
+      while (I != toRewrite.end()) {
+        DAndReplace tmp = *I;
+        if (tmp.first.second == Where)
+          rewritesForThisDecl.insert(tmp);
+        ++I;
+      }
+
+      // Step 2: remove the original line from the program.
+      SourceRange DR = Where->getSourceRange();
+      R.RemoveText(DR);
+
+      // Step 3: for each decl in the original, build up a new string
+      //         and if the original decl was re-written, write that
+      //         out instead (WITH the initializer).
+      std::string newMultiLineDeclS = "";
+      raw_string_ostream newMLDecl(newMultiLineDeclS);
+      for (const auto &DL : Where->decls()) {
+        DAndReplace N;
+        bool found = false;
+        VarDecl *VDL = dyn_cast<VarDecl>(DL);
+        assert(VDL != NULL);
+
+        for (const auto &NLT : rewritesForThisDecl)
+          if (NLT.first.first == DL) {
+            N = NLT;
+            found = true;
+            break;
+          }
+
+        if (found) {
+          newMLDecl << N.second;
+          if (Expr *E = VDL->getInit()) {
+            newMLDecl << " = ";
+            E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
+          }
+          newMLDecl << ";\n";
+        }
+        else {
+          DL->print(newMLDecl);
+          newMLDecl << ";\n";
+        }
+      }
+
+      // Step 4: Write out the string built up in step 3.
+      R.InsertTextAfter(DR.getEnd(), newMLDecl.str());
+
+      // Step 5: Be sure and skip all of the NewTyps that we dealt with
+      //         during this time of hacking, by adding them to the
+      //         skip set.
+
+      for (const auto &TN : rewritesForThisDecl)
+        skip.insert(TN);
+    } else {
+      if (Verbose) {
+        errs() << "Don't know how to re-write VarDecl\n";
+        VD->dump();
+        errs() << "at\n";
+        Where->dump();
+        errs() << "with " << N.second << "\n";
+      }
+    }
+  } else {
+    if (Verbose) {
+      errs() << "Don't know where to rewrite a VarDecl! ";
+      VD->dump();
+      errs() << "\n";
+    }
+  }
+}
+
 // Visit each Decl in toRewrite and apply the appropriate pointer type
 // to that Decl. The state of the rewrite is contained within R, which
 // is both input and output. R is initialized to point to the 'main'
@@ -136,190 +308,12 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
     FullSourceLoc tFSL(tTR.getBegin(), S);
     Files.insert(tFSL.getFileID());
 
+    // Is it a parameter type?
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == NULL);
-
-      // Okay, if this is a parameter, and we're trying to do a modular
-      // conversion, we need to look at all of the constraint variables 
-      // for all of the declarations, take their upper bound, then compare
-      // those constraints to the constraints on the actual function 
-      // definition. Element by element, there are a few cases:
-      //
-      // 1. Formal < Actual, uses of a function are safe, but the function 
-      //    itself is not. Here, there is little we can do, so we should 
-      //    bump the constraints on the call sites up. 
-      // 2. Formal = Actual, the uses of the function and the function itself
-      //    are equally safe. Here, there is nothing we need to do. 
-      // 3. Formal > Actual, uses of the function are not safe, but the function
-      //    itself is safe. This is hopefully the common case, because we can 
-      //    mitigate it with a bounds safe interface. Here, we need to change
-      //    how we re-write the parameter declaration. 
-
-      // Is it a parameter type?
-
-      // First, find all the declarations of the containing function.
-      if (DeclContext *DF = PV->getParentFunctionOrMethod()) {
-        if (FunctionDecl *FD = cast<FunctionDecl>(DF)) {
-          // For each function, determine which parameter in the declaration
-          // matches PV, then, get the type location of that parameter
-          // declaration and re-write.
-
-          // This is kind of hacky, maybe we should record the index of the
-          // parameter when we find it, instead of re-discovering it here.
-          int parmIndex = -1;
-          int c = 0;
-          for (const auto &I : FD->parameters()) {
-            if (I == PV) {
-              parmIndex = c;
-              break;
-            }
-            c++;
-          }
-          assert(parmIndex >= 0);
-
-          for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
-               toRewrite = toRewrite->getPreviousDecl()) {
-            int U = toRewrite->getNumParams();
-            if (parmIndex < U) {
-              // TODO these declarations could get us into deeper 
-              // header files.
-              ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
-              assert(Rewrite != NULL);
-              SourceRange TR = Rewrite->getSourceRange();
-              std::string sRewrite = N.second;
-
-              if (canRewrite(R, TR))
-                R.ReplaceText(TR, sRewrite);
-            }
-          }
-        } 
-      } else {
-        llvm_unreachable("no parent function or method for decl");
-      }
+      rewrite(PV, R, N.second);
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      if (Where != NULL) {
-        if (Verbose) {
-          errs() << "VarDecl at:\n";
-          Where->dump();
-        }
-        SourceRange TR = VD->getSourceRange();
-        std::string sRewrite = N.second;
-
-        // Is there an initializer? If there is, change TR so that it points
-        // to the START of the SourceRange of the initializer text, and drop
-        // an '=' token into sRewrite.
-        if (VD->hasInit()) {
-          SourceLocation eqLoc = VD->getInitializerStartLoc();
-          TR.setEnd(eqLoc);
-          sRewrite = sRewrite + " = ";
-        }
-
-        // Is it a variable type? This is the easy case, we can re-write it
-        // locally, at the site of the declaration.
-        if (Where->isSingleDecl()) {
-          if (canRewrite(R, TR)) {
-            R.ReplaceText(TR, sRewrite);
-          } else {
-            // This can happen if SR is within a macro. If that is the case, 
-            // maybe there is still something we can do because Decl refers 
-            // to a non-macro line.
-
-            SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
-              VD->getLocation());
-
-            if (canRewrite(R, possible)) {
-              R.ReplaceText(possible, N.second);
-              std::string newStr = " " + VD->getName().str();
-              R.InsertTextAfter(VD->getLocation(), newStr);
-            } else {
-              if (Verbose) {
-                errs() << "Still don't know how to re-write VarDecl\n";
-                VD->dump();
-                errs() << "at\n";
-                Where->dump();
-                errs() << "with " << N.second << "\n";
-              }
-            }
-          }
-        } else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
-          // Hack time!
-          // Sometimes, like in the case of a decl on a single line, we'll need to
-          // do multiple NewTyps at once. In that case, in the inner loop, we'll
-          // re-scan and find all of the NewTyps related to that line and do
-          // everything at once. That means sometimes we'll get NewTyps that
-          // we don't want to process twice. We'll skip them here.
-
-          // Step 1: get the re-written types.
-          std::set<DAndReplace> rewritesForThisDecl;
-          auto I = toRewrite.find(N);
-          while (I != toRewrite.end()) {
-            DAndReplace tmp = *I;
-            if (tmp.first.second == Where)
-              rewritesForThisDecl.insert(tmp);
-            ++I;
-          }
-
-          // Step 2: remove the original line from the program.
-          SourceRange DR = Where->getSourceRange();
-          R.RemoveText(DR);
-
-          // Step 3: for each decl in the original, build up a new string
-          //         and if the original decl was re-written, write that
-          //         out instead (WITH the initializer).
-          std::string newMultiLineDeclS = "";
-          raw_string_ostream newMLDecl(newMultiLineDeclS);
-          for (const auto &DL : Where->decls()) {
-            DAndReplace N;
-            bool found = false;
-            VarDecl *VDL = dyn_cast<VarDecl>(DL);
-            assert(VDL != NULL);
-
-            for (const auto &NLT : rewritesForThisDecl)
-              if (NLT.first.first == DL) {
-                N = NLT;
-                found = true;
-                break;
-              }
-
-            if (found) {
-              newMLDecl << N.second;
-              if (Expr *E = VDL->getInit()) {
-                newMLDecl << " = ";
-                E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
-              }
-              newMLDecl << ";\n";
-            }
-            else {
-              DL->print(newMLDecl);
-              newMLDecl << ";\n";
-            }
-          }
-
-          // Step 4: Write out the string built up in step 3.
-          R.InsertTextAfter(DR.getEnd(), newMLDecl.str());
-
-          // Step 5: Be sure and skip all of the NewTyps that we dealt with
-          //         during this time of hacking, by adding them to the
-          //         skip set.
-
-          for (const auto &TN : rewritesForThisDecl)
-            skip.insert(TN);
-        } else {
-          if (Verbose) {
-            errs() << "Don't know how to re-write VarDecl\n";
-            VD->dump();
-            errs() << "at\n";
-            Where->dump();
-            errs() << "with " << N.second << "\n";
-          }
-        }
-      } else {
-        if (Verbose) {
-          errs() << "Don't know where to rewrite a VarDecl! ";
-          VD->dump();
-          errs() << "\n";
-        }
-      }
+      rewrite(VD, R, N.second, Where, skip, N, toRewrite, A);
     } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D)) {
       // TODO: If the return type is a fully-specified function pointer, 
       //       then clang will give back an invalid source range for the 
