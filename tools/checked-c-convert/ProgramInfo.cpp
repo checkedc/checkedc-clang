@@ -713,6 +713,16 @@ bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable*> V,
   } 
 }
 
+bool ProgramInfo::checkStructuralEquality(QualType D, QualType S) {
+  if (D == S)
+    return true;
+
+  if (D->isPointerType() == S->isPointerType())
+    return true;
+
+  return false;
+}
+
 bool ProgramInfo::isExternOkay(std::string ext) {
   return llvm::StringSwitch<bool>(ext)
     .Cases("malloc", "free", true)
@@ -1041,23 +1051,27 @@ bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
 // Returns true if E resolves to a constraint variable q_i and the
 // currentVariable field of V is that constraint variable. Returns false if
 // a constraint variable cannot be found.
+// ifc mirrors the inFunctionContext boolean parameter to getVariable. 
 std::set<ConstraintVariable *> 
-ProgramInfo::getVariableHelper(Expr *E, 
-  std::set<ConstraintVariable *> V, ASTContext *C) {
+ProgramInfo::getVariableHelper( Expr                            *E,
+                                std::set<ConstraintVariable *>  V,
+                                ASTContext                      *C,
+                                bool                            ifc)
+{
   E = E->IgnoreParenImpCasts();
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-    return getVariable(DRE->getDecl(), C);
+    return getVariable(DRE->getDecl(), C, ifc);
   } else if (MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
-    return getVariable(ME->getMemberDecl(), C);
+    return getVariable(ME->getMemberDecl(), C, ifc);
   } else if (BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
-    std::set<ConstraintVariable*> T1 = getVariableHelper(BO->getLHS(), V, C);
-    std::set<ConstraintVariable*> T2 = getVariableHelper(BO->getRHS(), V, C);
+    std::set<ConstraintVariable*> T1 = getVariableHelper(BO->getLHS(), V, C, ifc);
+    std::set<ConstraintVariable*> T2 = getVariableHelper(BO->getRHS(), V, C, ifc);
     T1.insert(T2.begin(), T2.end());
     return T1;
   } else if (ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E)) {
     // In an array subscript, we want to do something sort of similar to taking
     // the address or doing a dereference. 
-    std::set<ConstraintVariable *> T = getVariableHelper(AE->getBase(), V, C);
+    std::set<ConstraintVariable *> T = getVariableHelper(AE->getBase(), V, C, ifc);
     std::set<ConstraintVariable*> tmp;
     for (const auto &CV : T) {
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(CV)) {
@@ -1079,7 +1093,7 @@ ProgramInfo::getVariableHelper(Expr *E,
     return T;
   } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
     std::set<ConstraintVariable *> T = 
-      getVariableHelper(UO->getSubExpr(), V, C);
+      getVariableHelper(UO->getSubExpr(), V, C, ifc);
    
     std::set<ConstraintVariable*> tmp;
     if (UO->getOpcode() == UO_Deref) {
@@ -1105,9 +1119,9 @@ ProgramInfo::getVariableHelper(Expr *E,
 
     return T;
   } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
-    return getVariableHelper(IE->getSubExpr(), V, C);
+    return getVariableHelper(IE->getSubExpr(), V, C, ifc);
   } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
-    return getVariableHelper(PE->getSubExpr(), V, C);
+    return getVariableHelper(PE->getSubExpr(), V, C, ifc);
   } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
     // Here, we need to look up the target of the call and return the
     // constraints for the return value of that function.
@@ -1116,7 +1130,7 @@ ProgramInfo::getVariableHelper(Expr *E,
       // There are a few reasons that we couldn't get a decl. For example,
       // the call could be done through an array subscript. 
       Expr *CalledExpr = CE->getCallee();
-      std::set<ConstraintVariable*> tmp = getVariableHelper(CalledExpr, V, C);
+      std::set<ConstraintVariable*> tmp = getVariableHelper(CalledExpr, V, C, ifc);
       std::set<ConstraintVariable*> T;
 
       for (ConstraintVariable *C : tmp) {
@@ -1135,7 +1149,7 @@ ProgramInfo::getVariableHelper(Expr *E,
     // D could be a FunctionDecl, or a VarDecl, or a FieldDecl. 
     // Really it could be any DeclaratorDecl. 
     if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(D)) {
-      std::set<ConstraintVariable*> CS = getVariable(FD, C);
+      std::set<ConstraintVariable*> CS = getVariable(FD, C, ifc);
       std::set<ConstraintVariable*> TR;
       FVConstraint *FVC = nullptr;
       for (const auto &J : CS) {
@@ -1172,11 +1186,11 @@ ProgramInfo::getVariableHelper(Expr *E,
     // Explore the three exprs individually.
     std::set<ConstraintVariable*> T;
     std::set<ConstraintVariable*> R;
-    T = getVariableHelper(CO->getCond(), V, C);
+    T = getVariableHelper(CO->getCond(), V, C, ifc);
     R.insert(T.begin(), T.end());
-    T = getVariableHelper(CO->getLHS(), V, C);
+    T = getVariableHelper(CO->getLHS(), V, C, ifc);
     R.insert(T.begin(), T.end());
-    T = getVariableHelper(CO->getRHS(), V, C);
+    T = getVariableHelper(CO->getRHS(), V, C, ifc);
     R.insert(T.begin(), T.end());
     return R;
   } else {
@@ -1266,7 +1280,7 @@ ProgramInfo::getVariable(Expr *E, ASTContext *C, bool inFunctionContext) {
   // Get the constraint variables represented by this Expr
   std::set<ConstraintVariable*> T;
   if (E)
-    return getVariableHelper(E, T, C);
+    return getVariableHelper(E, T, C, inFunctionContext);
   else
     return T;
 }
