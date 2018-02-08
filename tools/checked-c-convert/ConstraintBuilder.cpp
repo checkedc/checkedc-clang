@@ -329,6 +329,26 @@ public:
   // TODO: other visitors to visit statements and expressions that we use to
   // gather constraints.
 
+  bool VisitCStyleCastExpr(CStyleCastExpr *C) {
+    // If we're casting from something with a constraint variable to something
+    // that isn't a pointer type, we should constrain up. 
+    auto W = Info.getVariable(C->getSubExpr(), Context, true); 
+
+    if (W.size() > 0) {
+      // Get the source and destination types. 
+      QualType    Source = C->getSubExpr()->getType();
+      QualType    Dest = C->getType();
+      Constraints &CS = Info.getConstraints();
+
+      // If these aren't compatible, constrain the source to wild. 
+      if (!Info.checkStructuralEquality(Dest, Source))
+        for (auto &C : W)
+          C->constrainTo(CS, CS.getWild());
+    }
+
+    return true;
+  }
+
   bool VisitCompoundAssignOperator(CompoundAssignOperator *O) {
     arithBinop(O);
     return true;
