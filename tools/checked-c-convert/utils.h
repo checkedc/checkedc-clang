@@ -13,6 +13,7 @@
 #include "PersistentSourceLoc.h"
 
 class ConstraintVariable;
+class ProgramInfo;
 
 // Maps a Decl to the set of constraint variables for that Decl.
 typedef std::map<PersistentSourceLoc, 
@@ -25,4 +26,6 @@ extern llvm::cl::opt<bool> Verbose;
 extern llvm::cl::opt<bool> DumpIntermediate;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
+
+ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info);
 #endif

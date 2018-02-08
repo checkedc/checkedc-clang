@@ -352,15 +352,10 @@ public:
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<ConstraintVariable*> ParameterEC =
-          Info.getVariable(A, Context);
+          Info.getVariable(A, Context, false);
 
         if (i < FD->getNumParams()) {
-          ParmVarDecl *PVD = FD->getParamDecl(i);
-          std::set<ConstraintVariable*> ParameterDC =
-            Info.getVariable(PVD, Context);
-
-          // Constrain ParameterEC and ParameterDC to be equal.
-          constrainEq(ParameterEC, ParameterDC, Info);
+          constrainAssign(FD->getParamDecl(i), A);
         } else {
           // Constrain ParameterEC to wild if it is a pointer type.
           Constraints &CS = Info.getConstraints();
@@ -372,7 +367,7 @@ public:
       }
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
       // This could be a function pointer.
-      std::set<ConstraintVariable*> V = Info.getVariable(DD, Context);
+      std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, false);
       if (V.size() > 0) {
         for (const auto &C : V) {
           FVConstraint *FV = nullptr;
@@ -389,7 +384,7 @@ public:
             unsigned i = 0;
             for (const auto &A : E->arguments()) {
               std::set<ConstraintVariable*> ParameterEC = 
-                Info.getVariable(A, Context);
+                Info.getVariable(A, Context, false);
               
               if (i < FV->numParams()) {
                 std::set<ConstraintVariable*> ParameterDC = 
@@ -411,7 +406,7 @@ public:
             // everything. 
             Constraints &CS = Info.getConstraints();
             for (const auto &A : E->arguments()) 
-              for (const auto &Ct : Info.getVariable(A, Context)) 
+              for (const auto &Ct : Info.getVariable(A, Context, false)) 
                 Ct->constrainTo(CS, CS.getWild());
             C->constrainTo(CS, CS.getWild());
           }
@@ -420,7 +415,7 @@ public:
         // Constrain everything to wild. 
         for (const auto &A : E->arguments()) {
           std::set<ConstraintVariable*> ParameterEC = 
-            Info.getVariable(A, Context);
+            Info.getVariable(A, Context, false);
           
           Constraints &CS = Info.getConstraints();
           for (const auto &C : ParameterEC) 
@@ -431,7 +426,7 @@ public:
       // Constrain everything to wild. 
       for (const auto &A : E->arguments()) {
         std::set<ConstraintVariable*> ParameterEC = 
-          Info.getVariable(A, Context);
+          Info.getVariable(A, Context, false);
         
         Constraints &CS = Info.getConstraints();
         for (const auto &C : ParameterEC) 
