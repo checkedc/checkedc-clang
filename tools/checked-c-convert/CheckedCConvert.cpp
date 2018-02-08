@@ -457,10 +457,11 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, 
-      Rewriter &R, std::set<FileID> &Files)
-    : Context(C), Info(I), R(R), Files(Files) {} 
+      Rewriter &R, std::set<FileID> &Files, std::set<std::string> &V)
+    : Context(C), Info(I), R(R), Files(Files), VisitedSet(V) {} 
 
   bool VisitCallExpr(CallExpr *);
+  bool VisitFunctionDecl(FunctionDecl *);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
   bool anyTop(std::set<ConstraintVariable*>);
@@ -468,6 +469,7 @@ private:
   ProgramInfo &Info;
   Rewriter &R;
   std::set<FileID> &Files;
+  std::set<std::string> &VisitedSet;
 };
 
 // For a given function name, what are the argument positions for that function
@@ -496,6 +498,35 @@ bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
     }
   }
   return anyTopFound;
+}
+
+// This function checks how to re-write a function declaration. 
+bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
+
+  // Get all of the constraint variables for the function. 
+  // Check and see if we have a definition in scope. If we do, then:
+  // For the return value and each of the parameters, do the following:
+  //   1. Get a constraint variable representing the definition (def) and the 
+  //      declaration (dec). 
+  //   2. Check if def < dec, dec < def, or dec = def. 
+  //   3. Only if dec < def, we insert a bounds-safe interface. 
+  // If we don't have a definition in scope, we can assert that all of 
+  // the constraint variables are equal. 
+  // Finally, we need to note that we've visited this particular function, and
+  // that we shouldn't make one of these visits again. 
+
+  auto funcName = FD->getNameAsString();
+
+  // Make sure we haven't visited this function name before, and that we 
+  // only visit it once. 
+  if (VisitedSet.find(funcName) != VisitedSet.end()) 
+    return true;
+  else
+    VisitedSet.insert(funcName);
+
+  // Do we have a definition for this declaration?  
+
+  return true;
 }
 
 bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
@@ -540,9 +571,10 @@ public:
     Rewriter R(Context.getSourceManager(), Context.getLangOpts());
     std::set<FileID> Files;
 
+    std::set<std::string> v;
     // Unification is done, so visit and see if we need to place any casts
     // in the program. 
-    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, Files);
+    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, Files, v);
     for (const auto &D : Context.getTranslationUnitDecl()->decls())
       CPV.TraverseDecl(D);
 
