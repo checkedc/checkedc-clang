@@ -282,6 +282,7 @@ public:
                                 std::set<ConstraintVariable*> U,
                                 clang::QualType VTy,
                                 clang::QualType UTy);
+  bool checkStructuralEquality(clang::QualType, clang::QualType);
 
   // Called when we are done adding constraints and visiting ASTs. 
   // Links information about global symbols together and adds 
@@ -310,7 +311,7 @@ public:
   // a constraint variable cannot be found.
   std::set<ConstraintVariable *> 
   getVariableHelper(clang::Expr *E,std::set<ConstraintVariable *>V,
-    clang::ASTContext *C);
+    clang::ASTContext *C, bool ifc);
 
   // Given some expression E, what is the top-most constraint variable that
   // E refers to? 
