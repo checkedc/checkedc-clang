@@ -1051,11 +1051,12 @@ bool ProgramInfo::getDeclStmtForDecl(Decl *D, DeclStmt *&St) {
 // Returns true if E resolves to a constraint variable q_i and the
 // currentVariable field of V is that constraint variable. Returns false if
 // a constraint variable cannot be found.
+// ifc mirrors the inFunctionContext boolean parameter to getVariable. 
 std::set<ConstraintVariable *> 
-ProgramInfo::getVariableHelper( Expr                            *E, 
-                                std::set<ConstraintVariable *>  V, 
+ProgramInfo::getVariableHelper( Expr                            *E,
+                                std::set<ConstraintVariable *>  V,
                                 ASTContext                      *C,
-                                bool                            ifc) 
+                                bool                            ifc)
 {
   E = E->IgnoreParenImpCasts();
   if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {

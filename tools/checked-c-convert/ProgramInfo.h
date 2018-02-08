@@ -315,6 +315,11 @@ public:
 
   // Given some expression E, what is the top-most constraint variable that
   // E refers to? 
+  // inFunctionContext controls whether or not this operation is within
+  // a function context. If set to true, we find Declarations associated with 
+  // the function Definition (if present). If set to false, we skip the 
+  // Declaration associated with the Definition and find the first 
+  // non-Declaration Definition.
   std::set<ConstraintVariable*>
     getVariable(clang::Expr *E, clang::ASTContext *C, bool inFunctionContext = false);
   std::set<ConstraintVariable*>
