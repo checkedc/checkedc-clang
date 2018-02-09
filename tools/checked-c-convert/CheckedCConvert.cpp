@@ -105,6 +105,38 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
   return V;
 }
 
+// Walk the list of declarations and find a declaration accompanied by 
+// a definition and a function body. 
+FunctionDecl *getDefinition(FunctionDecl *FD) {
+  for (auto &D : FD->decls())
+    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
+      if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
+        return tFD;
+
+  for (const auto &D : FD->redecls())
+    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
+      if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
+        return tFD;
+
+  return nullptr;
+}
+
+// Walk the list of declarations and find a declaration that is NOT 
+// a definition and does NOT have a body. 
+FunctionDecl *getDeclaration(FunctionDecl *FD) {
+  for (auto &D : FD->decls())
+    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
+      if (!tFD->isThisDeclarationADefinition())
+        return tFD;
+
+  for (const auto &D : FD->redecls())
+    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
+      if (!tFD->isThisDeclarationADefinition())
+        return tFD;
+
+  return FD;
+}
+
 typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
 typedef std::pair<DeclNStmt, std::string> DAndReplace;
 
@@ -509,7 +541,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   //   1. Get a constraint variable representing the definition (def) and the 
   //      declaration (dec). 
   //   2. Check if def < dec, dec < def, or dec = def. 
-  //   3. Only if dec < def, we insert a bounds-safe interface. 
+  //   3. Only if def < dec, we insert a bounds-safe interface. 
   // If we don't have a definition in scope, we can assert that all of 
   // the constraint variables are equal. 
   // Finally, we need to note that we've visited this particular function, and
@@ -525,6 +557,42 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     VisitedSet.insert(funcName);
 
   // Do we have a definition for this declaration?  
+  FunctionDecl *Definition = getDefinition(FD);
+  FunctionDecl *Declaration = getDeclaration(FD);
+
+  if(Definition == nullptr)
+    return true;
+  assert (Declaration != nullptr);
+
+  // Get constraint variables for the declaration and the definition.
+  // Those constraints should be function constraints. 
+  auto cDecl = cast<FVConstraint>(
+      getHighest(Info.getVariable(Declaration, Context, false), Info));
+  auto cDefn = cast<FVConstraint>(
+      getHighest(Info.getVariable(Definition, Context, true), Info));
+
+  // Compare parameters. 
+  if (cDecl->numParams() == cDefn->numParams()) 
+    for (unsigned i = 0; i < cDecl->numParams(); ++i) {
+      auto Decl = getHighest(cDecl->getParamVar(i), Info);
+      auto Defn = getHighest(cDefn->getParamVar(i), Info);
+      assert(Decl);
+      assert(Defn);
+      
+      // If this holds, then we want to insert a bounds safe interface. 
+      if (Defn->isLt(*Decl, Info)) {
+
+      }
+    }
+
+  // Compare returns. 
+  auto Decl = getHighest(cDecl->getReturnVars(), Info);
+  auto Defn = getHighest(cDefn->getReturnVars(), Info);
+
+  // Insert a bounds safe interface at the return address. 
+  if (Defn->isLt(*Decl, Info)) {
+
+  }
 
   return true;
 }
