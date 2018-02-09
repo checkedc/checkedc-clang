@@ -167,7 +167,7 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
 
   auto I = getCvars().begin();
   auto J = OC.begin();
-  auto CS = Info.getConstraints();
+  Constraints &CS = Info.getConstraints();
   auto env = CS.getVariables();
 
   while(I != getCvars().end() && J != OC.end()) {
