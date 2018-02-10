@@ -4713,8 +4713,14 @@ public:
   BoundsExpr *InferLValueBounds(Expr *E);
 
   /// CreateTypeBasedBounds: the bounds that can be inferred from
-  /// the type alone.  Useful for Ptr types and interop types.
-  BoundsExpr *CreateTypeBasedBounds(QualType QT, bool IsParam);
+  /// the type alone.
+  /// * E is the base expression for which we are inferring bounds
+  /// * Ty is the target type.  It may differ from E's tu[e because it is
+  ///   an interoperation type.
+  /// * IsParam indicates wheteher E is a parameter variable.
+  /// * IsBoundsSafeInterface indicates whether Ty is a bounds-safe
+  BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
+                                    bool IsBoundsSafeInterface);
 
   /// InferLValueTargetBounds - infer the bounds for the
   /// target of an lvalue.

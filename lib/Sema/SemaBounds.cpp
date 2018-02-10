@@ -222,6 +222,7 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
   NonModifyingContext ErrorKind) {
   if (!Bounds)
     return Bounds;
+  assert(!Bounds->isInvalid());
 
   BoundsExpr *Result;
   auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args, ErrorKind);
@@ -230,6 +231,9 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
       return nullptr;
   }
   else if (ConcreteBounds.isInvalid()) {
+    llvm::outs() << "Failed concretizing\n";
+    Bounds->dump(llvm::outs());
+    llvm::outs().flush();
     llvm_unreachable("unexpected failure in making function bounds concrete with arguments");
     return nullptr;
   }
@@ -558,6 +562,15 @@ namespace {
           } else {
             ResultTy = Base->getType();
             LowerBound = Base;
+            ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(LowerBound);
+            bool isImplicitCast = ICE /* && ICE->isBoundsSafeInterface() */;
+            if (ResultTy->isPointerType() && (!ResultTy->isCheckedPointerArrayType() || 
+                isImplicitCast)) {
+              ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
+                CheckedPointerKind::Array);
+              LowerBound =
+                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base);
+            }
           }
           Expr *UpperBound =
             new (Context) BinaryOperator(LowerBound, Count,
@@ -720,8 +733,7 @@ namespace {
       }
     }
 
-    // Given a Ptr type or a bounds-safe interface type, create the
-    // bounds implied by the type.
+
     BoundsExpr *CreateTypeBasedBounds(QualType Ty, bool IsParam) {
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
@@ -743,40 +755,41 @@ namespace {
       return CreateBoundsEmpty();
     }
 
-    // This is a specialized version of CreateTypeBasedBounds that
-    // lets us avoid allocating an intermediate count bounds expression.
+    // Given a Ptr type or a bounds-safe interface type, create the
+    // bounds implied by the type.  Place the bounds in standard form
+    // (do not use count or byte_count because their meaning changes
+    //  when propagated to parent expressions).
     BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
                                       bool IsBoundsSafeInterface) {
+      BoundsExpr *BE = nullptr;
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
       // bounds.
+
       if (Ty->isCheckedPointerPtrType()) {
         if (Ty->isFunctionPointerType())
-          return CreateBoundsEmpty();
-        Expr *Base;
-        if (E->isLValue()) {
-          ImplicitCastExpr *ICE = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
-          ICE->setBoundsSafeInterface(IsBoundsSafeInterface);
-          Base = ICE;
-        } else
-          Base = E;
-        if (Ty->isVoidPointerType()) {
-          return ExpandToRange(Base, Context.getPrebuiltByteCountOne());
-        } else
-          return ExpandToRange(Base, Context.getPrebuiltCountOne());
+          ;
+        else if (Ty->isVoidPointerType())
+          BE = Context.getPrebuiltByteCountOne();
+        else
+          BE = Context.getPrebuiltCountOne();
       } else if (Ty->isCheckedArrayType() && IsParam) {
         assert(IsBoundsSafeInterface && "unexpected checked array type for parameter");
-        assert(E->isLValue());
-        BoundsExpr *BE = CreateBoundsForArrayType(Ty);
-        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
-        Base->setBoundsSafeInterface(IsBoundsSafeInterface);
-        return ExpandToRange(Base, BE);
+        BE = CreateBoundsForArrayType(Ty);
       } else if (Ty->isCheckedPointerNtArrayType()) {
-        ImplicitCastExpr *Base = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, E);
-        return ExpandToRange(Base, Context.getPrebuiltCountZero());
+        BE = Context.getPrebuiltCountZero();
       }
    
-       return CreateBoundsEmpty();
+      if (!BE)
+        return CreateBoundsEmpty();
+
+      Expr *Base = E;
+      if (Base->isLValue()) {
+        ImplicitCastExpr *ICE = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, Base);
+        ICE->setBoundsSafeInterface(IsBoundsSafeInterface);
+        Base = ICE;
+      }
+      return ExpandToRange(Base, BE);
     }
 
     // Compute bounds for the target of an lvalue.  Values assigned through
@@ -1221,8 +1234,10 @@ BoundsExpr *Sema::InferLValueBounds(Expr *E) {
   return BoundsInference(*this).LValueBounds(E);
 }
 
-BoundsExpr *Sema::CreateTypeBasedBounds(QualType QT, bool IsParam) {
-  return BoundsInference(*this).CreateTypeBasedBounds(QT, IsParam);
+BoundsExpr *Sema::CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
+                                        bool IsBoundsSafeInterface) {
+  return BoundsInference(*this).CreateTypeBasedBounds(E, Ty, IsParam,
+                                                      IsBoundsSafeInterface);
 }
 
 BoundsExpr *Sema::InferLValueTargetBounds(Expr *E) {
@@ -2211,6 +2226,9 @@ namespace {
           }
       }
 
+
+
+
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
                                                      CE->getNumArgs());
       for (unsigned i = 0; i < Count; i++) {
@@ -2223,18 +2241,34 @@ namespace {
             continue;
         }
 
+        // We want to check the argument expression implies the desired parameter bounds.
+        // To compute the desired parameter bounds, we substitute the arguments for
+        // parameters in the parameter bounds expression.
         const BoundsExpr *ParamBounds = FuncProtoTy->getParamBounds(i);
 
         if (!ParamBounds)
           continue;
 
-        if (ParamBounds->isInteropTypeAnnotation())
-          ParamBounds = S.CreateTypeBasedBounds(ParamBounds->getType(), true);
+        Expr *Arg = CE->getArg(i);
 
+        // We have a bounds of the form  count(e) or byte_count(e).  Expand
+        // the bounds to a standard form, using the current argument as the
+        // base expression. We are short circuiting a step here.  The full
+        // expansion would use the parameter represented as a symbolic index.
+        // In the step below, we would then substitute the actual argument for
+        // that parameter represented using an index.
+        if (ParamBounds->isElementCount() || ParamBounds->isByteCount())
+          ParamBounds = S.ExpandToRange(Arg, const_cast<BoundsExpr *>(ParamBounds));
+
+        if (ParamBounds->isInteropTypeAnnotation())
+          // The same short-circuit logic applies here too.
+          ParamBounds = S.CreateTypeBasedBounds(Arg, ParamBounds->getType(), true, true);
+
+        // Check after handling the interop type annotation, not before, because
+        // handling the interop type annotation could make the bounds known.
         if (ParamBounds->isUnknown())
           continue;
 
-        Expr *Arg = CE->getArg(i);
         BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getLocStart(),
@@ -2305,7 +2339,7 @@ namespace {
           SrcBounds = S.CreateInvalidBoundsExpr();
         } else {
           BoundsExpr *TargetBounds =
-            S.CreateTypeBasedBounds(E->getType(), false);
+            S.CreateTypeBasedBounds(E, E->getType(), false, false);
           CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, E->getSubExpr(),
                                          SrcBounds, InCheckedScope);
         }
