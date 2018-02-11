@@ -230,6 +230,15 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
       return nullptr;
   }
   else if (ConcreteBounds.isInvalid()) {
+    llvm::outs() << "Failed concretizing\n";
+    llvm::outs() << "Bounds:\n";
+    Bounds->dump(llvm::outs());
+    int count = Args.size();
+    for (int i = 0; i < count; i++) {
+      llvm::outs() << "Dumping arg " << i << "\n";
+      Args[i]->dump(llvm::outs());
+    }
+    llvm::outs().flush();
     llvm_unreachable("unexpected failure in making function bounds concrete with arguments");
     return nullptr;
   }
