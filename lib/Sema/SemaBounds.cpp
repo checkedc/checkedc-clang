@@ -728,27 +728,6 @@ namespace {
       }
     }
 
-    BoundsExpr *CreateTypeBasedBounds(QualType Ty, bool IsParam) {
-      // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
-      // it is a function pointer type, in which case it has no required
-      // bounds.
-      if (Ty->isCheckedPointerPtrType()) {
-        if (Ty->isFunctionPointerType())
-          return CreateBoundsEmpty();
-        if (Ty->isVoidPointerType())
-          return Context.getPrebuiltByteCountOne();
-        else
-          return Context.getPrebuiltCountOne();
-      } else if (Ty->isCheckedArrayType() && IsParam) {
-        return CreateBoundsForArrayType(Ty);
-      } else if (Ty->isCheckedPointerNtArrayType()) {
-        // Null-terminated pointers get a zero element bounds.
-        return Context.getPrebuiltCountZero();
-      }
-
-      return CreateBoundsEmpty();
-    }
-
     // Given a Ptr type or a bounds-safe interface type, create the
     // bounds implied by the type.  Place the bounds in standard form
     // (do not use count or byte_count because their meaning changes
