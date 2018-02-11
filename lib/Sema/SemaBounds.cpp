@@ -208,7 +208,7 @@ namespace {
           ErroredForArgument.set(index);
         }
 
-        return AE;
+        return SemaRef.MakeAssignmentImplicitCastExplicit(AE);
       } else {
         llvm_unreachable("out of range index for positional argument");
         return ExprResult();
@@ -440,15 +440,18 @@ namespace {
                                        ExprValueKind::VK_RValue);
     }
 
-  private:
-    Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E) {
+    Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E,
+                             bool isBoundsSafeInterface) {
       // Synthesize some dummy type source source information.
       TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);
-      return CStyleCastExpr::Create(Context, Target, ExprValueKind::VK_RValue,
-                                      CK, E, nullptr, DI, SourceLocation(),
-                                      SourceLocation());
+      CStyleCastExpr *CE = CStyleCastExpr::Create(Context, Target,
+        ExprValueKind::VK_RValue, CK, E, nullptr, DI, SourceLocation(),
+        SourceLocation());
+      CE->setBoundsSafeInterface(isBoundsSafeInterface);
+      return CE;
     }
 
+  private:
     Expr *CreateAddressOfOperator(Expr *E) {
       QualType Ty = Context.getPointerType(E->getType(), CheckedPointerKind::Array);
       return new (Context) UnaryOperator(E, UnaryOperatorKind::UO_AddrOf, Ty,
@@ -551,6 +554,7 @@ namespace {
           Expr *Count = BC->getCountExpr();
           QualType ResultTy;
           Expr *LowerBound;
+          Base = SemaRef.MakeAssignmentImplicitCastExplicit(Base);
           if (K == BoundsExpr::ByteCount) {
             ResultTy = Context.getPointerType(Context.CharTy,
                                               CheckedPointerKind::Array);
@@ -558,19 +562,10 @@ namespace {
             // to appear in the source code for the code to be correct, so
             // use an explicit cast operation.
             LowerBound =
-              CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base);
+              CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
           } else {
             ResultTy = Base->getType();
             LowerBound = Base;
-            ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(LowerBound);
-            bool isImplicitCast = ICE /* && ICE->isBoundsSafeInterface() */;
-            if (ResultTy->isPointerType() && (!ResultTy->isCheckedPointerArrayType() || 
-                isImplicitCast)) {
-              ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
-                CheckedPointerKind::Array);
-              LowerBound =
-                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base);
-            }
           }
           Expr *UpperBound =
             new (Context) BinaryOperator(LowerBound, Count,
@@ -1269,6 +1264,44 @@ BoundsExpr *Sema::ExpandToRange(VarDecl *D, BoundsExpr *B) {
   return BI.ExpandToRange(Base, B);
 }
 
+Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
+  if (!E->isRValue())
+    return E;
+
+  ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
+  if (!ICE)
+    return E;
+
+  bool isUsualUnaryConversion = false;
+  CastKind CK = ICE->getCastKind();
+  Expr *SE = ICE->getSubExpr();
+  QualType TargetTy = ICE->getType();
+  if (CK == CK_FunctionToPointerDecay || CK == CK_ArrayToPointerDecay ||
+      CK == CK_LValueToRValue)
+    isUsualUnaryConversion = true;
+  else if (CK == CK_IntegralCast) {
+    QualType Ty = SE->getType();
+    // Half FP have to be promoted to float unless it is natively supported
+    if (CK == CK_FloatingCast && TargetTy == Context.FloatTy &&
+        Ty->isHalfType() && !getLangOpts().NativeHalfType)
+      isUsualUnaryConversion = true;
+    else if (CK == CK_IntegralCast &&
+             Ty->isIntegralOrUnscopedEnumerationType()) {
+      QualType PTy = Context.isPromotableBitField(SE);
+      if (!PTy.isNull() && TargetTy == PTy)
+        isUsualUnaryConversion = true;
+      else if (Ty->isPromotableIntegerType() &&
+              TargetTy == Context.getPromotedIntegerType(Ty))
+        isUsualUnaryConversion = true;
+    }
+  }
+
+  if (isUsualUnaryConversion)
+    return E;
+
+  return BoundsInference(*this).CreateExplicitCast(TargetTy, CK, SE,
+                                                   ICE->isBoundsSafeInterface());
+}
 
 namespace {
   class CheckBoundsDeclarations {

@@ -4722,6 +4722,16 @@ public:
   BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
                                     bool IsBoundsSafeInterface);
 
+  /// ReplaceAssignmentImplicitCast: E has had assignment conversion rules
+  /// applied to it. If an implicit cast has been introduced because of the
+  /// assignment conversion rules, replace it with an explicit cast.
+  /// This allows us to substitute E into other operator expressions without worrying
+  /// about the different implicit conversion rules between assignments and
+  //// other operators.   Sema tree rewriting assumes that semantic
+  /// analysis will recreate implicit casts.  That doesn't happen properly if
+  /// E is taken from an assignment expression and used in another operator expression.
+  Expr *MakeAssignmentImplicitCastExplicit(Expr *E);
+
   /// InferLValueTargetBounds - infer the bounds for the
   /// target of an lvalue.
   BoundsExpr *InferLValueTargetBounds(Expr *E);
