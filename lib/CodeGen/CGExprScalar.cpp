@@ -1742,19 +1742,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     llvm_unreachable("scalar cast to non-scalar value");
 
   case CK_LValueToRValue:
-  /*
-    llvm::outs() << "E->getType() = ";
-    E->getType()->dump(llvm::outs());
-    llvm::outs() << "DestTy = ";
-    DestTy->dump(llvm::outs());
-    llvm::outs() << "CE = ";
-    CE->dump(llvm::outs());
-    llvm::outs() << "SubExpr = ";
-    E->dump(llvm::outs());
-    llvm::outs().flush();
-  */
     assert(CGF.getContext().hasSameUnqualifiedType(E->getType(), DestTy));
-
     assert(E->isGLValue() && "lvalue-to-rvalue applied to r-value!");
     return Visit(const_cast<Expr*>(E));
 

@@ -728,7 +728,6 @@ namespace {
       }
     }
 
-
     BoundsExpr *CreateTypeBasedBounds(QualType Ty, bool IsParam) {
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
@@ -2258,9 +2257,6 @@ namespace {
               << (i + 1) << CE->getArg(i)->getSourceRange();
           }
       }
-
-
-
 
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
                                                      CE->getNumArgs());
