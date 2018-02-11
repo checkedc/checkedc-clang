@@ -220,9 +220,8 @@ namespace {
 BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
   BoundsExpr *Bounds, ArrayRef<Expr *> Args,
   NonModifyingContext ErrorKind) {
-  if (!Bounds)
+  if (!Bounds || Bounds->isInvalid())
     return Bounds;
-  assert(!Bounds->isInvalid());
 
   BoundsExpr *Result;
   auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args, ErrorKind);
@@ -231,9 +230,6 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
       return nullptr;
   }
   else if (ConcreteBounds.isInvalid()) {
-    llvm::outs() << "Failed concretizing\n";
-    Bounds->dump(llvm::outs());
-    llvm::outs().flush();
     llvm_unreachable("unexpected failure in making function bounds concrete with arguments");
     return nullptr;
   }
