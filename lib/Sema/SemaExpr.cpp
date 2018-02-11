@@ -13362,13 +13362,6 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
                                       Expr *LowerBound,
                                       Expr *UpperBound,
                                       SourceLocation RParenLoc) {
-  /*
-  llvm::outs() << "ActOnRangeBoundsExpr";
-  llvm::outs() << "LowerBound\n";
-  LowerBound->dump(llvm::outs());
-  llvm::outs() << "UpperBound\n";
-  UpperBound->dump(llvm::outs());
-*/
   ExprResult Result = UsualUnaryConversions(LowerBound);
   if (Result.isInvalid())
      return ExprError();
@@ -13394,9 +13387,6 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
       << UpperBound->getSourceRange();
     return ExprError();
   }
-  /*
-  llvm::outs() << "Successfully creating range bounds expr";
-  */
   return new (Context) RangeBoundsExpr(LowerBound, UpperBound, BoundsKWLoc,
                                        RParenLoc);
 }

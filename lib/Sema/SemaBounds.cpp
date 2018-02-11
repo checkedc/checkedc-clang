@@ -2261,10 +2261,15 @@ namespace {
 
         // We have a bounds of the form  count(e) or byte_count(e).  Expand
         // the bounds to a standard form, using the current argument as the
-        // base expression. We are short circuiting a step here.  The full
-        // expansion would use the parameter represented as a symbolic index.
-        // In the step below, we would then substitute the actual argument for
-        // that parameter represented using an index.
+        // base expression.
+        //
+        // We are are short-ciructing a step here.  In expanding the parameter
+        // bounds, we could use the parameter represented as a symbolic index.
+        // This more properly represents the parameter bounds.  However, code
+        // below will eventually substitute Arg for the symbolic parameter.
+        // Instead of going to the trouble of building the symbolic parameter
+        // expression, which we will throw away soon anyway, we just use Arg
+        // here.
         if (ParamBounds->isElementCount() || ParamBounds->isByteCount())
           ParamBounds = S.ExpandToRange(Arg, const_cast<BoundsExpr *>(ParamBounds));
 
@@ -2286,7 +2291,7 @@ namespace {
         }
         else {
           // Concretize parameter bounds with argument expressions. This fails
-          // and return null if an argument expression is a modifying
+          // and returns null if an argument expression is a modifying
           // expression, but we've already issued an error about about that.
           BoundsExpr *SubstParamBounds =
             S.ConcretizeFromFunctionTypeWithArgs(
