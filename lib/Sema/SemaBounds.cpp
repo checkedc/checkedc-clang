@@ -206,6 +206,7 @@ namespace {
       return CE;
     }
 
+    // HACK
     ExprResult TransformCStyleCastExpr(CStyleCastExpr *E) {
       assert(E->getBoundsExpr() == nullptr &&
         "inferred bounds checks should not be present");
@@ -626,6 +627,12 @@ namespace {
         default:
           return B;
       }
+    }
+
+    static bool IsStandardForm(const BoundsExpr *BE) {
+      BoundsExpr::Kind K = BE->getKind();
+      return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
+              K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
     }
 
   public:
@@ -1813,8 +1820,6 @@ namespace {
       return false;
     }
 
-
-
     // Try to prove that SrcBounds implies the validity of DeclaredBounds.
     //
     // If Kind is StaticBoundsCast, check whether a static cast between Ptr
@@ -1824,6 +1829,10 @@ namespace {
                                         ProofFailure &Cause,
                                         ProofStmtKind Kind =
                                           ProofStmtKind::BoundsDeclaration) {
+      assert(BoundsInference::IsStandardForm(DeclaredBounds) &&
+        "declared bounds not in standard form");
+      assert(BoundsInference::IsStandardForm(SrcBounds) &&
+        "src bounds not in standard form");
       Cause = ProofFailure::None;
       // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
@@ -1886,6 +1895,8 @@ namespace {
       llvm::outs() << "Bounds\n";
       Bounds->dump(llvm::outs());
 #endif
+      assert(BoundsInference::IsStandardForm(Bounds) &&
+             "bounds not in standard form");
       Cause = ProofFailure::None;
       ConstantSizedRange ValidRange(S);
       if (!CreateConstantRange(Bounds, &ValidRange))
@@ -2007,9 +2018,8 @@ namespace {
                                   BoundsExpr *ArgBounds,
                                   bool InCheckedScope) {
       SourceLocation ArgLoc = Arg->getLocStart();
-      BoundsExpr *NormalizedBounds = S.ExpandToRange(Arg, ExpectedArgBounds);
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(NormalizedBounds,
+      ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
                                                    ArgBounds, Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
@@ -2020,7 +2030,7 @@ namespace {
         S.Diag(ArgLoc, DiagId) << (ParamNum + 1) << Arg->getSourceRange();
         if (Result == ProofResult::False)
           ExplainProofFailure(ArgLoc, Cause, ProofStmtKind::BoundsDeclaration);
-        S.Diag(ArgLoc, diag::note_expected_argument_bounds) << NormalizedBounds;
+        S.Diag(ArgLoc, diag::note_expected_argument_bounds) << ExpectedArgBounds;
         S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
           << ArgBounds << Arg->getSourceRange();
       }
@@ -2033,9 +2043,8 @@ namespace {
                                       BoundsExpr *DeclaredBounds, Expr *Src,
                                       BoundsExpr *SrcBounds,
                                       bool InCheckedScope) {
-      BoundsExpr *NormalizedBounds = S.ExpandToRange(D, DeclaredBounds);
       ProofFailure Cause;
-      ProofResult Result = ProveBoundsDeclValidity(NormalizedBounds,
+      ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
                                                    SrcBounds, Cause);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
@@ -2049,7 +2058,7 @@ namespace {
         if (Result == ProofResult::False)
           ExplainProofFailure(ExprLoc, Cause, ProofStmtKind::BoundsDeclaration);
         S.Diag(D->getLocation(), diag::note_declared_bounds)
-          << NormalizedBounds << D->getLocation();
+          << DeclaredBounds << D->getLocation();
         S.Diag(Src->getExprLoc(), diag::note_expanded_inferred_bounds)
           << SrcBounds << Src->getSourceRange();
       }
@@ -2058,6 +2067,7 @@ namespace {
     // Given a static cast to a Ptr type, where the Ptr type has
     // TargetBounds and the source has SrcBounds, make sure that (1) SrcBounds
     // implies Targetbounds or (2) the SrcBounds is at least as wide as
+
     // the TargetBounds.
     void CheckBoundsDeclAtStaticPtrCast(CastExpr *Cast,
                                         BoundsExpr *TargetBounds,
@@ -2065,13 +2075,12 @@ namespace {
                                         BoundsExpr *SrcBounds,
                                         bool InCheckedScope) {
       ProofFailure Cause;
-      BoundsExpr *NormalizedTargetBounds = S.ExpandToRange(Cast, TargetBounds);
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
                               Cast->getType()->isCheckedPointerPtrType());
       ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
                              ProofStmtKind::BoundsDeclaration;
       ProofResult Result =
-        ProveBoundsDeclValidity(NormalizedTargetBounds, SrcBounds, Cause, Kind);
+        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
@@ -2083,7 +2092,7 @@ namespace {
         if (Result == ProofResult::False)
           ExplainProofFailure(ExprLoc, Cause,
                               ProofStmtKind::StaticBoundsCast);
-        S.Diag(ExprLoc, diag::note_required_bounds) << NormalizedTargetBounds;
+        S.Diag(ExprLoc, diag::note_required_bounds) << TargetBounds;
         S.Diag(ExprLoc, diag::note_expanded_inferred_bounds) << SrcBounds;
       }
     }
@@ -2471,7 +2480,8 @@ namespace {
              << Init->getSourceRange();
          InitBounds = S.CreateInvalidBoundsExpr();
        } else {
-         CheckBoundsDeclAtInitializer(D->getLocation(), D, DeclaredBounds,
+         BoundsExpr *NormalizedDeclaredBounds = S.ExpandToRange(D, DeclaredBounds);
+         CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
            Init, InitBounds, InCheckedScope);
        }
        if (DumpBounds)
