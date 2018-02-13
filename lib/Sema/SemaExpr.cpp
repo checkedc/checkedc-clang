@@ -6319,7 +6319,8 @@ Sema::ActOnCastExpr(Scope *S, SourceLocation LParenLoc,
 
   DiscardMisalignedMemberAddress(castType.getTypePtr(), CastExpr);
 
-  return BuildCStyleCastExpr(LParenLoc, castTInfo, RParenLoc, CastExpr);
+  return BuildCStyleCastExpr(LParenLoc, castTInfo, RParenLoc, CastExpr,
+                             S->isCheckedScope());
 }
 
 ExprResult Sema::BuildVectorLiteral(SourceLocation LParenLoc,

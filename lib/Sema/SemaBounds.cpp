@@ -194,44 +194,6 @@ namespace {
       return SubstitutedModifyingExpression;
     }
 
-    // HACK - we don't want semantic analysis re-run on C style casts.  We may have synthesized
-    // them to make bounds-safe interfaces casts explicit in  the IR, and they could be illegal
-    // in a checked context.
-    Expr *CreateExplicitCast(SourceLocation LParen, TypeSourceInfo *TInfo, SourceLocation RParen,
-                             Expr *E, CastKind CK, bool isBoundsSafeInterface) {
-      CStyleCastExpr *CE = CStyleCastExpr::Create(SemaRef.Context, TInfo->getType(),
-        ExprValueKind::VK_RValue, CK, E, nullptr, TInfo, LParen,
-        RParen);
-      CE->setBoundsSafeInterface(isBoundsSafeInterface);
-      return CE;
-    }
-
-    // HACK
-    ExprResult TransformCStyleCastExpr(CStyleCastExpr *E) {
-      assert(E->getBoundsExpr() == nullptr &&
-        "inferred bounds checks should not be present");
-      TypeSourceInfo *Type = getDerived().TransformType(E->getTypeInfoAsWritten());
-      if (!Type)
-        return ExprError();
-
-      ExprResult SubExpr
-        = getDerived().TransformExpr(E->getSubExprAsWritten());
-      if (SubExpr.isInvalid())
-        return ExprError();
-
-      if (!getDerived().AlwaysRebuild() &&
-        Type == E->getTypeInfoAsWritten() &&
-        SubExpr.get() == E->getSubExpr())
-        return E;
-
-      return CreateExplicitCast(E->getLParenLoc(),
-        Type,
-        E->getRParenLoc(),
-        SubExpr.get(),
-        E->getCastKind(),
-        E->isBoundsSafeInterface());
-    }
-
     ExprResult TransformPositionalParameterExpr(PositionalParameterExpr *E) {
       unsigned index = E->getIndex();
       if (index < Arguments.size()) {

@@ -4425,7 +4425,8 @@ public:
   ExprResult BuildCStyleCastExpr(SourceLocation LParenLoc,
                                  TypeSourceInfo *Ty,
                                  SourceLocation RParenLoc,
-                                 Expr *Op);
+                                 Expr *Op,
+                                 bool isCheckedScope = false);
   CastKind PrepareScalarCast(ExprResult &src, QualType destType);
 
   /// \brief Build an altivec or OpenCL literal.
