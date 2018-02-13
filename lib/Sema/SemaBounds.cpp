@@ -592,7 +592,11 @@ namespace {
     Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E,
                              bool isBoundsSafeInterface) {
       // Avoid building up nested chains of no-op casts.
+      llvm::outs() << "CreateExplicitCast: before ignoring\n";
+      E->dump(llvm::outs());
       E = BoundsUtil::IgnoreValuePreservingOperations(Context, E, true);
+      llvm::outs() << "CreateExplicitCast: after ignoring\n";
+      E->dump(llvm::outs());
       // Synthesize some dummy type source source information.
       TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);
       CStyleCastExpr *CE = CStyleCastExpr::Create(Context, Target,
@@ -706,7 +710,11 @@ namespace {
           Expr *Count = BC->getCountExpr();
           QualType ResultTy;
           Expr *LowerBound;
+          llvm::outs() << "Base before\n";
+          Base->dump(llvm::outs());
           Base = SemaRef.MakeAssignmentImplicitCastExplicit(Base);
+          llvm::outs() << "Base after\n";
+          Base->dump(llvm::outs());
           if (K == BoundsExpr::ByteCount) {
             ResultTy = Context.getPointerType(Context.CharTy,
                                               CheckedPointerKind::Array);
@@ -733,9 +741,13 @@ namespace {
                                           ExprObjectKind::OK_Ordinary,
                                           SourceLocation(),
                                           FPOptions());
-          return new (Context) RangeBoundsExpr(LowerBound, UpperBound,
+          RangeBoundsExpr *R = 
+            new (Context) RangeBoundsExpr(LowerBound, UpperBound,
                                                SourceLocation(),
                                                SourceLocation());
+          llvm::outs() << "Dumping RangeBoundsExpr";
+          R->dump(llvm::outs());
+          return R;
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
           return CreateBoundsUnknown();
@@ -2053,6 +2065,10 @@ namespace {
         S.Diag(ArgLoc, diag::note_expected_argument_bounds) << ExpectedArgBounds;
         S.Diag(Arg->getExprLoc(), diag::note_expanded_inferred_bounds)
           << ArgBounds << Arg->getSourceRange();
+        llvm::outs() << "ExpectedBounds\n";
+        ExpectedArgBounds->dump(llvm::outs());
+        llvm::outs() << "InferredBounds\n";
+        ArgBounds->dump(llvm::outs());
       }
     }
 
@@ -2282,6 +2298,8 @@ namespace {
         return;
       if (!FuncProtoTy->hasParamBounds())
         return;
+      llvm::outs() << "Dumping FuncProtoTy";
+      FuncProtoTy->dump(llvm::outs());
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = CE->getNumArgs();
       unsigned Count = (NumParams < NumArgs) ? NumParams : NumArgs;
@@ -2324,6 +2342,8 @@ namespace {
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
         const BoundsExpr *ParamBounds = FuncProtoTy->getParamBounds(i);
+        llvm::outs() << "ParamBounds:\n";
+        ParamBounds->dump(llvm::outs());
 
         if (!ParamBounds)
           continue;
@@ -2343,6 +2363,8 @@ namespace {
         // here.
         if (ParamBounds->isElementCount() || ParamBounds->isByteCount())
           ParamBounds = S.ExpandToRange(Arg, const_cast<BoundsExpr *>(ParamBounds));
+        llvm::outs() << "ParamBounds after expansion";
+        ParamBounds->dump(llvm::outs());
 
         if (ParamBounds->isInteropTypeAnnotation())
           // The same short-circuit logic applies here too.
@@ -2369,6 +2391,8 @@ namespace {
               const_cast<BoundsExpr *>(ParamBounds),
               ArgExprs,
               Sema::NonModifyingContext::NMC_Function_Parameter);
+          llvm::outs() << "SubstParamBounds\n";
+          SubstParamBounds->dump(llvm::outs());
           if (SubstParamBounds)
             CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
         }
