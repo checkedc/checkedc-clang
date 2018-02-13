@@ -334,6 +334,7 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
       return nullptr;
   }
   else if (ConcreteBounds.isInvalid()) {
+#ifndef NDEBUG
     llvm::outs() << "Failed concretizing\n";
     llvm::outs() << "Bounds:\n";
     Bounds->dump(llvm::outs());
@@ -343,6 +344,7 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
       Args[i]->dump(llvm::outs());
     }
     llvm::outs().flush();
+#endif
     llvm_unreachable("unexpected failure in making function bounds concrete with arguments");
     return nullptr;
   }
@@ -873,7 +875,7 @@ namespace {
 
       if (Ty->isCheckedPointerPtrType()) {
         if (Ty->isFunctionPointerType())
-          ;
+          BE = CreateBoundsEmpty();
         else if (Ty->isVoidPointerType())
           BE = Context.getPrebuiltByteCountOne();
         else
