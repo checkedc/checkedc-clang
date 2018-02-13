@@ -13359,12 +13359,12 @@ const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
 }
 
 ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
-                                      Expr *LowerBound,
-                                      Expr *UpperBound,
-                                      SourceLocation RParenLoc) {
+  Expr *LowerBound,
+  Expr *UpperBound,
+  SourceLocation RParenLoc) {
   ExprResult Result = UsualUnaryConversions(LowerBound);
   if (Result.isInvalid())
-     return ExprError();
+    return ExprError();
   LowerBound = Result.get();
 
   Result = UsualUnaryConversions(UpperBound);
@@ -13374,6 +13374,24 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
 
   const Type *LowerBoundPointee = ValidateBoundsExprArgument(LowerBound);
   const Type *UpperBoundPointee = ValidateBoundsExprArgument(UpperBound);
+
+  if (ImplicitCastExpr *LowerICE = dyn_cast<ImplicitCastExpr>(LowerBound))
+    if (LowerICE->isBoundsSafeInterface() && LowerICE->getCastKind() == CK_BitCast)
+      if (ImplicitCastExpr *NestedCase = dyn_cast<ImplicitCastExpr>(LowerICE->getSubExpr())) {
+        llvm::outs() << "LowerBounds\n";
+        LowerBound->dump(llvm::outs());
+        llvm::outs().flush();
+        assert(false && "Two nested implicit casts on lower bound");
+      }
+
+  if (ImplicitCastExpr *UpperICE = dyn_cast<ImplicitCastExpr>(UpperBound))
+    if (UpperICE->isBoundsSafeInterface() && UpperICE->getCastKind() == CK_BitCast)
+      if (ImplicitCastExpr *NestedCase = dyn_cast<ImplicitCastExpr>(UpperICE->getSubExpr())) {
+        llvm::outs() << "UpperBounds\n";
+        UpperBound->dump(llvm::outs());
+        llvm::outs().flush();
+        assert(false && "Two nested implicit casts on upper bound");
+      }
 
   if (!LowerBoundPointee || !UpperBoundPointee)
     return ExprError();
