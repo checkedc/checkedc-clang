@@ -4425,7 +4425,8 @@ public:
   ExprResult BuildCStyleCastExpr(SourceLocation LParenLoc,
                                  TypeSourceInfo *Ty,
                                  SourceLocation RParenLoc,
-                                 Expr *Op);
+                                 Expr *Op,
+                                 bool isCheckedScope = false);
   CastKind PrepareScalarCast(ExprResult &src, QualType destType);
 
   /// \brief Build an altivec or OpenCL literal.
@@ -4713,8 +4714,24 @@ public:
   BoundsExpr *InferLValueBounds(Expr *E);
 
   /// CreateTypeBasedBounds: the bounds that can be inferred from
-  /// the type alone.  Useful for Ptr types and interop types.
-  BoundsExpr *CreateTypeBasedBounds(QualType QT, bool IsParam);
+  /// the type alone.
+  /// * E is the base expression for which we are inferring bounds
+  /// * Ty is the target type.  It may differ from E's tu[e because it is
+  ///   an interoperation type.
+  /// * IsParam indicates wheteher E is a parameter variable.
+  /// * IsBoundsSafeInterface indicates whether Ty is a bounds-safe
+  BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
+                                    bool IsBoundsSafeInterface);
+
+  /// ReplaceAssignmentImplicitCast: E has had assignment conversion rules
+  /// applied to it. If an implicit cast has been introduced because of the
+  /// assignment conversion rules, replace it with an explicit cast.
+  /// This allows us to substitute E into other operator expressions without worrying
+  /// about the different implicit conversion rules between assignments and
+  //// other operators.   Sema tree rewriting assumes that semantic
+  /// analysis will recreate implicit casts.  That doesn't happen properly if
+  /// E is taken from an assignment expression and used in another operator expression.
+  Expr *MakeAssignmentImplicitCastExplicit(Expr *E);
 
   /// InferLValueTargetBounds - infer the bounds for the
   /// target of an lvalue.

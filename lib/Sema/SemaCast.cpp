@@ -81,7 +81,7 @@ namespace {
     void CheckStaticCast();
     void CheckDynamicCast();
     void CheckCXXCStyleCast(bool FunctionalCast, bool ListInitialization);
-    void CheckCStyleCast();
+    void CheckCStyleCast(bool IsCheckedScope);
     void CheckBoundsCast(tok::TokenKind kind);
 
     /// Complete an apparently-successful cast operation that yields
@@ -2383,7 +2383,7 @@ static void DiagnoseBadFunctionCast(Sema &Self, const ExprResult &SrcExpr,
 }
 
 /// Check the semantics of a C-style cast operation, in C.
-void CastOperation::CheckCStyleCast() {
+void CastOperation::CheckCStyleCast(bool IsCheckedScope) {
   assert(!Self.getLangOpts().CPlusPlus);
 
   // C-style casts can resolve __unknown_any types.
@@ -2605,7 +2605,7 @@ void CastOperation::CheckCStyleCast() {
 
   // Checked C - No C-style casts to unchecked pointer/array type or variadic
   // type in a checked block.
-  if (Self.getCurScope()->isCheckedScope()) {
+  if (IsCheckedScope) {
     bool isNullPointerConstant =
       DestType->isVoidPointerType() &&
       DestType->isUncheckedPointerType() &&
@@ -2695,7 +2695,8 @@ void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
 ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
                                      TypeSourceInfo *CastTypeInfo,
                                      SourceLocation RPLoc,
-                                     Expr *CastExpr) {
+                                     Expr *CastExpr,
+                                     bool IsCheckedScope) {
   CastOperation Op(*this, CastTypeInfo->getType(), CastExpr);  
   Op.DestRange = CastTypeInfo->getTypeLoc().getSourceRange();
   Op.OpRange = SourceRange(LPLoc, CastExpr->getLocEnd());
@@ -2704,7 +2705,7 @@ ExprResult Sema::BuildCStyleCastExpr(SourceLocation LPLoc,
     Op.CheckCXXCStyleCast(/*FunctionalStyle=*/ false,
                           isa<InitListExpr>(CastExpr));
   } else {
-    Op.CheckCStyleCast();
+    Op.CheckCStyleCast(IsCheckedScope);
   }
 
   if (Op.SrcExpr.isInvalid())
