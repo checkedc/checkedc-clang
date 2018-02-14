@@ -438,8 +438,6 @@ public:
 };
 }
 
-
-
 namespace {
   // Class for inferring bounds expressions for C expressions.
 
