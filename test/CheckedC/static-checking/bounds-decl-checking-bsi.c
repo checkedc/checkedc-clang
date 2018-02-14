@@ -19,7 +19,6 @@ int f1(_Ptr<struct S> p) {
   return 0;
 }
 
-/*
 int f2(_Ptr<void> p) {
   test_f1(p);
   return 0;
@@ -27,7 +26,7 @@ int f2(_Ptr<void> p) {
 
 #pragma BOUNDS_CHECKED ON
 
-extern void test_f3(const void* p_ptr : byte_count(1)); 
+extern void test_f3(const void* p_ptr : byte_count(1));
 
 int f3(_Ptr<struct S> p) {
   // TODO: Github Checked C repo issue #422: Extend constant-sized ranges to cover Ptr to an incomplete type
@@ -36,4 +35,3 @@ int f3(_Ptr<struct S> p) {
               // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<struct S>)p, (_Array_ptr<struct S>)p + 1)'}}
   return 0;
 }
-*/
