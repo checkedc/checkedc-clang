@@ -40,6 +40,110 @@ using namespace clang;
 using namespace sema;
 
 namespace {
+class BoundsUtil {
+public:
+  static bool IsStandardForm(const BoundsExpr *BE) {
+    BoundsExpr::Kind K = BE->getKind();
+    return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
+      K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
+ }
+
+  // Return true if this cast preserve the bits of the value,
+  // false otherwise.
+  static bool IsValuePreserving(CastKind CK) {
+    switch (CK) {
+      case CK_BitCast:
+      case CK_LValueBitCast:
+      case CK_NoOp:
+      case CK_ArrayToPointerDecay:
+      case CK_FunctionToPointerDecay:
+      case CK_NullToPointer:
+      case CK_AssumePtrBounds:
+      case CK_DynamicPtrBounds:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static bool isPointerToArrayType(QualType Ty) {
+    if (const PointerType *T = Ty->getAs<PointerType>())
+      return T->getPointeeType()->isArrayType();
+    else
+      return false;
+  }
+  // Ignore operations that don't change runtime values: parens, some cast operations,
+  // and array/function address-of and dereference operators.
+  //
+  // The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
+  // do enough filtering (it'll ignore LValueToRValue casts for example).
+  // TODO: reconcile with CheckValuePreservingCast
+  static Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E,
+                                               bool OnlyCasts = false) {
+    while (true) {
+      if (!OnlyCasts)
+        E = E->IgnoreParens();
+
+      if (CastExpr *P = dyn_cast<CastExpr>(E)) {
+        CastKind CK = P->getCastKind();
+        Expr *SE = P->getSubExpr();
+        if (IsValuePreserving(CK)) {
+          E = SE;
+          continue;
+        }
+
+        // Ignore integer <-> casts that are of the same width, ptr<->ptr
+        // and ptr<->int casts of the same width.
+        if (CK == CK_IntegralToPointer || CK == CK_PointerToIntegral ||
+            CK == CK_IntegralCast) {
+          if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
+            E = SE;
+            continue;
+          }
+
+          if ((E->getType()->isPointerType() ||
+                E->getType()->isIntegralType(Ctx)) &&
+                (SE->getType()->isPointerType() ||
+                SE->getType()->isIntegralType(Ctx)) &&
+              Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
+            E = SE;
+            continue;
+          }
+        }
+      } else if (OnlyCasts) {
+        ;
+      } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+        QualType ETy = UO->getType();
+        Expr *SE = UO->getSubExpr();
+        QualType SETy = SE->getType();
+
+        UnaryOperator::Opcode Op = UO->getOpcode();
+        if (Op == UO_Deref) {
+            // This may be more conservative than necessary.
+            bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
+            bool between_arrays = ETy->isArrayType() && BoundsUtil::isPointerToArrayType(SETy);
+            if (between_functions || between_arrays) {
+              E = SE;
+              continue;
+            }
+        } else if (Op == UO_AddrOf) {
+          // This may be more conservative than necessary.
+          bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
+          bool between_arrays = BoundsUtil::isPointerToArrayType(ETy) && SETy->isArrayType();
+          if (between_functions || between_arrays) {
+            E = SE;
+            continue;
+          }
+        }
+      }
+
+      return E;
+    }
+  }
+};
+}
+
+namespace {
   class AbstractBoundsExpr : public TreeTransform<AbstractBoundsExpr> {
     typedef TreeTransform<AbstractBoundsExpr> BaseTransform;
     typedef ArrayRef<DeclaratorChunk::ParamInfo> ParamsInfo;
@@ -334,6 +438,8 @@ public:
 };
 }
 
+
+
 namespace {
   // Class for inferring bounds expressions for C expressions.
 
@@ -546,7 +652,8 @@ namespace {
     // Given a byte_count or count bounds expression for the expression Base,
     // expand it to a range bounds expression:
     //  E : Count(C) expands to Bounds(E, E + C)
-    //  E : ByteCount(C)  exzpands to Bounds((char *) E, (char *) E + C)
+    //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
+    //                                      (array_ptr<char>) E + C)
     BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
       assert(Base->isRValue() && "expected rvalue expression");
       BoundsExpr::Kind K = B->getKind();
@@ -573,6 +680,12 @@ namespace {
           } else {
             ResultTy = Base->getType();
             LowerBound = Base;
+            if (ResultTy->isCheckedPointerPtrType()) {
+              ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
+                CheckedPointerKind::Array);
+              LowerBound =
+                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
+            }
           }
           Expr *UpperBound =
             new (Context) BinaryOperator(LowerBound, Count,
@@ -582,21 +695,16 @@ namespace {
                                           ExprObjectKind::OK_Ordinary,
                                           SourceLocation(),
                                           FPOptions());
-          return new (Context) RangeBoundsExpr(LowerBound, UpperBound,
+          RangeBoundsExpr *R = new (Context) RangeBoundsExpr(LowerBound, UpperBound,
                                                SourceLocation(),
                                                SourceLocation());
+          return R;
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
           return CreateBoundsUnknown();
         default:
           return B;
       }
-    }
-
-    static bool IsStandardForm(const BoundsExpr *BE) {
-      BoundsExpr::Kind K = BE->getKind();
-      return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
-              K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
     }
 
   public:
@@ -746,7 +854,7 @@ namespace {
     // (do not use count or byte_count because their meaning changes
     //  when propagated to parent expressions).
     BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
-                                      bool IsBoundsSafeInterface) {
+      bool IsBoundsSafeInterface) {
       BoundsExpr *BE = nullptr;
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
@@ -765,7 +873,7 @@ namespace {
       } else if (Ty->isCheckedPointerNtArrayType()) {
         BE = Context.getPrebuiltCountZero();
       }
-   
+
       if (!BE)
         return CreateBoundsEmpty();
 
@@ -1475,7 +1583,7 @@ namespace {
     class ConstantSizedRange {
     private:
       Sema &S;
-      const Expr *Base;
+      Expr *Base;
       llvm::APSInt LowerOffset;
       llvm::APSInt UpperOffset;
 
@@ -1484,7 +1592,7 @@ namespace {
         UpperOffset(1, true) {
       }
 
-      ConstantSizedRange(Sema &S, const Expr *Base,
+      ConstantSizedRange(Sema &S, Expr *Base,
                          llvm::APSInt &LowerOffset,
                          llvm::APSInt &UpperOffset) :
         S(S), Base(Base), LowerOffset(LowerOffset), UpperOffset(UpperOffset) {
@@ -1540,7 +1648,7 @@ namespace {
         return UpperOffset - LowerOffset;
       }
 
-      void SetBase(const Expr *B) {
+      void SetBase(Expr *B) {
         Base = B;
       }
 
@@ -1607,7 +1715,7 @@ namespace {
     // TODO: we use signed integers to represent the result of the Offset.
     // We can't represent unsigned offsets larger the the maximum signed
     // integer that will fit pointer width.
-    void SplitIntoBaseAndOffset(const Expr *E, const Expr *&Base,
+    void SplitIntoBaseAndOffset(Expr *E, Expr *&Base,
                                 llvm::APSInt &Offset) {
       if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
         if (BO->isAdditiveOp()) {
@@ -1650,99 +1758,9 @@ namespace {
       Offset = llvm::APSInt(PointerWidth, false);
     }
 
-    // Return true if this cast preserve the bits of the value,
-    // false otherwise.
-    static bool IsValuePreserving(CastKind CK) {
-      switch (CK) {
-        case CK_BitCast:
-        case CK_LValueBitCast:
-        case CK_NoOp:
-        case CK_ArrayToPointerDecay:
-        case CK_FunctionToPointerDecay:
-        case CK_NullToPointer:
-        case CK_AssumePtrBounds:
-        case CK_DynamicPtrBounds:
-          return true;
-        default:
-          return false;
-      }
-    }
-
-    static bool isPointerToArrayType(QualType Ty) {
-      if (const PointerType *T = Ty->getAs<PointerType>())
-        return T->getPointeeType()->isArrayType();
-      else
-        return false;
-    }
-
-    // Ignore operations that don't change runtime values: parens, some cast operations,
-    // and array/function address-of and dereference operators.
-    //
-    // The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
-    // do enough filtering (it'll allow LValueToRValue casts for example).
-    // TODO: reconcile with CheckValuePreservingCast
-    static const Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, const Expr *E) {;
-      while (true) {
-        E = E->IgnoreParens();
-
-        if (const CastExpr *P = dyn_cast<CastExpr>(E)) {
-          CastKind CK = P->getCastKind();
-          const Expr *SE = P->getSubExpr();
-          if (IsValuePreserving(CK)) {
-            E = SE;
-            continue;
-          }
-
-          // Ignore integer <-> casts that are of the same width, ptr<->ptr
-          // and ptr<->int casts of the same width.
-          if (CK == CK_IntegralToPointer || CK != CK_PointerToIntegral ||
-              CK == CK_IntegralCast) {
-            if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
-              E = SE;
-              continue;
-            }
-
-            if ((E->getType()->isPointerType() ||
-                  E->getType()->isIntegralType(Ctx)) &&
-                  (SE->getType()->isPointerType() ||
-                  SE->getType()->isIntegralType(Ctx)) &&
-                Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
-              E = SE;
-              continue;
-            }
-          }
-        } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-          QualType ETy = UO->getType();
-          const Expr *SE = UO->getSubExpr();
-          QualType SETy = SE->getType();
-
-          UnaryOperator::Opcode Op = UO->getOpcode();
-          if (Op == UO_Deref) {
-              // This may be more conservative than necessary.
-              bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
-              bool between_arrays = ETy->isArrayType() && isPointerToArrayType(SETy);
-              if (between_functions || between_arrays) {
-                E = SE;
-                continue;
-              }
-          } else if (Op == UO_AddrOf) {
-            // This may be more conservative than necessary.
-            bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
-            bool between_arrays = isPointerToArrayType(ETy) && SETy->isArrayType();
-            if (between_functions || between_arrays) {
-              E = SE;
-              continue;
-            }
-          }
-        }
-
-        return E;
-      }
-    }
-
-    static bool EqualValue(ASTContext &Ctx, const Expr *E1, const Expr *E2) {
-      const Expr *NormalizedE1 = IgnoreValuePreservingOperations(Ctx, E1);
-      const Expr *NormalizedE2 = IgnoreValuePreservingOperations(Ctx, E2);
+    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2) {
+      const Expr *NormalizedE1 = BoundsUtil::IgnoreValuePreservingOperations(Ctx, E1);
+      const Expr *NormalizedE2 = BoundsUtil::IgnoreValuePreservingOperations(Ctx, E2);
       Lexicographic::Result R =
         Lexicographic(Ctx, nullptr).CompareExpr(NormalizedE1, NormalizedE2);
       return R == Lexicographic::Result::Equal;
@@ -1768,7 +1786,7 @@ namespace {
           const RangeBoundsExpr *RB = cast<RangeBoundsExpr>(Bounds);
           Expr *Lower = RB->getLowerExpr();
           Expr *Upper = RB->getUpperExpr();
-          const Expr *LowerBase, *UpperBase;
+          Expr *LowerBase, *UpperBase;
           llvm::APSInt LowerOffset, UpperOffset;
           SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset);
           SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset);
@@ -1793,9 +1811,9 @@ namespace {
                                         ProofFailure &Cause,
                                         ProofStmtKind Kind =
                                           ProofStmtKind::BoundsDeclaration) {
-      assert(BoundsInference::IsStandardForm(DeclaredBounds) &&
+      assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
         "declared bounds not in standard form");
-      assert(BoundsInference::IsStandardForm(SrcBounds) &&
+      assert(BoundsUtil::IsStandardForm(SrcBounds) &&
         "src bounds not in standard form");
       Cause = ProofFailure::None;
       // source bounds(any) implies that any other bounds is valid.
@@ -1859,7 +1877,7 @@ namespace {
       llvm::outs() << "Bounds\n";
       Bounds->dump(llvm::outs());
 #endif
-      assert(BoundsInference::IsStandardForm(Bounds) &&
+      assert(BoundsUtil::IsStandardForm(Bounds) &&
              "bounds not in standard form");
       Cause = ProofFailure::None;
       ConstantSizedRange ValidRange(S);
@@ -1876,7 +1894,7 @@ namespace {
           return ProofResult::Maybe;
       }
 
-      const Expr *AccessBase;
+      Expr *AccessBase;
       llvm::APSInt AccessStartOffset;
       SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset);
       if (Offset) {
@@ -2268,7 +2286,6 @@ namespace {
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
         const BoundsExpr *ParamBounds = FuncProtoTy->getParamBounds(i);
-
         if (!ParamBounds)
           continue;
 
