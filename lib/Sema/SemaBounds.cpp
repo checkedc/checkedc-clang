@@ -652,8 +652,7 @@ namespace {
     // Given a byte_count or count bounds expression for the expression Base,
     // expand it to a range bounds expression:
     //  E : Count(C) expands to Bounds(E, E + C)
-    //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
-    //                                      (array_ptr<char>) E + C)
+    //  E : ByteCount(C)  exzpands to Bounds((char *) E, (char *) E + C)
     BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
       assert(Base->isRValue() && "expected rvalue expression");
       BoundsExpr::Kind K = B->getKind();
@@ -680,12 +679,6 @@ namespace {
           } else {
             ResultTy = Base->getType();
             LowerBound = Base;
-            if (ResultTy->isCheckedPointerPtrType()) {
-              ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
-                CheckedPointerKind::Array);
-              LowerBound =
-                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
-            }
           }
           Expr *UpperBound =
             new (Context) BinaryOperator(LowerBound, Count,
@@ -695,10 +688,9 @@ namespace {
                                           ExprObjectKind::OK_Ordinary,
                                           SourceLocation(),
                                           FPOptions());
-          RangeBoundsExpr *R = new (Context) RangeBoundsExpr(LowerBound, UpperBound,
+          return new (Context) RangeBoundsExpr(LowerBound, UpperBound,
                                                SourceLocation(),
                                                SourceLocation());
-          return R;
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
           return CreateBoundsUnknown();
@@ -854,7 +846,7 @@ namespace {
     // (do not use count or byte_count because their meaning changes
     //  when propagated to parent expressions).
     BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
-      bool IsBoundsSafeInterface) {
+                                      bool IsBoundsSafeInterface) {
       BoundsExpr *BE = nullptr;
       // If the target value v is a Ptr type, it has bounds(v, v + 1), unless
       // it is a function pointer type, in which case it has no required
