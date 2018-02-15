@@ -884,10 +884,12 @@ namespace {
       if (Base->isLValue())
         Base = CreateImplicitCast(E->getType(), CastKind::CK_LValueToRValue, Base);
 
+      // If type is a bounds-safe interface type, adjust the type of base to the
+      // bounds-safe interface type, if necessary.
 
+      // Compute the target type.  We could receive an array type for a parameter
+      // with a bounds-safe itnerface.
       QualType TargetTy = Ty;
-      // Adjust the type if necessary, if this is is an array type. We should only
-      // receive an array type for parameters with bounds-safe interfaces.
       if (TargetTy->isArrayType()) {
         assert(IsParam && IsBoundsSafeInterface);
         TargetTy = Context.getArrayDecayedType(Ty);
