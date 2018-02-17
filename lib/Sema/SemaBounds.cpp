@@ -438,8 +438,6 @@ public:
 };
 }
 
-
-
 namespace {
   // Class for inferring bounds expressions for C expressions.
 
@@ -885,19 +883,20 @@ namespace {
         Base = CreateImplicitCast(E->getType(), CastKind::CK_LValueToRValue, Base);
 
       // If type is a bounds-safe interface type, adjust the type of base to the
-      // bounds-safe interface type, if necessary.
+      // bounds-safe interface type.
+      if (IsBoundsSafeInterface) {
+        // Compute the target type.  We could receive an array type for a parameter
+        // with a bounds-safe interface.
+        QualType TargetTy = Ty;
+        if (TargetTy->isArrayType()) {
+          assert(IsParam);
+          TargetTy = Context.getArrayDecayedType(Ty);
+        };
 
-      // Compute the target type.  We could receive an array type for a parameter
-      // with a bounds-safe itnerface.
-      QualType TargetTy = Ty;
-      if (TargetTy->isArrayType()) {
-        assert(IsParam && IsBoundsSafeInterface);
-        TargetTy = Context.getArrayDecayedType(Ty);
-      };
-
-      if (TargetTy != E->getType()) {
-        Base = CreateExplicitCast(TargetTy, CK_BitCast, Base, true);
-      }
+        if (TargetTy != E->getType())
+          Base = CreateExplicitCast(TargetTy, CK_BitCast, Base, true);
+      } else
+        assert(Ty == E->getType());
 
       return ExpandToRange(Base, BE);
     }
