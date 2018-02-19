@@ -676,6 +676,9 @@ namespace {
             // When bounds are pretty-printed as source code, the cast needs
             // to appear in the source code for the code to be correct, so
             // use an explicit cast operation.
+            //
+            // The bounds-safe interface argument is false because casts
+            // to checked pointer types are always allowed by type checking.
             LowerBound =
               CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
           } else {
@@ -684,6 +687,9 @@ namespace {
             if (ResultTy->isCheckedPointerPtrType()) {
               ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
                 CheckedPointerKind::Array);
+              // The bounds-safe interface argument is false because casts
+              // between checked pointer types are always allowed by type
+              // checking.
               LowerBound =
                 CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
             }
