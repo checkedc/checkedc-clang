@@ -605,8 +605,8 @@ namespace  {
     void VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node);
     void VisitCountBoundsExpr(const CountBoundsExpr *Node);
     void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
-    void VisitInteropTypeBoundsAnnotation(
-      const InteropTypeBoundsAnnotation *Node);
+    void VisitInteropTypeAnnotation(
+      const InteropTypeAnnotation *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
     void dumpBoundsCheckKind(BoundsCheckKind kind);
     void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
@@ -2815,8 +2815,8 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   }
 }
 
-void ASTDumper::VisitInteropTypeBoundsAnnotation(
-  const InteropTypeBoundsAnnotation *Node) {
+void ASTDumper::VisitInteropTypeAnnotation(
+  const InteropTypeAnnotation *Node) {
   VisitExpr(Node);
   if (Node->getKind() != BoundsExpr::Kind::InteropTypeAnnotation)
     dumpBoundsKind(Node->getKind());

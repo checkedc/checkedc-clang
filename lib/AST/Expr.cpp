@@ -3040,7 +3040,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
     // Checked C bounds expressions are not allowed to have assignments
     // embedded within them.
   case CountBoundsExprClass:
-  case InteropTypeBoundsAnnotationClass:
+  case InteropTypeAnnotationClass:
   case NullaryBoundsExprClass:
   case PositionalParameterExprClass:
   case RangeBoundsExprClass:
@@ -4012,7 +4012,7 @@ bool BoundsExpr::validateKind(Kind K) {
       return K == ElementCount || K == ByteCount;
     case RangeBoundsExprClass:
       return K == Range;
-    case InteropTypeBoundsAnnotationClass:
+    case InteropTypeAnnotationClass:
       return K == InteropTypeAnnotation;
     default:
       return false;

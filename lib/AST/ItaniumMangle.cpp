@@ -3475,7 +3475,7 @@ recurse:
   case Expr::AtomicExprClass:
   case Expr::PositionalParameterExprClass:
   case Expr::CountBoundsExprClass:
-  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::InteropTypeAnnotationClass:
   case Expr::NullaryBoundsExprClass:
   case Expr::RangeBoundsExprClass:
   {

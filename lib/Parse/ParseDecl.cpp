@@ -3998,8 +3998,8 @@ void Parser::ParseStructDeclaration(
         if (BoundsResult.isInvalid())
           SkipUntil(tok::semi, StopBeforeMatch);
         else {
-          InteropTypeBoundsAnnotation *BoundsAnnotation =
-            dyn_cast<InteropTypeBoundsAnnotation>(BoundsResult.get());
+          InteropTypeAnnotation *BoundsAnnotation =
+            dyn_cast<InteropTypeAnnotation>(BoundsResult.get());
           assert(BoundsAnnotation && "dyn_cast failed");
           if (BoundsAnnotation)
             DeclaratorInfo.BoundsAnnotation = BoundsAnnotation;
@@ -4123,25 +4123,21 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
                              FD.D, FD.BitfieldSize);
         FieldDecls.push_back(Field);
         FD.complete(Field);
-        // One or both of FD.BoundsExprTokens and FD.BoundsAnnotation must be
-        // null. They cannot both be non-null at the same time, or we'll end
-        // up losing/overwriting information.
-        assert(FD.BoundsExprTokens == nullptr ||
-               FD.BoundsAnnotation == nullptr);
 
         if (FD.BoundsExprTokens != nullptr)
           deferredBoundsExpressions.emplace_back(Field,
             std::move(FD.BoundsExprTokens));
-
-        if (InteropTypeBoundsAnnotation *BoundsAnnotation =
-            FD.BoundsAnnotation) {
-          if (BoundsAnnotation->isInvalid())
-            Actions.ActOnInvalidBoundsDecl(Field);
-          else
-            Actions.ActOnBoundsDecl(Field, BoundsAnnotation);
-	    } else
-          // Set a default bounds declaration, if necessary.
+        else
+          // Set a default bounds declaration.
           Actions.ActOnBoundsDecl(Field, nullptr);
+
+        if (FD.InteropAnnotation)
+            Actions.ActOnInteropType(Field, FD.InteropAnnotation);
+        else {
+          // TODO: infer interop type
+          if (FD.BoundsExprTokens) {
+          }
+        }
       };
 
       // Parse all the comma separated declarators.

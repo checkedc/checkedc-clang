@@ -37,6 +37,7 @@ class CompoundStmt;
 class DependentFunctionTemplateSpecializationInfo;
 class Expr;
 class BoundsExpr;
+class InteropTypeAnnotation;
 class FunctionTemplateDecl;
 class FunctionTemplateSpecializationInfo;
 class LabelStmt;
@@ -674,6 +675,7 @@ protected:
   }
 
   BoundsExpr *Bounds;
+  InteropTypeAnnotation *InteropAnnotation;
 
 public:
   TypeSourceInfo *getTypeSourceInfo() const {
@@ -761,6 +763,24 @@ public:
   /// \brief Set the declared bounds for this declaration. For function
   /// declarations, this is the return bounds of the function.
   void setBoundsExpr(BoundsExpr *E);
+
+  /// \brief The Checked C interop type declared or inferred for this 
+  /// declaration.  For function declarations, this is the rreturn
+  /// interop type of the function.  Null if none has been declared
+  /// or inferred.
+  const InteropTypeAnnotation *getInteropTypeAnnotation() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropTypeAnnotation();
+  }
+
+  /// \brief The Checked C interop type declared or inferred for this 
+  /// declaration.  For function declarations, this is the rreturn
+  /// interop type of the function.  Null if none has been declared
+  /// or inferred.
+  InteropTypeAnnotation *getInteropTypeAnnotation();
+
+  /// \brief Set the Checked C interop for this declaration.  For function
+  /// declarations, this is the return bounds of the function.
+  void setInteropTypeAnnotation(InteropTypeAnnotation *IT);
 };
 
 /// \brief Structure used to store a statement, the constant value to

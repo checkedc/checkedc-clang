@@ -423,7 +423,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
     return Cl::CL_LValue;
 
   case Expr::CountBoundsExprClass:
-  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::InteropTypeAnnotationClass:
   case Expr::NullaryBoundsExprClass:
   case Expr::RangeBoundsExprClass:
     llvm_unreachable("should not classify bounds expressions");

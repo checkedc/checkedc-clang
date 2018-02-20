@@ -178,7 +178,8 @@ def BoundsExpr : DStmt<Expr, 1>;
 def NullaryBoundsExpr : DStmt<BoundsExpr>;
 def CountBoundsExpr : DStmt<BoundsExpr>;
 def RangeBoundsExpr : DStmt<BoundsExpr>;
-def InteropTypeBoundsAnnotation : DStmt<BoundsExpr>;
+
+def InteropTypeAnnotation : DStmt<Expr>;
 def PositionalParameterExpr : DStmt<Expr>;
 def BoundsCastExpr : DStmt<ExplicitCastExpr>;
 

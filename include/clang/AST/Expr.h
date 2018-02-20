@@ -2870,13 +2870,9 @@ public:
     ByteCount = 4,
     // bounds(e1, e2)
     Range = 5,
-    // ptr interop annotation.  This isn't really a bounds expression.
-    // To save space and for programmng convenience, we store the
-    // ": ptr" interop annotation as a bounds expression.
-    InteropTypeAnnotation = 6,
 
     // Sentinel marker for maximum bounds kind.
-    MaxBoundsKind = InteropTypeAnnotation
+    MaxBoundsKind = Range
   };
 
   static_assert(MaxBoundsKind < (1 << NumBoundsExprKindBits), "kind field too small");
@@ -2899,7 +2895,6 @@ public:
     setKind(Invalid);
     setCompilerGenerated(false);
   }
-
 
   SourceLocation getStartLoc() const { return StartLoc; }
   SourceLocation getEndLoc() const { return EndLoc; }
@@ -2944,10 +2939,6 @@ public:
 
   bool isRange() const {
     return getKind() == Range;
-  }
-
-  bool isInteropTypeAnnotation() const {
-    return getKind() == InteropTypeAnnotation;
   }
 
   static bool classof(const Stmt *T) {
@@ -5331,7 +5322,8 @@ public:
   }
 };
 
-/// \brief Represents a Checked C interop bounds annotation.
+/// \brief Represents a Checked C interop bounds annotation.  This
+/// may be written by the programmer or inferred by the compiler.
 ///
 /// Checked C has bounds-safe interfaces that allow global variables,
 /// function parameters and return values, and members that have unchecked
@@ -5343,31 +5335,42 @@ public:
 /// information is needed, so it is convenient to store the information as a
 /// bounds expression.
 ///
-/// The annotation is typically used to declare that an entity has _Ptr type
+/// The annotation is used to declare that an entity has _Ptr type
 /// as its bounds-safe interface type.  More generally, an entity can have a
 /// checked pointer type to a checked pointer type and so on as its bounds-safe
 /// interface type.  This is useful for declarations such as `int **y', where
 /// `y' might have a bounds-safe interface that is `_Ptr<_Ptr<int>>` or
 /// `_Array_ptr<_Ptr<int>>`.
 ///
-/// This annotation is not necessary for entities for which a bounds expression
-/// is declared and whci do not have a referent typat this a pointer  It will be
-/// inferred that the entity has _Array_ptr type as its bounds-safe interface
-/// type. Some entities will need both this annotation and a bounds expression.
-class InteropTypeBoundsAnnotation : public BoundsExpr {
+/// This annotation may be synthesized and added by the compiler for 
+/// declarations of entities with unchecked pointer types with inline
+/// bounds declarations.  The synthesized type will be an _Array_ptr type.
+/// Some entities may have both interop type annotations and out-of-line
+/// bounds declarations in where clauses.
+class InteropTypeAnnotation :  public Expr {
 private:
+  SourceLocation StartLoc, EndLoc;
   TypeSourceInfo *TIInfo;
+  friend class ASTStmtReader;
+
 public:
-  InteropTypeBoundsAnnotation(QualType Ty, SourceLocation StartLoc,
+  InteropTypeAnnotation(QualType Ty, SourceLocation StartLoc,
                               SourceLocation EndLoc,
                               TypeSourceInfo *TyAsWritten)
-    : BoundsExpr(InteropTypeBoundsAnnotationClass, Ty, InteropTypeAnnotation,
-                 StartLoc, EndLoc), TIInfo(TyAsWritten) {
+    : Expr(InteropTypeAnnotationClass, Ty, VK_RValue, OK_Ordinary, false,
+           false, false, false), StartLoc(StartLoc), EndLoc(EndLoc),
+           TIInfo(TyAsWritten) {
   }
 
-  explicit InteropTypeBoundsAnnotation(EmptyShell Empty)
-    : BoundsExpr(InteropTypeBoundsAnnotationClass, Empty), TIInfo(nullptr) {}
+  explicit InteropTypeAnnotation(EmptyShell Empty)
+    :Expr(InteropTypeAnnotationClass, Empty), TIInfo(nullptr) {}
 
+  SourceLocation getStartLoc() const { return StartLoc; }
+  SourceLocation getEndLoc() const { return EndLoc; }
+  SourceLocation getRParenLoc() const { return EndLoc; }
+
+  SourceLocation getLocStart() const LLVM_READONLY { return StartLoc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return EndLoc; }
   /// getTypeInfoAsWritten - Returns the type source info for the type
   /// in the interop annotation.
   TypeSourceInfo *getTypeInfoAsWritten() const { return TIInfo; }
@@ -5378,7 +5381,7 @@ public:
   QualType getTypeAsWritten() const { return TIInfo->getType(); }
 
   static bool classof(const Stmt *T) {
-    return T->getStmtClass() == InteropTypeBoundsAnnotationClass;
+    return T->getStmtClass() == InteropTypeAnnotationClass;
   }
 
   // Iterators

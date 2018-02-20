@@ -4656,8 +4656,9 @@ public:
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsExpr *Expr, bool IsReturnBounds);
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
-
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
+
+  void ActOnInteropType(DeclaratorDecl *D, InteropTypeAnnotation *InteropType);
 
   // \#pragma BOUNDS_CHECKED.
   void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
