@@ -553,6 +553,9 @@ namespace {
 
     Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E,
                              bool isBoundsSafeInterface) {
+      // Avoid building up nested chains of no-op casts.
+      E = BoundsUtil::IgnoreValuePreservingOperations(Context, E, true);
+
       // Synthesize some dummy type source source information.
       TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);
       CStyleCastExpr *CE = CStyleCastExpr::Create(Context, Target,
@@ -650,7 +653,8 @@ namespace {
     // Given a byte_count or count bounds expression for the expression Base,
     // expand it to a range bounds expression:
     //  E : Count(C) expands to Bounds(E, E + C)
-    //  E : ByteCount(C)  exzpands to Bounds((char *) E, (char *) E + C)
+    //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
+    //                                      (array_ptr<char>) E + C)
     BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
       assert(Base->isRValue() && "expected rvalue expression");
       BoundsExpr::Kind K = B->getKind();
@@ -672,11 +676,23 @@ namespace {
             // When bounds are pretty-printed as source code, the cast needs
             // to appear in the source code for the code to be correct, so
             // use an explicit cast operation.
+            //
+            // The bounds-safe interface argument is false because casts
+            // to checked pointer types are always allowed by type checking.
             LowerBound =
               CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
           } else {
             ResultTy = Base->getType();
             LowerBound = Base;
+            if (ResultTy->isCheckedPointerPtrType()) {
+              ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
+                CheckedPointerKind::Array);
+              // The bounds-safe interface argument is false because casts
+              // between checked pointer types are always allowed by type
+              // checking.
+              LowerBound =
+                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
+            }
           }
           Expr *UpperBound =
             new (Context) BinaryOperator(LowerBound, Count,
@@ -686,9 +702,10 @@ namespace {
                                           ExprObjectKind::OK_Ordinary,
                                           SourceLocation(),
                                           FPOptions());
-          return new (Context) RangeBoundsExpr(LowerBound, UpperBound,
+          RangeBoundsExpr *R = new (Context) RangeBoundsExpr(LowerBound, UpperBound,
                                                SourceLocation(),
                                                SourceLocation());
+          return R;
         }
         case BoundsExpr::Kind::InteropTypeAnnotation:
           return CreateBoundsUnknown();
@@ -857,22 +874,36 @@ namespace {
           BE = Context.getPrebuiltByteCountOne();
         else
           BE = Context.getPrebuiltCountOne();
-      } else if (Ty->isCheckedArrayType() && IsParam) {
-        assert(IsBoundsSafeInterface && "unexpected checked array type for parameter");
+      } else if (Ty->isCheckedArrayType()) {
+        assert(IsParam && IsBoundsSafeInterface && "unexpected checked array type");
         BE = CreateBoundsForArrayType(Ty);
       } else if (Ty->isCheckedPointerNtArrayType()) {
         BE = Context.getPrebuiltCountZero();
       }
-
+   
       if (!BE)
         return CreateBoundsEmpty();
 
       Expr *Base = E;
-      if (Base->isLValue()) {
-        ImplicitCastExpr *ICE = CreateImplicitCast(Ty, CastKind::CK_LValueToRValue, Base);
-        ICE->setBoundsSafeInterface(IsBoundsSafeInterface);
-        Base = ICE;
-      }
+      if (Base->isLValue())
+        Base = CreateImplicitCast(E->getType(), CastKind::CK_LValueToRValue, Base);
+
+      // If type is a bounds-safe interface type, adjust the type of base to the
+      // bounds-safe interface type.
+      if (IsBoundsSafeInterface) {
+        // Compute the target type.  We could receive an array type for a parameter
+        // with a bounds-safe interface.
+        QualType TargetTy = Ty;
+        if (TargetTy->isArrayType()) {
+          assert(IsParam);
+          TargetTy = Context.getArrayDecayedType(Ty);
+        };
+
+        if (TargetTy != E->getType())
+          Base = CreateExplicitCast(TargetTy, CK_BitCast, Base, true);
+      } else
+        assert(Ty == E->getType());
+
       return ExpandToRange(Base, BE);
     }
 

@@ -14,8 +14,8 @@ extern void test_f1(const void* p_ptr : byte_count(1));
 int f1(_Ptr<struct S> p) {
   // TODO: Github Checked C repo issue #422: Extend constant-sized ranges to cover Ptr to an incomplete type
   test_f1(p); // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
-               // expected-note {{(expanded) expected argument bounds are 'bounds((_Array_ptr<char>)(const void *)p, (_Array_ptr<char>)(const void *)p + 1)'}} \
-               // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 1)'}}
+               // expected-note {{(expanded) expected argument bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 1)'}} \
+               // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<struct S>)p, (_Array_ptr<struct S>)p + 1)'}}
   return 0;
 }
 
@@ -31,7 +31,7 @@ extern void test_f3(const void* p_ptr : byte_count(1));
 int f3(_Ptr<struct S> p) {
   // TODO: Github Checked C repo issue #422: Extend constant-sized ranges to cover Ptr to an incomplete type
   test_f3(p); // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
-              // expected-note {{(expanded) expected argument bounds are 'bounds((_Array_ptr<char>)(_Array_ptr<const void>)p, (_Array_ptr<char>)(_Array_ptr<const void>)p + 1)'}} \
-              // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 1)'}}
+              // expected-note {{(expanded) expected argument bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 1)'}} \
+              // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<struct S>)p, (_Array_ptr<struct S>)p + 1)'}}
   return 0;
 }
