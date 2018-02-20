@@ -4658,7 +4658,7 @@ public:
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
 
-  void ActOnInteropType(DeclaratorDecl *D, InteropTypeAnnotation *InteropType);
+  void ActOnInteropType(DeclaratorDecl *D, InteropTypeBoundsAnnotation *InteropType);
 
   // \#pragma BOUNDS_CHECKED.
   void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);

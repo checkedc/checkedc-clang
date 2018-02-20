@@ -2541,7 +2541,7 @@ struct FieldDeclarator {
   Declarator D;
   Expr *BitfieldSize;
   std::unique_ptr<CachedTokens> BoundsExprTokens;
-  InteropTypeAnnotation *InteropAnnotation;
+  InteropTypeBoundsAnnotation *InteropAnnotation;
 
   explicit FieldDeclarator(const DeclSpec &DS)
     : D(DS, Declarator::MemberContext), BitfieldSize(nullptr), BoundsExprTokens(nullptr),
