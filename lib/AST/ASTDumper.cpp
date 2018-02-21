@@ -605,8 +605,8 @@ namespace  {
     void VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node);
     void VisitCountBoundsExpr(const CountBoundsExpr *Node);
     void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
-    void VisitInteropTypeAnnotation(
-      const InteropTypeAnnotation *Node);
+    void VisitInteropTypeBoundsAnnotation(
+      const InteropTypeBoundsAnnotation *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
     void dumpBoundsCheckKind(BoundsCheckKind kind);
     void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
@@ -2773,7 +2773,6 @@ void ASTDumper::dumpBoundsKind(BoundsExpr::Kind K) {
     case BoundsExpr::Kind::ElementCount: OS << " Element"; break;
     case BoundsExpr::Kind::ByteCount: OS << " Byte"; break;
     case BoundsExpr::Kind::Range: OS << " Range"; break;
-    case BoundsExpr::Kind::InteropTypeAnnotation: OS << " InteropTypeAnnotation"; break;
   }
 }
 
@@ -2815,11 +2814,9 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   }
 }
 
-void ASTDumper::VisitInteropTypeAnnotation(
-  const InteropTypeAnnotation *Node) {
+void ASTDumper::VisitInteropTypeBoundsAnnotation(
+  const InteropTypeBoundsAnnotation *Node) {
   VisitExpr(Node);
-  if (Node->getKind() != BoundsExpr::Kind::InteropTypeAnnotation)
-    dumpBoundsKind(Node->getKind());
 }
 
 void ASTDumper::VisitPositionalParameterExpr(

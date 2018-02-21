@@ -11913,7 +11913,8 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                                         << RHSExpr->getSourceRange();
 }
 
-bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
+bool Sema::AllowedInCheckedScope(QualType Ty,
+                                 QualType BoundsSafeInterfaceType,
                                  bool IsParam, CheckedScopeTypeLocation Loc,
                                  CheckedScopeTypeLocation &ProblemLoc,
                                  QualType &ProblemTy) {
@@ -11926,7 +11927,7 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
 
   if (Ty->isPointerType() || Ty->isArrayType()) {
     if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
-        !Bounds) {
+        BoundsSafeInterfaceType.isNull()) {
       ProblemLoc = CurrentLoc;
       ProblemTy = Ty;
       return false;
@@ -11934,8 +11935,8 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
 
     // Any interop type annotation must be "at least as checked" as the
     // original type, so use that instead.
-    if (Bounds && Bounds->isInteropTypeAnnotation()) {
-      Ty = GetCheckedCInteropType(Ty, Bounds, IsParam);
+    if (!BoundsSafeInterfaceType.isNull()) {
+      Ty = BoundsSafeInterfaceType;
       Loc = CSTL_BoundsSafeInterface;
       if (!(Ty->isPointerType() || Ty->isArrayType())) {
         llvm_unreachable("unexpected interop type");
@@ -11943,23 +11944,23 @@ bool Sema::AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
       }
     }
     QualType ReferentType = QualType(Ty->getPointeeOrArrayElementType(), 0);
-    return AllowedInCheckedScope(ReferentType, nullptr, false, Loc,
+    return AllowedInCheckedScope(ReferentType, QualType(), false, Loc,
                                  ProblemLoc, ProblemTy);
   } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
-    const BoundsExpr *ReturnBounds = fpt->getReturnBounds();
-    if (!AllowedInCheckedScope(fpt->getReturnType(), ReturnBounds, false, Loc,
-                               ProblemLoc, ProblemTy))
+    if (!AllowedInCheckedScope(fpt->getReturnType(), fpt->getReturnBoundsSafeInterface(),
+                               false, Loc, ProblemLoc, ProblemTy))
       return false;
     unsigned int paramCount = fpt->getNumParams();
     for (unsigned int i = 0; i < paramCount; i++) {
-      const BoundsExpr *ParamBounds = fpt->getParamBounds(i);
-      if (!AllowedInCheckedScope(fpt->getParamType(i), ParamBounds, true, Loc,
-                                 ProblemLoc, ProblemTy))
+      QualType ParamBoundsSafeInterface = fpt->getParamBoundsSafeInterfaceType(i);
+      if (!AllowedInCheckedScope(fpt->getParamType(i), ParamBoundsSafeInterface,
+                                 true, Loc, ProblemLoc, ProblemTy))
         return false;
     }
-  } else
-    assert((!Bounds || !Bounds->isInteropTypeAnnotation()) &&
-           "unexpected interop type annotation on type");
+  }
+  else
+    assert(BoundsSafeInterfaceType.isNull() &&
+           "unexpected bounds-safe interface type on type");
 
   return true;
 }
@@ -12013,7 +12014,7 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   bool Result = true;
   CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
   QualType ProblemTy = Ty;
-  if (!AllowedInCheckedScope(Ty, TargetDecl->getBoundsExpr(),
+  if (!AllowedInCheckedScope(Ty, TargetDecl->getInteropType(),
                              isa<ParmVarDecl>(TargetDecl), CSTL_TopLevel,
                              ProblemLoc, ProblemTy)) {
     Diag(Loc, diag::err_checked_scope_decl_type) << DeclKind << IsUse
@@ -12052,7 +12053,7 @@ bool Sema::DiagnoseTypeInCheckedScope(QualType Ty, SourceLocation StartLoc,
                                       SourceLocation EndLoc) {
   CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
   QualType ProblemTy = Ty;
-  if (!AllowedInCheckedScope(Ty, nullptr, false, CSTL_TopLevel,
+  if (!AllowedInCheckedScope(Ty, QualType(), false, CSTL_TopLevel,
                              ProblemLoc, ProblemTy)) {
     Diag(StartLoc, diag::err_checked_scope_type) << ProblemLoc
       << SourceRange(StartLoc, EndLoc);

@@ -3968,7 +3968,7 @@ public:
   /// - This rule applies recursively to any types nested within Ty.
   /// - All other types are allowed in checked scopes.
   /// Return false if Ty is not allowed.
-  bool AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
+  bool AllowedInCheckedScope(QualType Ty, QualType BoundsSafeInterfaceType,
                              bool IsParam, CheckedScopeTypeLocation Loc,
                              CheckedScopeTypeLocation &ProblemLoc,
                              QualType &ProblemTy);
@@ -9722,6 +9722,10 @@ public:
   QualType GetCheckedCInteropType(QualType Ty,
                                   const BoundsExpr *Bounds,
                                   bool isParam);
+
+  /// \brief: Given a value with type Ty that has a bounds declaration,
+  /// compute the bounds-safe interface type.
+  QualType CreateCheckedCInteropType(QualType Ty, bool isParam);
 
   /// Rewrite function types with bounds-safe interfaces on unchecked
   /// types to use the checked types specified by the interfaces.  Recursively

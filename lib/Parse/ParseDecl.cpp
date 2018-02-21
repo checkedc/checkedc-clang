@@ -3992,17 +3992,18 @@ void Parser::ParseStructDeclaration(
         // always set BoundsExprTokens: the delayed parsing is what
         // issues any parsing error messages.
         DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
+        // TODO: set create InteropAnnotation type
       } else if (getLangOpts().CheckedC && StartsInteropTypeAnnotation(Tok)) {
-        ExprResult BoundsResult =
+        ExprResult InteropTypeResult =
           ParseInteropTypeAnnotation(DeclaratorInfo.D);
-        if (BoundsResult.isInvalid())
+        if (InteropTypeResult.isInvalid())
           SkipUntil(tok::semi, StopBeforeMatch);
         else {
-          InteropTypeAnnotation *BoundsAnnotation =
-            dyn_cast<InteropTypeAnnotation>(BoundsResult.get());
-          assert(BoundsAnnotation && "dyn_cast failed");
-          if (BoundsAnnotation)
-            DeclaratorInfo.BoundsAnnotation = BoundsAnnotation;
+          InteropTypeBoundsAnnotation *InteropAnnotation =
+            dyn_cast<InteropTypeBoundsAnnotation>(InteropTypeResult.get());
+          assert(InteropAnnotation  && "dyn_cast failed");
+          if (InteropAnnotation)
+            DeclaratorInfo.InteropAnnotation = InteropAnnotation;
         }
       } else {
         ExprResult Res(ParseConstantExpression());
@@ -4134,8 +4135,17 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
         if (FD.InteropAnnotation)
             Actions.ActOnInteropType(Field, FD.InteropAnnotation);
         else {
-          // TODO: infer interop type
+          // If there is a bounds annotation but interop-type annotation, synthesize an interop type
+          // if necessary.
           if (FD.BoundsExprTokens) {
+            QualType BoundsSafeInterfaceType =
+              Actions.CreateCheckedCInteropType(Field->getType(), false);
+            if (!BoundsSafeInterfaceType.isNull()) {
+              TypeSourceInfo *DI = Actions.Context.getTrivialTypeSourceInfo(BoundsSafeInterfaceType);
+              ExprResult R = Actions.CreateBoundsInteropType(SourceLocation(), DI, SourceLocation());
+              if (!R.isInvalid())
+                Actions.ActOnInteropType(Field, dyn_cast<InteropTypeBoundsAnnotation>(R.get()));
+            }
           }
         }
       };

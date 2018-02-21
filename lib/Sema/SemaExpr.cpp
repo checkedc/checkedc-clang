@@ -489,22 +489,9 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       // change the array-to-pointer decay cast in checked scopes to make the
       // target type completely checked.
       if (getCurScope()->isCheckedScope() && Ty->isOrContainsUncheckedType()) {
-        BoundsExpr *B = nullptr;
-        Expr *IgnoreParenCasts = E->IgnoreParenCasts();
-        if (auto *DRE = dyn_cast<DeclRefExpr>(IgnoreParenCasts)) {
-          if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-            // parameter variables should not have array type.
-            assert(!(isa<ParmVarDecl>(VD)));
-            B = VD->getBoundsExpr();
-          }
-        } else if (auto *ME = dyn_cast<MemberExpr>(IgnoreParenCasts)) {
-          if (auto *MD = dyn_cast<FieldDecl>(ME->getMemberDecl()))
-            B = MD->getBoundsExpr();
-        }
-
-        if (B != nullptr) {
-          Ty = GetCheckedCInteropType(Ty, B, false);
-          Ty = RewriteBoundsSafeInterfaceTypes(Ty);
+        QualType InteropType = GetCheckedCInteropType(E->IgnoreParenCasts);
+        if (!InteropType.isNull()) {
+          Ty = RewriteBoundsSafeInterfaceTypes(InteropType);
           isBoundsSafeInterfaceCast = true;
         }
       }      
@@ -8485,21 +8472,23 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
 /// otherwise.  For the left-hand sides of assignments, only global variables,
 /// parameters, and members of structures/unions have bounds-safe interfaces.
 QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
+  DeclaratorDecl *D = nullptr;
   if (!LHS.isInvalid()) {
-    Expr *LHSExpr = LHS.get();
-    if (const MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
-      if (const FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
-        if (const BoundsExpr *Bounds = Field->getBoundsExpr())
-          return GetCheckedCInteropType(Field->getType(), Bounds, false);
+    Expr *LHSExpr = LHS.get()->IgnoreParens();
+    if (MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
+      if (FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
+        D = Field;
     }
-    else if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
-      if (const VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
-        if (const BoundsExpr *Bounds = Var->getBoundsExpr())
-          return GetCheckedCInteropType(Var->getType(), Bounds,
-                                        isa<ParmVarDecl>(Var));
+    else if (DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
+      if (VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
+        D = Var;
     }
   }
-  return QualType();
+
+  if (D)
+    return D->getInteropType();
+  else
+    return QualType();
 }
 
 QualType Sema::InvalidOperands(SourceLocation Loc, ExprResult &LHS,

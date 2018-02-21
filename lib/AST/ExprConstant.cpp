@@ -10342,7 +10342,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::DependentCoawaitExprClass:
   case Expr::CoyieldExprClass:
   case Expr::CountBoundsExprClass:
-  case Expr::InteropTypeAnnotationClass:
+  case Expr::InteropTypeBoundsAnnotationClass:
   case Expr::NullaryBoundsExprClass:
   case Expr::PositionalParameterExprClass:
     // These are parameter variables and are never constants,

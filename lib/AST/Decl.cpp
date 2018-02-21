@@ -1812,6 +1812,23 @@ void DeclaratorDecl::setBoundsExpr(BoundsExpr *E) {
   Bounds = E;
 }
 
+InteropTypeBoundsAnnotation *DeclaratorDecl::getInteropTypeAnnotation() {
+  return InteropAnnotation;
+}
+
+QualType DeclaratorDecl::getInteropType() {
+  InteropTypeBoundsAnnotation *BA = getInteropTypeAnnotation();
+  if (BA)
+    return BA->getType();
+  else
+    return QualType();
+}
+
+void DeclaratorDecl::setInteropTypeBoundsAnnotation(
+  InteropTypeBoundsAnnotation *IT) {
+  InteropAnnotation = IT;
+}
+
 //===----------------------------------------------------------------------===//
 // VarDecl Implementation
 //===----------------------------------------------------------------------===//

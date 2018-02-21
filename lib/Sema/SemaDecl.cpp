@@ -11277,13 +11277,13 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
         !isa<ParmVarDecl>(Var)) {
       QualType Ty = Var->getType();
       BoundsExpr *B = Var->getBoundsExpr();
-      if (getCurScope()->isCheckedScope() && Ty->isUncheckedPointerType() && B)
-        Ty = GetCheckedCInteropType(Ty, B, isa<ParmVarDecl>(Var));
+      if (getCurScope()->isCheckedScope() && Var->hasInteropType())
+        Ty = Var->getInteropType();
+
       if (Ty->isCheckedPointerPtrType())
         Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
           << Var;
-      else if (B && !B->isInteropTypeAnnotation() && !B->isInvalid() &&
-               !B->isUnknown() && !Ty->isArrayType())
+      else if (B && !B->isInvalid() && !B->isUnknown() && !Ty->isArrayType())
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
     }

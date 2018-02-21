@@ -60,14 +60,6 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
     case BoundsExpr::Kind::Unknown:
       llvm_unreachable("should already have been handled");
       break;
-    case BoundsExpr::Kind::InteropTypeAnnotation: {
-      const InteropTypeBoundsAnnotation *Annot =
-        dyn_cast<InteropTypeBoundsAnnotation>(Bounds);
-      assert(Annot && "unexpected dyn_cast failure");
-      if (Annot != nullptr)
-        ResultType = Annot->getType();
-      break;
-    }
     case BoundsExpr::Kind::Any:
     case BoundsExpr::Kind::ByteCount:
     case BoundsExpr::Kind::ElementCount:
@@ -90,6 +82,47 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
       break;
     }
   }
+
+  // When a parameter variable declaration is created, array types for parameter
+  // variables are adjusted to be pointer types.  We have to do the same here.
+  if (isParam && !ResultType.isNull() && ResultType->isArrayType())
+    ResultType = Context.getAdjustedParameterType(ResultType);
+
+  return ResultType;
+}
+
+QualType Sema::CreateCheckedCInteropType(QualType Ty,
+                                      bool isParam) {
+  // Nothing to do.
+  if (Ty.isNull() || Ty->isCheckedArrayType() ||
+    Ty->isCheckedPointerType())
+    return QualType();
+
+  QualType ResultType = QualType();
+
+  // Parameter types that are array types are adusted to be
+  // pointer types.  We'll work with the original type instead.
+  // For multi-dimensional array types, the nested array types need
+  // to become checked array types too.
+  if (isParam) {
+    if (const DecayedType *Decayed = dyn_cast<DecayedType>(Ty)) {
+      Ty = Decayed->getOriginalType();
+    }
+  }
+
+  if (const PointerType  *PtrType = Ty->getAs<PointerType>()) {
+    if (PtrType->isUnchecked()) {
+      ResultType = Context.getPointerType(PtrType->getPointeeType(),
+                                          CheckedPointerKind::Array);
+      ResultType.setLocalFastQualifiers(Ty.getCVRQualifiers());
+    }
+    else {
+      assert(PtrType->isChecked());
+      ResultType = Ty;
+    }
+  }
+  else if (Ty->isConstantArrayType() || Ty->isIncompleteArrayType())
+    ResultType = MakeCheckedArrayType(Ty);
 
   // When a parameter variable declaration is created, array types for parameter
   // variables are adjusted to be pointer types.  We have to do the same here.

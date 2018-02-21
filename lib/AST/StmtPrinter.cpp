@@ -2046,18 +2046,9 @@ void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
   }
 }
 
-void StmtPrinter::VisitInteropTypeAnnotation(
-  InteropTypeAnnotation *Node) {
-  switch (Node->getKind()) {
-  case BoundsExpr::Invalid:
-    OS << "invalid_interoptype";
-    break;
-  case BoundsExpr::InteropTypeAnnotation:
+void StmtPrinter::VisitInteropTypeBoundsAnnotation(
+  InteropTypeBoundsAnnotation *Node) {
     Node->getTypeAsWritten().print(OS, Policy);
-    break;
-  default:
-    llvm_unreachable("unexpected bounds kind for interop type bounds expr");
-  }
 }
 
 void StmtPrinter::VisitBoundsCastExpr(BoundsCastExpr *Node) {

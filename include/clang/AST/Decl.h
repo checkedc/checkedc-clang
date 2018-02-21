@@ -765,7 +765,7 @@ public:
   void setBoundsExpr(BoundsExpr *E);
 
   /// \brief The Checked C interop type declared or inferred for this
-  /// declaration.  For function declarations, this is the rreturn
+  /// declaration.  For function declarations, this is therreturn
   /// interop type of the function.  Null if none has been declared
   /// or inferred.
   const InteropTypeBoundsAnnotation *getInteropTypeAnnotation() const {
@@ -778,9 +778,19 @@ public:
   /// or inferred.
   InteropTypeBoundsAnnotation *getInteropTypeAnnotation();
 
+  QualType getInteropType() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropType();
+  }
+
+  QualType getInteropType();
+
+  bool hasInteropType() const {
+    return InteropAnnotation != nullptr;
+  }
+
   /// \brief Set the Checked C interop for this declaration.  For function
   /// declarations, this is the return bounds of the function.
-  void setInteropTypeBoundsAnnotation(InteropTypeAnnotation *IT);
+  void setInteropTypeBoundsAnnotation(InteropTypeBoundsAnnotation *IT);
 };
 
 /// \brief Structure used to store a statement, the constant value to

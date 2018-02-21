@@ -1244,11 +1244,10 @@ void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
   ID.AddInteger(S->getKind());
 }
 
-void StmtProfiler::VisitInteropTypeAnnotation(
-  const InteropTypeAnnotation *S) {
+void StmtProfiler::VisitInteropTypeBoundsAnnotation(
+  const InteropTypeBoundsAnnotation *S) {
   VisitExpr(S);
   VisitType(S->getTypeAsWritten());
-  ID.AddInteger(S->getKind());
 }
 
 void StmtProfiler::VisitBoundsCastExpr(const BoundsCastExpr *S) {
