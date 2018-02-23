@@ -759,8 +759,10 @@ void ASTDeclReader::VisitDeclaratorDecl(DeclaratorDecl *DD) {
   VisitValueDecl(DD);
   DD->setInnerLocStart(ReadSourceLocation());
 
-  if (Record.readInt()) // hasBoundsExpr
-	DD->setBoundsExpr(Record.readBoundsExpr());
+  if (Record.readInt()) { // hasBoundsAnotations.
+    BoundsAnnotations *BA = Record.readBoundsAnnotations();
+    DD->setBoundsAnnotations(BA);
+  }
 
   if (Record.readInt()) { // hasExtInfo
     DeclaratorDecl::ExtInfo *Info

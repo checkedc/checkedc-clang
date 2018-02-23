@@ -489,7 +489,7 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       // change the array-to-pointer decay cast in checked scopes to make the
       // target type completely checked.
       if (getCurScope()->isCheckedScope() && Ty->isOrContainsUncheckedType()) {
-        QualType InteropType = GetCheckedCInteropType(E->IgnoreParenCasts);
+        QualType InteropType = GetCheckedCInteropType(E->IgnoreParenCasts());
         if (!InteropType.isNull()) {
           Ty = RewriteBoundsSafeInterfaceTypes(InteropType);
           isBoundsSafeInterfaceCast = true;
@@ -13439,6 +13439,12 @@ ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInf
                                          SourceLocation RParenLoc) {
   QualType QT = TInfo->getType();
   return new (Context) InteropTypeBoundsAnnotation(QT, TypeKWLoc, RParenLoc,
+                                                   TInfo);
+}
+
+ExprResult Sema::CreateBoundsInteropType(QualType QT) {
+  TypeSourceInfo *TInfo = Context.getTrivialTypeSourceInfo(QT);
+  return new (Context) InteropTypeBoundsAnnotation(QT, SourceLocation(), SourceLocation(),
                                                    TInfo);
 }
 

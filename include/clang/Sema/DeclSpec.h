@@ -1378,7 +1378,7 @@ struct DeclaratorChunk {
 
     /// The bounds for the value returned by the function. Null if there is
     /// no bounds specified.
-    BoundsExpr *ReturnBounds;
+    BoundsAnnotations *ReturnBounds;
 
     union {
       /// \brief Pointer to a new[]'d array of TypeAndRange objects that
@@ -1527,8 +1527,8 @@ struct DeclaratorChunk {
     /// \brief Get the trailing-return-type for this function declarator.
     ParsedType getTrailingReturnType() const { return TrailingReturnType; }
 
-    /// \brief The bounds expression for the return value
-    BoundsExpr *getReturnBounds() const { return ReturnBounds; }
+    /// \brief The bounds annotations for the return value
+    BoundsAnnotations *getReturnBounds() const { return ReturnBounds; }
   };
 
   struct BlockPointerTypeInfo : TypeInfoCommon {
@@ -1674,7 +1674,7 @@ struct DeclaratorChunk {
                                      SourceLocation LocalRangeBegin,
                                      SourceLocation LocalRangeEnd,
                                      SourceLocation ReturnBoundsColonLoc,
-                                     BoundsExpr *ReturnBoundsExpr,
+                                     BoundsAnnotations *ReturnBoundsExpr,
                                      Declarator &TheDeclarator,
                                      TypeResult TrailingReturnType =
                                                     TypeResult());

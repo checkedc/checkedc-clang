@@ -4723,7 +4723,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         SmallVector<QualType, 16> ParamTys;
         ParamTys.reserve(FTI.NumParams);
 
-        SmallVector<BoundsExpr *, 16> ParamBounds;
+        SmallVector<BoundsAnnotations *, 16> ParamBounds;
         ParamBounds.reserve(FTI.NumParams);
         bool HasAnyParameterBounds = false;
 
@@ -4793,7 +4793,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           // Record parameter bounds for Checked C extension.  When the
           // Checked C extension is not enabled, Bounds will always be null
           // and HasAnyParameterBounds will always be false.
-          BoundsExpr *Bounds = Param->getBoundsExpr();
+          BoundsAnnotations *Bounds = Param->getBoundsAnnotations();
           if (Bounds) {
             HasAnyParameterBounds = true;
             Bounds = S.AbstractForFunctionType(Bounds, ParamInfo);
@@ -4824,15 +4824,15 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
-        BoundsExpr *ReturnBounds = FTI.getReturnBounds();
+        BoundsAnnotations *ReturnBounds = FTI.getReturnBounds();
         if (ReturnBounds) {
           if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnBounds, true))
-            ReturnBounds = S.CreateInvalidBoundsExpr();
+            ReturnBounds = S.CreateInvalidBoundsAnnotations();
           else
             ReturnBounds = S.AbstractForFunctionType(ReturnBounds, ParamInfo);
         } else {
           if (T->isCheckedPointerNtArrayType())
-            ReturnBounds = Context.getPrebuiltCountZero();
+            ReturnBounds = Context.getPrebuiltAnnotCountZero();
         }
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are

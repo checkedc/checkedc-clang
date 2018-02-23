@@ -707,7 +707,7 @@ namespace {
                                                SourceLocation());
           return R;
         }
-        case BoundsExpr::Kind::InteropTypeAnnotation:
+        case BoundsExpr::Kind::Dummy:
           return CreateBoundsUnknown();
         default:
           return B;
@@ -756,7 +756,7 @@ namespace {
           }
           // Declared bounds override the bounds based on the array type.
           BoundsExpr *B = VD->getBoundsExpr();
-          if (B && !B->isInteropTypeAnnotation()) {
+          if (B && !B->isOnlyInteropTypeAnnotation()) {
             Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                             CastKind::CK_ArrayToPointerDecay,
                                             E);
@@ -806,7 +806,7 @@ namespace {
         if (ME->getType()->isArrayType()) {
           // Declared bounds override the bounds based on the array type.
           BoundsExpr *B = FD->getBoundsExpr();
-          if (B && !B->isInteropTypeAnnotation()) {
+          if (B && !B->isOnlyInteropTypeAnnotation()) {
             B = SemaRef.MakeMemberBoundsConcrete(ME->getBase(), ME->isArrow(), B);
             if (B->isElementCount() || B->isByteCount()) {
               Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
@@ -943,12 +943,12 @@ namespace {
           if (!B || B->isUnknown())
             return CreateBoundsAlwaysUnknown();
 
-          if (B->isInteropTypeAnnotation())
+          if (B->isOnlyInteropTypeAnnotation())
             // TODO: eventually we need to support an interop type annotation
             // with a bounds declaration too.  For now, we can't have that, so
             // we infer bounds based on the type and do not check to see if
             // the programmer declared bounds.
-            return CreateTypeBasedBounds(E, B->getType(),
+            return CreateTypeBasedBounds(E, B->getInteropTypeAnnotation()->getType(),
                                          /*IsParam=*/isa<ParmVarDecl>(D),
                                          /*IsBoundsSafeInterface=*/true);
 
@@ -993,12 +993,12 @@ namespace {
               /*ReportError=*/false))
             return CreateBoundsNotAllowedYet();
 
-          if (B->isInteropTypeAnnotation())
+          if (B->isOnlyInteropTypeAnnotation())
             // TODO: eventually we need to support an interop type annotation
             // with a bounds declaration too.  For now, we can't have that, so
             // we infer bounds based on the type and do not check to see if
             // the programmer declared bounds.
-            return CreateTypeBasedBounds(MemberBaseExpr, B->getType(),
+            return CreateTypeBasedBounds(MemberBaseExpr, B->getInteropTypeAnnotation()->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
 
@@ -1254,7 +1254,7 @@ namespace {
             // TODO:handle interop type annotation on return bounds
             // Github issue #205.  We have no way of rerepresenting
             // CurrentExprValue in the IR yet.
-            if (FunBounds->isInteropTypeAnnotation())
+            if (FunBounds->isOnlyInteropTypeAnnotation())
               return CreateBoundsAllowedButNotComputed();
 
             ArrayRef<Expr *> ArgExprs =
@@ -1794,11 +1794,8 @@ namespace {
         case BoundsExpr::Kind::Invalid:
         case BoundsExpr::Kind::Unknown:
         case BoundsExpr::Kind::Any:
+        case BoundsExpr::Kind::Dummy:
           return false;
-        case BoundsExpr::Kind::InteropTypeAnnotation: {
-          llvm_unreachable("did not expect interop type annotation");
-          return false;
-        }
         case BoundsExpr::Kind::ByteCount:
         case BoundsExpr::Kind::ElementCount:
           // TODO: fill these cases in.
@@ -2326,9 +2323,9 @@ namespace {
         if (ParamBounds->isElementCount() || ParamBounds->isByteCount())
           ParamBounds = S.ExpandToRange(Arg, const_cast<BoundsExpr *>(ParamBounds));
 
-        if (ParamBounds->isInteropTypeAnnotation())
+        if (ParamBounds->isOnlyInteropTypeAnnotation())
           // The same short-circuit logic applies here too.
-          ParamBounds = S.CreateTypeBasedBounds(Arg, ParamBounds->getType(), true, true);
+          ParamBounds = S.CreateTypeBasedBounds(Arg, ParamBounds->getInteropTypeAnnotation()->getType(), true, true);
 
         // Check after handling the interop type annotation, not before, because
         // handling the interop type annotation could make the bounds known.

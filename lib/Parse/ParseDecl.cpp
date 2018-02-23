@@ -2303,7 +2303,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     if (Tok.is(tok::colon)) {
       SourceLocation BoundsColonLoc = Tok.getLocation();
       ConsumeToken();
-      ExprResult ParsedBounds = ParseBoundsExpressionOrInteropType(D, BoundsColonLoc);
+      ExprResult ParsedBounds = ParseBoundsAnnotations(D, BoundsColonLoc);
       if (ParsedBounds.isInvalid()) {
         SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
         Bounds = Actions.CreateInvalidBoundsExpr();
@@ -4125,17 +4125,27 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
         FieldDecls.push_back(Field);
         FD.complete(Field);
 
-        if (FD.BoundsExprTokens != nullptr)
+        if (FD.InteropAnnotation) {
+          ExprResult E = 
+           Actions.ActOnNullaryBoundsExpr(SourceLocation(), BoundsExpr::Kind::Dummy, SourceLocation());
+          if (!E.isInvalid()) {
+            BoundsExpr *DummyBounds = cast<BoundsExpr>(E.get());
+            DummyBounds->setInteropTypeAnnotation(FD.InteropAnnotation);
+            // TODO-issue443: set isPlaceholder bit for now
+            Actions.ActOnBoundsDecl(Field, DummyBounds);
+          }
+        } else if (FD.BoundsExprTokens != nullptr)
           deferredBoundsExpressions.emplace_back(Field,
             std::move(FD.BoundsExprTokens));
         else
           // Set a default bounds declaration.
           Actions.ActOnBoundsDecl(Field, nullptr);
 
+/*  TODO-issue443
         if (FD.InteropAnnotation)
             Actions.ActOnInteropType(Field, FD.InteropAnnotation);
         else {
-          // If there is a bounds annotation but interop-type annotation, synthesize an interop type
+          // If there is a bounds annotation but no interop-type annotation, synthesize an interop type
           // if necessary.
           if (FD.BoundsExprTokens) {
             QualType BoundsSafeInterfaceType =
@@ -4148,6 +4158,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
             }
           }
         }
+*/
       };
 
       // Parse all the comma separated declarators.
@@ -6412,7 +6423,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     }
   }
 
-  // Parse optional Checked C bounds expression or interop type annotation.
+  // Parse optional Checked C bounds annotations (bounds expression or interop
+  // type annotations).
   //
   // The optional return bounds expression combined with C11 generic selection
   // expressions means making a parsing decision only on the presence of the
@@ -6426,7 +6438,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
       BoundsColonLoc = Tok.getLocation();
       ConsumeToken();
       ExprResult BoundsExprResult =
-        ParseBoundsExpressionOrInteropType(D, BoundsColonLoc, /*IsReturn = */true);
+        ParseBoundsAnnotations(D, BoundsColonLoc, /*IsReturn = */true);
       if (BoundsExprResult.isInvalid())
         // We don't have enough context to try to do syntactic error recovery
         // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
@@ -6711,7 +6723,7 @@ void Parser::ParseParameterDeclarationClause(
              // Fall back to general code that eagerly parses a bounds expression
              // bounds-safe interface type annotation.
             ExprResult BoundsAnnotation =
-              ParseBoundsExpressionOrInteropType(ParmDeclarator, BoundsColonLoc);
+              ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc);
             if (BoundsAnnotation.isInvalid()) {
               SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
               Actions.ActOnInvalidBoundsDecl(Param);

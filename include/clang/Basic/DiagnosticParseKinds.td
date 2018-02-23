@@ -1188,6 +1188,12 @@ def err_expected_bounds_expr_or_interop_type : Error<
 def err_expected_compound_stmt_after_checked_scope : Error<
   "expected compound statement after checked scope keyword">;
 
+def err_single_bounds_expr_allowed : Error<
+  "only one bounds expression allowed">;
+
+def err_single_itype_expr_allowed : Error<
+  "only one itype expression allowed">;
+
 // generic function declaration parsing error.
 def err_forany_type_variable_declaration_expected : Error<
   "expected list of type variables">;

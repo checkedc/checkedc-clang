@@ -37,6 +37,7 @@ class CompoundStmt;
 class DependentFunctionTemplateSpecializationInfo;
 class Expr;
 class BoundsExpr;
+class BoundsAnnotations;
 class InteropTypeBoundsAnnotation;
 class FunctionTemplateDecl;
 class FunctionTemplateSpecializationInfo;
@@ -77,6 +78,38 @@ public:
   
   /// \brief Override the type stored in this TypeSourceInfo. Use with caution!
   void overrideType(QualType T) { Ty = T; }
+};
+
+class BoundsAnnotations {
+  BoundsExpr *Bounds;
+  InteropTypeBoundsAnnotation *InteropType;
+
+public:
+  BoundsAnnotations() : Bounds(nullptr), InteropType(nullptr) {}
+
+  BoundsAnnotations(BoundsExpr *B, InteropTypeBoundsAnnotation *IT) :
+    Bounds(B), InteropType(IT) {}
+
+  BoundsExpr *getBounds() const {
+    return Bounds;
+  }
+
+  void setBounds(BoundsExpr *B) {
+    Bounds = B;
+  }
+
+  InteropTypeBoundsAnnotation *getInteropType() const {
+    return InteropType;
+  }
+
+  void setInteropType(InteropTypeBoundsAnnotation *IT) {
+    InteropType = IT;
+  }
+
+  /// \brief Always write data for individual elements. If Annotations is null,
+  /// treat individual elements as being null too.
+  static void Profile(const BoundsAnnotations* Annotations,
+                      llvm::FoldingSetNodeID &ID, const ASTContext &Ctx);
 };
 
 /// TranslationUnitDecl - The top declaration context.
@@ -671,11 +704,10 @@ protected:
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
                  SourceLocation StartL)
     : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL),
-      Bounds(nullptr) {
+      Annotations(nullptr) {
   }
 
-  BoundsExpr *Bounds;
-  InteropTypeBoundsAnnotation *InteropAnnotation;
+  BoundsAnnotations *Annotations;
 
 public:
   TypeSourceInfo *getTypeSourceInfo() const {
@@ -758,14 +790,23 @@ public:
   /// \brief The declared bounds for this declaration. For function
   /// declarations, this is the return bounds of the function. Null if no
   /// bounds have been declared.
-  BoundsExpr *getBoundsExpr();
+  BoundsExpr *getBoundsExpr() {
+    return (Annotations ? Annotations->getBounds() : nullptr);
+  }
 
   /// \brief Set the declared bounds for this declaration. For function
   /// declarations, this is the return bounds of the function.
-  void setBoundsExpr(BoundsExpr *E);
+  void setBoundsExpr(ASTContext &Context, BoundsExpr *E) {
+     // If E is null and we have no annotations, do nothing.
+    if (!E && !Annotations)
+      return;
+    if (!Annotations)
+      Annotations = new (Context) BoundsAnnotations();
+    Annotations->setBounds(E);
+  }
 
   /// \brief The Checked C interop type declared or inferred for this
-  /// declaration.  For function declarations, this is therreturn
+  /// declaration.  For function declarations, this is the return
   /// interop type of the function.  Null if none has been declared
   /// or inferred.
   const InteropTypeBoundsAnnotation *getInteropTypeAnnotation() const {
@@ -776,7 +817,9 @@ public:
   /// declaration.  For function declarations, this is the rreturn
   /// interop type of the function.  Null if none has been declared
   /// or inferred.
-  InteropTypeBoundsAnnotation *getInteropTypeAnnotation();
+  InteropTypeBoundsAnnotation *getInteropTypeAnnotation() {
+    return (Annotations ? Annotations->getInteropType() : nullptr);
+  }
 
   QualType getInteropType() const {
     return const_cast<DeclaratorDecl *>(this)->getInteropType();
@@ -785,12 +828,32 @@ public:
   QualType getInteropType();
 
   bool hasInteropType() const {
-    return InteropAnnotation != nullptr;
+    return getInteropTypeAnnotation() != nullptr;
   }
 
   /// \brief Set the Checked C interop for this declaration.  For function
   /// declarations, this is the return bounds of the function.
-  void setInteropTypeBoundsAnnotation(InteropTypeBoundsAnnotation *IT);
+  void setInteropTypeBoundsAnnotation(ASTContext &Context,
+    InteropTypeBoundsAnnotation *IT) {
+    // If IT is null and we have no annotations, do nothing.
+    if (!IT && !Annotations)
+      return;
+    if (!Annotations)
+      Annotations = new (Context) BoundsAnnotations();
+    Annotations->setInteropType(IT);
+  }
+
+  void setBoundsAnnotations(BoundsAnnotations *BA) {
+    Annotations = BA;
+  }
+
+  BoundsAnnotations *getBoundsAnnotations() const {
+    return Annotations;
+  }
+
+  bool hasBoundsAnnotations() const {
+    return Annotations != nullptr;
+  }
 };
 
 /// \brief Structure used to store a statement, the constant value to

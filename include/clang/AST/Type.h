@@ -89,7 +89,7 @@ namespace clang {
   class ObjCTypeParamDecl;
   class UnresolvedUsingTypenameDecl;
   class Expr;
-  class BoundsExpr;
+  class BoundsAnnotations;
   class Stmt;
   class SourceLocation;
   class StmtIteratorBase;
@@ -3404,8 +3404,8 @@ public:
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos;
-    const BoundsExpr *const *ParamBounds;
-    const BoundsExpr *ReturnBounds;
+    const BoundsAnnotations *const *ParamBounds;
+    const BoundsAnnotations *ReturnBounds;
   };
 
 private:
@@ -3442,19 +3442,19 @@ private:
   /// Whether this function has a trailing return type.
   unsigned HasTrailingReturn : 1;
 
-  /// Whether this function has bounds information for parameters.
+  /// Whether this function has annotations information for parameters.
   unsigned HasParamBounds : 1;
 
-  // The return bounds for a function.  Null when a function has no return
-  // bounds.
-  const BoundsExpr *const ReturnBounds;
+  // The return annotations for a function.  Null when a function has no return
+  //annotations
+  const BoundsAnnotations *const ReturnBounds;
 
   // ParamInfo - There is an variable size array after the class in memory that
   // holds the parameter types.
 
-  // ParamBounds - A variable size array after ParamInfo that holds the bounds
-  // expressions for parameters.  A nullptr is stored if a parameter has no
-  // bounds expression.
+  // ParamBounds - A variable size array after ParamInfo that holds the 
+  // annotations for parameters.  A nullptr is stored if a parameter has no
+  // annotations.
 
   // Exceptions - There is another variable size array after ArgInfo that
   // holds the exception types.
@@ -3510,10 +3510,10 @@ public:
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
 
-  const BoundsExpr *getParamBounds(unsigned i) const {
+  const BoundsAnnotations *getParamBounds(unsigned i) const {
     assert(i < NumParams && "invalid parameter index");
     if (hasParamBounds())
-      return param_bounds_begin()[i];
+      return param_annots_begin()[i];
     else
       return nullptr;
   }
@@ -3538,7 +3538,7 @@ public:
     }
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
-    EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
+    EPI.ParamBounds = hasParamBounds() ? param_annots_begin() : nullptr;
     EPI.ReturnBounds = hasReturnBounds() ? getReturnBounds() : nullptr;
     EPI.numTypeVars = getNumTypeVars();
     return EPI;
@@ -3652,27 +3652,27 @@ public:
     return param_type_begin() + NumParams;
   }
 
-  // Checked C parameter bounds information.
-  typedef const BoundsExpr *const *bounds_iterator;
+  // Checked C parameter annotation information.
+  typedef const BoundsAnnotations *const *annots_iterator;
 
-  ArrayRef<const BoundsExpr *const> parameter_bounds() const {
-    return llvm::makeArrayRef(param_bounds_begin(),
-                              param_bounds_end());
+  ArrayRef<const BoundsAnnotations *const> parameter_annots() const {
+    return llvm::makeArrayRef(param_annots_begin(),
+                              param_annots_end());
   }
 
-  bounds_iterator param_bounds_begin() const {
-    return reinterpret_cast<bounds_iterator>(param_type_end());
+  annots_iterator param_annots_begin() const {
+    return reinterpret_cast<annots_iterator>(param_type_end());
   }
 
-  bounds_iterator param_bounds_end() const {
+  annots_iterator param_annots_end() const {
     if (!hasParamBounds())
-      return param_bounds_begin();
+      return param_annots_begin();
     else
-      return param_bounds_begin() + NumParams;
+      return param_annots_begin() + NumParams;
   }
 
-  // Checked C return bounds information
-  const BoundsExpr *getReturnBounds() const {
+  // Checked C return annotations information
+  const BoundsAnnotations *getReturnBounds() const {
     return ReturnBounds;
   }
 
@@ -3682,8 +3682,8 @@ public:
     return llvm::makeArrayRef(exception_begin(), exception_end());
   }
   exception_iterator exception_begin() const {
-    // exceptions begin where bounds end
-    return (exception_iterator) param_bounds_end();
+    // exceptions begin where annotations end
+    return (exception_iterator) param_annots_end();
   }
   exception_iterator exception_end() const {
     if (getExceptionSpecType() != EST_Dynamic)

@@ -2513,14 +2513,14 @@ private:
   BoundsExpr *PrebuiltBoundsUnknown;
 
 public:
-  bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
+  bool EquivalentAnnotations(const BoundsAnnotations *Annots1, const BoundsAnnotations *Annots2);
 
   BoundsExpr *getPrebuiltByteCountOne();
   BoundsExpr *getPrebuiltCountZero();
   BoundsExpr *getPrebuiltCountOne();
   BoundsExpr *getPrebuiltBoundsUnknown();
 
-
+  BoundsAnnotations *getPrebuiltAnnotCountZero();
 
 
   //===--------------------------------------------------------------------===//

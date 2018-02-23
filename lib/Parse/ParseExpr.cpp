@@ -2929,30 +2929,71 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
   return ExprError();
 }
 
-ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
-                                                      SourceLocation ColonLoc,
-                                                      bool IsReturn) {
+ExprResult Parser::ParseBoundsAnnotations(const Declarator &D,
+                                          SourceLocation ColonLoc,
+                                          bool IsReturn) {
   ExprResult Result(true);
-  bool isBounds = false;
-  bool isItype = false;
+  BoundsExpr *Bounds = nullptr;
+  InteropTypeBoundsAnnotation *InteropType = nullptr;
+  bool parsedSomething = false;
 
-  if (StartsBoundsExpression(Tok)) {
-    Result = ParseBoundsExpression();
-    isBounds = true;
-  } else if (StartsInteropTypeAnnotation(Tok)) {
-    Result = ParseInteropTypeAnnotation(D, IsReturn);
-    isItype = true;
+  while (StartsBoundsExpression(Tok) ||
+         StartsInteropTypeAnnotation(Tok)) {          
+    parsedSomething = true;
+    if (StartsBoundsExpression(Tok)) {
+      Result = ParseBoundsExpression();
+      if (StartsRelativeBoundsClause(Tok))
+        if (ParseRelativeBoundsClauseForDecl(Result))
+        Result = ExprError();
+
+      if (!Result.isInvalid()) {
+        BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(Result.get());
+        if (NewBounds) {
+          if (!Bounds)
+            Bounds = NewBounds;
+          else
+           Diag(NewBounds->getStartLoc(), diag::err_single_bounds_expr_allowed);
+        } else
+          llvm_unreachable("unexpected case failure");
+      }
+    } else {
+      Result = ParseInteropTypeAnnotation(D, IsReturn);
+      if (!Result.isInvalid()) {
+        InteropTypeBoundsAnnotation *NewAnnotation =
+          dyn_cast<InteropTypeBoundsAnnotation>(Result.get());
+        if (NewAnnotation) {
+          if (!InteropType)
+            InteropType = NewAnnotation;
+          else
+           Diag(NewAnnotation->getStartLoc(), diag::err_single_itype_expr_allowed);
+        }
+      }
+     }
   }
 
-  if (!isItype && !isBounds)
+  if (!parsedSomething)
     SkipInvalidBoundsExpr(ColonLoc);
 
-  if (StartsRelativeBoundsClause(Tok))
-    if (ParseRelativeBoundsClauseForDecl(Result)) {
-      Result = ExprError();
+  // Attach the interop type annotation to a bounds expression. Create a dummy
+  // one if necessary.
+  if (InteropType) {
+    if (!Bounds) {
+      Result =
+        Actions.ActOnNullaryBoundsExpr(SourceLocation(), 
+                                       BoundsExpr::Kind::Dummy,
+                                       SourceLocation());
+      if (!Result.isInvalid())
+        Bounds = dyn_cast<BoundsExpr>(Result.get());
     }
 
-  return Result;
+    if (Bounds)
+      Bounds->setInteropTypeAnnotation(InteropType);
+  }
+
+  if (Bounds)
+    return Bounds;
+  else
+    return ExprError();
 }
 
 // Skip Invalid Bounds Expression such as boounds(), b0unds(e1,e2) and stop if
@@ -3546,7 +3587,7 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
                        // so it isn't lost.
   PP.EnterTokenStream(*Toks, true);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
-  ExprResult Result = ParseBoundsExpressionOrInteropType(D, SourceLocation());
+  ExprResult Result = ParseBoundsAnnotations(D, SourceLocation());
 
   // There could be leftover tokens because of an error.
   // Skip through them until we reach the eof token.

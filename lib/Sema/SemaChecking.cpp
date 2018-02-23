@@ -11914,7 +11914,7 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
 }
 
 bool Sema::AllowedInCheckedScope(QualType Ty,
-                                 QualType BoundsSafeInterfaceType,
+                                 const InteropTypeBoundsAnnotation *InteropType,
                                  bool IsParam, CheckedScopeTypeLocation Loc,
                                  CheckedScopeTypeLocation &ProblemLoc,
                                  QualType &ProblemTy) {
@@ -11927,7 +11927,7 @@ bool Sema::AllowedInCheckedScope(QualType Ty,
 
   if (Ty->isPointerType() || Ty->isArrayType()) {
     if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
-        BoundsSafeInterfaceType.isNull()) {
+        !InteropType) {
       ProblemLoc = CurrentLoc;
       ProblemTy = Ty;
       return false;
@@ -11935,8 +11935,8 @@ bool Sema::AllowedInCheckedScope(QualType Ty,
 
     // Any interop type annotation must be "at least as checked" as the
     // original type, so use that instead.
-    if (!BoundsSafeInterfaceType.isNull()) {
-      Ty = BoundsSafeInterfaceType;
+    if (InteropType) {
+      Ty = InteropType->getType();;
       Loc = CSTL_BoundsSafeInterface;
       if (!(Ty->isPointerType() || Ty->isArrayType())) {
         llvm_unreachable("unexpected interop type");
@@ -11944,23 +11944,27 @@ bool Sema::AllowedInCheckedScope(QualType Ty,
       }
     }
     QualType ReferentType = QualType(Ty->getPointeeOrArrayElementType(), 0);
-    return AllowedInCheckedScope(ReferentType, QualType(), false, Loc,
+    return AllowedInCheckedScope(ReferentType, nullptr, false, Loc,
                                  ProblemLoc, ProblemTy);
   } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
-    if (!AllowedInCheckedScope(fpt->getReturnType(), fpt->getReturnBoundsSafeInterface(),
+    const BoundsAnnotations *ReturnAnnots = fpt->getReturnBounds();
+    InteropTypeBoundsAnnotation *ReturnInteropType =
+      ReturnAnnots ? ReturnAnnots->getInteropType() : nullptr;
+    if (!AllowedInCheckedScope(fpt->getReturnType(), ReturnInteropType,
                                false, Loc, ProblemLoc, ProblemTy))
       return false;
     unsigned int paramCount = fpt->getNumParams();
     for (unsigned int i = 0; i < paramCount; i++) {
-      QualType ParamBoundsSafeInterface = fpt->getParamBoundsSafeInterfaceType(i);
-      if (!AllowedInCheckedScope(fpt->getParamType(i), ParamBoundsSafeInterface,
+      const BoundsAnnotations *ParamAnnots = fpt->getParamBounds(i);
+      InteropTypeBoundsAnnotation *ParamInteropType =
+        ParamAnnots ? ParamAnnots->getInteropType() : nullptr;
+      if (!AllowedInCheckedScope(fpt->getParamType(i), ParamInteropType,
                                  true, Loc, ProblemLoc, ProblemTy))
         return false;
     }
   }
   else
-    assert(BoundsSafeInterfaceType.isNull() &&
-           "unexpected bounds-safe interface type on type");
+    assert(!InteropType && "unexpected bounds-safe interface type on type");
 
   return true;
 }
@@ -12014,7 +12018,7 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   bool Result = true;
   CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
   QualType ProblemTy = Ty;
-  if (!AllowedInCheckedScope(Ty, TargetDecl->getInteropType(),
+  if (!AllowedInCheckedScope(Ty, TargetDecl->getInteropTypeAnnotation(),
                              isa<ParmVarDecl>(TargetDecl), CSTL_TopLevel,
                              ProblemLoc, ProblemTy)) {
     Diag(Loc, diag::err_checked_scope_decl_type) << DeclKind << IsUse
@@ -12053,7 +12057,7 @@ bool Sema::DiagnoseTypeInCheckedScope(QualType Ty, SourceLocation StartLoc,
                                       SourceLocation EndLoc) {
   CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
   QualType ProblemTy = Ty;
-  if (!AllowedInCheckedScope(Ty, QualType(), false, CSTL_TopLevel,
+  if (!AllowedInCheckedScope(Ty, nullptr, false, CSTL_TopLevel,
                              ProblemLoc, ProblemTy)) {
     Diag(StartLoc, diag::err_checked_scope_type) << ProblemLoc
       << SourceRange(StartLoc, EndLoc);

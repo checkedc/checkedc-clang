@@ -8175,11 +8175,11 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (!canUseRight)
       allRTypes = false;
 
-    const BoundsExpr *returnBounds = nullptr;
+    const BoundsAnnotations *returnBounds = nullptr;
     if (!IgnoreBounds) {
-      const BoundsExpr *lReturnBounds = lproto->ReturnBounds;
-      const BoundsExpr *rReturnBounds = rproto->ReturnBounds;
-      if (EquivalentBounds(lReturnBounds, rReturnBounds))
+      const BoundsAnnotations *lReturnBounds = lproto->ReturnBounds;
+      const BoundsAnnotations *rReturnBounds = rproto->ReturnBounds;
+      if (EquivalentAnnotations(lReturnBounds, rReturnBounds))
         returnBounds = lReturnBounds;
       else {
         // For unchecked return types, a return with
@@ -8200,7 +8200,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
 
     // Check parameter type compatibility
     SmallVector<QualType, 10> types;
-    SmallVector<const BoundsExpr *, 10> bounds;
+    SmallVector<const BoundsAnnotations *, 10> bounds;
     bool hasParamBounds = lproto->hasParamBounds() || rproto->hasParamBounds();
     for (unsigned i = 0, n = lproto->getNumParams(); i < n; i++) {
       QualType lParamType = lproto->getParamType(i).getUnqualifiedType();
@@ -8225,9 +8225,9 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         allRTypes = false;
 
       if (!IgnoreBounds && hasParamBounds) {
-        const BoundsExpr *lBounds = lproto->getParamBounds(i);
-        const BoundsExpr *rBounds = rproto->getParamBounds(i);
-        if (EquivalentBounds(lBounds, rBounds))
+        const BoundsAnnotations *lBounds = lproto->getParamBounds(i);
+        const BoundsAnnotations *rBounds = rproto->getParamBounds(i);
+        if (EquivalentAnnotations(lBounds, rBounds))
           bounds.push_back(lBounds);
         else {
           // For unchecked parameter types, a parameter with
@@ -9047,21 +9047,47 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
   return false;
 }
 
-bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2) {
+bool ASTContext::EquivalentAnnotations(
+  const BoundsAnnotations *Annots1,
+  const BoundsAnnotations *Annots2) {
+  BoundsExpr *Expr1 = Annots1 ? Annots1->getBounds() : nullptr;
+  BoundsExpr *Expr2 = Annots2 ? Annots2->getBounds() : nullptr;
+  Lexicographic::Result Cmp;
+
   if (Expr1 && Expr2) {
-    Lexicographic::Result Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
-    return Cmp == Lexicographic::Result::Equal;
+    Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
+  } else if (Expr1 && !Expr2) {
+    // One set of bounds is the "unkonwn" and the other is a null pointer.
+    if (Expr1->isUnknown())
+      Cmp = Lexicographic::Result::Equal;
+    else 
+      Cmp = Lexicographic::Result::GreaterThan;
+  } else if (!Expr2 && Expr2) {
+    if (Expr2->isUnknown())
+      Cmp = Lexicographic::Result::Equal;
+    else 
+      Cmp = Lexicographic::Result::LessThan;
+  } else {
+    assert(Expr1 == nullptr && Expr2 == nullptr);
+    Cmp = Lexicographic::Result::Equal;
   }
 
-  // One or both bounds expressions are null pointers.
-  if (Expr1 && !Expr2)
-    return Expr1->isUnknown();
+  if (Cmp != Lexicographic::Result::Equal) 
+    return false;
 
-  if (!Expr1 && Expr2)
-    return Expr2->isUnknown();
+  InteropTypeBoundsAnnotation *IT1 =
+    Annots1 ? Annots1->getInteropType() : nullptr;
 
- // Both must be null pointers.
-  return true;
+  InteropTypeBoundsAnnotation *IT2 =
+    Annots2 ? Annots2->getInteropType() : nullptr;
+
+  if (IT1 == nullptr && IT2 == nullptr)
+    return true;
+
+  if (IT1 != nullptr && IT2 != nullptr && IT1->getType() == IT2->getType())
+    return true;
+
+  return false;
 }
 
 BoundsExpr *ASTContext::getPrebuiltCountZero() {

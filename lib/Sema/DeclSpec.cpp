@@ -178,7 +178,7 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
                                              SourceLocation LocalRangeBegin,
                                              SourceLocation LocalRangeEnd,
                                              SourceLocation ReturnBoundsColonLoc,
-                                             BoundsExpr *ReturnBoundsExpr,
+                                             BoundsAnnotations *ReturnBoundsExpr,
                                              Declarator &TheDeclarator,
                                              TypeResult TrailingReturnType) {
   assert(!(TypeQuals & DeclSpec::TQ_atomic) &&

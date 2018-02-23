@@ -1801,19 +1801,7 @@ void QualifierInfo::setTemplateParameterListsInfo(
 // Checked C bounds information
 
 bool DeclaratorDecl::hasBoundsExpr() const {
-  return Bounds != nullptr;
-}
-
-BoundsExpr *DeclaratorDecl::getBoundsExpr() {
-  return Bounds;
-}
-
-void DeclaratorDecl::setBoundsExpr(BoundsExpr *E) {
-  Bounds = E;
-}
-
-InteropTypeBoundsAnnotation *DeclaratorDecl::getInteropTypeAnnotation() {
-  return InteropAnnotation;
+  return getBoundsExpr() != nullptr;
 }
 
 QualType DeclaratorDecl::getInteropType() {
@@ -1824,9 +1812,23 @@ QualType DeclaratorDecl::getInteropType() {
     return QualType();
 }
 
-void DeclaratorDecl::setInteropTypeBoundsAnnotation(
-  InteropTypeBoundsAnnotation *IT) {
-  InteropAnnotation = IT;
+void BoundsAnnotations::Profile(const BoundsAnnotations *BoundsAnnotations,
+                                llvm::FoldingSetNodeID &ID,
+                                const ASTContext &Ctx) {
+  BoundsExpr *Bounds = nullptr;
+  InteropTypeBoundsAnnotation *Itype = nullptr;
+  if (BoundsAnnotations) {
+    Bounds = BoundsAnnotations->getBounds();
+    Itype = BoundsAnnotations->getInteropType();
+  }
+  if (Bounds)
+    Bounds->Profile(ID, Ctx, true);
+  else
+    ID.AddPointer(nullptr);
+  if (Itype)
+    Itype->Profile(ID, Ctx, true);
+  else
+    ID.AddPointer(nullptr);
 }
 
 //===----------------------------------------------------------------------===//

@@ -636,6 +636,8 @@ public:
       SmallVectorImpl<QualType> &PTypes, SmallVectorImpl<ParmVarDecl *> *PVars,
       Sema::ExtParameterInfoBuilder &PInfos);
 
+  bool TransformBoundsAnnotations(BoundsAnnotations *&Annot, bool &Changed);
+
   /// \brief Transform the extended parameter information for
   /// a function prototype.
   ///
@@ -647,7 +649,7 @@ public:
   bool TransformExtendedParameterInfo(
     FunctionProtoType::ExtProtoInfo &EPI,
     SmallVector<QualType, 4> &ParamTypes,
-    SmallVector<BoundsExpr *, 4> &ParamBounds,
+    SmallVector<BoundsAnnotations *, 4> &ParamListAnnots,
     Sema::ExtParameterInfoBuilder &ExtParamInfos,
     FunctionProtoTypeLoc &TL,
     Fn TransformExceptionSpec,
@@ -5228,11 +5230,49 @@ bool TreeTransform<Derived>::TransformFunctionTypeParams(
   return false;
 }
 
+template<typename Derived>
+bool TreeTransform<Derived>::TransformBoundsAnnotations(
+  BoundsAnnotations *&Annot, bool &Changed) {
+  if (Annot) {
+    BoundsExpr *ExistingBounds = Annot->getBounds();
+    BoundsExpr *NewBounds = ExistingBounds;
+    if (ExistingBounds) {
+      ExprResult Result = getDerived().TransformExpr(ExistingBounds);
+      if (Result.isInvalid())
+        return true;
+      NewBounds = dyn_cast<BoundsExpr>(Result.get());
+      if (!NewBounds) {
+        assert("unexpected dynamic cast failure");
+        return true;
+      }
+    }
+
+    InteropTypeBoundsAnnotation *ExistingItype = Annot->getInteropType();
+    InteropTypeBoundsAnnotation *NewItype = ExistingItype;
+    if (ExistingItype) {
+      ExprResult Result = getDerived().TransformExpr(ExistingItype);
+      if (Result.isInvalid())
+        return true;
+      NewItype = dyn_cast<InteropTypeBoundsAnnotation>(Result.get());
+      if (!NewItype) {
+        assert("unexpected dynamic cast failure");
+        return true;
+      }
+    }
+
+    if (ExistingBounds != NewBounds || ExistingItype != NewItype) {
+      Annot = new (SemaRef.getASTContext()) BoundsAnnotations(NewBounds, NewItype);
+      Changed = true;
+    }
+  }
+  return false;
+}
+
 template <typename Derived> template<typename Fn>
 bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   FunctionProtoType::ExtProtoInfo &EPI,
   SmallVector<QualType, 4> &ParamTypes,
-  SmallVector<BoundsExpr *, 4> &ParamBounds,
+  SmallVector<BoundsAnnotations *, 4> &ParamListAnnots,
   Sema::ExtParameterInfoBuilder &ExtParamInfos,
   FunctionProtoTypeLoc &TL,
   Fn TransformExceptionSpec,
@@ -5256,53 +5296,34 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
     EPI.ExtParameterInfos = nullptr;
   }
 
-  // Handle bounds expression for return.
-  BoundsExpr *ExistingReturnBounds = const_cast<BoundsExpr *>(EPI.ReturnBounds);
-  if (ExistingReturnBounds) {
-    ExprResult Result = getDerived().TransformExpr(ExistingReturnBounds);
-    if (Result.isInvalid())
-      return true;
-    BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(Result.get());
-    if (!NewBounds) {
-      assert("unexpected dynamic cast failure");
-      return true;
-    }
-    EPI.ReturnBounds = NewBounds;
-    if (ExistingReturnBounds != NewBounds)
-      EPIChanged = true;
-  }
+  // Handle bounds annotations for return.
+  BoundsAnnotations *ReturnAnnot = const_cast<BoundsAnnotations *>(EPI.ReturnBounds);
+  if (getDerived().TransformBoundsAnnotations(ReturnAnnot, EPIChanged))
+    return true;
+  EPI.ReturnBounds = ReturnAnnot;
 
-  // Handle bounds expressions for parameters.
-  const BoundsExpr *const *ExistingParamBounds = EPI.ParamBounds;
-  if (ExistingParamBounds) {
-    bool ParamBoundsChanged = false;
+  // Handle bounds annotations for parameters.
+  const BoundsAnnotations *const *ExistingParamListAnnots = EPI.ParamBounds;
+  if (ExistingParamListAnnots) {
+    bool ParamListAnnotsChanged = false;
     unsigned ExistingParamCount = TL.getNumParams();
     unsigned NewParamCount = ParamTypes.size();
-    ParamBounds.reserve(NewParamCount);
+    ParamListAnnots.reserve(NewParamCount);
     for (unsigned i = 0; i < NewParamCount; i++) {
-      BoundsExpr *ExistingBounds = nullptr;
-      BoundsExpr *NewBounds = nullptr;
+      BoundsAnnotations *ParamAnnotations = nullptr;
       if (i < ExistingParamCount) {
-        ExistingBounds = const_cast<BoundsExpr *>(ExistingParamBounds[i]);
-        if (ExistingBounds) {
-          ExprResult Result = TransformExpr(ExistingBounds);
-          if (Result.isInvalid())
+        ParamAnnotations = const_cast<BoundsAnnotations *>(ExistingParamListAnnots[i]);
+        if (ParamAnnotations) {
+          if (getDerived().TransformBoundsAnnotations(ParamAnnotations, ParamListAnnotsChanged))
             return true;
-          NewBounds = dyn_cast<BoundsExpr>(Result.get());
-          if (!NewBounds) {
-            assert("unexpected dynamic cast failure");
-            return true;
-          }
         }
       }
-      ParamBounds.push_back(NewBounds);
-      if (ExistingBounds != NewBounds)
-        ParamBoundsChanged = true;
+      ParamListAnnots.push_back(ParamAnnotations);
     }
 
-    if (ParamBoundsChanged) {
+    if (ParamListAnnotsChanged) {
       EPIChanged = true;
-      EPI.ParamBounds = ParamBounds.data();
+      EPI.ParamBounds = ParamListAnnots.data();
     }
   }
   return false;
@@ -5336,7 +5357,7 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   //
   SmallVector<QualType, 4> ParamTypes;
   SmallVector<ParmVarDecl*, 4> ParamDecls;
-  SmallVector<BoundsExpr *, 4> ParamBounds;
+  SmallVector<BoundsAnnotations *, 4> ParamAnnots;
   Sema::ExtParameterInfoBuilder ExtParamInfos;
   const FunctionProtoType *T = TL.getTypePtr();
 
@@ -5379,7 +5400,7 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
 
   FunctionProtoType::ExtProtoInfo EPI = T->getExtProtoInfo();
   bool EPIChanged = false;
-  if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamBounds,
+  if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamAnnots,
                                                   ExtParamInfos, TL,
                                                   TransformExceptionSpec,
                                                   EPIChanged))

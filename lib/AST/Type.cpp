@@ -2864,7 +2864,7 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
 
   // Fill in the Checked C parameter bounds array.
   if (hasParamBounds()) {
-    const BoundsExpr **boundsSlot = reinterpret_cast<const BoundsExpr **>(argSlot + NumParams);
+    const BoundsAnnotations **boundsSlot = reinterpret_cast<const BoundsAnnotations **>(argSlot + NumParams);
     for (unsigned i = 0; i != NumParams; ++i)
       boundsSlot[i] = epi.ParamBounds[i];
   }
@@ -3065,16 +3065,11 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
 
   // Checked C bounds information.
   if (epi.ParamBounds) {
-    auto Bounds = epi.ParamBounds;
-    for (unsigned i = 0; i != NumParams; ++i) {
-      const BoundsExpr *BoundsExpr = Bounds[i];
-      if (BoundsExpr)
-        BoundsExpr->Profile(ID, Context, true);
-      else
-        ID.AddPointer(nullptr);
-    }
+    auto ParamBounds = epi.ParamBounds;
+    for (unsigned i = 0; i != NumParams; ++i)
+      BoundsAnnotations::Profile(ParamBounds[i], ID, Context);
   }
-  ID.AddPointer(epi.ReturnBounds);
+  BoundsAnnotations::Profile(epi.ReturnBounds, ID, Context);
 
   if (epi.ExtParameterInfos) {
     for (unsigned i = 0; i != NumParams; ++i)

@@ -1023,7 +1023,6 @@ void ASTStmtWriter::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
 void ASTStmtWriter::VisitInteropTypeBoundsAnnotation(
   InteropTypeBoundsAnnotation *E) {
   VisitExpr(E);
-  Record.push_back(E->getKind());
   Record.AddTypeSourceInfo(E->getTypeInfoAsWritten());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getLocEnd());

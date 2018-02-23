@@ -3708,18 +3708,18 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 // Return true if an error involving bounds has been diagnosed, false if not.
 static bool diagnoseBoundsError(Sema &S,
                                 SourceLocation BoundsLoc,
-                                const BoundsExpr *OldBounds,
-                                const BoundsExpr *NewBounds,
+                                const BoundsAnnotations *OldBounds,
+                                const BoundsAnnotations *NewBounds,
                                 const DeclaratorDecl *OldDecl,
                                 const DeclaratorDecl *NewDecl,
                                 QualType OldType,
                                 QualType NewType,
                                 Sema::CheckedCBoundsError Kind) {
-  if (S.Context.EquivalentBounds(OldBounds, NewBounds))
+  if (S.Context.EquivalentAnnotations(OldBounds, NewBounds))
     return false;
 
-  if ((OldBounds && OldBounds->isInvalid()) ||
-      (NewBounds && NewBounds->isInvalid()))
+  if ((OldBounds && OldBounds->getBounds()->isInvalid()) ||
+      (NewBounds && NewBounds->getBounds()->isInvalid()))
     // There must have been an earlier error involving
     // bounds already diagnosed.
     return true;
@@ -3788,12 +3788,12 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
     unsigned ParamCount =
       OldParamCount < NewParamCount ? OldParamCount : NewParamCount;
     for (unsigned i = 0; i < ParamCount; i++) {
-      const BoundsExpr *OldTypeBounds = OldType->getParamBounds(i);
-      const BoundsExpr *NewTypeBounds = NewType->getParamBounds(i);
+      const BoundsAnnotations *OldTypeBounds = OldType->getParamBounds(i);
+      const BoundsAnnotations *NewTypeBounds = NewType->getParamBounds(i);
       const DeclaratorDecl *OldDecl = Old->getParamDecl(i);
       const DeclaratorDecl *NewDecl = New->getParamDecl(i);
-      // Use the bounds from the types; they've been canonicalized,
-      // while the bounds in the declarations have not been.
+      // Use the annotations from the types; they've been canonicalized,
+      // while the annotations in the declarations have not been.
       if (diagnoseBoundsError(*this, getBoundsLocation(NewDecl),
                               OldTypeBounds, NewTypeBounds,
                               OldDecl, NewDecl,
@@ -9129,15 +9129,20 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       Params.push_back(Param);
     }
 
-    // Make the bounds for each parameter, if any, be
+    // Copy the bounds annotations to the parameter.  Make the bounds
+    // expression for each parameter, if any, concrete.
     // concrete.
     ArrayRef<ParmVarDecl *> ParamArray = Params;
     if (FT->hasParamBounds()) {
       for (unsigned int I = 0; I < NumParams; ++I) {
-        BoundsExpr *B = const_cast<BoundsExpr *>(FT->getParamBounds(I));
-        if (B) {
-          B = ConcretizeFromFunctionType(B, ParamArray);
-          Params[I]->setBoundsExpr(B);
+        BoundsAnnotations *BA = const_cast<BoundsAnnotations *>(FT->getParamBounds(I));
+        if (BA) {
+          BoundsExpr *B = BA->getBounds();
+          if (B) {
+            B = ConcretizeFromFunctionType(B, ParamArray);
+            Params[I]->setBoundsExpr(getASTContext(), B);
+            Params[I]->setInteropTypeBoundsAnnotation(getASTContext(), BA->getInteropType());
+          }
         }
       }
     }
@@ -9149,7 +9154,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // Finally, we know we have the right number of parameters, install them.
   NewFD->setParams(Params);
 
-  // Set the return bounds information.  If the bounds expression is
+  // Set the return bounds annotations.  If the bounds expression is
   // available from the declarator and valid for the return type, use that.
   // Otherwise, copy it from the type.
   //
@@ -9158,22 +9163,30 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // type does not have accurate line number information.
   if (D.isFunctionDeclarator()) {
     if (const FunctionProtoType *FT = R->getAs<FunctionProtoType>()) {
-      BoundsExpr *TypeReturnBounds =
-        const_cast<BoundsExpr *>(FT->getReturnBounds());
-      DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
-      BoundsExpr *DeclaredReturnBounds = FTI.getReturnBounds();
-      // Check the return bounds on the type to determine if the bounds
-      // expression is valid for the return type.  Construction of the function
-      // type for the declarator checked whether the return bounds was valid for
-      // the return type, and set the type return bounds to be invalid if it was
-      // not.
-      if (DeclaredReturnBounds && TypeReturnBounds &&
-          !TypeReturnBounds->isInvalid())
-        NewFD->setBoundsExpr(DeclaredReturnBounds);
-      else {
-        BoundsExpr *ReturnBounds = ConcretizeFromFunctionType(TypeReturnBounds,
-                                                              Params);
-        NewFD->setBoundsExpr(ReturnBounds);
+      BoundsAnnotations *BA = const_cast<BoundsAnnotations *>(FT->getReturnBounds());
+      if (BA) {
+        DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
+        BoundsAnnotations *DeclaredReturnAnnots = FTI.getReturnBounds();
+        BoundsExpr *TypeReturnBounds = BA->getBounds();
+        BoundsExpr *DeclaredReturnBounds =
+          DeclaredReturnAnnots ? DeclaredReturnAnnots->getBounds() : nullptr;
+        // Check the return bounds on the type to determine if the bounds
+        // expression is valid for the return type.  Construction of the function
+        // type for the declarator checked whether the return bounds was valid for
+        // the return type, and set the type return bounds to be invalid if it was
+        // not.
+        if (DeclaredReturnBounds && TypeReturnBounds &&
+            !TypeReturnBounds->isInvalid())
+          NewFD->setBoundsExpr(getASTContext(), DeclaredReturnBounds);
+        else {
+          BoundsExpr *ReturnBounds = ConcretizeFromFunctionType(TypeReturnBounds,
+                                                                Params);
+          NewFD->setBoundsExpr(getASTContext(), ReturnBounds);
+        }
+        // Copy the return interop type annotation from the type.
+        // TODO: do we need to worry about line number information for copied
+        // interop type annotations?
+        NewFD->setInteropTypeBoundsAnnotation(getASTContext(), BA->getInteropType());
       }
     }
   }
@@ -12468,7 +12481,7 @@ static bool checkBoundsDeclWithTypeAnnotation(Sema &S, QualType DeclaredTy,
                                               DeclaratorDecl *D,
                                               bool IsReturnBounds) {
   assert(D != nullptr || IsReturnBounds);
-  assert(Expr != nullptr && !Expr->isInvalid());
+  assert(Expr != nullptr);
 
   QualType AnnotTy = Expr->getType();
   if (DeclaredTy.isNull() || AnnotTy.isNull())
@@ -12574,8 +12587,7 @@ static bool checkBoundsDeclWithBoundsExpr(Sema &S, QualType Ty,
                                           DeclaratorDecl *D,
                                           bool IsReturnBounds) {
   assert(D != nullptr || IsReturnBounds);
-  assert(Expr != nullptr && !Expr->isInvalid() &&
-         !Expr->isInteropTypeAnnotation());
+  assert(Expr != nullptr && !Expr->isInvalid());
 
   unsigned DiagId = 0;
 
@@ -12663,32 +12675,34 @@ static bool checkBoundsDeclWithBoundsExpr(Sema &S, QualType Ty,
 // This method returns true if there is an error and false if
 // the checking succeeds.
 bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
-                                  BoundsExpr *Expr, bool IsReturnBounds) {
+                                  BoundsAnnotations *Annots, bool IsReturnBounds) {
   assert(D != nullptr || IsReturnBounds);
-  if ((D != nullptr && D->isInvalidDecl()) || Expr->isInvalid())
+  if (D != nullptr && D->isInvalidDecl())
     return false;
 
-  bool result = true;
-  if (Expr->isInteropTypeAnnotation()) {
-    if (InteropTypeBoundsAnnotation *TypeAnnot =
-        dyn_cast<InteropTypeBoundsAnnotation>(Expr))
-      result = checkBoundsDeclWithTypeAnnotation(*this, Ty, TypeAnnot, D,
-                                                 IsReturnBounds);
-  }
-  else
-    result = checkBoundsDeclWithBoundsExpr(*this, Ty, Expr, D, IsReturnBounds);
-  return result;
+  bool isError = false;
+  BoundsExpr *BE = Annots->getBounds();
+  if (BE && !BE->isInvalid() && 
+      checkBoundsDeclWithBoundsExpr(*this, Ty, BE, D, IsReturnBounds))
+    isError = true;
+
+  InteropTypeBoundsAnnotation *TypeAnnot = Annots->getInteropType();
+  if (TypeAnnot && checkBoundsDeclWithTypeAnnotation(*this, Ty, TypeAnnot, D,
+                                                     IsReturnBounds))
+    isError = true;
+
+  return isError;
 }
 
-// Attach a Checked C bounds expression to a declaration.  If there is no
-// bounds expression, Expr is null.  (This method needs to be called even when
-// a bounds expression is omitted for a declaration because there may be a
+// Attach a Checked C bounds annotations to a declaration.  If there are no
+// bounds annotation, Annots is null.  (This method needs to be called even when
+// bounds annotations are omitted for a declaration because there may be a
 // default bounds expression for a type).
 // - Check that the bounds expression is valid for the declarator.
 //   It must meet typing requirements and be valid for the declaration.
 // - For VarDecls, make sure that a bounds expression on a redeclaration
 // is valid.
-void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
+void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots) {
   if (!D || D->isInvalidDecl())
     return;
 
@@ -12698,92 +12712,121 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr) {
     return;
 
   VarDecl *VD = dyn_cast<VarDecl>(D);
-  if (Expr) {
+  BoundsExpr *BoundsExpr = Annots ? Annots->getBounds() : nullptr;
+  InteropTypeBoundsAnnotation *Itype = Annots ? Annots->getInteropType() : nullptr;
+  if (BoundsExpr) {
     NonModifyingContext req = NMC_Unknown;
-    if (isa<RangeBoundsExpr>(Expr)) {
+    if (isa<RangeBoundsExpr>(BoundsExpr)) {
       req = NMC_Range;
     }
-    else if (const CountBoundsExpr *CountBounds = dyn_cast<CountBoundsExpr>(Expr)) {
+    else if (const CountBoundsExpr *CountBounds = dyn_cast<CountBoundsExpr>(BoundsExpr)) {
       req = CountBounds->isByteCount() ? NMC_Byte_Count : NMC_Count;
     }
 
-    if (!CheckIsNonModifying(Expr, req)) {
+    if (!CheckIsNonModifying(BoundsExpr, req)) {
       ActOnInvalidBoundsDecl(D);
       return;
     }
 
-    if (Expr->isInvalid()) {
-      D->setBoundsExpr(Expr);
+    if (BoundsExpr->isInvalid()) {
+      D->setBoundsExpr(getASTContext(), BoundsExpr);
       return;
     }
+  }
 
-    if (VD && VD->isLocalVarDecl()) {
-      // - Local variables cannot have bounds-safe interface type annotations.
-      // - Local variables with unchecked pointer or array types cannot have
-      // bounds declarations. For bounds declarations, this reduces the chance
-      // that programmers accidentally declare variables with unchecked types
-      // to have bounds declarations and think uses of the variables will be
-      // bounds checked.
-      //
-      // Other declarations (parameters, globally-scoped variables, and members)
-      // can have unchecked pointer or array types with bounds declarations
-      // because that is a way bounds-safe interfaces are declared.
-      int DiagId = 0;
-      if (Expr->isInteropTypeAnnotation())
-        DiagId = diag::err_bounds_safe_interface_type_annotation_local_variable;
-      else {
-        if (Ty->isPointerType() && !Ty->isCheckedPointerType())
-          DiagId = diag::err_bounds_declaration_unchecked_local_pointer;
-        else if (Ty->isArrayType() && !Ty->isCheckedArrayType())
-          DiagId = diag::err_bounds_declaration_unchecked_local_array;
-      }
+  if (VD && VD->isLocalVarDecl()) {
+    // - Local variables cannot have bounds-safe interface type annotations.
+    // - Local variables with unchecked pointer or array types cannot have
+    // bounds declarations. For bounds declarations, this reduces the chance
+    // that programmers accidentally declare variables with unchecked types
+    // to have bounds declarations and think uses of the variables will be
+    // bounds checked.
+    //
+    // Other declarations (parameters, globally-scoped variables, and members)
+    // can have unchecked pointer or array types with bounds declarations
+    // because that is a way bounds-safe interfaces are declared.
+    int DiagId = 0;
+    bool isInvalid = false;
+    if (Itype) {
+      DiagId = diag::err_bounds_safe_interface_type_annotation_local_variable;
+      Diag(Itype->getLocStart(), DiagId) << D;
+      isInvalid = true;
+    }
+
+    if (BoundsExpr) {
+      if (Ty->isPointerType() && !Ty->isCheckedPointerType())
+        DiagId = diag::err_bounds_declaration_unchecked_local_pointer;
+      else if (Ty->isArrayType() && !Ty->isCheckedArrayType())
+        DiagId = diag::err_bounds_declaration_unchecked_local_array;
 
       if (DiagId) {
-        Diag(Expr->getLocStart(), DiagId) << D;
-        ActOnInvalidBoundsDecl(D);
-        return;
+        Diag(BoundsExpr->getLocStart(), DiagId) << D;
+        isInvalid = true;
       }
     }
 
-    if (DiagnoseBoundsDeclType(Ty, D, Expr, /*IsReturnBounds=*/false)) {
+    if (isInvalid) {
       ActOnInvalidBoundsDecl(D);
       return;
     }
+  }
+
+  if (Annots && DiagnoseBoundsDeclType(Ty, D, Annots, /*IsReturnBounds=*/false)) {
+    ActOnInvalidBoundsDecl(D);
+    return;
   }
 
   // If a declaration has no declared bounds, set the default bounds for types.
   // that have default bounds other than bounds(unknown),
 
-  if (!Expr) {
+  if (!BoundsExpr) {
     // Handle parameters that originally had a checked array type.
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       if (PV->getOriginalType()->isCheckedArrayType())
-        Expr = CreateCountForArrayType(PV->getOriginalType());
+        BoundsExpr = CreateCountForArrayType(PV->getOriginalType());
     }
 
-    if (!Expr)
+    if (!BoundsExpr)
       if (Ty->isCheckedPointerNtArrayType())
-        Expr = Context.getPrebuiltCountZero();
+        BoundsExpr = Context.getPrebuiltCountZero();
   }
 
-  // If this is a VarDecl, handle already existing bounds from a prior
+  // If this is a VarDecl, handle already existing annotations from a prior
   // declaration, if there is a prior declaration.
   if (VD) {
+    // TODO-issue443: handle conflicts with just interop type annotations.
+    // TODO-issue443: handle incorrect interop type annotations & bounds annotations.
     if (VarDecl *Old = VD->getPreviousDecl()) {
-      BoundsExpr *OldBounds = Old->getBoundsExpr();
-      SourceLocation BoundsLoc = Expr ? Expr->getStartLoc() : SourceLocation();
-      if (diagnoseBoundsError(*this, BoundsLoc, Old->getBoundsExpr(), Expr,
+      BoundsAnnotations *OldBounds = Old->getBoundsAnnotations();
+      SourceLocation BoundsLoc = BoundsExpr ? BoundsExpr->getStartLoc() : SourceLocation();
+      if (diagnoseBoundsError(*this, BoundsLoc, OldBounds, Annots,
                               Old, D, Old->getType(), D->getType(),
                               Sema::CheckedCBoundsError::CCBE_Variable)) {
         ActOnInvalidBoundsDecl(D);
         return;
       }
-      if (!Expr)
-        Expr = OldBounds;
+      if (!Annots) {
+        Annots = OldBounds;
+        BoundsExpr = Annots ? Annots->getBounds() : nullptr;
+        Itype = Annots ? Annots->getInteropType() : nullptr;
+      }
     }
   }
 
-  D->setBoundsExpr(Expr);
+  D->setBoundsExpr(getASTContext(), BoundsExpr);
+
+  // Set the interop type if necessary.
+  if (BoundsExpr && !Itype && Ty->isUncheckedPointerType()) {
+    QualType QT = CreateCheckedCInteropType(D->getType(), isa<ParmVarDecl>(D));
+    if (!QT.isNull()) {
+      ExprResult R = CreateBoundsInteropType(QT);
+      if (!R.isInvalid()) {
+        InteropTypeBoundsAnnotation *IT = dyn_cast<InteropTypeBoundsAnnotation>(R.get());
+        if (!IT)
+          D->setInteropTypeBoundsAnnotation(getASTContext(), IT);
+      }
+    }
+  }
 }
 
 void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
@@ -12791,7 +12834,7 @@ void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
     return;
 
   BoundsExpr *InvalidExpr = CreateInvalidBoundsExpr();
-  D->setBoundsExpr(InvalidExpr);
+  D->setBoundsExpr(getASTContext(), InvalidExpr);
 }
 
 BoundsExpr *Sema::CreateInvalidBoundsExpr() {

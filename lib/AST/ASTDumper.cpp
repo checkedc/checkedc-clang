@@ -343,19 +343,33 @@ namespace  {
         QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
         if (hasBounds)
-          if (const BoundsExpr *const Bounds = T->getParamBounds(i))
-            dumpChild([=] {
-              OS << "Bounds";
-              dumpStmt(Bounds);
-            });
+          if (const BoundsAnnotations *Annots = T->getParamBounds(i)) {
+            if (const BoundsExpr *Bounds = Annots->getBounds())
+              dumpChild([=] {
+                OS << "Bounds";
+                dumpStmt(Bounds);
+              });
+            if (const InteropTypeBoundsAnnotation *IT = Annots->getInteropType())
+              dumpChild([=] {
+                OS << "InteropType";
+                dumpStmt(IT);
+              });
+           }
       }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
-      if (EPI.ReturnBounds)
-        dumpChild([=] {
-          OS << "Return bounds";
-          dumpStmt(EPI.ReturnBounds);
-        });
+      if (EPI.ReturnBounds) {
+        if (const BoundsExpr *Bounds = EPI.ReturnBounds->getBounds())
+          dumpChild([=] {
+            OS << "Return bounds";
+            dumpStmt(Bounds);
+          });
+        if (const InteropTypeBoundsAnnotation *IT = EPI.ReturnBounds->getInteropType())
+          dumpChild([=] {
+            OS << "Return interopType";
+            dumpStmt(IT);
+          });
+      }
     }
     void VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
       dumpDeclRef(T->getDecl());

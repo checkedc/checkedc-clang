@@ -92,7 +92,7 @@ QualType Sema::GetCheckedCInteropType(QualType Ty,
 }
 
 QualType Sema::CreateCheckedCInteropType(QualType Ty,
-                                      bool isParam) {
+                                         bool isParam) {
   // Nothing to do.
   if (Ty.isNull() || Ty->isCheckedArrayType() ||
     Ty->isCheckedPointerType())
@@ -184,7 +184,7 @@ public:
     //
     SmallVector<QualType, 4> ParamTypes;
     SmallVector<ParmVarDecl*, 4> ParamDecls;
-    SmallVector<BoundsExpr *, 4> ParamBounds;
+    SmallVector<BoundsAnnotations *, 4> ParamAnnots;
     Sema::ExtParameterInfoBuilder ExtParamInfos;
     const FunctionProtoType *T = TL.getTypePtr();
 
@@ -207,37 +207,44 @@ public:
 
     FunctionProtoType::ExtProtoInfo EPI = T->getExtProtoInfo();
     bool EPIChanged = false;
-    if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamBounds,
+    if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamAnnots,
                                                     ExtParamInfos, TL,
                                                     TransformExceptionSpec,
                                                     EPIChanged))
       return QualType();
 
-    // Now rewrite types based on bounds information.  Remove any
-    // interop type annotations from bounds information also.
-
-    if (const BoundsExpr *Bounds = EPI.ReturnBounds) {
-      ResultType = SemaRef.GetCheckedCInteropType(ResultType, Bounds, false);
+    // Now rewrite types based on interop type information, and remove
+    // the interop types.
+    if (const BoundsAnnotations *Annots = EPI.ReturnBounds) {
+      if (ResultType->isUncheckedPointerType()) {
+         InteropTypeBoundsAnnotation *IT = Annots->getInteropType();
+         BoundsExpr *Bounds = Annots->getBounds();
+         assert(Bounds == nullptr || (Bounds != nullptr && IT));
+         if (IT) {
+           ResultType = IT->getType();
 #if TRACE_INTEROP
-      llvm::outs() << "return bounds = ";
-      EPI.ReturnBounds->dump(llvm::outs());
-      llvm::outs() << "\nreturn type = ";
-      ResultType.dump(llvm::outs());
-      llvm::outs() << "\nresult type = ";
-      ResultType.dump(llvm::outs());
+          llvm::outs() << "return bounds = ";
+          if (Bounds)
+            Bounds->dump(llvm::outs());
+          else
+            llvm::outs() << "none\n";
+          llvm::outs() << "interop type = ";
+          IT->dump(llvm::outs());
+          llvm::outs() << "\nresult type = ";
+          ResultType.dump(llvm::outs());
 #endif
-      // The types are structurally identical except for the checked bit,
-      // so the type location information can still be used.
-      TLB.TypeWasModifiedSafely(ResultType);
+          // The types are structurally identical except for the checked bit,
+          // so the type location information can still be used.
+          TLB.TypeWasModifiedSafely(ResultType);
 
-      // A return that has checked type should not have an interop type
-      // annotation. If there is one, remove the annotation.  Array
-      // types imply bounds annotations, but they can't appear as
-      // the return type.
-      if (Bounds->isInteropTypeAnnotation()) {
-        assert(!Bounds->getType()->isCheckedArrayType());
-        EPI.ReturnBounds = nullptr;
-        EPIChanged = true;
+          // Construct new annotations that do not have the bounds-safe interface type.
+          if (Bounds) {
+            BoundsAnnotations *NewBA = new (SemaRef.Context) BoundsAnnotations(Bounds, nullptr);
+            EPI.ReturnBounds = NewBA;
+          } else 
+            EPI.ReturnBounds = nullptr;
+          EPIChanged = true;
+        }
       }
     }
 
@@ -246,49 +253,44 @@ public:
       // annotations.
       bool hasParamBounds = false;
       for (unsigned int i = 0; i < ParamTypes.size(); i++) {
-        const BoundsExpr *IndividualBounds = ParamBounds[i];
-        if (IndividualBounds) {
-          QualType ParamType =
-            SemaRef.GetCheckedCInteropType(ParamTypes[i], IndividualBounds,
-                                           true);
+        const BoundsAnnotations *IndividualAnnots = ParamAnnots[i];
+        if (ParamTypes[i]->isUncheckedPointerType() && IndividualAnnots &&
+            IndividualAnnots->getInteropType()) {
+          InteropTypeBoundsAnnotation *IT = IndividualAnnots->getInteropType();
+          QualType ParamType = IT->getType();
           if (ParamType.isNull()) {
 #if TRACE_INTEROP
             llvm::outs() << "encountered null parameter type with bounds";
             llvm::outs() << "\noriginal param type = ";
             ParamTypes[i]->dump(llvm::outs());
-            llvm::outs() << "\nparam bounds are:";
-            IndividualBounds->dump(llvm::outs());
+            llvm::outs() << "\nparam interop type is:";
+            IT->dump(llvm::outs());
             llvm::outs() << "\n";
             llvm::outs().flush();
 #endif
             return QualType();
           }
-
+          if (ParamType->isArrayType())
+            ParamType = SemaRef.Context.getDecayedType(ParamType);
           ParamTypes[i] = ParamType;
-          // A parameter that has checked type should not have an interop type
-          // annotation.  We need to remove the interop type annotation if there
-          // is one.  There are two cases:
-          // - the interop annotation is an array type: use the array type to
-          // determine the new bounds for the parameter.
-          // - the interop type annotation is not an array type.  Remove the
-          // bounds for the parameter in the vector of new parameter bounds.
-          if (IndividualBounds->isInteropTypeAnnotation()) {
-            if (IndividualBounds->getType()->isCheckedArrayType()) {
-              ParamBounds[i] =
-                SemaRef.CreateCountForArrayType(IndividualBounds->getType());
-              EPIChanged = true;
-              hasParamBounds = true;
-            } else {
-              ParamBounds[i] = nullptr;
-              EPIChanged = true;
-            }
-          } else
+          // Remove the interop type annotation.
+          BoundsExpr *Bounds = IndividualAnnots->getBounds();
+          if (IT->getType()->isCheckedArrayType()) {
+            assert(!Bounds);              
+            Bounds = SemaRef.CreateCountForArrayType(IT->getType());
+          }
+          if (Bounds) {
             hasParamBounds = true;
+            BoundsAnnotations *NewBA = new (getSema().Context) BoundsAnnotations(Bounds, nullptr);
+            ParamAnnots[i] = NewBA;
+          } else 
+            ParamAnnots[i] = nullptr;
+          EPIChanged = true;
         }
       }
 
       // If there are no parameter bounds left, null out the pointer to the
-      // param bounds array.
+      // param annotations array.
       if (!hasParamBounds)
         EPI.ParamBounds = nullptr;
     }

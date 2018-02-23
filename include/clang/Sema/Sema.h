@@ -3968,7 +3968,8 @@ public:
   /// - This rule applies recursively to any types nested within Ty.
   /// - All other types are allowed in checked scopes.
   /// Return false if Ty is not allowed.
-  bool AllowedInCheckedScope(QualType Ty, QualType BoundsSafeInterfaceType,
+  bool AllowedInCheckedScope(QualType Ty,
+                             const InteropTypeBoundsAnnotation *InteropType,
                              bool IsParam, CheckedScopeTypeLocation Loc,
                              CheckedScopeTypeLocation &ProblemLoc,
                              QualType &ProblemTy);
@@ -4601,6 +4602,8 @@ public:
   ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc,
                                      TypeSourceInfo *TInfo,
                                      SourceLocation RParenLoc);
+  ExprResult CreateBoundsInteropType(QualType QT);
+
 
   ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
 
@@ -4654,11 +4657,9 @@ public:
                                  BoundsExpr *bounds);
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
-                              BoundsExpr *Expr, bool IsReturnBounds);
-  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
+                              BoundsAnnotations *BA, bool IsReturnBounds);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
-
-  void ActOnInteropType(DeclaratorDecl *D, InteropTypeBoundsAnnotation *InteropType);
 
   // \#pragma BOUNDS_CHECKED.
   void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
@@ -4677,6 +4678,7 @@ public:
   };
 
   BoundsExpr *CreateInvalidBoundsExpr();
+  BoundsAnnotations *CreateInvalidBoundsAnnotations();
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
   /// CheckNonModifying - checks whether an expression is non-modifying
@@ -4686,8 +4688,8 @@ public:
                                NonModifyingContext::NMC_Unknown,
                                bool ReportError = true);
 
-  BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr,
-                                      ArrayRef<DeclaratorChunk::ParamInfo> Params);
+  BoundsAnnotations *AbstractForFunctionType(BoundsAnnotations *BA,
+                                             ArrayRef<DeclaratorChunk::ParamInfo> Params);
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
   BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
