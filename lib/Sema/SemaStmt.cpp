@@ -3343,14 +3343,14 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   }
 
   QualType FnRetType;
-  const BoundsExpr *FnRetBounds = nullptr;
+  const BoundsAnnotations *FnRetBounds = nullptr;
   QualType RelatedRetType;
   const AttrVec *Attrs = nullptr;
   bool isObjCMethod = false;
 
   if (const FunctionDecl *FD = getCurFunctionDecl()) {
     FnRetType = FD->getReturnType();
-    FnRetBounds = FD->getBoundsExpr();
+    FnRetBounds = FD->getBoundsAnnotations();;
     if (FD->hasAttrs())
       Attrs = &FD->getAttrs();
     if (FD->isNoReturn())

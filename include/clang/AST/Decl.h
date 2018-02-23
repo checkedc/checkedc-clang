@@ -87,6 +87,18 @@ class BoundsAnnotations {
 public:
   BoundsAnnotations() : Bounds(nullptr), InteropType(nullptr) {}
 
+  BoundsAnnotations(const BoundsAnnotations *B) {
+    if (B) {
+      Bounds = B->Bounds;
+      InteropType = B->InteropType;
+    } else {
+      Bounds = nullptr;
+      InteropType = nullptr;
+    }
+  }
+
+  BoundsAnnotations(BoundsExpr *B) : Bounds(B), InteropType(nullptr) {}
+
   BoundsAnnotations(BoundsExpr *B, InteropTypeBoundsAnnotation *IT) :
     Bounds(B), InteropType(IT) {}
 

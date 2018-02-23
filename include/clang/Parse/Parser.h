@@ -1769,11 +1769,14 @@ private:
     SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);
 
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
-  ExprResult ParseBoundsAnnotations(const Declarator &D,
-                                    SourceLocation ColonLoc,
-                                    bool IsReturn=false);
+  bool ParseBoundsAnnotations(const Declarator &D,
+                              SourceLocation ColonLoc,
+                              BoundsAnnotations *&Result,
+                              std::unique_ptr<CachedTokens> *DeferredToks = nullptr,
+                              bool IsReturn=false);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
-  ExprResult DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,  Declarator &D);
+  bool DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,  Declarator &D, 
+                                     BoundsAnnotations *&Result);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

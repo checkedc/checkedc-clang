@@ -2511,9 +2511,11 @@ private:
   BoundsExpr *PrebuiltCountZero;
   BoundsExpr *PrebuiltCountOne;
   BoundsExpr *PrebuiltBoundsUnknown;
+  BoundsAnnotations *PrebuiltAnnotCountZero;
 
 public:
   bool EquivalentAnnotations(const BoundsAnnotations *Annots1, const BoundsAnnotations *Annots2);
+  bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
 
   BoundsExpr *getPrebuiltByteCountOne();
   BoundsExpr *getPrebuiltCountZero();

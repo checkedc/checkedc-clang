@@ -4973,7 +4973,7 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
   // Continue to check argument types (even if we have too few/many args).
   for (unsigned i = FirstParam; i < NumParams; i++) {
     QualType ProtoArgType = Proto->getParamType(i);
-    const BoundsExpr *Bounds = Proto->getParamBounds(i);
+    const BoundsAnnotations *Bounds = Proto->getParamBounds(i);
 
     Expr *Arg;
     ParmVarDecl *Param = FDecl ? FDecl->getParamDecl(i) : nullptr;

@@ -2929,10 +2929,13 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
   return ExprError();
 }
 
-ExprResult Parser::ParseBoundsAnnotations(const Declarator &D,
-                                          SourceLocation ColonLoc,
-                                          bool IsReturn) {
-  ExprResult Result(true);
+bool Parser::ParseBoundsAnnotations(const Declarator &D,
+                                    SourceLocation ColonLoc,
+                                    BoundsAnnotations *&Result,
+                                    std::unique_ptr<CachedTokens> *DeferredToks,
+                                    bool IsReturn) {
+  bool Error = false;
+  Result = nullptr;
   BoundsExpr *Bounds = nullptr;
   InteropTypeBoundsAnnotation *InteropType = nullptr;
   bool parsedSomething = false;
@@ -2941,26 +2944,30 @@ ExprResult Parser::ParseBoundsAnnotations(const Declarator &D,
          StartsInteropTypeAnnotation(Tok)) {          
     parsedSomething = true;
     if (StartsBoundsExpression(Tok)) {
-      Result = ParseBoundsExpression();
+      ExprResult ER = ParseBoundsExpression();
       if (StartsRelativeBoundsClause(Tok))
-        if (ParseRelativeBoundsClauseForDecl(Result))
-        Result = ExprError();
+        if (ParseRelativeBoundsClauseForDecl(ER))
+          Error = true;
 
-      if (!Result.isInvalid()) {
-        BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(Result.get());
+      if (ER.isInvalid())
+        Error = true;
+      else {
+        BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(ER.get());
         if (NewBounds) {
           if (!Bounds)
             Bounds = NewBounds;
           else
-           Diag(NewBounds->getStartLoc(), diag::err_single_bounds_expr_allowed);
+           Diag(NewBounds->getStartLoc(), diag::err_single_bounds_expr_allowed);  
         } else
           llvm_unreachable("unexpected case failure");
       }
     } else {
-      Result = ParseInteropTypeAnnotation(D, IsReturn);
-      if (!Result.isInvalid()) {
+      ExprResult ER = ParseInteropTypeAnnotation(D, IsReturn);
+      if (ER.isInvalid())
+        Error = true;
+      else {
         InteropTypeBoundsAnnotation *NewAnnotation =
-          dyn_cast<InteropTypeBoundsAnnotation>(Result.get());
+          dyn_cast<InteropTypeBoundsAnnotation>(ER.get());
         if (NewAnnotation) {
           if (!InteropType)
             InteropType = NewAnnotation;
@@ -2971,29 +2978,16 @@ ExprResult Parser::ParseBoundsAnnotations(const Declarator &D,
      }
   }
 
-  if (!parsedSomething)
+  if (!parsedSomething) {
     SkipInvalidBoundsExpr(ColonLoc);
-
-  // Attach the interop type annotation to a bounds expression. Create a dummy
-  // one if necessary.
-  if (InteropType) {
-    if (!Bounds) {
-      Result =
-        Actions.ActOnNullaryBoundsExpr(SourceLocation(), 
-                                       BoundsExpr::Kind::Dummy,
-                                       SourceLocation());
-      if (!Result.isInvalid())
-        Bounds = dyn_cast<BoundsExpr>(Result.get());
-    }
-
-    if (Bounds)
-      Bounds->setInteropTypeAnnotation(InteropType);
+    Error = true;
   }
 
-  if (Bounds)
-    return Bounds;
-  else
-    return ExprError();
+  if (Bounds || InteropType) {
+    Result = new (Actions.Context) BoundsAnnotations(Bounds, InteropType);
+  }
+
+  return Error;
 }
 
 // Skip Invalid Bounds Expression such as boounds(), b0unds(e1,e2) and stop if
@@ -3545,10 +3539,10 @@ ExprResult Parser::ParseBoundsCastExpression() {
 /// where parentheses balance within the sequence of tokens.
 bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
   bool result = false;
-  Toks.push_back(Tok);
-  if (Tok.getKind() != tok::identifier) {
+  if (StartsBoundsExpression(Tok))
+    Toks.push_back(Tok);
+  else
     return false;
-  }
   ConsumeToken();
   Toks.push_back(Tok);
   if (Tok.getKind() != tok::l_paren) {
@@ -3572,9 +3566,9 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 /// Given a list of tokens that have the same shape as a bounds
 /// expression, parse them to create a bounds expression.  Delete
 /// the list of tokens at the end.
-ExprResult
+bool
 Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
-                                      Declarator &D) {
+                                      Declarator &D, BoundsAnnotations *&Result) {
   Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();
@@ -3587,12 +3581,12 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
                        // so it isn't lost.
   PP.EnterTokenStream(*Toks, true);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
-  ExprResult Result = ParseBoundsAnnotations(D, SourceLocation());
+  bool Error = ParseBoundsAnnotations(D, SourceLocation(), Result);
 
   // There could be leftover tokens because of an error.
   // Skip through them until we reach the eof token.
   if (Tok.isNot(tok::eof)) {
-    assert(Result.isInvalid());
+    assert(Error);
     while (Tok.isNot(tok::eof))
       ConsumeAnyToken();
   }
@@ -3601,7 +3595,7 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
   if (Tok.is(tok::eof) && Tok.getLocation() == OrigLoc)
     ConsumeAnyToken();
 
-  return Result;
+  return Error;
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks

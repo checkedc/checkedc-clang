@@ -4658,7 +4658,8 @@ public:
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsAnnotations *BA, bool IsReturnBounds);
-  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots,
+                       bool MergeDeferredBounds = false);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
 
   // \#pragma BOUNDS_CHECKED.

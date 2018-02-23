@@ -760,6 +760,7 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
       PrebuiltByteCountOne(nullptr), PrebuiltCountZero(nullptr),
       PrebuiltCountOne(nullptr), PrebuiltBoundsUnknown(nullptr),
+      PrebuiltAnnotCountZero(nullptr),
       LastSDM(nullptr, 0) {
   TUDecl = TranslationUnitDecl::Create(*this);
 }
@@ -9047,37 +9048,33 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
   return false;
 }
 
+bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2) {
+  if (Expr1 && Expr2) {
+    Lexicographic::Result Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
+    return Cmp == Lexicographic::Result::Equal;
+  }
+
+  // One or both bounds expressions are null pointers.
+  if (Expr1 && !Expr2)
+    return Expr1->isUnknown();
+
+  if (!Expr1 && Expr2)
+    return Expr2->isUnknown();
+
+ // Both must be null pointers.
+  return true;
+}
+
 bool ASTContext::EquivalentAnnotations(
   const BoundsAnnotations *Annots1,
   const BoundsAnnotations *Annots2) {
   BoundsExpr *Expr1 = Annots1 ? Annots1->getBounds() : nullptr;
   BoundsExpr *Expr2 = Annots2 ? Annots2->getBounds() : nullptr;
-  Lexicographic::Result Cmp;
-
-  if (Expr1 && Expr2) {
-    Cmp = Lexicographic(*this, nullptr).CompareExpr(Expr1, Expr2);
-  } else if (Expr1 && !Expr2) {
-    // One set of bounds is the "unkonwn" and the other is a null pointer.
-    if (Expr1->isUnknown())
-      Cmp = Lexicographic::Result::Equal;
-    else 
-      Cmp = Lexicographic::Result::GreaterThan;
-  } else if (!Expr2 && Expr2) {
-    if (Expr2->isUnknown())
-      Cmp = Lexicographic::Result::Equal;
-    else 
-      Cmp = Lexicographic::Result::LessThan;
-  } else {
-    assert(Expr1 == nullptr && Expr2 == nullptr);
-    Cmp = Lexicographic::Result::Equal;
-  }
-
-  if (Cmp != Lexicographic::Result::Equal) 
+  if (!EquivalentBounds(Expr1, Expr2))
     return false;
 
   InteropTypeBoundsAnnotation *IT1 =
     Annots1 ? Annots1->getInteropType() : nullptr;
-
   InteropTypeBoundsAnnotation *IT2 =
     Annots2 ? Annots2->getInteropType() : nullptr;
 
@@ -9100,6 +9097,14 @@ BoundsExpr *ASTContext::getPrebuiltCountZero() {
     PrebuiltCountZero->setCompilerGenerated(true);
   }
   return PrebuiltCountZero;
+}
+
+BoundsAnnotations *ASTContext::getPrebuiltAnnotCountZero() {
+  if (!PrebuiltAnnotCountZero) {
+    PrebuiltAnnotCountZero = 
+      new (*this) BoundsAnnotations(getPrebuiltCountZero(), nullptr);
+  }
+  return PrebuiltAnnotCountZero;
 }
 
 BoundsExpr *ASTContext::getPrebuiltCountOne() {

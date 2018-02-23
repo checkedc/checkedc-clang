@@ -172,22 +172,22 @@ private:
     struct C Capture;
   };
 
-  /// \brief The declared bounds of the object or reference being initialized,
-  /// if any.
-  const BoundsExpr *Bounds;
+  /// \brief The declared bounds annotations of the object or reference being
+  /// initialized, if any.
+  const BoundsAnnotations *Bounds;
 
   InitializedEntity() : ManglingNumber(0), Bounds(nullptr) {}
 
   /// \brief Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
     : Kind(EK), Parent(nullptr), Type(Var->getType()),
-      ManglingNumber(0), Variable{Var, false}, Bounds(Var->getBoundsExpr()) { }
+      ManglingNumber(0), Variable{Var, false}, Bounds(Var->getBoundsAnnotations()) { }
   
   /// \brief Create the initialization entity for the result of a
   /// function, throwing an object, performing an explicit cast, or
   /// initializing a parameter for which there is no declaration.
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
-                    bool NRVO = false, const BoundsExpr *Bounds = nullptr)
+                    bool NRVO = false, const BoundsAnnotations *Bounds = nullptr)
     : Kind(Kind), Parent(nullptr), Type(Type), ManglingNumber(0),
       Bounds(Bounds)
 
@@ -201,7 +201,7 @@ private:
                     bool Implicit) 
     : Kind(EK_Member), Parent(Parent), Type(Member->getType()),
       ManglingNumber(0), Variable{Member, Implicit},
-      Bounds(Member->getBoundsExpr()) {
+      Bounds(Member->getBoundsAnnotations()) {
   }
   
   /// \brief Create the initialization entity for an array element.
@@ -226,7 +226,8 @@ public:
   /// \brief Create the initialization entity for a parameter.
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                const ParmVarDecl *Parm) {
-    return InitializeParameter(Context, Parm, Parm->getType(), Parm->getBoundsExpr());
+    return InitializeParameter(Context, Parm, Parm->getType(),
+                               Parm->getBoundsAnnotations());
   }
 
   /// \brief Create the initialization entity for a parameter, but use
@@ -234,7 +235,7 @@ public:
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                const ParmVarDecl *Parm,
                                                QualType Type,
-                                               const BoundsExpr *Bounds) {
+                                               const BoundsAnnotations *Bounds) {
     bool Consumed = (Context.getLangOpts().ObjCAutoRefCount &&
                      Parm->hasAttr<NSConsumedAttr>());
 
@@ -254,11 +255,11 @@ public:
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                QualType Type,
                                                bool Consumed,
-                                          const BoundsExpr *Bounds = nullptr) {
+                             const BoundsAnnotations *BoundsAnnots = nullptr) {
     InitializedEntity Entity;
     Entity.Kind = EK_Parameter;
     Entity.Type = Context.getVariableArrayDecayedType(Type);
-    Entity.Bounds = Bounds;
+    Entity.Bounds = BoundsAnnots;
     Entity.Parent = nullptr;
     Entity.Parameter = (Consumed);
     return Entity;
@@ -267,7 +268,7 @@ public:
   /// \brief Create the initialization entity for the result of a function.
   static InitializedEntity InitializeResult(SourceLocation ReturnLoc,
                                             QualType Type, bool NRVO,
-                                          const BoundsExpr *Bounds = nullptr) {
+                                          const BoundsAnnotations *Bounds = nullptr) {
     return InitializedEntity(EK_Result, ReturnLoc, Type, NRVO, Bounds);
   }
 
@@ -395,7 +396,7 @@ public:
     return nullptr;
   }
   
-  const BoundsExpr *getBounds() const { return Bounds; }
+  const BoundsAnnotations *getBounds() const { return Bounds; }
 
   /// \brief Retrieve the name of the entity being initialized.
   DeclarationName getName() const;

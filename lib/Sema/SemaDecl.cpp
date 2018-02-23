@@ -12702,7 +12702,8 @@ bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
 //   It must meet typing requirements and be valid for the declaration.
 // - For VarDecls, make sure that a bounds expression on a redeclaration
 // is valid.
-void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots) {
+void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots,
+                           bool MergeDeferredBounds) {
   if (!D || D->isInvalidDecl())
     return;
 
@@ -12806,6 +12807,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots) {
         return;
       }
       if (!Annots) {
+        assert(!MergeDeferredBounds);
         Annots = OldBounds;
         BoundsExpr = Annots ? Annots->getBounds() : nullptr;
         Itype = Annots ? Annots->getInteropType() : nullptr;
@@ -12813,9 +12815,18 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots) {
     }
   }
 
+  // When bounds are deferred parsed, the resulting annotations should have
+  // only a bounds expression.  The interop type annotation should already
+  // be set on the declaration, so pick that up.
+  if (MergeDeferredBounds) {
+    assert(Itype == nullptr);
+    if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D))
+    Itype = D->getInteropTypeAnnotation();
+  }
   D->setBoundsExpr(getASTContext(), BoundsExpr);
 
-  // Set the interop type if necessary.
+  // Set the interop type if necessary. We can reach this in the non-deferred
+  // case of parsing bounds expressions.
   if (BoundsExpr && !Itype && Ty->isUncheckedPointerType()) {
     QualType QT = CreateCheckedCInteropType(D->getType(), isa<ParmVarDecl>(D));
     if (!QT.isNull()) {
@@ -12846,6 +12857,10 @@ BoundsExpr *Sema::CreateInvalidBoundsExpr() {
     return cast<BoundsExpr>(Result.get());
   else
     return nullptr;
+}
+
+BoundsAnnotations *Sema::CreateInvalidBoundsAnnotations() {
+  return new (Context) BoundsAnnotations(CreateInvalidBoundsExpr(), nullptr);
 }
 
 Decl *
