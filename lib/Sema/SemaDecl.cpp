@@ -12863,6 +12863,25 @@ BoundsAnnotations *Sema::CreateInvalidBoundsAnnotations() {
   return new (Context) BoundsAnnotations(CreateInvalidBoundsExpr(), nullptr);
 }
 
+BoundsAnnotations *Sema::SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty) {
+  if (Annots != nullptr && Annots->getInteropType())
+    return Annots;
+  assert(!Annots->getBounds());
+
+  InteropTypeBoundsAnnotation *InteropType = nullptr;
+  QualType BoundsSafeInterfaceType = CreateCheckedCInteropType(Ty, false);
+  if (!BoundsSafeInterfaceType.isNull()) {
+    TypeSourceInfo *DI = getASTContext().getTrivialTypeSourceInfo(BoundsSafeInterfaceType);
+    ExprResult R = CreateBoundsInteropType(SourceLocation(), DI, SourceLocation());
+    if (!R.isInvalid())
+      InteropType = dyn_cast<InteropTypeBoundsAnnotation>(R.get());
+  }
+  if (InteropType)
+  return new (Context) BoundsAnnotations(nullptr, InteropType);
+  else
+    return nullptr;
+}
+
 Decl *
 Sema::ActOnStartOfFunctionDef(Scope *FnBodyScope, Declarator &D,
                               MultiTemplateParamsArg TemplateParameterLists,

@@ -4680,6 +4680,7 @@ public:
 
   BoundsExpr *CreateInvalidBoundsExpr();
   BoundsAnnotations *CreateInvalidBoundsAnnotations();
+  BoundsAnnotations *SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty);
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
   /// CheckNonModifying - checks whether an expression is non-modifying

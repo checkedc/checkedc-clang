@@ -1775,8 +1775,9 @@ private:
                               std::unique_ptr<CachedTokens> *DeferredToks = nullptr,
                               bool IsReturn=false);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
-  bool DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,  Declarator &D, 
-                                     BoundsAnnotations *&Result);
+  bool DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
+                                     BoundsAnnotations *&Result,
+                                     const Declarator &D);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

@@ -3977,34 +3977,21 @@ void Parser::ParseStructDeclaration(
       DeclaratorInfo.D.SetIdentifier(nullptr, Tok.getLocation());
 
     // If there is a ':', parse one of the following after it:
-    //  a bounds expression (for Checked C)
-    //  a bounds-safe interface type (for Checked C)
-    //  a constant-expression (a bit field width)
+    //  a constant-expression (a bit field width), or
+    //  a sequence of bounds annotations for Checked C:
+    //  - bounds expressions
+    //  - bounds-safe interface type (for Checked C)
     // The bounds expression must be parsed in a deferred fashion because it
     // can refer to members declared after this member.
+    SourceLocation Loc = Tok.getLocation();
     if (TryConsumeToken(tok::colon)) {
-      if (getLangOpts().CheckedC && StartsBoundsExpression(Tok)) {
+      if (getLangOpts().CheckedC && (StartsBoundsExpression(Tok) ||
+          StartsInteropTypeAnnotation(Tok))) {
         std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
-        bool ParsingError =
-          !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-        if (ParsingError)
+        if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, DeclaratorInfo.Annotations, &BoundsExprTokens, false))
           SkipUntil(tok::semi, StopBeforeMatch);
-        // always set BoundsExprTokens: the delayed parsing is what
-        // issues any parsing error messages.
+        assert(!DeclaratorInfo.Annotations || DeclaratorInfo.Annotations->getBounds() == nullptr);
         DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
-        // TODO: set create InteropAnnotation type
-      } else if (getLangOpts().CheckedC && StartsInteropTypeAnnotation(Tok)) {
-        ExprResult InteropTypeResult =
-          ParseInteropTypeAnnotation(DeclaratorInfo.D);
-        if (InteropTypeResult.isInvalid())
-          SkipUntil(tok::semi, StopBeforeMatch);
-        else {
-          InteropTypeBoundsAnnotation *InteropAnnotation =
-            dyn_cast<InteropTypeBoundsAnnotation>(InteropTypeResult.get());
-          assert(InteropAnnotation  && "dyn_cast failed");
-          if (InteropAnnotation)
-            DeclaratorInfo.InteropAnnotation = InteropAnnotation;
-        }
       } else {
         ExprResult Res(ParseConstantExpression());
 
@@ -4125,31 +4112,17 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
         FieldDecls.push_back(Field);
         FD.complete(Field);
 
-        InteropTypeBoundsAnnotation *Itype = FD.InteropAnnotation;
-        if (FD.BoundsExprTokens != nullptr) {
-          deferredBoundsExpressions.emplace_back(Field,
-            std::move(FD.BoundsExprTokens));
-
-          if (!Itype) {
-            QualType BoundsSafeInterfaceType =
-              Actions.CreateCheckedCInteropType(Field->getType(), false);
-            if (!BoundsSafeInterfaceType.isNull()) {
-              TypeSourceInfo *DI = Actions.Context.getTrivialTypeSourceInfo(BoundsSafeInterfaceType);
-              ExprResult R = Actions.CreateBoundsInteropType(SourceLocation(), DI, SourceLocation());
-              if (!R.isInvalid())
-                Itype = dyn_cast<InteropTypeBoundsAnnotation>(R.get());
-            }
-         }
-        }
-        
-        if (Itype) {
-         BoundsAnnotations *BA = new (Actions.Context) BoundsAnnotations(nullptr, Itype);
-         Actions.ActOnBoundsDecl(Field, BA);
-        }
-        
-        if (!FD.InteropAnnotation && !FD.BoundsExprTokens)
+        BoundsAnnotations *BA = FD.Annotations;
+        if (!BA && !FD.BoundsExprTokens)
           // Set a default bounds declaration.
           Actions.ActOnBoundsDecl(Field, nullptr);
+        else {
+          if (!BA && FD.BoundsExprTokens)
+            BA = Actions.SynthesizeInteropType(BA, Field->getType());
+
+          if (BA) 
+            Actions.ActOnBoundsDecl(Field, BA);
+        }
       };
 
       // Parse all the comma separated declarators.
@@ -4209,12 +4182,11 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
     EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
     FieldDecl *FieldDecl = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
-
     BoundsAnnotations *Annots;
-    if (DeferredParseBoundsExpression(std::move(Tokens),DeclaratorsInfo.D, Annots))
+    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, DeclaratorsInfo.D))
       Actions.ActOnInvalidBoundsDecl(FieldDecl);
     else
-      Actions.ActOnBoundsDecl(FieldDecl, Annots);
+      Actions.ActOnBoundsDecl(FieldDecl, Annots,/*MergeDeferredBounds=*/true);
   }
 
   // For Checked C, check type restrictions on declarations in checked scopes.
@@ -6690,33 +6662,22 @@ void Parser::ParseParameterDeclarationClause(
         else {
           SourceLocation BoundsColonLoc = Tok.getLocation();
           ConsumeToken();
-          if (StartsInteropTypeAnnotation(Tok)) {
-             // Use general code that eagerly parses a
-             // bounds-safe interface type annotation.
+          if (StartsInteropTypeAnnotation(Tok) || StartsBoundsExpression(Tok)) {
             BoundsAnnotations *Annots;
-            if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots)) {
+            // Bounds expressions are delay parsed because they can refer to 
+            // parameters declared after this one.
+            std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
+            if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots, &DeferredBoundsToks)) {
               SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
               Actions.ActOnInvalidBoundsDecl(Param);
             }
-            else
+            else {
+              if (!DeferredBoundsToks->empty()) {
+                deferredBoundsExpressions.emplace_back(Param, std::move(DeferredBoundsToks));
+                Annots = Actions.SynthesizeInteropType(Annots, Param->getType());
+              }
               Actions.ActOnBoundsDecl(Param, Annots);
-          }
-
-          if (StartsBoundsExpression(Tok)) {
-            // Bounds expressions are delay parsed because they can refer to 
-            // parameters declared after this one.
-            //
-            // Consume and store tokens until a bounds-like expression has been
-            // read or a parsing error has happened.  Store the tokens even if a
-            // parsing error occurs so that ParseBoundsExpression can generate
-            // the error message.  This way the error messages from parsing of bounds
-            // expressions will be the same or very similar regardless of whether
-            // parsing is deferred or not.
-            std::unique_ptr<CachedTokens> BoundsExprTokens{ new CachedTokens };
-            bool ParsingError = !ConsumeAndStoreBoundsExpression(*BoundsExprTokens);
-            deferredBoundsExpressions.emplace_back(Param, std::move(BoundsExprTokens));
-            if (ParsingError)
-              SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+            }
           }
         }
       }
@@ -6816,7 +6777,7 @@ void Parser::ParseParameterDeclarationClause(
     ParmVarDecl *Param = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
     BoundsAnnotations *Annots;
-    if (DeferredParseBoundsExpression(std::move(Tokens), D, Annots))
+    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D))
       Actions.ActOnInvalidBoundsDecl(Param);
     else
       Actions.ActOnBoundsDecl(Param, Annots, true);

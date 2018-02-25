@@ -2929,6 +2929,13 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
   return ExprError();
 }
 
+// If DeferredToks is non-null and we a see a token that starts a bounds
+// expression, consume and store tokens until a bounds-like expression has been
+// read or a parsing error has happened.  Store the tokens even if a
+// parsing error occurs so that ParseBoundsExpression can generate
+// the error message.  This way the error messages from parsing of bounds
+// expressions will be the same or very similar regardless of whether
+// parsing is deferred or not.
 bool Parser::ParseBoundsAnnotations(const Declarator &D,
                                     SourceLocation ColonLoc,
                                     BoundsAnnotations *&Result,
@@ -2939,11 +2946,24 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
   BoundsExpr *Bounds = nullptr;
   InteropTypeBoundsAnnotation *InteropType = nullptr;
   bool parsedSomething = false;
+  bool parsedDeferredBounds = false;
 
   while (StartsBoundsExpression(Tok) ||
          StartsInteropTypeAnnotation(Tok)) {          
     parsedSomething = true;
     if (StartsBoundsExpression(Tok)) {
+      if (DeferredToks) {
+        if (parsedDeferredBounds) {
+           Diag(Tok, diag::err_single_bounds_expr_allowed);
+           Error = true;
+        }
+        bool ParsingError = !ConsumeAndStoreBoundsExpression(**DeferredToks);
+        if (ParsingError) {
+          Error = true;
+          SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+        }
+        continue;
+      }
       ExprResult ER = ParseBoundsExpression();
       if (StartsRelativeBoundsClause(Tok))
         if (ParseRelativeBoundsClauseForDecl(ER))
@@ -2982,6 +3002,7 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
     SkipInvalidBoundsExpr(ColonLoc);
     Error = true;
   }
+
 
   if (Bounds || InteropType) {
     Result = new (Actions.Context) BoundsAnnotations(Bounds, InteropType);
@@ -3567,8 +3588,7 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 /// expression, parse them to create a bounds expression.  Delete
 /// the list of tokens at the end.
 bool
-Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
-                                      Declarator &D, BoundsAnnotations *&Result) {
+Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks, BoundsAnnotations *&Result, const Declarator &D) {
   Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();

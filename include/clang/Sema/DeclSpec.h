@@ -2541,11 +2541,11 @@ struct FieldDeclarator {
   Declarator D;
   Expr *BitfieldSize;
   std::unique_ptr<CachedTokens> BoundsExprTokens;
-  InteropTypeBoundsAnnotation *InteropAnnotation;
+  BoundsAnnotations *Annotations;
 
   explicit FieldDeclarator(const DeclSpec &DS)
     : D(DS, Declarator::MemberContext), BitfieldSize(nullptr), BoundsExprTokens(nullptr),
-      InteropAnnotation(nullptr) { }
+      Annotations(nullptr) { }
 };
 
 /// \brief Represents a C++11 virt-specifier-seq.
