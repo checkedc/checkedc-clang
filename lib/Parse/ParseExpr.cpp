@@ -2962,24 +2962,25 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
           Error = true;
           SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
         }
-        continue;
-      }
-      ExprResult ER = ParseBoundsExpression();
-      if (StartsRelativeBoundsClause(Tok))
-        if (ParseRelativeBoundsClauseForDecl(ER))
-          Error = true;
+        parsedDeferredBounds = true;
+      } else {
+        ExprResult ER = ParseBoundsExpression();
+        if (StartsRelativeBoundsClause(Tok))
+          if (ParseRelativeBoundsClauseForDecl(ER))
+            Error = true;
 
-      if (ER.isInvalid())
-        Error = true;
-      else {
-        BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(ER.get());
-        if (NewBounds) {
-          if (!Bounds)
-            Bounds = NewBounds;
-          else
-           Diag(NewBounds->getStartLoc(), diag::err_single_bounds_expr_allowed);  
-        } else
-          llvm_unreachable("unexpected case failure");
+        if (ER.isInvalid())
+          Error = true;
+        else {
+          BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(ER.get());
+          if (NewBounds) {
+            if (!Bounds)
+              Bounds = NewBounds;
+            else
+             Diag(NewBounds->getStartLoc(), diag::err_single_bounds_expr_allowed);  
+          } else
+            llvm_unreachable("unexpected case failure");
+      }
       }
     } else {
       ExprResult ER = ParseInteropTypeAnnotation(D, IsReturn);
@@ -3003,6 +3004,8 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
     Error = true;
   }
 
+  if (DeferredToks)
+    assert(!Bounds);
 
   if (Bounds || InteropType) {
     Result = new (Actions.Context) BoundsAnnotations(Bounds, InteropType);

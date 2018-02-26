@@ -3991,7 +3991,8 @@ void Parser::ParseStructDeclaration(
         if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, DeclaratorInfo.Annotations, &BoundsExprTokens, false))
           SkipUntil(tok::semi, StopBeforeMatch);
         assert(!DeclaratorInfo.Annotations || DeclaratorInfo.Annotations->getBounds() == nullptr);
-        DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
+        if (!BoundsExprTokens->empty()) 
+          DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
       } else {
         ExprResult Res(ParseConstantExpression());
 
@@ -4112,11 +4113,15 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
         FieldDecls.push_back(Field);
         FD.complete(Field);
 
-        BoundsAnnotations *BA = FD.Annotations;
-        if (!BA && !FD.BoundsExprTokens)
+        if (FD.BoundsExprTokens != nullptr)
+          deferredBoundsExpressions.emplace_back(Field,
+            std::move(FD.BoundsExprTokens));
+
+        if (!FD.Annotations && !FD.BoundsExprTokens)
           // Set a default bounds declaration.
           Actions.ActOnBoundsDecl(Field, nullptr);
         else {
+          BoundsAnnotations *BA = FD.Annotations;
           if (!BA && FD.BoundsExprTokens)
             BA = Actions.SynthesizeInteropType(BA, Field->getType());
 

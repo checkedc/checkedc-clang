@@ -3112,7 +3112,7 @@ BoundsAnnotations *ASTReader::ReadBoundsAnnotations(ModuleFile &F) {
   if (!Bounds && !Itype) {
     return nullptr;
   }
-  return new (getContext()) BoundsAnnotations(cast<BoundsExpr>(Bounds),cast<InteropTypeBoundsAnnotation>(Itype));
+  return new (getContext()) BoundsAnnotations(cast_or_null<BoundsExpr>(Bounds),cast_or_null<InteropTypeBoundsAnnotation>(Itype));
 }
 
 Expr *ASTReader::ReadSubExpr() {

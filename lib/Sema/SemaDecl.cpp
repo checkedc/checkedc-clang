@@ -3718,8 +3718,8 @@ static bool diagnoseBoundsError(Sema &S,
   if (S.Context.EquivalentAnnotations(OldBounds, NewBounds))
     return false;
 
-  if ((OldBounds && OldBounds->getBounds()->isInvalid()) ||
-      (NewBounds && NewBounds->getBounds()->isInvalid()))
+  if ((OldBounds && OldBounds->getBounds() && OldBounds->getBounds()->isInvalid()) ||
+      (NewBounds && NewBounds->getBounds() && NewBounds->getBounds()->isInvalid()))
     // There must have been an earlier error involving
     // bounds already diagnosed.
     return true;
@@ -12825,19 +12825,17 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots,
   }
   D->setBoundsExpr(getASTContext(), BoundsExpr);
 
-  // Set the interop type if necessary. We can reach this in the non-deferred
-  // case of parsing bounds expressions.
+  // Synthesize the interop type if necessary. We need to do this for the 
+  // non-deferre case of parsing bounds expressions.
   if (BoundsExpr && !Itype && Ty->isUncheckedPointerType()) {
     QualType QT = CreateCheckedCInteropType(D->getType(), isa<ParmVarDecl>(D));
     if (!QT.isNull()) {
       ExprResult R = CreateBoundsInteropType(QT);
-      if (!R.isInvalid()) {
-        InteropTypeBoundsAnnotation *IT = dyn_cast<InteropTypeBoundsAnnotation>(R.get());
-        if (!IT)
-          D->setInteropTypeBoundsAnnotation(getASTContext(), IT);
-      }
+      if (!R.isInvalid())
+        Itype = dyn_cast<InteropTypeBoundsAnnotation>(R.get());
     }
   }
+  D->setInteropTypeBoundsAnnotation(getASTContext(), Itype);
 }
 
 void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
@@ -12866,8 +12864,8 @@ BoundsAnnotations *Sema::CreateInvalidBoundsAnnotations() {
 BoundsAnnotations *Sema::SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty) {
   if (Annots != nullptr && Annots->getInteropType())
     return Annots;
-  assert(!Annots->getBounds());
 
+  BoundsExpr *Bounds = Annots != nullptr ? Annots->getBounds() : nullptr;
   InteropTypeBoundsAnnotation *InteropType = nullptr;
   QualType BoundsSafeInterfaceType = CreateCheckedCInteropType(Ty, false);
   if (!BoundsSafeInterfaceType.isNull()) {
@@ -12876,10 +12874,10 @@ BoundsAnnotations *Sema::SynthesizeInteropType(BoundsAnnotations *Annots, QualTy
     if (!R.isInvalid())
       InteropType = dyn_cast<InteropTypeBoundsAnnotation>(R.get());
   }
-  if (InteropType)
-  return new (Context) BoundsAnnotations(nullptr, InteropType);
-  else
-    return nullptr;
+  if (!InteropType)
+    return Annots;  // Annotations are unchanged
+  else 
+    return new (Context) BoundsAnnotations(Bounds, InteropType);
 }
 
 Decl *

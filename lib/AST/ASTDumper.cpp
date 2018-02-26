@@ -235,6 +235,7 @@ namespace  {
     void dumpDeclContext(const DeclContext *DC);
     void dumpLookups(const DeclContext *DC, bool DumpDecls);
     void dumpAttr(const Attr *A);
+    void dumpBoundsAnnotations(BoundsAnnotations *BA);
 
     // C++ Utilities
     void dumpAccessSpecifier(AccessSpecifier AS);
@@ -909,6 +910,17 @@ void ASTDumper::dumpAttr(const Attr *A) {
   });
 }
 
+void ASTDumper::dumpBoundsAnnotations(BoundsAnnotations *BA) {
+  if (!BA)
+    return;
+
+  if (const BoundsExpr *Bounds = BA->getBounds())
+    dumpStmt(Bounds);
+
+  if (const InteropTypeBoundsAnnotation *IT = BA->getInteropType())
+    dumpStmt(IT);
+}
+
 static void dumpPreviousDeclImpl(raw_ostream &OS, ...) {}
 
 template<typename T>
@@ -1235,8 +1247,7 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
     for (const ParmVarDecl *Parameter : D->parameters())
       dumpDecl(Parameter);
 
-  if (D->hasBoundsExpr())
-    dumpStmt(D->getBoundsExpr());
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
 
   if (const CXXConstructorDecl *C = dyn_cast<CXXConstructorDecl>(D))
     for (CXXConstructorDecl::init_const_iterator I = C->init_begin(),
@@ -1282,8 +1293,7 @@ void ASTDumper::VisitFieldDecl(const FieldDecl *D) {
 
   if (D->isBitField())
     dumpStmt(D->getBitWidth());
-  if (D->hasBoundsExpr())
-    dumpStmt(D->getBoundsExpr());
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
   if (Expr *Init = D->getInClassInitializer())
     dumpStmt(Init);
 }
@@ -1307,8 +1317,7 @@ void ASTDumper::VisitVarDecl(const VarDecl *D) {
     OS << " inline";
   if (D->isConstexpr())
     OS << " constexpr";
-  if (D->hasBoundsExpr())
-    dumpStmt(D->getBoundsExpr());
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
   if (D->hasInit()) {
     switch (D->getInitStyle()) {
     case VarDecl::CInit: OS << " cinit"; break;

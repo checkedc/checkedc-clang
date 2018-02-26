@@ -4824,22 +4824,25 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
-        BoundsAnnotations *ReturnBounds = FTI.getReturnBounds();
-        if (ReturnBounds) {
-          if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnBounds, true))
-            ReturnBounds = S.CreateInvalidBoundsAnnotations();
+        BoundsAnnotations *ReturnAnnot = FTI.getReturnBounds();
+        // Infer interop type if necessary.
+        if (ReturnAnnot && ReturnAnnot->getBounds() && !ReturnAnnot->getInteropType())
+          ReturnAnnot = S.SynthesizeInteropType(ReturnAnnot, T);
+        if (ReturnAnnot) {
+          if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnot, true))
+            ReturnAnnot = S.CreateInvalidBoundsAnnotations();
           else
-            ReturnBounds = S.AbstractForFunctionType(ReturnBounds, ParamInfo);
+            ReturnAnnot = S.AbstractForFunctionType(ReturnAnnot, ParamInfo);
         } else {
           if (T->isCheckedPointerNtArrayType())
-            ReturnBounds = Context.getPrebuiltAnnotCountZero();
+            ReturnAnnot = Context.getPrebuiltAnnotCountZero();
         }
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are
         // parameter bounds.
         if (HasAnyParameterBounds)
           EPI.ParamBounds = ParamBounds.data();
-        EPI.ReturnBounds = ReturnBounds;
+        EPI.ReturnBounds = ReturnAnnot;
 
         if (HasAnyInterestingExtParameterInfos) {
           EPI.ExtParameterInfos = ExtParameterInfos.data();

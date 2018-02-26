@@ -208,7 +208,7 @@ int *f23(void) : itype(_Ptr<int>);
 
 // CHECK: FunctionDecl
 // CHECK: f23
-// CHECK: 'int *(void) : _Ptr<int>'
+// CHECK: 'int *(void) : itype(_Ptr<int>)'
 // CHECK-NEXT: InteropTypeBoundsAnnotation
 // CHECK: '_Ptr<int>'
 
@@ -285,7 +285,7 @@ void f32(int (*fn)(int *arr : itype(_Ptr<int>)));
 
 // CHECK: |-FunctionDecl
 // CHECK: f32
-// CHECK: 'void (int (*)(int * : _Ptr<int>))'
+// CHECK: 'void (int (*)(int * : itype(_Ptr<int>)))'
 // CHECK: ParmVarDecl
 // CHECK fn
 // CHECK 'int (*)(int * : _Ptr<int>)'
@@ -294,19 +294,19 @@ void f33(int (*fn)(int **arr : itype(_Ptr<_Ptr<int>>)));
 
 // CHECK: FunctionDecl
 // CHECK: f33
-// CHECK: 'void (int (*)(int ** : _Ptr<_Ptr<int>>))'
+// CHECK: 'void (int (*)(int ** : itype(_Ptr<_Ptr<int>>)))'
 // CHECK: ParmVarDecl
 // CHECK: fn
-// CHECK: 'int (*)(int ** : _Ptr<_Ptr<int>>)'
+// CHECK: 'int (*)(int ** : itype(_Ptr<_Ptr<int>>))'
 
 void f34(int (*fn)(int **arr : itype(_Array_ptr<_Ptr<int>>)));
 
 // CHECK: FunctionDecl
 // CHECK: f34
-// CHECK: 'void (int (*)(int ** : _Array_ptr<_Ptr<int>>))'
+// CHECK: 'void (int (*)(int ** : itype(_Array_ptr<_Ptr<int>>)))'
 // CHECK: ParmVarDecl
 // CHECK: fn
-// CHECK: 'int (*)(int ** : _Array_ptr<_Ptr<int>>)'
+// CHECK: 'int (*)(int ** : itype(_Array_ptr<_Ptr<int>>))'
 
 typedef float fn_sum1(int lower, int upper,
                      _Array_ptr<float> arr : bounds(arr - lower, arr + upper));

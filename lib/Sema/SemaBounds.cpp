@@ -2308,8 +2308,8 @@ namespace {
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
         const BoundsAnnotations  *ParamAnnots = FuncProtoTy->getParamBounds(i);
-        const BoundsExpr *ParamBounds = ParamAnnots->getBounds();
-        const InteropTypeBoundsAnnotation *ParamItype = ParamAnnots->getInteropType();
+        const BoundsExpr *ParamBounds = ParamAnnots ? ParamAnnots->getBounds() : nullptr;
+        const InteropTypeBoundsAnnotation *ParamItype = ParamAnnots ? ParamAnnots->getInteropType() : nullptr;
         if (!ParamBounds && !ParamItype)
           continue;
 

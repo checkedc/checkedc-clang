@@ -150,14 +150,19 @@ void TypePrinter::print(QualType t, raw_ostream &OS, StringRef PlaceHolder) {
 }
 
 void TypePrinter::print(const BoundsAnnotations *BA, raw_ostream &OS) {
-  bool printColon = false;
+  if (!BA)
+    return;
+
+  bool printedColon = false;
   if (const BoundsExpr *const Bounds = BA->getBounds()) {
     OS << " : ";
-    printColon = true;
+    printedColon = true;
     Bounds->printPretty(OS, nullptr, Policy);
   }
   if (const InteropTypeBoundsAnnotation *const IType = BA->getInteropType()) {
-    if (!printColon)
+    if (printedColon)
+      OS << " ";
+    else
       OS << " : ";
     IType->printPretty(OS, nullptr, Policy);
   }
