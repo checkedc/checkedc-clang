@@ -410,6 +410,7 @@ class Constraints {
 public:
   Constraints();
   ~Constraints();
+  Constraints(const Constraints& O) = delete;
 
   typedef std::set<Constraint*, PComp<Constraint*> > ConstraintSet;
   // The environment maps from Vars to Consts (one of Ptr, Arr, Wild).
