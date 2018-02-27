@@ -4703,7 +4703,9 @@ public:
   /// is used to retype declrefs and member exprs in checked scopes with bounds-safe
   /// interfaces. The Checked C spec that says that such uses in checked scopes shall be 
   /// treated as having "checked type".
-  ExprResult ConvertToFullyCheckedType(Expr *E, BoundsExpr *B, bool IsParamUse,
+  ExprResult ConvertToFullyCheckedType(Expr *E, 
+                                       InteropTypeBoundsAnnotation *BA, 
+                                       bool IsParamUse,
                                        ExprValueKind VK);
 
   /// GetArrayPtrDereference - determine if an lvalue expression is a

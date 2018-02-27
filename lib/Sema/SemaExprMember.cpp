@@ -1825,7 +1825,8 @@ Sema::BuildFieldReferenceExpr(Expr *BaseExpr, bool IsArrow,
   if (getCurScope()->isCheckedScope() && !MemberType->isArrayType() && 
       MemberType->isOrContainsUncheckedType()) {
     assert(!MemberType->isFunctionType());
-    return ConvertToFullyCheckedType(ME, Field->getBoundsExpr(), false, VK);
+    return ConvertToFullyCheckedType(ME, Field->getInteropTypeAnnotation(),
+                                     false, VK);
   }
 
   return ME;

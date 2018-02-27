@@ -1789,21 +1789,22 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
     if (!DD)
       llvm_unreachable("unexpected DeclRef in checked scope");
-    BoundsExpr *B = DD->getBoundsExpr();
-    return ConvertToFullyCheckedType(E, B, isa<ParmVarDecl>(D), VK);
+    return ConvertToFullyCheckedType(E, DD->getInteropTypeAnnotation(), 
+                                     isa<ParmVarDecl>(D), VK);
   }
 
   return E;
 }
 
-ExprResult Sema::ConvertToFullyCheckedType(Expr *E, BoundsExpr *B,
+ExprResult Sema::ConvertToFullyCheckedType(Expr *E,
+                                           InteropTypeBoundsAnnotation *BA,
                                            bool IsParamUse,
                                            ExprValueKind VK) {
   assert(E != nullptr);
   QualType Ty = E->getType();
   QualType CheckedTy;
-  if (B != nullptr)
-    CheckedTy = GetCheckedCInteropType(Ty, B, IsParamUse);
+  if (BA != nullptr)
+    CheckedTy = BA->getType();
   else
     CheckedTy = Ty;
   CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
