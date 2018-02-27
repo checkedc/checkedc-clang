@@ -410,6 +410,7 @@ class Constraints {
 public:
   Constraints();
   ~Constraints();
+  // Remove the copy constructor, so we never accidentally copy this thing.
   Constraints(const Constraints& O) = delete;
 
   typedef std::set<Constraint*, PComp<Constraint*> > ConstraintSet;
