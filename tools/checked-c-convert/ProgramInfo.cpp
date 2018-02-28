@@ -188,6 +188,9 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
 bool PVConstraint::isLt(const ConstraintVariable &Other, 
                         ProgramInfo &Info) const 
 {
+  if (isEmpty() || Other.isEmpty())
+    return false;
+
   return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
         return *A < *B;
       });
@@ -196,6 +199,9 @@ bool PVConstraint::isLt(const ConstraintVariable &Other,
 bool PVConstraint::isEq(const ConstraintVariable &Other,
                         ProgramInfo &Info) const 
 {
+  if (isEmpty() || Other.isEmpty())
+    return false;
+
   return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
         return *A == *B;
       });
@@ -471,6 +477,9 @@ bool FVConstraint::liftedOnCVars(const ConstraintVariable &Other,
 bool FVConstraint::isLt(const ConstraintVariable &Other,
                         ProgramInfo &Info) const 
 {
+  if (isEmpty() || Other.isEmpty())
+    return false;
+
   return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
       return *A < *B;
       });
@@ -479,6 +488,9 @@ bool FVConstraint::isLt(const ConstraintVariable &Other,
 bool FVConstraint::isEq(const ConstraintVariable &Other,
                         ProgramInfo &Info) const 
 {
+  if (isEmpty() || Other.isEmpty())
+    return false;
+
   return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
       return *A == *B;
       });
