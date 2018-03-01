@@ -9723,12 +9723,6 @@ public:
       QualType LHSInteropType = QualType());
 
 public:
-  /// \brief Given a value with type Ty and bounds Bounds, compute the
-  /// bounds-safe interface type.
-  QualType GetCheckedCInteropType(QualType Ty,
-                                  const BoundsExpr *Bounds,
-                                  bool isParam);
-
   /// \brief: Given a value with type Ty that has a bounds declaration,
   /// compute the bounds-safe interface type.
   QualType CreateCheckedCInteropType(QualType Ty, bool isParam);
