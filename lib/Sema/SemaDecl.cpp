@@ -3686,6 +3686,23 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
   }
 }
 
+enum class BoundsAnnotationUsage {
+  None,
+  BoundsOnly,
+  ItypeOnly,
+  BoundsAndItype
+ };
+
+static BoundsAnnotationUsage Usage(const BoundsAnnotations *BA) {
+  if (BA == nullptr) return BoundsAnnotationUsage::None;
+  BoundsExpr *BE = BA->getBounds();
+  InteropTypeBoundsAnnotation *IT = BA->getInteropType();
+  if (!BE && !IT) return BoundsAnnotationUsage::None;
+  if (!BE && IT) return BoundsAnnotationUsage::ItypeOnly;
+  if (BE && !IT) return BoundsAnnotationUsage::BoundsOnly;
+  return BoundsAnnotationUsage::BoundsAndItype;  
+ }
+
 // Shared logic for diagnosing bounds declaration conflicts for parameters,
 // returns, and variables.
 //
@@ -3726,14 +3743,30 @@ static bool diagnoseBoundsError(Sema &S,
     return true;
 
   int DiagId = 0;
+
+  // A declaration of an object with unchecked pointer or array type is
+  // compatible with a later declaration that adds bounds/interop annotations.
   bool IsUncheckedType =
     (OldType->isUncheckedPointerType() && NewType->isUncheckedPointerType()) ||
     (OldType->isUncheckedArrayType() && NewType->isUncheckedArrayType());
 
+  // The usage of annotations must match. We can't have one declaration has only
+  // an itype annotation and a later declaration that only has a bounds
+  // declaration. For declarations of an object that has unchecked types,  a
+  // declaration that omits annotations is compatible with a declaration that
+  // adds annotations.
+  BoundsAnnotationUsage OldUsage = Usage(OldAnnots);
+  BoundsAnnotationUsage NewUsage = Usage(NewAnnots);
+  bool IsInconsistent = OldUsage != NewUsage;
+  if (IsInconsistent && IsUncheckedType &&
+       (OldUsage == BoundsAnnotationUsage::None ||
+        NewUsage == BoundsAnnotationUsage::None))
+    IsInconsistent = false;
+
   if (!S.Context.EquivalentBounds(OldBounds, NewBounds)) {
     if (OldBounds && NewBounds)
       DiagId = diag::err_decl_conflicting_bounds;
-    else if (!IsUncheckedType)
+    else if (!IsUncheckedType || IsInconsistent)
       DiagId = NewBounds ?
         diag::err_decl_added_bounds :
         diag::err_decl_dropped_bounds;
@@ -3749,7 +3782,7 @@ static bool diagnoseBoundsError(Sema &S,
   if (!S.Context.EquivalentInteropAnnotations(OldItype, NewItype)) {
     if (OldItype && NewItype)
       DiagId = diag::err_decl_conflicting_bounds;
-    else if (!IsUncheckedType)
+    else if (!IsUncheckedType || IsInconsistent)
       DiagId = NewItype ?
                  diag::err_decl_added_bounds :
                  diag::err_decl_dropped_bounds;
@@ -12876,6 +12909,9 @@ void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
 
   BoundsExpr *InvalidExpr = CreateInvalidBoundsExpr();
   D->setBoundsExpr(getASTContext(), InvalidExpr);
+  // TODO: issue-453: create invalid interop type annotation or
+  // invalidate the declaration entirely.
+  D->setInteropTypeBoundsAnnotation(getASTContext(), nullptr);
 }
 
 BoundsExpr *Sema::CreateInvalidBoundsExpr() {

@@ -6405,16 +6405,19 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
       StartsInteropTypeAnnotation(NextTok)) {
       BoundsColonLoc = Tok.getLocation();
       ConsumeToken();
-      ParseBoundsAnnotations(D, BoundsColonLoc, ReturnAnnots, nullptr, /*IsReturn=*/true);
-      // We should check ParseBoundsAnnotations to see if an error occurred, but
-      // we don't have enough context to try to do syntactic error recovery
-      // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
-      // function declarations and function bodies. This allows us to handle
-      // the simple case where there's something wrong syntactically with a
-      // return bounds expression that is followed immediately by a function
-      // body.  Function declarators can also be nested within other
-      //declarators.  We don't have special-case code for recovering
-      // syntactically for that case.
+      if (ParseBoundsAnnotations(D, BoundsColonLoc, ReturnAnnots, nullptr, /*IsReturn=*/true)) {
+        // We don't have enough context to try to do syntactic error recovery
+        // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
+        // function declarations and function bodies. This allows us to handle
+        // the simple case where there's something wrong syntactically with a
+        // return bounds expression that is followed immediately by a function
+        // body.  Function declarators can also be nested within other
+        //declarators.  We don't have special-case code for recovering
+        // syntactically for that case.
+
+        // Flag that something wrong by setting the BoundsExpr to be invalid.
+        ReturnAnnots = new BoundsAnnotations(Actions.CreateInvalidBoundsExpr(), nullptr);
+     }
     }
   }
 
@@ -6667,22 +6670,20 @@ void Parser::ParseParameterDeclarationClause(
         else {
           SourceLocation BoundsColonLoc = Tok.getLocation();
           ConsumeToken();
-          if (StartsInteropTypeAnnotation(Tok) || StartsBoundsExpression(Tok)) {
-            BoundsAnnotations *Annots;
-            // Bounds expressions are delay parsed because they can refer to 
-            // parameters declared after this one.
-            std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
-            if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots, &DeferredBoundsToks)) {
-              SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
-              Actions.ActOnInvalidBoundsDecl(Param);
+          BoundsAnnotations *Annots;
+          // Bounds expressions are delay parsed because they can refer to
+          // parameters declared after this one.
+          std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
+          if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots, &DeferredBoundsToks)) {
+            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+            Actions.ActOnInvalidBoundsDecl(Param);
+          }
+          else {
+            if (!DeferredBoundsToks->empty()) {
+              deferredBoundsExpressions.emplace_back(Param, std::move(DeferredBoundsToks));
+              Annots = Actions.SynthesizeInteropType(Annots, Param->getType(), true);
             }
-            else {
-              if (!DeferredBoundsToks->empty()) {
-                deferredBoundsExpressions.emplace_back(Param, std::move(DeferredBoundsToks));
-                Annots = Actions.SynthesizeInteropType(Annots, Param->getType(), true);
-              }
-              Actions.ActOnBoundsDecl(Param, Annots);
-            }
+            Actions.ActOnBoundsDecl(Param, Annots);
           }
         }
       }
