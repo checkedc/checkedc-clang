@@ -12746,13 +12746,17 @@ bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
   bool isError = false;
   BoundsExpr *BE = Annots->getBounds();
   if (BE && !BE->isInvalid() && 
-      checkBoundsDeclWithBoundsExpr(*this, Ty, BE, D, IsReturnBounds))
+      checkBoundsDeclWithBoundsExpr(*this, Ty, BE, D, IsReturnBounds)) {
     isError = true;
+    ActOnInvalidBoundsDecl(D);
+  }
 
   InteropTypeBoundsAnnotation *TypeAnnot = Annots->getInteropType();
   if (TypeAnnot && checkBoundsDeclWithTypeAnnotation(*this, Ty, TypeAnnot, D,
-                                                     IsReturnBounds))
+                                                     IsReturnBounds)) {
     isError = true;
+    if (D) D->setInvalidDecl();
+  }
 
   return isError;
 }
@@ -12830,13 +12834,12 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots,
     }
 
     if (isInvalid) {
-      ActOnInvalidBoundsDecl(D);
+      D->setInvalidDecl();
       return;
     }
   }
 
   if (Annots && DiagnoseBoundsDeclType(Ty, D, Annots, /*IsReturnBounds=*/false)) {
-    ActOnInvalidBoundsDecl(D);
     return;
   }
 
@@ -12909,9 +12912,6 @@ void Sema::ActOnInvalidBoundsDecl(DeclaratorDecl *D) {
 
   BoundsExpr *InvalidExpr = CreateInvalidBoundsExpr();
   D->setBoundsExpr(getASTContext(), InvalidExpr);
-  // TODO: issue-453: create invalid interop type annotation or
-  // invalidate the declaration entirely.
-  D->setInteropTypeBoundsAnnotation(getASTContext(), nullptr);
 }
 
 BoundsExpr *Sema::CreateInvalidBoundsExpr() {
@@ -12923,10 +12923,6 @@ BoundsExpr *Sema::CreateInvalidBoundsExpr() {
     return cast<BoundsExpr>(Result.get());
   else
     return nullptr;
-}
-
-BoundsAnnotations *Sema::CreateInvalidBoundsAnnotations() {
-  return new (Context) BoundsAnnotations(CreateInvalidBoundsExpr(), nullptr);
 }
 
 BoundsAnnotations *Sema::SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty,

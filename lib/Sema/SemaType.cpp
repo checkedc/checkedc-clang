@@ -4830,7 +4830,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ReturnAnnot = S.SynthesizeInteropType(ReturnAnnot, T, false);
         if (ReturnAnnot) {
           if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnot, true))
-            ReturnAnnot = S.CreateInvalidBoundsAnnotations();
+            D.setInvalidType(true);
           else
             ReturnAnnot = S.AbstractForFunctionType(ReturnAnnot, ParamInfo);
         } else {

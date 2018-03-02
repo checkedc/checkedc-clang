@@ -4679,7 +4679,6 @@ public:
   };
 
   BoundsExpr *CreateInvalidBoundsExpr();
-  BoundsAnnotations *CreateInvalidBoundsAnnotations();
   BoundsAnnotations *SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty, bool IsParam);
   BoundsExpr *CreateCountForArrayType(QualType QT);
 

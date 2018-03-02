@@ -2305,7 +2305,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
       BoundsAnnotations *Annots = nullptr;
       if (ParseBoundsAnnotations(D, BoundsColonLoc, Annots)) {
         SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
-        Actions.ActOnInvalidBoundsDecl(ThisVarDecl);
+        ThisVarDecl->setInvalidDecl();
       } else
         Actions.ActOnBoundsDecl(ThisVarDecl, Annots);
     } else
@@ -6676,7 +6676,7 @@ void Parser::ParseParameterDeclarationClause(
           std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
           if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots, &DeferredBoundsToks)) {
             SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
-            Actions.ActOnInvalidBoundsDecl(Param);
+            Param->setInvalidDecl();
           }
           else {
             if (!DeferredBoundsToks->empty()) {
