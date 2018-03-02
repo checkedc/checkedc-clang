@@ -65,6 +65,14 @@ QualType Sema::CreateCheckedCInteropType(QualType Ty,
   return ResultType;
 }
 
+// TODO: add comment
+QualType Sema::AdjustInteropType(const InteropTypeBoundsAnnotation *BA, bool IsParam) {
+  QualType ResultType = BA->getType();
+  if (IsParam && !ResultType.isNull() && ResultType->isArrayType())
+    ResultType = Context.getAdjustedParameterType(ResultType);
+  return ResultType;
+}
+
 // Transform function types that have parameters or returns with bounds
 // or bounds-safe interface types to ones that have checked types for
 // those parameters or returns. The checked types are determined based

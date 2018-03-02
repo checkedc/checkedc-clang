@@ -4123,7 +4123,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
         else {
           BoundsAnnotations *BA = FD.Annotations;
           if (!BA && FD.BoundsExprTokens)
-            BA = Actions.SynthesizeInteropType(BA, Field->getType());
+            BA = Actions.SynthesizeInteropType(BA, Field->getType(), false);
 
           if (BA) 
             Actions.ActOnBoundsDecl(Field, BA);
@@ -6679,7 +6679,7 @@ void Parser::ParseParameterDeclarationClause(
             else {
               if (!DeferredBoundsToks->empty()) {
                 deferredBoundsExpressions.emplace_back(Param, std::move(DeferredBoundsToks));
-                Annots = Actions.SynthesizeInteropType(Annots, Param->getType());
+                Annots = Actions.SynthesizeInteropType(Annots, Param->getType(), true);
               }
               Actions.ActOnBoundsDecl(Param, Annots);
             }

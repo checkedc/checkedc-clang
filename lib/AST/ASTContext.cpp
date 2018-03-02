@@ -9039,7 +9039,7 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
          QualType FieldType = FieldDecl->getType();
          if (isNotAllowedForNoPrototypeFunction(FieldType))
            return true;
-         if (FieldDecl->getBoundsExpr() &&
+         if (FieldDecl->getBoundsAnnotations() &&
              !FieldType->isUncheckedPointerType())
            return true;
        }
@@ -9065,6 +9065,18 @@ bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Exp
   return true;
 }
 
+bool ASTContext::EquivalentInteropAnnotations(
+  const InteropTypeBoundsAnnotation *Expr1,
+  const InteropTypeBoundsAnnotation *Expr2) {
+  if (Expr1 == nullptr && Expr2 == nullptr)
+    return true;
+
+  if (Expr1 != nullptr && Expr2 != nullptr && Expr1->getType() == Expr2->getType())
+    return true;
+
+  return false;
+}
+
 bool ASTContext::EquivalentAnnotations(
   const BoundsAnnotations *Annots1,
   const BoundsAnnotations *Annots2) {
@@ -9078,13 +9090,7 @@ bool ASTContext::EquivalentAnnotations(
   InteropTypeBoundsAnnotation *IT2 =
     Annots2 ? Annots2->getInteropType() : nullptr;
 
-  if (IT1 == nullptr && IT2 == nullptr)
-    return true;
-
-  if (IT1 != nullptr && IT2 != nullptr && IT1->getType() == IT2->getType())
-    return true;
-
-  return false;
+  return EquivalentInteropAnnotations(IT1, IT2);
 }
 
 BoundsExpr *ASTContext::getPrebuiltCountZero() {

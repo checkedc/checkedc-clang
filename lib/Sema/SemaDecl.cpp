@@ -3708,18 +3708,19 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
 // Return true if an error involving bounds has been diagnosed, false if not.
 static bool diagnoseBoundsError(Sema &S,
                                 SourceLocation BoundsLoc,
-                                const BoundsAnnotations *OldBounds,
-                                const BoundsAnnotations *NewBounds,
+                                SourceLocation InteropLoc,
+                                const BoundsAnnotations *OldAnnots,
+                                const BoundsAnnotations *NewAnnots,
                                 const DeclaratorDecl *OldDecl,
                                 const DeclaratorDecl *NewDecl,
                                 QualType OldType,
                                 QualType NewType,
                                 Sema::CheckedCBoundsError Kind) {
-  if (S.Context.EquivalentAnnotations(OldBounds, NewBounds))
-    return false;
+  const BoundsExpr *OldBounds = OldAnnots ? OldAnnots->getBounds() : nullptr;
+  const BoundsExpr *NewBounds = NewAnnots ? NewAnnots->getBounds() : nullptr;
 
-  if ((OldBounds && OldBounds->getBounds() && OldBounds->getBounds()->isInvalid()) ||
-      (NewBounds && NewBounds->getBounds() && NewBounds->getBounds()->isInvalid()))
+  if ((OldBounds && OldBounds->isInvalid()) ||
+      (NewBounds && NewBounds->isInvalid()))
     // There must have been an earlier error involving
     // bounds already diagnosed.
     return true;
@@ -3729,20 +3730,36 @@ static bool diagnoseBoundsError(Sema &S,
     (OldType->isUncheckedPointerType() && NewType->isUncheckedPointerType()) ||
     (OldType->isUncheckedArrayType() && NewType->isUncheckedArrayType());
 
-  if (OldBounds->getBounds() && NewBounds->getBounds() &&
-     !S.Context.EquivalentBounds(OldBounds->getBounds(), NewBounds->getBounds()))
-    DiagId = diag::err_decl_conflicting_bounds;
-  else if (OldBounds->getInteropType() && NewBounds->getInteropType())
-    DiagId = diag::err_decl_conflicting_bounds;
-  else if (!IsUncheckedType)
-    DiagId = NewBounds ? diag::err_decl_added_bounds :
-                         diag::err_decl_dropped_bounds;
-
-  if (DiagId) {
-    emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
-                              IsUncheckedType, Kind);
-    return true;
+  if (!S.Context.EquivalentBounds(OldBounds, NewBounds)) {
+    if (OldBounds && NewBounds)
+      DiagId = diag::err_decl_conflicting_bounds;
+    else if (!IsUncheckedType)
+      DiagId = NewBounds ?
+        diag::err_decl_added_bounds :
+        diag::err_decl_dropped_bounds;
+    if (DiagId) {
+      emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
+                                IsUncheckedType, Kind);
+      return true;
+    }
   }
+
+  const InteropTypeBoundsAnnotation *OldItype = OldAnnots ? OldAnnots->getInteropType() : nullptr;
+  const InteropTypeBoundsAnnotation *NewItype = NewAnnots ? NewAnnots->getInteropType() : nullptr;
+  if (!S.Context.EquivalentInteropAnnotations(OldItype, NewItype)) {
+    if (OldItype && NewItype)
+      DiagId = diag::err_decl_conflicting_bounds;
+    else if (!IsUncheckedType)
+      DiagId = NewItype ?
+                 diag::err_decl_added_bounds :
+                 diag::err_decl_dropped_bounds;
+    if (DiagId) {
+      emitBoundsErrorDiagnostic(S, DiagId, InteropLoc, OldDecl, NewDecl,
+                                IsUncheckedType, Kind);
+      return true;
+    }
+  }
+
   // TODO: produce better error messages when types for parameters, returns,
   // or variables have bounds mismatches embedded within them. The current
   // diagnostic will be "type mismatch"
@@ -3753,6 +3770,14 @@ static SourceLocation getBoundsLocation(const DeclaratorDecl *D) {
   const BoundsExpr *Bounds = D->getBoundsExpr();
   if (Bounds)
     return Bounds->getLocStart();
+  else
+    return SourceLocation();
+}
+
+static SourceLocation getInteropLocation(const DeclaratorDecl *D) {
+  const InteropTypeBoundsAnnotation *Itype = D->getInteropTypeAnnotation();
+  if (Itype)
+    return Itype->getLocStart();
   else
     return SourceLocation();
 }
@@ -3798,6 +3823,7 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
       // Use the annotations from the types; they've been canonicalized,
       // while the annotations in the declarations have not been.
       if (diagnoseBoundsError(*this, getBoundsLocation(NewDecl),
+                              getInteropLocation(NewDecl),
                               OldTypeBounds, NewTypeBounds,
                               OldDecl, NewDecl,
                               OldType->getParamType(i),
@@ -3806,6 +3832,7 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
         Err = true;
     }
     if (diagnoseBoundsError(*this, getBoundsLocation(New),
+                            getInteropLocation(New),
                             OldType->getReturnBounds(),
                             NewType->getReturnBounds(), Old, New,
                             OldType->getReturnType(),
@@ -12816,18 +12843,15 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots,
     }
   }
 
-
-
   // If this is a VarDecl, handle already existing annotations from a prior
   // declaration, if there is a prior declaration.
   if (VD) {
-    // TODO-issue443: handle conflicts with just interop type annotations.
-    // TODO-issue443: handle incorrect interop type annotations & bounds annotations.
     if (VarDecl *Old = VD->getPreviousDecl()) {
       BoundsAnnotations *OldBounds = Old->getBoundsAnnotations();
       BoundsAnnotations NewAnnots(BoundsExpr, Itype);
       SourceLocation BoundsLoc = BoundsExpr ? BoundsExpr->getStartLoc() : SourceLocation();
-      if (diagnoseBoundsError(*this, BoundsLoc, OldBounds, &NewAnnots,
+      SourceLocation InteropLoc = Itype ? Itype->getStartLoc() : SourceLocation();
+      if (diagnoseBoundsError(*this, BoundsLoc, InteropLoc, OldBounds, &NewAnnots,
                               Old, D, Old->getType(), D->getType(),
                               Sema::CheckedCBoundsError::CCBE_Variable)) {
         ActOnInvalidBoundsDecl(D);
@@ -12841,7 +12865,6 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots,
       }
     }
   }
-
 
   D->setBoundsExpr(getASTContext(), BoundsExpr);
   D->setInteropTypeBoundsAnnotation(getASTContext(), Itype);
@@ -12870,13 +12893,14 @@ BoundsAnnotations *Sema::CreateInvalidBoundsAnnotations() {
   return new (Context) BoundsAnnotations(CreateInvalidBoundsExpr(), nullptr);
 }
 
-BoundsAnnotations *Sema::SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty) {
+BoundsAnnotations *Sema::SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty,
+                                               bool IsParam) {
   if (Annots != nullptr && Annots->getInteropType())
     return Annots;
 
   BoundsExpr *Bounds = Annots != nullptr ? Annots->getBounds() : nullptr;
   InteropTypeBoundsAnnotation *InteropType = nullptr;
-  QualType BoundsSafeInterfaceType = CreateCheckedCInteropType(Ty, false);
+  QualType BoundsSafeInterfaceType = CreateCheckedCInteropType(Ty, IsParam);
   if (!BoundsSafeInterfaceType.isNull()) {
     TypeSourceInfo *DI = getASTContext().getTrivialTypeSourceInfo(BoundsSafeInterfaceType);
     ExprResult R = CreateBoundsInteropType(SourceLocation(), DI, SourceLocation());

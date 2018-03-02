@@ -7160,8 +7160,10 @@ InitializationSequence::Perform(Sema &S,
       if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
         const BoundsAnnotations *BA = Entity.getBounds();
         if (BA)
-          if (const InteropTypeBoundsAnnotation *IB = BA->getInteropType())
-            LHSInteropType = IB->getType();
+          if (const InteropTypeBoundsAnnotation *IB = BA->getInteropType()) {
+            bool IsParam = Entity.isParameterKind();
+            LHSInteropType = S.AdjustInteropType(IB, IsParam);
+          }
       }
 
       Sema::AssignConvertType ConvTy =

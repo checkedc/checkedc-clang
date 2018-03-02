@@ -4680,7 +4680,7 @@ public:
 
   BoundsExpr *CreateInvalidBoundsExpr();
   BoundsAnnotations *CreateInvalidBoundsAnnotations();
-  BoundsAnnotations *SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty);
+  BoundsAnnotations *SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty, bool IsParam);
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
   /// CheckNonModifying - checks whether an expression is non-modifying
@@ -9735,6 +9735,8 @@ public:
   /// \brief Get the bounds-safe interface type for LHS.
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
+
+  QualType AdjustInteropType(const InteropTypeBoundsAnnotation *BA, bool IsParam);
 
   /// \brief If T is an array type, create a checked array type version of T.
   /// This includes propagating the checked property to nested array types. If
