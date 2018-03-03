@@ -67,6 +67,7 @@ QualType Sema::CreateCheckedCInteropType(QualType Ty,
 
 // TODO: add comment
 QualType Sema::AdjustInteropType(const InteropTypeBoundsAnnotation *BA, bool IsParam) {
+  if (!BA) return QualType();
   QualType ResultType = BA->getType();
   if (IsParam && !ResultType.isNull() && ResultType->isArrayType())
     ResultType = Context.getAdjustedParameterType(ResultType);

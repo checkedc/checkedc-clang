@@ -1804,7 +1804,7 @@ ExprResult Sema::ConvertToFullyCheckedType(Expr *E,
   QualType Ty = E->getType();
   QualType CheckedTy;
   if (BA != nullptr)
-    CheckedTy = BA->getType();
+    CheckedTy = AdjustInteropType(BA, IsParamUse);
   else
     CheckedTy = Ty;
   CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
@@ -8473,6 +8473,7 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
 /// otherwise.  For the left-hand sides of assignments, only global variables,
 /// parameters, and members of structures/unions have bounds-safe interfaces.
 QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
+  bool IsParam = false;
   DeclaratorDecl *D = nullptr;
   if (!LHS.isInvalid()) {
     Expr *LHSExpr = LHS.get()->IgnoreParens();
@@ -8481,13 +8482,15 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
         D = Field;
     }
     else if (DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
-      if (VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
+      if (VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl())) {
         D = Var;
+        IsParam = isa<ParmVarDecl>(Var);
+      }
     }
   }
 
   if (D)
-    return D->getInteropType();
+    return AdjustInteropType(D->getInteropTypeAnnotation(), IsParam);
   else
     return QualType();
 }
