@@ -115,7 +115,6 @@ public:
   QualType TransformFunctionProtoType(
     TypeLocBuilder &TLB, FunctionProtoTypeLoc TL, CXXRecordDecl *ThisContext,
     unsigned ThisTypeQuals, Fn TransformExceptionSpec) {
-
     // First rewrite any subcomponents so that nested function types are
     // handled.
 
@@ -194,7 +193,7 @@ public:
       // annotations.
       bool hasParamBounds = false;
       for (unsigned int i = 0; i < ParamTypes.size(); i++) {
-        const BoundsAnnotations *IndividualAnnots = ParamAnnots[i];
+        BoundsAnnotations *IndividualAnnots = ParamAnnots[i];
         if (ParamTypes[i]->isUncheckedPointerType() && IndividualAnnots &&
             IndividualAnnots->getInteropType()) {
           InteropTypeBoundsAnnotation *IT = IndividualAnnots->getInteropType();
@@ -227,6 +226,10 @@ public:
           } else 
             ParamAnnots[i] = nullptr;
           EPIChanged = true;
+        } else {
+          ParamAnnots[i] = IndividualAnnots;
+          if (IndividualAnnots)
+            hasParamBounds = true;
         }
       }
 
