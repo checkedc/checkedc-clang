@@ -17,13 +17,12 @@
 using namespace clang;
 using namespace sema;
 
-/// Create the corresponding Checked C interop type for Ty, given a
+/// \brief Create the corresponding Checked C interop type for Ty, given a
 /// a bounds expression Bounds.
 ///
 /// The checked type should be an _Array_ptr type or checked Array type.  
 /// Constructthe appropriate type from the unchecked type for the declaration
 /// and return it.
-
 QualType Sema::CreateCheckedCInteropType(QualType Ty,
                                          bool isParam) {
   // Nothing to do.
@@ -65,7 +64,9 @@ QualType Sema::CreateCheckedCInteropType(QualType Ty,
   return ResultType;
 }
 
-// TODO: add comment
+/// \brief Return the interop type for BA.  Adjust it if necessary for
+/// parameters, where the interop type could be an array type.  If BA
+/// is nul, return an empty qualified type.
 QualType Sema::AdjustInteropType(const InteropTypeExpr *BA, bool IsParam) {
   if (!BA) return QualType();
   QualType ResultType = BA->getType();

@@ -2929,9 +2929,16 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
   return ExprError();
 }
 
-// If DeferredToks is non-null and we a see a token that starts a bounds
-// expression, consume and store tokens until a bounds-like expression has been
-// read or a parsing error has happened.  Store the tokens even if a
+// Parse bouns annotations, which are an optional bounds expression and
+// and an optiona interop type.  At least one of the two must appear.
+// The bounds expressions may be optionally be deferred parsed.  This is done
+// when DeferredToks is non-null.
+//
+// Return true if there is an error, false if there is no error.   The
+// result is stored in Result.   The tokens for the deferred parsed bounds
+// expression are stored in DeferredTokens.
+//
+// When parsing deferred bounds,  store the tokens even if a
 // parsing error occurs so that ParseBoundsExpression can generate
 // the error message.  This way the error messages from parsing of bounds
 // expressions will be the same or very similar regardless of whether
@@ -3015,12 +3022,8 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
 }
 
 // Skip Invalid Bounds Expression such as boounds(), b0unds(e1,e2) and stop if
-// relative bounds clause founds. In this case, the value of isBounds or isIType
-// is false. if there is parsing error in ParseBoundsExpression() or
-// ParseInteropTypeAnnotation(), the value of isBounds or isIType is true. That
-// means we do not need to skip bounds expression because it already skiped to
-// the right paren.
-
+// relative bounds clause is found.
+// TODO: we should skip the relative bounds clause too.
 void Parser::SkipInvalidBoundsExpr(SourceLocation CurrentLoc) {
   SourceLocation Loc = PP.getLocForEndOfToken(CurrentLoc);
   Diag(Loc, diag::err_expected_bounds_expr_or_interop_type);

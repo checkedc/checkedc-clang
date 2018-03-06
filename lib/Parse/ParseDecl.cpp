@@ -6417,7 +6417,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
 
         // Flag that something wrong by setting the BoundsExpr to be invalid.
         ReturnAnnots = new BoundsAnnotations(Actions.CreateInvalidBoundsExpr(), nullptr);
-     }
+      }
     }
   }
 

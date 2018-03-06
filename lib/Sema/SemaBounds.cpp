@@ -1229,12 +1229,12 @@ namespace {
         }
         case Expr::CallExprClass: {
           const CallExpr *CE = cast<CallExpr>(E);
-          BoundsExpr *ReturnAnnots = nullptr;
+          BoundsExpr *ReturnBounds = nullptr;
           if (E->getType()->isCheckedPointerPtrType()) {
             if (E->getType()->isVoidPointerType())
-              ReturnAnnots = Context.getPrebuiltByteCountOne();
+              ReturnBounds = Context.getPrebuiltByteCountOne();
             else
-              ReturnAnnots = Context.getPrebuiltCountOne();
+              ReturnBounds = Context.getPrebuiltCountOne();
           }
           else {
             // Get the function prototype, where the abstract function return
@@ -1268,13 +1268,13 @@ namespace {
 
             // Concretize Call Bounds with argument expressions.
             // We can only do this if the argument expressions are non-modifying
-            ReturnAnnots =
+            ReturnBounds =
               SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
                                Sema::NonModifyingContext::NMC_Function_Return);
             // If concretization failed, this means we tried to substitute with
             // a non-modifying expression, which is not allowed by the
             // specification.
-            if (!ReturnAnnots)
+            if (!ReturnBounds)
               return CreateBoundsInferenceError();
           }
 
@@ -1282,11 +1282,11 @@ namespace {
           // count(e) or byte_count(e) becuase we need a way of referring
           // to the function's return value which we currently lack in the
           // general case.
-          if (ReturnAnnots->isElementCount() ||
-              ReturnAnnots->isByteCount())
+          if (ReturnBounds->isElementCount() ||
+              ReturnBounds->isByteCount())
             return CreateBoundsAllowedButNotComputed();
 
-          return ReturnAnnots;
+          return ReturnBounds;
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
