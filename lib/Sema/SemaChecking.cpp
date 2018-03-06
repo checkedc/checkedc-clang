@@ -11947,7 +11947,7 @@ bool Sema::AllowedInCheckedScope(QualType Ty,
     return AllowedInCheckedScope(ReferentType, nullptr, false, Loc,
                                  ProblemLoc, ProblemTy);
   } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
-    const BoundsAnnotations *ReturnAnnots = fpt->getReturnBounds();
+    const BoundsAnnotations *ReturnAnnots = fpt->getReturnAnnots();
     InteropTypeExpr *ReturnInteropType =
       ReturnAnnots ? ReturnAnnots->getInteropTypeExpr() : nullptr;
     if (!AllowedInCheckedScope(fpt->getReturnType(), ReturnInteropType,
@@ -11955,7 +11955,7 @@ bool Sema::AllowedInCheckedScope(QualType Ty,
       return false;
     unsigned int paramCount = fpt->getNumParams();
     for (unsigned int i = 0; i < paramCount; i++) {
-      const BoundsAnnotations *ParamAnnots = fpt->getParamBounds(i);
+      const BoundsAnnotations *ParamAnnots = fpt->getParamAnnots(i);
       InteropTypeExpr *ParamInteropType =
         ParamAnnots ? ParamAnnots->getInteropTypeExpr() : nullptr;
       if (!AllowedInCheckedScope(fpt->getParamType(i), ParamInteropType,

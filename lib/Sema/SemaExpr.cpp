@@ -4974,7 +4974,7 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
   // Continue to check argument types (even if we have too few/many args).
   for (unsigned i = FirstParam; i < NumParams; i++) {
     QualType ProtoArgType = Proto->getParamType(i);
-    const BoundsAnnotations *Bounds = Proto->getParamBounds(i);
+    const BoundsAnnotations *Annots = Proto->getParamAnnots(i);
 
     Expr *Arg;
     ParmVarDecl *Param = FDecl ? FDecl->getParamDecl(i) : nullptr;
@@ -5000,10 +5000,10 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
       InitializedEntity Entity =
           Param ? InitializedEntity::InitializeParameter(Context, Param,
                                                          ProtoArgType,
-                                                         Bounds)
+                                                         Annots)
                 : InitializedEntity::InitializeParameter(
                       Context, ProtoArgType, Proto->isParamConsumed(i),
-                      Bounds);
+                      Annots);
 
       // Remember that parameter belongs to a CF audited API.
       if (CFAudited)
@@ -5719,7 +5719,7 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
       if (Proto && i < Proto->getNumParams()) {
         InitializedEntity Entity = InitializedEntity::InitializeParameter(
             Context, Proto->getParamType(i), Proto->isParamConsumed(i),
-            Proto->getParamBounds(i));
+            Proto->getParamAnnots(i));
         ExprResult ArgE =
             PerformCopyInitialization(Entity, SourceLocation(), Arg);
         if (ArgE.isInvalid())

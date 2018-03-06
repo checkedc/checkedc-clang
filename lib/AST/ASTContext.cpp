@@ -3417,7 +3417,7 @@ QualType ASTContext::getFunctionTypeInternal(
   size_t Size = sizeof(FunctionProtoType) +
                 NumArgs * sizeof(QualType);
 
-  if (EPI.ParamBounds) {
+  if (EPI.ParamAnnots) {
     Size += NumArgs * sizeof(BoundsExpr *);
   }
 
@@ -8176,23 +8176,23 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (!canUseRight)
       allRTypes = false;
 
-    const BoundsAnnotations *returnBounds = nullptr;
+    const BoundsAnnotations *ReturnAnnots = nullptr;
     if (!IgnoreBounds) {
-      const BoundsAnnotations *lReturnBounds = lproto->ReturnBounds;
-      const BoundsAnnotations *rReturnBounds = rproto->ReturnBounds;
-      if (EquivalentAnnotations(lReturnBounds, rReturnBounds))
-        returnBounds = lReturnBounds;
+      const BoundsAnnotations *lReturnAnnots = lproto->ReturnAnnots;
+      const BoundsAnnotations *rReturnAnnots = rproto->ReturnAnnots;
+      if (EquivalentAnnotations(lReturnAnnots, rReturnAnnots))
+        ReturnAnnots = lReturnAnnots;
       else {
         // For unchecked return types, a return with
         // bounds is compatible with a return without bounds.
         // The merged type includes the bounds.
         if (!retType->isUncheckedPointerType())
           return QualType();
-        if (lReturnBounds && !rReturnBounds) {
-          returnBounds = lReturnBounds;
+        if (lReturnAnnots && !rReturnAnnots) {
+          ReturnAnnots = lReturnAnnots;
           allRTypes = false;
-        } else if (rReturnBounds && !lReturnBounds) {
-          returnBounds = rReturnBounds;
+        } else if (rReturnAnnots && !lReturnAnnots) {
+          ReturnAnnots = rReturnAnnots;
           allLTypes = false;
         } else
           return QualType();
@@ -8202,7 +8202,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     // Check parameter type compatibility
     SmallVector<QualType, 10> types;
     SmallVector<const BoundsAnnotations *, 10> bounds;
-    bool hasParamBounds = lproto->hasParamBounds() || rproto->hasParamBounds();
+    bool hasParamAnnots = lproto->hasParamAnnots() || rproto->hasParamAnnots();
     for (unsigned i = 0, n = lproto->getNumParams(); i < n; i++) {
       QualType lParamType = lproto->getParamType(i).getUnqualifiedType();
       QualType rParamType = rproto->getParamType(i).getUnqualifiedType();
@@ -8225,9 +8225,9 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
       if (getCanonicalType(paramType) != getCanonicalType(rParamType))
         allRTypes = false;
 
-      if (!IgnoreBounds && hasParamBounds) {
-        const BoundsAnnotations *lBounds = lproto->getParamBounds(i);
-        const BoundsAnnotations *rBounds = rproto->getParamBounds(i);
+      if (!IgnoreBounds && hasParamAnnots) {
+        const BoundsAnnotations *lBounds = lproto->getParamAnnots(i);
+        const BoundsAnnotations *rBounds = rproto->getParamAnnots(i);
         if (EquivalentAnnotations(lBounds, rBounds))
           bounds.push_back(lBounds);
         else {
@@ -8255,9 +8255,9 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     EPI.ExtInfo = einfo;
     EPI.ExtParameterInfos =
       newParamInfos.empty() ? nullptr : newParamInfos.data();
-    if (hasParamBounds)
-      EPI.ParamBounds = bounds.data();
-    EPI.ReturnBounds = returnBounds;
+    if (hasParamAnnots)
+      EPI.ParamAnnots = bounds.data();
+    EPI.ReturnAnnots = ReturnAnnots;
     EPI.numTypeVars = lproto->getNumTypeVars();
 
     return getFunctionType(retType, types, EPI);
@@ -9022,13 +9022,13 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
     if (isNotAllowedForNoPrototypeFunction(RetType))
       return true;
     if (const FunctionProtoType *FPT = FT->getAs<FunctionProtoType>()) {
-      if (FPT->hasReturnBounds())
+      if (FPT->hasReturnAnnots())
         return true;
       unsigned NumParams = FPT->getNumParams();
       for (unsigned I=0; I< NumParams; ++I) {
         if (isNotAllowedForNoPrototypeFunction(FPT->getParamType(I)))
           return true;
-        if (FPT->getParamBounds(I))
+        if (FPT->getParamAnnots(I))
           return true;
       }
     }
@@ -9065,7 +9065,7 @@ bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Exp
   return true;
 }
 
-bool ASTContext::EquivalentInteropAnnotations(
+bool ASTContext::EquivalentInteropTypes(
   const InteropTypeExpr *Expr1,
   const InteropTypeExpr *Expr2) {
   if (Expr1 == nullptr && Expr2 == nullptr)
@@ -9088,7 +9088,7 @@ bool ASTContext::EquivalentAnnotations(
   InteropTypeExpr *IT1 = Annots1 ? Annots1->getInteropTypeExpr() : nullptr;
   InteropTypeExpr *IT2 = Annots2 ? Annots2->getInteropTypeExpr() : nullptr;
 
-  return EquivalentInteropAnnotations(IT1, IT2);
+  return EquivalentInteropTypes(IT1, IT2);
 }
 
 BoundsExpr *ASTContext::getPrebuiltCountZero() {

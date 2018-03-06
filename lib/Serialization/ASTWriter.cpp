@@ -291,19 +291,19 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
   Record.push_back(T->isVariadic());
   Record.push_back(T->hasTrailingReturn());
   Record.push_back(T->getNumTypeVars());
-  Record.push_back(T->hasParamBounds());
+  Record.push_back(T->hasParamAnnots());
   Record.push_back(T->getTypeQuals());
   Record.push_back(static_cast<unsigned>(T->getRefQualifier()));
   addExceptionSpec(T, Record);
-  Record.AddBoundsAnnotations(const_cast<BoundsAnnotations *>(T->getReturnBounds()));
+  Record.AddBoundsAnnotations(const_cast<BoundsAnnotations *>(T->getReturnAnnots()));
 
   Record.push_back(T->getNumParams());
   for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
     Record.AddTypeRef(T->getParamType(I));
 
-  if (T->hasParamBounds())
+  if (T->hasParamAnnots())
     for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
-      Record.AddBoundsAnnotations(const_cast<BoundsAnnotations *>(T->getParamBounds(I)));
+      Record.AddBoundsAnnotations(const_cast<BoundsAnnotations *>(T->getParamAnnots(I)));
 
   if (T->hasExtParameterInfos()) {
     for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
@@ -315,8 +315,8 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
   // for the compressed record for function prototypes, so disable the
   // compression when these fields are present.  Note that, confusingly,
   // compression of function prototypes does not appear to ever be enabled.
-  if (T->isVariadic() || T->hasTrailingReturn() || T->hasParamBounds() ||
-      T->hasReturnBounds() || T->getTypeQuals() || T->getRefQualifier() ||
+  if (T->isVariadic() || T->hasTrailingReturn() || T->hasParamAnnots() ||
+      T->hasReturnAnnots() || T->getTypeQuals() || T->getRefQualifier() ||
       T->getExceptionSpecType() != EST_None || T->hasExtParameterInfos())
     AbbrevToUse = 0;
 

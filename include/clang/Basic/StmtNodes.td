@@ -179,6 +179,7 @@ def NullaryBoundsExpr : DStmt<BoundsExpr>;
 def CountBoundsExpr : DStmt<BoundsExpr>;
 def RangeBoundsExpr : DStmt<BoundsExpr>;
 
+// Other Checked C Expressions.
 def InteropTypeExpr : DStmt<Expr>;
 def PositionalParameterExpr : DStmt<Expr>;
 def BoundsCastExpr : DStmt<ExplicitCastExpr>;

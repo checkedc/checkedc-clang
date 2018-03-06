@@ -3383,12 +3383,12 @@ public:
     ExtProtoInfo()
         : Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
           TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr), ReturnBounds(nullptr) {}
+          ParamAnnots(nullptr), ReturnAnnots(nullptr) {}
 
     ExtProtoInfo(CallingConv CC)
         : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
           TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr), ReturnBounds(nullptr) {}
+          ParamAnnots(nullptr), ReturnAnnots(nullptr) {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
       ExtProtoInfo Result(*this);
@@ -3404,8 +3404,8 @@ public:
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos;
-    const BoundsAnnotations *const *ParamBounds;
-    const BoundsAnnotations *ReturnBounds;
+    const BoundsAnnotations *const *ParamAnnots;
+    const BoundsAnnotations *ReturnAnnots;
   };
 
 private:
@@ -3442,17 +3442,17 @@ private:
   /// Whether this function has a trailing return type.
   unsigned HasTrailingReturn : 1;
 
-  /// Whether this function has annotations information for parameters.
-  unsigned HasParamBounds : 1;
+  /// Whether this function has annotations for parameters.
+  unsigned HasParamAnnots : 1;
 
   // The return annotations for a function.  Null when a function has no return
   //annotations
-  const BoundsAnnotations *const ReturnBounds;
+  const BoundsAnnotations *const ReturnAnnots;
 
   // ParamInfo - There is an variable size array after the class in memory that
   // holds the parameter types.
 
-  // ParamBounds - A variable size array after ParamInfo that holds the 
+  // ParamAnnots - A variable size array after ParamInfo that holds the 
   // annotations for parameters.  A nullptr is stored if a parameter has no
   // annotations.
 
@@ -3510,9 +3510,9 @@ public:
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
 
-  const BoundsAnnotations *getParamBounds(unsigned i) const {
+  const BoundsAnnotations *getParamAnnots(unsigned i) const {
     assert(i < NumParams && "invalid parameter index");
-    if (hasParamBounds())
+    if (hasParamAnnots())
       return param_annots_begin()[i];
     else
       return nullptr;
@@ -3538,8 +3538,8 @@ public:
     }
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
-    EPI.ParamBounds = hasParamBounds() ? param_annots_begin() : nullptr;
-    EPI.ReturnBounds = hasReturnBounds() ? getReturnBounds() : nullptr;
+    EPI.ParamAnnots = hasParamAnnots() ? param_annots_begin() : nullptr;
+    EPI.ReturnAnnots = hasReturnAnnots() ? getReturnAnnots() : nullptr;
     EPI.numTypeVars = getNumTypeVars();
     return EPI;
   }
@@ -3630,9 +3630,9 @@ public:
 
   unsigned getTypeQuals() const { return FunctionType::getTypeQuals(); }
 
-  bool hasParamBounds() const { return HasParamBounds; }
+  bool hasParamAnnots() const { return HasParamAnnots; }
 
-  bool hasReturnBounds() const { return ReturnBounds != nullptr; }
+  bool hasReturnAnnots() const { return ReturnAnnots != nullptr; }
 
   /// Retrieve the ref-qualifier associated with this function type.
   RefQualifierKind getRefQualifier() const {
@@ -3665,15 +3665,15 @@ public:
   }
 
   annots_iterator param_annots_end() const {
-    if (!hasParamBounds())
+    if (!hasParamAnnots())
       return param_annots_begin();
     else
       return param_annots_begin() + NumParams;
   }
 
   // Checked C return annotations information
-  const BoundsAnnotations *getReturnBounds() const {
-    return ReturnBounds;
+  const BoundsAnnotations *getReturnAnnots() const {
+    return ReturnAnnots;
   }
 
   typedef const QualType *exception_iterator;

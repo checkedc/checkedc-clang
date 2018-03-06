@@ -2517,8 +2517,8 @@ public:
   bool EquivalentAnnotations(const BoundsAnnotations *Annots1,
                              const BoundsAnnotations *Annots2);
   bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
-  bool EquivalentInteropAnnotations(const InteropTypeExpr *Expr1,
-                                    const InteropTypeExpr *Expr2);
+  bool EquivalentInteropTypes(const InteropTypeExpr *Expr1,
+                              const InteropTypeExpr *Expr2);
 
   BoundsExpr *getPrebuiltByteCountOne();
   BoundsExpr *getPrebuiltCountZero();

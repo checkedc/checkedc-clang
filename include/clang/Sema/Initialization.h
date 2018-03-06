@@ -174,22 +174,22 @@ private:
 
   /// \brief The declared bounds annotations of the object or reference being
   /// initialized, if any.
-  const BoundsAnnotations *Bounds;
+  const BoundsAnnotations *Annots;
 
-  InitializedEntity() : ManglingNumber(0), Bounds(nullptr) {}
+  InitializedEntity() : ManglingNumber(0), Annots(nullptr) {}
 
   /// \brief Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
     : Kind(EK), Parent(nullptr), Type(Var->getType()),
-      ManglingNumber(0), Variable{Var, false}, Bounds(Var->getBoundsAnnotations()) { }
+      ManglingNumber(0), Variable{Var, false}, Annots(Var->getBoundsAnnotations()) { }
   
   /// \brief Create the initialization entity for the result of a
   /// function, throwing an object, performing an explicit cast, or
   /// initializing a parameter for which there is no declaration.
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
-                    bool NRVO = false, const BoundsAnnotations *Bounds = nullptr)
+                    bool NRVO = false, const BoundsAnnotations *Annots = nullptr)
     : Kind(Kind), Parent(nullptr), Type(Type), ManglingNumber(0),
-      Bounds(Bounds)
+      Annots(Annots)
 
   {
     LocAndNRVO.Location = Loc.getRawEncoding();
@@ -201,7 +201,7 @@ private:
                     bool Implicit) 
     : Kind(EK_Member), Parent(Parent), Type(Member->getType()),
       ManglingNumber(0), Variable{Member, Implicit},
-      Bounds(Member->getBoundsAnnotations()) {
+      Annots(Member->getBoundsAnnotations()) {
   }
   
   /// \brief Create the initialization entity for an array element.
@@ -211,7 +211,7 @@ private:
   /// \brief Create the initialization entity for a lambda capture.
   InitializedEntity(IdentifierInfo *VarID, QualType FieldType, SourceLocation Loc)
     : Kind(EK_LambdaCapture), Parent(nullptr), Type(FieldType),
-      ManglingNumber(0), Bounds(nullptr)
+      ManglingNumber(0), Annots(nullptr)
   {
     Capture.VarID = VarID;
     Capture.Location = Loc.getRawEncoding();
@@ -235,7 +235,7 @@ public:
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                const ParmVarDecl *Parm,
                                                QualType Type,
-                                               const BoundsAnnotations *Bounds) {
+                                               const BoundsAnnotations *Annots) {
     bool Consumed = (Context.getLangOpts().ObjCAutoRefCount &&
                      Parm->hasAttr<NSConsumedAttr>());
 
@@ -246,7 +246,7 @@ public:
     Entity.Parent = nullptr;
     Entity.Parameter
       = (static_cast<uintptr_t>(Consumed) | reinterpret_cast<uintptr_t>(Parm));
-    Entity.Bounds = Bounds;
+    Entity.Annots = Annots;
     return Entity;
   }
 
@@ -255,11 +255,11 @@ public:
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                QualType Type,
                                                bool Consumed,
-                             const BoundsAnnotations *BoundsAnnots = nullptr) {
+                                   const BoundsAnnotations *Annots = nullptr) {
     InitializedEntity Entity;
     Entity.Kind = EK_Parameter;
     Entity.Type = Context.getVariableArrayDecayedType(Type);
-    Entity.Bounds = BoundsAnnots;
+    Entity.Annots = Annots;
     Entity.Parent = nullptr;
     Entity.Parameter = (Consumed);
     return Entity;
@@ -268,8 +268,8 @@ public:
   /// \brief Create the initialization entity for the result of a function.
   static InitializedEntity InitializeResult(SourceLocation ReturnLoc,
                                             QualType Type, bool NRVO,
-                                          const BoundsAnnotations *Bounds = nullptr) {
-    return InitializedEntity(EK_Result, ReturnLoc, Type, NRVO, Bounds);
+                                          const BoundsAnnotations *Annots = nullptr) {
+    return InitializedEntity(EK_Result, ReturnLoc, Type, NRVO, Annots);
   }
 
   static InitializedEntity InitializeBlock(SourceLocation BlockVarLoc,
@@ -396,7 +396,7 @@ public:
     return nullptr;
   }
   
-  const BoundsAnnotations *getBoundsExpr() const { return Bounds; }
+  const BoundsAnnotations *getAnnots() const { return Annots; }
 
   /// \brief Retrieve the name of the entity being initialized.
   DeclarationName getName() const;

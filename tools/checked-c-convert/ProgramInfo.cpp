@@ -380,9 +380,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     for (unsigned i = 0; i < FT->getNumParams(); i++) {
       QualType QT = FT->getParamType(i);
 
-      if (FT->getParamBounds(i))
+      if (FT->getParamAnnots(i))
         if (InteropTypeExpr *BA =
-             FT->getParamBounds(i)->getInteropTypeExpr())
+             FT->getParamAnnots(i)->getInteropTypeExpr())
           QT = BA->getType();
 
       std::string paramName = "";
@@ -400,9 +400,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       paramVars.push_back(C);
     }
 
-    if (FT->getReturnBounds())
+    if (FT->getReturnAnnots())
       if (InteropTypeExpr *BA =
-            FT->getReturnBounds()->getInteropTypeExpr())
+            FT->getReturnAnnots()->getInteropTypeExpr())
           returnType = BA->getType();
     hasproto = true;
   } else if (Ty->isFunctionNoProtoType()) {

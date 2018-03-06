@@ -5297,13 +5297,13 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   }
 
   // Handle bounds annotations for return.
-  BoundsAnnotations *ReturnAnnot = const_cast<BoundsAnnotations *>(EPI.ReturnBounds);
+  BoundsAnnotations *ReturnAnnot = const_cast<BoundsAnnotations *>(EPI.ReturnAnnots);
   if (getDerived().TransformBoundsAnnotations(ReturnAnnot, EPIChanged))
     return true;
-  EPI.ReturnBounds = ReturnAnnot;
+  EPI.ReturnAnnots = ReturnAnnot;
 
   // Handle bounds annotations for parameters.
-  const BoundsAnnotations *const *ExistingParamListAnnots = EPI.ParamBounds;
+  const BoundsAnnotations *const *ExistingParamListAnnots = EPI.ParamAnnots;
   if (ExistingParamListAnnots) {
     bool ParamListAnnotsChanged = false;
     unsigned ExistingParamCount = TL.getNumParams();
@@ -5323,7 +5323,7 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
 
     if (ParamListAnnotsChanged) {
       EPIChanged = true;
-      EPI.ParamBounds = ParamListAnnots.data();
+      EPI.ParamAnnots = ParamListAnnots.data();
     }
   }
   return false;

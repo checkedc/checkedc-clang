@@ -5950,26 +5950,26 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     EPI.Variadic = Record[Idx++];
     EPI.HasTrailingReturn = Record[Idx++];
     EPI.numTypeVars = Record[Idx++];
-    bool HasParamBounds = Record[Idx++];
+    bool HasParamAnnots = Record[Idx++];
     EPI.TypeQuals = Record[Idx++];
     EPI.RefQualifier = static_cast<RefQualifierKind>(Record[Idx++]);
     SmallVector<QualType, 8> ExceptionStorage;
     readExceptionSpec(*Loc.F, ExceptionStorage, EPI.ExceptionSpec, Record, Idx);
-    EPI.ReturnBounds = ReadBoundsAnnotations(*Loc.F);
+    EPI.ReturnAnnots = ReadBoundsAnnotations(*Loc.F);
 
     unsigned NumParams = Record[Idx++];
     SmallVector<QualType, 16> ParamTypes;
     for (unsigned I = 0; I != NumParams; ++I)
       ParamTypes.push_back(readType(*Loc.F, Record, Idx));
 
-    if (HasParamBounds) {
-      SmallVector<const BoundsAnnotations *, 16> ParamBounds;
+    if (HasParamAnnots) {
+      SmallVector<const BoundsAnnotations *, 16> ParamAnnots;
       for (unsigned I = 0; I != NumParams; ++I) {
-        ParamBounds.push_back(ReadBoundsAnnotations(*Loc.F));
+        ParamAnnots.push_back(ReadBoundsAnnotations(*Loc.F));
       }
-      EPI.ParamBounds = ParamBounds.data();
+      EPI.ParamAnnots = ParamAnnots.data();
     } else
-      EPI.ParamBounds = nullptr;
+      EPI.ParamAnnots = nullptr;
 
     SmallVector<FunctionProtoType::ExtParameterInfo, 4> ExtParameterInfos;
     if (Idx != Record.size()) {

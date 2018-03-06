@@ -4657,7 +4657,7 @@ public:
                                  BoundsExpr *bounds);
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
-                              BoundsAnnotations *BA, bool IsReturnBounds);
+                              BoundsAnnotations *BA, bool IsReturnAnnots);
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots,
                        bool MergeDeferredBounds = false);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);

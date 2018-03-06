@@ -1969,7 +1969,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           unsigned Count = D.getNumTypeObjects();
           const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
           if (lastChunk.Kind == DeclaratorChunk::Function) {
-            BoundsAnnotations *BA = lastChunk.Fun.ReturnBounds;
+            BoundsAnnotations *BA = lastChunk.Fun.ReturnAnnots;
             if (BA && BA->getBoundsExpr() && BA->getBoundsExpr()->isInvalid()) {
               // TODO: this skips too much of there are separate
               // K&R style declarations of argument types.

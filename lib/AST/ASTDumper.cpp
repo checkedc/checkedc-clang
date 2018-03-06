@@ -339,12 +339,12 @@ namespace  {
       // FIXME: Consumed parameters.
       VisitFunctionType(T);
       unsigned numParams = T->getNumParams();
-      bool hasBounds = T->hasParamBounds();
+      bool hasBounds = T->hasParamAnnots();
       for (unsigned i = 0; i < numParams; i++) {
         QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
         if (hasBounds)
-          if (const BoundsAnnotations *Annots = T->getParamBounds(i)) {
+          if (const BoundsAnnotations *Annots = T->getParamAnnots(i)) {
             if (const BoundsExpr *Bounds = Annots->getBoundsExpr())
               dumpChild([=] {
                 OS << "Bounds";
@@ -359,13 +359,13 @@ namespace  {
       }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
-      if (EPI.ReturnBounds) {
-        if (const BoundsExpr *Bounds = EPI.ReturnBounds->getBoundsExpr())
+      if (EPI.ReturnAnnots) {
+        if (const BoundsExpr *Bounds = EPI.ReturnAnnots->getBoundsExpr())
           dumpChild([=] {
             OS << "Return bounds";
             dumpStmt(Bounds);
           });
-        if (const InteropTypeExpr *IT = EPI.ReturnBounds->getInteropTypeExpr())
+        if (const InteropTypeExpr *IT = EPI.ReturnAnnots->getInteropTypeExpr())
           dumpChild([=] {
             OS << "Return interopType";
             dumpStmt(IT);
@@ -616,14 +616,13 @@ namespace  {
     void visitVerbatimBlockLineComment(const VerbatimBlockLineComment *C);
     void visitVerbatimLineComment(const VerbatimLineComment *C);
 
-    // Checked C bounds expressions.
+    // Checked C expressions.
     void VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node);
     void VisitCountBoundsExpr(const CountBoundsExpr *Node);
     void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
-    void VisitInteropTypeExpr(
-      const InteropTypeExpr *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
     void dumpBoundsCheckKind(BoundsCheckKind kind);
+    void VisitInteropTypeExpr(const InteropTypeExpr *Node);
     void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
   };
 }

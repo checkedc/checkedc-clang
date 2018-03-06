@@ -843,8 +843,8 @@ public:
     return getInteropTypeExpr() != nullptr;
   }
 
-  /// \brief Set the Checked C interop for this declaration.  For function
-  /// declarations, this is the return bounds of the function.
+  /// \brief Set the Checked C interop type for this declaration.  For function
+  /// declarations, this is the return interop type of the function.
   void setInteropTypeExpr(ASTContext &Context, InteropTypeExpr *IT) {
     // If IT is null and we have no annotations, do nothing.
     if (!IT && !Annotations)

@@ -1229,12 +1229,12 @@ namespace {
         }
         case Expr::CallExprClass: {
           const CallExpr *CE = cast<CallExpr>(E);
-          BoundsExpr *ReturnBounds = nullptr;
+          BoundsExpr *ReturnAnnots = nullptr;
           if (E->getType()->isCheckedPointerPtrType()) {
             if (E->getType()->isVoidPointerType())
-              ReturnBounds = Context.getPrebuiltByteCountOne();
+              ReturnAnnots = Context.getPrebuiltByteCountOne();
             else
-              ReturnBounds = Context.getPrebuiltCountOne();
+              ReturnAnnots = Context.getPrebuiltCountOne();
           }
           else {
             // Get the function prototype, where the abstract function return
@@ -1249,7 +1249,7 @@ namespace {
               // inference on them, so we return bounds(unknown) for their results.
               return CreateBoundsAlwaysUnknown();
 
-            BoundsAnnotations *FunReturnAnnots = const_cast<BoundsAnnotations *>(CalleeTy->getReturnBounds());
+            BoundsAnnotations *FunReturnAnnots = const_cast<BoundsAnnotations *>(CalleeTy->getReturnAnnots());
             BoundsExpr *FunBounds = FunReturnAnnots ? FunReturnAnnots->getBoundsExpr() : nullptr;
             InteropTypeExpr *IType = FunReturnAnnots ? FunReturnAnnots->getInteropTypeExpr() : nullptr;
             // TODO:handle interop type annotation on return bounds
@@ -1268,13 +1268,13 @@ namespace {
 
             // Concretize Call Bounds with argument expressions.
             // We can only do this if the argument expressions are non-modifying
-            ReturnBounds =
+            ReturnAnnots =
               SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
                                Sema::NonModifyingContext::NMC_Function_Return);
             // If concretization failed, this means we tried to substitute with
             // a non-modifying expression, which is not allowed by the
             // specification.
-            if (!ReturnBounds)
+            if (!ReturnAnnots)
               return CreateBoundsInferenceError();
           }
 
@@ -1282,11 +1282,11 @@ namespace {
           // count(e) or byte_count(e) becuase we need a way of referring
           // to the function's return value which we currently lack in the
           // general case.
-          if (ReturnBounds->isElementCount() ||
-              ReturnBounds->isByteCount())
+          if (ReturnAnnots->isElementCount() ||
+              ReturnAnnots->isByteCount())
             return CreateBoundsAllowedButNotComputed();
 
-          return ReturnBounds;
+          return ReturnAnnots;
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
@@ -2264,7 +2264,7 @@ namespace {
       const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
       if (!FuncProtoTy)
         return;
-      if (!FuncProtoTy->hasParamBounds())
+      if (!FuncProtoTy->hasParamAnnots())
         return;
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = CE->getNumArgs();
@@ -2307,7 +2307,7 @@ namespace {
         // We want to check the argument expression implies the desired parameter bounds.
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
-        const BoundsAnnotations  *ParamAnnots = FuncProtoTy->getParamBounds(i);
+        const BoundsAnnotations  *ParamAnnots = FuncProtoTy->getParamAnnots(i);
         const BoundsExpr *ParamBounds = ParamAnnots ? ParamAnnots->getBoundsExpr() : nullptr;
         const InteropTypeExpr *ParamIType = ParamAnnots ? ParamAnnots->getInteropTypeExpr() : nullptr;
         if (!ParamBounds && !ParamIType)

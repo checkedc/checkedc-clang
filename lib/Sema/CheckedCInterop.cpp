@@ -156,7 +156,7 @@ public:
 
     // Now rewrite types based on interop type information, and remove
     // the interop types.
-    if (const BoundsAnnotations *Annots = EPI.ReturnBounds) {
+    if (const BoundsAnnotations *Annots = EPI.ReturnAnnots) {
       if (ResultType->isUncheckedPointerType()) {
          InteropTypeExpr *IT = Annots->getInteropTypeExpr();
          BoundsExpr *Bounds = Annots->getBoundsExpr();
@@ -181,18 +181,18 @@ public:
           // Construct new annotations that do not have the bounds-safe interface type.
           if (Bounds) {
             BoundsAnnotations *NewBA = new (SemaRef.Context) BoundsAnnotations(Bounds, nullptr);
-            EPI.ReturnBounds = NewBA;
+            EPI.ReturnAnnots = NewBA;
           } else 
-            EPI.ReturnBounds = nullptr;
+            EPI.ReturnAnnots = nullptr;
           EPIChanged = true;
         }
       }
     }
 
-    if (EPI.ParamBounds) {
-      // Track whether there are parameter bounds left after removing interop
+    if (EPI.ParamAnnots) {
+      // Track whether there are parameter annotations left after removing interop
       // annotations.
-      bool hasParamBounds = false;
+      bool hasParamAnnots = false;
       for (unsigned int i = 0; i < ParamTypes.size(); i++) {
         BoundsAnnotations *IndividualAnnots = ParamAnnots[i];
         if (ParamTypes[i]->isUncheckedPointerType() && IndividualAnnots &&
@@ -221,7 +221,7 @@ public:
             Bounds = SemaRef.CreateCountForArrayType(IT->getType());
           }
           if (Bounds) {
-            hasParamBounds = true;
+            hasParamAnnots = true;
             BoundsAnnotations *NewBA = new (getSema().Context) BoundsAnnotations(Bounds, nullptr);
             ParamAnnots[i] = NewBA;
           } else 
@@ -230,14 +230,14 @@ public:
         } else {
           ParamAnnots[i] = IndividualAnnots;
           if (IndividualAnnots)
-            hasParamBounds = true;
+            hasParamAnnots = true;
         }
       }
 
       // If there are no parameter bounds left, null out the pointer to the
       // param annotations array.
-      if (!hasParamBounds)
-        EPI.ParamBounds = nullptr;
+      if (!hasParamAnnots)
+        EPI.ParamAnnots = nullptr;
     }
 
     // Rebuild the type if something changed.

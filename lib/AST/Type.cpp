@@ -2841,8 +2841,8 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       ExceptionSpecType(epi.ExceptionSpec.Type),
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
       Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
-      HasParamBounds(epi.ParamBounds != nullptr),
-      ReturnBounds(epi.ReturnBounds) {
+      HasParamAnnots(epi.ParamAnnots != nullptr),
+      ReturnAnnots(epi.ReturnAnnots) {
   assert(NumParams == params.size() && "function has too many parameters");
 
   FunctionTypeBits.TypeQuals = epi.TypeQuals;
@@ -2862,11 +2862,11 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
     argSlot[i] = params[i];
   }
 
-  // Fill in the Checked C parameter bounds array.
-  if (hasParamBounds()) {
+  // Fill in the Checked C parameter annotations array.
+  if (hasParamAnnots()) {
     const BoundsAnnotations **boundsSlot = reinterpret_cast<const BoundsAnnotations **>(argSlot + NumParams);
     for (unsigned i = 0; i != NumParams; ++i)
-      boundsSlot[i] = epi.ParamBounds[i];
+      boundsSlot[i] = epi.ParamAnnots[i];
   }
 
   QualType *exnArray = const_cast<QualType *>(exception_begin());
@@ -3063,13 +3063,13 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
     ID.AddPointer(epi.ExceptionSpec.SourceDecl->getCanonicalDecl());
   }
 
-  // Checked C bounds information.
-  if (epi.ParamBounds) {
-    auto ParamBounds = epi.ParamBounds;
+  // Checked C bounds annotations.
+  if (epi.ParamAnnots) {
+    auto ParamAnnots = epi.ParamAnnots;
     for (unsigned i = 0; i != NumParams; ++i)
-      BoundsAnnotations::Profile(ParamBounds[i], ID, Context);
+      BoundsAnnotations::Profile(ParamAnnots[i], ID, Context);
   }
-  BoundsAnnotations::Profile(epi.ReturnBounds, ID, Context);
+  BoundsAnnotations::Profile(epi.ReturnAnnots, ID, Context);
 
   if (epi.ExtParameterInfos) {
     for (unsigned i = 0; i != NumParams; ++i)
