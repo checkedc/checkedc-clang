@@ -3040,7 +3040,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
     // Checked C bounds expressions are not allowed to have assignments
     // embedded within them.
   case CountBoundsExprClass:
-  case InteropTypeBoundsAnnotationClass:
+  case InteropTypeExprClass:
   case NullaryBoundsExprClass:
   case PositionalParameterExprClass:
   case RangeBoundsExprClass:

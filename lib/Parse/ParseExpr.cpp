@@ -2944,7 +2944,7 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
   bool Error = false;
   Result = nullptr;
   BoundsExpr *Bounds = nullptr;
-  InteropTypeBoundsAnnotation *InteropType = nullptr;
+  InteropTypeExpr *InteropType = nullptr;
   bool parsedSomething = false;
   bool parsedDeferredBounds = false;
 
@@ -2987,8 +2987,8 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
       if (ER.isInvalid())
         Error = true;
       else {
-        InteropTypeBoundsAnnotation *NewAnnotation =
-          dyn_cast<InteropTypeBoundsAnnotation>(ER.get());
+        InteropTypeExpr *NewAnnotation =
+          dyn_cast<InteropTypeExpr>(ER.get());
         if (NewAnnotation) {
           if (!InteropType)
             InteropType = NewAnnotation;
@@ -3015,9 +3015,9 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
 }
 
 // Skip Invalid Bounds Expression such as boounds(), b0unds(e1,e2) and stop if
-// relative bounds clause founds. In this case, the value of isBounds or isItype
+// relative bounds clause founds. In this case, the value of isBounds or isIType
 // is false. if there is parsing error in ParseBoundsExpression() or
-// ParseInteropTypeAnnotation(), the value of isBounds or isItype is true. That
+// ParseInteropTypeAnnotation(), the value of isBounds or isIType is true. That
 // means we do not need to skip bounds expression because it already skiped to
 // the right paren.
 

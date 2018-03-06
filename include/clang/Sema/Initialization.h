@@ -396,7 +396,7 @@ public:
     return nullptr;
   }
   
-  const BoundsAnnotations *getBounds() const { return Bounds; }
+  const BoundsAnnotations *getBoundsExpr() const { return Bounds; }
 
   /// \brief Retrieve the name of the entity being initialized.
   DeclarationName getName() const;

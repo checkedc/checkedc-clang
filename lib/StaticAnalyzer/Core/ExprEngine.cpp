@@ -1490,7 +1490,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     // the AST, so we should never see these.
     case Stmt::PositionalParameterExprClass:
     case Stmt::CountBoundsExprClass:
-    case Stmt::InteropTypeBoundsAnnotationClass:
+    case Stmt::InteropTypeExprClass:
     case Stmt::NullaryBoundsExprClass:
     case Stmt::RangeBoundsExprClass:
       llvm_unreachable("Do not expect to see Checked C extensions");

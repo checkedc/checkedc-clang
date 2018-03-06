@@ -179,7 +179,7 @@ def NullaryBoundsExpr : DStmt<BoundsExpr>;
 def CountBoundsExpr : DStmt<BoundsExpr>;
 def RangeBoundsExpr : DStmt<BoundsExpr>;
 
-def InteropTypeBoundsAnnotation : DStmt<Expr>;
+def InteropTypeExpr : DStmt<Expr>;
 def PositionalParameterExpr : DStmt<Expr>;
 def BoundsCastExpr : DStmt<ExplicitCastExpr>;
 

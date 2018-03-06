@@ -154,12 +154,12 @@ void TypePrinter::print(const BoundsAnnotations *BA, raw_ostream &OS) {
     return;
 
   bool printedColon = false;
-  if (const BoundsExpr *const Bounds = BA->getBounds()) {
+  if (const BoundsExpr *const Bounds = BA->getBoundsExpr()) {
     OS << " : ";
     printedColon = true;
     Bounds->printPretty(OS, nullptr, Policy);
   }
-  if (const InteropTypeBoundsAnnotation *const IType = BA->getInteropType()) {
+  if (const InteropTypeExpr *const IType = BA->getInteropTypeExpr()) {
     if (printedColon)
       OS << " ";
     else

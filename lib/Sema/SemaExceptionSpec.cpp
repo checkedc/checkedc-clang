@@ -1281,7 +1281,7 @@ CanThrowResult Sema::canThrow(const Expr *E) {
 
   case Expr::PositionalParameterExprClass:
   case Expr::CountBoundsExprClass:
-  case Expr::InteropTypeBoundsAnnotationClass:
+  case Expr::InteropTypeExprClass:
   case Expr::NullaryBoundsExprClass:
   case Expr::RangeBoundsExprClass:
     llvm_unreachable("do not expect bounds expressions");

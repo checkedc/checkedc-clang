@@ -1970,7 +1970,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
           if (lastChunk.Kind == DeclaratorChunk::Function) {
             BoundsAnnotations *BA = lastChunk.Fun.ReturnBounds;
-            if (BA && BA->getBounds() && BA->getBounds()->isInvalid()) {
+            if (BA && BA->getBoundsExpr() && BA->getBoundsExpr()->isInvalid()) {
               // TODO: this skips too much of there are separate
               // K&R style declarations of argument types.
               SkipUntil(tok::l_brace,
@@ -3990,7 +3990,7 @@ void Parser::ParseStructDeclaration(
         std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
         if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, DeclaratorInfo.Annotations, &BoundsExprTokens, false))
           SkipUntil(tok::semi, StopBeforeMatch);
-        assert(!DeclaratorInfo.Annotations || DeclaratorInfo.Annotations->getBounds() == nullptr);
+        assert(!DeclaratorInfo.Annotations || DeclaratorInfo.Annotations->getBoundsExpr() == nullptr);
         if (!BoundsExprTokens->empty()) 
           DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
       } else {

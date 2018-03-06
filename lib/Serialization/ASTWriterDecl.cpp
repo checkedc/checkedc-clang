@@ -2274,13 +2274,13 @@ void ASTWriter::WriteDecl(ASTContext &Context, Decl *D) {
 
 void ASTRecordWriter::AddBoundsAnnotations(BoundsAnnotations *BA) {
   BoundsExpr *Bounds = nullptr;
-  InteropTypeBoundsAnnotation *Itype = nullptr;
+  InteropTypeExpr *IType = nullptr;
   if (BA) {
-    Bounds = BA->getBounds();
-    Itype = BA->getInteropType();
+    Bounds = BA->getBoundsExpr();
+    IType = BA->getInteropTypeExpr();
   }
   AddStmt(Bounds);
-  AddStmt(Itype);
+  AddStmt(IType);
 }
 
 void ASTRecordWriter::AddFunctionDefinition(const FunctionDecl *FD) {

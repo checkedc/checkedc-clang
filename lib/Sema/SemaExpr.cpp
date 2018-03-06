@@ -1789,7 +1789,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
     if (!DD)
       llvm_unreachable("unexpected DeclRef in checked scope");
-    return ConvertToFullyCheckedType(E, DD->getInteropTypeAnnotation(), 
+    return ConvertToFullyCheckedType(E, DD->getInteropTypeExpr(), 
                                      isa<ParmVarDecl>(D), VK);
   }
 
@@ -1797,7 +1797,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
 }
 
 ExprResult Sema::ConvertToFullyCheckedType(Expr *E,
-                                           InteropTypeBoundsAnnotation *BA,
+                                           InteropTypeExpr *BA,
                                            bool IsParamUse,
                                            ExprValueKind VK) {
   assert(E != nullptr);
@@ -8490,7 +8490,7 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
   }
 
   if (D)
-    return AdjustInteropType(D->getInteropTypeAnnotation(), IsParam);
+    return AdjustInteropType(D->getInteropTypeExpr(), IsParam);
   else
     return QualType();
 }
@@ -13442,13 +13442,13 @@ ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
 ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
                                          SourceLocation RParenLoc) {
   QualType QT = TInfo->getType();
-  return new (Context) InteropTypeBoundsAnnotation(QT, TypeKWLoc, RParenLoc,
+  return new (Context) InteropTypeExpr(QT, TypeKWLoc, RParenLoc,
                                                    TInfo);
 }
 
 ExprResult Sema::CreateBoundsInteropType(QualType QT) {
   TypeSourceInfo *TInfo = Context.getTrivialTypeSourceInfo(QT);
-  return new (Context) InteropTypeBoundsAnnotation(QT, SourceLocation(), SourceLocation(),
+  return new (Context) InteropTypeExpr(QT, SourceLocation(), SourceLocation(),
                                                    TInfo);
 }
 

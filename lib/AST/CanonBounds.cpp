@@ -255,7 +255,7 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
      case Expr::NullaryBoundsExprClass: Cmp = Compare<NullaryBoundsExpr>(E1, E2); break;
      case Expr::CountBoundsExprClass: Cmp = Compare<CountBoundsExpr>(E1, E2); break;
      case Expr::RangeBoundsExprClass:  Cmp = Compare<RangeBoundsExpr>(E1, E2); break; break;
-     case Expr::InteropTypeBoundsAnnotationClass: Cmp = Compare<InteropTypeBoundsAnnotation>(E1, E2); break;
+     case Expr::InteropTypeExprClass: Cmp = Compare<InteropTypeExpr>(E1, E2); break;
      case Expr::PositionalParameterExprClass: Cmp = Compare<PositionalParameterExpr>(E1, E2); break;
      case Expr::BoundsCastExprClass: Cmp = Compare<BoundsCastExpr>(E1, E2); break;
 
@@ -529,8 +529,8 @@ Lexicographic::CompareImpl(const RangeBoundsExpr *E1,
 }
 
 Result
-Lexicographic::CompareImpl(const InteropTypeBoundsAnnotation *E1,
-                           const InteropTypeBoundsAnnotation *E2) {
+Lexicographic::CompareImpl(const InteropTypeExpr *E1,
+                           const InteropTypeExpr *E2) {
   return CompareType(E1->getType(), E2->getType());
 }
 

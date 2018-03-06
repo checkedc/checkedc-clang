@@ -686,7 +686,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   // For now, do not expose Checked C extensions.
   case Stmt::PositionalParameterExprClass:
   case Stmt::CountBoundsExprClass:
-  case Stmt::InteropTypeBoundsAnnotationClass:
+  case Stmt::InteropTypeExprClass:
   case Stmt::NullaryBoundsExprClass:
   case Stmt::RangeBoundsExprClass:
   case Stmt::BoundsCastExprClass:

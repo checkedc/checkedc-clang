@@ -214,7 +214,7 @@ BoundsAnnotations *Sema::AbstractForFunctionType(
   if (!Annots)
     return Annots;
 
-  BoundsExpr *Expr = Annots->getBounds();
+  BoundsExpr *Expr = Annots->getBoundsExpr();
   // If there is no bounds expression, the itype does not change
   // as  aresult of abstraction.  Just return the original annotation.
   if (!Expr)
@@ -235,7 +235,7 @@ BoundsAnnotations *Sema::AbstractForFunctionType(
     return Annots;
 
   BoundsAnnotations *NewAnnots =
-    new (Context) BoundsAnnotations(Result, Annots->getInteropType());
+    new (Context) BoundsAnnotations(Result, Annots->getInteropTypeExpr());
 
   return NewAnnots;
 }
@@ -949,7 +949,7 @@ namespace {
             return CreateBoundsInferenceError();
 
           BoundsExpr *B = D->getBoundsExpr();
-          InteropTypeBoundsAnnotation *IT = D->getInteropTypeAnnotation();
+          InteropTypeExpr *IT = D->getInteropTypeExpr();
           if (!B && IT)
             return CreateTypeBasedBounds(E, IT->getType(),
                                           /*IsParam=*/isa<ParmVarDecl>(D),
@@ -989,7 +989,7 @@ namespace {
             return CreateBoundsInferenceError();
 
           BoundsExpr *B = F->getBoundsExpr();
-          InteropTypeBoundsAnnotation *IT = F->getInteropTypeAnnotation();
+          InteropTypeExpr *IT = F->getInteropTypeExpr();
           if (B && B->isUnknown())
             return CreateBoundsAlwaysUnknown();
 
@@ -1250,12 +1250,12 @@ namespace {
               return CreateBoundsAlwaysUnknown();
 
             BoundsAnnotations *FunReturnAnnots = const_cast<BoundsAnnotations *>(CalleeTy->getReturnBounds());
-            BoundsExpr *FunBounds = FunReturnAnnots ? FunReturnAnnots->getBounds() : nullptr;
-            InteropTypeBoundsAnnotation *Itype = FunReturnAnnots ? FunReturnAnnots->getInteropType() : nullptr;
+            BoundsExpr *FunBounds = FunReturnAnnots ? FunReturnAnnots->getBoundsExpr() : nullptr;
+            InteropTypeExpr *IType = FunReturnAnnots ? FunReturnAnnots->getInteropTypeExpr() : nullptr;
             // TODO:handle interop type annotation on return bounds
             // Github issue #205.  We have no way of rerepresenting
             // CurrentExprValue in the IR yet.
-            if (!FunBounds && Itype)
+            if (!FunBounds && IType)
               return CreateBoundsAllowedButNotComputed();
 
             if (!FunBounds)
@@ -2308,9 +2308,9 @@ namespace {
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
         const BoundsAnnotations  *ParamAnnots = FuncProtoTy->getParamBounds(i);
-        const BoundsExpr *ParamBounds = ParamAnnots ? ParamAnnots->getBounds() : nullptr;
-        const InteropTypeBoundsAnnotation *ParamItype = ParamAnnots ? ParamAnnots->getInteropType() : nullptr;
-        if (!ParamBounds && !ParamItype)
+        const BoundsExpr *ParamBounds = ParamAnnots ? ParamAnnots->getBoundsExpr() : nullptr;
+        const InteropTypeExpr *ParamIType = ParamAnnots ? ParamAnnots->getInteropTypeExpr() : nullptr;
+        if (!ParamBounds && !ParamIType)
           continue;
 
         Expr *Arg = CE->getArg(i);
@@ -2329,9 +2329,9 @@ namespace {
         if (ParamBounds && (ParamBounds->isElementCount() || ParamBounds->isByteCount()))
           ParamBounds = S.ExpandToRange(Arg, const_cast<BoundsExpr *>(ParamBounds));
 
-        if (!ParamBounds && ParamItype)
+        if (!ParamBounds && ParamIType)
           // The same short-circuit logic applies here too.
-          ParamBounds = S.CreateTypeBasedBounds(Arg, ParamItype->getType(), true, true);
+          ParamBounds = S.CreateTypeBasedBounds(Arg, ParamIType->getType(), true, true);
 
         // Check after handling the interop type annotation, not before, because
         // handling the interop type annotation could make the bounds known.

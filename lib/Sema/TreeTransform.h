@@ -2515,9 +2515,9 @@ public:
                                            RParenLoc);
   }
 
-  ExprResult RebuildInteropTypeBoundsAnnotation(SourceLocation StartLoc,
-                                                TypeSourceInfo *Ty,
-                                                SourceLocation RParenLoc) {
+  ExprResult RebuildInteropTypeExpr(SourceLocation StartLoc,
+                                    TypeSourceInfo *Ty,
+                                    SourceLocation RParenLoc) {
     return getSema().CreateBoundsInteropType(StartLoc, Ty, RParenLoc);
   }
 
@@ -5234,7 +5234,7 @@ template<typename Derived>
 bool TreeTransform<Derived>::TransformBoundsAnnotations(
   BoundsAnnotations *&Annot, bool &Changed) {
   if (Annot) {
-    BoundsExpr *ExistingBounds = Annot->getBounds();
+    BoundsExpr *ExistingBounds = Annot->getBoundsExpr();
     BoundsExpr *NewBounds = ExistingBounds;
     if (ExistingBounds) {
       ExprResult Result = getDerived().TransformExpr(ExistingBounds);
@@ -5247,21 +5247,21 @@ bool TreeTransform<Derived>::TransformBoundsAnnotations(
       }
     }
 
-    InteropTypeBoundsAnnotation *ExistingItype = Annot->getInteropType();
-    InteropTypeBoundsAnnotation *NewItype = ExistingItype;
-    if (ExistingItype) {
-      ExprResult Result = getDerived().TransformExpr(ExistingItype);
+    InteropTypeExpr *ExistingIType = Annot->getInteropTypeExpr();
+    InteropTypeExpr *NewIType = ExistingIType;
+    if (ExistingIType) {
+      ExprResult Result = getDerived().TransformExpr(ExistingIType);
       if (Result.isInvalid())
         return true;
-      NewItype = dyn_cast<InteropTypeBoundsAnnotation>(Result.get());
-      if (!NewItype) {
+      NewIType = dyn_cast<InteropTypeExpr>(Result.get());
+      if (!NewIType) {
         assert("unexpected dynamic cast failure");
         return true;
       }
     }
 
-    if (ExistingBounds != NewBounds || ExistingItype != NewItype) {
-      Annot = new (SemaRef.getASTContext()) BoundsAnnotations(NewBounds, NewItype);
+    if (ExistingBounds != NewBounds || ExistingIType != NewIType) {
+      Annot = new (SemaRef.getASTContext()) BoundsAnnotations(NewBounds, NewIType);
       Changed = true;
     }
   }
@@ -12445,12 +12445,11 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
 
 template<typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformInteropTypeBoundsAnnotation(
-  InteropTypeBoundsAnnotation *E) {
+TreeTransform<Derived>::TransformInteropTypeExpr(InteropTypeExpr *E) {
   TypeSourceInfo *TInfo =
     getDerived().TransformType(E->getTypeInfoAsWritten());
   return getDerived().
-    RebuildInteropTypeBoundsAnnotation(E->getStartLoc(), TInfo,
+    RebuildInteropTypeExpr(E->getStartLoc(), TInfo,
                                        E->getRParenLoc());
 }
 

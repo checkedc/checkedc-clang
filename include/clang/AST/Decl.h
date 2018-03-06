@@ -38,7 +38,7 @@ class DependentFunctionTemplateSpecializationInfo;
 class Expr;
 class BoundsExpr;
 class BoundsAnnotations;
-class InteropTypeBoundsAnnotation;
+class InteropTypeExpr;
 class FunctionTemplateDecl;
 class FunctionTemplateSpecializationInfo;
 class LabelStmt;
@@ -82,7 +82,7 @@ public:
 
 class BoundsAnnotations {
   BoundsExpr *Bounds;
-  InteropTypeBoundsAnnotation *InteropType;
+  InteropTypeExpr *InteropType;
 
 public:
   BoundsAnnotations() : Bounds(nullptr), InteropType(nullptr) {}
@@ -99,10 +99,10 @@ public:
 
   BoundsAnnotations(BoundsExpr *B) : Bounds(B), InteropType(nullptr) {}
 
-  BoundsAnnotations(BoundsExpr *B, InteropTypeBoundsAnnotation *IT) :
+  BoundsAnnotations(BoundsExpr *B, InteropTypeExpr *IT) :
     Bounds(B), InteropType(IT) {}
 
-  BoundsExpr *getBounds() const {
+  BoundsExpr *getBoundsExpr() const {
     return Bounds;
   }
 
@@ -110,11 +110,11 @@ public:
     Bounds = B;
   }
 
-  InteropTypeBoundsAnnotation *getInteropType() const {
+  InteropTypeExpr *getInteropTypeExpr() const {
     return InteropType;
   }
 
-  void setInteropType(InteropTypeBoundsAnnotation *IT) {
+  void setInteropType(InteropTypeExpr *IT) {
     InteropType = IT;
   }
 
@@ -803,7 +803,7 @@ public:
   /// declarations, this is the return bounds of the function. Null if no
   /// bounds have been declared.
   BoundsExpr *getBoundsExpr() {
-    return (Annotations ? Annotations->getBounds() : nullptr);
+    return (Annotations ? Annotations->getBoundsExpr() : nullptr);
   }
 
   /// \brief Set the declared bounds for this declaration. For function
@@ -821,16 +821,16 @@ public:
   /// declaration.  For function declarations, this is the return
   /// interop type of the function.  Null if none has been declared
   /// or inferred.
-  const InteropTypeBoundsAnnotation *getInteropTypeAnnotation() const {
-    return const_cast<DeclaratorDecl *>(this)->getInteropTypeAnnotation();
+  const InteropTypeExpr *getInteropTypeExpr() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropTypeExpr();
   }
 
   /// \brief The Checked C interop type declared or inferred for this
   /// declaration.  For function declarations, this is the rreturn
   /// interop type of the function.  Null if none has been declared
   /// or inferred.
-  InteropTypeBoundsAnnotation *getInteropTypeAnnotation() {
-    return (Annotations ? Annotations->getInteropType() : nullptr);
+  InteropTypeExpr *getInteropTypeExpr() {
+    return (Annotations ? Annotations->getInteropTypeExpr() : nullptr);
   }
 
   QualType getInteropType() const {
@@ -839,14 +839,13 @@ public:
 
   QualType getInteropType();
 
-  bool hasInteropType() const {
-    return getInteropTypeAnnotation() != nullptr;
+  bool hasInteropTypeExpr() const {
+    return getInteropTypeExpr() != nullptr;
   }
 
   /// \brief Set the Checked C interop for this declaration.  For function
   /// declarations, this is the return bounds of the function.
-  void setInteropTypeBoundsAnnotation(ASTContext &Context,
-    InteropTypeBoundsAnnotation *IT) {
+  void setInteropTypeExpr(ASTContext &Context, InteropTypeExpr *IT) {
     // If IT is null and we have no annotations, do nothing.
     if (!IT && !Annotations)
       return;

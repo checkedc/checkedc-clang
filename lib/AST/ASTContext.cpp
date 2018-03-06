@@ -9066,8 +9066,8 @@ bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Exp
 }
 
 bool ASTContext::EquivalentInteropAnnotations(
-  const InteropTypeBoundsAnnotation *Expr1,
-  const InteropTypeBoundsAnnotation *Expr2) {
+  const InteropTypeExpr *Expr1,
+  const InteropTypeExpr *Expr2) {
   if (Expr1 == nullptr && Expr2 == nullptr)
     return true;
 
@@ -9080,15 +9080,13 @@ bool ASTContext::EquivalentInteropAnnotations(
 bool ASTContext::EquivalentAnnotations(
   const BoundsAnnotations *Annots1,
   const BoundsAnnotations *Annots2) {
-  BoundsExpr *Expr1 = Annots1 ? Annots1->getBounds() : nullptr;
-  BoundsExpr *Expr2 = Annots2 ? Annots2->getBounds() : nullptr;
+  BoundsExpr *Expr1 = Annots1 ? Annots1->getBoundsExpr() : nullptr;
+  BoundsExpr *Expr2 = Annots2 ? Annots2->getBoundsExpr() : nullptr;
   if (!EquivalentBounds(Expr1, Expr2))
     return false;
 
-  InteropTypeBoundsAnnotation *IT1 =
-    Annots1 ? Annots1->getInteropType() : nullptr;
-  InteropTypeBoundsAnnotation *IT2 =
-    Annots2 ? Annots2->getInteropType() : nullptr;
+  InteropTypeExpr *IT1 = Annots1 ? Annots1->getInteropTypeExpr() : nullptr;
+  InteropTypeExpr *IT2 = Annots2 ? Annots2->getInteropTypeExpr() : nullptr;
 
   return EquivalentInteropAnnotations(IT1, IT2);
 }

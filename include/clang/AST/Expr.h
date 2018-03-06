@@ -5347,23 +5347,22 @@ public:
 /// bounds declarations.  The synthesized type will be an _Array_ptr type.
 /// Some entities may have both interop type annotations and out-of-line
 /// bounds declarations in where clauses.
-class InteropTypeBoundsAnnotation :  public Expr {
+class InteropTypeExpr :  public Expr {
 private:
   SourceLocation StartLoc, EndLoc;
   TypeSourceInfo *TIInfo;
   friend class ASTStmtReader;
 
 public:
-  InteropTypeBoundsAnnotation(QualType Ty, SourceLocation StartLoc,
-                              SourceLocation EndLoc,
-                              TypeSourceInfo *TyAsWritten)
-    : Expr(InteropTypeBoundsAnnotationClass, Ty, VK_RValue, OK_Ordinary, false,
+  InteropTypeExpr(QualType Ty, SourceLocation StartLoc, SourceLocation EndLoc,
+                  TypeSourceInfo *TyAsWritten)
+    : Expr(InteropTypeExprClass, Ty, VK_RValue, OK_Ordinary, false,
            false, false, false), StartLoc(StartLoc), EndLoc(EndLoc),
            TIInfo(TyAsWritten) {
   }
 
-  explicit InteropTypeBoundsAnnotation(EmptyShell Empty)
-    :Expr(InteropTypeBoundsAnnotationClass, Empty), TIInfo(nullptr) {}
+  explicit InteropTypeExpr(EmptyShell Empty)
+    :Expr(InteropTypeExprClass, Empty), TIInfo(nullptr) {}
 
   SourceLocation getStartLoc() const { return StartLoc; }
   SourceLocation getEndLoc() const { return EndLoc; }
@@ -5381,7 +5380,7 @@ public:
   QualType getTypeAsWritten() const { return TIInfo->getType(); }
 
   static bool classof(const Stmt *T) {
-    return T->getStmtClass() == InteropTypeBoundsAnnotationClass;
+    return T->getStmtClass() == InteropTypeExprClass;
   }
 
   // Iterators

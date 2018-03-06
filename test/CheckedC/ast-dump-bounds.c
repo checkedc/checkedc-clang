@@ -45,7 +45,7 @@ int * g_arr4 : itype(_Ptr<int>);
 
 // CHECK: VarDecl
 // CHECK: g_arr4 'int *'
-// CHECK-NEXT: InteropTypeBoundsAnnotation
+// CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
 
 //===================================================================
@@ -130,7 +130,7 @@ void f13(int *pint : itype(_Ptr<int>));
 // CHECK: f13
 // CHECK-NEXT: ParmVarDecl
 // CHECK: pint 'int *'
-// CHECK-NEXT: InteropTypeBoundsAnnotation
+// CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
 
 void f14(int arr1 _Checked[] : count(5));
@@ -209,7 +209,7 @@ int *f23(void) : itype(_Ptr<int>);
 // CHECK: FunctionDecl
 // CHECK: f23
 // CHECK: 'int *(void) : itype(_Ptr<int>)'
-// CHECK-NEXT: InteropTypeBoundsAnnotation
+// CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
 
 //===================================================================
@@ -254,7 +254,7 @@ struct S1 {
 
   // CHECK: FieldDecl
   // CHECK: arr4 'int *'
-  // CHECK-NEXT: InteropTypeBoundsAnnotation
+  // CHECK-NEXT: InteropTypeExpr
   // CHECK: '_Ptr<int>'
 };
 

@@ -345,12 +345,12 @@ namespace  {
         dumpTypeAsChild(PT);
         if (hasBounds)
           if (const BoundsAnnotations *Annots = T->getParamBounds(i)) {
-            if (const BoundsExpr *Bounds = Annots->getBounds())
+            if (const BoundsExpr *Bounds = Annots->getBoundsExpr())
               dumpChild([=] {
                 OS << "Bounds";
                 dumpStmt(Bounds);
               });
-            if (const InteropTypeBoundsAnnotation *IT = Annots->getInteropType())
+            if (const InteropTypeExpr *IT = Annots->getInteropTypeExpr())
               dumpChild([=] {
                 OS << "InteropType";
                 dumpStmt(IT);
@@ -360,12 +360,12 @@ namespace  {
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
       if (EPI.ReturnBounds) {
-        if (const BoundsExpr *Bounds = EPI.ReturnBounds->getBounds())
+        if (const BoundsExpr *Bounds = EPI.ReturnBounds->getBoundsExpr())
           dumpChild([=] {
             OS << "Return bounds";
             dumpStmt(Bounds);
           });
-        if (const InteropTypeBoundsAnnotation *IT = EPI.ReturnBounds->getInteropType())
+        if (const InteropTypeExpr *IT = EPI.ReturnBounds->getInteropTypeExpr())
           dumpChild([=] {
             OS << "Return interopType";
             dumpStmt(IT);
@@ -620,8 +620,8 @@ namespace  {
     void VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node);
     void VisitCountBoundsExpr(const CountBoundsExpr *Node);
     void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
-    void VisitInteropTypeBoundsAnnotation(
-      const InteropTypeBoundsAnnotation *Node);
+    void VisitInteropTypeExpr(
+      const InteropTypeExpr *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
     void dumpBoundsCheckKind(BoundsCheckKind kind);
     void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
@@ -914,10 +914,10 @@ void ASTDumper::dumpBoundsAnnotations(BoundsAnnotations *BA) {
   if (!BA)
     return;
 
-  if (const BoundsExpr *Bounds = BA->getBounds())
+  if (const BoundsExpr *Bounds = BA->getBoundsExpr())
     dumpStmt(Bounds);
 
-  if (const InteropTypeBoundsAnnotation *IT = BA->getInteropType())
+  if (const InteropTypeExpr *IT = BA->getInteropTypeExpr())
     dumpStmt(IT);
 }
 
@@ -2837,8 +2837,7 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   }
 }
 
-void ASTDumper::VisitInteropTypeBoundsAnnotation(
-  const InteropTypeBoundsAnnotation *Node) {
+void ASTDumper::VisitInteropTypeExpr(const InteropTypeExpr *Node) {
   VisitExpr(Node);
 }
 

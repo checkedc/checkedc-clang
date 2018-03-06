@@ -11914,7 +11914,7 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
 }
 
 bool Sema::AllowedInCheckedScope(QualType Ty,
-                                 const InteropTypeBoundsAnnotation *InteropType,
+                                 const InteropTypeExpr *InteropType,
                                  bool IsParam, CheckedScopeTypeLocation Loc,
                                  CheckedScopeTypeLocation &ProblemLoc,
                                  QualType &ProblemTy) {
@@ -11948,16 +11948,16 @@ bool Sema::AllowedInCheckedScope(QualType Ty,
                                  ProblemLoc, ProblemTy);
   } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
     const BoundsAnnotations *ReturnAnnots = fpt->getReturnBounds();
-    InteropTypeBoundsAnnotation *ReturnInteropType =
-      ReturnAnnots ? ReturnAnnots->getInteropType() : nullptr;
+    InteropTypeExpr *ReturnInteropType =
+      ReturnAnnots ? ReturnAnnots->getInteropTypeExpr() : nullptr;
     if (!AllowedInCheckedScope(fpt->getReturnType(), ReturnInteropType,
                                false, Loc, ProblemLoc, ProblemTy))
       return false;
     unsigned int paramCount = fpt->getNumParams();
     for (unsigned int i = 0; i < paramCount; i++) {
       const BoundsAnnotations *ParamAnnots = fpt->getParamBounds(i);
-      InteropTypeBoundsAnnotation *ParamInteropType =
-        ParamAnnots ? ParamAnnots->getInteropType() : nullptr;
+      InteropTypeExpr *ParamInteropType =
+        ParamAnnots ? ParamAnnots->getInteropTypeExpr() : nullptr;
       if (!AllowedInCheckedScope(fpt->getParamType(i), ParamInteropType,
                                  true, Loc, ProblemLoc, ProblemTy))
         return false;
@@ -12018,7 +12018,7 @@ bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
   bool Result = true;
   CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
   QualType ProblemTy = Ty;
-  if (!AllowedInCheckedScope(Ty, TargetDecl->getInteropTypeAnnotation(),
+  if (!AllowedInCheckedScope(Ty, TargetDecl->getInteropTypeExpr(),
                              isa<ParmVarDecl>(TargetDecl), CSTL_TopLevel,
                              ProblemLoc, ProblemTy)) {
     Diag(Loc, diag::err_checked_scope_decl_type) << DeclKind << IsUse

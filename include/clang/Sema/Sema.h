@@ -3969,7 +3969,7 @@ public:
   /// - All other types are allowed in checked scopes.
   /// Return false if Ty is not allowed.
   bool AllowedInCheckedScope(QualType Ty,
-                             const InteropTypeBoundsAnnotation *InteropType,
+                             const InteropTypeExpr *InteropType,
                              bool IsParam, CheckedScopeTypeLocation Loc,
                              CheckedScopeTypeLocation &ProblemLoc,
                              QualType &ProblemTy);
@@ -4703,7 +4703,7 @@ public:
   /// interfaces. The Checked C spec that says that such uses in checked scopes shall be 
   /// treated as having "checked type".
   ExprResult ConvertToFullyCheckedType(Expr *E, 
-                                       InteropTypeBoundsAnnotation *BA, 
+                                       InteropTypeExpr *BA, 
                                        bool IsParamUse,
                                        ExprValueKind VK);
 
@@ -9735,7 +9735,7 @@ public:
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
 
-  QualType AdjustInteropType(const InteropTypeBoundsAnnotation *BA, bool IsParam);
+  QualType AdjustInteropType(const InteropTypeExpr *BA, bool IsParam);
 
   /// \brief If T is an array type, create a checked array type version of T.
   /// This includes propagating the checked property to nested array types. If

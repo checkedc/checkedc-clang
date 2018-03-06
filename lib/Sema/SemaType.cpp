@@ -4826,7 +4826,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
 
         BoundsAnnotations *ReturnAnnot = FTI.getReturnBounds();
         // Infer interop type if necessary.
-        if (ReturnAnnot && ReturnAnnot->getBounds() && !ReturnAnnot->getInteropType())
+        if (ReturnAnnot && ReturnAnnot->getBoundsExpr() && !ReturnAnnot->getInteropTypeExpr())
           ReturnAnnot = S.SynthesizeInteropType(ReturnAnnot, T, false);
         if (ReturnAnnot) {
           if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnot, true))

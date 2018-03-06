@@ -1805,7 +1805,7 @@ bool DeclaratorDecl::hasBoundsExpr() const {
 }
 
 QualType DeclaratorDecl::getInteropType() {
-  InteropTypeBoundsAnnotation *BA = getInteropTypeAnnotation();
+  InteropTypeExpr *BA = getInteropTypeExpr();
   if (BA)
     return BA->getType();
   else
@@ -1816,17 +1816,17 @@ void BoundsAnnotations::Profile(const BoundsAnnotations *BoundsAnnotations,
                                 llvm::FoldingSetNodeID &ID,
                                 const ASTContext &Ctx) {
   BoundsExpr *Bounds = nullptr;
-  InteropTypeBoundsAnnotation *Itype = nullptr;
+  InteropTypeExpr *IType = nullptr;
   if (BoundsAnnotations) {
-    Bounds = BoundsAnnotations->getBounds();
-    Itype = BoundsAnnotations->getInteropType();
+    Bounds = BoundsAnnotations->getBoundsExpr();
+    IType = BoundsAnnotations->getInteropTypeExpr();
   }
   if (Bounds)
     Bounds->Profile(ID, Ctx, true);
   else
     ID.AddPointer(nullptr);
-  if (Itype)
-    Itype->Profile(ID, Ctx, true);
+  if (IType)
+    IType->Profile(ID, Ctx, true);
   else
     ID.AddPointer(nullptr);
 }

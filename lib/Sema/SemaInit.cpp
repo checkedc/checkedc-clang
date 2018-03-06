@@ -7158,9 +7158,9 @@ InitializationSequence::Perform(Sema &S,
       QualType LHSType = Step->Type;
       QualType LHSInteropType;
       if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
-        const BoundsAnnotations *BA = Entity.getBounds();
+        const BoundsAnnotations *BA = Entity.getBoundsExpr();
         if (BA)
-          if (const InteropTypeBoundsAnnotation *IB = BA->getInteropType()) {
+          if (const InteropTypeExpr *IB = BA->getInteropTypeExpr()) {
             bool IsParam = Entity.isParameterKind();
             LHSInteropType = S.AdjustInteropType(IB, IsParam);
           }

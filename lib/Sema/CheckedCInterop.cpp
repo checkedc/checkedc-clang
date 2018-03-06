@@ -66,7 +66,7 @@ QualType Sema::CreateCheckedCInteropType(QualType Ty,
 }
 
 // TODO: add comment
-QualType Sema::AdjustInteropType(const InteropTypeBoundsAnnotation *BA, bool IsParam) {
+QualType Sema::AdjustInteropType(const InteropTypeExpr *BA, bool IsParam) {
   if (!BA) return QualType();
   QualType ResultType = BA->getType();
   if (IsParam && !ResultType.isNull() && ResultType->isArrayType())
@@ -158,8 +158,8 @@ public:
     // the interop types.
     if (const BoundsAnnotations *Annots = EPI.ReturnBounds) {
       if (ResultType->isUncheckedPointerType()) {
-         InteropTypeBoundsAnnotation *IT = Annots->getInteropType();
-         BoundsExpr *Bounds = Annots->getBounds();
+         InteropTypeExpr *IT = Annots->getInteropTypeExpr();
+         BoundsExpr *Bounds = Annots->getBoundsExpr();
          assert(Bounds == nullptr || (Bounds != nullptr && IT));
          if (IT) {
            ResultType = IT->getType();
@@ -196,8 +196,8 @@ public:
       for (unsigned int i = 0; i < ParamTypes.size(); i++) {
         BoundsAnnotations *IndividualAnnots = ParamAnnots[i];
         if (ParamTypes[i]->isUncheckedPointerType() && IndividualAnnots &&
-            IndividualAnnots->getInteropType()) {
-          InteropTypeBoundsAnnotation *IT = IndividualAnnots->getInteropType();
+            IndividualAnnots->getInteropTypeExpr()) {
+          InteropTypeExpr *IT = IndividualAnnots->getInteropTypeExpr();
           QualType ParamType = IT->getType();
           if (ParamType.isNull()) {
 #if TRACE_INTEROP
@@ -215,7 +215,7 @@ public:
             ParamType = SemaRef.Context.getDecayedType(ParamType);
           ParamTypes[i] = ParamType;
           // Remove the interop type annotation.
-          BoundsExpr *Bounds = IndividualAnnots->getBounds();
+          BoundsExpr *Bounds = IndividualAnnots->getBoundsExpr();
           if (IT->getType()->isCheckedArrayType()) {
             assert(!Bounds);              
             Bounds = SemaRef.CreateCountForArrayType(IT->getType());

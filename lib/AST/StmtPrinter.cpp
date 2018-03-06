@@ -2046,8 +2046,8 @@ void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
   }
 }
 
-void StmtPrinter::VisitInteropTypeBoundsAnnotation(
-  InteropTypeBoundsAnnotation *Node) {
+void StmtPrinter::VisitInteropTypeExpr(
+  InteropTypeExpr *Node) {
     OS << "itype(";
     Node->getTypeAsWritten().print(OS, Policy);
     OS << ")";
