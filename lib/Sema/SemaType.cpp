@@ -695,6 +695,7 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
 
   // ...and *prepend* it to the declarator.
   SourceLocation NoLoc;
+  BoundsAnnotations ReturnAnnots;
   declarator.AddInnermostTypeInfo(DeclaratorChunk::getFunction(
       /*HasProto=*/true,
       /*IsAmbiguous=*/false,
@@ -719,7 +720,7 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*DeclsInPrototype=*/None,
       loc, loc,
       /*ReturnAnnotsColon=*/NoLoc,
-      /*ReturnAnnotsExpr=*/nullptr,
+      /*ReturnAnnotsExpr=*/ReturnAnnots,
       declarator));
 
   // For consistency, make sure the state still has us as processing
@@ -4796,7 +4797,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           BoundsAnnotations *Bounds = Param->getBoundsAnnotations();
           if (Bounds) {
             HasAnyParameterBounds = true;
-            Bounds = S.AbstractForFunctionType(Bounds, ParamInfo);
+            BoundsAnnotations AbstractedBounds(*Bounds);
+            if (S.AbstractForFunctionType(AbstractedBounds, ParamInfo))
+              Bounds = new BoundsAnnotations(AbstractedBounds);
           }
           ParamAnnots.push_back(Bounds);
 
@@ -4824,25 +4827,30 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
-        BoundsAnnotations *ReturnAnnot = FTI.getReturnAnnots();
-        // Infer interop type if necessary.
-        if (ReturnAnnot && ReturnAnnot->getBoundsExpr() && !ReturnAnnot->getInteropTypeExpr())
-          ReturnAnnot = S.SynthesizeInteropType(ReturnAnnot, T, false);
-        if (ReturnAnnot) {
-          if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnot, true))
-            D.setInvalidType(true);
-          else
-            ReturnAnnot = S.AbstractForFunctionType(ReturnAnnot, ParamInfo);
-        } else {
-          if (T->isCheckedPointerNtArrayType())
-            ReturnAnnot = Context.getPrebuiltAnnotCountZero();
-        }
+        BoundsAnnotations ReturnAnnot = FTI.getReturnAnnots();
+
+        if (T->isCheckedPointerNtArrayType() && !ReturnAnnot.getBoundsExpr())
+           ReturnAnnot = BoundsAnnotations(Context.getPrebuiltCountZero(), nullptr);
+
+        // If there is no interop type, try synthesizing one implied by the
+        // presence of a bounds expression.
+        if (!ReturnAnnot.getInteropTypeExpr() && ReturnAnnot.getBoundsExpr())
+          ReturnAnnot.setInteropTypeExpr(S.SynthesizeInteropType(T, false));
+
+        if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnot, true))
+          D.setInvalidType(true);
+        else
+          S.AbstractForFunctionType(ReturnAnnot, ParamInfo);
+
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are
         // parameter bounds.
         if (HasAnyParameterBounds)
           EPI.ParamAnnots = ParamAnnots.data();
-        EPI.ReturnAnnots = ReturnAnnot;
+        if (ReturnAnnot.getBoundsExpr() || ReturnAnnot.getInteropTypeExpr())
+          EPI.ReturnAnnots = new BoundsAnnotations(ReturnAnnot);
+        else
+          EPI.ReturnAnnots = nullptr;
 
         if (HasAnyInterestingExtParameterInfos) {
           EPI.ExtParameterInfos = ExtParameterInfos.data();

@@ -4657,9 +4657,11 @@ public:
                                  BoundsExpr *bounds);
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
-                              BoundsAnnotations *BA, bool IsReturnAnnots);
-  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations *Annots,
+                              BoundsAnnotations &BA, bool IsReturnAnnots);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
                        bool MergeDeferredBounds = false);
+  void ActOnEmptyBoundsDecl(DeclaratorDecl *D);
+
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
 
   // \#pragma BOUNDS_CHECKED.
@@ -4679,7 +4681,10 @@ public:
   };
 
   BoundsExpr *CreateInvalidBoundsExpr();
-  BoundsAnnotations *SynthesizeInteropType(BoundsAnnotations *Annots, QualType Ty, bool IsParam);
+  /// /brief Synthesize the interop type expression implied by the presence
+  /// of a bounds expression.  Ty is the original unchecked type.  Returns null
+  // if none exists.
+  InteropTypeExpr *SynthesizeInteropType(QualType Ty, bool IsParam);
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
   /// CheckNonModifying - checks whether an expression is non-modifying
@@ -4689,8 +4694,8 @@ public:
                                NonModifyingContext::NMC_Unknown,
                                bool ReportError = true);
 
-  BoundsAnnotations *AbstractForFunctionType(BoundsAnnotations *BA,
-                                             ArrayRef<DeclaratorChunk::ParamInfo> Params);
+  bool AbstractForFunctionType(BoundsAnnotations &BA,
+                               ArrayRef<DeclaratorChunk::ParamInfo> Params);
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
   BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,

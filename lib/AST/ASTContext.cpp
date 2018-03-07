@@ -760,7 +760,6 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
       PrebuiltByteCountOne(nullptr), PrebuiltCountZero(nullptr),
       PrebuiltCountOne(nullptr), PrebuiltBoundsUnknown(nullptr),
-      PrebuiltAnnotCountZero(nullptr),
       LastSDM(nullptr, 0) {
   TUDecl = TranslationUnitDecl::Create(*this);
 }
@@ -9101,14 +9100,6 @@ BoundsExpr *ASTContext::getPrebuiltCountZero() {
     PrebuiltCountZero->setCompilerGenerated(true);
   }
   return PrebuiltCountZero;
-}
-
-BoundsAnnotations *ASTContext::getPrebuiltAnnotCountZero() {
-  if (!PrebuiltAnnotCountZero) {
-    PrebuiltAnnotCountZero = 
-      new (*this) BoundsAnnotations(getPrebuiltCountZero(), nullptr);
-  }
-  return PrebuiltAnnotCountZero;
 }
 
 BoundsExpr *ASTContext::getPrebuiltCountOne() {

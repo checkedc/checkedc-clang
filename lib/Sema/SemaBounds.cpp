@@ -208,17 +208,15 @@ namespace {
   };
 }
 
-BoundsAnnotations *Sema::AbstractForFunctionType(
-  BoundsAnnotations *Annots,
+bool Sema::AbstractForFunctionType(
+  BoundsAnnotations &Annots,
   ArrayRef<DeclaratorChunk::ParamInfo> Params) {  
-  if (!Annots)
-    return Annots;
 
-  BoundsExpr *Expr = Annots->getBoundsExpr();
+  BoundsExpr *Expr = Annots.getBoundsExpr();
   // If there is no bounds expression, the itype does not change
   // as  aresult of abstraction.  Just return the original annotation.
   if (!Expr)
-    return Annots;
+    return false;
 
   BoundsExpr *Result = nullptr;
   ExprResult AbstractedBounds =
@@ -232,12 +230,10 @@ BoundsAnnotations *Sema::AbstractForFunctionType(
   }
 
   if (Result == Expr)
-    return Annots;
+    return false;
 
-  BoundsAnnotations *NewAnnots =
-    new (Context) BoundsAnnotations(Result, Annots->getInteropTypeExpr());
-
-  return NewAnnots;
+  Annots.setBounds(Result);
+  return true;
 }
 
 namespace {

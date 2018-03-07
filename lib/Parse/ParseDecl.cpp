@@ -1969,8 +1969,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           unsigned Count = D.getNumTypeObjects();
           const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
           if (lastChunk.Kind == DeclaratorChunk::Function) {
-            BoundsAnnotations *BA = lastChunk.Fun.ReturnAnnots;
-            if (BA && BA->getBoundsExpr() && BA->getBoundsExpr()->isInvalid()) {
+            BoundsExpr *ReturnBounds = lastChunk.Fun.ReturnBounds;
+            if (ReturnBounds->isInvalid()) {
               // TODO: this skips too much of there are separate
               // K&R style declarations of argument types.
               SkipUntil(tok::l_brace,
@@ -2298,18 +2298,18 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
   // declarators already.
   if (getLangOpts().CheckedC && isa<VarDecl>(ThisDecl)) {
     VarDecl *ThisVarDecl = dyn_cast<VarDecl>(ThisDecl);
+    BoundsAnnotations Annots;
     // The optional Checked C bounds expression or interop type annotation.
     if (Tok.is(tok::colon)) {
       SourceLocation BoundsColonLoc = Tok.getLocation();
       ConsumeToken();
-      BoundsAnnotations *Annots = nullptr;
+
       if (ParseBoundsAnnotations(D, BoundsColonLoc, Annots)) {
         SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
         ThisVarDecl->setInvalidDecl();
-      } else
-        Actions.ActOnBoundsDecl(ThisVarDecl, Annots);
-    } else
-      Actions.ActOnBoundsDecl(ThisVarDecl, nullptr);
+      }
+    }
+    Actions.ActOnBoundsDecl(ThisVarDecl, Annots);
 
     // Checked C - type restrictions on declarations in checked blocks.
     // Variable declaration is not allowed to use unchecked type in checked block.
@@ -3987,10 +3987,12 @@ void Parser::ParseStructDeclaration(
     if (TryConsumeToken(tok::colon)) {
       if (getLangOpts().CheckedC && (StartsBoundsExpression(Tok) ||
           StartsInteropTypeAnnotation(Tok))) {
+        BoundsAnnotations BA;
         std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
-        if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, DeclaratorInfo.Annotations, &BoundsExprTokens, false))
+        if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, BA, &BoundsExprTokens, false))
           SkipUntil(tok::semi, StopBeforeMatch);
-        assert(!DeclaratorInfo.Annotations || DeclaratorInfo.Annotations->getBoundsExpr() == nullptr);
+        assert(BA.getBoundsExpr() == nullptr);
+        DeclaratorInfo.InteropType = BA.getInteropTypeExpr();
         if (!BoundsExprTokens->empty()) 
           DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
       } else {
@@ -4117,16 +4119,22 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
           deferredBoundsExpressions.emplace_back(Field,
             std::move(FD.BoundsExprTokens));
 
-        if (!FD.Annotations && !FD.BoundsExprTokens)
-          // Set a default bounds declaration.
-          Actions.ActOnBoundsDecl(Field, nullptr);
+        if (!FD.InteropType && !FD.BoundsExprTokens)
+          // Set default bounds annotations.
+          Actions.ActOnEmptyBoundsDecl(Field);
         else {
-          BoundsAnnotations *BA = FD.Annotations;
-          if (!BA && FD.BoundsExprTokens)
-            BA = Actions.SynthesizeInteropType(BA, Field->getType(), false);
+          // Add the interop type,  if there is one.
+          InteropTypeExpr *IT = FD.InteropType;
 
-          if (BA) 
-            Actions.ActOnBoundsDecl(Field, BA);
+          // If there is no interop type, try synthesizing one implied by the
+          // presence of a bounds expression.
+          if (!IT && FD.BoundsExprTokens)
+            IT = Actions.SynthesizeInteropType(Field->getType(), false);
+
+          if (IT) {
+            BoundsAnnotations Annots(nullptr, IT);
+            Actions.ActOnBoundsDecl(Field, Annots);
+          }
         }
       };
 
@@ -4187,7 +4195,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
     EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
     FieldDecl *FieldDecl = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
-    BoundsAnnotations *Annots;
+    BoundsAnnotations Annots;
     if (DeferredParseBoundsExpression(std::move(Tokens), Annots, DeclaratorsInfo.D))
       Actions.ActOnInvalidBoundsDecl(FieldDecl);
     else
@@ -6248,7 +6256,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   LParenLoc = Tracker.getOpenLocation();
   StartLoc = LParenLoc;
   SourceLocation BoundsColonLoc;
-  BoundsAnnotations *ReturnAnnots = nullptr;
+  BoundsAnnotations ReturnAnnots;
 
   if (isFunctionDeclaratorIdentifierList()) {
     if (RequiresArg)
@@ -6416,7 +6424,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
         // syntactically for that case.
 
         // Flag that something wrong by setting the BoundsExpr to be invalid.
-        ReturnAnnots = new BoundsAnnotations(Actions.CreateInvalidBoundsExpr(), nullptr);
+        ReturnAnnots = BoundsAnnotations(Actions.CreateInvalidBoundsExpr(), nullptr);
       }
     }
   }
@@ -6666,11 +6674,11 @@ void Parser::ParseParameterDeclarationClause(
         if (!Tok.is(tok::colon))
           // There is no bounds expression or type annotation.  Set the default
           // bounds expression, if any.
-          Actions.ActOnBoundsDecl(Param, nullptr);
+          Actions.ActOnEmptyBoundsDecl(Param);
         else {
           SourceLocation BoundsColonLoc = Tok.getLocation();
           ConsumeToken();
-          BoundsAnnotations *Annots;
+          BoundsAnnotations Annots;
           // Bounds expressions are delay parsed because they can refer to
           // parameters declared after this one.
           std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
@@ -6681,9 +6689,16 @@ void Parser::ParseParameterDeclarationClause(
           else {
             if (!DeferredBoundsToks->empty()) {
               deferredBoundsExpressions.emplace_back(Param, std::move(DeferredBoundsToks));
-              Annots = Actions.SynthesizeInteropType(Annots, Param->getType(), true);
+              // If an interop type expression doesn't exist, try synthesizing
+              // one implied by the presence of a bounds expression.
+              if (!Annots.getInteropTypeExpr()) {
+                InteropTypeExpr *IT = Actions.SynthesizeInteropType(Param->getType(), true);
+                Annots.setInteropTypeExpr(IT);
+              }
             }
-            Actions.ActOnBoundsDecl(Param, Annots);
+            // Set the interop type bounds expression, if one exists.
+            if (Annots.getInteropTypeExpr())
+              Actions.ActOnBoundsDecl(Param, Annots);
           }
         }
       }
@@ -6782,7 +6797,7 @@ void Parser::ParseParameterDeclarationClause(
   for (auto &Pair : deferredBoundsExpressions) {
     ParmVarDecl *Param = Pair.first;
     std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
-    BoundsAnnotations *Annots;
+    BoundsAnnotations Annots;
     if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D))
       Actions.ActOnInvalidBoundsDecl(Param);
     else

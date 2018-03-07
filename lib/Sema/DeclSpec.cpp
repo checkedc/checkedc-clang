@@ -178,7 +178,7 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
                                              SourceLocation LocalRangeBegin,
                                              SourceLocation LocalRangeEnd,
                                              SourceLocation ReturnAnnotsColonLoc,
-                                             BoundsAnnotations *ReturnAnnotsExpr,
+                                             BoundsAnnotations &ReturnAnnotsExpr,
                                              Declarator &TheDeclarator,
                                              TypeResult TrailingReturnType) {
   assert(!(TypeQuals & DeclSpec::TQ_atomic) &&
@@ -215,7 +215,8 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
                                   TrailingReturnType.isInvalid();
   I.Fun.TrailingReturnType      = TrailingReturnType.get();
   I.Fun.ReturnAnnotsColonLoc    = ReturnAnnotsColonLoc.getRawEncoding();
-  I.Fun.ReturnAnnots            = ReturnAnnotsExpr;
+  I.Fun.ReturnBounds            = ReturnAnnotsExpr.getBoundsExpr();
+  I.Fun.ReturnInteropType       = ReturnAnnotsExpr.getInteropTypeExpr();
 
   assert(I.Fun.TypeQuals == TypeQuals && "bitfield overflow");
   assert(I.Fun.ExceptionSpecType == ESpecType && "bitfield overflow");

@@ -1376,9 +1376,13 @@ struct DeclaratorChunk {
     /// there are no parameters specified.
     ParamInfo *Params;
 
-    /// The annotations for the value returned by the function. Null if there is
-    /// no bounds specified.
-    BoundsAnnotations *ReturnAnnots;
+    /// The annotations for the value returned by the function.  We store them
+    // as individual fields, not BoundsAnnotations, because BoundsAnnotations has
+    // a default constructor.  This is for good reason. For equally good reasons,
+    // DeclaratorChunk doesn't have a default constructor.  This means that using
+    // a default initialized instance of BoundsAnnotations is not allowed here.
+    BoundsExpr *ReturnBounds;
+    InteropTypeExpr *ReturnInteropType;
 
     union {
       /// \brief Pointer to a new[]'d array of TypeAndRange objects that
@@ -1528,7 +1532,9 @@ struct DeclaratorChunk {
     ParsedType getTrailingReturnType() const { return TrailingReturnType; }
 
     /// \brief The bounds annotations for the return value
-    BoundsAnnotations *getReturnAnnots() const { return ReturnAnnots; }
+    BoundsAnnotations getReturnAnnots() const {
+      return BoundsAnnotations(ReturnBounds, ReturnInteropType);
+    }
   };
 
   struct BlockPointerTypeInfo : TypeInfoCommon {
@@ -1674,7 +1680,7 @@ struct DeclaratorChunk {
                                      SourceLocation LocalRangeBegin,
                                      SourceLocation LocalRangeEnd,
                                      SourceLocation ReturnAnnotsColonLoc,
-                                     BoundsAnnotations *ReturnAnnotsExpr,
+                                     BoundsAnnotations &ReturnAnnotsExpr,
                                      Declarator &TheDeclarator,
                                      TypeResult TrailingReturnType =
                                                     TypeResult());
@@ -2541,11 +2547,11 @@ struct FieldDeclarator {
   Declarator D;
   Expr *BitfieldSize;
   std::unique_ptr<CachedTokens> BoundsExprTokens;
-  BoundsAnnotations *Annotations;
+  InteropTypeExpr *InteropType;
 
   explicit FieldDeclarator(const DeclSpec &DS)
     : D(DS, Declarator::MemberContext), BitfieldSize(nullptr), BoundsExprTokens(nullptr),
-      Annotations(nullptr) { }
+      InteropType(nullptr) { }
 };
 
 /// \brief Represents a C++11 virt-specifier-seq.

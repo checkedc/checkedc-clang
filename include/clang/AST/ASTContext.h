@@ -2511,7 +2511,6 @@ private:
   BoundsExpr *PrebuiltCountZero;
   BoundsExpr *PrebuiltCountOne;
   BoundsExpr *PrebuiltBoundsUnknown;
-  BoundsAnnotations *PrebuiltAnnotCountZero;
 
 public:
   bool EquivalentAnnotations(const BoundsAnnotations *Annots1,
@@ -2524,8 +2523,6 @@ public:
   BoundsExpr *getPrebuiltCountZero();
   BoundsExpr *getPrebuiltCountOne();
   BoundsExpr *getPrebuiltBoundsUnknown();
-
-  BoundsAnnotations *getPrebuiltAnnotCountZero();
 
 
   //===--------------------------------------------------------------------===//

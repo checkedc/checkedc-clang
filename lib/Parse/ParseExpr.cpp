@@ -2945,7 +2945,7 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
 // parsing is deferred or not.
 bool Parser::ParseBoundsAnnotations(const Declarator &D,
                                     SourceLocation ColonLoc,
-                                    BoundsAnnotations *&Result,
+                                    BoundsAnnotations &Result,
                                     std::unique_ptr<CachedTokens> *DeferredToks,
                                     bool IsReturn) {
   bool Error = false;
@@ -3014,9 +3014,8 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
   if (DeferredToks)
     assert(!Bounds);
 
-  if (Bounds || InteropType) {
-    Result = new (Actions.Context) BoundsAnnotations(Bounds, InteropType);
-  }
+  Result.setBounds(Bounds);
+  Result.setInteropTypeExpr(InteropType);
 
   return Error;
 }
@@ -3593,8 +3592,13 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 /// Given a list of tokens that have the same shape as a bounds
 /// expression, parse them to create a bounds expression.  Delete
 /// the list of tokens at the end.
+///
+/// Return true if there was an error; false otherwise.  The resulting
+/// bounds expression is stored in Result.
 bool
-Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks, BoundsAnnotations *&Result, const Declarator &D) {
+Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
+                                      BoundsAnnotations &Result,
+                                      const Declarator &D) {
   Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();
@@ -3687,6 +3691,7 @@ ExprResult Parser::ParseBlockLiteralExpression() {
     // Otherwise, pretend we saw (void).
     ParsedAttributes attrs(AttrFactory);
     SourceLocation NoLoc;
+    BoundsAnnotations ReturnAnnots;
     ParamInfo.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/true,
                                              /*IsAmbiguous=*/false,
                                              /*RParenLoc=*/NoLoc,
@@ -3711,7 +3716,7 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                              /*DeclsInPrototype=*/None,
                                              CaretLoc, CaretLoc,
                                              /*ReturnAnnotsColon=*/NoLoc,
-                                             /*ReturnAnnotsExpr=*/nullptr,
+                                             /*ReturnAnnotsExpr=*/ReturnAnnots,
                                              ParamInfo),
                           attrs, CaretLoc);
 

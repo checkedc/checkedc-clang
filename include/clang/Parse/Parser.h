@@ -1771,12 +1771,12 @@ private:
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
   bool ParseBoundsAnnotations(const Declarator &D,
                               SourceLocation ColonLoc,
-                              BoundsAnnotations *&Result,
+                              BoundsAnnotations &Result,
                               std::unique_ptr<CachedTokens> *DeferredToks = nullptr,
                               bool IsReturn=false);
   bool ConsumeAndStoreBoundsExpression(CachedTokens &Toks);
   bool DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
-                                     BoundsAnnotations *&Result,
+                                     BoundsAnnotations &Result,
                                      const Declarator &D);
 
   //===--------------------------------------------------------------------===//

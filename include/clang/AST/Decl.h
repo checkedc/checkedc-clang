@@ -87,16 +87,6 @@ class BoundsAnnotations {
 public:
   BoundsAnnotations() : Bounds(nullptr), InteropType(nullptr) {}
 
-  BoundsAnnotations(const BoundsAnnotations *B) {
-    if (B) {
-      Bounds = B->Bounds;
-      InteropType = B->InteropType;
-    } else {
-      Bounds = nullptr;
-      InteropType = nullptr;
-    }
-  }
-
   BoundsAnnotations(BoundsExpr *B) : Bounds(B), InteropType(nullptr) {}
 
   BoundsAnnotations(BoundsExpr *B, InteropTypeExpr *IT) :
@@ -114,7 +104,7 @@ public:
     return InteropType;
   }
 
-  void setInteropType(InteropTypeExpr *IT) {
+  void setInteropTypeExpr(InteropTypeExpr *IT) {
     InteropType = IT;
   }
 
@@ -851,7 +841,7 @@ public:
       return;
     if (!Annotations)
       Annotations = new (Context) BoundsAnnotations();
-    Annotations->setInteropType(IT);
+    Annotations->setInteropTypeExpr(IT);
   }
 
   void setBoundsAnnotations(BoundsAnnotations *BA) {
