@@ -174,9 +174,9 @@ private:
 
   /// \brief The declared bounds annotations of the object or reference being
   /// initialized, if any.
-  const BoundsAnnotations *Annots;
+  BoundsAnnotations Annots;
 
-  InitializedEntity() : ManglingNumber(0), Annots(nullptr) {}
+  InitializedEntity() : ManglingNumber(0), Annots() {}
 
   /// \brief Create the initialization entity for a variable.
   InitializedEntity(VarDecl *Var, EntityKind EK = EK_Variable)
@@ -187,7 +187,7 @@ private:
   /// function, throwing an object, performing an explicit cast, or
   /// initializing a parameter for which there is no declaration.
   InitializedEntity(EntityKind Kind, SourceLocation Loc, QualType Type,
-                    bool NRVO = false, const BoundsAnnotations *Annots = nullptr)
+                    bool NRVO = false, const BoundsAnnotations Annots = BoundsAnnotations())
     : Kind(Kind), Parent(nullptr), Type(Type), ManglingNumber(0),
       Annots(Annots)
 
@@ -211,7 +211,7 @@ private:
   /// \brief Create the initialization entity for a lambda capture.
   InitializedEntity(IdentifierInfo *VarID, QualType FieldType, SourceLocation Loc)
     : Kind(EK_LambdaCapture), Parent(nullptr), Type(FieldType),
-      ManglingNumber(0), Annots(nullptr)
+      ManglingNumber(0), Annots()
   {
     Capture.VarID = VarID;
     Capture.Location = Loc.getRawEncoding();
@@ -246,7 +246,10 @@ public:
     Entity.Parent = nullptr;
     Entity.Parameter
       = (static_cast<uintptr_t>(Consumed) | reinterpret_cast<uintptr_t>(Parm));
-    Entity.Annots = Annots;
+    if (Annots)
+      Entity.Annots = *Annots;
+    else
+      Entity.Annots = BoundsAnnotations();
     return Entity;
   }
 
@@ -259,7 +262,10 @@ public:
     InitializedEntity Entity;
     Entity.Kind = EK_Parameter;
     Entity.Type = Context.getVariableArrayDecayedType(Type);
-    Entity.Annots = Annots;
+    if (Annots)
+      Entity.Annots = *Annots;
+    else
+      Entity.Annots = BoundsAnnotations();
     Entity.Parent = nullptr;
     Entity.Parameter = (Consumed);
     return Entity;
@@ -268,7 +274,7 @@ public:
   /// \brief Create the initialization entity for the result of a function.
   static InitializedEntity InitializeResult(SourceLocation ReturnLoc,
                                             QualType Type, bool NRVO,
-                                          const BoundsAnnotations *Annots = nullptr) {
+                                          const BoundsAnnotations Annots = BoundsAnnotations()) {
     return InitializedEntity(EK_Result, ReturnLoc, Type, NRVO, Annots);
   }
 
@@ -396,7 +402,7 @@ public:
     return nullptr;
   }
   
-  const BoundsAnnotations *getAnnots() const { return Annots; }
+  const BoundsAnnotations getAnnots() const { return Annots; }
 
   /// \brief Retrieve the name of the entity being initialized.
   DeclarationName getName() const;

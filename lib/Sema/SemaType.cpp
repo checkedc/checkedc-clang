@@ -4724,9 +4724,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         SmallVector<QualType, 16> ParamTys;
         ParamTys.reserve(FTI.NumParams);
 
-        SmallVector<BoundsAnnotations *, 16> ParamAnnots;
+        SmallVector<BoundsAnnotations, 16> ParamAnnots;
         ParamAnnots.reserve(FTI.NumParams);
-        bool HasAnyParameterBounds = false;
+        bool HasAnyParameterAnnots = false;
 
         SmallVector<FunctionProtoType::ExtParameterInfo, 16>
           ExtParameterInfos(FTI.NumParams);
@@ -4792,16 +4792,16 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           }
 
           // Record parameter bounds for Checked C extension.  When the
-          // Checked C extension is not enabled, Bounds will always be null
-          // and HasAnyParameterBounds will always be false.
-          BoundsAnnotations *Bounds = Param->getBoundsAnnotations();
-          if (Bounds) {
-            HasAnyParameterBounds = true;
-            BoundsAnnotations AbstractedBounds(*Bounds);
-            if (S.AbstractForFunctionType(AbstractedBounds, ParamInfo))
-              Bounds = new BoundsAnnotations(AbstractedBounds);
+          // Checked C extension is not enabled, the BoundsAnnotations
+          // pointer return by getBoundsAnnotations will always be null
+          // and HasAnyParameterAnnots will always be false.
+          BoundsAnnotations Annots;
+          if (Param->getBoundsAnnotations()) {
+            HasAnyParameterAnnots = true;
+            Annots = *(Param->getBoundsAnnotations());
+            S.AbstractForFunctionType(Annots, ParamInfo);
           }
-          ParamAnnots.push_back(Bounds);
+          ParamAnnots.push_back(Annots);
 
           if (LangOpts.ObjCAutoRefCount && Param->hasAttr<NSConsumedAttr>()) {
             ExtParameterInfos[i] = ExtParameterInfos[i].withIsConsumed(true);
@@ -4827,30 +4827,27 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
-        BoundsAnnotations ReturnAnnot = FTI.getReturnAnnots();
+        BoundsAnnotations ReturnAnnots = FTI.getReturnAnnots();
 
-        if (T->isCheckedPointerNtArrayType() && !ReturnAnnot.getBoundsExpr())
-           ReturnAnnot = BoundsAnnotations(Context.getPrebuiltCountZero(), nullptr);
+        if (T->isCheckedPointerNtArrayType() && !ReturnAnnots.getBoundsExpr())
+           ReturnAnnots = BoundsAnnotations(Context.getPrebuiltCountZero(), nullptr);
 
         // If there is no interop type, try synthesizing one implied by the
         // presence of a bounds expression.
-        if (!ReturnAnnot.getInteropTypeExpr() && ReturnAnnot.getBoundsExpr())
-          ReturnAnnot.setInteropTypeExpr(S.SynthesizeInteropType(T, false));
+        if (!ReturnAnnots.getInteropTypeExpr() && ReturnAnnots.getBoundsExpr())
+          ReturnAnnots.setInteropTypeExpr(S.SynthesizeInteropType(T, false));
 
-        if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnot, true))
+        if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnots, true))
           D.setInvalidType(true);
         else
-          S.AbstractForFunctionType(ReturnAnnot, ParamInfo);
+          S.AbstractForFunctionType(ReturnAnnots, ParamInfo);
 
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are
         // parameter bounds.
-        if (HasAnyParameterBounds)
+        if (HasAnyParameterAnnots)
           EPI.ParamAnnots = ParamAnnots.data();
-        if (ReturnAnnot.getBoundsExpr() || ReturnAnnot.getInteropTypeExpr())
-          EPI.ReturnAnnots = new BoundsAnnotations(ReturnAnnot);
-        else
-          EPI.ReturnAnnots = nullptr;
+        EPI.ReturnAnnots = ReturnAnnots;
 
         if (HasAnyInterestingExtParameterInfos) {
           EPI.ExtParameterInfos = ExtParameterInfos.data();

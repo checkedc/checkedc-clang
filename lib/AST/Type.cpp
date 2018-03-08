@@ -74,6 +74,20 @@ bool QualType::isConstant(QualType T, const ASTContext &Ctx) {
   return T.getAddressSpace() == LangAS::opencl_constant;
 }
 
+void BoundsAnnotations::Profile(llvm::FoldingSetNodeID &ID,
+                                const ASTContext &Ctx) const {
+  BoundsExpr *Bounds = getBoundsExpr();
+  InteropTypeExpr *IType = getInteropTypeExpr();
+  if (Bounds)
+    Bounds->Profile(ID, Ctx, true);
+  else
+    ID.AddPointer(nullptr);
+  if (IType)
+    IType->Profile(ID, Ctx, true);
+  else
+    ID.AddPointer(nullptr);
+}
+
 unsigned ConstantArrayType::getNumAddressingBits(const ASTContext &Context,
                                                  QualType ElementType,
                                                const llvm::APInt &NumElements) {
@@ -2864,7 +2878,7 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
 
   // Fill in the Checked C parameter annotations array.
   if (hasParamAnnots()) {
-    const BoundsAnnotations **boundsSlot = reinterpret_cast<const BoundsAnnotations **>(argSlot + NumParams);
+    BoundsAnnotations *boundsSlot = reinterpret_cast<BoundsAnnotations *>(argSlot + NumParams);
     for (unsigned i = 0; i != NumParams; ++i)
       boundsSlot[i] = epi.ParamAnnots[i];
   }
@@ -3067,9 +3081,9 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
   if (epi.ParamAnnots) {
     auto ParamAnnots = epi.ParamAnnots;
     for (unsigned i = 0; i != NumParams; ++i)
-      BoundsAnnotations::Profile(ParamAnnots[i], ID, Context);
+      ParamAnnots[i].Profile(ID, Context);
   }
-  BoundsAnnotations::Profile(epi.ReturnAnnots, ID, Context);
+  epi.ReturnAnnots.Profile(ID, Context);
 
   if (epi.ExtParameterInfos) {
     for (unsigned i = 0; i != NumParams; ++i)

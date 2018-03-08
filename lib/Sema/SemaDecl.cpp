@@ -3693,10 +3693,9 @@ enum class BoundsAnnotationUsage {
   BoundsAndIType
  };
 
-static BoundsAnnotationUsage Usage(const BoundsAnnotations *BA) {
-  if (BA == nullptr) return BoundsAnnotationUsage::None;
-  BoundsExpr *BE = BA->getBoundsExpr();
-  InteropTypeExpr *IT = BA->getInteropTypeExpr();
+static BoundsAnnotationUsage Usage(const BoundsAnnotations &BA) {
+  BoundsExpr *BE = BA.getBoundsExpr();
+  InteropTypeExpr *IT = BA.getInteropTypeExpr();
   if (!BE && !IT) return BoundsAnnotationUsage::None;
   if (!BE && IT) return BoundsAnnotationUsage::ITypeOnly;
   if (BE && !IT) return BoundsAnnotationUsage::BoundsOnly;
@@ -3726,15 +3725,15 @@ static BoundsAnnotationUsage Usage(const BoundsAnnotations *BA) {
 static bool diagnoseBoundsError(Sema &S,
                                 SourceLocation BoundsLoc,
                                 SourceLocation InteropLoc,
-                                const BoundsAnnotations *OldAnnots,
-                                const BoundsAnnotations *NewAnnots,
+                                const BoundsAnnotations OldAnnots,
+                                const BoundsAnnotations NewAnnots,
                                 const DeclaratorDecl *OldDecl,
                                 const DeclaratorDecl *NewDecl,
                                 QualType OldType,
                                 QualType NewType,
                                 Sema::CheckedCBoundsError Kind) {
-  const BoundsExpr *OldBounds = OldAnnots ? OldAnnots->getBoundsExpr() : nullptr;
-  const BoundsExpr *NewBounds = NewAnnots ? NewAnnots->getBoundsExpr() : nullptr;
+  const BoundsExpr *OldBounds = OldAnnots.getBoundsExpr();
+  const BoundsExpr *NewBounds = NewAnnots.getBoundsExpr();
 
   if ((OldBounds && OldBounds->isInvalid()) ||
       (NewBounds && NewBounds->isInvalid()))
@@ -3777,8 +3776,8 @@ static bool diagnoseBoundsError(Sema &S,
     }
   }
 
-  const InteropTypeExpr *OldIType = OldAnnots ? OldAnnots->getInteropTypeExpr() : nullptr;
-  const InteropTypeExpr *NewIType = NewAnnots ? NewAnnots->getInteropTypeExpr() : nullptr;
+  const InteropTypeExpr *OldIType = OldAnnots.getInteropTypeExpr();
+  const InteropTypeExpr *NewIType = NewAnnots.getInteropTypeExpr();
   if (!S.Context.EquivalentInteropTypes(OldIType, NewIType)) {
     if (OldIType && NewIType)
       DiagId = diag::err_decl_conflicting_bounds;
@@ -3849,8 +3848,8 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
     unsigned ParamCount =
       OldParamCount < NewParamCount ? OldParamCount : NewParamCount;
     for (unsigned i = 0; i < ParamCount; i++) {
-      const BoundsAnnotations *OldTypeBounds = OldType->getParamAnnots(i);
-      const BoundsAnnotations *NewTypeBounds = NewType->getParamAnnots(i);
+      const BoundsAnnotations OldTypeBounds = OldType->getParamAnnots(i);
+      const BoundsAnnotations NewTypeBounds = NewType->getParamAnnots(i);
       const DeclaratorDecl *OldDecl = Old->getParamDecl(i);
       const DeclaratorDecl *NewDecl = New->getParamDecl(i);
       // Use the annotations from the types; they've been canonicalized,
@@ -9198,14 +9197,12 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     ArrayRef<ParmVarDecl *> ParamArray = Params;
     if (FT->hasParamAnnots()) {
       for (unsigned int I = 0; I < NumParams; ++I) {
-        BoundsAnnotations *BA = const_cast<BoundsAnnotations *>(FT->getParamAnnots(I));
-        if (BA) {
-          BoundsExpr *B = BA->getBoundsExpr();
-          if (B) {
-            B = ConcretizeFromFunctionType(B, ParamArray);
-            Params[I]->setBoundsExpr(getASTContext(), B);
-            Params[I]->setInteropTypeExpr(getASTContext(), BA->getInteropTypeExpr());
-          }
+        BoundsAnnotations BA = FT->getParamAnnots(I);
+        BoundsExpr *B = BA.getBoundsExpr();
+        if (B) {
+          B = ConcretizeFromFunctionType(B, ParamArray);
+          Params[I]->setBoundsExpr(getASTContext(), B);
+          Params[I]->setInteropTypeExpr(getASTContext(), BA.getInteropTypeExpr());
         }
       }
     }
@@ -9226,10 +9223,10 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   // type does not have accurate line number information.
   if (D.isFunctionDeclarator()) {
     if (const FunctionProtoType *FT = R->getAs<FunctionProtoType>()) {
-      BoundsAnnotations *BA = const_cast<BoundsAnnotations *>(FT->getReturnAnnots());
-      if (BA) {
+      BoundsAnnotations BA = FT->getReturnAnnots();
+      if (!BA.IsEmpty()) {
         DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
-        BoundsExpr *TypeReturnBounds = BA->getBoundsExpr();
+        BoundsExpr *TypeReturnBounds = BA.getBoundsExpr();
         BoundsExpr *DeclaredReturnBounds = FTI.getReturnAnnots().getBoundsExpr();
         // Check the return bounds on the type to determine if the bounds
         // expression is valid for the return type.  Construction of the function
@@ -9247,7 +9244,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
         // Copy the return interop type annotation from the type.
         // TODO: do we need to worry about line number information for copied
         // interop type annotations?
-        NewFD->setInteropTypeExpr(getASTContext(), BA->getInteropTypeExpr());
+        NewFD->setInteropTypeExpr(getASTContext(), BA.getInteropTypeExpr());
       }
     }
   }
@@ -12874,11 +12871,13 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
   // declaration, if there is a prior declaration.
   if (VD) {
     if (VarDecl *Old = VD->getPreviousDecl()) {
-      BoundsAnnotations *OldBounds = Old->getBoundsAnnotations();
+      BoundsAnnotations OldAnnots;
+      if (Old->getBoundsAnnotations()) 
+        OldAnnots = *(Old->getBoundsAnnotations());
       BoundsAnnotations NewAnnots(BoundsExpr, IType);
       SourceLocation BoundsLoc = BoundsExpr ? BoundsExpr->getStartLoc() : SourceLocation();
       SourceLocation InteropLoc = IType ? IType->getStartLoc() : SourceLocation();
-      if (diagnoseBoundsError(*this, BoundsLoc, InteropLoc, OldBounds, &NewAnnots,
+      if (diagnoseBoundsError(*this, BoundsLoc, InteropLoc, OldAnnots, NewAnnots,
                               Old, D, Old->getType(), D->getType(),
                               Sema::CheckedCBoundsError::CCBE_Variable)) {
         ActOnInvalidBoundsDecl(D);
@@ -12886,10 +12885,10 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
       }
       // If this declaration had no annotations, use the annotations from
       // the prior declaration, if there are annotations.
-      if (NoAnnotations && OldBounds) {
+      if (NoAnnotations) {
         assert(!MergeDeferredBounds);
-        BoundsExpr = OldBounds->getBoundsExpr();
-        IType = OldBounds->getInteropTypeExpr();
+        BoundsExpr = OldAnnots.getBoundsExpr();
+        IType = OldAnnots.getInteropTypeExpr();
       }
     }
   }

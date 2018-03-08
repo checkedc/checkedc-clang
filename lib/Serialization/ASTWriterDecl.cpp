@@ -508,7 +508,7 @@ void ASTDeclWriter::VisitDeclaratorDecl(DeclaratorDecl *D) {
   bool hasBoundsAnnotations = D->getBoundsAnnotations();
   Record.push_back(hasBoundsAnnotations);
   if (hasBoundsAnnotations)
-    Record.AddBoundsAnnotations(D->getBoundsAnnotations());
+    Record.AddBoundsAnnotations(*(D->getBoundsAnnotations()));
 
   Record.push_back(D->hasExtInfo());
   if (D->hasExtInfo())
@@ -2272,15 +2272,9 @@ void ASTWriter::WriteDecl(ASTContext &Context, Decl *D) {
     EagerlyDeserializedDecls.push_back(ID);
 }
 
-void ASTRecordWriter::AddBoundsAnnotations(BoundsAnnotations *BA) {
-  BoundsExpr *Bounds = nullptr;
-  InteropTypeExpr *IType = nullptr;
-  if (BA) {
-    Bounds = BA->getBoundsExpr();
-    IType = BA->getInteropTypeExpr();
-  }
-  AddStmt(Bounds);
-  AddStmt(IType);
+void ASTRecordWriter::AddBoundsAnnotations(BoundsAnnotations BA) {
+  AddStmt(BA.getBoundsExpr());
+  AddStmt(BA.getInteropTypeExpr());
 }
 
 void ASTRecordWriter::AddFunctionDefinition(const FunctionDecl *FD) {

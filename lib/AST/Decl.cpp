@@ -1812,24 +1812,6 @@ QualType DeclaratorDecl::getInteropType() {
     return QualType();
 }
 
-void BoundsAnnotations::Profile(const BoundsAnnotations *BoundsAnnotations,
-                                llvm::FoldingSetNodeID &ID,
-                                const ASTContext &Ctx) {
-  BoundsExpr *Bounds = nullptr;
-  InteropTypeExpr *IType = nullptr;
-  if (BoundsAnnotations) {
-    Bounds = BoundsAnnotations->getBoundsExpr();
-    IType = BoundsAnnotations->getInteropTypeExpr();
-  }
-  if (Bounds)
-    Bounds->Profile(ID, Ctx, true);
-  else
-    ID.AddPointer(nullptr);
-  if (IType)
-    IType->Profile(ID, Ctx, true);
-  else
-    ID.AddPointer(nullptr);
-}
 
 //===----------------------------------------------------------------------===//
 // VarDecl Implementation

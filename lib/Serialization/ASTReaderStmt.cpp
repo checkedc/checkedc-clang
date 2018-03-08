@@ -3105,13 +3105,11 @@ BoundsExpr *ASTReader::ReadBoundsExpr(ModuleFile &F) {
   return B;
 }
 
-BoundsAnnotations *ASTReader::ReadBoundsAnnotations(ModuleFile &F) {
+BoundsAnnotations ASTReader::ReadBoundsAnnotations(ModuleFile &F) {
   Expr *Bounds = ReadExpr(F);
   Expr *IType = ReadExpr(F);
-  if (!Bounds && !IType) {
-    return nullptr;
-  }
-  return new (getContext()) BoundsAnnotations(cast_or_null<BoundsExpr>(Bounds),cast_or_null<InteropTypeExpr>(IType));
+  return BoundsAnnotations(cast_or_null<BoundsExpr>(Bounds),
+                           cast_or_null<InteropTypeExpr>(IType));
 }
 
 Expr *ASTReader::ReadSubExpr() {

@@ -812,7 +812,7 @@ public:
     StmtsToEmit.push_back(S);
   }
 
-  void AddBoundsAnnotations(BoundsAnnotations *BA);
+  void AddBoundsAnnotations(BoundsAnnotations BA);
 
   /// \brief Add a definition for the given function to the queue of statements
   /// to emit.

@@ -1245,9 +1245,9 @@ namespace {
               // inference on them, so we return bounds(unknown) for their results.
               return CreateBoundsAlwaysUnknown();
 
-            BoundsAnnotations *FunReturnAnnots = const_cast<BoundsAnnotations *>(CalleeTy->getReturnAnnots());
-            BoundsExpr *FunBounds = FunReturnAnnots ? FunReturnAnnots->getBoundsExpr() : nullptr;
-            InteropTypeExpr *IType = FunReturnAnnots ? FunReturnAnnots->getInteropTypeExpr() : nullptr;
+            BoundsAnnotations FunReturnAnnots = CalleeTy->getReturnAnnots();
+            BoundsExpr *FunBounds = FunReturnAnnots.getBoundsExpr();
+            InteropTypeExpr *IType =FunReturnAnnots.getInteropTypeExpr();
             // TODO:handle interop type annotation on return bounds
             // Github issue #205.  We have no way of rerepresenting
             // CurrentExprValue in the IR yet.
@@ -2303,9 +2303,9 @@ namespace {
         // We want to check the argument expression implies the desired parameter bounds.
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
-        const BoundsAnnotations  *ParamAnnots = FuncProtoTy->getParamAnnots(i);
-        const BoundsExpr *ParamBounds = ParamAnnots ? ParamAnnots->getBoundsExpr() : nullptr;
-        const InteropTypeExpr *ParamIType = ParamAnnots ? ParamAnnots->getInteropTypeExpr() : nullptr;
+        const BoundsAnnotations ParamAnnots = FuncProtoTy->getParamAnnots(i);
+        const BoundsExpr *ParamBounds = ParamAnnots.getBoundsExpr();
+        const InteropTypeExpr *ParamIType = ParamAnnots.getInteropTypeExpr();
         if (!ParamBounds && !ParamIType)
           continue;
 

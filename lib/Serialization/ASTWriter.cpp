@@ -295,7 +295,7 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
   Record.push_back(T->getTypeQuals());
   Record.push_back(static_cast<unsigned>(T->getRefQualifier()));
   addExceptionSpec(T, Record);
-  Record.AddBoundsAnnotations(const_cast<BoundsAnnotations *>(T->getReturnAnnots()));
+  Record.AddBoundsAnnotations(T->getReturnAnnots());
 
   Record.push_back(T->getNumParams());
   for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
@@ -303,7 +303,7 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
 
   if (T->hasParamAnnots())
     for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
-      Record.AddBoundsAnnotations(const_cast<BoundsAnnotations *>(T->getParamAnnots(I)));
+      Record.AddBoundsAnnotations(T->getParamAnnots(I));
 
   if (T->hasExtParameterInfos()) {
     for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)

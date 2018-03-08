@@ -2513,8 +2513,8 @@ private:
   BoundsExpr *PrebuiltBoundsUnknown;
 
 public:
-  bool EquivalentAnnotations(const BoundsAnnotations *Annots1,
-                             const BoundsAnnotations *Annots2);
+  bool EquivalentAnnotations(const BoundsAnnotations &Annots1,
+                             const BoundsAnnotations &Annots2);
   bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
   bool EquivalentInteropTypes(const InteropTypeExpr *Expr1,
                               const InteropTypeExpr *Expr2);

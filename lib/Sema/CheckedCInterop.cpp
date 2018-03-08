@@ -126,7 +126,7 @@ public:
     //
     SmallVector<QualType, 4> ParamTypes;
     SmallVector<ParmVarDecl*, 4> ParamDecls;
-    SmallVector<BoundsAnnotations *, 4> ParamAnnots;
+    SmallVector<BoundsAnnotations, 4> ParamAnnots;
     Sema::ExtParameterInfoBuilder ExtParamInfos;
     const FunctionProtoType *T = TL.getTypePtr();
 
@@ -157,10 +157,11 @@ public:
 
     // Now rewrite types based on interop type information, and remove
     // the interop types.
-    if (const BoundsAnnotations *Annots = EPI.ReturnAnnots) {
+    const BoundsAnnotations Annots = EPI.ReturnAnnots;
+    if (!Annots.IsEmpty()) {
       if (ResultType->isUncheckedPointerType()) {
-         InteropTypeExpr *IT = Annots->getInteropTypeExpr();
-         BoundsExpr *Bounds = Annots->getBoundsExpr();
+         InteropTypeExpr *IT = Annots.getInteropTypeExpr();
+         BoundsExpr *Bounds = Annots.getBoundsExpr();
          assert(Bounds == nullptr || (Bounds != nullptr && IT));
          if (IT) {
            ResultType = IT->getType();
@@ -181,10 +182,9 @@ public:
 
           // Construct new annotations that do not have the bounds-safe interface type.
           if (Bounds) {
-            BoundsAnnotations *NewBA = new (SemaRef.Context) BoundsAnnotations(Bounds, nullptr);
-            EPI.ReturnAnnots = NewBA;
+            EPI.ReturnAnnots = BoundsAnnotations(Bounds, nullptr);
           } else 
-            EPI.ReturnAnnots = nullptr;
+            EPI.ReturnAnnots = BoundsAnnotations();
           EPIChanged = true;
         }
       }
@@ -195,10 +195,10 @@ public:
       // annotations.
       bool hasParamAnnots = false;
       for (unsigned int i = 0; i < ParamTypes.size(); i++) {
-        BoundsAnnotations *IndividualAnnots = ParamAnnots[i];
-        if (ParamTypes[i]->isUncheckedPointerType() && IndividualAnnots &&
-            IndividualAnnots->getInteropTypeExpr()) {
-          InteropTypeExpr *IT = IndividualAnnots->getInteropTypeExpr();
+        BoundsAnnotations IndividualAnnots = ParamAnnots[i];
+        if (ParamTypes[i]->isUncheckedPointerType() && 
+            IndividualAnnots.getInteropTypeExpr()) {
+          InteropTypeExpr *IT = IndividualAnnots.getInteropTypeExpr();
           QualType ParamType = IT->getType();
           if (ParamType.isNull()) {
 #if TRACE_INTEROP
@@ -216,21 +216,19 @@ public:
             ParamType = SemaRef.Context.getDecayedType(ParamType);
           ParamTypes[i] = ParamType;
           // Remove the interop type annotation.
-          BoundsExpr *Bounds = IndividualAnnots->getBoundsExpr();
+          BoundsExpr *Bounds = IndividualAnnots.getBoundsExpr();
           if (IT->getType()->isCheckedArrayType()) {
             assert(!Bounds);              
             Bounds = SemaRef.CreateCountForArrayType(IT->getType());
           }
           if (Bounds) {
             hasParamAnnots = true;
-            BoundsAnnotations *NewBA = new (getSema().Context) BoundsAnnotations(Bounds, nullptr);
-            ParamAnnots[i] = NewBA;
+            ParamAnnots[i] = BoundsAnnotations(Bounds, nullptr);
           } else 
-            ParamAnnots[i] = nullptr;
+            ParamAnnots[i] = BoundsAnnotations();
           EPIChanged = true;
         } else {
-          ParamAnnots[i] = IndividualAnnots;
-          if (IndividualAnnots)
+          if (!IndividualAnnots.IsEmpty())
             hasParamAnnots = true;
         }
       }

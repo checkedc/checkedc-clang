@@ -2949,7 +2949,7 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
                                     std::unique_ptr<CachedTokens> *DeferredToks,
                                     bool IsReturn) {
   bool Error = false;
-  Result = nullptr;
+  Result = BoundsAnnotations();
   BoundsExpr *Bounds = nullptr;
   InteropTypeExpr *InteropType = nullptr;
   bool parsedSomething = false;

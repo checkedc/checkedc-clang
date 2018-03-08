@@ -636,7 +636,7 @@ public:
       SmallVectorImpl<QualType> &PTypes, SmallVectorImpl<ParmVarDecl *> *PVars,
       Sema::ExtParameterInfoBuilder &PInfos);
 
-  bool TransformBoundsAnnotations(BoundsAnnotations *&Annot, bool &Changed);
+  bool TransformBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
 
   /// \brief Transform the extended parameter information for
   /// a function prototype.
@@ -649,7 +649,7 @@ public:
   bool TransformExtendedParameterInfo(
     FunctionProtoType::ExtProtoInfo &EPI,
     SmallVector<QualType, 4> &ParamTypes,
-    SmallVector<BoundsAnnotations *, 4> &ParamListAnnots,
+    SmallVector<BoundsAnnotations, 4> &ParamListAnnots,
     Sema::ExtParameterInfoBuilder &ExtParamInfos,
     FunctionProtoTypeLoc &TL,
     Fn TransformExceptionSpec,
@@ -5232,38 +5232,36 @@ bool TreeTransform<Derived>::TransformFunctionTypeParams(
 
 template<typename Derived>
 bool TreeTransform<Derived>::TransformBoundsAnnotations(
-  BoundsAnnotations *&Annot, bool &Changed) {
-  if (Annot) {
-    BoundsExpr *ExistingBounds = Annot->getBoundsExpr();
-    BoundsExpr *NewBounds = ExistingBounds;
-    if (ExistingBounds) {
-      ExprResult Result = getDerived().TransformExpr(ExistingBounds);
-      if (Result.isInvalid())
-        return true;
-      NewBounds = dyn_cast<BoundsExpr>(Result.get());
-      if (!NewBounds) {
-        assert("unexpected dynamic cast failure");
-        return true;
-      }
+  BoundsAnnotations &Annot, bool &Changed) {
+  BoundsExpr *ExistingBounds = Annot.getBoundsExpr();
+  BoundsExpr *NewBounds = ExistingBounds;
+  if (ExistingBounds) {
+    ExprResult Result = getDerived().TransformExpr(ExistingBounds);
+    if (Result.isInvalid())
+      return true;
+    NewBounds = dyn_cast<BoundsExpr>(Result.get());
+    if (!NewBounds) {
+      assert("unexpected dynamic cast failure");
+      return true;
     }
+  }
 
-    InteropTypeExpr *ExistingIType = Annot->getInteropTypeExpr();
-    InteropTypeExpr *NewIType = ExistingIType;
-    if (ExistingIType) {
-      ExprResult Result = getDerived().TransformExpr(ExistingIType);
-      if (Result.isInvalid())
-        return true;
-      NewIType = dyn_cast<InteropTypeExpr>(Result.get());
-      if (!NewIType) {
-        assert("unexpected dynamic cast failure");
-        return true;
-      }
+  InteropTypeExpr *ExistingIType = Annot.getInteropTypeExpr();
+  InteropTypeExpr *NewIType = ExistingIType;
+  if (ExistingIType) {
+    ExprResult Result = getDerived().TransformExpr(ExistingIType);
+    if (Result.isInvalid())
+      return true;
+    NewIType = dyn_cast<InteropTypeExpr>(Result.get());
+    if (!NewIType) {
+      assert("unexpected dynamic cast failure");
+      return true;
     }
+  }
 
-    if (ExistingBounds != NewBounds || ExistingIType != NewIType) {
-      Annot = new (SemaRef.getASTContext()) BoundsAnnotations(NewBounds, NewIType);
-      Changed = true;
-    }
+  if (ExistingBounds != NewBounds || ExistingIType != NewIType) {
+    Annot = BoundsAnnotations(NewBounds, NewIType);
+    Changed = true;
   }
   return false;
 }
@@ -5272,7 +5270,7 @@ template <typename Derived> template<typename Fn>
 bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   FunctionProtoType::ExtProtoInfo &EPI,
   SmallVector<QualType, 4> &ParamTypes,
-  SmallVector<BoundsAnnotations *, 4> &ParamListAnnots,
+  SmallVector<BoundsAnnotations, 4> &ParamListAnnots,
   Sema::ExtParameterInfoBuilder &ExtParamInfos,
   FunctionProtoTypeLoc &TL,
   Fn TransformExceptionSpec,
@@ -5297,26 +5295,23 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   }
 
   // Handle bounds annotations for return.
-  BoundsAnnotations *ReturnAnnot = const_cast<BoundsAnnotations *>(EPI.ReturnAnnots);
-  if (getDerived().TransformBoundsAnnotations(ReturnAnnot, EPIChanged))
+  BoundsAnnotations ReturnAnnot = EPI.ReturnAnnots;
+  if (getDerived().TransformBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
     return true;
-  EPI.ReturnAnnots = ReturnAnnot;
 
   // Handle bounds annotations for parameters.
-  const BoundsAnnotations *const *ExistingParamListAnnots = EPI.ParamAnnots;
+  const BoundsAnnotations *ExistingParamListAnnots = EPI.ParamAnnots;
   if (ExistingParamListAnnots) {
     bool ParamListAnnotsChanged = false;
     unsigned ExistingParamCount = TL.getNumParams();
     unsigned NewParamCount = ParamTypes.size();
     ParamListAnnots.reserve(NewParamCount);
     for (unsigned i = 0; i < NewParamCount; i++) {
-      BoundsAnnotations *ParamAnnotations = nullptr;
+      BoundsAnnotations ParamAnnotations;
       if (i < ExistingParamCount) {
-        ParamAnnotations = const_cast<BoundsAnnotations *>(ExistingParamListAnnots[i]);
-        if (ParamAnnotations) {
-          if (getDerived().TransformBoundsAnnotations(ParamAnnotations, ParamListAnnotsChanged))
-            return true;
-        }
+        ParamAnnotations = ExistingParamListAnnots[i];
+        if (getDerived().TransformBoundsAnnotations(ParamAnnotations, ParamListAnnotsChanged))
+          return true;
       }
       ParamListAnnots.push_back(ParamAnnotations);
     }
@@ -5357,7 +5352,7 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   //
   SmallVector<QualType, 4> ParamTypes;
   SmallVector<ParmVarDecl*, 4> ParamDecls;
-  SmallVector<BoundsAnnotations *, 4> ParamAnnots;
+  SmallVector<BoundsAnnotations, 4> ParamAnnots;
   Sema::ExtParameterInfoBuilder ExtParamInfos;
   const FunctionProtoType *T = TL.getTypePtr();
 

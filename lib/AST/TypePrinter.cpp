@@ -93,7 +93,7 @@ namespace {
     void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
                StringRef PlaceHolder);
     void print(QualType T, raw_ostream &OS, StringRef PlaceHolder);
-    void print(const BoundsAnnotations *BA, raw_ostream &OS);
+    void print(const BoundsAnnotations BA, raw_ostream &OS);
 
     static bool canPrefixQualifiers(const Type *T, bool &NeedARCStrongQualifier);
     void spaceBeforePlaceHolder(raw_ostream &OS);
@@ -149,17 +149,14 @@ void TypePrinter::print(QualType t, raw_ostream &OS, StringRef PlaceHolder) {
   print(split.Ty, split.Quals, OS, PlaceHolder);
 }
 
-void TypePrinter::print(const BoundsAnnotations *BA, raw_ostream &OS) {
-  if (!BA)
-    return;
-
+void TypePrinter::print(const BoundsAnnotations BA, raw_ostream &OS) {
   bool printedColon = false;
-  if (const BoundsExpr *const Bounds = BA->getBoundsExpr()) {
+  if (const BoundsExpr *const Bounds = BA.getBoundsExpr()) {
     OS << " : ";
     printedColon = true;
     Bounds->printPretty(OS, nullptr, Policy);
   }
-  if (const InteropTypeExpr *const IType = BA->getInteropTypeExpr()) {
+  if (const InteropTypeExpr *const IType = BA.getInteropTypeExpr()) {
     if (printedColon)
       OS << " ";
     else
@@ -798,8 +795,8 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
 
   printFunctionAfter(Info, OS);
 
-  if (const BoundsAnnotations *ReturnAnnots = T->getReturnAnnots())
-    print(ReturnAnnots, OS);
+  const BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
+  print(ReturnAnnots, OS);
 
   if (unsigned quals = T->getTypeQuals()) {
     OS << ' ';

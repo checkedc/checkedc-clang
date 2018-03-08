@@ -3417,7 +3417,7 @@ QualType ASTContext::getFunctionTypeInternal(
                 NumArgs * sizeof(QualType);
 
   if (EPI.ParamAnnots) {
-    Size += NumArgs * sizeof(BoundsExpr *);
+    Size += NumArgs * sizeof(BoundsAnnotations);
   }
 
   if (EPI.ExceptionSpec.Type == EST_Dynamic) {
@@ -8175,10 +8175,10 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (!canUseRight)
       allRTypes = false;
 
-    const BoundsAnnotations *ReturnAnnots = nullptr;
+    BoundsAnnotations ReturnAnnots;
     if (!IgnoreBounds) {
-      const BoundsAnnotations *lReturnAnnots = lproto->ReturnAnnots;
-      const BoundsAnnotations *rReturnAnnots = rproto->ReturnAnnots;
+      const BoundsAnnotations lReturnAnnots = lproto->ReturnAnnots;
+      const BoundsAnnotations rReturnAnnots = rproto->ReturnAnnots;
       if (EquivalentAnnotations(lReturnAnnots, rReturnAnnots))
         ReturnAnnots = lReturnAnnots;
       else {
@@ -8187,10 +8187,10 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         // The merged type includes the bounds.
         if (!retType->isUncheckedPointerType())
           return QualType();
-        if (lReturnAnnots && !rReturnAnnots) {
+        if (!lReturnAnnots.IsEmpty() && rReturnAnnots.IsEmpty()) {
           ReturnAnnots = lReturnAnnots;
           allRTypes = false;
-        } else if (rReturnAnnots && !lReturnAnnots) {
+        } else if (!rReturnAnnots.IsEmpty() && lReturnAnnots.IsEmpty()) {
           ReturnAnnots = rReturnAnnots;
           allLTypes = false;
         } else
@@ -8200,7 +8200,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
 
     // Check parameter type compatibility
     SmallVector<QualType, 10> types;
-    SmallVector<const BoundsAnnotations *, 10> bounds;
+    SmallVector<BoundsAnnotations, 10> bounds;
     bool hasParamAnnots = lproto->hasParamAnnots() || rproto->hasParamAnnots();
     for (unsigned i = 0, n = lproto->getNumParams(); i < n; i++) {
       QualType lParamType = lproto->getParamType(i).getUnqualifiedType();
@@ -8225,8 +8225,8 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         allRTypes = false;
 
       if (!IgnoreBounds && hasParamAnnots) {
-        const BoundsAnnotations *lBounds = lproto->getParamAnnots(i);
-        const BoundsAnnotations *rBounds = rproto->getParamAnnots(i);
+        const BoundsAnnotations lBounds = lproto->getParamAnnots(i);
+        const BoundsAnnotations rBounds = rproto->getParamAnnots(i);
         if (EquivalentAnnotations(lBounds, rBounds))
           bounds.push_back(lBounds);
         else {
@@ -8235,10 +8235,10 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
           // The merged type includes the bounds.
           if (!paramType->isUncheckedPointerType())
             return QualType();
-          if (lBounds && !rBounds) {
+          if (!lBounds.IsEmpty() && rBounds.IsEmpty()) {
             bounds.push_back(lBounds);
             allRTypes = false;
-          } else if (rBounds && !lBounds) {
+          } else if (!rBounds.IsEmpty() && lBounds.IsEmpty()) {
             bounds.push_back(rBounds);
             allLTypes = false;
           } else
@@ -9027,7 +9027,7 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
       for (unsigned I=0; I< NumParams; ++I) {
         if (isNotAllowedForNoPrototypeFunction(FPT->getParamType(I)))
           return true;
-        if (FPT->getParamAnnots(I))
+        if (!FPT->getParamAnnots(I).IsEmpty())
           return true;
       }
     }
@@ -9077,15 +9077,15 @@ bool ASTContext::EquivalentInteropTypes(
 }
 
 bool ASTContext::EquivalentAnnotations(
-  const BoundsAnnotations *Annots1,
-  const BoundsAnnotations *Annots2) {
-  BoundsExpr *Expr1 = Annots1 ? Annots1->getBoundsExpr() : nullptr;
-  BoundsExpr *Expr2 = Annots2 ? Annots2->getBoundsExpr() : nullptr;
+  const BoundsAnnotations &Annots1,
+  const BoundsAnnotations &Annots2) {
+  BoundsExpr *Expr1 = Annots1.getBoundsExpr();
+  BoundsExpr *Expr2 = Annots2.getBoundsExpr();
   if (!EquivalentBounds(Expr1, Expr2))
     return false;
 
-  InteropTypeExpr *IT1 = Annots1 ? Annots1->getInteropTypeExpr() : nullptr;
-  InteropTypeExpr *IT2 = Annots2 ? Annots2->getInteropTypeExpr() : nullptr;
+  InteropTypeExpr *IT1 = Annots1.getInteropTypeExpr();
+  InteropTypeExpr *IT2 = Annots2.getInteropTypeExpr();
 
   return EquivalentInteropTypes(IT1, IT2);
 }

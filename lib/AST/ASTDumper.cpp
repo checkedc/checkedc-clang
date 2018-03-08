@@ -343,34 +343,32 @@ namespace  {
       for (unsigned i = 0; i < numParams; i++) {
         QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
-        if (hasBounds)
-          if (const BoundsAnnotations *Annots = T->getParamAnnots(i)) {
-            if (const BoundsExpr *Bounds = Annots->getBoundsExpr())
-              dumpChild([=] {
-                OS << "Bounds";
-                dumpStmt(Bounds);
-              });
-            if (const InteropTypeExpr *IT = Annots->getInteropTypeExpr())
-              dumpChild([=] {
-                OS << "InteropType";
-                dumpStmt(IT);
-              });
-           }
+        if (hasBounds) {
+          const BoundsAnnotations Annots = T->getParamAnnots(i);
+          if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
+            dumpChild([=] {
+              OS << "Bounds";
+              dumpStmt(Bounds);
+            });
+          if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
+            dumpChild([=] {
+              OS << "InteropType";
+              dumpStmt(IT);
+            });
+          }
       }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
-      if (EPI.ReturnAnnots) {
-        if (const BoundsExpr *Bounds = EPI.ReturnAnnots->getBoundsExpr())
-          dumpChild([=] {
-            OS << "Return bounds";
-            dumpStmt(Bounds);
-          });
-        if (const InteropTypeExpr *IT = EPI.ReturnAnnots->getInteropTypeExpr())
-          dumpChild([=] {
-            OS << "Return interopType";
-            dumpStmt(IT);
-          });
-      }
+      if (const BoundsExpr *Bounds = EPI.ReturnAnnots.getBoundsExpr())
+        dumpChild([=] {
+          OS << "Return bounds";
+          dumpStmt(Bounds);
+        });
+      if (const InteropTypeExpr *IT = EPI.ReturnAnnots.getInteropTypeExpr())
+        dumpChild([=] {
+          OS << "Return interopType";
+          dumpStmt(IT);
+        });
     }
     void VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
       dumpDeclRef(T->getDecl());

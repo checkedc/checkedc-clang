@@ -89,7 +89,8 @@ namespace clang {
   class ObjCTypeParamDecl;
   class UnresolvedUsingTypenameDecl;
   class Expr;
-  class BoundsAnnotations;
+  class BoundsExpr;
+  class InteropTypeExpr;
   class Stmt;
   class SourceLocation;
   class StmtIteratorBase;
@@ -1305,6 +1306,52 @@ enum class CheckedArrayKind {
   Unchecked = 0,
   Checked,        // Checked array
   NtChecked       // Null-terminated checked array
+};
+
+class BoundsAnnotations {
+  BoundsExpr *Bounds;
+  InteropTypeExpr *InteropType;
+
+public:
+  BoundsAnnotations() : Bounds(nullptr), InteropType(nullptr) {}
+
+  BoundsAnnotations(BoundsExpr *B) : Bounds(B), InteropType(nullptr) {}
+
+  BoundsAnnotations(BoundsAnnotations *BA) {
+    if (BA) {
+      Bounds = BA->Bounds;
+      InteropType = BA->InteropType;
+    } else {
+      Bounds = nullptr;
+      InteropType = nullptr;
+    }
+}
+
+  BoundsAnnotations(BoundsExpr *B, InteropTypeExpr *IT) :
+    Bounds(B), InteropType(IT) {}
+
+  BoundsExpr *getBoundsExpr() const {
+    return Bounds;
+  }
+
+  void setBounds(BoundsExpr *B) {
+    Bounds = B;
+  }
+
+  InteropTypeExpr *getInteropTypeExpr() const {
+    return InteropType;
+  }
+
+  void setInteropTypeExpr(InteropTypeExpr *IT) {
+    InteropType = IT;
+  }
+
+  bool IsEmpty() const {
+    return Bounds == nullptr && InteropType == nullptr;
+  }
+
+  /// \brief Always write data for individual elements.
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Ctx) const;
 };
 
 /// The base class of the type hierarchy.
@@ -3383,12 +3430,12 @@ public:
     ExtProtoInfo()
         : Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
           TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamAnnots(nullptr), ReturnAnnots(nullptr) {}
+          ParamAnnots(nullptr), ReturnAnnots() {}
 
     ExtProtoInfo(CallingConv CC)
         : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
           TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamAnnots(nullptr), ReturnAnnots(nullptr) {}
+          ParamAnnots(nullptr), ReturnAnnots() {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
       ExtProtoInfo Result(*this);
@@ -3404,8 +3451,8 @@ public:
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos;
-    const BoundsAnnotations *const *ParamAnnots;
-    const BoundsAnnotations *ReturnAnnots;
+    const BoundsAnnotations *ParamAnnots;
+    BoundsAnnotations ReturnAnnots;
   };
 
 private:
@@ -3445,9 +3492,8 @@ private:
   /// Whether this function has annotations for parameters.
   unsigned HasParamAnnots : 1;
 
-  // The return annotations for a function.  Null when a function has no return
-  //annotations
-  const BoundsAnnotations *const ReturnAnnots;
+  // The return annotations for a function.
+  const BoundsAnnotations ReturnAnnots;
 
   // ParamInfo - There is an variable size array after the class in memory that
   // holds the parameter types.
@@ -3510,12 +3556,12 @@ public:
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
 
-  const BoundsAnnotations *getParamAnnots(unsigned i) const {
+  const BoundsAnnotations getParamAnnots(unsigned i) const {
     assert(i < NumParams && "invalid parameter index");
+    BoundsAnnotations Result;
     if (hasParamAnnots())
-      return param_annots_begin()[i];
-    else
-      return nullptr;
+      Result = param_annots_begin()[i];
+    return Result;
   }
 
   ExtProtoInfo getExtProtoInfo() const {
@@ -3539,7 +3585,7 @@ public:
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
     EPI.ParamAnnots = hasParamAnnots() ? param_annots_begin() : nullptr;
-    EPI.ReturnAnnots = hasReturnAnnots() ? getReturnAnnots() : nullptr;
+    EPI.ReturnAnnots = getReturnAnnots();
     EPI.numTypeVars = getNumTypeVars();
     return EPI;
   }
@@ -3632,7 +3678,10 @@ public:
 
   bool hasParamAnnots() const { return HasParamAnnots; }
 
-  bool hasReturnAnnots() const { return ReturnAnnots != nullptr; }
+  bool hasReturnAnnots() const {
+    return ReturnAnnots.getBoundsExpr() != nullptr || 
+           ReturnAnnots.getInteropTypeExpr() != nullptr;
+  }
 
   /// Retrieve the ref-qualifier associated with this function type.
   RefQualifierKind getRefQualifier() const {
@@ -3653,9 +3702,9 @@ public:
   }
 
   // Checked C parameter annotation information.
-  typedef const BoundsAnnotations *const *annots_iterator;
+  typedef const BoundsAnnotations *annots_iterator;
 
-  ArrayRef<const BoundsAnnotations *const> parameter_annots() const {
+  ArrayRef<BoundsAnnotations> parameter_annots() const {
     return llvm::makeArrayRef(param_annots_begin(),
                               param_annots_end());
   }
@@ -3672,7 +3721,7 @@ public:
   }
 
   // Checked C return annotations information
-  const BoundsAnnotations *getReturnAnnots() const {
+  const BoundsAnnotations getReturnAnnots() const {
     return ReturnAnnots;
   }
 

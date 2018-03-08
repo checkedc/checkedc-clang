@@ -80,39 +80,6 @@ public:
   void overrideType(QualType T) { Ty = T; }
 };
 
-class BoundsAnnotations {
-  BoundsExpr *Bounds;
-  InteropTypeExpr *InteropType;
-
-public:
-  BoundsAnnotations() : Bounds(nullptr), InteropType(nullptr) {}
-
-  BoundsAnnotations(BoundsExpr *B) : Bounds(B), InteropType(nullptr) {}
-
-  BoundsAnnotations(BoundsExpr *B, InteropTypeExpr *IT) :
-    Bounds(B), InteropType(IT) {}
-
-  BoundsExpr *getBoundsExpr() const {
-    return Bounds;
-  }
-
-  void setBounds(BoundsExpr *B) {
-    Bounds = B;
-  }
-
-  InteropTypeExpr *getInteropTypeExpr() const {
-    return InteropType;
-  }
-
-  void setInteropTypeExpr(InteropTypeExpr *IT) {
-    InteropType = IT;
-  }
-
-  /// \brief Always write data for individual elements. If Annotations is null,
-  /// treat individual elements as being null too.
-  static void Profile(const BoundsAnnotations* Annotations,
-                      llvm::FoldingSetNodeID &ID, const ASTContext &Ctx);
-};
 
 /// TranslationUnitDecl - The top declaration context.
 class TranslationUnitDecl : public Decl, public DeclContext {
@@ -844,8 +811,9 @@ public:
     Annotations->setInteropTypeExpr(IT);
   }
 
-  void setBoundsAnnotations(BoundsAnnotations *BA) {
-    Annotations = BA;
+  void setBoundsAnnotations(ASTContext &Context, BoundsAnnotations BA) {
+    setBoundsExpr(Context, BA.getBoundsExpr());
+    setInteropTypeExpr(Context, BA.getInteropTypeExpr());
   }
 
   BoundsAnnotations *getBoundsAnnotations() const {

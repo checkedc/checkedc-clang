@@ -2913,7 +2913,7 @@ ExprResult Sema::ActOnDesignatedInitializer(Designation &Desig,
 
 InitializedEntity::InitializedEntity(ASTContext &Context, unsigned Index,
                                      const InitializedEntity &Parent)
-  : Parent(&Parent), Index(Index), Annots(nullptr)
+  : Parent(&Parent), Index(Index), Annots()
 {
   if (const ArrayType *AT = Context.getAsArrayType(Parent.getType())) {
     Kind = EK_ArrayElement;
@@ -7158,12 +7158,10 @@ InitializationSequence::Perform(Sema &S,
       QualType LHSType = Step->Type;
       QualType LHSInteropType;
       if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
-        const BoundsAnnotations *BA = Entity.getAnnots();
-        if (BA)
-          if (const InteropTypeExpr *IB = BA->getInteropTypeExpr()) {
-            bool IsParam = Entity.isParameterKind();
-            LHSInteropType = S.AdjustInteropType(IB, IsParam);
-          }
+        if (const InteropTypeExpr *IB = Entity.getAnnots().getInteropTypeExpr()) {
+          bool IsParam = Entity.isParameterKind();
+          LHSInteropType = S.AdjustInteropType(IB, IsParam);
+        }
       }
 
       Sema::AssignConvertType ConvTy =

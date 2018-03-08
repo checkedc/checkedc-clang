@@ -5963,7 +5963,7 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
       ParamTypes.push_back(readType(*Loc.F, Record, Idx));
 
     if (HasParamAnnots) {
-      SmallVector<const BoundsAnnotations *, 16> ParamAnnots;
+      SmallVector<BoundsAnnotations, 16> ParamAnnots;
       for (unsigned I = 0; I != NumParams; ++I) {
         ParamAnnots.push_back(ReadBoundsAnnotations(*Loc.F));
       }
