@@ -4129,7 +4129,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
           // If there is no interop type, try synthesizing one implied by the
           // presence of a bounds expression.
           if (!IT && FD.BoundsExprTokens)
-            IT = Actions.SynthesizeInteropType(Field->getType(), false);
+            IT = Actions.SynthesizeInteropTypeExpr(Field->getType(), false);
 
           if (IT) {
             BoundsAnnotations Annots(nullptr, IT);
@@ -6692,7 +6692,7 @@ void Parser::ParseParameterDeclarationClause(
               // If an interop type expression doesn't exist, try synthesizing
               // one implied by the presence of a bounds expression.
               if (!Annots.getInteropTypeExpr()) {
-                InteropTypeExpr *IT = Actions.SynthesizeInteropType(Param->getType(), true);
+                InteropTypeExpr *IT = Actions.SynthesizeInteropTypeExpr(Param->getType(), true);
                 Annots.setInteropTypeExpr(IT);
               }
             }

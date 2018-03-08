@@ -12866,7 +12866,7 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
   // Synthesize the interop type if necessary. We need to do this for the
   // non-deferred case of parsing bounds expressions.
   if (BoundsExpr && !IType)
-    IType = SynthesizeInteropType(Ty, isa<ParmVarDecl>(D));
+    IType = SynthesizeInteropTypeExpr(Ty, isa<ParmVarDecl>(D));
 
   // If this is a VarDecl, handle already existing annotations from a prior
   // declaration, if there is a prior declaration.
@@ -12920,10 +12920,10 @@ BoundsExpr *Sema::CreateInvalidBoundsExpr() {
     return nullptr;
 }
 
-InteropTypeExpr *Sema::SynthesizeInteropType(QualType Ty,
+InteropTypeExpr *Sema::SynthesizeInteropTypeExpr(QualType Ty,
                                              bool IsParam) {
   InteropTypeExpr *InteropType = nullptr;
-  QualType BoundsSafeInterfaceType = CreateCheckedCInteropType(Ty, IsParam);
+  QualType BoundsSafeInterfaceType = SynthesizeInteropType(Ty, IsParam);
   if (!BoundsSafeInterfaceType.isNull()) {
     TypeSourceInfo *DI = getASTContext().getTrivialTypeSourceInfo(BoundsSafeInterfaceType);
     ExprResult R = CreateBoundsInteropType(SourceLocation(), DI, SourceLocation());

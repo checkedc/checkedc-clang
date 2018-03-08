@@ -4684,7 +4684,7 @@ public:
   /// /brief Synthesize the interop type expression implied by the presence
   /// of a bounds expression.  Ty is the original unchecked type.  Returns null
   // if none exists.
-  InteropTypeExpr *SynthesizeInteropType(QualType Ty, bool IsParam);
+  InteropTypeExpr *SynthesizeInteropTypeExpr(QualType Ty, bool IsParam);
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
   /// CheckNonModifying - checks whether an expression is non-modifying
@@ -9726,8 +9726,9 @@ public:
 
 public:
   /// \brief: Given a value with type Ty that has a bounds declaration,
-  /// compute the bounds-safe interface type.
-  QualType CreateCheckedCInteropType(QualType Ty, bool isParam);
+  /// compute the bounds-safe interface type.  Returns a null QualType
+  /// if nnoe exists.
+  QualType SynthesizeInteropType(QualType Ty, bool isParam);
 
   /// Rewrite function types with bounds-safe interfaces on unchecked
   /// types to use the checked types specified by the interfaces.  Recursively
@@ -9738,6 +9739,9 @@ public:
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
 
+  /// \brief Given an InteropTypeExpr pointer, return the interop type.
+  /// Adjust the type if the type is for a parameter.  Return a null QualType
+  /// if the pointer is null.
   QualType AdjustInteropType(const InteropTypeExpr *BA, bool IsParam);
 
   /// \brief If T is an array type, create a checked array type version of T.

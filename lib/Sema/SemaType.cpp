@@ -4833,7 +4833,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         // If there is no interop type, try synthesizing one implied by the
         // presence of a bounds expression.
         if (!ReturnAnnots.getInteropTypeExpr() && ReturnAnnots.getBoundsExpr())
-          ReturnAnnots.setInteropTypeExpr(S.SynthesizeInteropType(T, false));
+          ReturnAnnots.setInteropTypeExpr(S.SynthesizeInteropTypeExpr(T, false));
 
         if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnots, true))
           D.setInvalidType(true);

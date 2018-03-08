@@ -20,7 +20,7 @@ using namespace sema;
 /// \brief Create the corresponding Checked C interop type for Ty, given a
 /// a bounds expression Bounds.  Returns the empty type if no interop
 /// type exists.
-QualType Sema::CreateCheckedCInteropType(QualType Ty,
+QualType Sema::SynthesizeInteropType(QualType Ty,
                                          bool isParam) {
   // Nothing to do.
   if (Ty.isNull() || Ty->isCheckedArrayType() ||
