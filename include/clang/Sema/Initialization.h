@@ -235,7 +235,7 @@ public:
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                const ParmVarDecl *Parm,
                                                QualType Type,
-                                               const BoundsAnnotations *Annots) {
+                         const BoundsAnnotations Annots = BoundsAnnotations()) {
     bool Consumed = (Context.getLangOpts().ObjCAutoRefCount &&
                      Parm->hasAttr<NSConsumedAttr>());
 
@@ -246,10 +246,7 @@ public:
     Entity.Parent = nullptr;
     Entity.Parameter
       = (static_cast<uintptr_t>(Consumed) | reinterpret_cast<uintptr_t>(Parm));
-    if (Annots)
-      Entity.Annots = *Annots;
-    else
-      Entity.Annots = BoundsAnnotations();
+    Entity.Annots = Annots;
     return Entity;
   }
 
@@ -258,14 +255,11 @@ public:
   static InitializedEntity InitializeParameter(ASTContext &Context,
                                                QualType Type,
                                                bool Consumed,
-                                   const BoundsAnnotations *Annots = nullptr) {
+                         const BoundsAnnotations Annots = BoundsAnnotations()) {
     InitializedEntity Entity;
     Entity.Kind = EK_Parameter;
     Entity.Type = Context.getVariableArrayDecayedType(Type);
-    if (Annots)
-      Entity.Annots = *Annots;
-    else
-      Entity.Annots = BoundsAnnotations();
+    Entity.Annots = Annots;
     Entity.Parent = nullptr;
     Entity.Parameter = (Consumed);
     return Entity;
@@ -274,7 +268,7 @@ public:
   /// \brief Create the initialization entity for the result of a function.
   static InitializedEntity InitializeResult(SourceLocation ReturnLoc,
                                             QualType Type, bool NRVO,
-                                          const BoundsAnnotations Annots = BoundsAnnotations()) {
+                         const BoundsAnnotations Annots = BoundsAnnotations()) {
     return InitializedEntity(EK_Result, ReturnLoc, Type, NRVO, Annots);
   }
 

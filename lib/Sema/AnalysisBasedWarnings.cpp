@@ -599,7 +599,7 @@ struct CheckFallThroughDiagnostics {
     // * The function body is a checked scope.
     if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(Func)) {
       bool isCheckedReturn = FD->getReturnType()->isCheckedPointerType();
-      bool hasReturnAnnots = FD->getBoundsAnnotations() != nullptr;
+      bool hasReturnAnnots = FD->hasBoundsAnnotations();
       CompoundStmt *CS = dyn_cast_or_null<CompoundStmt>(FD->getBody());
       bool isCheckedFunction = CS && CS->isChecked();
       if (isCheckedReturn) {

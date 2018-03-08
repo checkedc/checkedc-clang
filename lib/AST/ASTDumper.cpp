@@ -235,7 +235,7 @@ namespace  {
     void dumpDeclContext(const DeclContext *DC);
     void dumpLookups(const DeclContext *DC, bool DumpDecls);
     void dumpAttr(const Attr *A);
-    void dumpBoundsAnnotations(BoundsAnnotations *BA);
+    void dumpBoundsAnnotations(BoundsAnnotations BA);
 
     // C++ Utilities
     void dumpAccessSpecifier(AccessSpecifier AS);
@@ -339,23 +339,20 @@ namespace  {
       // FIXME: Consumed parameters.
       VisitFunctionType(T);
       unsigned numParams = T->getNumParams();
-      bool hasBounds = T->hasParamAnnots();
       for (unsigned i = 0; i < numParams; i++) {
         QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
-        if (hasBounds) {
-          const BoundsAnnotations Annots = T->getParamAnnots(i);
-          if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
-            dumpChild([=] {
-              OS << "Bounds";
-              dumpStmt(Bounds);
-            });
-          if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
-            dumpChild([=] {
-              OS << "InteropType";
-              dumpStmt(IT);
-            });
-          }
+        const BoundsAnnotations Annots = T->getParamAnnots(i);
+        if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
+          dumpChild([=] {
+            OS << "Bounds";
+            dumpStmt(Bounds);
+          });
+        if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
+          dumpChild([=] {
+            OS << "InteropType";
+            dumpStmt(IT);
+          });
       }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
@@ -907,14 +904,11 @@ void ASTDumper::dumpAttr(const Attr *A) {
   });
 }
 
-void ASTDumper::dumpBoundsAnnotations(BoundsAnnotations *BA) {
-  if (!BA)
-    return;
-
-  if (const BoundsExpr *Bounds = BA->getBoundsExpr())
+void ASTDumper::dumpBoundsAnnotations(BoundsAnnotations BA) {
+  if (const BoundsExpr *Bounds = BA.getBoundsExpr())
     dumpStmt(Bounds);
 
-  if (const InteropTypeExpr *IT = BA->getInteropTypeExpr())
+  if (const InteropTypeExpr *IT = BA.getInteropTypeExpr())
     dumpStmt(IT);
 }
 

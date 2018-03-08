@@ -1317,16 +1317,6 @@ public:
 
   BoundsAnnotations(BoundsExpr *B) : Bounds(B), InteropType(nullptr) {}
 
-  BoundsAnnotations(BoundsAnnotations *BA) {
-    if (BA) {
-      Bounds = BA->Bounds;
-      InteropType = BA->InteropType;
-    } else {
-      Bounds = nullptr;
-      InteropType = nullptr;
-    }
-}
-
   BoundsAnnotations(BoundsExpr *B, InteropTypeExpr *IT) :
     Bounds(B), InteropType(IT) {}
 
@@ -3498,7 +3488,7 @@ private:
   // ParamInfo - There is an variable size array after the class in memory that
   // holds the parameter types.
 
-  // ParamAnnots - A variable size array after ParamInfo that holds the 
+  // ParamAnnots - A variable size array after ParamInfo that holds the
   // annotations for parameters.  A nullptr is stored if a parameter has no
   // annotations.
 
@@ -3679,7 +3669,7 @@ public:
   bool hasParamAnnots() const { return HasParamAnnots; }
 
   bool hasReturnAnnots() const {
-    return ReturnAnnots.getBoundsExpr() != nullptr || 
+    return ReturnAnnots.getBoundsExpr() != nullptr ||
            ReturnAnnots.getInteropTypeExpr() != nullptr;
   }
 

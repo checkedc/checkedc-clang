@@ -2929,9 +2929,9 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
   return ExprError();
 }
 
-// Parse bouns annotations, which are an optional bounds expression and
-// and an optiona interop type.  At least one of the two must appear.
-// The bounds expressions may be optionally be deferred parsed.  This is done
+// Parse bounds annotations, which are an optional bounds expression and
+// and an optional interop type.  At least one of the two must appear.
+// The bounds expressions may optionally be deferred parsed.  This is done
 // when DeferredToks is non-null.
 //
 // Return true if there is an error, false if there is no error.   The
@@ -2956,7 +2956,7 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
   bool parsedDeferredBounds = false;
 
   while (StartsBoundsExpression(Tok) ||
-         StartsInteropTypeAnnotation(Tok)) {          
+         StartsInteropTypeAnnotation(Tok)) {
     parsedSomething = true;
     if (StartsBoundsExpression(Tok)) {
       if (DeferredToks) {

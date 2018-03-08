@@ -18,11 +18,8 @@ using namespace clang;
 using namespace sema;
 
 /// \brief Create the corresponding Checked C interop type for Ty, given a
-/// a bounds expression Bounds.
-///
-/// The checked type should be an _Array_ptr type or checked Array type.  
-/// Constructthe appropriate type from the unchecked type for the declaration
-/// and return it.
+/// a bounds expression Bounds.  Returns the empty type if no interop
+/// type exists.
 QualType Sema::CreateCheckedCInteropType(QualType Ty,
                                          bool isParam) {
   // Nothing to do.
@@ -183,7 +180,7 @@ public:
           // Construct new annotations that do not have the bounds-safe interface type.
           if (Bounds) {
             EPI.ReturnAnnots = BoundsAnnotations(Bounds, nullptr);
-          } else 
+          } else
             EPI.ReturnAnnots = BoundsAnnotations();
           EPIChanged = true;
         }
@@ -196,7 +193,7 @@ public:
       bool hasParamAnnots = false;
       for (unsigned int i = 0; i < ParamTypes.size(); i++) {
         BoundsAnnotations IndividualAnnots = ParamAnnots[i];
-        if (ParamTypes[i]->isUncheckedPointerType() && 
+        if (ParamTypes[i]->isUncheckedPointerType() &&
             IndividualAnnots.getInteropTypeExpr()) {
           InteropTypeExpr *IT = IndividualAnnots.getInteropTypeExpr();
           QualType ParamType = IT->getType();
@@ -217,10 +214,8 @@ public:
           ParamTypes[i] = ParamType;
           // Remove the interop type annotation.
           BoundsExpr *Bounds = IndividualAnnots.getBoundsExpr();
-          if (IT->getType()->isCheckedArrayType()) {
-            assert(!Bounds);              
+          if (IT->getType()->isCheckedArrayType() && !Bounds)    
             Bounds = SemaRef.CreateCountForArrayType(IT->getType());
-          }
           if (Bounds) {
             hasParamAnnots = true;
             ParamAnnots[i] = BoundsAnnotations(Bounds, nullptr);

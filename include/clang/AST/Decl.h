@@ -816,12 +816,17 @@ public:
     setInteropTypeExpr(Context, BA.getInteropTypeExpr());
   }
 
-  BoundsAnnotations *getBoundsAnnotations() const {
-    return Annotations;
+  BoundsAnnotations getBoundsAnnotations() const {
+    if (Annotations)
+      return *Annotations;
+    else {
+      BoundsAnnotations Empty;
+      return Empty;
+    }
   }
 
   bool hasBoundsAnnotations() const {
-    return Annotations != nullptr;
+    return Annotations != nullptr && !(Annotations->IsEmpty());
   }
 };
 

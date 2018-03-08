@@ -4792,13 +4792,11 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           }
 
           // Record parameter bounds for Checked C extension.  When the
-          // Checked C extension is not enabled, the BoundsAnnotations
-          // pointer return by getBoundsAnnotations will always be null
-          // and HasAnyParameterAnnots will always be false.
-          BoundsAnnotations Annots;
-          if (Param->getBoundsAnnotations()) {
+          // Checked C extension is not enabled, the annotations will
+          // always be empty and HasAnyParameterAnnots will always be false.
+          BoundsAnnotations Annots = Param->getBoundsAnnotations();
+          if (!Annots.IsEmpty()) {
             HasAnyParameterAnnots = true;
-            Annots = *(Param->getBoundsAnnotations());
             S.AbstractForFunctionType(Annots, ParamInfo);
           }
           ParamAnnots.push_back(Annots);

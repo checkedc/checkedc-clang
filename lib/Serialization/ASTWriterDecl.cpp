@@ -505,10 +505,10 @@ void ASTDeclWriter::VisitDeclaratorDecl(DeclaratorDecl *D) {
   VisitValueDecl(D);
   Record.AddSourceLocation(D->getInnerLocStart());
 
-  bool hasBoundsAnnotations = D->getBoundsAnnotations();
+  bool hasBoundsAnnotations = D->hasBoundsAnnotations();
   Record.push_back(hasBoundsAnnotations);
   if (hasBoundsAnnotations)
-    Record.AddBoundsAnnotations(*(D->getBoundsAnnotations()));
+    Record.AddBoundsAnnotations(D->getBoundsAnnotations());
 
   Record.push_back(D->hasExtInfo());
   if (D->hasExtInfo())

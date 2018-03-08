@@ -1789,7 +1789,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
     if (!DD)
       llvm_unreachable("unexpected DeclRef in checked scope");
-    return ConvertToFullyCheckedType(E, DD->getInteropTypeExpr(), 
+    return ConvertToFullyCheckedType(E, DD->getInteropTypeExpr(),
                                      isa<ParmVarDecl>(D), VK);
   }
 
@@ -5000,10 +5000,10 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
       InitializedEntity Entity =
           Param ? InitializedEntity::InitializeParameter(Context, Param,
                                                          ProtoArgType,
-                                                         &Annots)
+                                                         Annots)
                 : InitializedEntity::InitializeParameter(
                       Context, ProtoArgType, Proto->isParamConsumed(i),
-                      &Annots);
+                      Annots);
 
       // Remember that parameter belongs to a CF audited API.
       if (CFAudited)
@@ -5719,7 +5719,7 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
         BoundsAnnotations Annots = Proto->getParamAnnots(i);
         InitializedEntity Entity = InitializedEntity::InitializeParameter(
             Context, Proto->getParamType(i), Proto->isParamConsumed(i),
-            &Annots);
+            Annots);
         ExprResult ArgE =
             PerformCopyInitialization(Entity, SourceLocation(), Arg);
         if (ArgE.isInvalid())

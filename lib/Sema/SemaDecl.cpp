@@ -11348,6 +11348,8 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
         !isa<ParmVarDecl>(Var)) {
       QualType Ty = Var->getType();
       BoundsExpr *B = Var->getBoundsExpr();
+      // If an interop type expression is available, use it.  That
+      // means that Var type itself is 
       if (getCurScope()->isCheckedScope() && Var->hasInteropTypeExpr())
         Ty = Var->getInteropType();
 
@@ -12861,19 +12863,16 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
     IType = D->getInteropTypeExpr();
   }
 
-  // Synthesize the interop type if necessary. We need to do this for the 
+  // Synthesize the interop type if necessary. We need to do this for the
   // non-deferred case of parsing bounds expressions.
-  if (BoundsExpr && !IType) {
+  if (BoundsExpr && !IType)
     IType = SynthesizeInteropType(Ty, isa<ParmVarDecl>(D));
-  }
 
   // If this is a VarDecl, handle already existing annotations from a prior
   // declaration, if there is a prior declaration.
   if (VD) {
     if (VarDecl *Old = VD->getPreviousDecl()) {
-      BoundsAnnotations OldAnnots;
-      if (Old->getBoundsAnnotations()) 
-        OldAnnots = *(Old->getBoundsAnnotations());
+      BoundsAnnotations OldAnnots = Old->getBoundsAnnotations();
       BoundsAnnotations NewAnnots(BoundsExpr, IType);
       SourceLocation BoundsLoc = BoundsExpr ? BoundsExpr->getStartLoc() : SourceLocation();
       SourceLocation InteropLoc = IType ? IType->getStartLoc() : SourceLocation();

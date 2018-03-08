@@ -9038,7 +9038,7 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
          QualType FieldType = FieldDecl->getType();
          if (isNotAllowedForNoPrototypeFunction(FieldType))
            return true;
-         if (FieldDecl->getBoundsAnnotations() &&
+         if (!FieldDecl->getBoundsAnnotations().IsEmpty() &&
              !FieldType->isUncheckedPointerType())
            return true;
        }
