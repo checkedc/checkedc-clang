@@ -2960,16 +2960,20 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
     parsedSomething = true;
     if (StartsBoundsExpression(Tok)) {
       if (DeferredToks) {
-        if (parsedDeferredBounds) {
-           Diag(Tok, diag::err_single_bounds_expr_allowed);
-           Error = true;
-        }
         bool ParsingError = !ConsumeAndStoreBoundsExpression(**DeferredToks);
+        int startPosition = (**DeferredToks).size();
         if (ParsingError) {
           Error = true;
           SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
         }
-        parsedDeferredBounds = true;
+        if (parsedDeferredBounds) {
+           // If we've alrady parsed a bounds expression, issue a diagnostic
+           // message and discard the newly-parsed tokens.
+           Diag(Tok, diag::err_single_bounds_expr_allowed);
+           Error = true;
+           (**DeferredToks).set_size(startPosition);
+        } else
+          parsedDeferredBounds = true;
       } else {
         ExprResult ER = ParseBoundsExpression();
         if (StartsRelativeBoundsClause(Tok))

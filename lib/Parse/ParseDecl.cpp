@@ -1970,7 +1970,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
           if (lastChunk.Kind == DeclaratorChunk::Function) {
             BoundsExpr *ReturnBounds = lastChunk.Fun.ReturnBounds;
-            if (ReturnBounds->isInvalid()) {
+            if (ReturnBounds && ReturnBounds->isInvalid()) {
               // TODO: this skips too much of there are separate
               // K&R style declarations of argument types.
               SkipUntil(tok::l_brace,
@@ -4115,10 +4115,6 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
         FieldDecls.push_back(Field);
         FD.complete(Field);
 
-        if (FD.BoundsExprTokens != nullptr)
-          deferredBoundsExpressions.emplace_back(Field,
-            std::move(FD.BoundsExprTokens));
-
         if (!FD.InteropType && !FD.BoundsExprTokens)
           // Set default bounds annotations.
           Actions.ActOnEmptyBoundsDecl(Field);
@@ -4136,6 +4132,10 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
             Actions.ActOnBoundsDecl(Field, Annots);
           }
         }
+
+        if (FD.BoundsExprTokens != nullptr)
+          deferredBoundsExpressions.emplace_back(Field,
+            std::move(FD.BoundsExprTokens));
       };
 
       // Parse all the comma separated declarators.
