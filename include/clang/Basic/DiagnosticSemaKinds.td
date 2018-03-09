@@ -9485,6 +9485,9 @@ def err_typecheck_bounds_type_annotation_incompatible : Error<
   "%diff{$ and declared type $|"
   "and declared type}0,1">;
 
+ def err_typecheck_interface_type_bounds_incompatible : Error<
+   "cannot declare bounds with a _Ptr interface type">;
+
 def err_typecheck_bounds_type_annotation_must_be_checked_type : Error<
   "type must be a checked type">;
 

@@ -12754,6 +12754,19 @@ bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
     if (D) D->setInvalidDecl();
   }
 
+  if (IType && BE && !BE->isInvalid() && (!D || !D->isInvalidDecl())) {
+     QualType QT = IType->getType();
+     if (!QT.isNull() && QT->isCheckedPointerPtrType()) {
+       isError = true;
+       if (D) {
+         Diag(BE->getLocStart(),
+              diag::err_typecheck_interface_type_bounds_incompatible) << D;
+         D->setInvalidDecl();
+       } else
+         Diag(BE->getLocStart(),
+              diag::err_typecheck_interface_type_bounds_incompatible);
+      }
+  }
   return isError;
 }
 
@@ -12836,10 +12849,6 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
     }
   }
 
-  if (DiagnoseBoundsDeclType(Ty, D, Annots, /*IsReturnAnnots=*/false)) {
-    return;
-  }
-
   // If a declaration has no declared bounds, set the default bounds for types
   // that have default bounds other than bounds(unknown),
   if (!BoundsExpr) {
@@ -12868,12 +12877,16 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
   if (BoundsExpr && !IType)
     IType = SynthesizeInteropTypeExpr(Ty, isa<ParmVarDecl>(D));
 
+  BoundsAnnotations NewAnnots(BoundsExpr, IType);
+  if (DiagnoseBoundsDeclType(Ty, D, NewAnnots, /*IsReturnAnnots=*/false)) {
+    return;
+  }
+
   // If this is a VarDecl, handle already existing annotations from a prior
   // declaration, if there is a prior declaration.
   if (VD) {
     if (VarDecl *Old = VD->getPreviousDecl()) {
       BoundsAnnotations OldAnnots = Old->getBoundsAnnotations();
-      BoundsAnnotations NewAnnots(BoundsExpr, IType);
       SourceLocation BoundsLoc = BoundsExpr ? BoundsExpr->getStartLoc() : SourceLocation();
       SourceLocation InteropLoc = IType ? IType->getStartLoc() : SourceLocation();
       if (diagnoseBoundsError(*this, BoundsLoc, InteropLoc, OldAnnots, NewAnnots,
