@@ -15,11 +15,11 @@ void mut(int *a, int b) {
   *a += b;
 }
 
-/*void bad_ctx(void) {
+void bad_ctx(void) {
   mut((int*)0x8001000, 1);
 }
 
 void good_ctx(void) {
   int u = 0;
   mut(&u, 1);
-}*/
+}

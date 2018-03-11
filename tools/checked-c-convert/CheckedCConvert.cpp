@@ -318,10 +318,13 @@ void rewrite( VarDecl               *VD,
 // source file for this transformation. toRewrite contains the set of
 // declarations to rewrite. S is passed for source-level information
 // about the current compilation unit.
-void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
-             ASTContext &A, std::set<FileID> &Files) {
-  std::set<DAndReplace> skip;
-
+void rewrite( Rewriter              &R, 
+              std::set<DAndReplace> &toRewrite, 
+              std::set<DAndReplace> &skip,
+              SourceManager         &S,
+              ASTContext            &A, 
+              std::set<FileID>      &Files) 
+{
   for (const auto &N : toRewrite) {
     DeclNStmt DN = N.first;
     Decl *D = DN.first;
@@ -656,6 +659,7 @@ public:
     std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> PSLMap;
     VariableDecltoStmtMap VDLToStmtMap;
 
+    std::set<DAndReplace> skip;
     MappingVisitor V(keys, Context);
     TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
     for (const auto &D : TUD->decls())
@@ -720,7 +724,7 @@ public:
       }
     }
 
-    rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
+    rewrite(R, rewriteThese, skip, Context.getSourceManager(), Context, Files);
 
     // Output files.
     emit(R, Context, Files, InOutFiles);
