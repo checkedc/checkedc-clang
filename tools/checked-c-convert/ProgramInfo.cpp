@@ -380,8 +380,12 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
     for (unsigned i = 0; i < FT->getNumParams(); i++) {
       QualType QT = FT->getParamType(i);
 
-      if (InteropTypeExpr *BA =  FT->getParamAnnots(i).getInteropTypeExpr())
-        QT = BA->getType();
+      if (InteropTypeExpr *BA =  FT->getParamAnnots(i).getInteropTypeExpr()) {
+        QualType InteropType= Ctx.getInteropTypeAndAdjust(BA, true);
+        // TODO: handle array_ptr types.
+        if (InteropType->isCheckedPointerPtrType())
+          QT = InteropType;
+      }
 
       std::string paramName = "";
       DeclaratorDecl *tmpD = D;
@@ -398,8 +402,12 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       paramVars.push_back(C);
     }
 
-    if (InteropTypeExpr *BA = FT->getReturnAnnots().getInteropTypeExpr())
-      returnType = BA->getType();
+    if (InteropTypeExpr *BA = FT->getReturnAnnots().getInteropTypeExpr()) {
+      QualType InteropType = Ctx.getInteropTypeAndAdjust(BA, false);
+      // TODO: handle array_ptr types.
+      if (InteropType->isCheckedPointerPtrType())
+        returnType = InteropType;
+    }
     hasproto = true;
   } else if (Ty->isFunctionNoProtoType()) {
     const FunctionNoProtoType *FT = Ty->getAs<FunctionNoProtoType>();

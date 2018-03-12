@@ -2524,6 +2524,10 @@ public:
   BoundsExpr *getPrebuiltCountOne();
   BoundsExpr *getPrebuiltBoundsUnknown();
 
+  /// \brief Given an InteropTypeExpr pointer, return the interop type.
+  /// Adjust the type if the type is for a parameter.  Return a null QualType
+  /// if the pointer is null.
+  QualType getInteropTypeAndAdjust(const InteropTypeExpr *BA, bool IsParam) const;
 
   //===--------------------------------------------------------------------===//
   //                    Integer Predicates

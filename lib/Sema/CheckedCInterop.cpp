@@ -61,17 +61,6 @@ QualType Sema::SynthesizeInteropType(QualType Ty,
   return ResultType;
 }
 
-/// \brief Return the interop type for BA.  Adjust it if necessary for
-/// parameters, where the interop type could be an array type.  If BA
-/// is nul, return an empty qualified type.
-QualType Sema::AdjustInteropType(const InteropTypeExpr *BA, bool IsParam) {
-  if (!BA) return QualType();
-  QualType ResultType = BA->getType();
-  if (IsParam && !ResultType.isNull() && ResultType->isArrayType())
-    ResultType = Context.getAdjustedParameterType(ResultType);
-  return ResultType;
-}
-
 // Transform function types that have parameters or returns with bounds
 // or bounds-safe interface types to ones that have checked types for
 // those parameters or returns. The checked types are determined based

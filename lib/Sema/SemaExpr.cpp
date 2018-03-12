@@ -1804,7 +1804,7 @@ ExprResult Sema::ConvertToFullyCheckedType(Expr *E,
   QualType Ty = E->getType();
   QualType CheckedTy;
   if (BA != nullptr)
-    CheckedTy = AdjustInteropType(BA, IsParamUse);
+    CheckedTy = Context.getInteropTypeAndAdjust(BA, IsParamUse);
   else
     CheckedTy = Ty;
   CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
@@ -8490,7 +8490,7 @@ QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
   }
 
   if (D)
-    return AdjustInteropType(D->getInteropTypeExpr(), IsParam);
+    return Context.getInteropTypeAndAdjust(D->getInteropTypeExpr(), IsParam);
   else
     return QualType();
 }

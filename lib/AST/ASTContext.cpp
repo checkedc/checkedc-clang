@@ -9140,6 +9140,14 @@ BoundsExpr *ASTContext::getPrebuiltBoundsUnknown() {
   return PrebuiltBoundsUnknown;
 }
 
+ QualType ASTContext::getInteropTypeAndAdjust(const InteropTypeExpr *BA, bool IsParam) const {
+  if (!BA) return QualType();
+  QualType ResultType = BA->getType();
+  if (IsParam && !ResultType.isNull() && ResultType->isArrayType())
+    ResultType = getAdjustedParameterType(ResultType);
+  return ResultType;
+}
+
 //===----------------------------------------------------------------------===//
 //                         Integer Predicates
 //===----------------------------------------------------------------------===//

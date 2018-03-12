@@ -9745,11 +9745,6 @@ public:
   /// Returns a null QualType if there isn't one.
   QualType GetCheckedCInteropType(ExprResult LHS);
 
-  /// \brief Given an InteropTypeExpr pointer, return the interop type.
-  /// Adjust the type if the type is for a parameter.  Return a null QualType
-  /// if the pointer is null.
-  QualType AdjustInteropType(const InteropTypeExpr *BA, bool IsParam);
-
   /// \brief If T is an array type, create a checked array type version of T.
   /// This includes propagating the checked property to nested array types. If
   /// a valid checked array type cannot be constructed and Diagnose is true,

@@ -7160,7 +7160,7 @@ InitializationSequence::Perform(Sema &S,
       if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
         if (const InteropTypeExpr *IB = Entity.getAnnots().getInteropTypeExpr()) {
           bool IsParam = Entity.isParameterKind();
-          LHSInteropType = S.AdjustInteropType(IB, IsParam);
+          LHSInteropType = S.Context.getInteropTypeAndAdjust(IB, IsParam);
         }
       }
 

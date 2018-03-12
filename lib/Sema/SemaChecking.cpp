@@ -11936,7 +11936,7 @@ bool Sema::AllowedInCheckedScope(QualType Ty,
     // Any interop type annotation must be "at least as checked" as the
     // original type, so use that instead.
     if (InteropType) {
-      Ty = AdjustInteropType(InteropType, IsParam);
+      Ty = Context.getInteropTypeAndAdjust(InteropType, IsParam);
       Loc = CSTL_BoundsSafeInterface;
       if (!(Ty->isPointerType() || Ty->isArrayType())) {
         llvm_unreachable("unexpected interop type");
