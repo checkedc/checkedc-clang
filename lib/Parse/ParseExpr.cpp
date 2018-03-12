@@ -3018,7 +3018,7 @@ bool Parser::ParseBoundsAnnotations(const Declarator &D,
   if (DeferredToks)
     assert(!Bounds);
 
-  Result.setBounds(Bounds);
+  Result.setBoundsExpr(Bounds);
   Result.setInteropTypeExpr(InteropType);
 
   return Error;

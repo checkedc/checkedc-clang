@@ -2490,6 +2490,13 @@ public:
     CCBE_Variable
   };
 
+ // used for %select in diagnostics for errors involving redeclarations
+ // with bounds annotations.
+  enum class BoundsAnnotationKind {
+    Bounds,
+    IType
+  };
+
   CheckedTypeClassification classifyForCheckedTypeDiagnostic(QualType qt);
 
   // AssignmentAction - This is used by all the assignment diagnostic functions
@@ -4599,10 +4606,9 @@ public:
 
   ExprResult ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
                                     SourceLocation RParenLoc);
-  ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc,
-                                     TypeSourceInfo *TInfo,
-                                     SourceLocation RParenLoc);
-  ExprResult CreateBoundsInteropType(QualType QT);
+  ExprResult CreateBoundsInteropTypeExpr(SourceLocation TypeKWLoc,
+                                        TypeSourceInfo *TInfo,
+                                        SourceLocation RParenLoc);
 
 
   ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
@@ -4660,8 +4666,8 @@ public:
                               BoundsAnnotations &BA, bool IsReturnAnnots);
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
                        bool MergeDeferredBounds = false);
-  void ActOnEmptyBoundsDecl(DeclaratorDecl *D);
 
+  void ActOnEmptyBoundsDecl(DeclaratorDecl *D);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
 
   // \#pragma BOUNDS_CHECKED.

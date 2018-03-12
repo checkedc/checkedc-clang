@@ -232,7 +232,7 @@ bool Sema::AbstractForFunctionType(
   if (Result == Expr)
     return false;
 
-  Annots.setBounds(Result);
+  Annots.setBoundsExpr(Result);
   return true;
 }
 
@@ -2855,6 +2855,21 @@ bool Sema::CheckIsNonModifying(Expr *E, NonModifyingContext Req,
 
   return Checker.isNonModifyingExpr();
 }
+
+/* Will uncomment this in a future pull request.
+bool Sema::CheckIsNonModifying(BoundsExpr *E, bool ReportError) {
+  NonModifyingContext req = NMC_Unknown;
+  if (isa<RangeBoundsExpr>(E))
+    req = NMC_Range;
+  else if (const CountBoundsExpr *CountBounds = dyn_cast<CountBoundsExpr>(E))
+    req = CountBounds->isByteCount() ? NMC_Byte_Count : NMC_Count;
+
+  NonModifiyingExprSema Checker(*this, Req, ReportError);
+  Checker.TraverseStmt(E);
+
+  return Checker.isNonModifyingExpr();
+}
+*/
 
 void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
   bool ConditionConstant;

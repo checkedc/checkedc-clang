@@ -13435,23 +13435,17 @@ ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
                                         SourceLocation RParenLoc) {
   TypeSourceInfo *TInfo = nullptr;
   GetTypeFromParser(Ty, &TInfo);
-  return CreateBoundsInteropType(TypeKWLoc, TInfo, RParenLoc);
+  return CreateBoundsInteropTypeExpr(TypeKWLoc, TInfo, RParenLoc);
 }
 
 
-ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
-                                         SourceLocation RParenLoc) {
+ExprResult Sema::CreateBoundsInteropTypeExpr(SourceLocation TypeKWLoc,
+                                             TypeSourceInfo *TInfo,
+                                             SourceLocation RParenLoc) {
   QualType QT = TInfo->getType();
   return new (Context) InteropTypeExpr(QT, TypeKWLoc, RParenLoc,
                                                    TInfo);
 }
-
-ExprResult Sema::CreateBoundsInteropType(QualType QT) {
-  TypeSourceInfo *TInfo = Context.getTrivialTypeSourceInfo(QT);
-  return new (Context) InteropTypeExpr(QT, SourceLocation(), SourceLocation(),
-                                                   TInfo);
-}
-
 ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
   return new (Context) PositionalParameterExpr(Index, QT);
 }

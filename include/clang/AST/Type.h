@@ -1324,7 +1324,7 @@ public:
     return Bounds;
   }
 
-  void setBounds(BoundsExpr *B) {
+  void setBoundsExpr(BoundsExpr *B) {
     Bounds = B;
   }
 

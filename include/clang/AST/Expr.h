@@ -5359,10 +5359,13 @@ public:
     : Expr(InteropTypeExprClass, Ty, VK_RValue, OK_Ordinary, false,
            false, false, false), StartLoc(StartLoc), EndLoc(EndLoc),
            TIInfo(TyAsWritten) {
+    setCompilerGenerated(false);
   }
 
   explicit InteropTypeExpr(EmptyShell Empty)
-    :Expr(InteropTypeExprClass, Empty), TIInfo(nullptr) {}
+    :Expr(InteropTypeExprClass, Empty), TIInfo(nullptr) {
+    setCompilerGenerated(false);
+  }
 
   SourceLocation getStartLoc() const { return StartLoc; }
   SourceLocation getEndLoc() const { return EndLoc; }
@@ -5378,6 +5381,15 @@ public:
   /// getTypeAsWritten - Returns the type that this expression is
   /// casting to, as written in the source code.
   QualType getTypeAsWritten() const { return TIInfo->getType(); }
+
+  bool isCompilerGenerated() const {
+    return InteropTypeExprBits.IsCompilerGenerated;
+  }
+
+  void setCompilerGenerated(bool IsGenerated) {
+    InteropTypeExprBits.IsCompilerGenerated = IsGenerated;
+  }
+
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == InteropTypeExprClass;

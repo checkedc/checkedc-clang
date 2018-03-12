@@ -768,7 +768,7 @@ public:
       return;
     if (!Annotations)
       Annotations = new (Context) BoundsAnnotations();
-    Annotations->setBounds(E);
+    Annotations->setBoundsExpr(E);
   }
 
   /// \brief The Checked C interop type declared or inferred for this

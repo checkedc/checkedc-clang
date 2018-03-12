@@ -9512,23 +9512,23 @@ def err_bounds_type_annotation_lost_checking : Error<
    "cannot redeclare a function that has a checked argument or argument "
    "bounds to have no prototype">;
 
- def note_previous_bounds_decl : Note<"previous bounds declaration is here">;
+ def note_previous_bounds_decl : Note<"previous %select{bounds|interop type}0 declaration is here">;
  
-  def err_decl_conflicting_bounds : Error<
-    "%select{function redeclaration has conflicting parameter bounds|function "
-    "redeclaration has conflicting return bounds|variable redeclaration has "
-    "conflicting bounds}0">;
+  def err_decl_conflicting_annot : Error<
+    "%select{function redeclaration has conflicting parameter %select{bounds|interop type}0|function "
+    "redeclaration has conflicting return %select{bounds|interop type}0|variable redeclaration has "
+    "conflicting %select{bounds|interop type}0}1">;
 
-  def err_decl_added_bounds : Error<
-    "%select{function redeclaration added bounds for parameter|function "
-    "redeclaration added return bounds|variable redeclaration added bounds}0">;
+  def err_decl_added_annot : Error<
+    "%select{function redeclaration added %select{bounds|interop type}0 for parameter|function "
+    "redeclaration added return %select{bounds|interop type}0|variable redeclaration added %select{bounds|interop type}0}1">;
 
-  def err_decl_dropped_bounds : Error<
-    "%select{function redeclaration dropped bounds for parameter|function "
-    "redeclaration dropped return bounds|variable redeclaration dropped "
-    "bounds}0">;
+  def err_decl_dropped_annot : Error<
+    "%select{function redeclaration dropped %select{bounds|interop type}0 for parameter|function "
+    "redeclaration dropped return %select{bounds|interop type}0|variable redeclaration dropped "
+    "%select{bounds|interop type}0}1">;
 
-  def err_conflicting_bounds : Error<"conflicting bounds for %0">;
+  def err_conflicting_annots : Error<"conflicting bounds annotations for %0">;
 
   def err_out_of_scope_function_type_local : Error<
     "out-of-scope variable for bounds in a function type (a function type "
@@ -9652,8 +9652,8 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_declared_bounds : Note<
     "(expanded) declared bounds are '%0'">;
 
-  def note_inferred_bounds : Note<
-    "inferred bounds are '%0'">;
+  def note_inferred_annot : Note<
+    "inferred %select{bounds are|interop type is}0 '%1'">;
 
   def note_expanded_inferred_bounds : Note<
     "(expanded) inferred bounds are '%0'">;

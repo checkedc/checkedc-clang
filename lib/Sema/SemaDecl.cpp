@@ -3592,46 +3592,77 @@ void Sema::mergeObjCMethodDecls(ObjCMethodDecl *newMethod,
     mergeParamDeclAttributes(*ni, *oi, *this);
 }
 
-// Print an error message for a declaration with a bounds error.
-// Find the relevant prior bounds and emit a note pointing to it.
+static Expr *getAnnotExpr(Sema::BoundsAnnotationKind Kind,
+                          const DeclaratorDecl *Decl) {
+   Expr *Result;
+   if (Kind == Sema::BoundsAnnotationKind::Bounds)
+     Result = const_cast<BoundsExpr *>(Decl->getBoundsExpr());
+   else
+     Result = const_cast<InteropTypeExpr *>(Decl->getInteropTypeExpr());
+   return Result;
+}
+
+static bool isAnnotCompilerGenerated(Expr *E) {
+  if (!E)
+    return false;
+
+  if (BoundsExpr *BE = dyn_cast<BoundsExpr>(E))
+   return BE->isCompilerGenerated();
+  else if (InteropTypeExpr *IT = dyn_cast<InteropTypeExpr>(E))
+    return IT->isCompilerGenerated();
+  else return false;
+}
+
+static SourceLocation getAnnotExprLoc(Expr *E) {
+  assert(E);
+  if (BoundsExpr *BE = dyn_cast<BoundsExpr>(E))
+   return BE->getStartLoc();
+  else if (InteropTypeExpr *IT = dyn_cast<InteropTypeExpr>(E))
+    return IT->getStartLoc();
+  else return SourceLocation();
+}
+
+// Print an error message for a declaration with a bounds or interface type
+// error   Find the relevant prior bounds a and emit a note pointing to it.
 // If there is no prior bounds, point to the prior declaration.
 static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
-                                      const SourceLocation BoundsLoc,
+                                      Sema::BoundsAnnotationKind Kind,
+                                      const SourceLocation AnnotLoc,
                                       const DeclaratorDecl *Old,
                                       const DeclaratorDecl *New,
                                       bool IsUncheckedType,
-                                      Sema::CheckedCBoundsError Kind) {
+                                      Sema::CheckedCBoundsError ErrorKind) {
   // Emit the diagnostic, pointing at the current bounds expression
   // if possible.  Use the new declaration if there is no bounds
   // expression.
   SourceLocation Loc;
-  if (BoundsLoc.isValid())
-    Loc = BoundsLoc;
+  if (AnnotLoc.isValid())
+    Loc = AnnotLoc;
   else
     Loc = New->getLocation();
-  S.Diag(Loc, DiagId) << (unsigned) Kind;
+  S.Diag(Loc, DiagId) << (unsigned) Kind << (unsigned) ErrorKind;
 
-  if (New->getBoundsExpr() && New->getBoundsExpr()->isCompilerGenerated()) {
-    S.Diag(Loc, diag::note_inferred_bounds)
-      << const_cast<BoundsExpr *>(New->getBoundsExpr());
-  }
+  if (isAnnotCompilerGenerated(getAnnotExpr(Kind, New)))
+    S.Diag(Loc, diag::note_inferred_annot) << (unsigned)Kind << getAnnotExpr(Kind, New);
+
   // Emit a note pointing to the prior bounds or declaration. Try to point
   // at the relevant bounds expression if possible so that the user has the
   // right context for understanding the error.  If there isn't one, fall
   // back to the declaration.
 
-  // First determine the prior relevant bounds expression, if there is one.
-  const BoundsExpr *PrevBoundsExpr = Old->getBoundsExpr();
-  // The bounds expression for an unchecked pointer or array type may have
+  // First determine the prior relevant annotation expression, if there is one.
+  Expr *PrevExpr = getAnnotExpr(Kind, Old);
+
+  // The annotation expression for an unchecked pointer or array type may have
   // been inherited from an earlier declaration than Old that
-  // was compatible with Old.  If there's no bounds expression on Old,
+  // was compatible with Old.  If there's no bounds annotation on Old,
   // search for a possible earlier definition.
-  if (!PrevBoundsExpr && IsUncheckedType) {
+  if (!PrevExpr && IsUncheckedType) {
     if (const FunctionDecl *Previous = dyn_cast<FunctionDecl>(Old)) {
       do {
-        PrevBoundsExpr = Previous->getBoundsExpr();
+        PrevExpr = getAnnotExpr(Kind, Previous);
         Previous = Previous->getPreviousDecl();
-      } while (!PrevBoundsExpr && Previous);
+      } while (!PrevExpr && Previous);
     }
     else if (const ParmVarDecl *Previous = dyn_cast<ParmVarDecl>(Old)) {
       // For parameters, this is a little more work because
@@ -3639,7 +3670,7 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
       // must navigate through function declarations instead.
       unsigned paramNumber = Previous->getFunctionScopeIndex();
       do {
-        PrevBoundsExpr = Previous->getBoundsExpr();
+        PrevExpr = getAnnotExpr(Kind, Previous);
         // Move up to the function declaration, find the previous
         // function declaration, and get the parameter declaration
         // from that.
@@ -3650,25 +3681,24 @@ static void emitBoundsErrorDiagnostic(Sema &S, int DiagId,
            Previous = PreviousFuncDecl->getParamDecl(paramNumber);
         else
            Previous = nullptr;
-      } while (!PrevBoundsExpr && Previous);
+      } while (!PrevExpr && Previous);
     } else if (const VarDecl *Previous = dyn_cast<VarDecl>(Old)) {
       do {
-        PrevBoundsExpr = Previous->getBoundsExpr();
+        PrevExpr = getAnnotExpr(Kind, Previous);
         Previous = Previous->getPreviousDecl();
-      } while (!PrevBoundsExpr && Previous);
+      } while (!PrevExpr && Previous);
     } else
       llvm_unreachable("unexpected declaration kind");
   }
 
-  if (PrevBoundsExpr) {
-    if (!PrevBoundsExpr->isCompilerGenerated())
-      S.Diag(PrevBoundsExpr->getStartLoc(), diag::note_previous_bounds_decl);
+  if (PrevExpr) {
+    if (!isAnnotCompilerGenerated(PrevExpr))
+      S.Diag(getAnnotExprLoc(PrevExpr), diag::note_previous_bounds_decl) << (unsigned)Kind;
     else {
       // If the bounds were inferred by the compiler, there is nothing to point to.
       // Print notes pointing at the previous declaration and giving the bounds.
       S.Diag(Old->getLocation(), diag::note_previous_decl) << Old;
-      S.Diag(Old->getLocation(), diag::note_inferred_bounds)
-          << const_cast<BoundsExpr *>(PrevBoundsExpr);
+      S.Diag(Old->getLocation(), diag::note_inferred_annot) << (unsigned)Kind << PrevExpr;
     }
   } else if  (const FunctionDecl *OldDecl = dyn_cast<FunctionDecl>(Old)) {
     const FunctionDecl *NewDecl = dyn_cast<FunctionDecl>(New);
@@ -3764,13 +3794,14 @@ static bool diagnoseBoundsError(Sema &S,
 
   if (!S.Context.EquivalentBounds(OldBounds, NewBounds)) {
     if (OldBounds && NewBounds)
-      DiagId = diag::err_decl_conflicting_bounds;
+      DiagId = diag::err_decl_conflicting_annot;
     else if (!IsUncheckedType || IsInconsistent)
       DiagId = NewBounds ?
-        diag::err_decl_added_bounds :
-        diag::err_decl_dropped_bounds;
+        diag::err_decl_added_annot :
+        diag::err_decl_dropped_annot;
     if (DiagId) {
-      emitBoundsErrorDiagnostic(S, DiagId, BoundsLoc, OldDecl, NewDecl,
+      emitBoundsErrorDiagnostic(S, DiagId, Sema::BoundsAnnotationKind::Bounds,
+                                BoundsLoc, OldDecl, NewDecl,
                                 IsUncheckedType, Kind);
       return true;
     }
@@ -3780,13 +3811,14 @@ static bool diagnoseBoundsError(Sema &S,
   const InteropTypeExpr *NewIType = NewAnnots.getInteropTypeExpr();
   if (!S.Context.EquivalentInteropTypes(OldIType, NewIType)) {
     if (OldIType && NewIType)
-      DiagId = diag::err_decl_conflicting_bounds;
+      DiagId = diag::err_decl_conflicting_annot;
     else if (!IsUncheckedType || IsInconsistent)
       DiagId = NewIType ?
-                 diag::err_decl_added_bounds :
-                 diag::err_decl_dropped_bounds;
+                 diag::err_decl_added_annot :
+                 diag::err_decl_dropped_annot;
     if (DiagId) {
-      emitBoundsErrorDiagnostic(S, DiagId, InteropLoc, OldDecl, NewDecl,
+      emitBoundsErrorDiagnostic(S, DiagId, Sema::BoundsAnnotationKind::IType,
+                                InteropLoc, OldDecl, NewDecl,
                                 IsUncheckedType, Kind);
       return true;
     }
@@ -3879,7 +3911,7 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
                                  /*IgnoreBounds=*/true);
     // If they are, make sure an error message has been emitted.
     if (BoundsOnlyError && !Err) {
-          Diag(New->getLocation(), diag::err_conflicting_bounds) <<
+          Diag(New->getLocation(), diag::err_conflicting_annots) <<
             New->getDeclName();
           int PrevDiag;
           SourceLocation OldLocation;
@@ -9241,10 +9273,12 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                                                                 Params);
           NewFD->setBoundsExpr(getASTContext(), ReturnBounds);
         }
-        // Copy the return interop type annotation from the type.
-        // TODO: do we need to worry about line number information for copied
-        // interop type annotations?
-        NewFD->setInteropTypeExpr(getASTContext(), BA.getInteropTypeExpr());
+
+        // Prefer the return interop type from the declarator too.
+        InteropTypeExpr *TypeReturnIT = BA.getInteropTypeExpr();
+        InteropTypeExpr *DeclaredReturnIT = FTI.getReturnAnnots().getInteropTypeExpr();
+        InteropTypeExpr *ResultIT = DeclaredReturnIT ? DeclaredReturnIT : TypeReturnIT;
+        NewFD->setInteropTypeExpr(getASTContext(), ResultIT);
       }
     }
   }
@@ -12859,7 +12893,8 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
     }
 
     if (!BoundsExpr)
-      if (Ty->isCheckedPointerNtArrayType())
+      if (Ty->isCheckedPointerNtArrayType() || (IType &&
+                   IType->getType()->isCheckedPointerNtArrayType()))
         BoundsExpr = Context.getPrebuiltCountZero();
   }
 
@@ -12935,15 +12970,17 @@ BoundsExpr *Sema::CreateInvalidBoundsExpr() {
 
 InteropTypeExpr *Sema::SynthesizeInteropTypeExpr(QualType Ty,
                                              bool IsParam) {
-  InteropTypeExpr *InteropType = nullptr;
+  InteropTypeExpr *IT = nullptr;
   QualType BoundsSafeInterfaceType = SynthesizeInteropType(Ty, IsParam);
   if (!BoundsSafeInterfaceType.isNull()) {
     TypeSourceInfo *DI = getASTContext().getTrivialTypeSourceInfo(BoundsSafeInterfaceType);
-    ExprResult R = CreateBoundsInteropType(SourceLocation(), DI, SourceLocation());
-    if (!R.isInvalid())
-      InteropType = dyn_cast<InteropTypeExpr>(R.get());
+    ExprResult R = CreateBoundsInteropTypeExpr(SourceLocation(), DI, SourceLocation());
+    if (!R.isInvalid()) {
+      IT = dyn_cast<InteropTypeExpr>(R.get());
+      IT->setCompilerGenerated(true);
+    }
   }
-  return InteropType;
+  return IT;
 }
 
 Decl *

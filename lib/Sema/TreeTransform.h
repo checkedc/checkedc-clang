@@ -2518,7 +2518,7 @@ public:
   ExprResult RebuildInteropTypeExpr(SourceLocation StartLoc,
                                     TypeSourceInfo *Ty,
                                     SourceLocation RParenLoc) {
-    return getSema().CreateBoundsInteropType(StartLoc, Ty, RParenLoc);
+    return getSema().CreateBoundsInteropTypeExpr(StartLoc, Ty, RParenLoc);
   }
 
   ExprResult RebuildPositionalParameterExpr(unsigned Index, QualType QT) {
