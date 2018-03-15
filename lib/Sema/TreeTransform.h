@@ -5241,7 +5241,7 @@ bool TreeTransform<Derived>::TransformBoundsAnnotations(
       return true;
     NewBounds = dyn_cast<BoundsExpr>(Result.get());
     if (!NewBounds) {
-      assert("unexpected dynamic cast failure");
+      llvm_unreachable("unexpected dynamic cast failure");
       return true;
     }
   }
@@ -5254,7 +5254,7 @@ bool TreeTransform<Derived>::TransformBoundsAnnotations(
       return true;
     NewIType = dyn_cast<InteropTypeExpr>(Result.get());
     if (!NewIType) {
-      assert("unexpected dynamic cast failure");
+      llvm_unreachable("unexpected dynamic cast failure");
       return true;
     }
   }
@@ -12463,7 +12463,7 @@ ExprResult TreeTransform<Derived>::TransformBoundsCastExpr(BoundsCastExpr *E) {
     return ExprError();
   BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsExprResult.get());
   if (!Bounds) {
-    assert("unexpected dyn_cast failure");
+    llvm_unreachable("unexpected dyn_cast failure");
     return ExprError();
   }
 
