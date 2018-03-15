@@ -489,22 +489,9 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       // change the array-to-pointer decay cast in checked scopes to make the
       // target type completely checked.
       if (getCurScope()->isCheckedScope() && Ty->isOrContainsUncheckedType()) {
-        BoundsExpr *B = nullptr;
-        Expr *IgnoreParenCasts = E->IgnoreParenCasts();
-        if (auto *DRE = dyn_cast<DeclRefExpr>(IgnoreParenCasts)) {
-          if (auto *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-            // parameter variables should not have array type.
-            assert(!(isa<ParmVarDecl>(VD)));
-            B = VD->getBoundsExpr();
-          }
-        } else if (auto *ME = dyn_cast<MemberExpr>(IgnoreParenCasts)) {
-          if (auto *MD = dyn_cast<FieldDecl>(ME->getMemberDecl()))
-            B = MD->getBoundsExpr();
-        }
-
-        if (B != nullptr) {
-          Ty = GetCheckedCInteropType(Ty, B, false);
-          Ty = RewriteBoundsSafeInterfaceTypes(Ty);
+        QualType InteropType = GetCheckedCInteropType(E->IgnoreParenCasts());
+        if (!InteropType.isNull()) {
+          Ty = RewriteBoundsSafeInterfaceTypes(InteropType);
           isBoundsSafeInterfaceCast = true;
         }
       }      
@@ -1802,21 +1789,22 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
     DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
     if (!DD)
       llvm_unreachable("unexpected DeclRef in checked scope");
-    BoundsExpr *B = DD->getBoundsExpr();
-    return ConvertToFullyCheckedType(E, B, isa<ParmVarDecl>(D), VK);
+    return ConvertToFullyCheckedType(E, DD->getInteropTypeExpr(),
+                                     isa<ParmVarDecl>(D), VK);
   }
 
   return E;
 }
 
-ExprResult Sema::ConvertToFullyCheckedType(Expr *E, BoundsExpr *B,
+ExprResult Sema::ConvertToFullyCheckedType(Expr *E,
+                                           InteropTypeExpr *BA,
                                            bool IsParamUse,
                                            ExprValueKind VK) {
   assert(E != nullptr);
   QualType Ty = E->getType();
   QualType CheckedTy;
-  if (B != nullptr)
-    CheckedTy = GetCheckedCInteropType(Ty, B, IsParamUse);
+  if (BA != nullptr)
+    CheckedTy = Context.getInteropTypeAndAdjust(BA, IsParamUse);
   else
     CheckedTy = Ty;
   CheckedTy = RewriteBoundsSafeInterfaceTypes(CheckedTy);
@@ -4986,7 +4974,7 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
   // Continue to check argument types (even if we have too few/many args).
   for (unsigned i = FirstParam; i < NumParams; i++) {
     QualType ProtoArgType = Proto->getParamType(i);
-    const BoundsExpr *Bounds = Proto->getParamBounds(i);
+    const BoundsAnnotations Annots = Proto->getParamAnnots(i);
 
     Expr *Arg;
     ParmVarDecl *Param = FDecl ? FDecl->getParamDecl(i) : nullptr;
@@ -5012,10 +5000,10 @@ bool Sema::GatherArgumentsForCall(SourceLocation CallLoc, FunctionDecl *FDecl,
       InitializedEntity Entity =
           Param ? InitializedEntity::InitializeParameter(Context, Param,
                                                          ProtoArgType,
-                                                         Bounds)
+                                                         Annots)
                 : InitializedEntity::InitializeParameter(
                       Context, ProtoArgType, Proto->isParamConsumed(i),
-                      Bounds);
+                      Annots);
 
       // Remember that parameter belongs to a CF audited API.
       if (CFAudited)
@@ -5727,11 +5715,11 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
     // Promote the arguments (C99 6.5.2.2p6).
     for (unsigned i = 0, e = Args.size(); i != e; i++) {
       Expr *Arg = Args[i];
-
       if (Proto && i < Proto->getNumParams()) {
+        BoundsAnnotations Annots = Proto->getParamAnnots(i);
         InitializedEntity Entity = InitializedEntity::InitializeParameter(
             Context, Proto->getParamType(i), Proto->isParamConsumed(i),
-            Proto->getParamBounds(i));
+            Annots);
         ExprResult ArgE =
             PerformCopyInitialization(Entity, SourceLocation(), Arg);
         if (ArgE.isInvalid())
@@ -8485,21 +8473,26 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
 /// otherwise.  For the left-hand sides of assignments, only global variables,
 /// parameters, and members of structures/unions have bounds-safe interfaces.
 QualType Sema::GetCheckedCInteropType(ExprResult LHS) {
+  bool IsParam = false;
+  DeclaratorDecl *D = nullptr;
   if (!LHS.isInvalid()) {
-    Expr *LHSExpr = LHS.get();
-    if (const MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
-      if (const FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
-        if (const BoundsExpr *Bounds = Field->getBoundsExpr())
-          return GetCheckedCInteropType(Field->getType(), Bounds, false);
+    Expr *LHSExpr = LHS.get()->IgnoreParens();
+    if (MemberExpr *Member = dyn_cast<MemberExpr>(LHSExpr)) {
+      if (FieldDecl *Field = dyn_cast<FieldDecl>(Member->getMemberDecl()))
+        D = Field;
     }
-    else if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
-      if (const VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl()))
-        if (const BoundsExpr *Bounds = Var->getBoundsExpr())
-          return GetCheckedCInteropType(Var->getType(), Bounds,
-                                        isa<ParmVarDecl>(Var));
+    else if (DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(LHSExpr)) {
+      if (VarDecl *Var = dyn_cast<VarDecl>(DeclRef->getDecl())) {
+        D = Var;
+        IsParam = isa<ParmVarDecl>(Var);
+      }
     }
   }
-  return QualType();
+
+  if (D)
+    return Context.getInteropTypeAndAdjust(D->getInteropTypeExpr(), IsParam);
+  else
+    return QualType();
 }
 
 QualType Sema::InvalidOperands(SourceLocation Loc, ExprResult &LHS,
@@ -13442,17 +13435,17 @@ ExprResult Sema::ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
                                         SourceLocation RParenLoc) {
   TypeSourceInfo *TInfo = nullptr;
   GetTypeFromParser(Ty, &TInfo);
-  return CreateBoundsInteropType(TypeKWLoc, TInfo, RParenLoc);
+  return CreateBoundsInteropTypeExpr(TypeKWLoc, TInfo, RParenLoc);
 }
 
 
-ExprResult Sema::CreateBoundsInteropType(SourceLocation TypeKWLoc, TypeSourceInfo *TInfo,
-                                         SourceLocation RParenLoc) {
+ExprResult Sema::CreateBoundsInteropTypeExpr(SourceLocation TypeKWLoc,
+                                             TypeSourceInfo *TInfo,
+                                             SourceLocation RParenLoc) {
   QualType QT = TInfo->getType();
-  return new (Context) InteropTypeBoundsAnnotation(QT, TypeKWLoc, RParenLoc,
+  return new (Context) InteropTypeExpr(QT, TypeKWLoc, RParenLoc,
                                                    TInfo);
 }
-
 ExprResult Sema::CreatePositionalParameterExpr(unsigned Index, QualType QT) {
   return new (Context) PositionalParameterExpr(Index, QT);
 }

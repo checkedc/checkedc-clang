@@ -278,6 +278,15 @@ protected:
 
   enum { NumBoundsCheckKindBits = 2 };
 
+  enum { NumInteropTypeExprKindBits = 1 };
+
+  class InteropTypeExprBitFields {
+    friend class InteropTypeExpr;
+
+    unsigned : NumExprBits;
+    unsigned IsCompilerGenerated : 1;
+  };
+
   class ArraySubscriptExprBitFields {
     friend class ArraySubscriptExpr;
 
@@ -310,6 +319,7 @@ protected:
     TypeTraitExprBitfields TypeTraitExprBits;
     CoawaitExprBitfields CoawaitBits;
     BoundsExprBitFields BoundsExprBits;
+    InteropTypeExprBitFields InteropTypeExprBits;
     ArraySubscriptExprBitFields ArraySubscriptExprBits;
     UnaryOperatorBitFields UnaryOperatorBits;
   };

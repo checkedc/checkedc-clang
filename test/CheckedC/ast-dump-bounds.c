@@ -45,7 +45,7 @@ int * g_arr4 : itype(_Ptr<int>);
 
 // CHECK: VarDecl
 // CHECK: g_arr4 'int *'
-// CHECK-NEXT: InteropTypeBoundsAnnotation
+// CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
 
 //===================================================================
@@ -130,7 +130,7 @@ void f13(int *pint : itype(_Ptr<int>));
 // CHECK: f13
 // CHECK-NEXT: ParmVarDecl
 // CHECK: pint 'int *'
-// CHECK-NEXT: InteropTypeBoundsAnnotation
+// CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
 
 void f14(int arr1 _Checked[] : count(5));
@@ -208,8 +208,8 @@ int *f23(void) : itype(_Ptr<int>);
 
 // CHECK: FunctionDecl
 // CHECK: f23
-// CHECK: 'int *(void) : _Ptr<int>'
-// CHECK-NEXT: InteropTypeBoundsAnnotation
+// CHECK: 'int *(void) : itype(_Ptr<int>)'
+// CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
 
 //===================================================================
@@ -254,7 +254,7 @@ struct S1 {
 
   // CHECK: FieldDecl
   // CHECK: arr4 'int *'
-  // CHECK-NEXT: InteropTypeBoundsAnnotation
+  // CHECK-NEXT: InteropTypeExpr
   // CHECK: '_Ptr<int>'
 };
 
@@ -285,7 +285,7 @@ void f32(int (*fn)(int *arr : itype(_Ptr<int>)));
 
 // CHECK: |-FunctionDecl
 // CHECK: f32
-// CHECK: 'void (int (*)(int * : _Ptr<int>))'
+// CHECK: 'void (int (*)(int * : itype(_Ptr<int>)))'
 // CHECK: ParmVarDecl
 // CHECK fn
 // CHECK 'int (*)(int * : _Ptr<int>)'
@@ -294,19 +294,19 @@ void f33(int (*fn)(int **arr : itype(_Ptr<_Ptr<int>>)));
 
 // CHECK: FunctionDecl
 // CHECK: f33
-// CHECK: 'void (int (*)(int ** : _Ptr<_Ptr<int>>))'
+// CHECK: 'void (int (*)(int ** : itype(_Ptr<_Ptr<int>>)))'
 // CHECK: ParmVarDecl
 // CHECK: fn
-// CHECK: 'int (*)(int ** : _Ptr<_Ptr<int>>)'
+// CHECK: 'int (*)(int ** : itype(_Ptr<_Ptr<int>>))'
 
 void f34(int (*fn)(int **arr : itype(_Array_ptr<_Ptr<int>>)));
 
 // CHECK: FunctionDecl
 // CHECK: f34
-// CHECK: 'void (int (*)(int ** : _Array_ptr<_Ptr<int>>))'
+// CHECK: 'void (int (*)(int ** : itype(_Array_ptr<_Ptr<int>>)))'
 // CHECK: ParmVarDecl
 // CHECK: fn
-// CHECK: 'int (*)(int ** : _Array_ptr<_Ptr<int>>)'
+// CHECK: 'int (*)(int ** : itype(_Array_ptr<_Ptr<int>>))'
 
 typedef float fn_sum1(int lower, int upper,
                      _Array_ptr<float> arr : bounds(arr - lower, arr + upper));

@@ -2176,6 +2176,9 @@ public:
   /// \brief Reads a bounds expression.
   BoundsExpr *ReadBoundsExpr(ModuleFile &F);
 
+  /// \brief Reads bounds annotations
+  BoundsAnnotations ReadBoundsAnnotations(ModuleFile &F);
+
   /// \brief Reads a sub-statement operand during statement reading.
   Stmt *ReadSubStmt() {
     assert(ReadingKind == Read_Stmt &&
@@ -2364,6 +2367,9 @@ public:
 
   /// \brief Read a bounds expression.
   BoundsExpr *readBoundsExpr() { return Reader->ReadBoundsExpr(*F); }
+
+  /// \brief Read bounds annotations.
+  BoundsAnnotations readBoundsAnnotations() { return Reader->ReadBoundsAnnotations(*F); }
 
   /// \brief Reads a sub-statement operand during statement reading.
   Stmt *readSubStmt() { return Reader->ReadSubStmt(); }

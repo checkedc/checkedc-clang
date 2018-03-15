@@ -695,6 +695,7 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
 
   // ...and *prepend* it to the declarator.
   SourceLocation NoLoc;
+  BoundsAnnotations ReturnAnnots;
   declarator.AddInnermostTypeInfo(DeclaratorChunk::getFunction(
       /*HasProto=*/true,
       /*IsAmbiguous=*/false,
@@ -718,8 +719,8 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*ExceptionSpecTokens=*/nullptr,
       /*DeclsInPrototype=*/None,
       loc, loc,
-      /*ReturnBoundsColon=*/NoLoc,
-      /*ReturnBoundsExpr=*/nullptr,
+      /*ReturnAnnotsColon=*/NoLoc,
+      /*ReturnAnnotsExpr=*/ReturnAnnots,
       declarator));
 
   // For consistency, make sure the state still has us as processing
@@ -4723,9 +4724,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         SmallVector<QualType, 16> ParamTys;
         ParamTys.reserve(FTI.NumParams);
 
-        SmallVector<BoundsExpr *, 16> ParamBounds;
-        ParamBounds.reserve(FTI.NumParams);
-        bool HasAnyParameterBounds = false;
+        SmallVector<BoundsAnnotations, 16> ParamAnnots;
+        ParamAnnots.reserve(FTI.NumParams);
+        bool HasAnyParameterAnnots = false;
 
         SmallVector<FunctionProtoType::ExtParameterInfo, 16>
           ExtParameterInfos(FTI.NumParams);
@@ -4791,14 +4792,14 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           }
 
           // Record parameter bounds for Checked C extension.  When the
-          // Checked C extension is not enabled, Bounds will always be null
-          // and HasAnyParameterBounds will always be false.
-          BoundsExpr *Bounds = Param->getBoundsExpr();
-          if (Bounds) {
-            HasAnyParameterBounds = true;
-            Bounds = S.AbstractForFunctionType(Bounds, ParamInfo);
+          // Checked C extension is not enabled, the annotations will
+          // always be empty and HasAnyParameterAnnots will always be false.
+          BoundsAnnotations Annots = Param->getBoundsAnnotations();
+          if (!Annots.IsEmpty()) {
+            HasAnyParameterAnnots = true;
+            S.AbstractForFunctionType(Annots, ParamInfo);
           }
-          ParamBounds.push_back(Bounds);
+          ParamAnnots.push_back(Annots);
 
           if (LangOpts.ObjCAutoRefCount && Param->hasAttr<NSConsumedAttr>()) {
             ExtParameterInfos[i] = ExtParameterInfos[i].withIsConsumed(true);
@@ -4824,22 +4825,27 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
-        BoundsExpr *ReturnBounds = FTI.getReturnBounds();
-        if (ReturnBounds) {
-          if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnBounds, true))
-            ReturnBounds = S.CreateInvalidBoundsExpr();
-          else
-            ReturnBounds = S.AbstractForFunctionType(ReturnBounds, ParamInfo);
-        } else {
-          if (T->isCheckedPointerNtArrayType())
-            ReturnBounds = Context.getPrebuiltCountZero();
-        }
+        BoundsAnnotations ReturnAnnots = FTI.getReturnAnnots();
+
+        if (T->isCheckedPointerNtArrayType() && !ReturnAnnots.getBoundsExpr())
+           ReturnAnnots = BoundsAnnotations(Context.getPrebuiltCountZero(), nullptr);
+
+        // If there is no interop type, try synthesizing one implied by the
+        // presence of a bounds expression.
+        if (!ReturnAnnots.getInteropTypeExpr() && ReturnAnnots.getBoundsExpr())
+          ReturnAnnots.setInteropTypeExpr(S.SynthesizeInteropTypeExpr(T, false));
+
+        if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnots, true))
+          D.setInvalidType(true);
+        else
+          S.AbstractForFunctionType(ReturnAnnots, ParamInfo);
+
 
         // Record bounds for Checked C extension.  Only record parameter bounds array if there are
         // parameter bounds.
-        if (HasAnyParameterBounds)
-          EPI.ParamBounds = ParamBounds.data();
-        EPI.ReturnBounds = ReturnBounds;
+        if (HasAnyParameterAnnots)
+          EPI.ParamAnnots = ParamAnnots.data();
+        EPI.ReturnAnnots = ReturnAnnots;
 
         if (HasAnyInterestingExtParameterInfos) {
           EPI.ExtParameterInfos = ExtParameterInfos.data();

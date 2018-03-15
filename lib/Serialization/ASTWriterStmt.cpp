@@ -1020,10 +1020,9 @@ void ASTStmtWriter::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   Code = serialization::EXPR_RANGE_BOUNDS_EXPR;
 }
 
-void ASTStmtWriter::VisitInteropTypeBoundsAnnotation(
-  InteropTypeBoundsAnnotation *E) {
+void ASTStmtWriter::VisitInteropTypeExpr(
+  InteropTypeExpr *E) {
   VisitExpr(E);
-  Record.push_back(E->getKind());
   Record.AddTypeSourceInfo(E->getTypeInfoAsWritten());
   Record.AddSourceLocation(E->getStartLoc());
   Record.AddSourceLocation(E->getLocEnd());

@@ -3343,14 +3343,14 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   }
 
   QualType FnRetType;
-  const BoundsExpr *FnRetBounds = nullptr;
+  BoundsAnnotations FnRetBounds;
   QualType RelatedRetType;
   const AttrVec *Attrs = nullptr;
   bool isObjCMethod = false;
 
   if (const FunctionDecl *FD = getCurFunctionDecl()) {
     FnRetType = FD->getReturnType();
-    FnRetBounds = FD->getBoundsExpr();
+    FnRetBounds = FD->getBoundsAnnotations();;
     if (FD->hasAttrs())
       Attrs = &FD->getAttrs();
     if (FD->isNoReturn())
@@ -3506,7 +3506,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
     if (getLangOpts().CheckedC) {
       if (FnRetType->isCheckedPointerType())
         DiagID = diag::err_return_missing_expr_for_checked_pointer;
-      else if (FnRetBounds)
+      else if (!FnRetBounds.IsEmpty())
         DiagID = diag::err_return_missing_expr_for_bounds;
       else if (getCurScope()->isCheckedScope())
         DiagID = diag::err_return_missing_expr;

@@ -2513,15 +2513,21 @@ private:
   BoundsExpr *PrebuiltBoundsUnknown;
 
 public:
+  bool EquivalentAnnotations(const BoundsAnnotations &Annots1,
+                             const BoundsAnnotations &Annots2);
   bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
+  bool EquivalentInteropTypes(const InteropTypeExpr *Expr1,
+                              const InteropTypeExpr *Expr2);
 
   BoundsExpr *getPrebuiltByteCountOne();
   BoundsExpr *getPrebuiltCountZero();
   BoundsExpr *getPrebuiltCountOne();
   BoundsExpr *getPrebuiltBoundsUnknown();
 
-
-
+  /// \brief Given an InteropTypeExpr pointer, return the interop type.
+  /// Adjust the type if the type is for a parameter.  Return a null QualType
+  /// if the pointer is null.
+  QualType getInteropTypeAndAdjust(const InteropTypeExpr *BA, bool IsParam) const;
 
   //===--------------------------------------------------------------------===//
   //                    Integer Predicates

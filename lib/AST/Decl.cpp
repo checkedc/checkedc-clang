@@ -1801,16 +1801,17 @@ void QualifierInfo::setTemplateParameterListsInfo(
 // Checked C bounds information
 
 bool DeclaratorDecl::hasBoundsExpr() const {
-  return Bounds != nullptr;
+  return getBoundsExpr() != nullptr;
 }
 
-BoundsExpr *DeclaratorDecl::getBoundsExpr() {
-  return Bounds;
+QualType DeclaratorDecl::getInteropType() {
+  InteropTypeExpr *BA = getInteropTypeExpr();
+  if (BA)
+    return BA->getType();
+  else
+    return QualType();
 }
 
-void DeclaratorDecl::setBoundsExpr(BoundsExpr *E) {
-  Bounds = E;
-}
 
 //===----------------------------------------------------------------------===//
 // VarDecl Implementation

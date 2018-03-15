@@ -68,7 +68,7 @@ _Array_ptr<int> ranged_arr : bounds(&one_arr, &one_arr + 1); //expected-error{{v
 _Array_ptr<int> ranged_arr : bounds(&two_arr, &two_arr + 1);
 
 // InteropTypeBoundsAnnotation
-int* int_ptr : itype(_Array_ptr<int>); // expected-error{{variable redeclaration has conflicting bounds}}
+int* int_ptr : itype(_Array_ptr<int>); // expected-error{{variable redeclaration has conflicting interop type}}
 int* int_ptr : itype(_Ptr<int>);
 int* int_ptr;
 
@@ -107,10 +107,10 @@ _Array_ptr<int> pos_fn2(int len) : count(len + 1); // expected-error{{function r
 _Array_ptr<int> pos_fn2(int len) : count(len);
 
 // InteropTypeBoundsAnnotation
-int int_val(int *ptr : itype(_Array_ptr<int>)); // expected-error{{function redeclaration has conflicting parameter bounds}}
+int int_val(int *ptr : itype(_Array_ptr<int>)); // expected-error{{function redeclaration has conflicting parameter interop type}}
 int int_val(int *ptr : itype(_Ptr<int>));
 int int_val(int *ptr);
-int* int_val2(void) : itype(_Array_ptr<int>); // expected-error{{function redeclaration has conflicting return bounds}}
+int* int_val2(void) : itype(_Array_ptr<int>); // expected-error{{function redeclaration has conflicting return interop type}}
 int* int_val2(void) : itype(_Ptr<int>);
 int* int_val2(void);
 

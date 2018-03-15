@@ -74,6 +74,20 @@ bool QualType::isConstant(QualType T, const ASTContext &Ctx) {
   return T.getAddressSpace() == LangAS::opencl_constant;
 }
 
+void BoundsAnnotations::Profile(llvm::FoldingSetNodeID &ID,
+                                const ASTContext &Ctx) const {
+  BoundsExpr *Bounds = getBoundsExpr();
+  InteropTypeExpr *IType = getInteropTypeExpr();
+  if (Bounds)
+    Bounds->Profile(ID, Ctx, true);
+  else
+    ID.AddPointer(nullptr);
+  if (IType)
+    IType->Profile(ID, Ctx, true);
+  else
+    ID.AddPointer(nullptr);
+}
+
 unsigned ConstantArrayType::getNumAddressingBits(const ASTContext &Context,
                                                  QualType ElementType,
                                                const llvm::APInt &NumElements) {
@@ -2841,8 +2855,8 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       ExceptionSpecType(epi.ExceptionSpec.Type),
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
       Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
-      HasParamBounds(epi.ParamBounds != nullptr),
-      ReturnBounds(epi.ReturnBounds) {
+      HasParamAnnots(epi.ParamAnnots != nullptr),
+      ReturnAnnots(epi.ReturnAnnots) {
   assert(NumParams == params.size() && "function has too many parameters");
 
   FunctionTypeBits.TypeQuals = epi.TypeQuals;
@@ -2862,11 +2876,11 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
     argSlot[i] = params[i];
   }
 
-  // Fill in the Checked C parameter bounds array.
-  if (hasParamBounds()) {
-    const BoundsExpr **boundsSlot = reinterpret_cast<const BoundsExpr **>(argSlot + NumParams);
+  // Fill in the Checked C parameter annotations array.
+  if (hasParamAnnots()) {
+    BoundsAnnotations *boundsSlot = reinterpret_cast<BoundsAnnotations *>(argSlot + NumParams);
     for (unsigned i = 0; i != NumParams; ++i)
-      boundsSlot[i] = epi.ParamBounds[i];
+      boundsSlot[i] = epi.ParamAnnots[i];
   }
 
   QualType *exnArray = const_cast<QualType *>(exception_begin());
@@ -3063,18 +3077,13 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
     ID.AddPointer(epi.ExceptionSpec.SourceDecl->getCanonicalDecl());
   }
 
-  // Checked C bounds information.
-  if (epi.ParamBounds) {
-    auto Bounds = epi.ParamBounds;
-    for (unsigned i = 0; i != NumParams; ++i) {
-      const BoundsExpr *BoundsExpr = Bounds[i];
-      if (BoundsExpr)
-        BoundsExpr->Profile(ID, Context, true);
-      else
-        ID.AddPointer(nullptr);
-    }
+  // Checked C bounds annotations.
+  if (epi.ParamAnnots) {
+    auto ParamAnnots = epi.ParamAnnots;
+    for (unsigned i = 0; i != NumParams; ++i)
+      ParamAnnots[i].Profile(ID, Context);
   }
-  ID.AddPointer(epi.ReturnBounds);
+  epi.ReturnAnnots.Profile(ID, Context);
 
   if (epi.ExtParameterInfos) {
     for (unsigned i = 0; i != NumParams; ++i)

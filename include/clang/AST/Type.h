@@ -90,6 +90,7 @@ namespace clang {
   class UnresolvedUsingTypenameDecl;
   class Expr;
   class BoundsExpr;
+  class InteropTypeExpr;
   class Stmt;
   class SourceLocation;
   class StmtIteratorBase;
@@ -1305,6 +1306,42 @@ enum class CheckedArrayKind {
   Unchecked = 0,
   Checked,        // Checked array
   NtChecked       // Null-terminated checked array
+};
+
+class BoundsAnnotations {
+  BoundsExpr *Bounds;
+  InteropTypeExpr *InteropType;
+
+public:
+  BoundsAnnotations() : Bounds(nullptr), InteropType(nullptr) {}
+
+  BoundsAnnotations(BoundsExpr *B) : Bounds(B), InteropType(nullptr) {}
+
+  BoundsAnnotations(BoundsExpr *B, InteropTypeExpr *IT) :
+    Bounds(B), InteropType(IT) {}
+
+  BoundsExpr *getBoundsExpr() const {
+    return Bounds;
+  }
+
+  void setBoundsExpr(BoundsExpr *B) {
+    Bounds = B;
+  }
+
+  InteropTypeExpr *getInteropTypeExpr() const {
+    return InteropType;
+  }
+
+  void setInteropTypeExpr(InteropTypeExpr *IT) {
+    InteropType = IT;
+  }
+
+  bool IsEmpty() const {
+    return Bounds == nullptr && InteropType == nullptr;
+  }
+
+  /// \brief Always write data for individual elements.
+  void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Ctx) const;
 };
 
 /// The base class of the type hierarchy.
@@ -3383,12 +3420,12 @@ public:
     ExtProtoInfo()
         : Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
           TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr), ReturnBounds(nullptr) {}
+          ParamAnnots(nullptr), ReturnAnnots() {}
 
     ExtProtoInfo(CallingConv CC)
         : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
           TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
-          ParamBounds(nullptr), ReturnBounds(nullptr) {}
+          ParamAnnots(nullptr), ReturnAnnots() {}
 
     ExtProtoInfo withExceptionSpec(const ExceptionSpecInfo &O) {
       ExtProtoInfo Result(*this);
@@ -3404,8 +3441,8 @@ public:
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
     const ExtParameterInfo *ExtParameterInfos;
-    const BoundsExpr *const *ParamBounds;
-    const BoundsExpr *ReturnBounds;
+    const BoundsAnnotations *ParamAnnots;
+    BoundsAnnotations ReturnAnnots;
   };
 
 private:
@@ -3442,19 +3479,18 @@ private:
   /// Whether this function has a trailing return type.
   unsigned HasTrailingReturn : 1;
 
-  /// Whether this function has bounds information for parameters.
-  unsigned HasParamBounds : 1;
+  /// Whether this function has annotations for parameters.
+  unsigned HasParamAnnots : 1;
 
-  // The return bounds for a function.  Null when a function has no return
-  // bounds.
-  const BoundsExpr *const ReturnBounds;
+  // The return annotations for a function.
+  const BoundsAnnotations ReturnAnnots;
 
   // ParamInfo - There is an variable size array after the class in memory that
   // holds the parameter types.
 
-  // ParamBounds - A variable size array after ParamInfo that holds the bounds
-  // expressions for parameters.  A nullptr is stored if a parameter has no
-  // bounds expression.
+  // ParamAnnots - A variable size array after ParamInfo that holds the
+  // annotations for parameters.  A nullptr is stored if a parameter has no
+  // annotations.
 
   // Exceptions - There is another variable size array after ArgInfo that
   // holds the exception types.
@@ -3510,12 +3546,12 @@ public:
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
 
-  const BoundsExpr *getParamBounds(unsigned i) const {
+  const BoundsAnnotations getParamAnnots(unsigned i) const {
     assert(i < NumParams && "invalid parameter index");
-    if (hasParamBounds())
-      return param_bounds_begin()[i];
-    else
-      return nullptr;
+    BoundsAnnotations Result;
+    if (hasParamAnnots())
+      Result = param_annots_begin()[i];
+    return Result;
   }
 
   ExtProtoInfo getExtProtoInfo() const {
@@ -3538,8 +3574,8 @@ public:
     }
     if (hasExtParameterInfos())
       EPI.ExtParameterInfos = getExtParameterInfosBuffer();
-    EPI.ParamBounds = hasParamBounds() ? param_bounds_begin() : nullptr;
-    EPI.ReturnBounds = hasReturnBounds() ? getReturnBounds() : nullptr;
+    EPI.ParamAnnots = hasParamAnnots() ? param_annots_begin() : nullptr;
+    EPI.ReturnAnnots = getReturnAnnots();
     EPI.numTypeVars = getNumTypeVars();
     return EPI;
   }
@@ -3630,9 +3666,12 @@ public:
 
   unsigned getTypeQuals() const { return FunctionType::getTypeQuals(); }
 
-  bool hasParamBounds() const { return HasParamBounds; }
+  bool hasParamAnnots() const { return HasParamAnnots; }
 
-  bool hasReturnBounds() const { return ReturnBounds != nullptr; }
+  bool hasReturnAnnots() const {
+    return ReturnAnnots.getBoundsExpr() != nullptr ||
+           ReturnAnnots.getInteropTypeExpr() != nullptr;
+  }
 
   /// Retrieve the ref-qualifier associated with this function type.
   RefQualifierKind getRefQualifier() const {
@@ -3652,28 +3691,28 @@ public:
     return param_type_begin() + NumParams;
   }
 
-  // Checked C parameter bounds information.
-  typedef const BoundsExpr *const *bounds_iterator;
+  // Checked C parameter annotation information.
+  typedef const BoundsAnnotations *annots_iterator;
 
-  ArrayRef<const BoundsExpr *const> parameter_bounds() const {
-    return llvm::makeArrayRef(param_bounds_begin(),
-                              param_bounds_end());
+  ArrayRef<BoundsAnnotations> parameter_annots() const {
+    return llvm::makeArrayRef(param_annots_begin(),
+                              param_annots_end());
   }
 
-  bounds_iterator param_bounds_begin() const {
-    return reinterpret_cast<bounds_iterator>(param_type_end());
+  annots_iterator param_annots_begin() const {
+    return reinterpret_cast<annots_iterator>(param_type_end());
   }
 
-  bounds_iterator param_bounds_end() const {
-    if (!hasParamBounds())
-      return param_bounds_begin();
+  annots_iterator param_annots_end() const {
+    if (!hasParamAnnots())
+      return param_annots_begin();
     else
-      return param_bounds_begin() + NumParams;
+      return param_annots_begin() + NumParams;
   }
 
-  // Checked C return bounds information
-  const BoundsExpr *getReturnBounds() const {
-    return ReturnBounds;
+  // Checked C return annotations information
+  const BoundsAnnotations getReturnAnnots() const {
+    return ReturnAnnots;
   }
 
   typedef const QualType *exception_iterator;
@@ -3682,8 +3721,8 @@ public:
     return llvm::makeArrayRef(exception_begin(), exception_end());
   }
   exception_iterator exception_begin() const {
-    // exceptions begin where bounds end
-    return (exception_iterator) param_bounds_end();
+    // exceptions begin where annotations end
+    return (exception_iterator) param_annots_end();
   }
   exception_iterator exception_end() const {
     if (getExceptionSpecType() != EST_Dynamic)

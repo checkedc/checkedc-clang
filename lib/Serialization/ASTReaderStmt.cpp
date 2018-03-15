@@ -1031,10 +1031,8 @@ void ASTStmtReader::VisitRangeBoundsExpr(RangeBoundsExpr *E) {
   E->setRelativeBoundsClause(nullptr);
 }
 
-void ASTStmtReader::VisitInteropTypeBoundsAnnotation(
-  InteropTypeBoundsAnnotation *E) {
+void ASTStmtReader::VisitInteropTypeExpr(InteropTypeExpr *E) {
   VisitExpr(E);
-  E->setKind((BoundsExpr::Kind)Record.readInt());
   E->setTypeInfoAsWritten(GetTypeSourceInfo());
   E->StartLoc = ReadSourceLocation();
   E->EndLoc = ReadSourceLocation();
@@ -3107,6 +3105,13 @@ BoundsExpr *ASTReader::ReadBoundsExpr(ModuleFile &F) {
   return B;
 }
 
+BoundsAnnotations ASTReader::ReadBoundsAnnotations(ModuleFile &F) {
+  Expr *Bounds = ReadExpr(F);
+  Expr *IType = ReadExpr(F);
+  return BoundsAnnotations(cast_or_null<BoundsExpr>(Bounds),
+                           cast_or_null<InteropTypeExpr>(IType));
+}
+
 Expr *ASTReader::ReadSubExpr() {
   return cast_or_null<Expr>(ReadSubStmt());
 }
@@ -4125,7 +4130,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_INTEROPTYPE_BOUNDS_ANNOTATION:
-      S = new (Context) InteropTypeBoundsAnnotation(Empty);
+      S = new (Context) InteropTypeExpr(Empty);
       break;
 
     case EXPR_POSITIONAL_PARAMETER_EXPR:

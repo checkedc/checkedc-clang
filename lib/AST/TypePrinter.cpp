@@ -93,6 +93,7 @@ namespace {
     void print(const Type *ty, Qualifiers qs, raw_ostream &OS,
                StringRef PlaceHolder);
     void print(QualType T, raw_ostream &OS, StringRef PlaceHolder);
+    void print(const BoundsAnnotations BA, raw_ostream &OS);
 
     static bool canPrefixQualifiers(const Type *T, bool &NeedARCStrongQualifier);
     void spaceBeforePlaceHolder(raw_ostream &OS);
@@ -146,6 +147,22 @@ void TypePrinter::spaceBeforePlaceHolder(raw_ostream &OS) {
 void TypePrinter::print(QualType t, raw_ostream &OS, StringRef PlaceHolder) {
   SplitQualType split = t.split();
   print(split.Ty, split.Quals, OS, PlaceHolder);
+}
+
+void TypePrinter::print(const BoundsAnnotations BA, raw_ostream &OS) {
+  bool printedColon = false;
+  if (const BoundsExpr *const Bounds = BA.getBoundsExpr()) {
+    OS << " : ";
+    printedColon = true;
+    Bounds->printPretty(OS, nullptr, Policy);
+  }
+  if (const InteropTypeExpr *const IType = BA.getInteropTypeExpr()) {
+    if (printedColon)
+      OS << " ";
+    else
+      OS << " : ";
+    IType->printPretty(OS, nullptr, Policy);
+  }
 }
 
 void TypePrinter::print(const Type *T, Qualifiers Quals, raw_ostream &OS,
@@ -745,7 +762,7 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
   OS << '(';
   {
     ParamPolicyRAII ParamPolicy(Policy);
-    bool HasBounds = T->hasParamBounds();
+    bool HasAnnots = T->hasParamAnnots();
     for (unsigned i = 0, e = T->getNumParams(); i != e; ++i) {
       if (i) OS << ", ";
 
@@ -758,12 +775,8 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
         OS << "__attribute__((" << getParameterABISpelling(ABI) << ")) ";
 
       print(T->getParamType(i), OS, StringRef());
-      if (HasBounds) {
-        if (const BoundsExpr *const Bounds = T->getParamBounds(i)) {
-          OS << " : ";
-          Bounds->printPretty(OS, nullptr, Policy);
-        }
-      }
+      if (HasAnnots)
+        print(T->getParamAnnots(i), OS);
     }
   }
   
@@ -782,10 +795,8 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
 
   printFunctionAfter(Info, OS);
 
-  if (const BoundsExpr *ReturnBounds = T->getReturnBounds()) {
-    OS << " : ";
-    ReturnBounds->printPretty(OS, nullptr, Policy);
-  }
+  const BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
+  print(ReturnAnnots, OS);
 
   if (unsigned quals = T->getTypeQuals()) {
     OS << ' ';

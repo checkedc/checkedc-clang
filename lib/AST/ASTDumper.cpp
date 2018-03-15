@@ -235,6 +235,7 @@ namespace  {
     void dumpDeclContext(const DeclContext *DC);
     void dumpLookups(const DeclContext *DC, bool DumpDecls);
     void dumpAttr(const Attr *A);
+    void dumpBoundsAnnotations(BoundsAnnotations BA);
 
     // C++ Utilities
     void dumpAccessSpecifier(AccessSpecifier AS);
@@ -338,23 +339,32 @@ namespace  {
       // FIXME: Consumed parameters.
       VisitFunctionType(T);
       unsigned numParams = T->getNumParams();
-      bool hasBounds = T->hasParamBounds();
       for (unsigned i = 0; i < numParams; i++) {
         QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
-        if (hasBounds)
-          if (const BoundsExpr *const Bounds = T->getParamBounds(i))
-            dumpChild([=] {
-              OS << "Bounds";
-              dumpStmt(Bounds);
-            });
+        const BoundsAnnotations Annots = T->getParamAnnots(i);
+        if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
+          dumpChild([=] {
+            OS << "Bounds";
+            dumpStmt(Bounds);
+          });
+        if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
+          dumpChild([=] {
+            OS << "InteropType";
+            dumpStmt(IT);
+          });
       }
       if (EPI.Variadic)
         dumpChild([=] { OS << "..."; });
-      if (EPI.ReturnBounds)
+      if (const BoundsExpr *Bounds = EPI.ReturnAnnots.getBoundsExpr())
         dumpChild([=] {
           OS << "Return bounds";
-          dumpStmt(EPI.ReturnBounds);
+          dumpStmt(Bounds);
+        });
+      if (const InteropTypeExpr *IT = EPI.ReturnAnnots.getInteropTypeExpr())
+        dumpChild([=] {
+          OS << "Return interopType";
+          dumpStmt(IT);
         });
     }
     void VisitUnresolvedUsingType(const UnresolvedUsingType *T) {
@@ -601,14 +611,13 @@ namespace  {
     void visitVerbatimBlockLineComment(const VerbatimBlockLineComment *C);
     void visitVerbatimLineComment(const VerbatimLineComment *C);
 
-    // Checked C bounds expressions.
+    // Checked C expressions.
     void VisitNullaryBoundsExpr(const NullaryBoundsExpr *Node);
     void VisitCountBoundsExpr(const CountBoundsExpr *Node);
     void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
-    void VisitInteropTypeBoundsAnnotation(
-      const InteropTypeBoundsAnnotation *Node);
     void dumpBoundsKind(BoundsExpr::Kind kind);
     void dumpBoundsCheckKind(BoundsCheckKind kind);
+    void VisitInteropTypeExpr(const InteropTypeExpr *Node);
     void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
   };
 }
@@ -893,6 +902,14 @@ void ASTDumper::dumpAttr(const Attr *A) {
       OS << " Implicit";
 #include "clang/AST/AttrDump.inc"
   });
+}
+
+void ASTDumper::dumpBoundsAnnotations(BoundsAnnotations BA) {
+  if (const BoundsExpr *Bounds = BA.getBoundsExpr())
+    dumpStmt(Bounds);
+
+  if (const InteropTypeExpr *IT = BA.getInteropTypeExpr())
+    dumpStmt(IT);
 }
 
 static void dumpPreviousDeclImpl(raw_ostream &OS, ...) {}
@@ -1221,8 +1238,7 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
     for (const ParmVarDecl *Parameter : D->parameters())
       dumpDecl(Parameter);
 
-  if (D->hasBoundsExpr())
-    dumpStmt(D->getBoundsExpr());
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
 
   if (const CXXConstructorDecl *C = dyn_cast<CXXConstructorDecl>(D))
     for (CXXConstructorDecl::init_const_iterator I = C->init_begin(),
@@ -1268,8 +1284,7 @@ void ASTDumper::VisitFieldDecl(const FieldDecl *D) {
 
   if (D->isBitField())
     dumpStmt(D->getBitWidth());
-  if (D->hasBoundsExpr())
-    dumpStmt(D->getBoundsExpr());
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
   if (Expr *Init = D->getInClassInitializer())
     dumpStmt(Init);
 }
@@ -1293,8 +1308,7 @@ void ASTDumper::VisitVarDecl(const VarDecl *D) {
     OS << " inline";
   if (D->isConstexpr())
     OS << " constexpr";
-  if (D->hasBoundsExpr())
-    dumpStmt(D->getBoundsExpr());
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
   if (D->hasInit()) {
     switch (D->getInitStyle()) {
     case VarDecl::CInit: OS << " cinit"; break;
@@ -2773,7 +2787,6 @@ void ASTDumper::dumpBoundsKind(BoundsExpr::Kind K) {
     case BoundsExpr::Kind::ElementCount: OS << " Element"; break;
     case BoundsExpr::Kind::ByteCount: OS << " Byte"; break;
     case BoundsExpr::Kind::Range: OS << " Range"; break;
-    case BoundsExpr::Kind::InteropTypeAnnotation: OS << " InteropTypeAnnotation"; break;
   }
 }
 
@@ -2815,11 +2828,8 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
   }
 }
 
-void ASTDumper::VisitInteropTypeBoundsAnnotation(
-  const InteropTypeBoundsAnnotation *Node) {
+void ASTDumper::VisitInteropTypeExpr(const InteropTypeExpr *Node) {
   VisitExpr(Node);
-  if (Node->getKind() != BoundsExpr::Kind::InteropTypeAnnotation)
-    dumpBoundsKind(Node->getKind());
 }
 
 void ASTDumper::VisitPositionalParameterExpr(

@@ -1642,7 +1642,7 @@ bool Sema::CheckMessageArgumentTypes(QualType ReceiverType,
       return true;
 
     InitializedEntity Entity
-      = InitializedEntity::InitializeParameter(Context, param, paramType, nullptr);
+      = InitializedEntity::InitializeParameter(Context, param, paramType);
     ExprResult ArgE = PerformCopyInitialization(Entity, SourceLocation(), argExpr);
     if (ArgE.isInvalid())
       IsError = true;
