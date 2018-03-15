@@ -36,7 +36,6 @@ class CXXTemporary;
 class CompoundStmt;
 class DependentFunctionTemplateSpecializationInfo;
 class Expr;
-class BoundsExpr;
 class FunctionTemplateDecl;
 class FunctionTemplateSpecializationInfo;
 class LabelStmt;
@@ -77,6 +76,7 @@ public:
   /// \brief Override the type stored in this TypeSourceInfo. Use with caution!
   void overrideType(QualType T) { Ty = T; }
 };
+
 
 /// TranslationUnitDecl - The top declaration context.
 class TranslationUnitDecl : public Decl, public DeclContext {
@@ -670,10 +670,10 @@ protected:
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
                  SourceLocation StartL)
     : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL),
-      Bounds(nullptr) {
+      Annotations(nullptr) {
   }
 
-  BoundsExpr *Bounds;
+  BoundsAnnotations *Annotations;
 
 public:
   TypeSourceInfo *getTypeSourceInfo() const {
@@ -756,11 +756,75 @@ public:
   /// \brief The declared bounds for this declaration. For function
   /// declarations, this is the return bounds of the function. Null if no
   /// bounds have been declared.
-  BoundsExpr *getBoundsExpr();
+  BoundsExpr *getBoundsExpr() {
+    return (Annotations ? Annotations->getBoundsExpr() : nullptr);
+  }
 
   /// \brief Set the declared bounds for this declaration. For function
   /// declarations, this is the return bounds of the function.
-  void setBoundsExpr(BoundsExpr *E);
+  void setBoundsExpr(ASTContext &Context, BoundsExpr *E) {
+     // If E is null and we have no annotations, do nothing.
+    if (!E && !Annotations)
+      return;
+    if (!Annotations)
+      Annotations = new (Context) BoundsAnnotations();
+    Annotations->setBoundsExpr(E);
+  }
+
+  /// \brief The Checked C interop type declared or inferred for this
+  /// declaration.  For function declarations, this is the return
+  /// interop type of the function.  Null if none has been declared
+  /// or inferred.
+  const InteropTypeExpr *getInteropTypeExpr() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropTypeExpr();
+  }
+
+  /// \brief The Checked C interop type declared or inferred for this
+  /// declaration.  For function declarations, this is the rreturn
+  /// interop type of the function.  Null if none has been declared
+  /// or inferred.
+  InteropTypeExpr *getInteropTypeExpr() {
+    return (Annotations ? Annotations->getInteropTypeExpr() : nullptr);
+  }
+
+  QualType getInteropType() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropType();
+  }
+
+  QualType getInteropType();
+
+  bool hasInteropTypeExpr() const {
+    return getInteropTypeExpr() != nullptr;
+  }
+
+  /// \brief Set the Checked C interop type for this declaration.  For function
+  /// declarations, this is the return interop type of the function.
+  void setInteropTypeExpr(ASTContext &Context, InteropTypeExpr *IT) {
+    // If IT is null and we have no annotations, do nothing.
+    if (!IT && !Annotations)
+      return;
+    if (!Annotations)
+      Annotations = new (Context) BoundsAnnotations();
+    Annotations->setInteropTypeExpr(IT);
+  }
+
+  void setBoundsAnnotations(ASTContext &Context, BoundsAnnotations BA) {
+    setBoundsExpr(Context, BA.getBoundsExpr());
+    setInteropTypeExpr(Context, BA.getInteropTypeExpr());
+  }
+
+  BoundsAnnotations getBoundsAnnotations() const {
+    if (Annotations)
+      return *Annotations;
+    else {
+      BoundsAnnotations Empty;
+      return Empty;
+    }
+  }
+
+  bool hasBoundsAnnotations() const {
+    return Annotations != nullptr && !(Annotations->IsEmpty());
+  }
 };
 
 /// \brief Structure used to store a statement, the constant value to

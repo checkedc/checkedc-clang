@@ -636,6 +636,8 @@ public:
       SmallVectorImpl<QualType> &PTypes, SmallVectorImpl<ParmVarDecl *> *PVars,
       Sema::ExtParameterInfoBuilder &PInfos);
 
+  bool TransformBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
+
   /// \brief Transform the extended parameter information for
   /// a function prototype.
   ///
@@ -647,7 +649,7 @@ public:
   bool TransformExtendedParameterInfo(
     FunctionProtoType::ExtProtoInfo &EPI,
     SmallVector<QualType, 4> &ParamTypes,
-    SmallVector<BoundsExpr *, 4> &ParamBounds,
+    SmallVector<BoundsAnnotations, 4> &ParamListAnnots,
     Sema::ExtParameterInfoBuilder &ExtParamInfos,
     FunctionProtoTypeLoc &TL,
     Fn TransformExceptionSpec,
@@ -2513,10 +2515,10 @@ public:
                                            RParenLoc);
   }
 
-  ExprResult RebuildInteropTypeBoundsAnnotation(SourceLocation StartLoc,
-                                                TypeSourceInfo *Ty,
-                                                SourceLocation RParenLoc) {
-    return getSema().CreateBoundsInteropType(StartLoc, Ty, RParenLoc);
+  ExprResult RebuildInteropTypeExpr(SourceLocation StartLoc,
+                                    TypeSourceInfo *Ty,
+                                    SourceLocation RParenLoc) {
+    return getSema().CreateBoundsInteropTypeExpr(StartLoc, Ty, RParenLoc);
   }
 
   ExprResult RebuildPositionalParameterExpr(unsigned Index, QualType QT) {
@@ -5228,11 +5230,47 @@ bool TreeTransform<Derived>::TransformFunctionTypeParams(
   return false;
 }
 
+template<typename Derived>
+bool TreeTransform<Derived>::TransformBoundsAnnotations(
+  BoundsAnnotations &Annot, bool &Changed) {
+  BoundsExpr *ExistingBounds = Annot.getBoundsExpr();
+  BoundsExpr *NewBounds = ExistingBounds;
+  if (ExistingBounds) {
+    ExprResult Result = getDerived().TransformExpr(ExistingBounds);
+    if (Result.isInvalid())
+      return true;
+    NewBounds = dyn_cast<BoundsExpr>(Result.get());
+    if (!NewBounds) {
+      llvm_unreachable("unexpected dynamic cast failure");
+      return true;
+    }
+  }
+
+  InteropTypeExpr *ExistingIType = Annot.getInteropTypeExpr();
+  InteropTypeExpr *NewIType = ExistingIType;
+  if (ExistingIType) {
+    ExprResult Result = getDerived().TransformExpr(ExistingIType);
+    if (Result.isInvalid())
+      return true;
+    NewIType = dyn_cast<InteropTypeExpr>(Result.get());
+    if (!NewIType) {
+      llvm_unreachable("unexpected dynamic cast failure");
+      return true;
+    }
+  }
+
+  if (ExistingBounds != NewBounds || ExistingIType != NewIType) {
+    Annot = BoundsAnnotations(NewBounds, NewIType);
+    Changed = true;
+  }
+  return false;
+}
+
 template <typename Derived> template<typename Fn>
 bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   FunctionProtoType::ExtProtoInfo &EPI,
   SmallVector<QualType, 4> &ParamTypes,
-  SmallVector<BoundsExpr *, 4> &ParamBounds,
+  SmallVector<BoundsAnnotations, 4> &ParamListAnnots,
   Sema::ExtParameterInfoBuilder &ExtParamInfos,
   FunctionProtoTypeLoc &TL,
   Fn TransformExceptionSpec,
@@ -5256,53 +5294,31 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
     EPI.ExtParameterInfos = nullptr;
   }
 
-  // Handle bounds expression for return.
-  BoundsExpr *ExistingReturnBounds = const_cast<BoundsExpr *>(EPI.ReturnBounds);
-  if (ExistingReturnBounds) {
-    ExprResult Result = getDerived().TransformExpr(ExistingReturnBounds);
-    if (Result.isInvalid())
-      return true;
-    BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(Result.get());
-    if (!NewBounds) {
-      assert("unexpected dynamic cast failure");
-      return true;
-    }
-    EPI.ReturnBounds = NewBounds;
-    if (ExistingReturnBounds != NewBounds)
-      EPIChanged = true;
-  }
+  // Handle bounds annotations for return.
+  BoundsAnnotations ReturnAnnot = EPI.ReturnAnnots;
+  if (getDerived().TransformBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
+    return true;
 
-  // Handle bounds expressions for parameters.
-  const BoundsExpr *const *ExistingParamBounds = EPI.ParamBounds;
-  if (ExistingParamBounds) {
-    bool ParamBoundsChanged = false;
+  // Handle bounds annotations for parameters.
+  const BoundsAnnotations *ExistingParamListAnnots = EPI.ParamAnnots;
+  if (ExistingParamListAnnots) {
+    bool ParamListAnnotsChanged = false;
     unsigned ExistingParamCount = TL.getNumParams();
     unsigned NewParamCount = ParamTypes.size();
-    ParamBounds.reserve(NewParamCount);
+    ParamListAnnots.reserve(NewParamCount);
     for (unsigned i = 0; i < NewParamCount; i++) {
-      BoundsExpr *ExistingBounds = nullptr;
-      BoundsExpr *NewBounds = nullptr;
+      BoundsAnnotations ParamAnnotations;
       if (i < ExistingParamCount) {
-        ExistingBounds = const_cast<BoundsExpr *>(ExistingParamBounds[i]);
-        if (ExistingBounds) {
-          ExprResult Result = TransformExpr(ExistingBounds);
-          if (Result.isInvalid())
-            return true;
-          NewBounds = dyn_cast<BoundsExpr>(Result.get());
-          if (!NewBounds) {
-            assert("unexpected dynamic cast failure");
-            return true;
-          }
-        }
+        ParamAnnotations = ExistingParamListAnnots[i];
+        if (getDerived().TransformBoundsAnnotations(ParamAnnotations, ParamListAnnotsChanged))
+          return true;
       }
-      ParamBounds.push_back(NewBounds);
-      if (ExistingBounds != NewBounds)
-        ParamBoundsChanged = true;
+      ParamListAnnots.push_back(ParamAnnotations);
     }
 
-    if (ParamBoundsChanged) {
+    if (ParamListAnnotsChanged) {
       EPIChanged = true;
-      EPI.ParamBounds = ParamBounds.data();
+      EPI.ParamAnnots = ParamListAnnots.data();
     }
   }
   return false;
@@ -5336,7 +5352,7 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   //
   SmallVector<QualType, 4> ParamTypes;
   SmallVector<ParmVarDecl*, 4> ParamDecls;
-  SmallVector<BoundsExpr *, 4> ParamBounds;
+  SmallVector<BoundsAnnotations, 4> ParamAnnots;
   Sema::ExtParameterInfoBuilder ExtParamInfos;
   const FunctionProtoType *T = TL.getTypePtr();
 
@@ -5379,7 +5395,7 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
 
   FunctionProtoType::ExtProtoInfo EPI = T->getExtProtoInfo();
   bool EPIChanged = false;
-  if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamBounds,
+  if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamAnnots,
                                                   ExtParamInfos, TL,
                                                   TransformExceptionSpec,
                                                   EPIChanged))
@@ -12424,12 +12440,11 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
 
 template<typename Derived>
 ExprResult
-TreeTransform<Derived>::TransformInteropTypeBoundsAnnotation(
-  InteropTypeBoundsAnnotation *E) {
+TreeTransform<Derived>::TransformInteropTypeExpr(InteropTypeExpr *E) {
   TypeSourceInfo *TInfo =
     getDerived().TransformType(E->getTypeInfoAsWritten());
   return getDerived().
-    RebuildInteropTypeBoundsAnnotation(E->getStartLoc(), TInfo,
+    RebuildInteropTypeExpr(E->getStartLoc(), TInfo,
                                        E->getRParenLoc());
 }
 
@@ -12448,7 +12463,7 @@ ExprResult TreeTransform<Derived>::TransformBoundsCastExpr(BoundsCastExpr *E) {
     return ExprError();
   BoundsExpr *Bounds = dyn_cast<BoundsExpr>(BoundsExprResult.get());
   if (!Bounds) {
-    assert("unexpected dyn_cast failure");
+    llvm_unreachable("unexpected dyn_cast failure");
     return ExprError();
   }
 

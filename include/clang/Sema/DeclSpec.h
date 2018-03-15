@@ -1368,17 +1368,21 @@ struct DeclaratorChunk {
     /// \brief The end location of the exception specification, if any.
     unsigned ExceptionSpecLocEnd;
 
-    /// The location of the ':' for the return bounds expression in the source
-    unsigned ReturnBoundsColonLoc;
+    /// The location of the ':' for the return bounds annotations in the source
+    unsigned ReturnAnnotsColonLoc;
 
     /// Params - This is a pointer to a new[]'d array of ParamInfo objects that
     /// describe the parameters specified by this function declarator.  null if
     /// there are no parameters specified.
     ParamInfo *Params;
 
-    /// The bounds for the value returned by the function. Null if there is
-    /// no bounds specified.
+    /// The annotations for the value returned by the function.  We store them
+    // as individual fields, not BoundsAnnotations, because BoundsAnnotations has
+    // a default constructor.  This is for good reason. For equally good reasons,
+    // DeclaratorChunk doesn't have a default constructor.  This means that using
+    // a default initialized instance of BoundsAnnotations is not allowed here.
     BoundsExpr *ReturnBounds;
+    InteropTypeExpr *ReturnInteropType;
 
     union {
       /// \brief Pointer to a new[]'d array of TypeAndRange objects that
@@ -1453,8 +1457,8 @@ struct DeclaratorChunk {
       return SourceLocation::getFromRawEncoding(RParenLoc);
     }
 
-    SourceLocation getReturnBoundsColonLoc() const {
-      return SourceLocation::getFromRawEncoding(ReturnBoundsColonLoc);
+    SourceLocation getReturnAnnotsColonLoc() const {
+      return SourceLocation::getFromRawEncoding(ReturnAnnotsColonLoc);
     }
 
     SourceLocation getExceptionSpecLocBeg() const {
@@ -1527,8 +1531,10 @@ struct DeclaratorChunk {
     /// \brief Get the trailing-return-type for this function declarator.
     ParsedType getTrailingReturnType() const { return TrailingReturnType; }
 
-    /// \brief The bounds expression for the return value
-    BoundsExpr *getReturnBounds() const { return ReturnBounds; }
+    /// \brief The bounds annotations for the return value
+    BoundsAnnotations getReturnAnnots() const {
+      return BoundsAnnotations(ReturnBounds, ReturnInteropType);
+    }
   };
 
   struct BlockPointerTypeInfo : TypeInfoCommon {
@@ -1673,8 +1679,8 @@ struct DeclaratorChunk {
                                      ArrayRef<NamedDecl *> DeclsInPrototype,
                                      SourceLocation LocalRangeBegin,
                                      SourceLocation LocalRangeEnd,
-                                     SourceLocation ReturnBoundsColonLoc,
-                                     BoundsExpr *ReturnBoundsExpr,
+                                     SourceLocation ReturnAnnotsColonLoc,
+                                     BoundsAnnotations &ReturnAnnotsExpr,
                                      Declarator &TheDeclarator,
                                      TypeResult TrailingReturnType =
                                                     TypeResult());
@@ -2541,11 +2547,11 @@ struct FieldDeclarator {
   Declarator D;
   Expr *BitfieldSize;
   std::unique_ptr<CachedTokens> BoundsExprTokens;
-  InteropTypeBoundsAnnotation *BoundsAnnotation;
+  InteropTypeExpr *InteropType;
 
   explicit FieldDeclarator(const DeclSpec &DS)
     : D(DS, Declarator::MemberContext), BitfieldSize(nullptr), BoundsExprTokens(nullptr),
-      BoundsAnnotation(nullptr) { }
+      InteropType(nullptr) { }
 };
 
 /// \brief Represents a C++11 virt-specifier-seq.

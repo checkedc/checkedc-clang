@@ -2929,39 +2929,104 @@ ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn
   return ExprError();
 }
 
-ExprResult Parser::ParseBoundsExpressionOrInteropType(const Declarator &D,
-                                                      SourceLocation ColonLoc,
-                                                      bool IsReturn) {
-  ExprResult Result(true);
-  bool isBounds = false;
-  bool isItype = false;
+// Parse bounds annotations, which are an optional bounds expression and
+// and an optional interop type.  At least one of the two must appear.
+// The bounds expressions may optionally be deferred parsed.  This is done
+// when DeferredToks is non-null.
+//
+// Return true if there is an error, false if there is no error.   The
+// result is stored in Result.   The tokens for the deferred parsed bounds
+// expression are stored in DeferredTokens.
+//
+// When parsing deferred bounds,  store the tokens even if a
+// parsing error occurs so that ParseBoundsExpression can generate
+// the error message.  This way the error messages from parsing of bounds
+// expressions will be the same or very similar regardless of whether
+// parsing is deferred or not.
+bool Parser::ParseBoundsAnnotations(const Declarator &D,
+                                    SourceLocation ColonLoc,
+                                    BoundsAnnotations &Result,
+                                    std::unique_ptr<CachedTokens> *DeferredToks,
+                                    bool IsReturn) {
+  bool Error = false;
+  Result = BoundsAnnotations();
+  BoundsExpr *Bounds = nullptr;
+  InteropTypeExpr *InteropType = nullptr;
+  bool parsedSomething = false;
+  bool parsedDeferredBounds = false;
 
-  if (StartsBoundsExpression(Tok)) {
-    Result = ParseBoundsExpression();
-    isBounds = true;
-  } else if (StartsInteropTypeAnnotation(Tok)) {
-    Result = ParseInteropTypeAnnotation(D, IsReturn);
-    isItype = true;
+  while (StartsBoundsExpression(Tok) ||
+         StartsInteropTypeAnnotation(Tok)) {
+    parsedSomething = true;
+    if (StartsBoundsExpression(Tok)) {
+      if (DeferredToks) {
+        bool ParsingError = !ConsumeAndStoreBoundsExpression(**DeferredToks);
+        int startPosition = (**DeferredToks).size();
+        if (ParsingError) {
+          Error = true;
+          SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+        }
+        if (parsedDeferredBounds) {
+           // If we've alrady parsed a bounds expression, issue a diagnostic
+           // message and discard the newly-parsed tokens.
+           Diag(Tok, diag::err_single_bounds_expr_allowed);
+           Error = true;
+           (**DeferredToks).set_size(startPosition);
+        } else
+          parsedDeferredBounds = true;
+      } else {
+        ExprResult ER = ParseBoundsExpression();
+        if (StartsRelativeBoundsClause(Tok))
+          if (ParseRelativeBoundsClauseForDecl(ER))
+            Error = true;
+
+        if (ER.isInvalid())
+          Error = true;
+        else {
+          BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(ER.get());
+          if (NewBounds) {
+            if (!Bounds)
+              Bounds = NewBounds;
+            else
+             Diag(NewBounds->getStartLoc(), diag::err_single_bounds_expr_allowed);  
+          } else
+            llvm_unreachable("unexpected case failure");
+      }
+      }
+    } else {
+      ExprResult ER = ParseInteropTypeAnnotation(D, IsReturn);
+      if (ER.isInvalid())
+        Error = true;
+      else {
+        InteropTypeExpr *NewAnnotation =
+          dyn_cast<InteropTypeExpr>(ER.get());
+        if (NewAnnotation) {
+          if (!InteropType)
+            InteropType = NewAnnotation;
+          else
+           Diag(NewAnnotation->getStartLoc(), diag::err_single_itype_expr_allowed);
+        }
+      }
+     }
   }
 
-  if (!isItype && !isBounds)
+  if (!parsedSomething) {
     SkipInvalidBoundsExpr(ColonLoc);
+    Error = true;
+  }
 
-  if (StartsRelativeBoundsClause(Tok))
-    if (ParseRelativeBoundsClauseForDecl(Result)) {
-      Result = ExprError();
-    }
+  if (DeferredToks)
+    assert(!Bounds);
 
-  return Result;
+  Result.setBoundsExpr(Bounds);
+  Result.setInteropTypeExpr(InteropType);
+
+  return Error;
 }
 
 // Skip Invalid Bounds Expression such as boounds(), b0unds(e1,e2) and stop if
-// relative bounds clause founds. In this case, the value of isBounds or isItype
-// is false. if there is parsing error in ParseBoundsExpression() or
-// ParseInteropTypeAnnotation(), the value of isBounds or isItype is true. That
-// means we do not need to skip bounds expression because it already skiped to
-// the right paren.
-
+// relative bounds clause is found.
+// TODO: we should skip the relative bounds clause too.
 void Parser::SkipInvalidBoundsExpr(SourceLocation CurrentLoc) {
   SourceLocation Loc = PP.getLocForEndOfToken(CurrentLoc);
   Diag(Loc, diag::err_expected_bounds_expr_or_interop_type);
@@ -3504,10 +3569,10 @@ ExprResult Parser::ParseBoundsCastExpression() {
 /// where parentheses balance within the sequence of tokens.
 bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
   bool result = false;
-  Toks.push_back(Tok);
-  if (Tok.getKind() != tok::identifier) {
+  if (StartsBoundsExpression(Tok))
+    Toks.push_back(Tok);
+  else
     return false;
-  }
   ConsumeToken();
   Toks.push_back(Tok);
   if (Tok.getKind() != tok::l_paren) {
@@ -3531,9 +3596,13 @@ bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
 /// Given a list of tokens that have the same shape as a bounds
 /// expression, parse them to create a bounds expression.  Delete
 /// the list of tokens at the end.
-ExprResult
+///
+/// Return true if there was an error; false otherwise.  The resulting
+/// bounds expression is stored in Result.
+bool
 Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
-                                      Declarator &D) {
+                                      BoundsAnnotations &Result,
+                                      const Declarator &D) {
   Token LastBoundsExprToken = Toks->back();
   Token BoundsExprEnd;
   BoundsExprEnd.startToken();
@@ -3546,12 +3615,12 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
                        // so it isn't lost.
   PP.EnterTokenStream(*Toks, true);
   ConsumeAnyToken();   // Skip past the current token to the new tokens.
-  ExprResult Result = ParseBoundsExpressionOrInteropType(D, SourceLocation());
+  bool Error = ParseBoundsAnnotations(D, SourceLocation(), Result);
 
   // There could be leftover tokens because of an error.
   // Skip through them until we reach the eof token.
   if (Tok.isNot(tok::eof)) {
-    assert(Result.isInvalid());
+    assert(Error);
     while (Tok.isNot(tok::eof))
       ConsumeAnyToken();
   }
@@ -3560,7 +3629,7 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
   if (Tok.is(tok::eof) && Tok.getLocation() == OrigLoc)
     ConsumeAnyToken();
 
-  return Result;
+  return Error;
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks
@@ -3626,6 +3695,7 @@ ExprResult Parser::ParseBlockLiteralExpression() {
     // Otherwise, pretend we saw (void).
     ParsedAttributes attrs(AttrFactory);
     SourceLocation NoLoc;
+    BoundsAnnotations ReturnAnnots;
     ParamInfo.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/true,
                                              /*IsAmbiguous=*/false,
                                              /*RParenLoc=*/NoLoc,
@@ -3649,8 +3719,8 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                              /*ExceptionSpecTokens=*/nullptr,
                                              /*DeclsInPrototype=*/None,
                                              CaretLoc, CaretLoc,
-                                             /*ReturnBoundsColon=*/NoLoc,
-                                             /*ReturnBoundsExpr=*/nullptr,
+                                             /*ReturnAnnotsColon=*/NoLoc,
+                                             /*ReturnAnnotsExpr=*/ReturnAnnots,
                                              ParamInfo),
                           attrs, CaretLoc);
 

@@ -96,8 +96,7 @@ namespace clang {
                        const NullaryBoundsExpr *E2);
     Result CompareImpl(const CountBoundsExpr *E1, const CountBoundsExpr *E2);
     Result CompareImpl(const RangeBoundsExpr *E1, const RangeBoundsExpr *E2);
-    Result CompareImpl(const InteropTypeBoundsAnnotation *E1,
-                   const InteropTypeBoundsAnnotation *E2);
+    Result CompareImpl(const InteropTypeExpr *E1, const InteropTypeExpr *E2);
     Result CompareImpl(const PositionalParameterExpr *E1,
                    const PositionalParameterExpr *E2);
     Result CompareImpl(const BoundsCastExpr *E1, const BoundsCastExpr *E2);

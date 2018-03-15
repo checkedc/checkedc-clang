@@ -292,8 +292,8 @@ void f20(int* a, int* b) {
 // CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
 // CHECK: `-CallExpr {{0x[0-9a-f]+}} {{.*}} 'int *'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int *, int *) : bounds(arg #0, arg #0 + 1)' <FunctionToPointerDecay>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int *, int *) : bounds(arg #0, arg #0 + 1)' Function {{0x[0-9a-f]+}} 'f_boundsi' 'int *(int *, int *) : bounds(arg #0, arg #0 + 1)'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int *, int *) : bounds(arg #0, arg #0 + 1) itype(_Array_ptr<int>)' <FunctionToPointerDecay>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int *, int *) : bounds(arg #0, arg #0 + 1) itype(_Array_ptr<int>)' Function {{0x[0-9a-f]+}} 'f_boundsi' 'int *(int *, int *) : bounds(arg #0, arg #0 + 1) itype(_Array_ptr<int>)'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'a' 'int *'
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' postfix '++'
@@ -331,8 +331,8 @@ void f21(int* a, int* b) {
 // CHECK: IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
 // CHECK: `-CallExpr {{0x[0-9a-f]+}} {{.*}} 'int *'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int *, int *) : bounds(arg #0, arg #0 + 1)' <FunctionToPointerDecay>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int *, int *) : bounds(arg #0, arg #0 + 1)' Function {{0x[0-9a-f]+}} 'f_boundsi' 'int *(int *, int *) : bounds(arg #0, arg #0 + 1)'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int *, int *) : bounds(arg #0, arg #0 + 1) itype(_Array_ptr<int>)' <FunctionToPointerDecay>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int *, int *) : bounds(arg #0, arg #0 + 1) itype(_Array_ptr<int>)' Function {{0x[0-9a-f]+}} 'f_boundsi' 'int *(int *, int *) : bounds(arg #0, arg #0 + 1) itype(_Array_ptr<int>)'
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int *' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *' lvalue ParmVar {{0x[0-9a-f]+}} 'b' 'int *'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *' <LValueToRValue>
@@ -358,8 +358,8 @@ void f22(int i, int j) {
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
 // CHECK: `-CallExpr {{0x[0-9a-f]+}} {{.*}} 'int *'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : count(arg #0)' <FunctionToPointerDecay>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : count(arg #0)' Function {{0x[0-9a-f]+}} 'f_counti' 'int *(int, int) : count(arg #0)'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : count(arg #0) itype(_Array_ptr<int>)' <FunctionToPointerDecay>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : count(arg #0) itype(_Array_ptr<int>)' Function {{0x[0-9a-f]+}} 'f_counti' 'int *(int, int) : count(arg #0) itype(_Array_ptr<int>)'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' postfix '++'
@@ -383,8 +383,8 @@ void f23(int i, int j) {
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
 // CHECK: `-CallExpr {{0x[0-9a-f]+}} {{.*}} 'int *'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : count(arg #0)' <FunctionToPointerDecay>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : count(arg #0)' Function {{0x[0-9a-f]+}} 'f_counti' 'int *(int, int) : count(arg #0)'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : count(arg #0) itype(_Array_ptr<int>)' <FunctionToPointerDecay>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : count(arg #0) itype(_Array_ptr<int>)' Function {{0x[0-9a-f]+}} 'f_counti' 'int *(int, int) : count(arg #0) itype(_Array_ptr<int>)'
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'j' 'int'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
@@ -406,8 +406,8 @@ void f24(int i, int j) {
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
 // CHECK: `-CallExpr {{0x[0-9a-f]+}} {{.*}} 'int *'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : byte_count(arg #0)' <FunctionToPointerDecay>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : byte_count(arg #0)' Function {{0x[0-9a-f]+}} 'f_bytei' 'int *(int, int) : byte_count(arg #0)'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : byte_count(arg #0)  itype(_Array_ptr<int>)' <FunctionToPointerDecay>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : byte_count(arg #0) itype(_Array_ptr<int>)' Function {{0x[0-9a-f]+}} 'f_bytei' 'int *(int, int) : byte_count(arg #0) itype(_Array_ptr<int>)'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' postfix '++'
@@ -431,8 +431,8 @@ void f25(int i, int j) {
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
 // CHECK: `-CallExpr {{0x[0-9a-f]+}} {{.*}} 'int *'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : byte_count(arg #0)' <FunctionToPointerDecay>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : byte_count(arg #0)' Function {{0x[0-9a-f]+}} 'f_bytei' 'int *(int, int) : byte_count(arg #0)'
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : byte_count(arg #0) itype(_Array_ptr<int>)' <FunctionToPointerDecay>
+// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : byte_count(arg #0)  itype(_Array_ptr<int>)' Function {{0x[0-9a-f]+}} 'f_bytei' 'int *(int, int) : byte_count(arg #0) itype(_Array_ptr<int>)'
 // CHECK: UnaryOperator {{0x[0-9a-f]+}} {{.*}} 'int' postfix '++'
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'j' 'int'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>

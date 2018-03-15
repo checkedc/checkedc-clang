@@ -2490,6 +2490,13 @@ public:
     CCBE_Variable
   };
 
+ // used for %select in diagnostics for errors involving redeclarations
+ // with bounds annotations.
+  enum class BoundsAnnotationKind {
+    Bounds,
+    IType
+  };
+
   CheckedTypeClassification classifyForCheckedTypeDiagnostic(QualType qt);
 
   // AssignmentAction - This is used by all the assignment diagnostic functions
@@ -3968,7 +3975,8 @@ public:
   /// - This rule applies recursively to any types nested within Ty.
   /// - All other types are allowed in checked scopes.
   /// Return false if Ty is not allowed.
-  bool AllowedInCheckedScope(QualType Ty, const BoundsExpr *Bounds,
+  bool AllowedInCheckedScope(QualType Ty,
+                             const InteropTypeExpr *InteropType,
                              bool IsParam, CheckedScopeTypeLocation Loc,
                              CheckedScopeTypeLocation &ProblemLoc,
                              QualType &ProblemTy);
@@ -4598,9 +4606,10 @@ public:
 
   ExprResult ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
                                     SourceLocation RParenLoc);
-  ExprResult CreateBoundsInteropType(SourceLocation TypeKWLoc,
-                                     TypeSourceInfo *TInfo,
-                                     SourceLocation RParenLoc);
+  ExprResult CreateBoundsInteropTypeExpr(SourceLocation TypeKWLoc,
+                                        TypeSourceInfo *TInfo,
+                                        SourceLocation RParenLoc);
+
 
   ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
 
@@ -4654,9 +4663,11 @@ public:
                                  BoundsExpr *bounds);
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
-                              BoundsExpr *Expr, bool IsReturnBounds);
-  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsExpr *Expr);
+                              BoundsAnnotations &BA, bool IsReturnAnnots);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
+                       bool MergeDeferredBounds = false);
 
+  void ActOnEmptyBoundsDecl(DeclaratorDecl *D);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
 
   // \#pragma BOUNDS_CHECKED.
@@ -4676,6 +4687,10 @@ public:
   };
 
   BoundsExpr *CreateInvalidBoundsExpr();
+  /// /brief Synthesize the interop type expression implied by the presence
+  /// of a bounds expression.  Ty is the original unchecked type.  Returns null
+  // if none exists.
+  InteropTypeExpr *SynthesizeInteropTypeExpr(QualType Ty, bool IsParam);
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
   /// CheckNonModifying - checks whether an expression is non-modifying
@@ -4685,8 +4700,8 @@ public:
                                NonModifyingContext::NMC_Unknown,
                                bool ReportError = true);
 
-  BoundsExpr *AbstractForFunctionType(BoundsExpr *Expr,
-                                      ArrayRef<DeclaratorChunk::ParamInfo> Params);
+  bool AbstractForFunctionType(BoundsAnnotations &BA,
+                               ArrayRef<DeclaratorChunk::ParamInfo> Params);
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
   BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
@@ -4698,7 +4713,7 @@ public:
   /// is used to retype declrefs and member exprs in checked scopes with bounds-safe
   /// interfaces. The Checked C spec that says that such uses in checked scopes shall be 
   /// treated as having "checked type".
-  ExprResult ConvertToFullyCheckedType(Expr *E, BoundsExpr *B, bool IsParamUse,
+  ExprResult ConvertToFullyCheckedType(Expr *E,  InteropTypeExpr *BA, bool IsParamUse,
                                        ExprValueKind VK);
 
   /// GetArrayPtrDereference - determine if an lvalue expression is a
@@ -9716,11 +9731,10 @@ public:
       QualType LHSInteropType = QualType());
 
 public:
-  /// \brief Given a value with type Ty and bounds Bounds, compute the
-  /// bounds-safe interface type.
-  QualType GetCheckedCInteropType(QualType Ty,
-                                  const BoundsExpr *Bounds,
-                                  bool isParam);
+  /// \brief: Given a value with type Ty that has a bounds declaration,
+  /// compute the bounds-safe interface type.  Returns a null QualType
+  /// if nnoe exists.
+  QualType SynthesizeInteropType(QualType Ty, bool isParam);
 
   /// Rewrite function types with bounds-safe interfaces on unchecked
   /// types to use the checked types specified by the interfaces.  Recursively
