@@ -12826,9 +12826,23 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
   BoundsExpr *BoundsExpr = Annots.getBoundsExpr();
   InteropTypeExpr *IType = Annots.getInteropTypeExpr();
   bool NoAnnotations = !BoundsExpr && !IType;
-  if (BoundsExpr && BoundsExpr->isInvalid()) {
+  if (BoundsExpr) {
+    NonModifyingContext req = NMC_Unknown;
+    if (isa<RangeBoundsExpr>(BoundsExpr)) {
+      req = NMC_Range;
+    }
+    else if (const CountBoundsExpr *CountBounds = dyn_cast<CountBoundsExpr>(BoundsExpr)) {
+      req = CountBounds->isByteCount() ? NMC_Byte_Count : NMC_Count;
+    }
+    if (!CheckIsNonModifying(BoundsExpr, req)) {
+      ActOnInvalidBoundsDecl(D);
+      return;
+    }
+
+    if (BoundsExpr->isInvalid()) {
       D->setBoundsExpr(getASTContext(), BoundsExpr);
       return;
+    }
   }
 
   if (VD && VD->isLocalVarDecl()) {

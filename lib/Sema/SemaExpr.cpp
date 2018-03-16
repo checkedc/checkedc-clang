@@ -13312,13 +13312,6 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
     return ExprError();
   }
 
-  NonModifyingContext AnalysisContext =
-    Kind == BoundsExpr::Kind::ElementCount ?
-      NonModifyingContext::NMC_Count : NonModifyingContext::NMC_Byte_Count;
-
-  if (!CheckIsNonModifying(CountExpr, AnalysisContext))
-    return ExprError();
-
   return new (Context) CountBoundsExpr(Kind, CountExpr, BoundsKWLoc,
                                        RParenLoc);
 }
@@ -13355,9 +13348,6 @@ const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
     Diag(Arg->getLocStart(), diag::err_typecheck_bounds_expr) << ArgType;
     return nullptr;
   }
-
-  if (!CheckIsNonModifying(Arg, NonModifyingContext::NMC_Range))
-    return nullptr;
 
   // Return the canonical unqualified pointee type.
   return ArgTypePointee.getTypePtr();
