@@ -13311,6 +13311,7 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
       << ResultType;
     return ExprError();
   }
+
   return new (Context) CountBoundsExpr(Kind, CountExpr, BoundsKWLoc,
                                        RParenLoc);
 }

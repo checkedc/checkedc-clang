@@ -12812,7 +12812,7 @@ bool Sema::DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
 //   It must meet typing requirements and be valid for the declaration.
 // - For VarDecls, make sure that a bounds expression on a redeclaration
 // is valid.
-void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
+void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
                            bool MergeDeferredBounds) {
   if (!D || D->isInvalidDecl())
     return;
@@ -12834,7 +12834,6 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
     else if (const CountBoundsExpr *CountBounds = dyn_cast<CountBoundsExpr>(BoundsExpr)) {
       req = CountBounds->isByteCount() ? NMC_Byte_Count : NMC_Count;
     }
-
     if (!CheckIsNonModifying(BoundsExpr, req)) {
       ActOnInvalidBoundsDecl(D);
       return;
@@ -12883,21 +12882,6 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
     }
   }
 
-  // If a declaration has no declared bounds, set the default bounds for types
-  // that have default bounds other than bounds(unknown),
-  if (!BoundsExpr) {
-    // Handle parameters that originally had a checked array type.
-    if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
-      if (PV->getOriginalType()->isCheckedArrayType())
-        BoundsExpr = CreateCountForArrayType(PV->getOriginalType());
-    }
-
-    if (!BoundsExpr)
-      if (Ty->isCheckedPointerNtArrayType() || (IType &&
-                   IType->getType()->isCheckedPointerNtArrayType()))
-        BoundsExpr = Context.getPrebuiltCountZero();
-  }
-
   // When bounds are deferred parsed, the resulting annotations should have
   // only a bounds expression.  The interop type annotation should already
   // be set on the declaration, so pick that up.
@@ -12907,15 +12891,13 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
     IType = D->getInteropTypeExpr();
   }
 
-  // Synthesize the interop type if necessary. We need to do this for the
-  // non-deferred case of parsing bounds expressions.
-  if (BoundsExpr && !IType)
-    IType = SynthesizeInteropTypeExpr(Ty, isa<ParmVarDecl>(D));
-
   BoundsAnnotations NewAnnots(BoundsExpr, IType);
+  InferBoundsAnnots(Ty, NewAnnots, isa<ParmVarDecl>(D));
   if (DiagnoseBoundsDeclType(Ty, D, NewAnnots, /*IsReturnAnnots=*/false)) {
     return;
   }
+  BoundsExpr = NewAnnots.getBoundsExpr();
+  IType = NewAnnots.getInteropTypeExpr();
 
   // If this is a VarDecl, handle already existing annotations from a prior
   // declaration, if there is a prior declaration.
@@ -12942,6 +12924,36 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
 
   D->setBoundsExpr(getASTContext(), BoundsExpr);
   D->setInteropTypeExpr(getASTContext(), IType);
+}
+
+void Sema::InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam) {
+  BoundsExpr *BoundsExpr = Annots.getBoundsExpr();
+  InteropTypeExpr *IType = Annots.getInteropTypeExpr();
+
+  // If a declaration has no declared bounds, set the default bounds for types
+  // that have default bounds other than bounds(unknown),
+  if (!BoundsExpr) {
+      // Handle parameters that originally had a checked array type.
+    if (const DecayedType *DType = Ty->getAs<DecayedType>())
+      if (DType->getOriginalType()->isCheckedArrayType())
+        BoundsExpr = CreateCountForArrayType(DType->getOriginalType());
+
+    if (!BoundsExpr && IType && IType->getType()->isCheckedArrayType())
+        BoundsExpr = CreateCountForArrayType(IType->getType());
+
+    if (!BoundsExpr)
+      if (Ty->isCheckedPointerNtArrayType() || (IType &&
+                   IType->getType()->isCheckedPointerNtArrayType()))
+        BoundsExpr = Context.getPrebuiltCountZero();
+  }
+
+  // Synthesize the interop type if necessary. We need to do this for the
+  // non-deferred case of parsing bounds expressions.
+  if (BoundsExpr && !IType)
+    IType = SynthesizeInteropTypeExpr(Ty, IsParam);
+
+  Annots.setBoundsExpr(BoundsExpr);
+  Annots.setInteropTypeExpr(IType);
 }
 
 void Sema::ActOnEmptyBoundsDecl(DeclaratorDecl *D) {
