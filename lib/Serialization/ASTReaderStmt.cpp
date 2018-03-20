@@ -701,7 +701,7 @@ void ASTStmtReader::VisitCastExpr(CastExpr *E) {
   }
   bool hasCastBoundsExpr = Record.readInt();
   if (hasCastBoundsExpr) {
-    E->setCastBoundsExpr(Record.readBoundsExpr());
+    E->setNormalizedBoundsExpr(Record.readBoundsExpr());
   }
   bool hasSubExprBoundsExpr = Record.readInt();
   if (hasSubExprBoundsExpr) {

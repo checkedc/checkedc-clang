@@ -78,11 +78,9 @@ public:
   // The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
   // do enough filtering (it'll ignore LValueToRValue casts for example).
   // TODO: reconcile with CheckValuePreservingCast
-  static Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E,
-                                               bool OnlyCasts = false) {
+  static Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E) {
     while (true) {
-      if (!OnlyCasts)
-        E = E->IgnoreParens();
+      E = E->IgnoreParens();
 
       if (CastExpr *P = dyn_cast<CastExpr>(E)) {
         CastKind CK = P->getCastKind();
@@ -110,8 +108,6 @@ public:
             continue;
           }
         }
-      } else if (OnlyCasts) {
-        ;
       } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
         QualType ETy = UO->getType();
         Expr *SE = UO->getSubExpr();
@@ -139,6 +135,19 @@ public:
 
       return E;
     }
+  }
+
+  static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E) {
+    CastExpr *P = dyn_cast<CastExpr>(E);
+    if (!P)
+      return E;
+
+    CastKind ExistingCK = P->getCastKind();
+    Expr *SE = P->getSubExpr();
+    if (NewCK == CK_BitCast && ExistingCK == CK_BitCast)
+      return SE;
+
+    return E;
   }
 };
 }
@@ -563,7 +572,7 @@ namespace {
     Expr *CreateExplicitCast(QualType Target, CastKind CK, Expr *E,
                              bool isBoundsSafeInterface) {
       // Avoid building up nested chains of no-op casts.
-      E = BoundsUtil::IgnoreValuePreservingOperations(Context, E, true);
+      E = BoundsUtil::IgnoreRedundantCast(Context, CK, E);
 
       // Synthesize some dummy type source source information.
       TypeSourceInfo *DI = Context.getTrivialTypeSourceInfo(Target);
@@ -1462,6 +1471,25 @@ namespace {
       if (RHSBounds) {
         OS << "RHS Bounds:\n ";
         RHSBounds->dump(OS);
+      }
+    }
+
+    void DumpBoundsCastBounds(raw_ostream &OS, CastExpr *E,
+                              BoundsExpr *Declared, BoundsExpr *NormalizedDeclared,
+                              BoundsExpr *SubExprBounds) {
+      OS << "\n";
+      E->dump(OS);
+      if (Declared) {
+        OS << "Declared Bounds:\n";
+        Declared->dump(OS);
+      }
+      if (NormalizedDeclared) {
+        OS << "Normalized Declared Bounds:\n ";
+        NormalizedDeclared->dump(OS);
+      }
+      if (SubExprBounds) {
+        OS << "Inferred Subexpression Bounds:\n ";
+        SubExprBounds->dump(OS);
       }
     }
 
@@ -2387,23 +2415,34 @@ namespace {
         return;
       }
 
-      // If inferred bounds of e1 are bounds(unknown), compile-time error.
-      // If inferred bounds of e1 are bounds(any), no runtime checks.
-      // Otherwise, the inferred bounds is bounds(lb, ub).
-      // bounds of cast operation is bounds(e2, e3).
-      // In code generation, it inserts dynamic_check(lb <= e2 && e3 <= ub).
+      // Handle dynamic_bounds_casts.
+      //
+      // If the inferred bounds of the subexpression are:
+      // - bounds(unknown), this is a compile-time error.
+      // - bounds(any), there is no runtime checks.
+      // - bounds(lb, ub):  If the declared bounds of the cast operation are
+      // (e2, e3),  a runtime check that lb <= e2 && e3 <= ub is inserted
+      // during code generation.
       if (CK == CK_DynamicPtrBounds) {
         Expr *SubExpr = E->getSubExpr();
+        Expr *SubExprAtNewType =
+          BoundsInference(S).CreateExplicitCast(E->getType(),
+                                                CastKind::CK_BitCast,
+                                                SubExpr, true);
+        BoundsExpr *DeclaredBounds = E->getBoundsExpr();
+        BoundsExpr *NormalizedBounds = S.ExpandToRange(SubExprAtNewType,
+                                                       DeclaredBounds);
         BoundsExpr *SubExprBounds = S.InferRValueBounds(SubExpr);
-        BoundsExpr *CastBounds = S.InferRValueBounds(E);
-
         if (SubExprBounds->isUnknown()) {
           S.Diag(SubExpr->getLocStart(), diag::err_expected_bounds);
         }
 
-        assert(CastBounds);
-        E->setCastBoundsExpr(CastBounds);
+        assert(NormalizedBounds);
+        E->setNormalizedBoundsExpr(NormalizedBounds);
         E->setSubExprBoundsExpr(SubExprBounds);
+        if (DumpBounds)
+          DumpBoundsCastBounds(llvm::outs(), E, DeclaredBounds,
+                               NormalizedBounds, SubExprBounds);
       }
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
