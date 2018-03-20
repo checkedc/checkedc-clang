@@ -4664,11 +4664,13 @@ public:
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsAnnotations &BA, bool IsReturnAnnots);
-  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations &Annots,
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
                        bool MergeDeferredBounds = false);
 
   void ActOnEmptyBoundsDecl(DeclaratorDecl *D);
   void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
+  /// \brief Add default bounds/interop type expressions to Annots, if appropriate.
+  void InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam);
 
   // \#pragma BOUNDS_CHECKED.
   void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
@@ -4689,11 +4691,11 @@ public:
   BoundsExpr *CreateInvalidBoundsExpr();
   /// /brief Synthesize the interop type expression implied by the presence
   /// of a bounds expression.  Ty is the original unchecked type.  Returns null
-  // if none exists.
+  /// if none exists.
   InteropTypeExpr *SynthesizeInteropTypeExpr(QualType Ty, bool IsParam);
   BoundsExpr *CreateCountForArrayType(QualType QT);
 
-  /// CheckNonModifying - checks whether an expression is non-modifying
+  /// /brief Checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
   /// false otherwise.
   bool CheckIsNonModifying(Expr *E, NonModifyingContext Req =
@@ -4702,8 +4704,13 @@ public:
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);
+  /// \brief Take a bounds expression with positional parameters from a function
+  /// type and substitute DeclRefs to the corresonding parameters in Params.
   BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
                                          ArrayRef<ParmVarDecl *> Params);
+  /// \brief Take a member bounds expression with member references and
+  /// replace the member references with member access expressions using
+  /// MemberBase as the base.  Returns a nullptr if there is an error.
   BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
                                        BoundsExpr *Bounds);
   BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args,
