@@ -95,6 +95,10 @@ int g_arr7[5] : itype(int _Checked[5]);
 
 // CHECK-NEXT: VarDecl
 // CHECK: g_arr7 'int [5]'
+// CHECK-NEXT CountBoundsExpr =
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 5
 // CHECK-NEXT: InteropTypeExpr
 // CHECK: 'int _Checked[5]'
 // CHECK-NEXT: ConstantArrayType
@@ -190,9 +194,13 @@ void f13(int *pint : itype(_Ptr<int>));
 void f14(int *pint : itype(int _Checked[5]));
 
 // CHECK: FunctionDecl
-// CHECK: f14 'void (int * : itype(int _Checked[5]))'
+// CHECK: f14 'void (int * : count(5) itype(int _Checked[5]))'
 // CHECK-NEXT: ParmVarDecl
 // CHECK: pint 'int *'
+// CHECK-NEXT: CountBoundsExpr
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 5
 // CHECK-NEXT: InteropTypeExpr
 // CHECK: 'int _Checked[5]'
 // CHECK-NEXT: ConstantArrayType
@@ -239,9 +247,13 @@ void f18(int arr1[6] : itype(int _Checked[6]));
 
 // CHECK: FunctionDecl
 // CHECK: f18
-// CHECK: 'void (int * : itype(int _Checked[6]))'
+// CHECK: 'void (int * : count(6) itype(int _Checked[6]))'
 // CHECK-NEXT: ParmVarDecl
 // CHECK: arr1 'int *':'int *'
+// CHECK-NEXT: CountBoundsExpr
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 6
 // CHECK-NEXT: InteropTypeExpr
 // CHECK: 'int _Checked[6]'
 // CHECK-NEXT: ConstantArrayType
@@ -398,6 +410,10 @@ struct S1 {
 
   // CHECK: FieldDecl
   // CHECK: arr6 'int [5]'
+  // CHECK-NEXT: CountBoundsExpr
+  // CHECK: Element
+  // CHECK-NEXT: IntegerLiteral
+  // CHECK: 'int' 5
   // CHECK-NEXT: InteropTypeExpr
   // CHECK-NEXT: ConstantArrayType
   // CHECK-NEXT: BuiltinType
