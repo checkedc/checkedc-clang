@@ -9455,6 +9455,9 @@ def err_typecheck_void_pointer_count_bounds_decl : Error<
 def err_typecheck_void_pointer_count_return_bounds : Error<
   "count bounds expression not allowed for a void pointer return type">;
 
+def err_typecheck_void_pointer_count_bounds_cast : Error<
+  "count bounds expression not allowed for a bounds cast to void pointer">;
+
 def err_typecheck_non_count_bounds_decl : Error<
   "expected %0 to have a pointer, array, or integer type">;
 

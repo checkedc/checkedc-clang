@@ -13556,9 +13556,9 @@ ExprResult Sema::ActOnBoundsCastExprCount(
   if (!DestTy->isCheckedPointerArrayType()) {
     Diag(TypeLoc, diag::err_bounds_cast_error_with_array_syntax);
     return ExprError();
-  } else if ((E1->getType())->isVoidPointerType()) {
-    Diag(E1->getLocStart(),
-         diag::err_typecheck_void_pointer_count_return_bounds);
+  } else if (DestTy->isVoidPointerType()) {
+    Diag(OpLoc,
+         diag::err_typecheck_void_pointer_count_bounds_cast);
     return ExprError();
   } else {
     if (!ResE2.isInvalid())
