@@ -47,6 +47,64 @@ int * g_arr4 : itype(_Ptr<int>);
 // CHECK: g_arr4 'int *'
 // CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
+// CHECK-NEXT: PointerType
+// CHECK: '_Ptr<int>'
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
+
+int *g_arr5  : bounds(g_arr5, g_arr5 + 5);
+
+// CHECK: VarDecl
+// CHECK: g_arr5 'int *'
+// CHECK-NEXT: RangeBoundsExpr
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK: 'int *' <LValueToRValue>
+// CHECK-NEXT: DeclRefExpr
+// CHECK: 'g_arr5' 'int *'
+// CHECK-NEXT: BinaryOperator
+// CHECK: 'int *' '+'
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK: 'int *' <LValueToRValue>
+// CHECK: DeclRefExpr
+// CHECK: 'g_arr5' 'int *'
+// CHECK-NEXT IntegerLiteral
+// CHECK: 'int' 5
+// CHECK-NEXT: InteropTypeExpr
+// CHECK:_Array_ptr<int>'
+// CHECK-NEXT: PointerType
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
+
+
+int *g_arr6 : itype(_Array_ptr<int>) count(5);
+
+// CHECK: VarDecl
+// CHECK: g_arr6 'int *'
+// CHECK-NEXT: CountBoundsExpr
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 5
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT: PointerType
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
+
+int g_arr7[5] : itype(int _Checked[5]);
+
+// CHECK-NEXT: VarDecl
+// CHECK: g_arr7 'int [5]'
+// CHECK-NEXT CountBoundsExpr =
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 5
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: 'int _Checked[5]'
+// CHECK-NEXT: ConstantArrayType
+// CHECK: 5
+// CHECK-NEXT:  BuiltinType
+// CHECK: 'int'
 
 //===================================================================
 // Dumps of different kinds of bounds expressions on local variables
@@ -133,9 +191,25 @@ void f13(int *pint : itype(_Ptr<int>));
 // CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
 
-void f14(int arr1 _Checked[] : count(5));
+void f14(int *pint : itype(int _Checked[5]));
+
 // CHECK: FunctionDecl
-// CHECK: f14
+// CHECK: f14 'void (int * : count(5) itype(int _Checked[5]))'
+// CHECK-NEXT: ParmVarDecl
+// CHECK: pint 'int *'
+// CHECK-NEXT: CountBoundsExpr
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 5
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: 'int _Checked[5]'
+// CHECK-NEXT: ConstantArrayType
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
+
+void f15(int arr1 _Checked[] : count(5));
+// CHECK: FunctionDecl
+// CHECK: f15
 // CHECK-NEXT: ParmVarDecl
 // CHECK: arr1 '_Array_ptr<int>'
 // CHECK-NEXT: CountBoundsExpr
@@ -145,10 +219,10 @@ void f14(int arr1 _Checked[] : count(5));
 
 // Parameters with checked array type have a bounds expression implicitly
 // created for them when they are retyped as a pointer type.
-void f15(int arr1 _Checked[6]);
+void f16(int arr1 _Checked[6]);
 
 // CHECK: FunctionDecl
-// CHECK: f15
+// CHECK: f16
 // CHECK-NEXT: ParmVarDecl
 // CHECK: arr1 '_Array_ptr<int>'
 // CHECK-NEXT: CountBoundsExpr
@@ -158,16 +232,57 @@ void f15(int arr1 _Checked[6]);
 
 // However, any bounds declared by the programmer override a bounds implicitly
 // created based on the first dimension size.
-void f16(int arr1 _Checked[6] : count(3));
+void f17(int arr1 _Checked[6] : count(3));
 
 // CHECK: FunctionDecl
-// CHECK: f16
+// CHECK: f17
 // CHECK-NEXT: ParmVarDecl
 // CHECK: arr1 '_Array_ptr<int>'
 // CHECK-NEXT: CountBoundsExpr
 // CHECK: Element
 // CHECK-NEXT: IntegerLiteral
 // CHECK 'int' 3
+
+void f18(int arr1[6] : itype(int _Checked[6]));
+
+// CHECK: FunctionDecl
+// CHECK: f18
+// CHECK: 'void (int * : count(6) itype(int _Checked[6]))'
+// CHECK-NEXT: ParmVarDecl
+// CHECK: arr1 'int *':'int *'
+// CHECK-NEXT: CountBoundsExpr
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 6
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: 'int _Checked[6]'
+// CHECK-NEXT: ConstantArrayType
+// CHECK: 'int _Checked[6]' 6
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
+
+void f19(int arr[6]: count(6));
+
+// CHECK: FunctionDecl
+// CHECK: f19 'void (int * : count(6) itype(_Array_ptr<int>))'
+// CHECK-NEXT: ParmVarDecl
+// CHECK: arr 'int *':'int *'
+// CHECK-NEXT:  CountBoundsExpr
+// CHECK: Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 6
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: '_Array_ptr<int>':'_Array_ptr<int>'
+// CHECK-NEXT: DecayedType
+// CHECK: '_Array_ptr<int>' sugar
+// CHECK-NEXT: ConstantArrayType
+// CHECK: 'int _Checked[6]' 6
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
+// CHECK-NEXT: PointerType
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
 
 //===================================================================
 // Dumps of different kinds of bounds expressions on function returns
@@ -212,6 +327,21 @@ int *f23(void) : itype(_Ptr<int>);
 // CHECK-NEXT: InteropTypeExpr
 // CHECK: '_Ptr<int>'
 
+int *f24(void) : count(5);
+
+// CHECK: FunctionDecl
+// CHECK:  'int *(void) : count(5) itype(_Array_ptr<int>)'
+// CHECK-NEXT: CountBoundsExpr
+// CHECK:  Element
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int' 5
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT: PointerType
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
+
 //===================================================================
 // Dumps of different kinds of bounds expressions on structure members
 //===================================================================
@@ -250,12 +380,44 @@ struct S1 {
   // CHECK-NEXT: IntegerLiteral
   // CHECK: 'int' 5
 
-  int * arr4 : itype(_Ptr<int>);
-
+  int *arr4 : bounds(arr4, arr4 + 6);
   // CHECK: FieldDecl
   // CHECK: arr4 'int *'
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT: ImplicitCastExpr
+  // CHECK-NEXT: DeclRefExpr
+  // CHECK: arr4
+  // CHECK-NEXT: BinaryOperator
+  // CHECK-NEXT: ImplicitCastExpr
+  // CHECK: arr4
+  // CHECK-NEXT: IntegerLiteral
+  // CHECK: 'int' 6
+  // CHECK-NEXT: InteropTypeExpr
+  // CHECK: '_Array_ptr<int>'
+  // CHECK-NEXT:  PointerType
+  // CHECK: _Array_ptr<int>'
+  // CHECK-NEXT BuiltinType
+  // CHECK: 'int'
+
+  int * arr5 : itype(_Ptr<int>);
+
+  // CHECK: FieldDecl
+  // CHECK: arr5 'int *'
   // CHECK-NEXT: InteropTypeExpr
   // CHECK: '_Ptr<int>'
+
+  int arr6[5] : itype(int _Checked[5]);
+
+  // CHECK: FieldDecl
+  // CHECK: arr6 'int [5]'
+  // CHECK-NEXT: CountBoundsExpr
+  // CHECK: Element
+  // CHECK-NEXT: IntegerLiteral
+  // CHECK: 'int' 5
+  // CHECK-NEXT: InteropTypeExpr
+  // CHECK-NEXT: ConstantArrayType
+  // CHECK-NEXT: BuiltinType
+  // CHECK: 'int'
 };
 
 //===================================================================
@@ -307,6 +469,15 @@ void f34(int (*fn)(int **arr : itype(_Array_ptr<_Ptr<int>>)));
 // CHECK: ParmVarDecl
 // CHECK: fn
 // CHECK: 'int (*)(int ** : itype(_Array_ptr<_Ptr<int>>))'
+
+void f35(int (*fn)(int **arr : count(5) itype(_Array_ptr<_Ptr<int>>)));
+
+// CHECK: FunctionDecl
+// CHECK: f35
+// CHECK: 'void (int (*)(int ** : count(5) itype(_Array_ptr<_Ptr<int>>)))'
+// CHECK: ParmVarDecl
+// CHECK: fn
+// CHECK: 'int (*)(int ** : count(5) itype(_Array_ptr<_Ptr<int>>))'
 
 typedef float fn_sum1(int lower, int upper,
                      _Array_ptr<float> arr : bounds(arr - lower, arr + upper));
@@ -418,6 +589,46 @@ _Array_ptr<int> f42(_Array_ptr<int> arr : count(len), int len) : bounds(arr, arr
 // CHECK-NEXT: ImplicitCastExpr
 // CHECK-NEXT: DeclRefExpr
 // CHECK: len
+
+int *f43(int *arr : count(len), int len) : bounds(arr, arr + len);
+
+// CHECK-NEXT: FunctionDecl
+// CHECK: f43
+// Parameter bounds and interop type.
+// CHECK: int *(int * : count(arg #1) itype(_Array_ptr<int>), int)
+// The return bounds and interop type
+// CHECK : bounds(arg #0, arg #0 + arg #1) itype(_Array_ptr<int>)'
+// CHECK-NEXT: ParmVarDecl
+// CHECK: arr
+// CHECK-NEXT: CountBoundsExpr
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: len
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT PointerType
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT BuiltinType
+// CHECK: 'int'
+// CHECK-NEXT: ParmVarDecl
+// CHECK: len
+// CHECK-NEXT: RangeBoundsExpr
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: 'arr'
+// CHECK-NEXT: BinaryOperator
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: arr
+// CHECK-NEXT: ImplicitCastExpr
+// CHECK-NEXT: DeclRefExpr
+// CHECK: len
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT: PointerType
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT: BuiltinType
+// CHECK:'int'
 
 typedef _Array_ptr<float> fn_vector_add(_Array_ptr<float> vec : count(len),
  int len, int c) : count(len);
