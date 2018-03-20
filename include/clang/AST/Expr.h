@@ -2959,9 +2959,9 @@ private:
 class CastExpr : public Expr {
 private:
   // BOUNDS - declared bounds of the result of the cast expression
-  // CASTBOUNDS - normalized version of BOUNDS
+  // NORMALIZED_BOUNDS - normalized version of declared bounds.
   // SUBEXPRBOUNDS - inferred bounds of subexpression
-  enum { OP, BOUNDS, CASTBOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
+  enum { OP, BOUNDS, NORMALIZED_BOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
   Stmt* SubExprs[END_EXPR];
 
   bool CastConsistency() const;
@@ -2997,7 +2997,7 @@ protected:
     assert(kind != CK_Invalid && "creating cast with invalid cast kind");
     SubExprs[OP] = op;
     SubExprs[BOUNDS] = nullptr;
-    SubExprs[CASTBOUNDS] = nullptr;
+    SubExprs[NORMALIZED_BOUNDS] = nullptr;
     SubExprs[SUBEXPRBOUNDS] = nullptr;
     CastExprBits.Kind = kind;
     CastExprBits.BoundsSafeInterface = false;
@@ -3010,7 +3010,7 @@ protected:
     : Expr(SC, Empty) {
     SubExprs[OP] = nullptr;
     SubExprs[BOUNDS] = nullptr;
-    SubExprs[CASTBOUNDS] = nullptr;
+    SubExprs[NORMALIZED_BOUNDS] = nullptr;
     SubExprs[SUBEXPRBOUNDS] = nullptr;
     setBasePathSize(BasePathSize);
   }
@@ -3096,9 +3096,9 @@ public:
   /// by the compiler.
   bool hasBoundsExpr() const { return SubExprs[BOUNDS] != nullptr; }
 
-  /// \brief Returns the bounds associated with the cast expression.
+  /// \brief Returns the bounds associated with the cast expression, if any.
   /// * If the cast expression is a BoundsCast expression, it is the bounds
-  /// declared in the program.
+  /// declared for the expression.
   /// * If the cast expression is a cast to Ptr, it is the compiler-inferred
   /// bounds of the subexpression of the cast expression.   The bounds must be
   /// provably large enough at compile-time to contain a value of the _Ptr type.
@@ -3114,17 +3114,22 @@ public:
     SubExprs[BOUNDS] = E;
   }
 
-  bool hasCastBoundsExpr() const { return SubExprs[CASTBOUNDS] != nullptr; }
-  BoundsExpr *getCastBoundsExpr() {
-    return cast_or_null<BoundsExpr>(SubExprs[CASTBOUNDS]);
-  }
-  const BoundsExpr *getCastBoundsExpr() const {
-    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[CASTBOUNDS]));
-  }
-  void setCastBoundsExpr(BoundsExpr *E) {
-    SubExprs[CASTBOUNDS] = E;
+  bool hasNormalizedBoundsExpr() const { return SubExprs[NORMALIZED_BOUNDS] != nullptr; }
+
+  // \brief Normalized version of bounds associated with the cast expression
+  // (getBoundsExpr).
+  BoundsExpr *getNormalizedBoundsExpr() {
+    return cast_or_null<BoundsExpr>(SubExprs[NORMALIZED_BOUNDS]);
   }
 
+  const BoundsExpr *getNormalizedBoundsExpr() const {
+    return const_cast<BoundsExpr*>(cast_or_null<BoundsExpr>(SubExprs[NORMALIZED_BOUNDS]));
+  }
+  void setNormalizedBoundsExpr(BoundsExpr *E) {
+    SubExprs[NORMALIZED_BOUNDS] = E;
+  }
+
+  // The inferred bounds of the subexpression of the cast expression.
   bool hasSubExprBoundsExpr() const { return SubExprs[SUBEXPRBOUNDS] != nullptr; }
   BoundsExpr *getSubExprBoundsExpr() {
     return cast_or_null<BoundsExpr>(SubExprs[SUBEXPRBOUNDS]);

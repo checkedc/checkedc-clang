@@ -687,9 +687,9 @@ void ASTStmtWriter::VisitCastExpr(CastExpr *E) {
   if (E->hasBoundsExpr()) {
     Record.AddStmt(E->getBoundsExpr());
   }
-  Record.push_back(E->hasCastBoundsExpr());
-  if (E->hasCastBoundsExpr()) {
-    Record.AddStmt(E->getCastBoundsExpr());
+  Record.push_back(E->hasNormalizedBoundsExpr());
+  if (E->hasNormalizedBoundsExpr()) {
+    Record.AddStmt(E->getNormalizedBoundsExpr());
   }
 
   Record.push_back(E->hasSubExprBoundsExpr());
