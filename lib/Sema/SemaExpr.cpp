@@ -13511,10 +13511,8 @@ ExprResult Sema::ActOnBoundsCastExprSingle(
     SourceLocation LAngleBracketLoc, ParsedType D,
     SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
     SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1) {
-
-  RangeBoundsExpr *Range = nullptr;
   TypeSourceInfo *castTInfo;
-  ExprResult bounds(true);
+  BoundsExpr *bounds;
 
   QualType DestTy = GetTypeFromParser(D, &castTInfo);
   SourceLocation TypeLoc = (castTInfo->getTypeLoc()).getBeginLoc();
@@ -13523,36 +13521,19 @@ ExprResult Sema::ActOnBoundsCastExprSingle(
     return ExprError();
 
   if (DestTy->isCheckedPointerPtrType() || DestTy->isUncheckedPointerType()) {
-    llvm::APInt I = llvm::APInt(1, 1, false);
-    uint64_t Bits = I.getZExtValue();
-    unsigned Width = Context.getIntWidth(Context.UnsignedLongLongTy);
-    llvm::APInt ResultVal(Width, Bits);
-    IntegerLiteral *One = IntegerLiteral::Create(
-        Context, ResultVal, Context.UnsignedLongLongTy, SourceLocation());
-    bounds =
-        ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
-                             One, SourceLocation());
+    if (DestTy->isVoidPointerType())
+      bounds = Context.getPrebuiltByteCountOne();
+    else
+      bounds = Context.getPrebuiltCountOne();
   } else {
     Diag(TypeLoc, diag::err_bounds_cast_error_with_single_syntax);
     return ExprError();
   }
 
-  if (bounds.isInvalid())
-    return ExprError();
-
-  if (RelativeClause != nullptr) {
-    RelativeBoundsClause::Kind kind = RelativeClause->getClauseKind();
-    if (((kind == RelativeBoundsClause::Kind::Type) ||
-         (kind == RelativeBoundsClause::Kind::Const)) &&
-        (Range = dyn_cast<RangeBoundsExpr>(bounds.get()))) {
-      Range->setRelativeBoundsClause(RelativeClause);
-    }
-  }
-
   return BuildBoundsCastExpr(OpLoc, Kind, castTInfo,
                              SourceRange(LAngleBracketLoc, RAngleBracketLoc),
                              SourceRange(LParenLoc, RParenLoc), E1,
-                             dyn_cast<BoundsExpr>(bounds.get()));
+                             bounds);
 }
 
 ExprResult Sema::ActOnBoundsCastExprCount(

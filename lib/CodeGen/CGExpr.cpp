@@ -4793,7 +4793,7 @@ llvm::Value *CodeGenFunction::EmitBoundsCast(CastExpr *CE) {
   if (Kind == CK_DynamicPtrBounds) {
     BoundsCastExpr *BCE = cast<BoundsCastExpr>(CE);
     EmitDynamicBoundsCastCheck(Addr,
-                               BCE->getCastBoundsExpr(),
+                               BCE->getNormalizedBoundsExpr(),
                                BCE->getSubExprBoundsExpr());
   }
   return Addr.getPointer();
