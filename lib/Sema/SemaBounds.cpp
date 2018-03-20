@@ -265,7 +265,7 @@ namespace {
           clang::ExprValueKind::VK_LValue, SourceLocation());
       } else {
         llvm_unreachable("out of range index for positional parameter");
-        return ExprResult();
+        return ExprError();
       }
     }
   };
@@ -327,12 +327,13 @@ namespace {
                                          ShouldReportError)) {
           SubstitutedModifyingExpression = true;
           ErroredForArgument.set(index);
+          return ExprError();
         }
 
         return SemaRef.MakeAssignmentImplicitCastExplicit(AE);
       } else {
         llvm_unreachable("out of range index for positional argument");
-        return ExprResult();
+        return ExprError();
       }
     }
   };
@@ -394,14 +395,14 @@ namespace {
     // - We assume field expressions are lvalues, so we will have lvalue-to-rvalue
     //   conversions applied to rvalues.  We need to remove these conversions.
     // - The address of a field is taken.  It is illegal to take the address of
-    //   an lvalue.
+    //   an rvalue.
     //
     // rVvalue structs can arise from function returns of struct values.
     ExprResult TransformDeclRefExpr(DeclRefExpr *E) {
       if (FieldDecl *FD = dyn_cast<FieldDecl>(E->getDecl())) {
         if (Base->isRValue() && !IsArrow)
-          // For now, return nothing if we see an rvalue base.
-          return ExprResult();
+          // For now, return an error if we see an rvalue base.
+          return ExprError();
         ASTContext &Context = SemaRef.getASTContext();
         ExprValueKind ResultKind;
         if (IsArrow)
@@ -823,6 +824,12 @@ namespace {
           BoundsExpr *B = FD->getBoundsExpr();
           if (B) {
             B = SemaRef.MakeMemberBoundsConcrete(ME->getBase(), ME->isArrow(), B);
+            if (!B) {
+               assert(ME->getBase()->isRValue());
+              // This can happen if the base expression is an rvalue expression.
+              // It could be a function call that returns a struct, for example.
+              CreateBoundsNotAllowedYet();
+            }
             if (B->isElementCount() || B->isByteCount()) {
               Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                               CastKind::CK_ArrayToPointerDecay,
@@ -962,8 +969,8 @@ namespace {
           if (!B || B->isUnknown())
             return CreateBoundsAlwaysUnknown();
 
-            Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
-            return ExpandToRange(Base, B);
+          Expr *Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, E);
+          return ExpandToRange(Base, B);
         }
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = cast<UnaryOperator>(E);
@@ -999,6 +1006,12 @@ namespace {
             return CreateBoundsAlwaysUnknown();
 
           Expr *MemberBaseExpr = M->getBase();
+          // TODO: this check is only correct when the lvalue is read.
+          // If the lvalue is being assigned to and the member has
+          // bounds that depend on other members, we may need to issue
+          // an error message.   If an lvalue target has unknown bounds,
+          // we don't check that assignments meet the bounds requirements.
+          // The member may have specific bounds requirements that must be met.
           if (!SemaRef.CheckIsNonModifying(MemberBaseExpr,
                                          Sema::NonModifyingContext::NMC_Unknown,
               /*ReportError=*/false))
@@ -1012,8 +1025,12 @@ namespace {
             return CreateBoundsAlwaysUnknown();
 
           B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
-          if (!B)
-            return CreateBoundsInferenceError();
+          if (!B) {
+             // This can happen when MemberBaseExpr is an rvalue expression.  An example
+             // of this a function call that returns a struct.  MakeMemberBoundsConcrete
+             // can't handle this yet.
+            return CreateBoundsNotAllowedYet();
+          }
 
           if (B->isElementCount() || B->isByteCount()) {
              Expr *MemberRValue;

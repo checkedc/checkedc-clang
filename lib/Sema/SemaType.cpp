@@ -4826,14 +4826,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         }
 
         BoundsAnnotations ReturnAnnots = FTI.getReturnAnnots();
-
-        if (T->isCheckedPointerNtArrayType() && !ReturnAnnots.getBoundsExpr())
-           ReturnAnnots = BoundsAnnotations(Context.getPrebuiltCountZero(), nullptr);
-
-        // If there is no interop type, try synthesizing one implied by the
-        // presence of a bounds expression.
-        if (!ReturnAnnots.getInteropTypeExpr() && ReturnAnnots.getBoundsExpr())
-          ReturnAnnots.setInteropTypeExpr(S.SynthesizeInteropTypeExpr(T, false));
+        S.InferBoundsAnnots(T, ReturnAnnots, false);
 
         if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnots, true))
           D.setInvalidType(true);

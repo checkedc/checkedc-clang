@@ -2830,6 +2830,7 @@ void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
 
 void ASTDumper::VisitInteropTypeExpr(const InteropTypeExpr *Node) {
   VisitExpr(Node);
+  dumpTypeAsChild(Node->getType());
 }
 
 void ASTDumper::VisitPositionalParameterExpr(
