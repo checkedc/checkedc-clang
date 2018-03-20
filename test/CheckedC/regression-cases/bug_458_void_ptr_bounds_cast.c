@@ -1,5 +1,5 @@
 //
-// These is a regression test case for 
+// These is a regression test case for
 // https://github.com/Microsoft/checkedc-clang/issues/458
 //
 // This test checks that _Dynamic_bounds_cast from a void pointer compiles.
