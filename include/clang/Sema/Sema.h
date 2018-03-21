@@ -4632,29 +4632,14 @@ public:
   ActOnBoundsCastExprBounds(Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
                             SourceLocation LAnagleBracketLoc, ParsedType D,
                             SourceLocation RAngleBracketLoc,
-                            RelativeBoundsClause *RelativeClause,
                             SourceLocation LParenLoc, SourceLocation RParenLoc,
-                            Expr *E1, Expr *ParsedBounds);
+                            Expr *E1, BoundsExpr *ParsedBounds);
 
   ExprResult ActOnBoundsCastExprSingle(
       Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
       SourceLocation LAnagleBracketLoc, ParsedType D,
-      SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
+      SourceLocation RAngleBracketLoc,
       SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1);
-
-  ExprResult ActOnBoundsCastExprCount(
-      Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
-      SourceLocation LAnagleBracketLoc, ParsedType D,
-      SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
-      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1, Expr *E2);
-
-  ExprResult
-  ActOnBoundsCastExprRange(Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
-                           SourceLocation LAnagleBracketLoc, ParsedType D,
-                           SourceLocation RAngleBracketLoc,
-                           RelativeBoundsClause *RelativeClause,
-                           SourceLocation LParenLoc, SourceLocation RParenLoc,
-                           Expr *E1, Expr *E2, Expr *E3);
 
   ExprResult BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
                                  TypeSourceInfo *CastTypeInfo,

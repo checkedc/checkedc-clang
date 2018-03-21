@@ -13465,170 +13465,59 @@ bool Sema::CheckBoundsCastBaseType(Expr *E1) {
 ExprResult Sema::ActOnBoundsCastExprBounds(
     Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
     SourceLocation LAngleBracketLoc, ParsedType D,
-    SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
+    SourceLocation RAngleBracketLoc,
     SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1,
-    Expr *bounds) {
+    BoundsExpr *Bounds) {
+  TypeSourceInfo *CastTInfo;
 
-  RangeBoundsExpr *Range = nullptr;
-  TypeSourceInfo *castTInfo;
-
-  QualType DestTy = GetTypeFromParser(D, &castTInfo);
-  ExprResult ParsedBounds = CorrectDelayedTyposInExpr(bounds);
-  SourceLocation TypeLoc = (castTInfo->getTypeLoc()).getBeginLoc();
+  QualType DestTy = GetTypeFromParser(D, &CastTInfo);
+  SourceLocation TypeLoc = (CastTInfo->getTypeLoc()).getBeginLoc();
 
   if (CheckBoundsCastBaseType(E1))
     return ExprError();
 
   if (!DestTy->isCheckedPointerArrayType()) {
-    Diag(TypeLoc, diag::err_bounds_cast_error_with_array_syntax);
+    Diag(TypeLoc, diag::err_bounds_cast_expected_array_ptr);
     return ExprError();
-  } else if ((E1->getType())->isVoidPointerType()) {
-    Diag(E1->getLocStart(),
-         diag::err_typecheck_void_pointer_count_return_bounds);
+  } else if (Bounds->isElementCount() && DestTy->isVoidPointerType()) {
+    Diag(Bounds->getLocStart(),
+         diag::err_typecheck_void_pointer_count_bounds_cast);
     return ExprError();
   }
 
-  if (ParsedBounds.isInvalid())
-    return ExprError();
-
-  if (RelativeClause != nullptr) {
-    RelativeBoundsClause::Kind kind = RelativeClause->getClauseKind();
-    if (((kind == RelativeBoundsClause::Kind::Type) ||
-         (kind == RelativeBoundsClause::Kind::Const)) &&
-        (Range = dyn_cast<RangeBoundsExpr>(ParsedBounds.get()))) {
-      Range->setRelativeBoundsClause(RelativeClause);
-    }
-  }
-
-  return BuildBoundsCastExpr(OpLoc, Kind, castTInfo,
+  return BuildBoundsCastExpr(OpLoc, Kind, CastTInfo,
                              SourceRange(LAngleBracketLoc, RAngleBracketLoc),
-                             SourceRange(LParenLoc, RParenLoc), E1,
-                             dyn_cast<BoundsExpr>(ParsedBounds.get()));
+                             SourceRange(LParenLoc, RParenLoc), E1, Bounds);
 }
 
 ExprResult Sema::ActOnBoundsCastExprSingle(
     Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
     SourceLocation LAngleBracketLoc, ParsedType D,
-    SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
+    SourceLocation RAngleBracketLoc,
     SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1) {
-  TypeSourceInfo *castTInfo;
-  BoundsExpr *bounds;
+  TypeSourceInfo *CastTInfo;
+  BoundsExpr *Bounds;
 
-  QualType DestTy = GetTypeFromParser(D, &castTInfo);
-  SourceLocation TypeLoc = (castTInfo->getTypeLoc()).getBeginLoc();
+  QualType DestTy = GetTypeFromParser(D, &CastTInfo);
+  SourceLocation TypeLoc = (CastTInfo->getTypeLoc()).getBeginLoc();
 
   if (CheckBoundsCastBaseType(E1))
     return ExprError();
 
   if (DestTy->isCheckedPointerPtrType() || DestTy->isUncheckedPointerType()) {
     if (DestTy->isVoidPointerType())
-      bounds = Context.getPrebuiltByteCountOne();
+      Bounds = Context.getPrebuiltByteCountOne();
     else
-      bounds = Context.getPrebuiltCountOne();
+      Bounds = Context.getPrebuiltCountOne();
   } else {
-    Diag(TypeLoc, diag::err_bounds_cast_error_with_single_syntax);
+    Diag(TypeLoc, diag::err_bounds_cast_expected_ptr_or_unchecked);
     return ExprError();
   }
 
-  return BuildBoundsCastExpr(OpLoc, Kind, castTInfo,
+  return BuildBoundsCastExpr(OpLoc, Kind, CastTInfo,
                              SourceRange(LAngleBracketLoc, RAngleBracketLoc),
                              SourceRange(LParenLoc, RParenLoc), E1,
-                             bounds);
-}
-
-ExprResult Sema::ActOnBoundsCastExprCount(
-    Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
-    SourceLocation LAngleBracketLoc, ParsedType D,
-    SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
-    SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1, Expr *E2) {
-
-  RangeBoundsExpr *Range = nullptr;
-  TypeSourceInfo *castTInfo;
-  ExprResult bounds(true);
-
-  QualType DestTy = GetTypeFromParser(D, &castTInfo);
-  ExprResult ResE2 = CorrectDelayedTyposInExpr(E2);
-  SourceLocation TypeLoc = (castTInfo->getTypeLoc()).getBeginLoc();
-
-  if (CheckBoundsCastBaseType(E1))
-    return ExprError();
-
-  if (!DestTy->isCheckedPointerArrayType()) {
-    Diag(TypeLoc, diag::err_bounds_cast_error_with_array_syntax);
-    return ExprError();
-  } else if (DestTy->isVoidPointerType()) {
-    Diag(OpLoc,
-         diag::err_typecheck_void_pointer_count_bounds_cast);
-    return ExprError();
-  } else {
-    if (!ResE2.isInvalid())
-      bounds =
-          ActOnCountBoundsExpr(SourceLocation(), BoundsExpr::Kind::ElementCount,
-                               ResE2.get(), SourceLocation());
-  }
-
-  if (bounds.isInvalid())
-    return ExprError();
-
-  if (RelativeClause != nullptr) {
-    RelativeBoundsClause::Kind kind = RelativeClause->getClauseKind();
-    if (((kind == RelativeBoundsClause::Kind::Type) ||
-         (kind == RelativeBoundsClause::Kind::Const)) &&
-        (Range = dyn_cast<RangeBoundsExpr>(bounds.get()))) {
-      Range->setRelativeBoundsClause(RelativeClause);
-    }
-  }
-
-  return BuildBoundsCastExpr(OpLoc, Kind, castTInfo,
-                             SourceRange(LAngleBracketLoc, RAngleBracketLoc),
-                             SourceRange(LParenLoc, RParenLoc), E1,
-                             dyn_cast<BoundsExpr>(bounds.get()));
-}
-
-ExprResult Sema::ActOnBoundsCastExprRange(
-    Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
-    SourceLocation LAngleBracketLoc, ParsedType D,
-    SourceLocation RAngleBracketLoc, RelativeBoundsClause *RelativeClause,
-    SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1, Expr *E2,
-    Expr *E3) {
-
-  RangeBoundsExpr *Range = nullptr;
-  TypeSourceInfo *castTInfo;
-  ExprResult bounds(true);
-
-  if (CheckBoundsCastBaseType(E1))
-    return ExprError();
-
-  QualType DestTy = GetTypeFromParser(D, &castTInfo);
-  SourceLocation TypeLoc = (castTInfo->getTypeLoc()).getBeginLoc();
-  ExprResult ResE2 = CorrectDelayedTyposInExpr(E2);
-  ExprResult ResE3 = CorrectDelayedTyposInExpr(E3);
-
-  if (!DestTy->isCheckedPointerArrayType()) {
-    Diag(TypeLoc, diag::err_bounds_cast_error_with_array_syntax);
-    return ExprError();
-  } else {
-    if (!ResE2.isInvalid() && !ResE3.isInvalid())
-      bounds = ActOnRangeBoundsExpr(SourceLocation(), ResE2.get(), ResE3.get(),
-                                    SourceLocation());
-  }
-
-  if (bounds.isInvalid())
-    return ExprError();
-
-  if (RelativeClause != nullptr) {
-    RelativeBoundsClause::Kind kind = RelativeClause->getClauseKind();
-    if (((kind == RelativeBoundsClause::Kind::Type) ||
-         (kind == RelativeBoundsClause::Kind::Const)) &&
-        (Range = dyn_cast<RangeBoundsExpr>(bounds.get()))) {
-      Range->setRelativeBoundsClause(RelativeClause);
-    }
-  }
-
-  return BuildBoundsCastExpr(OpLoc, Kind, castTInfo,
-                             SourceRange(LAngleBracketLoc, RAngleBracketLoc),
-                             SourceRange(LParenLoc, RParenLoc), E1,
-                             dyn_cast<BoundsExpr>(bounds.get()));
+                             Bounds);
 }
 
 //===----------------------------------------------------------------------===//
