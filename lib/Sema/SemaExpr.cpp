@@ -13471,7 +13471,8 @@ ExprResult Sema::ActOnBoundsCastExprBounds(
   TypeSourceInfo *CastTInfo;
 
   QualType DestTy = GetTypeFromParser(D, &CastTInfo);
-  SourceLocation TypeLoc = (CastTInfo->getTypeLoc()).getBeginLoc();
+  SourceLocation TypeLoc =
+     CastTInfo ? (CastTInfo->getTypeLoc()).getBeginLoc() : LAngleBracketLoc;
 
   if (CheckBoundsCastBaseType(E1))
     return ExprError();
@@ -13499,7 +13500,8 @@ ExprResult Sema::ActOnBoundsCastExprSingle(
   BoundsExpr *Bounds;
 
   QualType DestTy = GetTypeFromParser(D, &CastTInfo);
-  SourceLocation TypeLoc = (CastTInfo->getTypeLoc()).getBeginLoc();
+  SourceLocation TypeLoc =
+     CastTInfo ? (CastTInfo->getTypeLoc()).getBeginLoc() : LAngleBracketLoc;
 
   if (CheckBoundsCastBaseType(E1))
     return ExprError();
