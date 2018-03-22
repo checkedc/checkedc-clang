@@ -9455,6 +9455,9 @@ def err_typecheck_void_pointer_count_bounds_decl : Error<
 def err_typecheck_void_pointer_count_return_bounds : Error<
   "count bounds expression not allowed for a void pointer return type">;
 
+def err_typecheck_void_pointer_count_bounds_cast : Error<
+  "count bounds expression not allowed for a bounds cast to void pointer">;
+
 def err_typecheck_non_count_bounds_decl : Error<
   "expected %0 to have a pointer, array, or integer type">;
 
@@ -9628,11 +9631,11 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_checked_scope_no_assume_bounds_casting : Error<
     "_Assume_bounds_cast not allowed in a checked scope or function">;
 
-  def err_bounds_cast_error_with_single_syntax
-      : Error<"invalid bounds cast: expected _Ptr or * type">;
+  def err_bounds_cast_expected_ptr_or_unchecked : Error<
+    "expected _Ptr or * type">;
 
-  def err_bounds_cast_error_with_array_syntax
-      : Error<"invalid bounds cast: expected _Array_ptr type">;
+  def err_bounds_cast_expected_array_ptr : Error<
+    "expected _Array_ptr type">;
 
   def warn_bounds_declaration_invalid : Warning<
     "cannot prove declared bounds for %1 are valid after "
