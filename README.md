@@ -31,9 +31,6 @@ and tests, how to set up a development machine to build clang, and how to build 
 - The [Implementation Notes](docs/checkedc/Implementation-Notes.md) describe the implementation of Checked C
    in LLVM\clang.
 
-After you have built the compiler, simply add the `-fcheckedc-extension` flag to your
-command-line to enable the Checked C extension.
-
 ## Compiler development status
 
 We are implementing a subset of the Checked C extension that can be used to add bounds
