@@ -1018,7 +1018,7 @@ namespace {
             return CreateBoundsNotAllowedYet();
 
           if (!B && IT)
-            return CreateTypeBasedBounds(MemberBaseExpr, IT->getType(),
+            return CreateTypeBasedBounds(M, IT->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
           if(!B)
