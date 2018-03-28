@@ -1018,7 +1018,7 @@ namespace {
             return CreateBoundsNotAllowedYet();
 
           if (!B && IT)
-            return CreateTypeBasedBounds(MemberBaseExpr, IT->getType(),
+            return CreateTypeBasedBounds(M, IT->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
           if(!B)
@@ -2236,6 +2236,16 @@ namespace {
         TraverseStmt(Init, InCheckedScope);
     }
 
+    bool IsBoundsSafeInterfaceAssignment(QualType DestTy, Expr *E) {
+      if (DestTy->isUncheckedPointerType()) {
+        ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
+        if (ICE)
+          return ICE && ICE->getCastKind() == CK_BitCast &&
+                 ICE->getSubExpr()->getType()->isCheckedPointerType();
+      }
+      return false;
+    }
+
     void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
@@ -2254,7 +2264,8 @@ namespace {
         // ptr<T> to ptr<T> assignment, no obligation to infer any bounds for either side
       }
       else if (LHSType->isCheckedPointerType() ||
-          LHSType->isIntegerType()) {
+               LHSType->isIntegerType() ||
+               IsBoundsSafeInterfaceAssignment(LHSType, RHS)) {
         // Check that the value being assigned has bounds if the
         // target of the LHS lvalue has bounds.
         LHSTargetBounds = S.InferLValueTargetBounds(LHS);
@@ -2336,13 +2347,12 @@ namespace {
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
                                                      CE->getNumArgs());
       for (unsigned i = 0; i < Count; i++) {
-        if (FuncProtoTy->getParamType(i)->isUncheckedPointerType()) {
-          // Skip checking bounds for unchecked pointer parameters, unless
-          // the argument was subject to a bounds-safe interface cast.
-          ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(CE->getArg(i));
-          if (!(ICE && ICE->getCastKind() == CK_BitCast &&
-                ICE->getSubExpr()->getType()->isCheckedPointerType()))
-            continue;
+        QualType ParamType = FuncProtoTy->getParamType(i);
+        // Skip checking bounds for unchecked pointer parameters, unless
+        // the argument was subject to a bounds-safe interface cast.
+        if (ParamType->isUncheckedPointerType() &&
+            !IsBoundsSafeInterfaceAssignment(ParamType, CE->getArg(i))) {
+          continue;
         }
 
         // We want to check the argument expression implies the desired parameter bounds.
