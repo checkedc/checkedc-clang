@@ -1451,6 +1451,26 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
 }
 
 namespace {
+  class PairEqualityRelation : public EqualityRelation {
+  private:
+   const VarDecl *Var1, *Var2;
+
+  public:
+     PairEqualityRelation(VarDecl *V1, VarDecl *V2) : Var1(V1), Var2(V2) {}
+     
+     const VarDecl *getRepresentative(const VarDecl *V) {
+    /*/
+       llvm::outs() << "getRepresentative()\n";
+       V->dump(llvm::outs());
+       Var1->dump(llvm::outs());
+       Var2->dump(llvm::outs());
+       */
+       if (V == Var1 || V == Var2)
+         return Var1;
+       return nullptr;
+     }
+  };
+
   class CheckBoundsDeclarations {
   private:
     Sema &S;
@@ -1872,6 +1892,7 @@ namespace {
     ProofResult ProveBoundsDeclValidity(const BoundsExpr *DeclaredBounds,
                                         const BoundsExpr *SrcBounds,
                                         ProofFailure &Cause,
+                                        EqualityRelation *ER,
                                         ProofStmtKind Kind =
                                           ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
@@ -1887,7 +1908,7 @@ namespace {
       if (DeclaredBounds->isUnknown())
         return ProofResult::True;
 
-      if (S.Context.EquivalentBounds(DeclaredBounds, SrcBounds))
+      if (S.Context.EquivalentBounds(DeclaredBounds, SrcBounds, ER))
         return ProofResult::True;
 
       ConstantSizedRange DeclaredRange(S);
@@ -2033,9 +2054,35 @@ namespace {
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
                                      bool InCheckedScope) {
+      Expr *E1 = BoundsUtil::IgnoreValuePreservingOperations(S.Context, Target);
+      Expr *E2 = BoundsUtil::IgnoreValuePreservingOperations(S.Context, Src);
+      VarDecl *TargetVar = nullptr;
+      VarDecl *SrcVar = nullptr;
+      if (DeclRefExpr *TargetDR = dyn_cast<DeclRefExpr>(E1)) {
+        TargetVar = dyn_cast<VarDecl>(TargetDR->getDecl());
+        if (TargetVar) {
+           CastExpr *SrcCast = dyn_cast<CastExpr>(E2);
+           if (SrcCast && SrcCast->getCastKind() == CK_LValueToRValue) {
+             DeclRefExpr *SrcDR = dyn_cast<DeclRefExpr>(SrcCast->getSubExpr());
+             SrcVar = dyn_cast<VarDecl>(SrcDR->getDecl());
+           }
+        }
+      }
+
+      PairEqualityRelation PairER(TargetVar, SrcVar);
+      EqualityRelation *ER = nullptr;
+      if (TargetVar && SrcVar) {
+      /*/
+        llvm::outs() << "Found assignment\n";
+        TargetVar->dump(llvm::outs());
+        SrcVar->dump(llvm::outs());
+        */
+        ER = &PairER;
+      }
+
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                   Cause);
+                                                   Cause, ER);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -2065,7 +2112,7 @@ namespace {
       SourceLocation ArgLoc = Arg->getLocStart();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
-                                                   ArgBounds, Cause);
+                                                   ArgBounds, Cause, nullptr);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -2090,7 +2137,7 @@ namespace {
                                       bool InCheckedScope) {
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
-                                                   SrcBounds, Cause);
+                                                   SrcBounds, Cause, nullptr);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -2125,7 +2172,7 @@ namespace {
       ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
                              ProofStmtKind::BoundsDeclaration;
       ProofResult Result =
-        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, Kind);
+        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :

@@ -9640,7 +9640,6 @@ def err_bounds_type_annotation_lost_checking : Error<
   def warn_bounds_declaration_invalid : Warning<
     "cannot prove declared bounds for %1 are valid after "
     "%select{assignment|initialization}0">,
-    DefaultIgnore,
     InGroup<CheckBoundsDecls>;
 
   def warn_checked_scope_bounds_declaration_invalid : Warning<

@@ -332,7 +332,28 @@ Lexicographic::CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2) {
 
 Result
 Lexicographic::CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2) {
-  return CompareDecl(E1->getDecl(), E2->getDecl());
+  Lexicographic::Result Cmp = CompareDecl(E1->getDecl(), E2->getDecl());
+  if (!EqualVars || Cmp == Result::Equal)
+    return Cmp;
+/*
+  llvm::outs() << "Examining unequal vars\n";
+  */
+  const VarDecl *V1 = dyn_cast<VarDecl>(E1->getDecl());
+  if (!V1)
+    return Cmp;
+ const VarDecl *V2 = dyn_cast<VarDecl>(E2->getDecl());
+  if (!V2)
+    return Cmp;
+  const VarDecl *V1Rep = EqualVars->getRepresentative(V1);
+  const VarDecl *V2Rep = EqualVars->getRepresentative(V2);
+  if (!V1Rep || !V2Rep) 
+    return Cmp;
+/*
+  llvm::outs() << "Representative vars\n";
+  V1Rep->dump(llvm::outs());
+  V2Rep->dump(llvm::outs());
+*/
+  return CompareDecl(V1Rep, V2Rep);
 }
 
 Result
