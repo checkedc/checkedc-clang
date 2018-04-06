@@ -24,8 +24,8 @@
 using namespace clang;
 using Result = Lexicographic::Result;
 
-Lexicographic::Lexicographic(ASTContext &Ctx, EqualityRelation *EV) :
-  Context(Ctx), EqualVars(EV), Trace(false) {
+Lexicographic::Lexicographic(ASTContext &Ctx, EquivExprLists *EquivExprs) :
+  Context(Ctx), EquivExprs(EquivExprs), Trace(false) {
 }
 
 Result Lexicographic::CompareInteger(signed I1, signed I2) {
@@ -205,7 +205,7 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
    Stmt::StmtClass E2Kind = E2->getStmtClass();
    Result Cmp = CompareInteger(E1Kind, E2Kind);
    if (Cmp != Result::Equal)
-     return Cmp;
+     goto different;
 
    Cmp = Result::Equal; 
    switch (E1Kind) {
@@ -274,7 +274,7 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
    }
 
    if (Cmp != Result::Equal)
-     return Cmp;
+     goto different;
 
    // Check children
    auto I1 = E1->child_begin();
@@ -287,7 +287,7 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
      if (ordered) {
        if (Cmp == Result::Equal)
          continue;
-       return Cmp;
+       goto different;
       }
      assert(E1Child && E2Child);
      const Expr *E1ChildExpr = dyn_cast<Expr>(E1Child);
@@ -296,7 +296,7 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
      if (E1ChildExpr && E2ChildExpr) {
        Cmp = CompareExpr(E1ChildExpr, E2ChildExpr);
        if (Cmp != Result::Equal)
-         return Cmp;
+         goto different;
      } else
        // assert fired - return something
        return Result::LessThan;
@@ -305,13 +305,52 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
    // Make sure the number of children was equal.  If E1 has
    // fewer children than E2, make it less than E2.  If it has more
    // children, make it greater than E2.
-   if (I1 == E1->child_end() && I2 != E2->child_end())
-     return Result::LessThan;
+   if (I1 == E1->child_end() && I2 != E2->child_end()) {
+     Cmp = Result::LessThan;
+     goto different;
+   }
 
-   if (I1 != E1->child_end() && I2 == E2->child_end())
-     return Result::GreaterThan;
+   if (I1 != E1->child_end() && I2 == E2->child_end()) {
+     Cmp = Result::GreaterThan;
+     goto different;
+    }
 
    return Result::Equal;
+
+different:
+  assert(Cmp != Result::Equal);
+  // See if the expressions are considered equivalent using the list of lists
+  // of equivalent expressions.
+  if (!EquivExprs)
+    return Cmp;
+
+  Lexicographic SimpleComparer = Lexicographic(Context, nullptr);
+  for (auto OuterList = EquivExprs->begin(); OuterList != EquivExprs->end();
+       ++OuterList) {
+    bool LHSAppears = false;
+    bool RHSAppears = false;
+    SmallVector<Expr *, 4> *ExprList = *OuterList;
+    for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
+      if (SimpleComparer.CompareExpr(E1, *InnerList)  == Result::Equal) {
+        LHSAppears = true;
+        break;
+      }
+    }
+    if (!LHSAppears)
+      continue;
+
+    for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
+      if (SimpleComparer.CompareExpr(E2, *InnerList)  == Result::Equal) {
+        RHSAppears = true;
+        break;
+      }
+    }
+
+    if (RHSAppears)
+      return Result::Equal;
+  }
+
+  return Cmp;
 }
 
 Result
@@ -332,28 +371,7 @@ Lexicographic::CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2) {
 
 Result
 Lexicographic::CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2) {
-  Lexicographic::Result Cmp = CompareDecl(E1->getDecl(), E2->getDecl());
-  if (!EqualVars || Cmp == Result::Equal)
-    return Cmp;
-/*
-  llvm::outs() << "Examining unequal vars\n";
-  */
-  const VarDecl *V1 = dyn_cast<VarDecl>(E1->getDecl());
-  if (!V1)
-    return Cmp;
- const VarDecl *V2 = dyn_cast<VarDecl>(E2->getDecl());
-  if (!V2)
-    return Cmp;
-  const VarDecl *V1Rep = EqualVars->getRepresentative(V1);
-  const VarDecl *V2Rep = EqualVars->getRepresentative(V2);
-  if (!V1Rep || !V2Rep) 
-    return Cmp;
-/*
-  llvm::outs() << "Representative vars\n";
-  V1Rep->dump(llvm::outs());
-  V2Rep->dump(llvm::outs());
-*/
-  return CompareDecl(V1Rep, V2Rep);
+  return CompareDecl(E1->getDecl(), E2->getDecl());
 }
 
 Result

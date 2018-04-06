@@ -9048,9 +9048,9 @@ bool ASTContext::isNotAllowedForNoPrototypeFunction(QualType QT) const {
 }
 
 bool ASTContext::EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2,
-                                  EqualityRelation *ER) {
+                                  EquivExprLists *EquivExprs) {
   if (Expr1 && Expr2) {
-    Lexicographic::Result Cmp = Lexicographic(*this, ER).CompareExpr(Expr1, Expr2);
+    Lexicographic::Result Cmp = Lexicographic(*this, EquivExprs).CompareExpr(Expr1, Expr2);
     return Cmp == Lexicographic::Result::Equal;
   }
 

@@ -1451,26 +1451,6 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
 }
 
 namespace {
-  class PairEqualityRelation : public EqualityRelation {
-  private:
-   const VarDecl *Var1, *Var2;
-
-  public:
-     PairEqualityRelation(VarDecl *V1, VarDecl *V2) : Var1(V1), Var2(V2) {}
-     
-     const VarDecl *getRepresentative(const VarDecl *V) {
-    /*/
-       llvm::outs() << "getRepresentative()\n";
-       V->dump(llvm::outs());
-       Var1->dump(llvm::outs());
-       Var2->dump(llvm::outs());
-       */
-       if (V == Var1 || V == Var2)
-         return Var1;
-       return nullptr;
-     }
-  };
-
   class CheckBoundsDeclarations {
   private:
     Sema &S;
@@ -1686,8 +1666,8 @@ namespace {
       }
 
       // Is R in range of this range?
-      ProofResult InRange(ConstantSizedRange &R, ProofFailure &Cause) {
-        if (EqualValue(S.Context, Base, R.Base)) {
+      ProofResult InRange(ConstantSizedRange &R, ProofFailure &Cause, EquivExprLists *EquivExprs) {
+        if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult Result = ProofResult::True;
           if (LowerOffset > R.LowerOffset) {
             Cause = CombineFailures(Cause, ProofFailure::LowerBound);
@@ -1845,17 +1825,23 @@ namespace {
       Offset = llvm::APSInt(PointerWidth, false);
     }
 
-    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2) {
+    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprLists *EquivExprs) {
+      Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
+      if (R == Lexicographic::Result::Equal)
+        return true;
+
+      // Try ignoring value preserving operations.  The code for ignoring value preserving
+      // operations needs to be integrated into CanonBounds.
       const Expr *NormalizedE1 = BoundsUtil::IgnoreValuePreservingOperations(Ctx, E1);
       const Expr *NormalizedE2 = BoundsUtil::IgnoreValuePreservingOperations(Ctx, E2);
-      Lexicographic::Result R =
-        Lexicographic(Ctx, nullptr).CompareExpr(NormalizedE1, NormalizedE2);
+      R = Lexicographic(Ctx, EquivExprs).CompareExpr(NormalizedE1, NormalizedE2);
       return R == Lexicographic::Result::Equal;
     }
 
     // Convert a bounds expression to a constant-sized range.  Returns true if the
     // the bounds expression can be converted and false if it cannot be converted.
-    bool CreateConstantRange(const BoundsExpr *Bounds, ConstantSizedRange *R) {
+    bool CreateConstantRange(const BoundsExpr *Bounds, ConstantSizedRange *R,
+                             EquivExprLists *EquivExprs) {
       switch (Bounds->getKind()) {
         case BoundsExpr::Kind::Invalid:
         case BoundsExpr::Kind::Unknown:
@@ -1873,7 +1859,7 @@ namespace {
           llvm::APSInt LowerOffset, UpperOffset;
           SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset);
           SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset);
-          if (EqualValue(S.Context, LowerBase, UpperBase)) {
+          if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
             R->SetBase(LowerBase);
             R->SetLower(LowerOffset);
             R->SetUpper(UpperOffset);
@@ -1892,7 +1878,7 @@ namespace {
     ProofResult ProveBoundsDeclValidity(const BoundsExpr *DeclaredBounds,
                                         const BoundsExpr *SrcBounds,
                                         ProofFailure &Cause,
-                                        EqualityRelation *ER,
+                                        EquivExprLists *EquivExprs,
                                         ProofStmtKind Kind =
                                           ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
@@ -1908,13 +1894,13 @@ namespace {
       if (DeclaredBounds->isUnknown())
         return ProofResult::True;
 
-      if (S.Context.EquivalentBounds(DeclaredBounds, SrcBounds, ER))
+      if (S.Context.EquivalentBounds(DeclaredBounds, SrcBounds, EquivExprs))
         return ProofResult::True;
 
       ConstantSizedRange DeclaredRange(S);
       ConstantSizedRange SrcRange(S);
-      if (CreateConstantRange(DeclaredBounds, &DeclaredRange) &&
-          CreateConstantRange(SrcBounds, &SrcRange)) {
+      if (CreateConstantRange(DeclaredBounds, &DeclaredRange, EquivExprs) &&
+          CreateConstantRange(SrcBounds, &SrcRange, EquivExprs)) {
 #ifdef TRACE_RANGE
         llvm::outs() << "Found constant ranges:\n";
         llvm::outs() << "Declared bounds";
@@ -1926,7 +1912,7 @@ namespace {
         llvm::outs() << "\nSource range:";
         SrcRange.Dump(llvm::outs());
 #endif
-        ProofResult R = SrcRange.InRange(DeclaredRange, Cause);
+        ProofResult R = SrcRange.InRange(DeclaredRange, Cause, EquivExprs);
         if (R == ProofResult::True)
           return R;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
@@ -1965,7 +1951,7 @@ namespace {
              "bounds not in standard form");
       Cause = ProofFailure::None;
       ConstantSizedRange ValidRange(S);
-      if (!CreateConstantRange(Bounds, &ValidRange))
+      if (!CreateConstantRange(Bounds, &ValidRange, nullptr))
         return ProofResult::Maybe;
 
       bool Overflow;
@@ -2006,7 +1992,7 @@ namespace {
       llvm::outs() << "Valid range:\n";
       ValidRange.Dump(llvm::outs());
 #endif
-      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause);
+      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, nullptr);
       if (R == ProofResult::True)
         return R;
       if (R == ProofResult::False || R == ProofResult::Maybe) {
@@ -2054,35 +2040,24 @@ namespace {
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
                                      bool InCheckedScope) {
-      Expr *E1 = BoundsUtil::IgnoreValuePreservingOperations(S.Context, Target);
-      Expr *E2 = BoundsUtil::IgnoreValuePreservingOperations(S.Context, Src);
-      VarDecl *TargetVar = nullptr;
-      VarDecl *SrcVar = nullptr;
-      if (DeclRefExpr *TargetDR = dyn_cast<DeclRefExpr>(E1)) {
-        TargetVar = dyn_cast<VarDecl>(TargetDR->getDecl());
-        if (TargetVar) {
-           CastExpr *SrcCast = dyn_cast<CastExpr>(E2);
-           if (SrcCast && SrcCast->getCastKind() == CK_LValueToRValue) {
-             DeclRefExpr *SrcDR = dyn_cast<DeclRefExpr>(SrcCast->getSubExpr());
-             SrcVar = dyn_cast<VarDecl>(SrcDR->getDecl());
-           }
-        }
-      }
-
-      PairEqualityRelation PairER(TargetVar, SrcVar);
-      EqualityRelation *ER = nullptr;
-      if (TargetVar && SrcVar) {
-      /*/
-        llvm::outs() << "Found assignment\n";
-        TargetVar->dump(llvm::outs());
-        SrcVar->dump(llvm::outs());
-        */
-        ER = &PairER;
+      // Record expression equality implied by assignment.
+      SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
+      SmallVector<Expr *, 4> EqualExpr;
+      if (DeclRefExpr *TargetDR = dyn_cast<DeclRefExpr>(Target)) {
+         if (CastExpr *SrcCast = dyn_cast<CastExpr>(Src)) {
+            CastKind Kind = SrcCast->getCastKind();
+            if (isa<DeclRefExpr>(SrcCast->getSubExpr()) && (Kind == CK_LValueToRValue || Kind == CK_ArrayToPointerDecay)) {
+              Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
+              EqualExpr.push_back(TargetExpr);
+              EqualExpr.push_back(Src);
+              EquivExprs.push_back(&EqualExpr);
+            }
+         }
       }
 
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                   Cause, ER);
+                                                   Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -2135,9 +2110,40 @@ namespace {
                                       BoundsExpr *DeclaredBounds, Expr *Src,
                                       BoundsExpr *SrcBounds,
                                       bool InCheckedScope) {
+      // Record expression equality implied by initialization.
+      SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
+      SmallVector<Expr *, 4> EqualExpr;
+      if (CastExpr *SrcCast = dyn_cast<CastExpr>(Src)) {
+        CastKind Kind = SrcCast->getCastKind();
+        if (isa<DeclRefExpr>(SrcCast->getSubExpr()) &&
+              (Kind == CK_LValueToRValue || Kind == CK_ArrayToPointerDecay)) {
+          DeclRefExpr *TargetDeclRef =
+            DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
+                                SourceLocation(), D, false, SourceLocation(),
+                                D->getType(), ExprValueKind::VK_LValue);
+          CastKind Kind;
+          QualType TargetTy;
+          if (D->getType()->isArrayType()) {
+            Kind = CK_ArrayToPointerDecay;
+            TargetTy = S.getASTContext().getArrayDecayedType(D->getType());
+          } else {
+            Kind = CK_LValueToRValue;
+            TargetTy = D->getType();
+          }
+          Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
+          EqualExpr.push_back(TargetExpr);
+          EqualExpr.push_back(Src);
+          EquivExprs.push_back(&EqualExpr);
+          /*
+          llvm::outs() << "Dumping target/src equality relation";
+          TargetExpr->dump(llvm::outs());
+          Src->dump(llvm::outs());
+          */
+        }
+      }
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
-                                                   SrcBounds, Cause, nullptr);
+                                                   SrcBounds, Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :

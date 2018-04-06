@@ -35,12 +35,8 @@ namespace clang {
   class Expr;
   class VarDecl;
 
-  // Abstract base class that provides information what variables
-  // currently are equal to each other.
-  class EqualityRelation {
-  public:
-     virtual const VarDecl *getRepresentative(const VarDecl *V) = 0;
-  };
+  // List of list of equivalent expressions
+  typedef SmallVector<SmallVector<Expr *, 4> *, 4> EquivExprLists;
 
   class Lexicographic {
   public:
@@ -52,7 +48,7 @@ namespace clang {
 
   private:
     ASTContext &Context;
-    EqualityRelation *EqualVars;
+    EquivExprLists *EquivExprs;
     bool Trace;
 
     template <typename T>
@@ -105,7 +101,7 @@ namespace clang {
 
 
   public:
-    Lexicographic(ASTContext &Ctx, EqualityRelation *EV);
+    Lexicographic(ASTContext &Ctx, EquivExprLists *EquivExprs);
 
     /// \brief Lexicographic comparison of expressions that can occur in
     /// bounds expressions.

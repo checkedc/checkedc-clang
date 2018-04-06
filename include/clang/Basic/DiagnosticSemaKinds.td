@@ -9669,7 +9669,6 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def warn_argument_bounds_invalid : Warning<
     "cannot prove argument meets declared bounds for %ordinal0 parameter">,
-    DefaultIgnore,
     InGroup<CheckBoundsDecls>;
 
   def warn_checked_scope_argument_bounds_invalid : Warning<
