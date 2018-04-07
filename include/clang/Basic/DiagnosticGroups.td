@@ -893,7 +893,11 @@ def MicrosoftEndOfFile : DiagGroup<"microsoft-end-of-file">;
 def MicrosoftInaccessibleBase : DiagGroup<"microsoft-inaccessible-base">;
 
 // Checked C warnings for bounds declaration checking.
-def CheckBoundsDecls : DiagGroup<"check-bounds-decls">;
+def CheckBoundsDeclsUnchecked : DiagGroup<"check-bounds-decls-unchecked-scope">;
+def CheckBoundsDeclsChecked : DiagGroup<"check-bounds-decls-checked-scope">;
+def CheckBoundsDecls : DiagGroup<"check-bounds-decls",
+   [CheckBoundsDeclsUnchecked,
+    CheckBoundsDeclsChecked]>;
 // Checked C warnings about memory accesses determined to be out of
 // declared bounds.
 def CheckMemoryAccesses : DiagGroup<"check-memory-accesses">;

@@ -48,94 +48,8 @@ public:
       K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
  }
 
-  // Return true if this cast preserve the bits of the value,
-  // false otherwise.
-  static bool IsValuePreserving(CastKind CK) {
-    switch (CK) {
-      case CK_BitCast:
-      case CK_LValueBitCast:
-      case CK_NoOp:
-      case CK_ArrayToPointerDecay:
-      case CK_FunctionToPointerDecay:
-      case CK_NullToPointer:
-      case CK_AssumePtrBounds:
-      case CK_DynamicPtrBounds:
-        return true;
-      default:
-        return false;
-    }
-  }
 
-  static bool isPointerToArrayType(QualType Ty) {
-    if (const PointerType *T = Ty->getAs<PointerType>())
-      return T->getPointeeType()->isArrayType();
-    else
-      return false;
-  }
-  // Ignore operations that don't change runtime values: parens, some cast operations,
-  // and array/function address-of and dereference operators.
-  //
-  // The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
-  // do enough filtering (it'll ignore LValueToRValue casts for example).
-  // TODO: reconcile with CheckValuePreservingCast
-  static Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E) {
-    while (true) {
-      E = E->IgnoreParens();
 
-      if (CastExpr *P = dyn_cast<CastExpr>(E)) {
-        CastKind CK = P->getCastKind();
-        Expr *SE = P->getSubExpr();
-        if (IsValuePreserving(CK)) {
-          E = SE;
-          continue;
-        }
-
-        // Ignore integer <-> casts that are of the same width, ptr<->ptr
-        // and ptr<->int casts of the same width.
-        if (CK == CK_IntegralToPointer || CK == CK_PointerToIntegral ||
-            CK == CK_IntegralCast) {
-          if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
-            E = SE;
-            continue;
-          }
-
-          if ((E->getType()->isPointerType() ||
-                E->getType()->isIntegralType(Ctx)) &&
-                (SE->getType()->isPointerType() ||
-                SE->getType()->isIntegralType(Ctx)) &&
-              Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
-            E = SE;
-            continue;
-          }
-        }
-      } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-        QualType ETy = UO->getType();
-        Expr *SE = UO->getSubExpr();
-        QualType SETy = SE->getType();
-
-        UnaryOperator::Opcode Op = UO->getOpcode();
-        if (Op == UO_Deref) {
-            // This may be more conservative than necessary.
-            bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
-            bool between_arrays = ETy->isArrayType() && BoundsUtil::isPointerToArrayType(SETy);
-            if (between_functions || between_arrays) {
-              E = SE;
-              continue;
-            }
-        } else if (Op == UO_AddrOf) {
-          // This may be more conservative than necessary.
-          bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
-          bool between_arrays = BoundsUtil::isPointerToArrayType(ETy) && SETy->isArrayType();
-          if (between_functions || between_arrays) {
-            E = SE;
-            continue;
-          }
-        }
-      }
-
-      return E;
-    }
-  }
 
   static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E) {
     CastExpr *P = dyn_cast<CastExpr>(E);
@@ -1095,9 +1009,11 @@ namespace {
         case Expr::BoundsCastExprClass: {
           CastExpr *CE = cast<CastExpr>(E);
           Expr *subExpr = CE->getSubExpr();
+          Expr *subExprAtNewType = CreateExplicitCast(E->getType(),
+                                                      CastKind::CK_BitCast,
+                                                      subExpr, true);
           BoundsExpr *Bounds = CE->getBoundsExpr();
-
-          Bounds = ExpandToRange(subExpr, Bounds);
+          Bounds = ExpandToRange(subExprAtNewType, Bounds);
           return Bounds;
         }
         case Expr::ImplicitCastExprClass:
@@ -1827,14 +1743,6 @@ namespace {
 
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprLists *EquivExprs) {
       Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
-      if (R == Lexicographic::Result::Equal)
-        return true;
-
-      // Try ignoring value preserving operations.  The code for ignoring value preserving
-      // operations needs to be integrated into CanonBounds.
-      const Expr *NormalizedE1 = BoundsUtil::IgnoreValuePreservingOperations(Ctx, E1);
-      const Expr *NormalizedE2 = BoundsUtil::IgnoreValuePreservingOperations(Ctx, E2);
-      R = Lexicographic(Ctx, EquivExprs).CompareExpr(NormalizedE1, NormalizedE2);
       return R == Lexicographic::Result::Equal;
     }
 
@@ -2043,16 +1951,13 @@ namespace {
       // Record expression equality implied by assignment.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
-      if (DeclRefExpr *TargetDR = dyn_cast<DeclRefExpr>(Target)) {
-         if (CastExpr *SrcCast = dyn_cast<CastExpr>(Src)) {
-            CastKind Kind = SrcCast->getCastKind();
-            if (isa<DeclRefExpr>(SrcCast->getSubExpr()) && (Kind == CK_LValueToRValue || Kind == CK_ArrayToPointerDecay)) {
-              Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
-              EqualExpr.push_back(TargetExpr);
-              EqualExpr.push_back(Src);
-              EquivExprs.push_back(&EqualExpr);
-            }
-         }
+      // TODO: make sure assignment to lvalue doesn't modify value used in Src.
+      if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown, false) &&
+          S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown, false)) {
+        Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
+        EqualExpr.push_back(TargetExpr);
+        EqualExpr.push_back(Src);
+        EquivExprs.push_back(&EqualExpr);
       }
 
       ProofFailure Cause;
@@ -2113,33 +2018,30 @@ namespace {
       // Record expression equality implied by initialization.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
-      if (CastExpr *SrcCast = dyn_cast<CastExpr>(Src)) {
-        CastKind Kind = SrcCast->getCastKind();
-        if (isa<DeclRefExpr>(SrcCast->getSubExpr()) &&
-              (Kind == CK_LValueToRValue || Kind == CK_ArrayToPointerDecay)) {
-          DeclRefExpr *TargetDeclRef =
-            DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
-                                SourceLocation(), D, false, SourceLocation(),
-                                D->getType(), ExprValueKind::VK_LValue);
-          CastKind Kind;
-          QualType TargetTy;
-          if (D->getType()->isArrayType()) {
-            Kind = CK_ArrayToPointerDecay;
-            TargetTy = S.getASTContext().getArrayDecayedType(D->getType());
-          } else {
-            Kind = CK_LValueToRValue;
-            TargetTy = D->getType();
-          }
-          Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
-          EqualExpr.push_back(TargetExpr);
-          EqualExpr.push_back(Src);
-          EquivExprs.push_back(&EqualExpr);
-          /*
-          llvm::outs() << "Dumping target/src equality relation";
-          TargetExpr->dump(llvm::outs());
-          Src->dump(llvm::outs());
-          */
+      if (S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown, false)) {
+        // TODO: make sure variable being initialized isn't read by Src.
+        DeclRefExpr *TargetDeclRef =
+          DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
+                              SourceLocation(), D, false, SourceLocation(),
+                              D->getType(), ExprValueKind::VK_LValue);
+        CastKind Kind;
+        QualType TargetTy;
+        if (D->getType()->isArrayType()) {
+          Kind = CK_ArrayToPointerDecay;
+          TargetTy = S.getASTContext().getArrayDecayedType(D->getType());
+        } else {
+          Kind = CK_LValueToRValue;
+          TargetTy = D->getType();
         }
+        Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
+        EqualExpr.push_back(TargetExpr);
+        EqualExpr.push_back(Src);
+        EquivExprs.push_back(&EqualExpr);
+        /*
+        llvm::outs() << "Dumping target/src equality relation";
+        TargetExpr->dump(llvm::outs());
+        Src->dump(llvm::outs());
+        */
       }
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,

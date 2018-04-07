@@ -62,6 +62,10 @@ namespace clang {
       return Lexicographic::CompareImpl(E1, E2);
     }
 
+    // See if E1 and E2 are considered equivalent using EquivExprs.  If
+    // they are not, return Current.
+    Result CheckEquivExprs(Result Current, const Expr *E1, const Expr *E2);
+
     Result CompareInteger(signed I1, signed I2);
     Result CompareInteger(unsigned I1, unsigned I2);
     Result CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
@@ -111,6 +115,7 @@ namespace clang {
     /// or types.
     Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2);
     Result CompareType(QualType T1, QualType T2);
+    Result CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2);
   };
 }  // end namespace clang
 
