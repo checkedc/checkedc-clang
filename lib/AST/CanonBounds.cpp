@@ -136,7 +136,7 @@ namespace {
   }
 }
 
-Lexicographic::Lexicographic(ASTContext &Ctx, EquivExprLists *EquivExprs) :
+Lexicographic::Lexicographic(ASTContext &Ctx, EquivExprSets *EquivExprs) :
   Context(Ctx), EquivExprs(EquivExprs), Trace(false) {
 }
 
@@ -419,16 +419,15 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
        Cmp = CompareExpr(E1ChildExpr, E2ChildExpr);
        if (Cmp != Result::Equal)
          return CheckEquivExprs(Cmp, E1, E2);
-       // TODO: treat operations where checkedness of pointers
-       // changes semantics as distinct:
-       // - pointer arithmetic (overflow, non-null checking)
-       // - memory access
+       // TODO: Github issue #475.  We need to sort out typing rules
+       // for uses of variables with bounds-safe interfaces in bounds
+       // expressions.  Then we can likely replace this with CompareType.
        // TODO: consider treating operations whose types differ
        // but that still produce the same value as being the
        // same.  For example:
        // - Pointer arithmetic where the pointer referent types are the same
        //   size, checkedness is the same, and the integer types are the
-      //    same size/signedness.
+       //    same size/signedness.
        Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(),
                                           E2ChildExpr->getType());
        if (Cmp != Result::Equal)
@@ -456,11 +455,17 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
   if (!EquivExprs)
     return Current;
 
+  // Important: compare expressions for equivalence without using equality facts.
+  // This keep the asymptotic complexity of this method linear in the number of AST nodes
+  // for E1, E2, and EquivExprs.  It also avoid the complexities of having to avoid
+  // infinite recursions.
   Lexicographic SimpleComparer = Lexicographic(Context, nullptr);
+  // Iterate over the list of sets.
   for (auto OuterList = EquivExprs->begin(); OuterList != EquivExprs->end();
        ++OuterList) {
     bool LHSAppears = false;
     bool RHSAppears = false;
+    // See if the LHS expression appears in the set.
     SmallVector<Expr *, 4> *ExprList = *OuterList;
     for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
       if (SimpleComparer.CompareExpr(E1, *InnerList)  == Result::Equal) {
@@ -471,6 +476,7 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
     if (!LHSAppears)
       continue;
 
+    // See if the RHS expression appears in the set.
     for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
       if (SimpleComparer.CompareExpr(E2, *InnerList)  == Result::Equal) {
         RHSAppears = true;
@@ -478,6 +484,7 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
       }
     }
 
+    // If both appear, consider them equivalent.
     if (RHSAppears)
       return Result::Equal;
   }
@@ -616,6 +623,9 @@ Lexicographic::CompareImpl(const CastExpr *E1,
   Result Cmp = CompareInteger(E1->getCastKind(), E2->getCastKind());
   if (Cmp != Result::Equal)
     return Cmp;
+  // TODO: Github issue #475.  We need to sort out typing rules
+  // for uses of variables with bounds-safe interfaces in bounds
+  // expressions.  Then we can likely replace this with CompareType.
   return CompareTypeIgnoreCheckedness(E1->getType(), E2->getType());
 }
 

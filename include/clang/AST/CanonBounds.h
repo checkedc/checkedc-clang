@@ -35,8 +35,8 @@ namespace clang {
   class Expr;
   class VarDecl;
 
-  // List of list of equivalent expressions
-  typedef SmallVector<SmallVector<Expr *, 4> *, 4> EquivExprLists;
+  // List of sets of equivalent expressions.
+  typedef SmallVector<SmallVector<Expr *, 4> *, 4> EquivExprSets;
 
   class Lexicographic {
   public:
@@ -48,7 +48,7 @@ namespace clang {
 
   private:
     ASTContext &Context;
-    EquivExprLists *EquivExprs;
+    EquivExprSets *EquivExprs;
     bool Trace;
 
     template <typename T>
@@ -104,7 +104,7 @@ namespace clang {
 
 
   public:
-    Lexicographic(ASTContext &Ctx, EquivExprLists *EquivExprs);
+    Lexicographic(ASTContext &Ctx, EquivExprSets *EquivExprs);
 
     /// \brief Lexicographic comparison of expressions that can occur in
     /// bounds expressions.

@@ -1582,7 +1582,7 @@ namespace {
       }
 
       // Is R in range of this range?
-      ProofResult InRange(ConstantSizedRange &R, ProofFailure &Cause, EquivExprLists *EquivExprs) {
+      ProofResult InRange(ConstantSizedRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
         if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult Result = ProofResult::True;
           if (LowerOffset > R.LowerOffset) {
@@ -1741,7 +1741,7 @@ namespace {
       Offset = llvm::APSInt(PointerWidth, false);
     }
 
-    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprLists *EquivExprs) {
+    static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
       Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
       return R == Lexicographic::Result::Equal;
     }
@@ -1749,7 +1749,7 @@ namespace {
     // Convert a bounds expression to a constant-sized range.  Returns true if the
     // the bounds expression can be converted and false if it cannot be converted.
     bool CreateConstantRange(const BoundsExpr *Bounds, ConstantSizedRange *R,
-                             EquivExprLists *EquivExprs) {
+                             EquivExprSets *EquivExprs) {
       switch (Bounds->getKind()) {
         case BoundsExpr::Kind::Invalid:
         case BoundsExpr::Kind::Unknown:
@@ -1786,7 +1786,7 @@ namespace {
     ProofResult ProveBoundsDeclValidity(const BoundsExpr *DeclaredBounds,
                                         const BoundsExpr *SrcBounds,
                                         ProofFailure &Cause,
-                                        EquivExprLists *EquivExprs,
+                                        EquivExprSets *EquivExprs,
                                         ProofStmtKind Kind =
                                           ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
