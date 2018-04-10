@@ -356,8 +356,8 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::CompoundAssignOperatorClass:
        Cmp = Compare<CompoundAssignOperator>(E1, E2); break;
      case Expr::BinaryConditionalOperatorClass: break;
-     case Expr::ImplicitCastExprClass: Cmp = Compare<ImplicitCastExpr>(E1, E2); break;
-     case Expr::CStyleCastExprClass: Cmp = Compare<CStyleCastExpr>(E1, E2); break;
+     case Expr::ImplicitCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
+     case Expr::CStyleCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CompoundLiteralExprClass: Cmp = Compare<CompoundLiteralExpr>(E1, E2); break;
      // TODO:
      // case: ExtVectorElementExpr
@@ -611,15 +611,12 @@ Lexicographic::CompareImpl(const CompoundAssignOperator *E1,
 }
 
 Result
-Lexicographic::CompareImpl(const ImplicitCastExpr *E1,
-                           const ImplicitCastExpr *E2) {
-  return CompareInteger(E1->getValueKind(), E2->getValueKind());
-}
-
-Result
-Lexicographic::CompareImpl(const CStyleCastExpr *E1,
-                           const CStyleCastExpr *E2) {
-  return CompareType(E1->getType(), E2->getType());
+Lexicographic::CompareImpl(const CastExpr *E1,
+                           const CastExpr *E2) {
+  Result Cmp = CompareInteger(E1->getCastKind(), E2->getCastKind());
+  if (Cmp != Result::Equal)
+    return Cmp;
+  return CompareTypeIgnoreCheckedness(E1->getType(), E2->getType());
 }
 
 Result

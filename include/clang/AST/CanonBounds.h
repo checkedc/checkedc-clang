@@ -86,8 +86,7 @@ namespace clang {
     Result CompareImpl(const BinaryOperator *E1, const BinaryOperator *E2);
     Result CompareImpl(const CompoundAssignOperator *E1,
                    const CompoundAssignOperator *E2);
-    Result CompareImpl(const ImplicitCastExpr *E1, const ImplicitCastExpr *E2);
-    Result CompareImpl(const CStyleCastExpr *E1, const CStyleCastExpr *E2);
+    Result CompareImpl(const CastExpr *E1, const CastExpr *E2);
     Result CompareImpl(const CompoundLiteralExpr *E1,
                    const CompoundLiteralExpr *E2);
     Result CompareImpl(const GenericSelectionExpr *E1,
