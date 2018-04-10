@@ -326,7 +326,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
    Stmt::StmtClass E1Kind = E1->getStmtClass();
    Stmt::StmtClass E2Kind = E2->getStmtClass();
    Result Cmp = CompareInteger(E1Kind, E2Kind);
-   if (Cmp != Result::Equal)
+   if (Cmp != Result::Equal && !(isa<CastExpr>(E1) && isa<CastExpr>(E2)))
      return CheckEquivExprs(Cmp, E1, E2);
 
    Cmp = Result::Equal; 
