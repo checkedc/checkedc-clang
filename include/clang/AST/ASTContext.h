@@ -17,6 +17,7 @@
 
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/CanonicalType.h"
+#include "clang/AST/CanonBounds.h"
 #include "clang/AST/CommentCommandTraits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclarationName.h"
@@ -2515,7 +2516,8 @@ private:
 public:
   bool EquivalentAnnotations(const BoundsAnnotations &Annots1,
                              const BoundsAnnotations &Annots2);
-  bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2);
+  bool EquivalentBounds(const BoundsExpr *Expr1, const BoundsExpr *Expr2,
+                        EquivExprSets *EquivExprs = nullptr);
   bool EquivalentInteropTypes(const InteropTypeExpr *Expr1,
                               const InteropTypeExpr *Expr2);
 

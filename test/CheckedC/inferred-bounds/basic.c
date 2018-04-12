@@ -15,7 +15,7 @@
 // The description uses AST dumps.
 //
 // This line is for the clang test infrastructure:
-// RUN: %clang_cc1 -fcheckedc-extension -verify -verify-ignore-unexpected=warning -fdump-inferred-bounds %s | FileCheck %s
+// RUN: %clang_cc1 -fcheckedc-extension -verify -verify-ignore-unexpected=warning -verify-ignore-unexpected=note -fdump-inferred-bounds %s | FileCheck %s
 
 //-------------------------------------------------------------------------//
 // Test assignment of integers to _Array_ptr variables.  This covers both  //

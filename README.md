@@ -5,6 +5,16 @@ extends C with checking to detect or prevent common programming  errors such as
 out-of-bounds memory accesses.  The Checked C specification is available  at the 
 [Checked C repo](https://github.com/Microsoft/checkedc).
 
+## Trying out Checked C
+
+Programmers are welcome to ``kick the tires'' on Checked C as it is being implemented.
+You will have to build your own copy of the compiler for now.  For directions on how to do this, see
+the [Checked C clang wiki](https://github.com/Microsoft/checkedc-clang/wiki).   The compiler user manual is [here](https://github.com/Microsoft/checkedc-clang/wiki/Checked-C-clang-user-manual).
+
+## More information
+
+For more information on the Checked C clang compiler, see the [Checked C clang wiki](https://github.com/Microsoft/checkedc-clang/wiki).
+
 ## Build Status
 
 |Configuration|Testing|Status|
@@ -13,29 +23,6 @@ out-of-bounds memory accesses.  The Checked C specification is available  at the
 |Debug X64 Windows| Checked C and clang regression tests| ![Debug X64 Windows status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/205/badge)|
 |Debug X64 Linux  | Checked C and clang regression tests| ![Debug X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/217/badge)|
 |Release X64 Linux| Checked C, clang, and LLVM nightly tests|![Release X64 Linux status](https://msresearch.visualstudio.com/_apis/public/build/definitions/f6454e27-a46c-49d9-8453-29d89d53d2f9/238/badge)|
-
-## News
-
-We updated the LLVM/clang sources that we are using on June 20th, 2017.  If you have built your own copy
-of the compiler, you will need to delete your cmake build directory and re-run cmake after you sync.
-
-## Trying out Checked C
-
-Programmers are welcome to ``kick the tires'' on Checked C as it is being implemented.
-You will have to build your own copy of the compiler for now.  The compiler code and tests
-are in multiple repos.
-
-- [Setup and Build](docs/checkedc/Setup-and-Build.md) describes the organization of the code
-and tests, how to set up a development machine to build clang, and how to build clang.
-- [Testing](docs/checkedc/Testing.md) describes how to test the compiler once you have built it.
-- The [Implementation Notes](docs/checkedc/Implementation-Notes.md) describe the implementation of Checked C
-   in LLVM\clang.
-
-## Compiler development status
-
-We are implementing a subset of the Checked C extension that can be used to add bounds
-checking to real-world C programs.   The implementation roadmap and status are on the
-[Checked C Wiki](https://github.com/Microsoft/checkedc-clang/wiki/Implementation-roadmap-and-status).
 
 ## Contributing
 

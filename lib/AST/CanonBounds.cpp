@@ -17,6 +17,7 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/Support/raw_ostream.h"
 #include "clang/AST/CanonBounds.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
@@ -24,8 +25,119 @@
 using namespace clang;
 using Result = Lexicographic::Result;
 
-Lexicographic::Lexicographic(ASTContext &Ctx, EqualityRelation *EV) :
-  Context(Ctx), EqualVars(EV), Trace(false) {
+namespace {
+  // Return true if this cast preserve the bits of the value,
+  // false otherwise.
+  static bool IsValuePreserving(CastKind CK) {
+    switch (CK) {
+      case CK_BitCast:
+      case CK_LValueBitCast:
+      case CK_NoOp:
+      case CK_ArrayToPointerDecay:
+      case CK_FunctionToPointerDecay:
+      case CK_NullToPointer:
+      case CK_AssumePtrBounds:
+      case CK_DynamicPtrBounds:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static bool isPointerToArrayType(QualType Ty) {
+    if (const PointerType *T = Ty->getAs<PointerType>())
+      return T->getPointeeType()->isArrayType();
+    else
+      return false;
+  }
+  // Ignore operations that don't change runtime values: parens, some cast operations,
+  // array/function address-of and dereference operators, and address-of/dereference
+  // operators that cancel (&* and *&).
+  //
+  // The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
+  // do enough filtering (it'll ignore LValueToRValue casts for example).
+  // TODO: reconcile with CheckValuePreservingCast
+  static Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E) {
+    while (true) {
+      E = E->IgnoreParens();
+
+      if (CastExpr *P = dyn_cast<CastExpr>(E)) {
+        CastKind CK = P->getCastKind();
+        Expr *SE = P->getSubExpr();
+        if (IsValuePreserving(CK)) {
+          E = SE;
+          continue;
+        }
+
+        // Ignore integer <-> casts that are of the same width, ptr<->ptr
+        // and ptr<->int casts of the same width.
+        if (CK == CK_IntegralToPointer || CK == CK_PointerToIntegral ||
+            CK == CK_IntegralCast) {
+          if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
+            E = SE;
+            continue;
+          }
+
+          if ((E->getType()->isPointerType() ||
+                E->getType()->isIntegralType(Ctx)) &&
+                (SE->getType()->isPointerType() ||
+                SE->getType()->isIntegralType(Ctx)) &&
+              Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
+            E = SE;
+            continue;
+          }
+        }
+      } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+        QualType ETy = UO->getType();
+        Expr *SE = UO->getSubExpr();
+        QualType SETy = SE->getType();
+
+        UnaryOperator::Opcode Op = UO->getOpcode();
+        if (Op == UO_Deref) {
+          // This may be more conservative than necessary.
+          bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
+          bool between_arrays = ETy->isArrayType() && isPointerToArrayType(SETy);
+          if (between_functions || between_arrays) {
+            E = SE;
+            continue;
+          }
+
+          // handle *&e, which reduces to e.
+          if (const UnaryOperator *Child =
+              dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
+            if (Child->getOpcode() == UO_AddrOf) {
+              E = Child->getSubExpr();
+              continue;
+            }
+          }
+
+        } else if (Op == UO_AddrOf) {
+          // This may be more conservative than necessary.
+          bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
+          bool between_arrays = isPointerToArrayType(ETy) && SETy->isArrayType();
+          if (between_functions || between_arrays) {
+            E = SE;
+            continue;
+          }
+
+          // handle &*e, which reduces to e.
+          if (const UnaryOperator *Child =
+              dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
+            if (Child->getOpcode() == UO_Deref) {
+              E = Child->getSubExpr();
+              continue;
+            }
+          }
+        }
+      }
+
+      return E;
+    }
+  }
+}
+
+Lexicographic::Lexicographic(ASTContext &Ctx, EquivExprSets *EquivExprs) :
+  Context(Ctx), EquivExprs(EquivExprs), Trace(false) {
 }
 
 Result Lexicographic::CompareInteger(signed I1, signed I2) {
@@ -188,24 +300,34 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) {
   return Result::LessThan;
 }
 
-Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
+Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
    if (Trace) {
      raw_ostream &OS = llvm::outs();
      OS << "Lexicographic comparing expressions\n";
      OS << "E1:\n";
-     E1->dump(OS);
+     Arg1->dump(OS);
      OS << "E2:\n";
-     E2->dump(OS);
+     Arg2->dump(OS);
    }
 
-   if (E1 == E2)
-     return Result::Equal;
+   Expr *E1 = const_cast<Expr *>(Arg1);
+   Expr *E2 = const_cast<Expr *>(Arg2);
 
+  E1 = IgnoreValuePreservingOperations(Context, E1);
+  E2 = IgnoreValuePreservingOperations(Context, E2);
+
+  if (E1 == E2)
+    return Result::Equal;
+
+   // Commpare expressions structurally, recursively invoking
+   // comparison for subcomponents.  If that fails, consult
+   // EquivExprs to see if the expressions are considered
+   // equivalent.
    Stmt::StmtClass E1Kind = E1->getStmtClass();
    Stmt::StmtClass E2Kind = E2->getStmtClass();
    Result Cmp = CompareInteger(E1Kind, E2Kind);
-   if (Cmp != Result::Equal)
-     return Cmp;
+   if (Cmp != Result::Equal && !(isa<CastExpr>(E1) && isa<CastExpr>(E2)))
+     return CheckEquivExprs(Cmp, E1, E2);
 
    Cmp = Result::Equal; 
    switch (E1Kind) {
@@ -234,8 +356,8 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
      case Expr::CompoundAssignOperatorClass:
        Cmp = Compare<CompoundAssignOperator>(E1, E2); break;
      case Expr::BinaryConditionalOperatorClass: break;
-     case Expr::ImplicitCastExprClass: Cmp = Compare<ImplicitCastExpr>(E1, E2); break;
-     case Expr::CStyleCastExprClass: Cmp = Compare<CStyleCastExpr>(E1, E2); break;
+     case Expr::ImplicitCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
+     case Expr::CStyleCastExprClass: Cmp = Compare<CastExpr>(E1, E2); break;
      case Expr::CompoundLiteralExprClass: Cmp = Compare<CompoundLiteralExpr>(E1, E2); break;
      // TODO:
      // case: ExtVectorElementExpr
@@ -274,7 +396,7 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
    }
 
    if (Cmp != Result::Equal)
-     return Cmp;
+     return CheckEquivExprs(Cmp, E1, E2);
 
    // Check children
    auto I1 = E1->child_begin();
@@ -287,7 +409,7 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
      if (ordered) {
        if (Cmp == Result::Equal)
          continue;
-       return Cmp;
+       return CheckEquivExprs(Cmp, E1, E2);
       }
      assert(E1Child && E2Child);
      const Expr *E1ChildExpr = dyn_cast<Expr>(E1Child);
@@ -296,7 +418,20 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
      if (E1ChildExpr && E2ChildExpr) {
        Cmp = CompareExpr(E1ChildExpr, E2ChildExpr);
        if (Cmp != Result::Equal)
-         return Cmp;
+         return CheckEquivExprs(Cmp, E1, E2);
+       // TODO: Github issue #475.  We need to sort out typing rules
+       // for uses of variables with bounds-safe interfaces in bounds
+       // expressions.  Then we can likely replace this with CompareType.
+       // TODO: consider treating operations whose types differ
+       // but that still produce the same value as being the
+       // same.  For example:
+       // - Pointer arithmetic where the pointer referent types are the same
+       //   size, checkedness is the same, and the integer types are the
+       //    same size/signedness.
+       Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(),
+                                          E2ChildExpr->getType());
+       if (Cmp != Result::Equal)
+         return CheckEquivExprs(Cmp, E1, E2);
      } else
        // assert fired - return something
        return Result::LessThan;
@@ -306,19 +441,74 @@ Result Lexicographic::CompareExpr(const Expr *E1, const Expr *E2) {
    // fewer children than E2, make it less than E2.  If it has more
    // children, make it greater than E2.
    if (I1 == E1->child_end() && I2 != E2->child_end())
-     return Result::LessThan;
+     return CheckEquivExprs(Result::LessThan, E1, E2);
 
    if (I1 != E1->child_end() && I2 == E2->child_end())
-     return Result::GreaterThan;
+     return CheckEquivExprs(Result::GreaterThan, E1, E2);
 
    return Result::Equal;
 }
+
+// See if the expressions are considered equivalent using the list of lists
+// of equivalent expressions.
+Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr *E2) {
+  if (!EquivExprs)
+    return Current;
+
+  // Important: compare expressions for equivalence without using equality facts.
+  // This keep the asymptotic complexity of this method linear in the number of AST nodes
+  // for E1, E2, and EquivExprs.  It also avoid the complexities of having to avoid
+  // infinite recursions.
+  Lexicographic SimpleComparer = Lexicographic(Context, nullptr);
+  // Iterate over the list of sets.
+  for (auto OuterList = EquivExprs->begin(); OuterList != EquivExprs->end();
+       ++OuterList) {
+    bool LHSAppears = false;
+    bool RHSAppears = false;
+    // See if the LHS expression appears in the set.
+    SmallVector<Expr *, 4> *ExprList = *OuterList;
+    for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
+      if (SimpleComparer.CompareExpr(E1, *InnerList)  == Result::Equal) {
+        LHSAppears = true;
+        break;
+      }
+    }
+    if (!LHSAppears)
+      continue;
+
+    // See if the RHS expression appears in the set.
+    for (auto InnerList = ExprList->begin(); InnerList != ExprList->end(); ++InnerList) {
+      if (SimpleComparer.CompareExpr(E2, *InnerList)  == Result::Equal) {
+        RHSAppears = true;
+        break;
+      }
+    }
+
+    // If both appear, consider them equivalent.
+    if (RHSAppears)
+      return Result::Equal;
+  }
+
+  return Current;
+ }
+
 
 Result
 Lexicographic::CompareType(QualType QT1, QualType QT2) {
   QT1 = QT1.getCanonicalType();
   QT2 = QT2.getCanonicalType();
   if (QT1 == QT2)
+    return Result::Equal;
+  else
+    // TODO: fill this in
+    return Result::LessThan;
+}
+
+Result
+Lexicographic::CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) {
+  QT1 = QT1.getCanonicalType();
+  QT2 = QT2.getCanonicalType();
+  if (Context.isEqualIgnoringChecked(QT1, QT2))
     return Result::Equal;
   else
     // TODO: fill this in
@@ -428,15 +618,15 @@ Lexicographic::CompareImpl(const CompoundAssignOperator *E1,
 }
 
 Result
-Lexicographic::CompareImpl(const ImplicitCastExpr *E1,
-                           const ImplicitCastExpr *E2) {
-  return CompareInteger(E1->getValueKind(), E2->getValueKind());
-}
-
-Result
-Lexicographic::CompareImpl(const CStyleCastExpr *E1,
-                           const CStyleCastExpr *E2) {
-  return CompareType(E1->getType(), E2->getType());
+Lexicographic::CompareImpl(const CastExpr *E1,
+                           const CastExpr *E2) {
+  Result Cmp = CompareInteger(E1->getCastKind(), E2->getCastKind());
+  if (Cmp != Result::Equal)
+    return Cmp;
+  // TODO: Github issue #475.  We need to sort out typing rules
+  // for uses of variables with bounds-safe interfaces in bounds
+  // expressions.  Then we can likely replace this with CompareType.
+  return CompareTypeIgnoreCheckedness(E1->getType(), E2->getType());
 }
 
 Result
