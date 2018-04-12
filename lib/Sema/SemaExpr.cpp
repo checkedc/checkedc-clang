@@ -13317,16 +13317,16 @@ ExprResult Sema::ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
 }
 
 /// \brief Validate the type of an argument expression to a bounds
-/// expression. If valid, return the unqualified pointee type.  Otherwise
-/// return null.  Assumes that the usual C conversions for expressions
+/// expression. If valid, return the pointee type.  Otherwise
+/// return a null QualType  Assumes that the usual C conversions for expressions
 /// have been applied already, including array->pointer conversions.
-const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
+QualType Sema::ValidateBoundsExprArgument(Expr *Arg) {
   QualType ArgType = Arg->getType();
   const Type *ArgPointerType = ArgType->getAs<PointerType>();
   if (!ArgPointerType) {
     Diag(Arg->getLocStart(),
          diag::err_typecheck_pointer_type_expected) << ArgType;
-    return nullptr;
+    return QualType();
   }
   QualType ArgTypePointee = ArgPointerType->getPointeeType();
   // We return the unqualified type so that we can compare
@@ -13346,11 +13346,11 @@ const Type *Sema::ValidateBoundsExprArgument(Expr *Arg) {
 
   if (!ArgTypePointee->isIncompleteOrObjectType()) {
     Diag(Arg->getLocStart(), diag::err_typecheck_bounds_expr) << ArgType;
-    return nullptr;
+    return QualType();
   }
 
-  // Return the canonical unqualified pointee type.
-  return ArgTypePointee.getTypePtr();
+  // Return the pointee type.
+  return ArgTypePointee;
 }
 
 ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
@@ -13367,13 +13367,13 @@ ExprResult Sema::ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc,
     return ExprError();
   UpperBound = Result.get();
 
-  const Type *LowerBoundPointee = ValidateBoundsExprArgument(LowerBound);
-  const Type *UpperBoundPointee = ValidateBoundsExprArgument(UpperBound);
+  QualType LowerBoundPointee = ValidateBoundsExprArgument(LowerBound);
+  QualType UpperBoundPointee = ValidateBoundsExprArgument(UpperBound);
 
-  if (!LowerBoundPointee || !UpperBoundPointee)
+  if (LowerBoundPointee.isNull() || UpperBoundPointee.isNull())
     return ExprError();
 
-  if (LowerBoundPointee != UpperBoundPointee &&
+  if (!Context.typesAreCompatible(LowerBoundPointee, UpperBoundPointee, true) &&
       !LowerBoundPointee->isVoidType() &&
       !UpperBoundPointee->isVoidType()) {
     Diag(LowerBound->getLocStart(),

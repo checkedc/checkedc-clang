@@ -4587,7 +4587,7 @@ public:
   //===---------------------------- Checked C Extension ----------------------===//
 
 private:
-  const Type *ValidateBoundsExprArgument(Expr *Arg);
+  QualType ValidateBoundsExprArgument(Expr *Arg);
 
 public:
   ExprResult ActOnNullaryBoundsExpr(SourceLocation BoundKWLoc,

@@ -35,12 +35,8 @@ namespace clang {
   class Expr;
   class VarDecl;
 
-  // Abstract base class that provides information what variables
-  // currently are equal to each other.
-  class EqualityRelation {
-  public:
-     virtual const VarDecl *getRepresentative(const VarDecl *V) = 0;
-  };
+  // List of sets of equivalent expressions.
+  typedef SmallVector<SmallVector<Expr *, 4> *, 4> EquivExprSets;
 
   class Lexicographic {
   public:
@@ -52,7 +48,7 @@ namespace clang {
 
   private:
     ASTContext &Context;
-    EqualityRelation *EqualVars;
+    EquivExprSets *EquivExprs;
     bool Trace;
 
     template <typename T>
@@ -65,6 +61,10 @@ namespace clang {
       }
       return Lexicographic::CompareImpl(E1, E2);
     }
+
+    // See if E1 and E2 are considered equivalent using EquivExprs.  If
+    // they are not, return Current.
+    Result CheckEquivExprs(Result Current, const Expr *E1, const Expr *E2);
 
     Result CompareInteger(signed I1, signed I2);
     Result CompareInteger(unsigned I1, unsigned I2);
@@ -86,8 +86,7 @@ namespace clang {
     Result CompareImpl(const BinaryOperator *E1, const BinaryOperator *E2);
     Result CompareImpl(const CompoundAssignOperator *E1,
                    const CompoundAssignOperator *E2);
-    Result CompareImpl(const ImplicitCastExpr *E1, const ImplicitCastExpr *E2);
-    Result CompareImpl(const CStyleCastExpr *E1, const CStyleCastExpr *E2);
+    Result CompareImpl(const CastExpr *E1, const CastExpr *E2);
     Result CompareImpl(const CompoundLiteralExpr *E1,
                    const CompoundLiteralExpr *E2);
     Result CompareImpl(const GenericSelectionExpr *E1,
@@ -105,7 +104,7 @@ namespace clang {
 
 
   public:
-    Lexicographic(ASTContext &Ctx, EqualityRelation *EV);
+    Lexicographic(ASTContext &Ctx, EquivExprSets *EquivExprs);
 
     /// \brief Lexicographic comparison of expressions that can occur in
     /// bounds expressions.
@@ -115,6 +114,7 @@ namespace clang {
     /// or types.
     Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2);
     Result CompareType(QualType T1, QualType T2);
+    Result CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2);
   };
 }  // end namespace clang
 

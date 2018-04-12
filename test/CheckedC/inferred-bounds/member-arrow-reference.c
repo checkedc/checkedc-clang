@@ -10,7 +10,6 @@
 //
 // This line is for the clang test infrastructure:
 // RUN: %clang_cc1 -fcheckedc-extension -verify -fdump-inferred-bounds %s | FileCheck %s
-// expected-no-diagnostics
 
 struct S1 {
   _Array_ptr<int> p : count(len);
@@ -97,7 +96,9 @@ void f1(struct S1 *a1, struct S2 *b2) {
 void f2(struct S1 *a3) {
   int local_arr1[5];
   // TODO: need bundled block.
-  a3->p = local_arr1;
+  a3->p = local_arr1;  // expected-warning {{cannot prove declared bounds for a3->p are valid after assignment}} \
+                       // expected-note {{(expanded) declared bounds are 'bounds(a3->p, a3->p + a3->len)'}} \
+                       // expected-note {{(expanded) inferred bounds are 'bounds(local_arr1, local_arr1 + 5)'}}
 
 // CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
 // CHECK: |-MemberExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue ->p {{0x[0-9a-f]+}}

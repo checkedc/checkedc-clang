@@ -16,12 +16,24 @@ void f2(_Array_ptr<int> p : bounds(p, p + x), int x) {
   _Array_ptr<int> r : bounds(p, p + x) = p;
 }
 
-// Initialization by expression without syntactically identical
-// normalized bounds - warning expected.
+// Initialization of a pointer by an array with syntactically identical
+// normalized bounds.
+void f2a(void) {
+  int a _Checked[10];
+  _Array_ptr<int> r : bounds(a, a + 10) = a;
+}
+
+// Initialization by expression with bounds that are syntactically identical
+// modulo expression equality implied by initialization - no warning.
 void f3(_Array_ptr<int> p : bounds(p, p + x), int x) {
-  _Array_ptr<int> r : count(x) = p;     // expected-warning {{cannot prove declared bounds}} \
-                                        // expected-note {{(expanded) declared bounds are 'bounds(r, r + x)'}} \
-                                        // expected-note {{(expanded) inferred bounds are 'bounds(p, p + x)'}}
+  _Array_ptr<int> r : count(x) = p;
+}
+
+// Initialization by an array with bounds that syntactically identical
+// modulo expression equality implied by initialization - no warning.
+void f3a(void) {
+  int a _Checked[10];
+  _Array_ptr<int> r : count(10) = a;
 }
 
 
@@ -38,13 +50,11 @@ void f5(_Array_ptr<int> p : count(x), int x) {
   r = p;
 }
 
-// Assignment of expression without syntactically identical normalized bounds -
-// no warning.
+// Assignment of expression with bounds that are syntactically identical
+// modulo expression equality implied by assignment - no warning.
 void f6(_Array_ptr<int> p : count(x), int x) {
   _Array_ptr<int> r : count(x) = 0;
-  r = p;      // expected-warning {{cannot prove declared bounds}} \
-              // expected-note {{(expanded) declared bounds are 'bounds(r, r + x)'}} \
-              // expected-note {{(expanded) inferred bounds are 'bounds(p, p + x)'}}
+  r = p;
 }
 
 // Parameter passing
@@ -93,6 +103,15 @@ void f20(_Array_ptr<int> p: count(5)) {
                                             // expected-note {{(expanded) declared bounds are 'bounds(p - 1, p + 6)'}} \
                                             // expected-note {{(expanded) inferred bounds are 'bounds(p, p + 5)'}}
 }
+
+// Initialization of pointers using top-level arrays
+int a0 _Checked[9] = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+_Array_ptr<int> a1 : count(3) = a0;
+_Array_ptr<int> a2 : count(11) = a0;   // expected-error {{declared bounds for 'a2' are invalid after initialization}} \
+                                       // expected-note {{destination bounds are wider than the source bounds}} \
+                                       // expected-note {{destination upper bound is above source upper bound}} \
+                                       // expected-note {{(expanded) declared bounds are 'bounds(a2, a2 + 11)'}} \
+                                       // expected-note {{(expanded) inferred bounds are 'bounds(a0, a0 + 9)'}}
 
 // Assignments
 void f21(_Array_ptr<int> p: count(5)) {
