@@ -1,3 +1,4 @@
+
 # The Checked C clang repo
 
 This repo contains a version of clang that is being modified to support Checked C.  Checked C 
@@ -8,7 +9,9 @@ out-of-bounds memory accesses.  The Checked C specification is available  at the
 ## Trying out Checked C
 
 Programmers are welcome to ``kick the tires'' on Checked C as it is being implemented.
-You will have to build your own copy of the compiler for now.  For directions on how to do this, see
+We have pre-built compiler installers for Windows available for download on the
+[release page](https://github.com/Microsoft/checkedc-clang/releases).
+For other platforms, you will have to build your own copy of the compiler.  For directions on how to do this, see
 the [Checked C clang wiki](https://github.com/Microsoft/checkedc-clang/wiki).   The compiler user manual is [here](https://github.com/Microsoft/checkedc-clang/wiki/Checked-C-clang-user-manual).
 
 ## More information
