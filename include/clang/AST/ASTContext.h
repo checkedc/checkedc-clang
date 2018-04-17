@@ -2479,7 +2479,7 @@ public:
   void ResetObjCLayout(const ObjCContainerDecl *CD);
 
   //===--------------------------------------------------------------------===//
-  //           Predicates For Checked C checked types and bounds
+  //          Predicates and methods for Checked C checked types and bounds
   //===--------------------------------------------------------------------===//
 
   /// \brief Determine whether a pointer, array, or function type T1 provides
@@ -2525,6 +2525,26 @@ public:
   BoundsExpr *getPrebuiltCountZero();
   BoundsExpr *getPrebuiltCountOne();
   BoundsExpr *getPrebuiltBoundsUnknown();
+
+  // Track the set of member bounds declarations that use a given
+  // member.
+  typedef llvm::TinyPtrVector<const FieldDecl*> MemberDeclVector;
+private:
+  llvm::DenseMap<const FieldDecl *, MemberDeclVector> UsingBounds;
+
+public:
+  typedef MemberDeclVector::const_iterator member_bounds_iterator;
+  member_bounds_iterator using_member_bounds_begin(const FieldDecl *Member) const;
+  member_bounds_iterator using_member_bounds_end(const FieldDecl *Member) const;
+
+  unsigned using_member_bounds_size(const FieldDecl *Member) const;
+  typedef llvm::iterator_range<member_bounds_iterator> member_bounds_iterator_range;
+  member_bounds_iterator_range using_member_bounds(const FieldDecl *Member) const;
+
+  /// \brief Note that \p Member is used by the member bounds for
+  /// \p UsingBounds.
+  void addMemberBoundsUse(const FieldDecl *Member,
+                          const FieldDecl *UsingBounds);
 
   /// \brief Given an InteropTypeExpr pointer, return the interop type.
   /// Adjust the type if the type is for a parameter.  Return a null QualType

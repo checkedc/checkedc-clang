@@ -4649,6 +4649,11 @@ public:
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsAnnotations &BA, bool IsReturnAnnots);
+
+  /// \\brief Update information in ASTContext tracking for a member what
+  /// bounds declarations depend upon it.  FD is the member whose
+  /// bounds are given by Bounds.
+  void TrackMemberBoundsDependences(FieldDecl *FD, BoundsExpr *Bounds);
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
                        bool MergeDeferredBounds = false);
 

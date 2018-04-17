@@ -8780,7 +8780,7 @@ QualType ASTContext::mergeObjCGCQualifiers(QualType LHS, QualType RHS) {
 }
 
 //===--------------------------------------------------------------------===//
-//            Predicates For Checked C checked types and bounds
+//        Predicates and methods for Checked C checked types and bounds
 //===--------------------------------------------------------------------===//
 
 static bool lessThan(bool Self, bool Other) {
@@ -9147,6 +9147,49 @@ BoundsExpr *ASTContext::getPrebuiltBoundsUnknown() {
   if (IsParam && !ResultType.isNull() && ResultType->isArrayType())
     ResultType = getAdjustedParameterType(ResultType);
   return ResultType;
+}
+
+//
+// Methods for tracking which member bounds declarations use a member.
+//
+
+ASTContext::member_bounds_iterator
+ASTContext::using_member_bounds_begin(const FieldDecl *Member) const {
+  llvm::DenseMap<const FieldDecl *, MemberDeclVector>::const_iterator Pos =
+      UsingBounds.find(Member->getCanonicalDecl());
+  if (Pos == UsingBounds.end())
+    return nullptr;
+  return Pos->second.begin();
+}
+
+ASTContext::member_bounds_iterator
+ASTContext::using_member_bounds_end(const FieldDecl *Member) const {
+  llvm::DenseMap<const FieldDecl *, MemberDeclVector>::const_iterator Pos =
+      UsingBounds.find(Member->getCanonicalDecl());
+  if (Pos == UsingBounds.end())
+    return nullptr;
+  return Pos->second.end();
+}
+
+unsigned
+ASTContext::using_member_bounds_size(const FieldDecl *Member) const {
+  llvm::DenseMap<const FieldDecl *, MemberDeclVector>::const_iterator Pos =
+      UsingBounds.find(Member->getCanonicalDecl());
+  if (Pos == UsingBounds.end())
+    return 0;
+  return Pos->second.size();
+}
+
+ASTContext::member_bounds_iterator_range
+ASTContext::using_member_bounds(const FieldDecl *Member) const {
+  return member_bounds_iterator_range(using_member_bounds_begin(Member),
+                                      using_member_bounds_end(Member));
+}
+
+void ASTContext::addMemberBoundsUse(const FieldDecl *Member,
+                                    const FieldDecl *Bounds) {
+  assert(Member->isCanonicalDecl() && Bounds->isCanonicalDecl());
+  UsingBounds[Member].push_back(Bounds);
 }
 
 //===----------------------------------------------------------------------===//
