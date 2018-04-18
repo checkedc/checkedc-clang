@@ -233,12 +233,14 @@ namespace {
       unsigned index = E->getIndex();
       if (index < Arguments.size()) {
         Expr *AE = Arguments[index];
-        bool ShouldReportError = !ErroredForArgument[index];
+       Sema::NonModifyingMessage Message = ErroredForArgument[index] ?
+          Sema:: NonModifyingMessage::NMM_None :
+          Sema::NonModifyingMessage::NMM_Error;
 
         // We may only substitute if this argument expression is
         // a non-modifying expression.
         if (!SemaRef.CheckIsNonModifying(AE, ErrorKind,
-                                         ShouldReportError)) {
+                                         Message)) {
           SubstitutedModifyingExpression = true;
           ErroredForArgument.set(index);
           return ExprError();
@@ -730,7 +732,7 @@ namespace {
           return CreateBoundsInferenceError();
         if (!SemaRef.CheckIsNonModifying(ME->getBase(),
                                          Sema::NonModifyingContext::NMC_Unknown,
-                                         /*ReportError=*/false))
+                                         Sema::NonModifyingMessage::NMM_None))
           return CreateBoundsNotAllowedYet();
 
         if (ME->getType()->isArrayType()) {
@@ -848,7 +850,6 @@ namespace {
     // lvalue will meet these bounds.
     BoundsExpr *LValueTargetBounds(Expr *E) {
       if (!E->isLValue()) return CreateBoundsInferenceError();
-      // TODO: handle side effects within E
       E = E->IgnoreParens();
       QualType QT = E->getType();
 
@@ -888,12 +889,13 @@ namespace {
         }
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = cast<UnaryOperator>(E);
-          // Currently, we don't know the bounds of a pointer returned
-          // by a pointer dereference, unless it is a _Ptr type (handled
+          // Currently, we don't know the bounds of a pointer stored in a
+          // pointer dereference, unless it is a _Ptr type (handled
           // earlier) or an _Nt_array_ptr.
           if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
               UO->getType()->isCheckedPointerNtArrayType())
               return CreateTypeBasedBounds(UO, UO->getType(), false, false);
+
           return CreateBoundsAlwaysUnknown();
         }
         case Expr::ArraySubscriptExprClass: {
@@ -920,22 +922,11 @@ namespace {
             return CreateBoundsAlwaysUnknown();
 
           Expr *MemberBaseExpr = M->getBase();
-          // TODO: this check is only correct when the lvalue is read.
-          // If the lvalue is being assigned to and the member has
-          // bounds that depend on other members, we may need to issue
-          // an error message.   If an lvalue target has unknown bounds,
-          // we don't check that assignments meet the bounds requirements.
-          // The member may have specific bounds requirements that must be met.
-          if (!SemaRef.CheckIsNonModifying(MemberBaseExpr,
-                                         Sema::NonModifyingContext::NMC_Unknown,
-              /*ReportError=*/false))
-            return CreateBoundsNotAllowedYet();
-
           if (!B && IT)
             return CreateTypeBasedBounds(M, IT->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
-          if(!B)
+          if (!B)
             return CreateBoundsAlwaysUnknown();
 
           B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
@@ -1424,6 +1415,10 @@ namespace {
       E->dump(OS);
     }
 
+    BoundsExpr *InferLValueBounds(Expr *E) {
+    }
+
+
     // Add bounds check to an lvalue expression, if it is an Array_ptr
     // dereference.  The caller has determined that the lvalue is being
     // used in a way that requies a bounds check if the lvalue is an
@@ -1794,7 +1789,12 @@ namespace {
       assert(BoundsUtil::IsStandardForm(SrcBounds) &&
         "src bounds not in standard form");
       Cause = ProofFailure::None;
-      // source bounds(any) implies that any other bounds is valid.
+
+      // Ignore invalid bounds.
+      if (SrcBounds->isInvalid() || DeclaredBounds->isInvalid())
+        return ProofResult::True;
+
+     // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
         return ProofResult::True;
 
@@ -1952,8 +1952,10 @@ namespace {
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
       // TODO: make sure assignment to lvalue doesn't modify value used in Src.
-      if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown, false) &&
-          S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown, false)) {
+      if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown,
+                                Sema::NonModifyingMessage::NMM_None) &&
+          S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
+                                Sema::NonModifyingMessage::NMM_None)) {
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
@@ -2018,7 +2020,8 @@ namespace {
       // Record expression equality implied by initialization.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
-      if (S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown, false)) {
+      if (S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
+                                Sema::NonModifyingMessage::NMM_None)) {
         // TODO: make sure variable being initialized isn't read by Src.
         DeclRefExpr *TargetDeclRef =
           DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
@@ -2128,6 +2131,18 @@ namespace {
       }
     }
 
+    BoundsExpr *CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
+      if (!S.CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
+                                 Sema::NonModifyingMessage::NMM_None)) {
+        S.Diag(E->getLocStart(), diag::err_inferred_modifying_bounds) <<
+           B << E->getSourceRange();
+        S.CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
+                              Sema::NonModifyingMessage::NMM_Note);
+        return S.CreateInvalidBoundsExpr();
+      } else
+        return B;
+    }
+
   public:
     CheckBoundsDeclarations(Sema &S, BoundsExpr *ReturnBounds) : S(S),
       DumpBounds(S.getLangOpts().DumpInferredBounds),
@@ -2224,19 +2239,23 @@ namespace {
         // Check that the value being assigned has bounds if the
         // target of the LHS lvalue has bounds.
         LHSTargetBounds = S.InferLValueTargetBounds(LHS);
+        LHSTargetBounds = CheckNonModifyingBounds(LHSTargetBounds, LHS);
         if (!LHSTargetBounds->isUnknown()) {
           if (E->isCompoundAssignmentOp())
             RHSBounds = S.InferRValueBounds(E);
           else
             RHSBounds = S.InferRValueBounds(RHS);
+
+          RHSBounds = CheckNonModifyingBounds(RHSBounds, RHS);
           if (RHSBounds->isUnknown()) {
              S.Diag(RHS->getLocStart(),
                     diag::err_expected_bounds_for_assignment)
                     << RHS->getSourceRange();
              RHSBounds = S.CreateInvalidBoundsExpr();
-          } else
-            CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RHSBounds, InCheckedScope);
+          }
+
+          CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
+                                      RHS, RHSBounds, InCheckedScope);
         }
       }
 
@@ -2292,7 +2311,7 @@ namespace {
           if (Uses.IsUsed(i) && i < NumArgs &&
               !S.CheckIsNonModifying(CE->getArg(i),
                               Sema::NonModifyingContext::NMC_Function_Parameter,
-                                    false)) {
+                                    Sema::NonModifyingMessage::NMM_None)) {
             S.Diag(CE->getArg(i)->getLocStart(),
                    diag::err_modifying_expr_not_supported)
               << (i + 1) << CE->getArg(i)->getSourceRange();
@@ -2354,7 +2373,7 @@ namespace {
         else {
           // Concretize parameter bounds with argument expressions. This fails
           // and returns null if an argument expression is a modifying
-          // expression, but we've already issued an error about about that.
+          // expression,  We issue an error during concretization about that.
           BoundsExpr *SubstParamBounds =
             S.ConcretizeFromFunctionTypeWithArgs(
               const_cast<BoundsExpr *>(ParamBounds),
@@ -2802,9 +2821,9 @@ namespace {
 
   public:
     NonModifiyingExprSema(Sema &S, Sema::NonModifyingContext From,
-                          bool ReportError) :
+                          Sema::NonModifyingMessage Message) :
       S(S), FoundModifyingExpr(false), ReqFrom(From),
-      ReportError(ReportError) {}
+      Message(Message) {}
 
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
@@ -2859,19 +2878,22 @@ namespace {
     Sema &S;
     bool FoundModifyingExpr;
     Sema::NonModifyingContext ReqFrom;
-    bool ReportError;
+    Sema::NonModifyingMessage Message;
 
     void addError(Expr *E, ModifyingExprKind Kind) {
-      if (ReportError)
-        S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
+      if (Message != Sema::NonModifyingMessage::NMM_None) {
+        unsigned DiagId = (Message == Sema::NonModifyingMessage::NMM_Error) ?
+          diag::err_not_non_modifying_expr : diag::note_modifying_expression;
+        S.Diag(E->getLocStart(), DiagId)
           << Kind << ReqFrom << E->getSourceRange();
+      }
     }
   };
 }
 
 bool Sema::CheckIsNonModifying(Expr *E, NonModifyingContext Req,
-                               bool ReportError) {
-  NonModifiyingExprSema Checker(*this, Req, ReportError);
+                               NonModifyingMessage Message) {
+  NonModifiyingExprSema Checker(*this, Req, Message);
   Checker.TraverseStmt(E);
 
   return Checker.isNonModifyingExpr();

@@ -4683,9 +4683,15 @@ public:
   /// /brief Checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
   /// false otherwise.
+  enum NonModifyingMessage {
+    NMM_None,
+    NMM_Error,
+    NMM_Note
+  };
+
   bool CheckIsNonModifying(Expr *E, NonModifyingContext Req =
                                NonModifyingContext::NMC_Unknown,
-                               bool ReportError = true);
+                            NonModifyingMessage = NMM_Error);
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);
