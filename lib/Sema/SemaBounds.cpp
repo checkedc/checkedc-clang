@@ -352,27 +352,6 @@ BoundsExpr *Sema::MakeMemberBoundsConcrete(
 }
 
 namespace {
-// Compute what positional parameters are used by an expression.
-class CollectPositionalParameters : public RecursiveASTVisitor<CollectPositionalParameters> {
-
-private:
-  llvm::SmallBitVector Used;
-
-public:
-  CollectPositionalParameters(unsigned ParamCount) : Used(ParamCount) {}
-
-  bool VisitPositionalParameterExpr(PositionalParameterExpr *PE) {
-    Used.set(PE->getIndex());
-    return true;
-  }
-
-  bool IsUsed(unsigned Index) {
-    return Used.test(Index);
-  }
-};
-}
-
-namespace {
   // Class for inferring bounds expressions for C expressions.
 
   // C has an interesting semantics for expressions that differentiates between
@@ -733,10 +712,6 @@ namespace {
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
           return CreateBoundsInferenceError();
-        if (!SemaRef.CheckIsNonModifying(ME->getBase(),
-                                         Sema::NonModifyingContext::NMC_Unknown,
-                                         Sema::NonModifyingMessage::NMM_None))
-          return CreateBoundsNotAllowedYet();
 
         if (ME->getType()->isArrayType()) {
           // Declared bounds override the bounds based on the array type.
@@ -2327,27 +2302,15 @@ namespace {
 
         Expr *Arg = CE->getArg(i);
 
-        // We have a bounds of the form  count(e) or byte_count(e).  Expand
-        // the bounds to a standard form, using the current argument as the
-        // base expression.
-        //
-        // We are are short-ciructing a step here.  In expanding the parameter
-        // bounds, we could use the parameter represented as a symbolic index.
-        // This more properly represents the parameter bounds.  However, code
-        // below will eventually substitute Arg for the symbolic parameter.
-        // Instead of going to the trouble of building the symbolic parameter
-        // expression, which we will throw away soon anyway, we just use Arg
-        // here.
-        //
-        // TDOO: remove this short circuiting.  This could cause us to not issue
-        // an error when Arg is a modifying expression and will likely cause
-        // us further problems down the road.
+        // Put the parameter bounds in a standard form if necessary.
+        // TODO: can we do this earlier as part of fu nction type handling.
         if (ParamBounds && (ParamBounds->isElementCount() || ParamBounds->isByteCount()))
-          ParamBounds = S.ExpandToRange(Arg, const_cast<BoundsExpr *>(ParamBounds));
+          ParamBounds = S.ExpandToRange(CreateParamRValue(i, ParamType), 
+                                        const_cast<BoundsExpr *>(ParamBounds));
 
         if (!ParamBounds && ParamIType)
-          // The same short-circuit logic applies here too.
-          ParamBounds = S.CreateTypeBasedBounds(Arg, ParamIType->getType(), true, true);
+          ParamBounds = S.CreateTypeBasedBounds(CreateParamRValue(i, ParamType), 
+                                                ParamIType->getType(), true, true);
 
         // Check after handling the interop type annotation, not before, because
         // handling the interop type annotation could make the bounds known.
@@ -2371,11 +2334,18 @@ namespace {
               ArgExprs,
               Sema::NonModifyingContext::NMC_Function_Parameter);
           if (SubstParamBounds)
+            ParamBounds = S.ExpandToRange(CreateParamRValue(i, ParamType), 
+                                        const_cast<BoundsExpr *>(ParamBounds));
             CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
         }
       }
       return;
    }
+
+   Expr *CreateParamRValue(unsigned index, QualType Ty) {
+     Expr *Param = new (S.getASTContext()) PositionalParameterExpr(index, Ty);
+     return BoundsInference(S).CreateImplicitCast(Ty, CK_LValueToRValue, Param);
+  }
 
     // This includes both ImplicitCastExprs and CStyleCastExprs
     void VisitCastExpr(CastExpr *E, bool InCheckedScope) {
