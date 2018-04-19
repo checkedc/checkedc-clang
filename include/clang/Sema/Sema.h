@@ -4693,6 +4693,8 @@ public:
                                NonModifyingContext::NMC_Unknown,
                             NonModifyingMessage = NMM_Error);
 
+  BoundsExpr *CheckNonModifyingBounds(BoundsExpr *Bounds, Expr *E);
+
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);
   /// \brief Take a bounds expression with positional parameters from a function

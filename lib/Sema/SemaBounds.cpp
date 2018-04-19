@@ -671,11 +671,14 @@ namespace {
     // it is valid to access memory using the lvalue.  The bounds
     // should be the range of an object in memory or a subrange of
     // an object.
+    //
+    // The returned bounds expression may contain a modifying expression within
+    // it. It is the caller's responsibility to validate that the bounds
+    // expression is non-modifying.
     BoundsExpr *LValueBounds(Expr *E) {
       // E may not be an lvalue if there is a typechecking error when struct 
       // accesses member array incorrectly.
       if (!E->isLValue()) return CreateBoundsInferenceError();
-      // TODO: handle side effects within E
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
       case Expr::DeclRefExprClass: {
@@ -845,9 +848,13 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
-    // Compute bounds for the target of an lvalue.  Values assigned through
-    // the lvalue must satisfy these bounds.   Values read through the
+    // Compute bounds for the target of an lvalue. Values assigned through
+    // the lvalue must satisfy these bounds. Values read through the
     // lvalue will meet these bounds.
+    //
+    // The returned bounds expression may contain a modifying expression within
+    // it. It is the caller's responsibility to validate that the bounds
+    // expression is non-modifying.
     BoundsExpr *LValueTargetBounds(Expr *E) {
       if (!E->isLValue()) return CreateBoundsInferenceError();
       E = E->IgnoreParens();
@@ -984,6 +991,10 @@ namespace {
     }
 
     // Compute the bounds of an expression that produces an rvalue.
+    //
+    // The returned bounds expression may contain a modifying expression within
+    // it. It is the caller's responsibility to validate that the bounds
+    // expression is non-modifying.
     BoundsExpr *RValueBounds(Expr *E) {
       if (!E->isRValue()) return CreateBoundsInferenceError();
 
@@ -1279,8 +1290,21 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
   }
 }
 
+BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
+  if (!CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
+                              Sema::NonModifyingMessage::NMM_None)) {
+    Diag(E->getLocStart(), diag::err_inferred_modifying_bounds) <<
+        B << E->getSourceRange();
+    CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
+                          Sema::NonModifyingMessage::NMM_Note);
+    return CreateInvalidBoundsExpr();
+  } else
+    return B;
+}
+
 BoundsExpr *Sema::InferLValueBounds(Expr *E) {
-  return BoundsInference(*this).LValueBounds(E);
+  BoundsExpr *Bounds = BoundsInference(*this).LValueBounds(E);
+  return CheckNonModifyingBounds(Bounds, E);
 }
 
 BoundsExpr *Sema::CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
@@ -1290,11 +1314,14 @@ BoundsExpr *Sema::CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
 }
 
 BoundsExpr *Sema::InferLValueTargetBounds(Expr *E) {
-  return BoundsInference(*this).LValueTargetBounds(E);
+  BoundsExpr *Bounds = BoundsInference(*this).LValueTargetBounds(E);
+  return CheckNonModifyingBounds(Bounds, E);
 }
 
 BoundsExpr *Sema::InferRValueBounds(Expr *E, bool IncludeNullTerminator) {
-  return BoundsInference(*this, IncludeNullTerminator).RValueBounds(E);
+  BoundsExpr *Bounds =
+    BoundsInference(*this, IncludeNullTerminator).RValueBounds(E);
+  return CheckNonModifyingBounds(Bounds, E);
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
@@ -1414,10 +1441,6 @@ namespace {
       OS << "\n";
       E->dump(OS);
     }
-
-    BoundsExpr *InferLValueBounds(Expr *E) {
-    }
-
 
     // Add bounds check to an lvalue expression, if it is an Array_ptr
     // dereference.  The caller has determined that the lvalue is being
@@ -2131,17 +2154,6 @@ namespace {
       }
     }
 
-    BoundsExpr *CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
-      if (!S.CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
-                                 Sema::NonModifyingMessage::NMM_None)) {
-        S.Diag(E->getLocStart(), diag::err_inferred_modifying_bounds) <<
-           B << E->getSourceRange();
-        S.CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
-                              Sema::NonModifyingMessage::NMM_Note);
-        return S.CreateInvalidBoundsExpr();
-      } else
-        return B;
-    }
 
   public:
     CheckBoundsDeclarations(Sema &S, BoundsExpr *ReturnBounds) : S(S),
@@ -2239,14 +2251,12 @@ namespace {
         // Check that the value being assigned has bounds if the
         // target of the LHS lvalue has bounds.
         LHSTargetBounds = S.InferLValueTargetBounds(LHS);
-        LHSTargetBounds = CheckNonModifyingBounds(LHSTargetBounds, LHS);
         if (!LHSTargetBounds->isUnknown()) {
           if (E->isCompoundAssignmentOp())
             RHSBounds = S.InferRValueBounds(E);
           else
             RHSBounds = S.InferRValueBounds(RHS);
 
-          RHSBounds = CheckNonModifyingBounds(RHSBounds, RHS);
           if (RHSBounds->isUnknown()) {
              S.Diag(RHS->getLocStart(),
                     diag::err_expected_bounds_for_assignment)
@@ -2295,29 +2305,6 @@ namespace {
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = CE->getNumArgs();
       unsigned Count = (NumParams < NumArgs) ? NumParams : NumArgs;
-      if (false) {
-        // TODO: Github issue #374.
-        // Need RecursiveASTVisitor.h to visit bounds expressions
-        // in functions for this to work.
-        CollectPositionalParameters Uses(NumParams);
-        Uses.VisitFunctionProtoType(const_cast<FunctionProtoType *>(FuncProtoTy));
-
-        // If arguments are used in bounds expressions and are modifying
-        // expressions, issue an error.  TODO: If an argument expression has
-        // side-effects, but we can represent the value of the expression in
-        // terms of the values of variables before the call, we should use that
-        // instead and not issue an error.
-        for (unsigned i = 0; i < NumParams; i++)
-          if (Uses.IsUsed(i) && i < NumArgs &&
-              !S.CheckIsNonModifying(CE->getArg(i),
-                              Sema::NonModifyingContext::NMC_Function_Parameter,
-                                    Sema::NonModifyingMessage::NMM_None)) {
-            S.Diag(CE->getArg(i)->getLocStart(),
-                   diag::err_modifying_expr_not_supported)
-              << (i + 1) << CE->getArg(i)->getSourceRange();
-          }
-      }
-
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
                                                      CE->getNumArgs());
       for (unsigned i = 0; i < Count; i++) {
@@ -2351,6 +2338,10 @@ namespace {
         // Instead of going to the trouble of building the symbolic parameter
         // expression, which we will throw away soon anyway, we just use Arg
         // here.
+        //
+        // TDOO: remove this short circuiting.  This could cause us to not issue
+        // an error when Arg is a modifying expression and will likely cause
+        // us further problems down the road.
         if (ParamBounds && (ParamBounds->isElementCount() || ParamBounds->isByteCount()))
           ParamBounds = S.ExpandToRange(Arg, const_cast<BoundsExpr *>(ParamBounds));
 
@@ -2854,15 +2845,35 @@ namespace {
       return true;
     }
 
-    // References to volatile variables
-    bool VisitDeclRefExpr(DeclRefExpr *E) {
-      QualType RefType = E->getType();
-      if (RefType.isVolatileQualified()) {
-        addError(E, MEK_Volatile);
-        FoundModifyingExpr = true;
-      }
+    // Dereferences of volatile variables are modifying.
+    bool VisitCastExpr(CastExpr *E) {
+      CastKind CK = E->getCastKind();
+      if (CK == CK_LValueToRValue)
+        FindVolatileVariable(E->getSubExpr());
 
       return true;
+    }
+
+    void FindVolatileVariable(Expr *E) {
+      E = E->IgnoreParens();
+      switch (E->getStmtClass()) {
+        case Expr::DeclRefExprClass: {
+          QualType RefType = E->getType();
+          if (RefType.isVolatileQualified()) {
+            addError(E, MEK_Volatile);
+            FoundModifyingExpr = true;
+          }
+          break;
+        }
+        case Expr::ImplicitCastExprClass: {
+          ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
+          if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
+            return FindVolatileVariable(ICE->getSubExpr());
+          break;
+        }
+        default:
+          break;
+      }
     }
 
     // Function Calls are defined as modifying
