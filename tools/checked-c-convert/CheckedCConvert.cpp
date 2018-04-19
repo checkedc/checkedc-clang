@@ -140,6 +140,17 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
 typedef std::pair<DeclNStmt, std::string> DAndReplace;
 
+// Compare two DAndReplace values.
+template <typename T>
+struct DComp
+{
+  bool operator()(const T lhs, const T rhs) const {
+    return lhs.first.first < rhs.first.first;
+  }
+};
+
+typedef std::set<DAndReplace, DComp<DAndReplace> > RSet;
+
 void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite) {
   // First, find all the declarations of the containing function.
   DeclContext *DF = PV->getParentFunctionOrMethod();
@@ -183,9 +194,9 @@ void rewrite( VarDecl               *VD,
               Rewriter              &R, 
               std::string           sRewrite, 
               DeclStmt              *Where,
-              std::set<DAndReplace> &skip,
+              RSet                  &skip,
               const DAndReplace     &N,
-              std::set<DAndReplace> &toRewrite,
+              RSet                  &toRewrite,
               ASTContext            &A) 
 {
   if (Where != NULL) {
@@ -240,7 +251,7 @@ void rewrite( VarDecl               *VD,
       // we don't want to process twice. We'll skip them here.
 
       // Step 1: get the re-written types.
-      std::set<DAndReplace> rewritesForThisDecl;
+      RSet rewritesForThisDecl;
       auto I = toRewrite.find(N);
       while (I != toRewrite.end()) {
         DAndReplace tmp = *I;
@@ -319,8 +330,8 @@ void rewrite( VarDecl               *VD,
 // declarations to rewrite. S is passed for source-level information
 // about the current compilation unit.
 void rewrite( Rewriter              &R, 
-              std::set<DAndReplace> &toRewrite, 
-              std::set<DAndReplace> &skip,
+              RSet                  &toRewrite, 
+              RSet                  &skip,
               SourceManager         &S,
               ASTContext            &A, 
               std::set<FileID>      &Files) 
@@ -491,19 +502,20 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 // insert casts. Right now, it looks specifically for 'free'. 
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
-  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, 
-      Rewriter &R, std::set<FileID> &Files, std::set<std::string> &V)
-    : Context(C), Info(I), R(R), Files(Files), VisitedSet(V) {} 
+  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, Rewriter &R,
+      RSet &DR, std::set<FileID> &Files, std::set<std::string> &V)
+    : Context(C), R(R), Info(I), rewriteThese(DR), Files(Files), VisitedSet(V) {} 
 
   bool VisitCallExpr(CallExpr *);
   bool VisitFunctionDecl(FunctionDecl *);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
   bool anyTop(std::set<ConstraintVariable*>);
-  ASTContext *Context;
-  ProgramInfo &Info;
-  Rewriter &R;
-  std::set<FileID> &Files;
+  ASTContext            *Context;
+  Rewriter              &R;
+  ProgramInfo           &Info;
+  RSet                  &rewriteThese;
+  std::set<FileID>      &Files;
   std::set<std::string> &VisitedSet;
 };
 
@@ -584,7 +596,16 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       
       // If this holds, then we want to insert a bounds safe interface. 
       if (Defn->isLt(*Decl, Info)) {
+        std::string scratch = "";
+        std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
+        raw_string_ostream declText(scratch);
+        Definition->getParamDecl(i)->print(declText);
+        std::string bi = declText.str() + " : itype<"+ctype+"> ";
 
+        // This also rewrites the declarations.
+        DeclNStmt DNS(Definition->getParamDecl(i), nullptr);
+        DAndReplace DAR(DNS, bi);
+        rewriteThese.insert(DAR);
       }
     }
 
@@ -594,7 +615,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Insert a bounds safe interface at the return address. 
   if (Defn->isLt(*Decl, Info)) {
-
+    // re-write *all* the declarations. 
   }
 
   return true;
@@ -618,7 +639,8 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
         QualType PTF = FD->getParamDecl(i)->getType();
 
         // If they aren't equal, and the constraints in EPC are non-top, 
-        // insert a cast. 
+        // insert a cast, where the structure of the cast depends on the 
+        // direction of the inequality. 
         if (EPT != PTF && !anyTop(EPC)) {
           // Insert a cast. 
           SourceLocation CL = EP->getExprLoc();
@@ -643,9 +665,10 @@ public:
     std::set<FileID> Files;
 
     std::set<std::string> v;
+    RSet                  rewriteThese;
     // Unification is done, so visit and see if we need to place any casts
     // in the program. 
-    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, Files, v);
+    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, rewriteThese, Files, v);
     for (const auto &D : Context.getTranslationUnitDecl()->decls())
       CPV.TraverseDecl(D);
 
@@ -659,7 +682,7 @@ public:
     std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> PSLMap;
     VariableDecltoStmtMap VDLToStmtMap;
 
-    std::set<DAndReplace> skip;
+    RSet skip;
     MappingVisitor V(keys, Context);
     TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
     for (const auto &D : TUD->decls())
@@ -667,7 +690,6 @@ public:
 
     std::tie(PSLMap, VDLToStmtMap) = V.getResults();
 
-    std::set<DAndReplace> rewriteThese;
     for (const auto &V : Info.getVarMap()) {
       PersistentSourceLoc PLoc = V.first;
       std::set<ConstraintVariable*> Vars = V.second;
