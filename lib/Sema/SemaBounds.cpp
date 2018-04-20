@@ -772,8 +772,8 @@ namespace {
       }
     }
 
-    // Given a Ptr type or a bounds-safe interface type, create the
-    // bounds implied by the type.  Place the bounds in standard form
+    // Given a Ptr type or a bounds-safe interface type, create the bounds
+    // implied by the type.  If E is non-null, place the bounds in standard form
     // (do not use count or byte_count because their meaning changes
     //  when propagated to parent expressions).
     BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
@@ -799,6 +799,9 @@ namespace {
    
       if (!BE)
         return CreateBoundsEmpty();
+
+      if (!E)
+        return BE;
 
       Expr *Base = E;
       if (Base->isLValue())
@@ -2300,52 +2303,54 @@ namespace {
         if (!ParamBounds && !ParamIType)
           continue;
 
-        Expr *Arg = CE->getArg(i);
-
-        // Put the parameter bounds in a standard form if necessary.
-        // TODO: can we do this earlier as part of fu nction type handling.
-        if (ParamBounds && (ParamBounds->isElementCount() || ParamBounds->isByteCount()))
-          ParamBounds = S.ExpandToRange(CreateParamRValue(i, ParamType), 
-                                        const_cast<BoundsExpr *>(ParamBounds));
-
         if (!ParamBounds && ParamIType)
-          ParamBounds = S.CreateTypeBasedBounds(CreateParamRValue(i, ParamType), 
-                                                ParamIType->getType(), true, true);
+          ParamBounds = S.CreateTypeBasedBounds(nullptr, ParamIType->getType(),
+                                                true, true);
 
         // Check after handling the interop type annotation, not before, because
         // handling the interop type annotation could make the bounds known.
         if (ParamBounds->isUnknown())
           continue;
 
+        Expr *Arg = CE->getArg(i);
         BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getLocStart(),
                  diag::err_expected_bounds_for_argument) << (i + 1) <<
             Arg->getSourceRange();
           ArgBounds = S.CreateInvalidBoundsExpr();
+          continue;
+        } else if (ArgBounds->isInvalid())
+          continue;
+
+        // Concretize parameter bounds with argument expressions. This fails
+        // and returns null if an argument expression is a modifying
+        // expression,  We issue an error during concretization about that.
+        BoundsExpr *SubstParamBounds =
+          S.ConcretizeFromFunctionTypeWithArgs(
+            const_cast<BoundsExpr *>(ParamBounds),
+            ArgExprs,
+            Sema::NonModifyingContext::NMC_Function_Parameter);
+
+        if (!SubstParamBounds)
+          continue;
+
+        // Put the parameter bounds in a standard form if necessary.
+        if (SubstParamBounds->isElementCount() ||
+            SubstParamBounds->isByteCount()) {
+          if (S.CheckIsNonModifying(Arg,
+                              Sema::NonModifyingContext::NMC_Function_Parameter,
+                                    Sema::NonModifyingMessage::NMM_Error))
+            SubstParamBounds = S.ExpandToRange(Arg,
+                                    const_cast<BoundsExpr *>(SubstParamBounds));
+           else
+             continue;
         }
-        else {
-          // Concretize parameter bounds with argument expressions. This fails
-          // and returns null if an argument expression is a modifying
-          // expression,  We issue an error during concretization about that.
-          BoundsExpr *SubstParamBounds =
-            S.ConcretizeFromFunctionTypeWithArgs(
-              const_cast<BoundsExpr *>(ParamBounds),
-              ArgExprs,
-              Sema::NonModifyingContext::NMC_Function_Parameter);
-          if (SubstParamBounds)
-            ParamBounds = S.ExpandToRange(CreateParamRValue(i, ParamType), 
-                                        const_cast<BoundsExpr *>(ParamBounds));
-            CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
-        }
+
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
       }
       return;
    }
-
-   Expr *CreateParamRValue(unsigned index, QualType Ty) {
-     Expr *Param = new (S.getASTContext()) PositionalParameterExpr(index, Ty);
-     return BoundsInference(S).CreateImplicitCast(Ty, CK_LValueToRValue, Param);
-  }
 
     // This includes both ImplicitCastExprs and CStyleCastExprs
     void VisitCastExpr(CastExpr *E, bool InCheckedScope) {
@@ -2860,9 +2865,17 @@ namespace {
     bool FoundModifyingExpr;
     Sema::NonModifyingContext ReqFrom;
     Sema::NonModifyingMessage Message;
+    // Track modifying expressions so that we can suppress duplicate diagnostic
+    // messages for the same modifying expression.
+    SmallVector<Expr *, 4> ModifyingExprs;
 
     void addError(Expr *E, ModifyingExprKind Kind) {
       if (Message != Sema::NonModifyingMessage::NMM_None) {
+        for (auto Iter = ModifyingExprs.begin(); Iter != ModifyingExprs.end(); Iter++) {
+          if (*Iter == E)
+            return;
+        }
+        ModifyingExprs.push_back(E);
         unsigned DiagId = (Message == Sema::NonModifyingMessage::NMM_Error) ?
           diag::err_not_non_modifying_expr : diag::note_modifying_expression;
         S.Diag(E->getLocStart(), DiagId)
