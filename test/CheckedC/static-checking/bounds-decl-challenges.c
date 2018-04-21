@@ -12,7 +12,7 @@ extern _Array_ptr<int> h4(void) : count(3) {
 
 extern void f7(void *p) {
   _Array_ptr<int> r : count(3) = 0;
-  r = _Assume_bounds_cast<_Array_ptr<int>>(h4(), count(3));  // expected-warning {{cannot prove declared bounds for r are valid after assignment}}
+  r = _Assume_bounds_cast<_Array_ptr<int>>(h4(), count(3));  // expected-error {{contain a modifying expression}}
 }
 
 // Deferencing an array of nt_checked arrays.

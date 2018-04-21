@@ -9590,6 +9590,11 @@ def err_bounds_type_annotation_lost_checking : Error<
     "dynamic check will always fail">,
 	InGroup<CheckedC>;
 
+  def err_inferred_modifying_bounds : Error<
+    "inferred bounds '%0' contain a modifying expression; use a temporary instead">;
+
+  def note_modifying_expression : Note<"modifying expression">;
+
   def err_not_non_modifying_expr : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not "
     "allowed in %select{expression|dynamic check expression|count expression"
