@@ -2338,9 +2338,12 @@ namespace {
         // Put the parameter bounds in a standard form if necessary.
         if (SubstParamBounds->isElementCount() ||
             SubstParamBounds->isByteCount()) {
-          if (S.CheckIsNonModifying(Arg,
+          // TODO: turn this check on after implementing current_expr_value.
+          // Turning it on now would cause errors to be issued for arguments
+          // that are calls.
+          if (true /* S.CheckIsNonModifying(Arg,
                               Sema::NonModifyingContext::NMC_Function_Parameter,
-                                    Sema::NonModifyingMessage::NMM_Error))
+                                    Sema::NonModifyingMessage::NMM_Error) */)
             SubstParamBounds = S.ExpandToRange(Arg,
                                     const_cast<BoundsExpr *>(SubstParamBounds));
            else
