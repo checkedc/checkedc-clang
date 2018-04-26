@@ -192,7 +192,7 @@ private:
 };
 
 struct PragmaCheckedScopeHandler : public PragmaHandler {
-  PragmaCheckedScopeHandler() : PragmaHandler("BOUNDS_CHECKED") {}
+  PragmaCheckedScopeHandler() : PragmaHandler("CHECKED_SCOPE") {}
   void HandlePragma(Preprocessor &PP, PragmaIntroducerKind Introducer,
                     Token &FirstToken) override;
 };
@@ -1431,13 +1431,13 @@ void Parser::HandlePragmaAttribute() {
                                    std::move(SubjectMatchRules));
 }
 
-// #pragma BOUNDS_CHECKED [on-off-switch]
-void Parser::HandlePragmaBoundsChecked() {
-  assert(Tok.is(tok::annot_pragma_bounds_checked));
+// #pragma CHECKED_SCOPE [on-off-switch]
+void Parser::HandlePragmaCheckedScope() {
+  assert(Tok.is(tok::annot_pragma_checked_scope));
   tok::OnOffSwitch OOS =
     static_cast<tok::OnOffSwitch>(
     reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
-  Actions.ActOnPragmaBoundsChecked(Actions.getCurScope(), OOS);
+  Actions.ActOnPragmaCheckedScope(Actions.getCurScope(), OOS);
   ConsumeAnnotationToken(); // The annotation token.
 }
 
@@ -3019,7 +3019,7 @@ void PragmaAttributeHandler::HandlePragma(Preprocessor &PP,
 }
 
 // Handle the checked-c top level scope checked property.
-// #pragma BOUNDS_CHECKED [on-off-switch]
+// #pragma CHECKED_SCOPE [on-off-switch]
 // To handle precise scope property, annotation token is better
 void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
                                              PragmaIntroducerKind Introducer,
@@ -3031,7 +3031,7 @@ void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
   MutableArrayRef<Token> Toks(PP.getPreprocessorAllocator().Allocate<Token>(1),
                               1);
   Toks[0].startToken();
-  Toks[0].setKind(tok::annot_pragma_bounds_checked);
+  Toks[0].setKind(tok::annot_pragma_checked_scope);
   Toks[0].setLocation(Tok.getLocation());
   Toks[0].setAnnotationEndLoc(Tok.getLocation());
   Toks[0].setAnnotationValue(

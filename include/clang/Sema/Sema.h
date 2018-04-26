@@ -4657,8 +4657,8 @@ public:
   /// \brief Add default bounds/interop type expressions to Annots, if appropriate.
   void InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam);
 
-  // \#pragma BOUNDS_CHECKED.
-  void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
+  // \#pragma CHECKED_SCOPE.
+  void ActOnPragmaCheckedScope(Scope *S, tok::OnOffSwitch OOS);
 
   // Represents the context where an expression must be non-modifying.
   enum NonModifyingContext {

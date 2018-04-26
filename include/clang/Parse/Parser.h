@@ -640,8 +640,8 @@ private:
   void HandlePragmaAttribute();
 
   /// \brief Handle the annotation token produced for
-  /// #pragma BOUNDS_CHECKED [on-off-switch]
-  void HandlePragmaBoundsChecked();
+  /// #pragma CHECKED_SCOPE [on-off-switch]
+  void HandlePragmaCheckedScope();
 
   /// GetLookAheadToken - This peeks ahead N tokens and returns that token
   /// without consuming any tokens.  LookAhead(0) returns 'Tok', LookAhead(1)

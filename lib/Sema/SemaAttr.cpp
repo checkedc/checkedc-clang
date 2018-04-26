@@ -685,9 +685,9 @@ void Sema::ActOnPragmaOptimize(bool On, SourceLocation PragmaLoc) {
     OptimizeOffPragmaLocation = PragmaLoc;
 }
 
-// Checked C - #pragma BOUNDS_CHECKED action, adjust top level scope flags.
-// Adjust checked property of scope where '#pragma BOUNDS_CHECKED' is set.
-void Sema::ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS) {
+// Checked C - #pragma CHECKED_SCOPE action, adjust top level scope flags.
+// Adjust checked property of scope where '#pragma CHECKED_SCOPE' is set.
+void Sema::ActOnPragmaCheckedScope(Scope *S, tok::OnOffSwitch OOS) {
   unsigned ScopeFlags = S->getFlags();
   switch (OOS) {
   case tok::OOS_ON:

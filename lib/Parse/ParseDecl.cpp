@@ -4100,8 +4100,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
       continue;
     }
 
-    if (Tok.is(tok::annot_pragma_bounds_checked)) {
-      HandlePragmaBoundsChecked();
+    if (Tok.is(tok::annot_pragma_checked_scope)) {
+      HandlePragmaCheckedScope();
       continue;
     }
 

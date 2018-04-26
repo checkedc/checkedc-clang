@@ -20,13 +20,13 @@ extern void f4(void) _Checked {
   int *p = 0;  // expected-error {{local variable in a checked scope must have a checked type}}
 }
 
-#pragma BOUNDS_CHECKED ON
+#pragma CHECKED_SCOPE ON
 extern int *gp1; // expected-error {{global variable in a checked scope must have a checked type or a bounds-safe interface}}
 
 struct S1 {
   int *f;       // expected-error {{member in a checked scope must have a checked type or a bounds-safe interface}}
 };
-#pragma BOUNDS_CHECKED OFF
+#pragma CHECKED_SCOPE OFF
 
 //=========================================================================================
 // Error messages for uses of variables and members with unchecked types in checked scopes.
@@ -106,10 +106,10 @@ extern void f25(void) {
   }
 }
 
-#pragma BOUNDS_CHECKED ON
+#pragma CHECKED_SCOPE ON
 extern ty gp3; // expected-error {{global variable in a checked scope must have a checked type or a bounds-safe interface}} \
                // expected-note {{'ty' (aka 'int *') is not allowed in a checked scope}}
-#pragma BOUNDS_CHECKED OFF
+#pragma CHECKED_SCOPE OFF
 
 struct S3 {
   ty f;       // expected-note {{member declared here}}
