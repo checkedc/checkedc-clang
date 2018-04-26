@@ -628,6 +628,16 @@ public:
   /// The result vectors should be kept in sync; null entries in the
   /// variables vector are acceptable.
   ///
+  /// Inputs: Params, ParamTypes, and ParamInfos are the inputs to the
+  /// method.
+  ///
+  /// Output: PTypes, PVars, and PInfos are the outputs of the method.
+  /// The updated parameter types, param var declarations, and PInfo
+  /// are stored in the method.
+  ///
+  /// For correctness, the inputs and outputs shoudl be disjoint data
+  /// structures.
+  ///
   /// Return true on error.
   bool TransformFunctionTypeParams(
       SourceLocation Loc, ArrayRef<ParmVarDecl *> Params,
