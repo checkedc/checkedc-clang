@@ -24,7 +24,7 @@ int f2(_Ptr<void> p) {
   return 0;
 }
 
-#pragma BOUNDS_CHECKED ON
+#pragma CHECKED_SCOPE ON
 
 extern void test_f3(const void* p_ptr : byte_count(1));
 
