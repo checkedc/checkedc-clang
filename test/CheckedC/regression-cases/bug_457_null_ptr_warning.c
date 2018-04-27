@@ -18,12 +18,11 @@ static void myfunc2(_Array_ptr<int> data : count(len), int len) {
   (void)data;
 }
 
-int main(void)
-{
+int main(void) {
   int a _Checked[5];
   myfunc1(a, 0);  // expected-warning {{cannot prove argument meets declared bounds}} \
                   // expected-note {{expected argument bounds}} \
                   // expected-note {{inferred bounds}}
   myfunc2(0, 0);
-	return 0;
+  return 0;
 }

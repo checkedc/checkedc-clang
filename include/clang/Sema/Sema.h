@@ -4783,10 +4783,12 @@ public:
   // will always fail.
   void WarnDynamicCheckAlwaysFails(const Expr *Condition);
 
-  /// \brief RAII class used to indicate that we are substituting one
-  /// expression into another expression during bounds checking.  This
-  /// should never produce a semantic error, but it might produce
-  /// warnings or notes we need to suppress.
+  /// \brief RAII class used to indicate that we are substituting an expression
+  /// into another expression during bounds checking.  We need to suppress 
+  /// diagnostics emission during this.  We are doing type-preserving
+  /// substitutions, so we don't expect semantic errors during substitution.
+  /// There could be warnings, which would confuse users.  The warnings could
+  /// could also be escalated to errors, which would cause compilation failures.
   class ExprSubstitutionScope {
     Sema &SemaRef;
     bool PrevDisableSubstitionDiagnostics;
