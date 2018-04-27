@@ -137,7 +137,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       ValueWithBytesObjCTypeMethod(nullptr), NSArrayDecl(nullptr),
       ArrayWithObjectsMethod(nullptr), NSDictionaryDecl(nullptr),
       DictionaryWithObjectsMethod(nullptr), GlobalNewDeleteDeclared(false),
-      TUKind(TUKind), NumSFINAEErrors(0), AccessCheckingSFINAE(false),
+      TUKind(TUKind), DisableSubstitionDiagnostics(false),
+      NumSFINAEErrors(0), AccessCheckingSFINAE(false),
       InNonInstantiationSFINAEContext(false), NonInstantiationEntries(0),
       ArgumentPackSubstitutionIndex(-1), CurrentInstantiationScope(nullptr),
       DisableTypoCorrection(false), TyposCorrected(0), AnalysisWarnings(*this),
@@ -1269,6 +1270,12 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       Diags.Clear();
       return;
     }
+  }
+
+  if (DisableSubstitionDiagnostics) {
+     Diags.setLastDiagnosticIgnored();
+     Diags.Clear();
+     return;
   }
 
   // Set up the context's printing policy based on our current state.
