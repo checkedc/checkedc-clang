@@ -4783,6 +4783,28 @@ public:
   // will always fail.
   void WarnDynamicCheckAlwaysFails(const Expr *Condition);
 
+  /// \brief RAII class used to indicate that we are substituting one
+  /// expression into another expression during bounds checking.  This
+  /// should never produce a semantic error, but it might produce
+  /// warnings or notes we need to suppress.
+  class ExprSubstitutionScope {
+    Sema &SemaRef;
+    bool PrevDisableSubstitionDiagnostics;
+  public:
+    explicit ExprSubstitutionScope(Sema &SemaRef)
+        : SemaRef(SemaRef),
+          PrevDisableSubstitionDiagnostics(
+            SemaRef.DisableSubstitionDiagnostics) {
+      SemaRef.DisableSubstitionDiagnostics = true;
+    }
+    ~ExprSubstitutionScope() {
+      SemaRef.DisableSubstitionDiagnostics =
+        PrevDisableSubstitionDiagnostics;
+    }
+  };
+
+  bool DisableSubstitionDiagnostics;
+
   //===---------------------------- Clang Extensions ----------------------===//
 
   /// __builtin_convertvector(...)

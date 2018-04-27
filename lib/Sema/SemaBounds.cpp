@@ -191,6 +191,8 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
     return Expr;
 
   BoundsExpr *Result;
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
+
   ExprResult ConcreteBounds = ConcretizeBoundsExpr(*this, Params).TransformExpr(Expr);
   if (ConcreteBounds.isInvalid()) {
     llvm_unreachable("unexpected failure in making bounds concrete");
@@ -262,6 +264,8 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
     return Bounds;
 
   BoundsExpr *Result;
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
+
   auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args, ErrorKind);
   ExprResult ConcreteBounds = Concretizer.TransformExpr(Bounds);
   if (Concretizer.substitutedModifyingExpression()) {
@@ -336,11 +340,11 @@ namespace {
   };
 }
 
-
 BoundsExpr *Sema::MakeMemberBoundsConcrete(
   Expr *Base,
   bool IsArrow,
   BoundsExpr *Bounds) {
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
   ExprResult ConcreteBounds =
     ConcretizeMemberBounds(*this, Base, IsArrow).TransformExpr(Bounds);
   if (ConcreteBounds.isInvalid())
