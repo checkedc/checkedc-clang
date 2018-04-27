@@ -4657,8 +4657,8 @@ public:
   /// \brief Add default bounds/interop type expressions to Annots, if appropriate.
   void InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam);
 
-  // \#pragma BOUNDS_CHECKED.
-  void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
+  // \#pragma CHECKED_SCOPE.
+  void ActOnPragmaCheckedScope(Scope *S, tok::OnOffSwitch OOS);
 
   // Represents the context where an expression must be non-modifying.
   enum NonModifyingContext {
@@ -4683,9 +4683,17 @@ public:
   /// /brief Checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
   /// false otherwise.
+  enum NonModifyingMessage {
+    NMM_None,
+    NMM_Error,
+    NMM_Note
+  };
+
   bool CheckIsNonModifying(Expr *E, NonModifyingContext Req =
                                NonModifyingContext::NMC_Unknown,
-                               bool ReportError = true);
+                            NonModifyingMessage = NMM_Error);
+
+  BoundsExpr *CheckNonModifyingBounds(BoundsExpr *Bounds, Expr *E);
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);

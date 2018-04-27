@@ -77,16 +77,11 @@ class TransformFunctionTypeToChecked :
 
   typedef TreeTransform<TransformFunctionTypeToChecked> BaseTransform;
 
-  // This method has been copied from TreeTransform.h and modified to add
-  // an additional rewrite step that updates parameter/return types based
-  // on bounds information.
-  //
-  // This code has been specialized to assert on trailing returning types
-  // instead of handling them. That's a C++ feature that we could not test
-  // for now.  The code could be added back later.
-
+  // This code has been copied from TreeTransform.h and modified to first
+  // update parameter/return types based on bounds annotations.
 public:
   TransformFunctionTypeToChecked(Sema &SemaRef) : BaseTransform(SemaRef) {}
+
 
   QualType TransformFunctionProtoType(TypeLocBuilder &TLB,
                                       FunctionProtoTypeLoc TL) {
@@ -99,58 +94,40 @@ public:
                                               ExceptionStorage, Changed);
         });
   }
+
   template<typename Fn>
   QualType TransformFunctionProtoType(
     TypeLocBuilder &TLB, FunctionProtoTypeLoc TL, CXXRecordDecl *ThisContext,
     unsigned ThisTypeQuals, Fn TransformExceptionSpec) {
-    // First rewrite any subcomponents so that nested function types are
-    // handled.
 
-    // Transform the parameters and return type.
-    //
-    // We are required to instantiate the params and return type in source order.
-    //
-    SmallVector<QualType, 4> ParamTypes;
-    SmallVector<ParmVarDecl*, 4> ParamDecls;
-    SmallVector<BoundsAnnotations, 4> ParamAnnots;
-    Sema::ExtParameterInfoBuilder ExtParamInfos;
     const FunctionProtoType *T = TL.getTypePtr();
 
-    QualType ResultType;
+  // Assert on trailing returning type for now, instead of handling them.
+  // That's a C++ feature that we cannot test right now.
     if (T->hasTrailingReturn()) {
       assert("Unexpected trailing return type for Checked C");
       return QualType();
     }
 
-    ResultType = getDerived().TransformType(TLB, TL.getReturnLoc());
-    if (ResultType.isNull())
-      return QualType();
-
-    if (getDerived().TransformFunctionTypeParams(
-      TL.getBeginLoc(), TL.getParams(),
-      TL.getTypePtr()->param_type_begin(),
-      T->getExtParameterInfosOrNull(),
-      ParamTypes, &ParamDecls, ExtParamInfos))
-      return QualType();
-
+    // Update the parameters and return types to be their interop types. Also
+    // update the extend prototype inofmration to remove interop type annotations.
+    SmallVector<QualType, 4> CurrentParamTypes;
+    SmallVector<BoundsAnnotations, 4> CurrentParamAnnots;
+    TypeLoc ResultLoc = TL.getReturnLoc();
     FunctionProtoType::ExtProtoInfo EPI = T->getExtProtoInfo();
     bool EPIChanged = false;
-    if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamAnnots,
-                                                    ExtParamInfos, TL,
-                                                    TransformExceptionSpec,
-                                                    EPIChanged))
-      return QualType();
 
-    // Now rewrite types based on interop type information, and remove
-    // the interop types.
-    const BoundsAnnotations Annots = EPI.ReturnAnnots;
-    if (!Annots.IsEmpty()) {
-      if (ResultType->isUncheckedPointerType()) {
-         InteropTypeExpr *IT = Annots.getInteropTypeExpr();
-         BoundsExpr *Bounds = Annots.getBoundsExpr();
+    CurrentParamTypes.append(TL.getTypePtr()->param_type_begin(),
+                             TL.getTypePtr()->param_type_end());
+
+    // Update return type information.
+    if (!EPI.ReturnAnnots.IsEmpty()) {
+      if (ResultLoc.getType()->isUncheckedPointerType()) {
+         InteropTypeExpr *IT = EPI.ReturnAnnots.getInteropTypeExpr();
+         BoundsExpr *Bounds = EPI.ReturnAnnots.getBoundsExpr();
          assert(Bounds == nullptr || (Bounds != nullptr && IT));
          if (IT) {
-           ResultType = IT->getType();
+           ResultLoc = IT->getTypeInfoAsWritten()->getTypeLoc();
 #if TRACE_INTEROP
           llvm::outs() << "return bounds = ";
           if (Bounds)
@@ -160,12 +137,8 @@ public:
           llvm::outs() << "interop type = ";
           IT->dump(llvm::outs());
           llvm::outs() << "\nresult type = ";
-          ResultType.dump(llvm::outs());
+          ResultLoc.getType().dump(llvm::outs());
 #endif
-          // The types are structurally identical except for the checked bit,
-          // so the type location information can still be used.
-          TLB.TypeWasModifiedSafely(ResultType);
-
           // Construct new annotations that do not have the bounds-safe interface type.
           if (Bounds) {
             EPI.ReturnAnnots = BoundsAnnotations(Bounds, nullptr);
@@ -176,13 +149,17 @@ public:
       }
     }
 
+    // Update the parameter types and annotations. The EPI parameter array is still used
+    // by the original type, so a create and update a copy in CurrentParamAnnots.
     if (EPI.ParamAnnots) {
       // Track whether there are parameter annotations left after removing interop
       // annotations.
       bool hasParamAnnots = false;
-      for (unsigned int i = 0; i < ParamTypes.size(); i++) {
-        BoundsAnnotations IndividualAnnots = ParamAnnots[i];
-        if (ParamTypes[i]->isUncheckedPointerType() &&
+      for (unsigned int i = 0; i < CurrentParamTypes.size(); i++) {
+        BoundsAnnotations IndividualAnnots =  EPI.ParamAnnots[i];
+        CurrentParamAnnots.push_back(IndividualAnnots);
+
+        if (CurrentParamTypes[i]->isUncheckedPointerType() &&
             IndividualAnnots.getInteropTypeExpr()) {
           InteropTypeExpr *IT = IndividualAnnots.getInteropTypeExpr();
           QualType ParamType = IT->getType();
@@ -190,7 +167,7 @@ public:
 #if TRACE_INTEROP
             llvm::outs() << "encountered null parameter type with bounds";
             llvm::outs() << "\noriginal param type = ";
-            ParamTypes[i]->dump(llvm::outs());
+            CurrentParamTypes[i]->dump(llvm::outs());
             llvm::outs() << "\nparam interop type is:";
             IT->dump(llvm::outs());
             llvm::outs() << "\n";
@@ -200,16 +177,16 @@ public:
           }
           if (ParamType->isArrayType())
             ParamType = SemaRef.Context.getDecayedType(ParamType);
-          ParamTypes[i] = ParamType;
+          CurrentParamTypes[i] = ParamType;
           // Remove the interop type annotation.
           BoundsExpr *Bounds = IndividualAnnots.getBoundsExpr();
           if (IT->getType()->isCheckedArrayType() && !Bounds)    
             Bounds = SemaRef.CreateCountForArrayType(IT->getType());
           if (Bounds) {
             hasParamAnnots = true;
-            ParamAnnots[i] = BoundsAnnotations(Bounds, nullptr);
+            CurrentParamAnnots[i] = BoundsAnnotations(Bounds, nullptr);
           } else 
-            ParamAnnots[i] = BoundsAnnotations();
+            CurrentParamAnnots[i] = BoundsAnnotations();
           EPIChanged = true;
         } else {
           if (!IndividualAnnots.IsEmpty())
@@ -217,11 +194,46 @@ public:
         }
       }
 
-      // If there are no parameter bounds left, null out the pointer to the
-      // param annotations array.
-      if (!hasParamAnnots)
+      if (hasParamAnnots)
+        EPI.ParamAnnots = CurrentParamAnnots.data();
+      else
+        // If there are no parameter annotations left, null out the pointer to
+        // the param annotations array.
         EPI.ParamAnnots = nullptr;
     }
+
+    // Now transform the parameter/return types, parameter declarations, and
+    // the EPI.
+
+    // For the type location information, we must transform the return type
+    // before pushing the function prototype type location record.
+
+    // These hold the transformed results.
+    SmallVector<QualType, 4> ParamTypes;
+    SmallVector<ParmVarDecl*, 4> ParamDecls;
+    Sema::ExtParameterInfoBuilder ExtParamInfos;
+    // ParamAnnotsStorage is pre-allocated storage that is used when updating EPI
+    // in TransformExtendedParameterInfo.  Its lifetime must last until the end of
+    // the lifetimie of EPI.
+    SmallVector<BoundsAnnotations, 4> ParamAnnotsStorage;
+
+    QualType ResultType = getDerived().TransformType(TLB, ResultLoc);
+    if (ResultType.isNull())
+      return QualType();
+
+    // Places transformed data ParamTypes, ParamDecls, and ExtParamInfos.
+    if (getDerived().TransformFunctionTypeParams(
+      TL.getBeginLoc(), TL.getParams(),
+      CurrentParamTypes.begin(),
+      T->getExtParameterInfosOrNull(),
+      ParamTypes, &ParamDecls, ExtParamInfos))
+      return QualType();
+
+    if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamAnnotsStorage,
+                                                    ExtParamInfos, TL,
+                                                    TransformExceptionSpec,
+                                                    EPIChanged))
+      return QualType();
 
     // Rebuild the type if something changed.
     QualType Result = TL.getType();
@@ -235,7 +247,6 @@ public:
         return QualType();
       }
     }
-
     FunctionProtoTypeLoc NewTL = TLB.push<FunctionProtoTypeLoc>(Result);
     NewTL.setLocalRangeBegin(TL.getLocalRangeBegin());
     NewTL.setLParenLoc(TL.getLParenLoc());

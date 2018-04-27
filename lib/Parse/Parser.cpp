@@ -585,8 +585,8 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result) {
     HandlePragmaUnused();
     return false;
 
-  case tok::annot_pragma_bounds_checked:
-    HandlePragmaBoundsChecked();
+  case tok::annot_pragma_checked_scope:
+    HandlePragmaCheckedScope();
     return false;
 
   case tok::kw_import:

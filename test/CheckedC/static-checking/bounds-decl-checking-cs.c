@@ -4,7 +4,7 @@
 //
 // RUN: %clang -cc1 -fcheckedc-extension -verify %s
 
-#pragma BOUNDS_CHECKED ON
+#pragma CHECKED_SCOPE ON
 
 #include "bounds-decl-checking.c"
 

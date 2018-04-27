@@ -394,8 +394,8 @@ Retry:
     HandlePragmaAttribute();
     return StmtEmpty();
 
-  case tok::annot_pragma_bounds_checked:
-    HandlePragmaBoundsChecked();
+  case tok::annot_pragma_checked_scope:
+    HandlePragmaCheckedScope();
     return StmtEmpty();
   }
 
@@ -966,8 +966,8 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
     case tok::annot_pragma_dump:
       HandlePragmaDump();
       break;
-    case tok::annot_pragma_bounds_checked:
-      HandlePragmaBoundsChecked();
+    case tok::annot_pragma_checked_scope:
+      HandlePragmaCheckedScope();
       break;
     default:
       checkForPragmas = false;

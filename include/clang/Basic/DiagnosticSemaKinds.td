@@ -9579,7 +9579,7 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_cast_to_checked_fn_ptr_not_value_preserving : Error<
     "can only cast function names or null pointers to checked function pointer type %0">;
 
-  def err_cast_to_checked_fn_ptr_cannot_read_mem : Error<
+  def err_cast_to_checked_fn_ptr_from_unchecked_fn_ptr : Error<
     "cannot guarantee operand of cast to checked function pointer type %0 is a function pointer">;
 
   def err_cast_to_checked_fn_ptr_can_only_ref_deref_functions : Error<
@@ -9589,6 +9589,11 @@ def err_bounds_type_annotation_lost_checking : Error<
   def warn_dynamic_check_condition_fail : Warning<
     "dynamic check will always fail">,
 	InGroup<CheckedC>;
+
+  def err_inferred_modifying_bounds : Error<
+    "inferred bounds '%0' contain a modifying expression; use a temporary instead">;
+
+  def note_modifying_expression : Note<"modifying expression">;
 
   def err_not_non_modifying_expr : Error<
 	"%select{assignment|increment|decrement|call|volatile}0 expression not "
