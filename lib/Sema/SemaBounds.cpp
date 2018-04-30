@@ -191,6 +191,8 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
     return Expr;
 
   BoundsExpr *Result;
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
+
   ExprResult ConcreteBounds = ConcretizeBoundsExpr(*this, Params).TransformExpr(Expr);
   if (ConcreteBounds.isInvalid()) {
     llvm_unreachable("unexpected failure in making bounds concrete");
@@ -204,49 +206,58 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
 }
 
 namespace {
+  class CheckForModifyingArgs : public RecursiveASTVisitor<CheckForModifyingArgs> {
+  private:
+    Sema &SemaRef;
+    const ArrayRef<Expr *> Arguments;
+    llvm::SmallBitVector VisitedArgs;
+    Sema::NonModifyingContext ErrorKind;
+    bool ModifyingArg;
+  public:
+    CheckForModifyingArgs(Sema &SemaRef, ArrayRef<Expr *> Args,
+                          Sema::NonModifyingContext ErrorKind) :
+      SemaRef(SemaRef),
+      Arguments(Args),
+      VisitedArgs(Args.size()),
+      ErrorKind(ErrorKind),
+      ModifyingArg(false) {}
+
+    bool FoundModifyingArg() {
+      return ModifyingArg;
+    }
+
+    bool VisitPositionalParameterExpr(PositionalParameterExpr *E) {
+      unsigned index = E->getIndex();
+      if (index < Arguments.size() && !VisitedArgs[index]) {
+        VisitedArgs.set(index);
+        if (!SemaRef.CheckIsNonModifying(Arguments[index], ErrorKind,
+                                         Sema::NonModifyingMessage::NMM_Error)) {
+          ModifyingArg = true;
+        }
+      }
+      return true;
+    }
+  };
+}
+
+namespace {
   class ConcretizeBoundsExprWithArgs : public TreeTransform<ConcretizeBoundsExprWithArgs> {
     typedef TreeTransform<ConcretizeBoundsExprWithArgs> BaseTransform;
 
   private:
-    const ArrayRef<Expr *> Arguments;
-    // This stores whether we've emitted an error for a particular substitution
-    // so that we don't duplicate error messages.
-    llvm::SmallBitVector ErroredForArgument;
-    Sema::NonModifyingContext ErrorKind;
-    bool SubstitutedModifyingExpression;
-
+    ArrayRef<Expr *> Args;
 
   public:
-    ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args,
-                                 Sema::NonModifyingContext ErrorKind) :
+    ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args) :
       BaseTransform(SemaRef),
-      Arguments(Args),
-      ErroredForArgument(Args.size()),
-      ErrorKind(ErrorKind),
-      SubstitutedModifyingExpression(false) { }
-
-    bool substitutedModifyingExpression() {
-      return SubstitutedModifyingExpression;
-    }
+      Args(Args) { }
 
     ExprResult TransformPositionalParameterExpr(PositionalParameterExpr *E) {
       unsigned index = E->getIndex();
-      if (index < Arguments.size()) {
-        Expr *AE = Arguments[index];
-        bool ShouldReportError = !ErroredForArgument[index];
-
-        // We may only substitute if this argument expression is
-        // a non-modifying expression.
-        if (!SemaRef.CheckIsNonModifying(AE, ErrorKind,
-                                         ShouldReportError)) {
-          SubstitutedModifyingExpression = true;
-          ErroredForArgument.set(index);
-          return ExprError();
-        }
-
-        return SemaRef.MakeAssignmentImplicitCastExplicit(AE);
+      if (index < Args.size()) {
+        return Args[index];
       } else {
-        llvm_unreachable("out of range index for positional argument");
+        llvm_unreachable("out of range index for positional parameter");
         return ExprError();
       }
     }
@@ -259,13 +270,15 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
   if (!Bounds || Bounds->isInvalid())
     return Bounds;
 
-  BoundsExpr *Result;
-  auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args, ErrorKind);
+  auto CheckArgs = CheckForModifyingArgs(*this, Args, ErrorKind);
+  CheckArgs.TraverseStmt(Bounds);
+  if (CheckArgs.FoundModifyingArg())
+    return nullptr;
+
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
+  auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args);
   ExprResult ConcreteBounds = Concretizer.TransformExpr(Bounds);
-  if (Concretizer.substitutedModifyingExpression()) {
-      return nullptr;
-  }
-  else if (ConcreteBounds.isInvalid()) {
+  if (ConcreteBounds.isInvalid()) {
 #ifndef NDEBUG
     llvm::outs() << "Failed concretizing\n";
     llvm::outs() << "Bounds:\n";
@@ -281,7 +294,7 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
     return nullptr;
   }
   else {
-    Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
+    BoundsExpr *Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
     assert(Result && "unexpected dyn_cast failure");
     return Result;
   }
@@ -334,11 +347,11 @@ namespace {
   };
 }
 
-
 BoundsExpr *Sema::MakeMemberBoundsConcrete(
   Expr *Base,
   bool IsArrow,
   BoundsExpr *Bounds) {
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
   ExprResult ConcreteBounds =
     ConcretizeMemberBounds(*this, Base, IsArrow).TransformExpr(Bounds);
   if (ConcreteBounds.isInvalid())
@@ -350,26 +363,6 @@ BoundsExpr *Sema::MakeMemberBoundsConcrete(
 }
 
 namespace {
-// Compute what positional parameters are used by an expression.
-class CollectPositionalParameters : public RecursiveASTVisitor<CollectPositionalParameters> {
-
-private:
-  llvm::SmallBitVector Used;
-
-public:
-  CollectPositionalParameters(unsigned ParamCount) : Used(ParamCount) {}
-
-  bool VisitPositionalParameterExpr(PositionalParameterExpr *PE) {
-    Used.set(PE->getIndex());
-    return true;
-  }
-
-  bool IsUsed(unsigned Index) {
-    return Used.test(Index);
-  }
-};
-}
-
 namespace {
 class CollectBoundsMemberUses : public RecursiveASTVisitor<CollectBoundsMemberUses> {
 private:
@@ -694,11 +687,14 @@ namespace {
     // it is valid to access memory using the lvalue.  The bounds
     // should be the range of an object in memory or a subrange of
     // an object.
+    //
+    // The returned bounds expression may contain a modifying expression within
+    // it. It is the caller's responsibility to validate that the bounds
+    // expression is non-modifying.
     BoundsExpr *LValueBounds(Expr *E) {
       // E may not be an lvalue if there is a typechecking error when struct 
       // accesses member array incorrectly.
       if (!E->isLValue()) return CreateBoundsInferenceError();
-      // TODO: handle side effects within E
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
       case Expr::DeclRefExprClass: {
@@ -753,10 +749,6 @@ namespace {
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (!FD)
           return CreateBoundsInferenceError();
-        if (!SemaRef.CheckIsNonModifying(ME->getBase(),
-                                         Sema::NonModifyingContext::NMC_Unknown,
-                                         /*ReportError=*/false))
-          return CreateBoundsNotAllowedYet();
 
         if (ME->getType()->isArrayType()) {
           // Declared bounds override the bounds based on the array type.
@@ -817,8 +809,8 @@ namespace {
       }
     }
 
-    // Given a Ptr type or a bounds-safe interface type, create the
-    // bounds implied by the type.  Place the bounds in standard form
+    // Given a Ptr type or a bounds-safe interface type, create the bounds
+    // implied by the type.  If E is non-null, place the bounds in standard form
     // (do not use count or byte_count because their meaning changes
     //  when propagated to parent expressions).
     BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
@@ -845,6 +837,9 @@ namespace {
       if (!BE)
         return CreateBoundsEmpty();
 
+      if (!E)
+        return BE;
+
       Expr *Base = E;
       if (Base->isLValue())
         Base = CreateImplicitCast(E->getType(), CastKind::CK_LValueToRValue, Base);
@@ -868,12 +863,15 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
-    // Compute bounds for the target of an lvalue.  Values assigned through
-    // the lvalue must satisfy these bounds.   Values read through the
+    // Compute bounds for the target of an lvalue. Values assigned through
+    // the lvalue must satisfy these bounds. Values read through the
     // lvalue will meet these bounds.
+    //
+    // The returned bounds expression may contain a modifying expression within
+    // it. It is the caller's responsibility to validate that the bounds
+    // expression is non-modifying.
     BoundsExpr *LValueTargetBounds(Expr *E) {
       if (!E->isLValue()) return CreateBoundsInferenceError();
-      // TODO: handle side effects within E
       E = E->IgnoreParens();
       QualType QT = E->getType();
 
@@ -913,12 +911,13 @@ namespace {
         }
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = cast<UnaryOperator>(E);
-          // Currently, we don't know the bounds of a pointer returned
-          // by a pointer dereference, unless it is a _Ptr type (handled
+          // Currently, we don't know the bounds of a pointer stored in a
+          // pointer dereference, unless it is a _Ptr type (handled
           // earlier) or an _Nt_array_ptr.
           if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
               UO->getType()->isCheckedPointerNtArrayType())
               return CreateTypeBasedBounds(UO, UO->getType(), false, false);
+
           return CreateBoundsAlwaysUnknown();
         }
         case Expr::ArraySubscriptExprClass: {
@@ -945,22 +944,11 @@ namespace {
             return CreateBoundsAlwaysUnknown();
 
           Expr *MemberBaseExpr = M->getBase();
-          // TODO: this check is only correct when the lvalue is read.
-          // If the lvalue is being assigned to and the member has
-          // bounds that depend on other members, we may need to issue
-          // an error message.   If an lvalue target has unknown bounds,
-          // we don't check that assignments meet the bounds requirements.
-          // The member may have specific bounds requirements that must be met.
-          if (!SemaRef.CheckIsNonModifying(MemberBaseExpr,
-                                         Sema::NonModifyingContext::NMC_Unknown,
-              /*ReportError=*/false))
-            return CreateBoundsNotAllowedYet();
-
           if (!B && IT)
             return CreateTypeBasedBounds(M, IT->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
-          if(!B)
+          if (!B)
             return CreateBoundsAlwaysUnknown();
 
           B = SemaRef.MakeMemberBoundsConcrete(MemberBaseExpr, M->isArrow(), B);
@@ -1018,6 +1006,10 @@ namespace {
     }
 
     // Compute the bounds of an expression that produces an rvalue.
+    //
+    // The returned bounds expression may contain a modifying expression within
+    // it. It is the caller's responsibility to validate that the bounds
+    // expression is non-modifying.
     BoundsExpr *RValueBounds(Expr *E) {
       if (!E->isRValue()) return CreateBoundsInferenceError();
 
@@ -1313,8 +1305,21 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
   }
 }
 
+BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
+  if (!CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
+                              Sema::NonModifyingMessage::NMM_None)) {
+    Diag(E->getLocStart(), diag::err_inferred_modifying_bounds) <<
+        B << E->getSourceRange();
+    CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
+                          Sema::NonModifyingMessage::NMM_Note);
+    return CreateInvalidBoundsExpr();
+  } else
+    return B;
+}
+
 BoundsExpr *Sema::InferLValueBounds(Expr *E) {
-  return BoundsInference(*this).LValueBounds(E);
+  BoundsExpr *Bounds = BoundsInference(*this).LValueBounds(E);
+  return CheckNonModifyingBounds(Bounds, E);
 }
 
 BoundsExpr *Sema::CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
@@ -1324,11 +1329,14 @@ BoundsExpr *Sema::CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
 }
 
 BoundsExpr *Sema::InferLValueTargetBounds(Expr *E) {
-  return BoundsInference(*this).LValueTargetBounds(E);
+  BoundsExpr *Bounds = BoundsInference(*this).LValueTargetBounds(E);
+  return CheckNonModifyingBounds(Bounds, E);
 }
 
 BoundsExpr *Sema::InferRValueBounds(Expr *E, bool IncludeNullTerminator) {
-  return BoundsInference(*this, IncludeNullTerminator).RValueBounds(E);
+  BoundsExpr *Bounds =
+    BoundsInference(*this, IncludeNullTerminator).RValueBounds(E);
+  return CheckNonModifyingBounds(Bounds, E);
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
@@ -1819,7 +1827,12 @@ namespace {
       assert(BoundsUtil::IsStandardForm(SrcBounds) &&
         "src bounds not in standard form");
       Cause = ProofFailure::None;
-      // source bounds(any) implies that any other bounds is valid.
+
+      // Ignore invalid bounds.
+      if (SrcBounds->isInvalid() || DeclaredBounds->isInvalid())
+        return ProofResult::True;
+
+     // source bounds(any) implies that any other bounds is valid.
       if (SrcBounds->isAny())
         return ProofResult::True;
 
@@ -1977,8 +1990,10 @@ namespace {
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
       // TODO: make sure assignment to lvalue doesn't modify value used in Src.
-      if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown, false) &&
-          S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown, false)) {
+      if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown,
+                                Sema::NonModifyingMessage::NMM_None) &&
+          S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
+                                Sema::NonModifyingMessage::NMM_None)) {
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
@@ -2043,7 +2058,8 @@ namespace {
       // Record expression equality implied by initialization.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
-      if (S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown, false)) {
+      if (S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
+                                Sema::NonModifyingMessage::NMM_None)) {
         // TODO: make sure variable being initialized isn't read by Src.
         DeclRefExpr *TargetDeclRef =
           DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
@@ -2153,6 +2169,7 @@ namespace {
       }
     }
 
+
   public:
     CheckBoundsDeclarations(Sema &S, BoundsExpr *ReturnBounds) : S(S),
       DumpBounds(S.getLangOpts().DumpInferredBounds),
@@ -2254,14 +2271,16 @@ namespace {
             RHSBounds = S.InferRValueBounds(E);
           else
             RHSBounds = S.InferRValueBounds(RHS);
+
           if (RHSBounds->isUnknown()) {
              S.Diag(RHS->getLocStart(),
                     diag::err_expected_bounds_for_assignment)
                     << RHS->getSourceRange();
              RHSBounds = S.CreateInvalidBoundsExpr();
-          } else
-            CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                        RHS, RHSBounds, InCheckedScope);
+          }
+
+          CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
+                                      RHS, RHSBounds, InCheckedScope);
         }
       }
 
@@ -2301,29 +2320,6 @@ namespace {
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = CE->getNumArgs();
       unsigned Count = (NumParams < NumArgs) ? NumParams : NumArgs;
-      if (false) {
-        // TODO: Github issue #374.
-        // Need RecursiveASTVisitor.h to visit bounds expressions
-        // in functions for this to work.
-        CollectPositionalParameters Uses(NumParams);
-        Uses.VisitFunctionProtoType(const_cast<FunctionProtoType *>(FuncProtoTy));
-
-        // If arguments are used in bounds expressions and are modifying
-        // expressions, issue an error.  TODO: If an argument expression has
-        // side-effects, but we can represent the value of the expression in
-        // terms of the values of variables before the call, we should use that
-        // instead and not issue an error.
-        for (unsigned i = 0; i < NumParams; i++)
-          if (Uses.IsUsed(i) && i < NumArgs &&
-              !S.CheckIsNonModifying(CE->getArg(i),
-                              Sema::NonModifyingContext::NMC_Function_Parameter,
-                                    false)) {
-            S.Diag(CE->getArg(i)->getLocStart(),
-                   diag::err_modifying_expr_not_supported)
-              << (i + 1) << CE->getArg(i)->getSourceRange();
-          }
-      }
-
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
                                                      CE->getNumArgs());
       for (unsigned i = 0; i < Count; i++) {
@@ -2344,50 +2340,54 @@ namespace {
         if (!ParamBounds && !ParamIType)
           continue;
 
-        Expr *Arg = CE->getArg(i);
-
-        // We have a bounds of the form  count(e) or byte_count(e).  Expand
-        // the bounds to a standard form, using the current argument as the
-        // base expression.
-        //
-        // We are are short-ciructing a step here.  In expanding the parameter
-        // bounds, we could use the parameter represented as a symbolic index.
-        // This more properly represents the parameter bounds.  However, code
-        // below will eventually substitute Arg for the symbolic parameter.
-        // Instead of going to the trouble of building the symbolic parameter
-        // expression, which we will throw away soon anyway, we just use Arg
-        // here.
-        if (ParamBounds && (ParamBounds->isElementCount() || ParamBounds->isByteCount()))
-          ParamBounds = S.ExpandToRange(Arg, const_cast<BoundsExpr *>(ParamBounds));
-
         if (!ParamBounds && ParamIType)
-          // The same short-circuit logic applies here too.
-          ParamBounds = S.CreateTypeBasedBounds(Arg, ParamIType->getType(), true, true);
+          ParamBounds = S.CreateTypeBasedBounds(nullptr, ParamIType->getType(),
+                                                true, true);
 
         // Check after handling the interop type annotation, not before, because
         // handling the interop type annotation could make the bounds known.
         if (ParamBounds->isUnknown())
           continue;
 
+        Expr *Arg = CE->getArg(i);
         BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getLocStart(),
                  diag::err_expected_bounds_for_argument) << (i + 1) <<
             Arg->getSourceRange();
           ArgBounds = S.CreateInvalidBoundsExpr();
+          continue;
+        } else if (ArgBounds->isInvalid())
+          continue;
+
+        // Concretize parameter bounds with argument expressions. This fails
+        // and returns null if an argument expression is a modifying
+        // expression,  We issue an error during concretization about that.
+        BoundsExpr *SubstParamBounds =
+          S.ConcretizeFromFunctionTypeWithArgs(
+            const_cast<BoundsExpr *>(ParamBounds),
+            ArgExprs,
+            Sema::NonModifyingContext::NMC_Function_Parameter);
+
+        if (!SubstParamBounds)
+          continue;
+
+        // Put the parameter bounds in a standard form if necessary.
+        if (SubstParamBounds->isElementCount() ||
+            SubstParamBounds->isByteCount()) {
+          // TODO: turn this check on after implementing current_expr_value.
+          // Turning it on now would cause errors to be issued for arguments
+          // that are calls.
+          if (true /* S.CheckIsNonModifying(Arg,
+                              Sema::NonModifyingContext::NMC_Function_Parameter,
+                                    Sema::NonModifyingMessage::NMM_Error) */)
+            SubstParamBounds = S.ExpandToRange(Arg,
+                                    const_cast<BoundsExpr *>(SubstParamBounds));
+           else
+             continue;
         }
-        else {
-          // Concretize parameter bounds with argument expressions. This fails
-          // and returns null if an argument expression is a modifying
-          // expression, but we've already issued an error about about that.
-          BoundsExpr *SubstParamBounds =
-            S.ConcretizeFromFunctionTypeWithArgs(
-              const_cast<BoundsExpr *>(ParamBounds),
-              ArgExprs,
-              Sema::NonModifyingContext::NMC_Function_Parameter);
-          if (SubstParamBounds)
-            CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
-        }
+
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
       }
       return;
    }
@@ -2545,184 +2545,177 @@ namespace {
       if (!RetValue)
         // We already issued an error message for this case.
         return;
-      // TODO: Actually check that the return expression bounds imply the return bounds.
-      // TODO: Also check that any parameters used in the return bounds are unmodified.
+      // TODO: Actually check that the return expression bounds imply the 
+      // return bounds.
+      // TODO: Also check that any parameters used in the return bounds are
+      // unmodified.
     }
 
   private:
-    // Here we're examining places where a programmer has cast to a
-    // checked function pointer type, in order to make sure this cast is
-    // safe and valid.
+    // Check that casts to checked function pointer types produce a valid
+    // function pointer.  This implements the checks in Section 3.8 of v0.7
+    // of the Checked C specification.
     //
-    // 0. This check is only performed on:
-    //  a) Casts to function ptr<> types.
-    //  b) from the small set of value-preserving casts we allow of function pointers
+    // The cast expression E has type ToType, a ptr<> to a function p type.  To
+    // produce the function pointer,  the program is performing a sequence of
+    // casts, both implicit and explicit. This sequence may include uses of
+    // addr-of- (&) or deref(*), which act like casts for function pointer
+    // types.
     //
-    // Let's term the outer value (after the cast), E, of type ToType.
-    // In the values we're examining, ToType is a ptr<> to a function type.
+    // Start by checking whether E must produce a valid function pointer:
+    // - An lvalue-to-rvalue cast,
+    // - A bounds-safe interface cast.
     //
-    // To produce E, the programmer is performing a sequence of casts,
-    // both implicit and explicit, and perhaps this sequence includes using
-    // addr-of (&) or deref(*).
+    // If E is not guaranteed produce a valid function pointer, check that E
+    // is a value-preserving case. Iterate through the chain of subexpressions
+    // of E, as long as we see value-preserving casts or a cast-like operator.
+    // If a cast is not value-preserving, it is an error because the resulting
+    // value may not be valid function pointer.
     //
-    // We search this chain, starting at E. We descend through ParenExprs because
-    // they are only syntactic, not semantic.
-    //
-    // 1. If the thing we're casting has a null pointer value, the cast is allowed.
-    //
-    // 2. If we come across something of ptr<> function type, then one of two things
-    //    happens:
-    //  a) this type is compatible with ToType, so then the cast is allowed.
-    //  b) this type not compatible, so we add an error about casting between incompatible
-    //     types and stop descending.
-    //    This allows calling functions with originally-declared checked types, 
-    //    and local variables with checked function types.
-    //
-    // 3. If we come across a non-value-preserving cast, then we stop and error because
-    //    we are casting between incompatible types. Non-value-preserving casts include
-    //    casts that truncate values, and casts that change alignment. An LValueToRValue
-    //    cast is also non-value-preserving because it reads memory.
-    //  b) we count the unary operators (&) and (*) as cast-like because when applied to a
-    //     function pointer they only change the type, not the value.
-    //
-    // 4. Eventually we may get to the end of the chain of casts. This could end in many
-    //    different kinds of expressions and values, but we only allow them if they meet 
-    //    all the following reqs:
-    //  a) They're DeclRef expressions
-    //  b) The Declaration they reference is a Function declaration
-    //  c) The type of this function matches the pointee type of ToType
-    //
+    // Let Needle be the subexpression the iteration ends at. Check whether
+    // Needle is guaranteed to be a valid checked function pointer of type Ty:
+    // - It s a null pointer.
+    // - It is decl ref to a named function and the pointee type of TyType
+    //   matches the function type.
+    // - It is a checked function pointer Ty.
+    // If is none of those, emit diagnostic about an incompatible type.
     void CheckDisallowedFunctionPtrCasts(CastExpr *E) {
       // The type of the outer value
-      const QualType ToType = E->getType();
+      QualType ToType = E->getType();
 
-      // 0a. We're only looking for casts to checked function ptr<>s.
+      // We're only looking for casts to checked function ptr<>s.
       if (!ToType->isCheckedPointerPtrType() ||
         !ToType->isFunctionPointerType())
         return;
 
-      // 0b. Always trust casts inserted according to bounds-safe interface rules.
-      if (E->isBoundsSafeInterface())
-        return;
-
-      // 0c. Check the top-level cast is one that is value-preserving.
-      if (!CheckValuePreservingCast(E, ToType)) {
-        // it's non-value-preserving, stop
-        return;
-      }
-
-      const Expr *Needle = E->getSubExpr();
-      while (true) {
-        Needle = Needle->IgnoreParens();
-        QualType NeedleTy = Needle->getType();
-
-        if (Needle->isNullPointerConstant(S.Context, Expr::NPC_NeverValueDependent))
-          // 1a. We've got to a null pointer, so this cast is allowed, stop
-          return;
-
-        if (const CastExpr *CE = dyn_cast<ImplicitCastExpr>(Needle))
-          if (CE->isBoundsSafeInterface())
-            // 1b. We've hit a cast inserted according to bounds-safe interface rules.
-            return;
-
-        if (NeedleTy->isCheckedPointerPtrType()) {
-          // 2. We've found something with ptr<> type, check compatibility.
-
-          bool types_are_compatible = S.Context.typesAreCompatible(ToType, NeedleTy,
-                                                                   /*CompareUnqualified=*/false,
-                                                                   /*IgnoreBounds=*/false);
-          if (!types_are_compatible) {
-            // 2b) it is incompatible with ToType, add an error
-            S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
-              << ToType << NeedleTy << true
-              << E->getSourceRange();
-          }
-
-          // We can stop here, as we've got back to something of checked ptr<> type. 
-          // CheckDisallowedFunctionPtrCasts will be called on any sub-expressions if they
-          // are potentially problematic casts to checked ptr<> types. 
+      // Skip lvalue-to-rvalue casts because they preserve types (except that
+      // qualifers are removed).  The lvalue type should be a checked pointer
+      // type too.
+      if (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E))
+        if (ICE->getCastKind() == CK_LValueToRValue) {
+          assert(ICE->getSubExpr()->getType()->isCheckedPointerType());
           return;
         }
 
+      // Skip bounds-safe interface casts.  They are trusted casts inserted
+      // according to bounds-safe interface rules.  The only difference in
+      // types is checkedness, which means that this is a trusted cast
+      // to the checked function type pointer.
+      if (E->isBoundsSafeInterface())
+        return;
+
+      if (!CheckValuePreservingCast(E, ToType)) {
+        // The top-level cast is not value-preserving
+        return;
+      }
+
+      // Iterate through chain of subexpressions that are value-preserving
+      // casts or cast-like operations.
+      const Expr *Needle = E->getSubExpr();
+      while (true) {
+        Needle = Needle->IgnoreParens();
+
+        // Stop at any cast or cast-like operators that have a checked pointer
+        // type.  If they are potential problematic casts, they'll be checked
+        // by another call to CheckedDisallowedFunctionPtrCasts.
+        if (Needle->getType()->isCheckedPointerType())
+          break;
+
         // If we've found a cast expression...
         if (const CastExpr *NeedleCast = dyn_cast<CastExpr>(Needle)) {
-          // 3. check if the cast is value preserving
+          if (const ImplicitCastExpr *ICE = 
+                dyn_cast<ImplicitCastExpr>(NeedleCast))
+            // Stop at lvalue-to-ravlue casts.
+            if (ICE->getCastKind() == CK_LValueToRValue)
+              break;
+
+          if (NeedleCast->isBoundsSafeInterface())
+            break;
+
           if (!CheckValuePreservingCast(NeedleCast, ToType)) {
-            // it's non-value-preserving, stop
+            // The cast is not value-preserving,
             return;
           }
 
-          // it is value-preserving, continue descending
           Needle = NeedleCast->getSubExpr();
-          NeedleTy = Needle->getType();
           continue;
         }
 
         // If we've found a unary operator (such as * or &)...
         if (const UnaryOperator *NeedleOp = dyn_cast<UnaryOperator>(Needle)) {
-          // 3b. Check if the operator is value-preserving.
-          //     Only addr-of (&) and deref (*) are with function pointers
+          // Check if the operator is value-preserving.
+          // Only addr-of (&) and deref (*) are with function pointers
           if (!CheckValuePreservingCastLikeOp(NeedleOp, ToType)) {
-            // it's not value-preserving, stop
             return;
           }
 
-          // it is value-preserving, continue descending
+          // Keep iterating.
           Needle = NeedleOp->getSubExpr();
-          NeedleTy = Needle->getType();
           continue;
         }
 
-        // If we've not found a cast or a cast-like operator, 
-        // then we stop descending
+        // Otherwise we have found an expression that is neither
+        // a cast nor a cast-like operator.  Stop iterating.
         break;
       }
 
-      // 4a) Is it a DeclRef?
-      const DeclRefExpr *NeedleDeclRef = dyn_cast<DeclRefExpr>(Needle);
-      if (!NeedleDeclRef) {
-        // Not a DeclRef. Error, stop
-        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_must_be_named)
-          << ToType << E->getSourceRange();
+      // See if we stopped at a subexpression that must produce a valid checked
+      // function pointer.
 
+      // A null pointer.
+      if (Needle->isNullPointerConstant(S.Context, Expr::NPC_NeverValueDependent))
         return;
+
+      // A DeclRef to a function declaration matching the desired function type.
+      if (const DeclRefExpr *NeedleDeclRef = dyn_cast<DeclRefExpr>(Needle)) {
+        if (const FunctionDecl *NeedleFun =
+              dyn_cast<FunctionDecl>(NeedleDeclRef->getDecl())) {
+          // Checked that the function type is compatible with the pointee type
+          // of ToType.
+          if (S.Context.typesAreCompatible(ToType->getPointeeType(),
+                                           Needle->getType(),
+                                           /*CompareUnqualified=*/false,
+                                           /*IgnoreBounds=*/false))
+            return;
+        } else {
+          S.Diag(Needle->getExprLoc(),
+                 diag::err_cast_to_checked_fn_ptr_not_value_preserving)
+            << ToType << E->getSourceRange();
+          return;
+        }
       }
 
-      // 4b) Is it a DeclRef to a declared function?
-      const FunctionDecl *NeedleFun = dyn_cast<FunctionDecl>(NeedleDeclRef->getDecl());
-      if (!NeedleFun) {
-        // Not a DeclRef to a Top-Level function. Error, stop.
-        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_must_be_named)
-          << ToType << E->getSourceRange();
+      // An expression with a checked pointer type.
+      QualType NeedleTy = Needle->getType();
+      if (!S.Context.typesAreCompatible(ToType, NeedleTy,
+                                      /* CompareUnqualified=*/false,
+                                      /*IgnoreBounds=*/false)) {
+        // See if the only difference is that the source is an unchecked pointer type.
+        if (NeedleTy->isPointerType()) {
+          const PointerType *NeedlePtrType = NeedleTy->getAs<PointerType>();
+          const PointerType *ToPtrType = ToType->getAs<PointerType>();
+          if (S.Context.typesAreCompatible(NeedlePtrType->getPointeeType(),
+                                           ToPtrType->getPointeeType(),
+                                           /*CompareUnqualifed=*/false,
+                                           /*IgnoreBounds=*/false)) {
+            S.Diag(Needle->getExprLoc(), 
+                   diag::err_cast_to_checked_fn_ptr_from_unchecked_fn_ptr) <<
+              ToType << E->getSourceRange();
+            return;
+          }
+        }
 
-        return;
+        S.Diag(Needle->getExprLoc(), 
+               diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
+          << ToType << NeedleTy << NeedleTy->isCheckedPointerPtrType()
+          << E->getSourceRange();
       }
-      
-      // 4c) Is the type of the declared referenced function compatible with the 
-      //     pointee-type of ToType
-      QualType NeedleFunType = NeedleFun->getType();
-      if (!S.Context.typesAreCompatible(
-        ToType->getPointeeType(), 
-        NeedleFunType,
-        /*CompareUnqualified=*/false,
-        /*IgnoreBounds=*/false)) {
-        // The type of the defined function is not compatible with the pointer
-        // we're trying to assign it to. Error, stop.
 
-        S.Diag(Needle->getExprLoc(), diag::err_cast_to_checked_fn_ptr_from_incompatible_type)
-          << ToType << NeedleFunType << false << E->getSourceRange();
-
-        return;
-      }
-
-      // If we get to here, All our checks have passed!
+      return;
     }
 
-    // This is used in void CheckDisallowedFunctionPtrCasts(Expr*)
-    // to find if a cast is value-preserving
-    //
-    // Other operations might also be, but this algorithm is currently
-    // conservative.
+    // See if a cast is value-preserving for a function-pointer casts.   Other
+    // operations might also be, but this algorithm is currently conservative.
     //
     // This will add the required error messages.
     bool CheckValuePreservingCast(const CastExpr *E, const QualType ToType) {
@@ -2732,20 +2725,8 @@ namespace {
       case CK_NullToPointer:
       case CK_FunctionToPointerDecay:
       case CK_BitCast:
+      case CK_LValueBitCast:
         return true;
-      case CK_LValueToRValue: {
-        // Reads of checked function pointers are allowed
-        QualType ETy = E->getType();
-        if (ETy->isCheckedPointerPtrType() &&
-          ETy->isFunctionPointerType())
-          return true;
-
-        // This reads unchecked memory, which is definitely not value-preserving
-        S.Diag(E->getExprLoc(), diag::err_cast_to_checked_fn_ptr_cannot_read_mem)
-          << ToType << E->getSourceRange();
-
-        return false;
-      }
       default:
         S.Diag(E->getExprLoc(), diag::err_cast_to_checked_fn_ptr_not_value_preserving)
           << ToType << E->getSourceRange();
@@ -2754,13 +2735,9 @@ namespace {
       }
     }
 
-    // This is used in void CheckDisallowedFunctionPtrCasts(Expr*)
-    // to find if the thing we just discovered is deref (*) or
-    // addr-of (&) operator on a function pointer type.
-    // These operations are value perserving.
-    //
-    // Other operations might also be, but this algorithm is currently
-    // conservative.
+    // See if an operationg is a value-preserving deref (*) or/ addr-of (&)
+    // operator on a function pointer type.  Other operations might also be,
+    // but this algorithm is currently conservative.
     //
     // This will add the required error messages
     bool CheckValuePreservingCastLikeOp(const UnaryOperator *E, const QualType ToType) {
@@ -2827,9 +2804,9 @@ namespace {
 
   public:
     NonModifiyingExprSema(Sema &S, Sema::NonModifyingContext From,
-                          bool ReportError) :
+                          Sema::NonModifyingMessage Message) :
       S(S), FoundModifyingExpr(false), ReqFrom(From),
-      ReportError(ReportError) {}
+      Message(Message) {}
 
     bool isNonModifyingExpr() { return !FoundModifyingExpr; }
 
@@ -2860,15 +2837,35 @@ namespace {
       return true;
     }
 
-    // References to volatile variables
-    bool VisitDeclRefExpr(DeclRefExpr *E) {
-      QualType RefType = E->getType();
-      if (RefType.isVolatileQualified()) {
-        addError(E, MEK_Volatile);
-        FoundModifyingExpr = true;
-      }
+    // Dereferences of volatile variables are modifying.
+    bool VisitCastExpr(CastExpr *E) {
+      CastKind CK = E->getCastKind();
+      if (CK == CK_LValueToRValue)
+        FindVolatileVariable(E->getSubExpr());
 
       return true;
+    }
+
+    void FindVolatileVariable(Expr *E) {
+      E = E->IgnoreParens();
+      switch (E->getStmtClass()) {
+        case Expr::DeclRefExprClass: {
+          QualType RefType = E->getType();
+          if (RefType.isVolatileQualified()) {
+            addError(E, MEK_Volatile);
+            FoundModifyingExpr = true;
+          }
+          break;
+        }
+        case Expr::ImplicitCastExprClass: {
+          ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
+          if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
+            return FindVolatileVariable(ICE->getSubExpr());
+          break;
+        }
+        default:
+          break;
+      }
     }
 
     // Function Calls are defined as modifying
@@ -2884,19 +2881,30 @@ namespace {
     Sema &S;
     bool FoundModifyingExpr;
     Sema::NonModifyingContext ReqFrom;
-    bool ReportError;
+    Sema::NonModifyingMessage Message;
+    // Track modifying expressions so that we can suppress duplicate diagnostic
+    // messages for the same modifying expression.
+    SmallVector<Expr *, 4> ModifyingExprs;
 
     void addError(Expr *E, ModifyingExprKind Kind) {
-      if (ReportError)
-        S.Diag(E->getLocStart(), diag::err_not_non_modifying_expr)
+      if (Message != Sema::NonModifyingMessage::NMM_None) {
+        for (auto Iter = ModifyingExprs.begin(); Iter != ModifyingExprs.end(); Iter++) {
+          if (*Iter == E)
+            return;
+        }
+        ModifyingExprs.push_back(E);
+        unsigned DiagId = (Message == Sema::NonModifyingMessage::NMM_Error) ?
+          diag::err_not_non_modifying_expr : diag::note_modifying_expression;
+        S.Diag(E->getLocStart(), DiagId)
           << Kind << ReqFrom << E->getSourceRange();
+      }
     }
   };
 }
 
 bool Sema::CheckIsNonModifying(Expr *E, NonModifyingContext Req,
-                               bool ReportError) {
-  NonModifiyingExprSema Checker(*this, Req, ReportError);
+                               NonModifyingMessage Message) {
+  NonModifiyingExprSema Checker(*this, Req, Message);
   Checker.TraverseStmt(E);
 
   return Checker.isNonModifyingExpr();

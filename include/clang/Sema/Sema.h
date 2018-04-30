@@ -4662,8 +4662,8 @@ public:
   /// \brief Add default bounds/interop type expressions to Annots, if appropriate.
   void InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam);
 
-  // \#pragma BOUNDS_CHECKED.
-  void ActOnPragmaBoundsChecked(Scope *S, tok::OnOffSwitch OOS);
+  // \#pragma CHECKED_SCOPE.
+  void ActOnPragmaCheckedScope(Scope *S, tok::OnOffSwitch OOS);
 
   // Represents the context where an expression must be non-modifying.
   enum NonModifyingContext {
@@ -4688,9 +4688,17 @@ public:
   /// /brief Checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
   /// false otherwise.
+  enum NonModifyingMessage {
+    NMM_None,
+    NMM_Error,
+    NMM_Note
+  };
+
   bool CheckIsNonModifying(Expr *E, NonModifyingContext Req =
                                NonModifyingContext::NMC_Unknown,
-                               bool ReportError = true);
+                            NonModifyingMessage = NMM_Error);
+
+  BoundsExpr *CheckNonModifyingBounds(BoundsExpr *Bounds, Expr *E);
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);
@@ -4779,6 +4787,30 @@ public:
   // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check
   // will always fail.
   void WarnDynamicCheckAlwaysFails(const Expr *Condition);
+
+  /// \brief RAII class used to indicate that we are substituting an expression
+  /// into another expression during bounds checking.  We need to suppress 
+  /// diagnostics emission during this.  We are doing type-preserving
+  /// substitutions, so we don't expect semantic errors during substitution.
+  /// There could be warnings, which would confuse users.  The warnings could
+  /// could also be escalated to errors, which would cause compilation failures.
+  class ExprSubstitutionScope {
+    Sema &SemaRef;
+    bool PrevDisableSubstitionDiagnostics;
+  public:
+    explicit ExprSubstitutionScope(Sema &SemaRef)
+        : SemaRef(SemaRef),
+          PrevDisableSubstitionDiagnostics(
+            SemaRef.DisableSubstitionDiagnostics) {
+      SemaRef.DisableSubstitionDiagnostics = true;
+    }
+    ~ExprSubstitutionScope() {
+      SemaRef.DisableSubstitionDiagnostics =
+        PrevDisableSubstitionDiagnostics;
+    }
+  };
+
+  bool DisableSubstitionDiagnostics;
 
   //===---------------------------- Clang Extensions ----------------------===//
 
