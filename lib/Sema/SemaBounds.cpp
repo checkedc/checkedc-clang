@@ -363,32 +363,6 @@ BoundsExpr *Sema::MakeMemberBoundsConcrete(
 }
 
 namespace {
-namespace {
-class CollectBoundsMemberUses : public RecursiveASTVisitor<CollectBoundsMemberUses> {
-private:
-  FieldDecl *MemberWithBounds;
-  ASTContext &Context;
-
-public:
-  CollectBoundsMemberUses(FieldDecl *MemberWithBounds, ASTContext &Context) :
-    MemberWithBounds(MemberWithBounds), Context(Context) {
-  }
-
-  bool VisitDeclRefExpr(DeclRefExpr *DR) {
-    if (FieldDecl *UsedMember = dyn_cast<FieldDecl>(DR->getDecl()))
-      Context.addMemberBoundsUse(UsedMember, MemberWithBounds);
-    return true;
-  }
-};
-}
-
-void Sema::TrackMemberBoundsDependences(FieldDecl *FD, BoundsExpr *BE) {
-  if (BE)
-    CollectBoundsMemberUses(FD, getASTContext()).VisitExpr(BE);
-}
-
-
-namespace {
   // Class for inferring bounds expressions for C expressions.
 
   // C has an interesting semantics for expressions that differentiates between
