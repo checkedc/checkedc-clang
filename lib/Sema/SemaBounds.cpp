@@ -191,6 +191,8 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
     return Expr;
 
   BoundsExpr *Result;
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
+
   ExprResult ConcreteBounds = ConcretizeBoundsExpr(*this, Params).TransformExpr(Expr);
   if (ConcreteBounds.isInvalid()) {
     llvm_unreachable("unexpected failure in making bounds concrete");
@@ -204,51 +206,58 @@ BoundsExpr *Sema::ConcretizeFromFunctionType(BoundsExpr *Expr,
 }
 
 namespace {
+  class CheckForModifyingArgs : public RecursiveASTVisitor<CheckForModifyingArgs> {
+  private:
+    Sema &SemaRef;
+    const ArrayRef<Expr *> Arguments;
+    llvm::SmallBitVector VisitedArgs;
+    Sema::NonModifyingContext ErrorKind;
+    bool ModifyingArg;
+  public:
+    CheckForModifyingArgs(Sema &SemaRef, ArrayRef<Expr *> Args,
+                          Sema::NonModifyingContext ErrorKind) :
+      SemaRef(SemaRef),
+      Arguments(Args),
+      VisitedArgs(Args.size()),
+      ErrorKind(ErrorKind),
+      ModifyingArg(false) {}
+
+    bool FoundModifyingArg() {
+      return ModifyingArg;
+    }
+
+    bool VisitPositionalParameterExpr(PositionalParameterExpr *E) {
+      unsigned index = E->getIndex();
+      if (index < Arguments.size() && !VisitedArgs[index]) {
+        VisitedArgs.set(index);
+        if (!SemaRef.CheckIsNonModifying(Arguments[index], ErrorKind,
+                                         Sema::NonModifyingMessage::NMM_Error)) {
+          ModifyingArg = true;
+        }
+      }
+      return true;
+    }
+  };
+}
+
+namespace {
   class ConcretizeBoundsExprWithArgs : public TreeTransform<ConcretizeBoundsExprWithArgs> {
     typedef TreeTransform<ConcretizeBoundsExprWithArgs> BaseTransform;
 
   private:
-    const ArrayRef<Expr *> Arguments;
-    // This stores whether we've emitted an error for a particular substitution
-    // so that we don't duplicate error messages.
-    llvm::SmallBitVector ErroredForArgument;
-    Sema::NonModifyingContext ErrorKind;
-    bool SubstitutedModifyingExpression;
-
+    ArrayRef<Expr *> Args;
 
   public:
-    ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args,
-                                 Sema::NonModifyingContext ErrorKind) :
+    ConcretizeBoundsExprWithArgs(Sema &SemaRef, ArrayRef<Expr *> Args) :
       BaseTransform(SemaRef),
-      Arguments(Args),
-      ErroredForArgument(Args.size()),
-      ErrorKind(ErrorKind),
-      SubstitutedModifyingExpression(false) { }
-
-    bool substitutedModifyingExpression() {
-      return SubstitutedModifyingExpression;
-    }
+      Args(Args) { }
 
     ExprResult TransformPositionalParameterExpr(PositionalParameterExpr *E) {
       unsigned index = E->getIndex();
-      if (index < Arguments.size()) {
-        Expr *AE = Arguments[index];
-       Sema::NonModifyingMessage Message = ErroredForArgument[index] ?
-          Sema:: NonModifyingMessage::NMM_None :
-          Sema::NonModifyingMessage::NMM_Error;
-
-        // We may only substitute if this argument expression is
-        // a non-modifying expression.
-        if (!SemaRef.CheckIsNonModifying(AE, ErrorKind,
-                                         Message)) {
-          SubstitutedModifyingExpression = true;
-          ErroredForArgument.set(index);
-          return ExprError();
-        }
-
-        return SemaRef.MakeAssignmentImplicitCastExplicit(AE);
+      if (index < Args.size()) {
+        return SemaRef.MakeAssignmentImplicitCastExplicit(Args[index]);
       } else {
-        llvm_unreachable("out of range index for positional argument");
+        llvm_unreachable("out of range index for positional parameter");
         return ExprError();
       }
     }
@@ -261,13 +270,15 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
   if (!Bounds || Bounds->isInvalid())
     return Bounds;
 
-  BoundsExpr *Result;
-  auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args, ErrorKind);
+  auto CheckArgs = CheckForModifyingArgs(*this, Args, ErrorKind);
+  CheckArgs.TraverseStmt(Bounds);
+  if (CheckArgs.FoundModifyingArg())
+    return nullptr;
+
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
+  auto Concretizer = ConcretizeBoundsExprWithArgs(*this, Args);
   ExprResult ConcreteBounds = Concretizer.TransformExpr(Bounds);
-  if (Concretizer.substitutedModifyingExpression()) {
-      return nullptr;
-  }
-  else if (ConcreteBounds.isInvalid()) {
+  if (ConcreteBounds.isInvalid()) {
 #ifndef NDEBUG
     llvm::outs() << "Failed concretizing\n";
     llvm::outs() << "Bounds:\n";
@@ -283,7 +294,7 @@ BoundsExpr *Sema::ConcretizeFromFunctionTypeWithArgs(
     return nullptr;
   }
   else {
-    Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
+    BoundsExpr *Result = dyn_cast<BoundsExpr>(ConcreteBounds.get());
     assert(Result && "unexpected dyn_cast failure");
     return Result;
   }
@@ -336,11 +347,11 @@ namespace {
   };
 }
 
-
 BoundsExpr *Sema::MakeMemberBoundsConcrete(
   Expr *Base,
   bool IsArrow,
   BoundsExpr *Bounds) {
+  ExprSubstitutionScope Scope(*this); // suppress diagnostics
   ExprResult ConcreteBounds =
     ConcretizeMemberBounds(*this, Base, IsArrow).TransformExpr(Bounds);
   if (ConcreteBounds.isInvalid())
