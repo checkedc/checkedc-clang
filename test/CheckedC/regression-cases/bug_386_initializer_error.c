@@ -1,10 +1,10 @@
 //
-// These is a regression test case for 
+// This is a regression test case for 
 // https://github.com/Microsoft/checkedc-clang/issues/386
 //
-// The test check that there are not duplicate error messages when an initializer
-// has a syntax or typechecking error.  The compiler was issue a message about 
-// a checked variable needed an initializer in that case.
+// The test checks that there are not duplicate error messages when an
+// initializer has a syntax or typechecking error.  The compiler was issuing
+// a message about a checked variable needed an initializer in that case.
 //
 // RUN: %clang -cc1 -verify -fcheckedc-extension %s
 
