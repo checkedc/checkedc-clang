@@ -255,7 +255,7 @@ namespace {
     ExprResult TransformPositionalParameterExpr(PositionalParameterExpr *E) {
       unsigned index = E->getIndex();
       if (index < Args.size()) {
-        return Args[index];
+        return SemaRef.MakeAssignmentImplicitCastExplicit(Args[index]);
       } else {
         llvm_unreachable("out of range index for positional parameter");
         return ExprError();
