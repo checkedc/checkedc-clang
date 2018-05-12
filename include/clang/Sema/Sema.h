@@ -4775,6 +4775,10 @@ public:
       BDC_Initialization
   };
 
+  /// \brief Check that address=of operation is not taking the
+  /// address of members used in bounds.
+  void CheckAddressTakenMembers(UnaryOperator *AddrOf);
+
   /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
   /// body.
   void CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body);
@@ -4782,6 +4786,7 @@ public:
   /// CheckTopLevelBoundsDecls - check bounds declarations for variable declarations
   /// not within a function body.
   void CheckTopLevelBoundsDecls(VarDecl *VD);
+
 
 
   // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check

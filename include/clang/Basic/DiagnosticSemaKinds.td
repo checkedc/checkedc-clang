@@ -9602,6 +9602,10 @@ def err_bounds_type_annotation_lost_checking : Error<
     "|argument for parameter used in function return bounds expression"
     "|argument for parameter used in function parameter bounds expression}1">;
 
+  def err_address_of_member_in_bounds : Error<"cannot take address of member used in member bounds">;
+
+  def note_member_bounds : Note<"member bounds declared here">;
+
   def err_checked_scope_decl_type: Error<
     "%select{parameter|return|local variable|global variable|member}0 %select{|used }1in a checked scope must have "
     "%select{a |a pointer, array or function type that uses only |a bounds-safe interface type that uses only }2"
