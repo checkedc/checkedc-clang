@@ -9602,8 +9602,13 @@ def err_bounds_type_annotation_lost_checking : Error<
     "|argument for parameter used in function return bounds expression"
     "|argument for parameter used in function parameter bounds expression}1">;
 
+  def err_address_of_var_with_bounds : Error<"cannot take address of variable '%0' with bounds">;
+
   def err_address_of_member_in_bounds : Error<"cannot take address of member used in member bounds">;
 
+  def err_address_of_member_with_bounds : Error<"cannot take address of member with bounds">;
+
+  def note_var_bounds : Note<"bounds declared here">;
   def note_member_bounds : Note<"member bounds declared here">;
 
   def err_checked_scope_decl_type: Error<

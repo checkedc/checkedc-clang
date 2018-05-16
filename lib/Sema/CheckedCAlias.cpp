@@ -79,6 +79,20 @@ private:
   }
 
   void CheckOperand(Expr *E, bool IsCheckedScope) {
+    if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E->IgnoreParens()))
+      if (VarDecl *D = dyn_cast<VarDecl>(DR->getDecl()))
+        if (D->getType()->isCheckedPointerType() &&
+            D->hasBoundsExpr()) {
+          SemaRef.Diag(E->getLocStart(),
+                       diag::err_address_of_var_with_bounds) <<
+            D <<
+            E->getSourceRange();
+          SemaRef.Diag(D->getBoundsExpr()->getLocStart(),
+                       diag::note_var_bounds) <<
+            D->getBoundsExpr()->getSourceRange();
+          return;
+        }
+
     FieldPath Path;
     if (!ComputePath(E, Path))
       // invalid member expression, bail out.
@@ -87,25 +101,42 @@ private:
       // This is not the address of a member access.
       return;
 
-    // OK, let's see if this path is used in an
-    // bounds expression.  For now, we'll just look at
-    // the first field.
-    // TODO: handle the case where a bounds expression
-    // uses a member of a member.
+    // TODO: handle cases involving nested members.  For now,
+    // just look at the outermost member, which is the first
+    // element of the path (i.e. given e.f.g,  look at g).
 
+    // Taking the address of a member with checked pointer
+    // type and bounds is not allowed.  It is allowed for
+    // other cases, such s the member being an array or
+    // the bounds for a bounds-safe interface.
     FieldDecl *Field = Path[0];
+    if ((Field->getType()->isCheckedPointerType() ||
+         Field->getType()->isIntegralType(SemaRef.getASTContext())) &&
+        Field->hasBoundsExpr()) {
+        SemaRef.Diag(E->getLocStart(),
+                     diag::err_address_of_member_with_bounds) <<
+        E->getSourceRange();
+      SemaRef.Diag(Field->getBoundsExpr()->getLocStart(),
+                   diag::note_member_bounds) <<
+        Field->getBoundsExpr()->getSourceRange();
+      }
+
+    // Taking the address of a member used in a bounds expression is not
+    // allowed.
     ASTContext &Context = SemaRef.getASTContext();
     ASTContext::member_bounds_iterator start = Context.using_member_bounds_begin(Field);
     ASTContext::member_bounds_iterator end = Context.using_member_bounds_end(Field);
     bool EmittedErrorMessage = false;
     for ( ; start != end; ++start) {
       const FieldDecl *MemberWithBounds = *start;
-      // Always diagnose members used in bounds checked scopes.  For unchecked
+      QualType QT = MemberWithBounds->getType();
+      // Always diagnose members in checked scopes.  For unchecked
       // scopes, diagnose members used in bounds for checked members.  Don't
-      // diagnose bounds-safe itnerfaces.
+      // diagnose bounds-safe interfaces.
       if (IsCheckedScope ||
-        MemberWithBounds->getType()->isCheckedArrayType() ||
-        MemberWithBounds->getType()->isCheckedPointerType()) {
+          QT->isCheckedArrayType() ||
+          QT->isCheckedPointerType() ||
+          QT->isIntegralType(SemaRef.getASTContext())) {
         if (!EmittedErrorMessage) {
           SemaRef.Diag(E->getLocStart(), diag::err_address_of_member_in_bounds) << E->getSourceRange();
           EmittedErrorMessage = true;
