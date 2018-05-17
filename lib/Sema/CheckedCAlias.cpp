@@ -69,7 +69,13 @@ private:
       }
     } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E))
       return ComputePathHelper(PE->getSubExpr(), Path);
-    else
+    else if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
+      if (ICE->getCastKind() == CK_LValueBitCast &&
+          ICE->isBoundsSafeInterface())
+        return ComputePathHelper(ICE->getSubExpr(), Path);
+      else
+        return true;
+    } else
       return true;
   }
 
@@ -110,16 +116,19 @@ private:
     // other cases, such s the member being an array or
     // the bounds for a bounds-safe interface.
     FieldDecl *Field = Path[0];
-    if ((Field->getType()->isCheckedPointerType() ||
-         Field->getType()->isIntegralType(SemaRef.getASTContext())) &&
-        Field->hasBoundsExpr()) {
+    QualType FieldTy = Field->getType();
+    if (Field->hasBoundsExpr()) {
+      if (FieldTy->isCheckedPointerType() ||
+          FieldTy->isIntegralType(SemaRef.getASTContext()) ||
+          (IsCheckedScope && FieldTy->isUncheckedPointerType())) {
         SemaRef.Diag(E->getLocStart(),
                      diag::err_address_of_member_with_bounds) <<
         E->getSourceRange();
-      SemaRef.Diag(Field->getBoundsExpr()->getLocStart(),
-                   diag::note_member_bounds) <<
-        Field->getBoundsExpr()->getSourceRange();
+        SemaRef.Diag(Field->getBoundsExpr()->getLocStart(),
+                     diag::note_member_bounds) <<
+          Field->getBoundsExpr()->getSourceRange();
       }
+    }
 
     // Taking the address of a member used in a bounds expression is not
     // allowed.
