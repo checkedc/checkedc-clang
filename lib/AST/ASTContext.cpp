@@ -760,6 +760,7 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
       PrebuiltByteCountOne(nullptr), PrebuiltCountZero(nullptr),
       PrebuiltCountOne(nullptr), PrebuiltBoundsUnknown(nullptr),
+      UsingBounds(PathCompare(*this)),
       LastSDM(nullptr, 0) {
   TUDecl = TranslationUnitDecl::Create(*this);
 }
@@ -9154,42 +9155,38 @@ BoundsExpr *ASTContext::getPrebuiltBoundsUnknown() {
 //
 
 ASTContext::member_bounds_iterator
-ASTContext::using_member_bounds_begin(const FieldDecl *Member) const {
-  llvm::DenseMap<const FieldDecl *, MemberDeclVector>::const_iterator Pos =
-      UsingBounds.find(Member->getCanonicalDecl());
+ASTContext::using_member_bounds_begin(const MemberPath &Path) const {
+  auto Pos = UsingBounds.find(Path);
   if (Pos == UsingBounds.end())
     return nullptr;
   return Pos->second.begin();
 }
 
 ASTContext::member_bounds_iterator
-ASTContext::using_member_bounds_end(const FieldDecl *Member) const {
-  llvm::DenseMap<const FieldDecl *, MemberDeclVector>::const_iterator Pos =
-      UsingBounds.find(Member->getCanonicalDecl());
+ASTContext::using_member_bounds_end(const MemberPath &Path) const {
+  auto Pos = UsingBounds.find(Path);
   if (Pos == UsingBounds.end())
     return nullptr;
   return Pos->second.end();
 }
 
 unsigned
-ASTContext::using_member_bounds_size(const FieldDecl *Member) const {
-  llvm::DenseMap<const FieldDecl *, MemberDeclVector>::const_iterator Pos =
-      UsingBounds.find(Member->getCanonicalDecl());
+ASTContext::using_member_bounds_size(const MemberPath &Path) const {
+  auto Pos = UsingBounds.find(Path);
   if (Pos == UsingBounds.end())
     return 0;
   return Pos->second.size();
 }
 
 ASTContext::member_bounds_iterator_range
-ASTContext::using_member_bounds(const FieldDecl *Member) const {
-  return member_bounds_iterator_range(using_member_bounds_begin(Member),
-                                      using_member_bounds_end(Member));
+ASTContext::using_member_bounds(const MemberPath &Path) const {
+  return member_bounds_iterator_range(using_member_bounds_begin(Path),
+                                      using_member_bounds_end(Path));
 }
 
-void ASTContext::addMemberBoundsUse(const FieldDecl *Member,
+void ASTContext::addMemberBoundsUse(const MemberPath &Path,
                                     const FieldDecl *Bounds) {
-  assert(Member->isCanonicalDecl() && Bounds->isCanonicalDecl());
-  UsingBounds[Member].push_back(Bounds);
+  UsingBounds[Path].push_back(Bounds);
 }
 
 //===----------------------------------------------------------------------===//
