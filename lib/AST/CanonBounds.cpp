@@ -140,7 +140,7 @@ Lexicographic::Lexicographic(ASTContext &Ctx, EquivExprSets *EquivExprs) :
   Context(Ctx), EquivExprs(EquivExprs), Trace(false) {
 }
 
-Result Lexicographic::CompareInteger(signed I1, signed I2) {
+Result Lexicographic::CompareInteger(signed I1, signed I2) const {
   if (I1 < I2)
     return Result::LessThan;
   else if (I1 > I2)
@@ -149,7 +149,7 @@ Result Lexicographic::CompareInteger(signed I1, signed I2) {
     return Result::Equal;
 }
 
-Result Lexicographic::CompareInteger(unsigned I1, unsigned I2) {
+Result Lexicographic::CompareInteger(unsigned I1, unsigned I2) const {
   if (I1 < I2)
     return Result::LessThan;
   else if (I1 > I2)
@@ -193,7 +193,7 @@ static Result ComparePointers(T *P1, T *P2, bool &ordered) {
 }
 
 Result
-Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) {
+Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) const {
    DC1 = DC1->getPrimaryContext();
    DC2 = DC2->getPrimaryContext();
 
@@ -220,7 +220,7 @@ Lexicographic::CompareScope(const DeclContext *DC1, const DeclContext *DC2) {
 }
 
 Result
-Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) {
+Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) const {
   const NamedDecl *D1 = dyn_cast<NamedDecl>(D1Arg->getCanonicalDecl());
   const NamedDecl *D2 = dyn_cast<NamedDecl>(D2Arg->getCanonicalDecl());
   if (D1 == D2) 
@@ -259,14 +259,16 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) {
   const IdentifierInfo *Name2 = D2->getIdentifier();
 
   bool ordered;
-  Cmp = ComparePointers(D1, D2, ordered);
+  Cmp = ComparePointers(Name1, Name2, ordered);
   if (ordered && Cmp != Result::Equal)
     return Cmp;
-  assert(Name1 && Name2);
+  assert((Name1 != nullptr) == (Name2 != nullptr));
 
-  Cmp = TranslateInt(Name1->getName().compare(Name2->getName()));
-  if (Cmp != Result::Equal)
-    return Cmp;
+  if (Name1) {
+    Cmp = TranslateInt(Name1->getName().compare(Name2->getName()));
+    if (Cmp != Result::Equal)
+      return Cmp;
+  }
 
   // They are canonical declarations that have the same kind and the same name, but are not 
   // the same declaration.
@@ -494,7 +496,7 @@ Result Lexicographic::CheckEquivExprs(Result Current, const Expr *E1, const Expr
 
 
 Result
-Lexicographic::CompareType(QualType QT1, QualType QT2) {
+Lexicographic::CompareType(QualType QT1, QualType QT2) const {
   QT1 = QT1.getCanonicalType();
   QT2 = QT2.getCanonicalType();
   if (QT1 == QT2)
@@ -505,7 +507,7 @@ Lexicographic::CompareType(QualType QT1, QualType QT2) {
 }
 
 Result
-Lexicographic::CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) {
+Lexicographic::CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) const {
   QT1 = QT1.getCanonicalType();
   QT2 = QT2.getCanonicalType();
   if (Context.isEqualIgnoringChecked(QT1, QT2))

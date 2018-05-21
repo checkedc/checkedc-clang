@@ -66,11 +66,11 @@ namespace clang {
     // they are not, return Current.
     Result CheckEquivExprs(Result Current, const Expr *E1, const Expr *E2);
 
-    Result CompareInteger(signed I1, signed I2);
-    Result CompareInteger(unsigned I1, unsigned I2);
+    Result CompareInteger(signed I1, signed I2) const;
+    Result CompareInteger(unsigned I1, unsigned I2) const;
     Result CompareRelativeBoundsClause(const RelativeBoundsClause *RC1,
                                        const RelativeBoundsClause *RC2);
-    Result CompareScope(const DeclContext *DC1, const DeclContext *DC2);
+    Result CompareScope(const DeclContext *DC1, const DeclContext *DC2) const;
 
     Result CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2);
     Result CompareImpl(const DeclRefExpr *E1, const DeclRefExpr *E2);
@@ -112,9 +112,9 @@ namespace clang {
 
     /// \brief Compare declarations that may be used by expressions or
     /// or types.
-    Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2);
-    Result CompareType(QualType T1, QualType T2);
-    Result CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2);
+    Result CompareDecl(const NamedDecl *D1, const NamedDecl *D2) const;
+    Result CompareType(QualType T1, QualType T2) const;
+    Result CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) const;
   };
 }  // end namespace clang
 

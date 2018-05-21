@@ -11,6 +11,7 @@ endif()
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
   AttributeList.cpp
+  CheckedCAlias.cpp
   CheckedCInterop.cpp
   CodeCompleteConsumer.cpp
   DeclSpec.cpp

@@ -12922,6 +12922,11 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
     }
   }
 
+  // if this is a member bounds dedclaration, update information mapping
+  // members to what bounds declarations depend upon them.
+  if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
+    TrackMemberBoundsDependences(FD, BoundsExpr);
+
   D->setBoundsExpr(getASTContext(), BoundsExpr);
   D->setInteropTypeExpr(getASTContext(), IType);
 }
