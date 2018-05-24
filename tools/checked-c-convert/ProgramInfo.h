@@ -237,6 +237,10 @@ public:
   }
 
   std::string mkString(Constraints::EnvironmentMap &E);
+  std::string mkStringBounds( Constraints::EnvironmentMap &E, 
+                              FunctionVariableConstraint  *Defn,
+                              ProgramInfo                 &Info,
+                              bool                        &changes);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);

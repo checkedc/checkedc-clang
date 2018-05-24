@@ -585,71 +585,22 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       getHighest(Info.getVariable(Declaration, Context, false), Info));
   auto cDefn = cast<FVConstraint>(
       getHighest(Info.getVariable(Definition, Context, true), Info));
-
-  // Compare parameters. 
-  if (cDecl->numParams() == cDefn->numParams()) 
-    for (unsigned i = 0; i < cDecl->numParams(); ++i) {
-      auto Decl = getHighest(cDecl->getParamVar(i), Info);
-      auto Defn = getHighest(cDefn->getParamVar(i), Info);
-      assert(Decl);
-      assert(Defn);
-      
-      // If this holds, then we want to insert a bounds safe interface. 
-      if (Defn->isLt(*Decl, Info)) {
-        std::string scratch = "";
-        std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
-        raw_string_ostream declText(scratch);
-        Definition->getParamDecl(i)->print(declText);
-        std::string bi = declText.str() + " : itype<"+ctype+"> ";
-
-        // This also rewrites the declarations.
-        DeclNStmt DNS(Definition->getParamDecl(i), nullptr);
-        DAndReplace DAR(DNS, bi);
-        rewriteThese.insert(DAR);
-      }
+ 
+  if (cDecl->numParams() == cDefn->numParams()) { 
+    bool didAny = false;
+    std::string replace = cDecl->mkStringBounds(Info.getConstraints().getVariables(),
+                                                cDefn, Info, didAny);
+    if (didAny) {
+      DeclNStmt DNS(Definition, nullptr);
+      DAndReplace DAR(DNS, replace);
+      rewriteThese.insert(DAR);
     }
-
-  // Compare returns. 
-  auto Decl = getHighest(cDecl->getReturnVars(), Info);
-  auto Defn = getHighest(cDefn->getReturnVars(), Info);
-
-  // Insert a bounds safe interface at the return address. 
-  if (Defn->isLt(*Decl, Info)) {
-    // re-write *all* the declarations. 
   }
 
   return true;
 }
 
 bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
-
-  // Find the target of this call. 
-  if (Decl *D = E->getCalleeDecl()) {
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      // Find the parameter placement for this call instruction. 
-      std::set<unsigned int> P = getParamsForExtern(FD->getName());
-
-      for (unsigned int i : P) {
-        // Get the constraints for the ith parameter to the call. 
-        Expr *EP = E->getArg(i)->IgnoreImpCasts();
-        std::set<ConstraintVariable*> EPC = Info.getVariable(EP, Context);
-        
-        // Get the type of the ith parameter to the call. 
-        QualType EPT = EP->getType(); 
-        QualType PTF = FD->getParamDecl(i)->getType();
-
-        // If they aren't equal, and the constraints in EPC are non-top, 
-        // insert a cast, where the structure of the cast depends on the 
-        // direction of the inequality. 
-        if (EPT != PTF && !anyTop(EPC)) {
-          // Insert a cast. 
-          SourceLocation CL = EP->getExprLoc();
-          R.InsertTextBefore(CL, "("+PTF.getAsString()+")");
-        }
-      }
-    }
-  }
-
   return true;
 }
 
