@@ -224,12 +224,14 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
 // variables and potentially nested function pointer declaration. Produces a 
 // string that can be replaced in the source code.
 std::string
-PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
+PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName) {
   std::ostringstream ss;
   std::ostringstream pss;
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
   bool emittedName = false;
+  if (emitName == false) 
+    emittedName = true;
   for (const auto &V : vars) {
     VarAtom VA(V);
     ConstAtom *C = E[&VA];
@@ -570,79 +572,7 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 }
 
 std::string
-FunctionVariableConstraint::mkStringBounds( Constraints::EnvironmentMap &E, 
-                                            FunctionVariableConstraint  *cDefn,
-																						ProgramInfo                 &Info,
-                                            bool                        &changes)
-{
-
-  llvm::errs() << "mkStringBounds ";
-  std::string s = "";
-  FunctionVariableConstraint *cDecl = this;
-  llvm::errs() << "cDecl == " << cDecl->getName();
-  llvm::errs() << " cDefn == " << cDefn->getName() << "\n";
-  std::vector<std::string> parmStrs;
-  // Compare parameters. 
-  if (cDecl->numParams() == cDefn->numParams()) 
-    for (unsigned i = 0; i < cDecl->numParams(); ++i) {
-      auto Decl = getHighest(cDecl->getParamVar(i), Info);
-      auto Defn = getHighest(cDefn->getParamVar(i), Info);
-      assert(Decl);
-      assert(Defn);
-      
-      // If this holds, then we want to insert a bounds safe interface. 
-      if (Defn->isLt(*Decl, Info)) {
-        std::string scratch = "";
-        std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
-        std::string bi = Defn->getTy() + " : itype<"+ctype+"> ";
-        parmStrs.push_back(bi);
-        changes = true;
-      } else {
-        // Do what we used to do. 
-        std::string v = Decl->mkString(Info.getConstraints().getVariables());
-        parmStrs.push_back(v);
-      }
-    }
-
-  // Compare returns. 
-  auto Decl = getHighest(cDecl->getReturnVars(), Info);
-  auto Defn = getHighest(cDefn->getReturnVars(), Info);
-
-  // Insert a bounds safe interface at the return address. 
-  std::string returnVar = "";
-  std::string endStuff = "";
-  if (Defn->isLt(*Decl, Info)) {
-    std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
-    returnVar = Defn->getTy();
-    endStuff = " : itype<"+ctype+"> ";
-    changes = true;
-  } else {
-    // Do what we used to do at the return address. 
-    returnVar = Decl->mkString(Info.getConstraints().getVariables()) + " "; 
-  }
-
-  s = returnVar + cDecl->getName() + "(";
-  if (parmStrs.size() > 0) {
-    std::ostringstream ss;
-
-    std::copy(parmStrs.begin(), parmStrs.end() - 1, 
-         std::ostream_iterator<std::string>(ss, ", "));
-    ss << parmStrs.back();
-
-    s = s + ss.str() + ")";
-  } else {
-    s = s + "void)";
-  }
-
-  if (endStuff.size() > 0)
-    s = s + endStuff;
-
-  llvm::errs() << "Made string == " << s << "\n";
-  return s;
-}
-
-std::string
-FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
+FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName) {
   std::string s = "";
   // TODO punting on what to do here. The right thing to do is to figure out
   // the LUB of all of the V in returnVars.

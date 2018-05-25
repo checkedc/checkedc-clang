@@ -137,9 +137,6 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
   return FD;
 }
 
-/*typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
-typedef std::pair<DeclNStmt, std::string> DAndReplace;*/
-
 struct DAndReplace
 {
   Decl        *Declaration; // The declaration to replace.
@@ -157,6 +154,13 @@ struct DAndReplace
                                         Statement(nullptr),
                                         Replacement(R),
                                         fullDecl(false) {} 
+
+  DAndReplace(Decl *D, std::string R, bool F) : Declaration(D), 
+                                                Statement(nullptr),
+                                                Replacement(R),
+                                                fullDecl(F) {} 
+
+
   DAndReplace(Decl *D, DeclStmt *S, std::string R) :  Declaration(D),
                                                       Statement(S),
                                                       Replacement(R),
@@ -407,14 +411,36 @@ void rewrite( Rewriter              &R,
       //       Additionally, a source range can be (mis) identified as 
       //       spanning multiple files. We don't know how to re-write that,
       //       so don't.
-   
-      // TODO: We need to know if this is replacing the return type or the 
-      //       type of the whole function. If it's the whole function, then
-      //       we need to do something else to compute just the location of 
-      //       the declaration line.  
-      SourceRange SR = UD->getReturnTypeSourceRange();
-      if (canRewrite(R, SR))
-        R.ReplaceText(SR, N.Replacement);
+        
+      if (N.fullDecl) {
+        SourceRange SR = UD->getSourceRange();
+        const FunctionDecl *oFD = nullptr;
+
+        if (UD->hasBody(oFD) && oFD == UD) { 
+          // Replace everything up to the beginning of the body. 
+          const Stmt *Body = UD->getBody(oFD); 
+          // GROSS HACK TIME:
+          // We need to find the source location that describes the end of the 
+          // function declaration, but before the beginning of the body.  
+          int Offset = 0; 
+					const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
+
+				  while (*Buf != ')') {
+            Buf--;
+            Offset--;
+          }
+
+          SR.setEnd(Body->getSourceRange().getBegin().getLocWithOffset(Offset)); 
+        }       
+        
+        if (canRewrite(R, SR))
+          R.ReplaceText(SR, N.Replacement);
+
+      } else {
+        SourceRange SR = UD->getReturnTypeSourceRange();
+        if (canRewrite(R, SR))
+          R.ReplaceText(SR, N.Replacement);
+      }
     } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getSourceRange();
       std::string sRewrite = N.Replacement;
@@ -631,10 +657,67 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
  
   if (cDecl->numParams() == cDefn->numParams()) { 
     bool didAny = false;
-    std::string replace = cDecl->mkStringBounds(Info.getConstraints().getVariables(),
-                                                cDefn, Info, didAny);
+		std::string s = "";
+		std::vector<std::string> parmStrs;
+		// Compare parameters. 
+		if (cDecl->numParams() == cDefn->numParams())
+			for (unsigned i = 0; i < cDecl->numParams(); ++i) {
+				auto Decl = getHighest(cDecl->getParamVar(i), Info);
+				auto Defn = getHighest(cDefn->getParamVar(i), Info);
+				assert(Decl);
+				assert(Defn);
+
+				// If this holds, then we want to insert a bounds safe interface. 
+				if (Defn->isLt(*Decl, Info)) {
+					std::string scratch = "";
+					raw_string_ostream declText(scratch);
+					Definition->getParamDecl(i)->print(declText);
+					std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false);
+					std::string bi = declText.str() + " : itype("+ctype+") ";
+					parmStrs.push_back(bi);
+					didAny = true;
+				} else {
+					// Do what we used to do. 
+					std::string v = Decl->mkString(Info.getConstraints().getVariables());
+					parmStrs.push_back(v);
+				}
+			}
+
+		// Compare returns. 
+		auto Decl = getHighest(cDecl->getReturnVars(), Info);
+		auto Defn = getHighest(cDefn->getReturnVars(), Info);
+
+		// Insert a bounds safe interface at the return address. 
+		std::string returnVar = "";
+		std::string endStuff = "";
+		if (Defn->isLt(*Decl, Info)) {
+			std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
+			returnVar = Defn->getTy();
+			endStuff = " : itype("+ctype+") ";
+			didAny = true;
+		} else {
+			// Do what we used to do at the return address. 
+			returnVar = Decl->mkString(Info.getConstraints().getVariables()) + " ";
+		}
+
+		s = returnVar + cDecl->getName() + "(";
+		if (parmStrs.size() > 0) {
+			std::ostringstream ss;
+
+			std::copy(parmStrs.begin(), parmStrs.end() - 1,
+					 std::ostream_iterator<std::string>(ss, ", "));
+			ss << parmStrs.back();
+
+			s = s + ss.str() + ")";
+		} else {
+			s = s + "void)";
+		}
+
+		if (endStuff.size() > 0)
+			s = s + endStuff;
+
     if (didAny) 
-      rewriteThese.insert(DAndReplace(Definition, replace));
+      rewriteThese.insert(DAndReplace(Definition, s, true));
   }
 
   return true;
