@@ -167,6 +167,29 @@ struct DAndReplace
                                                       fullDecl(false) { }
 };
 
+SourceLocation 
+getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
+{        
+	const FunctionDecl *oFD = nullptr;
+
+  if (FD->hasBody(oFD) && oFD == FD) { 
+    // Replace everything up to the beginning of the body. 
+    const Stmt *Body = FD->getBody(oFD); 
+ 
+    int Offset = 0; 
+		const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
+
+	  while (*Buf != ')') {
+      Buf--;
+      Offset--;
+    }
+
+    return Body->getSourceRange().getBegin().getLocWithOffset(Offset);
+	} else {
+    return FD->getSourceRange().getEnd();
+	}
+}
+
 // Compare two DAndReplace values.
 struct DComp
 {
@@ -176,8 +199,24 @@ struct DComp
   bool operator()(const DAndReplace lhs, const DAndReplace rhs) const {
     // Does the source location of the Decl in lhs overlap at all with
     // the source location of rhs?
-    SourceRange srLHS = lhs.Declaration->getSourceRange(); 
+   
+		SourceRange srLHS = lhs.Declaration->getSourceRange(); 
     SourceRange srRHS = rhs.Declaration->getSourceRange();
+
+    // Take into account whether or not a FunctionDeclaration specifies 
+    // the "whole" declaration or not. If it does not, it just specifies 
+    // the return position. 
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(lhs.Declaration)) {
+      srLHS.setEnd(getFunctionDeclarationEnd(FD, SM));
+      if (lhs.fullDecl == false)
+        srLHS = FD->getReturnTypeSourceRange();
+    }   
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(rhs.Declaration)) {
+      srRHS.setEnd(getFunctionDeclarationEnd(FD, SM));
+      if (rhs.fullDecl == false)
+        srRHS = FD->getReturnTypeSourceRange();
+    } 
+
     SourceLocation x1 = srLHS.getBegin();
     SourceLocation x2 = srLHS.getEnd();
     SourceLocation y1 = srRHS.getBegin();
@@ -414,28 +453,10 @@ void rewrite( Rewriter              &R,
         
       if (N.fullDecl) {
         SourceRange SR = UD->getSourceRange();
-        const FunctionDecl *oFD = nullptr;
-
-        if (UD->hasBody(oFD) && oFD == UD) { 
-          // Replace everything up to the beginning of the body. 
-          const Stmt *Body = UD->getBody(oFD); 
-          // GROSS HACK TIME:
-          // We need to find the source location that describes the end of the 
-          // function declaration, but before the beginning of the body.  
-          int Offset = 0; 
-					const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
-
-				  while (*Buf != ')') {
-            Buf--;
-            Offset--;
-          }
-
-          SR.setEnd(Body->getSourceRange().getBegin().getLocWithOffset(Offset)); 
-        }       
+        SR.setEnd(getFunctionDeclarationEnd(UD, S));
         
         if (canRewrite(R, SR))
           R.ReplaceText(SR, N.Replacement);
-
       } else {
         SourceRange SR = UD->getReturnTypeSourceRange();
         if (canRewrite(R, SR))
