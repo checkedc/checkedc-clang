@@ -575,8 +575,12 @@ FunctionVariableConstraint::mkStringBounds( Constraints::EnvironmentMap &E,
 																						ProgramInfo                 &Info,
                                             bool                        &changes)
 {
+
+  llvm::errs() << "mkStringBounds ";
   std::string s = "";
   FunctionVariableConstraint *cDecl = this;
+  llvm::errs() << "cDecl == " << cDecl->getName();
+  llvm::errs() << " cDefn == " << cDefn->getName() << "\n";
   std::vector<std::string> parmStrs;
   // Compare parameters. 
   if (cDecl->numParams() == cDefn->numParams()) 
@@ -592,6 +596,7 @@ FunctionVariableConstraint::mkStringBounds( Constraints::EnvironmentMap &E,
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
         std::string bi = Defn->getTy() + " : itype<"+ctype+"> ";
         parmStrs.push_back(bi);
+        changes = true;
       } else {
         // Do what we used to do. 
         std::string v = Decl->mkString(Info.getConstraints().getVariables());
@@ -610,12 +615,13 @@ FunctionVariableConstraint::mkStringBounds( Constraints::EnvironmentMap &E,
     std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
     returnVar = Defn->getTy();
     endStuff = " : itype<"+ctype+"> ";
+    changes = true;
   } else {
     // Do what we used to do at the return address. 
-    returnVar = Decl->mkString(Info.getConstraints().getVariables()); 
+    returnVar = Decl->mkString(Info.getConstraints().getVariables()) + " "; 
   }
 
-  s = returnVar + " " + Decl->getName() + "(";
+  s = returnVar + cDecl->getName() + "(";
   if (parmStrs.size() > 0) {
     std::ostringstream ss;
 
@@ -625,12 +631,13 @@ FunctionVariableConstraint::mkStringBounds( Constraints::EnvironmentMap &E,
 
     s = s + ss.str() + ")";
   } else {
-    s = s + ")";
+    s = s + "void)";
   }
 
   if (endStuff.size() > 0)
     s = s + endStuff;
 
+  llvm::errs() << "Made string == " << s << "\n";
   return s;
 }
 

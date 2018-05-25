@@ -137,19 +137,59 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
   return FD;
 }
 
-typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
-typedef std::pair<DeclNStmt, std::string> DAndReplace;
+/*typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
+typedef std::pair<DeclNStmt, std::string> DAndReplace;*/
+
+struct DAndReplace
+{
+  Decl        *Declaration; // The declaration to replace.
+  DeclStmt    *Statement;   // The DeclStmt, if it exists.
+  std::string Replacement;  // The string to replace the declaration with.
+  bool        fullDecl;     // If the declaration is a function, true if 
+                            // replace the entire declaration or just the 
+                            // return declaration.
+  DAndReplace() : Declaration(nullptr),
+                  Statement(nullptr),
+                  Replacement(""),
+                  fullDecl(false) { }
+
+  DAndReplace(Decl *D, std::string R) : Declaration(D), 
+                                        Statement(nullptr),
+                                        Replacement(R),
+                                        fullDecl(false) {} 
+  DAndReplace(Decl *D, DeclStmt *S, std::string R) :  Declaration(D),
+                                                      Statement(S),
+                                                      Replacement(R),
+                                                      fullDecl(false) { }
+};
 
 // Compare two DAndReplace values.
-template <typename T>
 struct DComp
 {
-  bool operator()(const T lhs, const T rhs) const {
-    return lhs.first.first < rhs.first.first;
+  SourceManager &SM;
+  DComp(SourceManager &S) : SM(S) { }
+
+  bool operator()(const DAndReplace lhs, const DAndReplace rhs) const {
+    // Does the source location of the Decl in lhs overlap at all with
+    // the source location of rhs?
+    SourceRange srLHS = lhs.Declaration->getSourceRange(); 
+    SourceRange srRHS = rhs.Declaration->getSourceRange();
+    SourceLocation x1 = srLHS.getBegin();
+    SourceLocation x2 = srLHS.getEnd();
+    SourceLocation y1 = srRHS.getBegin();
+    SourceLocation y2 = srRHS.getEnd();
+
+    bool contained =  SM.isBeforeInTranslationUnit(x1, y2) && 
+                      SM.isBeforeInTranslationUnit(y1, x2); 
+
+    if (contained) 
+      return false;
+    else
+      return SM.isBeforeInTranslationUnit(x2, y1);
   }
 };
 
-typedef std::set<DAndReplace, DComp<DAndReplace> > RSet;
+typedef std::set<DAndReplace, DComp> RSet;
 
 void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite) {
   // First, find all the declarations of the containing function.
@@ -251,11 +291,11 @@ void rewrite( VarDecl               *VD,
       // we don't want to process twice. We'll skip them here.
 
       // Step 1: get the re-written types.
-      RSet rewritesForThisDecl;
+      RSet rewritesForThisDecl(DComp(R.getSourceMgr()));
       auto I = toRewrite.find(N);
       while (I != toRewrite.end()) {
         DAndReplace tmp = *I;
-        if (tmp.first.second == Where)
+        if (tmp.Statement == Where)
           rewritesForThisDecl.insert(tmp);
         ++I;
       }
@@ -276,14 +316,14 @@ void rewrite( VarDecl               *VD,
         assert(VDL != NULL);
 
         for (const auto &NLT : rewritesForThisDecl)
-          if (NLT.first.first == DL) {
+          if (NLT.Declaration == DL) {
             N = NLT;
             found = true;
             break;
           }
 
         if (found) {
-          newMLDecl << N.second;
+          newMLDecl << N.Replacement;
           if (Expr *E = VDL->getInit()) {
             newMLDecl << " = ";
             E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
@@ -311,7 +351,7 @@ void rewrite( VarDecl               *VD,
         VD->dump();
         errs() << "at\n";
         Where->dump();
-        errs() << "with " << N.second << "\n";
+        errs() << "with " << N.Replacement << "\n";
       }
     }
   } else {
@@ -337,15 +377,14 @@ void rewrite( Rewriter              &R,
               std::set<FileID>      &Files) 
 {
   for (const auto &N : toRewrite) {
-    DeclNStmt DN = N.first;
-    Decl *D = DN.first;
-    DeclStmt *Where = DN.second;
+    Decl *D = N.Declaration;
+    DeclStmt *Where = N.Statement;
     assert(D != nullptr);
 
     if (Verbose) {
       errs() << "Replacing type of decl:\n";
       D->dump();
-      errs() << "with " << N.second << "\n";
+      errs() << "with " << N.Replacement << "\n";
     }
 
     // Get a FullSourceLoc for the start location and add it to the
@@ -357,9 +396,9 @@ void rewrite( Rewriter              &R,
     // Is it a parameter type?
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == NULL);
-      rewrite(PV, R, N.second);
+      rewrite(PV, R, N.Replacement);
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      rewrite(VD, R, N.second, Where, skip, N, toRewrite, A);
+      rewrite(VD, R, N.Replacement, Where, skip, N, toRewrite, A);
     } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D)) {
       // TODO: If the return type is a fully-specified function pointer, 
       //       then clang will give back an invalid source range for the 
@@ -368,13 +407,17 @@ void rewrite( Rewriter              &R,
       //       Additionally, a source range can be (mis) identified as 
       //       spanning multiple files. We don't know how to re-write that,
       //       so don't.
-    
+   
+      // TODO: We need to know if this is replacing the return type or the 
+      //       type of the whole function. If it's the whole function, then
+      //       we need to do something else to compute just the location of 
+      //       the declaration line.  
       SourceRange SR = UD->getReturnTypeSourceRange();
       if (canRewrite(R, SR))
-        R.ReplaceText(SR, N.second);
+        R.ReplaceText(SR, N.Replacement);
     } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getSourceRange();
-      std::string sRewrite = N.second;
+      std::string sRewrite = N.Replacement;
 
       if (canRewrite(R, SR))
         R.ReplaceText(SR, sRewrite);
@@ -590,11 +633,8 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     bool didAny = false;
     std::string replace = cDecl->mkStringBounds(Info.getConstraints().getVariables(),
                                                 cDefn, Info, didAny);
-    if (didAny) {
-      DeclNStmt DNS(Definition, nullptr);
-      DAndReplace DAR(DNS, replace);
-      rewriteThese.insert(DAR);
-    }
+    if (didAny) 
+      rewriteThese.insert(DAndReplace(Definition, replace));
   }
 
   return true;
@@ -616,7 +656,7 @@ public:
     std::set<FileID> Files;
 
     std::set<std::string> v;
-    RSet                  rewriteThese;
+    RSet                  rewriteThese(DComp(Context.getSourceManager()));
     // Unification is done, so visit and see if we need to place any casts
     // in the program. 
     CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, rewriteThese, Files, v);
@@ -633,7 +673,7 @@ public:
     std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> PSLMap;
     VariableDecltoStmtMap VDLToStmtMap;
 
-    RSet skip;
+    RSet skip(DComp(Context.getSourceManager()));
     MappingVisitor V(keys, Context);
     TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
     for (const auto &D : TUD->decls())
@@ -684,14 +724,14 @@ public:
         if (PV && PV->anyChanges(Info.getConstraints().getVariables())) {
           // Rewrite a declaration.
           std::string newTy = PV->mkString(Info.getConstraints().getVariables());
-          rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
+          rewriteThese.insert(DAndReplace(D, DS, newTy));;
         } else if (FV && FV->anyChanges(Info.getConstraints().getVariables())) {
           // Rewrite a function variables return value.
           std::set<ConstraintVariable*> V = FV->getReturnVars();
           if (V.size() > 0) {
             std::string newTy = 
               (*V.begin())->mkString(Info.getConstraints().getVariables());
-            rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
+            rewriteThese.insert(DAndReplace(D, DS, newTy));
           }
         }
       }
