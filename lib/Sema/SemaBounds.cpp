@@ -2756,6 +2756,9 @@ namespace {
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
+  ModifiedBoundsDependencies Tracker;
+  ComputeBoundsDependencies(Tracker, FD, Body);
+
   // The IsChecked argument to TraverseStmt doesn't matter - the body will be a
   // compound statement and we'll pick up the checked-ness from that.
   CheckBoundsDeclarations(*this, FD->getBoundsExpr()).TraverseStmt(Body, false);

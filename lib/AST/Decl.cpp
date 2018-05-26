@@ -1804,6 +1804,23 @@ bool DeclaratorDecl::hasBoundsExpr() const {
   return getBoundsExpr() != nullptr;
 }
 
+bool DeclaratorDecl::hasBoundsDeclaration(const ASTContext &Ctx) const {
+  if (getBoundsExpr() != nullptr) {
+      QualType QT = getType();
+      if (QT.isNull())
+        return false;
+      if (const FunctionType *FT = QT->getAs<FunctionType>())
+        QT = FT->getReturnType();
+      return (QT->isCheckedPointerType() || QT->isCheckedArrayType() ||
+              QT->isIntegralType(Ctx));
+  }
+  return false;
+}
+
+bool DeclaratorDecl::hasBoundsSafeInterface(const ASTContext &Ctx) const {
+  return getBoundsExpr() != nullptr && !hasBoundsDeclaration(Ctx);
+}
+
 QualType DeclaratorDecl::getInteropType() {
   InteropTypeExpr *BA = getInteropTypeExpr();
   if (BA)

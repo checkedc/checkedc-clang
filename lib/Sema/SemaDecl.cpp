@@ -12922,13 +12922,19 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
     }
   }
 
+  D->setBoundsExpr(getASTContext(), BoundsExpr);
+  D->setInteropTypeExpr(getASTContext(), IType);
+
   // if this is a member bounds dedclaration, update information mapping
   // members to what bounds declarations depend upon them.
   if (FieldDecl *FD = dyn_cast<FieldDecl>(D))
     TrackMemberBoundsDependences(FD, BoundsExpr);
+  else if (VD && !VD->isLocalVarDeclOrParm()) {
+  // If this is a global variable, track any variables that its bounds
+  // depend upon.
+    BoundsDependencies.Add(VD);
+  }
 
-  D->setBoundsExpr(getASTContext(), BoundsExpr);
-  D->setInteropTypeExpr(getASTContext(), IType);
 }
 
 void Sema::InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam) {

@@ -743,8 +743,14 @@ public:
   // Checked C bounds information
   // For function declarations, this is the return bounds of the function.
 
-  /// \brief Return true if this declaration has bounds declared for it.
+  /// \brief Return true if this declaration has bounds expresssion
+  /// associated with it.  This could be a bounds declaration or
+  /// bounds-afe interface, depending on the type of the declaration
+  /// (or it if is a function, the return type).
   bool hasBoundsExpr() const;
+  bool hasBoundsDeclaration(const ASTContext &Ctx) const;
+  bool hasBoundsSafeInterface(const ASTContext &Ctx) const;
+
 
   /// \brief The declared bounds for this declaration. For function
   /// declarations, this is the return bounds of the function. Null if no
