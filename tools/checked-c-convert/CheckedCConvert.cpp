@@ -190,7 +190,26 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
 	}
 }
 
-// Compare two DAndReplace values.
+// Compare two DAndReplace values. The algorithm for comparing them relates 
+// their source positions. If two DAndReplace values refer to overlapping 
+// source positions, then they are the same. Otherwise, they are ordered
+// by their placement in the input file. 
+//
+// There are two special cases: Function declarations, and DeclStmts. In turn:
+//
+//  - Function declarations might either be a DAndReplace describing the entire 
+//    declaration, i.e. replacing "int *foo(void)" 
+//    with "int *foo(void) : itype(_Ptr<int>)". Or, it might describe just 
+//    replacing only the return type, i.e. "_Ptr<int> foo(void)". This is 
+//    discriminated against with the 'fullDecl' field of the DAndReplace type
+//    and the comparison function first checks if the operands are 
+//    FunctionDecls and if the 'fullDecl' field is set. 
+//  - A DeclStmt of mupltiple Decls, i.e. 'int *a = 0, *b = 0'. In this case,
+//    we want the DAndReplace to refer only to the specific sub-region that
+//    would be replaced, i.e. '*a = 0' and '*b = 0'. To do that, we traverse
+//    the Decls contained in a DeclStmt and figure out what the appropriate 
+//    source locations are to describe the positions of the independent 
+//    declarations. 
 struct DComp
 {
   SourceManager &SM;
@@ -232,6 +251,7 @@ struct DComp
       }
       assert (found);
       srLHS.setBegin(newBegin);
+      // This is needed to make the subsequent test inclusive. 
       srLHS.setEnd(srLHS.getEnd().getLocWithOffset(-1));
     }
 
@@ -247,6 +267,7 @@ struct DComp
       }
       assert (found);
       srRHS.setBegin(newBegin);
+      // This is needed to make the subsequent test inclusive. 
       srRHS.setEnd(srRHS.getEnd().getLocWithOffset(-1));
     }
 
