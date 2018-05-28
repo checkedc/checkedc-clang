@@ -2479,7 +2479,7 @@ public:
   void ResetObjCLayout(const ObjCContainerDecl *CD);
 
   //===--------------------------------------------------------------------===//
-  //           Predicates For Checked C checked types and bounds
+  //          Predicates and methods for Checked C checked types and bounds
   //===--------------------------------------------------------------------===//
 
   /// \brief Determine whether a pointer, array, or function type T1 provides
@@ -2525,6 +2525,52 @@ public:
   BoundsExpr *getPrebuiltCountZero();
   BoundsExpr *getPrebuiltCountOne();
   BoundsExpr *getPrebuiltBoundsUnknown();
+
+  // Track the set of member bounds declarations that use a given
+  // member path.   For each member bounds declaration, we store the
+  // field with the declaration, not the member bound itself.
+
+  // Members are stored in reverse order.  Given a.b.c, we store c.b.a
+  typedef SmallVector<const FieldDecl *,4> MemberPath;
+  struct PathCompare {
+  private:
+    Lexicographic Comparer;
+  public:
+    PathCompare(ASTContext &Context) : Comparer(Lexicographic(Context, nullptr)) {}
+
+    bool operator()(const MemberPath &P1, const MemberPath &P2) const {
+      if (P1.size() < P2.size())
+        return true;
+      if (P1.size() > P2.size())
+        return false;
+      for (int i = 0; i < P1.size(); i++) {
+         Lexicographic::Result R = Comparer.CompareDecl(P1[i],P2[i]);
+         if (R == Lexicographic::Result::LessThan)
+           return true;
+         if (R == Lexicographic::Result::GreaterThan)
+           return false;
+      }
+      return false;
+    }
+  };
+
+  typedef llvm::TinyPtrVector<const FieldDecl*> MemberDeclVector;
+private:
+  std::map<MemberPath, MemberDeclVector, PathCompare> UsingBounds;
+
+public:
+  typedef MemberDeclVector::const_iterator member_bounds_iterator;
+  member_bounds_iterator using_member_bounds_begin(const MemberPath &Path) const;
+  member_bounds_iterator using_member_bounds_end(const MemberPath &Path) const;
+
+  unsigned using_member_bounds_size(const MemberPath &Path) const;
+  typedef llvm::iterator_range<member_bounds_iterator> member_bounds_iterator_range;
+  member_bounds_iterator_range using_member_bounds(const MemberPath &Path) const;
+
+  /// \brief Note that \p MemberPath is used by the member bounds for
+  /// \p UsingBounds.
+  void addMemberBoundsUse(const MemberPath &MemberPath,
+                          const FieldDecl *UsingBounds);
 
   /// \brief Given an InteropTypeExpr pointer, return the interop type.
   /// Adjust the type if the type is for a parameter.  Return a null QualType

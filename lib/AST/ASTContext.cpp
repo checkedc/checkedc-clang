@@ -760,6 +760,7 @@ ASTContext::ASTContext(LangOptions &LOpts, SourceManager &SM,
       CommentCommandTraits(BumpAlloc, LOpts.CommentOpts),
       PrebuiltByteCountOne(nullptr), PrebuiltCountZero(nullptr),
       PrebuiltCountOne(nullptr), PrebuiltBoundsUnknown(nullptr),
+      UsingBounds(PathCompare(*this)),
       LastSDM(nullptr, 0) {
   TUDecl = TranslationUnitDecl::Create(*this);
 }
@@ -8780,7 +8781,7 @@ QualType ASTContext::mergeObjCGCQualifiers(QualType LHS, QualType RHS) {
 }
 
 //===--------------------------------------------------------------------===//
-//            Predicates For Checked C checked types and bounds
+//        Predicates and methods for Checked C checked types and bounds
 //===--------------------------------------------------------------------===//
 
 static bool lessThan(bool Self, bool Other) {
@@ -9147,6 +9148,45 @@ BoundsExpr *ASTContext::getPrebuiltBoundsUnknown() {
   if (IsParam && !ResultType.isNull() && ResultType->isArrayType())
     ResultType = getAdjustedParameterType(ResultType);
   return ResultType;
+}
+
+//
+// Methods for tracking which member bounds declarations use a member.
+//
+
+ASTContext::member_bounds_iterator
+ASTContext::using_member_bounds_begin(const MemberPath &Path) const {
+  auto Pos = UsingBounds.find(Path);
+  if (Pos == UsingBounds.end())
+    return nullptr;
+  return Pos->second.begin();
+}
+
+ASTContext::member_bounds_iterator
+ASTContext::using_member_bounds_end(const MemberPath &Path) const {
+  auto Pos = UsingBounds.find(Path);
+  if (Pos == UsingBounds.end())
+    return nullptr;
+  return Pos->second.end();
+}
+
+unsigned
+ASTContext::using_member_bounds_size(const MemberPath &Path) const {
+  auto Pos = UsingBounds.find(Path);
+  if (Pos == UsingBounds.end())
+    return 0;
+  return Pos->second.size();
+}
+
+ASTContext::member_bounds_iterator_range
+ASTContext::using_member_bounds(const MemberPath &Path) const {
+  return member_bounds_iterator_range(using_member_bounds_begin(Path),
+                                      using_member_bounds_end(Path));
+}
+
+void ASTContext::addMemberBoundsUse(const MemberPath &Path,
+                                    const FieldDecl *Bounds) {
+  UsingBounds[Path].push_back(Bounds);
 }
 
 //===----------------------------------------------------------------------===//

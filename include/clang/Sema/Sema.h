@@ -4649,6 +4649,11 @@ public:
 
   bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
                               BoundsAnnotations &BA, bool IsReturnAnnots);
+
+  /// \\brief Update information in ASTContext tracking for a member what
+  /// bounds declarations depend upon it.  FD is the member whose
+  /// bounds are given by Bounds.
+  void TrackMemberBoundsDependences(FieldDecl *FD, BoundsExpr *Bounds);
   void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
                        bool MergeDeferredBounds = false);
 
@@ -4770,6 +4775,10 @@ public:
       BDC_Initialization
   };
 
+  /// \brief Check that address=of operation is not taking the
+  /// address of members used in bounds.
+  void CheckAddressTakenMembers(UnaryOperator *AddrOf);
+
   /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
   /// body.
   void CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body);
@@ -4777,6 +4786,7 @@ public:
   /// CheckTopLevelBoundsDecls - check bounds declarations for variable declarations
   /// not within a function body.
   void CheckTopLevelBoundsDecls(VarDecl *VD);
+
 
 
   // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check

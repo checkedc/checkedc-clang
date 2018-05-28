@@ -2452,6 +2452,9 @@ namespace {
     }
 
     void VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
+      if (E->getOpcode() == UO_AddrOf)
+        S.CheckAddressTakenMembers(E);
+
       if (!E->isIncrementDecrementOp())
         return;
 
