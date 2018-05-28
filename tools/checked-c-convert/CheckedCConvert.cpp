@@ -771,7 +771,9 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 			s = s + endStuff;
 
     if (didAny) 
-      rewriteThese.insert(DAndReplace(Definition, s, true));
+      // Do all of the declarations.
+      for (const auto &RD : Definition->redecls())
+        rewriteThese.insert(DAndReplace(RD, s, true));
   }
 
   return true;
