@@ -217,6 +217,39 @@ struct DComp
         srRHS = FD->getReturnTypeSourceRange();
     } 
 
+    // Also take into account whether or not there is a multi-statement
+    // decl, because the generated ranges will overlap. 
+ 
+    if (lhs.Statement && !lhs.Statement->isSingleDecl()) {
+      SourceLocation  newBegin = (*lhs.Statement->decls().begin())->getSourceRange().getBegin();
+      bool            found; 
+      for (const auto &DT : lhs.Statement->decls()) {
+        if (DT == lhs.Declaration) {
+          found = true;
+          break;
+        }
+        newBegin = DT->getSourceRange().getEnd();
+      }
+      assert (found);
+      srLHS.setBegin(newBegin);
+      srLHS.setEnd(srLHS.getEnd().getLocWithOffset(-1));
+    }
+
+    if (rhs.Statement && !rhs.Statement->isSingleDecl()) {
+      SourceLocation  newBegin = (*rhs.Statement->decls().begin())->getSourceRange().getBegin();
+      bool            found; 
+      for (const auto &DT : rhs.Statement->decls()) {
+        if (DT == rhs.Declaration) {
+          found = true;
+          break;
+        }
+        newBegin = DT->getSourceRange().getEnd();
+      }
+      assert (found);
+      srRHS.setBegin(newBegin);
+      srRHS.setEnd(srRHS.getEnd().getLocWithOffset(-1));
+    }
+
     SourceLocation x1 = srLHS.getBegin();
     SourceLocation x2 = srLHS.getEnd();
     SourceLocation y1 = srRHS.getBegin();
