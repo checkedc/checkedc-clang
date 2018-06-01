@@ -9570,6 +9570,15 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_ptr : Error<
     "automatic variable %0 with _Ptr type must have initializer">;
 
+  def err_initializer_expected_for_array : Error<
+    "array variable %0 with _Ptr type element must have initializer">;
+	
+  def err_initializer_expected_for_struct : Error<
+    "struct variable %0 with _Ptr type member must have initializer">;
+
+ def err_initializer_expected_for_union : Error<
+    "union variable %0 with _Ptr type member must have initializer">;
+
   def err_cast_to_checked_fn_ptr_must_be_named : Error<
 	"cast to checked function pointer type %0 must be from named top-level function">;
 

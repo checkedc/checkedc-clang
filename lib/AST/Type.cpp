@@ -4052,11 +4052,13 @@ bool Type::isOrContainsCheckedType() const {
     case Type::DependentSizedArray:
     case Type::IncompleteArray:
     case Type::VariableArray: {
+
      const ArrayType *arr = cast<ArrayType>(current);
       if (arr->isChecked())
         return true;
       return arr->getElementType()->isOrContainsCheckedType();
     }
+
     case Type::FunctionProto: {
       const FunctionProtoType *fpt =  cast<FunctionProtoType>(current);
       if (fpt->getReturnType()->isOrContainsCheckedType())
@@ -4107,6 +4109,68 @@ bool Type::isOrContainsUncheckedType() const {
     default:
       return false;
   }
+}
+
+// containsCheckedValue - check whether a field type is a checked type or is a
+// constructed type (array, pointer, function) that uses a checked type.
+bool Type::containsCheckedValue() const {
+	const Type *current = CanonicalType.getTypePtr();
+	switch (current->getTypeClass()) {
+	case Type::Pointer: {
+		const PointerType *ptr = cast<PointerType>(current);
+		if (ptr->isCheckedPointerType()) {
+			return true;
+		}
+		return ptr->getPointeeType()->containsCheckedValue();
+	}
+	case Type::ConstantArray:
+	case Type::DependentSizedArray:
+	case Type::IncompleteArray:
+	case Type::VariableArray: {
+
+		const ArrayType *arr = cast<ArrayType>(current);
+		if (arr->isChecked())
+			return true;
+		return arr->getElementType()->containsCheckedValue();
+	}
+
+	case Type::FunctionProto: {
+		const FunctionProtoType *fpt = cast<FunctionProtoType>(current);
+		if (fpt->getReturnType()->containsCheckedValue())
+			return true;
+		unsigned int paramCount = fpt->getNumParams();
+		for (unsigned int i = 0; i < paramCount; i++) {
+			if (fpt->getParamType(i)->containsCheckedValue())
+				return true;
+		}
+		return false;
+	}
+
+	//Use RecordType to process Struct/Union
+	case Type::Record: {
+		const RecordType *RT = cast<RecordType>(current);
+		//if this is a structure/union type, iterate all its members
+		if (RT->getDecl()->isStruct() || RT->getDecl()->isUnion()) {
+			bool hasCheckedField = false;
+			for (FieldDecl *FD : RT->getDecl()->fields()) {
+				if (FD->getType()->isStructureType() || FD->getType()->isUnionType()) {
+					hasCheckedField = FD->getType()->containsCheckedValue();
+				}
+				//we do hasBoundsExpr checking for non-struct/union members only
+				else if(FD->getType()->containsCheckedValue() && FD->hasBoundsExpr()){
+					hasCheckedField = true;
+					break;
+				}
+			}
+			return hasCheckedField;
+		}
+		else
+			return false; //we don't check Enum/Interface, Class only appears in C++
+	}
+
+	default:
+		return false;
+	}
 }
 
 // hasVariadicType - check whether a type has variable arguments

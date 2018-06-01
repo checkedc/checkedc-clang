@@ -11387,12 +11387,37 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       if (getCurScope()->isCheckedScope() && Var->hasInteropTypeExpr())
         Ty = Var->getInteropType();
 
-      if (Ty->isCheckedPointerPtrType())
-        Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
-          << Var;
+	  if (Ty->isCheckedPointerPtrType()) {
+		  Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
+			  << Var;
+	  }
       else if (B && !B->isInvalid() && !B->isUnknown() && !Ty->isArrayType())
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
+
+	  //TODO: struct and array with checked ptr members must have initializers added by shen
+	  //array with checked ptr element
+	  if (Ty->isArrayType()) {
+		  //if this is an array type, check the element type of the array, potentially with type qualifiers missing
+		  const ArrayType *arr = cast<ArrayType>(Ty);
+		  if(arr->getElementType()->containsCheckedValue())
+			Diag(Var->getLocation(), diag::err_initializer_expected_for_array)
+				<< Var;
+	  }
+	  //struct with checked ptr member
+	  if (Ty->isStructureType()) {
+		  const RecordType *RT = Ty->getAsStructureType();
+		  if(RT->containsCheckedValue())
+			Diag(Var->getLocation(), diag::err_initializer_expected_for_struct)
+				<< Var;
+	  }
+	  //union with checked ptr member
+	  if (Ty->isUnionType()) {
+		  const RecordType *RT = Ty->getAsUnionType();
+		  if (RT->containsCheckedValue())
+			  Diag(Var->getLocation(), diag::err_initializer_expected_for_union)
+				<< Var;
+	  }
     }
 
     switch (Var->isThisDeclarationADefinition()) {
