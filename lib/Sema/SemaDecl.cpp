@@ -11323,7 +11323,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     }
 
     if (Type->isUndeducedType() &&
-        DeduceVariableDeclarationType(Var, false, nullptr))
+      DeduceVariableDeclarationType(Var, false, nullptr))
       return;
 
     // C++11 [class.static.data]p3: A static data member can be declared with
@@ -11333,18 +11333,19 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     // the definition of a variable [...] or the declaration of a static data
     // member.
     if (Var->isConstexpr() && !Var->isThisDeclarationADefinition() &&
-        !Var->isThisDeclarationADemotedDefinition()) {
+      !Var->isThisDeclarationADemotedDefinition()) {
       if (Var->isStaticDataMember()) {
         // C++1z removes the relevant rule; the in-class declaration is always
         // a definition there.
         if (!getLangOpts().CPlusPlus1z) {
           Diag(Var->getLocation(),
-               diag::err_constexpr_static_mem_var_requires_init)
+            diag::err_constexpr_static_mem_var_requires_init)
             << Var->getDeclName();
           Var->setInvalidDecl();
           return;
         }
-      } else {
+      }
+      else {
         Diag(Var->getLocation(), diag::err_invalid_constexpr_var_decl);
         Var->setInvalidDecl();
         return;
@@ -11365,8 +11366,8 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     // OpenCL v1.1 s6.5.3: variables declared in the constant address space must
     // be initialized.
     if (!Var->isInvalidDecl() &&
-        Var->getType().getAddressSpace() == LangAS::opencl_constant &&
-        Var->getStorageClass() != SC_Extern && !Var->getInit()) {
+      Var->getType().getAddressSpace() == LangAS::opencl_constant &&
+      Var->getStorageClass() != SC_Extern && !Var->getInit()) {
       Diag(Var->getLocation(), diag::err_opencl_constant_no_init);
       Var->setInvalidDecl();
       return;
@@ -11379,7 +11380,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
     // This is a valid initialization value, so we don't have to issue an
     // error message for them.
     if (!Var->isInvalidDecl() && Var->hasLocalStorage() &&
-        !isa<ParmVarDecl>(Var)) {
+      !isa<ParmVarDecl>(Var)) {
       QualType Ty = Var->getType();
       BoundsExpr *B = Var->getBoundsExpr();
       // If an interop type expression is available, use it.  That
@@ -11387,37 +11388,30 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       if (getCurScope()->isCheckedScope() && Var->hasInteropTypeExpr())
         Ty = Var->getInteropType();
 
-	  if (Ty->isCheckedPointerPtrType()) {
-		  Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
-			  << Var;
-	  }
+      if (Ty->isCheckedPointerPtrType())
+        Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
+        << Var;
+
       else if (B && !B->isInvalid() && !B->isUnknown() && !Ty->isArrayType())
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
-          << Var;
+        << Var;
 
-	  //TODO: struct and array with checked ptr members must have initializers added by shen
-	  //array with checked ptr element
-	  if (Ty->isArrayType()) {
-		  //if this is an array type, check the element type of the array, potentially with type qualifiers missing
-		  const ArrayType *arr = cast<ArrayType>(Ty);
-		  if(arr->getElementType()->containsCheckedValue())
-			Diag(Var->getLocation(), diag::err_initializer_expected_for_array)
-				<< Var;
-	  }
-	  //struct with checked ptr member
-	  if (Ty->isStructureType()) {
-		  const RecordType *RT = Ty->getAsStructureType();
-		  if(RT->containsCheckedValue())
-			Diag(Var->getLocation(), diag::err_initializer_expected_for_struct)
-				<< Var;
-	  }
-	  //union with checked ptr member
-	  if (Ty->isUnionType()) {
-		  const RecordType *RT = Ty->getAsUnionType();
-		  if (RT->containsCheckedValue())
-			  Diag(Var->getLocation(), diag::err_initializer_expected_for_union)
-				<< Var;
-	  }
+      //TODO: struct/union and array with checked ptr members must have initializers added by shen
+      //array with checked ptr element
+      if (Ty->isArrayType()) {
+        //if this is an array type, check the element type of the array, potentially with type qualifiers missing
+        const ArrayType *arr = cast<ArrayType>(Ty);
+        if (arr->getElementType()->containsCheckedValue())
+          Diag(Var->getLocation(), diag::err_initializer_expected_for_array)
+          << Var;
+      }
+      //RecordType(struct/union) with checked ptr member
+      if (Ty->isRecordType()) {
+        const RecordType *RT = Ty->getAs<RecordType>();
+        if (RT->containsCheckedValue())
+          Diag(Var->getLocation(), diag::err_initializer_expected_for_record)
+          << RT->getDecl()->getTagKind() << Var;
+      }
     }
 
     switch (Var->isThisDeclarationADefinition()) {
@@ -11438,19 +11432,19 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       // declared with no linkage (C99 6.2.2p6), the type for the
       // object shall be complete.
       if (!Type->isDependentType() && Var->isLocalVarDecl() &&
-          !Var->hasLinkage() && !Var->isInvalidDecl() &&
-          RequireCompleteType(Var->getLocation(), Type,
-                              diag::err_typecheck_decl_incomplete_type))
+        !Var->hasLinkage() && !Var->isInvalidDecl() &&
+        RequireCompleteType(Var->getLocation(), Type,
+          diag::err_typecheck_decl_incomplete_type))
         Var->setInvalidDecl();
 
       // Make sure that the type is not abstract.
       if (!Type->isDependentType() && !Var->isInvalidDecl() &&
-          RequireNonAbstractType(Var->getLocation(), Type,
-                                 diag::err_abstract_type_in_decl,
-                                 AbstractVariableType))
+        RequireNonAbstractType(Var->getLocation(), Type,
+          diag::err_abstract_type_in_decl,
+          AbstractVariableType))
         Var->setInvalidDecl();
       if (!Type->isDependentType() && !Var->isInvalidDecl() &&
-          Var->getStorageClass() == SC_PrivateExtern) {
+        Var->getStorageClass() == SC_PrivateExtern) {
         Diag(Var->getLocation(), diag::warn_private_extern);
         Diag(Var->getLocation(), diag::note_private_extern);
       }
@@ -11465,12 +11459,13 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       // external linkage is valid (C99 6.2.2p5).
       if (!Var->isInvalidDecl()) {
         if (const IncompleteArrayType *ArrayT
-                                    = Context.getAsIncompleteArrayType(Type)) {
+          = Context.getAsIncompleteArrayType(Type)) {
           if (RequireCompleteType(Var->getLocation(),
-                                  ArrayT->getElementType(),
-                                  diag::err_illegal_decl_array_incomplete_type))
+            ArrayT->getElementType(),
+            diag::err_illegal_decl_array_incomplete_type))
             Var->setInvalidDecl();
-        } else if (Var->getStorageClass() == SC_Static) {
+        }
+        else if (Var->getStorageClass() == SC_Static) {
           // C99 6.9.2p3: If the declaration of an identifier for an object is
           // a tentative definition and has internal linkage (C99 6.2.2p3), the
           // declared type shall not be an incomplete type.
@@ -11482,7 +11477,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
           // NOTE: to avoid multiple warnings, only check the first declaration.
           if (Var->isFirstDecl())
             RequireCompleteType(Var->getLocation(), Type,
-                                diag::ext_typecheck_decl_incomplete_type);
+              diag::ext_typecheck_decl_incomplete_type);
         }
       }
 
