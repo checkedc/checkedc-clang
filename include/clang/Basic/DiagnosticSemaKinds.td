@@ -9573,7 +9573,7 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_array : Error<
     "array variable %0 with checked pointer member must have initializer">;
 	
- def err_initializer_expected_for_record : Error<
+  def err_initializer_expected_for_record : Error<
     "%select{struct|interface|union|class|enum}0 variable %1 with checked pointer member must have initializer">;
 
   def err_cast_to_checked_fn_ptr_must_be_named : Error<
