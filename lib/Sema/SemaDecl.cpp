@@ -11394,16 +11394,16 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
 
-      //TODO: struct/union and array with checked ptr members must have initializers added by shen
-      //array with checked ptr element
+      // struct/union and array with checked pointer members must have initializers 
+      // array with checked ptr element
       if (Ty->isArrayType()) {
-        //if this is an array type, check the element type of the array, potentially with type qualifiers missing
+        // if this is an array type, check the element type of the array, potentially with type qualifiers missing
         const ArrayType *arr = cast<ArrayType>(Ty);
         if (arr->getElementType()->containsCheckedValue())
           Diag(Var->getLocation(), diag::err_initializer_expected_for_array)
           << Var;
       }
-      //RecordType(struct/union) with checked ptr member
+      // RecordType(struct/union) with checked pointer member
       if (Ty->isRecordType()) {
         const RecordType *RT = Ty->getAs<RecordType>();
         if (RT->containsCheckedValue())

@@ -4127,8 +4127,6 @@ bool Type::containsCheckedValue() const {
   case Type::VariableArray: {
 
     const ArrayType *arr = cast<ArrayType>(current);
-    if (arr->isChecked())
-      return true;
     return arr->getElementType()->containsCheckedValue();
   }
 
@@ -4143,15 +4141,15 @@ bool Type::containsCheckedValue() const {
     }
     return false;
   }
-                            //Use RecordType to process Struct/Union
+  //Use RecordType to process Struct/Union
   case Type::Record: {
     const RecordType *RT = cast<RecordType>(current);
-    //if this is a structure/union type, iterate all its members
+    // if this is a struct/union type, iterate all its members
     bool hasCheckedField = false;
     for (FieldDecl *FD : RT->getDecl()->fields()) {
       if (FD->getType()->isRecordType())
         hasCheckedField = FD->getType()->containsCheckedValue();
-      //we do hasBoundsExpr checking for non-struct/union members only
+      // we do hasBoundsExpr checking for non-struct/union members only
       else if (FD->getType()->containsCheckedValue() && FD->hasBoundsExpr()) {
         hasCheckedField = true;
         break;
