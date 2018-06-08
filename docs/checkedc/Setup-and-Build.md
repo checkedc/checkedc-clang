@@ -42,7 +42,7 @@ You should also to go to  _Debug->Options->Projects and Solutions ->Build and Ru
 set the maximum number of parallel project builds to be 3/4 of the actual number of CPU cores on
 your machine.  
 
-LLVM/clang have some tests that depend on using Unix line ending conventions
+LLVM/clang have some tests that depend on using UNIX line ending conventions
 (line feeds only).  This means that the sources you will be working with
 need to end with line feeds. Visual Studio preserves line endings for files, so
 this should work fine most of the time.  If you are creating a file, you will
@@ -92,7 +92,7 @@ You can store the sources in any directory that you want.  You should avoid spac
 You will need to clone each repo.
 The cloning process for LLVM and clang depends on whether you are developing on
 Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
-Unix line endings.  On Windows, Git can alter line endings to match the
+UNIX line endings.  On Windows, Git can alter line endings to match the
 Windows line ending convention.  It is important to
 prevent Git from altering the line endings.
 
@@ -167,7 +167,7 @@ the package.  On Windows, you can add the following flags to your cmake command 
 ```
    -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
 ```
-On Unix you can add,
+On UNIX you can add,
 ```
    -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON
 ```
@@ -182,7 +182,7 @@ built.   The debug build of LLVM is particularly slow because it bottlenecks on 
 tables at build time that are used during code generation.  The default table generation algorithm is very slow in debug builds.
 Subsequent builds during development will be much faster (minutes, not an hour).
 
-### On Unix
+### On UNIX
 
 Change to your build directory and just run `make`:
 
@@ -203,7 +203,7 @@ all the capabilities of Visual Studio for navigating the code base, code browsin
 by default.  Be sure you have throttled down the number of processes following earlier directions. 
 
 #### Visual Studio
-Follow the earlier instructions to set up the buld system.  After you've done that, there should be a solution file LLVM.sln in
+Follow the earlier instructions to set up the build system.  After you've done that, there should be a solution file LLVM.sln in
 your build directory.  Use Visual Studio to load the solution file. Then open the solution explorer (under View->Solution Explorer). 
 
 To build
@@ -211,12 +211,12 @@ To build
 - clang only: go to _clang executables directory -> clang_ and right click to build `clang'.
 - Everything: right click on the solution and select build.
 
-By default, the build configuration will be a debug build.  You can switch to another build configuration in VS 2017
+By default, the build type will be a Debug build.  You can switch to another build configuration in VS 2017
 by selecting the Build->Configuration Manager menu item and choosing a different solution configuration.
 
 #### Command-shell
 
-Follow the earlier instruction to set up the build system.  From the build directory, use the following comamnd to build clang only:
+Follow the earlier instructions to set up the build system.  From the build directory, use the following comamnd to build clang only:
 
 	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_MPCount=3 /m
 
@@ -228,7 +228,7 @@ To clean the build directory:
 
 	msbuild /t:clean LLVM.sln
 
-By default, the build type is a debug build.   You can specify the build type by adding `/p:Configuration=nnn`
+By default, the build type is a Debug build.   You can specify the build type by adding `/p:Configuration=nnn`
 to the `msbuild` command line, where `nnn` is one of `Debug`, `Release`', or `RelWithDebInfo`.  For example, 
 for a release build, use:
 
