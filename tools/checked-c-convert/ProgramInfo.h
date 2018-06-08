@@ -254,9 +254,10 @@ public:
 
     for (const auto &u : paramVars) 
       for (const auto &v : u)
-        allEmpty &= v->isEmpty();
+        if (!v->isEmpty())
+          return false;
 
-    return allEmpty;    
+    return true;    
   }
 
   bool liftedOnCVars(const ConstraintVariable &O, 

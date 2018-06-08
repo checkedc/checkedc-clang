@@ -108,11 +108,6 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 // Walk the list of declarations and find a declaration accompanied by 
 // a definition and a function body. 
 FunctionDecl *getDefinition(FunctionDecl *FD) {
-  for (auto &D : FD->decls())
-    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
-      if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
-        return tFD;
-
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
@@ -124,11 +119,6 @@ FunctionDecl *getDefinition(FunctionDecl *FD) {
 // Walk the list of declarations and find a declaration that is NOT 
 // a definition and does NOT have a body. 
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
-  for (auto &D : FD->decls())
-    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
-      if (!tFD->isThisDeclarationADefinition())
-        return tFD;
-
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (!tFD->isThisDeclarationADefinition())
@@ -215,26 +205,29 @@ struct DComp
   SourceManager &SM;
   DComp(SourceManager &S) : SM(S) { }
 
+  SourceRange getWholeSR(SourceRange orig, DAndReplace dr) const {
+    SourceRange newSourceRange(orig);
+
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(dr.Declaration)) {
+      newSourceRange.setEnd(getFunctionDeclarationEnd(FD, SM));
+      if (dr.fullDecl == false)
+        newSourceRange = FD->getReturnTypeSourceRange();
+    } 
+
+    return newSourceRange;
+  }
+
   bool operator()(const DAndReplace lhs, const DAndReplace rhs) const {
     // Does the source location of the Decl in lhs overlap at all with
     // the source location of rhs?
-   
 		SourceRange srLHS = lhs.Declaration->getSourceRange(); 
     SourceRange srRHS = rhs.Declaration->getSourceRange();
 
     // Take into account whether or not a FunctionDeclaration specifies 
     // the "whole" declaration or not. If it does not, it just specifies 
     // the return position. 
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(lhs.Declaration)) {
-      srLHS.setEnd(getFunctionDeclarationEnd(FD, SM));
-      if (lhs.fullDecl == false)
-        srLHS = FD->getReturnTypeSourceRange();
-    }   
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(rhs.Declaration)) {
-      srRHS.setEnd(getFunctionDeclarationEnd(FD, SM));
-      if (rhs.fullDecl == false)
-        srRHS = FD->getReturnTypeSourceRange();
-    } 
+    srLHS = getWholeSR(srLHS, lhs);
+    srRHS = getWholeSR(srRHS, rhs);
 
     // Also take into account whether or not there is a multi-statement
     // decl, because the generated ranges will overlap. 
@@ -465,7 +458,9 @@ void rewrite( VarDecl               *VD,
 // is both input and output. R is initialized to point to the 'main'
 // source file for this transformation. toRewrite contains the set of
 // declarations to rewrite. S is passed for source-level information
-// about the current compilation unit.
+// about the current compilation unit. skip indicates some rewrites that
+// we should skip because we already applied them, for example, as part 
+// of turning a single line declaration into a multi-line declaration.
 void rewrite( Rewriter              &R, 
               RSet                  &toRewrite, 
               RSet                  &skip,
@@ -721,15 +716,18 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   if(Definition == nullptr)
     return true;
+
   assert (Declaration != nullptr);
 
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints. 
-  auto cDecl = cast<FVConstraint>(
+  auto cDecl = dyn_cast<FVConstraint>(
       getHighest(Info.getVariable(Declaration, Context, false), Info));
-  auto cDefn = cast<FVConstraint>(
+  auto cDefn = dyn_cast<FVConstraint>(
       getHighest(Info.getVariable(Definition, Context, true), Info));
- 
+  assert(cDecl != nullptr);
+  assert(cDefn != nullptr);
+
   if (cDecl->numParams() == cDefn->numParams()) { 
     bool didAny = false;
 		std::string s = "";
