@@ -42,7 +42,7 @@ You should also to go to  _Debug->Options->Projects and Solutions ->Build and Ru
 set the maximum number of parallel project builds to be 3/4 of the actual number of CPU cores on
 your machine.  
 
-LLVM/clang have some tests that depend on using Unix line ending conventions
+LLVM/clang have some tests that depend on using UNIX line ending conventions
 (line feeds only).  This means that the sources you will be working with
 need to end with line feeds. Visual Studio preserves line endings for files, so
 this should work fine most of the time.  If you are creating a file, you will
@@ -92,7 +92,7 @@ You can store the sources in any directory that you want.  You should avoid spac
 You will need to clone each repo.
 The cloning process for LLVM and clang depends on whether you are developing on
 Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
-Unix line endings.  On Windows, Git can alter line endings to match the
+UNIX line endings.  On Windows, Git can alter line endings to match the
 Windows line ending convention.  It is important to
 prevent Git from altering the line endings.
 
@@ -135,7 +135,7 @@ git clone https://github.com/Microsoft/checkedc
 2. Create a build directory that is a sibling of your llvm source tree.  For example, if llvm is in MyDir\llvm, create MyDir\llvm.obj.      
 3. Be sure to exclude the build directory from anti-virus scanning.   On Windows 10, go to Settings->Update & Security->Windows Defender->Add an exclusion.
 3. Cmake will produce a build system by default that builds code generators for all LLVM-supported architectures.
-   This can increase buildand link times.  You might want to build the code generator for a specific target, such as x86.  To
+   This can increase build and link times.  You might want to build the code generator for a specific target, such as x86.  To
    do that,  add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
 4. Make sure that you are using whatever shell you normally do compiles in.  On Linux, cd your build directory and invoke CMake
    with:
@@ -154,32 +154,35 @@ where `{llvm-path}` is the path to the root of your LLVM repo.
 
    On Windows, when using Visual Studio, CMake by default produces a build system for x86.  This means that
    the clang tests will run in 32-bit compatiblity mode, even on a 64-bit version of Windows.  To build and run
-   tests on x64, specify a different generator using the `-G` option.  For Visual Studio 2015, you can use:
+   tests on x64, specify a different generator using the `-G` option.  For Visual Studio 2017, you can use:
 ```
-    cmake -T "host=x64" -G "Visual Studio 14 2015 Win64" {llvm-path}
+    cmake -T "host=x64" -G "Visual Studio 15 2017 Win64" {llvm-path}
 ```
 `cmake --help` will list all the available generators on your platform.
 
 ### Building an LLVM package (advanced topic)
 If you are just trying out Checked C, you can safely ignore this section.  If you plan to build an LLVM package for installation
 on other machines,  we recommend that you build a release build of clang with assertions on and only include the toolchain in
-the package.  You can add the following flags to your cmake command line.
+the package.  On Windows, you can add the following flags to your cmake command line:
 ```
-   -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
+   -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
 ```
-On Unix systems, you can omit `-DLLVM_USE_CRT_RELEASE=MT`. That cmake variable is specific to Windows.
+On UNIX you can add,
+```
+   -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON
+```
 
 ## Building
 
 You can build `clang` the usual way that it is built.   The earlier build system directions will create a Debug build,
-so `clang` will be replaced in your build directory under `Debug\bin`.
+so `clang` will be placed in your build directory under `Debug\bin`.
 
 Note that the first time that you build clang, it may take over an hour to build.  This is because LLVM is being
 built.   The debug build of LLVM is particularly slow because it bottlenecks on table generation. LLVM generates architecture-specific
 tables at build time that are used during code generation.  The default table generation algorithm is very slow in debug builds.
 Subsequent builds during development will be much faster (minutes, not an hour).
 
-### On Unix
+### On UNIX
 
 Change to your build directory and just run `make`:
 
@@ -200,7 +203,7 @@ all the capabilities of Visual Studio for navigating the code base, code browsin
 by default.  Be sure you have throttled down the number of processes following earlier directions. 
 
 #### Visual Studio
-Follow the earlier instructions to set up the buld system.  After you've done that, there should be a solution file LLVM.sln in
+Follow the earlier instructions to set up the build system.  After you've done that, there should be a solution file LLVM.sln in
 your build directory.  Use Visual Studio to load the solution file. Then open the solution explorer (under View->Solution Explorer). 
 
 To build
@@ -208,9 +211,12 @@ To build
 - clang only: go to _clang executables directory -> clang_ and right click to build `clang'.
 - Everything: right click on the solution and select build.
 
+By default, the build type will be a Debug build.  You can switch to another build configuration in VS 2017
+by selecting the Build->Configuration Manager menu item and choosing a different solution configuration.
+
 #### Command-shell
 
-Follow the earlier instruction to set up the build system.  Form the build directory, use the following comamnd to build clang only:
+Follow the earlier instructions to set up the build system.  From the build directory, use the following comamnd to build clang only:
 
 	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_MPCount=3 /m
 
@@ -222,6 +228,12 @@ To clean the build directory:
 
 	msbuild /t:clean LLVM.sln
 
+By default, the build type is a Debug build.   You can specify the build type by adding `/p:Configuration=nnn`
+to the `msbuild` command line, where `nnn` is one of `Debug`, `Release`, or `RelWithDebInfo`.  For example, 
+for a Release build, use:
+
+    msbuild tools\clang\tools\driver\clang.vcxproj /p:Configuration=Release /p:CL_MPCount=3 /m
+
 ## Testing
 
 See the [Testing](Testing.md) page for directions on how to test the compiler once you have built it.  We
@@ -229,11 +241,11 @@ are testing the Checked C version of clang on x86 and x64 Windows and on x64 Lin
 
 ## Building an LLVM package.
 
-If you would like to build an LLVM package, first follow the steps in setting up build directory for
+If you would like to build an LLVM package, first follow the steps in setting up a build directory for
 building a package.   On Windows, install [NSIS](http://nsis.sourceforge.net).  Change directory to your
 build directory, and run
 
-	msbuild PACKAGE.sln /p:CL_MPCount=3 /m
+	msbuild PACKAGE.sln /p:Configuration=Release /p:CL_MPCount=3 /m
 
 On UNIX, run
 
