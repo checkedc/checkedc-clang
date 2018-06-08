@@ -135,7 +135,7 @@ git clone https://github.com/Microsoft/checkedc
 2. Create a build directory that is a sibling of your llvm source tree.  For example, if llvm is in MyDir\llvm, create MyDir\llvm.obj.      
 3. Be sure to exclude the build directory from anti-virus scanning.   On Windows 10, go to Settings->Update & Security->Windows Defender->Add an exclusion.
 3. Cmake will produce a build system by default that builds code generators for all LLVM-supported architectures.
-   This can increase buildand link times.  You might want to build the code generator for a specific target, such as x86.  To
+   This can increase build and link times.  You might want to build the code generator for a specific target, such as x86.  To
    do that,  add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
 4. Make sure that you are using whatever shell you normally do compiles in.  On Linux, cd your build directory and invoke CMake
    with:
@@ -175,7 +175,7 @@ On UNIX you can add,
 ## Building
 
 You can build `clang` the usual way that it is built.   The earlier build system directions will create a Debug build,
-so `clang` will be replaced in your build directory under `Debug\bin`.
+so `clang` will be placed in your build directory under `Debug\bin`.
 
 Note that the first time that you build clang, it may take over an hour to build.  This is because LLVM is being
 built.   The debug build of LLVM is particularly slow because it bottlenecks on table generation. LLVM generates architecture-specific
@@ -229,8 +229,8 @@ To clean the build directory:
 	msbuild /t:clean LLVM.sln
 
 By default, the build type is a Debug build.   You can specify the build type by adding `/p:Configuration=nnn`
-to the `msbuild` command line, where `nnn` is one of `Debug`, `Release`', or `RelWithDebInfo`.  For example, 
-for a release build, use:
+to the `msbuild` command line, where `nnn` is one of `Debug`, `Release`, or `RelWithDebInfo`.  For example, 
+for a Release build, use:
 
     msbuild tools\clang\tools\driver\clang.vcxproj /p:Configuration=Release /p:CL_MPCount=3 /m
 
