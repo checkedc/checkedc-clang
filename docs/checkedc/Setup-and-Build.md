@@ -154,20 +154,23 @@ where `{llvm-path}` is the path to the root of your LLVM repo.
 
    On Windows, when using Visual Studio, CMake by default produces a build system for x86.  This means that
    the clang tests will run in 32-bit compatiblity mode, even on a 64-bit version of Windows.  To build and run
-   tests on x64, specify a different generator using the `-G` option.  For Visual Studio 2015, you can use:
+   tests on x64, specify a different generator using the `-G` option.  For Visual Studio 2017, you can use:
 ```
-    cmake -T "host=x64" -G "Visual Studio 14 2015 Win64" {llvm-path}
+    cmake -T "host=x64" -G "Visual Studio 15 2017 Win64" {llvm-path}
 ```
 `cmake --help` will list all the available generators on your platform.
 
 ### Building an LLVM package (advanced topic)
 If you are just trying out Checked C, you can safely ignore this section.  If you plan to build an LLVM package for installation
 on other machines,  we recommend that you build a release build of clang with assertions on and only include the toolchain in
-the package.  You can add the following flags to your cmake command line.
+the package.  On Windows, you can add the following flags to your cmake command line:
 ```
-   -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
+   -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON -DLLVM_USE_CRT_RELEASE=MT
 ```
-On Unix systems, you can omit `-DLLVM_USE_CRT_RELEASE=MT`. That cmake variable is specific to Windows.
+On Unix you can add,
+```
+   -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON
+```
 
 ## Building
 
@@ -208,9 +211,12 @@ To build
 - clang only: go to _clang executables directory -> clang_ and right click to build `clang'.
 - Everything: right click on the solution and select build.
 
+By default, the build configuration will be a debug build.  You can switch to another build configuration in VS 2017
+by selecting the Build->Configuration Manager menu item and choosing a different solution configuration.
+
 #### Command-shell
 
-Follow the earlier instruction to set up the build system.  Form the build directory, use the following comamnd to build clang only:
+Follow the earlier instruction to set up the build system.  From the build directory, use the following comamnd to build clang only:
 
 	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_MPCount=3 /m
 
@@ -222,6 +228,12 @@ To clean the build directory:
 
 	msbuild /t:clean LLVM.sln
 
+By default, the build type is a debug build.   You can specify the build type by adding `/p:Configuration=nnn`
+to the `msbuild` command line, where `nnn` is one of `Debug`, `Release`', or `RelWithDebInfo`.  For example, 
+for a release build, use:
+
+    msbuild tools\clang\tools\driver\clang.vcxproj /p:Configuration=Release /p:CL_MPCount=3 /m
+
 ## Testing
 
 See the [Testing](Testing.md) page for directions on how to test the compiler once you have built it.  We
@@ -229,11 +241,11 @@ are testing the Checked C version of clang on x86 and x64 Windows and on x64 Lin
 
 ## Building an LLVM package.
 
-If you would like to build an LLVM package, first follow the steps in setting up build directory for
+If you would like to build an LLVM package, first follow the steps in setting up a build directory for
 building a package.   On Windows, install [NSIS](http://nsis.sourceforge.net).  Change directory to your
 build directory, and run
 
-	msbuild PACKAGE.sln /p:CL_MPCount=3 /m
+	msbuild PACKAGE.sln /p:Configuration=Release /p:CL_MPCount=3 /m
 
 On UNIX, run
 
