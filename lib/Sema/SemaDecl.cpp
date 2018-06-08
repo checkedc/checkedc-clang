@@ -11398,8 +11398,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       // array with checked ptr element
       if (Ty->isArrayType()) {
         // if this is an array type, check the element type of the array, potentially with type qualifiers missing
-        const ArrayType *arr = cast<ArrayType>(Ty);
-        if (arr->getElementType()->containsCheckedValue())
+        if (Ty->getPointeeOrArrayElementType()->containsCheckedValue())
           Diag(Var->getLocation(), diag::err_initializer_expected_for_array)
           << Var;
       }
