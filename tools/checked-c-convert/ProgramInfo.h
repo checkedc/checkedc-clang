@@ -248,10 +248,10 @@ public:
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
   // An FVConstraint is empty if every constraint associated is empty. 
   bool isEmpty(void) const { 
-    bool allEmpty = false;
     
-    allEmpty = returnVars.size() == 0;
-
+    if (returnVars.size() > 0)
+      return false;
+    
     for (const auto &u : paramVars) 
       for (const auto &v : u)
         if (!v->isEmpty())
