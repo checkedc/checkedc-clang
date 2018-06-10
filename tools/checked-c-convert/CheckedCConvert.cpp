@@ -127,6 +127,8 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
   return FD;
 }
 
+// A Declaration, optional DeclStmt, and a replacement string
+// for that Declaration. 
 struct DAndReplace
 {
   Decl        *Declaration; // The declaration to replace.
