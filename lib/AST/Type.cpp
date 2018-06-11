@@ -4119,15 +4119,14 @@ bool Type::containsCheckedValue() const {
     if (ptr->isCheckedPointerType()) {
       return true;
     }
-    return ptr->getPointeeType()->containsCheckedValue();
+    return false;
   }
   case Type::ConstantArray:
   case Type::DependentSizedArray:
   case Type::IncompleteArray:
   case Type::VariableArray: {
 
-    const ArrayType *arr = cast<ArrayType>(current);
-    return arr->getElementType()->containsCheckedValue();
+    return current->getPointeeOrArrayElementType()->containsCheckedValue();
   }
 
   case Type::FunctionProto: {
@@ -4144,11 +4143,16 @@ bool Type::containsCheckedValue() const {
   //Use RecordType to process Struct/Union
   case Type::Record: {
     const RecordType *RT = cast<RecordType>(current);
+    // if this is an illegal type, we don't proceed (e.g. struct S{ S s; int a;...})
+    if (RT->getDecl()->isInvalidDecl())
+      return false;
+    
     // if this is a struct/union type, iterate all its members
     bool hasCheckedField = false;
     for (FieldDecl *FD : RT->getDecl()->fields()) {
-      if (FD->getType()->isRecordType())
-        hasCheckedField = FD->getType()->containsCheckedValue();
+      if (FD->getType()->isRecordType()) {
+          hasCheckedField = FD->getType()->containsCheckedValue();
+      }    
       // we do hasBoundsExpr checking for non-struct/union members only
       else if (FD->getType()->containsCheckedValue() && FD->hasBoundsExpr()) {
         hasCheckedField = true;
