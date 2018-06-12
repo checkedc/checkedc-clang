@@ -4129,17 +4129,6 @@ bool Type::containsCheckedValue() const {
     return current->getPointeeOrArrayElementType()->containsCheckedValue();
   }
 
-  case Type::FunctionProto: {
-    const FunctionProtoType *fpt = cast<FunctionProtoType>(current);
-    if (fpt->getReturnType()->containsCheckedValue())
-      return true;
-    unsigned int paramCount = fpt->getNumParams();
-    for (unsigned int i = 0; i < paramCount; i++) {
-      if (fpt->getParamType(i)->containsCheckedValue())
-        return true;
-    }
-    return false;
-  }
   //Use RecordType to process Struct/Union
   case Type::Record: {
     const RecordType *RT = cast<RecordType>(current);

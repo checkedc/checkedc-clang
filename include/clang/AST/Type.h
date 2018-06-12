@@ -1917,7 +1917,7 @@ public:
   /// \brief Whether this type is or contains a checked type
   bool isOrContainsCheckedType() const;
 
-  /// \brief Whether this type(Struct/Union) contains a checked value
+  /// \brief check whether an object of a struct or union type contains a checked value
   bool containsCheckedValue() const;
 
   /// \brief Whether this type is or contains an unchecked type.
