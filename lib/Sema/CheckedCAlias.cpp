@@ -463,9 +463,9 @@ void Sema::ModifiedBoundsDependencies::Add(Expr *E,
 }
 
 void Sema::ModifiedBoundsDependencies::Dump(raw_ostream &OS) {
-  OS << "Mapping from statements to modified bounds:\n";
+  OS << "Mapping from expressions to modified bounds:\n";
   for (auto Iter = Tracker.begin(); Iter != Tracker.end(); ++Iter) {
-    OS << "Statement:\n";
+    OS << "Expression:\n";
     Iter->first->dump(OS);
     OS << "Modified:\n";
     for (auto VarIter = Iter->second.begin(); VarIter != Iter->second.end(); ++VarIter) {
@@ -534,7 +534,9 @@ namespace {
     }
 
     if (NewScope) {
+#if DEBUG_DEPENDENCES
       SemaRef.BoundsDependencies.Dump(llvm::outs());
+#endif
       SemaRef.BoundsDependencies.ExitScope(CurrentBoundsScope);
     }
  }
@@ -546,6 +548,8 @@ namespace {
   }
 
   void VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
+    if (!UnaryOperator::isIncrementDecrementOp(E->getOpcode()))
+      return;
   }
 
   void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
@@ -573,23 +577,30 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
   if (!Body)
     return;
 
+#if DEBUG_DEPENDENCES
   llvm::outs() << "Computing bounds dependencies for " << FD->getName() << ".\n";
+#endif
 
   // Track parameter bounds declarations in function parameter scope.
   int CurrentBoundsScope = BoundsDependencies.EnterScope();
   for (auto ParamIter = FD->param_begin(), ParamEnd = FD->param_end();
        ParamIter != ParamEnd; ++ParamIter)
     BoundsDependencies.Add(*ParamIter);
+
+#if DEBUG_DEPENDENCES
   BoundsDependencies.Dump(llvm::outs());
+ #endif
 
   ModifyingExprDependencies(*this, Tracker).TraverseStmt(Body, false);
 
   // Stop tracking parameter bounds declaration dependencies.
   BoundsDependencies.ExitScope(CurrentBoundsScope);
 
+#if DEBUG_DEPENDENCES
   llvm::outs() << "Done " << FD->getName() << ".\n";
   llvm::outs() << "Results:\n";
 
   BoundsDependencies.Dump(llvm::outs());
   Tracker.Dump(llvm::outs());
+#endif
 }

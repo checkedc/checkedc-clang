@@ -1,9 +1,12 @@
 // Tests for checking that bounds declarations hold after assignments to
-// variables or members used in a bounds declaration, but not the subject
-// of the bounds declaration.
+// variables or members used in a bounds declaration, but not the subject of
+// the bounds declaration.
 
+// The implementation is not complete enough to print diagnostics, so we don't
+//have any yet.  Add comments where diagnostics will be expected.
 //
-// RUN: %clang -cc1 -fcheckedc-extension -Wcheck-bounds-decls -verify %s
+// RUN: %clang_cc1 -Wcheck-bounds-decls -verify -verify-ignore-unexpected=warning -verify-ignore-unexpected=note %s
+// expected-no-diagnostics
 
 //
 // Test bounds declarations involving global variables.
@@ -35,7 +38,7 @@ void f1(int i) {
   {
      // Declare a bounds declaration that goes out of scope;
      g1_len = i;
-      _Array_ptr<int> x1 : count(g1_len) = alloc(i * sizeof(int));
+     _Array_ptr<int> x1 : count(g1_len) = alloc(i * sizeof(int));
      g1_len = 5;
   }
 }
@@ -104,20 +107,89 @@ void f22(_Array_ptr<int> p : bounds(low, high), _Array_ptr<int> low,
   low = g3_low;                             // incorrect
 }
 
-void f23(int len, _Array_ptr<int> p : count(len), int i) {
+void f23(int len, _Array_ptr<int> p : count(len)) {
   {
      // Declare a bounds declaration that goes out of scope.
-     len = i;
-      _Array_ptr<int> t : count(len) = alloc(i * sizeof(int));
-     len = 5;
+     _Array_ptr<int> t : count(len) = alloc(len * sizeof(int)); // correct
+     len = 5; // incorrect for t and p.
   }
 }
 
-// Test hiding a parameter with bounds and hiding a variable used in
-// parameter bounds.
-void f24(int len, _Array_ptr<int> p : count(len), int i) {
-  int mylen = 0;
-  _Array_ptr<int> p : count(mylen) = 0;
-  len = 5;   // incorrect
+// Test hiding a parameter with bounds.
+void f24(int len, _Array_ptr<int> p : count(len)) {
+  // Create a new scope to avoid an error due to redefining a variable
+  // in the same scope.  Parameters are in the same scope as top-level
+  // locals.
+  {
+     int mylen = 0;
+     _Array_ptr<int> p : count(mylen) = 0;
+     len = 5;   // incorrect
+  }
+}
+
+// Test hiding a variable used in parameter bounds.
+void f25(int len, _Array_ptr<int> p : count(len), int i) {
+
+  {
+     int len = i;  // correct.
+  }
+}
+
+
+//
+// Test bounds declarations involving local variables.
+//
+
+// Test different forms of bounds declarations.
+void f40(int i) {
+  int len = 0;
+  _Array_ptr<int> p : count(len) = 0;
+  len = i, p = alloc(i * sizeof(int));  // correct
+  len = 5;                              // incorrect
+}
+
+void f41(int i) {
+  int len = 0;
+   _Array_ptr<int> p : byte_count(len) = 0;
+  len = i * sizeof(int), p = alloc(i * sizeof(int)); // correct
+  len = 10;                                          // incorrect
+}
+
+void f42(void) {
+  _Array_ptr<int> low = 0;
+  _Array_ptr<int> high = 0;
+  _Array_ptr<int> p : bounds(low, high) = 0;
+  _Array_ptr<int> tmp : count(10) = alloc(10 * sizeof(int));
+  p = tmp + 4, low = tmp, high = tmp + 10;  // correct
+  low = g3_low;                             // incorrect
+}
+
+void f43(void)  {
   int len = 10;
+  _Array_ptr<int> p : count(len) = alloc(len * sizeof(int));
+  {
+     // Declare a bounds declaration that goes out of scope.
+     _Array_ptr<int> t : count(len) = alloc(len * sizeof(int)); // correct
+     len = 5; // incorrect for t and p.
+  }
+}
+
+// Test hiding a local variable with bounds.
+void f44(void) {
+  int len = 5;
+ _Array_ptr<int> p : count(len) = alloc(sizeof(int) * len);
+ {
+    int mylen = 0;
+    _Array_ptr<int> p : count(mylen) = 0;
+     len = 5;   // incorrect
+  }
+}
+
+// Test hiding a variable used in parameter bounds.
+void f45(int i) {
+  int len = 5;
+  _Array_ptr<int> p : count(len) = alloc((sizeof(int) * len));
+  {
+     int len = i;  // correct.
+  }
 }
