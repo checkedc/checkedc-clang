@@ -2766,7 +2766,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
-    auto Checker = CheckBoundsDeclarations(*this, nullptr);
+    CheckBoundsDeclarations Checker(*this, nullptr);
     Checker.TraverseTopLevelVarDecl(D, getCurScope()->isCheckedScope());
   }
 }
