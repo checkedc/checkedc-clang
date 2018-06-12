@@ -2150,6 +2150,11 @@ namespace {
       PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)),
       ReturnBounds(ReturnBounds) {}
 
+    // Traverse methods iterate recursively over AST tree nodes, visiting all
+    // children of the node too.
+    //
+    // Visit methods do work on individual nodes, such as checking bounds
+    // declarations or inserting bounds checks.
     void TraverseStmt(Stmt *S, bool InCheckedScope) {
       if (!S)
         return;
@@ -2183,6 +2188,8 @@ namespace {
           auto BeginDecls = DS->decl_begin(), EndDecls = DS->decl_end();
           for (auto I = BeginDecls; I != EndDecls; ++I) {
             Decl *D = *I;
+            // If an initializer expression is present, it is visited
+            // during the traversal of children nodes.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
               VisitVarDecl(VD, InCheckedScope);
           }
@@ -2201,7 +2208,9 @@ namespace {
       }
     }
 
-    void TraverseVarDecl(VarDecl *VD, bool InCheckedScope) {
+    // Traverse a top-level variable declaration.  If there is an
+    // initializer, it has to be traversed explicitly.
+    void TraverseTopLevelVarDecl(VarDecl *VD, bool InCheckedScope) {
       VisitVarDecl(VD, InCheckedScope);
       if (Expr *Init = VD->getInit())
         TraverseStmt(Init, InCheckedScope);
@@ -2474,12 +2483,6 @@ namespace {
       VarDecl::DefinitionKind defKind = D->isThisDeclarationADefinition();
       if (defKind == VarDecl::DefinitionKind::DeclarationOnly)
         return;
-
-     if (Expr *Init = D->getInit()) {
-       if (Init->getStmtClass() == Expr::BoundsCastExprClass) {
-         S.InferRValueBounds(Init);
-       }
-     }
 
      // Handle variables with bounds declarations
      BoundsExpr *DeclaredBounds = D->getBoundsExpr();
@@ -2762,8 +2765,10 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
 }
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
-  if (!D->isLocalVarDeclOrParm())
-    CheckBoundsDeclarations(*this, nullptr).TraverseVarDecl(D, getCurScope()->isCheckedScope());
+  if (!D->isLocalVarDeclOrParm()) {
+    CheckBoundsDeclarations Checker(*this, nullptr);
+    Checker.TraverseTopLevelVarDecl(D, getCurScope()->isCheckedScope());
+  }
 }
 
 namespace {
