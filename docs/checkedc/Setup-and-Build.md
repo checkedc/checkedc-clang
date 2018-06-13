@@ -89,6 +89,8 @@ For developers who need to install it, information is
 You will need to choose a drive that has at least 20 Gbytes free.  You may need lots of space for the sources and the build.
 You can store the sources in any directory that you want.  You should avoid spaces in parent directory names because this can confuse some tools.
 
+checkedc-llvm contains two other repos as submodules: checkedc and checkedc-clang. Both are required to build successfully. We do not recommend using ```git clone```'s `recursive` option; this may give you stale versions of checkedc and checkedc-clang repos. Instead use git clone on each repository as specified below.
+
 You will need to clone each repo.
 The cloning process for LLVM and clang depends on whether you are developing on
 Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
@@ -107,6 +109,11 @@ Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the
 ```
 git clone https://github.com/Microsoft/checkedc-clang clang
 ```
+The Checked C language tests live in a project directory for LLVM.  Change to the `llvm\projects\checkedc-wrapper` directory
+and clone the Checked C repo:
+```
+git clone https://github.com/Microsoft/checkedc
+```
 
 ### Cloning LLVM/clang on Windows
 
@@ -120,9 +127,6 @@ Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the `llv
 ```
 git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang clang
 ```
-
-### Cloning Checked C language tests
-
 The Checked C language tests live in a project directory for LLVM.  Change to the `llvm\projects\checkedc-wrapper` directory
 and clone the Checked C repo:
 ```
