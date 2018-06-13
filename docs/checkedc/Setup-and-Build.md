@@ -109,7 +109,7 @@ Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the
 ```
 git clone https://github.com/Microsoft/checkedc-clang clang
 ```
-The Checked C language tests live in a project directory for LLVM.  Change to the `llvm\projects\checkedc-wrapper` directory
+The Checked C language tests live in a folder within `\project`.  Change to the `llvm\projects\checkedc-wrapper` directory
 and clone the Checked C repo:
 ```
 git clone https://github.com/Microsoft/checkedc
@@ -127,7 +127,7 @@ Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the `llv
 ```
 git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang clang
 ```
-The Checked C language tests live in a project directory for LLVM.  Change to the `llvm\projects\checkedc-wrapper` directory
+The Checked C language tests live in a folder within `\project`.  Change to the `llvm\projects\checkedc-wrapper` directory
 and clone the Checked C repo:
 ```
 git clone https://github.com/Microsoft/checkedc
