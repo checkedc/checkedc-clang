@@ -193,3 +193,36 @@ void f45(int i) {
      int len = i;  // correct.
   }
 }
+
+// Spot check different forms of modifying expressions
+
+void f100(int len, _Array_ptr<int> p : count(len), int i) {
+  if (len > 1)
+    len--;
+}
+
+void f101(int len, _Array_ptr<int> p : count(len), int i) {
+  if (len > 1)
+    --len;
+}
+
+void f102(int len, _Array_ptr<int> p : count(len), int i) {
+  if (len > 1)
+    len -= 1;
+}
+
+void f103(int len, _Array_ptr<int> p : count(len), int i) {
+  if (len < 100)
+    len++, p = alloc(len * sizeof(int));
+}
+
+void f104(int len, _Array_ptr<int> p : count(len), int i) {
+  if (len < 100)
+    ++len, p = alloc(len * sizeof(int));
+}
+
+void f105(int len, _Array_ptr<int> p : count(len), int i) {
+  if (len < 100)
+    len += 1, p = alloc(len * sizeof(int));
+}
+

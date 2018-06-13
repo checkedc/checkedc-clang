@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+// #define DEBUG_DEPENDENCES 1
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -547,15 +548,7 @@ namespace {
       TraverseStmt(Init, InCheckedScope);
   }
 
-  void VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
-    if (!UnaryOperator::isIncrementDecrementOp(E->getOpcode()))
-      return;
-  }
-
-  void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
-    if (!E->isAssignmentOp())
-      return;
-    Expr *LValue = Helper::SimplifyLValue(E->getLHS());
+  void RecordLValueUpdate(Expr *E, Expr *LValue, bool InCheckedScope) {
     if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(LValue)) {
       if (VarDecl *D = dyn_cast<VarDecl>(DR->getDecl())) {
         Sema::BoundsDependencyTracker::VarBoundsIteratorRange Range =
@@ -569,7 +562,23 @@ namespace {
       }
     }
   }
-  };
+
+  void VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
+    if (!UnaryOperator::isIncrementDecrementOp(E->getOpcode()))
+      return;
+
+    Expr *LValue = Helper::SimplifyLValue(E->getSubExpr());
+    RecordLValueUpdate(E, LValue, InCheckedScope);
+  }
+
+  void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
+    if (!E->isAssignmentOp())
+      return;
+
+    Expr *LValue = Helper::SimplifyLValue(E->getLHS());
+    RecordLValueUpdate(E, LValue, InCheckedScope);
+  }
+};
 }
 
 void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
