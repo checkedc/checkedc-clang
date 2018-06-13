@@ -11,7 +11,7 @@ cd %LLVM_OBJ_DIR%
 if "%BUILD_PACKAGE%" == "No" (goto succeeded)
 
 echo.Building installation package for clang
-"%MSBUILD_BIN%" PACKAGE.vcxproj /v:%MSBUILD_VERBOSITY% /maxcpucount:%MSBUILD_CPU_COUNT% /p:CL_MPCount=%CL_CPU_COUNT%
+"%MSBUILD_BIN%" PACKAGE.vcxproj /p:Configuration=%BUILDCONFIGURATION% /v:%MSBUILD_VERBOSITY% /maxcpucount:%MSBUILD_CPU_COUNT% /p:CL_MPCount=%CL_CPU_COUNT%
  if ERRORLEVEL 1 (goto cmdfailed)
 
 rem Put the installer executable in its own subdirectory.  The VSTS build

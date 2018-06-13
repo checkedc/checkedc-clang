@@ -2543,7 +2543,7 @@ public:
         return true;
       if (P1.size() > P2.size())
         return false;
-      for (int i = 0; i < P1.size(); i++) {
+      for (unsigned i = 0; i < P1.size(); i++) {
          Lexicographic::Result R = Comparer.CompareDecl(P1[i],P2[i]);
          if (R == Lexicographic::Result::LessThan)
            return true;
