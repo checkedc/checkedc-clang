@@ -4812,7 +4812,8 @@ public:
   public:
      BoundsDependencyTracker() {}
 
-     // Call these when entering/exiting scopes.  EnterScope returns an integer
+     // Call these when entering/exiting scopes so that we can track when
+     // variables go out of scope.  EnterScope returns an integer
      // that should be passed to the corresponding ExitScope call.
      int EnterScope();
      void ExitScope(int scopeBegin);
@@ -4865,9 +4866,13 @@ public:
    DependentBounds Tracker;
   };
 
+  /// \brief Compute a mapping from statements that modify lvalues to
+  /// in-scope bounds declarations that depend on those lvalues.
+  /// FD is the function being declared and Body is the body of the
+  /// function.   They are passed in separately because Body hasn't
+  /// been attached to FD yet.
   void ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
                                  FunctionDecl *FD, Stmt *Body);
-
 
   /// \brief RAII class used to indicate that we are substituting an expression
   /// into another expression during bounds checking.  We need to suppress 

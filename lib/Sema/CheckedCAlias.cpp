@@ -7,8 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file implements alias restrictions required by the Checked C
-//  language extension.
+//  This file implements analyses for semantic checking of the Checked C language
+// extension.
+// - Alias restrictions required by the Checked C language extension.
+// - Computing what bounds expressions use variables modified by an assignment
+//   or increment/decrement expression.
 //
 //===----------------------------------------------------------------------===//
 
@@ -335,6 +338,7 @@ void Sema::TrackMemberBoundsDependences(FieldDecl *FD, BoundsExpr *BE) {
 }
 
 namespace {
+// Update map from variables to bounds expressions that use those variables.
 class UpdateDependences : public RecursiveASTVisitor<UpdateDependences> {
 private:
    bool Add;              // whether to add or remove dependence.
@@ -431,7 +435,8 @@ void Sema::BoundsDependencyTracker::Dump(raw_ostream &OS) {
     OS << Iter->first->getDeclName() << ": ";
     bool first = true;
     OS << "{";
-    for (auto VarIter = Iter->second.begin(); VarIter != Iter->second.end(); ++VarIter) {
+    for (auto VarIter = Iter->second.begin(); VarIter != Iter->second.end();
+         ++VarIter) {
       if (first)
         first = false;
       else
@@ -442,6 +447,7 @@ void Sema::BoundsDependencyTracker::Dump(raw_ostream &OS) {
   }
 }
 
+/// \brief Track that E modifies an lvalue expression used in Bounds.
 void Sema::ModifiedBoundsDependencies::Add(Expr *E,
                             llvm::PointerUnion<VarDecl *, MemberExpr *> LValue,
                                            BoundsExpr *Bounds) {
@@ -455,6 +461,7 @@ void Sema::ModifiedBoundsDependencies::Add(Expr *E,
     auto VecIter = I->second.begin();
     auto VecEnd = I->second.end();
 
+    // Don't add the LValue/Bounds if they already on the list for E.
     for ( ; VecIter != VecEnd; VecIter++)
       if (VecIter->Bounds == Pair.Bounds &&
           VecIter->Target == Pair.Target)
@@ -482,6 +489,9 @@ void Sema::ModifiedBoundsDependencies::Dump(raw_ostream &OS) {
 }
 
 namespace {
+// Update mapping from expressions that modify lvalues (assignments,
+// increment/decrement expressions) to bounds expressions that use those
+// lvalues.
  class ModifyingExprDependencies {
  private:
    Sema &SemaRef;
@@ -491,6 +501,8 @@ namespace {
  ModifyingExprDependencies(Sema &SemaRef, Sema::ModifiedBoundsDependencies &Tracker) :
    SemaRef(SemaRef), Tracker(Tracker) {}
 
+ // Statement to traverse.  This iterates recursively over a statement
+ // and all of its children statements.
  void TraverseStmt(Stmt *S, bool InCheckedScope) {
    if (!S)
       return;
@@ -516,8 +528,10 @@ namespace {
        auto BeginDecls = DS->decl_begin(), EndDecls = DS->decl_end();
        for (auto I = BeginDecls; I != EndDecls; ++I) {
          Decl *D = *I;
+         // The initializer expression is visited during the loop
+         // below iterating children.
          if (VarDecl *VD = dyn_cast<VarDecl>(D))
-           TraverseVarDecl(VD, InCheckedScope);
+           VisitVarDecl(VD, InCheckedScope);
        }
        break;
      }
@@ -542,21 +556,27 @@ namespace {
     }
  }
 
-  void TraverseVarDecl(VarDecl *VD, bool InCheckedScope) {
-    SemaRef.BoundsDependencies.Add(VD);
-    if (Expr *Init = VD->getInit())
-      TraverseStmt(Init, InCheckedScope);
+ //
+ // Visit methods take some action for a specific node.
+ //
+
+  /// \brief Record the lvalues that the bounds for D depened upon.
+  void VisitVarDecl(VarDecl *D, bool InCheckedScope) {
+    SemaRef.BoundsDependencies.Add(D);
   }
 
+  /// /\brief Record the bounds that use the LValue expression modified by E.
   void RecordLValueUpdate(Expr *E, Expr *LValue, bool InCheckedScope) {
     if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(LValue)) {
       if (VarDecl *D = dyn_cast<VarDecl>(DR->getDecl())) {
         Sema::BoundsDependencyTracker::VarBoundsIteratorRange Range =
           SemaRef.BoundsDependencies.DependentBoundsDecls(D);
-        for (auto Current = Range.begin(), End = Range.end(); Current != End; ++Current) {
+        for (auto Current = Range.begin(), End = Range.end(); Current != End;
+             ++Current) {
           VarDecl *VarWithBounds = *Current;
           assert(VarWithBounds->getBoundsExpr());
-          if (InCheckedScope || VarWithBounds->hasBoundsDeclaration(SemaRef.getASTContext()))
+          if (InCheckedScope ||
+              VarWithBounds->hasBoundsDeclaration(SemaRef.getASTContext()))
             Tracker.Add(E, VarWithBounds, VarWithBounds->getBoundsExpr());
         }
       }

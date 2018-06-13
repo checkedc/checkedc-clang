@@ -743,30 +743,33 @@ public:
   // Checked C bounds information
   // For function declarations, this is the return bounds of the function.
 
-  /// \brief Return true if this declaration has bounds expresssion
+  /// \brief Whether this declaration has a bounds expresssion
   /// associated with it.  This could be a bounds declaration or
-  /// bounds-afe interface, depending on the type of the declaration
+  /// bounds-safe interface, depending on the type of the declaration
   /// (or it if is a function, the return type).
   bool hasBoundsExpr() const;
+
+  /// \brief Whether this declaration has a bounds declaration .
   bool hasBoundsDeclaration(const ASTContext &Ctx) const;
+
+  /// \brief Whether this declaration has a bounds-safe interface.
   bool hasBoundsSafeInterface(const ASTContext &Ctx) const;
 
-
-  /// \brief The declared bounds for this declaration. For function
+  /// \brief The bounds expression for this declaration. For function
   /// declarations, this is the return bounds of the function. Null if no
   /// bounds have been declared.
   const BoundsExpr *getBoundsExpr() const {
     return const_cast<DeclaratorDecl *>(this)->getBoundsExpr();
   }
 
-  /// \brief The declared bounds for this declaration. For function
+  /// \brief The bounds expression for this declaration. For function
   /// declarations, this is the return bounds of the function. Null if no
   /// bounds have been declared.
   BoundsExpr *getBoundsExpr() {
     return (Annotations ? Annotations->getBoundsExpr() : nullptr);
   }
 
-  /// \brief Set the declared bounds for this declaration. For function
+  /// \brief Set the bounds expression for this declaration. For function
   /// declarations, this is the return bounds of the function.
   void setBoundsExpr(ASTContext &Context, BoundsExpr *E) {
      // If E is null and we have no annotations, do nothing.
