@@ -4116,16 +4116,12 @@ bool Type::containsCheckedValue() const {
   switch (current->getTypeClass()) {
   case Type::Pointer: {
     const PointerType *ptr = cast<PointerType>(current);
-    if (ptr->isCheckedPointerType()) {
-      return true;
-    }
-    return false;
+    return ptr->isCheckedPointerType();
   }
   case Type::ConstantArray:
   case Type::DependentSizedArray:
   case Type::IncompleteArray:
   case Type::VariableArray: {
-
     return current->getPointeeOrArrayElementType()->containsCheckedValue();
   }
 
@@ -4142,10 +4138,25 @@ bool Type::containsCheckedValue() const {
       if (FD->getType()->isRecordType()) {
           hasCheckedField = FD->getType()->containsCheckedValue();
       }    
-      // we do hasBoundsExpr checking for non-struct/union members only
-      else if (FD->getType()->containsCheckedValue() && FD->hasBoundsExpr()) {
-        hasCheckedField = true;
-        break;
+      // if this field is not a RecordType variable but contains a checked pointer, 
+      // its type must be (1) _Ptr (2) _Array_ptr or (3) _Nt_array_ptr
+      else {
+        if (FD->getType()->containsCheckedValue()) {
+          // Case 1: _Ptr always needs to be initialized
+          if (FD->getType()->isCheckedPointerPtrType())
+            hasCheckedField = true;
+          // Case 2: _Array_ptr needs to be initialized if it has bounds and the bounds are NOT unknown;
+          // Case 3: _Nt_array_ptr needs to be initialized if (1) it has no bounds specified
+          // or (2) it has bounds but the bounds are unknown;
+          // since for _Nt_array_ptr we always attach default bounds of count(0) to a decl, 
+          // if no bounds are specified (done in ActOnBoundsDecl and before this checking),
+          // we can simplified the checking by combining case 2 and 3
+          else if (FD->getType()->isCheckedPointerArrayType() && FD->hasBoundsExpr()) {
+            if (!FD->getBoundsExpr()->isUnknown())
+              hasCheckedField = true;
+          }
+          break;
+        }
       }
     }
     return hasCheckedField;
