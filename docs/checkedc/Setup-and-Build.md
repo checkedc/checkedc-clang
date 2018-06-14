@@ -86,7 +86,7 @@ For developers who need to install it, information is
 
 ## Setting up sources for development
 
-You will need to choose a drive that has at least 20 Gbytes free.  You may need lots of space for the sources and the build.
+You will need to choose a drive that has at least 50 Gbytes free.  You may need lots of space for the sources and the build.
 You can store the sources in any directory that you want.  You should avoid spaces in parent directory names because this can confuse some tools.
 
 You will need to clone each repo.
@@ -184,13 +184,7 @@ Subsequent builds during development will be much faster (minutes, not an hour).
 
 ### On UNIX
 
-Change to your build directory and just run `make`:
-
-	make -j nnn
-
-where `nnn` is replaced by the number of CPU cores that your computer has.
-
-For subsequent builds, you can just build `clang`:
+Change to your build directory and build `clang`:
 
 	make -j nnn clang
 
