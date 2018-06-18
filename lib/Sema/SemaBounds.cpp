@@ -2759,6 +2759,15 @@ namespace {
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
+  ModifiedBoundsDependencies Tracker;
+  // Compute a mapping from expressions that modify lvalues to in-scope bounds
+  // declarations that depend upon those expressions.  We plan to change
+  // CheckBoundsDeclaration to traverse a function body in an order determined
+  // by control flow.   The modification information depends on lexically-scoped
+  // information that can't be computed easily when doing a control-flow
+  // based traversal.
+  ComputeBoundsDependencies(Tracker, FD, Body);
+
   // The IsChecked argument to TraverseStmt doesn't matter - the body will be a
   // compound statement and we'll pick up the checked-ness from that.
   CheckBoundsDeclarations(*this, FD->getBoundsExpr()).TraverseStmt(Body, false);

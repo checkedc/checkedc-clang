@@ -4787,11 +4787,92 @@ public:
   /// not within a function body.
   void CheckTopLevelBoundsDecls(VarDecl *VD);
 
-
-
   // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check
   // will always fail.
   void WarnDynamicCheckAlwaysFails(const Expr *Condition);
+
+  //
+  // Track variables that in-scope bounds declarations depend upon.
+  // TODO: generalize this to other lvalue expressions.
+  class BoundsDependencyTracker {
+  public:
+     typedef SmallVector<VarDecl *, 2> VarBoundsDecls;
+     typedef VarBoundsDecls::iterator VarBoundsIterator;
+     typedef llvm::iterator_range<VarBoundsIterator> VarBoundsIteratorRange;
+     // mapping from variables to bounds that depend upon the variables.
+     typedef std::map<VarDecl *, VarBoundsDecls> DependentMap;
+  private:
+     // Map variables to the bounds declarations that are
+     // in scope and depend upon them.
+     DependentMap Map;
+
+     // Track the bounds that are in scope so that we can remove them from the
+     // dependent map when the scope is exited.
+     std::vector<VarDecl *> BoundsInScope;
+  public:
+     BoundsDependencyTracker() {}
+
+     // Call these when entering/exiting scopes so that we can track when
+     // variables go out of scope.  EnterScope returns an integer
+     // that should be passed to the corresponding ExitScope call.
+     int EnterScope();
+     void ExitScope(int scopeBegin);
+
+     // If D has a bounds declaration, add its dependencies to the existing
+     // scope.
+     void Add(VarDecl *D);
+
+    VarBoundsIteratorRange DependentBoundsDecls(VarDecl *D) {
+      auto Iter = Map.find(D);
+      if (Iter == Map.end())
+        return VarBoundsIteratorRange(nullptr, nullptr);
+      return VarBoundsIteratorRange(Iter->second.begin(),Iter->second.end());
+    }
+
+     void Dump(raw_ostream &OS);
+  };
+
+  BoundsDependencyTracker BoundsDependencies;
+
+  // Map expressions that modify lvalues (assignments and pre/post
+  // increment/decrement operations) to bounds that may depend on the modified
+  // lvalues.  We check the validity of bounds declarations after
+  // expression statements using data flow analysis.   During the analysis,
+  // we need to know whether an expression modifies an lvalue involved in a
+  // bounds invariant.  The AST traversal order for determining this is lexical
+  // and conflicts with preferred orderings for dataflow analysis, so we
+  // precompute this information before analyzing a function body.
+  class ModifiedBoundsDependencies {
+  public:
+    // A C lvalue expression with bounds on values stored in the lvalue.
+    // It is either a variable or a member expression.
+    struct LValueWithBounds {
+      LValueWithBounds(llvm::PointerUnion<VarDecl *, MemberExpr *> Target,
+                       BoundsExpr *Bounds) : Target(Target), Bounds(Bounds) {}
+
+      llvm::PointerUnion<VarDecl *, MemberExpr *> Target;
+      BoundsExpr *Bounds;  // Bounds for target.
+    };
+   typedef SmallVector<LValueWithBounds,2> LValuesWithBounds;
+   // Map assignments or pre/post increment/decrement expressions to bounds
+   // that depend upon the lvalue modified by the expressions.
+   typedef std::map<Expr *, LValuesWithBounds> DependentBounds;
+
+   void Add(Expr *E,  llvm::PointerUnion<VarDecl *, MemberExpr *> LValue,
+            BoundsExpr *Bounds);
+   void Dump(raw_ostream &OS);
+
+   ModifiedBoundsDependencies() {}
+   DependentBounds Tracker;
+  };
+
+  /// \brief Compute a mapping from statements that modify lvalues to
+  /// in-scope bounds declarations that depend on those lvalues.
+  /// FD is the function being declared and Body is the body of the
+  /// function.   They are passed in separately because Body hasn't
+  /// been attached to FD yet.
+  void ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
+                                 FunctionDecl *FD, Stmt *Body);
 
   /// \brief RAII class used to indicate that we are substituting an expression
   /// into another expression during bounds checking.  We need to suppress 

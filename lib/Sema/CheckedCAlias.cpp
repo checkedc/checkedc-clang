@@ -7,11 +7,15 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file implements alias restrictions required by the Checked C
-//  language extension.
+//  This file implements analyses for semantic checking of the Checked C language
+// extension.
+// - Alias restrictions required by the Checked C language extension.
+// - Computing what bounds expressions use variables modified by an assignment
+//   or increment/decrement expression.
 //
 //===----------------------------------------------------------------------===//
 
+// #define DEBUG_DEPENDENCES 1
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -177,18 +181,24 @@ public:
     llvm::outs() << "\n";
   }
 
-  static VarDecl *ComputeVar(Expr *E) {
-    if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E))
-      return dyn_cast<VarDecl>(DR->getDecl());
-    else if (ParenExpr *PE = dyn_cast<ParenExpr>(E))
-      return ComputeVar(PE->getSubExpr());
+  static Expr *SimplifyLValue(Expr *E) {
+    if (ParenExpr *PE = dyn_cast<ParenExpr>(E))
+      return SimplifyLValue(PE->getSubExpr());
     else if (ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
       if (ICE->getCastKind() == CK_LValueBitCast &&
           ICE->isBoundsSafeInterface())
-        return ComputeVar(ICE->getSubExpr());
+        return SimplifyLValue(ICE->getSubExpr());
       else
-        return nullptr;
+        return E;
     } else
+      return E;
+  }
+
+  static VarDecl *ComputeVar(Expr *E) {
+    Expr *Simplified = SimplifyLValue(E);
+    if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(Simplified))
+      return dyn_cast<VarDecl>(DR->getDecl());
+    else
       return nullptr;
   }
 };
@@ -264,21 +274,18 @@ private:
 
     // Taking the address of a member with checked pointer
     // type and bounds is not allowed.  It is allowed for
-    // other cases, such s the member being an array or
+    // other cases, such as the member being an array or
     // the bounds for a bounds-safe interface.
+    ASTContext &Context = SemaRef.getASTContext();
     const FieldDecl *Field = Path[0];
     QualType FieldTy = Field->getType();
-    if (Field->hasBoundsExpr()) {
-      if (FieldTy->isCheckedPointerType() ||
-          FieldTy->isIntegralType(SemaRef.getASTContext()) ||
-          (IsCheckedScope && FieldTy->isUncheckedPointerType())) {
-        SemaRef.Diag(E->getLocStart(),
-                     diag::err_address_of_member_with_bounds) <<
+    if (Field->getBoundsExpr() && !Field->getType()->isArrayType() &&
+        (IsCheckedScope || !Field->hasBoundsSafeInterface(Context))) {
+      SemaRef.Diag(E->getLocStart(), diag::err_address_of_member_with_bounds) <<
         E->getSourceRange();
-        SemaRef.Diag(Field->getBoundsExpr()->getLocStart(),
-                     diag::note_member_bounds) <<
-          Field->getBoundsExpr()->getSourceRange();
-      }
+      SemaRef.Diag(Field->getBoundsExpr()->getLocStart(),
+                   diag::note_member_bounds) <<
+        Field->getBoundsExpr()->getSourceRange();
     }
 
     // Given a member path, see if any of its suffix member paths are used in a
@@ -291,20 +298,16 @@ private:
       SuffixPath.set_size(i);
       // Taking the address of a member used in a bounds expression is not
       // allowed.
-      ASTContext &Context = SemaRef.getASTContext();
+
       ASTContext::member_bounds_iterator start = Context.using_member_bounds_begin(SuffixPath);
       ASTContext::member_bounds_iterator end = Context.using_member_bounds_end(SuffixPath);
       bool EmittedErrorMessage = false;
       for ( ; start != end; ++start) {
         const FieldDecl *MemberWithBounds = *start;
-        QualType QT = MemberWithBounds->getType();
         // Always diagnose members in checked scopes.  For unchecked
         // scopes, diagnose members used in bounds for checked members.  Don't
         // diagnose bounds-safe interfaces.
-        if (IsCheckedScope ||
-            QT->isCheckedArrayType() ||
-            QT->isCheckedPointerType() ||
-            QT->isIntegralType(SemaRef.getASTContext())) {
+        if (IsCheckedScope || MemberWithBounds->hasBoundsDeclaration(Context)) {
           if (!EmittedErrorMessage) {
             SemaRef.Diag(E->getLocStart(), diag::err_address_of_member_in_bounds) << E->getSourceRange();
             EmittedErrorMessage = true;
@@ -332,4 +335,301 @@ void Sema::CheckAddressTakenMembers(UnaryOperator *AddrOf) {
 void Sema::TrackMemberBoundsDependences(FieldDecl *FD, BoundsExpr *BE) {
   if (BE)
     CollectBoundsMemberUses(FD, getASTContext()).TraverseStmt(BE);
+}
+
+namespace {
+// Update map from variables to bounds expressions that use those variables.
+class UpdateDependences : public RecursiveASTVisitor<UpdateDependences> {
+private:
+   bool Add;              // whether to add or remove dependence.
+   VarDecl *const BoundsDecl;   // variable with bounds declaration.
+   Sema::BoundsDependencyTracker::DependentMap &Map;
+
+   void AddDependence(VarDecl *D) {
+    if (BoundsDecl == D)   // Do not add self-dependences.
+      return;
+    auto I = Map.find(D);
+    if (I == Map.end()) {
+      Map[D].push_back(BoundsDecl);
+      return;
+     }
+
+    auto VecIter = I->second.begin();
+    auto VecEnd = I->second.end();
+
+    for ( ; VecIter != VecEnd; VecIter++)
+      if (*VecIter == BoundsDecl)
+        return;
+
+    I->second.push_back(BoundsDecl);
+  }
+
+   void RemoveDependence(VarDecl *D) {
+     if (D == BoundsDecl)    // Self-dependences aren't allowed.
+       return;
+
+     auto I = Map.find(D);
+     if (I == Map.end())
+       return;
+
+     auto VecIter = I->second.begin();
+     auto VecEnd = I->second.end();
+
+     for ( ; VecIter != VecEnd; VecIter++)
+       if (*VecIter == BoundsDecl) {
+         I->second.erase(VecIter);
+         if (I->second.empty())
+           Map.erase(I);
+         return;
+       }
+
+    return;
+   }
+
+public:
+  UpdateDependences(VarDecl *BoundsDecl,
+                    Sema::BoundsDependencyTracker::DependentMap &Map,
+                    bool Add) :
+    BoundsDecl(BoundsDecl), Map(Map), Add(Add) {}
+
+  bool VisitDeclRefExpr(DeclRefExpr *DR) {
+    if (VarDecl *D = dyn_cast<VarDecl>(DR->getDecl())) {
+       if (Add)
+         AddDependence(D);
+       else
+         RemoveDependence(D);
+    }
+
+    return true;
+  }
+};
+}
+
+void Sema::BoundsDependencyTracker::Add(VarDecl *D) {
+  BoundsExpr *BE = D->getBoundsExpr();
+  if (!BE)
+    return;
+  BoundsInScope.push_back(D);
+  UpdateDependences(D, Map, true).TraverseStmt(BE);
+}
+
+int Sema::BoundsDependencyTracker::EnterScope() {
+  return BoundsInScope.size();
+}
+
+void Sema::BoundsDependencyTracker::ExitScope(int scopeBegin) {
+  while (BoundsInScope.size() > scopeBegin) {
+    VarDecl *D = BoundsInScope.back();
+    BoundsExpr *BE = D->getBoundsExpr();
+    UpdateDependences(D, Map, false).TraverseStmt(BE);
+    BoundsInScope.pop_back();
+  }
+}
+
+void Sema::BoundsDependencyTracker::Dump(raw_ostream &OS) {
+  OS << "\nBounds declarations in scope:\n";
+  for (int i = 0; i < BoundsInScope.size(); i++)
+    BoundsInScope[i]->dump(OS);
+  OS << "\nMap from variables to variables w/ bounds declarations:\n";
+  for (auto Iter = Map.begin(); Iter != Map.end(); ++Iter) {
+    OS << Iter->first->getDeclName() << ": ";
+    bool first = true;
+    OS << "{";
+    for (auto VarIter = Iter->second.begin(); VarIter != Iter->second.end();
+         ++VarIter) {
+      if (first)
+        first = false;
+      else
+        OS << ",";
+      OS << (*VarIter)->getDeclName();
+    }
+    OS << "}\n";
+  }
+}
+
+/// \brief Track that E modifies an lvalue expression used in Bounds.
+void Sema::ModifiedBoundsDependencies::Add(Expr *E,
+                            llvm::PointerUnion<VarDecl *, MemberExpr *> LValue,
+                                           BoundsExpr *Bounds) {
+    LValueWithBounds Pair(LValue, Bounds);
+    auto I = Tracker.find(E);
+    if (I == Tracker.end()) {
+      Tracker[E].push_back(Pair);
+      return;
+    }
+
+    auto VecIter = I->second.begin();
+    auto VecEnd = I->second.end();
+
+    // Don't add the LValue/Bounds if they already on the list for E.
+    for ( ; VecIter != VecEnd; VecIter++)
+      if (VecIter->Bounds == Pair.Bounds &&
+          VecIter->Target == Pair.Target)
+        return;
+
+    I->second.push_back(Pair);
+}
+
+void Sema::ModifiedBoundsDependencies::Dump(raw_ostream &OS) {
+  OS << "Mapping from expressions to modified bounds:\n";
+  for (auto Iter = Tracker.begin(); Iter != Tracker.end(); ++Iter) {
+    OS << "Expression:\n";
+    Iter->first->dump(OS);
+    OS << "Modified:\n";
+    for (auto VarIter = Iter->second.begin(); VarIter != Iter->second.end(); ++VarIter) {
+      OS << "LValue expression:\n";
+      if (VarIter->Target.is<VarDecl *>())
+        VarIter->Target.get<VarDecl *>()->dump(OS);
+      else
+        VarIter->Target.get<MemberExpr *>()->dump(OS);
+      OS << "Bounds:\n";
+      VarIter->Bounds->dump(OS);;
+    }
+  }
+}
+
+namespace {
+// Update mapping from expressions that modify lvalues (assignments,
+// increment/decrement expressions) to bounds expressions that use those
+// lvalues.
+ class ModifyingExprDependencies {
+ private:
+   Sema &SemaRef;
+   Sema::ModifiedBoundsDependencies &Tracker;
+
+ public:
+ ModifyingExprDependencies(Sema &SemaRef, Sema::ModifiedBoundsDependencies &Tracker) :
+   SemaRef(SemaRef), Tracker(Tracker) {}
+
+ // Statement to traverse.  This iterates recursively over a statement
+ // and all of its children statements.
+ void TraverseStmt(Stmt *S, bool InCheckedScope) {
+   if (!S)
+      return;
+
+   bool NewScope = false;
+
+   switch (S->getStmtClass()) {
+     case Expr::UnaryOperatorClass:
+       VisitUnaryOperator(cast<UnaryOperator>(S), InCheckedScope);
+       break;
+     case Expr::BinaryOperatorClass:
+     case Expr::CompoundAssignOperatorClass:
+       VisitBinaryOperator(cast<BinaryOperator>(S), InCheckedScope);
+       break;
+     case Stmt::CompoundStmtClass: {
+       CompoundStmt *CS = cast<CompoundStmt>(S);
+       InCheckedScope = CS->isChecked();
+       NewScope = true;
+       break;
+     }
+     case Stmt::DeclStmtClass: {
+       DeclStmt *DS = cast<DeclStmt>(S);
+       auto BeginDecls = DS->decl_begin(), EndDecls = DS->decl_end();
+       for (auto I = BeginDecls; I != EndDecls; ++I) {
+         Decl *D = *I;
+         // The initializer expression is visited during the loop
+         // below iterating children.
+         if (VarDecl *VD = dyn_cast<VarDecl>(D))
+           VisitVarDecl(VD, InCheckedScope);
+       }
+       break;
+     }
+     default:
+       break;
+    }
+
+    int CurrentBoundsScope = 0;
+    if (NewScope)
+      CurrentBoundsScope = SemaRef.BoundsDependencies.EnterScope();
+
+    auto Begin = S->child_begin(), End = S->child_end();
+    for (auto I = Begin; I != End; ++I) {
+      TraverseStmt(*I, InCheckedScope);
+    }
+
+    if (NewScope) {
+#if DEBUG_DEPENDENCES
+      SemaRef.BoundsDependencies.Dump(llvm::outs());
+#endif
+      SemaRef.BoundsDependencies.ExitScope(CurrentBoundsScope);
+    }
+ }
+
+ //
+ // Visit methods take some action for a specific node.
+ //
+
+  /// \brief Record the lvalues that the bounds for D depened upon.
+  void VisitVarDecl(VarDecl *D, bool InCheckedScope) {
+    SemaRef.BoundsDependencies.Add(D);
+  }
+
+  /// /\brief Record the bounds that use the LValue expression modified by E.
+  void RecordLValueUpdate(Expr *E, Expr *LValue, bool InCheckedScope) {
+    if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(LValue)) {
+      if (VarDecl *D = dyn_cast<VarDecl>(DR->getDecl())) {
+        Sema::BoundsDependencyTracker::VarBoundsIteratorRange Range =
+          SemaRef.BoundsDependencies.DependentBoundsDecls(D);
+        for (auto Current = Range.begin(), End = Range.end(); Current != End;
+             ++Current) {
+          VarDecl *VarWithBounds = *Current;
+          assert(VarWithBounds->getBoundsExpr());
+          if (InCheckedScope ||
+              VarWithBounds->hasBoundsDeclaration(SemaRef.getASTContext()))
+            Tracker.Add(E, VarWithBounds, VarWithBounds->getBoundsExpr());
+        }
+      }
+    }
+  }
+
+  void VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
+    if (!UnaryOperator::isIncrementDecrementOp(E->getOpcode()))
+      return;
+
+    Expr *LValue = Helper::SimplifyLValue(E->getSubExpr());
+    RecordLValueUpdate(E, LValue, InCheckedScope);
+  }
+
+  void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
+    if (!E->isAssignmentOp())
+      return;
+
+    Expr *LValue = Helper::SimplifyLValue(E->getLHS());
+    RecordLValueUpdate(E, LValue, InCheckedScope);
+  }
+};
+}
+
+void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
+                                     FunctionDecl *FD, Stmt *Body) {
+  if (!Body)
+    return;
+
+#if DEBUG_DEPENDENCES
+  llvm::outs() << "Computing bounds dependencies for " << FD->getName() << ".\n";
+#endif
+
+  // Track parameter bounds declarations in function parameter scope.
+  int CurrentBoundsScope = BoundsDependencies.EnterScope();
+  for (auto ParamIter = FD->param_begin(), ParamEnd = FD->param_end();
+       ParamIter != ParamEnd; ++ParamIter)
+    BoundsDependencies.Add(*ParamIter);
+
+#if DEBUG_DEPENDENCES
+  BoundsDependencies.Dump(llvm::outs());
+ #endif
+
+  ModifyingExprDependencies(*this, Tracker).TraverseStmt(Body, false);
+
+  // Stop tracking parameter bounds declaration dependencies.
+  BoundsDependencies.ExitScope(CurrentBoundsScope);
+
+#if DEBUG_DEPENDENCES
+  llvm::outs() << "Done " << FD->getName() << ".\n";
+  llvm::outs() << "Results:\n";
+
+  BoundsDependencies.Dump(llvm::outs());
+  Tracker.Dump(llvm::outs());
+#endif
 }
