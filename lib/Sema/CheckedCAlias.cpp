@@ -342,11 +342,11 @@ namespace {
 class UpdateDependences : public RecursiveASTVisitor<UpdateDependences> {
 private:
    bool Add;              // whether to add or remove dependence.
-   VarDecl *BoundsDecl;   // variable with bounds declaration.
+   VarDecl *const BoundsDecl;   // variable with bounds declaration.
    Sema::BoundsDependencyTracker::DependentMap &Map;
 
    void AddDependence(VarDecl *D) {
-    if (D == BoundsDecl)   // Do not add self-dependences.
+    if (BoundsDecl == D)   // Do not add self-dependences.
       return;
     auto I = Map.find(D);
     if (I == Map.end()) {

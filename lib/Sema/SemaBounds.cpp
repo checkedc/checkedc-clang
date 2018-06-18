@@ -2762,7 +2762,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   ModifiedBoundsDependencies Tracker;
   // Compute a mapping from expressions that modify lvalues to in-scope bounds
   // declarations that depend upon those expressions.  We plan to change
-  // CheckBoundsDeclaration to traverse function bodies in an order determined
+  // CheckBoundsDeclaration to traverse a function body in an order determined
   // by control flow.   The modification information depends on lexically-scoped
   // information that can't be computed easily when doing a control-flow
   // based traversal.
