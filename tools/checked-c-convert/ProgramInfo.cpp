@@ -167,7 +167,7 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
 
   auto I = getCvars().begin();
   auto J = OC.begin();
-  auto CS = Info.getConstraints();
+  Constraints &CS = Info.getConstraints();
   auto env = CS.getVariables();
 
   while(I != getCvars().end() && J != OC.end()) {
@@ -187,7 +187,10 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
 
 bool PVConstraint::isLt(const ConstraintVariable &Other, 
                         ProgramInfo &Info) const 
-{
+{  
+  if (isEmpty() || Other.isEmpty())
+    return false;
+  
   return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
         return *A < *B;
       });
@@ -195,7 +198,13 @@ bool PVConstraint::isLt(const ConstraintVariable &Other,
 
 bool PVConstraint::isEq(const ConstraintVariable &Other,
                         ProgramInfo &Info) const 
-{
+{  
+  if (isEmpty() && Other.isEmpty())
+    return true;
+
+  if (isEmpty() || Other.isEmpty())
+    return false;
+
   return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
         return *A == *B;
       });
@@ -218,12 +227,14 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
 // variables and potentially nested function pointer declaration. Produces a 
 // string that can be replaced in the source code.
 std::string
-PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
+PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName) {
   std::ostringstream ss;
   std::ostringstream pss;
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
   bool emittedName = false;
+  if (emitName == false) 
+    emittedName = true;
   for (const auto &V : vars) {
     VarAtom VA(V);
     ConstAtom *C = E[&VA];
@@ -477,6 +488,9 @@ bool FVConstraint::liftedOnCVars(const ConstraintVariable &Other,
 bool FVConstraint::isLt(const ConstraintVariable &Other,
                         ProgramInfo &Info) const 
 {
+  if (isEmpty() || Other.isEmpty())
+    return false;
+
   return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
       return *A < *B;
       });
@@ -484,7 +498,13 @@ bool FVConstraint::isLt(const ConstraintVariable &Other,
 
 bool FVConstraint::isEq(const ConstraintVariable &Other,
                         ProgramInfo &Info) const 
-{
+{  
+  if (isEmpty() && Other.isEmpty())
+    return true;
+
+  if (isEmpty() || Other.isEmpty())
+    return false;
+  
   return liftedOnCVars(Other, Info, [](ConstAtom *A, ConstAtom *B) {
       return *A == *B;
       });
@@ -558,7 +578,7 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 }
 
 std::string
-FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E) {
+FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName) {
   std::string s = "";
   // TODO punting on what to do here. The right thing to do is to figure out
   // the LUB of all of the V in returnVars.

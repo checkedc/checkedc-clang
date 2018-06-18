@@ -20,13 +20,12 @@ void dosomething(void) {
 void foo(void) {
   int *a = (int *) malloc(sizeof(int));
   *a = 0;
-  free(a);
+  free((void *)a);
   return;
 }
 //CHECK: void foo(void) {
-//CHECK-NEXT: _Ptr<int> a = (int *) malloc(sizeof(int));
+//CHECK-NEXT: int *a = (int *) malloc(sizeof(int));
 //CHECK-NEXT: *a = 0;
-//CHECK-NEXT: free((void *)a);
 
 typedef struct _listelt {
   struct _listelt *next;

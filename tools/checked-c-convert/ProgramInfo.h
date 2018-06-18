@@ -69,7 +69,9 @@ public:
     Kind(K),BaseType(T),Name(N) {}
 
   // Create a "for-rewriting" representation of this ConstraintVariable.
-  virtual std::string mkString(Constraints::EnvironmentMap &E) = 0;
+  // The 'emitName' parameter is true when the generated string should include
+  // the name of the variable, false for just the type.
+  virtual std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true) = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -107,6 +109,9 @@ public:
   // with a specific assignment to the variables in mind. 
   virtual bool isLt(const ConstraintVariable &other, ProgramInfo &I) const = 0;
   virtual bool isEq(const ConstraintVariable &other, ProgramInfo &I) const = 0;
+  // Sometimes, constraint variables can be produced that are empty. This 
+  // tests for the existence of those constraint variables. 
+  virtual bool isEmpty(void) const = 0;
 
   // A helper function for isLt and isEq where the last parameter is a lambda 
   // for the specific comparison operation to perform. 
@@ -170,7 +175,7 @@ public:
     return S->getKind() == PointerVariable;
   }
 
-  std::string mkString(Constraints::EnvironmentMap &E);
+  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true);
 
   FunctionVariableConstraint *getFV() { return FV; }
 
@@ -181,6 +186,8 @@ public:
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
+  bool isEmpty(void) const { return vars.size() == 0; }
+
   bool liftedOnCVars(const ConstraintVariable &O, 
       ProgramInfo &Info,
       llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
@@ -231,7 +238,7 @@ public:
     return paramVars.at(i);
   }
 
-  std::string mkString(Constraints::EnvironmentMap &E);
+  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
@@ -239,6 +246,20 @@ public:
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
+  // An FVConstraint is empty if every constraint associated is empty. 
+  bool isEmpty(void) const { 
+    
+    if (returnVars.size() > 0)
+      return false;
+    
+    for (const auto &u : paramVars) 
+      for (const auto &v : u)
+        if (!v->isEmpty())
+          return false;
+
+    return true;    
+  }
+
   bool liftedOnCVars(const ConstraintVariable &O, 
       ProgramInfo &Info,
       llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;

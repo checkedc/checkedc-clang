@@ -105,29 +105,380 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
   return V;
 }
 
-typedef std::pair<Decl*, DeclStmt*> DeclNStmt;
-typedef std::pair<DeclNStmt, std::string> DAndReplace;
+// Walk the list of declarations and find a declaration accompanied by 
+// a definition and a function body. 
+FunctionDecl *getDefinition(FunctionDecl *FD) {
+  for (const auto &D : FD->redecls())
+    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
+      if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
+        return tFD;
+
+  return nullptr;
+}
+
+// Walk the list of declarations and find a declaration that is NOT 
+// a definition and does NOT have a body. 
+FunctionDecl *getDeclaration(FunctionDecl *FD) {
+  for (const auto &D : FD->redecls())
+    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
+      if (!tFD->isThisDeclarationADefinition())
+        return tFD;
+
+  return FD;
+}
+
+// A Declaration, optional DeclStmt, and a replacement string
+// for that Declaration. 
+struct DAndReplace
+{
+  Decl        *Declaration; // The declaration to replace.
+  DeclStmt    *Statement;   // The DeclStmt, if it exists.
+  std::string Replacement;  // The string to replace the declaration with.
+  bool        fullDecl;     // If the declaration is a function, true if 
+                            // replace the entire declaration or just the 
+                            // return declaration.
+  DAndReplace() : Declaration(nullptr),
+                  Statement(nullptr),
+                  Replacement(""),
+                  fullDecl(false) { }
+
+  DAndReplace(Decl *D, std::string R) : Declaration(D), 
+                                        Statement(nullptr),
+                                        Replacement(R),
+                                        fullDecl(false) {} 
+
+  DAndReplace(Decl *D, std::string R, bool F) : Declaration(D), 
+                                                Statement(nullptr),
+                                                Replacement(R),
+                                                fullDecl(F) {} 
+
+
+  DAndReplace(Decl *D, DeclStmt *S, std::string R) :  Declaration(D),
+                                                      Statement(S),
+                                                      Replacement(R),
+                                                      fullDecl(false) { }
+};
+
+SourceLocation 
+getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
+{        
+	const FunctionDecl *oFD = nullptr;
+
+  if (FD->hasBody(oFD) && oFD == FD) { 
+    // Replace everything up to the beginning of the body. 
+    const Stmt *Body = FD->getBody(oFD); 
+ 
+    int Offset = 0; 
+		const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
+
+	  while (*Buf != ')') {
+      Buf--;
+      Offset--;
+    }
+
+    return Body->getSourceRange().getBegin().getLocWithOffset(Offset);
+	} else {
+    return FD->getSourceRange().getEnd();
+	}
+}
+
+// Compare two DAndReplace values. The algorithm for comparing them relates 
+// their source positions. If two DAndReplace values refer to overlapping 
+// source positions, then they are the same. Otherwise, they are ordered
+// by their placement in the input file. 
+//
+// There are two special cases: Function declarations, and DeclStmts. In turn:
+//
+//  - Function declarations might either be a DAndReplace describing the entire 
+//    declaration, i.e. replacing "int *foo(void)" 
+//    with "int *foo(void) : itype(_Ptr<int>)". Or, it might describe just 
+//    replacing only the return type, i.e. "_Ptr<int> foo(void)". This is 
+//    discriminated against with the 'fullDecl' field of the DAndReplace type
+//    and the comparison function first checks if the operands are 
+//    FunctionDecls and if the 'fullDecl' field is set. 
+//  - A DeclStmt of mupltiple Decls, i.e. 'int *a = 0, *b = 0'. In this case,
+//    we want the DAndReplace to refer only to the specific sub-region that
+//    would be replaced, i.e. '*a = 0' and '*b = 0'. To do that, we traverse
+//    the Decls contained in a DeclStmt and figure out what the appropriate 
+//    source locations are to describe the positions of the independent 
+//    declarations. 
+struct DComp
+{
+  SourceManager &SM;
+  DComp(SourceManager &S) : SM(S) { }
+
+  SourceRange getWholeSR(SourceRange orig, DAndReplace dr) const {
+    SourceRange newSourceRange(orig);
+
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(dr.Declaration)) {
+      newSourceRange.setEnd(getFunctionDeclarationEnd(FD, SM));
+      if (dr.fullDecl == false)
+        newSourceRange = FD->getReturnTypeSourceRange();
+    } 
+
+    return newSourceRange;
+  }
+
+  bool operator()(const DAndReplace lhs, const DAndReplace rhs) const {
+    // Does the source location of the Decl in lhs overlap at all with
+    // the source location of rhs?
+		SourceRange srLHS = lhs.Declaration->getSourceRange(); 
+    SourceRange srRHS = rhs.Declaration->getSourceRange();
+
+    // Take into account whether or not a FunctionDeclaration specifies 
+    // the "whole" declaration or not. If it does not, it just specifies 
+    // the return position. 
+    srLHS = getWholeSR(srLHS, lhs);
+    srRHS = getWholeSR(srRHS, rhs);
+
+    // Also take into account whether or not there is a multi-statement
+    // decl, because the generated ranges will overlap. 
+ 
+    if (lhs.Statement && !lhs.Statement->isSingleDecl()) {
+      SourceLocation  newBegin = (*lhs.Statement->decls().begin())->getSourceRange().getBegin();
+      bool            found; 
+      for (const auto &DT : lhs.Statement->decls()) {
+        if (DT == lhs.Declaration) {
+          found = true;
+          break;
+        }
+        newBegin = DT->getSourceRange().getEnd();
+      }
+      assert (found);
+      srLHS.setBegin(newBegin);
+      // This is needed to make the subsequent test inclusive. 
+      srLHS.setEnd(srLHS.getEnd().getLocWithOffset(-1));
+    }
+
+    if (rhs.Statement && !rhs.Statement->isSingleDecl()) {
+      SourceLocation  newBegin = (*rhs.Statement->decls().begin())->getSourceRange().getBegin();
+      bool            found; 
+      for (const auto &DT : rhs.Statement->decls()) {
+        if (DT == rhs.Declaration) {
+          found = true;
+          break;
+        }
+        newBegin = DT->getSourceRange().getEnd();
+      }
+      assert (found);
+      srRHS.setBegin(newBegin);
+      // This is needed to make the subsequent test inclusive. 
+      srRHS.setEnd(srRHS.getEnd().getLocWithOffset(-1));
+    }
+
+    SourceLocation x1 = srLHS.getBegin();
+    SourceLocation x2 = srLHS.getEnd();
+    SourceLocation y1 = srRHS.getBegin();
+    SourceLocation y2 = srRHS.getEnd();
+
+    bool contained =  SM.isBeforeInTranslationUnit(x1, y2) && 
+                      SM.isBeforeInTranslationUnit(y1, x2); 
+
+    if (contained) 
+      return false;
+    else
+      return SM.isBeforeInTranslationUnit(x2, y1);
+  }
+};
+
+typedef std::set<DAndReplace, DComp> RSet;
+
+void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite) {
+  // First, find all the declarations of the containing function.
+  DeclContext *DF = PV->getParentFunctionOrMethod();
+  assert(DF != nullptr && "no parent function or method for decl");
+  FunctionDecl *FD = cast<FunctionDecl>(DF);
+
+  // For each function, determine which parameter in the declaration
+  // matches PV, then, get the type location of that parameter
+  // declaration and re-write.
+
+  // This is kind of hacky, maybe we should record the index of the
+  // parameter when we find it, instead of re-discovering it here.
+  int parmIndex = -1;
+  int c = 0;
+  for (const auto &I : FD->parameters()) {
+    if (I == PV) {
+      parmIndex = c;
+      break;
+    }
+    c++;
+  }
+  assert(parmIndex >= 0);
+
+  for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
+       toRewrite = toRewrite->getPreviousDecl()) {
+    int U = toRewrite->getNumParams();
+    if (parmIndex < U) {
+      // TODO these declarations could get us into deeper 
+      // header files.
+      ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
+      assert(Rewrite != NULL);
+      SourceRange TR = Rewrite->getSourceRange();
+
+      if (canRewrite(R, TR))
+        R.ReplaceText(TR, sRewrite);
+    }
+  }
+}
+
+void rewrite( VarDecl               *VD, 
+              Rewriter              &R, 
+              std::string           sRewrite, 
+              DeclStmt              *Where,
+              RSet                  &skip,
+              const DAndReplace     &N,
+              RSet                  &toRewrite,
+              ASTContext            &A) 
+{
+  if (Where != NULL) {
+    if (Verbose) {
+      errs() << "VarDecl at:\n";
+      Where->dump();
+    }
+    SourceRange TR = VD->getSourceRange();
+
+    // Is there an initializer? If there is, change TR so that it points
+    // to the START of the SourceRange of the initializer text, and drop
+    // an '=' token into sRewrite.
+    if (VD->hasInit()) {
+      SourceLocation eqLoc = VD->getInitializerStartLoc();
+      TR.setEnd(eqLoc);
+      sRewrite = sRewrite + " = ";
+    }
+
+    // Is it a variable type? This is the easy case, we can re-write it
+    // locally, at the site of the declaration.
+    if (Where->isSingleDecl()) {
+      if (canRewrite(R, TR)) {
+        R.ReplaceText(TR, sRewrite);
+      } else {
+        // This can happen if SR is within a macro. If that is the case, 
+        // maybe there is still something we can do because Decl refers 
+        // to a non-macro line.
+
+        SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
+          VD->getLocation());
+
+        if (canRewrite(R, possible)) {
+          R.ReplaceText(possible, sRewrite);
+          std::string newStr = " " + VD->getName().str();
+          R.InsertTextAfter(VD->getLocation(), newStr);
+        } else {
+          if (Verbose) {
+            errs() << "Still don't know how to re-write VarDecl\n";
+            VD->dump();
+            errs() << "at\n";
+            Where->dump();
+            errs() << "with " << sRewrite << "\n";
+          }
+        }
+      }
+    } else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
+      // Hack time!
+      // Sometimes, like in the case of a decl on a single line, we'll need to
+      // do multiple NewTyps at once. In that case, in the inner loop, we'll
+      // re-scan and find all of the NewTyps related to that line and do
+      // everything at once. That means sometimes we'll get NewTyps that
+      // we don't want to process twice. We'll skip them here.
+
+      // Step 1: get the re-written types.
+      RSet rewritesForThisDecl(DComp(R.getSourceMgr()));
+      auto I = toRewrite.find(N);
+      while (I != toRewrite.end()) {
+        DAndReplace tmp = *I;
+        if (tmp.Statement == Where)
+          rewritesForThisDecl.insert(tmp);
+        ++I;
+      }
+
+      // Step 2: remove the original line from the program.
+      SourceRange DR = Where->getSourceRange();
+      R.RemoveText(DR);
+
+      // Step 3: for each decl in the original, build up a new string
+      //         and if the original decl was re-written, write that
+      //         out instead (WITH the initializer).
+      std::string newMultiLineDeclS = "";
+      raw_string_ostream newMLDecl(newMultiLineDeclS);
+      for (const auto &DL : Where->decls()) {
+        DAndReplace N;
+        bool found = false;
+        VarDecl *VDL = dyn_cast<VarDecl>(DL);
+        assert(VDL != NULL);
+
+        for (const auto &NLT : rewritesForThisDecl)
+          if (NLT.Declaration == DL) {
+            N = NLT;
+            found = true;
+            break;
+          }
+
+        if (found) {
+          newMLDecl << N.Replacement;
+          if (Expr *E = VDL->getInit()) {
+            newMLDecl << " = ";
+            E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
+          }
+          newMLDecl << ";\n";
+        }
+        else {
+          DL->print(newMLDecl);
+          newMLDecl << ";\n";
+        }
+      }
+
+      // Step 4: Write out the string built up in step 3.
+      R.InsertTextAfter(DR.getEnd(), newMLDecl.str());
+
+      // Step 5: Be sure and skip all of the NewTyps that we dealt with
+      //         during this time of hacking, by adding them to the
+      //         skip set.
+
+      for (const auto &TN : rewritesForThisDecl)
+        skip.insert(TN);
+    } else {
+      if (Verbose) {
+        errs() << "Don't know how to re-write VarDecl\n";
+        VD->dump();
+        errs() << "at\n";
+        Where->dump();
+        errs() << "with " << N.Replacement << "\n";
+      }
+    }
+  } else {
+    if (Verbose) {
+      errs() << "Don't know where to rewrite a VarDecl! ";
+      VD->dump();
+      errs() << "\n";
+    }
+  }
+}
 
 // Visit each Decl in toRewrite and apply the appropriate pointer type
 // to that Decl. The state of the rewrite is contained within R, which
 // is both input and output. R is initialized to point to the 'main'
 // source file for this transformation. toRewrite contains the set of
 // declarations to rewrite. S is passed for source-level information
-// about the current compilation unit.
-void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
-             ASTContext &A, std::set<FileID> &Files) {
-  std::set<DAndReplace> skip;
-
+// about the current compilation unit. skip indicates some rewrites that
+// we should skip because we already applied them, for example, as part 
+// of turning a single line declaration into a multi-line declaration.
+void rewrite( Rewriter              &R, 
+              RSet                  &toRewrite, 
+              RSet                  &skip,
+              SourceManager         &S,
+              ASTContext            &A, 
+              std::set<FileID>      &Files) 
+{
   for (const auto &N : toRewrite) {
-    DeclNStmt DN = N.first;
-    Decl *D = DN.first;
-    DeclStmt *Where = DN.second;
+    Decl *D = N.Declaration;
+    DeclStmt *Where = N.Statement;
     assert(D != nullptr);
 
     if (Verbose) {
       errs() << "Replacing type of decl:\n";
       D->dump();
-      errs() << "with " << N.second << "\n";
+      errs() << "with " << N.Replacement << "\n";
     }
 
     // Get a FullSourceLoc for the start location and add it to the
@@ -136,190 +487,12 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
     FullSourceLoc tFSL(tTR.getBegin(), S);
     Files.insert(tFSL.getFileID());
 
+    // Is it a parameter type?
     if (ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) {
       assert(Where == NULL);
-
-      // Okay, if this is a parameter, and we're trying to do a modular
-      // conversion, we need to look at all of the constraint variables 
-      // for all of the declarations, take their upper bound, then compare
-      // those constraints to the constraints on the actual function 
-      // definition. Element by element, there are a few cases:
-      //
-      // 1. Formal < Actual, uses of a function are safe, but the function 
-      //    itself is not. Here, there is little we can do, so we should 
-      //    bump the constraints on the call sites up. 
-      // 2. Formal = Actual, the uses of the function and the function itself
-      //    are equally safe. Here, there is nothing we need to do. 
-      // 3. Formal > Actual, uses of the function are not safe, but the function
-      //    itself is safe. This is hopefully the common case, because we can 
-      //    mitigate it with a bounds safe interface. Here, we need to change
-      //    how we re-write the parameter declaration. 
-
-      // Is it a parameter type?
-
-      // First, find all the declarations of the containing function.
-      if (DeclContext *DF = PV->getParentFunctionOrMethod()) {
-        if (FunctionDecl *FD = cast<FunctionDecl>(DF)) {
-          // For each function, determine which parameter in the declaration
-          // matches PV, then, get the type location of that parameter
-          // declaration and re-write.
-
-          // This is kind of hacky, maybe we should record the index of the
-          // parameter when we find it, instead of re-discovering it here.
-          int parmIndex = -1;
-          int c = 0;
-          for (const auto &I : FD->parameters()) {
-            if (I == PV) {
-              parmIndex = c;
-              break;
-            }
-            c++;
-          }
-          assert(parmIndex >= 0);
-
-          for (FunctionDecl *toRewrite = FD; toRewrite != NULL;
-               toRewrite = toRewrite->getPreviousDecl()) {
-            int U = toRewrite->getNumParams();
-            if (parmIndex < U) {
-              // TODO these declarations could get us into deeper 
-              // header files.
-              ParmVarDecl *Rewrite = toRewrite->getParamDecl(parmIndex);
-              assert(Rewrite != NULL);
-              SourceRange TR = Rewrite->getSourceRange();
-              std::string sRewrite = N.second;
-
-              if (canRewrite(R, TR))
-                R.ReplaceText(TR, sRewrite);
-            }
-          }
-        } 
-      } else {
-        llvm_unreachable("no parent function or method for decl");
-      }
+      rewrite(PV, R, N.Replacement);
     } else if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
-      if (Where != NULL) {
-        if (Verbose) {
-          errs() << "VarDecl at:\n";
-          Where->dump();
-        }
-        SourceRange TR = VD->getSourceRange();
-        std::string sRewrite = N.second;
-
-        // Is there an initializer? If there is, change TR so that it points
-        // to the START of the SourceRange of the initializer text, and drop
-        // an '=' token into sRewrite.
-        if (VD->hasInit()) {
-          SourceLocation eqLoc = VD->getInitializerStartLoc();
-          TR.setEnd(eqLoc);
-          sRewrite = sRewrite + " = ";
-        }
-
-        // Is it a variable type? This is the easy case, we can re-write it
-        // locally, at the site of the declaration.
-        if (Where->isSingleDecl()) {
-          if (canRewrite(R, TR)) {
-            R.ReplaceText(TR, sRewrite);
-          } else {
-            // This can happen if SR is within a macro. If that is the case, 
-            // maybe there is still something we can do because Decl refers 
-            // to a non-macro line.
-
-            SourceRange possible(R.getSourceMgr().getExpansionLoc(TR.getBegin()),
-              VD->getLocation());
-
-            if (canRewrite(R, possible)) {
-              R.ReplaceText(possible, N.second);
-              std::string newStr = " " + VD->getName().str();
-              R.InsertTextAfter(VD->getLocation(), newStr);
-            } else {
-              if (Verbose) {
-                errs() << "Still don't know how to re-write VarDecl\n";
-                VD->dump();
-                errs() << "at\n";
-                Where->dump();
-                errs() << "with " << N.second << "\n";
-              }
-            }
-          }
-        } else if (!(Where->isSingleDecl()) && skip.find(N) == skip.end()) {
-          // Hack time!
-          // Sometimes, like in the case of a decl on a single line, we'll need to
-          // do multiple NewTyps at once. In that case, in the inner loop, we'll
-          // re-scan and find all of the NewTyps related to that line and do
-          // everything at once. That means sometimes we'll get NewTyps that
-          // we don't want to process twice. We'll skip them here.
-
-          // Step 1: get the re-written types.
-          std::set<DAndReplace> rewritesForThisDecl;
-          auto I = toRewrite.find(N);
-          while (I != toRewrite.end()) {
-            DAndReplace tmp = *I;
-            if (tmp.first.second == Where)
-              rewritesForThisDecl.insert(tmp);
-            ++I;
-          }
-
-          // Step 2: remove the original line from the program.
-          SourceRange DR = Where->getSourceRange();
-          R.RemoveText(DR);
-
-          // Step 3: for each decl in the original, build up a new string
-          //         and if the original decl was re-written, write that
-          //         out instead (WITH the initializer).
-          std::string newMultiLineDeclS = "";
-          raw_string_ostream newMLDecl(newMultiLineDeclS);
-          for (const auto &DL : Where->decls()) {
-            DAndReplace N;
-            bool found = false;
-            VarDecl *VDL = dyn_cast<VarDecl>(DL);
-            assert(VDL != NULL);
-
-            for (const auto &NLT : rewritesForThisDecl)
-              if (NLT.first.first == DL) {
-                N = NLT;
-                found = true;
-                break;
-              }
-
-            if (found) {
-              newMLDecl << N.second;
-              if (Expr *E = VDL->getInit()) {
-                newMLDecl << " = ";
-                E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
-              }
-              newMLDecl << ";\n";
-            }
-            else {
-              DL->print(newMLDecl);
-              newMLDecl << ";\n";
-            }
-          }
-
-          // Step 4: Write out the string built up in step 3.
-          R.InsertTextAfter(DR.getEnd(), newMLDecl.str());
-
-          // Step 5: Be sure and skip all of the NewTyps that we dealt with
-          //         during this time of hacking, by adding them to the
-          //         skip set.
-
-          for (const auto &TN : rewritesForThisDecl)
-            skip.insert(TN);
-        } else {
-          if (Verbose) {
-            errs() << "Don't know how to re-write VarDecl\n";
-            VD->dump();
-            errs() << "at\n";
-            Where->dump();
-            errs() << "with " << N.second << "\n";
-          }
-        }
-      } else {
-        if (Verbose) {
-          errs() << "Don't know where to rewrite a VarDecl! ";
-          VD->dump();
-          errs() << "\n";
-        }
-      }
+      rewrite(VD, R, N.Replacement, Where, skip, N, toRewrite, A);
     } else if (FunctionDecl *UD = dyn_cast<FunctionDecl>(D)) {
       // TODO: If the return type is a fully-specified function pointer, 
       //       then clang will give back an invalid source range for the 
@@ -328,13 +501,21 @@ void rewrite(Rewriter &R, std::set<DAndReplace> &toRewrite, SourceManager &S,
       //       Additionally, a source range can be (mis) identified as 
       //       spanning multiple files. We don't know how to re-write that,
       //       so don't.
-    
-      SourceRange SR = UD->getReturnTypeSourceRange();
-      if (canRewrite(R, SR))
-        R.ReplaceText(SR, N.second);
+        
+      if (N.fullDecl) {
+        SourceRange SR = UD->getSourceRange();
+        SR.setEnd(getFunctionDeclarationEnd(UD, S));
+        
+        if (canRewrite(R, SR))
+          R.ReplaceText(SR, N.Replacement);
+      } else {
+        SourceRange SR = UD->getReturnTypeSourceRange();
+        if (canRewrite(R, SR))
+          R.ReplaceText(SR, N.Replacement);
+      }
     } else if (FieldDecl *FD = dyn_cast<FieldDecl>(D)) {
       SourceRange SR = FD->getSourceRange();
-      std::string sRewrite = N.second;
+      std::string sRewrite = N.Replacement;
 
       if (canRewrite(R, SR))
         R.ReplaceText(SR, sRewrite);
@@ -462,18 +643,21 @@ void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 // insert casts. Right now, it looks specifically for 'free'. 
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
-  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, 
-      Rewriter &R, std::set<FileID> &Files)
-    : Context(C), Info(I), R(R), Files(Files) {} 
+  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, Rewriter &R,
+      RSet &DR, std::set<FileID> &Files, std::set<std::string> &V)
+    : Context(C), R(R), Info(I), rewriteThese(DR), Files(Files), VisitedSet(V) {} 
 
   bool VisitCallExpr(CallExpr *);
+  bool VisitFunctionDecl(FunctionDecl *);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
   bool anyTop(std::set<ConstraintVariable*>);
-  ASTContext *Context;
-  ProgramInfo &Info;
-  Rewriter &R;
-  std::set<FileID> &Files;
+  ASTContext            *Context;
+  Rewriter              &R;
+  ProgramInfo           &Info;
+  RSet                  &rewriteThese;
+  std::set<FileID>      &Files;
+  std::set<std::string> &VisitedSet;
 };
 
 // For a given function name, what are the argument positions for that function
@@ -504,34 +688,119 @@ bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
   return anyTopFound;
 }
 
-bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
+// This function checks how to re-write a function declaration. 
+bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
-  // Find the target of this call. 
-  if (Decl *D = E->getCalleeDecl()) {
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      // Find the parameter placement for this call instruction. 
-      std::set<unsigned int> P = getParamsForExtern(FD->getName());
+  // Get all of the constraint variables for the function. 
+  // Check and see if we have a definition in scope. If we do, then:
+  // For the return value and each of the parameters, do the following:
+  //   1. Get a constraint variable representing the definition (def) and the 
+  //      declaration (dec). 
+  //   2. Check if def < dec, dec < def, or dec = def. 
+  //   3. Only if def < dec, we insert a bounds-safe interface. 
+  // If we don't have a definition in scope, we can assert that all of 
+  // the constraint variables are equal. 
+  // Finally, we need to note that we've visited this particular function, and
+  // that we shouldn't make one of these visits again. 
 
-      for (unsigned int i : P) {
-        // Get the constraints for the ith parameter to the call. 
-        Expr *EP = E->getArg(i)->IgnoreImpCasts();
-        std::set<ConstraintVariable*> EPC = Info.getVariable(EP, Context);
-        
-        // Get the type of the ith parameter to the call. 
-        QualType EPT = EP->getType(); 
-        QualType PTF = FD->getParamDecl(i)->getType();
+  auto funcName = FD->getNameAsString();
 
-        // If they aren't equal, and the constraints in EPC are non-top, 
-        // insert a cast. 
-        if (EPT != PTF && !anyTop(EPC)) {
-          // Insert a cast. 
-          SourceLocation CL = EP->getExprLoc();
-          R.InsertTextBefore(CL, "("+PTF.getAsString()+")");
-        }
-      }
-    }
+  // Make sure we haven't visited this function name before, and that we 
+  // only visit it once. 
+  if (VisitedSet.find(funcName) != VisitedSet.end()) 
+    return true;
+  else
+    VisitedSet.insert(funcName);
+
+  // Do we have a definition for this declaration?  
+  FunctionDecl *Definition = getDefinition(FD);
+  FunctionDecl *Declaration = getDeclaration(FD);
+
+  if(Definition == nullptr)
+    return true;
+
+  assert (Declaration != nullptr);
+
+  // Get constraint variables for the declaration and the definition.
+  // Those constraints should be function constraints. 
+  auto cDecl = dyn_cast<FVConstraint>(
+      getHighest(Info.getVariable(Declaration, Context, false), Info));
+  auto cDefn = dyn_cast<FVConstraint>(
+      getHighest(Info.getVariable(Definition, Context, true), Info));
+  assert(cDecl != nullptr);
+  assert(cDefn != nullptr);
+
+  if (cDecl->numParams() == cDefn->numParams()) { 
+    bool didAny = false;
+		std::string s = "";
+		std::vector<std::string> parmStrs;
+		// Compare parameters. 
+		if (cDecl->numParams() == cDefn->numParams())
+			for (unsigned i = 0; i < cDecl->numParams(); ++i) {
+				auto Decl = getHighest(cDecl->getParamVar(i), Info);
+				auto Defn = getHighest(cDefn->getParamVar(i), Info);
+				assert(Decl);
+				assert(Defn);
+
+				// If this holds, then we want to insert a bounds safe interface. 
+				if (Defn->isLt(*Decl, Info)) {
+					std::string scratch = "";
+					raw_string_ostream declText(scratch);
+					Definition->getParamDecl(i)->print(declText);
+					std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false);
+					std::string bi = declText.str() + " : itype("+ctype+") ";
+					parmStrs.push_back(bi);
+					didAny = true;
+				} else {
+					// Do what we used to do. 
+					std::string v = Decl->mkString(Info.getConstraints().getVariables());
+					parmStrs.push_back(v);
+				}
+			}
+
+		// Compare returns. 
+		auto Decl = getHighest(cDecl->getReturnVars(), Info);
+		auto Defn = getHighest(cDefn->getReturnVars(), Info);
+
+		// Insert a bounds safe interface at the return address. 
+		std::string returnVar = "";
+		std::string endStuff = "";
+		if (Defn->isLt(*Decl, Info)) {
+			std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
+			returnVar = Defn->getTy();
+			endStuff = " : itype("+ctype+") ";
+			didAny = true;
+		} else {
+			// Do what we used to do at the return address. 
+			returnVar = Decl->mkString(Info.getConstraints().getVariables()) + " ";
+		}
+
+		s = returnVar + cDecl->getName() + "(";
+		if (parmStrs.size() > 0) {
+			std::ostringstream ss;
+
+			std::copy(parmStrs.begin(), parmStrs.end() - 1,
+					 std::ostream_iterator<std::string>(ss, ", "));
+			ss << parmStrs.back();
+
+			s = s + ss.str() + ")";
+		} else {
+			s = s + "void)";
+		}
+
+		if (endStuff.size() > 0)
+			s = s + endStuff;
+
+    if (didAny) 
+      // Do all of the declarations.
+      for (const auto &RD : Definition->redecls())
+        rewriteThese.insert(DAndReplace(RD, s, true));
   }
 
+  return true;
+}
+
+bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
   return true;
 }
 
@@ -546,9 +815,11 @@ public:
     Rewriter R(Context.getSourceManager(), Context.getLangOpts());
     std::set<FileID> Files;
 
+    std::set<std::string> v;
+    RSet                  rewriteThese(DComp(Context.getSourceManager()));
     // Unification is done, so visit and see if we need to place any casts
     // in the program. 
-    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, Files);
+    CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, rewriteThese, Files, v);
     for (const auto &D : Context.getTranslationUnitDecl()->decls())
       CPV.TraverseDecl(D);
 
@@ -562,6 +833,7 @@ public:
     std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> PSLMap;
     VariableDecltoStmtMap VDLToStmtMap;
 
+    RSet skip(DComp(Context.getSourceManager()));
     MappingVisitor V(keys, Context);
     TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
     for (const auto &D : TUD->decls())
@@ -569,7 +841,6 @@ public:
 
     std::tie(PSLMap, VDLToStmtMap) = V.getResults();
 
-    std::set<DAndReplace> rewriteThese;
     for (const auto &V : Info.getVarMap()) {
       PersistentSourceLoc PLoc = V.first;
       std::set<ConstraintVariable*> Vars = V.second;
@@ -613,20 +884,20 @@ public:
         if (PV && PV->anyChanges(Info.getConstraints().getVariables())) {
           // Rewrite a declaration.
           std::string newTy = PV->mkString(Info.getConstraints().getVariables());
-          rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
+          rewriteThese.insert(DAndReplace(D, DS, newTy));;
         } else if (FV && FV->anyChanges(Info.getConstraints().getVariables())) {
           // Rewrite a function variables return value.
           std::set<ConstraintVariable*> V = FV->getReturnVars();
           if (V.size() > 0) {
             std::string newTy = 
               (*V.begin())->mkString(Info.getConstraints().getVariables());
-            rewriteThese.insert(DAndReplace(DeclNStmt(D, DS), newTy));
+            rewriteThese.insert(DAndReplace(D, DS, newTy));
           }
         }
       }
     }
 
-    rewrite(R, rewriteThese, Context.getSourceManager(), Context, Files);
+    rewrite(R, rewriteThese, skip, Context.getSourceManager(), Context, Files);
 
     // Output files.
     emit(R, Context, Files, InOutFiles);
