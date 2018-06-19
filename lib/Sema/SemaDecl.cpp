@@ -11394,6 +11394,17 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
 
+      // An integer with a bounds expression must be initialized
+      if (Ty->isIntegerType() && B)
+        Diag(Var->getLocation(), diag::err_initializer_expected_for_int_with_bounds_expr)
+          << Var;
+
+      // An unchecked pointer in a checked scope with a bounds expression must be initialized
+      if (Ty->isUncheckedPointerType() && getCurScope()->isCheckedScope() && 
+          Var->hasBoundsExpr())
+        Diag(Var->getLocation(), diag::err_initializer_expected_for_unchecked_ptr_in_checked_scope_with_bounds_expr)
+          << Var;
+
       // struct/union and array with checked pointer members must have initializers 
       // array with checked ptr element
       if (Ty->isArrayType()) {

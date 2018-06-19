@@ -9570,6 +9570,12 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_ptr : Error<
     "automatic variable %0 with _Ptr type must have initializer">;
 
+  def err_initializer_expected_for_int_with_bounds_expr : Error<
+    "int variable %0 with a bounds expression must have an initializer">;
+
+  def err_initializer_expected_for_unchecked_ptr_in_checked_scope_with_bounds_expr : Error<
+    "unchecked pointer variable %0 in a checked scope with a bounds expression must have an initializer">;
+
   def err_initializer_expected_for_array : Error<
     "array variable %0 with elements containing checked pointers must have an initializer">;
 	
