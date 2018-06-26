@@ -1917,8 +1917,16 @@ public:
   /// \brief Whether this type is or contains a checked type
   bool isOrContainsCheckedType() const;
 
+  enum CheckedValueKind {
+    NoCheckedValue,
+    HasCheckedValue,
+    HasUnCheckedPointer,
+  };
   /// \brief check whether an object of a struct or union type contains a checked value
-  bool containsCheckedValue() const;
+  /// return NONE : no checked value contained;
+  ///        CheckedValue : checked values(e.g. checked pointers, integer with a bounds expression...);
+  ///        UnCheckedPointer : contains unchecked pointers with a bounds expression in a checked scope
+  CheckedValueKind containsCheckedValue(bool InCheckedScope) const;
 
   /// \brief Whether this type is or contains an unchecked type.
   /// This ignores the presence of bounds-safe interface types.

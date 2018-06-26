@@ -4111,39 +4111,49 @@ bool Type::isOrContainsUncheckedType() const {
 
 // containsCheckedValue - check whether a field type is a checked type or is a 
 // constructed type (array, pointer, function) that uses a checked type.
-bool Type::containsCheckedValue() const {
+// return NONE : no checked value contained;
+//        CheckedValue : checked values(e.g. checked pointers, integer with a bounds expression...);
+//        UnCheckedPointer : contains unchecked pointers with a bounds expression in a checked scope
+Type::CheckedValueKind Type::containsCheckedValue(bool InCheckedScope) const {
   const Type *current = CanonicalType.getTypePtr();
   switch (current->getTypeClass()) {
   case Type::Pointer: {
     const PointerType *ptr = cast<PointerType>(current);
-    return ptr->isCheckedPointerType();
+    return ptr->isCheckedPointerType() ? Type::HasCheckedValue : Type::NoCheckedValue;
   }
   case Type::ConstantArray:
   case Type::DependentSizedArray:
   case Type::IncompleteArray:
   case Type::VariableArray: {
-    return current->getPointeeOrArrayElementType()->containsCheckedValue();
+    return current->getPointeeOrArrayElementType()->containsCheckedValue(InCheckedScope);
   }
-
   //Use RecordType to process Struct/Union
   case Type::Record: {
     const RecordType *RT = cast<RecordType>(current);
     // if this is an illegal type, we don't proceed (e.g. struct S{ S s; int a;...})
     if (RT->getDecl()->isInvalidDecl())
-      return false;
+      return Type::NoCheckedValue;
     
+    Type::CheckedValueKind hasCheckedField = Type::NoCheckedValue;
     // if this is a struct/union type, iterate all its members
-    bool hasCheckedField = false;
     for (FieldDecl *FD : RT->getDecl()->fields()) {
-      if (FD->getType()->isRecordType()) {
-          hasCheckedField = FD->getType()->containsCheckedValue();
-      }    
+       // An integer with a bounds expression must be initialized
+      if (FD->getType()->isIntegerType() && FD->hasBoundsExpr())
+        return Type::HasCheckedValue;
+      
+      // An unchecked pointer in a checked scope with a bounds expression must be initialized
+      if (FD->getType()->isUncheckedPointerType() && FD->hasBoundsExpr() && InCheckedScope)
+        return Type::HasUnCheckedPointer;
+
+      if (FD->getType()->isRecordType())
+          hasCheckedField = FD->getType()->containsCheckedValue(InCheckedScope);
+     
       // if this field is not a RecordType variable but contains a checked pointer, 
       // its type must be (1) _Ptr (2) _Array_ptr or (3) _Nt_array_ptr
-      else if (FD->getType()->containsCheckedValue()) {
+      else if (FD->getType()->containsCheckedValue(InCheckedScope)) {
         // Case 1: _Ptr always needs to be initialized
         if (FD->getType()->isCheckedPointerPtrType())
-          hasCheckedField = true;
+          hasCheckedField = Type::HasCheckedValue;
         // Case 2: _Array_ptr needs to be initialized if it has bounds and the bounds are NOT unknown;
         // Case 3: _Nt_array_ptr needs to be initialized if (1) it has no bounds specified
         // or (2) it has bounds but the bounds are unknown;
@@ -4152,7 +4162,7 @@ bool Type::containsCheckedValue() const {
         // we can simplified the checking by combining case 2 and 3
         else if (FD->getType()->isCheckedPointerArrayType() && FD->hasBoundsExpr()) {
           if (!FD->getBoundsExpr()->isUnknown())
-            hasCheckedField = true;
+            hasCheckedField = Type::HasCheckedValue;
         }
         break;
       }
@@ -4160,9 +4170,11 @@ bool Type::containsCheckedValue() const {
     return hasCheckedField;
   }
     default:
-      return false;
+      return Type::NoCheckedValue;
   }
 }
+
+
 // hasVariadicType - check whether a type has variable arguments
 // or is a constructed type(array, pointer, function) having variable arguments.
 bool Type::hasVariadicType() const {
