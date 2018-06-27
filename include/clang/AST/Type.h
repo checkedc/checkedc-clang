@@ -1920,7 +1920,7 @@ public:
   enum CheckedValueKind {
     NoCheckedValue,
     HasCheckedValue,
-    HasUnCheckedPointer,
+    HasUnCheckedPointer
   };
   /// \brief check whether an object of a struct or union type contains a checked value
   /// return NONE : no checked value contained;
