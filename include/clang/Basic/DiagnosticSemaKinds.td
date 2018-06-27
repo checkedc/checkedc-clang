@@ -9583,7 +9583,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{struct|interface|union|class|enum}0 variable %1 containing a checked pointer must have an initializer">;
 
   def err_initializer_expected_for_record_with_unchecked_pointer_in_checked_scope : Error<
-    "%select{struct|interface|union|class|enum}0 variable %1 containing an unchecked pointer with a bounds expression must have an initializer">;
+    "%select{struct|interface|union|class|enum}0 variable %1 containing an unchecked pointer with a bounds expression in a checked scope must have an initializer">;
 
   def err_cast_to_checked_fn_ptr_must_be_named : Error<
 	"cast to checked function pointer type %0 must be from named top-level function">;
