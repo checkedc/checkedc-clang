@@ -30,11 +30,15 @@
 //    numbers.
 //===----------------------------------------------------------------------===//
 
+#include "clang/Analysis/CFG.h"
+#include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "TreeTransform.h"
+
+#define TRACE_CFG 1
 
 using namespace clang;
 using namespace sema;
@@ -1379,6 +1383,9 @@ namespace {
     Sema &S;
     bool DumpBounds;
     uint64_t PointerWidth;
+    Stmt *Body;
+    CFG *Cfg;
+
     BoundsExpr *ReturnBounds; // return bounds expression for enclosing
                               // function, if any.
 
@@ -2145,10 +2152,93 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &S, BoundsExpr *ReturnBounds) : S(S),
+    CheckBoundsDeclarations(Sema &S, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds) : S(S),
       DumpBounds(S.getLangOpts().DumpInferredBounds),
       PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)),
+      Body(Body),
+      Cfg(Cfg),
       ReturnBounds(ReturnBounds) {}
+
+    void IdentifyChecked(Stmt *S,
+                         std::set<const Stmt *> &CheckedExprs,
+                         Sema::ExprControlFlowParent &NestedControlFlow,
+                         bool InCheckedScope,
+                         bool NestedInElement) {
+      if (!S)
+        return;
+
+      if (Expr *E = dyn_cast<Expr>(S)) {
+        if (InCheckedScope && 
+            (!NestedInElement || NestedControlFlow.GetParent(E)))
+          CheckedExprs.insert(E);
+      }
+
+      if (DeclStmt *DS = dyn_cast<DeclStmt>(S))
+        if (InCheckedScope) 
+          CheckedExprs.insert(DS);
+
+      if (CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
+        InCheckedScope = CS->isChecked();
+
+      NestedInElement = dyn_cast<Expr>(S);
+      auto Begin = S->child_begin(), End = S->child_end();
+      for (auto I = Begin; I != End; ++I) 
+        IdentifyChecked(*I, CheckedExprs, NestedControlFlow,
+                        InCheckedScope, NestedInElement);
+
+   }
+
+   void TraverseCFG() {
+     assert(Cfg && "expected CFG to exist");
+#if TRACE_CFG
+     llvm::outs() << "Dumping AST";
+     Body->dump(llvm::outs());
+     llvm::outs() << "Dumping CFG:\n";
+     Cfg->print(llvm::outs(), S.getLangOpts(), true);
+     llvm::outs() << "Traversing CFG:\n";
+#endif
+     Sema::ExprControlFlowParent ParentMap;
+     ParentMap.Add(Body);
+     std::set<const Stmt *> CheckedDeclsOrExprs;
+     IdentifyChecked(Body, CheckedDeclsOrExprs, ParentMap, false, false);
+     PostOrderCFGView POView = PostOrderCFGView(Cfg);
+     PostOrderCFGView::iterator PO_Iter= POView.begin();
+     PostOrderCFGView::iterator PO_End = POView.end();
+     for ( ; PO_Iter != PO_End; ++PO_Iter) {
+       const CFGBlock *Block = *PO_Iter;
+       CFGBlock::const_iterator ElemIter = Block->begin();
+       CFGBlock::const_iterator ElemEnd = Block->end();
+       for (; ElemIter != ElemEnd; ++ElemIter) {
+         CFGElement Elem = *ElemIter;
+         if (Elem.getKind() == CFGElement::Statement) {
+           CFGStmt CS = Elem.castAs<CFGStmt>();
+           Stmt *S = const_cast<Stmt *>(CS.getStmt());
+
+           if (Expr *E = dyn_cast<Expr>(S)) {
+
+             if (!ParentMap.GetParent(E)) {        
+#if TRACE_CFG
+               llvm::outs() << "Visiting ";
+               E->dump(llvm::outs());
+#endif
+               bool IsChecked = 
+                 (CheckedDeclsOrExprs.find(E) != CheckedDeclsOrExprs.end());
+               TraverseStmt(E, IsChecked);
+             }
+           } else if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
+#if TRACE_CFG
+               llvm::outs() << "Visiting ";
+               DS->dump(llvm::outs());
+#endif
+               const DeclStmt *Orig = Cfg->getSourceDeclStmt(DS);
+               bool IsChecked = 
+                 (CheckedDeclsOrExprs.find(Orig) != CheckedDeclsOrExprs.end());
+               TraverseStmt(DS, IsChecked);            
+           }
+         }
+       }
+     }
+    }
 
     // Traverse methods iterate recursively over AST tree nodes, visiting all
     // children of the node too.
@@ -2759,6 +2849,11 @@ namespace {
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
+  if (Body == nullptr)
+    return;
+#if TRACE_CFG
+  llvm::outs() << "Checking " << FD->getName() << "\n";
+#endif
   ModifiedBoundsDependencies Tracker;
   // Compute a mapping from expressions that modify lvalues to in-scope bounds
   // declarations that depend upon those expressions.  We plan to change
@@ -2767,15 +2862,16 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   // information that can't be computed easily when doing a control-flow
   // based traversal.
   ComputeBoundsDependencies(Tracker, FD, Body);
-
-  // The IsChecked argument to TraverseStmt doesn't matter - the body will be a
-  // compound statement and we'll pick up the checked-ness from that.
-  CheckBoundsDeclarations(*this, FD->getBoundsExpr()).TraverseStmt(Body, false);
+  std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
+  CheckBoundsDeclarations(*this, Body, Cfg.get(), FD->getBoundsExpr()).TraverseCFG();
+#if TRACE_CFG
+  llvm::outs() << "Done " << FD->getName() << "\n";
+#endif
 }
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
-    CheckBoundsDeclarations Checker(*this, nullptr);
+    CheckBoundsDeclarations Checker(*this, nullptr, nullptr, nullptr);
     Checker.TraverseTopLevelVarDecl(D, getCurScope()->isCheckedScope());
   }
 }

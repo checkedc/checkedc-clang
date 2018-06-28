@@ -4866,6 +4866,22 @@ public:
    DependentBounds Tracker;
   };
 
+  // Expressions may have control flow within them.  When a CFG is constructed,
+  // subexpressions of expression-level control flow expressions are placed in
+  // separate CFG elements (the components of basic blocks).  We need to process
+  // the CFG elements containing these subexpression specially during
+  // flow-sensitive checking of bounds declarations.  This class provides a
+  // back map from these expressions to their parent (enclosing) expression.  
+  class ExprControlFlowParent {
+  private:
+    std::map<Expr *,Expr *> ParentMap;
+    void AddHelper(Expr *E, Expr *Parent, bool InControlFlow);
+  public:
+    // Add back map entries for all expressions subject to control-flow in a block.
+    void Add(Stmt *Block);
+    Expr *GetParent(Expr *ChildExpr);
+  };
+
   /// \brief Compute a mapping from statements that modify lvalues to
   /// in-scope bounds declarations that depend on those lvalues.
   /// FD is the function being declared and Body is the body of the
