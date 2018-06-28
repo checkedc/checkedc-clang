@@ -11371,14 +11371,14 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       Var->setInvalidDecl();
       return;
     }
-    
+
     // Checked C: automatic variables with (1) type _Ptr or (2) a bounds
     // declaration and not having an array type must be initialized.
     //
     // Static variables are initialized to 0 if there is no initializer.
     // This is a valid initialization value, so we don't have to issue an
     // error message for them.
-    if (!Var->isInvalidDecl() && Var->hasLocalStorage() && 
+    if (!Var->isInvalidDecl() && Var->hasLocalStorage() &&
         !isa<ParmVarDecl>(Var)) {
       QualType Ty = Var->getType();
       BoundsExpr *B = Var->getBoundsExpr();
@@ -11402,7 +11402,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
 
       // An integer with a bounds expression must be initialized
       if (Ty->isIntegerType() && Var->hasBoundsExpr())
-        Diag(Var->getLocation(), diag::err_initializer_expected_for_int_with_bounds_expr)
+        Diag(Var->getLocation(), diag::err_initializer_expected_for_integer_with_bounds_expr)
           << Var;
 
       // struct/union and array with checked pointer members must have initializers 
@@ -11425,7 +11425,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
           break;
         }
         case Type::HasIntWithBounds: {
-          Diag(Var->getLocation(), diag::err_initializer_expected_for_record_with_int_member_with_bounds_expr)
+          Diag(Var->getLocation(), diag::err_initializer_expected_for_record_with_integer_member_with_bounds_expr)
           << RT->getDecl()->getTagKind() << Var;
           break;
         }

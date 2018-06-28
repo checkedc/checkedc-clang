@@ -4109,7 +4109,7 @@ bool Type::isOrContainsUncheckedType() const {
   }
 }
 
-// containsCheckedValue: check whether an arrary, or an object of struct/union type contains a checked value
+// containsCheckedValue: check whether an array, or an object of struct/union type contains a checked value
 // a checked value can be:
 // (1) a checked pointer;
 // (2) an unchecked pointer with bounds expr in a checked scope;
@@ -4136,7 +4136,7 @@ Type::CheckedValueKind Type::containsCheckedValue(bool InCheckedScope) const {
       return Type::NoCheckedValue;
     
     Type::CheckedValueKind hasCheckedField = Type::NoCheckedValue;
-    // if this is a struct/union type, iterate all its members
+    // if this is a struct/union type, iterate over all its members
     for (FieldDecl *FD : RT->getDecl()->fields()) {
        // An integer with a bounds expression must be initialized
       if (FD->getType()->isIntegerType() && FD->hasBoundsExpr())
