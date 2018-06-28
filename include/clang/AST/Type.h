@@ -1923,10 +1923,7 @@ public:
     HasIntWithBounds,
     HasUncheckedPointer
   };
-  /// \brief check whether an object of a struct or union type contains a checked value
-  /// return NONE : no checked value contained;
-  ///        CheckedValue : checked values(e.g. checked pointers, integer with a bounds expression...);
-  ///        UnCheckedPointer : contains unchecked pointers with a bounds expression in a checked scope
+  /// \brief check whether an array, or an object of struct/union type contains a checked value
   CheckedValueKind containsCheckedValue(bool InCheckedScope) const;
 
   /// \brief Whether this type is or contains an unchecked type.
