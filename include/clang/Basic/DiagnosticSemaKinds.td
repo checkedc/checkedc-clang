@@ -9582,6 +9582,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_record_with_checked_value : Error<
     "%select{struct|interface|union|class|enum}0 variable %1 containing a checked pointer must have an initializer">;
 
+  def err_initializer_expected_for_record_with_int_member_with_bounds_expr : Error<
+    "%select{struct|interface|union|class|enum}0 variable %1 containing an int variable with a bounds expression must have an initializer">;
+
   def err_initializer_expected_for_record_with_unchecked_pointer_in_checked_scope : Error<
     "%select{struct|interface|union|class|enum}0 variable %1 containing an unchecked pointer with a bounds expression in a checked scope must have an initializer">;
 

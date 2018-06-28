@@ -4109,11 +4109,12 @@ bool Type::isOrContainsUncheckedType() const {
   }
 }
 
-// containsCheckedValue - check whether a field type is a checked type or is a 
-// constructed type (array, pointer, function) that uses a checked type.
-// return NONE : no checked value contained;
-//        CheckedValue : checked values(e.g. checked pointers, integer with a bounds expression...);
-//        UnCheckedPointer : contains unchecked pointers with a bounds expression in a checked scope
+// containsCheckedValue: check whether an arrary, or an object of struct/union type contains a checked value
+// a checked value can be:
+// (1) a checked pointer;
+// (2) an unchecked pointer with bounds expr in a checked scope;
+// (3) an integer with bounds expr;
+// (4) an array/struct/union with (1) or (2) or (3) in their elements/members
 Type::CheckedValueKind Type::containsCheckedValue(bool InCheckedScope) const {
   const Type *current = CanonicalType.getTypePtr();
   switch (current->getTypeClass()) {
@@ -4139,11 +4140,11 @@ Type::CheckedValueKind Type::containsCheckedValue(bool InCheckedScope) const {
     for (FieldDecl *FD : RT->getDecl()->fields()) {
        // An integer with a bounds expression must be initialized
       if (FD->getType()->isIntegerType() && FD->hasBoundsExpr())
-        return Type::HasCheckedValue;
+        return Type::HasIntWithBounds;
       
       // An unchecked pointer in a checked scope with a bounds expression must be initialized
       if (FD->getType()->isUncheckedPointerType() && FD->hasBoundsExpr() && InCheckedScope)
-        return Type::HasUnCheckedPointer;
+        return Type::HasUncheckedPointer;
 
       if (FD->getType()->isRecordType())
           hasCheckedField = FD->getType()->containsCheckedValue(InCheckedScope);

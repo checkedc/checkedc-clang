@@ -11424,7 +11424,12 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
           << RT->getDecl()->getTagKind() << Var;
           break;
         }
-        case Type::HasUnCheckedPointer: {
+        case Type::HasIntWithBounds: {
+          Diag(Var->getLocation(), diag::err_initializer_expected_for_record_with_int_member_with_bounds_expr)
+          << RT->getDecl()->getTagKind() << Var;
+          break;
+        }
+        case Type::HasUncheckedPointer: {
           Diag(Var->getLocation(), diag::err_initializer_expected_for_record_with_unchecked_pointer_in_checked_scope)
           << RT->getDecl()->getTagKind() << Var;       
           break;
