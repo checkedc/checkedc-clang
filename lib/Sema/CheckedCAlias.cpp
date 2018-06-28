@@ -637,37 +637,33 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
 // Add back map entries for all expressions in S that are
 // part of expression-level control-flow.
 void Sema::ExprControlFlowParent::Add(Stmt *S) {
+   AddHelper(S, nullptr, false);
+}
+
+void Sema::ExprControlFlowParent::AddHelper(Stmt *S, Stmt *Parent,
+                                            bool InControlFlow) {
   if (!S)
     return;
 
-  if (Expr *E = dyn_cast<Expr>(S)) {
-    AddHelper(E, nullptr, false);
-    return;
-  }
-
-  auto Begin = S->child_begin(), End = S->child_end();
-  for (auto I = Begin; I != End; ++I)
-    Add(*I);
-}
-
-void Sema::ExprControlFlowParent::AddHelper(Expr *E, Expr *Parent,
-                                            bool InControlFlow) {
-  if (InControlFlow || (isa<CallExpr>(E)  && Parent != nullptr)) {
-    if (GetParent(E)) {
-      llvm::outs() << "Expression already has parent\n";
-      llvm::outs() << "Expression:\n";
-      E->dump(llvm::outs());
-      llvm::outs() << "Parent:\n";
-      Parent->dump(llvm::outs());
-      llvm::outs().flush();
+  if (Expr *E = dyn_cast<Expr>(S))
+    if (InControlFlow || ((isa<CallExpr>(S) || isa<AbstractConditionalOperator>(S)) && Parent != nullptr &&
+                          (isa<Expr>(Parent) || isa<DeclStmt>(Parent)))) {
+      if (GetParent(E)) {
+        llvm::outs() << "Expression already has parent\n";
+        llvm::outs() << "Expression:\n";
+        E->dump(llvm::outs());
+        llvm::outs() << "Parent:\n";
+        Parent->dump(llvm::outs());
+        llvm::outs().flush();
+      }
+      assert(!GetParent(E));
+      ParentMap[E] = Parent;
     }
-    assert(!GetParent(E));
-    ParentMap[E] = Parent;
-  }
+
   InControlFlow = false;
-  switch (E->getStmtClass()) {
+  switch (S->getStmtClass()) {
     case Expr::BinaryOperatorClass: {
-      BinaryOperator *B = cast<BinaryOperator>(E);
+      BinaryOperator *B = cast<BinaryOperator>(S);
       // CFG construction places the subexpressions of &&, ||, and , 
       // in one or more CFG elements.
       if (B->isLogicalOp()  || B->getOpcode() == BO_Comma)
@@ -683,14 +679,12 @@ void Sema::ExprControlFlowParent::AddHelper(Expr *E, Expr *Parent,
       break;
   }
 
-  auto Begin = E->child_begin(), End = E->child_end();
-  for (auto I = Begin; I != End; ++I) {
-    if (Expr *Child = dyn_cast_or_null<Expr>(*I))
-      AddHelper(Child, E, InControlFlow);
-  }
+  auto Begin = S->child_begin(), End = S->child_end();
+  for (auto I = Begin; I != End; ++I)
+     AddHelper(*I, S, InControlFlow);
 }
 
-Expr *Sema::ExprControlFlowParent::GetParent(Expr *ChildExpr) {
+Stmt *Sema::ExprControlFlowParent::GetParent(Expr *ChildExpr) {
   auto Iter = ParentMap.find(ChildExpr);
   if (Iter != ParentMap.end())
     return Iter->second;

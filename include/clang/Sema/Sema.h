@@ -4874,12 +4874,15 @@ public:
   // back map from these expressions to their parent (enclosing) expression.  
   class ExprControlFlowParent {
   private:
-    std::map<Expr *,Expr *> ParentMap;
-    void AddHelper(Expr *E, Expr *Parent, bool InControlFlow);
+    std::map<Expr *,Stmt *> ParentMap;
+    void AddHelper(Stmt *S, Stmt *Parent, bool InControlFlow);
   public:
-    // Add back map entries for all expressions subject to control-flow in a block.
+    // Add back map entries for all expressions subject to control-flow in a
+    // block.
     void Add(Stmt *Block);
-    Expr *GetParent(Expr *ChildExpr);
+    // Return the expression or decl statement that is the parent of this
+    // expression.
+    Stmt *GetParent(Expr *ChildExpr);
   };
 
   /// \brief Compute a mapping from statements that modify lvalues to

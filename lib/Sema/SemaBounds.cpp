@@ -2234,6 +2234,16 @@ namespace {
                bool IsChecked = 
                  (CheckedDeclsOrExprs.find(Orig) != CheckedDeclsOrExprs.end());
                TraverseStmt(DS, IsChecked);            
+           } else if (ReturnStmt *RS = dyn_cast<ReturnStmt>(S)) {
+#if TRACE_CFG
+               llvm::outs() << "Visiting ";
+               RS->dump(llvm::outs());
+#endif
+               if (Expr *E = RS->getRetValue()) {
+                 bool IsChecked = 
+                   (CheckedDeclsOrExprs.find(E) != CheckedDeclsOrExprs.end());
+                 TraverseStmt(E, IsChecked);   
+               }
            }
          }
        }
