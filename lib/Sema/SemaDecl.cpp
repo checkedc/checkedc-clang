@@ -11382,9 +11382,10 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
         !isa<ParmVarDecl>(Var)) {
       QualType Ty = Var->getType();
       BoundsExpr *B = Var->getBoundsExpr();
+      bool InCheckedScope = getCurScope()->isCheckedScope();
       // If an interop type expression is available, use it.  That
       // means that Var type itself is 
-      if (getCurScope()->isCheckedScope() && Var->hasInteropTypeExpr())
+      if (InCheckedScope && Var->hasInteropTypeExpr())
         Ty = Var->getInteropType();
 
       if (Ty->isCheckedPointerPtrType())
@@ -11393,6 +11394,48 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       else if (B && !B->isInvalid() && !B->isUnknown() && !Ty->isArrayType())
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
+
+      // An unchecked pointer in a checked scope with a bounds expression must be initialized
+      if (Ty->isUncheckedPointerType() && InCheckedScope && Var->hasBoundsExpr())
+        Diag(Var->getLocation(), diag::err_initializer_expected_for_unchecked_pointer_in_checked_scope_with_bounds_expr)
+          << Var;
+
+      // An integer with a bounds expression must be initialized
+      if (Ty->isIntegerType() && Var->hasBoundsExpr())
+        Diag(Var->getLocation(), diag::err_initializer_expected_for_integer_with_bounds_expr)
+          << Var;
+
+      // struct/union and array with checked pointer members must have initializers 
+      // array with checked ptr element
+      if (Ty->isArrayType()) {
+        // if this is an array type, check the element type of the array, potentially with type qualifiers missing
+        if (Type::HasCheckedValue == Ty->getPointeeOrArrayElementType()->containsCheckedValue(InCheckedScope))
+          Diag(Var->getLocation(), diag::err_initializer_expected_for_array)
+          << Var;
+      }
+      // RecordType(struct/union) with checked pointer member
+      if (Ty->isRecordType()) {
+        const RecordType *RT = Ty->getAs<RecordType>();
+        switch (RT->containsCheckedValue(InCheckedScope)) {
+        default: 
+          break;  
+        case Type::HasCheckedValue: {
+          Diag(Var->getLocation(), diag::err_initializer_expected_for_record_with_checked_value)
+          << RT->getDecl()->getTagKind() << Var;
+          break;
+        }
+        case Type::HasIntWithBounds: {
+          Diag(Var->getLocation(), diag::err_initializer_expected_for_record_with_integer_member_with_bounds_expr)
+          << RT->getDecl()->getTagKind() << Var;
+          break;
+        }
+        case Type::HasUncheckedPointer: {
+          Diag(Var->getLocation(), diag::err_initializer_expected_for_record_with_unchecked_pointer_in_checked_scope)
+          << RT->getDecl()->getTagKind() << Var;       
+          break;
+        }       
+        }
+      }
     }
 
     switch (Var->isThisDeclarationADefinition()) {
