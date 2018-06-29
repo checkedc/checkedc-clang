@@ -2918,7 +2918,17 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   // based traversal.
   ComputeBoundsDependencies(Tracker, FD, Body);
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
-  CheckBoundsDeclarations(*this, Body, Cfg.get(), FD->getBoundsExpr()).TraverseCFG();
+  CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr());
+  if (Cfg != nullptr)
+    Checker.TraverseCFG();
+  else
+    // A CFG couldn't be constructed.  CFG construction doesn't support
+    // __finally or may encounter a malformed AST.  Fall back on to non-flow 
+    // based analysis.  The IsChecked parameter is ignored because the checked
+    // scope information is obtained from Body, which is a compound statement.
+    Checker.TraverseStmt(Body, false);
+
+
 #if TRACE_CFG
   llvm::outs() << "Done " << FD->getName() << "\n";
 #endif
