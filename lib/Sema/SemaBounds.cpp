@@ -2268,10 +2268,11 @@ namespace {
            Stmt *S = const_cast<Stmt *>(CS.getStmt());
            bool IsChecked = false;
            bool Visit = false;
+	   if (NestedElements.find(S) != NestedElements.end())
+	     continue;
            if (isa<Expr>(S)) {
-             Visit = (NestedElements.find(S) == NestedElements.end());
-             if (Visit)
-               IsChecked = (CheckedStmts.find(S) != CheckedStmts.end());
+	     Visit = true;
+             IsChecked = (CheckedStmts.find(S) != CheckedStmts.end());
            } else if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
              Visit = true;
              // CFG construction will synthesize decl statements so that
