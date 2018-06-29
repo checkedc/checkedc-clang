@@ -861,7 +861,8 @@ StmtResult Parser::ParseCheckedScopeStatement() {
   else if (Tok.is(tok::kw__Unchecked))
     Kind = CSK_Unchecked;
 
-  SourceLocation CheckedLoc = ConsumeToken();
+  // Consume checked/unchecked keyword.
+  ConsumeToken();
   // expects checked/unchecked '{'
   if (Tok.is(tok::l_brace)) {
     return ParseCompoundStatement(false, Scope::DeclScope, Kind);

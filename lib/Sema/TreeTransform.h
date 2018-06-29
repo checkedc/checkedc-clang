@@ -5304,8 +5304,7 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
     EPI.ExtParameterInfos = nullptr;
   }
 
-  // Handle bounds annotations for return.
-  BoundsAnnotations ReturnAnnot = EPI.ReturnAnnots;
+  // Handle bounds annotations for return
   if (getDerived().TransformBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
     return true;
 
