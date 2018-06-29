@@ -35,6 +35,7 @@
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "TreeTransform.h"
 
@@ -2159,28 +2160,27 @@ namespace {
       Cfg(Cfg),
       ReturnBounds(ReturnBounds) {}
 
-    void IdentifyChecked(Stmt *S,
-                         std::set<const Stmt *> &CheckedExprs,
-                         bool InCheckedScope) {
+    typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
+
+    void IdentifyChecked(Stmt *S, StmtSet &CheckedStmts, bool InCheckedScope) {
       if (!S)
         return;
 
-      if (InCheckedScope && (isa<Expr>(S) || isa<DeclStmt>(S)))
-        CheckedExprs.insert(S);
+      if (InCheckedScope)
+        if (isa<Expr>(S) || isa<DeclStmt>(S) || isa<ReturnStmt>(S))
+          CheckedStmts.insert(S);
 
       if (CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
         InCheckedScope = CS->isChecked();
 
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) 
-        IdentifyChecked(*I, CheckedExprs, InCheckedScope);
+        IdentifyChecked(*I, CheckedStmts, InCheckedScope);
    }
 
     // Add any subexpressions of S that occur in TopLevelElems
     // to NestedExprs.
-    void MarkNested(Stmt *S,
-                    std::set<const Stmt *> &NestedExprs,
-                    std::set<const Stmt *> &TopLevelElems) {
+    void MarkNested(Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         Stmt *Child = *I;
@@ -2195,15 +2195,16 @@ namespace {
   // Identify CFG elements that are statements that are substatements of other
   // CFG elements.  (CFG elements are the components of basic blocks).  When a
   // CFG is constructed, subexpressions of top-level expressions may be placed
-  // in separate CFG elements.  This is done for subexpressions of expression with
-  // control-flow, for example. When checking bounds declarations, we want to
-  // process a subexpression while processing its enclosing expression.
+  // in separate CFG elements.  This is done for subexpressions of expressions
+  // with control-flow, for example. When checking bounds declarations, we want
+  // to process a subexpression with its enclosing expression. We want to 
+  // ignore CFG elements that are substatements of other CFG elements.
   //
   // Expressions are a subclass of statements, so the result this method can
   // be used to determine this information about expressions.
-   void FindNestedElements(std::set<const Stmt *> &NestedStmts) {
+   void FindNestedElements(StmtSet &NestedStmts) {
       // Create the set of top-level CFG elements.
-      std::set<const Stmt *> TopLevelElems;
+      StmtSet TopLevelElems;
       CFG::iterator Iter = Cfg->begin();
       CFG::iterator IterEnd = Cfg->end();
       for ( ; Iter != IterEnd; ++Iter) {
@@ -2237,6 +2238,9 @@ namespace {
       }
    }
 
+   // Walk the CFG, traversing basic blocks in reverses post-oder.
+   // For each element of a block, check bounds declarations.  Skip
+   // CFG elements that are subexpressions of other CFG elements.
    void TraverseCFG() {
      assert(Cfg && "expected CFG to exist");
 #if TRACE_CFG
@@ -2246,10 +2250,10 @@ namespace {
      Cfg->print(llvm::outs(), S.getLangOpts(), true);
      llvm::outs() << "Traversing CFG:\n";
 #endif
-     std::set<const Stmt *> NestedElements;
+     StmtSet NestedElements;
      FindNestedElements(NestedElements);
-     std::set<const Stmt *> CheckedDeclsOrExprs;
-     IdentifyChecked(Body, CheckedDeclsOrExprs, false);
+     StmtSet CheckedStmts;
+     IdentifyChecked(Body, CheckedStmts, false);
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      PostOrderCFGView::iterator PO_Iter= POView.begin();
      PostOrderCFGView::iterator PO_End = POView.end();
@@ -2262,38 +2266,30 @@ namespace {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
            Stmt *S = const_cast<Stmt *>(CS.getStmt());
-
-           if (Expr *E = dyn_cast<Expr>(S)) {
-
-             if (NestedElements.find(E) == NestedElements.end()) {
-#if TRACE_CFG
-               llvm::outs() << "Visiting ";
-               E->dump(llvm::outs());
-#endif
-               bool IsChecked = 
-                 (CheckedDeclsOrExprs.find(E) != CheckedDeclsOrExprs.end());
-               TraverseStmt(E, IsChecked);
-             }
+           bool IsChecked = false;
+           bool Visit = false;
+           if (isa<Expr>(S)) {
+             Visit = (NestedElements.find(S) == NestedElements.end());
+             if (Visit)
+               IsChecked = (CheckedStmts.find(S) != CheckedStmts.end());
            } else if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
-#if TRACE_CFG
-               llvm::outs() << "Visiting ";
-               DS->dump(llvm::outs());
-#endif
-               const DeclStmt *Orig = Cfg->getSourceDeclStmt(DS);
-               bool IsChecked = 
-                 (CheckedDeclsOrExprs.find(Orig) != CheckedDeclsOrExprs.end());
-               TraverseStmt(DS, IsChecked);            
-           } else if (ReturnStmt *RS = dyn_cast<ReturnStmt>(S)) {
-#if TRACE_CFG
-               llvm::outs() << "Visiting ";
-               RS->dump(llvm::outs());
-#endif
-               if (Expr *E = RS->getRetValue()) {
-                 bool IsChecked = 
-                   (CheckedDeclsOrExprs.find(E) != CheckedDeclsOrExprs.end());
-                 TraverseStmt(E, IsChecked);   
-               }
+             Visit = true;
+             // CFG construction will synthesize decl statements so that
+             // each declarator is a separate CFGElem.  To see if we are in
+             // a checked scope, look at the original decl statement.
+             const DeclStmt *Orig = Cfg->getSourceDeclStmt(DS);
+             IsChecked = (CheckedStmts.find(Orig) != CheckedStmts.end());
+           } else if (isa<ReturnStmt>(S)) {
+             Visit = true;
+             IsChecked =  (CheckedStmts.find(S) != CheckedStmts.end());
            }
+           if (Visit) {
+#if TRACE_CFG
+             llvm::outs() << "Visiting ";
+             S->dump(llvm::outs());
+#endif
+             TraverseStmt(S, IsChecked);
+            }
          }
        }
      }
