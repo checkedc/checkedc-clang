@@ -45,8 +45,10 @@ def runMain(args):
     s.add(os.path.realpath(i['file']))
 
   print s
+
+  prog_name = args.prog_name
   args = []
-  args.append(args.prog_name)
+  args.append(prog_name)
   args.extend(DEFAULT_ARGS)
   args.extend(list(s))
   f = open('bla', 'w')
