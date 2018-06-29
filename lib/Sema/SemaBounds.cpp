@@ -2178,12 +2178,11 @@ namespace {
         IdentifyChecked(*I, CheckedStmts, InCheckedScope);
    }
 
-    // Add any subexpressions of S that occur in TopLevelElems
-    // to NestedExprs.
-    void MarkNested(Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
+    // Add any subexpressions of S that occur in TopLevelElems to NestedExprs.
+    void MarkNested(const Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
-        Stmt *Child = *I;
+        const Stmt *Child = *I;
         if (!Child)
           continue;
         if (TopLevelElems.find(Child) != TopLevelElems.end())
@@ -2199,9 +2198,6 @@ namespace {
   // with control-flow, for example. When checking bounds declarations, we want
   // to process a subexpression with its enclosing expression. We want to
   // ignore CFG elements that are substatements of other CFG elements.
-  //
-  // Expressions are a subclass of statements, so the result of this method can
-  // be used to determine this information about expressions.
    void FindNestedElements(StmtSet &NestedStmts) {
       // Create the set of top-level CFG elements.
       StmtSet TopLevelElems;
@@ -2215,7 +2211,7 @@ namespace {
           CFGElement Elem = *ElemIter;
           if (Elem.getKind() == CFGElement::Statement) {
             CFGStmt CS = Elem.castAs<CFGStmt>();
-            Stmt *S = const_cast<Stmt *>(CS.getStmt());
+            const Stmt *S = CS.getStmt();
             TopLevelElems.insert(S);
           }
         }
@@ -2231,7 +2227,7 @@ namespace {
           CFGElement Elem = *ElemIter;
           if (Elem.getKind() == CFGElement::Statement) {
             CFGStmt CS = Elem.castAs<CFGStmt>();
-            Stmt *S = const_cast<Stmt *>(CS.getStmt());
+            const Stmt *S = CS.getStmt();
             MarkNested(S, NestedStmts, TopLevelElems);
           }
         }
@@ -2265,32 +2261,30 @@ namespace {
          CFGElement Elem = *ElemIter;
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
+           // We may attach a bounds expression to Stmt, so drop the const
+           // modifier.
            Stmt *S = const_cast<Stmt *>(CS.getStmt());
+
+           // Skip top-level elements that are nested in
+           // another top-level element.
+	         if (NestedElements.find(S) != NestedElements.end())
+	           continue;
+
            bool IsChecked = false;
-           bool Visit = false;
-	   if (NestedElements.find(S) != NestedElements.end())
-	     continue;
-           if (isa<Expr>(S)) {
-	     Visit = true;
-             IsChecked = (CheckedStmts.find(S) != CheckedStmts.end());
-           } else if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
-             Visit = true;
+           if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
              // CFG construction will synthesize decl statements so that
              // each declarator is a separate CFGElem.  To see if we are in
              // a checked scope, look at the original decl statement.
              const DeclStmt *Orig = Cfg->getSourceDeclStmt(DS);
              IsChecked = (CheckedStmts.find(Orig) != CheckedStmts.end());
-           } else if (isa<ReturnStmt>(S)) {
-             Visit = true;
-             IsChecked =  (CheckedStmts.find(S) != CheckedStmts.end());
-           }
-           if (Visit) {
+           } else
+             IsChecked = (CheckedStmts.find(S) != CheckedStmts.end());
+
 #if TRACE_CFG
-             llvm::outs() << "Visiting ";
-             S->dump(llvm::outs());
+            llvm::outs() << "Visiting ";
+            S->dump(llvm::outs());
 #endif
-             TraverseStmt(S, IsChecked);
-            }
+            TraverseStmt(S, IsChecked);
          }
        }
      }
