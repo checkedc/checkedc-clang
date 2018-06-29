@@ -38,7 +38,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "TreeTransform.h"
 
-#define TRACE_CFG 1
+// #define TRACE_CFG 1
 
 using namespace clang;
 using namespace sema;
@@ -2161,31 +2161,80 @@ namespace {
 
     void IdentifyChecked(Stmt *S,
                          std::set<const Stmt *> &CheckedExprs,
-                         Sema::ExprControlFlowParent &NestedControlFlow,
-                         bool InCheckedScope,
-                         bool NestedInElement) {
+                         bool InCheckedScope) {
       if (!S)
         return;
 
-      if (Expr *E = dyn_cast<Expr>(S)) {
-        if (InCheckedScope && 
-            (!NestedInElement || NestedControlFlow.GetParent(E)))
-          CheckedExprs.insert(E);
-      }
-
-      if (DeclStmt *DS = dyn_cast<DeclStmt>(S))
-        if (InCheckedScope) 
-          CheckedExprs.insert(DS);
+      if (InCheckedScope && (isa<Expr>(S) || isa<DeclStmt>(S)))
+        CheckedExprs.insert(S);
 
       if (CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
         InCheckedScope = CS->isChecked();
 
-      NestedInElement = dyn_cast<Expr>(S);
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) 
-        IdentifyChecked(*I, CheckedExprs, NestedControlFlow,
-                        InCheckedScope, NestedInElement);
+        IdentifyChecked(*I, CheckedExprs, InCheckedScope);
+   }
 
+    // Add any subexpressions of S that occur in TopLevelElems
+    // to NestedExprs.
+    void MarkNested(Stmt *S,
+                    std::set<const Stmt *> &NestedExprs,
+                    std::set<const Stmt *> &TopLevelElems) {
+      auto Begin = S->child_begin(), End = S->child_end();
+      for (auto I = Begin; I != End; ++I) {
+        Stmt *Child = *I;
+        if (!Child)
+          continue;
+        if (TopLevelElems.find(Child) != TopLevelElems.end())
+          NestedExprs.insert(Child);
+        MarkNested(Child, NestedExprs, TopLevelElems);
+      }
+   }
+
+  // Identify CFG elements that are statements that are substatements of other
+  // CFG elements.  (CFG elements are the components of basic blocks).  When a
+  // CFG is constructed, subexpressions of top-level expressions may be placed
+  // in separate CFG elements.  This is done for subexpressions of expression with
+  // control-flow, for example. When checking bounds declarations, we want to
+  // process a subexpression while processing its enclosing expression.
+  //
+  // Expressions are a subclass of statements, so the result this method can
+  // be used to determine this information about expressions.
+   void FindNestedElements(std::set<const Stmt *> &NestedStmts) {
+      // Create the set of top-level CFG elements.
+      std::set<const Stmt *> TopLevelElems;
+      CFG::iterator Iter = Cfg->begin();
+      CFG::iterator IterEnd = Cfg->end();
+      for ( ; Iter != IterEnd; ++Iter) {
+        const CFGBlock *Block = *Iter;
+        CFGBlock::const_iterator ElemIter = Block->begin();
+        CFGBlock::const_iterator ElemEnd = Block->end();
+        for (; ElemIter != ElemEnd; ++ElemIter) {
+          CFGElement Elem = *ElemIter;
+          if (Elem.getKind() == CFGElement::Statement) {
+            CFGStmt CS = Elem.castAs<CFGStmt>();
+            Stmt *S = const_cast<Stmt *>(CS.getStmt());
+            TopLevelElems.insert(S);
+          }
+        }
+      }
+
+      // Create the set of top-level elements that are subexpressions
+      // of other top-level elements.
+      for (Iter = Cfg->begin(); Iter != IterEnd; ++Iter) {
+        const CFGBlock *Block = *Iter;
+        CFGBlock::const_iterator ElemIter = Block->begin();
+        CFGBlock::const_iterator ElemEnd = Block->end();
+        for (; ElemIter != ElemEnd; ++ElemIter) {
+          CFGElement Elem = *ElemIter;
+          if (Elem.getKind() == CFGElement::Statement) {
+            CFGStmt CS = Elem.castAs<CFGStmt>();
+            Stmt *S = const_cast<Stmt *>(CS.getStmt());
+            MarkNested(S, NestedStmts, TopLevelElems);
+          }
+        }
+      }
    }
 
    void TraverseCFG() {
@@ -2197,10 +2246,10 @@ namespace {
      Cfg->print(llvm::outs(), S.getLangOpts(), true);
      llvm::outs() << "Traversing CFG:\n";
 #endif
-     Sema::ExprControlFlowParent ParentMap;
-     ParentMap.Add(Body);
+     std::set<const Stmt *> NestedElements;
+     FindNestedElements(NestedElements);
      std::set<const Stmt *> CheckedDeclsOrExprs;
-     IdentifyChecked(Body, CheckedDeclsOrExprs, ParentMap, false, false);
+     IdentifyChecked(Body, CheckedDeclsOrExprs, false);
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      PostOrderCFGView::iterator PO_Iter= POView.begin();
      PostOrderCFGView::iterator PO_End = POView.end();
@@ -2216,7 +2265,7 @@ namespace {
 
            if (Expr *E = dyn_cast<Expr>(S)) {
 
-             if (!ParentMap.GetParent(E)) {        
+             if (NestedElements.find(E) == NestedElements.end()) {
 #if TRACE_CFG
                llvm::outs() << "Visiting ";
                E->dump(llvm::outs());
