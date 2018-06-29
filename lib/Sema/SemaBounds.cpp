@@ -2174,7 +2174,7 @@ namespace {
         InCheckedScope = CS->isChecked();
 
       auto Begin = S->child_begin(), End = S->child_end();
-      for (auto I = Begin; I != End; ++I) 
+      for (auto I = Begin; I != End; ++I)
         IdentifyChecked(*I, CheckedStmts, InCheckedScope);
    }
 
@@ -2197,10 +2197,10 @@ namespace {
   // CFG is constructed, subexpressions of top-level expressions may be placed
   // in separate CFG elements.  This is done for subexpressions of expressions
   // with control-flow, for example. When checking bounds declarations, we want
-  // to process a subexpression with its enclosing expression. We want to 
+  // to process a subexpression with its enclosing expression. We want to
   // ignore CFG elements that are substatements of other CFG elements.
   //
-  // Expressions are a subclass of statements, so the result this method can
+  // Expressions are a subclass of statements, so the result of this method can
   // be used to determine this information about expressions.
    void FindNestedElements(StmtSet &NestedStmts) {
       // Create the set of top-level CFG elements.
@@ -2238,7 +2238,7 @@ namespace {
       }
    }
 
-   // Walk the CFG, traversing basic blocks in reverses post-oder.
+   // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
    void TraverseCFG() {
