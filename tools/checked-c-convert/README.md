@@ -26,7 +26,7 @@ CMake's configuration tool can provide a `compile_commands.json` file listing th
 
 ### Utility to generate source list from compile_commands
 There's a small Python2 script in tools/checked-c-convert/utils that will take the `compile_commands` and generate a `checked-c-convert` command line invocation that contains all the source files needed as arguments. Run it as:
-`python2.7 run.py path/to/compile_commands.json ../checked-c-convert`
+`python2.7 run.py path/to/compile_commands.json checked-c-convert`
 
 ## Design Notes
 The tool performs a global best-effort-whole-program flow-insensitive 
