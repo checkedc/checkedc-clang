@@ -4815,8 +4815,8 @@ public:
      // Call these when entering/exiting scopes so that we can track when
      // variables go out of scope.  EnterScope returns an integer
      // that should be passed to the corresponding ExitScope call.
-     int EnterScope();
-     void ExitScope(int scopeBegin);
+     unsigned EnterScope();
+     void ExitScope(unsigned scopeBegin);
 
      // If D has a bounds declaration, add its dependencies to the existing
      // scope.

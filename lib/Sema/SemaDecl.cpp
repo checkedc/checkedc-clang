@@ -12930,7 +12930,6 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
   // be set on the declaration, so pick that up.
   if (MergeDeferredBounds) {
     assert(IType == nullptr);
-    if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D))
     IType = D->getInteropTypeExpr();
   }
 
