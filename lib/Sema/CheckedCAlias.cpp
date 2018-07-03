@@ -173,7 +173,7 @@ public:
   }
 
   static void DumpPath(ASTContext::MemberPath &Path) {
-    for (int i = 0; i < Path.size(); i++) {
+    for (unsigned i = 0; i < Path.size(); i++) {
         if (i >> 0)
           llvm::outs() << ' ';
         llvm::outs() << '(' << Path[i]->getName() << ')';
@@ -278,7 +278,6 @@ private:
     // the bounds for a bounds-safe interface.
     ASTContext &Context = SemaRef.getASTContext();
     const FieldDecl *Field = Path[0];
-    QualType FieldTy = Field->getType();
     if (Field->getBoundsExpr() && !Field->getType()->isArrayType() &&
         (IsCheckedScope || !Field->hasBoundsSafeInterface(Context))) {
       SemaRef.Diag(E->getLocStart(), diag::err_address_of_member_with_bounds) <<
@@ -291,7 +290,7 @@ private:
     // Given a member path, see if any of its suffix member paths are used in a
     // member bounds expression   Given a.b.c see if c, b.c, or a.b.c
     // are used in bounds expressions.
-    for (int i = 1; i <= Path.size(); i++) {
+    for (unsigned i = 1; i <= Path.size(); i++) {
        // Paths are stored in reverse order, so we can just copy
        // the path and truncate it.
       ASTContext::MemberPath SuffixPath(Path);
@@ -390,7 +389,7 @@ public:
   UpdateDependences(VarDecl *BoundsDecl,
                     Sema::BoundsDependencyTracker::DependentMap &Map,
                     bool Add) :
-    BoundsDecl(BoundsDecl), Map(Map), Add(Add) {}
+    Add(Add), BoundsDecl(BoundsDecl), Map(Map) {}
 
   bool VisitDeclRefExpr(DeclRefExpr *DR) {
     if (VarDecl *D = dyn_cast<VarDecl>(DR->getDecl())) {
@@ -413,11 +412,11 @@ void Sema::BoundsDependencyTracker::Add(VarDecl *D) {
   UpdateDependences(D, Map, true).TraverseStmt(BE);
 }
 
-int Sema::BoundsDependencyTracker::EnterScope() {
+unsigned Sema::BoundsDependencyTracker::EnterScope() {
   return BoundsInScope.size();
 }
 
-void Sema::BoundsDependencyTracker::ExitScope(int scopeBegin) {
+void Sema::BoundsDependencyTracker::ExitScope(unsigned scopeBegin) {
   while (BoundsInScope.size() > scopeBegin) {
     VarDecl *D = BoundsInScope.back();
     BoundsExpr *BE = D->getBoundsExpr();
@@ -428,7 +427,7 @@ void Sema::BoundsDependencyTracker::ExitScope(int scopeBegin) {
 
 void Sema::BoundsDependencyTracker::Dump(raw_ostream &OS) {
   OS << "\nBounds declarations in scope:\n";
-  for (int i = 0; i < BoundsInScope.size(); i++)
+  for (unsigned i = 0; i < BoundsInScope.size(); i++)
     BoundsInScope[i]->dump(OS);
   OS << "\nMap from variables to variables w/ bounds declarations:\n";
   for (auto Iter = Map.begin(); Iter != Map.end(); ++Iter) {
@@ -539,7 +538,7 @@ namespace {
        break;
     }
 
-    int CurrentBoundsScope = 0;
+    unsigned CurrentBoundsScope = 0;
     if (NewScope)
       CurrentBoundsScope = SemaRef.BoundsDependencies.EnterScope();
 
@@ -611,7 +610,7 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
 #endif
 
   // Track parameter bounds declarations in function parameter scope.
-  int CurrentBoundsScope = BoundsDependencies.EnterScope();
+  unsigned CurrentBoundsScope = BoundsDependencies.EnterScope();
   for (auto ParamIter = FD->param_begin(), ParamEnd = FD->param_end();
        ParamIter != ParamEnd; ++ParamIter)
     BoundsDependencies.Add(*ParamIter);
@@ -633,4 +632,3 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
   Tracker.Dump(llvm::outs());
 #endif
 }
-

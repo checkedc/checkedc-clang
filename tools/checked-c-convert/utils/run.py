@@ -11,7 +11,9 @@ It contains some work-arounds for cmake+nmake generated compile_commands.json
 files, where the files are malformed. 
 """
 
-DEFAULT_ARGS = ["-verbose", "-dump-stats", "-extra-arg-before=--driver-mode=cl", "-output-postfix=checked"]
+DEFAULT_ARGS = ["-verbose", "-dump-stats", "-output-postfix=checked"]
+if os.name == "nt":
+  DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
 
 def tryFixUp(s):
   """
@@ -45,8 +47,10 @@ def runMain(args):
     s.add(os.path.realpath(i['file']))
 
   print s
+
+  prog_name = args.prog_name
   args = []
-  args.append(args.prog_name)
+  args.append(prog_name)
   args.extend(DEFAULT_ARGS)
   args.extend(list(s))
   f = open('bla', 'w')

@@ -2788,8 +2788,7 @@ namespace {
 
       // A DeclRef to a function declaration matching the desired function type.
       if (const DeclRefExpr *NeedleDeclRef = dyn_cast<DeclRefExpr>(Needle)) {
-        if (const FunctionDecl *NeedleFun =
-              dyn_cast<FunctionDecl>(NeedleDeclRef->getDecl())) {
+        if (isa<FunctionDecl>(NeedleDeclRef->getDecl())) {
           // Checked that the function type is compatible with the pointee type
           // of ToType.
           if (S.Context.typesAreCompatible(ToType->getPointeeType(),
