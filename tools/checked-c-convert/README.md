@@ -22,7 +22,7 @@ Invoke `checked-c-convert` on the command line as:
 `$ checked-c-convert -p path/to/directory/containing/compile_commands.json path/to/source/file/to/convert.c`
 
 ### `compile_commands.json` database
-CMake's configuration tool can provide a `compile_commands.json` file listing the instructions for the compiler during build. Produce this with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` added to the configuration call to cmake.
+CMake's configuration tool can generate, for certain targets, a `compile_commands.json` file listing the instructions for the compiler during build. Produce this with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` added to the configuration call to cmake. Note: as of CMake 3.12, only the Makefile and Ninja generators support this command.
 
 ### Utility to generate source list from compile_commands
 There's a small Python2 script in tools/checked-c-convert/utils that will take the `compile_commands` and generate a `checked-c-convert` command line invocation that contains all the source files needed as arguments. Run it as:
