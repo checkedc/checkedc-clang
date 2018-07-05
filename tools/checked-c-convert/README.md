@@ -17,8 +17,16 @@ manually specified files with a manually specified command line, or, using
 a `compile_commands.json` compilation database. 
 
 ### Command Line
+Invoke `checked-c-convert` on the command line as:
+
+`$ checked-c-convert -p path/to/directory/containing/compile_commands.json path/to/source/file/to/convert.c`
 
 ### `compile_commands.json` database
+CMake's configuration tool can generate, for certain targets, a `compile_commands.json` file listing the instructions for the compiler during build. Produce this with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` added to the configuration call to cmake. Note: as of CMake 3.12, only the Makefile and Ninja generators support this command.
+
+### Utility to generate source list from compile_commands
+There's a small Python2 script in tools/checked-c-convert/utils that will take the `compile_commands` and generate a `checked-c-convert` command line invocation that contains all the source files needed as arguments. Run it as:
+`python2.7 run.py path/to/compile_commands.json checked-c-convert`
 
 ## Design Notes
 The tool performs a global best-effort-whole-program flow-insensitive 
@@ -30,6 +38,7 @@ structure of the program. It is hoped that the programs output from
 programs.
 
 ## Example usage
+`checked-c-convert -verbose -dumpl-stats -output-postfix=checked ~/src/hello.c ~/src/utils/myUtils.c`
 
 ## Tests
 There are unit tests for the constraint solver and functional tests for
