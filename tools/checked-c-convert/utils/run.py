@@ -44,7 +44,10 @@ def runMain(args):
 
   s = set()
   for i in cmds:
-    s.add(os.path.realpath(i['file']))
+    file_to_add = os.path.realpath(i['file'])
+    if file_to_add.endswith(".cpp"):
+      continue # Checked C extension doesn't support cpp files yet
+    s.add(file_to_add)
 
   print s
 
