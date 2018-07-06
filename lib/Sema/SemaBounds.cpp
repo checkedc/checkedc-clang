@@ -1386,7 +1386,6 @@ namespace {
     uint64_t PointerWidth;
     Stmt *Body;
     CFG *Cfg;
-
     BoundsExpr *ReturnBounds; // return bounds expression for enclosing
                               // function, if any.
 
@@ -2153,9 +2152,9 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &S, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds) : S(S),
-      DumpBounds(S.getLangOpts().DumpInferredBounds),
-      PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)),
+    CheckBoundsDeclarations(Sema &SemaRef, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds) : S(SemaRef),
+      DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
+      PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
       ReturnBounds(ReturnBounds) {}
@@ -2170,7 +2169,7 @@ namespace {
         if (isa<Expr>(S) || isa<DeclStmt>(S) || isa<ReturnStmt>(S))
           CheckedStmts.insert(S);
 
-      if (CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
+      if (const CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
         InCheckedScope = CS->isChecked();
 
       auto Begin = S->child_begin(), End = S->child_end();
@@ -2198,17 +2197,30 @@ namespace {
   // with control-flow, for example. When checking bounds declarations, we want
   // to process a subexpression with its enclosing expression. We want to
   // ignore CFG elements that are substatements of other CFG elements.
+  //
+  // As an example, given a conditional expression, all subexpressions will
+  // be made into separate CFG elements.  The expression
+  //    x = (cond == 0) ? f1() : f2(),
+  // has a CFG of the form:
+  //    B1:
+  //     1: cond == 0
+  //     branch cond == 0 B2, B3
+  //   B2:
+  //     1: f1();
+  //     jump B4
+  //   B3:
+  //     1: f2();
+  //     jump B4
+  //   B4:
+  //     1: x = (cond == 0) ? f1 : f2();
+  //
+  // For now, we want to skip B1.1, B2.1, and B3.1 because they will be processed
+  // as part of B4.1.
    void FindNestedElements(StmtSet &NestedStmts) {
       // Create the set of top-level CFG elements.
       StmtSet TopLevelElems;
-      CFG::iterator Iter = Cfg->begin();
-      CFG::iterator IterEnd = Cfg->end();
-      for ( ; Iter != IterEnd; ++Iter) {
-        const CFGBlock *Block = *Iter;
-        CFGBlock::const_iterator ElemIter = Block->begin();
-        CFGBlock::const_iterator ElemEnd = Block->end();
-        for (; ElemIter != ElemEnd; ++ElemIter) {
-          CFGElement Elem = *ElemIter;
+      for (const CFGBlock *Block : *Cfg) {
+        for (CFGElement Elem : *Block) {
           if (Elem.getKind() == CFGElement::Statement) {
             CFGStmt CS = Elem.castAs<CFGStmt>();
             const Stmt *S = CS.getStmt();
@@ -2219,12 +2231,8 @@ namespace {
 
       // Create the set of top-level elements that are subexpressions
       // of other top-level elements.
-      for (Iter = Cfg->begin(); Iter != IterEnd; ++Iter) {
-        const CFGBlock *Block = *Iter;
-        CFGBlock::const_iterator ElemIter = Block->begin();
-        CFGBlock::const_iterator ElemEnd = Block->end();
-        for (; ElemIter != ElemEnd; ++ElemIter) {
-          CFGElement Elem = *ElemIter;
+      for (const CFGBlock *Block : *Cfg) {
+        for (CFGElement Elem : *Block) {
           if (Elem.getKind() == CFGElement::Statement) {
             CFGStmt CS = Elem.castAs<CFGStmt>();
             const Stmt *S = CS.getStmt();
@@ -2251,14 +2259,8 @@ namespace {
      StmtSet CheckedStmts;
      IdentifyChecked(Body, CheckedStmts, false);
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
-     PostOrderCFGView::iterator PO_Iter= POView.begin();
-     PostOrderCFGView::iterator PO_End = POView.end();
-     for ( ; PO_Iter != PO_End; ++PO_Iter) {
-       const CFGBlock *Block = *PO_Iter;
-       CFGBlock::const_iterator ElemIter = Block->begin();
-       CFGBlock::const_iterator ElemEnd = Block->end();
-       for (; ElemIter != ElemEnd; ++ElemIter) {
-         CFGElement Elem = *ElemIter;
+     for (const CFGBlock *Block : POView) {
+       for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
            // We may attach a bounds expression to Stmt, so drop the const
