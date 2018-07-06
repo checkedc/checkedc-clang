@@ -11,7 +11,7 @@ It contains some work-arounds for cmake+nmake generated compile_commands.json
 files, where the files are malformed. 
 """
 
-DEFAULT_ARGS = ["-verbose", "-dump-stats", "-output-postfix=checked"]
+DEFAULT_ARGS = ["-dump-stats", "-output-postfix=checked"]
 if os.name == "nt":
   DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
 
