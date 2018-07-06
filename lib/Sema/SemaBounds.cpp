@@ -30,11 +30,16 @@
 //    numbers.
 //===----------------------------------------------------------------------===//
 
+#include "clang/Analysis/CFG.h"
+#include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "TreeTransform.h"
+
+// #define TRACE_CFG 1
 
 using namespace clang;
 using namespace sema;
@@ -1379,6 +1384,8 @@ namespace {
     Sema &S;
     bool DumpBounds;
     uint64_t PointerWidth;
+    Stmt *Body;
+    CFG *Cfg;
     BoundsExpr *ReturnBounds; // return bounds expression for enclosing
                               // function, if any.
 
@@ -2145,10 +2152,145 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &S, BoundsExpr *ReturnBounds) : S(S),
-      DumpBounds(S.getLangOpts().DumpInferredBounds),
-      PointerWidth(S.Context.getTargetInfo().getPointerWidth(0)),
+    CheckBoundsDeclarations(Sema &SemaRef, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds) : S(SemaRef),
+      DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
+      PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
+      Body(Body),
+      Cfg(Cfg),
       ReturnBounds(ReturnBounds) {}
+
+    typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
+
+    void IdentifyChecked(Stmt *S, StmtSet &CheckedStmts, bool InCheckedScope) {
+      if (!S)
+        return;
+
+      if (InCheckedScope)
+        if (isa<Expr>(S) || isa<DeclStmt>(S) || isa<ReturnStmt>(S))
+          CheckedStmts.insert(S);
+
+      if (const CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
+        InCheckedScope = CS->isChecked();
+
+      auto Begin = S->child_begin(), End = S->child_end();
+      for (auto I = Begin; I != End; ++I)
+        IdentifyChecked(*I, CheckedStmts, InCheckedScope);
+   }
+
+    // Add any subexpressions of S that occur in TopLevelElems to NestedExprs.
+    void MarkNested(const Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
+      auto Begin = S->child_begin(), End = S->child_end();
+      for (auto I = Begin; I != End; ++I) {
+        const Stmt *Child = *I;
+        if (!Child)
+          continue;
+        if (TopLevelElems.find(Child) != TopLevelElems.end())
+          NestedExprs.insert(Child);
+        MarkNested(Child, NestedExprs, TopLevelElems);
+      }
+   }
+
+  // Identify CFG elements that are statements that are substatements of other
+  // CFG elements.  (CFG elements are the components of basic blocks).  When a
+  // CFG is constructed, subexpressions of top-level expressions may be placed
+  // in separate CFG elements.  This is done for subexpressions of expressions
+  // with control-flow, for example. When checking bounds declarations, we want
+  // to process a subexpression with its enclosing expression. We want to
+  // ignore CFG elements that are substatements of other CFG elements.
+  //
+  // As an example, given a conditional expression, all subexpressions will
+  // be made into separate CFG elements.  The expression
+  //    x = (cond == 0) ? f1() : f2(),
+  // has a CFG of the form:
+  //    B1:
+  //     1: cond == 0
+  //     branch cond == 0 B2, B3
+  //   B2:
+  //     1: f1();
+  //     jump B4
+  //   B3:
+  //     1: f2();
+  //     jump B4
+  //   B4:
+  //     1: x = (cond == 0) ? f1 : f2();
+  //
+  // For now, we want to skip B1.1, B2.1, and B3.1 because they will be processed
+  // as part of B4.1.
+   void FindNestedElements(StmtSet &NestedStmts) {
+      // Create the set of top-level CFG elements.
+      StmtSet TopLevelElems;
+      for (const CFGBlock *Block : *Cfg) {
+        for (CFGElement Elem : *Block) {
+          if (Elem.getKind() == CFGElement::Statement) {
+            CFGStmt CS = Elem.castAs<CFGStmt>();
+            const Stmt *S = CS.getStmt();
+            TopLevelElems.insert(S);
+          }
+        }
+      }
+
+      // Create the set of top-level elements that are subexpressions
+      // of other top-level elements.
+      for (const CFGBlock *Block : *Cfg) {
+        for (CFGElement Elem : *Block) {
+          if (Elem.getKind() == CFGElement::Statement) {
+            CFGStmt CS = Elem.castAs<CFGStmt>();
+            const Stmt *S = CS.getStmt();
+            MarkNested(S, NestedStmts, TopLevelElems);
+          }
+        }
+      }
+   }
+
+   // Walk the CFG, traversing basic blocks in reverse post-oder.
+   // For each element of a block, check bounds declarations.  Skip
+   // CFG elements that are subexpressions of other CFG elements.
+   void TraverseCFG() {
+     assert(Cfg && "expected CFG to exist");
+#if TRACE_CFG
+     llvm::outs() << "Dumping AST";
+     Body->dump(llvm::outs());
+     llvm::outs() << "Dumping CFG:\n";
+     Cfg->print(llvm::outs(), S.getLangOpts(), true);
+     llvm::outs() << "Traversing CFG:\n";
+#endif
+     StmtSet NestedElements;
+     FindNestedElements(NestedElements);
+     StmtSet CheckedStmts;
+     IdentifyChecked(Body, CheckedStmts, false);
+     PostOrderCFGView POView = PostOrderCFGView(Cfg);
+     for (const CFGBlock *Block : POView) {
+       for (CFGElement Elem : *Block) {
+         if (Elem.getKind() == CFGElement::Statement) {
+           CFGStmt CS = Elem.castAs<CFGStmt>();
+           // We may attach a bounds expression to Stmt, so drop the const
+           // modifier.
+           Stmt *S = const_cast<Stmt *>(CS.getStmt());
+
+           // Skip top-level elements that are nested in
+           // another top-level element.
+	         if (NestedElements.find(S) != NestedElements.end())
+	           continue;
+
+           bool IsChecked = false;
+           if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
+             // CFG construction will synthesize decl statements so that
+             // each declarator is a separate CFGElem.  To see if we are in
+             // a checked scope, look at the original decl statement.
+             const DeclStmt *Orig = Cfg->getSourceDeclStmt(DS);
+             IsChecked = (CheckedStmts.find(Orig) != CheckedStmts.end());
+           } else
+             IsChecked = (CheckedStmts.find(S) != CheckedStmts.end());
+
+#if TRACE_CFG
+            llvm::outs() << "Visiting ";
+            S->dump(llvm::outs());
+#endif
+            TraverseStmt(S, IsChecked);
+         }
+       }
+     }
+    }
 
     // Traverse methods iterate recursively over AST tree nodes, visiting all
     // children of the node too.
@@ -2758,6 +2900,11 @@ namespace {
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
+  if (Body == nullptr)
+    return;
+#if TRACE_CFG
+  llvm::outs() << "Checking " << FD->getName() << "\n";
+#endif
   ModifiedBoundsDependencies Tracker;
   // Compute a mapping from expressions that modify lvalues to in-scope bounds
   // declarations that depend upon those expressions.  We plan to change
@@ -2766,15 +2913,26 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   // information that can't be computed easily when doing a control-flow
   // based traversal.
   ComputeBoundsDependencies(Tracker, FD, Body);
+  std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
+  CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr());
+  if (Cfg != nullptr)
+    Checker.TraverseCFG();
+  else
+    // A CFG couldn't be constructed.  CFG construction doesn't support
+    // __finally or may encounter a malformed AST.  Fall back on to non-flow 
+    // based analysis.  The IsChecked parameter is ignored because the checked
+    // scope information is obtained from Body, which is a compound statement.
+    Checker.TraverseStmt(Body, false);
 
-  // The IsChecked argument to TraverseStmt doesn't matter - the body will be a
-  // compound statement and we'll pick up the checked-ness from that.
-  CheckBoundsDeclarations(*this, FD->getBoundsExpr()).TraverseStmt(Body, false);
+
+#if TRACE_CFG
+  llvm::outs() << "Done " << FD->getName() << "\n";
+#endif
 }
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
-    CheckBoundsDeclarations Checker(*this, nullptr);
+    CheckBoundsDeclarations Checker(*this, nullptr, nullptr, nullptr);
     Checker.TraverseTopLevelVarDecl(D, getCurScope()->isCheckedScope());
   }
 }

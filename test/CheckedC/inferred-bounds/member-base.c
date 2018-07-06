@@ -271,6 +271,11 @@ int f10(void) {
 // CHECK:   `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue Var {{0x[0-9a-f]+}} 'i' 'int'
 
   }
+  return 0;
+}
+
+int f10a(void) {
+  struct S arr _Checked[6];
   int x = (*arr).f;
 
 // CHECK: MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
