@@ -56,8 +56,8 @@ def runMain(args):
   args.append(prog_name)
   args.extend(DEFAULT_ARGS)
   args.extend(list(s))
-  f = open('bla', 'w')
-  f.write(" ".join(args))
+  f = open('convert.sh', 'w')
+  f.write(" \\\n".join(args))
   f.close()
   subprocess.check_call(args)
 
