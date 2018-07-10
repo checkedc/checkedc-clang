@@ -4408,6 +4408,15 @@ public:
   /// idiomatic?
   bool isIdiomaticZeroInitializer(const LangOptions &LangOpts) const;
 
+  /// If the Type of InitListExpr is _NT_CHECKED array or pointer to _NT_CHECKED array
+  /// the initializer must end with null terminator. Returns true if null terminator is
+  /// not required, or if null terminator is required and it exists.
+  /// Returns false if null terminator is missing for _NT_CHECKED array or pointer to _NT_CHECKED
+  /// array types
+  bool handleNullTerminationCheck(ASTContext &C,
+                                  const InitListExpr *Init,
+                                  QualType VDeclType) const;
+
   SourceLocation getLBraceLoc() const { return LBraceLoc; }
   void setLBraceLoc(SourceLocation Loc) { LBraceLoc = Loc; }
   SourceLocation getRBraceLoc() const { return RBraceLoc; }

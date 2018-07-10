@@ -2001,6 +2001,33 @@ bool InitListExpr::isIdiomaticZeroInitializer(const LangOptions &LangOpts) const
   return Lit && Lit->getValue() == 0;
 }
 
+bool InitListExpr::handleNullTerminationCheck(ASTContext &C, const InitListExpr *Init, QualType VDeclType) const {
+  //Init->dump();
+  QualType T = Init->getType();
+  // Null termination required only for _NT_CHECKED arrays and for pointers to
+  // _NT_CHECKED arrays
+  if (!VDeclType->isNtCheckedArrayType()) {
+    if (!T->isCheckedPointerNtArrayType()) {
+      return true;
+    }
+  }
+
+  assert(isSemanticForm() && "Null terminator check must be performed "
+                             "after all the initialization of all "
+                             "subobjects are made explicit");
+
+  const Expr *LastItem = getInit(InitExprs.size() - 1);
+  /*if (T->isCheckedPointerArrayType()) {
+
+  } else if (T->isNtCheckedArrayType()) {
+	  LastItem->isNu
+
+  }*/
+  Expr::NullPointerConstantKind E = LastItem->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNull);
+  return E != NPCK_NotNull;
+  //return LastItem == NULL;
+}
+
 SourceLocation InitListExpr::getLocStart() const {
   if (InitListExpr *SyntacticForm = getSyntacticForm())
     return SyntacticForm->getLocStart();

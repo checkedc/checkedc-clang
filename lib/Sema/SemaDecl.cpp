@@ -10925,6 +10925,17 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
       VDecl->setInvalidDecl();
   }
 
+  if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
+    /// $TODO$ Remove dump calls.
+    /// $TODO$ Handle constant string types (char array)
+    //Init->dump();
+    //RealDecl->is
+    if (!E->handleNullTerminationCheck(RealDecl->getASTContext(), E, VDecl->getType())) {
+      RealDecl->setInvalidDecl();
+      return;
+    }
+  }
+
   // If adding the initializer will turn this declaration into a definition,
   // and we already have a definition for this variable, diagnose or otherwise
   // handle the situation.
