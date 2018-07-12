@@ -96,7 +96,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);
         } else if (Ty->isCheckedPointerArrayType()) {
-          llvm_unreachable("unsupported!");
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getPtr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
+          ConstrainedVars.insert(K);
         }
       } 
 
