@@ -2006,12 +2006,6 @@ bool InitListExpr::handleNullTerminationCheck(ASTContext &C, const InitListExpr 
   QualType T = Init->getType();
   // Null termination required only for _NT_CHECKED arrays and for pointers to
   // _NT_CHECKED arrays
-  if (!VDeclType->isNtCheckedArrayType()) {
-    if (!T->isCheckedPointerNtArrayType()) {
-      return true;
-    }
-  }
-
   assert(isSemanticForm() && "Null terminator check must be performed "
                              "after all the initialization of all "
                              "subobjects are made explicit");

@@ -11076,6 +11076,13 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
       getCurFunction()->markSafeWeakUse(Init);
   }
 
+  // Checked C: All initializers to _NT_CHECKED type arrays must be null
+  // terminated and all the initializers of pointers to _NT_CHECKED type arrays
+  // must also be null terminated.
+  if (!VDecl->isInvalidDecl()) {
+    ValidateNTCheckedType(RealDecl->getASTContext(), VDecl->getType(), Init);
+  }
+
   // The initialization is usually a full-expression.
   //
   // FIXME: If this is a braced initialization of an aggregate, it is not
@@ -11271,6 +11278,84 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
   }
 
   CheckCompleteVariableDeclaration(VDecl);
+}
+
+bool Sema::ValidateNTCheckedType(ASTContext &C, QualType T, Expr *Init) {
+  const Type *current = T.getTypePtr();
+  switch (current->getTypeClass()) {
+    case Type::Pointer: {
+      const PointerType *ptr = cast<PointerType>(current);
+      if (ptr->isCheckedPointerNtArrayType()) {
+        if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
+          if (!E->handleNullTerminationCheck(C, E, T)) {
+            return false;
+          }
+        } else {
+          if (isa<StringLiteral>(Init)) {
+            StringLiteral *InitializerString = cast<StringLiteral>(Init);
+            const char *StringConstant = InitializerString->getString().data();
+            char m = *(StringConstant + (InitializerString->getLength() -1));
+            if (!m) {
+              return true;
+            }
+          } else {
+            QualType Temp = Init->getType();
+            //$TODO$ No Need to handle this type
+          }
+        }
+      }
+    }
+    case Type::ConstantArray:
+    case Type::DependentSizedArray:
+    case Type::IncompleteArray:
+    case Type::VariableArray: {
+    //must be primitive types alone
+    if (current->isNtCheckedArrayType()) {
+      if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
+        if (!E->handleNullTerminationCheck(C, E, T)) {
+          return false;
+        }
+      } else {
+        if (isa<StringLiteral>(Init)) {
+          StringLiteral *InitializerString = cast<StringLiteral>(Init);
+          const char *StringConstant = InitializerString->getString().data();
+          char m = *(StringConstant + (InitializerString->getLength() -1));
+          if (!m) {
+            return true;
+          }
+        } else {
+          QualType Temp = Init->getType();
+          Init->dump();
+          assert(false && "handle the unhandled types");
+        }
+      }
+    }
+    }
+    //Use RecordType to process Struct/Union
+    case Type::Elaborated:
+    case Type::Record: {
+    const RecordType *RT = cast<RecordType>(current);
+    InitListExpr *ILE = dyn_cast<InitListExpr>(Init);
+    // if this is an illegal type, we don't proceed (e.g. struct S{ S s; int a;...})
+    if (RT->getDecl()->isInvalidDecl())
+      return false;
+    // if this is a struct/union type, iterate over all its members
+    int index = 0;
+    for (FieldDecl *FD : RT->getDecl()->fields()) {
+      // Progress until first NT_CHECKED type field is discovered or all fields are iterated over
+      Expr *CurrInit = ILE->getInit(index++);
+      if (FD->getType()->isIntegerType() || FD->getType()->isUncheckedPointerType()) {
+        continue;
+      }
+      if (!ValidateNTCheckedType(C, FD->getType(), CurrInit)) {
+        return false;
+      }
+    }
+    return true;
+    }
+    default:
+    return true;
+  }
 }
 
 /// ActOnInitializerError - Given that there was an error parsing an

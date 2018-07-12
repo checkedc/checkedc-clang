@@ -1764,6 +1764,7 @@ public:
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
   bool isPointerType() const;
   bool isCheckedPointerType() const;
+  bool isNTCheckedPointerType() const;
   bool isUncheckedPointerType() const;
   bool isCheckedPointerPtrType() const;            // Checked C _Ptr type.
   bool isCheckedPointerArrayType() const;          // Checked C _Array_ptr or
@@ -1923,6 +1924,10 @@ public:
     HasIntWithBounds,
     HasUncheckedPointer
   };
+
+  /// \brief check whether an array, or an object of struct/union type contains a checked value
+  bool containsNTCheckedValue() const;
+
   /// \brief check whether an array, or an object of struct/union type contains a checked value
   CheckedValueKind containsCheckedValue(bool InCheckedScope) const;
 
@@ -2370,6 +2375,7 @@ public:
            otherQuals.isAddressSpaceSupersetOf(thisQuals);
   }
 
+  bool isNTChecked() const { return getKind() == CheckedPointerKind::NtArray; }
   bool isChecked() const { return getKind() != CheckedPointerKind::Unchecked; }
   bool isUnchecked() const { return getKind() == CheckedPointerKind::Unchecked; }
   bool isSugared() const { return false; }
@@ -5997,6 +6003,11 @@ inline bool Type::isCheckedPointerType() const {
   if (const PointerType *T = getAs<PointerType>())
     return T->isChecked();
   return false;
+}
+inline bool Type::isNTCheckedPointerType() const {
+	if (const PointerType *T = getAs<PointerType>())
+		return T->isNTChecked();
+	return false;
 }
 inline bool Type::isUncheckedPointerType() const {
   if (const PointerType *T = getAs<PointerType>())
