@@ -9570,6 +9570,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_ptr : Error<
     "automatic variable %0 with _Ptr type must have initializer">;
 
+  def err_initializer_not_null_terminated_for_nt_checked : Error<
+      "NT_CHECKED array type initializer must include an explicit null terminator">;
+
   def err_initializer_expected_for_integer_with_bounds_expr : Error<
     "integer variable %0 with a bounds expression must have an initializer">;
 

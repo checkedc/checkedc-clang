@@ -10925,17 +10925,6 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
       VDecl->setInvalidDecl();
   }
 
-  if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
-    /// $TODO$ Remove dump calls.
-    /// $TODO$ Handle constant string types (char array)
-    //Init->dump();
-    //RealDecl->is
-    if (!E->handleNullTerminationCheck(RealDecl->getASTContext(), E, VDecl->getType())) {
-      RealDecl->setInvalidDecl();
-      return;
-    }
-  }
-
   // If adding the initializer will turn this declaration into a definition,
   // and we already have a definition for this variable, diagnose or otherwise
   // handle the situation.
@@ -11076,11 +11065,12 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
       getCurFunction()->markSafeWeakUse(Init);
   }
 
-  // Checked C: All initializers to _NT_CHECKED type arrays must be null
-  // terminated and all the initializers of pointers to _NT_CHECKED type arrays
-  // must also be null terminated.
+  // Checked C: All initializers to _NT_CHECKED type arrays must be null terminated
   if (!VDecl->isInvalidDecl()) {
-    ValidateNTCheckedType(RealDecl->getASTContext(), VDecl->getType(), Init);
+    if(!ValidateNTCheckedType(RealDecl->getASTContext(), VDecl->getType(), Init)) {
+      VDecl->setInvalidDecl();
+      return;
+	}
   }
 
   // The initialization is usually a full-expression.
@@ -11284,77 +11274,78 @@ bool Sema::ValidateNTCheckedType(ASTContext &C, QualType T, Expr *Init) {
   const Type *current = T.getTypePtr();
   switch (current->getTypeClass()) {
     case Type::Pointer: {
-      const PointerType *ptr = cast<PointerType>(current);
-      if (ptr->isCheckedPointerNtArrayType()) {
-        if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
-          if (!E->handleNullTerminationCheck(C, E, T)) {
-            return false;
-          }
-        } else {
-          if (isa<StringLiteral>(Init)) {
-            StringLiteral *InitializerString = cast<StringLiteral>(Init);
-            const char *StringConstant = InitializerString->getString().data();
-            char m = *(StringConstant + (InitializerString->getLength() -1));
-            if (!m) {
-              return true;
-            }
-          } else {
-            QualType Temp = Init->getType();
-            //$TODO$ No Need to handle this type
-          }
-        }
-      }
+      // Pointers to NT_CHECKED types can be initialized by any Expr option (e.g., calling a function)
+      // Validating initializers of pointers require further analysis
+	  return true;
     }
     case Type::ConstantArray:
     case Type::DependentSizedArray:
     case Type::IncompleteArray:
     case Type::VariableArray: {
-    //must be primitive types alone
-    if (current->isNtCheckedArrayType()) {
-      if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
-        if (!E->handleNullTerminationCheck(C, E, T)) {
-          return false;
-        }
-      } else {
-        if (isa<StringLiteral>(Init)) {
-          StringLiteral *InitializerString = cast<StringLiteral>(Init);
-          const char *StringConstant = InitializerString->getString().data();
-          char m = *(StringConstant + (InitializerString->getLength() -1));
-          if (!m) {
-            return true;
+	  if (current->isNtCheckedArrayType()) {
+		if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
+          if (!E->isNullTerminatied(C)) {
+            Diag(Init->getLocStart(), diag::err_initializer_not_null_terminated_for_nt_checked);
+            return false;
           }
-        } else {
-          QualType Temp = Init->getType();
-          Init->dump();
-          assert(false && "handle the unhandled types");
+		} else {
+		  if (isa<StringLiteral>(Init)) {
+		    StringLiteral *InitializerString = cast<StringLiteral>(Init);
+		    const char *StringConstant = InitializerString->getString().data();
+		    char m = *(StringConstant + (InitializerString->getLength() -1));
+		    if (m != '\0') {
+		      Diag(Init->getLocStart(), diag::err_initializer_not_null_terminated_for_nt_checked);
+		      return false;
+            }
+          } else {
+            QualType Temp = Init->getType();
+            Init->dump();
+            assert(false && "handle the unhandled types");
+          }
         }
-      }
-    }
+	  }
+	  return true;
     }
     //Use RecordType to process Struct/Union
     case Type::Elaborated:
     case Type::Record: {
-    const RecordType *RT = cast<RecordType>(current);
-    InitListExpr *ILE = dyn_cast<InitListExpr>(Init);
-    // if this is an illegal type, we don't proceed (e.g. struct S{ S s; int a;...})
-    if (RT->getDecl()->isInvalidDecl())
-      return false;
-    // if this is a struct/union type, iterate over all its members
-    int index = 0;
-    for (FieldDecl *FD : RT->getDecl()->fields()) {
-      // Progress until first NT_CHECKED type field is discovered or all fields are iterated over
-      Expr *CurrInit = ILE->getInit(index++);
-      if (FD->getType()->isIntegerType() || FD->getType()->isUncheckedPointerType()) {
-        continue;
+      RecordDecl *RD;
+      if(isa<ElaboratedType>(current)) {
+        const ElaboratedType *ET = cast<ElaboratedType>(current);
+        TagDecl *TG = ET->getAsTagDecl();
+        if(!isa<RecordDecl>(TG)) {
+            return true;
+        }
+        RD = cast<RecordDecl>(TG);
+      } else {
+        const RecordType *RT = cast<RecordType>(current);
+        RD = RT->getDecl();
       }
-      if (!ValidateNTCheckedType(C, FD->getType(), CurrInit)) {
-        return false;
+      if(InitListExpr *ILE = dyn_cast<InitListExpr>(Init)) {
+        if (RD->isInvalidDecl()) {
+          return false;
+        }
+        // if this is a struct/union type, we must iterate over all its members
+        unsigned index = 0;
+        for (FieldDecl *FD : RD->fields()) {
+          // Progress until first NT_CHECKED type field is discovered or all fields are iterated over
+          if(ILE->getNumInits() <= index) {
+              break;
+          }
+          Expr *CurrInit = ILE->getInit(index++);
+          if (FD->getType()->isIntegerType() || FD->getType()->isUncheckedPointerType()) {
+            continue;
+          }
+          // Recursive call to handle members of the RecordDecl fields
+          if (!ValidateNTCheckedType(C, FD->getType(), CurrInit)) {
+            return false;
+          }
+        }
       }
-    }
-    return true;
+      return true;
     }
     default:
-    return true;
+      return true;
   }
 }
 
