@@ -17,7 +17,8 @@ CHECKEDC_HEADER_DIR=os.path.abspath(
     os.path.join("../../../../.." ,
                  "projects/checkedc-wrapper/checkedc/include"))
 
-def parseTheArgs():
+# If the arg is a valid filename, returns the absolute path to it
+def parseTheArg():
     parser = argparse.ArgumentParser(description='Convert includes of standard headers to their checked versions for a list of c files.')
     parser.add_argument('filename', default="", help='Filename containing list of C files to have their include statements converted')
     args = parser.parse_args()
@@ -27,26 +28,44 @@ def parseTheArgs():
         print("Error: Argument must be the name of a file. Provided argument: {} is not a file.".format(args.filename))
         sys.exit()
 
+    return os.path.abspath(args.filename)
+
 # Initializes the find replace function so it can be run on multiple files
 def makeFindReplace():
     #print(CHECKEDC_HEADER_DIR)
     #print(os.listdir(CHECKEDC_HEADER_DIR))
     
-    hFiles = [f for f in os.listdir(CHECKEDC_HEADER_DIR) if os.path.isfile(os.path.join(CHECKEDC_HEADER_DIR, f)) and not f.startswith("_builtin") and f.endswith("_checked.h")]
+    hFiles = ["<"+f+">" for f in os.listdir(CHECKEDC_HEADER_DIR)
+              if os.path.isfile(os.path.join(CHECKEDC_HEADER_DIR, f))
+              and not f.startswith("_builtin") and f.endswith("_checked.h")]
     #print(hFiles)
     #print("----")
 
-    replaceDict = dict((n.split('_', 1)[0]+".h", n) for n in hFiles)
+    replaceDict = dict((n.split('_', 1)[0]+".h>", n) for n in hFiles)
     #print(replaceDict)
     #print("----")
 
     rx = re.compile('|'.join(map(re.escape, replaceDict)))
     def oneMatch(match):
+        print("Replacing... {} with {}".format(match.group(0),
+                                               replaceDict[match.group(0)]))
         return replaceDict[match.group(0)]
     def findReplace(text):
         return rx.sub(oneMatch, text)
     return findReplace
 
+
 if __name__ == "__main__":
-    parseTheArgs()
-    makeFindReplace()
+    pathToListFile = parseTheArg()
+    findReplace = makeFindReplace()
+    with open(pathToListFile, 'r') as listFile:
+        for maybeCFile in listFile.readlines():
+            if not re.search("\.c\s", maybeCFile):
+                continue
+            contents = ""
+            cFile = maybeCFile.rstrip('\\\r\n ')
+            with open(cFile, 'r') as f:
+                contents = f.readlines()
+            new_contents = [findReplace(line) for line in contents]
+            with open(cFile, 'w') as f:
+                f.writelines(new_contents)
