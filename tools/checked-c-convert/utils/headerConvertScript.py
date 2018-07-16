@@ -21,36 +21,30 @@ CHECKEDC_HEADER_DIR=os.path.abspath(
 
 # If the arg is a valid filename, returns the absolute path to it
 def parseTheArg():
-    parser = argparse.ArgumentParser(description='Convert includes of standard headers to their checked versions for a list of c files.')
-    parser.add_argument('filename', default="", help='Filename containing list of C files to have their include statements converted')
+    parser = argparse.ArgumentParser(
+        description='Convert includes of standard headers to their checked versions for a list of c files.')
+    parser.add_argument(
+        'filename', default="",
+        help='Filename containing list of C files to have includes converted')
     args = parser.parse_args()
-    #print(args)
 
     if not args.filename or not os.path.isfile(args.filename):
-        print("Error: Argument must be the name of a file. Provided argument: {} is not a file.".format(args.filename))
+        print("Error: Argument must be the name of a file.")
+        print("Provided argument: {} is not a file.".format(args.filename))
         sys.exit()
 
     return os.path.abspath(args.filename)
 
 # Initializes the find replace function so it can be run on multiple files
-def makeFindReplace():
-    #print(CHECKEDC_HEADER_DIR)
-    #print(os.listdir(CHECKEDC_HEADER_DIR))
-    
+def makeFindReplace():    
     hFiles = ["<"+f+">" for f in os.listdir(CHECKEDC_HEADER_DIR)
               if os.path.isfile(os.path.join(CHECKEDC_HEADER_DIR, f))
               and not f.startswith("_builtin") and f.endswith("_checked.h")]
-    #print(hFiles)
-    #print("----")
 
     replaceDict = dict((n.split('_', 1)[0]+".h>", n) for n in hFiles)
-    #print(replaceDict)
-    #print("----")
 
     rx = re.compile('|'.join(map(re.escape, replaceDict)))
     def oneMatch(match):
-        print("Replacing... {} with {}".format(match.group(0),
-                                               replaceDict[match.group(0)]))
         return replaceDict[match.group(0)]
     def findReplace(text):
         return rx.sub(oneMatch, text)
