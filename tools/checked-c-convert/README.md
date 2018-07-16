@@ -38,7 +38,7 @@ structure of the program. It is hoped that the programs output from
 programs.
 
 ## Example usage
-`checked-c-convert -verbose -dumpl-stats -output-postfix=checked ~/src/hello.c ~/src/utils/myUtils.c`
+`checked-c-convert -verbose -dump-stats -output-postfix=checked ~/src/hello.c ~/src/utils/myUtils.c`
 
 ## Tests
 There are unit tests for the constraint solver and functional tests for
