@@ -2001,7 +2001,7 @@ bool InitListExpr::isIdiomaticZeroInitializer(const LangOptions &LangOpts) const
   return Lit && Lit->getValue() == 0;
 }
 
-bool InitListExpr::isNullTerminatied(ASTContext &C) const {
+bool InitListExpr::isNullTerminated(ASTContext &C) const {
   assert(isSemanticForm() && "Null terminator check must be performed "
                              "after semantic initialization of all "
                              "sub-objects are made explicit");

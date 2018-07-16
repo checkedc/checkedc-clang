@@ -11270,8 +11270,9 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
   CheckCompleteVariableDeclaration(VDecl);
 }
 
-bool Sema::ValidateNTCheckedType(ASTContext &C, QualType T, Expr *Init) {
-  const Type *current = T.getTypePtr();
+/// Checked C: Validate that the NT_CHECKED type array initializers must be null terminated
+bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init) {
+  const Type *current = VDeclType.getTypePtr();
   switch (current->getTypeClass()) {
     case Type::Pointer: {
       // Pointers to NT_CHECKED types can be initialized by any Expr option (e.g., calling a function)
@@ -11284,7 +11285,7 @@ bool Sema::ValidateNTCheckedType(ASTContext &C, QualType T, Expr *Init) {
     case Type::VariableArray: {
 	  if (current->isNtCheckedArrayType()) {
 		if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
-          if (!E->isNullTerminatied(C)) {
+          if (!E->isNullTerminated(Ctx)) {
             Diag(Init->getLocStart(), diag::err_initializer_not_null_terminated_for_nt_checked);
             return false;
           }
@@ -11297,10 +11298,6 @@ bool Sema::ValidateNTCheckedType(ASTContext &C, QualType T, Expr *Init) {
 		      Diag(Init->getLocStart(), diag::err_initializer_not_null_terminated_for_nt_checked);
 		      return false;
             }
-          } else {
-            QualType Temp = Init->getType();
-            Init->dump();
-            assert(false && "handle the unhandled types");
           }
         }
 	  }
@@ -11313,7 +11310,7 @@ bool Sema::ValidateNTCheckedType(ASTContext &C, QualType T, Expr *Init) {
       if(isa<ElaboratedType>(current)) {
         const ElaboratedType *ET = cast<ElaboratedType>(current);
         TagDecl *TG = ET->getAsTagDecl();
-        if(!isa<RecordDecl>(TG)) {
+        if(!isa<RecordDecl>(TG)) { //Enum types
             return true;
         }
         RD = cast<RecordDecl>(TG);
@@ -11337,7 +11334,7 @@ bool Sema::ValidateNTCheckedType(ASTContext &C, QualType T, Expr *Init) {
             continue;
           }
           // Recursive call to handle members of the RecordDecl fields
-          if (!ValidateNTCheckedType(C, FD->getType(), CurrInit)) {
+          if (!ValidateNTCheckedType(Ctx, FD->getType(), CurrInit)) {
             return false;
           }
         }
