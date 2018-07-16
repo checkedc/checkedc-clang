@@ -28,4 +28,6 @@ extern llvm::cl::opt<bool> DumpIntermediate;
 const clang::Type *getNextTy(const clang::Type *Ty);
 
 ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info);
+
+clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 #endif
