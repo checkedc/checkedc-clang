@@ -1,11 +1,13 @@
-# This program takes a list of .c files, e.g. in a convert.sh file,
-# and converts any included headers for which checkedc has _checked 
-# to these checked versions. The list of checked headers is found in
-# the llvm/projects/checkedc-wrapper/checkedc/include directory.
+"""
+This program takes a list of .c files, e.g. in a convert.sh file,
+and converts any included headers for which checkedc has _checked 
+to the checked versions. The list of checked headers is found in
+the llvm/projects/checkedc-wrapper/checkedc/include directory.
 
-# NOTE: This does not  any local / project-specific headers
-# that have .checked.h versions from a previous run of checked-c-convert
-# Those must still be updated manually.
+NOTE: This does not  any local / project-specific headers
+that have .checked.h versions from a previous run of checked-c-convert
+Those must still be updated manually.
+"""
 
 import os, re, sys
 import argparse
