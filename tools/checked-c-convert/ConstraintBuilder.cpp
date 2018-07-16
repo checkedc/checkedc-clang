@@ -503,7 +503,7 @@ public:
 
   void constrainExprFirstArr(Expr *E) {
     std::set<ConstraintVariable*> Var =
-      Info.getVariable(E, Context);
+      Info.getVariable(E, Context, true);
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Var)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
