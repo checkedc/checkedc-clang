@@ -11272,6 +11272,9 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
 
 /// Checked C: Validate that the NT_CHECKED type array initializers must be null terminated
 bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init) {
+  if(!Init) {
+    return true;
+  }
   const Type *current = VDeclType.getTypePtr();
   switch (current->getTypeClass()) {
     case Type::Pointer: {
@@ -11310,8 +11313,11 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init
       if(isa<ElaboratedType>(current)) {
         const ElaboratedType *ET = cast<ElaboratedType>(current);
         TagDecl *TG = ET->getAsTagDecl();
+        if(!TG) {
+          return true;
+        }
         if(!isa<RecordDecl>(TG)) { //Enum types
-            return true;
+          return true;
         }
         RD = cast<RecordDecl>(TG);
       } else {

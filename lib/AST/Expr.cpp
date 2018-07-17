@@ -2007,10 +2007,10 @@ bool InitListExpr::isNullTerminated(ASTContext &C) const {
                              "sub-objects are made explicit");
 
   if(InitExprs.size() == 1 && isa<StringLiteral>(getInit(0))) {
-	const StringLiteral *InitializerString = cast<StringLiteral>(getInit(0));
-	const char *StringConstant = InitializerString->getString().data();
-	char m = *(StringConstant + (InitializerString->getLength() -1));
-	return (m == '\0');
+    const StringLiteral *InitializerString = cast<StringLiteral>(getInit(0));
+    const char *StringConstant = InitializerString->getString().data();
+    char m = *(StringConstant + (InitializerString->getLength() -1));
+    return (m == '\0');
   }
 
   const Expr *LastItem = getInit(InitExprs.size() - 1);	  
