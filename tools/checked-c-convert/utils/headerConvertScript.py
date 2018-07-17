@@ -4,7 +4,7 @@ and converts any included headers for which checkedc has _checked
 to the checked versions. The list of checked headers is found in
 the llvm/projects/checkedc-wrapper/checkedc/include directory.
 
-NOTE: This does not  any local / project-specific headers
+NOTE: This does not convert any local / project-specific headers
 that have .checked.h versions from a previous run of checked-c-convert
 Those must still be updated manually.
 """
