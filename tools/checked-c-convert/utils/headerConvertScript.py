@@ -55,13 +55,13 @@ if __name__ == "__main__":
     pathToListFile = parseTheArg()
     findReplace = makeFindReplace()
     with open(pathToListFile, 'r') as listFile:
-        for maybeCFile in listFile.readlines():
-            if not re.search("\.c\s", maybeCFile):
+        for maybeCodeFile in listFile.readlines():
+            if not re.search("\.c\s|\.h\s", maybeCodeFile):
                 continue
             contents = ""
-            cFile = maybeCFile.rstrip('\\\r\n ')
-            with open(cFile, 'r') as f:
+            codeFile = maybeCodeFile.rstrip('\\\r\n ')
+            with open(codeFile, 'r') as f:
                 contents = f.readlines()
             new_contents = [findReplace(line) for line in contents]
-            with open(cFile, 'w') as f:
+            with open(codeFile, 'w') as f:
                 f.writelines(new_contents)
