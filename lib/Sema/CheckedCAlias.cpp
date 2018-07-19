@@ -15,7 +15,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// #define DEBUG_DEPENDENCES 1
+#define DEBUG_DEPENDENCES 1
 
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/RecursiveASTVisitor.h"
@@ -628,7 +628,9 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
   llvm::outs() << "Done " << FD->getName() << ".\n";
   llvm::outs() << "Results:\n";
 
+  llvm::outs() << "BoundsDependencies.Dumping: ...\n";
   BoundsDependencies.Dump(llvm::outs());
+  llvm::outs() << "Tracker.Dumping: ...\n";
   Tracker.Dump(llvm::outs());
 #endif
 }

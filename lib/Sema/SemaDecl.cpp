@@ -11308,6 +11308,7 @@ void Sema::ActOnInitializerError(Decl *D) {
 }
 
 void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
+
   // If there is no declaration, there was an error parsing it. Just ignore it.
   if (!RealDecl)
     return;
