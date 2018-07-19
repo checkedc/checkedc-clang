@@ -4409,7 +4409,7 @@ public:
   bool isIdiomaticZeroInitializer(const LangOptions &LangOpts) const;
 
   /// Does the given InitListExpr contain an explicit null terminator?
-  bool isNullTerminated(ASTContext &C) const;
+  bool isNullTerminated(ASTContext &C, unsigned DeclArraySize) const;
 
   SourceLocation getLBraceLoc() const { return LBraceLoc; }
   void setLBraceLoc(SourceLocation Loc) { LBraceLoc = Loc; }

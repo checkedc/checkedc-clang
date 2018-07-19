@@ -11067,10 +11067,10 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
 
   // Checked C: All initializers to _NT_CHECKED type arrays must be null terminated
   if (!VDecl->isInvalidDecl()) {
-    if(!ValidateNTCheckedType(RealDecl->getASTContext(), VDecl->getType(), Init)) {
+    if(!ValidateNTCheckedType(RealDecl->getASTContext(), VDecl->getType().getCanonicalType(), Init)) {
       VDecl->setInvalidDecl();
       return;
-	}
+    }
   }
 
   // The initialization is usually a full-expression.
@@ -11280,31 +11280,43 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init
     case Type::Pointer: {
       // Pointers to NT_CHECKED types can be initialized by any Expr option (e.g., calling a function)
       // Validating initializers of pointers require further analysis
-	  return true;
+      return true;
     }
-    case Type::ConstantArray:
-    case Type::DependentSizedArray:
-    case Type::IncompleteArray:
-    case Type::VariableArray: {
-	  if (current->isNtCheckedArrayType()) {
-		if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
-          if (!E->isNullTerminated(Ctx)) {
-            Diag(Init->getLocStart(), diag::err_initializer_not_null_terminated_for_nt_checked);
-            return false;
-          }
-		} else {
-		  if (isa<StringLiteral>(Init)) {
-		    StringLiteral *InitializerString = cast<StringLiteral>(Init);
-		    const char *StringConstant = InitializerString->getString().data();
-		    char m = *(StringConstant + (InitializerString->getLength() -1));
-		    if (m != '\0') {
-		      Diag(Init->getLocStart(), diag::err_initializer_not_null_terminated_for_nt_checked);
-		      return false;
+    case Type::ConstantArray: {
+      if (current->isNtCheckedArrayType()) {
+        const ConstantArrayType *CAT = Ctx.getAsConstantArrayType(VDeclType);
+        const auto DeclaredArraySize = CAT->getSize().getRawData();
+        InitListExpr *InitEx = dyn_cast<InitListExpr>(Init);
+        StringLiteral *InitializerString = nullptr;
+        if(InitEx && InitEx->getNumInits() == 1 && 
+			InitEx->getInit(0) && isa<StringLiteral>(InitEx->getInit(0))) {
+          InitializerString = cast<StringLiteral>(InitEx->getInit(0));
+        }
+        if (Init && isa<StringLiteral>(Init)) {
+          InitializerString = cast<StringLiteral>(Init);
+        }
+        
+        if(InitializerString) {
+          if (*DeclaredArraySize < InitializerString->getLength()) {
+            const char *StringConstant = InitializerString->getString().data();
+            if(StringConstant[*DeclaredArraySize - 1] != '\0') {
+              Diag(Init->getLocStart(), 
+				  diag::err_initializer_not_null_terminated_for_nt_checked_string_literal) 
+              << Init->getSourceRange();
+              return false;
             }
           }
+        } else if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
+          if (!E->isNullTerminated(Ctx, *DeclaredArraySize)) {
+            const Expr *LastItem = E->getInit(E->getNumInits() - 1);
+            Diag(LastItem->getLocStart(), 
+				diag::err_initializer_not_null_terminated_for_nt_checked) 
+            << LastItem->getSourceRange();
+            return false;
+          }
         }
-	  }
-	  return true;
+      }
+      return true;
     }
     //Use RecordType to process Struct/Union
     case Type::Elaborated:
@@ -11340,7 +11352,7 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init
             continue;
           }
           // Recursive call to handle members of the RecordDecl fields
-          if (!ValidateNTCheckedType(Ctx, FD->getType(), CurrInit)) {
+          if (!ValidateNTCheckedType(Ctx, FD->getType().getCanonicalType(), CurrInit)) {
             return false;
           }
         }

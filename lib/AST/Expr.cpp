@@ -2001,19 +2001,26 @@ bool InitListExpr::isIdiomaticZeroInitializer(const LangOptions &LangOpts) const
   return Lit && Lit->getValue() == 0;
 }
 
-bool InitListExpr::isNullTerminated(ASTContext &C) const {
+bool InitListExpr::isNullTerminated(ASTContext &C, unsigned DeclArraySize) const {
   assert(isSemanticForm() && "Null terminator check must be performed "
                              "after semantic initialization of all "
                              "sub-objects are made explicit");
 
-  if(InitExprs.size() == 1 && isa<StringLiteral>(getInit(0))) {
+  if(getNumInits() == 0) {
+    return true;
+  }
+  
+  if(getNumInits() == 1 && getInit(0) && isa<StringLiteral>(getInit(0))) {
     const StringLiteral *InitializerString = cast<StringLiteral>(getInit(0));
-    const char *StringConstant = InitializerString->getString().data();
-    char m = *(StringConstant + (InitializerString->getLength() -1));
-    return (m == '\0');
+    if(DeclArraySize < InitializerString->getLength())
+    {
+      const char *StringConstant = InitializerString->getString().data();
+      return (StringConstant[DeclArraySize - 1] == '\0');  
+    }
+    return true;
   }
 
-  const Expr *LastItem = getInit(InitExprs.size() - 1);	  
+  const Expr *LastItem = getInit(getNumInits() - 1);
   Expr::NullPointerConstantKind E = LastItem->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNull);
   return E != NPCK_NotNull;
 }
