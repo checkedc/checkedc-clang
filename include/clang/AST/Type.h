@@ -1925,9 +1925,6 @@ public:
   };
 
   /// \brief check whether an array, or an object of struct/union type contains a checked value
-  bool containsNTCheckedValue() const;
-
-  /// \brief check whether an array, or an object of struct/union type contains a checked value
   CheckedValueKind containsCheckedValue(bool InCheckedScope) const;
 
   /// \brief Whether this type is or contains an unchecked type.
