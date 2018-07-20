@@ -2006,13 +2006,13 @@ bool InitListExpr::isNullTerminated(ASTContext &C, unsigned DeclArraySize) const
                              "after semantic initialization of all "
                              "sub-objects are made explicit");
 
-  if(getNumInits() == 0) {
+  if (getNumInits() == 0) {
     return true;
   }
   
-  if(getNumInits() == 1 && getInit(0) && isa<StringLiteral>(getInit(0))) {
+  if (getNumInits() == 1 && getInit(0) && isa<StringLiteral>(getInit(0))) {
     const StringLiteral *InitializerString = cast<StringLiteral>(getInit(0));
-    if(DeclArraySize < InitializerString->getLength())
+    if (DeclArraySize < InitializerString->getLength())
     {
       const char *StringConstant = InitializerString->getString().data();
       return (StringConstant[DeclArraySize - 1] == '\0');  

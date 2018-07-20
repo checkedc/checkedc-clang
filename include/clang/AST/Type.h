@@ -1764,7 +1764,6 @@ public:
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
   bool isPointerType() const;
   bool isCheckedPointerType() const;
-  bool isNTCheckedPointerType() const;
   bool isUncheckedPointerType() const;
   bool isCheckedPointerPtrType() const;            // Checked C _Ptr type.
   bool isCheckedPointerArrayType() const;          // Checked C _Array_ptr or
@@ -6003,11 +6002,6 @@ inline bool Type::isCheckedPointerType() const {
   if (const PointerType *T = getAs<PointerType>())
     return T->isChecked();
   return false;
-}
-inline bool Type::isNTCheckedPointerType() const {
-	if (const PointerType *T = getAs<PointerType>())
-		return T->isNTChecked();
-	return false;
 }
 inline bool Type::isUncheckedPointerType() const {
   if (const PointerType *T = getAs<PointerType>())

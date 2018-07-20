@@ -11270,7 +11270,9 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
   CheckCompleteVariableDeclaration(VDecl);
 }
 
-/// Checked C: Validate that the NT_CHECKED type array initializers must be null terminated
+/// Checked C: Validate that the _Nt_checked type array initializers must be null terminated
+/// VDeclType - CanonicalType of the declared variable that is initialized
+/// Init - initializer expression for a declaration with VDeclType
 bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init) {
   if(!Init) {
     return true;
@@ -11278,8 +11280,8 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init
   const Type *current = VDeclType.getTypePtr();
   switch (current->getTypeClass()) {
     case Type::Pointer: {
-      // Pointers to NT_CHECKED types can be initialized by any Expr option (e.g., calling a function)
-      // Validating initializers of pointers require further analysis
+      // Pointers to _Nt_checked types (nt_arry_ptr) are enforced to point to null-
+      // terminated values, by static type checking and checking of casts.
       return true;
     }
     case Type::ConstantArray: {
@@ -11288,10 +11290,14 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init
         const auto DeclaredArraySize = CAT->getSize().getRawData();
         InitListExpr *InitEx = dyn_cast<InitListExpr>(Init);
         StringLiteral *InitializerString = nullptr;
+
+        // Initializer-string enclosed in {} e.g. {"test"}
         if(InitEx && InitEx->getNumInits() == 1 && 
 			InitEx->getInit(0) && isa<StringLiteral>(InitEx->getInit(0))) {
           InitializerString = cast<StringLiteral>(InitEx->getInit(0));
         }
+        
+        // Initializer-string
         if (Init && isa<StringLiteral>(Init)) {
           InitializerString = cast<StringLiteral>(Init);
         }
@@ -11343,7 +11349,7 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType, Expr *Init
         // if this is a struct/union type, we must iterate over all its members
         unsigned index = 0;
         for (FieldDecl *FD : RD->fields()) {
-          // Progress until first NT_CHECKED type field is discovered or all fields are iterated over
+          // Recurse until all _Nt_checked type fields are discovered and validated
           if(ILE->getNumInits() <= index) {
               break;
           }
