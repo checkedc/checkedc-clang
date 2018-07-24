@@ -4408,6 +4408,10 @@ public:
   /// idiomatic?
   bool isIdiomaticZeroInitializer(const LangOptions &LangOpts) const;
 
+  /// Does the given InitListExpr contain an explicit null terminator?
+  /// DeclArraySize - Size of the array that is initialized
+  bool isNullTerminated(ASTContext &C, unsigned DeclArraySize) const;
+
   SourceLocation getLBraceLoc() const { return LBraceLoc; }
   void setLBraceLoc(SourceLocation Loc) { LBraceLoc = Loc; }
   SourceLocation getRBraceLoc() const { return RBraceLoc; }

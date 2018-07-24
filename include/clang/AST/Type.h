@@ -1923,6 +1923,7 @@ public:
     HasIntWithBounds,
     HasUncheckedPointer
   };
+
   /// \brief check whether an array, or an object of struct/union type contains a checked value
   CheckedValueKind containsCheckedValue(bool InCheckedScope) const;
 
@@ -2370,6 +2371,7 @@ public:
            otherQuals.isAddressSpaceSupersetOf(thisQuals);
   }
 
+  bool isNTChecked() const { return getKind() == CheckedPointerKind::NtArray; }
   bool isChecked() const { return getKind() != CheckedPointerKind::Unchecked; }
   bool isUnchecked() const { return getKind() == CheckedPointerKind::Unchecked; }
   bool isSugared() const { return false; }

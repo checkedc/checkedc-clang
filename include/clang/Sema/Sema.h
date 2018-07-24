@@ -1972,6 +1972,7 @@ public:
                             SourceLocation EqualLoc = SourceLocation());
   void ActOnUninitializedDecl(Decl *dcl);
   void ActOnInitializerError(Decl *Dcl);
+  bool ValidateNTCheckedType(ASTContext &C, QualType VDeclType, Expr *Init);
 
   void ActOnPureSpecifier(Decl *D, SourceLocation PureSpecLoc);
   void ActOnCXXForRangeDecl(Decl *D);
