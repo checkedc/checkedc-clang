@@ -11065,7 +11065,7 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
       getCurFunction()->markSafeWeakUse(Init);
   }
 
-  // Checked C: All initializers to _NT_CHECKED type arrays must be null
+  // Checked C: All initializers to _Nt_checked type arrays must be null
   // terminated
   if (!VDecl->isInvalidDecl()) {
     if (!ValidateNTCheckedType(RealDecl->getASTContext(),
@@ -11273,8 +11273,9 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
 }
 
 /// Checked C: Validate that the _Nt_checked type array initializers must be
-/// null terminated VDeclType - CanonicalType of the declared variable that is
-/// initialized Init - initializer expression for a declaration with VDeclType
+/// null terminated
+/// VDeclType - CanonicalType of the declared variable that is initialized
+/// Init - initializer expression for a declaration with VDeclType
 bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
                                  Expr *Init) {
   if (!Init) {
@@ -11283,8 +11284,8 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
   const Type *current = VDeclType.getTypePtr();
   switch (current->getTypeClass()) {
   case Type::Pointer: {
-    // Pointers to _Nt_checked types (nt_arry_ptr) are enforced to point to
-    // null- terminated values, by static type checking and checking of casts.
+    // Pointers to _Nt_checked types (nt_array_ptr) are enforced to point to
+    // null-terminated values, by static type checking and checking of casts.
     return true;
   }
   case Type::ConstantArray: {
@@ -11352,6 +11353,7 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
       }
       // if this is a struct/union type, we must iterate over all its members
       unsigned index = 0;
+      bool FieldValidationFailed = false;
       for (FieldDecl *FD : RD->fields()) {
         // Recurse until all _Nt_checked type fields are discovered and
         // validated
@@ -11366,8 +11368,11 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
         // Recursive call to handle members of the RecordDecl fields
         if (!ValidateNTCheckedType(Ctx, FD->getType().getCanonicalType(),
                                    CurrInit)) {
-          return false;
+          FieldValidationFailed = true;
         }
+      }
+      if (FieldValidationFailed) {
+        return false;
       }
     }
     return true;
