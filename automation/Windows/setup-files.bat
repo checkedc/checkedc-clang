@@ -28,6 +28,11 @@ if not exist %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc\.g
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
+if "%SIGN_INSTALLER%" NEQ "No" (
+  git clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
+  if ERRORLEVEL 1 (goto cmdfailed)
+)
+
 rem set up LLVM sources
 cd %BUILD_SOURCESDIRECTORY%\llvm
 if ERRORLEVEL 1 (goto cmdfailed)
@@ -72,6 +77,18 @@ if not exist %LLVM_OBJ_DIR% (
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
+rem Set up sources for scripts for signing installer
+if "%SIGN_INSTALLER%" NEQ "No" (
+    cd %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\sign
+    if ERRORLEVEL 1 (goto cmdfailed)
+    git fetch origin
+    if ERRORLEVEL 1 (goto cmdfailed)
+    git checkout -f %SIGN_BRANCH%
+    if ERRORLEVEL 1 (goto cmdfailed)
+    git pull -f origin %SIGN_BRANCH%
+    if ERRORLEVEL 1 (goto cmdfailed)
+)
+
 rem Set up directory for package
 if exist %LLVM_OBJ_DIR%\package (
   rmdir /s /q %LLVM_OBJ_DIR%\package
@@ -80,6 +97,17 @@ if exist %LLVM_OBJ_DIR%\package (
 
 if "%BUILD_PACKAGE%"=="Yes" (
   mkdir %LLVM_OBJ_DIR%\package
+  if ERRORLEVEL 1 (goto cmdfailed)
+)
+
+rem Set up directory for signing
+if exist %LLVM_OBJ_DIR%\signed-package (
+  rmdir /s /q %LLVM_OBJ_DIR%\signed-package
+  if ERRORLEVEL 1 (goto cmdfailed)
+)
+
+if "%SIGN_INSTALLER%" NEQ "No" (
+  mkdir %LLVM_OBJ_DIR%\signed-package
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 

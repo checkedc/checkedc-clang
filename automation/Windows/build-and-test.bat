@@ -23,6 +23,7 @@
 @rem  BUILD_PACKAGE: Build an installation package.  May be one of Yes or No.
 @rem                 Defaults to No.  If this is Yes and the build is a Release
 @rem                 build, assertions are enabled during the build.
+@rem  SIGN_INSTALLER: Sign the installer package.
 @rem  TEST_TARGET_ARCH: the target architecuture on which testing will be
 @rem                    run.  May be one of X86 or AMD64.  Defaults to X86.
 @rem
@@ -33,13 +34,14 @@
 @rem  CHECKEDC_BRANCH: defaults to master
 @rem  CHECKEDC_COMMIT: defaults to HEAD
 @rem  LLVM_BRANCH: defaults to master
-@rem  LLVM_BRANCH: defaults to HEAD
+@rem  LLVM_COMMIT: defaults to HEAD
 @rem  CLANG_BRANCH: If not set, uses BUILD_SOURCEBRANCHNAME if defined.
 @rem                If BUILD_SOURCEBRANCHNAME is not defined, defaults
 @rem                 to master
 @rem  CLANG_COMMIT: If not set, uses BUILD_SOURCEVERSION if defined.
 @rem                If BUILD_SOURCEVERSION is not default, defaults to
 @rem                HEAD.
+@rem  SIGN_BRANCH: signing automation branch to checkout.
 
 @setlocal
 @set DIRNAME=%CD%

@@ -83,6 +83,24 @@ if NOT DEFINED BUILD_PACKAGE (
   )
 )
 
+if NOT DEFINED SIGN_INSTALLER (
+    set SIGN_INSTALLER=No
+) else if "%SIGN_INSTALLER%"=="Test" (
+    if "%BUILD_PACKAGE"=="No" (
+      echo "BUILD_PACKAGE must be Yes when SIGN_INSTALLER is Test"
+      exit /b /1
+    )
+) else if "%SIGN_INSTALLER%"=="Release" (
+    if "%BUILD_PACKAGE"=="No" (
+      echo "BUILD_PACKAGE must be Yes when SIGN_INSTALLER is Release"
+      exit /b /1
+    )
+) else (
+    echo Unknown SIGN_INSTALLER value %SIGN_INSTALLER%: must be one of Test or Release
+    exit /b /1
+  )
+)
+
 if not defined BUILD_BINARIESDIRECTORY (
   echo BUILD_BINARIESDIRECTORY not set.  Set it the directory that will contain the object directory.
   exit /b 1
@@ -149,6 +167,12 @@ if not defined CLANG_BRANCH (
     set CLANG_BRANCH=master
 )
 
+if not defined SIGN_BRANCH (
+  set SIGN_BRANCH=master
+) else if "%SIGN_BRANCH%"=="" (
+  set SIGN_BRANCH=master
+)
+
 rem set up source versions (Git commit number)
 if not defined LLVM_COMMIT (
   set LLVM_COMMIT=HEAD
@@ -188,7 +212,8 @@ echo.  TEST_TARGET_ARCH: %TEST_TARGET_ARCH%
 echo.  TEST_SUITE: %TEST_SUITE%
 echo.  SKIP_CHECKEDC_TESTS: %SKIP_CHECKEDC_TESTS%
 echo.  BUILD_CHECKEDC_CLEAN: %BUILD_CHECKEDC_CLEAN%
-echo   BUILD_PACKAGE: %BUILD_PACKAGE%
+echo.  BUILD_PACKAGE: %BUILD_PACKAGE%
+echo.  SIGN_INSTALLER: %SIGN_INSTALLER%
 echo.
 echo.  Directories:
 echo.    BUILD_SOURCESDIRECTORY: %BUILD_SOURCESDIRECTORY%
@@ -202,6 +227,7 @@ echo.    LLVM_BRANCH: %LLVM_BRANCH%
 echo.    LLVM_COMMIT: %LLVM_COMMIT%
 echo.    CHECKEDC BRANCH: %CHECKEDC_BRANCH%
 echo.    CHECKEDC_COMMIT: %CHECKEDC_COMMIT%
+echo.    SIGN_BRANCH: %SIGN_BRANCH%
 echo.
 echo.  MSBUILD_BIN: %MSBUILD_BIN%
 echo.  MSBUILD_CPU_COUNT: %MSBUILD_CPU_COUNT%
