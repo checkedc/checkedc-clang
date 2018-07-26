@@ -28,11 +28,14 @@ if not exist %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc\.g
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
-if not exist %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign\.git (
-  if "%SIGN_INSTALLER%" NEQ "No" (
-    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
-    if ERRORLEVEL 1 (goto cmdfailed)
+if "%SIGN_INSTALLER%" NEQ "No" (
+  // Credentials are not valid across builds.  Always clone the repo.
+  if exist %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign\.git (
+    rmdir /s /q %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
   )
+  if ERRORLEVEL 1 (goto cmdfailed)
+  git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
+  if ERRORLEVEL 1 (goto cmdfailed)
 )
 
 rem set up LLVM sources
