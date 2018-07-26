@@ -79,7 +79,7 @@ if not exist %LLVM_OBJ_DIR% (
 
 rem Set up sources for scripts for signing installer
 if "%SIGN_INSTALLER%" NEQ "No" (
-    cd %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\sign
+    cd %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
     if ERRORLEVEL 1 (goto cmdfailed)
     git fetch origin
     if ERRORLEVEL 1 (goto cmdfailed)
