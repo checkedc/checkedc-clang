@@ -28,14 +28,14 @@ if not exist %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc\.g
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
+
 if "%SIGN_INSTALLER%" NEQ "No" (
-  rem Credentials are not valid across builds.  Always clone the repo.
-  if exist %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign\.git (
-    rmdir /s /q %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
+  if not exist %BUILD_SOURCESDIRECTORY%\automation\Windows\sign\.git (
+    rem VSO automation runs scripts from a top-level clang repo that its cloned.
+    rem Place the signing scripts there, not within the cloned compiler repos.
+    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\automation\Windows\sign
+    if ERRORLEVEL 1 (goto cmdfailed)
   )
-  if ERRORLEVEL 1 (goto cmdfailed)
-  git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
-  if ERRORLEVEL 1 (goto cmdfailed)
 )
 
 rem set up LLVM sources
