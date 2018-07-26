@@ -86,11 +86,11 @@ rem Set up sources for scripts for signing installer
 if "%SIGN_INSTALLER%" NEQ "No" (
     cd %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
     if ERRORLEVEL 1 (goto cmdfailed)
-    git fetch origin
+    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" fetch origin
     if ERRORLEVEL 1 (goto cmdfailed)
-    git checkout -f %SIGN_BRANCH%
+    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" checkout -f %SIGN_BRANCH%
     if ERRORLEVEL 1 (goto cmdfailed)
-    git pull -f origin %SIGN_BRANCH%
+    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" pull -f origin %SIGN_BRANCH%
     if ERRORLEVEL 1 (goto cmdfailed)
 )
 
