@@ -29,7 +29,7 @@ if not exist %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc\.g
 )
 
 if "%SIGN_INSTALLER%" NEQ "No" (
-  // Credentials are not valid across builds.  Always clone the repo.
+  rem Credentials are not valid across builds.  Always clone the repo.
   if exist %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign\.git (
     rmdir /s /q %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\automation\Windows\sign
   )
