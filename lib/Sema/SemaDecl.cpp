@@ -11065,6 +11065,16 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
       getCurFunction()->markSafeWeakUse(Init);
   }
 
+  // Checked C: All initializers to _Nt_checked type arrays must be null
+  // terminated
+  if (!VDecl->isInvalidDecl()) {
+    if (!ValidateNTCheckedType(RealDecl->getASTContext(),
+                               VDecl->getType().getCanonicalType(), Init)) {
+      VDecl->setInvalidDecl();
+      return;
+    }
+  }
+
   // The initialization is usually a full-expression.
   //
   // FIXME: If this is a braced initialization of an aggregate, it is not
@@ -11260,6 +11270,116 @@ void Sema::AddInitializerToDecl(Decl *RealDecl, Expr *Init, bool DirectInit,
   }
 
   CheckCompleteVariableDeclaration(VDecl);
+}
+
+/// Checked C: Validate that the _Nt_checked type array initializers must be
+/// null terminated
+/// VDeclType - CanonicalType of the declared variable that is initialized
+/// Init - initializer expression for a declaration with VDeclType
+bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
+                                 Expr *Init) {
+  if (!Init) {
+    return true;
+  }
+  const Type *current = VDeclType.getTypePtr();
+  switch (current->getTypeClass()) {
+  case Type::Pointer: {
+    // Pointers to _Nt_checked types (nt_array_ptr) are enforced to point to
+    // null-terminated values, by static type checking and checking of casts.
+    return true;
+  }
+  case Type::ConstantArray: {
+    if (current->isNtCheckedArrayType()) {
+      const ConstantArrayType *CAT = Ctx.getAsConstantArrayType(VDeclType);
+      const auto DeclaredArraySize = CAT->getSize().getRawData();
+      InitListExpr *InitEx = dyn_cast<InitListExpr>(Init);
+      StringLiteral *InitializerString = nullptr;
+
+      // Initializer-string enclosed in {} e.g. {"test"}
+      if (InitEx && InitEx->getNumInits() == 1 && InitEx->getInit(0) &&
+          isa<StringLiteral>(InitEx->getInit(0))) {
+        InitializerString = cast<StringLiteral>(InitEx->getInit(0));
+      }
+
+      // Initializer-string
+      if (Init && isa<StringLiteral>(Init)) {
+        InitializerString = cast<StringLiteral>(Init);
+      }
+
+      if (InitializerString) {
+        if (*DeclaredArraySize < InitializerString->getLength()) {
+          const char *StringConstant = InitializerString->getString().data();
+          if (StringConstant[*DeclaredArraySize - 1] != '\0') {
+            Diag(
+                Init->getLocStart(),
+                diag::err_initializer_not_null_terminated_for_nt_checked_string_literal)
+                << Init->getSourceRange();
+            return false;
+          }
+        }
+      } else if (InitListExpr *E = dyn_cast<InitListExpr>(Init)) {
+        if (!E->isNullTerminated(Ctx, *DeclaredArraySize)) {
+          const Expr *LastItem = E->getInit(E->getNumInits() - 1);
+          Diag(LastItem->getLocStart(),
+               diag::err_initializer_not_null_terminated_for_nt_checked)
+              << LastItem->getSourceRange();
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+    // Use RecordType to process Struct/Union
+  case Type::Elaborated:
+  case Type::Record: {
+    RecordDecl *RD;
+    if (isa<ElaboratedType>(current)) {
+      const ElaboratedType *ET = cast<ElaboratedType>(current);
+      TagDecl *TG = ET->getAsTagDecl();
+      if (!TG) {
+        return true;
+      }
+      if (!isa<RecordDecl>(TG)) { // Enum types
+        return true;
+      }
+      RD = cast<RecordDecl>(TG);
+    } else {
+      const RecordType *RT = cast<RecordType>(current);
+      RD = RT->getDecl();
+    }
+    if (InitListExpr *ILE = dyn_cast<InitListExpr>(Init)) {
+      if (RD->isInvalidDecl()) {
+        return false;
+      }
+      // if this is a struct/union type, we must iterate over all its members
+      unsigned index = 0;
+      bool FieldValidationFailed = false;
+      for (FieldDecl *FD : RD->fields()) {
+        // Recurse until all _Nt_checked type fields are discovered and
+        // validated
+        if (ILE->getNumInits() <= index) {
+          break;
+        }
+        Expr *CurrInit = ILE->getInit(index++);
+        if (FD->getType()->isIntegerType() ||
+            FD->getType()->isUncheckedPointerType()) {
+          continue;
+        }
+        // Recursive call to handle members of the RecordDecl fields
+        if (!ValidateNTCheckedType(Ctx, FD->getType().getCanonicalType(),
+                                   CurrInit)) {
+          FieldValidationFailed = true;
+        }
+      }
+      if (FieldValidationFailed) {
+        return false;
+      }
+    }
+    return true;
+  }
+  default:
+    return true;
+  }
 }
 
 /// ActOnInitializerError - Given that there was an error parsing an
