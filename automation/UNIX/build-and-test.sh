@@ -14,6 +14,4 @@ set -o pipefail
 ./run-cmake.sh
 ./test-clang.sh
 ./test-lnt.sh
-
-
-
+./build-package.sh
