@@ -50,10 +50,10 @@ if [ -n "$LNT" ]; then
 fi
 
 # Make package directory if building a package
-cd ".."
+cd "$LLVM_OBJ_DIR"
 if [ "${BUILD_PACKAGE}" == "Yes" ]; then
-    mkdir -p "$LLVM_OBJ_DIR\package"
-    rm -rf "$LLVM_OBJ_DIR\package\*"
+    mkdir -p "package"
+    rm -rf "package/*"
 fi
 
 set +ue
