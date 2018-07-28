@@ -402,8 +402,21 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   Record.push_back(E->hasTemplateKWAndArgsInfo());
   Record.push_back(E->hadMultipleCandidates());
   Record.push_back(E->refersToEnclosingVariableOrCapture());
-  bool isGenericFunction = E->GetTypeArgumentInfo() != nullptr;
+  bool isGenericFunction = false;
+  if(E->getDecl() && isa<FunctionDecl>(E->getDecl()))
+  {
+    FunctionDecl *FD = cast<FunctionDecl>(E->getDecl());
+    isGenericFunction = FD->isGenericFunction() && E->GetTypeArgumentInfo() != nullptr;
+  }
   Record.push_back(isGenericFunction);
+
+  bool isItypeGenericFunction = false;
+  if(E->getDecl() && isa<FunctionDecl>(E->getDecl()))
+  {
+    FunctionDecl *FD = cast<FunctionDecl>(E->getDecl());
+    isItypeGenericFunction = FD->isItypeGenericFunction() && E->GetTypeArgumentInfo() != nullptr;
+    //$TODO$// Unused as of now is ItypeGenericFunction. Must dump _itype_for_any function
+  }
 
   if (E->hasTemplateKWAndArgsInfo()) {
     unsigned NumTemplateArgs = E->getNumTemplateArgs();

@@ -3427,12 +3427,14 @@ public:
   /// Extra information about a function prototype.
   struct ExtProtoInfo {
     ExtProtoInfo()
-        : Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
+        : Variadic(false), HasTrailingReturn(false), numTypeVars(0),
+          GenericFunction(false), ItypeGenericFunction(false),
           TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
           ParamAnnots(nullptr), ReturnAnnots() {}
 
     ExtProtoInfo(CallingConv CC)
-        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), numTypeVars(0), 
+        : ExtInfo(CC), Variadic(false), HasTrailingReturn(false), numTypeVars(0),
+          GenericFunction(false), ItypeGenericFunction(false),
           TypeQuals(0), RefQualifier(RQ_None), ExtParameterInfos(nullptr),
           ParamAnnots(nullptr), ReturnAnnots() {}
 
@@ -3446,6 +3448,8 @@ public:
     bool Variadic : 1;
     bool HasTrailingReturn : 1;
     unsigned numTypeVars : 15;
+    bool GenericFunction : 1;
+    bool ItypeGenericFunction : 1;
     unsigned char TypeQuals;
     RefQualifierKind RefQualifier;
     ExceptionSpecInfo ExceptionSpec;
@@ -3484,6 +3488,9 @@ private:
 
   /// Whether the function is variadic.
   unsigned Variadic : 1;
+
+  bool GenericFunction : 1;
+  bool ItypeGenericFunction : 1;
 
   /// Whether this function has a trailing return type.
   unsigned HasTrailingReturn : 1;
@@ -3551,6 +3558,9 @@ public:
     return param_type_begin()[i];
   }
   unsigned getNumTypeVars() const { return NumTypeVars; }
+  bool isGenericFunction() const { return GenericFunction; }
+  bool isItypeGenericFunction() const { return ItypeGenericFunction; }
+
   ArrayRef<QualType> getParamTypes() const {
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
   }
@@ -3586,6 +3596,8 @@ public:
     EPI.ParamAnnots = hasParamAnnots() ? param_annots_begin() : nullptr;
     EPI.ReturnAnnots = getReturnAnnots();
     EPI.numTypeVars = getNumTypeVars();
+    EPI.GenericFunction = isGenericFunction();
+    EPI.ItypeGenericFunction = isItypeGenericFunction();
     return EPI;
   }
 

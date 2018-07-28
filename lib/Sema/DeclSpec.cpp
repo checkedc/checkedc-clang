@@ -975,13 +975,26 @@ bool DeclSpec::setFunctionSpecUnchecked(SourceLocation Loc,
 bool DeclSpec::setFunctionSpecForany(SourceLocation Loc,
                                         const char *&PrevSpec,
                                         unsigned &DiagID) {
-  if (FS_forany_specified) {
+  if (FS_itypeforany_specified || FS_forany_specified) {
     DiagID = diag::warn_duplicate_declspec;
     PrevSpec = "unchecked";
     return true;
   }
   FS_forany_specified = true;
   FS_foranyLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setFunctionSpecItypeforany(SourceLocation Loc,
+                                              const char *&PrevSpec,
+                                              unsigned &DiagID) {
+  if (FS_itypeforany_specified || FS_forany_specified) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "unchecked";
+    return true;
+  }
+  FS_itypeforany_specified = true;
+  FS_itypeforanyloc = Loc;
   return false;
 }
 

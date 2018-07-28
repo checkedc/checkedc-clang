@@ -1204,6 +1204,18 @@ def err_forany_type_variable_identifier_expected : Error<
 def err_forany_unexpected_token : Error<
   "unexpected token in _For_any specifier">;
 
+def err_itypeforany_comma_or_parenthesis_expected : Error<
+  "expected , or )">;
+
+def err_interfacetype_unexpected_token : Error<
+  "unexpected token in _Itype_forany specifier">;
+
+def err_interfacetype_expect_forany_token : Error<
+  "expected _For_any specifier for the _Itype_forany">;
+
+def err_itypeforany_unexpected_token : Error<
+  "unexpected token in _Itype_for_any specifier">;
+
 def err_forany_comma_or_parenthesis_expected : Error<
   "expected , or )">;
 

@@ -723,8 +723,12 @@ FunctionProtoType::printExceptionSpecification(raw_ostream &OS,
 
 void TypePrinter::printFunctionProtoBefore(const FunctionProtoType *T, 
                                            raw_ostream &OS) {
-  if (T->getNumTypeVars() > 0)
+  if (T->isGenericFunction() && T->getNumTypeVars() > 0)
     OS << "_For_any(" << T->getNumTypeVars() << ") ";
+
+  if (T->isItypeGenericFunction() && T->getNumTypeVars() > 0)
+    OS << "_Itype_for_any(" << T->getNumTypeVars() << ") ";
+
   if (T->hasTrailingReturn()) {
     OS << "auto ";
     if (!HasEmptyPlaceHolder)

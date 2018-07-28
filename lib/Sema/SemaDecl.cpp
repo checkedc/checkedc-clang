@@ -8729,6 +8729,17 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
+  if (D.getDeclSpec().isItypeforanySpecified()) {
+    if (NewFD->hasPrototype()) {
+      NewFD->setItypeGenericFunctionFlag(true);
+      NewFD->setTypeVars(D.getDeclSpec().typeVariables());
+    } else {
+      // Diagnose generic no-prototype function declarator
+      Diag(NewFD->getLocation(), diag::no_prototype_generic_function);
+      NewFD->setInvalidDecl();
+    }
+  }
+
   if (D.getDeclSpec().isCheckedSpecified())
     NewFD->setCheckedSpecifier(CheckedFunctionSpecifiers::CFS_Checked);
   else if (D.getDeclSpec().isUncheckedSpecified())

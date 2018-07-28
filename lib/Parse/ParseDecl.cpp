@@ -2018,6 +2018,11 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
             && "Current scope should be created by _For_any specifier.");
           ExitScope();
         }
+        if (DS.isItypeforanySpecified()) {
+          assert(getCurScope()->isItypeforanyScope()
+            && "Current scope should be created by _Itype_forany specifier.");
+          ExitScope();
+        }
         return Actions.ConvertDeclToDeclGroup(TheDecl);
       }
 
@@ -2967,6 +2972,8 @@ Parser::DiagnoseMissingSemiAfterTagDefinition(DeclSpec &DS, AccessSpecifier AS,
 /// [C++]   'explicit'
 /// [OpenCL] '__kernel'
 /// [CheckedC] '_For_any'
+/// [CheckedC] '_Itype_for_any'
+/// [CheckedC] '_Itype_for_any' and '_For_any' are mutually exclusive
 ///       'friend': [C++ dcl.friend]
 ///       'constexpr': [C++0x dcl.constexpr]
 void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
@@ -3064,7 +3071,15 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       goto DoneWithDeclSpec;
     case tok::kw__For_any:
       isInvalid = DS.setFunctionSpecForany(Loc, PrevSpec, DiagID);
-      if (!isInvalid) ParseForanySpecifier(DS);
+      if (isInvalid)
+          goto DoneWithDeclSpec;
+      ParseForanySpecifier(DS);
+      continue;
+    case tok::kw__Itype_for_any:
+      isInvalid = DS.setFunctionSpecItypeforany(Loc, PrevSpec, DiagID);
+      if (isInvalid)
+        goto DoneWithDeclSpec;
+      ParseItypeforanySpecifier(DS);
       continue;
 
     case tok::code_completion: {
@@ -5045,6 +5060,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw_explicit:
   case tok::kw__Noreturn:
   case tok::kw__For_any:
+  case tok::kw__Itype_for_any:
 
     // alignment-specifier
   case tok::kw__Alignas:
@@ -7204,6 +7220,91 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
         Diag(StartLoc, DiagID) << PrevSpec;
 }
 
+void Parser::ParseItypeforanySpecifier(DeclSpec &DS) {
+  EnterScope(Scope::DeclScope | Scope::ItypeforanyScope);
+  SourceLocation ItypeforanyStartLoc = ConsumeToken();
+  if (ExpectAndConsume(tok::l_paren, diag::err_interfacetype_unexpected_token)) {
+    ExitScope();
+    return;
+  }
+  //$TODO Replicate ParseForAnySpecifier logic to identify the type variables and adding them to AST
+  tok::TokenKind prevToken = tok::l_paren;
+
+  SmallVector<TypedefDecl*, 16> typevars;
+  bool breakOutOfWhileLoop = false;
+  unsigned int typeVariableIndex = 0;
+
+  // Calculate the depth of "for any" scope for our generic types
+  unsigned int forAnyDepth = 0;
+  Scope *tempScope = getCurScope()->getParent();
+  while (!tempScope) {
+    if (tempScope->isItypeforanyScope())
+      forAnyDepth++;
+    tempScope = tempScope->getParent();
+  }
+
+  // Obtain list of type variables bound to for any.
+  while (!breakOutOfWhileLoop) {
+    // The tokens should be one of the three. tok::identifier, tok::comma,
+    // tok::r_paren. Anything else will be an error
+    if (Tok.getKind() == tok::identifier) {
+      // We'd expect the previous token to not be an identifier.
+      if (prevToken == tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_itypeforany_comma_or_parenthesis_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        breakOutOfWhileLoop = true;
+        break;
+      }
+
+      // Introduce typedef name that will be bound to type variable. Create a
+      // DeclSpec of typedef, in order to use clang code for checking whether
+      // the type name already exists. The underlying type of typedef is
+      // TypeVariableType.
+      QualType R = Actions.Context.getTypeVariableType(forAnyDepth, typeVariableIndex);
+      TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
+      TypedefDecl *NewTD = TypedefDecl::Create(Actions.Context, Actions.CurContext,
+        ItypeforanyStartLoc,
+        Tok.getLocation(),
+        Tok.getIdentifierInfo(),
+        TInfo);
+      Actions.PushOnScopeChains(NewTD, getCurScope(), true);
+      typevars.push_back(NewTD);
+
+      typeVariableIndex++;
+      prevToken = tok::identifier;
+      ConsumeToken();
+    } else if (Tok.getKind() == tok::comma) {
+      // We'd expect the previous token to be an identifier
+      if (prevToken != tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        breakOutOfWhileLoop = true;
+        break;
+      }
+      prevToken = tok::comma;
+      ConsumeToken();
+    } else if (Tok.getKind() == tok::r_paren) {
+      // We'd expect the previous token to be an identifier
+      if (prevToken != tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        breakOutOfWhileLoop = true;
+        break;
+      }
+      // Add parsed type variables to Decl Spec.
+      DS.setTypeVars(Actions.getASTContext(), typevars, typeVariableIndex);
+      DS.setItypeGenericFunction(true);
+      ConsumeParen();
+      breakOutOfWhileLoop = true;
+    } else {
+      Diag(Tok.getLocation(), diag::err_itypeforany_unexpected_token);
+      SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+      breakOutOfWhileLoop = true;
+      break;
+    }
+  }
+}
+
 void Parser::ParseForanySpecifier(DeclSpec &DS) {
   EnterScope(Scope::DeclScope | Scope::ForanyScope);
   SourceLocation ForAnyStartLoc = ConsumeToken();
@@ -7276,6 +7377,7 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
       }
       // Add parsed type variables to Decl Spec.
       DS.setTypeVars(Actions.getASTContext(), typevars, typeVariableIndex);
+      DS.setGenericFunction(true);
       ConsumeParen();
       breakOutOfWhileLoop = true;
     } else {
