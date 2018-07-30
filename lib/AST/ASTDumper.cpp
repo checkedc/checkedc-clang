@@ -2182,13 +2182,17 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
   if (Node->isBoundsSafeInterface())
     OS << " BoundsSafeInterface";
 
-  if (Node->getStmtClass() != Expr::BoundsCastExprClass)
-    if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
-      dumpChild([=] {
-        OS << "Inferred Bounds";
-        dumpStmt(Bounds);
-      });
-    }
+  if (const BoundsExpr *NormalizedBounds = Node->getNormalizedBoundsExpr())
+    dumpChild([=] {
+      OS << "Normalized Bounds";
+      dumpStmt(NormalizedBounds);
+    });
+
+  if (const BoundsExpr *SubExprBounds = Node->getSubExprBoundsExpr())
+    dumpChild([=] {
+      OS << "Inferred SubExpr Bounds";
+      dumpStmt(SubExprBounds);
+    });
 }
 
 void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {

@@ -2285,6 +2285,7 @@ namespace {
 #if TRACE_CFG
             llvm::outs() << "Visiting ";
             S->dump(llvm::outs());
+            llvm::outs().flush();
 #endif
             TraverseStmt(S, IsChecked);
          }
@@ -2566,22 +2567,22 @@ namespace {
           !E->getType()->isFunctionPointerType()) {
         bool IncludeNullTerminator =
           E->getType()->getPointeeOrArrayElementType()->isNtCheckedArrayType();
-        BoundsExpr *SrcBounds =
+        BoundsExpr *SubExprBounds =
           S.InferRValueBounds(E->getSubExpr(), IncludeNullTerminator);
-        if (SrcBounds->isUnknown()) {
+        if (SubExprBounds->isUnknown()) {
           S.Diag(E->getSubExpr()->getLocStart(),
                  diag::err_expected_bounds_for_ptr_cast)
                  << E->getSubExpr()->getSourceRange();
-          SrcBounds = S.CreateInvalidBoundsExpr();
+          SubExprBounds = S.CreateInvalidBoundsExpr();
         } else {
           BoundsExpr *TargetBounds =
             S.CreateTypeBasedBounds(E, E->getType(), false, false);
           CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, E->getSubExpr(),
-                                         SrcBounds, InCheckedScope);
+                                         SubExprBounds, InCheckedScope);
         }
-        assert(SrcBounds);
-        assert(!E->getBoundsExpr());
-        E->setBoundsExpr(SrcBounds);
+        assert(SubExprBounds);
+        assert(!E->getSubExprBoundsExpr());
+        E->setSubExprBoundsExpr(SubExprBounds);
 
         if (DumpBounds)
           DumpExpression(llvm::outs(), E);

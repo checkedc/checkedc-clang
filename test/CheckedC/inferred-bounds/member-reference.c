@@ -448,7 +448,7 @@ _Checked void f15(struct Interop_S4 a1) {
 }
 
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>
-// CHECK: |-Inferred Bounds
+// CHECK: |-Inferred SubExpr Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
 // CHECK: |   | `-DeclRefExpr {{0x[0-9a-f]+}} 'int _Checked[5]' lvalue Var {{0x[0-9a-f]+}} 'global_arr2' 'int _Checked[5]'
