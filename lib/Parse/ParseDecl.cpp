@@ -7260,7 +7260,7 @@ void Parser::ParseItypeforanySpecifier(DeclSpec &DS) {
       // DeclSpec of typedef, in order to use clang code for checking whether
       // the type name already exists. The underlying type of typedef is
       // TypeVariableType.
-      QualType R = Actions.Context.getTypeVariableType(forAnyDepth, typeVariableIndex);
+      QualType R = Actions.Context.getTypeVariableType(forAnyDepth, typeVariableIndex, true);
       TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
       TypedefDecl *NewTD = TypedefDecl::Create(Actions.Context, Actions.CurContext,
         ItypeforanyStartLoc,
@@ -7344,7 +7344,7 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
       // DeclSpec of typedef, in order to use clang code for checking whether 
       // the type name already exists. The underlying type of typedef is
       // TypeVariableType.
-      QualType R = Actions.Context.getTypeVariableType(forAnyDepth, typeVariableIndex);
+      QualType R = Actions.Context.getTypeVariableType(forAnyDepth, typeVariableIndex, false);
       TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
       TypedefDecl *NewTD = TypedefDecl::Create(Actions.Context, Actions.CurContext,
         ForAnyStartLoc,

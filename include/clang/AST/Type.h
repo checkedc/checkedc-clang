@@ -3845,10 +3845,11 @@ class TypeVariableType : public Type, public llvm::FoldingSetNode {
   // prototype scope depth, this keeps track of the depth of forany scope.
   unsigned int depth;
   unsigned int index;
+  bool isBoundsInterfaceType;
 protected:
-  TypeVariableType(unsigned int inDepth, unsigned int inIndex)
+  TypeVariableType(unsigned int inDepth, unsigned int inIndex, bool inBoundsInterface)
     : Type(TypeVariable, QualType(), false, false, false, false),
-    depth(inDepth), index(inIndex) { }
+    depth(inDepth), index(inIndex), isBoundsInterfaceType(inBoundsInterface) { }
   friend class ASTContext;
 public:
   bool isSugared(void) const { return false; }
@@ -3857,6 +3858,12 @@ public:
   void SetDepth(unsigned int i) { depth = i; }
   unsigned int GetIndex(void) const { return index; }
   void SetIndex(unsigned int i) { index = i; }
+  void SetInBoundsInterface (bool isInBoundsInterface) {
+    isBoundsInterfaceType = isInBoundsInterface;
+  }
+  bool IsBoundsInterfaceType () const {
+    return isBoundsInterfaceType;
+  }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, depth, index);

@@ -2516,7 +2516,8 @@ QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
   return QualType(New, 0);
 }
 
-QualType ASTContext::getTypeVariableType(unsigned int inDepth, unsigned int inIndex) const {
+QualType ASTContext::getTypeVariableType(unsigned int inDepth, unsigned int inIndex, 
+                                          const bool isInBoundsSafeInterface) const {
   llvm::FoldingSetNodeID ID;
   TypeVariableType::Profile(ID, inDepth, inIndex);
 
@@ -2524,7 +2525,7 @@ QualType ASTContext::getTypeVariableType(unsigned int inDepth, unsigned int inIn
   if (TypeVariableType *PT = TypeVariableTypes.FindNodeOrInsertPos(ID, InsertPos))
     return QualType(PT, 0);
 
-  TypeVariableType *New = new (*this, TypeAlignment) TypeVariableType(inDepth, inIndex);
+  TypeVariableType *New = new (*this, TypeAlignment) TypeVariableType(inDepth, inIndex, isInBoundsSafeInterface);
   Types.push_back(New);
   TypeVariableTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
@@ -8805,6 +8806,18 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
     return true;
 
   Type::TypeClass T1TypeClass = T1->getTypeClass();
+  if(T1TypeClass == Type::Pointer)
+  {
+    const PointerType *T1PtrType = cast<PointerType>(T1Type);
+    QualType T1PointeeType = T1PtrType->getPointeeType();    
+    if(isa<TypeVariableType>(T1PointeeType)) { // Use of TypeVariableType
+      const TypeVariableType *AnnotatedType = cast<TypeVariableType>(T1PointeeType);
+      if(AnnotatedType->IsBoundsInterfaceType()) { // Use of TypeVariableType in _Itype_for_any scope
+        return T2->isVoidPointerType();
+      }
+    }
+  }
+
   if (T1TypeClass != T2Type->getTypeClass())
     return false;
 
@@ -8923,6 +8936,18 @@ bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
     return true;
 
   Type::TypeClass T1TypeClass = T1->getTypeClass();
+  if(T1TypeClass == Type::Pointer)
+  {
+    const PointerType *T1PtrType = cast<PointerType>(T1Type);
+    QualType T1PointeeType = T1PtrType->getPointeeType();    
+    if(isa<TypeVariableType>(T1PointeeType)) { // Use of TypeVariableType
+      const TypeVariableType *AnnotatedType = cast<TypeVariableType>(T1PointeeType);
+      if(AnnotatedType->IsBoundsInterfaceType()) { // Use of TypeVariableType in _Itype_for_any scope
+        return T2->isVoidPointerType();
+      }
+    }
+  }
+
   if (T1TypeClass != T2Type->getTypeClass())
     return false;
 
