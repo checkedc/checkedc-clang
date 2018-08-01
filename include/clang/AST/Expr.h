@@ -2958,7 +2958,8 @@ private:
 /// classes).
 class CastExpr : public Expr {
 private:
-  // BOUNDS - declared bounds of the result of the cast expression
+  // BOUNDS - declared bounds of a bounds cast expression.  Null
+  // for other cast expressions.
   // NORMALIZED_BOUNDS - normalized version of declared bounds.
   // SUBEXPRBOUNDS - inferred bounds of subexpression
   enum { OP, BOUNDS, NORMALIZED_BOUNDS, SUBEXPRBOUNDS, END_EXPR = 4 };
@@ -3067,23 +3068,19 @@ public:
   // Iterators
 
   child_range children() {
-    // For bounds cast expression, the bounds are included as a subexpression
-    // in the AST because they are part of the source program.  For other
-    // cast expressions, the bounds are not included because they are
-    // inferred by the compiler only when needed.
+    // For a bounds cast expression, the declared bounds are included as a child
+    // expression because they are part of the source program.  Other cast expressions
+    // will not have declared bounds.  We do not include the other bounds expressions
+    // in children because they are constructed by the compiler.
     if (getStmtClass() == BoundsCastExprClass)
-      return child_range(&SubExprs[OP], &SubExprs[END_EXPR]);
+      return child_range(&SubExprs[OP], &SubExprs[BOUNDS] + 1);
     else
       return child_range(&SubExprs[OP], &SubExprs[OP] + 1);
   }
 
   const_child_range children() const {
-    // For bounds cast expression, the bounds are included as a subexpression
-    // in the AST because they are part of the source program.  For other
-    // cast expressions, the bounds are not included because they are
-    // inferred by the compiler only when needed.
     if (getStmtClass() == BoundsCastExprClass)
-      return const_child_range(&SubExprs[OP], &SubExprs[END_EXPR]);
+      return const_child_range(&SubExprs[OP], &SubExprs[BOUNDS] + 1);
     else
       return const_child_range(&SubExprs[OP], &SubExprs[OP] + 1);
   }
@@ -3091,17 +3088,13 @@ public:
   // Checked C bounds information
 
   /// \brief Return true if the cast expression has a bounds expression
-  /// associated with it.  Depending on the type of the cast expression,
-  /// the bounds expression may be declared as part of the program or inferred
-  /// by the compiler.
+  /// declared as part of it.  This should only be true for bounds cast
+  /// expressions.
   bool hasBoundsExpr() const { return SubExprs[BOUNDS] != nullptr; }
 
   /// \brief Returns the bounds associated with the cast expression, if any.
   /// * If the cast expression is a BoundsCast expression, it is the bounds
   /// declared for the expression.
-  /// * If the cast expression is a cast to Ptr, it is the compiler-inferred
-  /// bounds of the subexpression of the cast expression.   The bounds must be
-  /// provably large enough at compile-time to contain a value of the _Ptr type.
   BoundsExpr *getBoundsExpr() {
     return cast_or_null<BoundsExpr>(SubExprs[BOUNDS]);
   }
@@ -3116,7 +3109,7 @@ public:
 
   bool hasNormalizedBoundsExpr() const { return SubExprs[NORMALIZED_BOUNDS] != nullptr; }
 
-  // \brief Normalized version of bounds associated with the cast expression
+  // \brief Normalized version of declared bounds for the cast expression
   // (getBoundsExpr).
   BoundsExpr *getNormalizedBoundsExpr() {
     return cast_or_null<BoundsExpr>(SubExprs[NORMALIZED_BOUNDS]);
@@ -3129,7 +3122,8 @@ public:
     SubExprs[NORMALIZED_BOUNDS] = E;
   }
 
-  // The inferred bounds of the subexpression of the cast expression.
+  // The inferred bounds of the subexpression of the cast expression.  This is used
+  // for dynamic bounds cast.  It is also used for implicit or C-style casts Ptr types.
   bool hasSubExprBoundsExpr() const { return SubExprs[SUBEXPRBOUNDS] != nullptr; }
   BoundsExpr *getSubExprBoundsExpr() {
     return cast_or_null<BoundsExpr>(SubExprs[SUBEXPRBOUNDS]);
