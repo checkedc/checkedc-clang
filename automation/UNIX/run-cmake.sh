@@ -6,8 +6,7 @@ set -ue
 set -o pipefail
 set -x
 
-#if [[ "$LNT" != "" && ("$BUILDCONFIGURATION" == "Release" || "$BUILDCONFIGURATION" == "ReleaseWithDebInfo") ]]; then
-if [[ ("$BUILDCONFIGURATION" == "Release" || "$BUILDCONFIGURATION" == "ReleaseWithDebInfo") ]]; then
+if [[ ("$LNT" != "" || "$BUILD_PACKAGE" == "Yes") && ("$BUILDCONFIGURATION" == "Release" || "$BUILDCONFIGURATION" == "ReleaseWithDebInfo") ]]; then
   CMAKE_ADDITIONAL_OPTIONS="-DLLVM_ENABLE_ASSERTIONS=ON"
 else
   CMAKE_ADDITIONAL_OPTIONS=""
