@@ -29,7 +29,7 @@ fi
 
 if [ -z "$BUILD_PACKAGE" ]; then
   export BUILD_PACKAGE="No"
-elif [ "$BUILD_PACKAGE" != "Yes" -a "$BUILD_PACKAGE" != "No"]; then
+elif [ "$BUILD_PACKAGE" != "Yes" -a "$BUILD_PACKAGE" != "No" ]; then
   echo "Unknown BUILD_PACKAGE value $BUILD_PACKAGE: must be Yes or No. Setting to No."
   export BUILD_PACKAGE="No"
 fi
