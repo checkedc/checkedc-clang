@@ -10,6 +10,7 @@
 #include "MappingVisitor.h"
 #include "ConstraintBuilder.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "clang/Lex/Lexer.h"
 #include <sstream>
 
 using namespace clang;
@@ -51,6 +52,20 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
     isTypedef = true;
 
   arrPresent = false;
+
+  itypePresent = false;
+  if (ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(D)) {
+    if (InteropTypeExpr *ITE = PVD->getInteropTypeExpr()) {
+      itypePresent = true;
+      SourceRange R = ITE->getSourceRange();
+      auto &SM = C.getSourceManager();
+      auto LO = C.getLangOpts();
+      llvm::StringRef txt = 
+        Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
+      itypeStr = txt.str();
+    }
+  }
+
   while (Ty->isPointerType() || Ty->isArrayType()) {
     if (Ty->isArrayType() || Ty->isIncompleteArrayType()) {
       arrPresent = true;
@@ -58,6 +73,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       // for each level of the array, and a constraint variable for 
       // values stored in the array. 
       vars.insert(K);
+      assert(CS.getVar(K) == nullptr);
       CS.getOrCreateVar(K);
 
       // See if there is a constant size to this array type at this position.
@@ -87,6 +103,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
     } else {
       // Allocate a new constraint variable for this level of pointer.
       vars.insert(K);
+      assert(CS.getVar(K) == nullptr);
       VarAtom * V = CS.getOrCreateVar(K);
      
       if (Ty->isCheckedPointerType()) {
@@ -235,7 +252,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
   bool emittedName = false;
-  if (emitName == false) 
+  if (emitName == false && itypePresent == false) 
     emittedName = true;
   for (const auto &V : vars) {
     VarAtom VA(V);
@@ -263,7 +280,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
         ss << "_Ptr<";
         caratsToAdd++;
         break;
-      }
+      } 
     case Atom::A_Arr:
       // If it's an Arr, then the character we substitute should
       // be [] instead of *, IF, the original type was an array. 
@@ -1110,8 +1127,9 @@ ProgramInfo::getVariableHelper( Expr                            *E,
           C.erase(C.begin());
           if (C.size() > 0) {
             bool a = PVC->getArrPresent();
+            bool c = PVC->getItypePresent();
             FVConstraint *b = PVC->getFV();
-            tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a));
+            tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c));
           }
         }
       }
@@ -1135,7 +1153,8 @@ ProgramInfo::getVariableHelper( Expr                            *E,
             if (C.size() > 0) {
               bool a = PVC->getArrPresent();
               FVConstraint *b = PVC->getFV();
-              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a));
+              bool c = PVC->getItypePresent();
+              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c));
             }
           }
         } else {

@@ -754,8 +754,20 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           parmStrs.push_back(bi);
         } else {
           // Do what we used to do.
-          std::string v = Defn->mkString(Info.getConstraints().getVariables());
-          parmStrs.push_back(v);
+          if (anyConstrained) { 
+            std::string v = Defn->mkString(Info.getConstraints().getVariables());
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(Defn)) {
+              if (PVC->getItypePresent()) {
+                v = v + " : " + PVC->getItype();
+              }
+            }
+            parmStrs.push_back(v);
+          } else {
+            std::string scratch = "";
+            raw_string_ostream declText(scratch);
+            Definition->getParamDecl(i)->print(declText);
+            parmStrs.push_back(declText.str());
+                      }
         }
       }
 
@@ -774,7 +786,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       didAny = true;
     } else {
       // Do what we used to do at the return address. 
-      returnVar = Decl->mkString(Info.getConstraints().getVariables()) + " ";
+      returnVar = Decl->mkString(Info.getConstraints().getVariables());
     }
 
     s = returnVar + cDecl->getName() + "(";

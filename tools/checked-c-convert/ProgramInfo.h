@@ -130,7 +130,8 @@ class FunctionVariableConstraint;
 class PointerVariableConstraint : public ConstraintVariable {
 public:
 	enum Qualification {
-		ConstQualification
+		ConstQualification,
+    StaticQualification
   };
 private:
   CVars vars;
@@ -150,14 +151,20 @@ private:
   // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or 
   // O_UnSizedArray, arrPresent is true.
   bool arrPresent;
+  // Is there an itype associated with this constraint? If there is, how was it
+  // originally stored in the program? 
+  bool itypePresent;
+  std::string itypeStr;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name, 
-    FunctionVariableConstraint *F, bool isArr) : 
+    FunctionVariableConstraint *F, bool isArr, bool isItype) : 
     ConstraintVariable(PointerVariable, T, Name)
-    ,vars(V),FV(F),arrPresent(isArr) {}
+    ,vars(V),FV(F),arrPresent(isArr), itypePresent(isItype) {}
 
   bool getArrPresent() { return arrPresent; }
+  bool getItypePresent() { return itypePresent; }
+  std::string getItype() { return itypeStr; }
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index. We don't need to explicitly pass
   // the name because it's available in 'D'.
