@@ -92,14 +92,6 @@ public:
   std::string getTy() { return BaseType; }
   std::string getName() { return Name; }
 
-  void constrainedVariable(uint32_t K) {
-    ConstrainedVars.insert(K);
-  }
-
-  bool isConstrained(uint32_t K) { 
-    return ConstrainedVars.find(K) != ConstrainedVars.end(); 
-  }
-
   virtual ~ConstraintVariable() {};
 
   // Constraint atoms may be either constants or variables. The constants are
