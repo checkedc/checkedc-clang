@@ -53,17 +53,14 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 
   arrPresent = false;
 
-  itypePresent = false;
-  if (ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(D)) {
-    if (InteropTypeExpr *ITE = PVD->getInteropTypeExpr()) {
-      itypePresent = true;
-      SourceRange R = ITE->getSourceRange();
-      auto &SM = C.getSourceManager();
-      auto LO = C.getLangOpts();
-      llvm::StringRef txt = 
-        Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
-      itypeStr = txt.str();
-    }
+  if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
+    itypePresent = true;
+    SourceRange R = ITE->getSourceRange();
+    auto &SM = C.getSourceManager();
+    auto LO = C.getLangOpts();
+    llvm::StringRef txt = 
+      Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
+    itypeStr = txt.str();
   }
 
   while (Ty->isPointerType() || Ty->isArrayType()) {
@@ -275,7 +272,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
       // We need to check and see if this level of variable
       // is constrained by a bounds safe interface. If it is, 
       // then we shouldn't re-write it. 
-      if (ConstrainedVars.find(V) == ConstrainedVars.end()) {
+      if (itypePresent == false) {
         emittedBase = false;
         ss << "_Ptr<";
         caratsToAdd++;

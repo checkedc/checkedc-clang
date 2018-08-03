@@ -787,6 +787,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     } else {
       // Do what we used to do at the return address. 
       returnVar = Decl->mkString(Info.getConstraints().getVariables());
+
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(Decl)) {
+        if (PVC->getItypePresent()) {
+          endStuff = " : " + PVC->getItype();
+        }
+      }
     }
 
     s = returnVar + cDecl->getName() + "(";
