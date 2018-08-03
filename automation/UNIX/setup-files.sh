@@ -49,5 +49,12 @@ if [ -n "$LNT" ]; then
   clone_or_update llvm-test-suite https://github.com/Microsoft/checkedc-llvm-test-suite "$LLVM_TEST_SUITE_BRANCH" "$LLVM_TEST_SUITE_COMMIT"
 fi
 
+# Make package directory if building a package
+cd "$LLVM_OBJ_DIR"
+if [ "${BUILD_PACKAGE}" == "Yes" ]; then
+    mkdir -p "package"
+    rm -rf "package/*"
+fi
+
 set +ue
 set +o pipefail

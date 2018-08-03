@@ -27,6 +27,13 @@ elif [ "$BUILDCONFIGURATION" != "Debug" -a "$BUILDCONFIGURATION" != "Release" -a
   CHECKEDC_CONFIG_STATUS="error" 
 fi
 
+if [ -z "$BUILD_PACKAGE" ]; then
+  export BUILD_PACKAGE="No"
+elif [ "$BUILD_PACKAGE" != "Yes" -a "$BUILD_PACKAGE" != "No" ]; then
+  echo "Unknown BUILD_PACKAGE value $BUILD_PACKAGE: must be Yes or No. Setting to No."
+  export BUILD_PACKAGE="No"
+fi
+
 # Validate build OS
 
 if [ -z "$BUILDOS" ]; then
@@ -136,6 +143,7 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo "Configured environment variables:"
   echo
   echo " BUILDCONFIGURATION: $BUILDCONFIGURATION"
+  echo " BUILD_PACKAGE: $BUILD_PACKAGE"
   echo " BUILDOS: $BUILDOS"
   echo " TEST_TARGET_ARCH: $TEST_TARGET_ARCH"
   echo " TEST_SUITE: $TEST_SUITE"
