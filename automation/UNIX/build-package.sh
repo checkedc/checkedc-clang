@@ -42,6 +42,6 @@ if [ "$?" -ne "0" ]; then
 fi
 
 # Installer executable in its own directory.
-mv LLVM-*.o package
+mv LLVM-*.tar.Z package
 
 cmdsucceeded
