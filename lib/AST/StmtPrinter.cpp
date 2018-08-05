@@ -2069,7 +2069,7 @@ void StmtPrinter::VisitBoundsCastExpr(BoundsCastExpr *Node) {
   OS << ')';
 }
 
-// PositionalParameterExpr is used in the representation of bounds
+//  is used in the representation of bounds
 // expressions that appear in function types.
 //
 // - If we are dumping the AST, these may appear.
@@ -2080,6 +2080,11 @@ void StmtPrinter::VisitBoundsCastExpr(BoundsCastExpr *Node) {
 void StmtPrinter::VisitPositionalParameterExpr(PositionalParameterExpr *E) {
   OS << "arg #";
   OS << (E->getIndex());
+}
+
+void StmtPrinter::VisitBoundsValueExpr(BoundsValueExpr *E) {
+  OS << ((E->getKind() == BoundsValueExpr::Current) ?
+         "_Current_expr_value" : "_Return_value");
 }
 
 // C++

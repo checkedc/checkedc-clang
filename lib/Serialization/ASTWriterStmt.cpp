@@ -1036,6 +1036,13 @@ void ASTStmtWriter::VisitPositionalParameterExpr(
   Code = serialization::EXPR_POSITIONAL_PARAMETER_EXPR;
 }
 
+void ASTStmtWriter::VisitBoundsValueExpr(
+  BoundsValueExpr *E) {
+  VisitExpr(E);
+  Record.push_back(E->getKind());
+  Code = serialization::EXPR_BOUNDS_VALUE_EXPR;
+}
+
 //===----------------------------------------------------------------------===//
 // Objective-C Expressions and Statements.
 //===----------------------------------------------------------------------===//

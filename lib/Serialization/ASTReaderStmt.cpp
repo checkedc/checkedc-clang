@@ -1041,7 +1041,13 @@ void ASTStmtReader::VisitInteropTypeExpr(InteropTypeExpr *E) {
 void ASTStmtReader::VisitPositionalParameterExpr(
   PositionalParameterExpr *E) {
   VisitExpr(E);
-  E->Index = Record.readInt();;
+  E->Index = Record.readInt();
+}
+
+void ASTStmtReader::VisitBoundsValueExpr(
+  BoundsValueExpr *E) {
+  VisitExpr(E);
+  E->setKind((BoundsValueExpr::Kind) Record.readInt());
 }
 
 
@@ -4135,6 +4141,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_POSITIONAL_PARAMETER_EXPR:
       S = new (Context) PositionalParameterExpr(Empty);
+      break;
+
+    case EXPR_BOUNDS_VALUE_EXPR:
+      S = new (Context) BoundsValueExpr(Empty);
       break;
 
     case EXPR_LAMBDA: {

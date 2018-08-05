@@ -382,6 +382,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::InteropTypeExprClass: Cmp = Compare<InteropTypeExpr>(E1, E2); break;
      case Expr::PositionalParameterExprClass: Cmp = Compare<PositionalParameterExpr>(E1, E2); break;
      case Expr::BoundsCastExprClass: Cmp = Compare<BoundsCastExpr>(E1, E2); break;
+     case Expr::BoundsValueExprClass: Cmp = Compare<BoundsValueExpr>(E1, E2); break;
 
      // Clang extensions
      case Expr::ShuffleVectorExprClass: break;
@@ -743,6 +744,16 @@ Lexicographic::CompareImpl(const BoundsCastExpr *E1,
     return Cmp;
   return CompareType(E1->getType(), E2->getType());
 }
+
+Result
+Lexicographic::CompareImpl(const BoundsValueExpr *E1,
+                           const BoundsValueExpr *E2) {
+  Result Cmp = CompareInteger(E1->getKind(), E2->getKind());
+  if (Cmp != Result::Equal)
+    return Cmp;
+  return CompareType(E1->getType(), E2->getType());
+}
+
 
 Result
 Lexicographic::CompareImpl(const BlockExpr *E1, const BlockExpr *E2) {

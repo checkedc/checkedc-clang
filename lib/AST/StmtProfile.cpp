@@ -1261,6 +1261,13 @@ void StmtProfiler::VisitPositionalParameterExpr(
   ID.AddInteger(P->getIndex());
 }
 
+void StmtProfiler::VisitBoundsValueExpr(const BoundsValueExpr *S) {
+  VisitExpr(S);
+  VisitType(S->getType());
+  ID.AddInteger(S->getKind());
+}
+
+
 void StmtProfiler::VisitAtomicExpr(const AtomicExpr *S) {
   VisitExpr(S);
   ID.AddInteger(S->getOp());
