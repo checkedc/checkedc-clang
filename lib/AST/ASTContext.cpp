@@ -8147,7 +8147,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     allRTypes = false;
 
   FunctionType::ExtInfo einfo = lbaseInfo.withNoReturn(NoReturn);
-
+  unsigned NumTypeVars = 0;
   if (lproto && rproto) { // two C99 style function prototypes
     assert(!lproto->hasExceptionSpec() && !rproto->hasExceptionSpec() &&
            "C++ shouldn't be here");
@@ -8155,9 +8155,18 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (lproto->getNumParams() != rproto->getNumParams())
       return QualType();
 
-    // Compatible functions must have the same number of type variables.
-    if (lproto->getNumTypeVars() != rproto->getNumTypeVars())
-      return QualType();
+    // Compatible functions must have the same number of type variables.    
+    if (lproto->getNumTypeVars() != rproto->getNumTypeVars()) {
+      if(lproto->isItypeGenericFunction() && !rproto->isItypeGenericFunction()) {
+        allRTypes = false;
+        NumTypeVars = lproto->getNumTypeVars();
+      } else if(!lproto->isItypeGenericFunction() && rproto->isItypeGenericFunction()) {
+        allLTypes = false;
+        NumTypeVars = rproto->getNumTypeVars();
+      } else {
+        return QualType();
+      }
+    }
 
     // Variadic and non-variadic functions aren't compatible
     if (lproto->isVariadic() != rproto->isVariadic())
@@ -8195,6 +8204,12 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         } else if (!rReturnAnnots.IsEmpty() && lReturnAnnots.IsEmpty()) {
           ReturnAnnots = rReturnAnnots;
           allLTypes = false;
+        } else if (lproto->isItypeGenericFunction() && !rproto->isItypeGenericFunction()) {
+          allRTypes = false;
+          ReturnAnnots = lReturnAnnots;
+        } else if (!lproto->isItypeGenericFunction() && rproto->isItypeGenericFunction()) {
+          allLTypes = false;
+          ReturnAnnots = rReturnAnnots;
         } else
           return QualType();
       }
@@ -8259,7 +8274,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     if (hasParamAnnots)
       EPI.ParamAnnots = bounds.data();
     EPI.ReturnAnnots = ReturnAnnots;
-    EPI.numTypeVars = lproto->getNumTypeVars();
+    EPI.numTypeVars = NumTypeVars;
 
     return getFunctionType(retType, types, EPI);
   }

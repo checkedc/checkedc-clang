@@ -2856,6 +2856,8 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
       Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
       HasParamAnnots(epi.ParamAnnots != nullptr),
+      GenericFunction(epi.GenericFunction),
+      ItypeGenericFunction(epi.ItypeGenericFunction),
       ReturnAnnots(epi.ReturnAnnots) {
   assert(NumParams == params.size() && "function has too many parameters");
 
@@ -3058,14 +3060,22 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
   // shortcut, use one AddInteger call instead of four for the next four
   // fields.
   assert(!(unsigned(epi.Variadic) & ~1) &&
+         !(unsigned(epi.HasTrailingReturn) & ~1) &&
+         !(unsigned(epi.numTypeVars & ~32767)) &&
+         !(unsigned(epi.GenericFunction) & ~1) &&
+         !(unsigned(epi.ItypeGenericFunction) & ~1) &&
          !(unsigned(epi.TypeQuals) & ~255) &&
          !(unsigned(epi.RefQualifier) & ~3) &&
          !(unsigned(epi.ExceptionSpec.Type) & ~15) &&
          "Values larger than expected.");
   ID.AddInteger(unsigned(epi.Variadic) +
-                (epi.TypeQuals << 1) +
-                (epi.RefQualifier << 9) +
-                (epi.ExceptionSpec.Type << 11));
+                unsigned(epi.HasTrailingReturn << 1) +
+                unsigned(epi.numTypeVars << 2) +
+                unsigned(epi.GenericFunction << 17) +
+                unsigned(epi.ItypeGenericFunction << 18) +
+                (epi.TypeQuals << 19) +
+                (epi.RefQualifier << 27) +
+                (epi.ExceptionSpec.Type << 28));
   if (epi.ExceptionSpec.Type == EST_Dynamic) {
     for (QualType Ex : epi.ExceptionSpec.Exceptions)
       ID.AddPointer(Ex.getAsOpaquePtr());
@@ -3090,8 +3100,6 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
       ID.AddInteger(epi.ExtParameterInfos[i].getOpaqueValue());
   }
   epi.ExtInfo.Profile(ID);
-  ID.AddBoolean(epi.HasTrailingReturn);
-  ID.AddInteger(epi.numTypeVars);
 }
 
 void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
