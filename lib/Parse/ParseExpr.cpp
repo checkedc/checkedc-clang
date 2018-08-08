@@ -3293,8 +3293,11 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
   // Only parse the list of type arguments if it's a generic function.
   const FunctionProtoType *funcType =
     dyn_cast<FunctionProtoType>(funDecl->getType().getTypePtr());
-
-  if (!(funcType->isGenericFunction() || funcType->isItypeGenericFunction())) return false;
+  if(funcType) {
+    if (!(funcType->isGenericFunction() || funcType->isItypeGenericFunction())) return false;
+  } else {
+    if (!(funDecl->isGenericFunction() || funDecl->isItypeGenericFunction())) return false;
+  }
 
   // Expect a '<' to denote that a list of type specifiers are incoming.
   SourceLocation lessLoc = Tok.getLocation();
