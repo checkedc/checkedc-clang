@@ -731,45 +731,44 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   assert(cDefn != nullptr);
 
   if (cDecl->numParams() == cDefn->numParams()) { 
-    bool didAny = false;
+    // Track whether we did any work and need to make a substitution or not.
+    bool didAny = cDecl->numParams() > 0;
     std::string s = "";
     std::vector<std::string> parmStrs;
     // Compare parameters. 
-    if (cDecl->numParams() == cDefn->numParams())
-      for (unsigned i = 0; i < cDecl->numParams(); ++i) {
-        auto Decl = getHighest(cDecl->getParamVar(i), Info);
-        auto Defn = getHighest(cDefn->getParamVar(i), Info);
-        assert(Decl);
-        assert(Defn);
+    for (unsigned i = 0; i < cDecl->numParams(); ++i) {
+      auto Decl = getHighest(cDecl->getParamVar(i), Info);
+      auto Defn = getHighest(cDefn->getParamVar(i), Info);
+      assert(Decl);
+      assert(Defn);
 
-        didAny = true;
-        // If this holds, then we want to insert a bounds safe interface. 
-        bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-        if (Defn->isLt(*Decl, Info) && anyConstrained) {
+      // If this holds, then we want to insert a bounds safe interface. 
+      bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
+      if (Defn->isLt(*Decl, Info) && anyConstrained) {
+        std::string scratch = "";
+        raw_string_ostream declText(scratch);
+        Definition->getParamDecl(i)->print(declText);
+        std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false);
+        std::string bi = declText.str() + " : itype("+ctype+") ";
+        parmStrs.push_back(bi);
+      } else {
+        // Do what we used to do.
+        if (anyConstrained) { 
+          std::string v = Defn->mkString(Info.getConstraints().getVariables());
+          if (PVConstraint *PVC = dyn_cast<PVConstraint>(Defn)) {
+            if (PVC->getItypePresent()) {
+              v = v + " : " + PVC->getItype();
+            }
+          }
+          parmStrs.push_back(v);
+        } else {
           std::string scratch = "";
           raw_string_ostream declText(scratch);
           Definition->getParamDecl(i)->print(declText);
-          std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false);
-          std::string bi = declText.str() + " : itype("+ctype+") ";
-          parmStrs.push_back(bi);
-        } else {
-          // Do what we used to do.
-          if (anyConstrained) { 
-            std::string v = Defn->mkString(Info.getConstraints().getVariables());
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(Defn)) {
-              if (PVC->getItypePresent()) {
-                v = v + " : " + PVC->getItype();
-              }
-            }
-            parmStrs.push_back(v);
-          } else {
-            std::string scratch = "";
-            raw_string_ostream declText(scratch);
-            Definition->getParamDecl(i)->print(declText);
-            parmStrs.push_back(declText.str());
-                      }
+          parmStrs.push_back(declText.str());
         }
       }
+    }
 
     // Compare returns. 
     auto Decl = getHighest(cDecl->getReturnVars(), Info);
@@ -790,7 +789,9 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(Decl)) {
         if (PVC->getItypePresent()) {
+          assert(PVC->getItype().size() > 0);
           endStuff = " : " + PVC->getItype();
+          didAny = true;
         }
       }
     }

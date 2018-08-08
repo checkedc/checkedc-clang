@@ -145,17 +145,16 @@ private:
   bool arrPresent;
   // Is there an itype associated with this constraint? If there is, how was it
   // originally stored in the program? 
-  bool itypePresent;
   std::string itypeStr;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name, 
-    FunctionVariableConstraint *F, bool isArr, bool isItype) : 
+    FunctionVariableConstraint *F, bool isArr, bool isItype, std::string is) : 
     ConstraintVariable(PointerVariable, T, Name)
-    ,vars(V),FV(F),arrPresent(isArr), itypePresent(isItype) {}
+    ,vars(V),FV(F),arrPresent(isArr), itypeStr(is) {}
 
   bool getArrPresent() { return arrPresent; }
-  bool getItypePresent() { return itypePresent; }
+  bool getItypePresent() { return itypeStr.size() > 0; }
   std::string getItype() { return itypeStr; }
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index. We don't need to explicitly pass

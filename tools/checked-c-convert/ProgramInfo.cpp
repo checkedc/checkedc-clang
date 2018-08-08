@@ -54,13 +54,15 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
   arrPresent = false;
 
   if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
-    itypePresent = true;
     SourceRange R = ITE->getSourceRange();
-    auto &SM = C.getSourceManager();
-    auto LO = C.getLangOpts();
-    llvm::StringRef txt = 
-      Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
-    itypeStr = txt.str();
+    if (R.isValid()) {
+      auto &SM = C.getSourceManager();
+      auto LO = C.getLangOpts();
+      llvm::StringRef txt = 
+        Lexer::getSourceText(CharSourceRange::getTokenRange(R), SM, LO);
+      itypeStr = txt.str();
+      assert(itypeStr.size() > 0);
+    }
   }
 
   while (Ty->isPointerType() || Ty->isArrayType()) {
@@ -249,7 +251,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
   bool emittedName = false;
-  if (emitName == false && itypePresent == false) 
+  if (emitName == false && getItypePresent() == false) 
     emittedName = true;
   for (const auto &V : vars) {
     VarAtom VA(V);
@@ -272,7 +274,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
       // We need to check and see if this level of variable
       // is constrained by a bounds safe interface. If it is, 
       // then we shouldn't re-write it. 
-      if (itypePresent == false) {
+      if (getItypePresent() == false) {
         emittedBase = false;
         ss << "_Ptr<";
         caratsToAdd++;
@@ -1125,8 +1127,9 @@ ProgramInfo::getVariableHelper( Expr                            *E,
           if (C.size() > 0) {
             bool a = PVC->getArrPresent();
             bool c = PVC->getItypePresent();
+            std::string d = PVC->getItype();
             FVConstraint *b = PVC->getFV();
-            tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c));
+            tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c, d));
           }
         }
       }
@@ -1151,7 +1154,8 @@ ProgramInfo::getVariableHelper( Expr                            *E,
               bool a = PVC->getArrPresent();
               FVConstraint *b = PVC->getFV();
               bool c = PVC->getItypePresent();
-              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c));
+              std::string d = PVC->getItype();
+              tmp.insert(new PVConstraint(C, PVC->getTy(), PVC->getName(), b, a, c, d));
             }
           }
         } else {
