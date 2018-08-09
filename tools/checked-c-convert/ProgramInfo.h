@@ -122,7 +122,7 @@ class FunctionVariableConstraint;
 class PointerVariableConstraint : public ConstraintVariable {
 public:
 	enum Qualification {
-		ConstQualification,
+    ConstQualification,
     StaticQualification
   };
 private:
@@ -154,8 +154,11 @@ public:
     ,vars(V),FV(F),arrPresent(isArr), itypeStr(is) {}
 
   bool getArrPresent() { return arrPresent; }
+
+  // Is an itype present for this constraint? If yes, what is the text of that itype?
   bool getItypePresent() { return itypeStr.size() > 0; }
   std::string getItype() { return itypeStr; }
+
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index. We don't need to explicitly pass
   // the name because it's available in 'D'.

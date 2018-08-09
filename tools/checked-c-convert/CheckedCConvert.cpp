@@ -774,7 +774,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     auto Decl = getHighest(cDecl->getReturnVars(), Info);
     auto Defn = getHighest(cDefn->getReturnVars(), Info);
 
-    // Insert a bounds safe interface at the return address. 
+    // Insert a bounds safe interface for the return. 
     std::string returnVar = "";
     std::string endStuff = "";
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
@@ -784,7 +784,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       endStuff = " : itype("+ctype+") ";
       didAny = true;
     } else {
-      // Do what we used to do at the return address. 
+      // If we used to implement a bounds-safe interface, continue to do that.  
       returnVar = Decl->mkString(Info.getConstraints().getVariables());
 
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(Decl)) {
