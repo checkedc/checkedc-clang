@@ -1320,6 +1320,10 @@ struct DeclaratorChunk {
     /// specified.
     unsigned HasTrailingReturnType : 1;
 
+    /// ReturnBoundsParsefailure - if this is true, parsing of return bounds
+    /// failed.  This information is used for error recovery.
+    unsigned ReturnBoundsParseFailure : 1;
+
     /// The location of the left parenthesis in the source.
     unsigned LParenLoc;
 
@@ -1377,11 +1381,9 @@ struct DeclaratorChunk {
     ParamInfo *Params;
 
     /// The annotations for the value returned by the function.  We store them
-    // as individual fields, not BoundsAnnotations, because BoundsAnnotations has
-    // a default constructor.  This is for good reason. For equally good reasons,
-    // DeclaratorChunk doesn't have a default constructor.  This means that using
-    // a default initialized instance of BoundsAnnotations is not allowed here.
-    BoundsExpr *ReturnBounds;
+    // as individual fields because the return bounds are deferred-parsed.
+    // Note: ReturnBounds is the only pointer to CachedTokens.
+    CachedTokens *ReturnBounds;
     InteropTypeExpr *ReturnInteropType;
 
     union {
@@ -1530,11 +1532,16 @@ struct DeclaratorChunk {
 
     /// \brief Get the trailing-return-type for this function declarator.
     ParsedType getTrailingReturnType() const { return TrailingReturnType; }
-
+  /*
     /// \brief The bounds annotations for the return value
     BoundsAnnotations getReturnAnnots() const {
       return BoundsAnnotations(ReturnBounds, ReturnInteropType);
     }
+  */
+
+     bool getReturnBoundsParseFailure() const {
+       return ReturnBoundsParseFailure;
+     }
   };
 
   struct BlockPointerTypeInfo : TypeInfoCommon {
@@ -1680,7 +1687,9 @@ struct DeclaratorChunk {
                                      SourceLocation LocalRangeBegin,
                                      SourceLocation LocalRangeEnd,
                                      SourceLocation ReturnAnnotsColonLoc,
-                                     BoundsAnnotations &ReturnAnnotsExpr,
+                                     InteropTypeExpr *ReturnInteorpTypeExpr,
+                                     std::unique_ptr<CachedTokens> ReturnBounds,
+                                     bool ReturnBoundsParseFailure,
                                      Declarator &TheDeclarator,
                                      TypeResult TrailingReturnType =
                                                     TypeResult());

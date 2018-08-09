@@ -1773,6 +1773,17 @@ private:
                                      BoundsAnnotations &Result,
                                      const Declarator &D);
 
+  // Delay parse a bounds annotation in Toks.  Used to parse return bounds in
+  // function types, after the return type is known.
+  static ExprResult ParseBoundsCallback(void *P,
+                                        std::unique_ptr<CachedTokens> Toks,
+                                        ArrayRef<ParmVarDecl *> Params,
+                                        BoundsAnnotations &Result,
+                                        const Declarator &D);
+
+  ExprResult ParseReturnValueExpression();
+
+
   //===--------------------------------------------------------------------===//
   // clang Expressions
 

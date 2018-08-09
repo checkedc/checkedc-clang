@@ -695,7 +695,6 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
 
   // ...and *prepend* it to the declarator.
   SourceLocation NoLoc;
-  BoundsAnnotations ReturnAnnots;
   declarator.AddInnermostTypeInfo(DeclaratorChunk::getFunction(
       /*HasProto=*/true,
       /*IsAmbiguous=*/false,
@@ -720,7 +719,9 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*DeclsInPrototype=*/None,
       loc, loc,
       /*ReturnAnnotsColon=*/NoLoc,
-      /*ReturnAnnotsExpr=*/ReturnAnnots,
+      /*ReturnInteropTypeExpr=*/nullptr,
+      /*ReturnBoundsAnnots=*/nullptr,
+      /*ReturnBoundsParseFaiilure=*/false,
       declarator));
 
   // For consistency, make sure the state still has us as processing
@@ -4825,7 +4826,27 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
-        BoundsAnnotations ReturnAnnots = FTI.getReturnAnnots();
+        BoundsAnnotations ReturnAnnots;
+        // Delay parse return bounds expression, if there is one.
+        if (FTI.ReturnBounds && !FTI.ReturnBounds->empty()) {
+          SmallVector<ParmVarDecl *, 16> ParamVars;
+          for (unsigned i = 0, e = FTI.NumParams; i != e; ++i) {
+            ParmVarDecl *Param = cast<ParmVarDecl>(FTI.Params[i].Param);
+            ParamVars.push_back(Param);
+          }           
+           Sema::CheckedCReturnValueRAII ReturnValueRAII(S, T);
+           std::unique_ptr<CachedTokens> ReturnBoundsTokens(FTI.ReturnBounds);
+           assert(S.DeferredBoundsParser);
+           S.DeferredBoundsParser(S.DeferredBoundsParserData,
+                                  std::move(ReturnBoundsTokens),
+                                  ParamVars,
+                                  ReturnAnnots,
+                                  D);
+            assert(!ReturnAnnots.getInteropTypeExpr() && 
+                   "should only have parsed bounds expression");
+        }
+
+        ReturnAnnots.setInteropTypeExpr(FTI.ReturnInteropType);
         S.InferBoundsAnnots(T, ReturnAnnots, false);
 
         if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnots, true))

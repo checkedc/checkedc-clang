@@ -13522,6 +13522,21 @@ ExprResult Sema::ActOnBoundsCastExprSingle(
                              Bounds);
 }
 
+ExprResult Sema::ActOnReturnValueExpr(SourceLocation Loc) {
+  QualType Ty = BoundsExprReturnValue;
+  if (Ty.isNull()) {
+    Diag(Loc, diag::err_return_value_not_in_scope);
+    return ExprError();
+  }
+
+  return new (Context) BoundsValueExpr(Loc, Ty, BoundsValueExpr::Kind::Return);
+}
+
+void Sema::SetDeferredBoundsCallBack(void *OpaqueData, ParseDeferredBoundsCallBackFn F) {
+  DeferredBoundsParserData = OpaqueData;
+  DeferredBoundsParser = F;
+}
+
 //===----------------------------------------------------------------------===//
 // Clang Extensions.
 //===----------------------------------------------------------------------===//

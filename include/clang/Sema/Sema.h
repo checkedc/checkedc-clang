@@ -2343,6 +2343,9 @@ public:
   /// Push the parameters of D, which must be a function, into scope.
   void ActOnReenterFunctionContext(Scope* S, Decl* D);
   void ActOnExitFunctionContext();
+  
+  /// Push the parameters listed in Params into scope.
+  void ActOnSetupParametersAgain(Scope* S, ArrayRef<ParmVarDecl *> Params);
 
   DeclContext *getFunctionLevelDeclContext();
 
@@ -4666,6 +4669,45 @@ public:
   // \#pragma CHECKED_SCOPE.
   void ActOnPragmaCheckedScope(Scope *S, tok::OnOffSwitch OOS);
 
+  BoundsExpr *CreateInvalidBoundsExpr();
+  /// /brief Synthesize the interop type expression implied by the presence
+  /// of a bounds expression.  Ty is the original unchecked type.  Returns null
+  /// if none exists.
+  InteropTypeExpr *SynthesizeInteropTypeExpr(QualType Ty, bool IsParam);
+  BoundsExpr *CreateCountForArrayType(QualType QT);
+
+  // _Return_value in Checked C bounds expressions.
+  ExprResult ActOnReturnValueExpr(SourceLocation Loc);
+
+  /// \brief When non-NULL, the type of the '_Return_value' expression.
+  QualType BoundsExprReturnValue;
+
+  /// \brief RAII object used to temporarily set the the type of _Return_value
+  class CheckedCReturnValueRAII {
+    Sema &S;
+    QualType OldReturnValue;
+  public:
+    CheckedCReturnValueRAII(Sema &S, QualType ReturnVal) : S(S) {
+      OldReturnValue = S.BoundsExprReturnValue;
+      S.BoundsExprReturnValue = ReturnVal;
+    }
+
+    ~CheckedCReturnValueRAII() {
+      S.BoundsExprReturnValue = OldReturnValue;
+    }
+  };
+
+  typedef ExprResult
+  (*ParseDeferredBoundsCallBackFn)(void *P,
+                                   std::unique_ptr<CachedTokens> Toks,
+                                   ArrayRef<ParmVarDecl *> Params,
+                                   BoundsAnnotations &Result,
+                                   const Declarator &D);
+  void SetDeferredBoundsCallBack(void *OpaqueData, ParseDeferredBoundsCallBackFn p);
+
+  ParseDeferredBoundsCallBackFn DeferredBoundsParser;
+  void *DeferredBoundsParserData;
+
   // Represents the context where an expression must be non-modifying.
   enum NonModifyingContext {
     NMC_Unknown,
@@ -4678,13 +4720,6 @@ public:
     NMC_Function_Parameter       // Argument for parameter used in function
                                  // parameter bounds.
   };
-
-  BoundsExpr *CreateInvalidBoundsExpr();
-  /// /brief Synthesize the interop type expression implied by the presence
-  /// of a bounds expression.  Ty is the original unchecked type.  Returns null
-  /// if none exists.
-  InteropTypeExpr *SynthesizeInteropTypeExpr(QualType Ty, bool IsParam);
-  BoundsExpr *CreateCountForArrayType(QualType QT);
 
   /// /brief Checks whether an expression is non-modifying
   /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
