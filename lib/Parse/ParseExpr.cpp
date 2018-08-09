@@ -3226,8 +3226,17 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
       SubstituteTypeVariable(fpType->getReturnType(), typeNames);
     // Initialize parameter types if it's type variable
     SmallVector<QualType, 16> newParamTypes;
+
+    int iCnt = 0;
     for (QualType opt : fpType->getParamTypes()) {
-      newParamTypes.push_back(SubstituteTypeVariable(opt, typeNames));
+      BoundsAnnotations BAnnot = fpType->getParamAnnots(iCnt);
+      InteropTypeExpr *BIT = BAnnot.getInteropTypeExpr();
+      if(BIT) {
+        newParamTypes.push_back(SubstituteTypeVariable(BIT->getTypeAsWritten(), typeNames));
+      } else {
+        newParamTypes.push_back(SubstituteTypeVariable(opt, typeNames));
+      }
+      iCnt++;
     }
     // Indicate that this function type is fully instantiated
     FunctionProtoType::ExtProtoInfo newExtProtoInfo = fpType->getExtProtoInfo();
