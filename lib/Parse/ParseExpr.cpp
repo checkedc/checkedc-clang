@@ -3580,7 +3580,7 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
   return Error;
 }
 
-ExprResult Parser::ParseBoundsCallback(void *P,
+bool Parser::ParseBoundsCallback(void *P,
                                        std::unique_ptr<CachedTokens> Toks,
                                        ArrayRef<ParmVarDecl *> Params,
                                        BoundsAnnotations &Result,
@@ -3603,9 +3603,9 @@ ExprResult Parser::ParseBoundsCallback(void *P,
 
   ParseScope PrototypeScope(TheParser, PrototypeScopeFlag);
   TheParser->Actions.ActOnSetupParametersAgain(TheParser->Actions.CurScope, Params);
-  ExprResult R = TheParser->DeferredParseBoundsExpression(std::move(Toks), Result, D);
+  bool Err = TheParser->DeferredParseBoundsExpression(std::move(Toks), Result, D);
   PrototypeScope.Exit();
-  return R;
+  return Err;
 }
 
 ExprResult Parser::ParseReturnValueExpression() {

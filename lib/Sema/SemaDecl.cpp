@@ -9271,7 +9271,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       if (!BA.IsEmpty()) {
         DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
         BoundsExpr *TypeReturnBounds = BA.getBoundsExpr();
-        BoundsExpr *DeclaredReturnBounds = nullptr; /* TODO: fix this FTI.getReturnAnnots().getBoundsExpr(); */
+        BoundsExpr *DeclaredReturnBounds = D.getReturnBounds();
         // Check the return bounds on the type to determine if the bounds
         // expression is valid for the return type.  Construction of the function
         // type for the declarator checked whether the return bounds was valid for

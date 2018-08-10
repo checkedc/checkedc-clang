@@ -4837,13 +4837,18 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
            Sema::CheckedCReturnValueRAII ReturnValueRAII(S, T);
            std::unique_ptr<CachedTokens> ReturnBoundsTokens(FTI.ReturnBounds);
            assert(S.DeferredBoundsParser);
-           S.DeferredBoundsParser(S.DeferredBoundsParserData,
-                                  std::move(ReturnBoundsTokens),
-                                  ParamVars,
-                                  ReturnAnnots,
-                                  D);
-            assert(!ReturnAnnots.getInteropTypeExpr() && 
-                   "should only have parsed bounds expression");
+           if (S.DeferredBoundsParser(S.DeferredBoundsParserData,
+                                      std::move(ReturnBoundsTokens),
+                                      ParamVars,
+                                      ReturnAnnots,
+                                      D))
+             D.setInvalidType();
+           else
+             D.setReturnBounds(ReturnAnnots.getBoundsExpr());
+
+
+          assert(!ReturnAnnots.getInteropTypeExpr() && 
+                 "should only have parsed bounds expression");
         }
 
         ReturnAnnots.setInteropTypeExpr(FTI.ReturnInteropType);

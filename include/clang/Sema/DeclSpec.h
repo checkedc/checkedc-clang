@@ -1898,6 +1898,8 @@ private:
   /// \brief The asm label, if specified.
   Expr *AsmLabel;
 
+  /// \biref The return bounds for a function declarator.
+  BoundsExpr *ReturnBounds;
 #ifndef _MSC_VER
   union {
 #endif
@@ -1927,7 +1929,8 @@ public:
         GroupingParens(false), FunctionDefinition(FDK_Declaration),
         Redeclaration(false), Extension(false), ObjCIvar(false),
         ObjCWeakProperty(false), InlineStorageUsed(false),
-        Attrs(ds.getAttributePool().getFactory()), AsmLabel(nullptr) {}
+        Attrs(ds.getAttributePool().getFactory()), AsmLabel(nullptr),
+        ReturnBounds(nullptr) {}
 
   ~Declarator() {
     clear();
@@ -2491,6 +2494,9 @@ public:
 
   void setAsmLabel(Expr *E) { AsmLabel = E; }
   Expr *getAsmLabel() const { return AsmLabel; }
+
+  void setReturnBounds(BoundsExpr *E) { ReturnBounds = E; }
+  BoundsExpr *getReturnBounds() const { return ReturnBounds; }
 
   void setExtension(bool Val = true) { Extension = Val; }
   bool getExtension() const { return Extension; }

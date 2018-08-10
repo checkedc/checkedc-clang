@@ -4697,7 +4697,7 @@ public:
     }
   };
 
-  typedef ExprResult
+  typedef bool
   (*ParseDeferredBoundsCallBackFn)(void *P,
                                    std::unique_ptr<CachedTokens> Toks,
                                    ArrayRef<ParmVarDecl *> Params,

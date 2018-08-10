@@ -1965,6 +1965,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
         // syntactically malformed return bounds expression that is immediately
         // followed by a function body.  The solution is to try to skip to
         // the start of the function body.
+#if 0
         if (!isStartOfFunctionDefinition(D)) {
           unsigned Count = D.getNumTypeObjects();
           const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
@@ -1978,6 +1979,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
             }
           }
         }
+#endif
 
         // Case 2: the return bounds expression is misplaced for a complex
         // function declarator. Diagnosis this, suggest a fix, and bail out.
