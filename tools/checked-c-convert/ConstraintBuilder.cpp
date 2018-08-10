@@ -468,6 +468,14 @@ public:
     std::set<ConstraintVariable*> Var =
       Info.getVariable(S->getRetValue(), Context);
 
+    // We also want to look up the declaration of Function, if it exists.
+    FunctionDecl *Declaration = getDeclaration(Function);
+    if (Declaration) {
+      std::set<ConstraintVariable*> Fun2 = 
+        Info.getVariable(Declaration, Context);
+      Fun.insert(Fun2.begin(), Fun2.end());
+    }
+
     // Constrain the value returned (if present) against the return value
     // of the function.   
     for (const auto &F : Fun )
@@ -495,7 +503,7 @@ public:
 
   void constrainExprFirstArr(Expr *E) {
     std::set<ConstraintVariable*> Var =
-      Info.getVariable(E, Context);
+      Info.getVariable(E, Context, true);
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Var)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {

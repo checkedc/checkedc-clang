@@ -166,7 +166,7 @@ int *ok_mut_clone(int *a, int b) {
   *a = b;
   return a;
 }
-//CHECK: int *ok_mut_clone(int *a, int b) {
+//CHECK: int* ok_mut_clone(int *a, int b) {
 
 ok_mut_t get_mut_2(void) {
   return &ok_mut_clone;

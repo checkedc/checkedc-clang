@@ -92,14 +92,6 @@ public:
   std::string getTy() { return BaseType; }
   std::string getName() { return Name; }
 
-  void constrainedVariable(uint32_t K) {
-    ConstrainedVars.insert(K);
-  }
-
-  bool isConstrained(uint32_t K) { 
-    return ConstrainedVars.find(K) != ConstrainedVars.end(); 
-  }
-
   virtual ~ConstraintVariable() {};
 
   // Constraint atoms may be either constants or variables. The constants are
@@ -130,7 +122,8 @@ class FunctionVariableConstraint;
 class PointerVariableConstraint : public ConstraintVariable {
 public:
 	enum Qualification {
-		ConstQualification
+    ConstQualification,
+    StaticQualification
   };
 private:
   CVars vars;
@@ -150,14 +143,22 @@ private:
   // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or 
   // O_UnSizedArray, arrPresent is true.
   bool arrPresent;
+  // Is there an itype associated with this constraint? If there is, how was it
+  // originally stored in the program? 
+  std::string itypeStr;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name, 
-    FunctionVariableConstraint *F, bool isArr) : 
+    FunctionVariableConstraint *F, bool isArr, bool isItype, std::string is) : 
     ConstraintVariable(PointerVariable, T, Name)
-    ,vars(V),FV(F),arrPresent(isArr) {}
+    ,vars(V),FV(F),arrPresent(isArr), itypeStr(is) {}
 
   bool getArrPresent() { return arrPresent; }
+
+  // Is an itype present for this constraint? If yes, what is the text of that itype?
+  bool getItypePresent() { return itypeStr.size() > 0; }
+  std::string getItype() { return itypeStr; }
+
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index. We don't need to explicitly pass
   // the name because it's available in 'D'.
