@@ -330,6 +330,7 @@ int *f23(void) : itype(_Ptr<int>);
 int *f24(void) : count(5);
 
 // CHECK: FunctionDecl
+// CHECK: f24
 // CHECK:  'int *(void) : count(5) itype(_Array_ptr<int>)'
 // CHECK-NEXT: CountBoundsExpr
 // CHECK:  Element
@@ -341,6 +342,32 @@ int *f24(void) : count(5);
 // CHECK: '_Array_ptr<int>'
 // CHECK-NEXT: BuiltinType
 // CHECK: 'int'
+
+int *f25(void ) : bounds(_Return_value, _Return_value + 5);
+
+// CHECK: FunctionDecl
+// CHECK: f25
+// CHECK: 'int *(void) : bounds(_Return_value, _Return_value + 5) itype(_Array_ptr<int>)'
+// CHECK-NEXT: RangeBoundsExpr
+// CHECK-NEXT: BoundsValueExpr
+// CHECK: 'int *'
+// CHECK: _Return_value
+// CHECK-NEXT: BinaryOperator
+// CHECK: 'int *'
+// CHECK: '+'
+// CHECK-NEXT: BoundsValueExpr
+// CHECK: 'int *'
+// CHECK: _Return_value
+// CHECK-NEXT: IntegerLiteral
+// CHECK: 'int'
+// CHECK: 5
+// CHECK-NEXT: InteropTypeExpr
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT PointerType
+// CHECK: '_Array_ptr<int>'
+// CHECK-NEXT: BuiltinType
+// CHECK: 'int'
+
 
 //===================================================================
 // Dumps of different kinds of bounds expressions on structure members
