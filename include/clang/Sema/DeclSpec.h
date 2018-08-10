@@ -1320,10 +1320,6 @@ struct DeclaratorChunk {
     /// specified.
     unsigned HasTrailingReturnType : 1;
 
-    /// ReturnBoundsParsefailure - if this is true, parsing of return bounds
-    /// failed.  This information is used for error recovery.
-    unsigned ReturnBoundsParseFailure : 1;
-
     /// The location of the left parenthesis in the source.
     unsigned LParenLoc;
 
@@ -1382,7 +1378,9 @@ struct DeclaratorChunk {
 
     /// The annotations for the value returned by the function.  We store them
     // as individual fields because the return bounds are deferred-parsed.
-    // Note: ReturnBounds is the only pointer to CachedTokens.
+    // Note: ReturnBounds is actually a unique_ptr.  However unique_ptr requires
+    // a constructor and this struct can't have one, so so we cast it to a
+    // a regular pointer type.
     CachedTokens *ReturnBounds;
     InteropTypeExpr *ReturnInteropType;
 
@@ -1532,16 +1530,6 @@ struct DeclaratorChunk {
 
     /// \brief Get the trailing-return-type for this function declarator.
     ParsedType getTrailingReturnType() const { return TrailingReturnType; }
-  /*
-    /// \brief The bounds annotations for the return value
-    BoundsAnnotations getReturnAnnots() const {
-      return BoundsAnnotations(ReturnBounds, ReturnInteropType);
-    }
-  */
-
-     bool getReturnBoundsParseFailure() const {
-       return ReturnBoundsParseFailure;
-     }
   };
 
   struct BlockPointerTypeInfo : TypeInfoCommon {
@@ -1689,7 +1677,6 @@ struct DeclaratorChunk {
                                      SourceLocation ReturnAnnotsColonLoc,
                                      InteropTypeExpr *ReturnInteorpTypeExpr,
                                      std::unique_ptr<CachedTokens> ReturnBounds,
-                                     bool ReturnBoundsParseFailure,
                                      Declarator &TheDeclarator,
                                      TypeResult TrailingReturnType =
                                                     TypeResult());
@@ -1898,7 +1885,7 @@ private:
   /// \brief The asm label, if specified.
   Expr *AsmLabel;
 
-  /// \biref The return bounds for a function declarator.
+  /// \brief The return bounds for a function declarator.
   BoundsExpr *ReturnBounds;
 #ifndef _MSC_VER
   union {

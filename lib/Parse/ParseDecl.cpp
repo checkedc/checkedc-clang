@@ -1959,30 +1959,9 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       if (getLangOpts().CheckedC) {
         // In Checked C, the return bounds expression is placed after the
         // parameter list for a function and before the function body.
-        // Handle some possible parsing errors.
-
-        // Case 1: handle the simple case of a function declarator with a
-        // syntactically malformed return bounds expression that is immediately
-        // followed by a function body.  The solution is to try to skip to
-        // the start of the function body.
-#if 0
-        if (!isStartOfFunctionDefinition(D)) {
-          unsigned Count = D.getNumTypeObjects();
-          const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
-          if (lastChunk.Kind == DeclaratorChunk::Function) {
-            if (lastChunk.Fun.ReturnBoundsParseFailure) {
-              // TODO: this skips too much of there are separate
-              // K&R style declarations of argument types.
-              SkipUntil(tok::l_brace,
-                        SkipUntilFlags::StopAtSemi |
-                        SkipUntilFlags::StopBeforeMatch);
-            }
-          }
-        }
-#endif
-
-        // Case 2: the return bounds expression is misplaced for a complex
-        // function declarator. Diagnosis this, suggest a fix, and bail out.
+        // It is easy to misplace it.  Handle the case where the return bounds
+        // expression is misplaced for a complex function declarator.
+        // Diagnosis this, suggest a fix, and bail out.
         if (Tok.is(tok::colon)) {
           Token Next = NextToken();
           if (StartsBoundsExpression(Next) ||
@@ -6258,7 +6237,6 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   StartLoc = LParenLoc;
   SourceLocation BoundsColonLoc;
   BoundsAnnotations ReturnAnnots;
-  bool ReturnBoundsParseError = false;
 
   if (isFunctionDeclaratorIdentifierList()) {
     if (RequiresArg)
@@ -6431,8 +6409,6 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
         // body.  Function declarators can also be nested within other
         //declarators.  We don't have special-case code for recovering
         // syntactically for that case.
-
-        ReturnBoundsParseError = true;
       }
     }
   }
@@ -6461,7 +6437,6 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
                                              BoundsColonLoc,
                                              ReturnAnnots.getInteropTypeExpr(),
                                              std::move(DeferredBoundsToks),
-                                             ReturnBoundsParseError,
                                              D,
                                              TrailingReturnType),
                 FnAttrs, EndLoc);

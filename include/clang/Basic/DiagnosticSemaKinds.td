@@ -9546,7 +9546,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "only reference parameters from its own parameter list)">;
 
   def err_return_value_not_in_scope : Error<
-    "_Return_value_ can be used only in a return bounds expression">;
+    "_Return_value can be used only in a return bounds expression">;
 
   def err_expected_bounds : Error<
     "expression has unknown bounds">;

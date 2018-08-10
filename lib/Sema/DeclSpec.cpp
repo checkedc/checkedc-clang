@@ -180,7 +180,6 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
                                              SourceLocation ReturnAnnotsColonLoc,
                                              InteropTypeExpr *ReturnInteropTypeExpr,
                                              std::unique_ptr<CachedTokens> ReturnBounds,
-                                             bool ReturnBoundsParseFailure,
                                              Declarator &TheDeclarator,
                                              TypeResult TrailingReturnType) {
   assert(!(TypeQuals & DeclSpec::TQ_atomic) &&
@@ -218,7 +217,6 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
   I.Fun.TrailingReturnType      = TrailingReturnType.get();
   I.Fun.ReturnAnnotsColonLoc    = ReturnAnnotsColonLoc.getRawEncoding();
   I.Fun.ReturnBounds            =  ReturnBounds.release();
-  I.Fun.ReturnBoundsParseFailure = ReturnBoundsParseFailure;
   I.Fun.ReturnInteropType       = ReturnInteropTypeExpr;
 
   assert(I.Fun.TypeQuals == TypeQuals && "bitfield overflow");

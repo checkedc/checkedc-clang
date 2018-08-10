@@ -1192,8 +1192,8 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   case tok::kw__Dynamic_bounds_cast:
     Res = ParseBoundsCastExpression();
     break;
-  case tok::kw__Current_expr_value:
   case tok::kw__Return_value:
+    Res = ParseReturnValueExpression();
     break;
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
@@ -3580,11 +3580,12 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
   return Error;
 }
 
+// Callback for parsing the return bounds expression in Toks.
 bool Parser::ParseBoundsCallback(void *P,
-                                       std::unique_ptr<CachedTokens> Toks,
-                                       ArrayRef<ParmVarDecl *> Params,
-                                       BoundsAnnotations &Result,
-                                       const Declarator &D) {
+                                 std::unique_ptr<CachedTokens> Toks,
+                                 ArrayRef<ParmVarDecl *> Params,
+                                 BoundsAnnotations &Result,
+                                 const Declarator &D) {
   assert(P);
   Parser *TheParser = (Parser *) P;
 
@@ -3609,7 +3610,7 @@ bool Parser::ParseBoundsCallback(void *P,
 }
 
 ExprResult Parser::ParseReturnValueExpression() {
-  assert(Tok.is(tok::kw__Return_value) && 
+  assert(Tok.is(tok::kw__Return_value) &&
          "Not bounds  value expression");
   SourceLocation Loc = ConsumeToken();
   return Actions.ActOnReturnValueExpr(Loc);
@@ -3703,8 +3704,7 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                              CaretLoc, CaretLoc,
                                              /*ReturnAnnotsColon=*/NoLoc,
                                              /*ReturnInteropTypeExpr=*/nullptr,
-                                             /*ReturnBoundsAnnots=*/nullptr,
-                                             /*ReturnBoundsParseFaiilure=*/false,
+                                             /*ReturnBounds=*/nullptr,
                                              ParamInfo),
                           attrs, CaretLoc);
 

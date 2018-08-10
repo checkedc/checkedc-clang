@@ -721,7 +721,6 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*ReturnAnnotsColon=*/NoLoc,
       /*ReturnInteropTypeExpr=*/nullptr,
       /*ReturnBoundsAnnots=*/nullptr,
-      /*ReturnBoundsParseFaiilure=*/false,
       declarator));
 
   // For consistency, make sure the state still has us as processing
@@ -4833,21 +4832,20 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           for (unsigned i = 0, e = FTI.NumParams; i != e; ++i) {
             ParmVarDecl *Param = cast<ParmVarDecl>(FTI.Params[i].Param);
             ParamVars.push_back(Param);
-          }           
-           Sema::CheckedCReturnValueRAII ReturnValueRAII(S, T);
-           std::unique_ptr<CachedTokens> ReturnBoundsTokens(FTI.ReturnBounds);
-           assert(S.DeferredBoundsParser);
-           if (S.DeferredBoundsParser(S.DeferredBoundsParserData,
-                                      std::move(ReturnBoundsTokens),
-                                      ParamVars,
-                                      ReturnAnnots,
-                                      D))
-             D.setInvalidType();
-           else
-             D.setReturnBounds(ReturnAnnots.getBoundsExpr());
+          }
+          Sema::CheckedCReturnValueRAII ReturnValueRAII(S, T);
+          std::unique_ptr<CachedTokens> ReturnBoundsTokens(FTI.ReturnBounds);
+          assert(S.DeferredBoundsParser);
+          if (S.DeferredBoundsParser(S.DeferredBoundsParserData,
+                                     std::move(ReturnBoundsTokens),
+                                     ParamVars,
+                                     ReturnAnnots,
+                                     D))
+            D.setInvalidType();
+          else
+            D.setReturnBounds(ReturnAnnots.getBoundsExpr());
 
-
-          assert(!ReturnAnnots.getInteropTypeExpr() && 
+          assert(!ReturnAnnots.getInteropTypeExpr() &&
                  "should only have parsed bounds expression");
         }
 

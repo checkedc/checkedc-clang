@@ -2343,7 +2343,7 @@ public:
   /// Push the parameters of D, which must be a function, into scope.
   void ActOnReenterFunctionContext(Scope* S, Decl* D);
   void ActOnExitFunctionContext();
-  
+
   /// Push the parameters listed in Params into scope.
   void ActOnSetupParametersAgain(Scope* S, ArrayRef<ParmVarDecl *> Params);
 

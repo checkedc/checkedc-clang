@@ -1209,8 +1209,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                                            LParenLoc, FunLocalRangeEnd,
                                            /*ReturnBoundsColonLoc=*/NoLoc,
                                            /*ReturnInteropTypeExpr=*/nullptr,
-                                           /*ReturnBoundsAnnots=*/nullptr,
-                                           /*ReturnBoundsParseFaiilure=*/false,
+                                           /*ReturnBounds=*/nullptr,
                                            D,
                                            TrailingReturnType),
                   Attr, DeclEndLoc);
@@ -1284,8 +1283,7 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                                                DeclLoc, DeclEndLoc,
                                                /*ReturnBoundsColonLoc=*/NoLoc,
                                                /*ReturnInteropTypeExpr=*/nullptr,
-                                               /*ReturnBoundsAnnots=*/nullptr,
-                                               /*ReturnBoundsParseFaiilure=*/false,
+                                               /*ReturnBounds=*/nullptr,
                                                D,
                                                TrailingReturnType),
                   Attr, DeclEndLoc);

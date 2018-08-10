@@ -2538,7 +2538,6 @@ public:
   ExprResult RebuildBoundsValueExpr(SourceLocation Loc, QualType Ty, BoundsValueExpr::Kind K) {
     return new (getSema().Context) BoundsValueExpr(Loc, Ty, K);
   }
-
   
   /// \brief Build a new overloaded operator call expression.
   ///
