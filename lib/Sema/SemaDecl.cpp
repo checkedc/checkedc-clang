@@ -3418,7 +3418,7 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
     if((New->isItypeGenericFunction() && Old->isGenericFunction())
         || (New->isGenericFunction() && Old->isItypeGenericFunction()))
     {
-      Diag(New->getLocation(), diag::err_conflicting_function_specifiers)
+      Diag(New->getLocation(), diag::err_decl_conflicting_function_specifiers)
             << New->getDeclName() << "_Itype_for_any" << "_For_any";
       return true;
     }
