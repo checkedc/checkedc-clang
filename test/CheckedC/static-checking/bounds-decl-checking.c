@@ -307,16 +307,15 @@ _Array_ptr<int> f33(unsigned num) : count(num) {
 _Array_ptr<void> test_f34(unsigned size) : bounds((_Array_ptr<char>) _Return_value, (_Array_ptr<char>) _Return_value + size);
 
 _Array_ptr<int> f35(unsigned num) : count(num) {
-  _Array_ptr<int> p : count(num) = test_f34(num * sizeof(int)); \
-       // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
-       // expected-note {{(expanded) declared bounds are 'bounds(p, p + num)'}} \
-       // expected-note {{(expanded) inferred bounds are 'bounds(_Return_value, _Return_value + num)'}}
+  _Array_ptr<int> p : count(num) = test_f34(num * sizeof(int)); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+                                                                // expected-note {{(expanded) declared bounds are 'bounds(p, p + num)'}} \
+                                                                // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)_Return_value, (_Array_ptr<char>)_Return_value + num * sizeof(int))'}}
   return p;
 }
 
 _Array_ptr<void> test_f34(unsigned size) : bounds((_Array_ptr<char>) _Return_value, (_Array_ptr<char>) _Return_value + size);
 
-_Array_ptr<int> f35(unsigned num) : count(num) {
+_Array_ptr<int> f36(unsigned num) : count(num) {
   _Array_ptr<int> p : count(num) = test_f34(num * sizeof(int));  // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
                                                                  // expected-note {{(expanded) declared bounds are 'bounds(p, p + num)'}} \
                                                                  // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)_Return_value, (_Array_ptr<char>)_Return_value + num * sizeof(int))'}}
