@@ -648,6 +648,10 @@ public:
 
   bool TransformBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
 
+  /// \brief Transform return bounds annotations.  We provide a separate method for
+  /// doing this so subclasses can override this if desired.
+  bool TransformReturnBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
+
   /// \brief Transform the extended parameter information for
   /// a function prototype.
   ///
@@ -5281,6 +5285,12 @@ bool TreeTransform<Derived>::TransformBoundsAnnotations(
   return false;
 }
 
+template<typename Derived>
+bool TreeTransform<Derived>::TransformReturnBoundsAnnotations(
+  BoundsAnnotations &Annot, bool &Changed) {
+  return getDerived().TransformBoundsAnnotations(Annot, Changed);    
+}
+
 template <typename Derived> template<typename Fn>
 bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   FunctionProtoType::ExtProtoInfo &EPI,
@@ -5310,7 +5320,7 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   }
 
   // Handle bounds annotations for return
-  if (getDerived().TransformBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
+  if (getDerived().TransformReturnBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
     return true;
 
   // Handle bounds annotations for parameters.
@@ -12498,6 +12508,9 @@ TreeTransform<Derived>::TransformPositionalParameterExpr(
   PositionalParameterExpr *E) {
   unsigned Index = E->getIndex();
   QualType QT = getDerived().TransformType(E->getType());
+  if (!getDerived().AlwaysRebuild() && QT == E->getType())
+    return E;
+
   return getDerived().
     RebuildPositionalParameterExpr(Index, QT);
 }
@@ -12507,6 +12520,9 @@ ExprResult
 TreeTransform<Derived>::TransformBoundsValueExpr(
   BoundsValueExpr *E) {
   QualType QT = getDerived().TransformType(E->getType());
+  if (!getDerived().AlwaysRebuild() && QT == E->getType())
+    return E;
+
   return getDerived().
     RebuildBoundsValueExpr(E->getLocation(), QT, E->getKind());
 }
