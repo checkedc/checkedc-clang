@@ -2847,8 +2847,8 @@ void ASTDumper::VisitPositionalParameterExpr(
 
 void ASTDumper::VisitBoundsValueExpr(const BoundsValueExpr *Node) {
   VisitExpr(Node);
-  OS << (Node->getKind() == BoundsValueExpr::Kind::Current ? 
-         "_Current_expr_value" : "_Return_value");
+  OS << (Node->getKind() == BoundsValueExpr::Kind::Current ?
+         " _Current_expr_value" : " _Return_value");
 }
 
 //===----------------------------------------------------------------------===//

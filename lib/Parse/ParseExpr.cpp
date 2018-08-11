@@ -1192,6 +1192,9 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   case tok::kw__Dynamic_bounds_cast:
     Res = ParseBoundsCastExpression();
     break;
+  case tok::kw__Return_value:
+    Res = ParseReturnValueExpression();
+    break;
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
       ParsedType Type = getTypeAnnotation(Tok);
@@ -3577,6 +3580,42 @@ Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
   return Error;
 }
 
+// Callback for parsing the return bounds expression in Toks.
+bool Parser::ParseBoundsCallback(void *P,
+                                 std::unique_ptr<CachedTokens> Toks,
+                                 ArrayRef<ParmVarDecl *> Params,
+                                 BoundsAnnotations &Result,
+                                 const Declarator &D) {
+  assert(P);
+  Parser *TheParser = (Parser *) P;
+
+  // Set up function prototype scope again and put parameters back in.
+  unsigned PrototypeScopeFlag =
+      Scope::FunctionPrototypeScope | Scope::DeclScope |
+      (D.isFunctionDeclaratorAFunctionDeclaration()
+            ? Scope::FunctionDeclarationScope
+            : 0);
+
+  PrototypeScopeFlag |=
+      (D.getDeclSpec().isCheckedSpecified()
+            ? Scope::CheckedScope
+            : (D.getDeclSpec().isUncheckedSpecified() ? Scope::UncheckedScope
+                                                      : 0));
+
+  ParseScope PrototypeScope(TheParser, PrototypeScopeFlag);
+  TheParser->Actions.ActOnSetupParametersAgain(TheParser->Actions.CurScope, Params);
+  bool Err = TheParser->DeferredParseBoundsExpression(std::move(Toks), Result, D);
+  PrototypeScope.Exit();
+  return Err;
+}
+
+ExprResult Parser::ParseReturnValueExpression() {
+  assert(Tok.is(tok::kw__Return_value) &&
+         "Not bounds  value expression");
+  SourceLocation Loc = ConsumeToken();
+  return Actions.ActOnReturnValueExpr(Loc);
+}
+
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks
 /// like ^(int x){ return x+1; }
 ///
@@ -3640,7 +3679,6 @@ ExprResult Parser::ParseBlockLiteralExpression() {
     // Otherwise, pretend we saw (void).
     ParsedAttributes attrs(AttrFactory);
     SourceLocation NoLoc;
-    BoundsAnnotations ReturnAnnots;
     ParamInfo.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/true,
                                              /*IsAmbiguous=*/false,
                                              /*RParenLoc=*/NoLoc,
@@ -3665,7 +3703,8 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                              /*DeclsInPrototype=*/None,
                                              CaretLoc, CaretLoc,
                                              /*ReturnAnnotsColon=*/NoLoc,
-                                             /*ReturnAnnotsExpr=*/ReturnAnnots,
+                                             /*ReturnInteropTypeExpr=*/nullptr,
+                                             /*ReturnBounds=*/nullptr,
                                              ParamInfo),
                           attrs, CaretLoc);
 

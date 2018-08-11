@@ -1959,29 +1959,9 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       if (getLangOpts().CheckedC) {
         // In Checked C, the return bounds expression is placed after the
         // parameter list for a function and before the function body.
-        // Handle some possible parsing errors.
-
-        // Case 1: handle the simple case of a function declarator with a
-        // syntactically malformed return bounds expression that is immediately
-        // followed by a function body.  The solution is to try to skip to
-        // the start of the function body.
-        if (!isStartOfFunctionDefinition(D)) {
-          unsigned Count = D.getNumTypeObjects();
-          const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
-          if (lastChunk.Kind == DeclaratorChunk::Function) {
-            BoundsExpr *ReturnBounds = lastChunk.Fun.ReturnBounds;
-            if (ReturnBounds && ReturnBounds->isInvalid()) {
-              // TODO: this skips too much of there are separate
-              // K&R style declarations of argument types.
-              SkipUntil(tok::l_brace,
-                        SkipUntilFlags::StopAtSemi |
-                        SkipUntilFlags::StopBeforeMatch);
-            }
-          }
-        }
-
-        // Case 2: the return bounds expression is misplaced for a complex
-        // function declarator. Diagnosis this, suggest a fix, and bail out.
+        // It is easy to misplace it.  Handle the case where the return bounds
+        // expression is misplaced for a complex function declarator.
+        // Diagnosis this, suggest a fix, and bail out.
         if (Tok.is(tok::colon)) {
           Token Next = NextToken();
           if (StartsBoundsExpression(Next) ||
@@ -6407,13 +6387,20 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   // ":" is ambiguous.  Generic selection expressions allow code of the form
   // "typename : expr".   Typename could be a function type with an optional
   // return bounds expression.  Look ahead to the next token to disambiguate.
+  //
+  // Return bounds expressions are delay parsed because they can refer to _Return_value,
+  // which uses the return type.  The return type is still unknown at this point.
+  std::unique_ptr<CachedTokens> DeferredBoundsToks = nullptr;
   if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
     const Token &NextTok = GetLookAheadToken(1);
     if (StartsBoundsExpression(NextTok) ||
       StartsInteropTypeAnnotation(NextTok)) {
       BoundsColonLoc = Tok.getLocation();
       ConsumeToken();
-      if (ParseBoundsAnnotations(D, BoundsColonLoc, ReturnAnnots, nullptr, /*IsReturn=*/true)) {
+      Actions.SetDeferredBoundsCallBack(this, ParseBoundsCallback);
+      std::unique_ptr<CachedTokens> AllocToks { new CachedTokens };
+      DeferredBoundsToks = std::move(AllocToks);
+      if (ParseBoundsAnnotations(D, BoundsColonLoc, ReturnAnnots, &DeferredBoundsToks, /*IsReturn=*/true)) {
         // We don't have enough context to try to do syntactic error recovery
         // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
         // function declarations and function bodies. This allows us to handle
@@ -6422,9 +6409,6 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
         // body.  Function declarators can also be nested within other
         //declarators.  We don't have special-case code for recovering
         // syntactically for that case.
-
-        // Flag that something wrong by setting the BoundsExpr to be invalid.
-        ReturnAnnots = BoundsAnnotations(Actions.CreateInvalidBoundsExpr(), nullptr);
       }
     }
   }
@@ -6450,7 +6434,9 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
                                              ExceptionSpecTokens,
                                              DeclsInPrototype,
                                              StartLoc, LocalEndLoc,
-                                             BoundsColonLoc, ReturnAnnots,
+                                             BoundsColonLoc,
+                                             ReturnAnnots.getInteropTypeExpr(),
+                                             std::move(DeferredBoundsToks),
                                              D,
                                              TrailingReturnType),
                 FnAttrs, EndLoc);

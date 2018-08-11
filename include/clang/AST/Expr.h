@@ -9,7 +9,7 @@
 //
 //  This file defines the Expr interface and subclasses.
 //
-//===------------------------itional----------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_AST_EXPR_H
 #define LLVM_CLANG_AST_EXPR_H

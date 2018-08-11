@@ -1318,6 +1318,18 @@ void Sema::ActOnExitFunctionContext() {
   assert(CurContext && "Popped translation unit!");
 }
 
+// Add parameters back to current scope.  This is used for delay parsing
+// return bounds.
+void Sema::ActOnSetupParametersAgain(Scope* S, ArrayRef<ParmVarDecl *> Params) {
+  for (ParmVarDecl *Param : Params) {
+    // If the parameter has an identifier, then add it to the scope
+    if (Param->getIdentifier()) {
+      S->AddDecl(Param);
+      IdResolver.AddDecl(Param);
+    }
+  }
+}
+
 /// \brief Determine whether we allow overloading of the function
 /// PrevDecl with another declaration.
 ///
@@ -9259,7 +9271,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
       if (!BA.IsEmpty()) {
         DeclaratorChunk::FunctionTypeInfo &FTI = D.getFunctionTypeInfo();
         BoundsExpr *TypeReturnBounds = BA.getBoundsExpr();
-        BoundsExpr *DeclaredReturnBounds = FTI.getReturnAnnots().getBoundsExpr();
+        BoundsExpr *DeclaredReturnBounds = D.getReturnBounds();
         // Check the return bounds on the type to determine if the bounds
         // expression is valid for the return type.  Construction of the function
         // type for the declarator checked whether the return bounds was valid for
@@ -9276,7 +9288,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
 
         // Prefer the return interop type from the declarator too.
         InteropTypeExpr *TypeReturnIT = BA.getInteropTypeExpr();
-        InteropTypeExpr *DeclaredReturnIT = FTI.getReturnAnnots().getInteropTypeExpr();
+        InteropTypeExpr *DeclaredReturnIT = FTI.ReturnInteropType;
         InteropTypeExpr *ResultIT = DeclaredReturnIT ? DeclaredReturnIT : TypeReturnIT;
         NewFD->setInteropTypeExpr(getASTContext(), ResultIT);
       }
@@ -13927,7 +13939,6 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
   assert(!Error && "Error setting up implicit decl!");
   SourceLocation NoLoc;
   Declarator D(DS, Declarator::BlockContext);
-  BoundsAnnotations ReturnAnnots;
   D.AddTypeInfo(DeclaratorChunk::getFunction(/*HasProto=*/false,
                                              /*IsAmbiguous=*/false,
                                              /*LParenLoc=*/NoLoc,
@@ -13952,7 +13963,9 @@ NamedDecl *Sema::ImplicitlyDefineFunction(SourceLocation Loc,
                                              /*DeclsInPrototype=*/None,
                                              Loc, Loc,
                                              /*ReturnAnnotsColonLoc=*/NoLoc,
-                                             /*ReturnAnnotsExpr=*/ReturnAnnots, D),
+                                             /*ReturnInteropTypeExpr=*/nullptr,
+                                             /*ReturnBounds=*/nullptr,
+                                             D),
                 DS.getAttributes(),
                 SourceLocation());
   D.SetIdentifier(&II, Loc);
