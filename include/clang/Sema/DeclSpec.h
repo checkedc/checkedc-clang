@@ -366,7 +366,7 @@ private:
   unsigned FS_checked_specified : 2;
   // Checked C - For-any function specifier
   unsigned FS_forany_specified : 1;
-  // Checked C - Interface_type function specifier
+  // Checked C - _Itype_for_any function specifier
   unsigned FS_itypeforany_specified : 1;
 
   // friend-specifier
