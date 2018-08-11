@@ -3057,7 +3057,7 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
     ID.AddPointer(ArgTys[i].getAsOpaquePtr());
 
   // This method is relatively performance sensitive, so as a performance
-  // shortcut, use one AddInteger call instead of four for the next four
+  // shortcut, use one AddInteger call instead of eight for the next eight
   // fields.
   assert(!(unsigned(epi.Variadic) & ~1) &&
          !(unsigned(epi.HasTrailingReturn) & ~1) &&
