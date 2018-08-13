@@ -464,6 +464,7 @@ public:
       // Checked C - checked function
       FS_checked_specified(CFS_None),
       FS_forany_specified(false),
+      FS_itypeforany_specified(false),
       Friend_specified(false),
       Constexpr_specified(false),
       Concept_specified(false),
@@ -645,6 +646,8 @@ public:
     FS_checkedLoc = SourceLocation();
     FS_forany_specified = false;
     FS_foranyLoc = SourceLocation();
+    FS_itypeforany_specified = false;
+    FS_itypeforanyloc= SourceLocation();
   }
 
   /// \brief Return true if any type-specifier has been found.
