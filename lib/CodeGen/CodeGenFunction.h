@@ -1914,6 +1914,36 @@ public:
   void ErrorUnsupported(const Stmt *S, const char *Type);
 
   //===--------------------------------------------------------------------===//
+  //                           Checked C extension
+  //===--------------------------------------------------------------------===//
+
+  // During evaluation of bounds expressions, _Current_expr_value holds the value
+  // for which bounds are being computed.
+  llvm::Value *CurrentExprValue;
+public:
+  llvm::Value *GetCurrentExprValue() {
+    return CurrentExprValue;
+  }
+
+  // \brief RAII object used to temporarily set the the type of
+  // _Current_expr_value
+  class CurrentExprValueRAII {
+    CodeGenFunction &CGF;
+    llvm::Value *Old;
+  public:
+    CurrentExprValueRAII(CodeGenFunction &CGF, llvm::Value *Val) : CGF(CGF) {
+      Old = CGF.CurrentExprValue;
+      CGF.CurrentExprValue = Val;
+    }
+
+    ~CurrentExprValueRAII() {
+      CGF.CurrentExprValue = Old;
+    }
+  };
+
+
+
+  //===--------------------------------------------------------------------===//
   //                                  Helpers
   //===--------------------------------------------------------------------===//
 
@@ -2628,8 +2658,11 @@ public:
                                 const Address PtrAddr);
   /// \brief Emit a dynamic bounds check.  ValueToStore is optional and is
   /// used for bounds checking writes to NUL-terminated pointers.
-  void EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds,
-                              BoundsCheckKind Kind, llvm::Value *ValueToStore);
+  void EmitDynamicBoundsCheck(const Address PtrAddr,
+                              llvm::Value *ValueWithBounds,
+                              const BoundsExpr *Bounds,
+                              BoundsCheckKind Kind,
+                              llvm::Value *ValueToStore);
   void EmitDynamicBoundsCastCheck(const Address BaseAddr,
                                   const BoundsExpr *CastBounds,
                                   const BoundsExpr *SubExprBounds);

@@ -368,6 +368,41 @@ BoundsExpr *Sema::MakeMemberBoundsConcrete(
 }
 
 namespace {
+  // Convert occurrences of _Return_value in a return bounds expression
+  // to _Current_expr_value.  Don't recurse into any return bounds
+  // expressions nested in function types.  Occurrences of _Return_value
+  // in those shouldn't be changed to _Current_value.
+  class ReplaceReturnValue : public TreeTransform<ReplaceReturnValue> {
+    typedef TreeTransform<ReplaceReturnValue> BaseTransform;
+
+  public:
+    ReplaceReturnValue(Sema &SemaRef) :BaseTransform(SemaRef) { }
+
+    // Avoid transforming nested return bounds expressions.
+    bool TransformReturnBoundsAnnotations(BoundsAnnotations &Annot,R
+                                          bool &Changed) {
+      return false;
+    }
+
+    ExprResult TransformBoundsValueExpr(BoundsValueExpr *E) {
+      BoundsValueExpr::Kind K = E->getKind();
+      bool KindChanged = false;
+      if (K == BoundsValueExpr::Kind::Return) {
+        K = BoundsValueExpr::Kind::Current;
+        KindChanged = true;
+      }
+      QualType QT = getDerived().TransformType(E->getType());
+      if (!getDerived().AlwaysRebuild() && QT == E->getType() &&
+          !KindChanged)
+        return E;
+
+      return getDerived().
+        RebuildBoundsValueExpr(E->getLocation(), QT,K);
+    }
+   };
+}
+
+namespace {
   // Class for inferring bounds expressions for C expressions.
 
   // C has an interesting semantics for expressions that differentiates between
@@ -494,6 +529,11 @@ namespace {
       return CE;
     }
 
+    Expr *CreateCurrentExprValue(QualType QT) {
+      return new (Context) BoundsValueExpr(SourceLocation(), QT,
+                                           BoundsValueExpr::Kind::Current);
+    }
+
   private:
     Expr *CreateAddressOfOperator(Expr *E) {
       QualType Ty = Context.getPointerType(E->getType(), CheckedPointerKind::Array);
@@ -502,6 +542,8 @@ namespace {
                                          ExprObjectKind::OK_Ordinary,
                                          SourceLocation());
     }
+
+
 
     // Determine if the mathemtical value of I (an unsigned integer) fits within
     // the range of Ty, a signed integer type.  APInt requires that bitsizes
@@ -778,11 +820,12 @@ namespace {
           return LValueBounds(ICE->getSubExpr());
          return CreateBoundsAlwaysUnknown();
       }
-      // TODO: these cases need CurrentExprValue to be implemented to express
-      // the bounds.
       case Expr::CompoundLiteralExprClass:
-      case Expr::StringLiteralClass:
-        return CreateBoundsAllowedButNotComputed();
+      case Expr::StringLiteralClass: {
+         BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
+         QualType PtrType = Context.getDecayedType(E->getType());
+         return ExpandToRange(CreateCurrentExprValue(PtrType), BE);
+      }
       default:
         return CreateBoundsAlwaysUnknown();
       }
@@ -1438,6 +1481,29 @@ namespace {
       E->dump(OS);
     }
 
+    void DumpCallArgumentBounds(raw_ostream &OS, BoundsExpr *Param,
+                                Expr *Arg,
+                                BoundsExpr *ParamBounds,
+                                BoundsExpr *ArgBounds) {
+      OS << "\n";
+      if (Param) {
+        OS << "Original parameter bounds\n";
+        Param->dump(OS);
+      }
+      if (Arg) {
+        OS << "Argument:\n";
+        Arg->dump(OS);
+      }
+      if (ParamBounds) {
+        OS << "Parameter Bounds:\n";
+        ParamBounds->dump(OS);
+      }
+      if (ArgBounds) {
+        OS << "Argument Bounds:\n ";
+        ArgBounds->dump(OS);
+      }
+    }
+
     // Add bounds check to an lvalue expression, if it is an Array_ptr
     // dereference.  The caller has determined that the lvalue is being
     // used in a way that requies a bounds check if the lvalue is an
@@ -1978,6 +2044,8 @@ namespace {
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
+        if (S.ContainsCurrentExprValue(SrcBounds))
+          EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(Target->getType()));
         EquivExprs.push_back(&EqualExpr);
       }
 
@@ -2009,11 +2077,12 @@ namespace {
     void CheckBoundsDeclAtCallArg(unsigned ParamNum,
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
                                   BoundsExpr *ArgBounds,
-                                  bool InCheckedScope) {
+                                  bool InCheckedScope,
+                                  SmallVector<SmallVector <Expr *, 4> *, 4> *EquivExprs) {
       SourceLocation ArgLoc = Arg->getLocStart();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
-                                                   ArgBounds, Cause, nullptr);
+                                                   ArgBounds, Cause, EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -2058,12 +2127,14 @@ namespace {
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
+        if (S.ContainsCurrentExprValue(SrcBounds))
+          EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(TargetTy));
         EquivExprs.push_back(&EqualExpr);
-        /*
-        llvm::outs() << "Dumping target/src equality relation";
-        TargetExpr->dump(llvm::outs());
-        Src->dump(llvm::outs());
-        */
+/*
+        llvm::outs() << "Dumping target/src equality relation\n";
+        for (Expr *E : EqualExpr)
+          E->dump(llvm::outs());
+ */
       }
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
@@ -2513,7 +2584,27 @@ namespace {
              continue;
         }
 
-        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
+        // Record expression equality of CurrentExprValue() and argument.
+        SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
+        SmallVector<Expr *, 4> EqualExpr;
+        if (S.CheckIsNonModifying(Arg, Sema::NonModifyingContext::NMC_Unknown,
+                                  Sema::NonModifyingMessage::NMM_None) &&
+            S.ContainsCurrentExprValue(ArgBounds)) {
+          EqualExpr.push_back(Arg);
+          EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(Arg->getType()));
+          EquivExprs.push_back(&EqualExpr);
+        }
+
+        if (DumpBounds) {
+          DumpCallArgumentBounds(llvm::outs(),
+                                 FuncProtoTy->getParamAnnots(i).getBoundsExpr(),
+                                 Arg, SubstParamBounds, ArgBounds);
+          llvm::outs() << "Equivalent expressions:\n";
+          for (Expr *E : EqualExpr)
+            E->dump(llvm::outs());
+        }
+
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope, &EquivExprs);
       }
       return;
    }

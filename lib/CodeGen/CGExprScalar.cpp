@@ -758,6 +758,13 @@ public:
   }
   Value *VisitAsTypeExpr(AsTypeExpr *CE);
   Value *VisitAtomicExpr(AtomicExpr *AE);
+
+  Value *VisitBoundsValueExpr(BoundsValueExpr *E) {
+    assert(E->getKind() == BoundsValueExpr::Kind::Current);
+    Value *Result = CGF.GetCurrentExprValue();
+    assert(Result);
+    return Result;
+  }
 };
 }  // end anonymous namespace.
 
@@ -3337,7 +3344,7 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     if (E->getOpcode() == BO_Assign) {
       BoundsExpr *BoundsCheck = CGF.GetNullTermBoundsCheck(E->getLHS());
       if (BoundsCheck)
-        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), BoundsCheck,
+        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), LHS.getPointer(), BoundsCheck,
                                    BoundsCheckKind::BCK_NullTermWriteAssign,
                                    RHS);
     }

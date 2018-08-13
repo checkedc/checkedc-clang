@@ -749,9 +749,8 @@ Result
 Lexicographic::CompareImpl(const BoundsValueExpr *E1,
                            const BoundsValueExpr *E2) {
   Result Cmp = CompareInteger(E1->getKind(), E2->getKind());
-  if (Cmp != Result::Equal)
-    return Cmp;
-  return CompareType(E1->getType(), E2->getType());
+  // The type doesn't matter - the value is the same no matter what the type.
+  return Cmp;
 }
 
 
