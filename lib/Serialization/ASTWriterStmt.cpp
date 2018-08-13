@@ -417,6 +417,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
     isItypeGenericFunction = FD->isItypeGenericFunction() && E->GetTypeArgumentInfo() != nullptr;
     //$TODO$// Unused as of now is ItypeGenericFunction. Must dump _itype_for_any function
   }
+  Record.push_back(isItypeGenericFunction);
 
   if (E->hasTemplateKWAndArgsInfo()) {
     unsigned NumTemplateArgs = E->getNumTemplateArgs();
@@ -428,6 +429,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   if ((!E->hasTemplateKWAndArgsInfo()) && (!E->hasQualifier()) &&
       (E->getDecl() == E->getFoundDecl()) &&
       !isGenericFunction &&
+      isItypeGenericFunction &&
       nk == DeclarationName::Identifier) {
     AbbrevToUse = Writer.getDeclRefExprAbbrev();
   }
@@ -442,7 +444,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
     AddTemplateKWAndArgsInfo(*E->getTrailingObjects<ASTTemplateKWAndArgsInfo>(),
                              E->getTrailingObjects<TemplateArgumentLoc>());
 
-  if (isGenericFunction) {
+  if (isGenericFunction || isItypeGenericFunction) {
     Record.push_back(E->GetTypeArgumentInfo()->typeArgumentss().size());
     for (DeclRefExpr::GenericInstInfo::TypeArgument tn :
          E->GetTypeArgumentInfo()->typeArgumentss()) {

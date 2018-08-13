@@ -6019,7 +6019,6 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
   case TYPE_TYPEVARIABLE: {
     unsigned int depth = Record[0];
     unsigned int index = Record[1];
-    //$TODO$ not sure how to distinguish between for_any and itype_for_any here
     bool isInBoundsSafeInterface = Record[2];
     return Context.getTypeVariableType(depth, index, isInBoundsSafeInterface);
   }
