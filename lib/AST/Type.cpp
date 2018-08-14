@@ -3058,7 +3058,7 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
     ID.AddPointer(ArgTys[i].getAsOpaquePtr());
 
   // This method is relatively performance sensitive, so as a performance
-  // shortcut, use one AddInteger call instead of eight for the next eight
+  // shortcut, use one AddInteger call instead of four for the next four
   // fields.
   assert(!(unsigned(epi.Variadic) & ~1) &&
          !(unsigned(epi.HasTrailingReturn) & ~1) &&
@@ -3070,13 +3070,9 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
          !(unsigned(epi.ExceptionSpec.Type) & ~15) &&
          "Values larger than expected.");
   ID.AddInteger(unsigned(epi.Variadic) +
-                unsigned(epi.HasTrailingReturn << 1) +
-                unsigned(epi.numTypeVars << 2) +
-                unsigned(epi.GenericFunction << 17) +
-                unsigned(epi.ItypeGenericFunction << 18) +
-                (epi.TypeQuals << 19) +
-                (epi.RefQualifier << 27) +
-                (epi.ExceptionSpec.Type << 28));
+                (epi.TypeQuals << 1) +
+                (epi.RefQualifier << 9) +
+                (epi.ExceptionSpec.Type << 11));
   if (epi.ExceptionSpec.Type == EST_Dynamic) {
     for (QualType Ex : epi.ExceptionSpec.Exceptions)
       ID.AddPointer(Ex.getAsOpaquePtr());
@@ -3101,6 +3097,10 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
       ID.AddInteger(epi.ExtParameterInfos[i].getOpaqueValue());
   }
   epi.ExtInfo.Profile(ID);
+  ID.AddBoolean(epi.HasTrailingReturn);
+  ID.AddInteger(epi.numTypeVars);
+  ID.AddBoolean(epi.GenericFunction);
+  ID.AddBoolean(epi.ItypeGenericFunction);
 }
 
 void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
