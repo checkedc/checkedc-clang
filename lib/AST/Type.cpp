@@ -2854,10 +2854,11 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       NumExceptions(epi.ExceptionSpec.Exceptions.size()),
       ExceptionSpecType(epi.ExceptionSpec.Type),
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
-      Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
-      HasParamAnnots(epi.ParamAnnots != nullptr),
+      Variadic(epi.Variadic),
       GenericFunction(epi.GenericFunction),
       ItypeGenericFunction(epi.ItypeGenericFunction),
+      HasTrailingReturn(epi.HasTrailingReturn),
+      HasParamAnnots(epi.ParamAnnots != nullptr),
       ReturnAnnots(epi.ReturnAnnots) {
   assert(NumParams == params.size() && "function has too many parameters");
 
