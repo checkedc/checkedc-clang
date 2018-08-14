@@ -415,7 +415,6 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   {
     FunctionDecl *FD = cast<FunctionDecl>(E->getDecl());
     isItypeGenericFunction = FD->isItypeGenericFunction() && E->GetTypeArgumentInfo() != nullptr;
-    //$TODO$// Unused as of now is ItypeGenericFunction. Must dump _itype_for_any function
   }
   Record.push_back(isItypeGenericFunction);
 

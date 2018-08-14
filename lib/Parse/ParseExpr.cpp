@@ -3308,19 +3308,28 @@ bool Parser::ParseItypeAndGenericFunctionExpression(ExprResult &Res) {
   ValueDecl *resDecl = declRef->getDecl();
   if (!resDecl || !isa<FunctionDecl>(resDecl)) return false;
   FunctionDecl* funDecl = dyn_cast<FunctionDecl>(resDecl);
-  // Only parse the list of type arguments if it's a generic function.
+  
   const FunctionProtoType *funcType =
     dyn_cast<FunctionProtoType>(funDecl->getType().getTypePtr());
-  if(funcType) {
-    if (!(funcType->isGenericFunction() || funcType->isItypeGenericFunction())) return false;
+
+  //Check if incompatible function specifiers are provided for the function
+  if (funcType) {
+    if (!(funcType->isGenericFunction() 
+          || funcType->isItypeGenericFunction())) return false;
   } else {
-    if (!(funDecl->isGenericFunction() || funDecl->isItypeGenericFunction())) return false;
+    if (!(funDecl->isGenericFunction()
+          || funDecl->isItypeGenericFunction())) return false;
   }
 
   SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
-  //bool unused = getCurScope()->isCheckedScope();
-  //$TODO$ replace isCheckedScope() with appropriate scope check. isCheckedScope always returns false here
-  if(funcType->isGenericFunction() || getCurScope()->isCheckedScope() || Tok.getKind() == tok::less) {
+  // Parse the list of type arguments if 
+  // 1. It's a generic function
+  // 2. It's a polymorphic bounds safe interface function and 
+  //    a. The call expression is inside _Checked scope
+  //    b. The call expression is in any scope but the type parameters are provided by the caller
+  if(funcType->isGenericFunction() || 
+      (funcType->isItypeGenericFunction() && 
+        (getCurScope()->isCheckedScope() || Tok.getKind() == tok::less))) {
     // Expect a '<' to denote that a list of type specifiers are incoming.
     SourceLocation lessLoc = Tok.getLocation();
     auto Msg = diag::err_expected_list_of_types_expr_for_generic_function;

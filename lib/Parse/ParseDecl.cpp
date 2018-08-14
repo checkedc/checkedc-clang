@@ -7227,7 +7227,7 @@ void Parser::ParseItypeforanySpecifier(DeclSpec &DS) {
     ExitScope();
     return;
   }
-  //$TODO Replicate ParseForAnySpecifier logic to identify the type variables and adding them to AST
+
   tok::TokenKind prevToken = tok::l_paren;
 
   SmallVector<TypedefDecl*, 16> typevars;
