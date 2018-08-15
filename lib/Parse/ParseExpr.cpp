@@ -1432,7 +1432,7 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   // are compiling for OpenCL, we need to return an error as this implies
   // that the address of the function is being taken, which is illegal in CL.
 
-  // Check to see if resExpr is a itype genric or generic function call.
+  // Check to see if resExpr is a itype generic or generic function call.
   // In this case, we must parse a list of type names that follows
   // function decl identifier where applicable
   if (ParseItypeAndGenericFunctionExpression(Res)) return ExprError();
@@ -3226,7 +3226,7 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     BoundsAnnotations ReturnBAnnot = fpType->getReturnAnnots();
     InteropTypeExpr *RBIT = ReturnBAnnot.getInteropTypeExpr();
     QualType returnQualType;
-    if(RBIT) {
+    if (RBIT) {
       returnQualType = SubstituteTypeVariable(RBIT->getTypeAsWritten() , typeNames);
     } else {
       returnQualType = SubstituteTypeVariable(fpType->getReturnType() , typeNames);
@@ -3238,7 +3238,7 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
     for (QualType opt : fpType->getParamTypes()) {
       BoundsAnnotations BAnnot = fpType->getParamAnnots(iCnt);
       InteropTypeExpr *BIT = BAnnot.getInteropTypeExpr();
-      if(BIT) {
+      if (BIT) {
         newParamTypes.push_back(SubstituteTypeVariable(BIT->getTypeAsWritten(), typeNames));
       } else {
         newParamTypes.push_back(SubstituteTypeVariable(opt, typeNames));
@@ -3327,16 +3327,13 @@ bool Parser::ParseItypeAndGenericFunctionExpression(ExprResult &Res) {
   // 2. It's a polymorphic bounds safe interface function and 
   //    a. The call expression is inside _Checked scope
   //    b. The call expression is in any scope but the type parameters are provided by the caller
-  if(funcType->isGenericFunction() || 
+  if (funcType->isGenericFunction() || 
       (funcType->isItypeGenericFunction() && 
         (getCurScope()->isCheckedScope() || Tok.getKind() == tok::less))) {
     // Expect a '<' to denote that a list of type specifiers are incoming.
     SourceLocation lessLoc = Tok.getLocation();
-    auto Msg = diag::err_expected_list_of_types_expr_for_generic_function;
-    if(funcType->isItypeGenericFunction()) {
-      Msg = diag::err_expected_list_of_types_expr_for_itype_generic_function;
-    }
-    if (ExpectAndConsume(tok::less, Msg)) {
+    if (ExpectAndConsume(tok::less,
+                          diag::err_expected_list_of_types_expr_for_generic_function)) {
       // We want to consume greater, but not consume semi
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
       if (Tok.getKind() == tok::greater) ConsumeToken();

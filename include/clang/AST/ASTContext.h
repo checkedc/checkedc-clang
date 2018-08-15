@@ -2488,7 +2488,7 @@ public:
   /// at least as much checking as the other type T2.  Return true if it does
   /// or false if it does not or the types differ in some other way than
   /// checkedness.
-  /// Note:: Checked C - In bounds safe interface scopes, this function
+  /// Note:: In bounds safe interface scopes, this function
   /// returns true if T2 is a TypeVariableType and T1 is a pointer to void type
   bool isAtLeastAsCheckedAs(QualType T1, QualType T2) const;
 
@@ -2496,7 +2496,7 @@ public:
   /// is the same as the other pointer, array, or function type T2 if
   /// checkedness is ignored.  Return true if does or false if the types
   /// differ in some other way than checkedness.
-  /// Note:: Checked C - In bounds safe interface scopes, this function
+  /// Note:: In bounds safe interface scopes, this function
   /// returns true if T2 is a TypeVariableType and T1 is a pointer to void type
   bool isEqualIgnoringChecked(QualType T1, QualType T2) const;
 

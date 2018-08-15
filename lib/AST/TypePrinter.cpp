@@ -944,7 +944,7 @@ void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
 void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
                                              raw_ostream &OS) {
   OS << "(" << T->GetDepth() << ", " << T->GetIndex();
-  if(T->IsBoundsInterfaceType()) {
+  if (T->IsBoundsInterfaceType()) {
     OS << " __BoundsInterfaceScope(true)";
   }
   OS << ")";

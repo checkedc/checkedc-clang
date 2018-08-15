@@ -1201,29 +1201,14 @@ def err_forany_type_variable_declaration_expected : Error<
 def err_forany_type_variable_identifier_expected : Error<
   "expected type variable identifier">;
 
-def err_forany_unexpected_token : Error<
-  "unexpected token in _For_any specifier">;
+def err_generic_specifier_unexpected_token : Error<
+  "unexpected token in %0 specifier">;
 
-def err_itypeforany_comma_or_parenthesis_expected : Error<
-  "expected , or )">;
-
-def err_interfacetype_unexpected_token : Error<
-  "unexpected token in _Itype_forany specifier">;
-
-def err_interfacetype_expect_forany_token : Error<
-  "expected _For_any specifier for the _Itype_forany">;
-
-def err_itypeforany_unexpected_token : Error<
-  "unexpected token in _Itype_for_any specifier">;
-
-def err_forany_comma_or_parenthesis_expected : Error<
+def err_generic_specifier_comma_or_parenthesis_expected : Error<
   "expected , or )">;
 
 def err_expected_list_of_types_expr_for_generic_function : Error<
   "expected a list of type arguments for a generic function">;
-
-def err_expected_list_of_types_expr_for_itype_generic_function : Error<
-  "expected a list of type arguments for an itype generic function">;
 
 def err_type_function_comma_or_greater_expected : Error<
   "expected , or >">;
