@@ -1432,9 +1432,10 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   // are compiling for OpenCL, we need to return an error as this implies
   // that the address of the function is being taken, which is illegal in CL.
 
-  // Check to see if resExpr is a generic function call. In this case, we must
-  // parse a list of type names that follows generic function decl identifier.
-  if (ParseGenericFunctionExpression(Res)) return ExprError();
+  // Check to see if resExpr is a itype generic or generic function call.
+  // In this case, we must parse a list of type names that follows
+  // function decl identifier where applicable
+  if (ParseItypeAndGenericFunctionExpression(Res)) return ExprError();
 
   // These can be followed by postfix-expr pieces.
   Res = ParsePostfixExpressionSuffix(Res);
@@ -3222,12 +3223,27 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
       return QT;
     }
     // Initialize return type if it's type variable
-    QualType returnQualType =
-      SubstituteTypeVariable(fpType->getReturnType(), typeNames);
+    BoundsAnnotations ReturnBAnnot = fpType->getReturnAnnots();
+    InteropTypeExpr *RBIT = ReturnBAnnot.getInteropTypeExpr();
+    QualType returnQualType;
+    if (RBIT) {
+      returnQualType = SubstituteTypeVariable(RBIT->getTypeAsWritten() , typeNames);
+    } else {
+      returnQualType = SubstituteTypeVariable(fpType->getReturnType() , typeNames);
+    }
     // Initialize parameter types if it's type variable
     SmallVector<QualType, 16> newParamTypes;
+
+    int iCnt = 0;
     for (QualType opt : fpType->getParamTypes()) {
-      newParamTypes.push_back(SubstituteTypeVariable(opt, typeNames));
+      BoundsAnnotations BAnnot = fpType->getParamAnnots(iCnt);
+      InteropTypeExpr *BIT = BAnnot.getInteropTypeExpr();
+      if (BIT) {
+        newParamTypes.push_back(SubstituteTypeVariable(BIT->getTypeAsWritten(), typeNames));
+      } else {
+        newParamTypes.push_back(SubstituteTypeVariable(opt, typeNames));
+      }
+      iCnt++;
     }
     // Indicate that this function type is fully instantiated
     FunctionProtoType::ExtProtoInfo newExtProtoInfo = fpType->getExtProtoInfo();
@@ -3278,10 +3294,12 @@ QualType Parser::SubstituteTypeVariable(QualType QT,
 }
 
 // With primary-expression, before parsing postfix-expression, check to make
-// sure that Expr is declRefExpr of generic function with _For_any specifier
+// sure that Expr is declRefExpr of itype generic or generic function
+// with _Itype_for_any or _For_any specifier respectively
+// No type variables necessary for itype generic function calls from unchecked scope
 //
 // Returns false if parsing succeed and true if an error occurred.
-bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
+bool Parser::ParseItypeAndGenericFunctionExpression(ExprResult &Res) {
   Expr *resExpr = Res.get();
   // Have to make sure that resExpr down to FunctionDecl is not null, because
   // if there is a parsing error before, one of these may be null.
@@ -3290,70 +3308,84 @@ bool Parser::ParseGenericFunctionExpression(ExprResult &Res) {
   ValueDecl *resDecl = declRef->getDecl();
   if (!resDecl || !isa<FunctionDecl>(resDecl)) return false;
   FunctionDecl* funDecl = dyn_cast<FunctionDecl>(resDecl);
-  // Only parse the list of type arguments if it's a generic function.
-  if (!funDecl->isGenericFunction()) return false;
+  
+  const FunctionProtoType *funcType =
+    dyn_cast<FunctionProtoType>(funDecl->getType().getTypePtr());
 
-  // Expect a '<' to denote that a list of type specifiers are incoming.
-  SourceLocation lessLoc = Tok.getLocation();
-  if (ExpectAndConsume(tok::less,
-                diag::err_expected_list_of_types_expr_for_generic_function)) {
-    // We want to consume greater, but not consume semi
-    SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
-    if (Tok.getKind() == tok::greater) ConsumeToken();
-    return true;
+  //Check if incompatible function specifiers are provided for the function
+  if (funcType) {
+    if (!(funcType->isGenericFunction() 
+          || funcType->isItypeGenericFunction())) return false;
+  } else {
+    if (!(funDecl->isGenericFunction()
+          || funDecl->isItypeGenericFunction())) return false;
   }
 
-  bool firstTypeArgument = true;
-
   SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
-  // Expect to see a list of type names, followed by a '>'.
-  while (Tok.getKind() != tok::greater) {
-    if (!firstTypeArgument) {
-      if (ExpectAndConsume(tok::comma,
-        diag::err_type_function_comma_or_greater_expected)) {
-        // We want to consume greater, but not consume semi
-        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
-        if (Tok.getKind() == tok::greater) ConsumeToken();
-        return true;
-      }
-    } else
-      firstTypeArgument = false;
-
-    // Expect to see type name.
-    TypeResult Ty = ParseTypeName();
-    if (Ty.isInvalid()) {
-      // We do not need to write an error message since ParseTypeName does.
+  // Parse the list of type arguments if 
+  // 1. It's a generic function
+  // 2. It's a polymorphic bounds safe interface function and 
+  //    a. The call expression is inside _Checked scope
+  //    b. The call expression is in any scope but the type parameters are provided by the caller
+  if (funcType->isGenericFunction() || 
+      (funcType->isItypeGenericFunction() && 
+        (getCurScope()->isCheckedScope() || Tok.getKind() == tok::less))) {
+    // Expect a '<' to denote that a list of type specifiers are incoming.
+    SourceLocation lessLoc = Tok.getLocation();
+    if (ExpectAndConsume(tok::less,
+                          diag::err_expected_list_of_types_expr_for_generic_function)) {
       // We want to consume greater, but not consume semi
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
       if (Tok.getKind() == tok::greater) ConsumeToken();
       return true;
     }
 
-    TypeSourceInfo *TInfo;
-    QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
-    typeArgumentInfos.push_back({ realType, TInfo });
+    bool firstTypeArgument = true;
+    // Expect to see a list of type names, followed by a '>'.
+    while (Tok.getKind() != tok::greater) {
+      if (!firstTypeArgument) {
+        if (ExpectAndConsume(tok::comma,
+          diag::err_type_function_comma_or_greater_expected)) {
+          // We want to consume greater, but not consume semi
+          SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+          if (Tok.getKind() == tok::greater) ConsumeToken();
+          return true;
+        }
+      } else
+        firstTypeArgument = false;
+
+      // Expect to see type name.
+      TypeResult Ty = ParseTypeName();
+      if (Ty.isInvalid()) {
+        // We do not need to write an error message since ParseTypeName does.
+        // We want to consume greater, but not consume semi
+        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+        if (Tok.getKind() == tok::greater) ConsumeToken();
+        return true;
+      }
+
+      TypeSourceInfo *TInfo;
+      QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
+      typeArgumentInfos.push_back({ realType, TInfo });
+    }
+    ConsumeToken(); // consume '>' token
+
+    // Sanity check to make sure that the number of type names equals the
+    // number of type variables in func Type.
+    if (funcType->getNumTypeVars() != typeArgumentInfos.size()) {
+      // The location of beginning of _For_any is stored in typeVariables
+      Diag(lessLoc,
+        diag::err_type_list_and_type_variable_num_mismatch);
+      Diag(funDecl->typeVariables()[0]->getLocStart(),
+        diag::note_type_variables_declared_at);
+      return true;
+    }
+    // Add parsed list of type names to declRefExpr for future references
+    declRef->SetGenericInstInfo(Actions.getASTContext(), typeArgumentInfos);
+
+    // Substitute Type Variables of Function Type in DeclRefExpr
+    declRef->setType(SubstituteTypeVariable(funDecl->getType(), typeArgumentInfos));
   }
-  ConsumeToken(); // consume '>' token
-
-  const FunctionProtoType *funcType =
-  dyn_cast<FunctionProtoType>(funDecl->getType().getTypePtr());
-
-  // Sanity check to make sure that the number of type names equals the
-  // number of type variables in func Type.
-  if (funcType->getNumTypeVars() != typeArgumentInfos.size()) {
-    // The location of beginning of _For_any is stored in typeVariables
-    Diag(lessLoc,
-      diag::err_type_list_and_type_variable_num_mismatch);
-    Diag(funDecl->typeVariables()[0]->getLocStart(),
-      diag::note_type_variables_declared_at);
-    return true;
-  }
-
-  // Add parsed list of type names to declRefExpr for future references
-  declRef->SetGenericInstInfo(Actions.getASTContext(), typeArgumentInfos);
-
-  // Substitute Type Variables of Function Type in DeclRefExpr
-  declRef->setType(SubstituteTypeVariable(funDecl->getType(), typeArgumentInfos));
   return false;
 }
 

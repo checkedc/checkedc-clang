@@ -1201,10 +1201,10 @@ def err_forany_type_variable_declaration_expected : Error<
 def err_forany_type_variable_identifier_expected : Error<
   "expected type variable identifier">;
 
-def err_forany_unexpected_token : Error<
-  "unexpected token in _For_any specifier">;
+def err_generic_specifier_unexpected_token : Error<
+  "unexpected token in %0 specifier">;
 
-def err_forany_comma_or_parenthesis_expected : Error<
+def err_generic_specifier_comma_or_parenthesis_expected : Error<
   "expected , or )">;
 
 def err_expected_list_of_types_expr_for_generic_function : Error<
