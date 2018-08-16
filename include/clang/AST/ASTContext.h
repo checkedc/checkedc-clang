@@ -2489,7 +2489,7 @@ public:
   /// or false if it does not or the types differ in some other way than
   /// checkedness.
   /// Note:: In bounds safe interface scopes, this function
-  /// returns true if T2 is a TypeVariableType and T1 is a pointer to void type
+  /// returns true if T1 is a TypeVariableType and T2 is a pointer to void type
   bool isAtLeastAsCheckedAs(QualType T1, QualType T2) const;
 
   /// \brief Determine whether a pointer, array, or function type T1
@@ -2497,7 +2497,7 @@ public:
   /// checkedness is ignored.  Return true if does or false if the types
   /// differ in some other way than checkedness.
   /// Note:: In bounds safe interface scopes, this function
-  /// returns true if T2 is a TypeVariableType and T1 is a pointer to void type
+  /// returns true if T1 is a TypeVariableType and T2 is a pointer to void type
   bool isEqualIgnoringChecked(QualType T1, QualType T2) const;
 
   /// \brief Return true if this type is a checked type that is not
