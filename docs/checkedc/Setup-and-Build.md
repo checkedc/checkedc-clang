@@ -32,13 +32,13 @@ to start paging.  This will make your machine unresponsive and slow down your bu
 See the Wiki page on [Parallel builds of clang on Windows](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 for more details.
 
-in VS 2017, go to _Debug->Options->Projects and Solutions->VC++ Project Solutions_ and set
+in VS 2017, go to _Debug->Options->Projects and Solutions->VC++ Project Settings_ and set
 the `Maximum Number of concurrent C++ compilations` to 3, if your development machine has
 1 GByte of memory or more per core.  If not, see the
 [Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 to figure out what number to use.
 By default, 0 causes it to be the number of available CPU cores on your machine, which is too much.
-You should also to go to  _Debug->Options->Projects and Solutions ->Build and Run_ and
+You should also to go to  _Debug->Options->Projects and Solutions->Build and Run_ and
 set the maximum number of parallel project builds to be 3/4 of the actual number of CPU cores on
 your machine.  
 

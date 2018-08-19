@@ -2854,7 +2854,10 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
       NumExceptions(epi.ExceptionSpec.Exceptions.size()),
       ExceptionSpecType(epi.ExceptionSpec.Type),
       HasExtParameterInfos(epi.ExtParameterInfos != nullptr),
-      Variadic(epi.Variadic), HasTrailingReturn(epi.HasTrailingReturn),
+      Variadic(epi.Variadic),
+      GenericFunction(epi.GenericFunction),
+      ItypeGenericFunction(epi.ItypeGenericFunction),
+      HasTrailingReturn(epi.HasTrailingReturn),
       HasParamAnnots(epi.ParamAnnots != nullptr),
       ReturnAnnots(epi.ReturnAnnots) {
   assert(NumParams == params.size() && "function has too many parameters");
@@ -3058,6 +3061,10 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
   // shortcut, use one AddInteger call instead of four for the next four
   // fields.
   assert(!(unsigned(epi.Variadic) & ~1) &&
+         !(unsigned(epi.HasTrailingReturn) & ~1) &&
+         !(unsigned(epi.numTypeVars & ~32767)) &&
+         !(unsigned(epi.GenericFunction) & ~1) &&
+         !(unsigned(epi.ItypeGenericFunction) & ~1) &&
          !(unsigned(epi.TypeQuals) & ~255) &&
          !(unsigned(epi.RefQualifier) & ~3) &&
          !(unsigned(epi.ExceptionSpec.Type) & ~15) &&
@@ -3092,6 +3099,8 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
   epi.ExtInfo.Profile(ID);
   ID.AddBoolean(epi.HasTrailingReturn);
   ID.AddInteger(epi.numTypeVars);
+  ID.AddBoolean(epi.GenericFunction);
+  ID.AddBoolean(epi.ItypeGenericFunction);
 }
 
 void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,

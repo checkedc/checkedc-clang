@@ -3427,6 +3427,14 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
       New->setParams(Params);
     }
 
+    if ((New->isItypeGenericFunction() && Old->isGenericFunction())
+          || (New->isGenericFunction() && Old->isItypeGenericFunction()))
+    {
+      Diag(New->getLocation(), diag::err_decl_conflicting_function_specifiers)
+            << New->getDeclName() << "_Itype_for_any" << "_For_any";
+      return true;
+    }
+
     return MergeCompatibleFunctionDecls(New, Old, S, MergeTypeWithOld);
   }
 
@@ -8730,10 +8738,15 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
                                               isVirtualOkay);
   if (!NewFD) return nullptr;
 
-  if (D.getDeclSpec().isForanySpecified()) {
+  if (D.getDeclSpec().isForanySpecified() || D.getDeclSpec().isItypeforanySpecified()) {
     if (NewFD->hasPrototype()) {
-      NewFD->setGenericFunctionFlag(true);
       NewFD->setTypeVars(D.getDeclSpec().typeVariables());
+      if (D.getDeclSpec().isForanySpecified()) {
+        NewFD->setGenericFunctionFlag(true);
+      }
+      if (D.getDeclSpec().isItypeforanySpecified()) {
+        NewFD->setItypeGenericFunctionFlag(true);
+      }
     } else {
       // Diagnose generic no-prototype function declarator
       Diag(NewFD->getLocation(), diag::no_prototype_generic_function);

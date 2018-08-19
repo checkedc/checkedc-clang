@@ -338,6 +338,7 @@ void ASTTypeWriter::VisitTypedefType(const TypedefType *T) {
 void ASTTypeWriter::VisitTypeVariableType(const TypeVariableType *T) {
   Record.push_back(T->GetDepth());
   Record.push_back(T->GetIndex());
+  Record.push_back(T->IsBoundsInterfaceType());
   Code = TYPE_TYPEVARIABLE;
 }
 

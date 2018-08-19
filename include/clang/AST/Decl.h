@@ -1789,6 +1789,7 @@ private:
   unsigned IsLateTemplateParsed : 1;
   unsigned IsConstexpr : 1;
   unsigned IsGenericFunction : 1;
+  unsigned IsItypeGenericFunction : 1; //Checked C - Function specifier _Itype_for_any
   // Indicates whether the function is declared with a _Checked or
   // _Unchecked specifier.
   unsigned CheckedSpecifier : 2;
@@ -1896,7 +1897,7 @@ protected:
         IsDeleted(false), IsTrivial(false), IsDefaulted(false),
         IsExplicitlyDefaulted(false), HasImplicitReturnZero(false),
         IsLateTemplateParsed(false), IsConstexpr(isConstexprSpecified),
-        IsGenericFunction(false),
+        IsGenericFunction(false), IsItypeGenericFunction(false),
         CheckedSpecifier(CheckedFunctionSpecifiers::CFS_None),
         InstantiationIsPending(false),
         UsesSEHTry(false), HasSkippedBody(false), WillHaveBody(false),
@@ -1963,6 +1964,9 @@ public:
 
   void setGenericFunctionFlag(bool f) { IsGenericFunction = f; }
   bool isGenericFunction() const { return IsGenericFunction; }
+
+  void setItypeGenericFunctionFlag(bool f) { IsItypeGenericFunction = f; }
+  bool isItypeGenericFunction() const { return IsItypeGenericFunction; }
 
   void setCheckedSpecifier(CheckedFunctionSpecifiers CS) { CheckedSpecifier = CS; }
   CheckedFunctionSpecifiers getCheckedSpecifier() {

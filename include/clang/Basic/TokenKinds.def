@@ -653,6 +653,7 @@ KEYWORD(_Unchecked                 , KEYCHECKEDC)
 KEYWORD(_Assume_bounds_cast        , KEYCHECKEDC)
 KEYWORD(_Dynamic_bounds_cast       , KEYCHECKEDC)
 KEYWORD(_For_any                   , KEYCHECKEDC)
+KEYWORD(_Itype_for_any             , KEYCHECKEDC)
 KEYWORD(_Current_expr_value        , KEYCHECKEDC)
 KEYWORD(_Return_value              , KEYCHECKEDC)
 

@@ -723,8 +723,12 @@ FunctionProtoType::printExceptionSpecification(raw_ostream &OS,
 
 void TypePrinter::printFunctionProtoBefore(const FunctionProtoType *T, 
                                            raw_ostream &OS) {
-  if (T->getNumTypeVars() > 0)
+  if (T->isGenericFunction() && T->getNumTypeVars() > 0)
     OS << "_For_any(" << T->getNumTypeVars() << ") ";
+
+  if (T->isItypeGenericFunction() && T->getNumTypeVars() > 0)
+    OS << "_Itype_for_any(" << T->getNumTypeVars() << ") ";
+
   if (T->hasTrailingReturn()) {
     OS << "auto ";
     if (!HasEmptyPlaceHolder)
@@ -939,7 +943,11 @@ void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
 
 void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
                                              raw_ostream &OS) {
-  OS << "(" << T->GetDepth() << ", " << T->GetIndex() << ")";
+  OS << "(" << T->GetDepth() << ", " << T->GetIndex();
+  if (T->IsBoundsInterfaceType()) {
+    OS << " __BoundsInterfaceScope(true)";
+  }
+  OS << ")";
 }
 
 void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream &OS) { }

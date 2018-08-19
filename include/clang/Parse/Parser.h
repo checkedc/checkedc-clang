@@ -1758,7 +1758,8 @@ private:
   ExprResult ParseBoundsCastExpression();
 
   ExprResult ParseBoundsExpression();
-  bool ParseGenericFunctionExpression(ExprResult &Res);
+  bool ParseItypeAndGenericFunctionExpression(ExprResult &Res);
+
   QualType SubstituteTypeVariable(QualType QT,
     SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);
 
@@ -2492,6 +2493,9 @@ private:
   void ParseAtomicSpecifier(DeclSpec &DS);
   void ParseCheckedPointerSpecifiers(DeclSpec & DS);
   void ParseForanySpecifier(DeclSpec &DS);
+  bool ParseGenericFunctionSpecifierHelper(DeclSpec &DS,
+                                            Scope::ScopeFlags S);
+  void ParseItypeforanySpecifier(DeclSpec &DS);
 
   ExprResult ParseAlignArgument(SourceLocation Start,
                                 SourceLocation &EllipsisLoc);
