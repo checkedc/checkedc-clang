@@ -74,7 +74,7 @@ void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr, const Qua
 }
 
 void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr,
-                                             llvm::Value *ValueWithBounds,
+                                             const Address ValueWithBounds,
                                              const BoundsExpr *Bounds,
                                              BoundsCheckKind CheckKind, 
                                              llvm::Value *Val) {
@@ -102,7 +102,8 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr,
 
   ++NumDynamicChecksRange;
 
-  CurrentExprValueRAII SetCurrentValue(*this, ValueWithBounds);
+  CurrentExprValueRAII SetCurrentValue(*this, 
+          ValueWithBounds.isValid() ?  ValueWithBounds.getPointer() : nullptr);
 
   // Emit the code to generate the pointer values
   Address Lower = EmitPointerWithAlignment(BoundsRange->getLowerExpr());

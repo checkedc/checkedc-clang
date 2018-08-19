@@ -633,20 +633,3 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
 #endif
 }
 
-namespace {
-bool UsesCurrentExprValue(Stmt *S) {
-  if (BoundsValueExpr *BE = dyn_cast<BoundsValueExpr>(S))
-    if (BE->getKind() == BoundsValueExpr::Kind::Current)
-      return true;
-
-  for (Stmt *Child : S->children())
-    if (UsesCurrentExprValue(Child))
-      return true;
-
-  return false;
-}
-}
-
-bool Sema::ContainsCurrentExprValue(BoundsExpr *Bounds) {
-  return UsesCurrentExprValue(Bounds);
-}

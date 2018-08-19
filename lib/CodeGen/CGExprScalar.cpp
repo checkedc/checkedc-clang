@@ -762,6 +762,10 @@ public:
   Value *VisitBoundsValueExpr(BoundsValueExpr *E) {
     assert(E->getKind() == BoundsValueExpr::Kind::Current);
     Value *Result = CGF.GetCurrentExprValue();
+#if 0
+    llvm::errs() << "Dumping current expr value\n";
+    Result->dump();
+#endif
     assert(Result);
     return Result;
   }
@@ -3344,7 +3348,7 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     if (E->getOpcode() == BO_Assign) {
       BoundsExpr *BoundsCheck = CGF.GetNullTermBoundsCheck(E->getLHS());
       if (BoundsCheck)
-        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), LHS.getPointer(), BoundsCheck,
+        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), LHS.getAddress(), BoundsCheck,
                                    BoundsCheckKind::BCK_NullTermWriteAssign,
                                    RHS);
     }

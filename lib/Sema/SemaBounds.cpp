@@ -379,7 +379,7 @@ namespace {
     ReplaceReturnValue(Sema &SemaRef) :BaseTransform(SemaRef) { }
 
     // Avoid transforming nested return bounds expressions.
-    bool TransformReturnBoundsAnnotations(BoundsAnnotations &Annot,R
+    bool TransformReturnBoundsAnnotations(BoundsAnnotations &Annot,
                                           bool &Changed) {
       return false;
     }
@@ -820,11 +820,27 @@ namespace {
           return LValueBounds(ICE->getSubExpr());
          return CreateBoundsAlwaysUnknown();
       }
-      case Expr::CompoundLiteralExprClass:
+      case Expr::CompoundLiteralExprClass: {
+        BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
+        QualType PtrType = Context.getDecayedType(E->getType());
+        return ExpandToRange(CreateCurrentExprValue(PtrType), BE);
+      }
       case Expr::StringLiteralClass: {
-         BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
-         QualType PtrType = Context.getDecayedType(E->getType());
-         return ExpandToRange(CreateCurrentExprValue(PtrType), BE);
+        // Use the number of characters in the string (excluding the
+        // null terminator) to calcaulte size.  Don't use the
+        // array type of the literal.  In unchecked scopes, the array type is
+        // unchecked and its size includes the null terminator.  It converts
+        // to an ArrayPtr that could be used to overwrite the null terminator.
+        // We need to prevent this because literal strings may be shared and
+        // writeable, depending on the C implementation.
+        StringLiteral *SL = cast<StringLiteral>(E);
+        IntegerLiteral *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
+        CountBoundsExpr *CBE =
+           new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                         Size, SourceLocation(),
+                                         SourceLocation());
+        QualType PtrType = Context.getDecayedType(E->getType());
+        return ExpandToRange(CreateCurrentExprValue(PtrType), CBE);
       }
       default:
         return CreateBoundsAlwaysUnknown();
@@ -2044,7 +2060,7 @@ namespace {
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
-        if (S.ContainsCurrentExprValue(SrcBounds))
+        if (ASTContext::ContainsCurrentExprValue(SrcBounds))
           EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(Target->getType()));
         EquivExprs.push_back(&EqualExpr);
       }
@@ -2127,7 +2143,7 @@ namespace {
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
-        if (S.ContainsCurrentExprValue(SrcBounds))
+        if (ASTContext::ContainsCurrentExprValue(SrcBounds))
           EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(TargetTy));
         EquivExprs.push_back(&EqualExpr);
 /*
@@ -2589,7 +2605,7 @@ namespace {
         SmallVector<Expr *, 4> EqualExpr;
         if (S.CheckIsNonModifying(Arg, Sema::NonModifyingContext::NMC_Unknown,
                                   Sema::NonModifyingMessage::NMM_None) &&
-            S.ContainsCurrentExprValue(ArgBounds)) {
+            ASTContext::ContainsCurrentExprValue(ArgBounds)) {
           EqualExpr.push_back(Arg);
           EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(Arg->getType()));
           EquivExprs.push_back(&EqualExpr);

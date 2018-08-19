@@ -545,3 +545,166 @@ void f43(void) {
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 
 }
+
+// Bounds of string literals.  The bounds are the same in checked or unchecked
+// scopes.
+//
+// Test checked scope bounds.
+char f50(void) _Checked {
+  _Array_ptr<char> p : count(6) = "abcdef";
+
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}}{{.*}} 'int' 6
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <ArrayToPointerDecay> BoundsSafeInterface
+// CHECK:   `-StringLiteral {{0x[0-9a-f]+}} {{.*}} 'char _Nt_checked[7]' lvalue "abcdef"
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 6
+// CHECK: Initializer Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-BoundsValueExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' _Current_expr_value
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' '+'
+// CHECK:   |-BoundsValueExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' _Current_expr_value
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 6
+
+  return "abcdef"[1];
+
+// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'char' <LValueToRValue>
+// CHECK: `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'char' lvalue
+// CHECK:   |-BoundsBoundsCheckKind Null-terminated read
+// CHECK:   | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK:   |   |-BoundsValueExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' _Current_expr_value
+// CHECK:   |   `-BinaryOperator {{0x[0-9a-f]+}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' '+'
+// CHECK:   |     |-BoundsValueExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' _Current_expr_value
+// CHECK:   |     `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 6
+// CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<char>' <ArrayToPointerDecay>
+// CHECK:   | `-StringLiteral {{0x[0-9a-f]+}} 'char _Nt_checked[7]' lvalue "abcdef"
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+}
+
+// Test unchecked scope bounds.
+char f51(void) {
+  _Array_ptr<char> q : count(6) = "abcdef";
+
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used q '_Array_ptr<char>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 6
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <ArrayToPointerDecay> BoundsSafeInterface
+// CHECK:   `-StringLiteral {{0x[0-9a-f]+}} {{.*}} 'char [7]' lvalue "abcdef"
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 6
+// CHECK: Initializer Bounds:
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-BoundsValueExpr {{0x[0-9a-f]+}} 'char *':'char *' _Current_expr_value
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'char *':'char *' '+'
+// CHECK:   |-BoundsValueExpr {{0x[0-9a-f]+}} 'char *':'char *' _Current_expr_value
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 6
+}
+
+//
+// Test bounds for array literals
+// 
+
+char f52(void) _Checked {
+   _Array_ptr<int> p : count(3) = (int _Checked[]) { 0, 1, 2 };
+
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used p '_Array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 3
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <ArrayToPointerDecay>
+// CHECK:   `-CompoundLiteralExpr {{0x[0-9a-f]+}} {{.*}} 'int _Checked[3]' lvalue
+// CHECK:     `-InitListExpr {{0x[0-9a-f]+}} {{.*}} 'int _Checked[3]'
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 0
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
+// CHECK:       `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 2
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
+// CHECK: Initializer Bounds:
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' _Current_expr_value
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
+// CHECK:   |-BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' _Current_expr_value
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
+
+   _Nt_array_ptr<int> q : count(3) = (int _Nt_checked[]) { 0, 1, 2, 0 };
+
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used q '_Nt_array_ptr<int>' cinit
+// CHECK: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
+// CHECK: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}}> 'int' 3
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Nt_array_ptr<int>' <ArrayToPointerDecay>
+// CHECK:   `-CompoundLiteralExpr {{0x[0-9a-f]+}} {{.*}} 'int _Nt_checked[4]' lvalue
+// CHECK:     `-InitListExpr {{0x[0-9a-f]+}} {{.*}} 'int _Nt_checked[4]'
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 0
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 1
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 2
+// CHECK:       `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 0
+// CHECK: Declared Bounds:
+// CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
+// CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
+// CHECK: Initializer Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-BoundsValueExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>':'_Nt_array_ptr<int>' _Current_expr_value
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Nt_array_ptr<int>':'_Nt_array_ptr<int>' '+'
+// CHECK:   |-BoundsValueExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>':'_Nt_array_ptr<int>' _Current_expr_value
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
+}
+
+char f53(void) _Checked {
+   _Array_ptr<int> p : count(3) = 0;
+   p = (int _Checked[]) { 0, 1, 2 };
+
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '='
+// CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <ArrayToPointerDecay>
+// CHECK:   `-CompoundLiteralExpr {{0x[0-9a-f]+}} 'int _Checked[3]' lvalue
+// CHECK:     `-InitListExpr {{0x[0-9a-f]+}} 'int _Checked[3]'
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} 'int' 0
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK:       `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 2
+// CHECK: Target Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <LValueToRValue>
+// CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'p' '_Array_ptr<int>'
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
+// CHECK: RHS Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' _Current_expr_value
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
+// CHECK:   |-BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' _Current_expr_value
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
+
+   _Nt_array_ptr<int> q  : count(3) = 0;
+   q = (int _Nt_checked[]) { 0, 1, 2, 0 };
+
+
+// CHECK: BinaryOperator {{0x[0-9a-f]+}} '_Nt_array_ptr<int>' '='
+// CHECK: |-DeclRefExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'q' '_Nt_array_ptr<int>'
+// CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>' <ArrayToPointerDecay>
+// CHECK:   `-CompoundLiteralExpr {{0x[0-9a-f]+}} 'int _Nt_checked[4]' lvalue
+// CHECK:     `-InitListExpr {{0x[0-9a-f]+}} 'int _Nt_checked[4]'
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} 'int' 0
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
+// CHECK:       |-IntegerLiteral {{0x[0-9a-f]+}} 'int' 2
+// CHECK:       `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 0
+// CHECK: Target Bounds:
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>' <LValueToRValue>
+// CHECK: | `-DeclRefExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'q' '_Nt_array_ptr<int>'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Nt_array_ptr<int>' '+'
+// CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>' <LValueToRValue>
+// CHECK:   | `-DeclRefExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>' lvalue Var {{0x[0-9a-f]+}} 'q' '_Nt_array_ptr<int>'
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
+// CHECK: RHS Bounds:
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK: |-BoundsValueExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>':'_Nt_array_ptr<int>' _Current_expr_value
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Nt_array_ptr<int>':'_Nt_array_ptr<int>' '+'
+// CHECK:   |-BoundsValueExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<int>':'_Nt_array_ptr<int>' _Current_expr_value
+// CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
+
+}

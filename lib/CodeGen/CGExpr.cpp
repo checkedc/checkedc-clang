@@ -2469,7 +2469,7 @@ LValue CodeGenFunction::EmitUnaryOpLValue(const UnaryOperator *E) {
     LV.getQuals().setAddressSpace(ExprTy.getAddressSpace());
 
     EmitDynamicNonNullCheck(Addr, BaseTy);
-    EmitDynamicBoundsCheck(Addr, Addr.getPointer(), E->getBoundsExpr(),
+    EmitDynamicBoundsCheck(Addr, Addr, E->getBoundsExpr(),
                            E->getBoundsCheckKind(), nullptr);
     // We should not generate __weak write barrier on indirect reference
     // of a pointer to object; as in void foo (__weak id *param); *param = 0;
@@ -3075,6 +3075,16 @@ Address CodeGenFunction::EmitArrayToPointerDecay(const Expr *E,
 
   // Expressions of array type can't be bitfields or vector elements.
   LValue LV = EmitLValue(E);
+  return EmitArrayToPointerDecay(LV, E, BaseInfo, TBAAInfo);
+}
+
+Address CodeGenFunction::EmitArrayToPointerDecay(LValue LV,
+                                                 const Expr *E,
+                                                 LValueBaseInfo *BaseInfo,
+                                                 TBAAAccessInfo *TBAAInfo) {
+  assert(E->getType()->isArrayType() &&
+         "Array to pointer decay must have array source type!");
+
   Address Addr = LV.getAddress();
 
   // If the array type was an incomplete type, we need to make sure
@@ -3101,6 +3111,7 @@ Address CodeGenFunction::EmitArrayToPointerDecay(const Expr *E,
 
   return Builder.CreateElementBitCast(Addr, ConvertTypeForMem(EltType));
 }
+
 
 /// isSimpleArrayDecayOperand - If the specified expr is a simple decay from an
 /// array to pointer, return the array subexpression.
@@ -3230,7 +3241,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     LValue LV = LValue::MakeVectorElt(LHS.getAddress(), Idx,
       E->getBase()->getType(), LHS.getBaseInfo(), TBAAAccessInfo());
 
-    EmitDynamicBoundsCheck(LV.getVectorAddress(), LHS.getPointer(),
+    EmitDynamicBoundsCheck(LV.getVectorAddress(), LHS.getAddress(),
                            E->getBoundsExpr(), E->getBoundsCheckKind(), nullptr);
 
     return LV;
@@ -3250,7 +3261,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
                                  SignedIndices, E->getExprLoc());
     LValue AddrLV = MakeAddrLValue(Addr, EltType, LV.getBaseInfo(),
                                    CGM.getTBAAInfoForSubobject(LV, EltType));
-    EmitDynamicBoundsCheck(Addr, LV.getPointer(), E->getBoundsExpr(),
+    EmitDynamicBoundsCheck(Addr, LV.getAddress(), E->getBoundsExpr(),
                            E->getBoundsCheckKind(), nullptr);
 
     return AddrLV;
@@ -3335,7 +3346,12 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
       ArrayLV = EmitLValue(Array);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
 
-    BaseAddr = ArrayLV.getAddress();
+    if (getLangOpts().CheckedC && E->getBoundsExpr() &&
+        ASTContext::ContainsCurrentExprValue(E->getBoundsExpr()))
+      // We don't update the TBAA information because BaseAddr isn't used
+      // to access memory.
+      BaseAddr = EmitArrayToPointerDecay(ArrayLV, Array, nullptr, nullptr);
+
     EmitDynamicNonNullCheck(ArrayLV.getAddress(), BaseTy);
 
     // Propagate the alignment from the array itself to the result.
@@ -3358,7 +3374,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
 
   LValue LV = MakeAddrLValue(Addr, E->getType(), EltBaseInfo, EltTBAAInfo);
 
-  EmitDynamicBoundsCheck(Addr,  BaseAddr.getPointer(), E->getBoundsExpr(), E->getBoundsCheckKind(),
+  EmitDynamicBoundsCheck(Addr,  BaseAddr, E->getBoundsExpr(), E->getBoundsCheckKind(),
                          nullptr);
 
   if (getLangOpts().ObjC1 &&
@@ -3653,7 +3669,7 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
     // unchecked, or is a checked array with its own bounds.
     // A second reason for always checking the BaseLV is that it is the same for
     // all the fields in the struct, so more of the checks should optimize away.
-    EmitDynamicBoundsCheck(Addr, Addr.getPointer(), E->getBoundsExpr(),
+    EmitDynamicBoundsCheck(Addr, Addr, E->getBoundsExpr(),
                            BCK_Normal, nullptr);
   } else
     BaseLV = EmitCheckedLValue(BaseExpr, TCK_MemberAccess);

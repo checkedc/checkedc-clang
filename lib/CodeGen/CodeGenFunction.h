@@ -2656,10 +2656,15 @@ public:
   void EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy);
   void EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy,
                                 const Address PtrAddr);
-  /// \brief Emit a dynamic bounds check.  ValueToStore is optional and is
-  /// used for bounds checking writes to NUL-terminated pointers.
+  /// \brief Emit a dynamic bounds check.
+  // - PtrAddress is the value that is being checked to see if it is in bounds.
+  // - ValueWithBounds is the value that has bounds.  This is used for setting
+  //   _Current_expr_value.
+  // - Bounds are the required bounds for PtrAddress.
+  // - ValueToStore is optional and is used for bounds checking writes to
+  //   NUL-terminated pointers.
   void EmitDynamicBoundsCheck(const Address PtrAddr,
-                              llvm::Value *ValueWithBounds,
+                              const Address ValueWithBounds,
                               const BoundsExpr *Bounds,
                               BoundsCheckKind Kind,
                               llvm::Value *ValueToStore);
@@ -3244,6 +3249,9 @@ public:
   RValue EmitRValueForField(LValue LV, const FieldDecl *FD, SourceLocation Loc);
 
   Address EmitArrayToPointerDecay(const Expr *Array,
+                                  LValueBaseInfo *BaseInfo = nullptr,
+                                  TBAAAccessInfo *TBAAInfo = nullptr);
+  Address EmitArrayToPointerDecay(LValue LV, const Expr *Array,
                                   LValueBaseInfo *BaseInfo = nullptr,
                                   TBAAAccessInfo *TBAAInfo = nullptr);
 

@@ -4721,7 +4721,6 @@ public:
                                  // parameter bounds.
   };
 
-
   enum NonModifyingMessage {
     NMM_None,
     NMM_Error,
@@ -4736,10 +4735,6 @@ public:
                             NonModifyingMessage = NMM_Error);
 
   BoundsExpr *CheckNonModifyingBounds(BoundsExpr *Bounds, Expr *E);
-
-  /// \brief Determine if this bounds expression contains a use of
-  /// _Current_expr_value.
-  bool ContainsCurrentExprValue(BoundsExpr *Bounds);
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);
