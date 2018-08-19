@@ -216,7 +216,7 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
                                   TrailingReturnType.isInvalid();
   I.Fun.TrailingReturnType      = TrailingReturnType.get();
   I.Fun.ReturnAnnotsColonLoc    = ReturnAnnotsColonLoc.getRawEncoding();
-  I.Fun.ReturnBounds            =  ReturnBounds.release();
+  I.Fun.ReturnBounds            = ReturnBounds.release();
   I.Fun.ReturnInteropType       = ReturnInteropTypeExpr;
 
   assert(I.Fun.TypeQuals == TypeQuals && "bitfield overflow");

@@ -3611,7 +3611,7 @@ bool Parser::ParseBoundsCallback(void *P,
 
 ExprResult Parser::ParseReturnValueExpression() {
   assert(Tok.is(tok::kw__Return_value) &&
-         "Not bounds  value expression");
+         "Not bounds value expression");
   SourceLocation Loc = ConsumeToken();
   return Actions.ActOnReturnValueExpr(Loc);
 }

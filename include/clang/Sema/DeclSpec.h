@@ -1378,8 +1378,8 @@ struct DeclaratorChunk {
 
     /// The annotations for the value returned by the function.  We store them
     // as individual fields because the return bounds are deferred-parsed.
-    // Note: ReturnBounds is actually a unique_ptr.  However unique_ptr requires
-    // a constructor and this struct can't have one, so so we cast it to a
+    // Note: ReturnBounds is actually a unique_ptr. However unique_ptr requires
+    // a constructor and this struct can't have one, so we cast it to a
     // a regular pointer type.
     CachedTokens *ReturnBounds;
     InteropTypeExpr *ReturnInteropType;
