@@ -5441,6 +5441,45 @@ class PositionalParameterExpr : public Expr {
     }
 };
 
+// \brief Represents the \c _Currrent_expr_value and _Return_value expressions
+// in Checked C.  These expressions can be used within bounds expressions.
+class BoundsValueExpr : public Expr {
+public:
+  enum Kind {
+    Current,
+    Return
+  };
+
+private:
+  SourceLocation Loc;
+  Kind ValueExprKind;
+
+public:
+  BoundsValueExpr(SourceLocation L, QualType Type, Kind K)
+    : Expr(BoundsValueExprClass, Type, VK_RValue, OK_Ordinary,
+           false, false, false, false), Loc(L), ValueExprKind(K) { }
+
+  BoundsValueExpr(EmptyShell Empty) : Expr(BoundsValueExprClass, Empty) {}
+
+  SourceLocation getLocation() const { return Loc; }
+  void setLocation(SourceLocation L) { Loc = L; }
+
+  SourceLocation getLocStart() const LLVM_READONLY { return Loc; }
+  SourceLocation getLocEnd() const LLVM_READONLY { return Loc; }
+
+  Kind getKind() const { return ValueExprKind; }
+  void setKind(Kind K) { ValueExprKind = K; }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == BoundsValueExprClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+};
+
 
 //===----------------------------------------------------------------------===//
 // Clang Extensions

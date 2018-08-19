@@ -2534,6 +2534,10 @@ public:
   ExprResult RebuildPositionalParameterExpr(unsigned Index, QualType QT) {
     return getSema().CreatePositionalParameterExpr(Index, QT);
   }
+
+  ExprResult RebuildBoundsValueExpr(SourceLocation Loc, QualType Ty, BoundsValueExpr::Kind K) {
+    return new (getSema().Context) BoundsValueExpr(Loc, Ty, K);
+  }
   
   /// \brief Build a new overloaded operator call expression.
   ///
@@ -12495,6 +12499,15 @@ TreeTransform<Derived>::TransformPositionalParameterExpr(
   QualType QT = getDerived().TransformType(E->getType());
   return getDerived().
     RebuildPositionalParameterExpr(Index, QT);
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformBoundsValueExpr(
+  BoundsValueExpr *E) {
+  QualType QT = getDerived().TransformType(E->getType());
+  return getDerived().
+    RebuildBoundsValueExpr(E->getLocation(), QT, E->getKind());
 }
 
 //===----------------------------------------------------------------------===//

@@ -2082,6 +2082,11 @@ void StmtPrinter::VisitPositionalParameterExpr(PositionalParameterExpr *E) {
   OS << (E->getIndex());
 }
 
+void StmtPrinter::VisitBoundsValueExpr(BoundsValueExpr *E) {
+  OS << ((E->getKind() == BoundsValueExpr::Current) ?
+         "_Current_expr_value" : "_Return_value");
+}
+
 // C++
 void StmtPrinter::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *Node) {
   const char *OpStrings[NUM_OVERLOADED_OPERATORS] = {

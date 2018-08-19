@@ -179,12 +179,6 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "rel_align_value"
   IdentifierInfo *Ident_rel_align_value;
 
-  /// \brief Identifier for "dynamic_bounds_cast"
-  IdentifierInfo *Ident_dynamic_bounds_cast;
-  
-  /// \brief Identifier for "assume_bounds_cast"
-  IdentifierInfo *Ident_assume_bounds_cast;
-
   enum CheckedScopeKind {
     /// '{'
     CSK_None,
@@ -1779,6 +1773,18 @@ private:
   bool DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
                                      BoundsAnnotations &Result,
                                      const Declarator &D);
+
+  // Delay parse a return bounds expression in Toks.  Used to parse return
+  // bounds after the return type has been constructed.  Stores the bounds
+  // expression in Result.  Returns true if there was a parsing error.
+  static bool ParseBoundsCallback(void *P,
+                                  std::unique_ptr<CachedTokens> Toks,
+                                  ArrayRef<ParmVarDecl *> Params,
+                                  BoundsAnnotations &Result,
+                                  const Declarator &D);
+
+  ExprResult ParseReturnValueExpression();
+
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

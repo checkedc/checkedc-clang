@@ -2555,6 +2555,7 @@ DEF_TRAVERSE_STMT(NullaryBoundsExpr, {})
 DEF_TRAVERSE_STMT(RangeBoundsExpr, {})
 DEF_TRAVERSE_STMT(InteropTypeExpr, {})
 DEF_TRAVERSE_STMT(PositionalParameterExpr, {})
+DEF_TRAVERSE_STMT(BoundsValueExpr, {})
 
 // For coroutines expressions, traverse either the operand
 // as written or the implied calls, depending on what the

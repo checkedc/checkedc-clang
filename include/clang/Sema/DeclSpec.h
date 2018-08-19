@@ -1394,11 +1394,11 @@ struct DeclaratorChunk {
     ParamInfo *Params;
 
     /// The annotations for the value returned by the function.  We store them
-    // as individual fields, not BoundsAnnotations, because BoundsAnnotations has
-    // a default constructor.  This is for good reason. For equally good reasons,
-    // DeclaratorChunk doesn't have a default constructor.  This means that using
-    // a default initialized instance of BoundsAnnotations is not allowed here.
-    BoundsExpr *ReturnBounds;
+    // as individual fields because the return bounds are deferred-parsed.
+    // Note: ReturnBounds is actually a unique_ptr. However unique_ptr requires
+    // a constructor and this struct can't have one, so we cast it to a
+    // a regular pointer type.
+    CachedTokens *ReturnBounds;
     InteropTypeExpr *ReturnInteropType;
 
     union {
@@ -1547,11 +1547,6 @@ struct DeclaratorChunk {
 
     /// \brief Get the trailing-return-type for this function declarator.
     ParsedType getTrailingReturnType() const { return TrailingReturnType; }
-
-    /// \brief The bounds annotations for the return value
-    BoundsAnnotations getReturnAnnots() const {
-      return BoundsAnnotations(ReturnBounds, ReturnInteropType);
-    }
   };
 
   struct BlockPointerTypeInfo : TypeInfoCommon {
@@ -1697,7 +1692,8 @@ struct DeclaratorChunk {
                                      SourceLocation LocalRangeBegin,
                                      SourceLocation LocalRangeEnd,
                                      SourceLocation ReturnAnnotsColonLoc,
-                                     BoundsAnnotations &ReturnAnnotsExpr,
+                                     InteropTypeExpr *ReturnInteorpTypeExpr,
+                                     std::unique_ptr<CachedTokens> ReturnBounds,
                                      Declarator &TheDeclarator,
                                      TypeResult TrailingReturnType =
                                                     TypeResult());
@@ -1906,6 +1902,8 @@ private:
   /// \brief The asm label, if specified.
   Expr *AsmLabel;
 
+  /// \brief The return bounds for a function declarator.
+  BoundsExpr *ReturnBounds;
 #ifndef _MSC_VER
   union {
 #endif
@@ -1935,7 +1933,8 @@ public:
         GroupingParens(false), FunctionDefinition(FDK_Declaration),
         Redeclaration(false), Extension(false), ObjCIvar(false),
         ObjCWeakProperty(false), InlineStorageUsed(false),
-        Attrs(ds.getAttributePool().getFactory()), AsmLabel(nullptr) {}
+        Attrs(ds.getAttributePool().getFactory()), AsmLabel(nullptr),
+        ReturnBounds(nullptr) {}
 
   ~Declarator() {
     clear();
@@ -2499,6 +2498,9 @@ public:
 
   void setAsmLabel(Expr *E) { AsmLabel = E; }
   Expr *getAsmLabel() const { return AsmLabel; }
+
+  void setReturnBounds(BoundsExpr *E) { ReturnBounds = E; }
+  BoundsExpr *getReturnBounds() const { return ReturnBounds; }
 
   void setExtension(bool Val = true) { Extension = Val; }
   bool getExtension() const { return Extension; }

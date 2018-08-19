@@ -3066,8 +3066,9 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case CountBoundsExprClass:
   case InteropTypeExprClass:
   case NullaryBoundsExprClass:
-  case PositionalParameterExprClass:
   case RangeBoundsExprClass:
+  case PositionalParameterExprClass:
+  case BoundsValueExprClass:
     // These never have a side-effect.
     return false;
 

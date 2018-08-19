@@ -1185,7 +1185,6 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
 
     WarnIfHasCUDATargetAttr();
 
-    BoundsAnnotations ReturnAnnots;
     SourceLocation NoLoc;
     D.AddTypeInfo(DeclaratorChunk::getFunction(/*hasProto=*/true,
                                            /*isAmbiguous=*/false,
@@ -1209,7 +1208,8 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                                            /*DeclsInPrototype=*/None,
                                            LParenLoc, FunLocalRangeEnd,
                                            /*ReturnBoundsColonLoc=*/NoLoc,
-                                           /*ReturnBoundsAnnots=*/ReturnAnnots,
+                                           /*ReturnInteropTypeExpr=*/nullptr,
+                                           /*ReturnBounds=*/nullptr,
                                            D,
                                            TrailingReturnType),
                   Attr, DeclEndLoc);
@@ -1258,7 +1258,6 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
     WarnIfHasCUDATargetAttr();
 
     SourceLocation NoLoc;
-    BoundsAnnotations ReturnBoundsAnnots;
     D.AddTypeInfo(DeclaratorChunk::getFunction(/*hasProto=*/true,
                                                /*isAmbiguous=*/false,
                                                /*LParenLoc=*/NoLoc,
@@ -1283,7 +1282,8 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                                                /*DeclsInPrototype=*/None,
                                                DeclLoc, DeclEndLoc,
                                                /*ReturnBoundsColonLoc=*/NoLoc,
-                                               /*ReturnBoundsAnnots=*/ReturnBoundsAnnots,
+                                               /*ReturnInteropTypeExpr=*/nullptr,
+                                               /*ReturnBounds=*/nullptr,
                                                D,
                                                TrailingReturnType),
                   Attr, DeclEndLoc);

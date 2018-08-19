@@ -619,6 +619,7 @@ namespace  {
     void dumpBoundsCheckKind(BoundsCheckKind kind);
     void VisitInteropTypeExpr(const InteropTypeExpr *Node);
     void VisitPositionalParameterExpr(const PositionalParameterExpr *Node);
+    void VisitBoundsValueExpr(const BoundsValueExpr *Node);
   };
 }
 
@@ -2842,6 +2843,12 @@ void ASTDumper::VisitPositionalParameterExpr(
   VisitExpr(Node);
   OS << " arg #";
   OS << Node->getIndex();
+}
+
+void ASTDumper::VisitBoundsValueExpr(const BoundsValueExpr *Node) {
+  VisitExpr(Node);
+  OS << (Node->getKind() == BoundsValueExpr::Kind::Current ?
+         " _Current_expr_value" : " _Return_value");
 }
 
 //===----------------------------------------------------------------------===//
