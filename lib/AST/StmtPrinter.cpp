@@ -2083,8 +2083,13 @@ void StmtPrinter::VisitPositionalParameterExpr(PositionalParameterExpr *E) {
 }
 
 void StmtPrinter::VisitBoundsValueExpr(BoundsValueExpr *E) {
-  OS << ((E->getKind() == BoundsValueExpr::Current) ?
-         "_Current_expr_value" : "_Return_value");
+  if (E->getKind() == BoundsValueExpr::Return)
+    OS << "Return_value";
+  else {
+    OS <<  "subexpression value(";
+    Visit(E->getTemporaryBinding()->getSubExpr());
+    OS <<  ")";
+  }
 }
 
 // C++
@@ -2303,6 +2308,10 @@ void StmtPrinter::VisitCXXFunctionalCastExpr(CXXFunctionalCastExpr *Node) {
 }
 
 void StmtPrinter::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *Node) {
+  PrintExpr(Node->getSubExpr());
+}
+
+void StmtPrinter::VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *Node) {
   PrintExpr(Node->getSubExpr());
 }
 

@@ -2577,10 +2577,6 @@ public:
   /// if the pointer is null.
   QualType getInteropTypeAndAdjust(const InteropTypeExpr *BA, bool IsParam) const;
 
-  /// \brief Determine if this bounds expression contains a use of
-  /// _Current_expr_value.
-  static bool ContainsCurrentExprValue(const BoundsExpr *Bounds);
-
   //===--------------------------------------------------------------------===//
   //                    Integer Predicates
   //===--------------------------------------------------------------------===//

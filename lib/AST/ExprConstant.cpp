@@ -10642,6 +10642,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ChooseExprClass: {
     return CheckICE(cast<ChooseExpr>(E)->getChosenSubExpr(), Ctx);
   }
+  case Expr::CHKCBindTemporaryExprClass:
+    return CheckICE(cast<CHKCBindTemporaryExpr>(E)->getSubExpr(), Ctx);
   }
 
   llvm_unreachable("Invalid StmtClass!");

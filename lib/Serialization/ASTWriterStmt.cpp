@@ -1501,6 +1501,14 @@ void ASTStmtWriter::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
   Code = serialization::EXPR_CXX_BIND_TEMPORARY;
 }
 
+void ASTStmtWriter::VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+  VisitExpr(E);
+  Record.AddCXXTemporary(E->getTemporary());
+  Record.AddStmt(E->getSubExpr());
+  Code = serialization::EXPR_CXX_BIND_TEMPORARY;
+}
+
+
 void ASTStmtWriter::VisitCXXScalarValueInitExpr(CXXScalarValueInitExpr *E) {
   VisitExpr(E);
   Record.AddTypeSourceInfo(E->getTypeSourceInfo());

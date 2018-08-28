@@ -3071,6 +3071,10 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case BoundsValueExprClass:
     // These never have a side-effect.
     return false;
+  case CHKCBindTemporaryExprClass:
+    // These have a side-effect if the subexpression has 
+    // a side-effect.
+    break;
 
   case CallExprClass:
   case CXXOperatorCallExprClass:

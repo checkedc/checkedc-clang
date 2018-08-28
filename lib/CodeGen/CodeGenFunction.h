@@ -1229,6 +1229,10 @@ private:
   llvm::DenseMap<const OpaqueValueExpr *, LValue> OpaqueLValues;
   llvm::DenseMap<const OpaqueValueExpr *, RValue> OpaqueRValues;
 
+  /// BoundsTemporary - Keeps track of values of bounds temporaries.
+  llvm::DenseMap<const BoundsTemporary *, LValue> BoundsTemporaryLValues;
+  llvm::DenseMap<const BoundsTemporary *, RValue> BoundsTemporaryRValues;
+
   // VLASizeMap - This keeps track of the associated size for each VLA type.
   // We track this by the size expression rather than the type itself because
   // in certain situations, like a const qualifier applied to an VLA typedef,

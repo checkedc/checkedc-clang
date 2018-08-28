@@ -5441,28 +5441,98 @@ class PositionalParameterExpr : public Expr {
     }
 };
 
-// \brief Represents the \c _Currrent_expr_value and _Return_value expressions
-// in Checked C.  These expressions can be used within bounds expressions.
+/// \brief Represents a temporary for use in bounds expressions.
+class BoundsTemporary {
+public:
+  static BoundsTemporary *Create(const ASTContext &C);
+};
+
+/// \brief Represents binding an expression to a temporary.
+///
+/// When a bounds expression is computed for an expression E, this
+/// lets the bounds expression reference the value of a subexpression
+/// of E.
+class ChkCBinaryTemporaryExpr : public Expr {
+  BoundsTemporary *Temp;
+
+  Stmt *SubExpr;
+
+  ChkCBinaryTemporaryExpr(BoundsTemporary *temp, Expr* SubExpr)
+   : Expr(ChkCBinaryTemporaryExprClass, SubExpr->getType(),
+          VK_RValue, OK_Ordinary, SubExpr->isTypeDependent(),
+          SubExpr->isValueDependent(),
+          SubExpr->isInstantiationDependent(),
+          SubExpr->containsUnexpandedParameterPack()),
+     Temp(temp), SubExpr(SubExpr) { }
+
+public:
+  ChkCBinaryTemporaryExpr(EmptyShell Empty)
+    : Expr(ChkCBinaryTemporaryExprClass, Empty), Temp(nullptr), SubExpr(nullptr) {}
+
+  static ChkCBinaryTemporaryExpr *Create(const ASTContext &C, CXXTemporary *Temp,
+                                      Expr* SubExpr);
+
+  BoundsTemporary *getTemporary() { return Temp; }
+  const BoundsTemporary *getTemporary() const { return Temp; }
+  void setTemporary(BoundsTemporary *T) { Temp = T; }
+
+  const Expr *getSubExpr() const { return cast<Expr>(SubExpr); }
+  Expr *getSubExpr() { return cast<Expr>(SubExpr); }
+  void setSubExpr(Expr *E) { SubExpr = E; }
+
+  SourceLocation getLocStart() const LLVM_READONLY {
+    return SubExpr->getLocStart();
+  }
+  SourceLocation getLocEnd() const LLVM_READONLY { return SubExpr->getLocEnd();}
+
+  // Implement isa/cast/dyncast/etc.
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == ChkCBinaryTemporaryExprClass;
+  }
+
+  // Iterators
+  child_range children() { return child_range(&SubExpr, &SubExpr + 1); }
+};
+
+
+/// \brief Represent uses of expression temporaries and _Return_value
+/// expressions. These expressions can be used within bounds expressions.
+///
+/// Uses of expression temporaries cannot be written at the source level.
+/// These are constructed by the compiler during bounds inference.
 class BoundsValueExpr : public Expr {
 public:
   enum Kind {
-    Current,
+    Temporary,
     Return
   };
 
 private:
+  ChkCBinaryTemporaryExpr *Temp;  // Store the binding so that we can easily
+                            // find the underlying expression.
   SourceLocation Loc;
   Kind ValueExprKind;
 
 public:
   BoundsValueExpr(SourceLocation L, QualType Type, Kind K)
     : Expr(BoundsValueExprClass, Type, VK_RValue, OK_Ordinary,
-           false, false, false, false), Loc(L), ValueExprKind(K) { }
+           false, false, false, false), Temp(nullptr), Loc(L), 
+      ValueExprKind(K) { }
+
+  BoundsValueExpr(SourceLocation L, QualType Type, Kind K,
+                  ChkCBinaryTemporaryExpr *Temp)
+    : Expr(BoundsValueExprClass, Type, VK_RValue, OK_Ordinary,
+           false, false, false, false), Temp(Temp), Loc(L), 
+      ValueExprKind(K) { }
 
   BoundsValueExpr(EmptyShell Empty) : Expr(BoundsValueExprClass, Empty) {}
 
   SourceLocation getLocation() const { return Loc; }
   void setLocation(SourceLocation L) { Loc = L; }
+
+  ChkCBinaryTemporaryExpr *getTemporaryBinding() { return Temp; }
+  const ChkCBinaryTemporaryExpr *getTemporaryBinding() const { return Temp; }
+  void setTemporaryBinding(ChkCBinaryTemporaryExpr *T) { Temp = T; }
 
   SourceLocation getLocStart() const LLVM_READONLY { return Loc; }
   SourceLocation getLocEnd() const LLVM_READONLY { return Loc; }

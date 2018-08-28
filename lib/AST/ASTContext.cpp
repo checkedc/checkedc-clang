@@ -9003,24 +9003,6 @@ bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
   }
 }
 
-namespace {
-bool UsesCurrentExprValue(const Stmt *S) {
-  if (const BoundsValueExpr *BE = dyn_cast<BoundsValueExpr>(S))
-    if (BE->getKind() == BoundsValueExpr::Kind::Current)
-      return true;
-
-  for (const Stmt *Child : S->children())
-    if (UsesCurrentExprValue(Child))
-      return true;
-
-  return false;
-}
-}
-
-bool ASTContext::ContainsCurrentExprValue(const BoundsExpr *Bounds) {
-  return UsesCurrentExprValue(Bounds);
-}
-
 // For the Checked C extension, compute whether a type is allowed to be an
 // argument or return type for a no-prototype function.   This computes the
 // set of allowed types described in Section 5.5 of the Checked C
