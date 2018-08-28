@@ -366,6 +366,8 @@ private:
   unsigned FS_checked_specified : 2;
   // Checked C - For-any function specifier
   unsigned FS_forany_specified : 1;
+  // Checked C - _Itype_for_any function specifier
+  unsigned FS_itypeforany_specified : 1;
 
   // friend-specifier
   unsigned Friend_specified : 1;
@@ -387,6 +389,9 @@ private:
 
   TypedefDecl **TypeVarInfo;
   unsigned NumTypeVars : 15;
+  bool GenericFunction : 1;
+  bool ItypeGenericFunction : 1;
+
 
   // Scope specifier for the type spec, if applicable.
   CXXScopeSpec TypeScope;
@@ -409,7 +414,7 @@ private:
   SourceLocation FS_inlineLoc, FS_virtualLoc, FS_explicitLoc, FS_noreturnLoc;
   SourceLocation FS_forceinlineLoc;
   // Checked C - checked keyword location
-  SourceLocation FS_checkedLoc, FS_foranyLoc;
+  SourceLocation FS_checkedLoc, FS_foranyLoc, FS_itypeforanyloc;
   SourceLocation FriendLoc, ModulePrivateLoc, ConstexprLoc, ConceptLoc;
   SourceLocation TQ_pipeLoc;
 
@@ -459,12 +464,15 @@ public:
       // Checked C - checked function
       FS_checked_specified(CFS_None),
       FS_forany_specified(false),
+      FS_itypeforany_specified(false),
       Friend_specified(false),
       Constexpr_specified(false),
       Concept_specified(false),
       Attrs(attrFactory),
       TypeVarInfo(nullptr),
       NumTypeVars(0),
+      GenericFunction(false),
+      ItypeGenericFunction(false),
       writtenBS(),
       ObjCQualifiers(nullptr) {
   }
@@ -605,11 +613,16 @@ public:
   SourceLocation getCheckedSpecLoc() const { return FS_checkedLoc; }
 
   bool isForanySpecified() const { return FS_forany_specified; }
+  bool isItypeforanySpecified() const { return FS_itypeforany_specified; }
   SourceLocation getForanySpecLoc() const { return FS_foranyLoc; }
 
   void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars);
+  void setGenericFunction(bool IsGeneric) { GenericFunction = IsGeneric; }
+  void setItypeGenericFunction(bool IsItypeGeneric) { ItypeGenericFunction = IsItypeGeneric; }
   void setNumTypeVars(unsigned NewNumTypeVars) { NumTypeVars = NewNumTypeVars; }
   unsigned getNumTypeVars(void) const { return NumTypeVars; }
+  bool isGenericFunction(void) const { return GenericFunction; }
+  bool isItypeGenericFunction(void) const { return ItypeGenericFunction; }
 
   ArrayRef<TypedefDecl *> typeVariables() const {
     return { TypeVarInfo, getNumTypeVars() };
@@ -633,6 +646,8 @@ public:
     FS_checkedLoc = SourceLocation();
     FS_forany_specified = false;
     FS_foranyLoc = SourceLocation();
+    FS_itypeforany_specified = false;
+    FS_itypeforanyloc= SourceLocation();
   }
 
   /// \brief Return true if any type-specifier has been found.
@@ -742,6 +757,8 @@ public:
                                 unsigned &DiagID);
   bool setFunctionSpecForany(SourceLocation Loc, const char *&PrevSpec,
                                 unsigned &DiagID);
+  bool setFunctionSpecItypeforany(SourceLocation Loc, const char *&PrevSpec,
+                                    unsigned &DiagID);
   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                      unsigned &DiagID);
   bool setModulePrivateSpec(SourceLocation Loc, const char *&PrevSpec,
@@ -1378,8 +1395,8 @@ struct DeclaratorChunk {
 
     /// The annotations for the value returned by the function.  We store them
     // as individual fields because the return bounds are deferred-parsed.
-    // Note: ReturnBounds is actually a unique_ptr.  However unique_ptr requires
-    // a constructor and this struct can't have one, so so we cast it to a
+    // Note: ReturnBounds is actually a unique_ptr. However unique_ptr requires
+    // a constructor and this struct can't have one, so we cast it to a
     // a regular pointer type.
     CachedTokens *ReturnBounds;
     InteropTypeExpr *ReturnInteropType;

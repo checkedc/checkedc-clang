@@ -6019,7 +6019,8 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
   case TYPE_TYPEVARIABLE: {
     unsigned int depth = Record[0];
     unsigned int index = Record[1];
-    return Context.getTypeVariableType(depth, index);
+    bool isInBoundsSafeInterface = Record[2];
+    return Context.getTypeVariableType(depth, index, isInBoundsSafeInterface);
   }
 
   case TYPE_DECLTYPE: {

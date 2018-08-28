@@ -1270,7 +1270,6 @@ void StmtProfiler::VisitBoundsValueExpr(const BoundsValueExpr *S) {
   VisitExpr(S);
   VisitType(S->getType());
   ID.AddInteger(S->getKind());
-  if (S->getKind())
 }
 
 

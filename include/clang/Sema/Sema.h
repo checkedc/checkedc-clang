@@ -4721,6 +4721,9 @@ public:
                                  // parameter bounds.
   };
 
+  /// /brief Checks whether an expression is non-modifying
+  /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
+  /// false otherwise.
   enum NonModifyingMessage {
     NMM_None,
     NMM_Error,

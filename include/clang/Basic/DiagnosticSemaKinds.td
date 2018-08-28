@@ -9516,7 +9516,7 @@ def err_bounds_type_annotation_lost_checking : Error<
    "bounds to have no prototype">;
 
  def note_previous_bounds_decl : Note<"previous %select{bounds|interop type}0 declaration is here">;
- 
+
   def err_decl_conflicting_annot : Error<
     "%select{function redeclaration has conflicting parameter %select{bounds|interop type}0|function "
     "redeclaration has conflicting return %select{bounds|interop type}0|variable redeclaration has "
@@ -9532,6 +9532,9 @@ def err_bounds_type_annotation_lost_checking : Error<
     "%select{bounds|interop type}0}1">;
 
   def err_conflicting_annots : Error<"conflicting bounds annotations for %0">;
+
+  def err_decl_conflicting_function_specifiers : Error<
+    "conflicting function specifiers for %0. %1 and %2 are incompatible function specifiers.">;
 
   def err_out_of_scope_function_type_local : Error<
     "out-of-scope variable for bounds in a function type (a function type "

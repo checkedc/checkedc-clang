@@ -162,24 +162,24 @@ struct DAndReplace
 SourceLocation 
 getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
 {        
-	const FunctionDecl *oFD = nullptr;
+  const FunctionDecl *oFD = nullptr;
 
   if (FD->hasBody(oFD) && oFD == FD) { 
     // Replace everything up to the beginning of the body. 
     const Stmt *Body = FD->getBody(oFD); 
  
     int Offset = 0; 
-		const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
+    const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
 
-	  while (*Buf != ')') {
+    while (*Buf != ')') {
       Buf--;
       Offset--;
     }
 
     return Body->getSourceRange().getBegin().getLocWithOffset(Offset);
-	} else {
+  } else {
     return FD->getSourceRange().getEnd();
-	}
+  }
 }
 
 // Compare two DAndReplace values. The algorithm for comparing them relates 
@@ -222,7 +222,7 @@ struct DComp
   bool operator()(const DAndReplace lhs, const DAndReplace rhs) const {
     // Does the source location of the Decl in lhs overlap at all with
     // the source location of rhs?
-		SourceRange srLHS = lhs.Declaration->getSourceRange(); 
+    SourceRange srLHS = lhs.Declaration->getSourceRange(); 
     SourceRange srRHS = rhs.Declaration->getSourceRange();
 
     // Take into account whether or not a FunctionDeclaration specifies 
@@ -731,65 +731,86 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   assert(cDefn != nullptr);
 
   if (cDecl->numParams() == cDefn->numParams()) { 
-    bool didAny = false;
-		std::string s = "";
-		std::vector<std::string> parmStrs;
-		// Compare parameters. 
-		if (cDecl->numParams() == cDefn->numParams())
-			for (unsigned i = 0; i < cDecl->numParams(); ++i) {
-				auto Decl = getHighest(cDecl->getParamVar(i), Info);
-				auto Defn = getHighest(cDefn->getParamVar(i), Info);
-				assert(Decl);
-				assert(Defn);
+    // Track whether we did any work and need to make a substitution or not.
+    bool didAny = cDecl->numParams() > 0;
+    std::string s = "";
+    std::vector<std::string> parmStrs;
+    // Compare parameters. 
+    for (unsigned i = 0; i < cDecl->numParams(); ++i) {
+      auto Decl = getHighest(cDecl->getParamVar(i), Info);
+      auto Defn = getHighest(cDefn->getParamVar(i), Info);
+      assert(Decl);
+      assert(Defn);
 
-				// If this holds, then we want to insert a bounds safe interface. 
-				if (Defn->isLt(*Decl, Info)) {
-					std::string scratch = "";
-					raw_string_ostream declText(scratch);
-					Definition->getParamDecl(i)->print(declText);
-					std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false);
-					std::string bi = declText.str() + " : itype("+ctype+") ";
-					parmStrs.push_back(bi);
-					didAny = true;
-				} else {
-					// Do what we used to do. 
-					std::string v = Decl->mkString(Info.getConstraints().getVariables());
-					parmStrs.push_back(v);
-				}
-			}
+      // If this holds, then we want to insert a bounds safe interface. 
+      bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
+      if (Defn->isLt(*Decl, Info) && anyConstrained) {
+        std::string scratch = "";
+        raw_string_ostream declText(scratch);
+        Definition->getParamDecl(i)->print(declText);
+        std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false);
+        std::string bi = declText.str() + " : itype("+ctype+") ";
+        parmStrs.push_back(bi);
+      } else {
+        // Do what we used to do.
+        if (anyConstrained) { 
+          std::string v = Defn->mkString(Info.getConstraints().getVariables());
+          if (PVConstraint *PVC = dyn_cast<PVConstraint>(Defn)) {
+            if (PVC->getItypePresent()) {
+              v = v + " : " + PVC->getItype();
+            }
+          }
+          parmStrs.push_back(v);
+        } else {
+          std::string scratch = "";
+          raw_string_ostream declText(scratch);
+          Definition->getParamDecl(i)->print(declText);
+          parmStrs.push_back(declText.str());
+        }
+      }
+    }
 
-		// Compare returns. 
-		auto Decl = getHighest(cDecl->getReturnVars(), Info);
-		auto Defn = getHighest(cDefn->getReturnVars(), Info);
+    // Compare returns. 
+    auto Decl = getHighest(cDecl->getReturnVars(), Info);
+    auto Defn = getHighest(cDefn->getReturnVars(), Info);
 
-		// Insert a bounds safe interface at the return address. 
-		std::string returnVar = "";
-		std::string endStuff = "";
-		if (Defn->isLt(*Decl, Info)) {
-			std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
-			returnVar = Defn->getTy();
-			endStuff = " : itype("+ctype+") ";
-			didAny = true;
-		} else {
-			// Do what we used to do at the return address. 
-			returnVar = Decl->mkString(Info.getConstraints().getVariables()) + " ";
-		}
+    // Insert a bounds safe interface for the return. 
+    std::string returnVar = "";
+    std::string endStuff = "";
+    bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
+    if (Defn->isLt(*Decl, Info) && anyConstrained) {
+      std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
+      returnVar = Defn->getTy();
+      endStuff = " : itype("+ctype+") ";
+      didAny = true;
+    } else {
+      // If we used to implement a bounds-safe interface, continue to do that.  
+      returnVar = Decl->mkString(Info.getConstraints().getVariables());
 
-		s = returnVar + cDecl->getName() + "(";
-		if (parmStrs.size() > 0) {
-			std::ostringstream ss;
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(Decl)) {
+        if (PVC->getItypePresent()) {
+          assert(PVC->getItype().size() > 0);
+          endStuff = " : " + PVC->getItype();
+          didAny = true;
+        }
+      }
+    }
 
-			std::copy(parmStrs.begin(), parmStrs.end() - 1,
-					 std::ostream_iterator<std::string>(ss, ", "));
-			ss << parmStrs.back();
+    s = returnVar + cDecl->getName() + "(";
+    if (parmStrs.size() > 0) {
+      std::ostringstream ss;
 
-			s = s + ss.str() + ")";
-		} else {
-			s = s + "void)";
-		}
+      std::copy(parmStrs.begin(), parmStrs.end() - 1,
+           std::ostream_iterator<std::string>(ss, ", "));
+      ss << parmStrs.back();
 
-		if (endStuff.size() > 0)
-			s = s + endStuff;
+      s = s + ss.str() + ")";
+    } else {
+      s = s + "void)";
+    }
+
+    if (endStuff.size() > 0)
+      s = s + endStuff;
 
     if (didAny) 
       // Do all of the declarations.
