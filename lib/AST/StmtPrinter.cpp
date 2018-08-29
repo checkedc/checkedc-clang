@@ -2084,7 +2084,7 @@ void StmtPrinter::VisitPositionalParameterExpr(PositionalParameterExpr *E) {
 
 void StmtPrinter::VisitBoundsValueExpr(BoundsValueExpr *E) {
   if (E->getKind() == BoundsValueExpr::Return)
-    OS << "Return_value";
+    OS << "_Return_value";
   else {
     OS <<  "subexpression value(";
     Visit(E->getTemporaryBinding()->getSubExpr());

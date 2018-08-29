@@ -2539,9 +2539,15 @@ public:
     return getSema().CreatePositionalParameterExpr(Index, QT);
   }
 
+  ExprResult RebuildCHKCBindTemporaryExpr(BoundsTemporary *BT, Expr *SE) {
+    return new (getSema().Context) CHKCBindTemporaryExpr(BT, SE);
+  }
+
   ExprResult RebuildBoundsValueExpr(SourceLocation Loc, QualType Ty, BoundsValueExpr::Kind K) {
     return new (getSema().Context) BoundsValueExpr(Loc, Ty, K);
   }
+
+
   
   /// \brief Build a new overloaded operator call expression.
   ///
@@ -11016,6 +11022,23 @@ template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
   return getDerived().TransformExpr(E->getSubExpr());
+}
+
+/// \brief Transform a Checked C temporary-binding expression.
+///
+/// We transform the subexpression and re-use the temporary name.
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+  ExprResult SE = getDerived().TransformExpr(E->getSubExpr());
+  if (SE.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() &&
+      SE.get() == E->getSubExpr())
+    return E;
+  
+  return getDerived().RebuildCHKCBindTemporaryExpr(E->getTemporary(), SE.get());
 }
 
 /// \brief Transform a C++ expression that contains cleanups that should

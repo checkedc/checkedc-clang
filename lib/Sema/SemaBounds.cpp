@@ -367,6 +367,7 @@ BoundsExpr *Sema::MakeMemberBoundsConcrete(
   }
 }
 
+#if 0
 namespace {
   // Convert occurrences of _Return_value in a return bounds expression
   // to _Current_expr_value.  Don't recurse into any return bounds
@@ -401,6 +402,7 @@ namespace {
     }
    };
 }
+#endif
 
 namespace {
   // Class for inferring bounds expressions for C expressions.
@@ -529,9 +531,8 @@ namespace {
       return CE;
     }
 
-    Expr *CreateCurrentExprValue(QualType QT) {
-      return new (Context) BoundsValueExpr(SourceLocation(), QT,
-                                           BoundsValueExpr::Kind::Current);
+    Expr *CreateTemporaryUse(CHKCBindTemporaryExpr *Binding) {
+      return new (Context) BoundsValueExpr(SourceLocation(), Binding);
     }
 
   private:
@@ -820,27 +821,38 @@ namespace {
           return LValueBounds(ICE->getSubExpr());
          return CreateBoundsAlwaysUnknown();
       }
-      case Expr::CompoundLiteralExprClass: {
-        BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
-        QualType PtrType = Context.getDecayedType(E->getType());
-        return ExpandToRange(CreateCurrentExprValue(PtrType), BE);
-      }
-      case Expr::StringLiteralClass: {
-        // Use the number of characters in the string (excluding the
-        // null terminator) to calcaulte size.  Don't use the
-        // array type of the literal.  In unchecked scopes, the array type is
-        // unchecked and its size includes the null terminator.  It converts
-        // to an ArrayPtr that could be used to overwrite the null terminator.
-        // We need to prevent this because literal strings may be shared and
-        // writeable, depending on the C implementation.
-        StringLiteral *SL = cast<StringLiteral>(E);
-        IntegerLiteral *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
-        CountBoundsExpr *CBE =
-           new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                         Size, SourceLocation(),
-                                         SourceLocation());
-        QualType PtrType = Context.getDecayedType(E->getType());
-        return ExpandToRange(CreateCurrentExprValue(PtrType), CBE);
+      case Expr::CHKCBindTemporaryExprClass: {
+        CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
+        Expr *SE = Binding->getSubExpr();
+        if  (CompoundLiteralExpr *CL = dyn_cast<CompoundLiteralExpr>(SE)) {
+          BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
+          QualType PtrType = Context.getDecayedType(E->getType());
+          Expr *ArrLValue = CreateTemporaryUse(Binding);
+          Expr *Base = CreateImplicitCast(PtrType,
+                                          CastKind::CK_ArrayToPointerDecay,
+                                          ArrLValue);
+          return ExpandToRange(Base, BE);
+        } else if (StringLiteral *SL = dyn_cast<StringLiteral>(SE)) {
+          // Use the number of characters in the string (excluding the
+          // null terminator) to calcaulte size.  Don't use the
+          // array type of the literal.  In unchecked scopes, the array type is
+          // unchecked and its size includes the null terminator.  It converts
+          // to an ArrayPtr that could be used to overwrite the null terminator.
+          // We need to prevent this because literal strings may be shared and
+          // writeable, depending on the C implementation.
+          IntegerLiteral *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
+          CountBoundsExpr *CBE =
+             new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                           Size, SourceLocation(),
+                                           SourceLocation());
+          QualType PtrType = Context.getDecayedType(E->getType());
+          Expr *ArrLValue = CreateTemporaryUse(Binding);
+          Expr *Base = CreateImplicitCast(PtrType,
+                                          CastKind::CK_ArrayToPointerDecay,
+                                          ArrLValue);
+          return ExpandToRange(Base, CBE);
+        } else
+          CreateBoundsAlwaysUnknown();
       }
       default:
         return CreateBoundsAlwaysUnknown();
@@ -2060,8 +2072,6 @@ namespace {
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
-        if (ASTContext::ContainsCurrentExprValue(SrcBounds))
-          EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(Target->getType()));
         EquivExprs.push_back(&EqualExpr);
       }
 
@@ -2143,8 +2153,6 @@ namespace {
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
-        if (ASTContext::ContainsCurrentExprValue(SrcBounds))
-          EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(TargetTy));
         EquivExprs.push_back(&EqualExpr);
 /*
         llvm::outs() << "Dumping target/src equality relation\n";
@@ -2543,10 +2551,17 @@ namespace {
             !IsBoundsSafeInterfaceAssignment(ParamType, CE->getArg(i))) {
           continue;
         }
-
         // We want to check the argument expression implies the desired parameter bounds.
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
+
+        // TODO: rewrite this code to avoid actually doing substitution.  Instead use
+        // the equality relation instead. 
+        // - If the argument expression is nom-modifying,, we'll set up an equality between
+        //   the parameter and the argument expression
+        // If the argument expression is a modifying expression, we'll introduce a temporary
+        // instead and set up an equality between the parameter and the temporary. We'll
+        // also attach bounds to the temporary.
         const BoundsAnnotations ParamAnnots = FuncProtoTy->getParamAnnots(i);
         const BoundsExpr *ParamBounds = ParamAnnots.getBoundsExpr();
         const InteropTypeExpr *ParamIType = ParamAnnots.getInteropTypeExpr();
@@ -2588,7 +2603,7 @@ namespace {
         // Put the parameter bounds in a standard form if necessary.
         if (SubstParamBounds->isElementCount() ||
             SubstParamBounds->isByteCount()) {
-          // TODO: turn this check on after implementing current_expr_value.
+          // TODO: revise this code as part of using equality.
           // Turning it on now would cause errors to be issued for arguments
           // that are calls.
           if (true /* S.CheckIsNonModifying(Arg,
@@ -2600,27 +2615,25 @@ namespace {
              continue;
         }
 
-        // Record expression equality of CurrentExprValue() and argument.
+
         SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
+        /* TODO: record equality information, as described earlier.
         SmallVector<Expr *, 4> EqualExpr;
-        if (S.CheckIsNonModifying(Arg, Sema::NonModifyingContext::NMC_Unknown,
-                                  Sema::NonModifyingMessage::NMM_None) &&
-            ASTContext::ContainsCurrentExprValue(ArgBounds)) {
-          EqualExpr.push_back(Arg);
-          EqualExpr.push_back(BoundsInference(S).CreateCurrentExprValue(Arg->getType()));
-          EquivExprs.push_back(&EqualExpr);
-        }
+        EquivExprs.push_back(&EqualExpr);
+        */
 
         if (DumpBounds) {
           DumpCallArgumentBounds(llvm::outs(),
                                  FuncProtoTy->getParamAnnots(i).getBoundsExpr(),
                                  Arg, SubstParamBounds, ArgBounds);
+        /* TODO: update this code to dump all of the equivalent expressions.
           llvm::outs() << "Equivalent expressions:\n";
           for (Expr *E : EqualExpr)
             E->dump(llvm::outs());
+        */
         }
 
-        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope, &EquivExprs);
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope,  &EquivExprs);
       }
       return;
    }

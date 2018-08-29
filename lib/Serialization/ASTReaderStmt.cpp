@@ -1487,7 +1487,7 @@ void ASTStmtReader::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
 
 void ASTStmtReader::VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
   VisitExpr(E);
-  E->setTemporary(BoundsTemporary::Create(getContext()));
+  E->setTemporary(new (Record.getContext()) BoundsTemporary());
   E->setSubExpr(Record.readSubExpr());
 }
 

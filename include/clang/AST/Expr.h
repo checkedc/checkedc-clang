@@ -5452,25 +5452,21 @@ public:
 /// When a bounds expression is computed for an expression E, this
 /// lets the bounds expression reference the value of a subexpression
 /// of E.
-class ChkCBinaryTemporaryExpr : public Expr {
+class CHKCBindTemporaryExpr : public Expr {
   BoundsTemporary *Temp;
-
   Stmt *SubExpr;
 
-  ChkCBinaryTemporaryExpr(BoundsTemporary *temp, Expr* SubExpr)
-   : Expr(ChkCBinaryTemporaryExprClass, SubExpr->getType(),
-          VK_RValue, OK_Ordinary, SubExpr->isTypeDependent(),
+public:
+  CHKCBindTemporaryExpr(BoundsTemporary *temp, Expr* SubExpr)
+   : Expr(CHKCBindTemporaryExprClass, SubExpr->getType(),
+          SubExpr->getValueKind(), SubExpr->getObjectKind(), SubExpr->isTypeDependent(),
           SubExpr->isValueDependent(),
           SubExpr->isInstantiationDependent(),
           SubExpr->containsUnexpandedParameterPack()),
      Temp(temp), SubExpr(SubExpr) { }
 
-public:
-  ChkCBinaryTemporaryExpr(EmptyShell Empty)
-    : Expr(ChkCBinaryTemporaryExprClass, Empty), Temp(nullptr), SubExpr(nullptr) {}
-
-  static ChkCBinaryTemporaryExpr *Create(const ASTContext &C, CXXTemporary *Temp,
-                                      Expr* SubExpr);
+  CHKCBindTemporaryExpr(EmptyShell Empty)
+    : Expr(CHKCBindTemporaryExprClass, Empty), Temp(nullptr), SubExpr(nullptr) {}
 
   BoundsTemporary *getTemporary() { return Temp; }
   const BoundsTemporary *getTemporary() const { return Temp; }
@@ -5487,7 +5483,7 @@ public:
 
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Stmt *T) {
-    return T->getStmtClass() == ChkCBinaryTemporaryExprClass;
+    return T->getStmtClass() == CHKCBindTemporaryExprClass;
   }
 
   // Iterators
@@ -5508,8 +5504,8 @@ public:
   };
 
 private:
-  ChkCBinaryTemporaryExpr *Temp;  // Store the binding so that we can easily
-                            // find the underlying expression.
+  CHKCBindTemporaryExpr *Temp;  // Store the binding so that we can easily
+                                // find the underlying expression.
   SourceLocation Loc;
   Kind ValueExprKind;
 
@@ -5519,20 +5515,20 @@ public:
            false, false, false, false), Temp(nullptr), Loc(L), 
       ValueExprKind(K) { }
 
-  BoundsValueExpr(SourceLocation L, QualType Type, Kind K,
-                  ChkCBinaryTemporaryExpr *Temp)
-    : Expr(BoundsValueExprClass, Type, VK_RValue, OK_Ordinary,
+  // Create a use of an expression temporary.
+  BoundsValueExpr(SourceLocation L, CHKCBindTemporaryExpr *Temp)
+    : Expr(BoundsValueExprClass, Temp->getType(), Temp->getValueKind(), OK_Ordinary,
            false, false, false, false), Temp(Temp), Loc(L), 
-      ValueExprKind(K) { }
+      ValueExprKind(Kind::Temporary) { }
 
   BoundsValueExpr(EmptyShell Empty) : Expr(BoundsValueExprClass, Empty) {}
 
   SourceLocation getLocation() const { return Loc; }
   void setLocation(SourceLocation L) { Loc = L; }
 
-  ChkCBinaryTemporaryExpr *getTemporaryBinding() { return Temp; }
-  const ChkCBinaryTemporaryExpr *getTemporaryBinding() const { return Temp; }
-  void setTemporaryBinding(ChkCBinaryTemporaryExpr *T) { Temp = T; }
+  CHKCBindTemporaryExpr *getTemporaryBinding() { return Temp; }
+  const CHKCBindTemporaryExpr *getTemporaryBinding() const { return Temp; }
+  void setTemporaryBinding(CHKCBindTemporaryExpr *T) { Temp = T; }
 
   SourceLocation getLocStart() const LLVM_READONLY { return Loc; }
   SourceLocation getLocEnd() const LLVM_READONLY { return Loc; }

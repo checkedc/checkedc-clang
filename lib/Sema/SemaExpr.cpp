@@ -1636,8 +1636,16 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
                                              Kind, Literal.Pascal, StrTy,
                                              &StringTokLocs[0],
                                              StringTokLocs.size());
-  if (Literal.getUDSuffix().empty())
-    return Lit;
+  if (Literal.getUDSuffix().empty()) {
+    if (!getLangOpts().CheckedC)
+      return Lit;
+
+    // For Checked C, we need to introduce a temporary so that we identify the
+    // string literal in bounds expression.
+    BoundsTemporary *Temp = new (Context) BoundsTemporary();
+    CHKCBindTemporaryExpr *Binding = new (Context) CHKCBindTemporaryExpr(Temp, Lit);
+    return Binding;
+  }
 
   // We're building a user-defined literal.
   IdentifierInfo *UDSuffix = &Context.Idents.get(Literal.getUDSuffix());

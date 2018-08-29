@@ -1229,10 +1229,6 @@ private:
   llvm::DenseMap<const OpaqueValueExpr *, LValue> OpaqueLValues;
   llvm::DenseMap<const OpaqueValueExpr *, RValue> OpaqueRValues;
 
-  /// BoundsTemporary - Keeps track of values of bounds temporaries.
-  llvm::DenseMap<const BoundsTemporary *, LValue> BoundsTemporaryLValues;
-  llvm::DenseMap<const BoundsTemporary *, RValue> BoundsTemporaryRValues;
-
   // VLASizeMap - This keeps track of the associated size for each VLA type.
   // We track this by the size expression rather than the type itself because
   // in certain situations, like a const qualifier applied to an VLA typedef,
@@ -1921,31 +1917,40 @@ public:
   //                           Checked C extension
   //===--------------------------------------------------------------------===//
 
-  // During evaluation of bounds expressions, _Current_expr_value holds the value
-  // for which bounds are being computed.
-  llvm::Value *CurrentExprValue;
+private:
+  /// BoundsTemporary - Keeps track of values of bounds temporaries.
+  llvm::DenseMap<const BoundsTemporary *, LValue> BoundsTemporaryLValues;
+  llvm::DenseMap<const BoundsTemporary *, RValue> BoundsTemporaryRValues;
+
 public:
-  llvm::Value *GetCurrentExprValue() {
-    return CurrentExprValue;
+  /// getBoundsTemporaryLValueMapping - Given a bounds temporary (which
+  /// must be mapped to an l-value), return its mapping.
+  const LValue &getBoundsTemporaryLValueMapping(const CHKCBindTemporaryExpr *e) {
+    assert (e->getSubExpr()->isLValue());
+
+    llvm::DenseMap<const BoundsTemporary *,LValue>::iterator
+      it = BoundsTemporaryLValues.find(e->getTemporary());
+    assert(it != BoundsTemporaryLValues.end() && "no mapping for temporary!");
+    return it->second;
   }
 
-  // \brief RAII object used to temporarily set the the type of
-  // _Current_expr_value
-  class CurrentExprValueRAII {
-    CodeGenFunction &CGF;
-    llvm::Value *Old;
-  public:
-    CurrentExprValueRAII(CodeGenFunction &CGF, llvm::Value *Val) : CGF(CGF) {
-      Old = CGF.CurrentExprValue;
-      CGF.CurrentExprValue = Val;
-    }
+  /// getBoundsTemporaryLValueMapping - Given a bounds temporary (which
+  /// must be mapped to an l-value), return its mapping.
+  const RValue &getBoundsTemporaryRValueMapping(const CHKCBindTemporaryExpr *e) {
+    assert (!e->getSubExpr()->isLValue());
 
-    ~CurrentExprValueRAII() {
-      CGF.CurrentExprValue = Old;
-    }
-  };
+    llvm::DenseMap<const BoundsTemporary *,RValue>::iterator
+      it = BoundsTemporaryRValues.find(e->getTemporary());
+    assert(it != BoundsTemporaryRValues.end() && "no mapping for temporary!");
+    return it->second;
+  }
 
-
+ void setBoundsTemporaryLValueMapping(const CHKCBindTemporaryExpr *e,
+                                      const LValue &lv) {
+    assert(e->getSubExpr()->isLValue());
+    auto result = BoundsTemporaryLValues.insert(std::make_pair(e->getTemporary(), lv));
+    assert(result.second && "temporary already in map!");
+  }
 
   //===--------------------------------------------------------------------===//
   //                                  Helpers
@@ -2662,13 +2667,10 @@ public:
                                 const Address PtrAddr);
   /// \brief Emit a dynamic bounds check.
   // - PtrAddress is the value that is being checked to see if it is in bounds.
-  // - ValueWithBounds is the value that has bounds.  This is used for setting
-  //   _Current_expr_value.
   // - Bounds are the required bounds for PtrAddress.
   // - ValueToStore is optional and is used for bounds checking writes to
   //   NUL-terminated pointers.
   void EmitDynamicBoundsCheck(const Address PtrAddr,
-                              const Address ValueWithBounds,
                               const BoundsExpr *Bounds,
                               BoundsCheckKind Kind,
                               llvm::Value *ValueToStore);
@@ -3323,6 +3325,9 @@ public:
   LValue EmitPointerToDataMemberBinaryExpr(const BinaryOperator *E);
   LValue EmitObjCSelectorLValue(const ObjCSelectorExpr *E);
   void   EmitDeclRefExprDbgValue(const DeclRefExpr *E, const APValue &Init);
+
+  LValue EmitCHKCBindTemporaryLValue(const CHKCBindTemporaryExpr *E);
+  LValue EmitBoundsValueLValue(const BoundsValueExpr *E);
 
   //===--------------------------------------------------------------------===//
   //                         Scalar Expression Emission

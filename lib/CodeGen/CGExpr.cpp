@@ -1171,6 +1171,8 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     return EmitCXXConstructLValue(cast<CXXConstructExpr>(E));
   case Expr::CXXBindTemporaryExprClass:
     return EmitCXXBindTemporaryLValue(cast<CXXBindTemporaryExpr>(E));
+  case Expr::CHKCBindTemporaryExprClass:
+    return EmitCHKCBindTemporaryLValue(cast<CHKCBindTemporaryExpr>(E));
   case Expr::CXXUuidofExprClass:
     return EmitCXXUuidofLValue(cast<CXXUuidofExpr>(E));
   case Expr::LambdaExprClass:
@@ -1249,6 +1251,9 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     return EmitCoawaitLValue(cast<CoawaitExpr>(E));
   case Expr::CoyieldExprClass:
     return EmitCoyieldLValue(cast<CoyieldExpr>(E));
+
+  case Expr::BoundsValueExprClass:
+   return EmitBoundsValueLValue(cast<BoundsValueExpr>(E));
   }
 }
 
@@ -2469,8 +2474,8 @@ LValue CodeGenFunction::EmitUnaryOpLValue(const UnaryOperator *E) {
     LV.getQuals().setAddressSpace(ExprTy.getAddressSpace());
 
     EmitDynamicNonNullCheck(Addr, BaseTy);
-    EmitDynamicBoundsCheck(Addr, Addr, E->getBoundsExpr(),
-                           E->getBoundsCheckKind(), nullptr);
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind(),
+                           nullptr);
     // We should not generate __weak write barrier on indirect reference
     // of a pointer to object; as in void foo (__weak id *param); *param = 0;
     // But, we continue to generate __strong write barrier on indirect write
@@ -3241,8 +3246,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     LValue LV = LValue::MakeVectorElt(LHS.getAddress(), Idx,
       E->getBase()->getType(), LHS.getBaseInfo(), TBAAAccessInfo());
 
-    EmitDynamicBoundsCheck(LV.getVectorAddress(), LHS.getAddress(),
-                           E->getBoundsExpr(), E->getBoundsCheckKind(), nullptr);
+    EmitDynamicBoundsCheck(LV.getVectorAddress(), E->getBoundsExpr(),
+                            E->getBoundsCheckKind(), nullptr);
 
     return LV;
   }
@@ -3261,8 +3266,8 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
                                  SignedIndices, E->getExprLoc());
     LValue AddrLV = MakeAddrLValue(Addr, EltType, LV.getBaseInfo(),
                                    CGM.getTBAAInfoForSubobject(LV, EltType));
-    EmitDynamicBoundsCheck(Addr, LV.getAddress(), E->getBoundsExpr(),
-                           E->getBoundsCheckKind(), nullptr);
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind(),
+      nullptr);
 
     return AddrLV;
   }
@@ -3270,14 +3275,12 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
   LValueBaseInfo EltBaseInfo;
   TBAAAccessInfo EltTBAAInfo;
   Address Addr = Address::invalid();
-  Address BaseAddr = Address::invalid();
   if (const VariableArrayType *vla =
            getContext().getAsVariableArrayType(E->getType())) {
     // The base must be a pointer, which is not an aggregate.  Emit
     // it.  It needs to be emitted first in case it's what captures
     // the VLA bounds.
-    BaseAddr = EmitPointerWithAlignment(E->getBase(), &EltBaseInfo, &EltTBAAInfo);
-    Addr = BaseAddr;
+    Addr = EmitPointerWithAlignment(E->getBase(), &EltBaseInfo, &EltTBAAInfo);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
     EmitDynamicNonNullCheck(Addr, BaseTy);
 
@@ -3302,8 +3305,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     // Indexing over an interface, as in "NSString *P; P[4];"
 
     // Emit the base pointer.
-    BaseAddr = EmitPointerWithAlignment(E->getBase(), &EltBaseInfo, &EltTBAAInfo);
-    Addr = BaseAddr;
+    Addr = EmitPointerWithAlignment(E->getBase(), &EltBaseInfo, &EltTBAAInfo);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
 
     CharUnits InterfaceSize = getContext().getTypeSizeInChars(OIT);
@@ -3346,12 +3348,6 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
       ArrayLV = EmitLValue(Array);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
 
-    if (getLangOpts().CheckedC && E->getBoundsExpr() &&
-        ASTContext::ContainsCurrentExprValue(E->getBoundsExpr()))
-      // We don't update the TBAA information because BaseAddr isn't used
-      // to access memory.
-      BaseAddr = EmitArrayToPointerDecay(ArrayLV, Array, nullptr, nullptr);
-
     EmitDynamicNonNullCheck(ArrayLV.getAddress(), BaseTy);
 
     // Propagate the alignment from the array itself to the result.
@@ -3363,8 +3359,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
     EltTBAAInfo = CGM.getTBAAInfoForSubobject(ArrayLV, E->getType());
   } else {
     // The base must be a pointer; emit it with an estimate of its alignment.
-    BaseAddr = EmitPointerWithAlignment(E->getBase(), &EltBaseInfo, &EltTBAAInfo);
-    Addr = BaseAddr;
+    Addr = EmitPointerWithAlignment(E->getBase(), &EltBaseInfo, &EltTBAAInfo);
     auto *Idx = EmitIdxAfterBase(/*Promote*/true);
     EmitDynamicNonNullCheck(Addr, BaseTy);
     Addr = emitArraySubscriptGEP(*this, Addr, Idx, E->getType(),
@@ -3374,7 +3369,7 @@ LValue CodeGenFunction::EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
 
   LValue LV = MakeAddrLValue(Addr, E->getType(), EltBaseInfo, EltTBAAInfo);
 
-  EmitDynamicBoundsCheck(Addr,  BaseAddr, E->getBoundsExpr(), E->getBoundsCheckKind(),
+  EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind(),
                          nullptr);
 
   if (getLangOpts().ObjC1 &&
@@ -3669,8 +3664,7 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
     // unchecked, or is a checked array with its own bounds.
     // A second reason for always checking the BaseLV is that it is the same for
     // all the fields in the struct, so more of the checks should optimize away.
-    EmitDynamicBoundsCheck(Addr, Addr, E->getBoundsExpr(),
-                           BCK_Normal, nullptr);
+    EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), BCK_Normal, nullptr);
   } else
     BaseLV = EmitCheckedLValue(BaseExpr, TCK_MemberAccess);
 
@@ -4396,6 +4390,19 @@ CodeGenFunction::EmitCXXBindTemporaryLValue(const CXXBindTemporaryExpr *E) {
   EmitAggExpr(E->getSubExpr(), Slot);
   EmitCXXTemporary(E->getTemporary(), E->getType(), Slot.getAddress());
   return MakeAddrLValue(Slot.getAddress(), E->getType(), AlignmentSource::Decl);
+}
+
+LValue
+CodeGenFunction::EmitCHKCBindTemporaryLValue(const CHKCBindTemporaryExpr *E) {
+  LValue Result = EmitLValue(E->getSubExpr());
+  setBoundsTemporaryLValueMapping(E, Result);
+  return Result;
+}
+
+LValue
+CodeGenFunction::EmitBoundsValueLValue(const BoundsValueExpr *E) {
+  assert(E->getKind() == BoundsValueExpr::Kind::Temporary);
+  return getBoundsTemporaryLValueMapping(E->getTemporaryBinding());
 }
 
 LValue

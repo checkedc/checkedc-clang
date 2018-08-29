@@ -760,10 +760,17 @@ public:
   Value *VisitAtomicExpr(AtomicExpr *AE);
 
   Value *VisitBoundsValueExpr(BoundsValueExpr *E) {
-    assert(E->getKind() == BoundsValueExpr::Kind::Current);
-    Value *Result = CGF.GetCurrentExprValue();
+    Value *Result = nullptr;
+    if (E->getKind() == BoundsValueExpr::Kind::Temporary) {
+      CHKCBindTemporaryExpr *Temp = E->getTemporaryBinding();
+      if (Temp->getSubExpr()->isLValue())
+         Result = CGF.getBoundsTemporaryLValueMapping(Temp).getPointer();
+      else
+         Result = CGF.getBoundsTemporaryRValueMapping(Temp).getScalarVal();
+    } else
+       llvm_unreachable("unexpected bounds value expr");
 #if 0
-    llvm::errs() << "Dumping current expr value\n";
+    llvm::errs() << "Dumping bound value expr\n";
     Result->dump();
 #endif
     assert(Result);
@@ -3348,7 +3355,7 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     if (E->getOpcode() == BO_Assign) {
       BoundsExpr *BoundsCheck = CGF.GetNullTermBoundsCheck(E->getLHS());
       if (BoundsCheck)
-        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), LHS.getAddress(), BoundsCheck,
+        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), BoundsCheck,
                                    BoundsCheckKind::BCK_NullTermWriteAssign,
                                    RHS);
     }
