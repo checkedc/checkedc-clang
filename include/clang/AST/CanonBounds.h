@@ -10,6 +10,13 @@
 //  This file defines the interface for comparing and canonicalizing
 //  bounds expressions.
 //
+//  Bounds expressions must be non-modifying expressions, so these
+//  comparison methods should only be called on non-modifying expressions.
+//  In addition, sets of equivalent expressions should also only involve 
+//  non-modifying expressions.
+//
+//  TODO: check the invariant about expressions being non-modifying.
+//
 //===----------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_CANON_BOUNDS_H
@@ -99,6 +106,8 @@ namespace clang {
     Result CompareImpl(const PositionalParameterExpr *E1,
                    const PositionalParameterExpr *E2);
     Result CompareImpl(const BoundsCastExpr *E1, const BoundsCastExpr *E2);
+    Result CompareImpl(const CHKCBindTemporaryExpr *E1, 
+                       const CHKCBindTemporaryExpr *E2);
     Result CompareImpl(const BoundsValueExpr *E1, const BoundsValueExpr *E2);
     Result CompareImpl(const AtomicExpr *E1, const AtomicExpr *E2);
     Result CompareImpl(const BlockExpr *E1, const BlockExpr *E2);

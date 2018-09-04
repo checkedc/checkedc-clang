@@ -62,7 +62,7 @@ static StringInitFailureKind IsStringInit(Expr *Init, const ArrayType *AT,
     return SIF_Other;
 
   // See if this is a string literal or @encode.
-  Init = Init->IgnoreParens();
+  Init = Init->IgnoreParens()->IgnoreExprTmp();
 
   // Handle @encode, which is a narrow string.
   if (isa<ObjCEncodeExpr>(Init) && AT->getElementType()->isCharType())
@@ -141,7 +141,10 @@ static void updateStringLiteralType(Expr *E, QualType Ty) {
       E = UO->getSubExpr();
     else if (GenericSelectionExpr *GSE = dyn_cast<GenericSelectionExpr>(E))
       E = GSE->getResultExpr();
-    else
+    else if (CHKCBindTemporaryExpr *Binding = 
+               dyn_cast<CHKCBindTemporaryExpr>(E))
+      E = Binding->getSubExpr();
+    else 
       llvm_unreachable("unexpected expr in string literal init");
   }
 }
@@ -172,7 +175,7 @@ static void CheckStringInit(Expr *Str, QualType &DeclT, const ArrayType *AT,
   // the size may be smaller or larger than the string we are initializing.
   // FIXME: Avoid truncation for 64-bit length strings.
   if (S.getLangOpts().CPlusPlus) {
-    if (StringLiteral *SL = dyn_cast<StringLiteral>(Str->IgnoreParens())) {
+    if (StringLiteral *SL = dyn_cast<StringLiteral>(Str->IgnoreParens()->IgnoreExprTmp())) {
       // For Pascal strings it's OK to strip off the terminating null character,
       // so the example below is valid:
       //
@@ -2546,7 +2549,7 @@ InitListChecker::CheckDesignatedInitializer(const InitializedEntity &Entity,
       PromotedCharTy = Context.getPromotedIntegerType(CharTy);
     unsigned PromotedCharTyWidth = Context.getTypeSize(PromotedCharTy);
 
-    if (StringLiteral *SL = dyn_cast<StringLiteral>(SubExpr)) {
+    if (StringLiteral *SL = dyn_cast<StringLiteral>(SubExpr->IgnoreExprTmp())) {
       // Get the length of the string.
       uint64_t StrLen = SL->getLength();
       if (cast<ConstantArrayType>(AT)->getSize().ult(StrLen))

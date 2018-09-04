@@ -1110,20 +1110,23 @@ void f10(int index) _Checked {
   char c = 0;
   c = "abcdef"[index];
 
-// CHECK-AST:      BinaryOperator {{.*}} 'char' '='
-// CHECK-AST-NEXT:  DeclRefExpr {{.*}} 'char' lvalue Var {{.*}} 'c' 'char'
-// CHECK-AST-NEXT:  ImplicitCastExpr {{.*}} 'char' <LValueToRValue>
-// CHECK-AST-NEXT:    ArraySubscriptExpr {{.*}} 'char' lvalue
-// CHECK-AST-NEXT:      BoundsBoundsCheckKind Null-terminated read
-// CHECK-AST-NEXT:      RangeBoundsExpr {{.*}} 'NULL TYPE'
-// CHECK-AST-NEXT:        BoundsValueExpr {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' _Current_expr_value
-// CHECK-AST-NEXT:        BinaryOperator {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' '+'
-// CHECK-AST-NEXT:          BoundsValueExpr {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' _Current_expr_value
-// CHECK-AST-NEXT:          IntegerLiteral {{.*}} 'int' 6
-// CHECK-AST-NEXT:    ImplicitCastExpr {{.*}} '_Nt_array_ptr<char>' <ArrayToPointerDecay>
-// CHECK-AST-NEXT:       StringLiteral {{.*}} 'char _Nt_checked[7]' lvalue "abcdef"
-// CHECK-AST-NEXT:    ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-AST-NEXT:    DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'index' 'int'
+// CHECK-AST: BinaryOperator {{.*}} 'char' '='
+// CHECK-AST-NEXT:    DeclRefExpr {{.*}} 'char' lvalue Var {{.*}} 'c' 'char'
+// CHECK-AST-NEXT:    ImplicitCastExpr {{.*}} 'char' <LValueToRValue>
+// CHECK-AST-NEXT:       ArraySubscriptExpr {{.*}} 'char' lvalue
+// CHECK-AST-NEXT:         BoundsBoundsCheckKind Null-terminated read
+// CHECK-AST-NEXT:          RangeBoundsExpr {{.*}} 'NULL TYPE'
+// CHECK-AST-NEXT:            ImplicitCastExpr {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:            BoundsValueExpr  {{.*}} 'char _Nt_checked[7]' lvalue _BoundTemporary  [[TEMP1:[a-zA-Z0-9.]*]]
+// CHECK-AST-NEXT:            BinaryOperator {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' '+'
+// CHECK-AST-NEXT:              ImplicitCastExpr {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:                BoundsValueExpr {{.*}} 'char _Nt_checked[7]' lvalue _BoundTemporary [[TEMP1]]
+// CHECK-AST-NEXT:              IntegerLiteral {{.*}} 'int' 6
+// CHECK-AST-NEXT:         ImplicitCastExpr {{.*}} '_Nt_array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:          CHKCBindTemporaryExpr [[TEMP1]] <col:7> 'char _Nt_checked[7]' lvalue
+// CHECK-AST-NEXT:            StringLiteral {{.*}} 'char _Nt_checked[7]' lvalue "abcdef"
+// CHECK-AST-NEXT:         ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-AST-NEXT:           DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'index' 'int'
 
 // CHECK-IR: define void @f10
 // CHECK-IR:        [[ARRAYIDX1:%[a-zA-Z0-9.]*]] = getelementptr inbounds [7 x i8], [7 x i8]* [[LITERAL1:@[^,]*]], i32 0, i32 [[REG0:%[a-zA-Z0-9.]*]]
@@ -1134,64 +1137,70 @@ void f10(int index) _Checked {
 // CHECK-IR: [[DYNCHK_SUCC1]]:
   c = (char _Checked[]) { 'a', 'b', } [index];
 
-// CHECK-AST:      BinaryOperator {{.*}} 'char' '='
-// CHECK-AST-NEXT:   DeclRefExpr {{.*}} 'c' 'char'
-// CHECK-AST-NEXT:   ImplicitCastExpr {{.*}} 'char' <LValueToRValue>
-// CHECK-AST-NEXT:     ArraySubscriptExpr {{.*}} 'char' lvalue
-// CHECK-AST-NEXT:       BoundsBoundsCheckKind Normal
-// CHECK-AST-NEXT:       RangeBoundsExpr {{.*}} 'NULL TYPE'
-// CHECK-AST-NEXT:         BoundsValueExpr {{.*}} '_Array_ptr<char>':'_Array_ptr<char>' _Current_expr_value
-// CHECK-AST-NEXT:         BinaryOperator {{.*}} '_Array_ptr<char>':'_Array_ptr<char>' '+'
-// CHECK-AST-NEXT:           BoundsValueExpr {{.*}} '_Array_ptr<char>':'_Array_ptr<char>' _Current_expr_value
-// CHECK-AST-NEXT:           IntegerLiteral {{.*}} 'int' 2
-// CHECK-AST-NEXT:       ImplicitCastExpr {{.*}} '_Array_ptr<char>' <ArrayToPointerDecay>
-// CHECK-AST-NEXT:         CompoundLiteralExpr {{.*}} 'char _Checked[2]' lvalue
-// CHECK-AST-NEXT:           InitListExpr {{.*}} 'char _Checked[2]'
-// CHECK-AST-NEXT:             ImplicitCastExpr {{.*}} 'char' <IntegralCast>
-// CHECK-AST-NEXT:               CharacterLiteral {{.*}} 'int' 97
-// CHECK-AST-NEXT:             ImplicitCastExpr {{.*}} 'char' <IntegralCast>
-// CHECK-AST-NEXT:               CharacterLiteral {{.*}} 'int' 98
-// CHECK-AST-NEXT:             ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-AST-NEXT:       DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'index' 'int'
+// CHECK-AST:          BinaryOperator {{.*}} 'char' '='
+// CHECK-AST-NEXT:      DeclRefExpr {{.*}} 'char' lvalue Var {{.*}} 'c' 'char'
+// CHECK-AST-NEXT:      ImplicitCastExpr {{.*}} 'char' <LValueToRValue>
+// CHECK-AST-NEXT:        ArraySubscriptExpr {{.*}} 'char' lvalue
+// CHECK-AST-NEXT:          BoundsBoundsCheckKind Normal
+// CHECK-AST-NEXT:           RangeBoundsExpr {{.*}} 'NULL TYPE'
+// CHECK-AST-NEXT:             ImplicitCastExpr {{.*}} '_Array_ptr<char>':'_Array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:              BoundsValueExpr {{.*}} 'char _Checked[2]' lvalue _BoundTemporary  [[TEMP2:[a-zA-Z0-9.]*]]
+// CHECK-AST-NEXT:             BinaryOperator {{.*}} '_Array_ptr<char>':'_Array_ptr<char>' '+'
+// CHECK-AST-NEXT:               ImplicitCastExpr {{.*}} '_Array_ptr<char>':'_Array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:                BoundsValueExpr {{.*}} 'char _Checked[2]' lvalue _BoundTemporary  [[TEMP2]]
+// CHECK-AST-NEXT:               IntegerLiteral {{.*}} 'int' 2
+// CHECK-AST-NEXT:          ImplicitCastExpr {{.*}} '_Array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:           CHKCBindTemporaryExpr [[TEMP2]] {{.*}} 'char _Checked[2]' lvalue
+// CHECK-AST-NEXT:             CompoundLiteralExpr {{.*}} 'char _Checked[2]' lvalue
+// CHECK-AST-NEXT:               InitListExpr {{.*}} 'char _Checked[2]'
+// CHECK-AST-NEXT:                 ImplicitCastExpr {{.*}} 'char' <IntegralCast>
+// CHECK-AST-NEXT:                  CharacterLiteral {{.*}} 'int' 97
+// CHECK-AST-NEXT:                 ImplicitCastExpr {{.*}} 'char' <IntegralCast>
+// CHECK-AST-NEXT:                   CharacterLiteral {{.*}} 'int' 98
+// CHECK-AST-NEXT:          ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
+// CHECK-AST-NEXT:            DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'index' 'int'
 
-// CHECK-IR: [[ARRAYINITBEGIN1:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2:%[a-zA-Z0-9._]*]], i32 0, i32 0
-// CHECK-IR: [[ARRAYDECAY1:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2:%[a-zA-Z0-9._]*]], i32 0, i32 0
-// CHECK-IR: [[ARRAYIDX2:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2]], i32 0, i32 [[REG1:%[a-zA-Z0-9._]*]]
-// CHECK-IR-NEXT: [[ADDPTR1:%[a-zA-Z0-9._]*]] = getelementptr inbounds i8, i8* [[ARRAYDECAY1]], i32 2
-// CHECK-IR-NEXT: [[LOWER1:%[a-zA-Z0-9._]*]] = icmp ule i8* [[ARRAYDECAY1]], [[ARRAYIDX2]]
-// CHECK-IR-NEXT: [[UPPER1:%[a-zA-Z0-9._]*]] = icmp ult i8* [[ARRAYIDX2]], [[ADDPTR1]]
+// CHECK-IR: [[ARRAYIDX3:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2:%[^,]*]], i32 0, i32 [[REG1:%[a-zA-Z0-9._]*]]
+// CHECK-IR-NEXT: [[ARRAYDECAY:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2]], i32 0, i32 0
+// CHECK-IR-NEXT: [[ARRAYDECAY4:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL2]], i32 0, i32 0
+// CHECK-IR-NEXT: [[ADDPTR1:%[a-zA-Z0-9._]*]] = getelementptr inbounds i8, i8* [[ARRAYDECAY4]], i32 2
+// CHECK-IR-NEXT: [[LOWER1:%[a-zA-Z0-9._]*]] = icmp ule i8* [[ARRAYDECAY]], [[ARRAYIDX3]]
+// CHECK-IR-NEXT: [[UPPER1:%[a-zA-Z0-9._]*]] = icmp ult i8* [[ARRAYIDX3]], [[ADDPTR1]]
 // CHECK-IR-NEXT: [[DYN_CHK_RANGE1:%[a-zA-Z0-9._]*]] = and i1 [[LOWER1]], [[UPPER1]]
 // CHECK-IR-NEXT: br i1 [[DYN_CHK_RANGE1]], label %[[DYNCHK_SUCC2:[a-zA-Z0-9._]*]], label %[[DYNCHK_FAIL2:[a-zA-Z0-9._]*]]
 // CHECK-IR: [[DYNCHK_SUCC2]]:
 
   c = (char _Nt_checked[]) { 'a', '\0' } [index];
 
-// CHECK-AST:      BinaryOperator {{.*}} 'char' '='
-// CHECK-AST-NEXT:   DeclRefExpr {{.*}} 'char' lvalue Var {{.*}} 'c' 'char'
-// CHECK-AST-NEXT:   ImplicitCastExpr {{.*}} 'char' <LValueToRValue>
-// CHECK-AST-NEXT:     ArraySubscriptExpr {{.*}} 'char' lvalue
-// CHECK-AST-NEXT:     BoundsBoundsCheckKind Null-terminated read
-// CHECK-AST-NEXT:     RangeBoundsExpr {{.*}} 'NULL TYPE'
-// CHECK-AST-NEXT:       BoundsValueExpr {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' _Current_expr_value
-// CHECK-AST-NEXT:       BinaryOperator {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' '+'
-// CHECK-AST-NEXT:         BoundsValueExpr {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' _Current_expr_value
-// CHECK-AST-NEXT:         IntegerLiteral {{.*}} 'int' 1
-// CHECK-AST-NEXT:     ImplicitCastExpr {{.*}} '_Nt_array_ptr<char>' <ArrayToPointerDecay>
-// CHECK-AST-NEXT:       CompoundLiteralExpr{{.*}} 'char _Nt_checked[2]' lvalue
-// CHECK-AST-NEXT:       InitListExpr {{.*}} 'char _Nt_checked[2]'
-// CHECK-AST-NEXT:         ImplicitCastExpr {{.*}} 'char' <IntegralCast>
-// CHECK-AST-NEXT:           CharacterLiteral {{.*}} 'int' 97
-// CHECK-AST-NEXT:         ImplicitCastExpr {{.*}} 'char' <IntegralCast>
-// CHECK-AST-NEXT:           CharacterLiteral{{.*}} 'int' 0
-// CHECK-AST-NEXT:         ImplicitCastExpr {{.*}} 'int' <LValueToRValue>
-// CHECK-AST-NEXT:           DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'index' 'int'
+// CHECK-AST:          BinaryOperator {{.*}} 'char' '='
+// CHECK-AST-NEXT:       DeclRefExpr {{.*}} 'char' lvalue Var {{.*}} 'c' 'char'
+// CHECK-AST-NEXT:       ImplicitCastExpr {{.*}} 'char' <LValueToRValue>
+// CHECK-AST-NEXT:         ArraySubscriptExpr {{.*}} 'char' lvalue
+// CHECK-AST-NEXT:           BoundsBoundsCheckKind Null-terminated read
+// CHECK-AST-NEXT:            RangeBoundsExpr {{.*}} 'NULL TYPE'
+// CHECK-AST-NEXT:              ImplicitCastExpr {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:               BoundsValueExpr {{.*}} 'char _Nt_checked[2]' lvalue _BoundTemporary  [[TEMP3:[a-zA-Z0-9.]*]]
+// CHECK-AST-NEXT:              BinaryOperator{{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' '+'
+// CHECK-AST-NEXT:                ImplicitCastExpr {{.*}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:                 BoundsValueExpr {{.*}} 'char _Nt_checked[2]' lvalue _BoundTemporary  [[TEMP3]]
+// CHECK-AST-NEXT:                IntegerLiteral{{.*}} 'int' 1
+// CHECK-AST-NEXT:           ImplicitCastExpr {{.*}} '_Nt_array_ptr<char>' <ArrayToPointerDecay>
+// CHECK-AST-NEXT:            CHKCBindTemporaryExpr [[TEMP3]] {{.*}} 'char _Nt_checked[2]' lvalue
+// CHECK-AST-NEXT:              CompoundLiteralExpr {{.*}} 'char _Nt_checked[2]' lvalue
+// CHECK-AST-NEXT:                InitListExpr {{.*}} 'char _Nt_checked[2]'
+// CHECK-AST-NEXT:                  ImplicitCastExpr {{.*}} 'char' <IntegralCast>
+// CHECK-AST-NEXT:                   CharacterLiteral {{.*}} 'int' 97
+// CHECK-AST-NEXT:                  ImplicitCastExpr {{.*}} 'char' <IntegralCast>
+// CHECK-AST-NEXT:                    CharacterLiteral {{.*}} 'int' 0
+// CHECK-AST-NEXT:           ImplicitCastExpr{{.*}} 'int' <LValueToRValue>
+// CHECK-AST-NEXT:             DeclRefExpr {{.*}} 'int' lvalue ParmVar {{.*}} 'index' 'int'
 
-// CHECK-IR: [[ARRAYINITBEGIN2:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3:%[a-zA-Z0-9._]*]], i32 0, i32 0
-// CHECK-IR: [[ARRAYDECAY2:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3:%[a-zA-Z0-9._]*]], i32 0, i32 0
-// CHECK-IR: [[ARRAYIDX3:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3]], i32 0, i32 [[REG1:%[a-zA-Z0-9._]*]]
-// CHECK-IR-NEXT: [[ADDPTR2:%[a-zA-Z0-9._]*]] = getelementptr inbounds i8, i8* [[ARRAYDECAY2]], i32 1
-// CHECK-IR-NEXT: [[LOWER2:%[a-zA-Z0-9._]*]] = icmp ule i8* [[ARRAYDECAY2]], [[ARRAYIDX3]]
-// CHECK-IR-NEXT: [[UPPER2:%[a-zA-Z0-9._]*]] = icmp ule i8* [[ARRAYIDX3]], [[ADDPTR2]]
+// CHECK-IR: [[ARRAYIDX16:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3:%[^,]*]], i32 0, i32 [[REG1:%[a-zA-Z0-9._]*]]
+// CHECK-IR: [[ARRAYDECAY17:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3]], i32 0, i32 0
+// CHECK-IR: [[ARRAYDECAY18:%[a-zA-Z0-9._]*]] = getelementptr inbounds [2 x i8], [2 x i8]* [[LITERAL3]], i32 0, i32 0
+// CHECK-IR-NEXT: [[ADDPTR2:%[a-zA-Z0-9._]*]] = getelementptr inbounds i8, i8* [[ARRAYDECAY18]], i32 1
+// CHECK-IR-NEXT: [[LOWER2:%[a-zA-Z0-9._]*]] = icmp ule i8* [[ARRAYDECAY17]], [[ARRAYIDX16]]
+// CHECK-IR-NEXT: [[UPPER2:%[a-zA-Z0-9._]*]] = icmp ule i8* [[ARRAYIDX16]], [[ADDPTR2]]
 // CHECK-IR-NEXT: [[DYN_CHK_RANGE2:%[a-zA-Z0-9._]*]] = and i1 [[LOWER2]], [[UPPER2]]
 // CHECK-IR-NEXT: br i1 [[DYN_CHK_RANGE2]], label %[[DYNCHK_SUCC3:[a-zA-Z0-9._]*]], label %[[DYNCHK_FAIL3:[a-zA-Z0-9._]*]]
 // CHECK-IR: [[DYNCHK_SUCC3]]:

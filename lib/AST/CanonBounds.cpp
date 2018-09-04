@@ -321,10 +321,23 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
   if (E1 == E2)
     return Result::Equal;
 
-   // Commpare expressions structurally, recursively invoking
+  // The use of an expression temporary is equal to the
+  // value of the binding expression.
+  if (BoundsValueExpr *BV1 = dyn_cast<BoundsValueExpr>(E1))
+    if (BV1->getTemporaryBinding() == E2)
+      return Result::Equal;
+
+  if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2))
+    if (BV2->getTemporaryBinding() == E1)
+      return Result::Equal;
+   
+   // Compare expressions structurally, recursively invoking
    // comparison for subcomponents.  If that fails, consult
    // EquivExprs to see if the expressions are considered
    // equivalent.
+   // - Handle temporary variable bindings and uses specially.
+   // - Treat different kinds of casts (implicit/explicit) as
+   //   equivalent if the operation kinds are the same.
    Stmt::StmtClass E1Kind = E1->getStmtClass();
    Stmt::StmtClass E2Kind = E2->getStmtClass();
    Result Cmp = CompareInteger(E1Kind, E2Kind);
@@ -383,6 +396,9 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
      case Expr::PositionalParameterExprClass: Cmp = Compare<PositionalParameterExpr>(E1, E2); break;
      case Expr::BoundsCastExprClass: Cmp = Compare<BoundsCastExpr>(E1, E2); break;
      case Expr::BoundsValueExprClass: Cmp = Compare<BoundsValueExpr>(E1, E2); break;
+     // Binding of a tempoary to the result of an expression.  These are
+     // equal if their child expressions are equal.
+     case Expr::CHKCBindTemporaryExprClass: break;
 
      // Clang extensions
      case Expr::ShuffleVectorExprClass: break;
@@ -746,13 +762,37 @@ Lexicographic::CompareImpl(const BoundsCastExpr *E1,
 }
 
 Result
+Lexicographic::CompareImpl(const CHKCBindTemporaryExpr *E1,
+                           const CHKCBindTemporaryExpr *E2) {
+  bool ordered;                           
+  Result Cmp = ComparePointers(E1, E2, ordered);
+  if (!ordered) {
+    // Order binding expressions by the source location of
+    // the source-level expression.
+    if (E1->getSubExpr()->getLocStart() < 
+        E2->getSubExpr()->getLocStart())
+      Cmp = Result::LessThan;
+    else
+      Cmp = Result::GreaterThan;
+   }
+   return Cmp;
+}
+
+Result
 Lexicographic::CompareImpl(const BoundsValueExpr *E1,
                            const BoundsValueExpr *E2) {
   Result Cmp = CompareInteger(E1->getKind(), E2->getKind());
+  if (Cmp != Result::Equal)
+    return Cmp;
+
   // The type doesn't matter - the value is the same no matter what the type.
+
+  // If these are uses of an expression temporary, check that the binding
+  // expression is the same.
+  if (E1->getKind() == BoundsValueExpr::Kind::Temporary)
+     Cmp = CompareImpl(E1->getTemporaryBinding(), E2->getTemporaryBinding());
   return Cmp;
 }
-
 
 Result
 Lexicographic::CompareImpl(const BlockExpr *E1, const BlockExpr *E2) {

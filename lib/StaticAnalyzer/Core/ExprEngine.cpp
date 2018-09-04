@@ -1018,6 +1018,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::CUDAKernelCallExprClass:
     case Stmt::OpaqueValueExprClass:
     case Stmt::AsTypeExprClass:
+    case Stmt::CHKCBindTemporaryExprClass:
       // Fall through.
 
     // Cases we intentionally don't evaluate, since they don't need
@@ -1486,16 +1487,15 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
       Bldr.addNodes(Dst);
       break;
     }
-    // The static analyzer knows nothing about Checked C extensions to
-    // the AST, so we should never see these.
+    // The static analyzer knows nothing about Checked C bounds expressions
+    // added to the AST, so we should never see these.
     case Stmt::PositionalParameterExprClass:
     case Stmt::CountBoundsExprClass:
     case Stmt::InteropTypeExprClass:
     case Stmt::NullaryBoundsExprClass:
     case Stmt::RangeBoundsExprClass:
     case Stmt::BoundsValueExprClass:
-    case Stmt::CHKCBindTemporaryExprClass:
-      llvm_unreachable("Do not expect to see Checked C extensions");
+      llvm_unreachable("Do not expect to see these Checked C extensions");
       break;
   }
 }

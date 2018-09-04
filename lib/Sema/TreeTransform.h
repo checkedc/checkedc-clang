@@ -119,6 +119,11 @@ protected:
   /// rather than in the subclass (e.g., lambda closure types).
   llvm::DenseMap<Decl *, Decl *> TransformedLocalDecls;
 
+  /// \brief The set of bound temporaries that have been transformed.  This
+  /// is needed so that we can keep uses in sync.
+  llvm::DenseMap<CHKCBindTemporaryExpr *, CHKCBindTemporaryExpr *>
+    TransformedTemporaries;
+
 public:
   /// \brief Initializes a new tree transformer.
   TreeTransform(Sema &SemaRef) : SemaRef(SemaRef) { }
@@ -422,6 +427,20 @@ public:
     return D;
   }
 
+  /// \brief Transform the given temporary variable binding, which is referenced from
+  /// a type or expression.
+  ///
+  /// If the transformer had to transform the temporary variable binding, return
+  /// the new binding.  Otherwise act as the identity function.
+  CHKCBindTemporaryExpr *TransformTemporary(SourceLocation Loc, CHKCBindTemporaryExpr *B) {
+    llvm::DenseMap<CHKCBindTemporaryExpr *, CHKCBindTemporaryExpr *>::iterator Known
+      = TransformedTemporaries.find(B);
+    if (Known != TransformedTemporaries.end())
+      return Known->second;
+
+    return B;
+  }
+
   /// \brief Transform the specified condition.
   ///
   /// By default, this transforms the variable and expression and rebuilds
@@ -446,6 +465,13 @@ public:
   /// can be overridden by a subclass that keeps track of such mappings.
   void transformedLocalDecl(Decl *Old, Decl *New) {
     TransformedLocalDecls[Old] = New;
+  }
+
+  /// \brief Note that a temporary variable binding has been transformed by this
+  /// transformer.
+  void transformedLocalTemporary(CHKCBindTemporaryExpr *Old,
+                                 CHKCBindTemporaryExpr *New) {
+    TransformedTemporaries[Old] = New;
   }
 
   /// \brief Transform the definition of the given declaration.
@@ -2539,12 +2565,18 @@ public:
     return getSema().CreatePositionalParameterExpr(Index, QT);
   }
 
-  ExprResult RebuildCHKCBindTemporaryExpr(BoundsTemporary *BT, Expr *SE) {
-    return new (getSema().Context) CHKCBindTemporaryExpr(BT, SE);
+  ExprResult RebuildCHKCBindTemporaryExpr(Expr *SE) {
+    return new (getSema().Context) CHKCBindTemporaryExpr(SE);
   }
 
-  ExprResult RebuildBoundsValueExpr(SourceLocation Loc, QualType Ty, BoundsValueExpr::Kind K) {
-    return new (getSema().Context) BoundsValueExpr(Loc, Ty, K);
+  ExprResult RebuildBoundsValueExpr(SourceLocation Loc, QualType Ty,
+                                    BoundsValueExpr::Kind K,
+                                    CHKCBindTemporaryExpr *Tmp) {
+    if (Tmp) {
+      assert(K == BoundsValueExpr::Kind::Temporary);
+      return new (getSema().Context) BoundsValueExpr(Loc, Tmp);
+    } else
+      return new (getSema().Context) BoundsValueExpr(Loc, Ty, K);
   }
 
 
@@ -11038,7 +11070,10 @@ TreeTransform<Derived>::TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E)
       SE.get() == E->getSubExpr())
     return E;
   
-  return getDerived().RebuildCHKCBindTemporaryExpr(E->getTemporary(), SE.get());
+  ExprResult R = getDerived().RebuildCHKCBindTemporaryExpr(SE.get());
+  if (!R.isInvalid())
+    transformedLocalTemporary(E, cast<CHKCBindTemporaryExpr>(R.get()));
+  return R;
 }
 
 /// \brief Transform a C++ expression that contains cleanups that should
@@ -12542,11 +12577,14 @@ ExprResult
 TreeTransform<Derived>::TransformBoundsValueExpr(
   BoundsValueExpr *E) {
   QualType QT = getDerived().TransformType(E->getType());
-  if (!getDerived().AlwaysRebuild() && QT == E->getType())
+  CHKCBindTemporaryExpr *Tmp = TransformTemporary(E->getLocEnd(), E->getTemporaryBinding());
+
+  if (!getDerived().AlwaysRebuild() && QT == E->getType() &&
+       Tmp == E->getTemporaryBinding())
     return E;
 
   return getDerived().
-    RebuildBoundsValueExpr(E->getLocation(), QT, E->getKind());
+    RebuildBoundsValueExpr(E->getLocation(), QT, E->getKind(), Tmp);
 }
 
 //===----------------------------------------------------------------------===//

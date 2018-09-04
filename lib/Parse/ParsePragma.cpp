@@ -795,7 +795,7 @@ bool Parser::HandlePragmaMSSegment(StringRef PragmaName,
     ExprResult StringResult = ParseStringLiteralExpression();
     if (StringResult.isInvalid())
       return false; // Already diagnosed.
-    SegmentName = cast<StringLiteral>(StringResult.get());
+    SegmentName = cast<StringLiteral>(StringResult.get()->IgnoreExprTmp());
     if (SegmentName->getCharByteWidth() != 1) {
       PP.Diag(PragmaLocation, diag::warn_pragma_expected_non_wide_string)
           << PragmaName;

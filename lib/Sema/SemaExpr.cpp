@@ -1640,10 +1640,9 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
     if (!getLangOpts().CheckedC)
       return Lit;
 
-    // For Checked C, we need to introduce a temporary so that we identify the
-    // string literal in bounds expression.
-    BoundsTemporary *Temp = new (Context) BoundsTemporary();
-    CHKCBindTemporaryExpr *Binding = new (Context) CHKCBindTemporaryExpr(Temp, Lit);
+    // For Checked C, introduce a temporary so that we can identify the
+    // string literal in bounds expressions.
+    CHKCBindTemporaryExpr *Binding = new (Context) CHKCBindTemporaryExpr(Lit);
     return Binding;
   }
 
@@ -5866,10 +5865,18 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
       (getLangOpts().CPlusPlus && !(isFileScope && literalType->isArrayType()))
           ? VK_RValue
           : VK_LValue;
-
-  return MaybeBindToTemporary(
+  Result = MaybeBindToTemporary(
       new (Context) CompoundLiteralExpr(LParenLoc, TInfo, literalType,
                                         VK, LiteralExpr, isFileScope));
+
+  // In Checked C, always bind a compound literal with array type to a
+  // temporary for use in bounds expressions.
+  if (getLangOpts().CheckedC && literalType->isArrayType() &&
+      !Result.isInvalid() && isa<CompoundLiteralExpr>(Result.get()))
+    Result = new (Context) CHKCBindTemporaryExpr(Result.get());
+
+  return Result;
+
 }
 
 ExprResult
@@ -8278,7 +8285,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
   if (ICE->getCastKind() != CK_ArrayToPointerDecay)
     return false;
 
-  Expr *Child = ICE->getSubExpr()->IgnoreParens();
+  Expr *Child = ICE->getSubExpr()->IgnoreParens()->IgnoreExprTmp();
   if (!isa<InitListExpr>(Child) && !isa<StringLiteral>(Child) &&
       !isa<CompoundLiteralExpr>(Child))
     return false;

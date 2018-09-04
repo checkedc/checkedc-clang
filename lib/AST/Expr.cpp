@@ -1668,6 +1668,9 @@ namespace {
     if (CXXBindTemporaryExpr *Binder = dyn_cast<CXXBindTemporaryExpr>(expr))
       expr = Binder->getSubExpr();
 
+    if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(expr))
+      expr = Temp->getSubExpr();
+
     return expr;
   }
 }
@@ -1963,7 +1966,7 @@ bool InitListExpr::isStringLiteralInit() const {
   const Expr *Init = getInit(0);
   if (!Init)
     return false;
-  Init = Init->IgnoreParens();
+  Init = Init->IgnoreParens()->IgnoreExprTmp();
   return isa<StringLiteral>(Init) || isa<ObjCEncodeExpr>(Init);
 }
 
@@ -2010,15 +2013,15 @@ bool InitListExpr::isNullTerminated(ASTContext &C, unsigned DeclArraySize) const
     return true;
   }
   
-  if (getNumInits() == 1 && getInit(0) && isa<StringLiteral>(getInit(0))) {
-    const StringLiteral *InitializerString = cast<StringLiteral>(getInit(0));
-    if (DeclArraySize < InitializerString->getLength())
-    {
-      const char *StringConstant = InitializerString->getString().data();
-      return (StringConstant[DeclArraySize - 1] == '\0');  
+  if (getNumInits() == 1 && getInit(0))
+    if (const StringLiteral *InitializerString =
+         dyn_cast<StringLiteral>(getInit(0)->IgnoreExprTmp())) {
+      if (DeclArraySize < InitializerString->getLength()) {
+        const char *StringConstant = InitializerString->getString().data();
+        return (StringConstant[DeclArraySize - 1] == '\0');
+      }
+      return true;
     }
-    return true;
-  }
 
   const Expr *LastItem = getInit(getNumInits() - 1);
   Expr::NullPointerConstantKind E = LastItem->isNullPointerConstant(C, Expr::NPC_ValueDependentIsNull);
@@ -2415,6 +2418,9 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
   case CXXBindTemporaryExprClass:
     return cast<CXXBindTemporaryExpr>(this)->getSubExpr()
                ->isUnusedResultAWarning(WarnE, Loc, R1, R2, Ctx);
+  case CHKCBindTemporaryExprClass:
+    return cast<CHKCBindTemporaryExpr>(this)->getSubExpr()
+               ->isUnusedResultAWarning(WarnE, Loc, R1, R2, Ctx);
   case ExprWithCleanupsClass:
     return cast<ExprWithCleanups>(this)->getSubExpr()
                ->isUnusedResultAWarning(WarnE, Loc, R1, R2, Ctx);
@@ -2541,6 +2547,10 @@ Expr *Expr::IgnoreParenCasts() {
       E = NTTP->getReplacement();
       continue;
     }      
+    if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E)) {
+      E = Binding->getSubExpr();
+      continue;
+    }
     return E;
   }
 }
@@ -2560,6 +2570,10 @@ Expr *Expr::IgnoreCasts() {
     if (SubstNonTypeTemplateParmExpr *NTTP
         = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
       E = NTTP->getReplacement();
+      continue;
+    }
+    if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E)) {
+      E = Binding->getSubExpr();
       continue;
     }
     return E;
@@ -2586,6 +2600,10 @@ Expr *Expr::IgnoreParenLValueCasts() {
     } else if (SubstNonTypeTemplateParmExpr *NTTP
                                   = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
       E = NTTP->getReplacement();
+      continue;
+    }
+    if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E)) {
+      E = Binding->getSubExpr();
       continue;
     }
     break;
@@ -2626,6 +2644,10 @@ Expr *Expr::IgnoreParenImpCasts() {
     if (SubstNonTypeTemplateParmExpr *NTTP
                                   = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
       E = NTTP->getReplacement();
+      continue;
+    }
+    if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E)) {
+      E = Binding->getSubExpr();
       continue;
     }
     return E;
@@ -2678,6 +2700,14 @@ Expr *Expr::IgnoreParenNoopCasts(ASTContext &Ctx) {
   }
 }
 
+Expr *Expr::IgnoreExprTmp() {
+  Expr *E = this;
+  if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E))
+    return Binding->getSubExpr();
+
+  return E;
+}
+
 bool Expr::isDefaultArgument() const {
   const Expr *E = this;
   if (const MaterializeTemporaryExpr *M = dyn_cast<MaterializeTemporaryExpr>(E))
@@ -2704,6 +2734,9 @@ static const Expr *skipTemporaryBindingsNoOpCastsAndParens(const Expr *E) {
 
   while (const CXXBindTemporaryExpr *BE = dyn_cast<CXXBindTemporaryExpr>(E))
     E = BE->getSubExpr();
+
+  while (const CHKCBindTemporaryExpr *CB = dyn_cast<CHKCBindTemporaryExpr>(E))
+    E = CB->getSubExpr();
 
   while (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E)) {
     if (ICE->getCastKind() == CK_NoOp)
@@ -2967,7 +3000,11 @@ bool Expr::isConstantInitializer(ASTContext &Ctx, bool IsForRef,
   case CXXDefaultInitExprClass:
     return cast<CXXDefaultInitExpr>(this)->getExpr()
       ->isConstantInitializer(Ctx, false, Culprit);
+  case CHKCBindTemporaryExprClass:
+    return cast<CHKCBindTemporaryExpr>(this)->getSubExpr()
+      ->isConstantInitializer(Ctx, false, Culprit);
   }
+
   // Allow certain forms of UB in constant initializers: signed integer
   // overflow and floating-point division by zero. We'll give a warning on
   // these, but they're common enough that we have to accept them.
@@ -3071,10 +3108,6 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case BoundsValueExprClass:
     // These never have a side-effect.
     return false;
-  case CHKCBindTemporaryExprClass:
-    // These have a side-effect if the subexpression has 
-    // a side-effect.
-    break;
 
   case CallExprClass:
   case CXXOperatorCallExprClass:
@@ -3096,6 +3129,9 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
     if (!IncludePossibleEffects)
       break;
     return true;
+  case CHKCBindTemporaryExprClass:
+    // These have a side-effect if the subexpression has a side-effect.
+    break;
 
   case MSPropertyRefExprClass:
   case MSPropertySubscriptExprClass:

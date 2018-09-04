@@ -1444,13 +1444,15 @@ ExprResult Parser::ParseAsmStringLiteral() {
 
   ExprResult AsmString(ParseStringLiteralExpression());
   if (!AsmString.isInvalid()) {
-    const auto *SL = cast<StringLiteral>(AsmString.get());
+    Expr *E = AsmString.get()->IgnoreExprTmp();
+    const auto *SL = cast<StringLiteral>(E);
     if (!SL->isAscii()) {
       Diag(Tok, diag::err_asm_operand_wide_string_literal)
         << SL->isWide()
         << SL->getSourceRange();
       return ExprError();
     }
+    return E;
   }
   return AsmString;
 }

@@ -2847,8 +2847,10 @@ void ASTDumper::VisitPositionalParameterExpr(
 
 void ASTDumper::VisitBoundsValueExpr(const BoundsValueExpr *Node) {
   VisitExpr(Node);
-  if (Node->getKind() == BoundsValueExpr::Kind::Temporary)
-    OS << " _BoundTemporary " << (unsigned int) Node->getTemporaryBinding();
+  if (Node->getKind() == BoundsValueExpr::Kind::Temporary) {
+    OS << " _BoundTemporary ";
+    dumpPointer(Node->getTemporaryBinding());
+  }
   else
     OS << " _Return_value";
 }

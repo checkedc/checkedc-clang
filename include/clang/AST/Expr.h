@@ -788,6 +788,14 @@ public:
     return const_cast<Expr*>(this)->ignoreParenBaseCasts();
   }
 
+  /// Ignore Checked C expression temporaries (CHCKBindTemporaryExpr).
+  Expr *IgnoreExprTmp() LLVM_READONLY;
+
+  const Expr *IgnoreExprTmp() const LLVM_READONLY {
+    return const_cast<Expr*>(this)->IgnoreExprTmp();
+  }
+
+
   /// \brief Determine whether this expression is a default function argument.
   ///
   /// Default arguments are implicitly generated in the abstract syntax tree
@@ -5441,36 +5449,28 @@ class PositionalParameterExpr : public Expr {
     }
 };
 
-/// \brief Represents a temporary for use in bounds expressions.
-class BoundsTemporary {
-public:
-  static BoundsTemporary *Create(const ASTContext &C);
-};
-
-/// \brief Represents binding an expression to a temporary.
+/// \brief Represents binding an expression to an anonymous temporary.
+/// We use this binding node itself to represent the temporary.
 ///
 /// When a bounds expression is computed for an expression E, this
 /// lets the bounds expression reference the value of a subexpression
 /// of E.
+// TODO: this is very similar to an OpaqueValueExpr, except that it
+// is scoped to the top-level expression containing it.   Perhaps we
+// should combine htem.
 class CHKCBindTemporaryExpr : public Expr {
-  BoundsTemporary *Temp;
   Stmt *SubExpr;
 
 public:
-  CHKCBindTemporaryExpr(BoundsTemporary *temp, Expr* SubExpr)
+  CHKCBindTemporaryExpr(Expr* SubExpr)
    : Expr(CHKCBindTemporaryExprClass, SubExpr->getType(),
           SubExpr->getValueKind(), SubExpr->getObjectKind(), SubExpr->isTypeDependent(),
           SubExpr->isValueDependent(),
           SubExpr->isInstantiationDependent(),
-          SubExpr->containsUnexpandedParameterPack()),
-     Temp(temp), SubExpr(SubExpr) { }
+          SubExpr->containsUnexpandedParameterPack()), SubExpr(SubExpr) { }
 
   CHKCBindTemporaryExpr(EmptyShell Empty)
-    : Expr(CHKCBindTemporaryExprClass, Empty), Temp(nullptr), SubExpr(nullptr) {}
-
-  BoundsTemporary *getTemporary() { return Temp; }
-  const BoundsTemporary *getTemporary() const { return Temp; }
-  void setTemporary(BoundsTemporary *T) { Temp = T; }
+    : Expr(CHKCBindTemporaryExprClass, Empty), SubExpr(nullptr) {}
 
   const Expr *getSubExpr() const { return cast<Expr>(SubExpr); }
   Expr *getSubExpr() { return cast<Expr>(SubExpr); }

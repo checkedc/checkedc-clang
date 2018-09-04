@@ -1919,8 +1919,8 @@ public:
 
 private:
   /// BoundsTemporary - Keeps track of values of bounds temporaries.
-  llvm::DenseMap<const BoundsTemporary *, LValue> BoundsTemporaryLValues;
-  llvm::DenseMap<const BoundsTemporary *, RValue> BoundsTemporaryRValues;
+  llvm::DenseMap<const CHKCBindTemporaryExpr *, LValue> BoundsTemporaryLValues;
+  llvm::DenseMap<const CHKCBindTemporaryExpr *, RValue> BoundsTemporaryRValues;
 
 public:
   /// getBoundsTemporaryLValueMapping - Given a bounds temporary (which
@@ -1928,8 +1928,8 @@ public:
   const LValue &getBoundsTemporaryLValueMapping(const CHKCBindTemporaryExpr *e) {
     assert (e->getSubExpr()->isLValue());
 
-    llvm::DenseMap<const BoundsTemporary *,LValue>::iterator
-      it = BoundsTemporaryLValues.find(e->getTemporary());
+    llvm::DenseMap<const CHKCBindTemporaryExpr *,LValue>::iterator
+      it = BoundsTemporaryLValues.find(e);
     assert(it != BoundsTemporaryLValues.end() && "no mapping for temporary!");
     return it->second;
   }
@@ -1939,8 +1939,8 @@ public:
   const RValue &getBoundsTemporaryRValueMapping(const CHKCBindTemporaryExpr *e) {
     assert (!e->getSubExpr()->isLValue());
 
-    llvm::DenseMap<const BoundsTemporary *,RValue>::iterator
-      it = BoundsTemporaryRValues.find(e->getTemporary());
+    llvm::DenseMap<const CHKCBindTemporaryExpr *,RValue>::iterator
+      it = BoundsTemporaryRValues.find(e);
     assert(it != BoundsTemporaryRValues.end() && "no mapping for temporary!");
     return it->second;
   }
@@ -1948,7 +1948,7 @@ public:
  void setBoundsTemporaryLValueMapping(const CHKCBindTemporaryExpr *e,
                                       const LValue &lv) {
     assert(e->getSubExpr()->isLValue());
-    auto result = BoundsTemporaryLValues.insert(std::make_pair(e->getTemporary(), lv));
+    auto result = BoundsTemporaryLValues.insert(std::make_pair(e, lv));
     assert(result.second && "temporary already in map!");
   }
 

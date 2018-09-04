@@ -11306,6 +11306,7 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
   if (!Init) {
     return true;
   }
+  Init = Init->IgnoreExprTmp();
   const Type *current = VDeclType.getTypePtr();
   switch (current->getTypeClass()) {
   case Type::Pointer: {
@@ -11322,8 +11323,8 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
 
       // Initializer-string enclosed in {} e.g. {"test"}
       if (InitEx && InitEx->getNumInits() == 1 && InitEx->getInit(0) &&
-          isa<StringLiteral>(InitEx->getInit(0))) {
-        InitializerString = cast<StringLiteral>(InitEx->getInit(0));
+          isa<StringLiteral>(InitEx->getInit(0)->IgnoreExprTmp())) {
+        InitializerString = cast<StringLiteral>(InitEx->getInit(0)->IgnoreExprTmp());
       }
 
       // Initializer-string
