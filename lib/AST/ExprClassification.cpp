@@ -422,7 +422,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::PositionalParameterExprClass:
     return Cl::CL_LValue;
 
-  // For bindings of tmeporaries, delegate to the underlying expression.
+  // For bindings of temporaries, delegate to the underlying expression.
   case Expr::CHKCBindTemporaryExprClass:
     return ClassifyInternal(Ctx, cast<CHKCBindTemporaryExpr>(E)->getSubExpr());
 
@@ -432,7 +432,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
       return Cl::CL_PRValue;
     else
       // For uses of temporaries, delegate to the underlying expression.
-      return ClassifyInternal(Ctx, BV->getTemporaryBinding()->getSubExpr());  
+      return ClassifyInternal(Ctx, BV->getTemporaryBinding()->getSubExpr());
   }
 
   case Expr::CountBoundsExprClass:

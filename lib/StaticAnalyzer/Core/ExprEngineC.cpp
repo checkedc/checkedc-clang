@@ -1096,7 +1096,7 @@ void ExprEngine::VisitIncrementDecrementOperator(const UnaryOperator* U,
 }
 
 void ExprEngine::VisitCHKCBindTemporaryExpr(
-  const CHKCBindTemporaryExpr *Binding, const Expr *SE, ExplodedNode *Pred, 
+  const CHKCBindTemporaryExpr *Binding, const Expr *SE, ExplodedNode *Pred,
   ExplodedNodeSet &Dst) {
 
   ExplodedNodeSet dstPreStmt;

@@ -3080,16 +3080,6 @@ Address CodeGenFunction::EmitArrayToPointerDecay(const Expr *E,
 
   // Expressions of array type can't be bitfields or vector elements.
   LValue LV = EmitLValue(E);
-  return EmitArrayToPointerDecay(LV, E, BaseInfo, TBAAInfo);
-}
-
-Address CodeGenFunction::EmitArrayToPointerDecay(LValue LV,
-                                                 const Expr *E,
-                                                 LValueBaseInfo *BaseInfo,
-                                                 TBAAAccessInfo *TBAAInfo) {
-  assert(E->getType()->isArrayType() &&
-         "Array to pointer decay must have array source type!");
-
   Address Addr = LV.getAddress();
 
   // If the array type was an incomplete type, we need to make sure

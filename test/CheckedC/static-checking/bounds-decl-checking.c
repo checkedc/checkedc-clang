@@ -329,4 +329,3 @@ _Array_ptr<int> f36(unsigned num) : count(num) {
   return p;
 }
 #endif
-

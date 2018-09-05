@@ -5449,15 +5449,13 @@ class PositionalParameterExpr : public Expr {
     }
 };
 
-/// \brief Represents binding an expression to an anonymous temporary.
-/// We use this binding node itself to represent the temporary.
+/// \brief Represents binding the result of evaluating an expression 
+/// to an anonymous temporary.  We use the binding node itself to
+/// represent the temporary.
 ///
 /// When a bounds expression is computed for an expression E, this
 /// lets the bounds expression reference the value of a subexpression
 /// of E.
-// TODO: this is very similar to an OpaqueValueExpr, except that it
-// is scoped to the top-level expression containing it.   Perhaps we
-// should combine htem.
 class CHKCBindTemporaryExpr : public Expr {
   Stmt *SubExpr;
 
@@ -5505,8 +5503,7 @@ public:
   };
 
 private:
-  CHKCBindTemporaryExpr *Temp;  // Store the binding so that we can easily
-                                // find the underlying expression.
+  CHKCBindTemporaryExpr *Temp;  // Binding which represents a temporary.
   SourceLocation Loc;
   Kind ValueExprKind;
 

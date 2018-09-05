@@ -3257,9 +3257,6 @@ public:
   Address EmitArrayToPointerDecay(const Expr *Array,
                                   LValueBaseInfo *BaseInfo = nullptr,
                                   TBAAAccessInfo *TBAAInfo = nullptr);
-  Address EmitArrayToPointerDecay(LValue LV, const Expr *Array,
-                                  LValueBaseInfo *BaseInfo = nullptr,
-                                  TBAAAccessInfo *TBAAInfo = nullptr);
 
   class ConstantEmission {
     llvm::PointerIntPair<llvm::Constant*, 1, bool> ValueAndIsReference;

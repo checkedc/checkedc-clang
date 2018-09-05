@@ -335,7 +335,6 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
    // comparison for subcomponents.  If that fails, consult
    // EquivExprs to see if the expressions are considered
    // equivalent.
-   // - Handle temporary variable bindings and uses specially.
    // - Treat different kinds of casts (implicit/explicit) as
    //   equivalent if the operation kinds are the same.
    Stmt::StmtClass E1Kind = E1->getStmtClass();

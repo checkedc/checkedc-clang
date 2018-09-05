@@ -1263,7 +1263,7 @@ void StmtProfiler::VisitPositionalParameterExpr(
 
 void StmtProfiler::VisitBoundsValueExpr(const BoundsValueExpr *S) {
   // Uses of bound temporaries are only synthesized by the compiler during
-  // bounds inferences. We shouldn't be profiling expressions with
+  // bounds inference. We shouldn't be profiling expressions with
   // such uses.
   if (S->getKind() == BoundsValueExpr::Kind::Temporary)
     llvm_unreachable("Should not profile expression with use of bounds temporary.");

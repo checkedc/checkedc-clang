@@ -616,7 +616,7 @@ char f51(void) {
 
 //
 // Test bounds for array literals
-// 
+//
 
 char f52(void) _Checked {
    _Array_ptr<int> p : count(3) = (int _Checked[]) { 0, 1, 2 };
@@ -754,3 +754,4 @@ char f53(void) _Checked {
 // CHECK-NEXT:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
 
 }
+ 

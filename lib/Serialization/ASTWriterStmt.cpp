@@ -1051,6 +1051,8 @@ void ASTStmtWriter::VisitPositionalParameterExpr(
 void ASTStmtWriter::VisitBoundsValueExpr(
   BoundsValueExpr *E) {
   VisitExpr(E);
+  if (E ->getKind() == BoundsValueExpr::Kind::Temporary)
+    llvm_unreachable("should not write use of bounds temporary");
   Record.push_back(E->getKind());
   Code = serialization::EXPR_BOUNDS_VALUE_EXPR;
 }

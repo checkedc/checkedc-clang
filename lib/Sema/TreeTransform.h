@@ -5371,7 +5371,8 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
       BoundsAnnotations ParamAnnotations;
       if (i < ExistingParamCount) {
         ParamAnnotations = ExistingParamListAnnots[i];
-        if (getDerived().TransformBoundsAnnotations(ParamAnnotations, ParamListAnnotsChanged))
+        if (getDerived().TransformBoundsAnnotations(ParamAnnotations, 
+                                                    ParamListAnnotsChanged))
           return true;
       }
       ParamListAnnots.push_back(ParamAnnotations);
@@ -11060,8 +11061,8 @@ TreeTransform<Derived>::TransformCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
 ///
 /// We transform the subexpression and re-use the temporary name.
 template<typename Derived>
-ExprResult
-TreeTransform<Derived>::TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+ExprResult TreeTransform<Derived>::
+TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
   ExprResult SE = getDerived().TransformExpr(E->getSubExpr());
   if (SE.isInvalid())
     return ExprError();

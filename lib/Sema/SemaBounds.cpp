@@ -2596,7 +2596,7 @@ namespace {
           // TODO: turn this check as part of adding temporary variables for
           // calls.
           // Turning it on now would cause errors to be issued for arguments
-          // that are calls. 
+          // that are calls.
           if (true /* S.CheckIsNonModifying(Arg,
                               Sema::NonModifyingContext::NMC_Function_Parameter,
                                     Sema::NonModifyingMessage::NMM_Error) */)
