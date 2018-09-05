@@ -5479,6 +5479,7 @@ public:
   SourceLocation getLocStart() const LLVM_READONLY {
     return SubExpr->getLocStart();
   }
+
   SourceLocation getLocEnd() const LLVM_READONLY { return SubExpr->getLocEnd();}
 
   // Implement isa/cast/dyncast/etc.
@@ -5512,13 +5513,13 @@ private:
 public:
   BoundsValueExpr(SourceLocation L, QualType Type, Kind K)
     : Expr(BoundsValueExprClass, Type, VK_RValue, OK_Ordinary,
-           false, false, false, false), Temp(nullptr), Loc(L), 
+           false, false, false, false), Temp(nullptr), Loc(L),
       ValueExprKind(K) { }
 
   // Create a use of an expression temporary.
   BoundsValueExpr(SourceLocation L, CHKCBindTemporaryExpr *Temp)
     : Expr(BoundsValueExprClass, Temp->getType(), Temp->getValueKind(), OK_Ordinary,
-           false, false, false, false), Temp(Temp), Loc(L), 
+           false, false, false, false), Temp(Temp), Loc(L),
       ValueExprKind(Kind::Temporary) { }
 
   BoundsValueExpr(EmptyShell Empty) : Expr(BoundsValueExprClass, Empty) {}

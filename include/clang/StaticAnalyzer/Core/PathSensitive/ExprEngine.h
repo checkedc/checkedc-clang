@@ -462,7 +462,7 @@ public:
 
   /// VisitCHKCBindTemporaryExpr - Transfer function logic for binding an
   /// expression to a temporary
-  void VisitCHKCBindTemporaryExpr(const CHKCBindTemporaryExpr *Binding, 
+  void VisitCHKCBindTemporaryExpr(const CHKCBindTemporaryExpr *Binding,
                                   const Expr *SE, ExplodedNode *Pred,
                                   ExplodedNodeSet &Dst);
 

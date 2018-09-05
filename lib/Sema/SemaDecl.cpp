@@ -11323,8 +11323,8 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
 
       // Initializer-string enclosed in {} e.g. {"test"}
       if (InitEx && InitEx->getNumInits() == 1 && InitEx->getInit(0) &&
-          isa<StringLiteral>(InitEx->getInit(0)->IgnoreExprTmp())) {
-        InitializerString = cast<StringLiteral>(InitEx->getInit(0)->IgnoreExprTmp());
+          isa<StringLiteral>(InitEx->getInit(0))) {
+        InitializerString = cast<StringLiteral>(InitEx->getInit(0));
       }
 
       // Initializer-string

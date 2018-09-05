@@ -544,8 +544,6 @@ namespace {
                                          SourceLocation());
     }
 
-
-
     // Determine if the mathemtical value of I (an unsigned integer) fits within
     // the range of Ty, a signed integer type.  APInt requires that bitsizes
     // match exactly, so if I does fit, return an APInt via Result with
@@ -2154,11 +2152,11 @@ namespace {
         EqualExpr.push_back(TargetExpr);
         EqualExpr.push_back(Src);
         EquivExprs.push_back(&EqualExpr);
-/*
+        /*
         llvm::outs() << "Dumping target/src equality relation\n";
         for (Expr *E : EqualExpr)
           E->dump(llvm::outs());
-*/
+        */
       }
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
@@ -2554,14 +2552,6 @@ namespace {
         // We want to check the argument expression implies the desired parameter bounds.
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
-
-        // TODO: rewrite this code to avoid actually doing substitution.  Instead use
-        // the equality relation instead. 
-        // - If the argument expression is nom-modifying,, we'll set up an equality between
-        //   the parameter and the argument expression
-        // If the argument expression is a modifying expression, we'll introduce a temporary
-        // instead and set up an equality between the parameter and the temporary. We'll
-        // also attach bounds to the temporary.
         const BoundsAnnotations ParamAnnots = FuncProtoTy->getParamAnnots(i);
         const BoundsExpr *ParamBounds = ParamAnnots.getBoundsExpr();
         const InteropTypeExpr *ParamIType = ParamAnnots.getInteropTypeExpr();
@@ -2603,9 +2593,10 @@ namespace {
         // Put the parameter bounds in a standard form if necessary.
         if (SubstParamBounds->isElementCount() ||
             SubstParamBounds->isByteCount()) {
-          // TODO: revise this code as part of using equality.
+          // TODO: turn this check as part of adding temporary variables for
+          // calls.
           // Turning it on now would cause errors to be issued for arguments
-          // that are calls.
+          // that are calls. 
           if (true /* S.CheckIsNonModifying(Arg,
                               Sema::NonModifyingContext::NMC_Function_Parameter,
                                     Sema::NonModifyingMessage::NMM_Error) */)
@@ -2615,25 +2606,14 @@ namespace {
              continue;
         }
 
-
-        SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
-        /* TODO: record equality information, as described earlier.
-        SmallVector<Expr *, 4> EqualExpr;
-        EquivExprs.push_back(&EqualExpr);
-        */
-
         if (DumpBounds) {
           DumpCallArgumentBounds(llvm::outs(),
                                  FuncProtoTy->getParamAnnots(i).getBoundsExpr(),
                                  Arg, SubstParamBounds, ArgBounds);
-        /* TODO: update this code to dump all of the equivalent expressions.
-          llvm::outs() << "Equivalent expressions:\n";
-          for (Expr *E : EqualExpr)
-            E->dump(llvm::outs());
-        */
         }
 
-        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope,  &EquivExprs);
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds,
+                                 InCheckedScope, nullptr);
       }
       return;
    }

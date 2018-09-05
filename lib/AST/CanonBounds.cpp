@@ -764,12 +764,12 @@ Lexicographic::CompareImpl(const BoundsCastExpr *E1,
 Result
 Lexicographic::CompareImpl(const CHKCBindTemporaryExpr *E1,
                            const CHKCBindTemporaryExpr *E2) {
-  bool ordered;                           
+  bool ordered;
   Result Cmp = ComparePointers(E1, E2, ordered);
   if (!ordered) {
     // Order binding expressions by the source location of
     // the source-level expression.
-    if (E1->getSubExpr()->getLocStart() < 
+    if (E1->getSubExpr()->getLocStart() <
         E2->getSubExpr()->getLocStart())
       Cmp = Result::LessThan;
     else

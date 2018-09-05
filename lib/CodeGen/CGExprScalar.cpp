@@ -769,10 +769,6 @@ public:
          Result = CGF.getBoundsTemporaryRValueMapping(Temp).getScalarVal();
     } else
        llvm_unreachable("unexpected bounds value expr");
-#if 0
-    llvm::errs() << "Dumping bound value expr\n";
-    Result->dump();
-#endif
     assert(Result);
     return Result;
   }

@@ -1495,7 +1495,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
       // Handle the postvisit checks.
       getCheckerManager().runCheckersForPostStmt(Dst, dstExpr, Binding, *this);
       Bldr.addNodes(Dst);
-      break;     
+      break;
     }
     // The static analyzer knows nothing about Checked C bounds expressions
     // added to the AST, so we should never see these.
@@ -1505,7 +1505,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::NullaryBoundsExprClass:
     case Stmt::RangeBoundsExprClass:
     case Stmt::BoundsValueExprClass:
-      llvm_unreachable("Do not expect to see these Checked C extensions");
+      llvm_unreachable("Do not expect to see Checked C extensions");
       break;
   }
 }

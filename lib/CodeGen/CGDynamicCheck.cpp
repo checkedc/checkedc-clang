@@ -75,7 +75,7 @@ void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr, const Qua
 
 void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr,
                                              const BoundsExpr *Bounds,
-                                             BoundsCheckKind CheckKind, 
+                                             BoundsCheckKind CheckKind,
                                              llvm::Value *Val) {
   if (!getLangOpts().CheckedC)
     return;

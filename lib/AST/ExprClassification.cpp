@@ -432,8 +432,8 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
       return Cl::CL_PRValue;
     else
       // For uses of temporaries, delegate to the underlying expression.
-      return ClassifyInternal(Ctx, BV->getTemporaryBinding()->getSubExpr());      
-  } 
+      return ClassifyInternal(Ctx, BV->getTemporaryBinding()->getSubExpr());  
+  }
 
   case Expr::CountBoundsExprClass:
   case Expr::InteropTypeExprClass:

@@ -2086,9 +2086,8 @@ void StmtPrinter::VisitBoundsValueExpr(BoundsValueExpr *E) {
   if (E->getKind() == BoundsValueExpr::Return)
     OS << "_Return_value";
   else {
-    OS <<  "subexpression value(";
+    OS <<  "value of ";
     Visit(E->getTemporaryBinding()->getSubExpr());
-    OS <<  ")";
   }
 }
 

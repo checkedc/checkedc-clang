@@ -5325,7 +5325,7 @@ bool TreeTransform<Derived>::TransformBoundsAnnotations(
 template<typename Derived>
 bool TreeTransform<Derived>::TransformReturnBoundsAnnotations(
   BoundsAnnotations &Annot, bool &Changed) {
-  return getDerived().TransformBoundsAnnotations(Annot, Changed);    
+  return getDerived().TransformBoundsAnnotations(Annot, Changed);
 }
 
 template <typename Derived> template<typename Fn>
@@ -12577,7 +12577,8 @@ ExprResult
 TreeTransform<Derived>::TransformBoundsValueExpr(
   BoundsValueExpr *E) {
   QualType QT = getDerived().TransformType(E->getType());
-  CHKCBindTemporaryExpr *Tmp = TransformTemporary(E->getLocEnd(), E->getTemporaryBinding());
+  CHKCBindTemporaryExpr *Tmp = TransformTemporary(E->getLocEnd(),
+                                                  E->getTemporaryBinding());
 
   if (!getDerived().AlwaysRebuild() && QT == E->getType() &&
        Tmp == E->getTemporaryBinding())
