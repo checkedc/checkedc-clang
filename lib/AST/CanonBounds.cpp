@@ -330,7 +330,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
   if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2))
     if (BV2->getTemporaryBinding() == E1)
       return Result::Equal;
-   
+
    // Compare expressions structurally, recursively invoking
    // comparison for subcomponents.  If that fails, consult
    // EquivExprs to see if the expressions are considered

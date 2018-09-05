@@ -5449,7 +5449,7 @@ class PositionalParameterExpr : public Expr {
     }
 };
 
-/// \brief Represents binding the result of evaluating an expression 
+/// \brief Represents binding the result of evaluating an expression
 /// to an anonymous temporary.  We use the binding node itself to
 /// represent the temporary.
 ///

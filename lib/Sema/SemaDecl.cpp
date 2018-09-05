@@ -11306,7 +11306,6 @@ bool Sema::ValidateNTCheckedType(ASTContext &Ctx, QualType VDeclType,
   if (!Init) {
     return true;
   }
-  Init = Init->IgnoreExprTmp();
   const Type *current = VDeclType.getTypePtr();
   switch (current->getTypeClass()) {
   case Type::Pointer: {
