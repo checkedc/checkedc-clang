@@ -553,13 +553,12 @@ void f43(void) {
 char f50(void) _Checked {
   _Array_ptr<char> p : count(6) = "abcdef";
 
-// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' cinit
+// CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} p '_Array_ptr<char>' cinit
 // CHECK-NEXT: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK-NEXT: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 6
-// CHECK-NEXT: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <BitCast>
-// CHECK-NEXT:   `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Nt_array_ptr<char>' <ArrayToPointerDecay>
-// CHECK-NEXT:      `-CHKCBindTemporaryExpr [[TEMP1:0x[0-9a-f]+]] {{.*}} 'char _Nt_checked[7]' lvalue
-// CHECK-NEXT:        `-StringLiteral {{0x[0-9a-f]+}} {{.*}} 'char _Nt_checked[7]' lvalue "abcdef"
+// CHECK-NEXT: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <ArrayToPointerDecay> BoundsSafeInterface
+// CHECK-NEXT:   `-CHKCBindTemporaryExpr [[TEMP1:0x[0-9a-f]+]] {{.*}} 'char _Nt_checked[7]' lvalue
+// CHECK-NEXT:     `-StringLiteral {{0x[0-9a-f]+}} {{.*}} 'char _Nt_checked[7]' lvalue "abcdef"
 // CHECK-NEXT: Declared Bounds:
 // CHECK-NEXT: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
 // CHECK-NEXT: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 6
@@ -599,10 +598,9 @@ char f51(void) {
 // CHECK: VarDecl {{0x[0-9a-f]+}} {{.*}} used q '_Array_ptr<char>' cinit
 // CHECK-NEXT: |-CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK-NEXT: | `-IntegerLiteral {{0x[0-9a-f]+}} {{.*}} 'int' 6
-// CHECK-NEXT: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <BitCast>
-// CHECK-NEXT:  `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'char *' <ArrayToPointerDecay>
-// CHECK-NEXT:      `-CHKCBindTemporaryExpr [[TEMP3:0x[0-9a-f]+]] {{.*}}> 'char [7]' lvalue   
-// CHECK-NEXT:        `-StringLiteral {{0x[0-9a-f]+}} {{.*}} 'char [7]' lvalue "abcdef"
+// CHECK-NEXT: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<char>' <ArrayToPointerDecay> BoundsSafeInterface
+// CHECK-NEXT:   `-CHKCBindTemporaryExpr  [[TEMP3:0x[0-9a-f]+]] {{.*}} 'char [7]' lvalue
+// CHECK-NEXT:     `-StringLiteral {{0x[0-9a-f]+}} {{.*}} 'char [7]' lvalue "abcdef"
 // CHECK-NEXT: Declared Bounds:
 // CHECK-NEXT: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
 // CHECK-NEXT: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 6

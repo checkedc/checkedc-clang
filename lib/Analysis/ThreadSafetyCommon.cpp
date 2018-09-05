@@ -147,7 +147,7 @@ CapabilityExpr SExprBuilder::translateAttrExpr(const Expr *AttrExp,
   if (!AttrExp)
     return CapabilityExpr(nullptr, false);
 
-  if (auto* SLit = dyn_cast<StringLiteral>(AttrExp->IgnoreExprTmp())) {
+  if (auto* SLit = dyn_cast<StringLiteral>(AttrExp)) {
     if (SLit->getString() == StringRef("*"))
       // The "*" expr is a universal lock, which essentially turns off
       // checks until it is removed from the lockset.

@@ -579,7 +579,7 @@ static void checkAttrArgsAreCapabilityObjs(Sema &S, Decl *D,
       continue;
     }
 
-    if (StringLiteral *StrLit = dyn_cast<StringLiteral>(ArgExp->IgnoreExprTmp())) {
+    if (StringLiteral *StrLit = dyn_cast<StringLiteral>(ArgExp)) {
       if (StrLit->getLength() == 0 ||
           (StrLit->isAscii() && StrLit->getString() == StringRef("*"))) {
         // Pass empty strings to the analyzer without warnings.

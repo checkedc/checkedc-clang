@@ -5858,12 +5858,9 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
       (getLangOpts().CPlusPlus && !(isFileScope && literalType->isArrayType()))
           ? VK_RValue
           : VK_LValue;
-  Result = MaybeBindToTemporary(
+  return MaybeBindToTemporary(
       new (Context) CompoundLiteralExpr(LParenLoc, TInfo, literalType,
                                         VK, LiteralExpr, isFileScope));
-
-  return Result;
-
 }
 
 ExprResult

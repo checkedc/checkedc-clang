@@ -13342,7 +13342,7 @@ Decl *Sema::ActOnStaticAssertDeclaration(SourceLocation StaticAssertLoc,
                                          Expr *AssertMessageExpr,
                                          SourceLocation RParenLoc) {
   StringLiteral *AssertMessage =
-      AssertMessageExpr ? cast<StringLiteral>(AssertMessageExpr->IgnoreExprTmp()) : nullptr;
+      AssertMessageExpr ? cast<StringLiteral>(AssertMessageExpr) : nullptr;
 
   if (DiagnoseUnexpandedParameterPack(AssertExpr, UPPC_StaticAssertExpression))
     return nullptr;
