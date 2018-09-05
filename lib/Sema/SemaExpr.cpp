@@ -1636,15 +1636,8 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
                                              Kind, Literal.Pascal, StrTy,
                                              &StringTokLocs[0],
                                              StringTokLocs.size());
-  if (Literal.getUDSuffix().empty()) {
-    if (!getLangOpts().CheckedC)
-      return Lit;
-
-    // For Checked C, introduce a temporary so that we can identify the
-    // string literal in bounds expressions.
-    CHKCBindTemporaryExpr *Binding = new (Context) CHKCBindTemporaryExpr(Lit);
-    return Binding;
-  }
+  if (Literal.getUDSuffix().empty())
+    return Lit;
 
   // We're building a user-defined literal.
   IdentifierInfo *UDSuffix = &Context.Idents.get(Literal.getUDSuffix());
@@ -5869,12 +5862,6 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
       new (Context) CompoundLiteralExpr(LParenLoc, TInfo, literalType,
                                         VK, LiteralExpr, isFileScope));
 
-  // In Checked C, always bind a compound literal with array type to a
-  // temporary for use in bounds expressions.
-  if (getLangOpts().CheckedC && literalType->isArrayType() &&
-      !Result.isInvalid() && isa<CompoundLiteralExpr>(Result.get()))
-    Result = new (Context) CHKCBindTemporaryExpr(Result.get());
-
   return Result;
 
 }
@@ -8285,7 +8272,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
   if (ICE->getCastKind() != CK_ArrayToPointerDecay)
     return false;
 
-  Expr *Child = ICE->getSubExpr()->IgnoreParens()->IgnoreExprTmp();
+  Expr *Child = ICE->getSubExpr()->IgnoreExprTmp()->IgnoreParens();
   if (!isa<InitListExpr>(Child) && !isa<StringLiteral>(Child) &&
       !isa<CompoundLiteralExpr>(Child))
     return false;

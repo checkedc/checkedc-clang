@@ -1495,7 +1495,9 @@ namespace clang {
       EXPR_INTEROPTYPE_BOUNDS_ANNOTATION,// InteropTypeBoundsAnnotation
       EXPR_POSITIONAL_PARAMETER_EXPR, // PositionalParameterExpr
       EXPR_BOUNDS_CAST,
-      EXPR_BOUNDS_VALUE_EXPR,      // BoundsValueExpr
+      EXPR_BOUNDS_VALUE_EXPR,        // BoundsValueExpr
+      EXPR_CHKC_BIND_TEMPORARY_EXPR, // CHKCBindTemporaryExpr
+
       // OpenCL
       EXPR_ASTYPE,                 // AsTypeExpr
 

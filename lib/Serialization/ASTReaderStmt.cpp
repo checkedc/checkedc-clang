@@ -4155,6 +4155,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       S = new (Context) BoundsValueExpr(Empty);
       break;
 
+    case EXPR_CHKC_BIND_TEMPORARY_EXPR:
+      S = new (Context) CHKCBindTemporaryExpr(Empty);
+      break;
+
     case EXPR_LAMBDA: {
       unsigned NumCaptures = Record[ASTStmtReader::NumExprFields];
       S = LambdaExpr::CreateDeserialized(Context, NumCaptures);
