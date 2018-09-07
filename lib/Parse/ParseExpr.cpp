@@ -1431,15 +1431,16 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     return ExprError();
   }
 
+  // Check to see if Res is an itype generic or generic function call.
+  // In this case, we must parse a list of type names that follows
+  // function decl identifier where applicable
+  if(!isAddressOfOperand) {
+    if (ParseItypeAndGenericFunctionExpression(Res)) return ExprError();
+  }
+
   // Check to see whether Res is a function designator only. If it is and we
   // are compiling for OpenCL, we need to return an error as this implies
   // that the address of the function is being taken, which is illegal in CL.
-
-  // Check to see if resExpr is a itype generic or generic function call.
-  // In this case, we must parse a list of type names that follows
-  // function decl identifier where applicable
-  if (ParseItypeAndGenericFunctionExpression(Res)) return ExprError();
-
   // These can be followed by postfix-expr pieces.
   Res = ParsePostfixExpressionSuffix(Res);
   if (getLangOpts().OpenCL)
