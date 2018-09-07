@@ -5371,7 +5371,7 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
       BoundsAnnotations ParamAnnotations;
       if (i < ExistingParamCount) {
         ParamAnnotations = ExistingParamListAnnots[i];
-        if (getDerived().TransformBoundsAnnotations(ParamAnnotations, 
+        if (getDerived().TransformBoundsAnnotations(ParamAnnotations,
                                                     ParamListAnnotsChanged))
           return true;
       }
@@ -11070,7 +11070,7 @@ TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
   if (!getDerived().AlwaysRebuild() &&
       SE.get() == E->getSubExpr())
     return E;
-  
+
   ExprResult R = getDerived().RebuildCHKCBindTemporaryExpr(SE.get());
   if (!R.isInvalid())
     transformedLocalTemporary(E, cast<CHKCBindTemporaryExpr>(R.get()));

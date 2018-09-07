@@ -754,4 +754,3 @@ char f53(void) _Checked {
 // CHECK-NEXT:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
 
 }
- 

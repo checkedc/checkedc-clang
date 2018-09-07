@@ -2593,7 +2593,7 @@ namespace {
         // Put the parameter bounds in a standard form if necessary.
         if (SubstParamBounds->isElementCount() ||
             SubstParamBounds->isByteCount()) {
-          // TODO: turn this check as part of adding temporary variables for
+          // TODO: turn this check on as part of adding temporary variables for
           // calls.
           // Turning it on now would cause errors to be issued for arguments
           // that are calls.
