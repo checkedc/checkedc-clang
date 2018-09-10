@@ -758,6 +758,20 @@ public:
   }
   Value *VisitAsTypeExpr(AsTypeExpr *CE);
   Value *VisitAtomicExpr(AtomicExpr *AE);
+
+  Value *VisitBoundsValueExpr(BoundsValueExpr *E) {
+    Value *Result = nullptr;
+    if (E->getKind() == BoundsValueExpr::Kind::Temporary) {
+      CHKCBindTemporaryExpr *Temp = E->getTemporaryBinding();
+      if (Temp->getSubExpr()->isLValue())
+         Result = CGF.getBoundsTemporaryLValueMapping(Temp).getPointer();
+      else
+         Result = CGF.getBoundsTemporaryRValueMapping(Temp).getScalarVal();
+    } else
+       llvm_unreachable("unexpected bounds value expr");
+    assert(Result);
+    return Result;
+  }
 };
 }  // end anonymous namespace.
 

@@ -3478,6 +3478,7 @@ recurse:
   case Expr::InteropTypeExprClass:
   case Expr::NullaryBoundsExprClass:
   case Expr::RangeBoundsExprClass:
+  case Expr::CHKCBindTemporaryExprClass:
   case Expr::BoundsValueExprClass:
   {
     if (!NullOut) {

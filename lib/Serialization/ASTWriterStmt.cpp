@@ -1051,6 +1051,8 @@ void ASTStmtWriter::VisitPositionalParameterExpr(
 void ASTStmtWriter::VisitBoundsValueExpr(
   BoundsValueExpr *E) {
   VisitExpr(E);
+  if (E ->getKind() == BoundsValueExpr::Kind::Temporary)
+    llvm_unreachable("should not write use of bounds temporary");
   Record.push_back(E->getKind());
   Code = serialization::EXPR_BOUNDS_VALUE_EXPR;
 }
@@ -1511,6 +1513,12 @@ void ASTStmtWriter::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
   Record.AddCXXTemporary(E->getTemporary());
   Record.AddStmt(E->getSubExpr());
   Code = serialization::EXPR_CXX_BIND_TEMPORARY;
+}
+
+void ASTStmtWriter::VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+  VisitExpr(E);
+  Record.AddStmt(E->getSubExpr());
+  Code = serialization::EXPR_CHKC_BIND_TEMPORARY_EXPR;
 }
 
 void ASTStmtWriter::VisitCXXScalarValueInitExpr(CXXScalarValueInitExpr *E) {

@@ -833,6 +833,11 @@ public:
     return Visit(E->GetTemporaryExpr(), T);
   }
 
+  llvm::Constant *VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E,
+                                             QualType T) {
+    return Visit(E->getSubExpr(), T);
+  }
+
   llvm::Constant *EmitArrayInitialization(InitListExpr *ILE, QualType T) {
     llvm::ArrayType *AType =
         cast<llvm::ArrayType>(ConvertType(ILE->getType()));

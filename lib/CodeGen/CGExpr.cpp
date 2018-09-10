@@ -1171,6 +1171,8 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     return EmitCXXConstructLValue(cast<CXXConstructExpr>(E));
   case Expr::CXXBindTemporaryExprClass:
     return EmitCXXBindTemporaryLValue(cast<CXXBindTemporaryExpr>(E));
+  case Expr::CHKCBindTemporaryExprClass:
+    return EmitCHKCBindTemporaryLValue(cast<CHKCBindTemporaryExpr>(E));
   case Expr::CXXUuidofExprClass:
     return EmitCXXUuidofLValue(cast<CXXUuidofExpr>(E));
   case Expr::LambdaExprClass:
@@ -1249,6 +1251,9 @@ LValue CodeGenFunction::EmitLValue(const Expr *E) {
     return EmitCoawaitLValue(cast<CoawaitExpr>(E));
   case Expr::CoyieldExprClass:
     return EmitCoyieldLValue(cast<CoyieldExpr>(E));
+
+  case Expr::BoundsValueExprClass:
+   return EmitBoundsValueLValue(cast<BoundsValueExpr>(E));
   }
 }
 
@@ -3102,6 +3107,7 @@ Address CodeGenFunction::EmitArrayToPointerDecay(const Expr *E,
   return Builder.CreateElementBitCast(Addr, ConvertTypeForMem(EltType));
 }
 
+
 /// isSimpleArrayDecayOperand - If the specified expr is a simple decay from an
 /// array to pointer, return the array subexpression.
 static const Expr *isSimpleArrayDecayOperand(const Expr *E) {
@@ -4374,6 +4380,19 @@ CodeGenFunction::EmitCXXBindTemporaryLValue(const CXXBindTemporaryExpr *E) {
   EmitAggExpr(E->getSubExpr(), Slot);
   EmitCXXTemporary(E->getTemporary(), E->getType(), Slot.getAddress());
   return MakeAddrLValue(Slot.getAddress(), E->getType(), AlignmentSource::Decl);
+}
+
+LValue
+CodeGenFunction::EmitCHKCBindTemporaryLValue(const CHKCBindTemporaryExpr *E) {
+  LValue Result = EmitLValue(E->getSubExpr());
+  setBoundsTemporaryLValueMapping(E, Result);
+  return Result;
+}
+
+LValue
+CodeGenFunction::EmitBoundsValueLValue(const BoundsValueExpr *E) {
+  assert(E->getKind() == BoundsValueExpr::Kind::Temporary);
+  return getBoundsTemporaryLValueMapping(E->getTemporaryBinding());
 }
 
 LValue

@@ -1262,6 +1262,10 @@ void StmtProfiler::VisitPositionalParameterExpr(
 }
 
 void StmtProfiler::VisitBoundsValueExpr(const BoundsValueExpr *S) {
+  // Uses of expression temporaries are only synthesized by the compiler during
+  // bounds inference. We shouldn't be profiling expressions with such uses.
+  if (S->getKind() == BoundsValueExpr::Kind::Temporary)
+    llvm_unreachable("Should not profile expression with use of bounds temporary.");
   VisitExpr(S);
   VisitType(S->getType());
   ID.AddInteger(S->getKind());
@@ -1601,6 +1605,10 @@ void StmtProfiler::VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *S) {
   VisitExpr(S);
   VisitDecl(
          const_cast<CXXDestructorDecl *>(S->getTemporary()->getDestructor()));
+}
+
+void StmtProfiler::VisitCHKCBindTemporaryExpr(const CHKCBindTemporaryExpr *S) {
+  VisitExpr(S);
 }
 
 void StmtProfiler::VisitCXXConstructExpr(const CXXConstructExpr *S) {

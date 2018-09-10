@@ -1914,6 +1914,45 @@ public:
   void ErrorUnsupported(const Stmt *S, const char *Type);
 
   //===--------------------------------------------------------------------===//
+  //                           Checked C extension
+  //===--------------------------------------------------------------------===//
+
+private:
+  /// BoundsTemporary - Keeps track of values of bounds temporaries.
+  llvm::DenseMap<const CHKCBindTemporaryExpr *, LValue> BoundsTemporaryLValues;
+  llvm::DenseMap<const CHKCBindTemporaryExpr *, RValue> BoundsTemporaryRValues;
+
+public:
+  /// getBoundsTemporaryLValueMapping - Given a bounds temporary (which
+  /// must be mapped to an l-value), return its mapping.
+  const LValue &getBoundsTemporaryLValueMapping(const CHKCBindTemporaryExpr *e) {
+    assert (e->getSubExpr()->isLValue());
+
+    llvm::DenseMap<const CHKCBindTemporaryExpr *,LValue>::iterator
+      it = BoundsTemporaryLValues.find(e);
+    assert(it != BoundsTemporaryLValues.end() && "no mapping for temporary!");
+    return it->second;
+  }
+
+  /// getBoundsTemporaryLValueMapping - Given a bounds temporary (which
+  /// must be mapped to an l-value), return its mapping.
+  const RValue &getBoundsTemporaryRValueMapping(const CHKCBindTemporaryExpr *e) {
+    assert (!e->getSubExpr()->isLValue());
+
+    llvm::DenseMap<const CHKCBindTemporaryExpr *,RValue>::iterator
+      it = BoundsTemporaryRValues.find(e);
+    assert(it != BoundsTemporaryRValues.end() && "no mapping for temporary!");
+    return it->second;
+  }
+
+ void setBoundsTemporaryLValueMapping(const CHKCBindTemporaryExpr *e,
+                                      const LValue &lv) {
+    assert(e->getSubExpr()->isLValue());
+    auto result = BoundsTemporaryLValues.insert(std::make_pair(e, lv));
+    assert(result.second && "temporary already in map!");
+  }
+
+  //===--------------------------------------------------------------------===//
   //                                  Helpers
   //===--------------------------------------------------------------------===//
 
@@ -2626,10 +2665,15 @@ public:
   void EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy);
   void EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy,
                                 const Address PtrAddr);
-  /// \brief Emit a dynamic bounds check.  ValueToStore is optional and is
-  /// used for bounds checking writes to NUL-terminated pointers.
-  void EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds,
-                              BoundsCheckKind Kind, llvm::Value *ValueToStore);
+  /// \brief Emit a dynamic bounds check.
+  // - PtrAddress is the value that is being checked to see if it is in bounds.
+  // - Bounds are the required bounds for PtrAddress.
+  // - ValueToStore is optional and is used for bounds checking writes to
+  //   NUL-terminated pointers.
+  void EmitDynamicBoundsCheck(const Address PtrAddr,
+                              const BoundsExpr *Bounds,
+                              BoundsCheckKind Kind,
+                              llvm::Value *ValueToStore);
   void EmitDynamicBoundsCastCheck(const Address BaseAddr,
                                   const BoundsExpr *CastBounds,
                                   const BoundsExpr *SubExprBounds);
@@ -3278,6 +3322,9 @@ public:
   LValue EmitPointerToDataMemberBinaryExpr(const BinaryOperator *E);
   LValue EmitObjCSelectorLValue(const ObjCSelectorExpr *E);
   void   EmitDeclRefExprDbgValue(const DeclRefExpr *E, const APValue &Init);
+
+  LValue EmitCHKCBindTemporaryLValue(const CHKCBindTemporaryExpr *E);
+  LValue EmitBoundsValueLValue(const BoundsValueExpr *E);
 
   //===--------------------------------------------------------------------===//
   //                         Scalar Expression Emission

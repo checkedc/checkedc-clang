@@ -190,7 +190,6 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::ArrayInitIndexExprClass:
   case Expr::NoInitExprClass:
   case Expr::DesignatedInitUpdateExprClass:
-  case Expr::BoundsValueExprClass:
     return Cl::CL_PRValue;
 
     // Next come the complicated cases.
@@ -422,6 +421,19 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   // as subexpressions of bounds expressions.
   case Expr::PositionalParameterExprClass:
     return Cl::CL_LValue;
+
+  // For bindings of temporaries, delegate to the underlying expression.
+  case Expr::CHKCBindTemporaryExprClass:
+    return ClassifyInternal(Ctx, cast<CHKCBindTemporaryExpr>(E)->getSubExpr());
+
+  case Expr::BoundsValueExprClass: {
+    const BoundsValueExpr *BV = cast<BoundsValueExpr>(E);
+    if (BV->getKind() == BoundsValueExpr::Kind::Return)
+      return Cl::CL_PRValue;
+    else
+      // For uses of temporaries, delegate to the underlying expression.
+      return ClassifyInternal(Ctx, BV->getTemporaryBinding()->getSubExpr());
+  }
 
   case Expr::CountBoundsExprClass:
   case Expr::InteropTypeExprClass:

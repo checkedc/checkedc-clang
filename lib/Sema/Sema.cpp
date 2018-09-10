@@ -508,6 +508,14 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
     E = Materialized.get();
   }
 
+  // For Checked C, create a temporary for string literal or compound literals
+  // for use during bounds checking.
+  if (Kind == CK_ArrayToPointerDecay && getLangOpts().CheckedC) {
+    Expr *S = E->IgnoreParens();
+    if (isa<StringLiteral>(S) || isa<CompoundLiteralExpr>(S))
+      E = new (Context) CHKCBindTemporaryExpr(E);
+  }
+
   if (ImplicitCastExpr *ImpCast = dyn_cast<ImplicitCastExpr>(E)) {
     if (ImpCast->getCastKind() == Kind && (!BasePath || BasePath->empty())) {
       ImpCast->setType(Ty);

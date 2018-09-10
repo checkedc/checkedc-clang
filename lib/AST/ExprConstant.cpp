@@ -5137,6 +5137,8 @@ public:
       return HandleBaseToDerivedCast(Info, E, Result);
     }
   }
+
+  bool VisitCHKCBindTemporaryExpr(const CHKCBindTemporaryExpr *E);
 };
 } // end anonymous namespace
 
@@ -5426,6 +5428,11 @@ bool LValueExprEvaluator::VisitBinAssign(const BinaryOperator *E) {
 
   return handleAssignment(this->Info, E, Result, E->getLHS()->getType(),
                           NewVal);
+}
+
+bool LValueExprEvaluator::VisitCHKCBindTemporaryExpr(
+  const CHKCBindTemporaryExpr *E) {
+  return Visit(E->getSubExpr());
 }
 
 //===----------------------------------------------------------------------===//
@@ -10642,6 +10649,8 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::ChooseExprClass: {
     return CheckICE(cast<ChooseExpr>(E)->getChosenSubExpr(), Ctx);
   }
+  case Expr::CHKCBindTemporaryExprClass:
+    return CheckICE(cast<CHKCBindTemporaryExpr>(E)->getSubExpr(), Ctx);
   }
 
   llvm_unreachable("Invalid StmtClass!");

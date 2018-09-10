@@ -1961,7 +1961,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
         // parameter list for a function and before the function body.
         // It is easy to misplace it.  Handle the case where the return bounds
         // expression is misplaced for a complex function declarator.
-        // Diagnose this, suggest a fix, and bail out.
+        // Diagnosis this, suggest a fix, and bail out.
         if (Tok.is(tok::colon)) {
           Token Next = NextToken();
           if (StartsBoundsExpression(Next) ||

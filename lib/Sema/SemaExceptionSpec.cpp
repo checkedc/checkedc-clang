@@ -1138,6 +1138,9 @@ CanThrowResult Sema::canThrow(const Expr *E) {
     return mergeCanThrow(CT, canSubExprsThrow(*this, E));
   }
 
+  case Expr::CHKCBindTemporaryExprClass:
+    return canThrow(cast<CHKCBindTemporaryExpr>(E)->getSubExpr());
+
     // ObjC message sends are like function calls, but never have exception
     // specs.
   case Expr::ObjCMessageExprClass:

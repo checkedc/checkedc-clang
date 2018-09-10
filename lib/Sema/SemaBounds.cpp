@@ -367,6 +367,43 @@ BoundsExpr *Sema::MakeMemberBoundsConcrete(
   }
 }
 
+#if 0
+namespace {
+  // Convert occurrences of _Return_value in a return bounds expression
+  // to _Current_expr_value.  Don't recurse into any return bounds
+  // expressions nested in function types.  Occurrences of _Return_value
+  // in those shouldn't be changed to _Current_value.
+  class ReplaceReturnValue : public TreeTransform<ReplaceReturnValue> {
+    typedef TreeTransform<ReplaceReturnValue> BaseTransform;
+
+  public:
+    ReplaceReturnValue(Sema &SemaRef) :BaseTransform(SemaRef) { }
+
+    // Avoid transforming nested return bounds expressions.
+    bool TransformReturnBoundsAnnotations(BoundsAnnotations &Annot,
+                                          bool &Changed) {
+      return false;
+    }
+
+    ExprResult TransformBoundsValueExpr(BoundsValueExpr *E) {
+      BoundsValueExpr::Kind K = E->getKind();
+      bool KindChanged = false;
+      if (K == BoundsValueExpr::Kind::Return) {
+        K = BoundsValueExpr::Kind::Current;
+        KindChanged = true;
+      }
+      QualType QT = getDerived().TransformType(E->getType());
+      if (!getDerived().AlwaysRebuild() && QT == E->getType() &&
+          !KindChanged)
+        return E;
+
+      return getDerived().
+        RebuildBoundsValueExpr(E->getLocation(), QT,K);
+    }
+   };
+}
+#endif
+
 namespace {
   // Class for inferring bounds expressions for C expressions.
 
@@ -492,6 +529,10 @@ namespace {
         SourceLocation());
       CE->setBoundsSafeInterface(isBoundsSafeInterface);
       return CE;
+    }
+
+    Expr *CreateTemporaryUse(CHKCBindTemporaryExpr *Binding) {
+      return new (Context) BoundsValueExpr(SourceLocation(), Binding);
     }
 
   private:
@@ -778,11 +819,39 @@ namespace {
           return LValueBounds(ICE->getSubExpr());
          return CreateBoundsAlwaysUnknown();
       }
-      // TODO: these cases need CurrentExprValue to be implemented to express
-      // the bounds.
-      case Expr::CompoundLiteralExprClass:
-      case Expr::StringLiteralClass:
-        return CreateBoundsAllowedButNotComputed();
+      case Expr::CHKCBindTemporaryExprClass: {
+        CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
+        Expr *SE = Binding->getSubExpr()->IgnoreParens();
+        if  (CompoundLiteralExpr *CL = dyn_cast<CompoundLiteralExpr>(SE)) {
+          BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
+          QualType PtrType = Context.getDecayedType(E->getType());
+          Expr *ArrLValue = CreateTemporaryUse(Binding);
+          Expr *Base = CreateImplicitCast(PtrType,
+                                          CastKind::CK_ArrayToPointerDecay,
+                                          ArrLValue);
+          return ExpandToRange(Base, BE);
+        } else if (StringLiteral *SL = dyn_cast<StringLiteral>(SE)) {
+          // Use the number of characters in the string (excluding the
+          // null terminator) to calcaulte size.  Don't use the
+          // array type of the literal.  In unchecked scopes, the array type is
+          // unchecked and its size includes the null terminator.  It converts
+          // to an ArrayPtr that could be used to overwrite the null terminator.
+          // We need to prevent this because literal strings may be shared and
+          // writeable, depending on the C implementation.
+          IntegerLiteral *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
+          CountBoundsExpr *CBE =
+             new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                           Size, SourceLocation(),
+                                           SourceLocation());
+          QualType PtrType = Context.getDecayedType(E->getType());
+          Expr *ArrLValue = CreateTemporaryUse(Binding);
+          Expr *Base = CreateImplicitCast(PtrType,
+                                          CastKind::CK_ArrayToPointerDecay,
+                                          ArrLValue);
+          return ExpandToRange(Base, CBE);
+        } else
+          CreateBoundsAlwaysUnknown();
+      }
       default:
         return CreateBoundsAlwaysUnknown();
       }
@@ -1438,6 +1507,29 @@ namespace {
       E->dump(OS);
     }
 
+    void DumpCallArgumentBounds(raw_ostream &OS, BoundsExpr *Param,
+                                Expr *Arg,
+                                BoundsExpr *ParamBounds,
+                                BoundsExpr *ArgBounds) {
+      OS << "\n";
+      if (Param) {
+        OS << "Original parameter bounds\n";
+        Param->dump(OS);
+      }
+      if (Arg) {
+        OS << "Argument:\n";
+        Arg->dump(OS);
+      }
+      if (ParamBounds) {
+        OS << "Parameter Bounds:\n";
+        ParamBounds->dump(OS);
+      }
+      if (ArgBounds) {
+        OS << "Argument Bounds:\n ";
+        ArgBounds->dump(OS);
+      }
+    }
+
     // Add bounds check to an lvalue expression, if it is an Array_ptr
     // dereference.  The caller has determined that the lvalue is being
     // used in a way that requies a bounds check if the lvalue is an
@@ -2009,11 +2101,12 @@ namespace {
     void CheckBoundsDeclAtCallArg(unsigned ParamNum,
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
                                   BoundsExpr *ArgBounds,
-                                  bool InCheckedScope) {
+                                  bool InCheckedScope,
+                                  SmallVector<SmallVector <Expr *, 4> *, 4> *EquivExprs) {
       SourceLocation ArgLoc = Arg->getLocStart();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
-                                                   ArgBounds, Cause, nullptr);
+                                                   ArgBounds, Cause, EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -2060,9 +2153,9 @@ namespace {
         EqualExpr.push_back(Src);
         EquivExprs.push_back(&EqualExpr);
         /*
-        llvm::outs() << "Dumping target/src equality relation";
-        TargetExpr->dump(llvm::outs());
-        Src->dump(llvm::outs());
+        llvm::outs() << "Dumping target/src equality relation\n";
+        for (Expr *E : EqualExpr)
+          E->dump(llvm::outs());
         */
       }
       ProofFailure Cause;
@@ -2456,7 +2549,6 @@ namespace {
             !IsBoundsSafeInterfaceAssignment(ParamType, CE->getArg(i))) {
           continue;
         }
-
         // We want to check the argument expression implies the desired parameter bounds.
         // To compute the desired parameter bounds, we substitute the arguments for
         // parameters in the parameter bounds expression.
@@ -2501,7 +2593,8 @@ namespace {
         // Put the parameter bounds in a standard form if necessary.
         if (SubstParamBounds->isElementCount() ||
             SubstParamBounds->isByteCount()) {
-          // TODO: turn this check on after implementing current_expr_value.
+          // TODO: turn this check on as part of adding temporary variables for
+          // calls.
           // Turning it on now would cause errors to be issued for arguments
           // that are calls.
           if (true /* S.CheckIsNonModifying(Arg,
@@ -2513,7 +2606,14 @@ namespace {
              continue;
         }
 
-        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, InCheckedScope);
+        if (DumpBounds) {
+          DumpCallArgumentBounds(llvm::outs(),
+                                 FuncProtoTy->getParamAnnots(i).getBoundsExpr(),
+                                 Arg, SubstParamBounds, ArgBounds);
+        }
+
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds,
+                                 InCheckedScope, nullptr);
       }
       return;
    }

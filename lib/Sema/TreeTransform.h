@@ -119,6 +119,11 @@ protected:
   /// rather than in the subclass (e.g., lambda closure types).
   llvm::DenseMap<Decl *, Decl *> TransformedLocalDecls;
 
+  /// \brief The set of bound temporaries that have been transformed.  This
+  /// is needed so that we can keep uses in sync.
+  llvm::DenseMap<CHKCBindTemporaryExpr *, CHKCBindTemporaryExpr *>
+    TransformedTemporaries;
+
 public:
   /// \brief Initializes a new tree transformer.
   TreeTransform(Sema &SemaRef) : SemaRef(SemaRef) { }
@@ -422,6 +427,20 @@ public:
     return D;
   }
 
+  /// \brief Transform the given temporary variable binding, which is referenced from
+  /// a type or expression.
+  ///
+  /// If the transformer had to transform the temporary variable binding, return
+  /// the new binding.  Otherwise act as the identity function.
+  CHKCBindTemporaryExpr *TransformTemporary(SourceLocation Loc, CHKCBindTemporaryExpr *B) {
+    llvm::DenseMap<CHKCBindTemporaryExpr *, CHKCBindTemporaryExpr *>::iterator Known
+      = TransformedTemporaries.find(B);
+    if (Known != TransformedTemporaries.end())
+      return Known->second;
+
+    return B;
+  }
+
   /// \brief Transform the specified condition.
   ///
   /// By default, this transforms the variable and expression and rebuilds
@@ -446,6 +465,13 @@ public:
   /// can be overridden by a subclass that keeps track of such mappings.
   void transformedLocalDecl(Decl *Old, Decl *New) {
     TransformedLocalDecls[Old] = New;
+  }
+
+  /// \brief Note that a temporary variable binding has been transformed by this
+  /// transformer.
+  void transformedLocalTemporary(CHKCBindTemporaryExpr *Old,
+                                 CHKCBindTemporaryExpr *New) {
+    TransformedTemporaries[Old] = New;
   }
 
   /// \brief Transform the definition of the given declaration.
@@ -647,6 +673,10 @@ public:
       Sema::ExtParameterInfoBuilder &PInfos);
 
   bool TransformBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
+
+  /// \brief Transform return bounds annotations.  We provide a separate method for
+  /// doing this so subclasses can override this if desired.
+  bool TransformReturnBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
 
   /// \brief Transform the extended parameter information for
   /// a function prototype.
@@ -2535,9 +2565,21 @@ public:
     return getSema().CreatePositionalParameterExpr(Index, QT);
   }
 
-  ExprResult RebuildBoundsValueExpr(SourceLocation Loc, QualType Ty, BoundsValueExpr::Kind K) {
-    return new (getSema().Context) BoundsValueExpr(Loc, Ty, K);
+  ExprResult RebuildCHKCBindTemporaryExpr(Expr *SE) {
+    return new (getSema().Context) CHKCBindTemporaryExpr(SE);
   }
+
+  ExprResult RebuildBoundsValueExpr(SourceLocation Loc, QualType Ty,
+                                    BoundsValueExpr::Kind K,
+                                    CHKCBindTemporaryExpr *Tmp) {
+    if (Tmp) {
+      assert(K == BoundsValueExpr::Kind::Temporary);
+      return new (getSema().Context) BoundsValueExpr(Loc, Tmp);
+    } else
+      return new (getSema().Context) BoundsValueExpr(Loc, Ty, K);
+  }
+
+
   
   /// \brief Build a new overloaded operator call expression.
   ///
@@ -5280,6 +5322,12 @@ bool TreeTransform<Derived>::TransformBoundsAnnotations(
   return false;
 }
 
+template<typename Derived>
+bool TreeTransform<Derived>::TransformReturnBoundsAnnotations(
+  BoundsAnnotations &Annot, bool &Changed) {
+  return getDerived().TransformBoundsAnnotations(Annot, Changed);
+}
+
 template <typename Derived> template<typename Fn>
 bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   FunctionProtoType::ExtProtoInfo &EPI,
@@ -5309,7 +5357,7 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   }
 
   // Handle bounds annotations for return
-  if (getDerived().TransformBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
+  if (getDerived().TransformReturnBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
     return true;
 
   // Handle bounds annotations for parameters.
@@ -5323,7 +5371,8 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
       BoundsAnnotations ParamAnnotations;
       if (i < ExistingParamCount) {
         ParamAnnotations = ExistingParamListAnnots[i];
-        if (getDerived().TransformBoundsAnnotations(ParamAnnotations, ParamListAnnotsChanged))
+        if (getDerived().TransformBoundsAnnotations(ParamAnnotations,
+                                                    ParamListAnnotsChanged))
           return true;
       }
       ParamListAnnots.push_back(ParamAnnotations);
@@ -11008,6 +11057,26 @@ TreeTransform<Derived>::TransformCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
   return getDerived().TransformExpr(E->getSubExpr());
 }
 
+/// \brief Transform a Checked C temporary-binding expression.
+///
+/// We transform the subexpression and re-use the temporary name.
+template<typename Derived>
+ExprResult TreeTransform<Derived>::
+TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+  ExprResult SE = getDerived().TransformExpr(E->getSubExpr());
+  if (SE.isInvalid())
+    return ExprError();
+
+  if (!getDerived().AlwaysRebuild() &&
+      SE.get() == E->getSubExpr())
+    return E;
+
+  ExprResult R = getDerived().RebuildCHKCBindTemporaryExpr(SE.get());
+  if (!R.isInvalid())
+    transformedLocalTemporary(E, cast<CHKCBindTemporaryExpr>(R.get()));
+  return R;
+}
+
 /// \brief Transform a C++ expression that contains cleanups that should
 /// be run after the expression is evaluated.
 ///
@@ -12497,6 +12566,9 @@ TreeTransform<Derived>::TransformPositionalParameterExpr(
   PositionalParameterExpr *E) {
   unsigned Index = E->getIndex();
   QualType QT = getDerived().TransformType(E->getType());
+  if (!getDerived().AlwaysRebuild() && QT == E->getType())
+    return E;
+
   return getDerived().
     RebuildPositionalParameterExpr(Index, QT);
 }
@@ -12506,8 +12578,15 @@ ExprResult
 TreeTransform<Derived>::TransformBoundsValueExpr(
   BoundsValueExpr *E) {
   QualType QT = getDerived().TransformType(E->getType());
+  CHKCBindTemporaryExpr *Tmp = TransformTemporary(E->getLocEnd(),
+                                                  E->getTemporaryBinding());
+
+  if (!getDerived().AlwaysRebuild() && QT == E->getType() &&
+       Tmp == E->getTemporaryBinding())
+    return E;
+
   return getDerived().
-    RebuildBoundsValueExpr(E->getLocation(), QT, E->getKind());
+    RebuildBoundsValueExpr(E->getLocation(), QT, E->getKind(), Tmp);
 }
 
 //===----------------------------------------------------------------------===//

@@ -183,6 +183,7 @@ def RangeBoundsExpr : DStmt<BoundsExpr>;
 def InteropTypeExpr : DStmt<Expr>;
 def PositionalParameterExpr : DStmt<Expr>;
 def BoundsCastExpr : DStmt<ExplicitCastExpr>;
+def CHKCBindTemporaryExpr : DStmt<Expr>;
 def BoundsValueExpr : DStmt<Expr>;
 
 // CUDA Expressions.

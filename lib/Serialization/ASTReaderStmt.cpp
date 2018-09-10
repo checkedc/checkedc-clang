@@ -1049,6 +1049,8 @@ void ASTStmtReader::VisitBoundsValueExpr(
   BoundsValueExpr *E) {
   VisitExpr(E);
   E->setKind((BoundsValueExpr::Kind) Record.readInt());
+  if (E->getKind() == BoundsValueExpr::Kind::Temporary)
+    llvm_unreachable("should not read use of bounds temporary");
 }
 
 
@@ -1480,6 +1482,11 @@ void ASTStmtReader::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *E) {
 void ASTStmtReader::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *E) {
   VisitExpr(E);
   E->setTemporary(Record.readCXXTemporary());
+  E->setSubExpr(Record.readSubExpr());
+}
+
+void ASTStmtReader::VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+  VisitExpr(E);
   E->setSubExpr(Record.readSubExpr());
 }
 
@@ -4146,6 +4153,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_BOUNDS_VALUE_EXPR:
       S = new (Context) BoundsValueExpr(Empty);
+      break;
+
+    case EXPR_CHKC_BIND_TEMPORARY_EXPR:
+      S = new (Context) CHKCBindTemporaryExpr(Empty);
       break;
 
     case EXPR_LAMBDA: {

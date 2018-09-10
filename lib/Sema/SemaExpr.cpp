@@ -5858,7 +5858,6 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
       (getLangOpts().CPlusPlus && !(isFileScope && literalType->isArrayType()))
           ? VK_RValue
           : VK_LValue;
-
   return MaybeBindToTemporary(
       new (Context) CompoundLiteralExpr(LParenLoc, TInfo, literalType,
                                         VK, LiteralExpr, isFileScope));
@@ -8270,7 +8269,7 @@ static bool arrayConstantCheckedConversion(Sema &S, QualType LHSType,
   if (ICE->getCastKind() != CK_ArrayToPointerDecay)
     return false;
 
-  Expr *Child = ICE->getSubExpr()->IgnoreParens();
+  Expr *Child = ICE->getSubExpr()->IgnoreExprTmp()->IgnoreParens();
   if (!isa<InitListExpr>(Child) && !isa<StringLiteral>(Child) &&
       !isa<CompoundLiteralExpr>(Child))
     return false;
