@@ -9067,11 +9067,11 @@ static void diagnoseArithmeticOnNullPointer(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on two function pointers.
 static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
                                                     Expr *LHS, Expr *RHS) {
+  // For Checked C, we can ignore checked function pointers in this method. Only
+  // _Ptrs to function types are allowed and there will be an error issued
+  // for trying pointer arithmetic on that.
   assert(LHS->getType()->isAnyPointerType());
   assert(RHS->getType()->isAnyPointerType());
-  // We should never get here for checked pointers. Only _Ptr to function type
-  // is allowed in Checked C.  Arithmetic isn't allowed on _Ptrs.
-  assert(!(LHS->getType()->isCheckedPointerType() || RHS->getType()->isCheckedPointerType()));
   S.Diag(Loc, S.getLangOpts().CPlusPlus
                 ? diag::err_typecheck_pointer_arith_function_type
                 : diag::ext_gnu_ptr_func_arith)
@@ -9086,10 +9086,10 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on a function pointer.
 static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
                                                 Expr *Pointer) {
+ // For Checked C, we can ignore checked function pointers in this method.  Only
+  // _Ptrs to function type are allowed and there will be an error issued
+  // for trying pointer arithmetic on that.
   assert(Pointer->getType()->isAnyPointerType());
-  // We should never get here for checked pointers. Only _Ptr to function type
-  // is allowed in Checked C.  Arithmetic isn't allowed on _Ptrs.
-  assert(!Pointer->getType()->isCheckedPointerType());
   S.Diag(Loc, S.getLangOpts().CPlusPlus
                 ? diag::err_typecheck_pointer_arith_function_type
                 : diag::ext_gnu_ptr_func_arith)
