@@ -9067,9 +9067,9 @@ static void diagnoseArithmeticOnNullPointer(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on two function pointers.
 static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
                                                     Expr *LHS, Expr *RHS) {
-  // For Checked C, we can ignore checked function pointers in this method. Only
-  // _Ptrs to function types are allowed and there will be an error issued
-  // for trying pointer arithmetic on that.
+  // For Checked C, arithmetic on checked function pointers is never allowed.
+  // We don't have check for it here, though.  Only _Ptrs to function types are
+  // allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
   assert(LHS->getType()->isAnyPointerType());
   assert(RHS->getType()->isAnyPointerType());
   S.Diag(Loc, S.getLangOpts().CPlusPlus
@@ -9086,9 +9086,9 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on a function pointer.
 static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
                                                 Expr *Pointer) {
- // For Checked C, we can ignore checked function pointers in this method.  Only
-  // _Ptrs to function type are allowed and there will be an error issued
-  // for trying pointer arithmetic on that.
+  // For Checked C, arithmetic on checked function pointers is never allowed.
+  // We don't have check for it here, though.  Only _Ptrs to function types are
+  // allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
   assert(Pointer->getType()->isAnyPointerType());
   S.Diag(Loc, S.getLangOpts().CPlusPlus
                 ? diag::err_typecheck_pointer_arith_function_type
@@ -9212,8 +9212,9 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
                                                                 RHSExpr);
     else diagnoseArithmeticOnTwoFunctionPointers(S, Loc, LHSExpr, RHSExpr);
 
-    // We don't have to check if the function pointers are checked. Only _Ptr to
-    // function type is allowed and pointer arithmetic is not allowed on _Ptrs.
+    // We don't have to check if the function pointers are checked. Only _Ptrs to
+    // function types are allowd and arithmetic on _Ptrs is covered by another
+    // diagnostic.
     return !S.getLangOpts().CPlusPlus;
   }
 
