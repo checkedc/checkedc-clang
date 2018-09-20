@@ -6,6 +6,10 @@ extends C with checking to detect or prevent common programming  errors such as
 out-of-bounds memory accesses.  The Checked C specification is available  at the 
 [Checked C repo](https://github.com/Microsoft/checkedc).
 
+## We are hiring!
+
+We have a senior software engineer position [available](https://careers.microsoft.com/i/us/en/job/509507/Senior-Software-Engineer). We are looking for someone wih compiler and language implementation experience who is passionate about making software more secure and reliable.
+
 ## Trying out Checked C
 
 Programmers are welcome to ``kick the tires'' on Checked C as it is being implemented.
