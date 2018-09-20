@@ -9068,8 +9068,8 @@ static void diagnoseArithmeticOnNullPointer(Sema &S, SourceLocation Loc,
 static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
                                                     Expr *LHS, Expr *RHS) {
   // For Checked C, arithmetic on checked function pointers is never allowed.
-  // We don't have check for it here, though.  Only _Ptrs to function types are
-  // allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
+  // We don't have to check for it here, though. Only _Ptrs to function types
+  // are allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
   assert(LHS->getType()->isAnyPointerType());
   assert(RHS->getType()->isAnyPointerType());
   S.Diag(Loc, S.getLangOpts().CPlusPlus
@@ -9087,8 +9087,8 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
 static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
                                                 Expr *Pointer) {
   // For Checked C, arithmetic on checked function pointers is never allowed.
-  // We don't have check for it here, though.  Only _Ptrs to function types are
-  // allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
+  // We don't have to check for it here, though. Only _Ptrs to function types
+  // are allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
   assert(Pointer->getType()->isAnyPointerType());
   S.Diag(Loc, S.getLangOpts().CPlusPlus
                 ? diag::err_typecheck_pointer_arith_function_type
