@@ -9067,11 +9067,12 @@ static void diagnoseArithmeticOnNullPointer(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on two function pointers.
 static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
                                                     Expr *LHS, Expr *RHS) {
+  // For Checked C, arithmetic on checked function pointers is never allowed.
+  // We don't have to check for it here, though. Only _Ptrs to function types
+  // are allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
   assert(LHS->getType()->isAnyPointerType());
   assert(RHS->getType()->isAnyPointerType());
-  bool isCheckedPointerType = LHS->getType()->isCheckedPointerType() ||
-    RHS->getType()->isCheckedPointerType();
-  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
+  S.Diag(Loc, S.getLangOpts().CPlusPlus
                 ? diag::err_typecheck_pointer_arith_function_type
                 : diag::ext_gnu_ptr_func_arith)
     << 1 /* two pointers */ << LHS->getType()->getPointeeType()
@@ -9085,9 +9086,11 @@ static void diagnoseArithmeticOnTwoFunctionPointers(Sema &S, SourceLocation Loc,
 /// \brief Diagnose invalid arithmetic on a function pointer.
 static void diagnoseArithmeticOnFunctionPointer(Sema &S, SourceLocation Loc,
                                                 Expr *Pointer) {
+  // For Checked C, arithmetic on checked function pointers is never allowed.
+  // We don't have to check for it here, though. Only _Ptrs to function types
+  // are allowed and arithmetic on _Ptrs is disallowed by another diagnostic.
   assert(Pointer->getType()->isAnyPointerType());
-  bool isCheckedPointerType = Pointer->getType()->isCheckedPointerType();
-  S.Diag(Loc, S.getLangOpts().CPlusPlus || isCheckedPointerType
+  S.Diag(Loc, S.getLangOpts().CPlusPlus
                 ? diag::err_typecheck_pointer_arith_function_type
                 : diag::ext_gnu_ptr_func_arith)
     << 0 /* one pointer */ << Pointer->getType()->getPointeeType()
@@ -9143,11 +9146,11 @@ static bool checkArithmeticOpPointerOperand(Sema &S, SourceLocation Loc,
   QualType PointeeTy = ResType->getPointeeType();
   if (PointeeTy->isVoidType()) {
     diagnoseArithmeticOnVoidPointer(S, Loc, Operand);
-    return !S.getLangOpts().CPlusPlus;
+    return !(S.getLangOpts().CPlusPlus || ResType->isCheckedPointerType());
   }
   if (PointeeTy->isFunctionType()) {
     diagnoseArithmeticOnFunctionPointer(S, Loc, Operand);
-    return !S.getLangOpts().CPlusPlus;
+    return !(S.getLangOpts().CPlusPlus || ResType->isCheckedPointerType());
   }
 
 
@@ -9196,7 +9199,9 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
     else if (!isLHSVoidPtr) diagnoseArithmeticOnVoidPointer(S, Loc, RHSExpr);
     else diagnoseArithmeticOnTwoVoidPointers(S, Loc, LHSExpr, RHSExpr);
 
-    return !S.getLangOpts().CPlusPlus;
+    return !(S.getLangOpts().CPlusPlus ||
+             LHSExpr->getType()->isCheckedPointerType() ||
+             RHSExpr->getType()->isCheckedPointerType());
   }
 
   bool isLHSFuncPtr = isLHSPointer && LHSPointeeTy->isFunctionType();
@@ -9207,6 +9212,9 @@ static bool checkArithmeticBinOpPointerOperands(Sema &S, SourceLocation Loc,
                                                                 RHSExpr);
     else diagnoseArithmeticOnTwoFunctionPointers(S, Loc, LHSExpr, RHSExpr);
 
+    // We don't have to check if the function pointers are checked. Only _Ptrs to
+    // function types are allowd and arithmetic on _Ptrs is covered by another
+    // diagnostic.
     return !S.getLangOpts().CPlusPlus;
   }
 
