@@ -3707,16 +3707,72 @@ public:
                            bool HasLeadingEmptyMacro = false);
 
   void ActOnStartOfCompoundStmt();
+
   void ActOnFinishOfCompoundStmt();
   StmtResult ActOnCompoundStmt(SourceLocation L, SourceLocation R,
                                ArrayRef<Stmt *> Elts, bool isStmtExpr,
-                               bool isChecked = false,
-                               bool checkedPropertyDeclared = false);
+                               CheckedScopeSpecifier CSS = CSS_None,
+                               SourceLocation CSSLoc = SourceLocation(),
+                               CheckedSpecifierModifier CSM = CSM_None,
+                               SourceLocation CSMLoc = SourceLocation());
+
+private:
+  CheckedScopeKind CheckingKind;
+
+public:
+  CheckedScopeKind GetCheckedScopeInfo() {
+    return CheckingKind;
+  }
+
+  void SetCheckedScopeInfo(CheckedScopeKind CSK) {
+    CheckingKind = CSK;
+  }
+
+  bool IsCheckedScope() {
+    return CheckingKind != CheckedScopeKind::Unchecked;
+  }
+
+  class CheckedScopeRAII {
+    Sema &SemaRef;
+    CheckedScopeKind PrevCheckingKind;
+
+  public:
+    CheckedScopeRAII(Sema &SemaRef, CheckedScopeSpecifier CSS,
+                     CheckedSpecifierModifier CSM)
+        : SemaRef(SemaRef),
+          PrevCheckingKind(SemaRef.CheckingKind) {
+      if (CSS == CSS_Checked) {
+        if (CSM == CSM_None)
+           SemaRef.CheckingKind = CheckedScopeKind::BoundsAndTypes;
+        else
+           SemaRef.CheckingKind = CheckedScopeKind::Bounds;
+      } else if (CSS == CSS_Unchecked)
+        SemaRef.CheckingKind = CheckedScopeKind::Unchecked;
+    }
+
+    CheckedScopeSpecifier Convert(DeclSpec &DS) {
+      if (DS.isCheckedSpecified())
+        return CSS_Checked;
+      if (DS.isUncheckedSpecified())
+        return CSS_Unchecked;
+      return CSS_None;
+    }
+
+    CheckedScopeRAII(Sema &S, DeclSpec &DS) : CheckedScopeRAII(S, Convert(DS),
+                                                                CSM_None) {
+    }
+
+    ~CheckedScopeRAII() {
+      SemaRef.CheckingKind = PrevCheckingKind;
+    }
+  };
 
   /// \brief A RAII object to enter scope of a compound statement.
   class CompoundScopeRAII {
   public:
-    CompoundScopeRAII(Sema &S): S(S) {
+    CompoundScopeRAII(Sema &S, CheckedScopeSpecifier CSS = CSS_None,
+                      CheckedSpecifierModifier CSM  = CSM_None): S(S),
+                      CheckedProperties(S, CSS, CSM) {
       S.ActOnStartOfCompoundStmt();
     }
 
@@ -3724,12 +3780,9 @@ public:
       S.ActOnFinishOfCompoundStmt();
     }
 
-    void setCheckedScope() {
-      S.getCurCompoundScope().setCheckedScope();
-    }
-
   private:
     Sema &S;
+    CheckedScopeRAII CheckedProperties;
   };
 
   /// An RAII helper that pops function a function scope on exit.
@@ -4594,6 +4647,8 @@ private:
   QualType ValidateBoundsExprArgument(Expr *Arg);
 
 public:
+
+
   ExprResult ActOnNullaryBoundsExpr(SourceLocation BoundKWLoc,
                                     BoundsExpr::Kind Kind,
                                     SourceLocation RParenLoc);
@@ -4667,7 +4722,7 @@ public:
   void InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam);
 
   // \#pragma CHECKED_SCOPE.
-  void ActOnPragmaCheckedScope(Scope *S, tok::OnOffSwitch OOS);
+  void ActOnPragmaCheckedScope(tok::OnOffSwitch OOS);
 
   BoundsExpr *CreateInvalidBoundsExpr();
   /// /brief Synthesize the interop type expression implied by the presence

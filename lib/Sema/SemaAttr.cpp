@@ -685,21 +685,17 @@ void Sema::ActOnPragmaOptimize(bool On, SourceLocation PragmaLoc) {
     OptimizeOffPragmaLocation = PragmaLoc;
 }
 
-// Checked C - #pragma CHECKED_SCOPE action, adjust top level scope flags.
-// Adjust checked property of scope where '#pragma CHECKED_SCOPE' is set.
-void Sema::ActOnPragmaCheckedScope(Scope *S, tok::OnOffSwitch OOS) {
-  unsigned ScopeFlags = S->getFlags();
+// Checked C - #pragma CHECKED_SCOPE action, adjust the current checked
+// scope.
+void Sema::ActOnPragmaCheckedScope(tok::OnOffSwitch OOS) {
   switch (OOS) {
-  case tok::OOS_ON:
-    ScopeFlags |= Scope::CheckedScope;
-    S->setFlags(ScopeFlags);
-    break;
-  case tok::OOS_OFF:
-  case tok::OOS_DEFAULT:
-    ScopeFlags &= ~Scope::CheckedScope;
-    ScopeFlags |= Scope::UncheckedScope;
-    S->setFlags(ScopeFlags);
-    break;
+    case tok::OOS_ON:
+    case tok::OOS_DEFAULT:
+      SetCheckedScopeInfo(CheckedScopeKind::BoundsAndTypes);
+      break;
+    case tok::OOS_OFF:
+      SetCheckedScopeInfo(CheckedScopeKind::Unchecked);
+      break;
   }
 }
 

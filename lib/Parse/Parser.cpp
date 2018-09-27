@@ -356,12 +356,6 @@ bool Parser::SkipUntil(ArrayRef<tok::TokenKind> Toks, SkipUntilFlags Flags) {
 
 /// EnterScope - Start a new scope.
 void Parser::EnterScope(unsigned ScopeFlags) {
-  // Checked C - inherit checked scope property from parent scope.
-  if (getCurScope() && getCurScope()->isCheckedScope())
-    ScopeFlags |= Scope::CheckedScope;
-  // UncheckedScope ScopeFlag clears checked property.
-  if (ScopeFlags & Scope::UncheckedScope)
-    ScopeFlags &= ~Scope::CheckedScope;
   if (NumCachedScopes) {
     Scope *N = ScopeCache[--NumCachedScopes];
     N->Init(getCurScope(), ScopeFlags);
@@ -1077,17 +1071,15 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
 
   // We should have either an opening brace or, in a C++ constructor,
   // we may have a colon.
-  // it is related to check function definition(isStartOfFunctionDefinition)
-  // Checked C - checked scope keyword(checked/unchecked) set checked property.
-  // It is propagated through scope.
-  // For correct parsing, it SHOULD consume checked scope keyword 
-  CheckedScopeKind CSK = CSK_None;
-  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace))
-    CSK = CSK_Checked;
-  else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace))
-    CSK = CSK_Unchecked;
-  if (CSK == CSK_Checked || CSK == CSK_Unchecked)
+  //
+  // For Checked C, the brace may be preceded with a _Checked / _Unchecked keyword.
+
+  CheckedScopeSpecifier CCS = CSS_None;
+  if ((Tok.is(tok::kw__Checked) || Tok.is(tok::kw__Unchecked)) &&
+      NextToken().is(tok::l_brace)) {
+    CCS = Tok.is(tok::kw__Checked) ? CSS_Checked : CSS_Unchecked;
     ConsumeToken();
+  }
 
   if (Tok.isNot(tok::l_brace) && 
       (!getLangOpts().CPlusPlus ||
@@ -1120,21 +1112,6 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
     }
   }
 
-  // Define function body scope flag to consider checked property.
-  // Checked C - checked property nearest to '{' decides scope checked property.
-  // Checked scope keyword can override checked function specifier.
-  // Add CheckedScope flag into function body scope to propagate property.
-  unsigned FnBodyScopeFlag = Scope::FnScope | Scope::DeclScope |
-                               Scope::CompoundStmtScope;
-  if (CSK == CSK_Checked)
-    FnBodyScopeFlag |= Scope::CheckedScope;
-  else if (CSK == CSK_Unchecked)
-    FnBodyScopeFlag |= Scope::UncheckedScope;
-  else if (D.getDeclSpec().isCheckedSpecified())
-    FnBodyScopeFlag |= Scope::CheckedScope;
-  else if (D.getDeclSpec().isUncheckedSpecified())
-    FnBodyScopeFlag |= Scope::UncheckedScope;
-
   // In delayed template parsing mode, for function template we consume the
   // tokens and store them for late parsing at the end of the translation unit.
   if (getLangOpts().DelayedTemplateParsing && Tok.isNot(tok::equal) &&
@@ -1142,8 +1119,8 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
       Actions.canDelayFunctionBody(D)) {
     MultiTemplateParamsArg TemplateParameterLists(*TemplateInfo.TemplateParams);
 
-    // Checked C - consider checked function definition
-    ParseScope BodyScope(this, FnBodyScopeFlag);
+    ParseScope BodyScope(this, Scope::FnScope | Scope::DeclScope |
+                                   Scope::CompoundStmtScope);
     Scope *ParentScope = getCurScope()->getParent();
 
     D.setFunctionDefinitionKind(FDK_Definition);
@@ -1173,8 +1150,8 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
            (Tok.is(tok::l_brace) || Tok.is(tok::kw_try) ||
             Tok.is(tok::colon)) && 
       Actions.CurContext->isTranslationUnit()) {
-    // Checked C - consider checked function definition
-    ParseScope BodyScope(this, FnBodyScopeFlag);
+    ParseScope BodyScope(this, Scope::FnScope | Scope::DeclScope |
+                                   Scope::CompoundStmtScope);
     Scope *ParentScope = getCurScope()->getParent();
 
     D.setFunctionDefinitionKind(FDK_Definition);
@@ -1192,8 +1169,8 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   }
 
   // Enter a scope for the function body.
-  // Checked C - consider checked function definition
-  ParseScope BodyScope(this, FnBodyScopeFlag);
+  ParseScope BodyScope(this, Scope::FnScope | Scope::DeclScope |
+                                 Scope::CompoundStmtScope);
 
   // Tell the actions module that we have entered a function definition with the
   // specified Declarator for the function.
@@ -1282,7 +1259,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   if (LateParsedAttrs)
     ParseLexedAttributeList(*LateParsedAttrs, Res, false, true);
 
-  return ParseFunctionStatementBody(Res, BodyScope, CSK);
+  return ParseFunctionStatementBody(Res, BodyScope, CCS);
 }
 
 void Parser::SkipFunctionBody() {
@@ -1315,16 +1292,8 @@ void Parser::ParseKNRParamDeclarations(Declarator &D) {
 
   // Enter function-declaration scope, limiting any declarators to the
   // function prototype scope, including parameter declarators.
-  unsigned PrototypeScopeFlag = Scope::FunctionPrototypeScope |
-                                Scope::FunctionDeclarationScope |
-                                Scope::DeclScope;
-  PrototypeScopeFlag |=
-      (D.getDeclSpec().isCheckedSpecified()
-           ? Scope::CheckedScope
-           : (D.getDeclSpec().isUncheckedSpecified() ? Scope::UncheckedScope
-                                                     : 0));
-
-  ParseScope PrototypeScope(this, PrototypeScopeFlag);
+  ParseScope PrototypeScope(this, Scope::FunctionPrototypeScope |
+                            Scope::FunctionDeclarationScope | Scope::DeclScope);
 
   // Read all the argument declarations.
   while (isDeclarationSpecifier()) {

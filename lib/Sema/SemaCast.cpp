@@ -2678,7 +2678,7 @@ void CastOperation::CheckBoundsCast(tok::TokenKind kind) {
 
   // Checked C - No C-style casts to unchecked pointer/array type or variadic
   // type in a checked block.
-  if (Self.getCurScope()->isCheckedScope()) {
+  if (Self.IsCheckedScope()) {
     if (Kind == CK_AssumePtrBounds) {
       Self.Diag(OpRange.getBegin(),
                 diag::err_checked_scope_no_assume_bounds_casting);

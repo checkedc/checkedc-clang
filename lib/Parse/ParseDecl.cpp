@@ -56,12 +56,18 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
   if (Attrs)
     DS.addAttributes(Attrs->getList());
   ParseSpecifierQualifierList(DS, AS, DSC);
+
+  // Adjust checked scope properties if _Checked or _Unchecked was
+  // specified.
+  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+
   if (OwnedType)
     *OwnedType = DS.isTypeSpecOwned() ? DS.getRepAsDecl() : nullptr;
 
   // Parse the abstract-declarator, if present.
   Declarator DeclaratorInfo(DS, Context);
   ParseDeclarator(DeclaratorInfo);
+
   if (Range)
     *Range = DeclaratorInfo.getSourceRange();
 
@@ -1718,6 +1724,8 @@ Parser::ParseSimpleDeclaration(unsigned Context,
   DeclSpecContext DSContext = getDeclSpecContextFromDeclaratorContext(Context);
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS_none, DSContext);
 
+  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+
   // If we had a free-standing type definition with a missing semicolon, we
   // may get this far before the problem becomes obvious.
   if (DS.hasTagDefinition() &&
@@ -1989,6 +1997,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           // Recover by treating the 'typedef' as spurious.
           DS.ClearStorageClassSpecs();
         }
+
+        Sema::CheckedScopeRAII CheckedScope(Actions, DS);
 
         Decl *TheDecl =
           ParseFunctionDefinition(D, ParsedTemplateInfo(), &LateParsedAttrs);
@@ -2296,12 +2306,11 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     }
     Actions.ActOnBoundsDecl(ThisVarDecl, Annots);
 
-    // Checked C - type restrictions on declarations in checked blocks.
-    // Variable declaration is not allowed to use unchecked type in checked block.
-    // Bounds-safe interface type is applied to decl after building VarDecl.
-    if (getCurScope()->isCheckedScope() &&
-        !Actions.DiagnoseCheckedDecl(ThisVarDecl))
-      ThisVarDecl->setInvalidDecl();
+    // Check type restrictions on variable declarators.  We need to do this
+    // after the variable declaration has been parsed because some 
+    // types are allowed if a bounds declaration is present.
+    if (!Actions.DiagnoseCheckedDecl(ThisVarDecl))
+      ThisVarDecl->setInvalidDecl(); 
   }
 
   // Parse declarator '=' initializer.
@@ -3940,6 +3949,10 @@ void Parser::ParseStructDeclaration(
   // Parse the common specifier-qualifiers-list piece.
   ParseSpecifierQualifierList(DS);
 
+  // Adjust checked scope properties if _Checked or _Unchecked was
+  // specified.
+  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+
   // If there are no declarators, this is a free-standing declaration
   // specifier. Let the actions module cope with it.
   if (Tok.is(tok::semi)) {
@@ -4030,7 +4043,7 @@ void Parser::ParseStructDeclaration(
 /// [OBC]   '@' 'defs' '(' class-name ')'
 ///
 void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
-                                  Decl *TagDecl, CheckedScopeKind Kind) {
+                                  Decl *TagDecl) {
   PrettyDeclStackTraceEntry CrashInfo(Actions, TagDecl, RecordLoc,
                                       "parsing struct/union body");
   assert(!getLangOpts().CPlusPlus && "C++ declarations not supported");
@@ -4040,10 +4053,6 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
     return;
 
   unsigned structScopeFlag = (Scope::ClassScope | Scope::DeclScope);
-  if (Kind == CSK_Checked)
-    structScopeFlag |= Scope::CheckedScope;
-  else if (Kind == CSK_Unchecked)
-    structScopeFlag |= Scope::UncheckedScope;
   ParseScope StructScope(this, structScopeFlag);
   Actions.ActOnTagStartDefinition(getCurScope(), TagDecl);
 
@@ -4201,7 +4210,10 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
   // We wait to do this until parsing of deferred bounds expressions is complete.
   // A member declaration in a checked scope cannot use unchecked types, unless
   // there is a bounds-safe interface,
-  if (getLangOpts().CheckedC && getCurScope()->isCheckedScope()) {
+
+  // TODO: shouldn't this be invoked by semantic checking.
+
+  if (getLangOpts().CheckedC) {
     for (ArrayRef<Decl *>::iterator i = FieldDecls.begin(),
                                   end = FieldDecls.end();
          i != end; ++i) {
@@ -5071,6 +5083,9 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw__Ptr:
   case tok::kw__Array_ptr:
   case tok::kw__Nt_array_ptr:
+  // Checked C scope keywords for functions/structs
+  case tok::kw__Checked:
+  case tok::kw__Unchecked:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
@@ -5956,18 +5971,11 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
     if (Tok.is(tok::l_paren)) {
       // Enter function-declaration scope, limiting any declarators to the
       // function prototype scope, including parameter declarators.
-      // Checked C - checked function
       unsigned PrototypeScopeFlag =
           Scope::FunctionPrototypeScope | Scope::DeclScope |
           (D.isFunctionDeclaratorAFunctionDeclaration()
                ? Scope::FunctionDeclarationScope
                : 0);
-
-      PrototypeScopeFlag |=
-          (D.getDeclSpec().isCheckedSpecified()
-               ? Scope::CheckedScope
-               : (D.getDeclSpec().isUncheckedSpecified() ? Scope::UncheckedScope
-                                                         : 0));
 
       ParseScope PrototypeScope(this, PrototypeScopeFlag);
 
@@ -6170,19 +6178,11 @@ void Parser::ParseParenDeclarator(Declarator &D) {
 
   // Enter function-declaration scope, limiting any declarators to the
   // function prototype scope, including parameter declarators.
-  // Checked C - checked function
   unsigned PrototypeScopeFlag = Scope::FunctionPrototypeScope |
                                 Scope::DeclScope |
                                 (D.isFunctionDeclaratorAFunctionDeclaration()
                                      ? Scope::FunctionDeclarationScope
                                      : 0);
-
-  PrototypeScopeFlag |=
-      (D.getDeclSpec().isCheckedSpecified()
-           ? Scope::CheckedScope
-           : (D.getDeclSpec().isUncheckedSpecified() ? Scope::UncheckedScope
-                                                     : 0));
-
   ParseScope PrototypeScope(this, PrototypeScopeFlag);
   ParseFunctionDeclarator(D, attrs, T, false, RequiresArg);
   PrototypeScope.Exit();
@@ -6629,6 +6629,7 @@ void Parser::ParseParameterDeclarationClause(
 
     ParseDeclarationSpecifiers(DS);
 
+    Sema::CheckedScopeRAII CheckedScope(Actions, DS);
 
     // Parse the declarator.  This is "PrototypeContext" or 
     // "LambdaExprParameterContext", because we must accept either 

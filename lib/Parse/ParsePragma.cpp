@@ -1437,7 +1437,7 @@ void Parser::HandlePragmaCheckedScope() {
   tok::OnOffSwitch OOS =
     static_cast<tok::OnOffSwitch>(
     reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
-  Actions.ActOnPragmaCheckedScope(Actions.getCurScope(), OOS);
+  Actions.ActOnPragmaCheckedScope(OOS);
   ConsumeAnnotationToken(); // The annotation token.
 }
 

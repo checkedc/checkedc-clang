@@ -174,32 +174,44 @@ Retry:
     cutOffParsing();
     return StmtError();
 
+  case tok::kw__Checked:
+  case tok::kw__Unchecked:
   case tok::identifier: {
     Token Next = NextToken();
-    if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
-      // identifier ':' statement
-      return ParseLabeledStatement(Attrs);
-    }
-
-    // Look up the identifier, and typo-correct it to a keyword if it's not
-    // found.
-    if (Next.isNot(tok::coloncolon)) {
-      // Try to limit which sets of keywords should be included in typo
-      // correction based on what the next token is.
-      if (TryAnnotateName(/*IsAddressOfOperand*/ false,
-                          llvm::make_unique<StatementFilterCCC>(Next)) ==
-          ANK_Error) {
-        // Handle errors here by skipping up to the next semicolon or '}', and
-        // eat the semicolon if that's what stopped us.
-        SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
-        if (Tok.is(tok::semi))
-          ConsumeToken();
-        return StmtError();
+    if (Kind == tok::kw__Checked || Kind == tok::kw__Unchecked) {
+       // See if this is the start of checked scope.  Otherwise it may be the
+       // start of a function or struct declaration.
+      if (Next.is(tok::l_brace))
+        return ParseCompoundStatement();
+      if (Next.is(tok::kw__Bounds_only) && 
+          GetLookAheadToken(2).is(tok::l_brace))
+        return ParseCompoundStatement();
+    } else {
+      if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
+        // identifier ':' statement
+        return ParseLabeledStatement(Attrs);
       }
 
-      // If the identifier was typo-corrected, try again.
-      if (Tok.isNot(tok::identifier))
-        goto Retry;
+      // Look up the identifier, and typo-correct it to a keyword if it's not
+      // found.
+      if (Next.isNot(tok::coloncolon)) {
+        // Try to limit which sets of keywords should be included in typo
+        // correction based on what the next token is.
+        if (TryAnnotateName(/*IsAddressOfOperand*/ false,
+                            llvm::make_unique<StatementFilterCCC>(Next)) ==
+            ANK_Error) {
+          // Handle errors here by skipping up to the next semicolon or '}', and
+          // eat the semicolon if that's what stopped us.
+          SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
+          if (Tok.is(tok::semi))
+            ConsumeToken();
+          return StmtError();
+        }
+
+        // If the identifier was typo-corrected, try again.
+        if (Tok.isNot(tok::identifier))
+          goto Retry;
+      }
     }
 
     // Fall through
@@ -228,13 +240,6 @@ Retry:
     return ParseCaseStatement();
   case tok::kw_default:             // C99 6.8.1: labeled-statement
     return ParseDefaultStatement();
-
-  case tok::kw__Checked:
-  case tok::kw__Unchecked:
-    // Checked C - expects '{' after checked scope keyword(checked/unchecked)
-    // when parsing statement, keyword is always before l_brace
-    return ParseCheckedScopeStatement();
-
   case tok::l_brace:                // C99 6.8.2: compound-statement
     return ParseCompoundStatement();
   case tok::semi: {                 // C99 6.8.3p3: expression[opt] ';'
@@ -850,34 +855,9 @@ StmtResult Parser::ParseDefaultStatement() {
                                   SubStmt.get(), getCurScope());
 }
 
-/// ParseCheckedScopeStatement - Parse a 'checked {' statement
-/// checked scope : checked { compound_stmt }
-StmtResult Parser::ParseCheckedScopeStatement() {
-  assert((Tok.is(tok::kw__Checked) || Tok.is(tok::kw__Unchecked)) &&
-         "Not a checked scope keyword(checked/unchecked)!");
-  CheckedScopeKind Kind = CSK_None;
-  if (Tok.is(tok::kw__Checked))
-    Kind = CSK_Checked;
-  else if (Tok.is(tok::kw__Unchecked))
-    Kind = CSK_Unchecked;
-
-  // Consume checked/unchecked keyword.
-  ConsumeToken();
-  // expects checked/unchecked '{'
-  if (Tok.is(tok::l_brace)) {
-    return ParseCompoundStatement(false, Scope::DeclScope, Kind);
-  }
-  else {
-    Diag(Tok, diag::err_expected_compound_stmt_after_checked_scope);
-    SkipUntil(tok::l_brace, StopAtSemi | StopBeforeMatch);
-    return StmtError();
-  }
-}
-
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
   return ParseCompoundStatement(isStmtExpr,
-                                Scope::DeclScope | Scope::CompoundStmtScope,
-                                CSK_None);
+                                Scope::DeclScope | Scope::CompoundStmtScope);
 }
 
 /// ParseCompoundStatement - Parse a "{}" block.
@@ -885,6 +865,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 ///       compound-statement: [C99 6.8.2]
 ///         { block-item-list[opt] }
 /// [GNU]   { label-declarations block-item-list } [TODO]
+/// [CHECKED C] checked-spec[opt] { block-item-list[opt] }
 ///
 ///       block-item-list:
 ///         block-item
@@ -902,20 +883,37 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 /// [GNU] label-declaration:
 /// [GNU]   '__label__' identifier-list ';'
 ///
-StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
-                                          CheckedScopeKind Kind) {
-  assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
+/// [CHECKED C] checked-spec:
+///            '_Checked'
+///            '_Checked' '_Bounds_only
+///            '_Unchecked'
+StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) {
 
+  // Checked C - process optional checked scope information.
+  CheckedScopeSpecifier CSS = CSS_None;
+  CheckedSpecifierModifier CSM = CSM_None;
+  SourceLocation CSSLoc;
+  SourceLocation CSMLoc;
+  if (Tok.is(tok::kw__Checked)) {
+    CSS = CSS_Checked;
+    CSSLoc = ConsumeToken();
+    if (Tok.is(tok::kw__Bounds_only)) {
+      CSM = CSM_BoundsOnly;
+      CSMLoc = ConsumeToken();
+    } 
+  } else if (Tok.is(tok::kw__Unchecked)) {
+    CSS = CSS_Unchecked;
+    CSSLoc = ConsumeToken();
+  }
+
+  assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.
-  if (Kind == CSK_Checked)
-    ScopeFlags |= Scope::CheckedScope;
-  else if (Kind == CSK_Unchecked)
-    ScopeFlags |= Scope::UncheckedScope;
+
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
-  return ParseCompoundStatementBody(isStmtExpr, Kind);
+  return ParseCompoundStatementBody(isStmtExpr, CSS, CSSLoc, CSM, CSMLoc);
 }
 
 /// Parse any pragmas at the start of the compound expression. We handle these
@@ -983,7 +981,10 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
 /// consume the '}' at the end of the block.  It does not manipulate the scope
 /// stack.
 StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
-                                              CheckedScopeKind Kind) {
+                                              CheckedScopeSpecifier CSS,
+                                              SourceLocation CSSLoc,
+                                              CheckedSpecifierModifier CSM,
+                                              SourceLocation CSMLoc) {
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
                                 Tok.getLocation(),
                                 "in compound statement ('{}')");
@@ -997,13 +998,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
   if (T.consumeOpen())
     return StmtError();
 
-  // Checked C - compound checked property is from
-  // 1. checked function -> function definition scope -> compound statement
-  // 2. checked scope keyword -> scope -> compound statement
-  Sema::CompoundScopeRAII CompoundScope(Actions);
-  bool isCheckedScope = getCurScope()->isCheckedScope();
-  if (isCheckedScope)
-    CompoundScope.setCheckedScope();
+  Sema::CompoundScopeRAII CompoundScope(Actions, CSS, CSM);
 
   // Parse any pragmas at the beginning of the compound statement.
   ParseCompoundStatementLeadingPragmas();
@@ -1103,8 +1098,8 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
     CloseLoc = T.getCloseLocation();
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
-                                   Stmts, isStmtExpr, isCheckedScope,
-                                   Kind != CSK_None);
+                                   Stmts, isStmtExpr, CSS, CSSLoc, CSM, 
+                                   CSMLoc);
 }
 
 /// ParseParenExprOrCondition:
@@ -2004,7 +1999,7 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
 }
 
 Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope,
-                                         CheckedScopeKind Kind) {
+                                         CheckedScopeSpecifier Kind) {
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();
 
@@ -2020,17 +2015,12 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope,
   // Do not enter a scope for the brace, as the arguments are in the same scope
   // (the function body) as the body itself.  Instead, just read the statement
   // list and put it into a CompoundStmt for safe keeping.
-  StmtResult FnBody(ParseCompoundStatementBody(/*IsExpr=*/false, Kind));
+  StmtResult FnBody(ParseCompoundStatementBody(/*IsExpr=*/false, Kind));  // TODO: fill in missing information
 
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    bool IsCheckedScope = getCurScope()->isCheckedScope();
-    if (IsCheckedScope)
-      CompoundScope.setCheckedScope();
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None,
-                                       false, IsCheckedScope,
-                                       Kind != CSK_None);
+    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
   }
 
   BodyScope.Exit();
@@ -2067,8 +2057,7 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
   // compound statement as the body.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false,
-                                       false, false);
+    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, None, false);
   }
 
   BodyScope.Exit();

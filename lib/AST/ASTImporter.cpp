@@ -3974,11 +3974,16 @@ Stmt *ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
 
   SourceLocation ToLBraceLoc = Importer.Import(S->getLBracLoc());
   SourceLocation ToRBraceLoc = Importer.Import(S->getRBracLoc());
+  SourceLocation ToCheckedSpecifierLoc = Importer.Import(S->getCheckedSpecifierLoc());
+  SourceLocation ToSpecifierModifierLoc = Importer.Import(S->getSpecifierModifierLoc());
   return new (Importer.getToContext()) CompoundStmt(Importer.getToContext(),
                                                     ToStmts,
                                                     ToLBraceLoc, ToRBraceLoc,
-                                                    S->isChecked(),
-                                                    S->isCheckedPropertyDeclared());
+                                                    S->getInferredChecking(),
+                                                    S->getCheckedSpecifier(),
+                                                    ToCheckedSpecifierLoc,
+                                                    S->getCheckedModifier(),
+                                                    ToSpecifierModifierLoc);
 }
 
 Stmt *ASTNodeImporter::VisitCaseStmt(CaseStmt *S) {

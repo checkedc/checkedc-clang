@@ -950,12 +950,12 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
 bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
                                       const char *&PrevSpec,
                                       unsigned &DiagID) {
-  if (FS_checked_specified == CFS_Checked) {
+  if (FS_checked_specified == CSS_Checked) {
     DiagID = diag::warn_duplicate_declspec;
     PrevSpec = "checked";
     return true;
   }
-  FS_checked_specified = CFS_Checked;
+  FS_checked_specified = CSS_Checked;
   FS_checkedLoc = Loc;
   return false;
 }
@@ -963,12 +963,12 @@ bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
 bool DeclSpec::setFunctionSpecUnchecked(SourceLocation Loc,
                                         const char *&PrevSpec,
                                         unsigned &DiagID) {
-  if (FS_checked_specified == CFS_Unchecked) {
+  if (FS_checked_specified == CSS_Unchecked) {
     DiagID = diag::warn_duplicate_declspec;
     PrevSpec = "unchecked";
     return true;
   }
-  FS_checked_specified = CFS_Unchecked;
+  FS_checked_specified = CSS_Unchecked;
   FS_checkedLoc = Loc;
   return false;
 }
@@ -983,7 +983,7 @@ bool DeclSpec::setFunctionSpecForany(SourceLocation Loc,
   }
   if (FS_forany_specified) {
     DiagID = diag::warn_duplicate_declspec;
-    PrevSpec = "unchecked";
+    PrevSpec = "_For_any";
     return true;
   }
   FS_forany_specified = true;

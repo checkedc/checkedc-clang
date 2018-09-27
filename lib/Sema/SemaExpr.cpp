@@ -295,7 +295,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, SourceLocation Loc,
   // Otherwise, it does not emit redundant error message at the use of variable
   // since it already produced an error message at the declaration of variable.
   // Calls to variable argument functions are not allowed in a checked block.
-  if (getCurScope()->isCheckedScope() &&
+  if (IsCheckedScope() &&
       isa<ValueDecl>(D->getUnderlyingDecl())) {
     ValueDecl *VD = cast<ValueDecl>(D);
     if (!VD->isInvalidDecl() && !DiagnoseCheckedDecl(VD, Loc))
@@ -446,7 +446,7 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
   assert(!Ty.isNull() && "DefaultFunctionArrayConversion - missing type");
 
   if (Ty->isFunctionType()) {
-    bool isCheckedScope = getCurScope()->isCheckedScope();
+    bool isCheckedScope = IsCheckedScope();
     bool isBoundsSafeInterfaceCast = false;
 
     if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
@@ -488,7 +488,7 @@ ExprResult Sema::DefaultFunctionArrayConversion(Expr *E, bool Diagnose) {
       // For Checked C, for uses of arrays with bounds-safe interfaces, we
       // change the array-to-pointer decay cast in checked scopes to make the
       // target type completely checked.
-      if (getCurScope()->isCheckedScope() && Ty->isOrContainsUncheckedType()) {
+      if (IsCheckedScope() && Ty->isOrContainsUncheckedType()) {
         QualType InteropType = GetCheckedCInteropType(E->IgnoreParenCasts());
         if (!InteropType.isNull()) {
           Ty = RewriteBoundsSafeInterfaceTypes(InteropType);
@@ -699,7 +699,7 @@ ExprResult Sema::CallExprUnaryConversions(Expr *E) {
     // as part of the function-to-pointer decay.
     CheckedPointerKind kind = CheckedPointerKind::Unchecked;
     bool isBoundsSafeInterfaceCast = false;
-    if (getCurScope()->isCheckedScope()) {
+    if (IsCheckedScope()) {
       kind = CheckedPointerKind::Ptr;
       if (auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
         if (isa<FunctionDecl>(DRE->getDecl()))
@@ -1618,7 +1618,7 @@ Sema::ActOnStringLiteral(ArrayRef<Token> StringToks, Scope *UDLScope) {
   // Get an array type for the string, according to C99 6.4.5.  This includes
   // the nul terminator character as well as the string length for pascal
   // strings.
-  CheckedArrayKind ArrayKind = getCurScope()->isCheckedScope() ?
+  CheckedArrayKind ArrayKind = IsCheckedScope() ?
     CheckedArrayKind::NtChecked : CheckedArrayKind::Unchecked;
 
   QualType StrTy = Context.getConstantArrayType(CharTyConst,
@@ -1725,7 +1725,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
 
   // Checked C - no-prototype function is not allowed in checked scope.
   // KNR parameter function has no-prototype function proto type
-  if (getCurScope()->isCheckedScope()) {
+  if (IsCheckedScope()) {
     if (Ty->isFunctionNoProtoType()) {
       Diag(NameInfo.getLoc(), diag::err_checked_scope_no_prototype_func);
       return ExprError();
@@ -1784,7 +1784,7 @@ Sema::BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
   //
   // We skip declarations with function and array types here.  They are
   // handled later as part of function-to-pointer and array-to-pointer decay.
-  if (getCurScope()->isCheckedScope() && !Ty->isFunctionType() &&
+  if (IsCheckedScope() && !Ty->isFunctionType() &&
       !Ty->isArrayType() && Ty->isOrContainsUncheckedType()) {
     DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D);
     if (!DD)
@@ -5806,7 +5806,7 @@ Sema::BuildCompoundLiteralExpr(SourceLocation LParenLoc, TypeSourceInfo *TInfo,
                SourceRange(LParenLoc, LiteralExpr->getSourceRange().getEnd())))
     return ExprError();
 
-  if (getCurScope()->isCheckedScope()) {
+  if (IsCheckedScope()) {
     if (literalType->isArrayType())
       literalType = MakeCheckedArrayType(literalType);
     if (!DiagnoseTypeInCheckedScope(literalType, LParenLoc, RParenLoc))
@@ -6307,7 +6307,7 @@ Sema::ActOnCastExpr(Scope *S, SourceLocation LParenLoc,
   DiscardMisalignedMemberAddress(castType.getTypePtr(), CastExpr);
 
   return BuildCStyleCastExpr(LParenLoc, castTInfo, RParenLoc, CastExpr,
-                             S->isCheckedScope());
+                             IsCheckedScope());
 }
 
 ExprResult Sema::BuildVectorLiteral(SourceLocation LParenLoc,
@@ -11757,9 +11757,8 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   // In a checked scope, the operator produces an array_ptr<T> except for
   // function type. For address-of function type, it produces ptr not array_ptr.
   // In an unchecked scope, it continues to produce (T *).
-  bool isCheckedScope = getCurScope()->isCheckedScope();
   CheckedPointerKind kind;
-  if (isCheckedScope) {
+  if (IsCheckedScope()) {
     if (op->getType()->isFunctionType())
       kind = CheckedPointerKind::Ptr;
     else

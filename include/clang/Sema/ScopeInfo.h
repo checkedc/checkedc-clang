@@ -55,21 +55,14 @@ namespace sema {
 class CompoundScopeInfo {
 public:
   CompoundScopeInfo()
-    : HasEmptyLoopBodies(false), IsCheckedScope(false) { }
+    : HasEmptyLoopBodies(false) { }
 
   /// \brief Whether this compound stamement contains `for' or `while' loops
   /// with empty bodies.
   bool HasEmptyLoopBodies;
 
-  /// \brief Checked C, Whether this compound statement is in checked scope or not
-  bool IsCheckedScope;
-
   void setHasEmptyLoopBodies() {
     HasEmptyLoopBodies = true;
-  }
-
-  void setCheckedScope() {
-    IsCheckedScope = true;
   }
 };
 

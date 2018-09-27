@@ -16,6 +16,7 @@
 
 #include "clang/AST/DeclGroup.h"
 #include "clang/AST/StmtIterator.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/CapturedStmt.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
@@ -90,12 +91,7 @@ protected:
   class CompoundStmtBitfields {
     friend class CompoundStmt;
     unsigned : NumStmtBits;
-    // Is this compound statement checked or unchecked?
-    unsigned IsCheckedScope : 1;
-    // Was the property declared explicitly in the code?
-    unsigned CheckedPropertyDeclared : 1;
-
-    unsigned NumStmts : 32 - 2 - NumStmtBits;
+    unsigned NumStmts : 32 - NumStmtBits;
   };
 
   class IfStmtBitfields {
@@ -614,33 +610,55 @@ public:
   friend class ASTStmtWriter;
 };
 
+  // The kind of Checked C checking to do in a scope.
+  enum class CheckedScopeKind {
+    // No checking.
+    Unchecked = 0x1,
+
+    /// Check properties for bounds safety.
+    Bounds = 0x2,
+
+    /// Check properties for bounds safety and preventing type confusion.
+    BoundsAndTypes = 0x4
+  };
+
+
 /// CompoundStmt - This represents a group of statements like { stmt stmt }.
 ///
 class CompoundStmt : public Stmt {
   Stmt** Body;
   SourceLocation LBraceLoc, RBraceLoc;
+  CheckedScopeSpecifier CSS;
+  CheckedSpecifierModifier CSM;
+  CheckedScopeKind CheckedScope;  // set by semantic analysis; takes into
+                                  // account inherited checking.
+  SourceLocation CSSLoc;
+  SourceLocation CSMLoc;
 
   friend class ASTStmtReader;
 
 public:
   CompoundStmt(const ASTContext &C, ArrayRef<Stmt*> Stmts,
                SourceLocation LB, SourceLocation RB,
-               bool IsChecked, bool CheckedPropertyDeclared);
+               CheckedScopeKind InferredChecking = CheckedScopeKind::Unchecked,
+               CheckedScopeSpecifier CSS = CSS_None,
+               SourceLocation CSSLoc = SourceLocation(),
+               CheckedSpecifierModifier CSM = CSM_None,
+               SourceLocation CSMLoc = SourceLocation());
 
   // \brief Build an empty compound statement with a location.
   explicit CompoundStmt(SourceLocation Loc)
-    : Stmt(CompoundStmtClass), Body(nullptr), LBraceLoc(Loc), RBraceLoc(Loc) {
+    : Stmt(CompoundStmtClass), Body(nullptr), LBraceLoc(Loc), RBraceLoc(Loc),
+      CSS(CSS_None), CSSLoc(Loc), CSM(CSM_None), CSMLoc(Loc),
+      CheckedScope(CheckedScopeKind::Unchecked) {
     CompoundStmtBits.NumStmts = 0;
-    CompoundStmtBits.IsCheckedScope = false;
-    CompoundStmtBits.CheckedPropertyDeclared = false;
   }
 
   // \brief Build an empty compound statement.
   explicit CompoundStmt(EmptyShell Empty)
-    : Stmt(CompoundStmtClass, Empty), Body(nullptr) {
+    : Stmt(CompoundStmtClass, Empty), Body(nullptr),
+      CSS(CSS_None), CSM(CSM_None), CheckedScope(CheckedScopeKind::Unchecked) {
     CompoundStmtBits.NumStmts = 0;
-    CompoundStmtBits.IsCheckedScope = false;
-    CompoundStmtBits.CheckedPropertyDeclared = false;
   }
 
   void setStmts(const ASTContext &C, ArrayRef<Stmt *> Stmts);
@@ -648,18 +666,14 @@ public:
   bool body_empty() const { return CompoundStmtBits.NumStmts == 0; }
   unsigned size() const { return CompoundStmtBits.NumStmts; }
 
-  bool isChecked() const{ return CompoundStmtBits.IsCheckedScope != 0;  }
-  void setChecked(bool IsCheckedScope) {
-    CompoundStmtBits.IsCheckedScope = IsCheckedScope;
-  }
+  CheckedScopeSpecifier getCheckedSpecifier() const { return CSS; }
+  CheckedSpecifierModifier getCheckedModifier() const { return CSM; }
+  CheckedScopeKind getInferredChecking() const { return CheckedScope; }
 
-  bool isCheckedPropertyDeclared() const {
-    return CompoundStmtBits.CheckedPropertyDeclared != 0;
-  }
-
-  void setCheckedPropertyDeclared(bool CheckedPropertyDeclared) {
-    CompoundStmtBits.CheckedPropertyDeclared = CheckedPropertyDeclared;
-  }
+  void setScopeSpecifiers(CheckedScopeSpecifier NS) { CSS = NS; }
+  void setSpecifierModifier(CheckedSpecifierModifier M) { CSM = M; }
+  void setInferredChecking(CheckedScopeKind CSK) { CheckedScope = CSK; }
+  bool isCheckedScope() const { return CheckedScope != CheckedScopeKind::Unchecked; }
 
   typedef Stmt** body_iterator;
   typedef llvm::iterator_range<body_iterator> body_range;
@@ -714,6 +728,8 @@ public:
 
   SourceLocation getLBracLoc() const { return LBraceLoc; }
   SourceLocation getRBracLoc() const { return RBraceLoc; }
+  SourceLocation getCheckedSpecifierLoc() const { return CSSLoc; }
+  SourceLocation getSpecifierModifierLoc() const { return CSMLoc; }
 
   static bool classof(const Stmt *T) {
     return T->getStmtClass() == CompoundStmtClass;

@@ -337,8 +337,10 @@ sema::CompoundScopeInfo &Sema::getCurCompoundScope() const {
 
 StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
                                    ArrayRef<Stmt *> Elts, bool isStmtExpr,
-                                   bool isChecked,
-                                   bool checkedPropertyDeclared) {
+                                   CheckedScopeSpecifier CSS,
+                                   SourceLocation CSSLoc,
+                                   CheckedSpecifierModifier CSM,
+                                   SourceLocation CSMLoc) {
   const unsigned NumElts = Elts.size();
 
   // If we're in C89 mode, check that we don't have any decls after stmts.  If
@@ -377,8 +379,9 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
-  return new (Context) CompoundStmt(Context, Elts, L, R, isChecked,
-                                    checkedPropertyDeclared);
+  return new (Context) CompoundStmt(Context, Elts, L, R, GetCheckedScopeInfo(), 
+                                    CSS, CSSLoc, CSM, CSMLoc);
+
 }
 
 StmtResult
@@ -3430,7 +3433,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       } else if (!RetValExp->isTypeDependent()) {
         // C99 6.8.6.4p1 (ext_ since GCC warns)
         unsigned D = diag::ext_return_has_expr;
-        if (getCurScope()->isCheckedScope())
+        if (IsCheckedScope())
           D = diag::err_return_has_expr;
 
         if (RetValExp->getType()->isVoidType()) {
@@ -3508,7 +3511,7 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
         DiagID = diag::err_return_missing_expr_for_checked_pointer;
       else if (!FnRetBounds.IsEmpty())
         DiagID = diag::err_return_missing_expr_for_bounds;
-      else if (getCurScope()->isCheckedScope())
+      else if (IsCheckedScope())
         DiagID = diag::err_return_missing_expr;
     }
 

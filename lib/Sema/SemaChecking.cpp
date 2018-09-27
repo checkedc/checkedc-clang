@@ -11974,8 +11974,13 @@ static bool DisplaysAsArrayOrPointer(QualType QT) {
 }
 
 //===--- CHECK: Checked scope -------------------------===//
-// Checked C - type restrictions on declarations in checked blocks.
+// Checked C - type restrictions on declarations in checked scope.
 bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
+
+  // We're not a checked scope.
+  if (!IsCheckedScope())
+    return true;
+
   if (Decl->isInvalidDecl())
     return true;
 

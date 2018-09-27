@@ -1620,19 +1620,19 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
   // Checked C - checked/unchecked scope keyword, consume token and pass it.
-  CheckedScopeKind CSK = CSK_None;
+  CheckedScopeSpecifier PCS = CSS_None;
   if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace))
-    CSK = CSK_Checked;
+    PCS = CSS_Checked;
   else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace))
-    CSK = CSK_Unchecked;
+    PCS = CSS_Unchecked;
 
   if (DSC == DSC_trailing)
     TUK = Sema::TUK_Reference;
-  else if (Tok.is(tok::l_brace) || CSK == CSK_Checked || CSK == CSK_Unchecked ||
+  else if (Tok.is(tok::l_brace) || PCS == CSS_Checked || PCS == CSS_Unchecked ||
            (getLangOpts().CPlusPlus && Tok.is(tok::colon)) ||
            (isCXX11FinalKeyword() &&
             (NextToken().is(tok::l_brace) || NextToken().is(tok::colon)))) {
-    if (CSK == CSK_Checked || CSK == CSK_Unchecked)
+    if (PCS == CSS_Checked || PCS == CSS_Unchecked)
       ConsumeToken();
     if (DS.isFriendSpecified()) {
       // C++ [class.friend]p2:
@@ -1693,6 +1693,10 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     }
   } else
     TUK = Sema::TUK_Reference;
+
+  // Adjust checked scope properties if _Checked or _Unchecked was
+  // specified.
+  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
 
   // Forbid misplaced attributes. In cases of a reference, we pass attributes
   // to caller to handle.
@@ -1924,7 +1928,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       Decl *D =
           SkipBody.CheckSameAsPrevious ? SkipBody.New : TagOrTempResult.get();
       // Parse the definition body.
-      ParseStructUnionBody(StartLoc, TagType, D, CSK);
+      ParseStructUnionBody(StartLoc, TagType, D);
       if (SkipBody.CheckSameAsPrevious &&
           !Actions.ActOnDuplicateDefinition(DS, TagOrTempResult.get(),
                                             SkipBody)) {

@@ -131,18 +131,11 @@ public:
     /// We are between inheritance colon and the real class/struct definition scope.
     ClassInheritanceScope = 0x800000,
 
-    /// Checked C - This scope corresponds to checked scope for checkedc.
-    /// It is inherited from parent scope.
-    CheckedScope = 0x1000000,
-
-    /// Checked C - It clears checked property & prevents checked inheritance.
-    UncheckedScope = 0x2000000,
-
     /// Checked C - _For_any Polymorphic type scopes
-    ForanyScope = 0x4000000,
+    ForanyScope = 0x1000000,
 
     /// Checked C - _Itype_for_any Polymorphic bounds safe interface type scopes
-    ItypeforanyScope = 0x8000000
+    ItypeforanyScope = 0x2000000
 
   };
 private:
@@ -459,9 +452,6 @@ public:
   bool isCompoundStmtScope() const {
     return getFlags() & Scope::CompoundStmtScope;
   }
-
-  /// \brief Determine whether this scope is a checked scope 'checked'
-  bool isCheckedScope() const { return getFlags() & Scope::CheckedScope; }
 
   /// \brief Returns if rhs has a higher scope depth than this.
   ///

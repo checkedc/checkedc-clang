@@ -1898,7 +1898,7 @@ protected:
         IsExplicitlyDefaulted(false), HasImplicitReturnZero(false),
         IsLateTemplateParsed(false), IsConstexpr(isConstexprSpecified),
         IsGenericFunction(false), IsItypeGenericFunction(false),
-        CheckedSpecifier(CheckedFunctionSpecifiers::CFS_None),
+        CheckedSpecifier(CheckedScopeSpecifier::CSS_None),
         InstantiationIsPending(false),
         UsesSEHTry(false), HasSkippedBody(false), WillHaveBody(false),
         EndRangeLoc(NameInfo.getEndLoc()), TemplateOrSpecialization(),
@@ -1968,9 +1968,9 @@ public:
   void setItypeGenericFunctionFlag(bool f) { IsItypeGenericFunction = f; }
   bool isItypeGenericFunction() const { return IsItypeGenericFunction; }
 
-  void setCheckedSpecifier(CheckedFunctionSpecifiers CS) { CheckedSpecifier = CS; }
-  CheckedFunctionSpecifiers getCheckedSpecifier() {
-    return (CheckedFunctionSpecifiers) CheckedSpecifier;
+  void setCheckedSpecifier(CheckedScopeSpecifier CS) { CheckedSpecifier = CS; }
+  CheckedScopeSpecifier getCheckedSpecifier() {
+    return (CheckedScopeSpecifier) CheckedSpecifier;
   }
 
   /// \brief Returns true if the function has a body (definition). The

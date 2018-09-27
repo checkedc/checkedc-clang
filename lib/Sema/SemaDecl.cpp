@@ -6724,7 +6724,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
 
     if (!getOpenCLOptions().isEnabled("cl_khr_fp16")) {
       // OpenCL v1.2 s6.1.1.1: reject declaring variables of the half and
-      // half array type (unless the cl_khr_fp16 extension is enabled).
+      // half array type (unles the cl_khr_fp16 extension is enabled).
       if (Context.getBaseElementType(R)->isHalfType()) {
         Diag(D.getIdentifierLoc(), diag::err_opencl_half_declaration) << R;
         D.setInvalidType();
@@ -8755,9 +8755,9 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   }
 
   if (D.getDeclSpec().isCheckedSpecified())
-    NewFD->setCheckedSpecifier(CheckedFunctionSpecifiers::CFS_Checked);
+    NewFD->setCheckedSpecifier(CheckedScopeSpecifier::CSS_Checked);
   else if (D.getDeclSpec().isUncheckedSpecified())
-    NewFD->setCheckedSpecifier(CheckedFunctionSpecifiers::CFS_Unchecked);
+    NewFD->setCheckedSpecifier(CheckedScopeSpecifier::CSS_Unchecked);
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();
@@ -9394,9 +9394,8 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     // Diagnose no-prototype or variadic functions declared in checked scopes or
     // with a _Checked specifier.  Do this after merging possibly prototyped
     // prior declarations to form a composite type.
-    CheckedFunctionSpecifiers CFS = NewFD->getCheckedSpecifier();
-    if (CFS == CheckedFunctionSpecifiers::CFS_Checked ||
-      (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
+    CheckedScopeSpecifier CSS = NewFD->getCheckedSpecifier();
+    if (CSS == CheckedScopeSpecifier::CSS_Checked || (IsCheckedScope() && CSS != CheckedScopeSpecifier::CSS_Unchecked)) {
       // Disallow no prototype function declarators within a checked scope.
       //
       // This includes K&R style definitions of functions in checked scopes
@@ -9786,20 +9785,16 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   }
 
   // Checked C - type restrictions on declarations in checked blocks.
-  // Check that function parameters and the return value do not
-  // have an unchecked pointer type in a checked block.
-  CheckedFunctionSpecifiers CFS = NewFD->getCheckedSpecifier();
-  // Decide if we are in checked scope/function.
-  if (CFS == CheckedFunctionSpecifiers::CFS_Checked ||
-    (CFS != CheckedFunctionSpecifiers::CFS_Unchecked && S->isCheckedScope())) {
-    for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
-      ParmVarDecl *PVD = NewFD->getParamDecl(I);
-      if (!DiagnoseCheckedDecl(PVD))
-        PVD->setInvalidDecl();
-    }
-    if (!DiagnoseCheckedDecl(NewFD))
-      NewFD->setInvalidDecl();
+  // Check the function return value type.   Parameters are handled
+  // separately by checking on variable declarations.
+  for (unsigned I = 0, E = NewFD->getNumParams(); I != E; ++I) {
+    ParmVarDecl *PVD = NewFD->getParamDecl(I);
+    if (!DiagnoseCheckedDecl(PVD))
+      PVD->setInvalidDecl();
   }
+
+  if (!DiagnoseCheckedDecl(NewFD))
+    NewFD->setInvalidDecl();
 
   // Here we have an function template explicit specialization at class scope.
   // The actually specialization will be postponed to template instatiation
@@ -11527,7 +11522,7 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
         !isa<ParmVarDecl>(Var)) {
       QualType Ty = Var->getType();
       BoundsExpr *B = Var->getBoundsExpr();
-      bool InCheckedScope = getCurScope()->isCheckedScope();
+      bool InCheckedScope = IsCheckedScope();
       // If an interop type expression is available, use it.  That
       // means that Var type itself is 
       if (InCheckedScope && Var->hasInteropTypeExpr())
@@ -13121,7 +13116,6 @@ void Sema::ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
   // depend upon.
     BoundsDependencies.Add(VD);
   }
-
 }
 
 void Sema::InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam) {

@@ -502,7 +502,7 @@ namespace {
 
  // Statement to traverse.  This iterates recursively over a statement
  // and all of its children statements.
- void TraverseStmt(Stmt *S, bool InCheckedScope) {
+ void TraverseStmt(Stmt *S, bool Kind) {
    if (!S)
       return;
 
@@ -510,15 +510,15 @@ namespace {
 
    switch (S->getStmtClass()) {
      case Expr::UnaryOperatorClass:
-       VisitUnaryOperator(cast<UnaryOperator>(S), InCheckedScope);
+       VisitUnaryOperator(cast<UnaryOperator>(S), Kind);
        break;
      case Expr::BinaryOperatorClass:
      case Expr::CompoundAssignOperatorClass:
-       VisitBinaryOperator(cast<BinaryOperator>(S), InCheckedScope);
+       VisitBinaryOperator(cast<BinaryOperator>(S), Kind);
        break;
      case Stmt::CompoundStmtClass: {
        CompoundStmt *CS = cast<CompoundStmt>(S);
-       InCheckedScope = CS->isChecked();
+       Kind = CS->isCheckedScope();
        NewScope = true;
        break;
      }
@@ -530,7 +530,7 @@ namespace {
          // The initializer expression is visited during the loop
          // below iterating children.
          if (VarDecl *VD = dyn_cast<VarDecl>(D))
-           VisitVarDecl(VD, InCheckedScope);
+           VisitVarDecl(VD, Kind);
        }
        break;
      }
@@ -544,7 +544,7 @@ namespace {
 
     auto Begin = S->child_begin(), End = S->child_end();
     for (auto I = Begin; I != End; ++I) {
-      TraverseStmt(*I, InCheckedScope);
+      TraverseStmt(*I, Kind);
     }
 
     if (NewScope) {

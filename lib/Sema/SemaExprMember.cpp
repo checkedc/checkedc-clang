@@ -1822,7 +1822,7 @@ Sema::BuildFieldReferenceExpr(Expr *BaseExpr, bool IsArrow,
   //
   // We skip uses of array types here.  They are handled later as part of
   // array-to-pointer decay.
-  if (getCurScope()->isCheckedScope() && !MemberType->isArrayType() && 
+  if (IsCheckedScope() && !MemberType->isArrayType() && 
       MemberType->isOrContainsUncheckedType()) {
     assert(!MemberType->isFunctionType());
     return ConvertToFullyCheckedType(ME, Field->getInteropTypeExpr(), false, VK);
