@@ -9394,8 +9394,7 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     // Diagnose no-prototype or variadic functions declared in checked scopes or
     // with a _Checked specifier.  Do this after merging possibly prototyped
     // prior declarations to form a composite type.
-    CheckedScopeSpecifier CSS = NewFD->getCheckedSpecifier();
-    if (CSS == CheckedScopeSpecifier::CSS_Checked || (IsCheckedScope() && CSS != CheckedScopeSpecifier::CSS_Unchecked)) {
+    if (IsCheckedScope()) {
       // Disallow no prototype function declarators within a checked scope.
       //
       // This includes K&R style definitions of functions in checked scopes

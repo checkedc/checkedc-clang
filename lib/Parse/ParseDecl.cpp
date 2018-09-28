@@ -57,9 +57,8 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
     DS.addAttributes(Attrs->getList());
   ParseSpecifierQualifierList(DS, AS, DSC);
 
-  // Adjust checked scope properties if _Checked or _Unchecked was
-  // specified.
-  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+  // Mark the current scope as checked/unchecked if necessary.
+  Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
   if (OwnedType)
     *OwnedType = DS.isTypeSpecOwned() ? DS.getRepAsDecl() : nullptr;
@@ -1724,7 +1723,7 @@ Parser::ParseSimpleDeclaration(unsigned Context,
   DeclSpecContext DSContext = getDeclSpecContextFromDeclaratorContext(Context);
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS_none, DSContext);
 
-  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+  Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
   // If we had a free-standing type definition with a missing semicolon, we
   // may get this far before the problem becomes obvious.
@@ -1998,7 +1997,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           DS.ClearStorageClassSpecs();
         }
 
-        Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+        Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
         Decl *TheDecl =
           ParseFunctionDefinition(D, ParsedTemplateInfo(), &LateParsedAttrs);
@@ -3949,9 +3948,8 @@ void Parser::ParseStructDeclaration(
   // Parse the common specifier-qualifiers-list piece.
   ParseSpecifierQualifierList(DS);
 
-  // Adjust checked scope properties if _Checked or _Unchecked was
-  // specified.
-  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+  // Mark the current scope as checked or unchecked if necessary.
+  Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
   // If there are no declarators, this is a free-standing declaration
   // specifier. Let the actions module cope with it.
@@ -6629,7 +6627,8 @@ void Parser::ParseParameterDeclarationClause(
 
     ParseDeclarationSpecifiers(DS);
 
-    Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+    // Mark the current scope as checked if necessary.
+    Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
     // Parse the declarator.  This is "PrototypeContext" or 
     // "LambdaExprParameterContext", because we must accept either 

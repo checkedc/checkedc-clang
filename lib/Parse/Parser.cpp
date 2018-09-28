@@ -945,6 +945,9 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
   // Parse the common declaration-specifiers piece.
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC_top_level);
 
+  // Mark the current scope as being checked if necessary.
+  Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
+
   // If we had a free-standing type definition with a missing semicolon, we
   // may get this far before the problem becomes obvious.
   if (DS.hasTagDefinition() &&
@@ -1302,6 +1305,9 @@ void Parser::ParseKNRParamDeclarations(Declarator &D) {
     // Parse the common declaration-specifiers piece.
     DeclSpec DS(AttrFactory);
     ParseDeclarationSpecifiers(DS);
+
+    // Mark the current scope as checked if necessary.
+    Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
     // C99 6.9.1p6: 'each declaration in the declaration list shall have at
     // least one declarator'.
