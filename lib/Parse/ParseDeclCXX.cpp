@@ -1696,7 +1696,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   // Adjust checked scope properties if _Checked or _Unchecked was
   // specified.
-  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+  Sema::CheckedScopeRAII CheckedScope(Actions, PCS, CSM_None);
 
   // Forbid misplaced attributes. In cases of a reference, we pass attributes
   // to caller to handle.
