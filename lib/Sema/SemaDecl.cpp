@@ -6100,6 +6100,11 @@ void Sema::DiagnoseFunctionSpecifiers(const DeclSpec &DS) {
   if (DS.isNoreturnSpecified())
     Diag(DS.getNoreturnSpecLoc(),
          diag::err_noreturn_non_function);
+
+  if (DS.getCheckedScopeSpecifier() != CheckedScopeSpecifier::CSS_None)
+    Diag(DS.getCheckedSpecLoc(), 
+         diag::err_checked_on_non_function)
+      << ((unsigned) DS.getCheckedScopeSpecifier() - 1);
 }
 
 NamedDecl*

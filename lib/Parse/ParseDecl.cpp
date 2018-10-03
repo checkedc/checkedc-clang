@@ -57,7 +57,7 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
     DS.addAttributes(Attrs->getList());
   ParseSpecifierQualifierList(DS, AS, DSC);
 
-  // Mark the current scope as checked/unchecked if necessary.
+  // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
   if (OwnedType)
@@ -1723,6 +1723,7 @@ Parser::ParseSimpleDeclaration(unsigned Context,
   DeclSpecContext DSContext = getDeclSpecContextFromDeclaratorContext(Context);
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS_none, DSContext);
 
+  // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
   // If we had a free-standing type definition with a missing semicolon, we
@@ -1997,6 +1998,8 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           DS.ClearStorageClassSpecs();
         }
 
+        // Checked C - mark the current scope as checked or unchecked if 
+        // necessary.
         Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
         Decl *TheDecl =
@@ -3948,7 +3951,7 @@ void Parser::ParseStructDeclaration(
   // Parse the common specifier-qualifiers-list piece.
   ParseSpecifierQualifierList(DS);
 
-  // Mark the current scope as checked or unchecked if necessary.
+  // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
   // If there are no declarators, this is a free-standing declaration
@@ -4209,8 +4212,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc, unsigned TagType,
   // A member declaration in a checked scope cannot use unchecked types, unless
   // there is a bounds-safe interface,
 
-  // TODO: shouldn't this be invoked by semantic checking.
-
+  // TODO: this should be invoked as part of semantic checking of struct defnitions,
+  // not directly by the parser.
   if (getLangOpts().CheckedC) {
     for (ArrayRef<Decl *>::iterator i = FieldDecls.begin(),
                                   end = FieldDecls.end();
@@ -6627,7 +6630,7 @@ void Parser::ParseParameterDeclarationClause(
 
     ParseDeclarationSpecifiers(DS);
 
-    // Mark the current scope as checked if necessary.
+    // Checked C - mark the current scope as checked or unchecked if necessary.
     Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
     // Parse the declarator.  This is "PrototypeContext" or 

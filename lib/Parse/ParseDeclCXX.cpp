@@ -1694,8 +1694,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   } else
     TUK = Sema::TUK_Reference;
 
-  // Adjust checked scope properties if _Checked or _Unchecked was
-  // specified.
+  // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScope(Actions, PCS, CSM_None);
 
   // Forbid misplaced attributes. In cases of a reference, we pass attributes

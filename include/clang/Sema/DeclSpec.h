@@ -610,6 +610,9 @@ public:
 
   bool isCheckedSpecified() const { return FS_checked_specified == CSS_Checked; }
   bool isUncheckedSpecified() const { return FS_checked_specified == CSS_Unchecked; }
+  CheckedScopeSpecifier getCheckedScopeSpecifier() const {
+    return (CheckedScopeSpecifier) FS_checked_specified;
+  }
   SourceLocation getCheckedSpecLoc() const { return FS_checkedLoc; }
 
   bool isForanySpecified() const { return FS_forany_specified; }
