@@ -2047,7 +2047,7 @@ void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
   // checked specifier and the checked specifier modifier information
   // when it is present.
   if (CSS != CSS_None)
-    OS << (CSS == CSS_Checked ? "_Checked " : "_Unchecked ");
+    OS << (CSS == CSS_Checked ? " _Checked " : "_Unchecked ");
   CheckedSpecifierModifier CSM = Node->getCheckedModifier();
   if (CSM == CSM_BoundsOnly)
     OS << " _Bounds_only ";

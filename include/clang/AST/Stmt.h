@@ -629,11 +629,13 @@ class CompoundStmt : public Stmt {
   Stmt** Body;
   SourceLocation LBraceLoc, RBraceLoc;
   CheckedScopeSpecifier CSS;
+  SourceLocation CSSLoc;
+
   CheckedSpecifierModifier CSM;
+  SourceLocation CSMLoc;
+
   CheckedScopeKind CheckedScope;  // set by semantic analysis; takes into
                                   // account inherited checking.
-  SourceLocation CSSLoc;
-  SourceLocation CSMLoc;
 
   friend class ASTStmtReader;
 
@@ -657,7 +659,8 @@ public:
   // \brief Build an empty compound statement.
   explicit CompoundStmt(EmptyShell Empty)
     : Stmt(CompoundStmtClass, Empty), Body(nullptr),
-      CSS(CSS_None), CSM(CSM_None), CheckedScope(CheckedScopeKind::Unchecked) {
+      CSS(CSS_None), CSSLoc(), CSM(CSM_None), CSMLoc(), 
+      CheckedScope(CheckedScopeKind::Unchecked) {
     CompoundStmtBits.NumStmts = 0;
   }
 
