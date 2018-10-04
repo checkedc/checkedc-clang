@@ -2263,7 +2263,7 @@ namespace {
           CheckedStmts.insert(S);
 
       if (const CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
-        InCheckedScope = CS->isChecked();
+        InCheckedScope = CS->isCheckedScope();
 
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I)
@@ -2416,7 +2416,7 @@ namespace {
           break;
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
-          InCheckedScope = CS->isChecked();
+          InCheckedScope = CS->isCheckedScope();
           break;
         }
         case Stmt::DeclStmtClass: {
@@ -3034,7 +3034,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
     CheckBoundsDeclarations Checker(*this, nullptr, nullptr, nullptr);
-    Checker.TraverseTopLevelVarDecl(D, getCurScope()->isCheckedScope());
+    Checker.TraverseTopLevelVarDecl(D, IsCheckedScope());
   }
 }
 

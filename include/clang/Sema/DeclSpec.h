@@ -331,10 +331,10 @@ public:
     PQ_FunctionSpecifier     = 8
   };
 
-  typedef CheckedFunctionSpecifiers CFS;
-  static const CFS CFS_None = clang::CFS_None;
-  static const CFS CFS_Checked = clang::CFS_Checked;
-  static const CFS CFS_Unchecked = clang::CFS_Unchecked;
+  typedef CheckedScopeSpecifier CSS;
+  static const CSS CSS_None = clang::CSS_None;
+  static const CSS CSS_Checked = clang::CSS_Checked;
+  static const CSS CSS_Unchecked = clang::CSS_Unchecked;
 
 private:
   // storage-class-specifier
@@ -462,7 +462,7 @@ public:
       FS_explicit_specified(false),
       FS_noreturn_specified(false),
       // Checked C - checked function
-      FS_checked_specified(CFS_None),
+      FS_checked_specified(CSS_None),
       FS_forany_specified(false),
       FS_itypeforany_specified(false),
       Friend_specified(false),
@@ -608,8 +608,11 @@ public:
   bool isNoreturnSpecified() const { return FS_noreturn_specified; }
   SourceLocation getNoreturnSpecLoc() const { return FS_noreturnLoc; }
 
-  bool isCheckedSpecified() const { return FS_checked_specified == CFS_Checked; }
-  bool isUncheckedSpecified() const { return FS_checked_specified == CFS_Unchecked; }
+  bool isCheckedSpecified() const { return FS_checked_specified == CSS_Checked; }
+  bool isUncheckedSpecified() const { return FS_checked_specified == CSS_Unchecked; }
+  CheckedScopeSpecifier getCheckedScopeSpecifier() const {
+    return (CheckedScopeSpecifier) FS_checked_specified;
+  }
   SourceLocation getCheckedSpecLoc() const { return FS_checkedLoc; }
 
   bool isForanySpecified() const { return FS_forany_specified; }
@@ -642,7 +645,7 @@ public:
     FS_explicitLoc = SourceLocation();
     FS_noreturn_specified = false;
     FS_noreturnLoc = SourceLocation();
-    FS_checked_specified = CFS_None;
+    FS_checked_specified = CSS_None;
     FS_checkedLoc = SourceLocation();
     FS_forany_specified = false;
     FS_foranyLoc = SourceLocation();

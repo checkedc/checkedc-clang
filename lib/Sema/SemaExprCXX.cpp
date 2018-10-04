@@ -6252,8 +6252,7 @@ Stmt *Sema::MaybeCreateStmtWithCleanups(Stmt *SubStmt) {
   // a new AsmStmtWithTemporaries.
   CompoundStmt *CompStmt = new (Context) CompoundStmt(Context, SubStmt,
                                                       SourceLocation(),
-                                                      SourceLocation(),
-                                                      false, false);
+                                                      SourceLocation());
   Expr *E = new (Context) StmtExpr(CompStmt, Context.VoidTy, SourceLocation(),
                                    SourceLocation());
   return MaybeCreateExprWithCleanups(E);

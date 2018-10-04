@@ -137,7 +137,8 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       ValueWithBytesObjCTypeMethod(nullptr), NSArrayDecl(nullptr),
       ArrayWithObjectsMethod(nullptr), NSDictionaryDecl(nullptr),
       DictionaryWithObjectsMethod(nullptr), GlobalNewDeleteDeclared(false),
-      TUKind(TUKind), NumSFINAEErrors(0), BoundsExprReturnValue(QualType()),
+      TUKind(TUKind), NumSFINAEErrors(0), CheckingKind(CheckedScopeKind::Unchecked),
+      BoundsExprReturnValue(QualType()),
       DeferredBoundsParser(nullptr), DeferredBoundsParserData(nullptr),
       DisableSubstitionDiagnostics(false), AccessCheckingSFINAE(false),
       InNonInstantiationSFINAEContext(false), NonInstantiationEntries(0),
@@ -1417,12 +1418,7 @@ void Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
 }
 
 void Sema::PushCompoundScope() {
-  // Checked C - by default, it inherits the checking property of its parent
-  CompoundScopeInfo CSI;
-  if (!getCurFunction()->CompoundScopes.empty() &&
-      getCurCompoundScope().IsCheckedScope)
-    CSI.setCheckedScope();
-  getCurFunction()->CompoundScopes.push_back(CSI);
+  getCurFunction()->CompoundScopes.push_back(CompoundScopeInfo());
 }
 
 void Sema::PopCompoundScope() {

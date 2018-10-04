@@ -1247,11 +1247,12 @@ public:
                                        MultiStmtArg Statements,
                                        SourceLocation RBraceLoc,
                                        bool IsStmtExpr,
-                                       bool IsChecked,
-                                       bool CheckedPropertyDeclared) {
+                                       CheckedScopeSpecifier CSS,
+                                       SourceLocation CSSLoc,
+                                       CheckedSpecifierModifier CSM,
+                                       SourceLocation CSMLoc) {
     return getSema().ActOnCompoundStmt(LBraceLoc, RBraceLoc, Statements,
-                                       IsStmtExpr, IsChecked,
-                                       CheckedPropertyDeclared);
+                                       IsStmtExpr, CSS, CSSLoc, CSM, CSMLoc);
   }
 
   /// \brief Build a new case statement.
@@ -6663,8 +6664,8 @@ template<typename Derived>
 StmtResult
 TreeTransform<Derived>::TransformCompoundStmt(CompoundStmt *S,
                                               bool IsStmtExpr) {
-  Sema::CompoundScopeRAII CompoundScope(getSema());
-
+  Sema::CompoundScopeRAII CompoundScope(getSema(), S->getCheckedSpecifier(),
+                                        S->getCheckedModifier());
   bool SubStmtInvalid = false;
   bool SubStmtChanged = false;
   SmallVector<Stmt*, 8> Statements;
@@ -6696,8 +6697,10 @@ TreeTransform<Derived>::TransformCompoundStmt(CompoundStmt *S,
                                           Statements,
                                           S->getRBracLoc(),
                                           IsStmtExpr,
-                                          S->isChecked(),
-                                          S->isCheckedPropertyDeclared());
+                                          S->getCheckedSpecifier(),
+                                          S->getCheckedSpecifierLoc(),
+                                          S->getCheckedModifier(),
+                                          S->getCheckedSpecifierLoc());
 }
 
 template<typename Derived>

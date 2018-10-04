@@ -1185,9 +1185,6 @@ def err_expected_bounds_interop_type : Error<
 def err_expected_bounds_expr_or_interop_type : Error<
   "expected bounds expression or bounds-safe interface type">;
 
-def err_expected_compound_stmt_after_checked_scope : Error<
-  "expected compound statement after checked scope keyword">;
-
 def err_single_bounds_expr_allowed : Error<
   "only one bounds expression allowed">;
 

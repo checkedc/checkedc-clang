@@ -2042,12 +2042,20 @@ void ASTDumper::VisitAttributedStmt(const AttributedStmt *Node) {
 
 void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
   VisitStmt(Node);
-  // To avoid having to change existing tests, we don't print
-  // inherited-unchecked information.  We only print information
-  // related to checked blocks or explicit declarations.
-  if (Node->isCheckedPropertyDeclared() || Node->isChecked()) {
-    OS << (Node->isCheckedPropertyDeclared() ? " declared-" : " inherited-");
-    OS << (Node->isChecked() ? "checked" : "unchecked");
+  CheckedScopeSpecifier CSS = Node->getCheckedSpecifier();
+  // To avoid having to change existing tests, we only print
+  // checked specifier and the checked specifier modifier information
+  // when it is present.
+  if (CSS != CSS_None)
+    OS << (CSS == CSS_Checked ? " _Checked " : "_Unchecked ");
+  CheckedSpecifierModifier CSM = Node->getCheckedModifier();
+  if (CSM == CSM_BoundsOnly)
+    OS << " _Bounds_only ";
+  CheckedScopeKind CSK = Node->getInferredChecking();
+  if (CSK != CheckedScopeKind::Unchecked) {
+     OS << "checking-state ";
+     OS << (CSK == CheckedScopeKind::Bounds ? "bounds" :
+            "bounds-and-types");
   }
 }
 

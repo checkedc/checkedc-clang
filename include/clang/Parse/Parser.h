@@ -179,15 +179,6 @@ class Parser : public CodeCompletionHandler {
   /// \brief Identifier for "rel_align_value"
   IdentifierInfo *Ident_rel_align_value;
 
-  enum CheckedScopeKind {
-    /// '{'
-    CSK_None,
-    /// checked '{'
-    CSK_Checked,
-    /// unchecked '{'
-    CSK_Unchecked
-  };
-
   // C++ type trait keywords that can be reverted to identifiers and still be
   // used as type traits.
   llvm::SmallDenseMap<IdentifierInfo *, tok::TokenKind> RevertibleTypeTraits;
@@ -1849,13 +1840,15 @@ private:
   StmtResult ParseCaseStatement(bool MissingCase = false,
                                 ExprResult Expr = ExprResult());
   StmtResult ParseDefaultStatement();
-  StmtResult ParseCheckedScopeStatement();
   StmtResult ParseCompoundStatement(bool isStmtExpr = false);
-  StmtResult ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags,
-                                    CheckedScopeKind Kind = CSK_None);
+  StmtResult ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags);
   void ParseCompoundStatementLeadingPragmas();
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false,
-                                        CheckedScopeKind Kind = CSK_None);
+                                        CheckedScopeSpecifier Kind = CSS_None,
+                                        SourceLocation CSSLoc = SourceLocation(),
+                                        CheckedSpecifierModifier = CSM_None,
+                                        SourceLocation CSMLoc = SourceLocation());
+
   bool ParseParenExprOrCondition(StmtResult *InitStmt,
                                  Sema::ConditionResult &CondResult,
                                  SourceLocation Loc,
@@ -2033,7 +2026,7 @@ private:
       const ParsedTemplateInfo &TemplateInfo = ParsedTemplateInfo(),
       ForRangeInit *FRI = nullptr);
   Decl *ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope,
-                                   CheckedScopeKind Kind=CSK_None);
+                                   CheckedScopeSpecifier Kind = CSS_None);
   Decl *ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope);
 
   /// \brief When in code-completion, skip parsing of the function/method body
@@ -2067,7 +2060,7 @@ private:
                           AccessSpecifier AS, DeclSpecContext DSC);
   void ParseEnumBody(SourceLocation StartLoc, Decl *TagDecl);
   void ParseStructUnionBody(SourceLocation StartLoc, unsigned TagType,
-                            Decl *TagDecl, CheckedScopeKind CSK = CSK_None);
+                            Decl *TagDecl);
 
   void ParseStructDeclaration(
       ParsingDeclSpec &DS,

@@ -2387,6 +2387,11 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
     // Parse the type declarator.
     DeclSpec DS(AttrFactory);
     ParseSpecifierQualifierList(DS);
+
+    // Adjust checked scope properties if _Checked or _Unchecked was
+    // specified.
+    Sema::CheckedScopeRAII CheckedScope(Actions, DS);
+
     Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
     ParseDeclarator(DeclaratorInfo);
     
@@ -2862,6 +2867,9 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   // Parse the specifier-qualifier-list piece.
   DeclSpec DS(AttrFactory);
   ParseSpecifierQualifierList(DS);
+  // Adjust checked scope properties if _Checked or _Unchecked was
+  // specified.
+  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
 
   // Parse the block-declarator.
   Declarator DeclaratorInfo(DS, Declarator::BlockLiteralContext);
@@ -3333,7 +3341,7 @@ bool Parser::ParseItypeAndGenericFunctionExpression(ExprResult &Res) {
   //    b. The call expression is in any scope but the type parameters are provided by the caller
   if (funcType->isGenericFunction() || 
       (funcType->isItypeGenericFunction() && 
-        (getCurScope()->isCheckedScope() || Tok.getKind() == tok::less))) {
+        (Actions.IsCheckedScope() || Tok.getKind() == tok::less))) {
     // Expect a '<' to denote that a list of type specifiers are incoming.
     SourceLocation lessLoc = Tok.getLocation();
     if (ExpectAndConsume(tok::less,
@@ -3628,12 +3636,6 @@ bool Parser::ParseBoundsCallback(void *P,
       (D.isFunctionDeclaratorAFunctionDeclaration()
             ? Scope::FunctionDeclarationScope
             : 0);
-
-  PrototypeScopeFlag |=
-      (D.getDeclSpec().isCheckedSpecified()
-            ? Scope::CheckedScope
-            : (D.getDeclSpec().isUncheckedSpecified() ? Scope::UncheckedScope
-                                                      : 0));
 
   ParseScope PrototypeScope(TheParser, PrototypeScopeFlag);
   TheParser->Actions.ActOnSetupParametersAgain(TheParser->Actions.CurScope, Params);

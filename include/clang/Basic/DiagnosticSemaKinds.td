@@ -9675,6 +9675,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_checked_scope_no_assume_bounds_casting : Error<
     "_Assume_bounds_cast not allowed in a checked scope or function">;
 
+  def err_checked_on_non_function : Error<
+  "%select{'_Checked'|'_Unchecked'}0 can only appear on functions">;
+
   def err_bounds_cast_expected_ptr_or_unchecked : Error<
     "expected _Ptr or * type">;
 

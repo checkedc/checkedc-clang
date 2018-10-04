@@ -601,7 +601,7 @@ struct CheckFallThroughDiagnostics {
       bool isCheckedReturn = FD->getReturnType()->isCheckedPointerType();
       bool hasReturnAnnots = FD->hasBoundsAnnotations();
       CompoundStmt *CS = dyn_cast_or_null<CompoundStmt>(FD->getBody());
-      bool isCheckedFunction = CS && CS->isChecked();
+      bool isCheckedFunction = CS && CS->isCheckedScope();
       if (isCheckedReturn) {
         D.diag_MaybeFallThrough_ReturnsNonVoid =
           diag::err_maybe_falloff_function_with_checked_return;
