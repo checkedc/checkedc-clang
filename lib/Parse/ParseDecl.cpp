@@ -1998,7 +1998,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           DS.ClearStorageClassSpecs();
         }
 
-        // Checked C - mark the current scope as checked or unchecked if 
+        // Checked C - mark the current scope as checked or unchecked if
         // necessary.
         Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
@@ -2309,10 +2309,10 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     Actions.ActOnBoundsDecl(ThisVarDecl, Annots);
 
     // Check type restrictions on variable declarators.  We need to do this
-    // after the variable declaration has been parsed because some 
+    // after the variable declaration has been parsed because some
     // types are allowed if a bounds declaration is present.
     if (!Actions.DiagnoseCheckedDecl(ThisVarDecl))
-      ThisVarDecl->setInvalidDecl(); 
+      ThisVarDecl->setInvalidDecl();
   }
 
   // Parse declarator '=' initializer.

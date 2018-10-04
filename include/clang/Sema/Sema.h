@@ -3707,7 +3707,6 @@ public:
                            bool HasLeadingEmptyMacro = false);
 
   void ActOnStartOfCompoundStmt();
-
   void ActOnFinishOfCompoundStmt();
   StmtResult ActOnCompoundStmt(SourceLocation L, SourceLocation R,
                                ArrayRef<Stmt *> Elts, bool isStmtExpr,
@@ -4647,8 +4646,6 @@ private:
   QualType ValidateBoundsExprArgument(Expr *Arg);
 
 public:
-
-
   ExprResult ActOnNullaryBoundsExpr(SourceLocation BoundKWLoc,
                                     BoundsExpr::Kind Kind,
                                     SourceLocation RParenLoc);

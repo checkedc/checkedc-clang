@@ -16,11 +16,11 @@
 
 #include "clang/AST/DeclGroup.h"
 #include "clang/AST/StmtIterator.h"
-#include "clang/AST/Type.h"
 #include "clang/Basic/CapturedStmt.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
+#include "clang/Basic/Specifiers.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/iterator.h"
@@ -659,7 +659,7 @@ public:
   // \brief Build an empty compound statement.
   explicit CompoundStmt(EmptyShell Empty)
     : Stmt(CompoundStmtClass, Empty), Body(nullptr),
-      CSS(CSS_None), CSSLoc(), CSM(CSM_None), CSMLoc(), 
+      CSS(CSS_None), CSSLoc(), CSM(CSM_None), CSMLoc(),
       CheckedScope(CheckedScopeKind::Unchecked) {
     CompoundStmtBits.NumStmts = 0;
   }

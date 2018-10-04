@@ -379,7 +379,7 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
-  return new (Context) CompoundStmt(Context, Elts, L, R, GetCheckedScopeInfo(), 
+  return new (Context) CompoundStmt(Context, Elts, L, R, GetCheckedScopeInfo(),
                                     CSS, CSSLoc, CSM, CSMLoc);
 
 }

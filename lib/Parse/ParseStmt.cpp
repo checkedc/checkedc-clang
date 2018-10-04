@@ -175,43 +175,43 @@ Retry:
     return StmtError();
 
   case tok::kw__Checked:
-  case tok::kw__Unchecked:
+  case tok::kw__Unchecked: {
+    // See if this is the start of a checked scope.  Otherwise it may be the
+    // start of a function or struct declaration.
+    Token Next = NextToken();
+    if (Next.is(tok::l_brace))
+      return ParseCompoundStatement();
+    if (Next.is(tok::kw__Bounds_only) &&
+        GetLookAheadToken(2).is(tok::l_brace))
+      return ParseCompoundStatement();
+    goto FallThrough;
+  }
   case tok::identifier: {
     Token Next = NextToken();
-    if (Kind == tok::kw__Checked || Kind == tok::kw__Unchecked) {
-       // See if this is the start of checked scope.  Otherwise it may be the
-       // start of a function or struct declaration.
-      if (Next.is(tok::l_brace))
-        return ParseCompoundStatement();
-      if (Next.is(tok::kw__Bounds_only) && 
-          GetLookAheadToken(2).is(tok::l_brace))
-        return ParseCompoundStatement();
-    } else {
-      if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
-        // identifier ':' statement
-        return ParseLabeledStatement(Attrs);
+    if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
+      // identifier ':' statement
+      return ParseLabeledStatement(Attrs);
+    }
+
+    // Look up the identifier, and typo-correct it to a keyword if it's not
+    // found.
+    if (Next.isNot(tok::coloncolon)) {
+      // Try to limit which sets of keywords should be included in typo
+      // correction based on what the next token is.
+      if (TryAnnotateName(/*IsAddressOfOperand*/ false,
+                          llvm::make_unique<StatementFilterCCC>(Next)) ==
+          ANK_Error) {
+        // Handle errors here by skipping up to the next semicolon or '}', and
+        // eat the semicolon if that's what stopped us.
+        SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
+        if (Tok.is(tok::semi))
+          ConsumeToken();
+        return StmtError();
       }
 
-      // Look up the identifier, and typo-correct it to a keyword if it's not
-      // found.
-      if (Next.isNot(tok::coloncolon)) {
-        // Try to limit which sets of keywords should be included in typo
-        // correction based on what the next token is.
-        if (TryAnnotateName(/*IsAddressOfOperand*/ false,
-                            llvm::make_unique<StatementFilterCCC>(Next)) ==
-            ANK_Error) {
-          // Handle errors here by skipping up to the next semicolon or '}', and
-          // eat the semicolon if that's what stopped us.
-          SkipUntil(tok::r_brace, StopAtSemi | StopBeforeMatch);
-          if (Tok.is(tok::semi))
-            ConsumeToken();
-          return StmtError();
-        }
-
-        // If the identifier was typo-corrected, try again.
-        if (Tok.isNot(tok::identifier))
-          goto Retry;
-      }
+      // If the identifier was typo-corrected, try again.
+      if (Tok.isNot(tok::identifier))
+        goto Retry;
     }
 
     // Fall through
@@ -219,6 +219,7 @@ Retry:
   }
 
   default: {
+    FallThrough:
     if ((getLangOpts().CPlusPlus || getLangOpts().MicrosoftExt ||
          Allowed == ACK_Any) &&
         isDeclarationStatement()) {
@@ -888,7 +889,6 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 ///            '_Checked' '_Bounds_only
 ///            '_Unchecked'
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) {
-
   // Checked C - process optional checked scope information.
   CheckedScopeSpecifier CSS = CSS_None;
   CheckedSpecifierModifier CSM = CSM_None;
@@ -900,7 +900,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) 
     if (Tok.is(tok::kw__Bounds_only)) {
       CSM = CSM_BoundsOnly;
       CSMLoc = ConsumeToken();
-    } 
+    }
   } else if (Tok.is(tok::kw__Unchecked)) {
     CSS = CSS_Unchecked;
     CSSLoc = ConsumeToken();
@@ -1098,7 +1098,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
     CloseLoc = T.getCloseLocation();
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
-                                   Stmts, isStmtExpr, CSS, CSSLoc, CSM, 
+                                   Stmts, isStmtExpr, CSS, CSSLoc, CSM,
                                    CSMLoc);
 }
 

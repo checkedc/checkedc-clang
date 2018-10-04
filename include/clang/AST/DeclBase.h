@@ -1941,6 +1941,8 @@ struct cast_convert_decl_context<ToTy, true> {
     return static_cast<ToTy*>(Val);
   }
 };
+
+
 } // end clang.
 
 namespace llvm {

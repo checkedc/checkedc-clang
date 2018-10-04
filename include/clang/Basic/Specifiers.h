@@ -321,7 +321,7 @@ namespace clang {
   llvm::StringRef getParameterABISpelling(ParameterABI kind);
 
   /// Checked C - checked specifiers.  Used for function, structs,
-  /// and  checked compound scopes.
+  /// and checked compound scopes.
   enum CheckedScopeSpecifier {
     CSS_None = 0,
     CSS_Checked = 1,

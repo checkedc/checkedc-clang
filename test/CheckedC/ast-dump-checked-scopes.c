@@ -5,7 +5,7 @@
 // RUN: %clang_cc1 -ast-dump -fcheckedc-extension %s | FileCheck %s
 
 void f1(void) {
-  _Checked { int a = 0;  } 
+  _Checked { int a = 0;  }
   _Unchecked {}
   {}
 }
