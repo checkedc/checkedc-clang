@@ -105,7 +105,7 @@ public:
   // Assert on trailing returning type for now, instead of handling them.
   // That's a C++ feature that we cannot test right now.
     if (T->hasTrailingReturn()) {
-      assert("Unexpected trailing return type for Checked C");
+      assert(false && "Unexpected trailing return type for Checked C");
       return QualType();
     }
 

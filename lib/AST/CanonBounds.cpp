@@ -227,7 +227,7 @@ Lexicographic::CompareDecl(const NamedDecl *D1Arg, const NamedDecl *D2Arg) const
     return Result::Equal;
 
   if (!D1 || !D2) {
-    assert("unexpected cast failure");
+    assert(false && "unexpected cast failure");
     return Result::LessThan;
   }
 
