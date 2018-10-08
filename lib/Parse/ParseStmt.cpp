@@ -891,14 +891,13 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) {
   // Checked C - process optional checked scope information.
   CheckedScopeSpecifier CSS = CSS_None;
-  CheckedSpecifierModifier CSM = CSM_None;
   SourceLocation CSSLoc;
   SourceLocation CSMLoc;
   if (Tok.is(tok::kw__Checked)) {
-    CSS = CSS_Checked;
+    CSS = CSS_BoundsAndTypes;
     CSSLoc = ConsumeToken();
     if (Tok.is(tok::kw__Bounds_only)) {
-      CSM = CSM_BoundsOnly;
+      CSS = CSS_Bounds;
       CSMLoc = ConsumeToken();
     }
   } else if (Tok.is(tok::kw__Unchecked)) {
@@ -913,7 +912,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) 
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
-  return ParseCompoundStatementBody(isStmtExpr, CSS, CSSLoc, CSM, CSMLoc);
+  return ParseCompoundStatementBody(isStmtExpr, CSS, CSSLoc, CSMLoc);
 }
 
 /// Parse any pragmas at the start of the compound expression. We handle these
@@ -981,9 +980,8 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
 /// consume the '}' at the end of the block.  It does not manipulate the scope
 /// stack.
 StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
-                                              CheckedScopeSpecifier CSS,
+                                              CheckedScopeSpecifier WrittenCSS,
                                               SourceLocation CSSLoc,
-                                              CheckedSpecifierModifier CSM,
                                               SourceLocation CSMLoc) {
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
                                 Tok.getLocation(),
@@ -998,7 +996,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
   if (T.consumeOpen())
     return StmtError();
 
-  Sema::CompoundScopeRAII CompoundScope(Actions, CSS, CSM);
+  Sema::CompoundScopeRAII CompoundScope(Actions, WrittenCSS);
 
   // Parse any pragmas at the beginning of the compound statement.
   ParseCompoundStatementLeadingPragmas();
@@ -1098,8 +1096,8 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
     CloseLoc = T.getCloseLocation();
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
-                                   Stmts, isStmtExpr, CSS, CSSLoc, CSM,
-                                   CSMLoc);
+                                   Stmts, isStmtExpr, WrittenCSS,
+                                   CSSLoc, CSMLoc);
 }
 
 /// ParseParenExprOrCondition:

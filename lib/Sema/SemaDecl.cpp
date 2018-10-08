@@ -8759,10 +8759,13 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
     }
   }
 
-  if (D.getDeclSpec().isCheckedSpecified())
-    NewFD->setCheckedSpecifier(CheckedScopeSpecifier::CSS_Checked);
-  else if (D.getDeclSpec().isUncheckedSpecified())
-    NewFD->setCheckedSpecifier(CheckedScopeSpecifier::CSS_Unchecked);
+  // Checked C: record the checked scope specifier information
+  CheckedScopeSpecifier CSS = D.getDeclSpec().getCheckedScopeSpecifier();
+  NewFD->setWrittenCheckedSpecifier(CSS);
+  // The CheckedScopeInfo is already set and has been adjusted based on the
+  // declspec if necessary. Just record it here.
+  assert(GetCheckedScopeInfo() != CSS_None);
+  NewFD->setCheckedSpecifier(GetCheckedScopeInfo());
 
   if (OriginalLexicalContext && OriginalLexicalContext->isObjCContainer())
     NewFD->setTopLevelDeclInObjCContainer();

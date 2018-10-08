@@ -1790,9 +1790,13 @@ private:
   unsigned IsConstexpr : 1;
   unsigned IsGenericFunction : 1;
   unsigned IsItypeGenericFunction : 1; //Checked C - Function specifier _Itype_for_any
-  // Indicates whether the function is declared with a _Checked or
-  // _Unchecked specifier.
-  unsigned CheckedSpecifier : 2;
+  // WrittenCheckedScopeSpecifier: whether the function is declared as
+  // _Checked, _Checked _Bounds_only, or _Unchecked.
+  unsigned WrittenCheckedSpecifier : 2;
+  // CheckedScopeSpecifier: the checked scope specifier as inferred by semantic
+  // analysis.
+  unsigned CheckedSpecifier: 2;
+
   unsigned InstantiationIsPending:1;
 
   /// \brief Indicates if the function uses __try.
@@ -1898,7 +1902,8 @@ protected:
         IsExplicitlyDefaulted(false), HasImplicitReturnZero(false),
         IsLateTemplateParsed(false), IsConstexpr(isConstexprSpecified),
         IsGenericFunction(false), IsItypeGenericFunction(false),
-        CheckedSpecifier(CheckedScopeSpecifier::CSS_None),
+        WrittenCheckedSpecifier(CheckedScopeSpecifier::CSS_None),
+        CheckedSpecifier(CheckedScopeSpecifier::CSS_Unchecked),
         InstantiationIsPending(false),
         UsesSEHTry(false), HasSkippedBody(false), WillHaveBody(false),
         EndRangeLoc(NameInfo.getEndLoc()), TemplateOrSpecialization(),
@@ -1968,8 +1973,17 @@ public:
   void setItypeGenericFunctionFlag(bool f) { IsItypeGenericFunction = f; }
   bool isItypeGenericFunction() const { return IsItypeGenericFunction; }
 
+  void setWrittenCheckedSpecifier(CheckedScopeSpecifier CSS) {
+    WrittenCheckedSpecifier = CSS;
+  }
+
+  CheckedScopeSpecifier getWrittenCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) WrittenCheckedSpecifier;
+  }
+
   void setCheckedSpecifier(CheckedScopeSpecifier CS) { CheckedSpecifier = CS; }
-  CheckedScopeSpecifier getCheckedSpecifier() {
+
+  CheckedScopeSpecifier getCheckedSpecifier() const {
     return (CheckedScopeSpecifier) CheckedSpecifier;
   }
 

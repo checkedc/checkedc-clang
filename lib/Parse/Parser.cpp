@@ -903,9 +903,16 @@ bool Parser::isStartOfFunctionDefinition(const ParsingDeclarator &Declarator) {
   if (Tok.is(tok::l_brace))   // int X() {}
     return true;
 
-  // Checked C - handle checked scope (checked/unchecked) '{' case.
-  if ((Tok.is(tok::kw__Checked) || Tok.is(tok::kw__Unchecked)) &&
-      NextToken().is(tok::l_brace)) // int X() checked/unchecked '{'
+  // Checked C - checked scopes.
+  //   int X() _Unchecked{}
+  //   int X() _Checked _Bounds_only{}
+  //   int X() _Checked {}
+  if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace))
+    return true;
+  if (Tok.is(tok::kw__Checked))
+    if (NextToken().is(tok::l_brace) ||
+        (NextToken().is(tok::kw__Bounds_only) &&
+         GetLookAheadToken(2).is(tok::l_brace)))
     return true;
 
   // Handle K&R C argument lists: int X(f) int f; {}
@@ -1077,10 +1084,17 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   //
   // For Checked C, the brace may be preceded with a _Checked / _Unchecked keyword.
 
-  CheckedScopeSpecifier CCS = CSS_None;
-  if ((Tok.is(tok::kw__Checked) || Tok.is(tok::kw__Unchecked)) &&
-      NextToken().is(tok::l_brace)) {
-    CCS = Tok.is(tok::kw__Checked) ? CSS_Checked : CSS_Unchecked;
+  CheckedScopeSpecifier CSS = CSS_None;
+  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)) {
+    CSS = CSS_BoundsAndTypes;
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Checked) && NextToken().is(tok::kw__Bounds_only) &&
+    GetLookAheadToken(2).is(tok::l_brace)) {
+    CSS = CSS_Bounds;
+    ConsumeToken();
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace)) {
+    CSS = CSS_Unchecked;
     ConsumeToken();
   }
 
@@ -1262,7 +1276,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   if (LateParsedAttrs)
     ParseLexedAttributeList(*LateParsedAttrs, Res, false, true);
 
-  return ParseFunctionStatementBody(Res, BodyScope, CCS);
+  return ParseFunctionStatementBody(Res, BodyScope, CSS);
 }
 
 void Parser::SkipFunctionBody() {

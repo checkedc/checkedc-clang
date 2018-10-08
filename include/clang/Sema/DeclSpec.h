@@ -333,8 +333,10 @@ public:
 
   typedef CheckedScopeSpecifier CSS;
   static const CSS CSS_None = clang::CSS_None;
-  static const CSS CSS_Checked = clang::CSS_Checked;
   static const CSS CSS_Unchecked = clang::CSS_Unchecked;
+  static const CSS CSS_Bounds = clang::CSS_Bounds;
+  static const CSS CSS_BoundsAndTypes = clang::CSS_BoundsAndTypes;
+
 
 private:
   // storage-class-specifier
@@ -362,7 +364,7 @@ private:
   unsigned FS_virtual_specified : 1;
   unsigned FS_explicit_specified : 1;
   unsigned FS_noreturn_specified : 1;
-  // Checked C - checked function type
+  // Checked C - checked/unchecked function type
   unsigned FS_checked_specified : 2;
   // Checked C - For-any function specifier
   unsigned FS_forany_specified : 1;
@@ -608,8 +610,6 @@ public:
   bool isNoreturnSpecified() const { return FS_noreturn_specified; }
   SourceLocation getNoreturnSpecLoc() const { return FS_noreturnLoc; }
 
-  bool isCheckedSpecified() const { return FS_checked_specified == CSS_Checked; }
-  bool isUncheckedSpecified() const { return FS_checked_specified == CSS_Unchecked; }
   CheckedScopeSpecifier getCheckedScopeSpecifier() const {
     return (CheckedScopeSpecifier) FS_checked_specified;
   }
@@ -754,8 +754,8 @@ public:
                                unsigned &DiagID);
   bool setFunctionSpecNoreturn(SourceLocation Loc, const char *&PrevSpec,
                                unsigned &DiagID);
-  bool setFunctionSpecChecked(SourceLocation Loc, const char *&PrevSpec,
-                              unsigned &DiagID);
+  bool setFunctionSpecChecked(SourceLocation Loc, CheckedScopeSpecifier CSS,
+                              const char *&PrevSpec, unsigned &DiagID);
   bool setFunctionSpecUnchecked(SourceLocation Loc, const char *&PrevSpec,
                                 unsigned &DiagID);
   bool setFunctionSpecForany(SourceLocation Loc, const char *&PrevSpec,

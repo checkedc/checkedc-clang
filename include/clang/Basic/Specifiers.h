@@ -323,14 +323,19 @@ namespace clang {
   /// Checked C - checked specifiers.  Used for function, structs,
   /// and checked compound scopes.
   enum CheckedScopeSpecifier {
-    CSS_None = 0,
-    CSS_Checked = 1,
-    CSS_Unchecked = 2
-  };
+    /// Nothing specified.
+    CSS_None = 0x0,
 
-  enum CheckedSpecifierModifier {
-    CSM_None = 0,
-    CSM_BoundsOnly = 1
+    /// Unchecked
+    CSS_Unchecked = 0x1,
+
+    /// Check properties for bounds safety.
+    /// Corresponds to _Checked _Bounds_only
+    CSS_Bounds = 0x2,
+
+    /// Check properties for bounds safety and preventing type confusion.
+    /// Corresponds to _Bounds
+    CSS_BoundsAndTypes = 0x3
   };
 
 } // end namespace clang

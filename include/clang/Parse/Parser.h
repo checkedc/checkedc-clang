@@ -1844,9 +1844,8 @@ private:
   StmtResult ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags);
   void ParseCompoundStatementLeadingPragmas();
   StmtResult ParseCompoundStatementBody(bool isStmtExpr = false,
-                                        CheckedScopeSpecifier Kind = CSS_None,
+                                        CheckedScopeSpecifier WrittenCSS = CSS_None,
                                         SourceLocation CSSLoc = SourceLocation(),
-                                        CheckedSpecifierModifier = CSM_None,
                                         SourceLocation CSMLoc = SourceLocation());
 
   bool ParseParenExprOrCondition(StmtResult *InitStmt,

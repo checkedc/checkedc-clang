@@ -948,27 +948,24 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
 }
 
 bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
+                                      CheckedScopeSpecifier CSS,
                                       const char *&PrevSpec,
                                       unsigned &DiagID) {
-  if (FS_checked_specified == CSS_Checked) {
-    DiagID = diag::warn_duplicate_declspec;
-    PrevSpec = "checked";
-    return true;
-  }
-  FS_checked_specified = CSS_Checked;
-  FS_checkedLoc = Loc;
-  return false;
-}
+  if (FS_checked_specified != CSS_None) {
+    if (FS_checked_specified == CSS)
+      DiagID = diag::warn_duplicate_declspec;
+    else
+      DiagID = diag::err_invalid_decl_spec_combination;
 
-bool DeclSpec::setFunctionSpecUnchecked(SourceLocation Loc,
-                                        const char *&PrevSpec,
-                                        unsigned &DiagID) {
-  if (FS_checked_specified == CSS_Unchecked) {
-    DiagID = diag::warn_duplicate_declspec;
-    PrevSpec = "unchecked";
+    switch (FS_checked_specified) {
+      case CSS_None: PrevSpec = ""; break;
+      case CSS_Unchecked: PrevSpec = "_Unchecked"; break;
+      case CSS_Bounds: PrevSpec = "_Checked _Bounds_only"; break;
+      case CSS_BoundsAndTypes: PrevSpec = "_Checked"; break;
+    }
     return true;
   }
-  FS_checked_specified = CSS_Unchecked;
+  FS_checked_specified = CSS;
   FS_checkedLoc = Loc;
   return false;
 }
@@ -1001,7 +998,7 @@ bool DeclSpec::setFunctionSpecItypeforany(SourceLocation Loc,
   }
   if (FS_itypeforany_specified) {
     DiagID = diag::warn_duplicate_declspec;
-    PrevSpec = "unchecked";
+    PrevSpec = "_IType_For_any";
     return true;
   }
   FS_itypeforany_specified = true;
