@@ -1247,12 +1247,11 @@ public:
                                        MultiStmtArg Statements,
                                        SourceLocation RBraceLoc,
                                        bool IsStmtExpr,
-                                       CheckedScopeSpecifier CSS,
+                                       CheckedScopeSpecifier WrittenCSS,
                                        SourceLocation CSSLoc,
-                                       CheckedSpecifierModifier CSM,
                                        SourceLocation CSMLoc) {
     return getSema().ActOnCompoundStmt(LBraceLoc, RBraceLoc, Statements,
-                                       IsStmtExpr, CSS, CSSLoc, CSM, CSMLoc);
+                                       IsStmtExpr, WrittenCSS, CSSLoc, CSMLoc);
   }
 
   /// \brief Build a new case statement.
@@ -6664,8 +6663,7 @@ template<typename Derived>
 StmtResult
 TreeTransform<Derived>::TransformCompoundStmt(CompoundStmt *S,
                                               bool IsStmtExpr) {
-  Sema::CompoundScopeRAII CompoundScope(getSema(), S->getCheckedSpecifier(),
-                                        S->getCheckedModifier());
+  Sema::CompoundScopeRAII CompoundScope(getSema(), S->getCheckedSpecifier());
   bool SubStmtInvalid = false;
   bool SubStmtChanged = false;
   SmallVector<Stmt*, 8> Statements;
@@ -6697,9 +6695,8 @@ TreeTransform<Derived>::TransformCompoundStmt(CompoundStmt *S,
                                           Statements,
                                           S->getRBracLoc(),
                                           IsStmtExpr,
-                                          S->getCheckedSpecifier(),
+                                          S->getWrittenCheckedSpecifier(),
                                           S->getCheckedSpecifierLoc(),
-                                          S->getCheckedModifier(),
                                           S->getCheckedSpecifierLoc());
 }
 

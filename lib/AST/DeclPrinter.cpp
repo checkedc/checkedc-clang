@@ -499,7 +499,12 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     case SC_Auto: case SC_Register:
       llvm_unreachable("invalid for functions");
     }
-
+    switch (D->getWrittenCheckedSpecifier()) {
+      case CSS_None: break;
+      case CSS_Unchecked: Out << "_Unchecked "; break;
+      case CSS_Bounds: Out << "_Checked _Bounds_only"; break;
+      case CSS_BoundsAndTypes: Out << "_Checked "; break;
+    }
     if (D->isInlineSpecified())  Out << "inline ";
     if (D->isVirtualAsWritten()) Out << "virtual ";
     if (D->isModulePrivate())    Out << "__module_private__ ";

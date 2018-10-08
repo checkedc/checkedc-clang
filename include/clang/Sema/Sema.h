@@ -3710,55 +3710,40 @@ public:
   void ActOnFinishOfCompoundStmt();
   StmtResult ActOnCompoundStmt(SourceLocation L, SourceLocation R,
                                ArrayRef<Stmt *> Elts, bool isStmtExpr,
-                               CheckedScopeSpecifier CSS = CSS_None,
+                               CheckedScopeSpecifier WrittenCSS = CSS_None,
                                SourceLocation CSSLoc = SourceLocation(),
-                               CheckedSpecifierModifier CSM = CSM_None,
                                SourceLocation CSMLoc = SourceLocation());
 
 private:
-  CheckedScopeKind CheckingKind;
+  CheckedScopeSpecifier CheckingKind;
 
 public:
-  CheckedScopeKind GetCheckedScopeInfo() {
+  CheckedScopeSpecifier GetCheckedScopeInfo() {
     return CheckingKind;
   }
 
-  void SetCheckedScopeInfo(CheckedScopeKind CSK) {
-    CheckingKind = CSK;
+  void SetCheckedScopeInfo(CheckedScopeSpecifier CSS) {
+    CheckingKind = CSS;
   }
 
   bool IsCheckedScope() {
-    return CheckingKind != CheckedScopeKind::Unchecked;
+    return CheckingKind != CSS_Unchecked;
   }
 
   class CheckedScopeRAII {
     Sema &SemaRef;
-    CheckedScopeKind PrevCheckingKind;
+    CheckedScopeSpecifier PrevCheckingKind;
 
   public:
-    CheckedScopeRAII(Sema &SemaRef, CheckedScopeSpecifier CSS,
-                     CheckedSpecifierModifier CSM)
+    CheckedScopeRAII(Sema &SemaRef, CheckedScopeSpecifier CSS)
         : SemaRef(SemaRef),
           PrevCheckingKind(SemaRef.CheckingKind) {
-      if (CSS == CSS_Checked) {
-        if (CSM == CSM_None)
-           SemaRef.CheckingKind = CheckedScopeKind::BoundsAndTypes;
-        else
-           SemaRef.CheckingKind = CheckedScopeKind::Bounds;
-      } else if (CSS == CSS_Unchecked)
-        SemaRef.CheckingKind = CheckedScopeKind::Unchecked;
+      if (CSS != CSS_None)
+        SemaRef.CheckingKind = CSS;
     }
 
-    CheckedScopeSpecifier Convert(DeclSpec &DS) {
-      if (DS.isCheckedSpecified())
-        return CSS_Checked;
-      if (DS.isUncheckedSpecified())
-        return CSS_Unchecked;
-      return CSS_None;
-    }
-
-    CheckedScopeRAII(Sema &S, DeclSpec &DS) : CheckedScopeRAII(S, Convert(DS),
-                                                                CSM_None) {
+    CheckedScopeRAII(Sema &S, DeclSpec &DS) :
+      CheckedScopeRAII(S, DS.getCheckedScopeSpecifier()) {
     }
 
     ~CheckedScopeRAII() {
@@ -3769,9 +3754,8 @@ public:
   /// \brief A RAII object to enter scope of a compound statement.
   class CompoundScopeRAII {
   public:
-    CompoundScopeRAII(Sema &S, CheckedScopeSpecifier CSS = CSS_None,
-                      CheckedSpecifierModifier CSM  = CSM_None): S(S),
-                      CheckedProperties(S, CSS, CSM) {
+    CompoundScopeRAII(Sema &S, CheckedScopeSpecifier CSS = CSS_None):
+       S(S), CheckedProperties(S, CSS) {
       S.ActOnStartOfCompoundStmt();
     }
 

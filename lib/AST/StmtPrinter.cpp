@@ -118,14 +118,12 @@ namespace  {
 /// PrintRawCompoundStmt - Print a compound stmt without indenting the {, and
 /// with no newline after the }.
 void StmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
-  switch (Node->getCheckedSpecifier()) {
+  switch (Node->getWrittenCheckedSpecifier()) {
       case CSS_None: break;
       case CSS_Unchecked: OS << "_Unchecked "; break;
-      case CSS_Checked: OS << "_Checked "; break;
+      case CSS_Bounds: OS << "_Checked _Bounds_only "; break;
+      case CSS_BoundsAndTypes: OS << "_Checked "; break;
   }
-  if (Node->getCheckedModifier() == CSM_BoundsOnly)
-    OS << " _Bounds_only ";
-
   OS << "{\n";
   for (auto *I : Node->body())
     PrintStmt(I);

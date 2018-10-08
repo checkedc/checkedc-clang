@@ -628,39 +628,40 @@ public:
 class CompoundStmt : public Stmt {
   Stmt** Body;
   SourceLocation LBraceLoc, RBraceLoc;
-  CheckedScopeSpecifier CSS;
+  // Written checked scope specifier.
+  unsigned WrittenCSS : 2;
+  // Inferred checked scope specifier, using information from parent
+  // scope also.
+  unsigned CSS : 2;
+  // Checked scope keyword (_Checked / _Unchecked) location.
   SourceLocation CSSLoc;
 
-  CheckedSpecifierModifier CSM;
+  // Checked scope modifier (_Bounds_only) location.
   SourceLocation CSMLoc;
 
-  CheckedScopeKind CheckedScope;  // set by semantic analysis; takes into
-                                  // account inherited checking.
+
 
   friend class ASTStmtReader;
 
 public:
   CompoundStmt(const ASTContext &C, ArrayRef<Stmt*> Stmts,
                SourceLocation LB, SourceLocation RB,
-               CheckedScopeKind InferredChecking = CheckedScopeKind::Unchecked,
-               CheckedScopeSpecifier CSS = CSS_None,
+               CheckedScopeSpecifier WrittenCSS = CSS_None,
+               CheckedScopeSpecifier CSS = CSS_Unchecked,
                SourceLocation CSSLoc = SourceLocation(),
-               CheckedSpecifierModifier CSM = CSM_None,
                SourceLocation CSMLoc = SourceLocation());
 
   // \brief Build an empty compound statement with a location.
   explicit CompoundStmt(SourceLocation Loc)
     : Stmt(CompoundStmtClass), Body(nullptr), LBraceLoc(Loc), RBraceLoc(Loc),
-      CSS(CSS_None), CSSLoc(Loc), CSM(CSM_None), CSMLoc(Loc),
-      CheckedScope(CheckedScopeKind::Unchecked) {
+        WrittenCSS(CSS_None), CSS(CSS_Unchecked), CSSLoc(Loc), CSMLoc(Loc) {
     CompoundStmtBits.NumStmts = 0;
   }
 
   // \brief Build an empty compound statement.
   explicit CompoundStmt(EmptyShell Empty)
-    : Stmt(CompoundStmtClass, Empty), Body(nullptr),
-      CSS(CSS_None), CSSLoc(), CSM(CSM_None), CSMLoc(),
-      CheckedScope(CheckedScopeKind::Unchecked) {
+    : Stmt(CompoundStmtClass, Empty), Body(nullptr), WrittenCSS(CSS_None),
+        CSS(CSS_Unchecked), CSSLoc(), CSMLoc() {
     CompoundStmtBits.NumStmts = 0;
   }
 
@@ -669,14 +670,17 @@ public:
   bool body_empty() const { return CompoundStmtBits.NumStmts == 0; }
   unsigned size() const { return CompoundStmtBits.NumStmts; }
 
-  CheckedScopeSpecifier getCheckedSpecifier() const { return CSS; }
-  CheckedSpecifierModifier getCheckedModifier() const { return CSM; }
-  CheckedScopeKind getInferredChecking() const { return CheckedScope; }
+  CheckedScopeSpecifier getWrittenCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) WrittenCSS;
+  }
 
-  void setScopeSpecifiers(CheckedScopeSpecifier NS) { CSS = NS; }
-  void setSpecifierModifier(CheckedSpecifierModifier M) { CSM = M; }
-  void setInferredChecking(CheckedScopeKind CSK) { CheckedScope = CSK; }
-  bool isCheckedScope() const { return CheckedScope != CheckedScopeKind::Unchecked; }
+  CheckedScopeSpecifier getCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) CSS;
+  }
+
+  void setWrittenCheckedSpecifiers(CheckedScopeSpecifier NS) { WrittenCSS = NS; }
+  void setCheckedSpecifiers(CheckedScopeSpecifier NS) { CSS = NS; }
+  bool isCheckedScope() const { return CSS != CSS_Unchecked; }
 
   typedef Stmt** body_iterator;
   typedef llvm::iterator_range<body_iterator> body_range;

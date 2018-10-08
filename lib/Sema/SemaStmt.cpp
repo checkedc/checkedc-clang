@@ -337,9 +337,8 @@ sema::CompoundScopeInfo &Sema::getCurCompoundScope() const {
 
 StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
                                    ArrayRef<Stmt *> Elts, bool isStmtExpr,
-                                   CheckedScopeSpecifier CSS,
+                                   CheckedScopeSpecifier WrittenCSS,
                                    SourceLocation CSSLoc,
-                                   CheckedSpecifierModifier CSM,
                                    SourceLocation CSMLoc) {
   const unsigned NumElts = Elts.size();
 
@@ -379,8 +378,8 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
-  return new (Context) CompoundStmt(Context, Elts, L, R, GetCheckedScopeInfo(),
-                                    CSS, CSSLoc, CSM, CSMLoc);
+  return new (Context) CompoundStmt(Context, Elts, L, R, WrittenCSS,
+                                    GetCheckedScopeInfo(), CSSLoc, CSMLoc);
 
 }
 

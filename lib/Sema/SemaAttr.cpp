@@ -691,10 +691,10 @@ void Sema::ActOnPragmaCheckedScope(tok::OnOffSwitch OOS) {
   switch (OOS) {
     case tok::OOS_ON:
     case tok::OOS_DEFAULT:
-      SetCheckedScopeInfo(CheckedScopeKind::BoundsAndTypes);
+      SetCheckedScopeInfo(CSS_BoundsAndTypes);
       break;
     case tok::OOS_OFF:
-      SetCheckedScopeInfo(CheckedScopeKind::Unchecked);
+      SetCheckedScopeInfo(CSS_Unchecked);
       break;
   }
 }

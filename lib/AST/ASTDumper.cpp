@@ -1201,6 +1201,13 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (D->isTrivial())
     OS << " trivial";
 
+  switch (D->getWrittenCheckedSpecifier()) {
+    case CSS_None: break;
+    case CSS_Bounds: OS << " checked bounds_only"; break;
+    case CSS_BoundsAndTypes: OS << " checked"; break;
+    case CSS_Unchecked: OS << " unchecked"; break;
+  }
+
   if (const FunctionProtoType *FPT = D->getType()->getAs<FunctionProtoType>()) {
     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
     switch (EPI.ExceptionSpec.Type) {
@@ -2042,20 +2049,19 @@ void ASTDumper::VisitAttributedStmt(const AttributedStmt *Node) {
 
 void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
   VisitStmt(Node);
+  CheckedScopeSpecifier WrittenCSS = Node->getWrittenCheckedSpecifier();
+  switch (WrittenCSS) {
+    case CSS_None: break;
+    case CSS_Unchecked: OS << " _Unchecked "; break;
+    case CSS_Bounds: OS <<  " _Checked _Bounds_only "; break;
+    case CSS_BoundsAndTypes: OS << " _Checked "; break;
+  }
+
+
   CheckedScopeSpecifier CSS = Node->getCheckedSpecifier();
-  // To avoid having to change existing tests, we only print
-  // checked specifier and the checked specifier modifier information
-  // when it is present.
-  if (CSS != CSS_None)
-    OS << (CSS == CSS_Checked ? " _Checked " : "_Unchecked ");
-  CheckedSpecifierModifier CSM = Node->getCheckedModifier();
-  if (CSM == CSM_BoundsOnly)
-    OS << " _Bounds_only ";
-  CheckedScopeKind CSK = Node->getInferredChecking();
-  if (CSK != CheckedScopeKind::Unchecked) {
+  if (CSS != CSS_Unchecked) {
      OS << "checking-state ";
-     OS << (CSK == CheckedScopeKind::Bounds ? "bounds" :
-            "bounds-and-types");
+     OS << (CSS == CSS_Bounds ? "bounds" :"bounds-and-types");
   }
 }
 

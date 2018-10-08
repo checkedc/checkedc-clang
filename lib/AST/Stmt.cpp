@@ -281,14 +281,12 @@ SourceLocation Stmt::getLocEnd() const {
 
 CompoundStmt::CompoundStmt(const ASTContext &C, ArrayRef<Stmt*> Stmts,
                            SourceLocation LB, SourceLocation RB,
-                           CheckedScopeKind InferredChecking,
+                           CheckedScopeSpecifier WrittenCSS,
                            CheckedScopeSpecifier CSS,
                            SourceLocation CSSLoc,
-                           CheckedSpecifierModifier CSM,
                            SourceLocation CSMLoc)
   : Stmt(CompoundStmtClass), LBraceLoc(LB), RBraceLoc(RB),
-    CSS(CSS), CSSLoc(CSSLoc), CSM(CSM), CSMLoc(CSMLoc),
-    CheckedScope(InferredChecking) {
+    WrittenCSS(WrittenCSS), CSS(CSS), CSSLoc(CSSLoc), CSMLoc(CSMLoc) {
   CompoundStmtBits.NumStmts = Stmts.size();
   assert(CompoundStmtBits.NumStmts == Stmts.size() &&
          "NumStmts doesn't fit in bits of CompoundStmtBits.NumStmts!");

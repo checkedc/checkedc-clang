@@ -3041,23 +3041,37 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       continue;
 
     case tok::kw__Checked:
-    case tok::kw__Unchecked:
-      // Checked C - it is parsed as checked array or checked function keyword
-      // checked array type, checked []
-      if (NextToken().is(tok::l_square)) {
+    case tok::kw__Unchecked: {
+      // Checked C - handle _Checked and _Unchecked declaration specifiers.
+      //
+      // First make sure it is a declaration specifier.  _Checked,
+      // _Checked _Bounds_only, and _Unchecked are only declaration
+      // specifiers if they aren't followed by a `{` or `['.
+
+      // Look past any optional _Bounds_only modifier.
+      int nextLoc = 1;
+      if (Tok.is(tok::kw__Checked) && NextToken().is(tok::kw__Bounds_only))
+        nextLoc = 2;
+      if (GetLookAheadToken(nextLoc).is(tok::l_square)) {
         goto DoneWithDeclSpec;
-      } else if (NextToken().is(tok::l_brace)) {
-        // checked scope, checked {}, structure/union checked scope
-        // this checked scope keyword is parsed afterward
+      } else if (GetLookAheadToken(nextLoc).is(tok::l_brace)) {
+        // This indicates the beginning of a checked scope or the
+        // body of structure/union in a checked scope.
         break;
       } else {
+        CheckedScopeSpecifier CSS = CSS_Unchecked;
         // checked function, it acts as function specifier
-        if (Tok.is(tok::kw__Checked))
-          isInvalid = DS.setFunctionSpecChecked(Loc, PrevSpec, DiagID);
-        else
-          isInvalid = DS.setFunctionSpecUnchecked(Loc, PrevSpec, DiagID);
+        if (Tok.is(tok::kw__Checked)) {
+          if (NextToken().is(tok::kw__Bounds_only)) {
+            CSS = CSS_Bounds;
+            ConsumeToken();
+           } else
+            CSS = CSS_BoundsAndTypes;
+        }
+        isInvalid = DS.setFunctionSpecChecked(Loc, CSS, PrevSpec, DiagID);
         break;
       }
+    }
     case tok::kw__Nt_checked:
       goto DoneWithDeclSpec;
     case tok::kw__For_any:

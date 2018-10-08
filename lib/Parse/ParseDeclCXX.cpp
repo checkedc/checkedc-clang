@@ -1619,21 +1619,30 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
-  // Checked C - checked/unchecked scope keyword, consume token and pass it.
-  CheckedScopeSpecifier PCS = CSS_None;
-  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace))
-    PCS = CSS_Checked;
-  else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace))
-    PCS = CSS_Unchecked;
+
+  // Checked C - checked scope keyword, possibly followed by checked scope modifier,
+  // followed by '{'.   Set the kind of checked scope and consume the checked scope-related
+  // keywords.
+  CheckedScopeSpecifier CSS = CSS_None;
+  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)) {
+    CSS = CSS_BoundsAndTypes;
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Checked) && NextToken().is(tok::kw__Bounds_only) &&
+    GetLookAheadToken(2).is(tok::l_brace)) {
+    CSS = CSS_Bounds;
+    ConsumeToken();
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace)) {
+   CSS = CSS_Unchecked;
+   ConsumeToken();
+  }
 
   if (DSC == DSC_trailing)
     TUK = Sema::TUK_Reference;
-  else if (Tok.is(tok::l_brace) || PCS == CSS_Checked || PCS == CSS_Unchecked ||
+  else if (Tok.is(tok::l_brace) ||
            (getLangOpts().CPlusPlus && Tok.is(tok::colon)) ||
            (isCXX11FinalKeyword() &&
             (NextToken().is(tok::l_brace) || NextToken().is(tok::colon)))) {
-    if (PCS == CSS_Checked || PCS == CSS_Unchecked)
-      ConsumeToken();
     if (DS.isFriendSpecified()) {
       // C++ [class.friend]p2:
       //   A class shall not be defined in a friend declaration.
@@ -1695,7 +1704,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     TUK = Sema::TUK_Reference;
 
   // Checked C - mark the current scope as checked or unchecked if necessary.
-  Sema::CheckedScopeRAII CheckedScope(Actions, PCS, CSM_None);
+  Sema::CheckedScopeRAII CheckedScope(Actions, CSS);
 
   // Forbid misplaced attributes. In cases of a reference, we pass attributes
   // to caller to handle.

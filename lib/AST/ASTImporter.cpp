@@ -3979,10 +3979,9 @@ Stmt *ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
   return new (Importer.getToContext()) CompoundStmt(Importer.getToContext(),
                                                     ToStmts,
                                                     ToLBraceLoc, ToRBraceLoc,
-                                                    S->getInferredChecking(),
+                                                    S->getWrittenCheckedSpecifier(),
                                                     S->getCheckedSpecifier(),
                                                     ToCheckedSpecifierLoc,
-                                                    S->getCheckedModifier(),
                                                     ToSpecifierModifierLoc);
 }
 
