@@ -1431,14 +1431,14 @@ void Parser::HandlePragmaAttribute() {
                                    std::move(SubjectMatchRules));
 }
 
-// #pragma CHECKED_SCOPE [on-off-switch]
+// #pragma CHECKED_SCOPE [on|off|_Bounds_decl|push|pop]
 void Parser::HandlePragmaCheckedScope() {
   assert(Tok.is(tok::annot_pragma_checked_scope));
-  tok::OnOffSwitch OOS =
-    static_cast<tok::OnOffSwitch>(
+  Sema::PragmaCheckedScopeKind Kind =
+    static_cast<Sema::PragmaCheckedScopeKind>(
     reinterpret_cast<uintptr_t>(Tok.getAnnotationValue()));
-  Actions.ActOnPragmaCheckedScope(OOS);
-  ConsumeAnnotationToken(); // The annotation token.
+  SourceLocation PragmaLoc = ConsumeAnnotationToken();
+  Actions.ActOnPragmaCheckedScope(Kind, PragmaLoc);
 }
 
 // #pragma GCC visibility comes in two variants:
@@ -3019,14 +3019,46 @@ void PragmaAttributeHandler::HandlePragma(Preprocessor &PP,
 }
 
 // Handle the checked-c top level scope checked property.
-// #pragma CHECKED_SCOPE [on-off-switch]
+// #pragma CHECKED_SCOPE [OFF|ON|off|on|push|pop]
 // To handle precise scope property, annotation token is better
 void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
                                              PragmaIntroducerKind Introducer,
                                              Token &Tok) {
-  tok::OnOffSwitch OOS;
-  if (PP.LexOnOffSwitch(OOS))
+  PP.Lex(Tok);
+  Sema::PragmaCheckedScopeKind Kind = Sema::PCSK_On;
+
+  if (Tok.is(tok::identifier)) {
+    IdentifierInfo *II = Tok.getIdentifierInfo();
+    if (II->isStr("ON"))
+      Kind = Sema::PCSK_On;
+    else if (II->isStr("on"))
+      Kind = Sema::PCSK_On;
+    else if (II->isStr("OFF"))
+      Kind = Sema::PCSK_Off;
+    else if (II->isStr("off"))
+      Kind = Sema::PCSK_Off;
+    else if (II->isStr("push"))
+      Kind = Sema::PCSK_Push;
+    else if (II->isStr("pop"))
+      Kind = Sema::PCSK_Pop;
+    else {
+      PP.Diag(Tok, diag::err_pragma_checked_scope_invalid_argument)
+        << PP.getSpelling(Tok);
+      return;
+    }
+  } else if (Tok.is(tok::kw__Bounds_only))
+    Kind = Sema::PCSK_BoundsOnly;
+  else {
+    PP.Diag(Tok, diag::err_pragma_checked_scope_invalid_argument)
+      << PP.getSpelling(Tok);
     return;
+  }
+
+  PP.Lex(Tok);
+  // Verify that this is followed by EOD.
+  if (Tok.isNot(tok::eod))
+    PP.Diag(Tok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
+        << "CHECKED_SCOPE";
 
   MutableArrayRef<Token> Toks(PP.getPreprocessorAllocator().Allocate<Token>(1),
                               1);
@@ -3035,6 +3067,6 @@ void PragmaCheckedScopeHandler::HandlePragma(Preprocessor &PP,
   Toks[0].setLocation(Tok.getLocation());
   Toks[0].setAnnotationEndLoc(Tok.getLocation());
   Toks[0].setAnnotationValue(
-      reinterpret_cast<void *>(static_cast<uintptr_t>(OOS)));
+      reinterpret_cast<void *>(static_cast<uintptr_t>(Kind)));
   PP.EnterTokenStream(Toks, /*DisableMacroExpansion=*/true);
 }

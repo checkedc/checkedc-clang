@@ -905,6 +905,7 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   DiagnoseUnterminatedPragmaPack();
   DiagnoseUnterminatedPragmaAttribute();
+  DiagnoseUnterminatedCheckedScope();
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.

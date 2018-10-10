@@ -9678,6 +9678,12 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_checked_on_non_function : Error<
   "%select{'_Unchecked'|'_Checked _Bounds_only|'_Checked'}0 can only appear on functions">;
 
+  def err_pragma_pop_checked_scope_mismatch : Error<
+  "#pragma CHECKED_SCOPE pop with no matching #pragma CHECKED_SCOPE push">;
+
+  def err_pragma_checked_scope_no_pop_eof : Error<"unterminated "
+    "'#pragma CHECKED_SCOPE push' at end of file">;
+
   def err_bounds_cast_expected_ptr_or_unchecked : Error<
     "expected _Ptr or * type">;
 

@@ -685,18 +685,27 @@ void Sema::ActOnPragmaOptimize(bool On, SourceLocation PragmaLoc) {
     OptimizeOffPragmaLocation = PragmaLoc;
 }
 
-// Checked C - #pragma CHECKED_SCOPE action, adjust the current checked
-// scope.
-void Sema::ActOnPragmaCheckedScope(tok::OnOffSwitch OOS) {
-  switch (OOS) {
-    case tok::OOS_ON:
-    case tok::OOS_DEFAULT:
-      SetCheckedScopeInfo(CSS_BoundsAndTypes);
+// Checked C - #pragma CHECKED_SCOPE action.  Adjust or save the current checked
+// scope information.
+void Sema::ActOnPragmaCheckedScope(PragmaCheckedScopeKind Kind,
+                                   SourceLocation Loc) {
+  switch (Kind) {
+    case PCSK_On: SetCheckedScopeInfo(CSS_BoundsAndTypes); break;
+    case PCSK_BoundsOnly: SetCheckedScopeInfo(CSS_Bounds); break;
+    case PCSK_Off: SetCheckedScopeInfo(CSS_Unchecked); break;
+    case PCSK_Push: PushCheckedScopeInfo(Loc); break;
+    case PCSK_Pop: {
+      if (PopCheckedScopeInfo())
+        Diags.Report(Loc, diag::err_pragma_pop_checked_scope_mismatch);
       break;
-    case tok::OOS_OFF:
-      SetCheckedScopeInfo(CSS_Unchecked);
-      break;
+    }
   }
+}
+
+void Sema::DiagnoseUnterminatedCheckedScope() {
+  if (CheckingKindStack.empty())
+    return;
+  Diag(CheckingKindStack.back().Loc, diag::err_pragma_checked_scope_no_pop_eof);
 }
 
 void Sema::AddRangeBasedOptnone(FunctionDecl *FD) {
