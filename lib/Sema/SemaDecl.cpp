@@ -11547,13 +11547,13 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       if (Ty->isUncheckedPointerType() && InCheckedScope &&
           Var->hasBoundsExpr())
         Diag(Var->getLocation(),
-             diag::err_initializer_expected_for_unchecked_pointer_in_checked_scope_with_bounds_expr)
+             diag::err_initializer_expected_for_unchecked_pointer)
           << Var;
 
       // An integer with a bounds expression must be initialized
       if (Ty->isIntegerType() && Var->hasBoundsExpr())
         Diag(Var->getLocation(),
-              diag::err_initializer_expected_for_integer_with_bounds_expr)
+              diag::err_initializer_expected_for_integer)
           << Var;
 
       // struct/union and array with checked pointer members must have
@@ -11575,19 +11575,19 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
             break;
           case Type::HasCheckedValue: {
             Diag(Var->getLocation(),
-                  diag::err_initializer_expected_for_record_with_checked_value)
+                 diag::err_initializer_expected_for_record_with_checked_value)
             << RT->getDecl()->getTagKind() << Var;
             break;
           }
           case Type::HasIntWithBounds: {
             Diag(Var->getLocation(),
-                  diag::err_initializer_expected_for_record_with_integer_member_with_bounds_expr)
+                 diag::err_initializer_expected_for_record_with_integer_member)
             << RT->getDecl()->getTagKind() << Var;
             break;
           }
           case Type::HasUncheckedPointer: {
             Diag(Var->getLocation(),
-                 diag::err_initializer_expected_for_record_with_unchecked_pointer_in_checked_scope)
+               diag::err_initializer_expected_for_record_with_unchecked_pointer)
             << RT->getDecl()->getTagKind() << Var;
             break;
           }
