@@ -9370,13 +9370,16 @@ def err_checked_vla : Error<
   "checked variable-length array not allowed">;
 
 def err_illegal_decl_nullterm_array_of_nonscalar : Error<
-  "'%0' declared as null-terminated array of type %1; only integer and pointer types allowed">;
+  "'%0' declared as null-terminated array of type %1; "
+  "only integer and pointer types allowed">;
 
 def err_illegal_decl_array_ptr_to_function : Error<
-  "'%0' declared as _Array_ptr to function of type %1; use _Ptr to function instead">;
+  "'%0' declared as _Array_ptr to function of type %1; "
+  "use _Ptr to function instead">;
 
 def err_illegal_decl_nt_array_ptr_of_nonscalar : Error<
-  "'%0' declared as _Nt_array_ptr of type %1; only integer and pointer types are allowed">;
+  "'%0' declared as _Nt_array_ptr of type %1; "
+  "only integer and pointer types are allowed">;
 
 def err_checked_cplusplus : Error<
   "checked extension not supported for C++">;
@@ -9387,19 +9390,21 @@ def err_expected_bounds_expr_for_member : Error<
   "expected bounds expression">;
 
 def err_checked_array_of_unchecked_array : Error<
-  "checked array of unchecked array not allowed (%0 is an unchecked array)">;  
+  "checked array of unchecked array not allowed (%0 is an unchecked array)">;
 
 def err_unchecked_array_of_typedef_checked_array : Error<
-  "unchecked array of checked array not allowed (%0 is a checked array)">; 
+  "unchecked array of checked array not allowed (%0 is a checked array)">;
 
 def err_unchecked_array_of_checked_array : Error<
   "unchecked array of checked array not allowed">;
 
 def err_bounds_declaration_unchecked_local_pointer : Error<
-  "bounds declaration not allowed for local variable with unchecked pointer type">;
+  "bounds declaration not allowed for local variable with "
+  "unchecked pointer type">;
 
 def err_bounds_declaration_unchecked_local_array : Error<
-  "bounds declaration not allowed for local variable with unchecked array type">;
+  "bounds declaration not allowed for local variable with "
+  "unchecked array type">;
 
 def err_bounds_safe_interface_type_annotation_local_variable : Error<
   "bounds-safe interface type annotation not allowed for local variable">;
@@ -9515,26 +9520,32 @@ def err_bounds_type_annotation_lost_checking : Error<
    "cannot redeclare a function that has a checked argument or argument "
    "bounds to have no prototype">;
 
- def note_previous_bounds_decl : Note<"previous %select{bounds|interop type}0 declaration is here">;
+ def note_previous_bounds_decl : Note<
+   "previous %select{bounds|interop type}0 declaration is here">;
 
   def err_decl_conflicting_annot : Error<
-    "%select{function redeclaration has conflicting parameter %select{bounds|interop type}0|function "
-    "redeclaration has conflicting return %select{bounds|interop type}0|variable redeclaration has "
+    "%select{function redeclaration has conflicting parameter "
+    "%select{bounds|interop type}0|function redeclaration has conflicting "
+    "return %select{bounds|interop type}0|variable redeclaration has "
     "conflicting %select{bounds|interop type}0}1">;
 
   def err_decl_added_annot : Error<
-    "%select{function redeclaration added %select{bounds|interop type}0 for parameter|function "
-    "redeclaration added return %select{bounds|interop type}0|variable redeclaration added %select{bounds|interop type}0}1">;
+    "%select{function redeclaration added %select{bounds|interop type}0 "
+    "for parameter|function redeclaration added return "
+    "%select{bounds|interop type}0"
+    "|variable redeclaration added %select{bounds|interop type}0}1">;
 
   def err_decl_dropped_annot : Error<
-    "%select{function redeclaration dropped %select{bounds|interop type}0 for parameter|function "
-    "redeclaration dropped return %select{bounds|interop type}0|variable redeclaration dropped "
-    "%select{bounds|interop type}0}1">;
+    "%select{function redeclaration dropped %select{bounds|interop type}0 "
+    "for parameter|function redeclaration dropped return "
+    "%select{bounds|interop type}0|"
+    "variable redeclaration dropped %select{bounds|interop type}0}1">;
 
   def err_conflicting_annots : Error<"conflicting bounds annotations for %0">;
 
   def err_decl_conflicting_function_specifiers : Error<
-    "conflicting function specifiers for %0. %1 and %2 are incompatible function specifiers.">;
+    "conflicting function specifiers for %0. %1 and %2 are incompatible "
+    "function specifiers.">;
 
   def err_out_of_scope_function_type_local : Error<
     "out-of-scope variable for bounds in a function type (a function type "
@@ -9559,12 +9570,12 @@ def err_bounds_type_annotation_lost_checking : Error<
     ", cast to ptr<T> expects source to have bounds">;
 
   def err_expected_bounds_for_assignment : Error<
-    "expression has unknown bounds"
-    ", right-hand side of assignment expected to have bounds because the left-hand side has bounds">;
+    "expression has unknown bounds, right-hand side of assignment expected to "
+    "have bounds because the left-hand side has bounds">;
 
   def err_expected_bounds_for_initializer : Error<
-    "expression has unknown bounds"
-    ", initializer expected to have bounds because the variable being declared has bounds">;
+    "expression has unknown bounds, initializer expected to have bounds "
+    "because the variable being declared has bounds">;
 
   def err_expected_bounds_for_argument : Error<
     "argument has unknown bounds, bounds expected because the "
@@ -9582,46 +9593,57 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_not_null_terminated_for_nt_checked_string_literal : Error<
      "initializer-string for _Nt_checked char array is too long">;
 
-  def err_initializer_expected_for_integer_with_bounds_expr : Error<
+  def err_initializer_expected_for_integer : Error<
     "integer variable %0 with a bounds expression must have an initializer">;
 
-  def err_initializer_expected_for_unchecked_pointer_in_checked_scope_with_bounds_expr : Error<
-    "unchecked pointer variable %0 in a checked scope with a bounds expression must have an initializer">;
+  def err_initializer_expected_for_unchecked_pointer : Error<
+    "unchecked pointer variable %0 in a checked scope with a bounds expression "
+    "must have an initializer">;
 
   def err_initializer_expected_for_array : Error<
-    "array variable %0 with elements containing checked pointers must have an initializer">;
-	
+    "array variable %0 with elements containing checked pointers must "
+    "have an initializer">;
+
   def err_initializer_expected_for_record_with_checked_value : Error<
-    "%select{struct|interface|union|class|enum}0 variable %1 containing a checked pointer must have an initializer">;
+    "%select{struct|interface|union|class|enum}0 variable %1 containing a "
+    "checked pointer must have an initializer">;
 
-  def err_initializer_expected_for_record_with_integer_member_with_bounds_expr : Error<
-    "%select{struct|interface|union|class|enum}0 variable %1 containing an integer variable with a bounds expression must have an initializer">;
+  def err_initializer_expected_for_record_with_integer_member : Error<
+    "%select{struct|interface|union|class|enum}0 variable %1 containing an "
+    "integer member with a bounds expression must have an initializer">;
 
-  def err_initializer_expected_for_record_with_unchecked_pointer_in_checked_scope : Error<
-    "%select{struct|interface|union|class|enum}0 variable %1 containing an unchecked pointer with a bounds expression in a checked scope must have an initializer">;
+  def err_initializer_expected_for_record_with_unchecked_pointer : Error<
+    "%select{struct|interface|union|class|enum}0 variable %1 containing an "
+    "unchecked pointer with a bounds expression in a checked scope must have "
+    "an initializer">;
 
   def err_cast_to_checked_fn_ptr_must_be_named : Error<
-	"cast to checked function pointer type %0 must be from named top-level function">;
+	"cast to checked function pointer type %0 must be from named "
+    "top-level function">;
 
   def err_cast_to_checked_fn_ptr_from_incompatible_type : Error<
-    "cast to checked function pointer type %0 from incompatible %select{type|checked pointer type}2 %1">;
+    "cast to checked function pointer type %0 from incompatible "
+    "%select{type|checked pointer type}2 %1">;
 
   def err_cast_to_checked_fn_ptr_not_value_preserving : Error<
-    "can only cast function names or null pointers to checked function pointer type %0">;
+    "can only cast function names or null pointers to checked function "
+    "pointer type %0">;
 
   def err_cast_to_checked_fn_ptr_from_unchecked_fn_ptr : Error<
-    "cannot guarantee operand of cast to checked function pointer type %0 is a function pointer">;
+    "cannot guarantee operand of cast to checked function pointer type %0 is a "
+    "function pointer">;
 
   def err_cast_to_checked_fn_ptr_can_only_ref_deref_functions : Error<
-    "cast to checked function pointer type %0 may only %select{dereference|take the address of}1 "
-	"expressions with function type">;
+    "cast to checked function pointer type %0 may only "
+    "%select{dereference|take the address of}1 expressions with function type">;
 
   def warn_dynamic_check_condition_fail : Warning<
     "dynamic check will always fail">,
 	InGroup<CheckedC>;
 
   def err_inferred_modifying_bounds : Error<
-    "inferred bounds '%0' contain a modifying expression; use a temporary instead">;
+    "inferred bounds '%0' contain a modifying expression; use a temporary "
+    "instead">;
 
   def note_modifying_expression : Note<"modifying expression">;
 
@@ -9632,35 +9654,45 @@ def err_bounds_type_annotation_lost_checking : Error<
     "|argument for parameter used in function return bounds expression"
     "|argument for parameter used in function parameter bounds expression}1">;
 
-  def err_address_of_var_with_bounds : Error<"cannot take address of variable %0 with bounds">;
+  def err_address_of_var_with_bounds : Error<
+    "cannot take address of variable %0 with bounds">;
 
-  def err_address_of_member_in_bounds : Error<"cannot take address of member used in member bounds">;
+  def err_address_of_member_in_bounds : Error<
+    "cannot take address of member used in member bounds">;
 
-  def err_address_of_member_with_bounds : Error<"cannot take address of member with bounds">;
+  def err_address_of_member_with_bounds : Error<
+    "cannot take address of member with bounds">;
 
   def note_var_bounds : Note<"bounds declared here">;
   def note_member_bounds : Note<"member bounds declared here">;
 
   def err_checked_scope_decl_type: Error<
-    "%select{parameter|return|local variable|global variable|member}0 %select{|used }1in a checked scope must have "
-    "%select{a |a pointer, array or function type that uses only |a bounds-safe interface type that uses only }2"
-    "checked %plural{0:type %plural{2:|:or a bounds-safe interface}0|:types or parameter/return types with bounds-safe interfaces}2">;
+    "%select{parameter|return|local variable|global variable|member}0 "
+    "%select{|used }1in a checked scope must have "
+    "%select{a |a pointer, array or function type that uses only |"
+    "a bounds-safe interface type that uses only }2"
+    "checked %plural{0:type %plural{2:|:or a bounds-safe interface}0|"
+    ":types or parameter/return types with bounds-safe interfaces}2">;
 
   def err_checked_scope_type: Error<
     "type in a checked scope must %plural{0:be a checked pointer or array type"
-    "|:use only checked types or parameter/return types with bounds-safe interfaces}0">;
+    "|:use only checked types or parameter/return types with bounds-safe "
+    "interfaces}0">;
 
   def note_checked_scope_declaration : Note<
-    "%select{parameter|return|local variable|global variable|member}0 declared here">;
+    "%select{parameter|return|local variable|global variable|member}0 "
+    "declared here">;
 
   def note_checked_scope_problem_type : Note<
      "%0 is not allowed in a checked scope">;
 
   def err_checked_scope_no_prototype_func : Error<
-    "function without a prototype cannot be used or declared in a checked scope">;
+    "function without a prototype cannot be used or declared in a "
+    "checked scope">;
 
   def err_checked_scope_decl_variable_args : Error<
-    "%select{parameter|return|local variable|global variable|member}0 %select{|used }1in a checked scope "
+    "%select{parameter|return|local variable|global variable|member}0 "
+    "%select{|used }1in a checked scope "
     "cannot have variable arguments">;
 
  def err_checked_scope_type_variable_args : Error<
@@ -9676,7 +9708,8 @@ def err_bounds_type_annotation_lost_checking : Error<
     "_Assume_bounds_cast not allowed in a checked scope or function">;
 
   def err_checked_on_non_function : Error<
-  "%select{'_Unchecked'|'_Checked _Bounds_only|'_Checked'}0 can only appear on functions">;
+  "%select{'_Unchecked'|'_Checked _Bounds_only|'_Checked'}0 "
+  "can only appear on functions">;
 
   def err_pragma_pop_checked_scope_mismatch : Error<
   "#pragma CHECKED_SCOPE pop with no matching #pragma CHECKED_SCOPE push">;
@@ -9753,16 +9786,22 @@ def err_bounds_type_annotation_lost_checking : Error<
   def note_source_bounds_empty : Note<"source bounds are an empty range">;
 
   def note_bounds_too_narrow : Note<
-    "%select{destination bounds are|target bounds are|memory accessed is|struct/union pointed to by base is}0 wider than the %select{source|source||}0 bounds">;
+    "%select{destination bounds are|target bounds are|memory accessed is|"
+    "struct/union pointed to by base is}0 wider than the "
+    "%select{source|source||}0 bounds">;
 
   def note_lower_out_of_bounds : Note<
-    "%select{destination lower bound is|target lower bound is|accesses memory|base value is}0 below %select{source|source|the|its}0 lower bound">;
+    "%select{destination lower bound is|target lower bound is|accesses memory|"
+    "base value is}0 below %select{source|source|the|its}0 lower bound">;
 
   def note_upper_out_of_bounds : Note<
-    "%select{destination upper bound is|target upper bound is|accesses memory at or|base value is}0 above %select{source|source|the|its}0 upper bound">;
+    "%select{destination upper bound is|target upper bound is|"
+    "accesses memory at or|base value is}0 "
+    "above %select{source|source|the|its}0 upper bound">;
 
    def note_bounds_partially_overlap : Note<
-    "%select{||accesses memory that|struct/union pointed to by base value}0 is only partially in bounds">;
+    "%select{||accesses memory that|struct/union pointed to by base value}0 is "
+    "only partially in bounds">;
 
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;
