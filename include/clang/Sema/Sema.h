@@ -3717,6 +3717,16 @@ public:
 private:
   CheckedScopeSpecifier CheckingKind;
 
+  // Keep a stack of saved checked scope information.
+  class SavedCheckedScope {
+  public:
+    SavedCheckedScope(CheckedScopeSpecifier S, SourceLocation L) :
+      Loc(L), Saved(S) {}
+    SourceLocation Loc;
+    CheckedScopeSpecifier Saved;
+  };
+  SmallVector<SavedCheckedScope, 8> CheckingKindStack; // can be empty
+
 public:
   CheckedScopeSpecifier GetCheckedScopeInfo() {
     return CheckingKind;
@@ -3725,6 +3735,22 @@ public:
   void SetCheckedScopeInfo(CheckedScopeSpecifier CSS) {
     CheckingKind = CSS;
   }
+
+  void PushCheckedScopeInfo(SourceLocation Loc) {
+    CheckingKindStack.push_back(SavedCheckedScope(CheckingKind, Loc));
+  }
+
+  bool PopCheckedScopeInfo() {
+    if (CheckingKindStack.size() > 0) {
+      CheckingKind = CheckingKindStack.back().Saved;
+      CheckingKindStack.pop_back();
+      return false;
+   }
+   else
+     return true;
+  }
+
+  void DiagnoseUnterminatedCheckedScope();
 
   bool IsCheckedScope() {
     return CheckingKind != CSS_Unchecked;
@@ -4703,7 +4729,15 @@ public:
   void InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam);
 
   // \#pragma CHECKED_SCOPE.
-  void ActOnPragmaCheckedScope(tok::OnOffSwitch OOS);
+  enum PragmaCheckedScopeKind {
+    PCSK_On,
+    PCSK_Off,
+    PCSK_BoundsOnly,
+    PCSK_Push,
+    PCSK_Pop
+  };
+  void ActOnPragmaCheckedScope(PragmaCheckedScopeKind Kind, SourceLocation Loc);
+  void DiagnoseUnterminatedPragmaCheckedScopePush();
 
   BoundsExpr *CreateInvalidBoundsExpr();
   /// /brief Synthesize the interop type expression implied by the presence
