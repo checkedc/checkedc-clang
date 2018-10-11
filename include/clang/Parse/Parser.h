@@ -1749,7 +1749,7 @@ private:
   ExprResult ParseBoundsCastExpression();
 
   ExprResult ParseBoundsExpression();
-  bool ParseItypeAndGenericFunctionExpression(ExprResult &Res);
+  bool ParseGenericTypeArgumentList(ExprResult &Res, SourceLocation Loc);
 
   QualType SubstituteTypeVariable(QualType QT,
     SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);

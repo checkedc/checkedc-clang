@@ -1216,6 +1216,9 @@ def err_type_list_and_type_variable_num_mismatch : Error<
 def note_type_variables_declared_at : Note<
   "type variable(s) declared here">;
 
+def err_type_args_for_non_generic_expression : Error<
+  "type arguments supplied for non-generic function or expression">;
+
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<
   "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
