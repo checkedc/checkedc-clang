@@ -1762,6 +1762,8 @@ public:
   bool isFunctionType() const;
   bool isFunctionNoProtoType() const { return getAs<FunctionNoProtoType>(); }
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
+  bool isGenericFunctionType() const;
+  bool isItypeGenericFunctionType() const;
   bool isPointerType() const;
   bool isCheckedPointerType() const;
   bool isUncheckedPointerType() const;
@@ -6010,6 +6012,16 @@ inline bool Type::isCompoundType() const {
 
 inline bool Type::isFunctionType() const {
   return isa<FunctionType>(CanonicalType);
+}
+inline bool Type::isGenericFunctionType() const {
+   if (const FunctionProtoType *FPT = getAs<FunctionProtoType>())
+     return FPT->isGenericFunction();
+   return false;
+}
+inline bool Type::isItypeGenericFunctionType() const {
+   if (const FunctionProtoType *FPT = getAs<FunctionProtoType>())
+     return FPT->isItypeGenericFunction();
+   return false;
 }
 inline bool Type::isPointerType() const {
   return isa<PointerType>(CanonicalType);

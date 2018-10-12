@@ -9806,6 +9806,12 @@ def err_bounds_type_annotation_lost_checking : Error<
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;
 
+  def err_expected_type_argument_list_for_generic_call : Error<
+    "expected a type argument list for a generic function call">;
+
+  def err_expected_type_argument_list_for_itype_generic_call : Error<
+    "expected a type argument list for a bounds-safe interface call in a checked scope">;
+
 } // end of Checked C Category
 
 } // end of sema component.

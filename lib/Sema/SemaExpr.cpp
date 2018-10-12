@@ -5472,6 +5472,52 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     }
   }
 
+  // Handle generic functions and functions with generic bounds-safe interfaces
+  // that that haven't beeen supplied with type arguments.
+  if (getLangOpts().CheckedC) {
+      // It is always an error to call a generic function without supplying
+      // type arguments.
+    if (Fn->getType()->isGenericFunctionType()) {
+      Diag(Fn->getLocEnd(),
+            diag::err_expected_type_argument_list_for_generic_call);
+      return ExprError();
+    }
+    // It is an error to call a function with a generic bound
+    if (Fn->getType()->isItypeGenericFunctionType()) {
+      if (GetCheckedScopeInfo() == CSS_BoundsAndTypes) {
+        Diag(Fn->getLocEnd(),
+              diag::err_expected_type_argument_list_for_itype_generic_call);
+        return ExprError();
+      }
+      // In an unchecked or checked bounds-only scopes supply the type arguments
+      // if possible.
+      if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(Fn)) {
+        SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4>
+           typeArgumentInfos;
+        const FunctionProtoType *FPT = DR->getType()->getAs<FunctionProtoType>();
+        unsigned count = FPT->getNumTypeVars();
+        for (unsigned int i = 0; i < count; i++) {
+          TypeSourceInfo *TInfo =
+            Context.getTrivialTypeSourceInfo( Context.VoidTy, SourceLocation());
+          typeArgumentInfos.push_back({ Context.VoidTy, TInfo });
+        }
+        // HACK HACK: we modify the DeclRef directly, because we are lacking.
+        // a type application node.
+        DR->SetGenericInstInfo(Context, typeArgumentInfos);
+
+        // Substitute Type Variables of Function Type in DeclRefExpr
+        QualType NewTy =
+          Context.substituteTypeArgs(DR->getType(), typeArgumentInfos);
+        DR->setType(NewTy);
+      } else {
+        // There is no DeclRef to modify. Emit an error for now.
+        Diag(Fn->getLocEnd(),
+              diag::err_expected_type_argument_list_for_itype_generic_call);
+        return ExprError();
+      }
+    }
+  }
+
   // If we're directly calling a function, get the appropriate declaration.
   if (Fn->getType() == Context.UnknownAnyTy) {
     ExprResult result = rebuildUnknownAnyFunction(*this, Fn);

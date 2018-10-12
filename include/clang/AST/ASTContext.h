@@ -2583,6 +2583,9 @@ public:
   /// if the pointer is null.
   QualType getInteropTypeAndAdjust(const InteropTypeExpr *BA, bool IsParam) const;
 
+  QualType substituteTypeArgs(QualType QT,
+    SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);
+
   //===--------------------------------------------------------------------===//
   //                    Integer Predicates
   //===--------------------------------------------------------------------===//
