@@ -5507,7 +5507,7 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
 
         // Substitute Type Variables of Function Type in DeclRefExpr
         QualType NewTy =
-          Context.substituteTypeArgs(DR->getType(), typeArgumentInfos);
+          SubstituteTypeArgs(DR->getType(), typeArgumentInfos);
         DR->setType(NewTy);
       } else {
         // There is no DeclRef to modify. Emit an error for now.

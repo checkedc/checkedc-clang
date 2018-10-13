@@ -4809,6 +4809,12 @@ public:
 
   BoundsExpr *CheckNonModifyingBounds(BoundsExpr *Bounds, Expr *E);
 
+  ExprResult ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
+                     ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> Args);
+
+  QualType SubstituteTypeArgs(QualType QT,  
+                ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs);
+
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);
   /// \brief Take a bounds expression with positional parameters from a function

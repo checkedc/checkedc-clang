@@ -1792,8 +1792,9 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         return LHS;
       }
 
-      if (ParseGenericTypeArgumentList(LHS, Loc))
-        return ExprError();
+      LHS = ParseGenericTypeArgumentList(LHS, Loc);
+      if (LHS.isInvalid())
+        LHS = ExprError();
 
       break;
     }
@@ -3174,24 +3175,7 @@ ExprResult Parser::ParseBoundsExpression() {
 // generic type.  However, we don't have the AST support for this yet.
 //
 // Returns false if parsing succeeded and true if an error occurred.
-bool Parser::ParseGenericTypeArgumentList(ExprResult &Res, SourceLocation Loc) {
-  // Make sure we have a generic function or function with a bounds-safe
-  // interface
-
-  if (Res.isInvalid())
-    return false;
-
-  // TODO: generalize this
-  DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(Res.get());
-  if (!declRef)
-    return false;
-
-  const FunctionProtoType *funcType =
-    declRef->getType()->getAs<FunctionProtoType>();
-
-  if (!funcType)
-    return false;
-
+ExprResult Parser::ParseGenericTypeArgumentList(ExprResult Res, SourceLocation Loc) {
   SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
   bool firstTypeArgument = true;
   // Expect to see a list of type names, followed by a '>'.
@@ -3202,7 +3186,7 @@ bool Parser::ParseGenericTypeArgumentList(ExprResult &Res, SourceLocation Loc) {
         // We want to consume greater, but not consume semi
         SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
         if (Tok.getKind() == tok::greater) ConsumeToken();
-        return true;
+        return ExprError();
       }
     } else
       firstTypeArgument = false;
@@ -3214,7 +3198,7 @@ bool Parser::ParseGenericTypeArgumentList(ExprResult &Res, SourceLocation Loc) {
       // We want to consume greater, but not consume semi
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
       if (Tok.getKind() == tok::greater) ConsumeToken();
-      return true;
+      return ExprError();
     }
 
     TypeSourceInfo *TInfo;
@@ -3223,36 +3207,8 @@ bool Parser::ParseGenericTypeArgumentList(ExprResult &Res, SourceLocation Loc) {
   }
   ConsumeToken(); // consume '>' token
 
-  // Make sure that the number of type names equals the number of type variables in 
-  // the function type.
-  if (funcType->getNumTypeVars() != typeArgumentInfos.size()) {
-    FunctionDecl* funDecl = dyn_cast<FunctionDecl>(declRef->getDecl());
-    if (!funcType->isGenericFunction() && !funcType->isItypeGenericFunction()) {
-      Diag(Loc,
-       diag::err_type_args_for_non_generic_expression);
-      // TODO: emit a note pointing to the declaration.
-      return true;
-    }
-
-    // The location of beginning of _For_any is stored in typeVariables
-    Diag(Loc,
-      diag::err_type_list_and_type_variable_num_mismatch);
-
-    if (funDecl)
-      Diag(funDecl->typeVariables()[0]->getLocStart(),
-        diag::note_type_variables_declared_at);
-
-    return true;
-  }
-  // Add parsed list of type names to declRefExpr for future references
-  declRef->SetGenericInstInfo(Actions.getASTContext(), typeArgumentInfos);
-
-  // Substitute type arguments for type variables in the function type of the
-  // DeclRefExpr.
-  QualType NewTy = 
-    Actions.Context.substituteTypeArgs(declRef->getType(), typeArgumentInfos);
-  declRef->setType(NewTy);
-  return false;
+  auto TypeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>(typeArgumentInfos);
+  return Actions.ActOnTypeApplication(Res, Loc, TypeArgs);
 }
 
 bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {

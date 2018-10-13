@@ -9812,6 +9812,18 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_expected_type_argument_list_for_itype_generic_call : Error<
     "expected a type argument list for a bounds-safe interface call in a checked scope">;
 
+  def err_type_list_and_type_variable_num_mismatch : Error<
+    "mismatch between the number of types listed and number of type variables">;
+
+  def note_type_variables_declared_at : Note<
+    "type variable(s) declared here">;
+
+  def err_type_args_for_non_generic_expression : Error<
+    "type arguments supplied for non-generic function or expression">;
+
+  def err_type_args_limited : Error<
+    "type arguments only supported for variables and function names right now">;
+
 } // end of Checked C Category
 
 } // end of sema component.
