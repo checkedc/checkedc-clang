@@ -69,8 +69,10 @@ f304(int i, _Ptr<int(_Array_ptr<void> : byte_count(i), _Array_ptr<void> : byte_c
                                                                                                // Bounds in a function type reference parameters or locals.
 void f305(int i) {
   int j = i;
-  _Ptr<_Array_ptr<int>(void) : count(i)> p = 0; // expected-error {{out-of-scope variable for bounds}}
-  _Ptr<_Array_ptr<int>(void) : count(j)> q = 0; // expected-error {{out-of-scope variable for bounds}}
+  _Ptr<_Array_ptr<int>(void) : count(i)> p = 0;    // expected-error {{out-of-scope variable for bounds}}
+  _Ptr<_Array_ptr<int>(int k) : count(i)> q = 0; ; // expected-error {{out-of-scope variable for bounds}}
+  _Ptr<_Array_ptr<int>(void) : count(j)> r = 0;    // expected-error {{out-of-scope variable for bounds}}
+
 }
 
 // Global variable bounds are OK.

@@ -82,6 +82,7 @@ class TransformFunctionTypeToChecked :
 public:
   TransformFunctionTypeToChecked(Sema &SemaRef) : BaseTransform(SemaRef) {}
 
+  bool IsInstantiation() { return false; }
 
   QualType TransformFunctionProtoType(TypeLocBuilder &TLB,
                                       FunctionProtoTypeLoc TL) {
@@ -212,6 +213,7 @@ public:
     SmallVector<QualType, 4> ParamTypes;
     SmallVector<ParmVarDecl*, 4> ParamDecls;
     Sema::ExtParameterInfoBuilder ExtParamInfos;
+
     // ParamAnnotsStorage is pre-allocated storage that is used when updating EPI
     // in TransformExtendedParameterInfo.  Its lifetime must last until the end of
     // the lifetimie of EPI.
@@ -221,7 +223,7 @@ public:
     if (ResultType.isNull())
       return QualType();
 
-    // Places transformed data ParamTypes, ParamDecls, and ExtParamInfos.
+    // Places transformed data in ParamTypes, ParamDecls, and ExtParamInfos.
     if (getDerived().TransformFunctionTypeParams(
       TL.getBeginLoc(), TL.getParams(),
       CurrentParamTypes.begin(),
@@ -229,10 +231,10 @@ public:
       ParamTypes, &ParamDecls, ExtParamInfos))
       return QualType();
 
-    if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamAnnotsStorage,
+    if (getDerived().TransformExtendedParameterInfo(EPI, EPIChanged, ParamTypes,
+                                                    ParamAnnotsStorage,
                                                     ExtParamInfos, TL,
-                                                    TransformExceptionSpec,
-                                                    EPIChanged))
+                                                    TransformExceptionSpec))
       return QualType();
 
     // Rebuild the type if something changed.

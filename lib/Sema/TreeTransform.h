@@ -119,10 +119,14 @@ protected:
   /// rather than in the subclass (e.g., lambda closure types).
   llvm::DenseMap<Decl *, Decl *> TransformedLocalDecls;
 
+
   /// \brief The set of bound temporaries that have been transformed.  This
   /// is needed so that we can keep uses in sync.
   llvm::DenseMap<CHKCBindTemporaryExpr *, CHKCBindTemporaryExpr *>
     TransformedTemporaries;
+
+  /// \brief The set of positional parameters that have been transformed.
+  llvm::SmallVector<QualType, 16> TransformedPositionalParameters;
 
 public:
   /// \brief Initializes a new tree transformer.
@@ -153,6 +157,12 @@ public:
   /// pack expansion, in order to avoid violating the AST invariant that each
   /// statement node appears at most once in its containing declaration.
   bool AlwaysRebuild() { return SemaRef.ArgumentPackSubstitutionIndex != -1; }
+
+  /// \brief Whether this use of TreeTransform is being used for template
+  /// instantiation.
+  ///
+  /// Subclasses may override this function when it isn't.
+  bool IsInstantiation() { return true; }
 
   /// \brief Returns the location of the entity being transformed, if that
   /// information was not available elsewhere in the AST.
@@ -657,9 +667,11 @@ public:
   /// Inputs: Params, ParamTypes, and ParamInfos are the inputs to the
   /// method.
   ///
-  /// Output: PTypes, PVars, and PInfos are the outputs of the method.
-  /// The updated parameter types, param var declarations, and PInfo
-  /// are stored in the method.
+  /// Output: PTypes, PVars, and PInfos are the outputs
+  /// of the method.
+  /// - The updated parameter types are stored in PTypes.
+  /// - The updated parameter variable declarations are stored in PVars.
+  /// - The updated extend parameter info is stored in PInfos.
   ///
   /// For correctness, the inputs and outputs shoudl be disjoint data
   /// structures.
@@ -672,6 +684,10 @@ public:
       SmallVectorImpl<QualType> &PTypes, SmallVectorImpl<ParmVarDecl *> *PVars,
       Sema::ExtParameterInfoBuilder &PInfos);
 
+  /// Transform the bounds annotation Annot, updating Annot.  Set changed
+  /// to true or false depending on whether Annot changed.
+  ///
+  /// Sets Changed to true if Annot changed.
   bool TransformBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
 
   /// \brief Transform return bounds annotations.  We provide a separate method for
@@ -681,19 +697,36 @@ public:
   /// \brief Transform the extended parameter information for
   /// a function prototype.
   ///
-  /// Updates EPI with the transformed information.  Sets
-  /// EPIChanged to true if something changed, false otherwise.
+  /// \param EPI: The current extended parameter information. Updated
+  /// with transformed information.
   ///
-  /// Return true on error.
+  /// \param EPIChanged: set to true if something changed, left
+  /// unchanged otherwise.
+  ///
+  /// \param ParamTypes: the new parameter types.  Not changed.
+  ///
+
+  /// \param ParamListAnnots: pre-allocated for holding parameter list
+  /// annotations. Modified by method if there are parameter bounds
+  /// annotations.
+  ///
+  /// \param ExtParamInfo: external parameter info builder. May be modified
+  /// if the number of parameters has changed.
+  ///
+  /// \param TL: the existing type location information (before transformation)
+  ///
+  /// \param TransformExceptionSpec: transforms exception specification.
+  ///
+  /// Return true on error, false on success.
   template<typename Fn>
   bool TransformExtendedParameterInfo(
     FunctionProtoType::ExtProtoInfo &EPI,
-    SmallVector<QualType, 4> &ParamTypes,
+    bool &EPIChanged,
+    const SmallVector<QualType, 4> &ParamTypes,
     SmallVector<BoundsAnnotations, 4> &ParamListAnnots,
     Sema::ExtParameterInfoBuilder &ExtParamInfos,
-    FunctionProtoTypeLoc &TL,
-    Fn TransformExceptionSpec,
-    bool &EPIChanged);
+    const FunctionProtoTypeLoc &TL,
+    Fn TransformExceptionSpec);
 
   /// \brief Transforms a single function-type parameter.  Return null
   /// on error.
@@ -5115,6 +5148,7 @@ bool TreeTransform<Derived>::TransformFunctionTypeParams(
           // Expand the function parameter pack into multiple, separate
           // parameters.
           getDerived().ExpandingFunctionParameterPack(OldParm);
+
           for (unsigned I = 0; I != *NumExpansions; ++I) {
             Sema::ArgumentPackSubstitutionIndexRAII SubstIndex(getSema(), I);
             ParmVarDecl *NewParm
@@ -5331,12 +5365,12 @@ bool TreeTransform<Derived>::TransformReturnBoundsAnnotations(
 template <typename Derived> template<typename Fn>
 bool TreeTransform<Derived>::TransformExtendedParameterInfo(
   FunctionProtoType::ExtProtoInfo &EPI,
-  SmallVector<QualType, 4> &ParamTypes,
+  bool &EPIChanged,
+  const SmallVector<QualType, 4> &ParamTypes,
   SmallVector<BoundsAnnotations, 4> &ParamListAnnots,
   Sema::ExtParameterInfoBuilder &ExtParamInfos,
-  FunctionProtoTypeLoc &TL,
-  Fn TransformExceptionSpec,
-  bool &EPIChanged) {
+  const FunctionProtoTypeLoc &TL,
+  Fn TransformExceptionSpec) {
   EPIChanged = false;
   if (TransformExceptionSpec(EPI.ExceptionSpec, EPIChanged))
     return false;
@@ -5355,6 +5389,16 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
     EPIChanged = true;
     EPI.ExtParameterInfos = nullptr;
   }
+
+  // Return now if there are no bounds annotations to process.
+  if (EPI.ReturnAnnots.IsEmpty() && !EPI.ParamAnnots)
+    return false;
+
+  // Set up transformed type information, for positional parameters (if there
+  // are any).
+  llvm::SmallVector<QualType, 16> ExistingInfo(TransformedPositionalParameters);
+  TransformedPositionalParameters.assign(ParamTypes.begin(),
+                                         ParamTypes.end());
 
   // Handle bounds annotations for return
   if (getDerived().TransformReturnBoundsAnnotations(EPI.ReturnAnnots, EPIChanged))
@@ -5377,12 +5421,16 @@ bool TreeTransform<Derived>::TransformExtendedParameterInfo(
       }
       ParamListAnnots.push_back(ParamAnnotations);
     }
-
     if (ParamListAnnotsChanged) {
       EPIChanged = true;
       EPI.ParamAnnots = ParamListAnnots.data();
     }
   }
+
+  // Restore the transformed parameter information.
+  TransformedPositionalParameters.assign(ExistingInfo.begin(),
+                                         ExistingInfo.end());
+
   return false;
 }
 
@@ -5412,9 +5460,9 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
   // parameters before the return type,  since the return type can then refer
   // to the parameters themselves (via decltype, sizeof, etc.).
   //
-  SmallVector<QualType, 4> ParamTypes;
-  SmallVector<ParmVarDecl*, 4> ParamDecls;
-  SmallVector<BoundsAnnotations, 4> ParamAnnots;
+  SmallVector<QualType, 4> ParamTypes;           // New parameter types.
+  SmallVector<ParmVarDecl*, 4> ParamDecls;       // New parameter declarations.
+  SmallVector<BoundsAnnotations, 4> ParamAnnots; // New parameter annotations.
   Sema::ExtParameterInfoBuilder ExtParamInfos;
   const FunctionProtoType *T = TL.getTypePtr();
 
@@ -5457,10 +5505,9 @@ QualType TreeTransform<Derived>::TransformFunctionProtoType(
 
   FunctionProtoType::ExtProtoInfo EPI = T->getExtProtoInfo();
   bool EPIChanged = false;
-  if (getDerived().TransformExtendedParameterInfo(EPI, ParamTypes, ParamAnnots,
+  if (getDerived().TransformExtendedParameterInfo(EPI, EPIChanged, ParamTypes, ParamAnnots,
                                                   ExtParamInfos, TL,
-                                                  TransformExceptionSpec,
-                                                  EPIChanged))
+                                                  TransformExceptionSpec))
     return QualType();
 
   QualType Result = TL.getType();
@@ -9101,8 +9148,8 @@ TreeTransform<Derived>::TransformDeclRefExpr(DeclRefExpr *E) {
       !E->hasExplicitTemplateArgs()) {
 
     // Mark it referenced in the new context regardless.
-    // FIXME: this is a bit instantiation-specific.
-    SemaRef.MarkDeclRefReferenced(E);
+    if (getDerived().IsInstantiation())
+      SemaRef.MarkDeclRefReferenced(E);
 
     return E;
   }
@@ -11006,7 +11053,8 @@ TreeTransform<Derived>::TransformCXXConstructExpr(CXXConstructExpr *E) {
       !ArgumentChanged) {
     // Mark the constructor as referenced.
     // FIXME: Instantiation-specific
-    SemaRef.MarkFunctionReferenced(E->getLocStart(), Constructor);
+    if (getDerived().IsInstantiation())
+      SemaRef.MarkFunctionReferenced(E->getLocStart(), Constructor);
     return E;
   }
 
@@ -11038,7 +11086,8 @@ ExprResult TreeTransform<Derived>::TransformCXXInheritedCtorInitExpr(
       Constructor == E->getConstructor()) {
     // Mark the constructor as referenced.
     // FIXME: Instantiation-specific
-    SemaRef.MarkFunctionReferenced(E->getLocStart(), Constructor);
+    if (getDerived().IsInstantiation())
+      SemaRef.MarkFunctionReferenced(E->getLocStart(), Constructor);
     return E;
   }
 
@@ -11116,7 +11165,8 @@ TreeTransform<Derived>::TransformCXXTemporaryObjectExpr(
       Constructor == E->getConstructor() &&
       !ArgumentChanged) {
     // FIXME: Instantiation-specific
-    SemaRef.MarkFunctionReferenced(E->getLocStart(), Constructor);
+    if (getDerived().IsInstantiation())
+      SemaRef.MarkFunctionReferenced(E->getLocStart(), Constructor);
     return SemaRef.MaybeBindToTemporary(E);
   }
 
@@ -12395,6 +12445,7 @@ TreeTransform<Derived>::TransformBlockExpr(BlockExpr *E) {
   QualType exprResultType =
       getDerived().TransformType(exprFunctionType->getReturnType());
 
+
   auto epi = exprFunctionType->getExtProtoInfo();
   epi.ExtParameterInfos = extParamInfos.getPointerOrNull(paramTypes.size());
 
@@ -12565,7 +12616,9 @@ ExprResult
 TreeTransform<Derived>::TransformPositionalParameterExpr(
   PositionalParameterExpr *E) {
   unsigned Index = E->getIndex();
-  QualType QT = getDerived().TransformType(E->getType());
+  assert(Index < TransformedPositionalParameters.size());
+  QualType QT = TransformedPositionalParameters[Index];
+
   if (!getDerived().AlwaysRebuild() && QT == E->getType())
     return E;
 
