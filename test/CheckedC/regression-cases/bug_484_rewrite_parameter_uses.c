@@ -1,5 +1,5 @@
 //
-// These is a regression test case for
+// This is a regression test case for
 // https://github.com/Microsoft/checkedc-clang/issues/484
 //
 // In checked scopes, we rewrite function types with bounds-safe interfaces to
