@@ -119,13 +119,13 @@ protected:
   /// rather than in the subclass (e.g., lambda closure types).
   llvm::DenseMap<Decl *, Decl *> TransformedLocalDecls;
 
-
   /// \brief The set of bound temporaries that have been transformed.  This
   /// is needed so that we can keep uses in sync.
   llvm::DenseMap<CHKCBindTemporaryExpr *, CHKCBindTemporaryExpr *>
     TransformedTemporaries;
 
-  /// \brief The set of positional parameters that have been transformed.
+  /// \brief The set of parameters that have been transformed.  Used
+  /// to update positional parameter expression type information.
   llvm::SmallVector<QualType, 16> TransformedPositionalParameters;
 
 public:
@@ -664,11 +664,9 @@ public:
   /// The result vectors should be kept in sync; null entries in the
   /// variables vector are acceptable.
   ///
-  /// Inputs: Params, ParamTypes, and ParamInfos are the inputs to the
-  /// method.
+  /// Inputs: Params, ParamTypes, and ParamInfos.
   ///
-  /// Output: PTypes, PVars, and PInfos are the outputs
-  /// of the method.
+  /// Outputs: PTypes, PVars, and PInfos:
   /// - The updated parameter types are stored in PTypes.
   /// - The updated parameter variable declarations are stored in PVars.
   /// - The updated extend parameter info is stored in PInfos.
@@ -684,10 +682,8 @@ public:
       SmallVectorImpl<QualType> &PTypes, SmallVectorImpl<ParmVarDecl *> *PVars,
       Sema::ExtParameterInfoBuilder &PInfos);
 
-  /// Transform the bounds annotation Annot, updating Annot.  Set changed
-  /// to true or false depending on whether Annot changed.
-  ///
-  /// Sets Changed to true if Annot changed.
+  /// Transform the bounds annotation Annot, updating Annot. Set Changed to
+  /// true if Annot changed.
   bool TransformBoundsAnnotations(BoundsAnnotations &Annot, bool &Changed);
 
   /// \brief Transform return bounds annotations.  We provide a separate method for
@@ -5148,7 +5144,6 @@ bool TreeTransform<Derived>::TransformFunctionTypeParams(
           // Expand the function parameter pack into multiple, separate
           // parameters.
           getDerived().ExpandingFunctionParameterPack(OldParm);
-
           for (unsigned I = 0; I != *NumExpansions; ++I) {
             Sema::ArgumentPackSubstitutionIndexRAII SubstIndex(getSema(), I);
             ParmVarDecl *NewParm
@@ -12444,7 +12439,6 @@ TreeTransform<Derived>::TransformBlockExpr(BlockExpr *E) {
 
   QualType exprResultType =
       getDerived().TransformType(exprFunctionType->getReturnType());
-
 
   auto epi = exprFunctionType->getExtProtoInfo();
   epi.ExtParameterInfos = extParamInfos.getPointerOrNull(paramTypes.size());

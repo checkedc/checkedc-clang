@@ -213,10 +213,9 @@ public:
     SmallVector<QualType, 4> ParamTypes;
     SmallVector<ParmVarDecl*, 4> ParamDecls;
     Sema::ExtParameterInfoBuilder ExtParamInfos;
-
     // ParamAnnotsStorage is pre-allocated storage that is used when updating EPI
     // in TransformExtendedParameterInfo.  Its lifetime must last until the end of
-    // the lifetimie of EPI.
+    // the lifetime of EPI.
     SmallVector<BoundsAnnotations, 4> ParamAnnotsStorage;
 
     QualType ResultType = getDerived().TransformType(TLB, ResultLoc);
