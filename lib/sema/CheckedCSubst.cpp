@@ -75,190 +75,110 @@ ExprResult Sema::ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
 
 }
 
-// Recurse through types and substitute any TypedefType with TypeVariableType
-// as the underlying type.
+namespace {
+class TypeApplication : public TreeTransform<TypeApplication> {
+  typedef TreeTransform<TypeApplication> BaseTransform;
+  typedef ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgList;
+
+private:
+  TypeArgList TypeArgs;
+  unsigned Depth;
+
+public:
+  TypeApplication(Sema &SemaRef, TypeArgList TypeArgs, unsigned Depth) :
+    BaseTransform(SemaRef), TypeArgs(TypeArgs), Depth(Depth) {}
+
+  QualType TransformTypeVariableType(TypeLocBuilder &TLB,
+                                     TypeVariableTypeLoc TL) {
+    const TypeVariableType *TV = TL.getTypePtr();
+    unsigned TVDepth = TV->GetDepth();
+
+    if (TVDepth < Depth) {
+      // Case 1: the type variable is bound by a type quantifier (_Forall scope)
+      // that lexically encloses the type quantifier that is being applied.
+      // Nothing changes in this case.
+      QualType Result = TL.getType();
+      TypeVariableTypeLoc NewTL = TLB.push<TypeVariableTypeLoc>(Result);
+      NewTL.setNameLoc(TL.getNameLoc());
+      return Result;
+    } else if (TVDepth == Depth) {
+      // Case 2: the type variable is bound by the type quantifier that is
+      // being applied.  Substitute the appropriate type argument.
+      DeclRefExpr::GenericInstInfo::TypeArgument TypeArg = TypeArgs[TV->GetIndex()];
+      TypeLoc NewTL =  TypeArg.sourceInfo->getTypeLoc();
+      TLB.reserve(NewTL.getFullDataSize());
+      // Run the type transform with the type argument's location information
+      // so that the type type location class push on to the TypeBuilder is
+      // the matching class for the transformed type.
+      QualType Result = getDerived().TransformType(TLB, NewTL);
+      // We don't expect the type argument to change.
+      assert(Result == TypeArg.typeName);
+      return Result;
+    } else {
+      // Case 3: the type variable is bound by a type quantifier nested within the
+      // the one that is being applied.  Create a type variable with a dcremented
+      // depth, to account for the removal of the enclosing scope.
+      QualType Result =
+         SemaRef.Context.getTypeVariableType(TVDepth - 1, TV->GetIndex(),
+                                             TV->IsBoundsInterfaceType());
+      TypeVariableTypeLoc NewTL = TLB.push<TypeVariableTypeLoc>(Result);
+      NewTL.setNameLoc(TL.getNameLoc());
+      return Result;
+    }
+  }
+
+  QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
+    // Preserve typedef information, unless the underlying type has a type
+    // variable embedded in it.
+    const TypedefType *T = TL.getTypePtr();
+    // See if the underlying type changes.
+    QualType UnderlyingType = T->desugar();
+    QualType TransformedType = TransformType(UnderlyingType);
+    if (UnderlyingType == TransformedType) {
+      QualType Result = TL.getType();
+      // It didn't change, so just copy the original type location information.
+      TypedefTypeLoc NewTL = TLB.push<TypedefTypeLoc>(Result);
+      NewTL.setNameLoc(TL.getNameLoc());
+      return Result;
+    }
+    // Something changed, so we need to delete the typedef type from the AST and
+    // and use the underlying transformed type.
+
+    // Synthesize some dummy type source information.
+    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(TransformedType,
+                                                getDerived().getBaseLocation());
+    // Use that to get dummy location information.
+    TypeLoc NewTL = DI->getTypeLoc();
+    TLB.reserve(NewTL.getFullDataSize());
+    // Re-run the type transformation with the dummy location information so
+    // that the type location class pushed on to the TypeBuilder is the matching
+    // class for the underlying type.
+    QualType Result = getDerived().TransformType(TLB, NewTL);
+    assert(Result == TransformedType);
+    return Result;
+  }
+};
+}
+
 QualType Sema::SubstituteTypeArgs(QualType QT,
  ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs) {
-  const Type *T = QT.getTypePtr();
-  switch (T->getTypeClass()) {
-  case Type::Pointer: {
-    const PointerType *pType = cast<PointerType>(T);
-    QualType newPointee = SubstituteTypeArgs(pType->getPointeeType(), TypeArgs);
-    return Context.getPointerType(newPointee, pType->getKind());
-  }
-  case Type::ConstantArray: {
-    const ConstantArrayType *caType = cast<ConstantArrayType>(T);
-    QualType EltTy = SubstituteTypeArgs(caType->getElementType(), TypeArgs);
-    const llvm::APInt ArySize = caType->getSize();
-    ArrayType::ArraySizeModifier ASM = caType->getSizeModifier();
-    unsigned IndexTypeQuals = caType->getIndexTypeCVRQualifiers();
-    CheckedArrayKind Kind = caType->getKind();
-    return Context.getConstantArrayType(EltTy, ArySize, ASM, IndexTypeQuals, Kind);
-  }
-  case Type::VariableArray: {
-    const VariableArrayType *vaType = cast<VariableArrayType>(T);
-    QualType EltTy = SubstituteTypeArgs(vaType->getElementType(), TypeArgs);
-    Expr *NumElts = vaType->getSizeExpr();
-    ArrayType::ArraySizeModifier ASM = vaType->getSizeModifier();
-    unsigned IndexTypeQuals = vaType->getIndexTypeCVRQualifiers();
-    SourceRange Brackets = vaType->getBracketsRange();
-    return Context.getVariableArrayType(EltTy, NumElts, ASM, IndexTypeQuals, Brackets);
-  }
-  case Type::IncompleteArray: {
-    const IncompleteArrayType *iaType = cast<IncompleteArrayType>(T);
-    QualType EltTy = SubstituteTypeArgs(iaType->getElementType(), TypeArgs);
-    ArrayType::ArraySizeModifier ASM = iaType->getSizeModifier();
-    unsigned IndexTypeQuals = iaType->getIndexTypeCVRQualifiers();
-    CheckedArrayKind Kind = iaType->getKind();
-    return Context.getIncompleteArrayType(EltTy, ASM, IndexTypeQuals, Kind);
-  }
-  case Type::DependentSizedArray: {
-    const DependentSizedArrayType *dsaType = cast<DependentSizedArrayType>(T);
-    QualType EltTy = SubstituteTypeArgs(dsaType->getElementType(), TypeArgs);
-    Expr *NumElts = dsaType->getSizeExpr();
-    ArrayType::ArraySizeModifier ASM = dsaType->getSizeModifier();
-    unsigned IndexTypeQuals = dsaType->getIndexTypeCVRQualifiers();
-    SourceRange Brackets = dsaType->getBracketsRange();
-    return Context.getDependentSizedArrayType(EltTy, NumElts, ASM, IndexTypeQuals,
-                                      Brackets);
-  }
-  case Type::Paren: {
-    const ParenType *pType = dyn_cast<ParenType>(T);
-    if (!pType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    QualType InnerType = SubstituteTypeArgs(pType->getInnerType(), TypeArgs);
-    return Context.getParenType(InnerType);
-  }
+   if (QT.isNull())
+     return QT;
 
-  case Type::FunctionProto: {
-    const FunctionProtoType *fpType = dyn_cast<FunctionProtoType>(T);
-    if (!fpType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    // Initialize return type if it's type variable
-    BoundsAnnotations ReturnBAnnot = fpType->getReturnAnnots();
-    InteropTypeExpr *RBIT = ReturnBAnnot.getInteropTypeExpr();
-    QualType returnQualType;
-    if (RBIT) {
-      returnQualType = SubstituteTypeArgs(RBIT->getTypeAsWritten() , TypeArgs);
-    } else {
-      returnQualType = SubstituteTypeArgs(fpType->getReturnType() , TypeArgs);
-    }
-    // Initialize parameter types if it's type variable
-    SmallVector<QualType, 16> newParamTypes;
+   // Transform the type and strip off the quantifier.
+   TypeApplication TypeApp(*this, TypeArgs, 0);
+   QualType TransformedQT = TypeApp.TransformType(QT);
 
-    int iCnt = 0;
-    for (QualType opt : fpType->getParamTypes()) {
-      BoundsAnnotations BAnnot = fpType->getParamAnnots(iCnt);
-      InteropTypeExpr *BIT = BAnnot.getInteropTypeExpr();
-      if (BIT) {
-        newParamTypes.push_back(SubstituteTypeArgs(BIT->getTypeAsWritten(), TypeArgs));
-      } else {
-        newParamTypes.push_back(SubstituteTypeArgs(opt, TypeArgs));
-      }
-      iCnt++;
-    }
-    // Indicate that this function type is fully instantiated
-    FunctionProtoType::ExtProtoInfo newExtProtoInfo = fpType->getExtProtoInfo();
-    newExtProtoInfo.numTypeVars = 0;
-    newExtProtoInfo.GenericFunction = false;
-    newExtProtoInfo.ItypeGenericFunction = false;
+   // Something went wrong in the transformation.
+   if (TransformedQT.isNull())
+     return QT;
 
-    // Recreate FunctionProtoType, and set it as the new type for declRefExpr
-    return Context.getFunctionType(returnQualType, newParamTypes, newExtProtoInfo);
-  }
-    //bool changed = false;
-    //const FunctionProtoType *fpType = cast<FunctionProtoType>(T);
-
-    //// Make a copy of the ExtProtoInfo.
-    //FunctionProtoType::ExtProtoInfo EPI = fpType->getExtProtoInfo();
-
-    //// Handle return type and return bounds annotations.
-    //QualType returnQualType = SubstituteTypeArgs(fpType->getReturnType() , TypeArgs);
-    //if (returnQualType != fpType->getReturnType())
-    //  changed = true;
-
-    //BoundsAnnotations ReturnAnnots = EPI.ReturnAnnots;
-    //InteropTypeExpr *RBIT = ReturnAnnots.getInteropTypeExpr();
-    //// TODO: substitute into return bounds expression.
-    //if (RBIT) {
-    //  QualType ExistingType = RBIT->getTypeAsWritten();
-    //  QualType NewType = substituteTypeArgs(ExistingType , TypeArgs);
-    //  if (NewType != ExistingType) {
-    //    TypeSourceInfo *TInfo =
-    //      getTrivialTypeSourceInfo(NewType, SourceLocation());
-    //    InteropTypeExpr *NewRBIT = 
-    //       new (*this) InteropTypeExpr(NewType, RBIT->getLocStart(), RBIT->getLocEnd(), TInfo);
-    //    EPI.ReturnAnnots = BoundsAnnotations(ReturnAnnots.getBoundsExpr(), NewRBIT);
-    //    changed = true;
-    //  }
-    //}
-
-    //// Handle parameter types and parameter bounds annotations.
-    //// TODO: substitute into parameter bounds expressions.
-    //SmallVector<QualType, 8> newParamTypes;
-    //SmallVector<BoundsAnnotations, 8> newParamAnnots;
-
-    //int i = 0;
-    //for (QualType QT : fpType->getParamTypes()) {
-    //  newParamTypes.push_back(substituteTypeArgs(QT, TypeArgs));
-    //  BoundsAnnotations ParamAnnot = fpType->getParamAnnots(i);
-    //  InteropTypeExpr *ParamInteropType = ParamAnnot.getInteropTypeExpr();
-    //  InteropTypeExpr *NewParamInteropType = ParamInteropType;
-    //  if (ParamInteropType) {
-    //    QualType ExistingType = ParamInteropType->getTypeAsWritten();
-    //    QualType NewType = substituteTypeArgs(ExistingType , TypeArgs);
-    //    if (NewType != ExistingType) {
-    //      TypeSourceInfo *TInfo =
-    //        getTrivialTypeSourceInfo(NewType, SourceLocation());
-    //      NewParamInteropType =       
-    //         new (*this) InteropTypeExpr(NewType, ParamInteropType->getLocStart(), ParamInteropType->getLocEnd(), TInfo);
-    //      changed = true;
-    //    }
-    //  }
-    //  newParamAnnots.push_back(BoundsAnnotations(ParamAnnot.getBoundsExpr(), NewParamInteropType));
-    //  i++;
-    //}
-    //// Indicate that this function type is fully instantiated
-
-    //EPI.numTypeVars = 0;
-    //EPI.ParamAnnots = newParamAnnots.data();  
-
-    //// Recreate FunctionProtoType, and set it as the new type for declRefExpr
-    //return getFunctionType(returnQualType, newParamTypes, EPI);
-    //}
-  case Type::Typedef: {
-    // If underlying type is TypeVariableType, must replace the entire
-    // TypedefType. If underlying type is not TypeVariableType, there cannot be
-    // a type variable type that this context can replace.
-    const TypedefType *tdType = cast<TypedefType>(T);
-    const Type *underlying = tdType->getDecl()->getUnderlyingType().getTypePtr();
-    if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underlying)) 
-      return TypeArgs[tvType->GetIndex()].typeName;
-    else
-      return QT;
-  }
-  case Type::TypeVariable: {
-    // Although Type Variable Type is wrapped with Typedef Type, there may be
-    // transformations in clang that eliminates Typedef.
-    const TypeVariableType *tvType = cast<TypeVariableType>(T);
-    return TypeArgs[tvType->GetIndex()].typeName;
-  }
-  case Type::Decayed: {
-    const DecayedType *dType = cast<DecayedType>(T);
-    QualType decayedType = SubstituteTypeArgs(dType->getOriginalType(), TypeArgs);
-    return Context.getDecayedType(decayedType);
-  }
-  case Type::Adjusted: {
-    const AdjustedType *aType = cast<AdjustedType>(T);
-    QualType origType = SubstituteTypeArgs(aType->getOriginalType(), TypeArgs);
-    QualType newType = SubstituteTypeArgs(aType->getAdjustedType(), TypeArgs);
-    return Context.getAdjustedType(origType, newType);
-  }
-  default :
-    return QT;
-  }
+   const FunctionProtoType *FPT = TransformedQT->getAs<FunctionProtoType>();
+   FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+   EPI.GenericFunction = false;
+   EPI.ItypeGenericFunction = false;
+   EPI.numTypeVars = 0;
+   QualType Result =
+     Context.getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI);
+    return Result;
 }

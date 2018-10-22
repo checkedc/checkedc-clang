@@ -5482,15 +5482,17 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
             diag::err_expected_type_argument_list_for_generic_call);
       return ExprError();
     }
-    // It is an error to call a function with a generic bound
+    // Handle a call to a function with a generic bounds-safe interface type,
+    // where no type arguments have been specified.
     if (Fn->getType()->isItypeGenericFunctionType()) {
+       // It is an error in a checked scope.
       if (GetCheckedScopeInfo() == CSS_BoundsAndTypes) {
         Diag(Fn->getLocEnd(),
               diag::err_expected_type_argument_list_for_itype_generic_call);
         return ExprError();
       }
-      // In an unchecked or checked bounds-only scopes supply the type arguments
-      // if possible.
+      // In an unchecked or checked bounds-only scope,  pass void types
+      // as the type arguments.
       if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(Fn)) {
         SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4>
            typeArgumentInfos;
