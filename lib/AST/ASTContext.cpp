@@ -2519,7 +2519,7 @@ QualType ASTContext::getPointerType(QualType T, CheckedPointerKind kind) const {
 QualType ASTContext::getTypeVariableType(unsigned int inDepth, unsigned int inIndex, 
                                           const bool isInBoundsSafeInterface) const {
   llvm::FoldingSetNodeID ID;
-  TypeVariableType::Profile(ID, inDepth, inIndex);
+  TypeVariableType::Profile(ID, inDepth, inIndex, isInBoundsSafeInterface);
 
   void *InsertPos = nullptr;
   if (TypeVariableType *PT = TypeVariableTypes.FindNodeOrInsertPos(ID, InsertPos))

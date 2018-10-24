@@ -3849,7 +3849,7 @@ class TypeVariableType : public Type, public llvm::FoldingSetNode {
   // prototype scope depth, this keeps track of the depth of forany scope.
   unsigned int depth;
   unsigned int index;
-  bool isBoundsInterfaceType;
+  bool isBoundsInterfaceType; // TODO: pack this into a bitfield.
 protected:
   TypeVariableType(unsigned int inDepth, unsigned int inIndex, bool inBoundsInterface)
     : Type(TypeVariable, QualType(), false, false, false, false),
@@ -3870,11 +3870,13 @@ public:
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, depth, index);
+    Profile(ID, depth, index, isBoundsInterfaceType);
   }
-  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex) {
+  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex,
+                      bool isBoundsInterfaceType) {
     ID.AddInteger(inDepth);
     ID.AddInteger(inIndex);
+    ID.AddBoolean(isBoundsInterfaceType);
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }

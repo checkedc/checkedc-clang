@@ -12,23 +12,23 @@
 // RUN: %clang_cc1 -ast-dump -fcheckedc-extension %s | FileCheck %s
 
 _For_any(T, S, R) _Ptr<T> foo(_Ptr<T> test, _Ptr<S> steve, _Ptr<R> ray) {
-  // CHECK: TypedefDecl {{0x[0-9a-f]+}} <{{.+}}.c:{{[0-9]+}}:{{[0-9]+}}, col:[[TPOS:[0-9]+]]> col:[[TPOS]] referenced T '(0, 0)'
+  // CHECK: TypedefDecl {{0x[0-9a-f]+}} {{.*}} referenced T '(0, 0)'
   // CHECK-NEXT: TypeVariableType {{0x[0-9a-f]+}} '(0, 0)'
-  // CHECK-NEXT: TypedefDecl {{0x[0-9a-f]+}} <col:{{[0-9]+}}, col:[[SPOS:[0-9]+]]> col:[[SPOS]] referenced S '(0, 1)'
+  // CHECK-NEXT: TypedefDecl {{0x[0-9a-f]+}} {{.*}} referenced S '(0, 1)'
   // CHECK-NEXT: TypeVariableType {{0x[0-9a-f]+}} '(0, 1)'
-  // CHECK-NEXT: TypedefDecl {{0x[0-9a-f]+}} <col:{{[0-9]+}}, col:[[RPOS:[0-9]+]]> col:[[RPOS]] referenced R '(0, 2)'
+  // CHECK-NEXT: TypedefDecl {{0x[0-9a-f]+}} {{.*}} referenced R '(0, 2)'
   // CHECK-NEXT: TypeVariableType {{0x[0-9a-f]+}} '(0, 2)'
-  // CHECK-NEXT: FunctionDecl {{0x[0-9a-f]+}} <col:{{[0-9]+}}, line:{{[0-9]+}}:{{[0-9]+}}> line:{{[0-9]+}}:{{[0-9]+}} used foo '_For_any(3) _Ptr<T> (_Ptr<T>, _Ptr<S>, _Ptr<R>)'
-  // CHECK-NEXT: TypeVariable {{0x[0-9a-f]+}} col:[[TPOS]] T '(0, 0)'
-  // CHECK-NEXT: TypeVariable {{0x[0-9a-f]+}} col:[[SPOS]] S '(0, 1)'
-  // CHECK-NEXT: TypeVariable {{0x[0-9a-f]+}} col:[[RPOS]] R '(0, 2)'
-  // CHECK-NEXT: ParmVarDecl {{0x[0-9a-f]+}} <col:{{[0-9]+}}, col:[[TESTPOS:[0-9]+]]> col:[[TESTPOS]] used test '_Ptr<T>'
-  // CHECK-NEXT: ParmVarDecl {{0x[0-9a-f]+}} <col:{{[0-9]+}}, col:[[STEVEPOS:[0-9]+]]> col:[[STEVEPOS]] steve '_Ptr<S>'
-  // CHECK-NEXT: ParmVarDecl {{0x[0-9a-f]+}} <col:{{[0-9]+}}, col:[[RAYPOS:[0-9]+]]> col:[[RAYPOS]] ray '_Ptr<R>'
+  // CHECK-NEXT: FunctionDecl {{0x[0-9a-f]+}} {{.*}} used foo '_For_any(3) _Ptr<T> (_Ptr<T>, _Ptr<S>, _Ptr<R>)'
+  // CHECK-NEXT: TypeVariable {{0x[0-9a-f]+}} {{.*}} T '(0, 0)'
+  // CHECK-NEXT: TypeVariable {{0x[0-9a-f]+}} {{.*}} S '(0, 1)'
+  // CHECK-NEXT: TypeVariable {{0x[0-9a-f]+}} {{.*}} R '(0, 2)'
+  // CHECK-NEXT: ParmVarDecl {{0x[0-9a-f]+}} {{.*}} used test '_Ptr<T>'
+  // CHECK-NEXT: ParmVarDecl {{0x[0-9a-f]+}} {{.*}} steve '_Ptr<S>'
+  // CHECK-NEXT: ParmVarDecl {{0x[0-9a-f]+}} {{.*}} ray '_Ptr<R>'
   return test;
-  // CHECK: ReturnStmt {{0x[0-9a-f]+}} <line:{{[0-9]+}}:{{[0-9]+}}, col:{{[0-9]+}}>
-  // CHECK-NEXT: ImplicitCastExpr {{0x[0-9a-f]+}} <col:{{[0-9]+}}> '_Ptr<T>' <LValueToRValue>
-  // CHECK-NEXT: DeclRefExpr {{0x[0-9a-f]+}} <col:{{[0-9]+}}> '_Ptr<T>' lvalue ParmVar {{0x[0-9a-f]+}} 'test' '_Ptr<T>'
+  // CHECK: ReturnStmt {{0x[0-9a-f]+}}
+  // CHECK-NEXT: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}}'_Ptr<T>' <LValueToRValue>
+  // CHECK-NEXT: DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Ptr<T>' lvalue ParmVar {{0x[0-9a-f]+}} 'test' '_Ptr<T>'
 }
 
 void callPolymorphicTypes() {

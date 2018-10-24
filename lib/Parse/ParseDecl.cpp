@@ -7258,7 +7258,7 @@ bool Parser::ParseGenericFunctionSpecifierHelper(DeclSpec &DS,
   unsigned int Depth = 0;
   Scope *tempScope = getCurScope()->getParent();
   while (!tempScope) {
-    if (tempScope->isForanyScope())
+    if (tempScope->isForanyScope() || tempScope->isItypeforanyScope())
       Depth++;
     tempScope = tempScope->getParent();
   }
