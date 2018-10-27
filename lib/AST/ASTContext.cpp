@@ -8075,7 +8075,7 @@ QualType ASTContext::mergeFunctionParameterTypes(QualType lhs, QualType rhs,
                     /*BlockReturnType=*/false, IgnoreBounds);
 }
 
-QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs, 
+QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
                                         bool OfBlockPointer,
                                         bool Unqualified,
                                         bool IgnoreBounds) {
@@ -8100,7 +8100,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     retType = mergeTypes(lbase->getReturnType(), rbase->getReturnType(), false,
                          Unqualified,/*BlockReturnType=*/false, IgnoreBounds);
   if (retType.isNull()) return QualType();
-  
+
   if (Unqualified)
     retType = retType.getUnqualifiedType();
 
@@ -8110,7 +8110,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
     LRetType = LRetType.getUnqualifiedType();
     RRetType = RRetType.getUnqualifiedType();
   }
-  
+
   if (getCanonicalType(retType) != LRetType)
     allLTypes = false;
   if (getCanonicalType(retType) != RRetType)
@@ -8148,25 +8148,44 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
 
   FunctionType::ExtInfo einfo = lbaseInfo.withNoReturn(NoReturn);
   unsigned NumTypeVars = 0;
+  bool IsITypeGenericFunction = false;
+
   if (lproto && rproto) { // two C99 style function prototypes
     assert(!lproto->hasExceptionSpec() && !rproto->hasExceptionSpec() &&
            "C++ shouldn't be here");
+
     // Compatible functions must have the same number of parameters
     if (lproto->getNumParams() != rproto->getNumParams())
       return QualType();
 
-    // Compatible functions must have the same number of type variables.    
-    if (lproto->getNumTypeVars() != rproto->getNumTypeVars()) {
-      if (lproto->isItypeGenericFunction() && !rproto->isItypeGenericFunction()) {
-        allRTypes = false;
-        NumTypeVars = lproto->getNumTypeVars();
-      } else if (!lproto->isItypeGenericFunction() && rproto->isItypeGenericFunction()) {
-        allLTypes = false;
-        NumTypeVars = rproto->getNumTypeVars();
-      } else {
+    // Compatible functions must be:
+    // 1. Both nongeneric, or
+    // 2. Both generic, or
+    // 3. Both itype generic, or
+    // 4. One is non-generic and the other has an itype.
+    // For cases 1-3, the number of type variables must match.
+
+    if ((lproto->isNonGenericFunction() && rproto->isNonGenericFunction()) ||
+        (lproto->isGenericFunction() && rproto->isGenericFunction()) ||
+        (lproto->isItypeGenericFunction() && rproto->isItypeGenericFunction())) {
+      if (lproto->getNumTypeVars() != rproto->getNumTypeVars())
         return QualType();
+      else  {
+        NumTypeVars = lproto->getNumTypeVars();
+        IsITypeGenericFunction = lproto->isItypeGenericFunction();
       }
-    }
+    } else if (lproto->isItypeGenericFunction() &&
+               rproto->isNonGenericFunction()) {
+      allRTypes = false;
+      NumTypeVars = lproto->getNumTypeVars();
+      IsITypeGenericFunction = true;
+    } else if (lproto->isNonGenericFunction() &&
+            rproto->isItypeGenericFunction()) {
+      allLTypes = false;
+      NumTypeVars = rproto->getNumTypeVars();
+      IsITypeGenericFunction = true;
+    } else
+      return QualType();
 
     // Variadic and non-variadic functions aren't compatible
     if (lproto->isVariadic() != rproto->isVariadic())
@@ -8263,7 +8282,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
         }
       }
     }
-      
+
     if (allLTypes) return lhs;
     if (allRTypes) return rhs;
 
@@ -8275,7 +8294,7 @@ QualType ASTContext::mergeFunctionTypes(QualType lhs, QualType rhs,
       EPI.ParamAnnots = bounds.data();
     EPI.ReturnAnnots = ReturnAnnots;
     EPI.numTypeVars = NumTypeVars;
-
+    EPI.ItypeGenericFunction = IsITypeGenericFunction;
     return getFunctionType(retType, types, EPI);
   }
 

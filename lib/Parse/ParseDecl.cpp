@@ -66,6 +66,7 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
   // Parse the abstract-declarator, if present.
   Declarator DeclaratorInfo(DS, Context);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
 
   if (Range)
     *Range = DeclaratorInfo.getSourceRange();
@@ -1729,12 +1730,15 @@ Parser::ParseSimpleDeclaration(unsigned Context,
   // If we had a free-standing type definition with a missing semicolon, we
   // may get this far before the problem becomes obvious.
   if (DS.hasTagDefinition() &&
-      DiagnoseMissingSemiAfterTagDefinition(DS, AS_none, DSContext))
+      DiagnoseMissingSemiAfterTagDefinition(DS, AS_none, DSContext)) {
+    ExitQuantifiedTypeScope(DS);
     return nullptr;
+  }
 
   // C99 6.7.2.3p6: Handle "struct-or-union identifier;", "enum { X };"
   // declaration-specifiers init-declarator-list[opt] ';'
   if (Tok.is(tok::semi)) {
+    ExitQuantifiedTypeScope(DS);
     ProhibitAttributes(Attrs);
     DeclEnd = Tok.getLocation();
     if (RequireSemi) ConsumeToken();
@@ -1744,6 +1748,7 @@ Parser::ParseSimpleDeclaration(unsigned Context,
     DS.complete(TheDecl);
     if (AnonRecord) {
       Decl* decls[] = {AnonRecord, TheDecl};
+
       return Actions.BuildDeclaratorGroup(decls);
     }
     return Actions.ConvertDeclToDeclGroup(TheDecl);
@@ -1907,6 +1912,19 @@ void Parser::SkipMalformedDecl() {
   }
 }
 
+void Parser::ExitQuantifiedTypeScope(DeclSpec &DS) {
+  if (DS.isForanySpecified()) {
+    assert(getCurScope()->isForanyScope()
+      && "Current scope should be created by _For_any specifier.");
+    ExitScope();
+  }
+  if (DS.isItypeforanySpecified()) {
+    assert(getCurScope()->isItypeforanyScope()
+      && "Current scope should be created by _Itype_forany specifier.");
+    ExitScope();
+  }
+}
+
 /// ParseDeclGroup - Having concluded that this is either a function
 /// definition or a group of object declarations, actually parse the
 /// result.
@@ -1921,6 +1939,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   // Bail out if the first declarator didn't seem well-formed.
   if (!D.hasName() && !D.mayOmitIdentifier()) {
     SkipMalformedDecl();
+    ExitQuantifiedTypeScope(DS);
     return nullptr;
   }
 
@@ -1984,6 +2003,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
                 D.getIdentifier();
               // bail out
               SkipMalformedDecl();
+              ExitQuantifiedTypeScope(DS);
               return nullptr;
             }
           }
@@ -2005,16 +2025,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
         Decl *TheDecl =
           ParseFunctionDefinition(D, ParsedTemplateInfo(), &LateParsedAttrs);
         // If we encountered _For_any make sure we're in Forany scope and exit.
-        if (DS.isForanySpecified()) {
-          assert(getCurScope()->isForanyScope()
-            && "Current scope should be created by _For_any specifier.");
-          ExitScope();
-        }
-        if (DS.isItypeforanySpecified()) {
-          assert(getCurScope()->isItypeforanyScope()
-            && "Current scope should be created by _Itype_forany specifier.");
-          ExitScope();
-        }
+        ExitQuantifiedTypeScope(DS);
         return Actions.ConvertDeclToDeclGroup(TheDecl);
       }
 
@@ -2034,13 +2045,16 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       if (Tok.is(tok::l_brace)) {
         Diag(Tok, diag::err_function_definition_not_allowed);
         SkipMalformedDecl();
+        ExitQuantifiedTypeScope(DS);
         return nullptr;
       }
     }
   }
 
-  if (ParseAsmAttributesAfterDeclarator(D))
+  if (ParseAsmAttributesAfterDeclarator(D)) {
+    ExitQuantifiedTypeScope(DS);
     return nullptr;
+  }
 
   // C++0x [stmt.iter]p1: Check if we have a for-range-declarator. If so, we
   // must parse and analyze the for-range-initializer before the declaration is
@@ -2049,6 +2063,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   // Handle the Objective-C for-in loop variable similarly, although we
   // don't need to parse the container in advance.
   if (FRI && (Tok.is(tok::colon) || isTokIdentifier_in())) {
+    ExitQuantifiedTypeScope(DS);
     bool IsForRangeLoop = false;
     if (TryConsumeToken(tok::colon, FRI->ColonLoc)) {
       IsForRangeLoop = true;
@@ -2063,6 +2078,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       Actions.ActOnCXXForRangeDecl(ThisDecl);
     Actions.FinalizeDeclaration(ThisDecl);
     D.complete(ThisDecl);
+
     return Actions.FinalizeDeclaratorGroup(getCurScope(), DS, ThisDecl);
   }
 
@@ -2133,13 +2149,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     }
   }
 
-  // If we encountered _For_any, make sure we're in Forany scope and exit.
-  if (DS.isForanySpecified()) {
-    assert(getCurScope()->isForanyScope()
-      && "Current scope should be created by _For_any specifier.");
-    ExitScope();
-  }
-
+  ExitQuantifiedTypeScope(DS);
   return Actions.FinalizeDeclaratorGroup(getCurScope(), DS, DeclsInGroup);
 }
 
@@ -2231,11 +2241,14 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
   // Inform the current actions module that we just parsed this declarator.
   Decl *ThisDecl = nullptr;
   switch (TemplateInfo.Kind) {
-  case ParsedTemplateInfo::NonTemplate:
+  case ParsedTemplateInfo::NonTemplate: {
     // if _For_any specifier, make sure to add function decl in correct scope.
-    ThisDecl = Actions.ActOnDeclarator(D.getDeclSpec().isForanySpecified() ? 
+    bool isQuantifiedScope =
+      D.getDeclSpec().isForanySpecified() || D.getDeclSpec().isItypeforanySpecified();
+    ThisDecl = Actions.ActOnDeclarator(isQuantifiedScope ?
                                getCurScope()->getParent() : getCurScope(), D);
     break;
+  }
 
   case ParsedTemplateInfo::Template:
   case ParsedTemplateInfo::ExplicitSpecialization: {
@@ -2934,6 +2947,7 @@ Parser::DiagnoseMissingSemiAfterTagDefinition(DeclSpec &DS, AccessSpecifier AS,
   DS.ClearTypeSpecType();
   ParsedTemplateInfo NotATemplate;
   ParseDeclarationSpecifiers(DS, NotATemplate, AS, DSContext, LateAttrs);
+  ExitQuantifiedTypeScope(DS);
   return false;
 }
 
@@ -3971,11 +3985,13 @@ void Parser::ParseStructDeclaration(
   // If there are no declarators, this is a free-standing declaration
   // specifier. Let the actions module cope with it.
   if (Tok.is(tok::semi)) {
+    ExitQuantifiedTypeScope(DS);
     RecordDecl *AnonRecord = nullptr;
     Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(getCurScope(), AS_none,
                                                        DS, AnonRecord);
     assert(!AnonRecord && "Did not expect anonymous struct or union here");
     DS.complete(TheDecl);
+
     return;
   }
 
@@ -4037,6 +4053,8 @@ void Parser::ParseStructDeclaration(
     // We're done with this declarator;  invoke the callback.
 
     FieldsCallback(DeclaratorInfo);
+
+    ExitQuantifiedTypeScope(DS);
 
     // If we don't have a comma, it is either the end of the list (a ';')
     // or an error, bail out.
@@ -6656,6 +6674,11 @@ void Parser::ParseParameterDeclarationClause(
                                                 Declarator::PrototypeContext);
     ParseDeclarator(ParmDeclarator);
 
+    // Checked C: exit _Forany or _Itype_forany scope.  This is intentionally done here
+    // because the bounds / interface type for the parameter shouldn't reference
+    // any bound type variable.
+    ExitQuantifiedTypeScope(DS);
+
     // Parse GNU attributes, if present.
     MaybeParseGNUAttributes(ParmDeclarator);
 
@@ -7241,9 +7264,10 @@ void Parser::ParseForanySpecifier(DeclSpec &DS) {
 bool Parser::ParseGenericFunctionSpecifierHelper(DeclSpec &DS,
                                                   Scope::ScopeFlags S) {
   assert((S == Scope::ForanyScope) || (S == Scope::ItypeforanyScope));  
+
+
   EnterScope(Scope::DeclScope | S);
   SourceLocation Loc = ConsumeToken();
-
   StringRef Key = (S == Scope::ForanyScope) ? "_For_any" : "Itype_for_any";
   if (ExpectAndConsume(tok::l_paren, diag::err_generic_specifier_unexpected_token, Key)) {
     ExitScope();
@@ -7257,7 +7281,7 @@ bool Parser::ParseGenericFunctionSpecifierHelper(DeclSpec &DS,
   // Calculate the depth of "for any"/"itype for any" scope for our generic types
   unsigned int Depth = 0;
   Scope *tempScope = getCurScope()->getParent();
-  while (!tempScope) {
+  while (tempScope) {
     if (tempScope->isForanyScope() || tempScope->isItypeforanyScope())
       Depth++;
     tempScope = tempScope->getParent();

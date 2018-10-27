@@ -224,6 +224,7 @@ Parser::ParseSingleDeclarationAfterTemplate(
     assert(!AnonRecord &&
            "Anonymous unions/structs should not be valid with template");
     DS.complete(Decl);
+    ExitQuantifiedTypeScope(DS);
     return Decl;
   }
 
@@ -236,6 +237,7 @@ Parser::ParseSingleDeclarationAfterTemplate(
   // Parse the declarator.
   ParsingDeclarator DeclaratorInfo(*this, DS, (Declarator::TheContext)Context);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
   // Error parsing the declarator?
   if (!DeclaratorInfo.hasName()) {
     // If so, skip until the semi-colon or a }.
@@ -681,6 +683,7 @@ Parser::ParseNonTypeTemplateParameter(unsigned Depth, unsigned Position) {
   // Parse this as a typename.
   Declarator ParamDecl(DS, Declarator::TemplateParamContext);
   ParseDeclarator(ParamDecl);
+  ExitQuantifiedTypeScope(DS);
   if (DS.getTypeSpecType() == DeclSpec::TST_unspecified) {
     Diag(Tok.getLocation(), diag::err_expected_template_parameter);
     return nullptr;

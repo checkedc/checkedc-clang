@@ -1356,6 +1356,7 @@ ExprResult Parser::ParseCXXCasts() {
   // Parse the abstract-declarator, if present.
   Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
 
   SourceLocation RAngleBracketLoc = Tok.getLocation();
 
@@ -1785,6 +1786,7 @@ Sema::ConditionResult Parser::ParseCXXCondition(StmtResult *InitStmt,
   // declarator
   Declarator DeclaratorInfo(DS, Declarator::ConditionContext);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
 
   // simple-asm-expr[opt]
   if (Tok.is(tok::kw_asm)) {
@@ -2389,8 +2391,10 @@ bool Parser::ParseUnqualifiedIdOperator(CXXScopeSpec &SS, bool EnteringContext,
   
   // Parse the type-specifier-seq.
   DeclSpec DS(AttrFactory);
-  if (ParseCXXTypeSpecifierSeq(DS)) // FIXME: ObjectType?
+  if (ParseCXXTypeSpecifierSeq(DS)) { // FIXME: ObjectType?
+     ExitQuantifiedTypeScope(DS);
     return true;
+  }
   
   // Parse the conversion-declarator, which is merely a sequence of
   // ptr-operators.
@@ -2726,16 +2730,19 @@ Parser::ParseCXXNewExpression(bool UseGlobal, SourceLocation Start) {
         ParseSpecifierQualifierList(DS);
         DeclaratorInfo.SetSourceRange(DS.getSourceRange());
         ParseDeclarator(DeclaratorInfo);
+        ExitQuantifiedTypeScope(DS);
         T.consumeClose();
         TypeIdParens = T.getRange();
       } else {
         MaybeParseGNUAttributes(DeclaratorInfo);
-        if (ParseCXXTypeSpecifierSeq(DS))
+        if (ParseCXXTypeSpecifierSeq(DS)) {
           DeclaratorInfo.setInvalidType(true);
-        else {
+          ExitQuantifiedTypeScope(DS);
+        } else {
           DeclaratorInfo.SetSourceRange(DS.getSourceRange());
           ParseDeclaratorInternal(DeclaratorInfo,
                                   &Parser::ParseDirectNewDeclarator);
+          ExitQuantifiedTypeScope(DS);
         }
       }
     }
@@ -2750,6 +2757,7 @@ Parser::ParseCXXNewExpression(bool UseGlobal, SourceLocation Start) {
       ParseDeclaratorInternal(DeclaratorInfo,
                               &Parser::ParseDirectNewDeclarator);
     }
+    ExitQuantifiedTypeScope(DS);
   }
   if (DeclaratorInfo.isInvalidType()) {
     SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
@@ -2864,6 +2872,7 @@ bool Parser::ParseExpressionListOrTypeId(
     ParseSpecifierQualifierList(D.getMutableDeclSpec());
     D.SetSourceRange(D.getDeclSpec().getSourceRange());
     ParseDeclarator(D);
+    ExitQuantifiedTypeScope(D.getMutableDeclSpec());
     return D.isInvalidType();
   }
 
@@ -3177,6 +3186,7 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
       ColonProtectionRAIIObject InnerColonProtection(*this);
       ParseSpecifierQualifierList(DS);
       ParseDeclarator(DeclaratorInfo);
+      ExitQuantifiedTypeScope(DS);
     }
 
     // Match the ')'.

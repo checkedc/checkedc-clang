@@ -4812,7 +4812,7 @@ public:
   ExprResult ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
                      ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> Args);
 
-  QualType SubstituteTypeArgs(QualType QT,  
+  QualType SubstituteTypeArgs(QualType QT,
                 ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs);
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,

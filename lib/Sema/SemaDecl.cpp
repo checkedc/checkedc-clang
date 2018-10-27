@@ -3427,14 +3427,6 @@ bool Sema::MergeFunctionDecl(FunctionDecl *New, NamedDecl *&OldD,
       New->setParams(Params);
     }
 
-    if ((New->isItypeGenericFunction() && Old->isGenericFunction())
-          || (New->isGenericFunction() && Old->isItypeGenericFunction()))
-    {
-      Diag(New->getLocation(), diag::err_decl_conflicting_function_specifiers)
-            << New->getDeclName() << "_Itype_for_any" << "_For_any";
-      return true;
-    }
-
     return MergeCompatibleFunctionDecls(New, Old, S, MergeTypeWithOld);
   }
 
@@ -3891,6 +3883,41 @@ bool Sema::DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
     const FunctionProtoType *NewType =
       New->getFunctionType()->getAs<FunctionProtoType>();
     assert(OldType && NewType);
+
+    bool QuantifiedTypeError = false;
+    if ((NewType->isItypeGenericFunction() && OldType->isGenericFunction())
+        || (NewType->isGenericFunction() && OldType->isItypeGenericFunction())) {
+      Diag(New->getLocation(), diag::err_decl_conflicting_function_specifiers)
+            << New->getDeclName() << "_Itype_for_any" << "_For_any";
+      QuantifiedTypeError = true;
+    }
+
+    if ((NewType->isNonGenericFunction() && OldType->isGenericFunction())
+        || (NewType->isGenericFunction() && OldType->isNonGenericFunction())) {
+      Diag(New->getLocation(),
+           diag::err_decl_conflicting_generic_non_generic_functions)
+            << New->getDeclName();
+      QuantifiedTypeError = true;
+    }
+
+    if (NewType->getNumTypeVars() != OldType->getNumTypeVars() &&
+        ((NewType->isGenericFunction() && OldType->isGenericFunction())
+          || (NewType->isItypeGenericFunction() &&
+              OldType->isItypeGenericFunction()))) {
+      Diag(New->getLocation(),
+           diag::err_decl_conflicting_type_variable_count)
+            << New->getDeclName();
+      QuantifiedTypeError = true;
+    }
+
+    if (QuantifiedTypeError) {
+      int PrevDiag;
+      SourceLocation OldLocation;
+      std::tie(PrevDiag, OldLocation)
+        = getNoteDiagForInvalidRedeclaration(Old, New);
+      Diag(OldLocation, PrevDiag);
+      return true;
+    }
 
     // Scan through parameters and look for mismatches
     // in bounds.
@@ -12578,6 +12605,7 @@ ParmVarDecl *Sema::ActOnParamDeclarator(Scope *S, Declarator &D) {
 
   // Add the parameter declaration into this scope.
   S->AddDecl(New);
+
   if (II)
     IdResolver.AddDecl(New);
 

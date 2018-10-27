@@ -116,7 +116,7 @@ public:
       return Result;
     } else {
       // Case 3: the type variable is bound by a type quantifier nested within the
-      // the one that is being applied.  Create a type variable with a dcremented
+      // the one that is being applied.  Create a type variable with a decremented
       // depth, to account for the removal of the enclosing scope.
       QualType Result =
          SemaRef.Context.getTypeVariableType(TVDepth - 1, TV->GetIndex(),
@@ -133,7 +133,7 @@ public:
     const TypedefType *T = TL.getTypePtr();
     // See if the underlying type changes.
     QualType UnderlyingType = T->desugar();
-    QualType TransformedType = TransformType(UnderlyingType);
+    QualType TransformedType = getDerived().TransformType(UnderlyingType);
     if (UnderlyingType == TransformedType) {
       QualType Result = TL.getType();
       // It didn't change, so just copy the original type location information.
@@ -145,7 +145,7 @@ public:
     // and use the underlying transformed type.
 
     // Synthesize some dummy type source information.
-    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(TransformedType,
+    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(UnderlyingType,
                                                 getDerived().getBaseLocation());
     // Use that to get dummy location information.
     TypeLoc NewTL = DI->getTypeLoc();
@@ -154,7 +154,12 @@ public:
     // that the type location class pushed on to the TypeBuilder is the matching
     // class for the underlying type.
     QualType Result = getDerived().TransformType(TLB, NewTL);
-    assert(Result == TransformedType);
+    if (Result != TransformedType) {
+      llvm::outs() << "Dumping transformed type:\n";
+      Result.dump(llvm::outs());
+      llvm::outs() << "Dumping result:\n";
+      Result.dump(llvm::outs());
+    }
     return Result;
   }
 };

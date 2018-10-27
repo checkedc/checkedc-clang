@@ -2222,11 +2222,14 @@ StmtResult Parser::ParseCXXCatchBlock(bool FnCatch) {
     DeclSpec DS(AttrFactory);
     DS.takeAttributesFrom(Attributes);
 
-    if (ParseCXXTypeSpecifierSeq(DS))
+    if (ParseCXXTypeSpecifierSeq(DS)) {
+      ExitQuantifiedTypeScope(DS);
       return StmtError();
+    }
 
     Declarator ExDecl(DS, Declarator::CXXCatchContext);
     ParseDeclarator(ExDecl);
+    ExitQuantifiedTypeScope(DS);
     ExceptionDecl = Actions.ActOnExceptionDeclarator(getCurScope(), ExDecl);
   } else
     ConsumeToken();

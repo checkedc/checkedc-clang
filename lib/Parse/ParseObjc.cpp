@@ -1498,6 +1498,7 @@ Decl *Parser::ParseObjCMethodDecl(SourceLocation mLoc,
     // Parse the declarator.
     Declarator ParmDecl(DS, Declarator::PrototypeContext);
     ParseDeclarator(ParmDecl);
+    ExitQuantifiedTypeScope(DS);
     IdentifierInfo *ParmII = ParmDecl.getIdentifier();
     Decl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDecl);
     CParamInfo.push_back(DeclaratorChunk::ParamInfo(ParmII,
@@ -2551,6 +2552,7 @@ StmtResult Parser::ParseObjCTryStmt(SourceLocation atLoc) {
           ParseDeclarationSpecifiers(DS);
           Declarator ParmDecl(DS, Declarator::ObjCCatchContext);
           ParseDeclarator(ParmDecl);
+          ExitQuantifiedTypeScope(DS);
 
           // Inform the actions module about the declarator, so it
           // gets added to the current scope.

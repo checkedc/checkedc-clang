@@ -3564,6 +3564,9 @@ public:
   unsigned getNumTypeVars() const { return NumTypeVars; }
   bool isGenericFunction() const { return GenericFunction; }
   bool isItypeGenericFunction() const { return ItypeGenericFunction; }
+  bool isNonGenericFunction() const {
+    return !(GenericFunction || ItypeGenericFunction);
+  }
 
   ArrayRef<QualType> getParamTypes() const {
     return llvm::makeArrayRef(param_type_begin(), param_type_end());

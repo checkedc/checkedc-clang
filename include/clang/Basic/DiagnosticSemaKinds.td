@@ -9806,6 +9806,12 @@ def err_bounds_type_annotation_lost_checking : Error<
   def no_prototype_generic_function : Error<
     "expected prototype for a generic function">;
 
+  def err_decl_conflicting_generic_non_generic_functions : Error<
+    "conflicting non-generic and generic declarations of %0" >;
+
+  def err_decl_conflicting_type_variable_count : Error<
+    "conflicting numbers of type variables for declarations of %0" >;
+
   def err_expected_type_argument_list_for_generic_call : Error<
     "expected a type argument list for a generic function call">;
 

@@ -1782,6 +1782,13 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
       ConsumeToken();
       break;
     case tok::less: {
+       // This worked almost entirely, passing all but 0.1% of the clang
+       // regression test suite.  It altered some error behavior for
+       // clang C++, so bail out for now if we're not in Checked C.
+
+      if (!getLangOpts().CheckedC)
+        return LHS;
+
       // Look for the start of a generic type argument list:
       // '<' type name  ... , type name n '>'
       bool IsAmbiguous;
@@ -1849,6 +1856,7 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
         ParseSpecifierQualifierList(DS);
         Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
         ParseDeclarator(DeclaratorInfo);
+        ExitQuantifiedTypeScope(DS);
 
         SourceLocation LParenLoc = PP.getLocForEndOfToken(OpTok.getLocation());
         SourceLocation RParenLoc = PP.getLocForEndOfToken(PrevTokLocation);
@@ -2411,6 +2419,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
 
     Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
     ParseDeclarator(DeclaratorInfo);
+    ExitQuantifiedTypeScope(DS);
     
     // If our type is followed by an identifier and either ':' or ']', then 
     // this is probably an Objective-C message send where the leading '[' is
@@ -2892,6 +2901,7 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   Declarator DeclaratorInfo(DS, Declarator::BlockLiteralContext);
   DeclaratorInfo.setFunctionDefinitionKind(FDK_Definition);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
 
   MaybeParseGNUAttributes(DeclaratorInfo);
 

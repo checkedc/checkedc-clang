@@ -1221,9 +1221,11 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
     }
   }
 
-  // If the function is generic function, dump information about type variable.
-  // Type variable is stored as a TypedefDecl.
-  if (D->isGenericFunction() && D->getNumTypeVars() > 0) {
+  // If the function is generic function or an itype generic function, dump
+  // information about type variables. The type variable name is stored as a
+  // TypedefDecl.
+  if ((D->isGenericFunction() || D->isItypeGenericFunction()) &&
+      D->getNumTypeVars() > 0) {
     for (const TypedefDecl* Typevar : D->typeVariables()) {
       dumpChild([=] {
         OS << "TypeVariable";
