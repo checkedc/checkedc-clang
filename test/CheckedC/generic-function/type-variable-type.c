@@ -154,7 +154,7 @@ void test() {
 // CHECK-NEXT:   ImplicitCastExpr {{.*}} 'int *' <ArrayToPointerDecay>
 // CHECK-NEXT:     DeclRefExpr {{.*}} 'int [5]' lvalue Var {{0x[0-9a-f]+}} 'a' 'int [5]'
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 5
-// CHECK-NEXT: UnaryExprOrTypeTraitExpr {{.*}} 'unsigned int' sizeof 'int'
+// CHECK-NEXT: UnaryExprOrTypeTraitExpr {{.*}} '{{unsigned .*}}' sizeof 'int'
 // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Ptr<_For_any(1) void (_Array_ptr<(0, 0)> : count(arg #1), int, unsigned int, _Ptr<int (_Ptr<(0, 0)>, _Ptr<(0, 0)>)>)>' <BitCast>
 // CHECK-NEXT:   ImplicitCastExpr {{.*}} '_For_any(1) void (*)(_Array_ptr<T> : count(arg #1), int, unsigned int, _Ptr<int (_Ptr<T>, _Ptr<T>)>)' <FunctionToPointerDecay>
 // CHECK-NEXT:     DeclRefExpr {{.*}} '_For_any(1) void (_Array_ptr<T> : count(arg #1), int, unsigned int, _Ptr<int (_Ptr<T>, _Ptr<T>)>)' Function {{0x[0-9a-f]+}} 'reverse' '_For_any(1) void (_Array_ptr<T> : count(arg #1), int, unsigned int, _Ptr<int (_Ptr<T>, _Ptr<T>)>)
