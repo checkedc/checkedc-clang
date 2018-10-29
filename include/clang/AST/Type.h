@@ -1762,6 +1762,8 @@ public:
   bool isFunctionType() const;
   bool isFunctionNoProtoType() const { return getAs<FunctionNoProtoType>(); }
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
+  bool isGenericFunctionType() const;
+  bool isItypeGenericFunctionType() const;
   bool isPointerType() const;
   bool isCheckedPointerType() const;
   bool isUncheckedPointerType() const;
@@ -3562,6 +3564,9 @@ public:
   unsigned getNumTypeVars() const { return NumTypeVars; }
   bool isGenericFunction() const { return GenericFunction; }
   bool isItypeGenericFunction() const { return ItypeGenericFunction; }
+  bool isNonGenericFunction() const {
+    return !(GenericFunction || ItypeGenericFunction);
+  }
 
   ArrayRef<QualType> getParamTypes() const {
     return llvm::makeArrayRef(param_type_begin(), param_type_end());
@@ -3847,7 +3852,7 @@ class TypeVariableType : public Type, public llvm::FoldingSetNode {
   // prototype scope depth, this keeps track of the depth of forany scope.
   unsigned int depth;
   unsigned int index;
-  bool isBoundsInterfaceType;
+  bool isBoundsInterfaceType; // TODO: pack this into a bitfield.
 protected:
   TypeVariableType(unsigned int inDepth, unsigned int inIndex, bool inBoundsInterface)
     : Type(TypeVariable, QualType(), false, false, false, false),
@@ -3868,11 +3873,13 @@ public:
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, depth, index);
+    Profile(ID, depth, index, isBoundsInterfaceType);
   }
-  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex) {
+  static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex,
+                      bool isBoundsInterfaceType) {
     ID.AddInteger(inDepth);
     ID.AddInteger(inIndex);
+    ID.AddBoolean(isBoundsInterfaceType);
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
@@ -6010,6 +6017,16 @@ inline bool Type::isCompoundType() const {
 
 inline bool Type::isFunctionType() const {
   return isa<FunctionType>(CanonicalType);
+}
+inline bool Type::isGenericFunctionType() const {
+   if (const FunctionProtoType *FPT = getAs<FunctionProtoType>())
+     return FPT->isGenericFunction();
+   return false;
+}
+inline bool Type::isItypeGenericFunctionType() const {
+   if (const FunctionProtoType *FPT = getAs<FunctionProtoType>())
+     return FPT->isItypeGenericFunction();
+   return false;
 }
 inline bool Type::isPointerType() const {
   return isa<PointerType>(CanonicalType);

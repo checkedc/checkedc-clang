@@ -2,7 +2,7 @@
 //
 // More specifically, we are testing for below cases of error :
 // 1) Using generic function call syntax on normal function will not be
-//    allowed. 
+//    allowed.
 // 2) a special case that I found. Description below.
 //
 // RUN: %clang_cc1 -fcheckedc-extension -verify %s
@@ -22,10 +22,10 @@ void Bar() {
   return;
 }
 
+void g(int i) {
+}
+
 void CallGenericFunction() {
-  // Although it's possible to create a separate check and error message to say
-  // "Bar is not a generic function, so we cannot have this syntax," it seems 
-  // sufficient enough for the clang to generate error message as if generic 
-  // functions were never implemented.
-  Bar<unsigned int>(); //expected-error{{expected expression}}
+  // Check for applying a non-generic function to type arguments.
+ g<unsigned int>(5); //expected-error{{type arguments supplied for non-generic function or expression}}
 }

@@ -2558,9 +2558,12 @@ namespace {
         if (!ParamBounds && !ParamIType)
           continue;
 
-        if (!ParamBounds && ParamIType)
+        bool UsedIType = false;
+        if (!ParamBounds && ParamIType) {
           ParamBounds = S.CreateTypeBasedBounds(nullptr, ParamIType->getType(),
                                                 true, true);
+          UsedIType = true;
+        }
 
         // Check after handling the interop type annotation, not before, because
         // handling the interop type annotation could make the bounds known.
@@ -2599,10 +2602,17 @@ namespace {
           // that are calls.
           if (true /* S.CheckIsNonModifying(Arg,
                               Sema::NonModifyingContext::NMC_Function_Parameter,
-                                    Sema::NonModifyingMessage::NMM_Error) */)
-            SubstParamBounds = S.ExpandToRange(Arg,
+                                    Sema::NonModifyingMessage::NMM_Error) */) {
+            Expr *TypedArg = Arg;
+            // The bounds expression is for an interface type. Retype the
+            // argument to the interface type.
+            if (UsedIType) {
+              TypedArg = BoundsInference(S).CreateExplicitCast(
+                ParamIType->getType(), CK_BitCast, Arg, true);
+            }
+            SubstParamBounds = S.ExpandToRange(TypedArg,
                                     const_cast<BoundsExpr *>(SubstParamBounds));
-           else
+           } else
              continue;
         }
 

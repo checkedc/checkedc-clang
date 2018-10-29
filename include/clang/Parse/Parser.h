@@ -996,6 +996,10 @@ public:
   /// point for skipping past a simple-declaration.
   void SkipMalformedDecl();
 
+  // If the current scope is a Checked C _Forany or _Itypeforany scope, exit it.
+  // TODO: this probably doesn't belong in the parser.
+  void ExitQuantifiedTypeScope(DeclSpec &DS);
+
 private:
   //===--------------------------------------------------------------------===//
   // Lexing and parsing of C++ inline methods.
@@ -1749,7 +1753,7 @@ private:
   ExprResult ParseBoundsCastExpression();
 
   ExprResult ParseBoundsExpression();
-  bool ParseItypeAndGenericFunctionExpression(ExprResult &Res);
+  ExprResult ParseGenericTypeArgumentList(ExprResult TypeFunc, SourceLocation Loc);
 
   QualType SubstituteTypeVariable(QualType QT,
     SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);
@@ -1775,7 +1779,6 @@ private:
                                   const Declarator &D);
 
   ExprResult ParseReturnValueExpression();
-
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

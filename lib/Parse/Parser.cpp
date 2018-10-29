@@ -966,6 +966,7 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
   if (Tok.is(tok::semi)) {
     ProhibitAttributes(attrs);
     ConsumeToken();
+    ExitQuantifiedTypeScope(DS);
     RecordDecl *AnonRecord = nullptr;
     Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(getCurScope(), AS_none,
                                                        DS, AnonRecord);
@@ -990,6 +991,7 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
         !Tok.isObjCAtKeyword(tok::objc_protocol)) {
       Diag(Tok, diag::err_objc_unexpected_attr);
       SkipUntil(tok::semi); // FIXME: better skip?
+      ExitQuantifiedTypeScope(DS);
       return nullptr;
     }
 
@@ -1015,6 +1017,7 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
       DS.getStorageClassSpec() == DeclSpec::SCS_extern &&
       DS.getParsedSpecifiers() == DeclSpec::PQ_StorageClassSpecifier) {
     Decl *TheDecl = ParseLinkage(DS, Declarator::FileContext);
+    ExitQuantifiedTypeScope(DS);
     return Actions.ConvertDeclToDeclGroup(TheDecl);
   }
 

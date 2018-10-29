@@ -1431,13 +1431,6 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     return ExprError();
   }
 
-  // Check to see if Res is an itype generic or generic function call.
-  // In this case, we must parse a list of type names that follows
-  // function decl identifier where applicable
-  if(!isAddressOfOperand) {
-    if (ParseItypeAndGenericFunctionExpression(Res)) return ExprError();
-  }
-
   // Check to see whether Res is a function designator only. If it is and we
   // are compiling for OpenCL, we need to return an error as this implies
   // that the address of the function is being taken, which is illegal in CL.
@@ -1470,10 +1463,17 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
 ///         postfix-expression '--'
 ///         '(' type-name ')' '{' initializer-list '}'
 ///         '(' type-name ')' '{' initializer-list ',' '}'
+/// [Checked C] postfix-expression '<' type-argument-list '>'
+/// [Checked C] postfix-expression '<' '>'
 ///
 ///       argument-expression-list: [C99 6.5.2]
 ///         argument-expression ...[opt]
 ///         argument-expression-list ',' assignment-expression ...[opt]
+///
+/// [Checked C] type-argument-list:
+/// [Checked C]     type name
+/// [Checked C]     type name, type-argument-list
+////
 /// \endverbatim
 ExprResult
 Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
@@ -1781,6 +1781,30 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
       }
       ConsumeToken();
       break;
+    case tok::less: {
+       // This worked almost entirely, passing all but 0.1% of the clang
+       // regression test suite.  It altered some error behavior for
+       // clang C++, so bail out for now if we're not in Checked C.
+
+      if (!getLangOpts().CheckedC)
+        return LHS;
+
+      // Look for the start of a generic type argument list:
+      // '<' type name  ... , type name n '>'
+      bool IsAmbiguous;
+      Token LastToken = Tok;
+      SourceLocation Loc = ConsumeToken();
+      if (!isTypeIdInParens(IsAmbiguous) && !Tok.is(tok::greater)) {
+        UnconsumeToken(LastToken);
+        return LHS;
+      }
+
+      LHS = ParseGenericTypeArgumentList(LHS, Loc);
+      if (LHS.isInvalid())
+        LHS = ExprError();
+
+      break;
+    }
     }
   }
 }
@@ -1832,6 +1856,7 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
         ParseSpecifierQualifierList(DS);
         Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
         ParseDeclarator(DeclaratorInfo);
+        ExitQuantifiedTypeScope(DS);
 
         SourceLocation LParenLoc = PP.getLocForEndOfToken(OpTok.getLocation());
         SourceLocation RParenLoc = PP.getLocForEndOfToken(PrevTokLocation);
@@ -1860,7 +1885,7 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
     ParenParseOption ExprType = CastExpr;
     SourceLocation LParenLoc = Tok.getLocation(), RParenLoc;
 
-    Operand = ParseParenExpression(ExprType, true/*stopIfCastExpr*/, 
+    Operand = ParseParenExpression(ExprType, true/*stopIfCastExpr*/,
                                    false, CastTy, RParenLoc);
     CastRange = SourceRange(LParenLoc, RParenLoc);
 
@@ -2394,6 +2419,7 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
 
     Declarator DeclaratorInfo(DS, Declarator::TypeNameContext);
     ParseDeclarator(DeclaratorInfo);
+    ExitQuantifiedTypeScope(DS);
     
     // If our type is followed by an identifier and either ':' or ']', then 
     // this is probably an Objective-C message send where the leading '[' is
@@ -2875,6 +2901,7 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   Declarator DeclaratorInfo(DS, Declarator::BlockLiteralContext);
   DeclaratorInfo.setFunctionDefinitionKind(FDK_Definition);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
 
   MaybeParseGNUAttributes(DeclaratorInfo);
 
@@ -3148,257 +3175,50 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
-// Recurse through types and substitute any TypedefType with TypeVariableType
-// as the underlying type.
-QualType Parser::SubstituteTypeVariable(QualType QT,
-  SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames) {
-  const Type *T = QT.getTypePtr();
-  switch (T->getTypeClass()) {
-  case Type::Pointer: {
-    const PointerType *pType = dyn_cast<PointerType>(T);
-    if (!pType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    QualType newPointee = SubstituteTypeVariable(pType->getPointeeType(), typeNames);
-    return Actions.getASTContext().getPointerType(newPointee, pType->getKind());
-  }
-  case Type::ConstantArray: {
-    const ConstantArrayType *caType = dyn_cast<ConstantArrayType>(T);
-    if (!caType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    QualType EltTy = SubstituteTypeVariable(caType->getElementType(), typeNames);
-    const llvm::APInt ArySize = caType->getSize();
-    ArrayType::ArraySizeModifier ASM = caType->getSizeModifier();
-    unsigned IndexTypeQuals = caType->getIndexTypeCVRQualifiers();
-    CheckedArrayKind Kind = caType->getKind();
-    return Actions.getASTContext().getConstantArrayType(EltTy, ArySize, ASM, 
-                                                  IndexTypeQuals, Kind);
-  }
-  case Type::VariableArray: {
-    const VariableArrayType *vaType = dyn_cast<VariableArrayType>(T);
-    if (!vaType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    QualType EltTy = SubstituteTypeVariable(vaType->getElementType(), typeNames);
-    Expr *NumElts = vaType->getSizeExpr();
-    ArrayType::ArraySizeModifier ASM = vaType->getSizeModifier();
-    unsigned IndexTypeQuals = vaType->getIndexTypeCVRQualifiers();
-    SourceRange Brackets = vaType->getBracketsRange();
-    return Actions.getASTContext().getVariableArrayType(EltTy, NumElts, ASM, 
-                                                    IndexTypeQuals, Brackets);
-  }
-  case Type::IncompleteArray: {
-    const IncompleteArrayType *iaType = dyn_cast<IncompleteArrayType>(T);
-    if (!iaType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    QualType EltTy = SubstituteTypeVariable(iaType->getElementType(), typeNames);
-    ArrayType::ArraySizeModifier ASM = iaType->getSizeModifier();
-    unsigned IndexTypeQuals = iaType->getIndexTypeCVRQualifiers();
-    CheckedArrayKind Kind = iaType->getKind();
-    return Actions.getASTContext().getIncompleteArrayType(EltTy, ASM, 
-                                                    IndexTypeQuals, Kind);
-  }
-  case Type::DependentSizedArray: {
-    const DependentSizedArrayType *dsaType = dyn_cast<DependentSizedArrayType>(T);
-    if (!dsaType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    QualType EltTy = SubstituteTypeVariable(dsaType->getElementType(), typeNames);
-    Expr *NumElts = dsaType->getSizeExpr();
-    ArrayType::ArraySizeModifier ASM = dsaType->getSizeModifier();
-    unsigned IndexTypeQuals = dsaType->getIndexTypeCVRQualifiers();
-    SourceRange Brackets = dsaType->getBracketsRange();
-    return Actions.getASTContext().getDependentSizedArrayType(EltTy, NumElts, 
-                                                ASM, IndexTypeQuals, Brackets);
-  }
-  case Type::Paren: {
-    const ParenType *pType = dyn_cast<ParenType>(T);
-    if (!pType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    QualType InnerType = SubstituteTypeVariable(pType->getInnerType(), typeNames);
-    return Actions.getASTContext().getParenType(InnerType);
-  }
-
-  case Type::FunctionProto: {
-    const FunctionProtoType *fpType = dyn_cast<FunctionProtoType>(T);
-    if (!fpType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    // Initialize return type if it's type variable
-    BoundsAnnotations ReturnBAnnot = fpType->getReturnAnnots();
-    InteropTypeExpr *RBIT = ReturnBAnnot.getInteropTypeExpr();
-    QualType returnQualType;
-    if (RBIT) {
-      returnQualType = SubstituteTypeVariable(RBIT->getTypeAsWritten() , typeNames);
-    } else {
-      returnQualType = SubstituteTypeVariable(fpType->getReturnType() , typeNames);
-    }
-    // Initialize parameter types if it's type variable
-    SmallVector<QualType, 16> newParamTypes;
-
-    int iCnt = 0;
-    for (QualType opt : fpType->getParamTypes()) {
-      BoundsAnnotations BAnnot = fpType->getParamAnnots(iCnt);
-      InteropTypeExpr *BIT = BAnnot.getInteropTypeExpr();
-      if (BIT) {
-        newParamTypes.push_back(SubstituteTypeVariable(BIT->getTypeAsWritten(), typeNames));
-      } else {
-        newParamTypes.push_back(SubstituteTypeVariable(opt, typeNames));
-      }
-      iCnt++;
-    }
-    // Indicate that this function type is fully instantiated
-    FunctionProtoType::ExtProtoInfo newExtProtoInfo = fpType->getExtProtoInfo();
-    newExtProtoInfo.numTypeVars = 0;
-    // Recreate FunctionProtoType, and set it as the new type for declRefExpr
-    return Actions.getASTContext().getFunctionType(returnQualType, 
-                                              newParamTypes, newExtProtoInfo);
-  }
-  case Type::Typedef: {
-    // If underlying type is TypeVariableType, must replace the entire
-    // TypedefType. If underlying type is not TypeVariableType, there cannot be
-    // a type variable type that this context can replace.
-    const TypedefType *tdType = dyn_cast<TypedefType>(T);
-    if (!tdType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    const Type *underlying = tdType->getDecl()->getUnderlyingType().getTypePtr();
-    if (const TypeVariableType *tvType = dyn_cast<TypeVariableType>(underlying)) 
-      return typeNames[tvType->GetIndex()].typeName;
-    else
-      return QT;
-  }
-  case Type::TypeVariable: {
-    // Although Type Variable Type is wrapped with Typedef Type, there may be
-    // transformations in clang that eliminates Typedef.
-    const TypeVariableType *tvType = dyn_cast<TypeVariableType>(T);
-    if (!tvType) {
-      llvm_unreachable("Dynamic cast failed unexpectedly.");
-      return QT;
-    }
-    return typeNames[tvType->GetIndex()].typeName;
-  }
-  case Type::Decayed: {
-    const DecayedType *dType = dyn_cast<DecayedType>(T);
-    QualType decayedType = SubstituteTypeVariable(dType->getOriginalType(), typeNames);
-    return Actions.getASTContext().getDecayedType(decayedType);
-  }
-  case Type::Adjusted: {
-    const AdjustedType *aType = dyn_cast<AdjustedType>(T);
-    QualType origType = SubstituteTypeVariable(aType->getOriginalType(), typeNames);
-    QualType newType = SubstituteTypeVariable(aType->getAdjustedType(), typeNames);
-    return Actions.getASTContext().getAdjustedType(origType, newType);
-  }
-  default :
-    return QT;
-  }
-}
-
-// With primary-expression, before parsing postfix-expression, check to make
-// sure that Expr is declRefExpr of itype generic or generic function
-// with _Itype_for_any or _For_any specifier respectively
-// No type variables necessary for itype generic function calls from unchecked scope
+// Parse a generic type argument list.  The suffix of postfix expression can
+// have the form '<' type name 1, ... type name n '>', in which case it is a
+// generic type argument list.
 //
-// Returns false if parsing succeed and true if an error occurred.
-bool Parser::ParseItypeAndGenericFunctionExpression(ExprResult &Res) {
-  Expr *resExpr = Res.get();
-  // Have to make sure that resExpr down to FunctionDecl is not null, because
-  // if there is a parsing error before, one of these may be null.
-  if (!resExpr || !isa<DeclRefExpr>(resExpr)) return false;
-  DeclRefExpr *declRef = dyn_cast<DeclRefExpr>(resExpr);
-  ValueDecl *resDecl = declRef->getDecl();
-  if (!resDecl || !isa<FunctionDecl>(resDecl)) return false;
-  FunctionDecl* funDecl = dyn_cast<FunctionDecl>(resDecl);
-  
-  const FunctionProtoType *funcType =
-    dyn_cast<FunctionProtoType>(funDecl->getType().getTypePtr());
-
-  //Check if incompatible function specifiers are provided for the function
-  if (funcType) {
-    if (!(funcType->isGenericFunction() 
-          || funcType->isItypeGenericFunction())) return false;
-  } else {
-    if (!(funDecl->isGenericFunction()
-          || funDecl->isItypeGenericFunction())) return false;
-  }
-
+// For now, handle only the case where Res is a generic DeclRef.
+//
+// TODO: We need to handle the case where Res is an expression with
+// generic type.  However, we don't have the AST support for this yet.
+//
+// Returns false if parsing succeeded and true if an error occurred.
+ExprResult Parser::ParseGenericTypeArgumentList(ExprResult Res, SourceLocation Loc) {
   SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
-  // Parse the list of type arguments if 
-  // 1. It's a generic function
-  // 2. It's a polymorphic bounds safe interface function and 
-  //    a. The call expression is inside _Checked scope
-  //    b. The call expression is in any scope but the type parameters are provided by the caller
-  if (funcType->isGenericFunction() || 
-      (funcType->isItypeGenericFunction() && 
-        (Actions.IsCheckedScope() || Tok.getKind() == tok::less))) {
-    // Expect a '<' to denote that a list of type specifiers are incoming.
-    SourceLocation lessLoc = Tok.getLocation();
-    if (ExpectAndConsume(tok::less,
-                          diag::err_expected_list_of_types_expr_for_generic_function)) {
-      // We want to consume greater, but not consume semi
-      SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
-      if (Tok.getKind() == tok::greater) ConsumeToken();
-      return true;
-    }
-
-    bool firstTypeArgument = true;
-    // Expect to see a list of type names, followed by a '>'.
-    while (Tok.getKind() != tok::greater) {
-      if (!firstTypeArgument) {
-        if (ExpectAndConsume(tok::comma,
-          diag::err_type_function_comma_or_greater_expected)) {
-          // We want to consume greater, but not consume semi
-          SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
-          if (Tok.getKind() == tok::greater) ConsumeToken();
-          return true;
-        }
-      } else
-        firstTypeArgument = false;
-
-      // Expect to see type name.
-      TypeResult Ty = ParseTypeName();
-      if (Ty.isInvalid()) {
-        // We do not need to write an error message since ParseTypeName does.
+  bool firstTypeArgument = true;
+  // Expect to see a list of type names, followed by a '>'.
+  while (Tok.getKind() != tok::greater) {
+    if (!firstTypeArgument) {
+      if (ExpectAndConsume(tok::comma,
+        diag::err_type_function_comma_or_greater_expected)) {
         // We want to consume greater, but not consume semi
         SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
         if (Tok.getKind() == tok::greater) ConsumeToken();
-        return true;
+        return ExprError();
       }
+    } else
+      firstTypeArgument = false;
 
-      TypeSourceInfo *TInfo;
-      QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
-      typeArgumentInfos.push_back({ realType, TInfo });
+    // Expect to see type name.
+    TypeResult Ty = ParseTypeName();
+    if (Ty.isInvalid()) {
+      // We do not need to write an error message since ParseTypeName does.
+      // We want to consume greater, but not consume semi
+      SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+      if (Tok.getKind() == tok::greater) ConsumeToken();
+      return ExprError();
     }
-    ConsumeToken(); // consume '>' token
 
-    // Sanity check to make sure that the number of type names equals the
-    // number of type variables in func Type.
-    if (funcType->getNumTypeVars() != typeArgumentInfos.size()) {
-      // The location of beginning of _For_any is stored in typeVariables
-      Diag(lessLoc,
-        diag::err_type_list_and_type_variable_num_mismatch);
-      Diag(funDecl->typeVariables()[0]->getLocStart(),
-        diag::note_type_variables_declared_at);
-      return true;
-    }
-    // Add parsed list of type names to declRefExpr for future references
-    declRef->SetGenericInstInfo(Actions.getASTContext(), typeArgumentInfos);
-
-    // Substitute Type Variables of Function Type in DeclRefExpr
-    declRef->setType(SubstituteTypeVariable(funDecl->getType(), typeArgumentInfos));
+    TypeSourceInfo *TInfo;
+    QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
+    typeArgumentInfos.push_back({ realType, TInfo });
   }
-  return false;
+  ConsumeToken(); // consume '>' token
+
+  auto TypeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>(typeArgumentInfos);
+  return Actions.ActOnTypeApplication(Res, Loc, TypeArgs);
 }
 
 bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {
