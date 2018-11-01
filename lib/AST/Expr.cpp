@@ -1668,9 +1668,6 @@ namespace {
     if (CXXBindTemporaryExpr *Binder = dyn_cast<CXXBindTemporaryExpr>(expr))
       expr = Binder->getSubExpr();
 
-    if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(expr))
-      expr = Temp->getSubExpr();
-
     return expr;
   }
 }
