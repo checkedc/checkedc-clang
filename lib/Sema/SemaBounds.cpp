@@ -423,6 +423,7 @@ namespace {
   };
 
   Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E) {
+    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
     ExprResult R = PruneTemporaryHelper(SemaRef).TransformExpr(E);
     assert(!R.isInvalid());
     return R.get();
