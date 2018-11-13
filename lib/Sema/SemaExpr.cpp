@@ -5486,13 +5486,13 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     // where no type arguments have been specified.
     if (Fn->getType()->isItypeGenericFunctionType()) {
        // It is an error in a checked scope.
-      if (GetCheckedScopeInfo() == CSS_BoundsAndTypes) {
+      CheckedScopeSpecifier CSS = GetCheckedScopeInfo();
+      if (CSS == CSS_BoundsAndTypes || CSS == CSS_Bounds) {
         Diag(Fn->getLocEnd(),
               diag::err_expected_type_argument_list_for_itype_generic_call);
         return ExprError();
       }
-      // In an unchecked or checked bounds-only scope,  pass void types
-      // as the type arguments.
+      // In an unchecked scope, pass void types as the type arguments.
       if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(Fn)) {
         SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4>
            typeArgumentInfos;
@@ -5507,7 +5507,7 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
         // a type application node.
         DR->SetGenericInstInfo(Context, typeArgumentInfos);
 
-        // Substitute Type Variables of Function Type in DeclRefExpr
+        // Substitute type arguments into function type in DeclRefExpr
         QualType NewTy =
           SubstituteTypeArgs(DR->getType(), typeArgumentInfos);
         DR->setType(NewTy);
