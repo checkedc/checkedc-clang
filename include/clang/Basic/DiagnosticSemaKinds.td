@@ -9413,8 +9413,8 @@ def err_typecheck_ptr_subscript : Error<
   "subscript of %0">;
 
 def err_checkedc_void_pointer_assign : Error<
-  "implicit conversion not permitted in checked scope between between void pointer "
-  "and pointer to data containing checked pointers (%0 and %1)">;
+  "implicit conversion between %0 and %1 is not allowed in a checked scope "
+  "because %2 contains or is a checked pointer">;
 
 def err_typecheck_cond_incompatible_checked_pointer : Error<
   "pointer type mismatch%diff{ ($ and $)|}0,1">;
