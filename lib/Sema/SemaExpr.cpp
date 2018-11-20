@@ -6816,7 +6816,15 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
       (lhkind == rhkind || rhkind == CheckedPointerKind::Unchecked)) {
     // Null-terminated void pointers are illegal, so we don't have to worry
     // about that case.
-    assert(lhkind != CheckedPointerKind::NtArray); 
+    assert(lhkind != CheckedPointerKind::NtArray);
+    // In checked scopes, casting one arm to void pointer to match
+    // the other arm is not allowed.
+    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_BoundsAndTypes &&
+        rhptee->containsCheckedValue(true) != Type::NoCheckedValue) {
+      S.Diag(Loc, diag::err_checkedc_void_pointer_cond) << RHSTy << LHSTy <<
+        rhptee << RHS.get()->getSourceRange();
+      return QualType();
+    }
     // Figure out necessary qualifiers (C99 6.5.15p6)
     QualType destPointee
       = S.Context.getQualifiedType(lhptee, rhptee.getQualifiers());
@@ -6832,6 +6840,12 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
     // Null-terminated void pointers are illegal, so we don't have to worry
     // about that case.
     assert(rhkind != CheckedPointerKind::NtArray);
+    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_BoundsAndTypes &&
+        lhptee->containsCheckedValue(true) != Type::NoCheckedValue) {
+      S.Diag(Loc, diag::err_checkedc_void_pointer_cond) << LHSTy << RHSTy <<
+        lhptee << LHS.get()->getSourceRange();
+      return QualType();
+    }
     QualType destPointee
       = S.Context.getQualifiedType(rhptee, lhptee.getQualifiers());
     QualType destType = S.Context.getPointerType(destPointee, rhkind);

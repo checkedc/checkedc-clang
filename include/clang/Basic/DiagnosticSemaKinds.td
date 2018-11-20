@@ -9416,6 +9416,10 @@ def err_checkedc_void_pointer_assign : Error<
   "implicit conversion between %0 and %1 is not allowed in a checked scope "
   "because %2 contains or is a checked pointer">;
 
+def err_checkedc_void_pointer_cond : Error<
+  "implicit conversion from %0 to %1 not allowed in a checked scope "
+  "because %2 contains or is a checked pointer">;
+
 def err_typecheck_cond_incompatible_checked_pointer : Error<
   "pointer type mismatch%diff{ ($ and $)|}0,1">;
 
