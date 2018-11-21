@@ -335,7 +335,7 @@ public:
   static const CSS CSS_None = clang::CSS_None;
   static const CSS CSS_Unchecked = clang::CSS_Unchecked;
   static const CSS CSS_Bounds = clang::CSS_Bounds;
-  static const CSS CSS_BoundsAndTypes = clang::CSS_BoundsAndTypes;
+  static const CSS CSS_Memory = clang::CSS_Memory;
 
 
 private:

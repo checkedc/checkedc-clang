@@ -503,7 +503,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       case CSS_None: break;
       case CSS_Unchecked: Out << "_Unchecked "; break;
       case CSS_Bounds: Out << "_Checked _Bounds_only"; break;
-      case CSS_BoundsAndTypes: Out << "_Checked "; break;
+      case CSS_Memory: Out << "_Checked "; break;
     }
     if (D->isInlineSpecified())  Out << "inline ";
     if (D->isVirtualAsWritten()) Out << "virtual ";

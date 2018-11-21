@@ -1089,7 +1089,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
 
   CheckedScopeSpecifier CSS = CSS_None;
   if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)) {
-    CSS = CSS_BoundsAndTypes;
+    CSS = CSS_Memory;
     ConsumeToken();
   } else if (Tok.is(tok::kw__Checked) && NextToken().is(tok::kw__Bounds_only) &&
     GetLookAheadToken(2).is(tok::l_brace)) {

@@ -9412,6 +9412,14 @@ def err_bounds_safe_interface_type_annotation_local_variable : Error<
 def err_typecheck_ptr_subscript : Error<
   "subscript of %0">;
 
+def err_checkedc_void_pointer_assign : Error<
+  "implicit conversion between %0 and %1 is not allowed in a checked scope "
+  "because %2 contains or is a checked pointer">;
+
+def err_checkedc_void_pointer_cond : Error<
+  "implicit conversion from %0 to %1 not allowed in a checked scope "
+  "because %2 contains or is a checked pointer">;
+
 def err_typecheck_cond_incompatible_checked_pointer : Error<
   "pointer type mismatch%diff{ ($ and $)|}0,1">;
 
@@ -9465,7 +9473,6 @@ def err_typecheck_void_pointer_count_bounds_cast : Error<
 
 def err_typecheck_non_count_bounds_decl : Error<
   "expected %0 to have a pointer, array, or integer type">;
-
 def err_typecheck_non_count_return_bounds : Error<
   "bounds declaration only allowed for a pointer or integer return type">;
 

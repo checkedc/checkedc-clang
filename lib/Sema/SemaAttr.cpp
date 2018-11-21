@@ -690,7 +690,7 @@ void Sema::ActOnPragmaOptimize(bool On, SourceLocation PragmaLoc) {
 void Sema::ActOnPragmaCheckedScope(PragmaCheckedScopeKind Kind,
                                    SourceLocation Loc) {
   switch (Kind) {
-    case PCSK_On: SetCheckedScopeInfo(CSS_BoundsAndTypes); break;
+    case PCSK_On: SetCheckedScopeInfo(CSS_Memory); break;
     case PCSK_BoundsOnly: SetCheckedScopeInfo(CSS_Bounds); break;
     case PCSK_Off: SetCheckedScopeInfo(CSS_Unchecked); break;
     case PCSK_Push: PushCheckedScopeInfo(Loc); break;

@@ -335,7 +335,7 @@ namespace clang {
 
     /// Check properties for bounds safety and preventing type confusion.
     /// Corresponds to _Bounds
-    CSS_BoundsAndTypes = 0x3
+    CSS_Memory = 0x3
   };
 
 } // end namespace clang

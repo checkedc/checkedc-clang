@@ -9901,6 +9901,11 @@ public:
     /// object with __weak qualifier.
     IncompatibleObjCWeakRef,
 
+    /// IncompatibleCheckedCVoid - Assignments to/from void pointers to pointers
+    /// to data containing checked pointers is not allowed in regular checked
+    /// scopes. It is allowed only in unchecked and checked bounds_only scopes.
+    IncompatibleCheckedCVoid,
+
     /// Incompatible - We reject this conversion outright, it is invalid to
     /// represent it in the AST.
     Incompatible

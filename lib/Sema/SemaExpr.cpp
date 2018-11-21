@@ -5487,7 +5487,7 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     if (Fn->getType()->isItypeGenericFunctionType()) {
        // It is an error in a checked scope.
       CheckedScopeSpecifier CSS = GetCheckedScopeInfo();
-      if (CSS == CSS_BoundsAndTypes || CSS == CSS_Bounds) {
+      if (CSS == CSS_Memory || CSS == CSS_Bounds) {
         Diag(Fn->getLocEnd(),
               diag::err_expected_type_argument_list_for_itype_generic_call);
         return ExprError();
@@ -6816,7 +6816,15 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
       (lhkind == rhkind || rhkind == CheckedPointerKind::Unchecked)) {
     // Null-terminated void pointers are illegal, so we don't have to worry
     // about that case.
-    assert(lhkind != CheckedPointerKind::NtArray); 
+    assert(lhkind != CheckedPointerKind::NtArray);
+    // In checked scopes, casting one arm to void pointer to match
+    // the other arm is not allowed.
+    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory &&
+        rhptee->containsCheckedValue(true) != Type::NoCheckedValue) {
+      S.Diag(Loc, diag::err_checkedc_void_pointer_cond) << RHSTy << LHSTy <<
+        rhptee << RHS.get()->getSourceRange();
+      return QualType();
+    }
     // Figure out necessary qualifiers (C99 6.5.15p6)
     QualType destPointee
       = S.Context.getQualifiedType(lhptee, rhptee.getQualifiers());
@@ -6832,6 +6840,12 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
     // Null-terminated void pointers are illegal, so we don't have to worry
     // about that case.
     assert(rhkind != CheckedPointerKind::NtArray);
+    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory &&
+        lhptee->containsCheckedValue(true) != Type::NoCheckedValue) {
+      S.Diag(Loc, diag::err_checkedc_void_pointer_cond) << LHSTy << RHSTy <<
+        lhptee << LHS.get()->getSourceRange();
+      return QualType();
+    }
     QualType destPointee
       = S.Context.getQualifiedType(rhptee, lhptee.getQualifiers());
     QualType destType = S.Context.getPointerType(destPointee, rhkind);
@@ -7699,9 +7713,11 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   // Handle Checked C cases (where one pointer is checked).
   if (lhkind != CheckedPointerKind::Unchecked ||
       rhkind != CheckedPointerKind::Unchecked) {
-    // Implicit conversions to checked void pointers:
-    // - Allow conversions from any pointer to a _Ptr or _Array_ptr void
-    // pointer.
+    // Implicit conversions to checked void pointers.
+    // - In unchecked scopes and bounds-safe checked scopes, allow conversions
+    // from any pointer to a _Ptr or _Array_ptr void type.
+    // - In memory-safe checked scopes, allow conversions from pointers to data
+    // that doesn't contain a checked pointer.
     // - Note that Nt_array_ptr<void> is not a legal type. This
     // code would not allow conversions to it, if it were.
     // - Do not have an extension allowing casts from checked function
@@ -7709,20 +7725,31 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     if (lhptee->isVoidType() && (lhkind == CheckedPointerKind::Ptr ||
                                  lhkind == CheckedPointerKind::Array) &&
         rhptee->isIncompleteOrObjectType()) {
+      if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory
+          && rhptee->containsCheckedValue(true) != Type::NoCheckedValue)
+        return Sema::IncompatibleCheckedCVoid;
       return ConvTy;
     }
 
     // Implicit conversions from void pointers to checked pointers.
-    // - Allow any void pointer except _Ptr to be converted to a _Ptr or
-    // _Array_ptr type (the void pointer must still have  appropriate bounds).
+    // - In unchecked scopes and bounds-safe checked scopes, allow any void
+    // pointer to be converted to a _Ptr or _Array_ptr type
+    // (the void pointer must still have  appropriate bounds).
+    // - In memory-safe checked scopes, allow any void pointer to be
+    // converted to a _Ptr or _Array_ptr to data that doesn't
+    // contain a checked pointer.
     // - Do not allow conversions to Nt_array_ptr types.
     // - Do not have an extension allowing casts from checked void pointers
     // to checked function pointers.
     if (rhptee->isVoidType() && lhptee->isIncompleteOrObjectType()) {
       if (rhkind != CheckedPointerKind::Ptr &&
           (lhkind == CheckedPointerKind::Ptr ||
-           lhkind == CheckedPointerKind::Array))
+           lhkind == CheckedPointerKind::Array)) {
+        if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory
+            && lhptee->containsCheckedValue(true) != Type::NoCheckedValue)
+          return Sema::IncompatibleCheckedCVoid;
         return ConvTy;
+      }
     }
   }
 
@@ -8466,7 +8493,8 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
   // so that we can use references in built-in functions even in C.
   // The getNonReferenceType() call makes sure that the resulting expression
   // does not have reference type.
-  if (result != Incompatible && RHS.get()->getType() != LHSType) {
+  if (result != Incompatible && result != IncompatibleCheckedCVoid &&
+      RHS.get()->getType() != LHSType) {
     QualType Ty = LHSType.getNonLValueExprType(Context);
     Expr *E = RHS.get();
 
@@ -8497,9 +8525,10 @@ Sema::CheckSingleAssignmentConstraints(QualType LHSType, ExprResult &CallerRHS,
 
   // If we can't convert to the LHS type, try the LHS interop type instead.
   // Note that we have to insert a cast that "downgrades" the checkedness.
-  if (result == Incompatible && !LHSInteropType.isNull()) {
+  if ((result == Incompatible || result == IncompatibleCheckedCVoid) &&
+      !LHSInteropType.isNull()) {
     result = CheckAssignmentConstraints(LHSInteropType, RHS, Kind, ConvertRHS);
-    if (result != Incompatible) {
+    if (result != Incompatible && result != IncompatibleCheckedCVoid) {
       assert(!LHSType->isReferenceType());
       assert(!LHSInteropType->isReferenceType());
       if (ConvertRHS) {
@@ -14194,6 +14223,21 @@ bool Sema::DiagnoseAssignmentResult(AssignConvertType ConvTy,
   case IncompatibleObjCWeakRef:
     DiagKind = diag::err_arc_weak_unavailable_assign;
     break;
+  case IncompatibleCheckedCVoid: {
+    QualType VoidType;
+    QualType NonVoidType;
+    if (SrcType->isVoidPointerType()) {
+      VoidType = SrcType;
+      NonVoidType = DstType;
+    } else {
+      VoidType = DstType;
+      NonVoidType = SrcType;
+    }
+    Diag(Loc, diag::err_checkedc_void_pointer_assign) << VoidType << NonVoidType <<
+      (QualType(NonVoidType->getPointeeOrArrayElementType(), 0));
+    *Complained = true;
+    return true;
+  }
   case Incompatible:
     if (maybeDiagnoseAssignmentToFunction(*this, DstType, SrcExpr)) {
       if (Complained)
