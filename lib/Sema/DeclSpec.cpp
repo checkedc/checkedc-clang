@@ -961,7 +961,7 @@ bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
       case CSS_None: PrevSpec = ""; break;
       case CSS_Unchecked: PrevSpec = "_Unchecked"; break;
       case CSS_Bounds: PrevSpec = "_Checked _Bounds_only"; break;
-      case CSS_BoundsAndTypes: PrevSpec = "_Checked"; break;
+      case CSS_Memory: PrevSpec = "_Checked"; break;
     }
     return true;
   }

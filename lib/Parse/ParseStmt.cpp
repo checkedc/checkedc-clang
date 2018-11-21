@@ -894,7 +894,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) 
   SourceLocation CSSLoc;
   SourceLocation CSMLoc;
   if (Tok.is(tok::kw__Checked)) {
-    CSS = CSS_BoundsAndTypes;
+    CSS = CSS_Memory;
     CSSLoc = ConsumeToken();
     if (Tok.is(tok::kw__Bounds_only)) {
       CSS = CSS_Bounds;

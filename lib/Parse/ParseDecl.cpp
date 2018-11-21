@@ -3080,7 +3080,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
             CSS = CSS_Bounds;
             ConsumeToken();
            } else
-            CSS = CSS_BoundsAndTypes;
+            CSS = CSS_Memory;
         }
         isInvalid = DS.setFunctionSpecChecked(Loc, CSS, PrevSpec, DiagID);
         break;

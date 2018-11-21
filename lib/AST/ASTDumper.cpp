@@ -1204,7 +1204,7 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
   switch (D->getWrittenCheckedSpecifier()) {
     case CSS_None: break;
     case CSS_Bounds: OS << " checked bounds_only"; break;
-    case CSS_BoundsAndTypes: OS << " checked"; break;
+    case CSS_Memory: OS << " checked"; break;
     case CSS_Unchecked: OS << " unchecked"; break;
   }
 
@@ -2056,7 +2056,7 @@ void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
     case CSS_None: break;
     case CSS_Unchecked: OS << " _Unchecked "; break;
     case CSS_Bounds: OS <<  " _Checked _Bounds_only "; break;
-    case CSS_BoundsAndTypes: OS << " _Checked "; break;
+    case CSS_Memory: OS << " _Checked "; break;
   }
 
 

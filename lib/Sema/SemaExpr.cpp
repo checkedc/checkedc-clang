@@ -5487,7 +5487,7 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
     if (Fn->getType()->isItypeGenericFunctionType()) {
        // It is an error in a checked scope.
       CheckedScopeSpecifier CSS = GetCheckedScopeInfo();
-      if (CSS == CSS_BoundsAndTypes || CSS == CSS_Bounds) {
+      if (CSS == CSS_Memory || CSS == CSS_Bounds) {
         Diag(Fn->getLocEnd(),
               diag::err_expected_type_argument_list_for_itype_generic_call);
         return ExprError();
@@ -6819,7 +6819,7 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
     assert(lhkind != CheckedPointerKind::NtArray);
     // In checked scopes, casting one arm to void pointer to match
     // the other arm is not allowed.
-    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_BoundsAndTypes &&
+    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory &&
         rhptee->containsCheckedValue(true) != Type::NoCheckedValue) {
       S.Diag(Loc, diag::err_checkedc_void_pointer_cond) << RHSTy << LHSTy <<
         rhptee << RHS.get()->getSourceRange();
@@ -6840,7 +6840,7 @@ checkConditionalObjectPointersCompatibility(Sema &S, ExprResult &LHS,
     // Null-terminated void pointers are illegal, so we don't have to worry
     // about that case.
     assert(rhkind != CheckedPointerKind::NtArray);
-    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_BoundsAndTypes &&
+    if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory &&
         lhptee->containsCheckedValue(true) != Type::NoCheckedValue) {
       S.Diag(Loc, diag::err_checkedc_void_pointer_cond) << LHSTy << RHSTy <<
         lhptee << LHS.get()->getSourceRange();
@@ -7714,10 +7714,10 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
   if (lhkind != CheckedPointerKind::Unchecked ||
       rhkind != CheckedPointerKind::Unchecked) {
     // Implicit conversions to checked void pointers.
-    // - In unchecked scopes and checked bounds_only scopes, allow conversions
-    // from any pointer a _Ptr or _Array_ptr void type.
-    // - In regular checked scopes, allow conversions for pointers to data
-    // that doesn't contain a check pointer to a _Ptr _Array_ptr void type.
+    // - In unchecked scopes and bounds-safe checked scopes, allow conversions
+    // from any pointer to a _Ptr or _Array_ptr void type.
+    // - In memory-safe checked scopes, allow conversions from pointers to data
+    // that doesn't contain a checked pointer.
     // - Note that Nt_array_ptr<void> is not a legal type. This
     // code would not allow conversions to it, if it were.
     // - Do not have an extension allowing casts from checked function
@@ -7725,19 +7725,19 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
     if (lhptee->isVoidType() && (lhkind == CheckedPointerKind::Ptr ||
                                  lhkind == CheckedPointerKind::Array) &&
         rhptee->isIncompleteOrObjectType()) {
-      if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_BoundsAndTypes
+      if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory
           && rhptee->containsCheckedValue(true) != Type::NoCheckedValue)
         return Sema::IncompatibleCheckedCVoid;
       return ConvTy;
     }
 
     // Implicit conversions from void pointers to checked pointers.
-    // - In unchecked scopes and checked bounds_only scopes, allow any void
+    // - In unchecked scopes and bounds-safe checked scopes, allow any void
     // pointer to be converted to a _Ptr or _Array_ptr type
     // (the void pointer must still have  appropriate bounds).
-    // - In regular checked scopes, allow any void pointer to be
-    // converted to _Ptr or _Array_ptr type to data that doesn't
-    // contain a checked pointer type.
+    // - In memory-safe checked scopes, allow any void pointer to be
+    // converted to a _Ptr or _Array_ptr to data that doesn't
+    // contain a checked pointer.
     // - Do not allow conversions to Nt_array_ptr types.
     // - Do not have an extension allowing casts from checked void pointers
     // to checked function pointers.
@@ -7745,7 +7745,7 @@ checkPointerTypesForAssignment(Sema &S, QualType LHSType, QualType RHSType) {
       if (rhkind != CheckedPointerKind::Ptr &&
           (lhkind == CheckedPointerKind::Ptr ||
            lhkind == CheckedPointerKind::Array)) {
-        if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_BoundsAndTypes
+        if (S.GetCheckedScopeInfo() == CheckedScopeSpecifier::CSS_Memory
             && lhptee->containsCheckedValue(true) != Type::NoCheckedValue)
           return Sema::IncompatibleCheckedCVoid;
         return ConvTy;
