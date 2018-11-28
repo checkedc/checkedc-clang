@@ -134,6 +134,7 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::FoldingSet<ComplexType> ComplexTypes;
   mutable llvm::FoldingSet<PointerType> PointerTypes;
   mutable llvm::FoldingSet<TypeVariableType> TypeVariableTypes;
+  mutable llvm::FoldingSet<TypeOpaqueType> TypeOpaqueTypes;
   mutable llvm::FoldingSet<AdjustedType> AdjustedTypes;
   mutable llvm::FoldingSet<BlockPointerType> BlockPointerTypes;
   mutable llvm::FoldingSet<LValueReferenceType> LValueReferenceTypes;
@@ -1341,6 +1342,10 @@ public:
   /// typedef-name decl.
   QualType getTypedefType(const TypedefNameDecl *Decl,
                           QualType Canon = QualType()) const;
+
+  /// \brief Return the unique reference to the type for the specified
+  /// opaquetype-name decl.
+  QualType getTypeOpaqueType(const TypeOpaqueDecl *Decl) const;
 
   QualType getRecordType(const RecordDecl *Decl) const;
 

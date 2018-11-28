@@ -1917,7 +1917,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     }
     Width = Info.Width;
     break;
-  }    
+  }
+
+  case Type::TypeOpaque:
+    Width = 0;
+    Align = 8;
+    break;
   
   case Type::TypeVariable:
     Width = 0;
@@ -2530,6 +2535,50 @@ QualType ASTContext::getTypeVariableType(unsigned int inDepth, unsigned int inIn
   TypeVariableTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
 }
+
+
+ /// getTypeOpaqueType - Return the unique reference to the type for the
+/// specified typedef name decl.
+QualType
+ASTContext::getTypeOpaqueType(const TypeOpaqueDecl *Decl) const {
+  if (Decl->TypeForDecl) return QualType(Decl->TypeForDecl, 0);
+
+  TypeOpaqueType *newType = new(*this, TypeAlignment) TypeOpaqueType(Type::TypeOpaque, Decl);
+  Decl->TypeForDecl = newType;
+  Types.push_back(newType);
+  return QualType(newType, 0);
+}
+ /*
+  /// getTypedefType - Return the unique reference to the type for the
+/// specified typedef name decl.
+QualType
+ASTContext::getTypedefType(const TypedefNameDecl *Decl,
+                           QualType Canonical) const {
+  if (Decl->TypeForDecl) return QualType(Decl->TypeForDecl, 0);
+
+  if (Canonical.isNull())
+    Canonical = getCanonicalType(Decl->getUnderlyingType());
+  TypedefType *newType = new(*this, TypeAlignment)
+    TypedefType(Type::Typedef, Decl, Canonical);
+  Decl->TypeForDecl = newType;
+  Types.push_back(newType);
+  return QualType(newType, 0);
+}
+ QualType ASTContext::getTypeOpaqueType(unsigned int inDepth, unsigned int inIndex,
+                                          const bool isInBoundsSafeInterface) const {
+  llvm::FoldingSetNodeID ID;
+  TypeVariableType::Profile(ID, inDepth, inIndex, isInBoundsSafeInterface);
+
+  void *InsertPos = nullptr;
+  if (TypeVariableType *PT = TypeVariableTypes.FindNodeOrInsertPos(ID, InsertPos))
+    return QualType(PT, 0);
+
+  TypeVariableType *New = new (*this, TypeAlignment) TypeVariableType(inDepth, inIndex, isInBoundsSafeInterface);
+  Types.push_back(New);
+  TypeVariableTypes.InsertNode(New, InsertPos);
+  return QualType(New, 0);
+}
+ * */
 
 QualType ASTContext::getAdjustedType(QualType Orig, QualType New) const {
   llvm::FoldingSetNodeID ID;

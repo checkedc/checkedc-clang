@@ -4328,6 +4328,12 @@ TypedefDecl *TypedefDecl::Create(ASTContext &C, DeclContext *DC,
   return new (C, DC) TypedefDecl(C, DC, StartLoc, IdLoc, Id, TInfo);
 }
 
+TypeOpaqueDecl *TypeOpaqueDecl::Create(ASTContext &C, DeclContext *DC,
+                                 SourceLocation StartLoc, SourceLocation IdLoc,
+                                 IdentifierInfo *Id, TypeSourceInfo *TInfo) {
+  return new (C, DC) TypeOpaqueDecl(C, DC, StartLoc, IdLoc, Id, TInfo);
+}
+
 void TypedefNameDecl::anchor() { }
 
 TagDecl *TypedefNameDecl::getAnonDeclWithTypedefName(bool AnyRedecl) const {
@@ -4371,6 +4377,11 @@ bool TypedefNameDecl::isTransparentTagSlow() const {
 
 TypedefDecl *TypedefDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
   return new (C, ID) TypedefDecl(C, nullptr, SourceLocation(), SourceLocation(),
+                                 nullptr, nullptr);
+}
+
+TypeOpaqueDecl *TypeOpaqueDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
+  return new (C, ID) TypeOpaqueDecl(C, nullptr, SourceLocation(), SourceLocation(),
                                  nullptr, nullptr);
 }
 
