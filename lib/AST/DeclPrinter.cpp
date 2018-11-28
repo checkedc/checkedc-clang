@@ -59,6 +59,7 @@ namespace {
     void VisitTranslationUnitDecl(TranslationUnitDecl *D);
     void VisitTypedefDecl(TypedefDecl *D);
     void VisitTypeAliasDecl(TypeAliasDecl *D);
+    void VisitTypeOpaqueDecl(TypeOpaqueDecl *D);
     void VisitEnumDecl(EnumDecl *D);
     void VisitRecordDecl(RecordDecl *D);
     void VisitEnumConstantDecl(EnumConstantDecl *D);
@@ -421,6 +422,12 @@ void DeclPrinter::VisitTypedefDecl(TypedefDecl *D) {
 
 void DeclPrinter::VisitTypeAliasDecl(TypeAliasDecl *D) {
   Out << "using " << *D;
+  prettyPrintAttributes(D);
+  Out << " = " << D->getTypeSourceInfo()->getType().getAsString(Policy);
+}
+
+void DeclPrinter::VisitTypeOpaqueDecl(TypeOpaqueDecl *D) {
+  Out << "opaquetype " << *D;
   prettyPrintAttributes(D);
   Out << " = " << D->getTypeSourceInfo()->getType().getAsString(Policy);
 }

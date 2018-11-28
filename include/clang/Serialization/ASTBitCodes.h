@@ -1057,6 +1057,8 @@ namespace clang {
       DECL_TYPEDEF = 51,
       /// \brief A TypeAliasDecl record.
       DECL_TYPEALIAS,
+      /// \brief A TypeOpaqueDecl record.
+      DECL_TYPEOPAQUE,
       /// \brief An EnumDecl record.
       DECL_ENUM,
       /// \brief A RecordDecl record.

@@ -702,6 +702,9 @@ void TypeLocWriter::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
 void TypeLocWriter::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
+void TypeLocWriter::VisitTypeOpaqueTypeLoc(TypeOpaqueTypeLoc TL) {
+  Record.AddSourceLocation(TL.getNameLoc());
+}
 void TypeLocWriter::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }

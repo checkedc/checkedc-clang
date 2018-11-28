@@ -655,7 +655,7 @@ class TypeOpaqueTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
         TypeOpaqueTypeLoc,
         TypeOpaqueType> {
 public:
-    TypeOpaqueDecl *getTypeOpaqueDecl() const {
+    TypeOpaqueDecl *getTypeOpaqueTypeDecl() const {
       return getTypePtr()->getDecl();
     }
 };

@@ -178,6 +178,7 @@ namespace clang {
   class Token;
   class TypeAliasDecl;
   class TypedefDecl;
+  class TypeOpaqueDecl;
   class TypedefNameDecl;
   class TypeLoc;
   class TypoCorrectionConsumer;

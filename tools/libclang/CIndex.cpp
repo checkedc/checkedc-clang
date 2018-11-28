@@ -1535,6 +1535,10 @@ bool CursorVisitor::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
   return false;
 }
 
+bool CursorVisitor::VisitTypeOpaqueTypeLoc(TypeOpaqueTypeLoc TL) {
+  return Visit(MakeCursorTypeRef(TL.getTypeOpaqueTypeDecl(), TL.getNameLoc(), TU));
+}
+
 bool CursorVisitor::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   return Visit(MakeCursorTypeRef(TL.getDecl(), TL.getNameLoc(), TU));
 }

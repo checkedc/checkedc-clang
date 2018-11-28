@@ -221,6 +221,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::Atomic:
     case Type::Pipe:
     case Type::TypeVariable:
+    case Type::TypeOpaque:
       CanPrefixQualifiers = true;
       break;
       
@@ -950,6 +951,11 @@ void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
 }
 
 void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream &OS) { }
+
+void TypePrinter::printTypeOpaqueBefore(const TypeOpaqueType *T, raw_ostream &OS) {
+  printTypeSpec(T->getDecl(), OS);
+}
+void TypePrinter::printTypeOpaqueAfter(const TypeOpaqueType *T, raw_ostream &OS) { }
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) { 
   printTypeSpec(T->getDecl(), OS);
