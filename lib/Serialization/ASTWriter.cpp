@@ -335,6 +335,13 @@ void ASTTypeWriter::VisitTypedefType(const TypedefType *T) {
   Code = TYPE_TYPEDEF;
 }
 
+void ASTTypeWriter::VisitTypeOpaqueType(const TypeOpaqueType *T) {
+  Record.AddDeclRef(T->getDecl());
+  assert(!T->isCanonicalUnqualified() && "Invalid typeopaque ?"); //$TODO$ need to revisit how to handle canonical type here
+  Record.AddTypeRef(T->getCanonicalTypeInternal());
+  Code = TYPE_TYPEOPAQUE;
+}
+
 void ASTTypeWriter::VisitTypeVariableType(const TypeVariableType *T) {
   Record.push_back(T->GetDepth());
   Record.push_back(T->GetIndex());
@@ -700,6 +707,9 @@ void TypeLocWriter::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 void TypeLocWriter::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
+  Record.AddSourceLocation(TL.getNameLoc());
+}
+void TypeLocWriter::VisitTypeOpaqueTypeLoc(TypeOpaqueTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 void TypeLocWriter::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
@@ -1228,6 +1238,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(LOCAL_REDECLARATIONS);
   RECORD(DECL_TYPEDEF);
   RECORD(DECL_TYPEALIAS);
+  RECORD(DECL_TYPEOPAQUE);
   RECORD(DECL_ENUM);
   RECORD(DECL_RECORD);
   RECORD(DECL_ENUM_CONSTANT);

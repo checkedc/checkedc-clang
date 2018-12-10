@@ -141,7 +141,8 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
     return CGM.EmitOMPDeclareReduction(cast<OMPDeclareReductionDecl>(&D), this);
 
   case Decl::Typedef:      // typedef int X;
-  case Decl::TypeAlias: {  // using X = int; [C++0x]
+  case Decl::TypeAlias:    // using X = int; [C++0x]
+  case Decl::TypeOpaque: {
     const TypedefNameDecl &TD = cast<TypedefNameDecl>(D);
     QualType Ty = TD.getUnderlyingType();
 

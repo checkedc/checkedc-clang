@@ -2867,6 +2867,9 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   case Type::Pipe:
     llvm_unreachable("Pipe types shouldn't get here");
 
+  case Type::TypeOpaque:
+    llvm_unreachable("Type Opaque is Checked C specific and shouldn't get here");
+
   case Type::TypeVariable:
     llvm_unreachable("BuildVTablePointer for Type Variable is not yet implemented");
 
@@ -3101,6 +3104,8 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(QualType Ty, bool Force,
 
   case Type::Pipe:
     llvm_unreachable("Pipe type shouldn't get here");
+  case Type::TypeOpaque:
+    llvm_unreachable("Type opaque type is Checked C specific and shouldn't get here");
   case Type::TypeVariable:
     llvm_unreachable("Type variable type shouldn't get here");
 

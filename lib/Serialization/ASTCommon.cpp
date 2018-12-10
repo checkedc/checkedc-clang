@@ -246,6 +246,7 @@ bool serialization::isRedeclarableDeclKind(unsigned Kind) {
   case Decl::NamespaceAlias:
   case Decl::Typedef:
   case Decl::TypeAlias:
+  case Decl::TypeOpaque: //$TODO$ may have to revisit this
   case Decl::Enum:
   case Decl::Record:
   case Decl::CXXRecord:

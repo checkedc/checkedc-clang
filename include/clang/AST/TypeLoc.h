@@ -650,6 +650,17 @@ public:
   }
 };
 
+/// \brief Wrapper for source info for typedefs.
+class TypeOpaqueTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
+        TypeOpaqueTypeLoc,
+        TypeOpaqueType> {
+public:
+    TypeOpaqueDecl *getTypeOpaqueTypeDecl() const {
+      return getTypePtr()->getDecl();
+    }
+};
+
+
 /// \brief Wrapper for source info for injected class names of class
 /// templates.
 class InjectedClassNameTypeLoc :

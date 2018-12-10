@@ -291,6 +291,7 @@ namespace clang {
     RedeclarableResult VisitTypedefNameDecl(TypedefNameDecl *TD);
     void VisitTypedefDecl(TypedefDecl *TD);
     void VisitTypeAliasDecl(TypeAliasDecl *TD);
+    void VisitTypeOpaqueDecl(TypeOpaqueDecl *TD);
     void VisitUnresolvedUsingTypenameDecl(UnresolvedUsingTypenameDecl *D);
     RedeclarableResult VisitTagDecl(TagDecl *TD);
     void VisitEnumDecl(EnumDecl *ED);
@@ -637,6 +638,11 @@ ASTDeclReader::VisitTypedefNameDecl(TypedefNameDecl *TD) {
 }
 
 void ASTDeclReader::VisitTypedefDecl(TypedefDecl *TD) {
+  RedeclarableResult Redecl = VisitTypedefNameDecl(TD);
+  mergeRedeclarable(TD, Redecl);
+}
+
+void ASTDeclReader::VisitTypeOpaqueDecl(TypeOpaqueDecl *TD) {
   RedeclarableResult Redecl = VisitTypedefNameDecl(TD);
   mergeRedeclarable(TD, Redecl);
 }
@@ -3405,6 +3411,9 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
     break;
   case DECL_TYPEALIAS:
     D = TypeAliasDecl::CreateDeserialized(Context, ID);
+    break;
+  case DECL_TYPEOPAQUE:
+    D = TypeOpaqueDecl::CreateDeserialized(Context, ID);
     break;
   case DECL_ENUM:
     D = EnumDecl::CreateDeserialized(Context, ID);

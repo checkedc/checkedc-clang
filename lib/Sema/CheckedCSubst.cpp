@@ -89,7 +89,7 @@ public:
     BaseTransform(SemaRef), TypeArgs(TypeArgs), Depth(Depth) {}
 
   QualType TransformTypeVariableType(TypeLocBuilder &TLB,
-                                     TypeVariableTypeLoc TL) {
+                                     TypeVariableTypeLoc TL) {//$TODO$ TransformTypeOpaqueType needs implementation
     const TypeVariableType *TV = TL.getTypePtr();
     unsigned TVDepth = TV->GetDepth();
 

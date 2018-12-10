@@ -215,6 +215,16 @@ const internal::VariadicDynCastAllOfMatcher<Decl, TypedefNameDecl>
 ///   matches "using Y = int", but not "typedef int X"
 const internal::VariadicDynCastAllOfMatcher<Decl, TypeAliasDecl> typeAliasDecl;
 
+/// \brief Matches typeopaque name declarations.
+///
+/// Given
+/// \code
+///   opaquetype int* X;
+/// \endcode
+/// typeOpaqueDecl()
+const internal::VariadicDynCastAllOfMatcher<Decl, TypeOpaqueDecl>
+        typeOpaqueDecl;
+
 /// \brief Matches type alias template declarations.
 ///
 /// typeAliasTemplateDecl() matches

@@ -1917,7 +1917,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     }
     Width = Info.Width;
     break;
-  }    
+  }
+
+  case Type::TypeOpaque:
+    Width = 0;
+    Align = 8;
+    break;
   
   case Type::TypeVariable:
     Width = 0;
@@ -2531,6 +2536,19 @@ QualType ASTContext::getTypeVariableType(unsigned int inDepth, unsigned int inIn
   return QualType(New, 0);
 }
 
+
+ /// getTypeOpaqueType - Return the unique reference to the type for the
+/// specified typedef name decl.
+QualType
+ASTContext::getTypeOpaqueType(const TypeOpaqueDecl *Decl) const {
+  if (Decl->TypeForDecl) return QualType(Decl->TypeForDecl, 0);
+
+  TypeOpaqueType *newType = new(*this, TypeAlignment) TypeOpaqueType(Type::TypeOpaque, Decl);
+  Decl->TypeForDecl = newType;
+  Types.push_back(newType);
+  return QualType(newType, 0);
+}
+
 QualType ASTContext::getAdjustedType(QualType Orig, QualType New) const {
   llvm::FoldingSetNodeID ID;
   AdjustedType::Profile(ID, Orig, New);
@@ -2832,6 +2850,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::MemberPointer:
   case Type::Pipe:
   case Type::TypeVariable:
+  case Type::TypeOpaque:
     return type;
 
   // These types can be variably-modified.  All these modifications
@@ -6506,6 +6525,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string& S,
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
   case Type::TypeVariable:
+  case Type::TypeOpaque:
     return;
 
   case Type::Pipe:
@@ -8684,7 +8704,13 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     assert(LHS != RHS &&
            "Equivalent type variable types should have already been handled!");
     return QualType();
+  case Type::TypeOpaque:
+      assert(LHS != RHS &&
+             "Equivalent opaque types should have already been handled!");
+          return QualType();
   }
+
+
 
   llvm_unreachable("Invalid Type::Class!");
 }

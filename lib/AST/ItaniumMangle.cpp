@@ -1948,6 +1948,7 @@ bool CXXNameMangler::mangleUnresolvedTypeOrSimpleId(QualType Ty,
   case Type::Atomic:
   case Type::Pipe:
   case Type::TypeVariable:
+  case Type::TypeOpaque:
     llvm_unreachable("type is illegal as a nested name specifier");
 
   case Type::SubstTemplateTypeParmPack:
@@ -3198,6 +3199,10 @@ void CXXNameMangler::mangleType(const DependentTemplateSpecializationType *T) {
 
 void CXXNameMangler::mangleType(const TypeVariableType *T) {
   llvm_unreachable("TypeVariableType cannot be mangled.");
+}
+
+void CXXNameMangler::mangleType(const TypeOpaqueType *T) {
+  llvm_unreachable("TypeOpaqueType cannot be mangled.");
 }
 
 void CXXNameMangler::mangleType(const TypeOfType *T) {

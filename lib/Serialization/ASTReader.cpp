@@ -6023,6 +6023,19 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     return Context.getTypeVariableType(depth, index, isInBoundsSafeInterface);
   }
 
+  case TYPE_TYPEOPAQUE: {
+    if (Record.size() != 2) {
+      Error("incorrect encoding of typeopaque type");
+      return QualType();
+    }
+    unsigned Idx = 0;
+    TypeOpaqueDecl *Decl = ReadDeclAs<TypeOpaqueDecl>(*Loc.F, Record, Idx);
+//    QualType Canonical = readType(*Loc.F, Record, Idx); //$TODO$ needs revisiting
+//    if (!Canonical.isNull())
+//      Canonical = Context.getCanonicalType(Canonical);
+    return Context.getTypeOpaqueType(Decl);
+  }
+
   case TYPE_DECLTYPE: {
     QualType UnderlyingType = readType(*Loc.F, Record, Idx);
     return Context.getDecltypeType(ReadExpr(*Loc.F), UnderlyingType);
@@ -6490,6 +6503,9 @@ void TypeLocReader::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation());
 }
 void TypeLocReader::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
+  TL.setNameLoc(ReadSourceLocation());
+}
+void TypeLocReader::VisitTypeOpaqueTypeLoc(TypeOpaqueTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation());
 }
 void TypeLocReader::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {

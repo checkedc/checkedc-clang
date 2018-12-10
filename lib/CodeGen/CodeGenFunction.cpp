@@ -231,6 +231,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::ObjCObjectPointer:
     case Type::Pipe:
     case Type::TypeVariable:
+    case Type::TypeOpaque:
       return TEK_Scalar;
 
     // Complexes.
@@ -1972,6 +1973,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::ObjCInterface:
     case Type::ObjCObjectPointer:
     case Type::TypeVariable:
+    case Type::TypeOpaque:
       llvm_unreachable("type class is never variably-modified!");
 
     case Type::Adjusted:

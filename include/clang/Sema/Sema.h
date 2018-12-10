@@ -178,6 +178,7 @@ namespace clang {
   class Token;
   class TypeAliasDecl;
   class TypedefDecl;
+  class TypeOpaqueDecl;
   class TypedefNameDecl;
   class TypeLoc;
   class TypoCorrectionConsumer;
@@ -2169,6 +2170,7 @@ public:
     NTK_NonEnum,
     NTK_Typedef,
     NTK_TypeAlias,
+    NTK_TypeOpaque,
     NTK_Template,
     NTK_TypeAliasTemplate,
     NTK_TemplateTemplateArgument,
