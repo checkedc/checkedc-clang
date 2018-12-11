@@ -763,13 +763,18 @@ public:
     Value *Result = nullptr;
     if (E->getKind() == BoundsValueExpr::Kind::Temporary) {
       CHKCBindTemporaryExpr *Temp = E->getTemporaryBinding();
-      if (Temp->getSubExpr()->isLValue())
-         Result = CGF.getBoundsTemporaryLValueMapping(Temp).getPointer();
-      else
-         Result = CGF.getBoundsTemporaryRValueMapping(Temp).getScalarVal();
+      assert(!Temp->getSubExpr()->isLValue());
+      Result = CGF.getBoundsTemporaryLValueMapping(Temp).getPointer();;
     } else
        llvm_unreachable("unexpected bounds value expr");
     assert(Result);
+    return Result;
+  }
+
+  Value *VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+    assert(!E->getSubExpr()->isLValue());
+    Value *Result = Visit(E->getSubExpr());
+    CGF.setBoundsTemporaryRValueMapping(E, RValue::get(Result));
     return Result;
   }
 };

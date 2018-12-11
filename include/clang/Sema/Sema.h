@@ -4894,6 +4894,12 @@ public:
   /// address of members used in bounds.
   void CheckAddressTakenMembers(UnaryOperator *AddrOf);
 
+  /// \brief Check whether E contains a return value expression.
+  bool ContainsReturnValueExpr(Expr *E);
+
+  /// \brief Create a Checked C temporary for a call expression.
+  ExprResult CreateTemporaryForCall(ExprResult R);
+
   /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
   /// body.
   void CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body);

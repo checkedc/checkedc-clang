@@ -5820,6 +5820,32 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   return MaybeBindToTemporary(TheCall);
 }
 
+ExprResult Sema::CreateTemporaryForCall(ExprResult ER) {
+  // If ER is a function call that has a return bounds expression containing
+  // a _Return_value expression, insert a temporary variable for use during
+  // checking of bounds declarations.
+
+  if (getLangOpts().CheckedC && ER.isInvalid())
+    return ER;
+
+  CallExpr *CE = dyn_cast<CallExpr>(ER.get());
+  if (!CE)
+    return ER;
+
+  Expr *Fn = CE->getCallee();
+  const FunctionProtoType *FPT;
+  if (const PointerType *PT = Fn->getType()->getAs<PointerType>()) {
+    FPT = PT->getPointeeType()->getAs<FunctionProtoType>();
+    if (FPT) {
+      BoundsExpr *ReturnBounds = FPT->getReturnAnnots().getBoundsExpr();
+      if (ContainsReturnValueExpr(ReturnBounds))
+        ER = new (Context) CHKCBindTemporaryExpr(ER.get());
+    }
+  }
+
+  return ER;
+}
+
 ExprResult
 Sema::ActOnCompoundLiteral(SourceLocation LParenLoc, ParsedType Ty,
                            SourceLocation RParenLoc, Expr *InitExpr) {
