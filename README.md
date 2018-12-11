@@ -8,7 +8,7 @@ out-of-bounds memory accesses.  The Checked C specification is available  at the
 
 ## We are hiring!
 
-We have a senior software engineer position [available](https://careers.microsoft.com/us/en/job/509507/Senior-Software-Engineer). We are looking for someone wih compiler and language implementation experience who is passionate about making software more secure and reliable.
+We have a Principal Software Engineer position [available](https://careers.microsoft.com/us/en/job/559081/Principal-Software-Engineer). We are looking for someone wih compiler and language implementation experience who is passionate about making software more secure and reliable.
 
 ## Trying out Checked C
 
