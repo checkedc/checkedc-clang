@@ -1257,65 +1257,16 @@ namespace {
           return CreateBoundsEmpty();
         }
         case Expr::CallExprClass: {
-          const CallExpr *CE = cast<CallExpr>(E);
-          BoundsExpr *ReturnBounds = nullptr;
-          if (E->getType()->isCheckedPointerPtrType()) {
-            if (E->getType()->isVoidPointerType())
-              ReturnBounds = Context.getPrebuiltByteCountOne();
-            else
-              ReturnBounds = Context.getPrebuiltCountOne();
-          }
-          else {
-            // Get the function prototype, where the abstract function return
-            // bounds are kept. The callee is always a function pointer.
-            const PointerType *PtrTy =
-              CE->getCallee()->getType()->getAs<PointerType>();
-            assert(PtrTy != nullptr);
-            const FunctionProtoType *CalleeTy =
-              PtrTy->getPointeeType()->getAs<FunctionProtoType>();
-            if (!CalleeTy)
-              // K&R functions have no prototype, and we cannot perform
-              // inference on them, so we return bounds(unknown) for their results.
-              return CreateBoundsAlwaysUnknown();
-
-            BoundsAnnotations FunReturnAnnots = CalleeTy->getReturnAnnots();
-            BoundsExpr *FunBounds = FunReturnAnnots.getBoundsExpr();
-            InteropTypeExpr *IType =FunReturnAnnots.getInteropTypeExpr();
-            // TODO:handle interop type annotation on return bounds
-            // Github issue #205.  We have no way of rerepresenting
-            // CurrentExprValue in the IR yet.
-            if (!FunBounds && IType)
-              return CreateBoundsAllowedButNotComputed();
-
-            if (!FunBounds)
-              // This function has no return bounds
-              return CreateBoundsAlwaysUnknown();
-
-            ArrayRef<Expr *> ArgExprs =
-              llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
-                                 CE->getNumArgs());
-
-            // Concretize Call Bounds with argument expressions.
-            // We can only do this if the argument expressions are non-modifying
-            ReturnBounds =
-              SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
-                               Sema::NonModifyingContext::NMC_Function_Return);
-            // If concretization failed, this means we tried to substitute with
-            // a non-modifying expression, which is not allowed by the
-            // specification.
-            if (!ReturnBounds)
-              return CreateBoundsInferenceError();
-          }
-
-          // Currently we cannot yet concretize function bounds of the forms
-          // count(e) or byte_count(e) becuase we need a way of referring
-          // to the function's return value which we currently lack in the
-          // general case.
-          if (ReturnBounds->isElementCount() ||
-              ReturnBounds->isByteCount())
-            return CreateBoundsAllowedButNotComputed();
-
-          return ReturnBounds;
+          CallExpr *CE = cast<CallExpr>(E);
+          return CallExprBounds(CE, nullptr);
+        }
+        case Expr::CHKCBindTemporaryExprClass: {
+          CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
+          Expr *Child = Binding->getSubExpr();
+          if (const CallExpr *CE = dyn_cast<CallExpr>(Child))
+            return CallExprBounds(CE, Binding);
+          else
+            return RValueBounds(Child);
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
@@ -1325,6 +1276,71 @@ namespace {
           // All other cases are unknowable
           return CreateBoundsAlwaysUnknown();
       }
+    }
+
+    // Compute the bounds of a call expression.  Call expressions always
+    // produce rvalues.
+    //
+    // If ResultName is non-null, it is a temporary variable where the result
+    // of the call expression is stored immediately upon return from the call.
+    BoundsExpr *CallExprBounds(const CallExpr *CE,
+                               CHKCBindTemporaryExpr *ResultName) {
+      BoundsExpr *ReturnBounds = nullptr;
+      if (CE->getType()->isCheckedPointerPtrType()) {
+        if (CE->getType()->isVoidPointerType())
+          ReturnBounds = Context.getPrebuiltByteCountOne();
+        else
+          ReturnBounds = Context.getPrebuiltCountOne();
+      }
+      else {
+        // Get the function prototype, where the abstract function return
+        // bounds are kept. The callee is always a function pointer.
+        const PointerType *PtrTy =
+          CE->getCallee()->getType()->getAs<PointerType>();
+        assert(PtrTy != nullptr);
+        const FunctionProtoType *CalleeTy =
+          PtrTy->getPointeeType()->getAs<FunctionProtoType>();
+        if (!CalleeTy)
+          // K&R functions have no prototype, and we cannot perform
+          // inference on them, so we return bounds(unknown) for their results.
+          return CreateBoundsAlwaysUnknown();
+
+        BoundsAnnotations FunReturnAnnots = CalleeTy->getReturnAnnots();
+        BoundsExpr *FunBounds = FunReturnAnnots.getBoundsExpr();
+        InteropTypeExpr *IType =FunReturnAnnots.getInteropTypeExpr();
+        // If there is no return bounds and there is an interop type
+        // annotation, use the bounds impied by the interop type
+        // annotation.
+        if (!FunBounds && IType)
+          FunBounds = CreateTypeBasedBounds(nullptr, IType->getType(),
+                                            false, true);
+
+        if (!FunBounds)
+          // This function has no return bounds
+          return CreateBoundsAlwaysUnknown();
+
+        ArrayRef<Expr *> ArgExprs =
+          llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
+                              CE->getNumArgs());
+
+        // Concretize Call Bounds with argument expressions.
+        // We can only do this if the argument expressions are non-modifying
+        ReturnBounds =
+          SemaRef.ConcretizeFromFunctionTypeWithArgs(FunBounds, ArgExprs,
+                            Sema::NonModifyingContext::NMC_Function_Return);
+        // If concretization failed, this means we tried to substitute with
+        // a non-modifying expression, which is not allowed by the
+        // specification.
+        if (!ReturnBounds)
+          return CreateBoundsInferenceError();
+      }
+
+      if (ReturnBounds->isElementCount() ||
+          ReturnBounds->isByteCount()) {
+        assert(ResultName);
+        ReturnBounds = ExpandToRange(CreateTemporaryUse(ResultName), ReturnBounds);
+      }
+      return ReturnBounds;
     }
   };
 }
@@ -2088,15 +2104,23 @@ namespace {
       // Record expression equality implied by assignment.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
-      // TODO: make sure assignment to lvalue doesn't modify value used in Src.
+
       if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown,
-                                Sema::NonModifyingMessage::NMM_None) &&
-          S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                 Sema::NonModifyingMessage::NMM_None)) {
-        Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
-        EqualExpr.push_back(TargetExpr);
-        EqualExpr.push_back(Src);
-        EquivExprs.push_back(&EqualExpr);
+         Expr *SrcTempExpr = GetTempValue(Src);
+         // TODO: make sure assignment to lvalue doesn't modify value used in Src.
+         bool SrcIsNonModifying =
+           S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
+                                 Sema::NonModifyingMessage::NMM_None);
+         if (SrcTempExpr || SrcIsNonModifying) {
+           Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
+           EqualExpr.push_back(TargetExpr);
+           if (SrcTempExpr)
+             EqualExpr.push_back(SrcTempExpr);
+           else
+             EqualExpr.push_back(Src);
+           EquivExprs.push_back(&EqualExpr);
+         }
       }
 
       ProofFailure Cause;
@@ -2148,6 +2172,12 @@ namespace {
       }
     }
 
+    CHKCBindTemporaryExpr *GetTempValue(Expr *E) {
+      CHKCBindTemporaryExpr *Result =
+        dyn_cast<CHKCBindTemporaryExpr>(E->IgnoreParenNoopCasts(S.getASTContext()));
+      return Result;
+    }
+
     // Given an initializer v = e, where v is a variable that has declared
     // bounds DeclaredBounds and and e has inferred bounds SrcBounds, make sure
     // that SrcBounds implies that DeclaredBounds are provably true.
@@ -2158,8 +2188,15 @@ namespace {
       // Record expression equality implied by initialization.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
-      if (S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
-                                Sema::NonModifyingMessage::NMM_None)) {
+      // Record equivalence between expressions implied by initializion.
+      // If D declares a variable V, and
+      // 1. Src binds a temporary variable T, record equivalence
+      //    beteween V and T.
+      // 2. Otherwise, if Src is a non-modifying expression, record
+      //    equivalence between V and Src.
+      CHKCBindTemporaryExpr *Temp = GetTempValue(Src);
+      if (Temp ||  S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
+                                         Sema::NonModifyingMessage::NMM_None)) {
         // TODO: make sure variable being initialized isn't read by Src.
         DeclRefExpr *TargetDeclRef =
           DeclRefExpr::Create(S.getASTContext(), NestedNameSpecifierLoc(),
@@ -2176,7 +2213,10 @@ namespace {
         }
         Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
         EqualExpr.push_back(TargetExpr);
-        EqualExpr.push_back(Src);
+        if (Temp)
+          EqualExpr.push_back(BoundsInference(S).CreateTemporaryUse(Temp));
+        else
+          EqualExpr.push_back(Src);
         EquivExprs.push_back(&EqualExpr);
         /*
         llvm::outs() << "Dumping target/src equality relation\n";

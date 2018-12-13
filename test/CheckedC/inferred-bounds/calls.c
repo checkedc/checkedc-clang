@@ -76,19 +76,25 @@ void f1(int i) {
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: `-ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
-// CHECK: CallExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (*)(int, int) : count(arg #0)' <FunctionToPointerDecay>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (int, int) : count(arg #0)' Function {{0x[0-9a-f]+}} 'f_count' '_Array_ptr<int> (int, int) : count(arg #0)'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
-// CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
-// CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CHKCBindTemporaryExpr [[TEMP1:0x[0-9a-f]+]] {{.*}} '_Array_ptr<int>'
+// CHECK:  CallExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>'
+// CHECK:    ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (*)(int, int) : count(arg #0)' <FunctionToPointerDecay>
+// CHECK:    `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (int, int) : count(arg #0)' Function {{0x[0-9a-f]+}} 'f_count' '_Array_ptr<int> (int, int) : count(arg #0)'
+// CHECK:    ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK:    `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK:    ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
+// CHECK:   `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Declared Bounds:
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Element
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK:   BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP1]]
+// CHECK:   `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK:   BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP1]]
+// CHECK:   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
+// CHECK:     `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f2(int i) {
     _Array_ptr<int> b : byte_count(i) = f_byte(i, i);
@@ -98,6 +104,7 @@ void f2(int i) {
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Byte
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CHKCBindTemporaryExpr [[TEMP2:0x[0-9a-f]+]] {{.*}} '_Array_ptr<int>'
 // CHECK: CallExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (*)(int, int) : byte_count(arg #0)' <FunctionToPointerDecay>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (int, int) : byte_count(arg #0)' Function {{0x[0-9a-f]+}} 'f_byte' '_Array_ptr<int> (int, int) : byte_count(arg #0)'
@@ -110,7 +117,15 @@ void f2(int i) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK:   CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
+// CHECK:     BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP2]]
+// CHECK:   BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<char>' '+'
+// CHECK:     CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
+// CHECK:       BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP2]]
+// CHECK:         ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
+// CHECK:           DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+
 
 //
 // Modifying Expressions
@@ -192,6 +207,7 @@ void f12(int i, int j) {
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Element
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CHKCBindTemporaryExpr [[TEMP3:0x[0-9a-f]+]] {{.*}} '_Array_ptr<int>'
 // CHECK: CallExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (*)(int, int) : count(arg #0)' <FunctionToPointerDecay>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (int, int) : count(arg #0)' Function {{0x[0-9a-f]+}} 'f_count' '_Array_ptr<int> (int, int) : count(arg #0)'
@@ -204,7 +220,12 @@ void f12(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK:    BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP3]]
+// CHECK:    BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP3]]
+// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
+// CHECK:       DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f13(int i, int j) {
     _Array_ptr<int> b : count(i) = f_count(j++, i); // \
@@ -238,6 +259,7 @@ void f14(int i, int j) {
 // CHECK: CountBoundsExpr {{0x[0-9a-f]+}} {{.*}} 'NULL TYPE' Byte
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
+// CHECK: CHKCBindTemporaryExpr [[TEMP4:0x[0-9a-f]+]] {{.*}} '_Array_ptr<int>'
 // CHECK: CallExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (*)(int, int) : byte_count(arg #0)' <FunctionToPointerDecay>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int> (int, int) : byte_count(arg #0)' Function {{0x[0-9a-f]+}} 'f_byte' '_Array_ptr<int> (int, int) : byte_count(arg #0)'
@@ -250,7 +272,14 @@ void f14(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
+// CHECK: RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK:   CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
+// CHECK:     BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP4]]
+// CHECK:   BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<char>' '+'
+// CHECK:    CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
+// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' _BoundTemporary  [[TEMP4]]
+// CHECK:    ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
+// CHECK:      DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f15(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_byte(j++, i); // \
@@ -357,6 +386,7 @@ void f22(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
+// CHECK: CHKCBindTemporaryExpr [[TEMP5:0x[0-9a-f]+]] {{.*}} 'int *'
 // CHECK: `-CallExpr {{0x[0-9a-f]+}} {{.*}} 'int *'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : count(arg #0) itype(_Array_ptr<int>)' <FunctionToPointerDecay>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : count(arg #0) itype(_Array_ptr<int>)' Function {{0x[0-9a-f]+}} 'f_counti' 'int *(int, int) : count(arg #0) itype(_Array_ptr<int>)'
@@ -369,7 +399,12 @@ void f22(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK:    BoundsValueExpr {{0x[0-9a-f]+}} 'int *' _BoundTemporary  [[TEMP5]]
+// CHECK:    BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} 'int *' _BoundTemporary  [[TEMP5]]
+// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
+// CHECK:       DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f23(int i, int j) {
     _Array_ptr<int> b : count(i) = f_counti(j++, i); // \
@@ -405,6 +440,7 @@ void f24(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} '_Array_ptr<int>' <BitCast>
+// CHECK: CHKCBindTemporaryExpr [[TEMP6:0x[0-9a-f]+]] {{.*}} 'int *'
 // CHECK: `-CallExpr {{0x[0-9a-f]+}} {{.*}} 'int *'
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} {{.*}} 'int *(*)(int, int) : byte_count(arg #0)  itype(_Array_ptr<int>)' <FunctionToPointerDecay>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} {{.*}} 'int *(int, int) : byte_count(arg #0) itype(_Array_ptr<int>)' Function {{0x[0-9a-f]+}} 'f_bytei' 'int *(int, int) : byte_count(arg #0) itype(_Array_ptr<int>)'
@@ -417,7 +453,14 @@ void f24(int i, int j) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: Initializer Bounds:
-// CHECK: NullaryBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE' Any
+// CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
+// CHECK:    CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
+// CHECK:      BoundsValueExpr {{0x[0-9a-f]+}} 'int *' _BoundTemporary [[TEMP6]]
+// CHECK:    BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<char>' '+'
+// CHECK:      CStyleCastExpr {{0x[0-9a-f]+}} '_Array_ptr<char>' <BitCast>
+// CHECK:        BoundsValueExpr {{0x[0-9a-f]+}} 'int *' _BoundTemporary [[TEMP6]]
+// CHECK:      ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
+// CHECK:        DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 
 void f25(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_bytei(j++, i); // \

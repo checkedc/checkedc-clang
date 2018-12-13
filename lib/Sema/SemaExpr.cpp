@@ -5821,9 +5821,10 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
 }
 
 ExprResult Sema::CreateTemporaryForCall(ExprResult ER) {
-  // If ER is a function call that has a return bounds expression containing
-  // a _Return_value expression, insert a temporary variable for use during
-  // checking of bounds declarations.
+  // If ER is a function call that has a return bounds expression
+  // that when expanded contains a _Return_value expression,
+  // insert a temporary variable for use during checking of bounds
+  // declarations.
 
   if (getLangOpts().CheckedC && ER.isInvalid())
     return ER;
@@ -5837,8 +5838,16 @@ ExprResult Sema::CreateTemporaryForCall(ExprResult ER) {
   if (const PointerType *PT = Fn->getType()->getAs<PointerType>()) {
     FPT = PT->getPointeeType()->getAs<FunctionProtoType>();
     if (FPT) {
-      BoundsExpr *ReturnBounds = FPT->getReturnAnnots().getBoundsExpr();
-      if (ContainsReturnValueExpr(ReturnBounds))
+      BoundsAnnotations ReturnAnnots = FPT->getReturnAnnots();
+      BoundsExpr *ReturnBounds = ReturnAnnots.getBoundsExpr();
+      InteropTypeExpr *InteropExpr = ReturnAnnots.getInteropTypeExpr();
+
+      if ((ReturnBounds && (ReturnBounds->isByteCount() ||
+                            ReturnBounds->isElementCount())) ||
+          FPT->getReturnType()->isCheckedPointerPtrType() ||
+          (InteropExpr &&
+           InteropExpr->getType()->isCheckedPointerPtrType()) ||
+          ContainsReturnValueExpr(ReturnBounds))
         ER = new (Context) CHKCBindTemporaryExpr(ER.get());
     }
   }

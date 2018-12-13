@@ -658,6 +658,9 @@ namespace {
 }
 
 bool Sema::ContainsReturnValueExpr(Expr *E) {
+  if (!E)
+    return false;
+
   CheckForReturnValue Checker(*this);
   Checker.TraverseStmt(E);
   return Checker.ContainsReturnValueExpr();

@@ -47,7 +47,8 @@ void callPolymorphicTypes(void) {
   ptrGenericTest<int>(pt, t);
 
   // Check the type of DeclRefExpr is correctly instantiated.
-  // CHECK-AST: CallExpr {{0x[0-9a-f]+}} <line:{{[0-9]+}}:{{[0-9]+}}, col:{{[0-9]+}}> '_Ptr<int>'
+  // CHECK-AST: CHKCBindTemporaryExpr {{0x[0-9a-f]+}} <line:{{[0-9]+}}:{{[0-9]+}}, col:{{[0-9]+}}> '_Ptr<int>'
+  // CHECK-AST-NEXT: CallExpr {{0x[0-9a-f]+}} {{.*}} '_Ptr<int>'
   // CHECK-AST-NEXT: ImplicitCastExpr {{0x[0-9a-f]+}} <col:{{[0-9]+}}> '_Ptr<int> (*)(_Ptr<int>, int)' <FunctionToPointerDecay>
   // CHECK-AST-NEXT: -DeclRefExpr {{0x[0-9a-f]+}} <col:{{[0-9]+}}> '_Ptr<int> (_Ptr<int>, int)' instantiated Function {{0x[0-9a-f]+}}  'ptrGenericTest' '_For_any(1) _Ptr<T> (_Ptr<T>, int)'
   // CHECK-AST-NEXT: -BuiltinType {{0x[0-9a-f]+}} 'int'

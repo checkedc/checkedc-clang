@@ -329,3 +329,51 @@ _Array_ptr<int> f36(unsigned num) : count(num) {
   return p;
 }
 #endif
+
+//
+// Test use of return count bounds.
+//
+
+_Array_ptr<int> test_f50(unsigned c) : count(c);
+
+_Array_ptr<int> f51(unsigned num) {
+  _Array_ptr<int> p : count(num) = test_f50(num);
+  return p;
+}
+
+_Array_ptr<int> f52(unsigned num1, unsigned num2){
+  _Array_ptr<int> p : count(num1) = test_f50(num2); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+                                                    // expected-note {{(expanded) declared bounds are 'bounds(p, p + num1)'}} \
+                                                    // expected-note {{(expanded) inferred bounds are 'bounds(value of test_f50(num2), value of test_f50(num2) + num2)'}}
+  return p;
+}
+
+_Array_ptr<int> test_f53(unsigned c) : byte_count(c);
+
+_Array_ptr<int> f54(unsigned num) {
+  _Array_ptr<int> p : byte_count(num) = test_f53(num);
+  return p;
+}
+
+_Array_ptr<int> f55(unsigned num1, unsigned num2){
+  _Array_ptr<int> p : byte_count(num1) = test_f53(num2); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+                                                         // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + num1)'}} \
+                                                         // expected-note {{inferred bounds are 'bounds((_Array_ptr<char>)value of test_f53(num2), (_Array_ptr<char>)value of test_f53(num2) + num2)'}}
+  return p;
+}
+
+_Ptr<int> test_f56(unsigned c);
+
+_Array_ptr<int> f57(unsigned num) {
+  _Array_ptr<int> p : count(1) = test_f56(num);
+  return p;
+}
+
+_Array_ptr<int> f58(unsigned num) {
+  _Array_ptr<int> p : count(2) = test_f56(num);    // expected-error {{declared bounds for 'p' are invalid after initialization}} \
+                                                   // expected-note {{destination bounds are wider than the source bounds}} \
+                                                   // expected-note {{destination upper bound is above source upper bound}} \
+                                                   // expected-note {{(expanded) declared bounds are 'bounds(p, p + 2)'}} \
+                                                   // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<int>)value of test_f56(num), (_Array_ptr<int>)value of test_f56(num) + 1)'}}
+  return p;
+}
