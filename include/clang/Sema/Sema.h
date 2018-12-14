@@ -4897,7 +4897,9 @@ public:
   /// \brief Check whether E contains a return value expression.
   bool ContainsReturnValueExpr(Expr *E);
 
-  /// \brief Create a Checked C temporary for a call expression.
+  /// \brief Wrap a call expression in a Checked C temporay binding
+  /// expression, if a temporary is needed to describe the bounds
+  /// of the result of the call expression.
   ExprResult CreateTemporaryForCall(ExprResult R);
 
   /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function

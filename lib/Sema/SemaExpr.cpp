@@ -5821,11 +5821,10 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
 }
 
 ExprResult Sema::CreateTemporaryForCall(ExprResult ER) {
-  // If ER is a function call that has a return bounds expression
-  // that when expanded contains a _Return_value expression,
-  // insert a temporary variable for use during checking of bounds
-  // declarations.
-
+  // Insert a temporary variable binding the result of a call. The temporary
+  // will be used in the bounds for the result of the call. Only do this if
+  // the call is to a function that has a return bounds expression that is
+  // count, byte_count, or that contains a _Return_value expression.
   if (getLangOpts().CheckedC && ER.isInvalid())
     return ER;
 

@@ -2094,6 +2094,12 @@ namespace {
         S.Diag(Loc, diag::note_upper_out_of_bounds) << (unsigned) Kind;
     }
 
+    CHKCBindTemporaryExpr *GetTempBinding(Expr *E) {
+      CHKCBindTemporaryExpr *Result =
+        dyn_cast<CHKCBindTemporaryExpr>(E->IgnoreParenNoopCasts(S.getASTContext()));
+      return Result;
+    }
+
     // Given an assignment target = e, where target has declared bounds
     // DeclaredBounds and and e has inferred bounds SrcBounds, make sure
     // that SrcBounds implies that DeclaredBounds are provably true.
@@ -2107,16 +2113,18 @@ namespace {
 
       if (S.CheckIsNonModifying(Target, Sema::NonModifyingContext::NMC_Unknown,
                                 Sema::NonModifyingMessage::NMM_None)) {
-         Expr *SrcTempExpr = GetTempValue(Src);
+         CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
          // TODO: make sure assignment to lvalue doesn't modify value used in Src.
          bool SrcIsNonModifying =
            S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                  Sema::NonModifyingMessage::NMM_None);
-         if (SrcTempExpr || SrcIsNonModifying) {
-           Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
+         if (Temp || SrcIsNonModifying) {
+           Expr *TargetExpr =
+             BoundsInference(S).CreateImplicitCast(Target->getType(),
+                                                   CK_LValueToRValue, Target);
            EqualExpr.push_back(TargetExpr);
-           if (SrcTempExpr)
-             EqualExpr.push_back(SrcTempExpr);
+           if (Temp)
+             EqualExpr.push_back(BoundsInference(S).CreateTemporaryUse(Temp));
            else
              EqualExpr.push_back(Src);
            EquivExprs.push_back(&EqualExpr);
@@ -2172,12 +2180,6 @@ namespace {
       }
     }
 
-    CHKCBindTemporaryExpr *GetTempValue(Expr *E) {
-      CHKCBindTemporaryExpr *Result =
-        dyn_cast<CHKCBindTemporaryExpr>(E->IgnoreParenNoopCasts(S.getASTContext()));
-      return Result;
-    }
-
     // Given an initializer v = e, where v is a variable that has declared
     // bounds DeclaredBounds and and e has inferred bounds SrcBounds, make sure
     // that SrcBounds implies that DeclaredBounds are provably true.
@@ -2194,7 +2196,7 @@ namespace {
       //    beteween V and T.
       // 2. Otherwise, if Src is a non-modifying expression, record
       //    equivalence between V and Src.
-      CHKCBindTemporaryExpr *Temp = GetTempValue(Src);
+      CHKCBindTemporaryExpr *Temp = GetTempBinding(Src);
       if (Temp ||  S.CheckIsNonModifying(Src, Sema::NonModifyingContext::NMC_Unknown,
                                          Sema::NonModifyingMessage::NMM_None)) {
         // TODO: make sure variable being initialized isn't read by Src.
