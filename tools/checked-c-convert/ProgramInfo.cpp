@@ -1170,6 +1170,8 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     return getVariableHelper(IE->getSubExpr(), V, C, ifc);
   } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
     return getVariableHelper(PE->getSubExpr(), V, C, ifc);
+  } else if (CHKCBindTemporaryExpr *CBE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
+    return getVariableHelper(CBE->getSubExpr(), V, C, ifc);
   } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
     // Here, we need to look up the target of the call and return the
     // constraints for the return value of that function.

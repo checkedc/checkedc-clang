@@ -200,6 +200,7 @@ public:
       // Remove the parens from the RHS expression, this makes it easier for 
       // us to look at the semantics.
       RHS = RHS->IgnoreParens();
+
       // Cases 2-4.
       if (RHS->isIntegerConstantExpr(*Context)) {
         // Case 2.
@@ -220,7 +221,11 @@ public:
         }
         else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
           // Case 4.
-          W = Info.getVariable(C->getSubExpr(), Context);
+          Expr *SE = C->getSubExpr();
+          // Remove any binding of a Checked C temporary variable.
+          if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(SE))
+            SE = Temp->getSubExpr();
+          W = Info.getVariable(SE, Context);
           QualType rhsTy = RHS->getType();
           bool rulesFired = false;
           if (Info.checkStructuralEquality(V, W, lhsType, rhsTy)) {
@@ -234,7 +239,7 @@ public:
             // value being cast from on the RHS is a call to malloc, and if
             // the type passed to malloc is equal to both lhsType and rhsTy. 
             // If it is, we can do something less conservative. 
-            if (CallExpr *CA = dyn_cast<CallExpr>(C->getSubExpr())) {
+            if (CallExpr *CA = dyn_cast<CallExpr>(SE)) {
               // Is this a call to malloc? Can we coerce the callee 
               // to a NamedDecl?
               FunctionDecl *calleeDecl = 
