@@ -138,11 +138,15 @@ analyses that are checking the correctness of bounds declarations.
 
 ### Temporary variables
 
-The semantics of Checked C requires checking bounds declarations at
-compile tme.  In some cases, the checking requires naming the result
-of evaluating an expression.  We support this by introducing temporary
-variables to name the results of expressions.   We cannot just introduce
-assignments to synthesized variables in the IR because C does not not
+The semantics of Checked C requires inferring bounds expressions for
+expressions at compile time.  In some cases, the inferred bounds
+must use the value produced at runtime by the evaluation of 
+an expression.  We support this by selectively introducing temporary
+variables into the AST to hold the results of evaulating expressions, 
+when the results must be used in a bounds expression.
+
+Note that we cannot just introduce assignments to synthesized variables
+in the IR because C does not not
 guarantee a precise order of evaluation for assignments.  It is undefined
 behavior to assign to a variable and to read it within the same expression,
 unless there is a sequence point between the assignment and read.  To
