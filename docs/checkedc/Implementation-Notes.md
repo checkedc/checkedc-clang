@@ -142,8 +142,7 @@ The semantics of Checked C requires inferring bounds expressions for
 expressions at compile time.  In some cases, the inferred bounds
 must use the value produced at runtime by the evaluation of 
 an expression.  We support this by selectively introducing temporary
-variables into the AST to hold the results of evaulating expressions, 
-when the results must be used in a bounds expression.
+variables into the AST to hold the results of evaulating expressions.
 
 Note that we cannot just introduce assignments to synthesized variables
 in the IR because C does not not
@@ -169,7 +168,7 @@ expression is the result of the expression evaluation.  The temporary
 variable lives until the end of the evaluation of the top-level
 expression containing the binding.  A top-level expression is
 an expression that is not nested within another expression.
-A temporary variable is only bounds at most once in an expression. 
+A temporary variable is only bound at most once in an expression. 
 The temporary variable is only guaranteed to have a valid
 value after the binding expression has been evaluated.  The
 binding expression is subject to the same evaluation rules
