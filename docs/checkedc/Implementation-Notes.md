@@ -165,7 +165,7 @@ expression is the result of the expression evaluation.  The temporary
 variable lives until the end of the evaluation of the top-level
 expression containing the binding.  A top-level expression is
 an expression that is not nested within another expression.
-A temporary variable is only bounds at most once in an expressio. 
+A temporary variable is only bounds at most once in an expression. 
 The temporary variable is only guaranteed to have a valid
 value after the binding expression has been evaluated.  The
 binding expression is subject to the same evaluation rules
@@ -175,7 +175,10 @@ as other C expressions.
 Its constructor takes a `CHKCBindTemporaryExpr` as an
 argument.  We do not create a variable name for the
 temporary expression.  The name used in diagnostic messages
-is `value of e`, where `e` is the expression whose result is being computed.
+is `value of e`, where `e` is the expression whose result is being computed
+and bound to the temporary.  The `CHKBBindTemporaryExpr`
+is not a subexpression of the `BoundsValueExpr`.  Insstead, it
+is similar to a declaration reference in a `DeclRefExpr`.
 
 Temporary variables are introduced for string and array
 literals.  They are also introduced for call expression 
