@@ -184,12 +184,12 @@ is not a subexpression of the `BoundsValueExpr`.  Insstead, it
 is similar to a declaration reference in a `DeclRefExpr`.
 
 Temporary variables are introduced for string and array
-literals.  They are also introduced for call expression 
+literals.  They are also introduced for call expressions
 where the bounds for the result of a call are described
 in terms of the result.  This occurs when the called
 function has return bounds that are count or
-byte_count bounds xpression, or the return bounds
-use the `_Return_value` expression.
+byte_count bounds expressions, or the return bounds
+uses the `_Return_value` expression.
 
 For string and array literals, the temporaries are introduced at
 the conversion operation that represents the decay of the
@@ -206,7 +206,7 @@ The bounds for the literal will be:
 ```
 Bounds(Array-To-Pointer-Decay(x), Array-To-Pointer-Decay(x) + 4)
 ```
-We tried always  introducing temporaries for literals when the Checked C
+We tried always introducing temporaries for literals when the Checked C
 extension is enabled, but that caused existing compiler code unrelated
 to Checked C to break.  There are at least 20 places in clang that
 assume the IR has a form where a string literal occurs
