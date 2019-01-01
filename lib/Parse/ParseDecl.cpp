@@ -3515,6 +3515,14 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw_typedef:
       isInvalid = DS.SetStorageClassSpec(Actions, DeclSpec::SCS_typedef, Loc,
                                          PrevSpec, DiagID, Policy);
+      // handle checked-c opaque type
+      if (!isInvalid && NextToken().is(tok::kw__Opaque)) {
+        (void)ConsumeToken();
+        Loc = Tok.getLocation();
+        DS.getAttributes().addNew(Tok.getIdentifierInfo(), Loc, nullptr, Loc,
+                                  nullptr, 0, AttributeList::AS_Keyword);
+      }
+
       isStorageClass = true;
       break;
     case tok::kw_extern:
