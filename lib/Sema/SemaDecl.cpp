@@ -6171,19 +6171,11 @@ Sema::ActOnTypedefDeclarator(Scope* S, Declarator& D, DeclContext* DC,
   }
 
   TypedefNameDecl *NewTD = nullptr;
-  bool NewTDInvalid = false;
-  if (D.getDeclSpec().hasAttributes()) {
-    const auto* DSAttrList = D.getDeclSpec().getAttributes().getList();
-    for(; DSAttrList; DSAttrList = DSAttrList->getNext()) {
-      if(DSAttrList->getKind() == AttributeList::AT_CheckedCTypeOpaque) {
-        NewTD = ParseTypeOpaqueDecl(S, D, TInfo);
-        NewTDInvalid = !NewTD;
-        break;
-      }
-    }
-  }
-  if (!NewTD && !NewTDInvalid)
+  if(D.getDeclSpec().isOpaqueTypeSpec()) {
+    NewTD = ParseTypeOpaqueDecl(S, D, TInfo);
+  } else {
     NewTD = ParseTypedefDecl(S, D, TInfo->getType(), TInfo);
+  }
   if (!NewTD) return nullptr;
 
   // Handle attributes prior to checking for duplicates in MergeVarDecl
