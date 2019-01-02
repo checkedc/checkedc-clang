@@ -6170,7 +6170,20 @@ Sema::ActOnTypedefDeclarator(Scope* S, Declarator& D, DeclContext* DC,
     return nullptr;
   }
 
-  TypedefDecl *NewTD = ParseTypedefDecl(S, D, TInfo->getType(), TInfo);
+  TypedefNameDecl *NewTD = nullptr;
+  bool NewTDInvalid = false;
+  if (D.getDeclSpec().hasAttributes()) {
+    const auto* DSAttrList = D.getDeclSpec().getAttributes().getList();
+    for(; DSAttrList; DSAttrList = DSAttrList->getNext()) {
+      if(DSAttrList->getKind() == AttributeList::AT_CheckedCTypeOpaque) {
+        NewTD = ParseTypeOpaqueDecl(S, D, TInfo);
+        NewTDInvalid = !NewTD;
+        break;
+      }
+    }
+  }
+  if (!NewTD && !NewTDInvalid)
+    NewTD = ParseTypedefDecl(S, D, TInfo->getType(), TInfo);
   if (!NewTD) return nullptr;
 
   // Handle attributes prior to checking for duplicates in MergeVarDecl
@@ -14200,6 +14213,33 @@ TypedefDecl *Sema::ParseTypedefDecl(Scope *S, Declarator &D, QualType T,
 
   default:
     break;
+  }
+
+  return NewTD;
+}
+
+TypeOpaqueDecl *Sema::ParseTypeOpaqueDecl(Scope *S, Declarator &D,
+                                       TypeSourceInfo *TInfo) {
+  assert(D.getIdentifier() && "Wrong callback for declspec without declarator");
+
+  if (!TInfo) {
+    // though we're returning null anyway, the assertion below
+    // still help us catch some errors
+    assert(D.isInvalidType() && "no declarator info for valid type");
+    return nullptr;
+  }
+
+  // Scope manipulation handled by caller.
+  auto* NewTD = TypeOpaqueDecl::Create(Context, CurContext,
+                                       D.getLocStart(),
+                                       D.getIdentifierLoc(),
+                                       D.getIdentifier(),
+                                       TInfo);
+
+  // Bail out immediately if we have an invalid declaration.
+  if (D.isInvalidType()) {
+    NewTD->setInvalidDecl();
+    return NewTD;
   }
 
   return NewTD;
