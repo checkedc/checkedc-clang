@@ -3543,7 +3543,9 @@ QualType ASTContext::getTypeDeclTypeSlow(const TypeDecl *Decl) const {
   assert(Decl && "Passed null for Decl param");
   assert(!Decl->TypeForDecl && "TypeForDecl present in slow case");
 
-  if (const TypedefNameDecl *Typedef = dyn_cast<TypedefNameDecl>(Decl))
+  if (const auto* OpaqueTD = dyn_cast<TypeOpaqueDecl>(Decl))
+    return getTypeOpaqueType(OpaqueTD);
+  else if (const TypedefNameDecl *Typedef = dyn_cast<TypedefNameDecl>(Decl))
     return getTypedefType(Typedef);
 
   assert(!isa<TemplateTypeParmDecl>(Decl) &&
