@@ -633,3 +633,37 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
 #endif
 }
 
+// Check whether an expression contains an occurrence of the _Return_value
+// expression.
+namespace {
+  class CheckForReturnValue : public RecursiveASTVisitor<CheckForReturnValue> {
+  private:
+    Sema &SemaRef;
+    bool FoundReturnValue;
+
+  public:
+    CheckForReturnValue(Sema &SemaRef) :
+      SemaRef(SemaRef), FoundReturnValue(false) {}
+
+    bool ContainsReturnValueExpr() {
+      return FoundReturnValue;
+    }
+
+    bool VisitBoundsValueExpr(BoundsValueExpr *BVE) {
+      if (BVE->getKind() == BoundsValueExpr::Kind::Return) {
+        FoundReturnValue = true;
+        return false; // Stop the AST traversal early.
+      }
+      return true;
+    }
+  };
+}
+
+bool Sema::ContainsReturnValueExpr(Expr *E) {
+  if (!E)
+    return false;
+
+  CheckForReturnValue Checker(*this);
+  Checker.TraverseStmt(E);
+  return Checker.ContainsReturnValueExpr();
+}

@@ -5820,6 +5820,41 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   return MaybeBindToTemporary(TheCall);
 }
 
+ExprResult Sema::CreateTemporaryForCallIfNeeded(ExprResult ER) {
+  // Insert a temporary variable binding the result of a call. The temporary
+  // will be used in the bounds for the result of the call. Only do this if
+  // the call is to a function that has a return bounds expression that is
+  // count, byte_count, or that contains a _Return_value expression.
+  assert(getLangOpts().CheckedC);
+  if (ER.isInvalid())
+    return ER;
+
+  CallExpr *CE = dyn_cast<CallExpr>(ER.get());
+  if (!CE)
+    return ER;
+
+  Expr *Fn = CE->getCallee();
+  const FunctionProtoType *FPT;
+  if (const PointerType *PT = Fn->getType()->getAs<PointerType>()) {
+    FPT = PT->getPointeeType()->getAs<FunctionProtoType>();
+    if (FPT) {
+      BoundsAnnotations ReturnAnnots = FPT->getReturnAnnots();
+      BoundsExpr *ReturnBounds = ReturnAnnots.getBoundsExpr();
+      InteropTypeExpr *InteropExpr = ReturnAnnots.getInteropTypeExpr();
+
+      if ((ReturnBounds && (ReturnBounds->isByteCount() ||
+                            ReturnBounds->isElementCount())) ||
+          FPT->getReturnType()->isCheckedPointerPtrType() ||
+          (InteropExpr &&
+           InteropExpr->getType()->isCheckedPointerPtrType()) ||
+          ContainsReturnValueExpr(ReturnBounds))
+        ER = new (Context) CHKCBindTemporaryExpr(ER.get());
+    }
+  }
+
+  return ER;
+}
+
 ExprResult
 Sema::ActOnCompoundLiteral(SourceLocation LParenLoc, ParsedType Ty,
                            SourceLocation RParenLoc, Expr *InitExpr) {
