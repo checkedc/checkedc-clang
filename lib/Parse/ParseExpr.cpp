@@ -1678,7 +1678,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
                                     ArgExprs, Tok.getLocation(),
                                     ExecConfig);
         if (getLangOpts().CheckedC)
-          LHS = Actions.CreateTemporaryForCall(LHS);
+          LHS = Actions.CreateTemporaryForCallIfNeeded(LHS);
         PT.consumeClose();
       }
 

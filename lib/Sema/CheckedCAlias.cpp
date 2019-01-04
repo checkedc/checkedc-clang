@@ -650,8 +650,10 @@ namespace {
     }
 
     bool VisitBoundsValueExpr(BoundsValueExpr *BVE) {
-      if (BVE->getKind() == BoundsValueExpr::Kind::Return)
+      if (BVE->getKind() == BoundsValueExpr::Kind::Return) {
         FoundReturnValue = true;
+        return false; // Stop the AST traversal early.
+      }
       return true;
     }
   };

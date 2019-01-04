@@ -5820,12 +5820,13 @@ Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   return MaybeBindToTemporary(TheCall);
 }
 
-ExprResult Sema::CreateTemporaryForCall(ExprResult ER) {
+ExprResult Sema::CreateTemporaryForCallIfNeeded(ExprResult ER) {
   // Insert a temporary variable binding the result of a call. The temporary
   // will be used in the bounds for the result of the call. Only do this if
   // the call is to a function that has a return bounds expression that is
   // count, byte_count, or that contains a _Return_value expression.
-  if (getLangOpts().CheckedC && ER.isInvalid())
+  assert(getLangOpts().CheckedC);
+  if (ER.isInvalid())
     return ER;
 
   CallExpr *CE = dyn_cast<CallExpr>(ER.get());

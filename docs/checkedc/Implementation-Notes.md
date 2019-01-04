@@ -180,7 +180,7 @@ argument.  We do not create a variable name for the
 temporary expression.  The name used in diagnostic messages
 is `value of e`, where `e` is the expression whose result is being computed
 and bound to the temporary.  The `CHKBBindTemporaryExpr`
-is not a subexpression of the `BoundsValueExpr`.  Insstead, it
+is not a subexpression of the `BoundsValueExpr`.  Instead, it
 is similar to a declaration reference in a `DeclRefExpr`.
 
 Temporary variables are introduced for string and array
@@ -213,7 +213,7 @@ assume the IR has a form where a string literal occurs
 exactly as a subexpression of another expression. 
 
 Because the temporary variables appear in bounds, and the bounds themselves
-are attached to other nodes in the AST, we make sure that TreeTransfrom
+are attached to other nodes in the AST, we make sure that TreeTransform
 keeps tempoary bindings and uses in sync.  The bindings are treated
 the same way as declarations.
 
@@ -244,7 +244,7 @@ to unexpected performance differences, if the shape of the IR affected
 downstream optimizations or code transformations.  This leads to a design
 where during construction of the AST, we calculate whether a temporary variable
 will be needed and insert  he temporary only if it is needed.   There have only 
-been a few places here this calculation is needed, so this has not been disruptive
+been a few places where this calculation is needed, so this has not been disruptive
 to AST construction.
 
 ### Declarations

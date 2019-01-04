@@ -4900,7 +4900,7 @@ public:
   /// \brief Wrap a call expression in a Checked C temporay binding
   /// expression, if a temporary is needed to describe the bounds
   /// of the result of the call expression.
-  ExprResult CreateTemporaryForCall(ExprResult R);
+  ExprResult CreateTemporaryForCallIfNeeded(ExprResult R);
 
   /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
   /// body.

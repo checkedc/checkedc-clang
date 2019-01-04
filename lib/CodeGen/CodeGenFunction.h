@@ -1948,7 +1948,7 @@ public:
  void setBoundsTemporaryLValueMapping(const CHKCBindTemporaryExpr *e,
                                       const LValue &lv) {
     assert(e->getSubExpr()->isLValue());
-    auto result = BoundsTemporaryLValues.insert(std::make_pair(e, lv));
+    auto result = BoundsTemporaryLValues.try_emplace(e, lv);
     assert(result.second && "temporary already in map!");
   }
 
@@ -1956,7 +1956,7 @@ public:
  void setBoundsTemporaryRValueMapping(const CHKCBindTemporaryExpr *e,
                                       const RValue &rv) {
     assert(!e->getSubExpr()->isLValue());
-    auto result = BoundsTemporaryRValues.insert(std::make_pair(e, rv));
+    auto result = BoundsTemporaryRValues.try_emplace(e, rv);
     assert(result.second && "temporary already in map!");
   }
 
