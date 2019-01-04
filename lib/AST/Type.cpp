@@ -3882,6 +3882,9 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::Atomic:
   case Type::Pipe:
   case Type::TypeVariable:
+  // shall not reveal the underlying type,
+  // so keep it un-nullable
+  case Type::TypeOpaque:
     return false;
   }
   llvm_unreachable("bad type kind!");
