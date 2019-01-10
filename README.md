@@ -6,9 +6,11 @@ extends C with checking to detect or prevent common programming  errors such as
 out-of-bounds memory accesses.  The Checked C specification is available  at the 
 [Checked C repo](https://github.com/Microsoft/checkedc).
 
-## We are hiring!
+## We are hiring.
 
-We have a Principal Software Engineer position [available](https://careers.microsoft.com/us/en/job/559081/Principal-Software-Engineer). We are looking for someone wih compiler and language implementation experience who is passionate about making software more secure and reliable.
+We have a position available for a 
+[Principal Software Engineer](https://careers.microsoft.com/us/en/job/559081/Principal-Software-Engineer) or a
+[Senior Software Engineer](https://careers.microsoft.com/us/en/job/570339/Senior-Software-Engineer). We are looking for someone wih compiler and programming language implementation experience who is passionate about making software more secure and reliable.
 
 ## Trying out Checked C
 
@@ -17,6 +19,7 @@ We have pre-built compiler installers for Windows available for download on the
 [release page](https://github.com/Microsoft/checkedc-clang/releases).
 For other platforms, you will have to build your own copy of the compiler.  For directions on how to do this, see
 the [Checked C clang wiki](https://github.com/Microsoft/checkedc-clang/wiki).   The compiler user manual is [here](https://github.com/Microsoft/checkedc-clang/wiki/Checked-C-clang-user-manual).
+For more information on Checked C and pointers to example code, see our [Wiki](https://github.com/Microsoft/checkedc/wiki).
 
 ## More information
 
