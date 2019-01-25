@@ -166,6 +166,8 @@ void ASTStmtReader::VisitCompoundStmt(CompoundStmt *S) {
   S->setStmts(Stmts);
   S->CompoundStmtBits.LBraceLoc = ReadSourceLocation();
   S->RBraceLoc = ReadSourceLocation();
+  S->CSSLoc = ReadSourceLocation();
+  S->CSMLoc = ReadSourceLocation();
 }
 
 void ASTStmtReader::VisitSwitchCase(SwitchCase *S) {

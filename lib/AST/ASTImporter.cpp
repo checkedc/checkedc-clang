@@ -5650,7 +5650,12 @@ ExpectedStmt ASTNodeImporter::VisitCompoundStmt(CompoundStmt *S) {
     return ToRBracLocOrErr.takeError();
 
   ExpectedSLoc ToCheckedSpecifierLocOrErr = import(S->getCheckedSpecifierLoc());
+  if (!ToCheckedSpecifierLocOrErr)
+    return ToCheckedSpecifierLocOrErr.takeError();
+
   ExpectedSLoc ToSpecifierModifierorErr = import(S->getSpecifierModifierLoc());
+  if (!ToSpecifierModifierorErr)
+    return ToSpecifierModifierorErr.takeError();
 
   return CompoundStmt::Create(
       Importer.getToContext(), ToStmts,
