@@ -415,6 +415,8 @@ void ExprEngine::VisitCast(const CastExpr *CastE, const Expr *Ex,
       case CK_ZeroToOCLOpaqueType:
       case CK_IntToOCLSampler:
       case CK_LValueBitCast:
+      case CK_DynamicPtrBounds:
+      case CK_AssumePtrBounds:
       case CK_FixedPointCast:
       case CK_FixedPointToBoolean: {
         state =
@@ -1124,4 +1126,24 @@ void ExprEngine::VisitIncrementDecrementOperator(const UnaryOperator* U,
     Bldr.addNodes(Dst3);
   }
   Dst.insert(Dst2);
+}
+
+void ExprEngine::VisitCHKCBindTemporaryExpr(
+  const CHKCBindTemporaryExpr *Binding, const Expr *SE, ExplodedNode *Pred,
+  ExplodedNodeSet &Dst) {
+
+  ExplodedNodeSet dstPreStmt;
+  getCheckerManager().runCheckersForPreStmt(dstPreStmt, Pred, Binding, *this);
+  StmtNodeBuilder Bldr(dstPreStmt, Dst, *currBldrCtx);
+  for (ExplodedNodeSet::iterator I = dstPreStmt.begin(), E = dstPreStmt.end();
+       I != E; ++I) {
+
+    Pred = *I;
+    // Copy the SVal of SE to the Binding
+    ProgramStateRef state = Pred->getState();
+    const LocationContext *LCtx = Pred->getLocationContext();
+    SVal V = state->getSVal(SE, LCtx);
+    state = state->BindExpr(Binding, LCtx, V);
+    Bldr.generateNode(Binding, Pred, state);
+  }
 }

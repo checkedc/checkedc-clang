@@ -1024,6 +1024,7 @@ DEF_TRAVERSE_TYPE(FunctionProtoType, {
 
 DEF_TRAVERSE_TYPE(UnresolvedUsingType, {})
 DEF_TRAVERSE_TYPE(TypedefType, {})
+DEF_TRAVERSE_TYPE(TypeVariableType, {})
 
 DEF_TRAVERSE_TYPE(TypeOfExprType,
                   { TRY_TO(TraverseStmt(T->getUnderlyingExpr())); })
@@ -1261,6 +1262,7 @@ DEF_TRAVERSE_TYPELOC(FunctionProtoType, {
 
 DEF_TRAVERSE_TYPELOC(UnresolvedUsingType, {})
 DEF_TRAVERSE_TYPELOC(TypedefType, {})
+DEF_TRAVERSE_TYPELOC(TypeVariableType, {})
 
 DEF_TRAVERSE_TYPELOC(TypeOfExprType,
                      { TRY_TO(TraverseStmt(TL.getUnderlyingExpr())); })
@@ -2570,6 +2572,13 @@ DEF_TRAVERSE_STMT(FunctionParmPackExpr, {})
 DEF_TRAVERSE_STMT(MaterializeTemporaryExpr, {})
 DEF_TRAVERSE_STMT(CXXFoldExpr, {})
 DEF_TRAVERSE_STMT(AtomicExpr, {})
+DEF_TRAVERSE_STMT(CountBoundsExpr, {})
+DEF_TRAVERSE_STMT(NullaryBoundsExpr, {})
+DEF_TRAVERSE_STMT(RangeBoundsExpr, {})
+DEF_TRAVERSE_STMT(InteropTypeExpr, {})
+DEF_TRAVERSE_STMT(PositionalParameterExpr, {})
+DEF_TRAVERSE_STMT(BoundsValueExpr, {})
+DEF_TRAVERSE_STMT(CHKCBindTemporaryExpr, {})
 
 // For coroutines expressions, traverse either the operand
 // as written or the implied calls, depending on what the
@@ -2619,6 +2628,12 @@ DEF_TRAVERSE_STMT(ObjCDictionaryLiteral, {})
 
 // Traverse OpenCL: AsType, Convert.
 DEF_TRAVERSE_STMT(AsTypeExpr, {})
+
+// CheckedC Bounds Casting
+DEF_TRAVERSE_STMT(BoundsCastExpr, {
+  TRY_TO(TraverseTypeLoc(S->getTypeInfoAsWritten()->getTypeLoc()));
+})
+
 
 // OpenMP directives.
 template <typename Derived>

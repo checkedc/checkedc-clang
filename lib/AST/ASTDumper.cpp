@@ -95,6 +95,7 @@ namespace  {
     void dumpDeclContext(const DeclContext *DC);
     void dumpLookups(const DeclContext *DC, bool DumpDecls);
     void dumpAttr(const Attr *A);
+    void dumpBoundsAnnotations(BoundsAnnotations BA);
 
     // C++ Utilities
     void dumpCXXCtorInitializer(const CXXCtorInitializer *Init);
@@ -162,10 +163,35 @@ namespace  {
     }
     void VisitFunctionProtoType(const FunctionProtoType *T) {
       VisitFunctionType(T);
-      for (QualType PT : T->getParamTypes())
+      unsigned numParams = T->getNumParams();
+      for (unsigned i = 0; i < numParams; i++) {
+        QualType PT = T->getParamType(i);
         dumpTypeAsChild(PT);
+        const BoundsAnnotations Annots = T->getParamAnnots(i);
+        if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
+          dumpChild([=] {
+            OS << "Bounds";
+            dumpStmt(Bounds);
+          });
+        if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
+          dumpChild([=] {
+            OS << "InteropType";
+            dumpStmt(IT);
+          });
+      }
       if (T->getExtProtoInfo().Variadic)
         dumpChild([=] { OS << "..."; });
+     BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
+      if (const BoundsExpr *Bounds = ReturnAnnots.getBoundsExpr())
+        dumpChild([=] {
+          OS << "Return bounds";
+          dumpStmt(Bounds);
+        });
+      if (const InteropTypeExpr *IT = ReturnAnnots.getInteropTypeExpr())
+        dumpChild([=] {
+          OS << "Return interopType";
+          dumpStmt(IT);
+        });
     }
     void VisitTypeOfExprType(const TypeOfExprType *T) {
       dumpStmt(T->getUnderlyingExpr());
@@ -289,6 +315,7 @@ namespace  {
     // Stmts.
     void VisitDeclStmt(const DeclStmt *Node);
     void VisitAttributedStmt(const AttributedStmt *Node);
+    void VisitCompoundStmt(const CompoundStmt *Node);
     void VisitCXXCatchStmt(const CXXCatchStmt *Node);
     void VisitCapturedStmt(const CapturedStmt *Node);
 
@@ -297,10 +324,15 @@ namespace  {
     void VisitOMPExecutableDirective(const OMPExecutableDirective *Node);
 
     // Exprs
+    void VisitCastExpr(const CastExpr *Node);
+    void VisitDeclRefExpr(const DeclRefExpr *Node);
     void VisitInitListExpr(const InitListExpr *ILE);
     void VisitBlockExpr(const BlockExpr *Node);
     void VisitOpaqueValueExpr(const OpaqueValueExpr *Node);
     void VisitGenericSelectionExpr(const GenericSelectionExpr *E);
+    void VisitArraySubscriptExpr(const ArraySubscriptExpr *Node);
+    void VisitMemberExpr(const MemberExpr *Node);
+    void VisitUnaryOperator(const UnaryOperator *Node);
 
     // C++
     void VisitLambdaExpr(const LambdaExpr *Node) {
@@ -324,6 +356,10 @@ namespace  {
 
 // Implements Visit methods for Attrs.
 #include "clang/AST/AttrNodeTraverse.inc"
+
+    // Checked C expressions.
+    void VisitRangeBoundsExpr(const RangeBoundsExpr *Node);
+    void VisitInteropTypeExpr(const InteropTypeExpr *Node);
   };
 }
 
@@ -435,6 +471,14 @@ void ASTDumper::dumpAttr(const Attr *A) {
     NodeDumper.Visit(A);
     ConstAttrVisitor<ASTDumper>::Visit(A);
   });
+}
+
+void ASTDumper::dumpBoundsAnnotations(BoundsAnnotations BA) {
+  if (const BoundsExpr *Bounds = BA.getBoundsExpr())
+    dumpStmt(Bounds);
+
+  if (const InteropTypeExpr *IT = BA.getInteropTypeExpr())
+    dumpStmt(IT);
 }
 
 //===----------------------------------------------------------------------===//
@@ -599,6 +643,13 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
   if (D->isTrivial())
     OS << " trivial";
 
+  switch (D->getWrittenCheckedSpecifier()) {
+    case CSS_None: break;
+    case CSS_Bounds: OS << " checked bounds_only"; break;
+    case CSS_Memory: OS << " checked"; break;
+    case CSS_Unchecked: OS << " unchecked"; break;
+  }
+
   if (const auto *FPT = D->getType()->getAs<FunctionProtoType>()) {
     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
     switch (EPI.ExceptionSpec.Type) {
@@ -609,6 +660,23 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
     case EST_Uninstantiated:
       OS << " noexcept-uninstantiated " << EPI.ExceptionSpec.SourceTemplate;
       break;
+    }
+  }
+
+  // If the function is generic function or an itype generic function, dump
+  // information about type variables. The type variable name is stored as a
+  // TypedefDecl.
+  if ((D->isGenericFunction() || D->isItypeGenericFunction()) &&
+      D->getNumTypeVars() > 0) {
+    for (const TypedefDecl* Typevar : D->typeVariables()) {
+      dumpChild([=] {
+        OS << "TypeVariable";
+        NodeDumper.dumpPointer(Typevar);
+        OS << " ";
+        NodeDumper.dumpLocation(Typevar->getLocation());
+        OS << " " << Typevar->getIdentifier()->getName();
+        NodeDumper.dumpType(Typevar->getUnderlyingType());
+      });
     }
   }
 
@@ -644,6 +712,8 @@ void ASTDumper::VisitFunctionDecl(const FunctionDecl *D) {
     for (const ParmVarDecl *Parameter : D->parameters())
       dumpDecl(Parameter);
 
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
+
   if (const auto *C = dyn_cast<CXXConstructorDecl>(D))
     for (const auto *I : C->inits())
       dumpCXXCtorInitializer(I);
@@ -662,6 +732,7 @@ void ASTDumper::VisitFieldDecl(const FieldDecl *D) {
 
   if (D->isBitField())
     dumpStmt(D->getBitWidth());
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
   if (Expr *Init = D->getInClassInitializer())
     dumpStmt(Init);
 }
@@ -685,6 +756,7 @@ void ASTDumper::VisitVarDecl(const VarDecl *D) {
     OS << " inline";
   if (D->isConstexpr())
     OS << " constexpr";
+  dumpBoundsAnnotations(D->getBoundsAnnotations());
   if (D->hasInit()) {
     switch (D->getInitStyle()) {
     case VarDecl::CInit: OS << " cinit"; break;
@@ -1430,6 +1502,24 @@ void ASTDumper::VisitAttributedStmt(const AttributedStmt *Node) {
     dumpAttr(*I);
 }
 
+void ASTDumper::VisitCompoundStmt(const CompoundStmt *Node) {
+  VisitStmt(Node);
+  CheckedScopeSpecifier WrittenCSS = Node->getWrittenCheckedSpecifier();
+  switch (WrittenCSS) {
+    case CSS_None: break;
+    case CSS_Unchecked: OS << " _Unchecked "; break;
+    case CSS_Bounds: OS <<  " _Checked _Bounds_only "; break;
+    case CSS_Memory: OS << " _Checked "; break;
+  }
+
+
+  CheckedScopeSpecifier CSS = Node->getCheckedSpecifier();
+  if (CSS != CSS_Unchecked) {
+     OS << "checking-state ";
+     OS << (CSS == CSS_Bounds ? "bounds" :"bounds-and-types");
+  }
+}
+
 void ASTDumper::VisitCXXCatchStmt(const CXXCatchStmt *Node) {
   dumpDecl(Node->getExceptionDecl());
 }
@@ -1460,6 +1550,29 @@ void ASTDumper::VisitOMPExecutableDirective(
 //  Expr dumping methods.
 //===----------------------------------------------------------------------===//
 
+void ASTDumper::VisitCastExpr(const CastExpr *Node) {
+  if (const BoundsExpr *NormalizedBounds = Node->getNormalizedBoundsExpr())
+    dumpChild([=] {
+      OS << "Normalized Bounds";
+      dumpStmt(NormalizedBounds);
+    });
+
+  if (const BoundsExpr *SubExprBounds = Node->getSubExprBoundsExpr())
+    dumpChild([=] {
+      OS << "Inferred SubExpr Bounds";
+      dumpStmt(SubExprBounds);
+    });
+}
+
+void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
+  if (Node->GetTypeArgumentInfo() &&
+      !Node->GetTypeArgumentInfo()->typeArgumentss().empty()) {
+    for (DeclRefExpr::GenericInstInfo::TypeArgument tn :
+         Node->GetTypeArgumentInfo()->typeArgumentss()) {
+      dumpTypeAsChild(tn.typeName);
+    }
+  }
+}
 
 void ASTDumper::VisitInitListExpr(const InitListExpr *ILE) {
   if (auto *Filler = ILE->getArrayFiller()) {
@@ -1474,6 +1587,35 @@ void ASTDumper::VisitBlockExpr(const BlockExpr *Node) {
 void ASTDumper::VisitOpaqueValueExpr(const OpaqueValueExpr *Node) {
   if (Expr *Source = Node->getSourceExpr())
     dumpStmt(Source);
+}
+
+void ASTDumper::VisitArraySubscriptExpr(const ArraySubscriptExpr *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Bounds ";
+      NodeDumper.Visit(Node->getBoundsCheckKind());
+      dumpStmt(Bounds);
+    });
+  }
+}
+
+void ASTDumper::VisitMemberExpr(const MemberExpr *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Base Expr Bounds";
+      dumpStmt(Bounds);
+    });
+  }
+}
+
+void ASTDumper::VisitUnaryOperator(const UnaryOperator *Node) {
+  if (const BoundsExpr *Bounds = Node->getBoundsExpr()) {
+    dumpChild([=] {
+      OS << "Bounds ";
+      NodeDumper.Visit(Node->getBoundsCheckKind());
+      dumpStmt(Bounds);
+    });
+  }
 }
 
 void ASTDumper::VisitGenericSelectionExpr(const GenericSelectionExpr *E) {
@@ -1535,6 +1677,33 @@ void ASTDumper::dumpComment(const Comment *C, const FullComment *FC) {
          I != E; ++I)
       dumpComment(*I, FC);
   });
+}
+
+//===----------------------------------------------------------------------===//
+// Checked C bounds expressions
+//===----------------------------------------------------------------------===//
+
+
+void ASTDumper::VisitRangeBoundsExpr(const RangeBoundsExpr *Node) {
+  if (Node->getKind() != BoundsExpr::Kind::Range)
+    NodeDumper.Visit(Node->getKind());
+  if (Node->hasRelativeBoundsClause()) {
+    RelativeBoundsClause *Expr =
+        cast<RelativeBoundsClause>(Node->getRelativeBoundsClause());
+    OS << " rel_align : ";
+    if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
+      QualType Ty = cast<RelativeTypeBoundsClause>(Expr)->getType();
+      NodeDumper.dumpType(Ty);
+    } else if (Expr->getClauseKind() == RelativeTypeBoundsClause::Kind::Const) {
+      dumpStmt(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
+    } else {
+      llvm_unreachable("unexpected kind field of relative bounds clause");
+    }
+  }
+}
+
+void ASTDumper::VisitInteropTypeExpr(const InteropTypeExpr *Node) {
+  dumpTypeAsChild(Node->getType());
 }
 
 //===----------------------------------------------------------------------===//

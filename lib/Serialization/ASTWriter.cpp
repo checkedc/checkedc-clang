@@ -194,6 +194,7 @@ void ASTTypeWriter::VisitComplexType(const ComplexType *T) {
 
 void ASTTypeWriter::VisitPointerType(const PointerType *T) {
   Record.AddTypeRef(T->getPointeeType());
+  Record.push_back((unsigned)T->getKind());
   Code = TYPE_POINTER;
 }
 
@@ -234,6 +235,7 @@ void ASTTypeWriter::VisitArrayType(const ArrayType *T) {
   Record.AddTypeRef(T->getElementType());
   Record.push_back(T->getSizeModifier()); // FIXME: stable values
   Record.push_back(T->getIndexTypeCVRQualifiers()); // FIXME: stable values
+  Record.push_back((unsigned)T->getKind());
 }
 
 void ASTTypeWriter::VisitConstantArrayType(const ConstantArrayType *T) {
@@ -311,21 +313,33 @@ void ASTTypeWriter::VisitFunctionProtoType(const FunctionProtoType *T) {
   Record.push_back(T->isVariadic());
   Record.push_back(T->hasTrailingReturn());
   Record.push_back(T->getTypeQuals().getAsOpaqueValue());
+  Record.push_back(T->getNumTypeVars());
+  Record.push_back(T->hasParamAnnots());
   Record.push_back(static_cast<unsigned>(T->getRefQualifier()));
   addExceptionSpec(T, Record);
+  Record.AddBoundsAnnotations(T->getReturnAnnots());
 
   Record.push_back(T->getNumParams());
   for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
     Record.AddTypeRef(T->getParamType(I));
+
+  if (T->hasParamAnnots())
+    for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
+      Record.AddBoundsAnnotations(T->getParamAnnots(I));
 
   if (T->hasExtParameterInfos()) {
     for (unsigned I = 0, N = T->getNumParams(); I != N; ++I)
       Record.push_back(T->getExtParameterInfo(I).getOpaqueValue());
   }
 
-  if (T->isVariadic() || T->hasTrailingReturn() || T->getTypeQuals() ||
-      T->getRefQualifier() || T->getExceptionSpecType() != EST_None ||
-      T->hasExtParameterInfos())
+  // AbbrevToUse indicates whether to compress a record in a domain-specifc
+  // way.  ASTWriter::WriteTypeAbbrevs omits these fields in the template
+  // for the compressed record for function prototypes, so disable the
+  // compression when these fields are present.  Note that, confusingly,
+  // compression of function prototypes does not appear to ever be enabled.
+  if (T->isVariadic() || T->hasTrailingReturn() || T->hasParamAnnots() ||
+      T->hasReturnAnnots() || T->getTypeQuals() || T->getRefQualifier() ||
+      T->getExceptionSpecType() != EST_None || T->hasExtParameterInfos())
     AbbrevToUse = 0;
 
   Code = TYPE_FUNCTION_PROTO;
@@ -341,6 +355,13 @@ void ASTTypeWriter::VisitTypedefType(const TypedefType *T) {
   assert(!T->isCanonicalUnqualified() && "Invalid typedef ?");
   Record.AddTypeRef(T->getCanonicalTypeInternal());
   Code = TYPE_TYPEDEF;
+}
+
+void ASTTypeWriter::VisitTypeVariableType(const TypeVariableType *T) {
+  Record.push_back(T->GetDepth());
+  Record.push_back(T->GetIndex());
+  Record.push_back(T->IsBoundsInterfaceType());
+  Code = TYPE_TYPEVARIABLE;
 }
 
 void ASTTypeWriter::VisitTypeOfExprType(const TypeOfExprType *T) {
@@ -613,7 +634,9 @@ void TypeLocWriter::VisitComplexTypeLoc(ComplexTypeLoc TL) {
 }
 
 void TypeLocWriter::VisitPointerTypeLoc(PointerTypeLoc TL) {
-  Record.AddSourceLocation(TL.getStarLoc());
+  Record.AddSourceLocation(TL.getKWLoc());
+  Record.AddSourceLocation(TL.getLeftSymLoc());
+  Record.AddSourceLocation(TL.getRightSymLoc());
 }
 
 void TypeLocWriter::VisitDecayedTypeLoc(DecayedTypeLoc TL) {
@@ -716,6 +739,10 @@ void TypeLocWriter::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
 }
 
 void TypeLocWriter::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
+  Record.AddSourceLocation(TL.getNameLoc());
+}
+
+void TypeLocWriter::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
 }
 
@@ -975,6 +1002,7 @@ static void AddStmtsExprs(llvm::BitstreamWriter &Stream,
   RECORD(EXPR_CONDITIONAL_OPERATOR);
   RECORD(EXPR_IMPLICIT_CAST);
   RECORD(EXPR_CSTYLE_CAST);
+  RECORD(EXPR_BOUNDS_CAST);  
   RECORD(EXPR_COMPOUND_LITERAL);
   RECORD(EXPR_EXT_VECTOR_ELEMENT);
   RECORD(EXPR_INIT_LIST);

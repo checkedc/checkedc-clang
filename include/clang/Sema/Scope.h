@@ -132,6 +132,13 @@ public:
 
     /// We are between inheritance colon and the real class/struct definition scope.
     ClassInheritanceScope = 0x800000,
+
+    /// Checked C - _For_any Polymorphic type scopes
+    ForanyScope = 0x1000000,
+
+    /// Checked C - _Itype_for_any Polymorphic bounds safe interface type scopes
+    ItypeforanyScope = 0x2000000
+
   };
 
 private:
@@ -338,6 +345,12 @@ public:
   bool isClassScope() const {
     return (getFlags() & Scope::ClassScope);
   }
+
+  /// isForanyScope - Return true if this scope is _For_any scope.
+  bool isForanyScope() const { return (getFlags() & Scope::ForanyScope); }
+
+  /// isItypeforanyScope - Return true if this scope is _Itype_for_any scope.
+  bool isItypeforanyScope() const { return (getFlags() & Scope::ItypeforanyScope); }
 
   /// isInCXXInlineMethodScope - Return true if this scope is a C++ inline
   /// method scope or is inside one.
