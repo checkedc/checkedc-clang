@@ -17,7 +17,7 @@ extern _Ptr<int> gp1;
 extern _Ptr<struct S1> gp2;
 
 // CHECK-AST: FunctionDecl {{.*}} f1
-// CHECK-IR: define {{.*}} void @f1
+// CHECK-IR: define {{.*}}void @f1
 void f1(void) {
   //
   // Global Pointers
@@ -54,7 +54,7 @@ void f1(void) {
 }
 
 // CHECK-AST: FunctionDecl {{.*}} f2
-// CHECK-IR: define {{.*}} void @f2
+// CHECK-IR: define {{.*}}void @f2
 void f2(_Ptr<int> lp1,
         _Ptr<struct S1> lp2) {
   //
