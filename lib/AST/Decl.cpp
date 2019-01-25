@@ -2717,7 +2717,7 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
   FunctionDeclBits.UsesSEHTry = false;
   FunctionDeclBits.HasSkippedBody = false;
   FunctionDeclBits.WillHaveBody = false;
-  FunctionDeclBits.IsGenericFunction - false;
+  FunctionDeclBits.IsGenericFunction = false;
   FunctionDeclBits.IsItypeGenericFunction = false;
   FunctionDeclBits.WrittenCheckedSpecifier = CSS_None;
   FunctionDeclBits.CheckedSpecifier = CSS_None;
