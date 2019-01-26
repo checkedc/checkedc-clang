@@ -7263,6 +7263,8 @@ static int EvaluateBuiltinClassifyType(const CallExpr *E,
   case Type::IncompleteArray:
     return LangOpts.CPlusPlus ? array_type_class : pointer_type_class;
   case Type::TypeVariable:
+  case Type::TypeOpaque:
+  case Type::TypeReveal:
     return void_type_class;
 
   case Type::BlockPointer:

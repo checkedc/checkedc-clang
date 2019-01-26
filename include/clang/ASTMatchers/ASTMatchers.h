@@ -225,6 +225,16 @@ const internal::VariadicDynCastAllOfMatcher<Decl, TypeAliasDecl> typeAliasDecl;
 const internal::VariadicDynCastAllOfMatcher<Decl, TypeOpaqueDecl>
         typeOpaqueDecl;
 
+/// \brief Matches typereveal name declarations.
+///
+/// Given
+/// \code
+///   revealtype int* X;
+/// \endcode
+/// typeRevealDecl()
+const internal::VariadicDynCastAllOfMatcher<Decl, TypeRevealDecl>
+        typeRevealDecl;
+
 /// \brief Matches type alias template declarations.
 ///
 /// typeAliasTemplateDecl() matches

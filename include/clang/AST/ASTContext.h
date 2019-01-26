@@ -135,6 +135,7 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::FoldingSet<PointerType> PointerTypes;
   mutable llvm::FoldingSet<TypeVariableType> TypeVariableTypes;
   mutable llvm::FoldingSet<TypeOpaqueType> TypeOpaqueTypes;
+  mutable llvm::FoldingSet<TypeRevealType> TypeRevealTypes;
   mutable llvm::FoldingSet<AdjustedType> AdjustedTypes;
   mutable llvm::FoldingSet<BlockPointerType> BlockPointerTypes;
   mutable llvm::FoldingSet<LValueReferenceType> LValueReferenceTypes;
@@ -1346,6 +1347,10 @@ public:
   /// \brief Return the unique reference to the type for the specified
   /// opaquetype-name decl.
   QualType getTypeOpaqueType(const TypeOpaqueDecl *Decl) const;
+
+  /// \brief Return the unique reference to the type for the specified
+  /// opaquetype-name decl.
+  QualType getTypeRevealType(const TypeRevealDecl *Decl) const;
 
   QualType getRecordType(const RecordDecl *Decl) const;
 

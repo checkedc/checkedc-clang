@@ -6036,6 +6036,19 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
     return Context.getTypeOpaqueType(Decl);
   }
 
+  case TYPE_TYPEREVEAL: {
+    if (Record.size() != 2) {
+      Error("incorrect encoding of typeReveal type");
+      return QualType();
+    }
+    unsigned Idx = 0;
+    TypeRevealDecl *Decl = ReadDeclAs<TypeRevealDecl>(*Loc.F, Record, Idx);
+//    QualType Canonical = readType(*Loc.F, Record, Idx); //$TODO$ needs revisiting
+//    if (!Canonical.isNull())
+//      Canonical = Context.getCanonicalType(Canonical);
+    return Context.getTypeRevealType(Decl);
+  }
+
   case TYPE_DECLTYPE: {
     QualType UnderlyingType = readType(*Loc.F, Record, Idx);
     return Context.getDecltypeType(ReadExpr(*Loc.F), UnderlyingType);
@@ -6506,6 +6519,9 @@ void TypeLocReader::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation());
 }
 void TypeLocReader::VisitTypeOpaqueTypeLoc(TypeOpaqueTypeLoc TL) {
+  TL.setNameLoc(ReadSourceLocation());
+}
+void TypeLocReader::VisitTypeRevealTypeLoc(TypeRevealTypeLoc TL) {
   TL.setNameLoc(ReadSourceLocation());
 }
 void TypeLocReader::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {

@@ -179,6 +179,7 @@ namespace clang {
   class TypeAliasDecl;
   class TypedefDecl;
   class TypeOpaqueDecl;
+  class TypeRevealDecl;
   class TypedefNameDecl;
   class TypeLoc;
   class TypoCorrectionConsumer;
@@ -2171,6 +2172,7 @@ public:
     NTK_Typedef,
     NTK_TypeAlias,
     NTK_TypeOpaque,
+    NTK_TypeReveal,
     NTK_Template,
     NTK_TypeAliasTemplate,
     NTK_TemplateTemplateArgument,

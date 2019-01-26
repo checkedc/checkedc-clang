@@ -142,7 +142,8 @@ void CodeGenFunction::EmitDecl(const Decl &D) {
 
   case Decl::Typedef:      // typedef int X;
   case Decl::TypeAlias:    // using X = int; [C++0x]
-  case Decl::TypeOpaque: {
+  case Decl::TypeOpaque:
+  case Decl::TypeReveal: {
     const TypedefNameDecl &TD = cast<TypedefNameDecl>(D);
     QualType Ty = TD.getUnderlyingType();
 

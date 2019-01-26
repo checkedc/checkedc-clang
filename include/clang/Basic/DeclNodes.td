@@ -23,6 +23,7 @@ def Named : Decl<1>;
     def TypedefName : DDecl<Type, 1>;
       def Typedef : DDecl<TypedefName>;
       def TypeOpaque : DDecl<TypedefName>;
+      def TypeReveal : DDecl<TypedefName>;
       def TypeAlias : DDecl<TypedefName>;
       def ObjCTypeParam : DDecl<TypedefName>;
     def UnresolvedUsingTypename : DDecl<Type>;

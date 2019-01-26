@@ -52,6 +52,7 @@ class UnresolvedSetImpl;
 class VarTemplateDecl;
 class TypedefDecl;
 class TypeOpaqueDecl;
+class TypeRevealDecl;
 
 /// \brief A container of type source information.
 ///
@@ -3005,6 +3006,26 @@ public:
     // Implement isa/cast/dyncast/etc.
     static bool classof(const Decl *D) { return classofKind(D->getKind()); }
     static bool classofKind(Kind K) { return K == TypeOpaque; }
+};
+
+/// TypedefDecl - Represents the declaration of a typedef-name via the 'typedef'
+/// type specifier.
+class TypeRevealDecl : public TypedefNameDecl {
+    TypeRevealDecl(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
+                   SourceLocation IdLoc, IdentifierInfo *Id, TypeSourceInfo *TInfo)
+            : TypedefNameDecl(TypeOpaque, C, DC, StartLoc, IdLoc, Id, TInfo) {}
+
+public:
+    static TypeRevealDecl *Create(ASTContext &C, DeclContext *DC,
+                                  SourceLocation StartLoc, SourceLocation IdLoc,
+                                  IdentifierInfo *Id, TypeSourceInfo *TInfo);
+    static TypeRevealDecl *CreateDeserialized(ASTContext &C, unsigned ID);
+
+    SourceRange getSourceRange() const override LLVM_READONLY;
+
+    // Implement isa/cast/dyncast/etc.
+    static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+    static bool classofKind(Kind K) { return K == TypeReveal; }
 };
 
 /// TypeAliasDecl - Represents the declaration of a typedef-name via a C++0x

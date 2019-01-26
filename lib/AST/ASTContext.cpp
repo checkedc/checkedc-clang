@@ -1923,7 +1923,12 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Width = 0;
     Align = 8;
     break;
-  
+
+  case Type::TypeReveal:
+    Width = 0;
+    Align = 8;
+    break;
+
   case Type::TypeVariable:
     Width = 0;
     Align = 8;
@@ -2549,6 +2554,18 @@ ASTContext::getTypeOpaqueType(const TypeOpaqueDecl *Decl) const {
   return QualType(newType, 0);
 }
 
+/// getTypeRevealType - Return the unique reference to the type for the
+/// specified typedef name decl.
+QualType
+ASTContext::getTypeRevealType(const TypeRevealDecl *Decl) const {
+  if (Decl->TypeForDecl) return QualType(Decl->TypeForDecl, 0);
+
+  TypeRevealType *newType = new(*this, TypeAlignment) TypeRevealType(Type::TypeReveal, Decl);
+  Decl->TypeForDecl = newType;
+  Types.push_back(newType);
+  return QualType(newType, 0);
+}
+
 QualType ASTContext::getAdjustedType(QualType Orig, QualType New) const {
   llvm::FoldingSetNodeID ID;
   AdjustedType::Profile(ID, Orig, New);
@@ -2851,6 +2868,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::Pipe:
   case Type::TypeVariable:
   case Type::TypeOpaque:
+  case Type::TypeReveal:
     return type;
 
   // These types can be variably-modified.  All these modifications
@@ -3543,8 +3561,10 @@ QualType ASTContext::getTypeDeclTypeSlow(const TypeDecl *Decl) const {
   assert(Decl && "Passed null for Decl param");
   assert(!Decl->TypeForDecl && "TypeForDecl present in slow case");
 
-  if (const auto* OpaqueTD = dyn_cast<TypeOpaqueDecl>(Decl))
-    return getTypeOpaqueType(OpaqueTD);
+  if (const auto* OpaqueTypeDecl = dyn_cast<TypeOpaqueDecl>(Decl))
+    return getTypeOpaqueType(OpaqueTypeDecl);
+  else if (const auto* RevealTypeDecl = dyn_cast<TypeRevealDecl>(Decl))
+    return getTypeRevealType(RevealTypeDecl);
   else if (const TypedefNameDecl *Typedef = dyn_cast<TypedefNameDecl>(Decl))
     return getTypedefType(Typedef);
 
@@ -6528,6 +6548,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string& S,
   case Type::DeducedTemplateSpecialization:
   case Type::TypeVariable:
   case Type::TypeOpaque:
+  case Type::TypeReveal:
     return;
 
   case Type::Pipe:
@@ -8707,12 +8728,18 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
            "Equivalent type variable types should have already been handled!");
     return QualType();
   case Type::TypeOpaque:
-      assert(LHS != RHS &&
-             "Equivalent opaque types should have already been handled!");
-          return QualType();
+  {
+    assert(LHS != RHS &&
+           "Equivalent opaque types should have already been handled!");
+    return QualType();
   }
-
-
+  case Type::TypeReveal:
+  {
+    assert(LHS != RHS &&
+           "Equivalent reveal types should have already been handled!");
+    return QualType();
+  }
+  }
 
   llvm_unreachable("Invalid Type::Class!");
 }

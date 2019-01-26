@@ -534,6 +534,12 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     break;
   }
 
+  case Type::TypeReveal: {
+    // TypeReveal work just like void type.
+    ResultType = llvm::Type::getInt8Ty(getLLVMContext());
+    break;
+  }
+
   case Type::VariableArray: {
     const VariableArrayType *A = cast<VariableArrayType>(Ty);
     assert(A->getIndexTypeCVRQualifiers() == 0 &&

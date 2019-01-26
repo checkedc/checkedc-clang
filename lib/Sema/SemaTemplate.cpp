@@ -5179,6 +5179,10 @@ bool UnnamedLocalNoLinkageFinder::VisitTypeOpaqueType(const TypeOpaqueType*) {
   return false;
 }
 
+bool UnnamedLocalNoLinkageFinder::VisitTypeRevealType(const TypeRevealType*) {
+  return false;
+}
+
 bool UnnamedLocalNoLinkageFinder::VisitTypeOfType(const TypeOfType* T) {
   return Visit(T->getUnderlyingType());
 }

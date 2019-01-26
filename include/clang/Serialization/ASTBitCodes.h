@@ -944,7 +944,8 @@ namespace clang {
       /// \brief A DependentAddressSpaceType record.
       TYPE_DEPENDENT_ADDRESS_SPACE = 47,
       TYPE_TYPEVARIABLE = 48,
-      TYPE_TYPEOPAQUE = 49
+      TYPE_TYPEOPAQUE = 49,
+      TYPE_TYPEREVEAL = 50
     };
 
     /// \brief The type IDs for special types constructed by semantic
@@ -1060,6 +1061,8 @@ namespace clang {
       DECL_TYPEALIAS,
       /// \brief A TypeOpaqueDecl record.
       DECL_TYPEOPAQUE,
+      /// \brief A TypeRevealDecl record.
+      DECL_TYPEREVEAL,
       /// \brief An EnumDecl record.
       DECL_ENUM,
       /// \brief A RecordDecl record.

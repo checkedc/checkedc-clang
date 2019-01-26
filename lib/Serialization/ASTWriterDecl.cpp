@@ -67,6 +67,7 @@ namespace clang {
     void VisitTypedefDecl(TypedefDecl *D);
     void VisitTypeAliasDecl(TypeAliasDecl *D);
     void VisitTypeOpaqueDecl(TypeOpaqueDecl *D);
+    void VisitTypeRevealDecl(TypeRevealDecl *D);
     void VisitUnresolvedUsingTypenameDecl(UnresolvedUsingTypenameDecl *D);
     void VisitTagDecl(TagDecl *D);
     void VisitEnumDecl(EnumDecl *D);
@@ -399,6 +400,12 @@ void ASTDeclWriter::VisitTypeOpaqueDecl(TypeOpaqueDecl *D) {
   VisitTypedefNameDecl(D);
 //  Record.AddDeclRef(D->getDescribedAliasTemplate());$TODO$ needs implementation
   Code = serialization::DECL_TYPEOPAQUE;
+}
+
+void ASTDeclWriter::VisitTypeRevealDecl(TypeRevealDecl *D) {
+  VisitTypedefNameDecl(D);
+//  Record.AddDeclRef(D->getDescribedAliasTemplate());$TODO$ needs implementation
+  Code = serialization::DECL_TYPEREVEAL;
 }
 
 void ASTDeclWriter::VisitTagDecl(TagDecl *D) {

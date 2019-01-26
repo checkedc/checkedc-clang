@@ -1257,6 +1257,7 @@ LinkageInfo LinkageComputer::computeLVForDecl(const NamedDecl *D,
     case Decl::Typedef:
     case Decl::TypeAlias:
     case Decl::TypeOpaque:
+    case Decl::TypeReveal:
       // A typedef declaration has linkage if it gives a type a name for
       // linkage purposes.
       if (!cast<TypedefNameDecl>(D)
@@ -4335,6 +4336,12 @@ TypeOpaqueDecl *TypeOpaqueDecl::Create(ASTContext &C, DeclContext *DC,
   return new (C, DC) TypeOpaqueDecl(C, DC, StartLoc, IdLoc, Id, TInfo);
 }
 
+TypeRevealDecl *TypeRevealDecl::Create(ASTContext &C, DeclContext *DC,
+                                 SourceLocation StartLoc, SourceLocation IdLoc,
+                                 IdentifierInfo *Id, TypeSourceInfo *TInfo) {
+  return new (C, DC) TypeRevealDecl(C, DC, StartLoc, IdLoc, Id, TInfo);
+}
+
 void TypedefNameDecl::anchor() { }
 
 TagDecl *TypedefNameDecl::getAnonDeclWithTypedefName(bool AnyRedecl) const {
@@ -4386,6 +4393,11 @@ TypeOpaqueDecl *TypeOpaqueDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
                                  nullptr, nullptr);
 }
 
+TypeRevealDecl *TypeRevealDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
+  return new (C, ID) TypeRevealDecl(C, nullptr, SourceLocation(), SourceLocation(),
+                                 nullptr, nullptr);
+}
+
 TypeAliasDecl *TypeAliasDecl::Create(ASTContext &C, DeclContext *DC,
                                      SourceLocation StartLoc,
                                      SourceLocation IdLoc, IdentifierInfo *Id,
@@ -4415,6 +4427,13 @@ SourceRange TypeAliasDecl::getSourceRange() const {
 }
 
 SourceRange TypeOpaqueDecl::getSourceRange() const {
+  SourceLocation RangeEnd = getLocStart();
+  if (TypeSourceInfo *TInfo = getTypeSourceInfo())
+    RangeEnd = TInfo->getTypeLoc().getSourceRange().getEnd();
+  return SourceRange(getLocStart(), RangeEnd);
+}
+
+SourceRange TypeRevealDecl::getSourceRange() const {
   SourceLocation RangeEnd = getLocStart();
   if (TypeSourceInfo *TInfo = getTypeSourceInfo())
     RangeEnd = TInfo->getTypeLoc().getSourceRange().getEnd();

@@ -306,6 +306,7 @@ void DeclInfo::fill() {
     Kind = NamespaceKind;
     break;
   case Decl::TypeOpaque:
+  case Decl::TypeReveal:
   case Decl::TypeAlias:
   case Decl::Typedef: {
     Kind = TypedefKind;
@@ -313,9 +314,10 @@ void DeclInfo::fill() {
     // arguments and return type.
     const TypeSourceInfo *TSI =
         K == Decl::Typedef
-            ? cast<TypedefDecl>(CommentDecl)->getTypeSourceInfo()
-            : ( Decl::TypeOpaque ?  cast<TypeOpaqueDecl>(CommentDecl)->getTypeSourceInfo()
-                                   : cast<TypeAliasDecl>(CommentDecl)->getTypeSourceInfo());
+        ? cast<TypedefDecl>(CommentDecl)->getTypeSourceInfo()
+        : (Decl::TypeOpaque ? cast<TypeOpaqueDecl>(CommentDecl)->getTypeSourceInfo()
+                            : (Decl::TypeReveal ? cast<TypeRevealDecl>(CommentDecl)->getTypeSourceInfo()
+                                                : cast<TypeAliasDecl>(CommentDecl)->getTypeSourceInfo()));
     if (!TSI)
       break;
     TypeLoc TL = TSI->getTypeLoc().getUnqualifiedLoc();

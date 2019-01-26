@@ -475,6 +475,7 @@ namespace  {
     void VisitNamespaceAliasDecl(const NamespaceAliasDecl *D);
     void VisitTypeAliasDecl(const TypeAliasDecl *D);
     void VisitTypeOpaqueDecl(const TypeOpaqueDecl *D);
+    void VisitTypeRevealDecl(const TypeRevealDecl *D);
     void VisitTypeAliasTemplateDecl(const TypeAliasTemplateDecl *D);
     void VisitCXXRecordDecl(const CXXRecordDecl *D);
     void VisitStaticAssertDecl(const StaticAssertDecl *D);
@@ -1440,6 +1441,12 @@ void ASTDumper::VisitTypeAliasDecl(const TypeAliasDecl *D) {
 }
 
 void ASTDumper::VisitTypeOpaqueDecl(const TypeOpaqueDecl *D) {
+  dumpName(D);
+  dumpType(D->getUnderlyingType());
+  dumpTypeAsChild(D->getUnderlyingType());
+}
+
+void ASTDumper::VisitTypeRevealDecl(const TypeRevealDecl *D) {
   dumpName(D);
   dumpType(D->getUnderlyingType());
   dumpTypeAsChild(D->getUnderlyingType());

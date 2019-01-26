@@ -1539,6 +1539,10 @@ bool CursorVisitor::VisitTypeOpaqueTypeLoc(TypeOpaqueTypeLoc TL) {
   return Visit(MakeCursorTypeRef(TL.getTypeOpaqueTypeDecl(), TL.getNameLoc(), TU));
 }
 
+bool CursorVisitor::VisitTypeRevealTypeLoc(TypeRevealTypeLoc TL) {
+  return Visit(MakeCursorTypeRef(TL.getTypeRevealTypeDecl(), TL.getNameLoc(), TU));
+}
+
 bool CursorVisitor::VisitUnresolvedUsingTypeLoc(UnresolvedUsingTypeLoc TL) {
   return Visit(MakeCursorTypeRef(TL.getDecl(), TL.getNameLoc(), TU));
 }
@@ -5892,6 +5896,7 @@ CXCursor clang_getCursorDefinition(CXCursor C) {
   case Decl::TypeAlias:
   case Decl::TypeAliasTemplate:
   case Decl::TypeOpaque:
+  case Decl::TypeReveal:
   case Decl::TemplateTypeParm:
   case Decl::EnumConstant:
   case Decl::Field:

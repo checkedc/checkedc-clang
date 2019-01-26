@@ -272,6 +272,10 @@ private:
       return checkRef(TL.getBeginLoc(), TL.getTypeOpaqueTypeDecl()->getLocation());
     }
 
+    bool VisitTypeRevealTypeLoc(TypeRevealTypeLoc TL) {
+      return checkRef(TL.getBeginLoc(), TL.getTypeRevealTypeDecl()->getLocation());
+    }
+
     bool VisitTagTypeLoc(TagTypeLoc TL) {
       return checkRef(TL.getBeginLoc(), TL.getDecl()->getLocation());
     }

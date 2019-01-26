@@ -345,6 +345,10 @@ public:
     Inherited::VisitTypeOpaqueDecl(D);
   }
 
+  void VisitTypeRevealDecl(const TypeRevealDecl *D) {
+    Inherited::VisitTypeRevealDecl(D);
+  }
+
   void VisitTypeAliasDecl(const TypeAliasDecl *D) {
     Inherited::VisitTypeAliasDecl(D);
   }

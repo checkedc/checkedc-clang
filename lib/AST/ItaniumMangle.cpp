@@ -3205,6 +3205,10 @@ void CXXNameMangler::mangleType(const TypeOpaqueType *T) {
   llvm_unreachable("TypeOpaqueType cannot be mangled.");
 }
 
+void CXXNameMangler::mangleType(const TypeRevealType *T) {
+  llvm_unreachable("TypeRevealType cannot be mangled.");
+}
+
 void CXXNameMangler::mangleType(const TypeOfType *T) {
   // FIXME: this is pretty unsatisfactory, but there isn't an obvious
   // "extension with parameters" mangling.

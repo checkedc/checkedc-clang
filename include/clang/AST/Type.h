@@ -74,6 +74,7 @@ namespace clang {
   class ASTContext;
   class TypedefNameDecl;
   class TypeOpaqueDecl;
+  class TypeRevealDecl;
   class TemplateDecl;
   class TemplateTypeParmDecl;
   class NonTypeTemplateParmDecl;
@@ -3930,6 +3931,33 @@ public:
       Profile(ID, Decl);
     }
     static void Profile(llvm::FoldingSetNodeID &ID, TypeOpaqueDecl *D) {
+      ID.AddPointer(D);
+    }
+
+    static bool classof(const Type *T) { return T->getTypeClass() == TypeOpaque; }
+};
+
+//$TODO$ Is there an opportunity to make OpaqueType extend TypedefType
+class TypeRevealType : public Type, public llvm::FoldingSetNode {
+    TypeRevealDecl *Decl;
+protected:
+    TypeRevealType(TypeClass tc, const TypeRevealDecl *D)
+        : Type(tc, QualType(), false, false, false, /*ContainsUnexpandedParameterPack=*/false),
+          Decl(const_cast<TypeRevealDecl*>(D)) {
+//      assert(!isa<OpaqueType>(QualType()) && "Invalid canonical type");
+    }
+    friend class ASTContext;  // ASTContext creates these.
+public:
+
+    TypeRevealDecl *getDecl() const { return Decl; }
+
+    bool isSugared(void) const { return false; }
+    QualType desugar(void) const { return QualType(this, 0); }
+
+    void Profile(llvm::FoldingSetNodeID &ID) {
+      Profile(ID, Decl);
+    }
+    static void Profile(llvm::FoldingSetNodeID &ID, TypeRevealDecl *D) {
       ID.AddPointer(D);
     }
 

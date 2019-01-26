@@ -2640,8 +2640,9 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
     case Type::Builtin:
       break;
 
-    // TypeOpaque is not associated with namespace or classes.
+    // TypeOpaque & TypeReveal not associated with namespace or classes.
     case Type::TypeOpaque:
+    case Type::TypeReveal:
       break;
 
     // TypeVariable is not associated with namespace or classes.

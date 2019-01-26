@@ -450,6 +450,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(typeAliasDecl);
   REGISTER_MATCHER(typeAliasTemplateDecl);
   REGISTER_MATCHER(typeOpaqueDecl);
+  REGISTER_MATCHER(typeRevealDecl);
   REGISTER_MATCHER(typeLoc);
   REGISTER_MATCHER(unaryExprOrTypeTraitExpr);
   REGISTER_MATCHER(unaryOperator);

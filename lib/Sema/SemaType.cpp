@@ -5471,6 +5471,9 @@ namespace {
     void VisitTypeOpaqueTypeLoc(TypeOpaqueTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
     }
+    void VisitTypeRevealTypeLoc(TypeRevealTypeLoc TL) {
+      TL.setNameLoc(DS.getTypeSpecTypeLoc());
+    }
     void VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeNameLoc());
     }

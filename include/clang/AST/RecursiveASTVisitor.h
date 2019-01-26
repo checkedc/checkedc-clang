@@ -1025,6 +1025,7 @@ DEF_TRAVERSE_TYPE(UnresolvedUsingType, {})
 DEF_TRAVERSE_TYPE(TypedefType, {})
 DEF_TRAVERSE_TYPE(TypeVariableType, {})
 DEF_TRAVERSE_TYPE(TypeOpaqueType, {})
+DEF_TRAVERSE_TYPE(TypeRevealType, {})
 
 DEF_TRAVERSE_TYPE(TypeOfExprType,
                   { TRY_TO(TraverseStmt(T->getUnderlyingExpr())); })
@@ -1258,6 +1259,7 @@ DEF_TRAVERSE_TYPELOC(UnresolvedUsingType, {})
 DEF_TRAVERSE_TYPELOC(TypedefType, {})
 DEF_TRAVERSE_TYPELOC(TypeVariableType, {})
 DEF_TRAVERSE_TYPELOC(TypeOpaqueType, {})
+DEF_TRAVERSE_TYPELOC(TypeRevealType, {})
 
 DEF_TRAVERSE_TYPELOC(TypeOfExprType,
                      { TRY_TO(TraverseStmt(TL.getUnderlyingExpr())); })
@@ -1768,6 +1770,13 @@ DEF_TRAVERSE_DECL(TypeAliasTemplateDecl, {
 })
 
 DEF_TRAVERSE_DECL(TypeOpaqueDecl, {
+  TRY_TO(TraverseTypeLoc(D->getTypeSourceInfo()->getTypeLoc()));
+  // We shouldn't traverse D->getTypeForDecl(); it's a result of
+  // declaring the type alias, not something that was written in the
+  // source.
+})
+
+DEF_TRAVERSE_DECL(TypeRevealDecl, {
   TRY_TO(TraverseTypeLoc(D->getTypeSourceInfo()->getTypeLoc()));
   // We shouldn't traverse D->getTypeForDecl(); it's a result of
   // declaring the type alias, not something that was written in the

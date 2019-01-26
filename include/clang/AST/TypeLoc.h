@@ -660,6 +660,16 @@ public:
     }
 };
 
+/// \brief Wrapper for source info for typedefs.
+class TypeRevealTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
+        TypeRevealTypeLoc,
+        TypeRevealType> {
+public:
+    TypeRevealDecl *getTypeRevealTypeDecl() const {
+      return getTypePtr()->getDecl();
+    }
+};
+
 
 /// \brief Wrapper for source info for injected class names of class
 /// templates.

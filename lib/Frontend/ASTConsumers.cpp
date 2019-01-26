@@ -456,7 +456,8 @@ void DeclContextPrinter::PrintDeclContext(const DeclContext* DC,
     }
     case Decl::Typedef:
     case Decl::TypeAlias:
-    case Decl::TypeOpaque: {
+    case Decl::TypeOpaque:
+    case Decl::TypeReveal: {
       TypedefNameDecl* TD = cast<TypedefNameDecl>(I);
       Out << "<typedef> " << *TD << '\n';
       break;

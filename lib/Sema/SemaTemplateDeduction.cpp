@@ -1345,6 +1345,9 @@ DeduceTemplateArgumentsByTypeMatch(Sema &S,
     case Type::TypeOpaque:
       llvm_unreachable("Type Opaque type cannot be used in templates");
 
+    case Type::TypeReveal:
+      llvm_unreachable("Type Reveal type cannot be used in templates");
+
     case Type::TypeVariable:
       llvm_unreachable("Type Variable cannot be used in templates");
 
@@ -5450,6 +5453,7 @@ MarkUsedTemplateParameters(ASTContext &Ctx, QualType T,
   case Type::Pipe:
   case Type::TypeVariable:
   case Type::TypeOpaque:
+  case Type::TypeReveal:
 #define TYPE(Class, Base)
 #define ABSTRACT_TYPE(Class, Base)
 #define DEPENDENT_TYPE(Class, Base)

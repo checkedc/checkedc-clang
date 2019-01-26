@@ -735,7 +735,7 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
       return false;
     break;
   }
-
+  //$TODO$ Handle TypeOpaque & TypeReveal
   } // end switch
 
   return true;

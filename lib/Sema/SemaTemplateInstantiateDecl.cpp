@@ -638,6 +638,13 @@ Decl *TemplateDeclInstantiator::VisitTypeOpaqueDecl(TypeOpaqueDecl *D) {
   return Typedef;
 }
 
+Decl *TemplateDeclInstantiator::VisitTypeRevealDecl(TypeRevealDecl *D) {
+  Decl *Typedef = InstantiateTypedefNameDecl(D, /*IsTypeAlias=*/true);
+  if (Typedef)
+    Owner->addDecl(Typedef);
+  return Typedef;
+}
+
 Decl *
 TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
   // Create a local instantiation scope for this type alias template, which

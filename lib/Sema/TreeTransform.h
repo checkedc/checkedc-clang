@@ -5747,6 +5747,14 @@ QualType TreeTransform<Derived>::TransformTypeOpaqueType(TypeLocBuilder &TLB,
 }
 
 template<typename Derived>
+QualType TreeTransform<Derived>::TransformTypeRevealType(TypeLocBuilder &TLB,
+                                                           TypeRevealTypeLoc TL) {
+  TypeRevealTypeLoc NewT = TLB.push<TypeRevealTypeLoc>(TL.getType());
+  NewT.setNameLoc(TL.getNameLoc());
+  return TL.getType();
+}
+
+template<typename Derived>
 QualType TreeTransform<Derived>::TransformTypeOfType(TypeLocBuilder &TLB,
                                                      TypeOfTypeLoc TL) {
   TypeSourceInfo* Old_Under_TI = TL.getUnderlyingTInfo();

@@ -150,6 +150,7 @@ namespace clang {
     Decl *VisitTypedefDecl(TypedefDecl *D);
     Decl *VisitTypeAliasDecl(TypeAliasDecl *D);
     Decl *VisitTypeOpaqueDecl(TypeOpaqueDecl *D);
+    Decl *VisitTypeRevealDecl(TypeRevealDecl *D);
     Decl *VisitLabelDecl(LabelDecl *D);
     Decl *VisitEnumDecl(EnumDecl *D);
     Decl *VisitRecordDecl(RecordDecl *D);
@@ -1464,7 +1465,7 @@ Decl *ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
   TypeSourceInfo *TInfo = Importer.Import(D->getTypeSourceInfo());
   SourceLocation StartL = Importer.Import(D->getLocStart());
   TypedefNameDecl *ToTypedef;
-  if (IsAlias)//$TODO$ we need to handle typeopaque here or call some other function from ASTNodeImporter::VisitTypeOpaqueDecl
+  if (IsAlias)//$TODO$ we need to handle typeopaque and typereveal here or call some other function from ASTNodeImporter::VisitTypeOpaqueDecl
     ToTypedef = TypeAliasDecl::Create(Importer.getToContext(), DC,
                                       StartL, Loc,
                                       Name.getAsIdentifierInfo(),
@@ -1492,6 +1493,10 @@ Decl *ASTNodeImporter::VisitTypeAliasDecl(TypeAliasDecl *D) {
 }
 
 Decl *ASTNodeImporter::VisitTypeOpaqueDecl(TypeOpaqueDecl *D) {
+  return VisitTypedefNameDecl(D, /*IsAlias=*/false);
+}
+
+Decl *ASTNodeImporter::VisitTypeRevealDecl(TypeRevealDecl *D) {
   return VisitTypedefNameDecl(D, /*IsAlias=*/false);
 }
 

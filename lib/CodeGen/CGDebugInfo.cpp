@@ -571,8 +571,13 @@ llvm::DIType *CGDebugInfo::CreateType(const TypeVariableType *TvT) {
   return nullptr;
 }
 
-llvm::DIType *CGDebugInfo::CreateType(const TypeOpaqueType *TvT) {
+llvm::DIType *CGDebugInfo::CreateType(const TypeOpaqueType *ToT) {
   // Since type opaque is incomplete type, model it similar to void
+  return nullptr;
+}
+
+llvm::DIType *CGDebugInfo::CreateType(const TypeRevealType *TrT) {
+  // Since type Reveal is incomplete type, model it similar to void
   return nullptr;
 }
 
@@ -2712,6 +2717,8 @@ llvm::DIType *CGDebugInfo::CreateTypeNode(QualType Ty, llvm::DIFile *Unit) {
     return CreateType(cast<TypeVariableType>(Ty));
   case Type::TypeOpaque:
     return CreateType(cast<TypeOpaqueType>(Ty));
+  case Type::TypeReveal:
+    return CreateType(cast<TypeRevealType>(Ty));
   case Type::Complex:
     return CreateType(cast<ComplexType>(Ty));
   case Type::Pointer:
