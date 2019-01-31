@@ -4,8 +4,9 @@ We are staying in sync with the LLVM/clang mainline sources.   The baseline bran
 LLVM/clang sources.  We periodically update the baseline branch and then push the changes to other branches
 
 The first step is to create updated baseline branches:
-1. Create new branches of your local baseline branche (we suggest doing this so that
-we can run automated testing.  To run automated testing, we need new branches to test).
+1. Create new branches of your local baseline branches (we suggest creating new
+branches so that you can run automated testing. You'll need new branches
+that you can push to GitHub).
 2. Update those branches to the latest sources.
 3. Run testing on those branches to make sure things are stable.
 
