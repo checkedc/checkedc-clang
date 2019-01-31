@@ -1,15 +1,15 @@
 # Instructions for updating to the latest LLVM/clang sources
 
 We are staying in sync with the LLVM/clang mainline sources.   The baseline branch is a pristine copy of
-clang/LLVM sources.  We periodically update the baseline branch and then push the changes to other branches
+LLVM/clang sources.  We periodically update the baseline branch and then push the changes to other branches
 
 The first step is to create updated baseline branches:
-1. Create new branches of your local baseline branches.
+1. Create new branches of your local baseline branche (we suggest doing this so that
+we can run automated testing.  To run automated testing, we need new branches to test).
 2. Update those branches to the latest sources.
-3. Run testing on those branches to make sure things are stable (we suggest used automated
-  testing, which is why you branch the existing baseline branch, not just update it directly).
+3. Run testing on those branches to make sure things are stable.
 
-  The second step is to create updated master branches:
+The second step is to create updated master branches:
   1. Create branches of your updated baseline branches.
   2. Merge changes from the Checked C master branches into those branches.
   3. Fix merge conflicts and run testing.  You will likely need to fix some issues
