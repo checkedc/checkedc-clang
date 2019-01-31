@@ -19,7 +19,7 @@ The third step is to merge your changes back into your baseline and master branc
 
 ## Create updated branches of your baseline branches
 
-First create remotes to the mirrored Github repos that contain the updates sources
+First create remotes to the mirrored GitHub repos that contain the updated sources
 for LLVM and clang. Go to your LLVM repo and do:
 
 	git remote add mirror https://github.com/llvm-mirror/llvm
@@ -43,21 +43,19 @@ LLVM has unified its projects into one repo.  However, we have not migrated our
 repos into one repo yet.   This means that our sources are being
 pulled from partial mirrors of a unifed repo.   You need to make sure that the
 changes are in sync. The pace of commits is fast enough that a change that
-causes a build break has been introduced.
+causes a build break could be introduced between syncing.
 
 
 While the LLVM ecosystem is migrating, you can look at the SVN IDs in the
-upstream git repo commits to see if you've gotten out-of-sync.
-.
-
-If the changes are not very close, for each of your branched baselines
+upstream git repo commits to see if you've gotten out-of-sync.  If the 
+changes are not very close, for each of your branched baselines
 )updated-baseline in the above example), use
 
 	git reset --hard commit-number,  where commit-number is the Git commit.
 
 ## Run testing on your branched baseline branches.
 
-You can run testing locally or push your branched baseline branches to Github
+You can run testing locally or push your branched baseline branches to GitHub
 and use automated testing.  This will show you whether there are any unexpected
 failures in your baseline branch.
 
@@ -74,12 +72,12 @@ You can now branch your baseline branches to create a new master branch:
 
 You will very likely have merge conflicts and some test failures.  The test
 failures usually stem from incorrect merges or Checked C-specific data not being
-initialized by new constructor methods.
+initialized by new or changed constructor methods.
 
 You may also need to pick up changes from LLVM/clang for fixes to any unexpected
 baseline failures.
 
-You can push your updated master branches up to Github for automated
+You can push your updated master branches up to GitHub for automated
 testing.  If you haven't cleaned the build directory as described earlier,
 make sure you do that.
 
@@ -87,7 +85,7 @@ You'll want to run automated tests on Linux and Windows x86/x64, as well as
 Linux LNT tests.  You may find in some cases that tests need to be updated
 based on new warnings or slightly different compiler behavior.
 
-## Merge your branched baseline and master.
+## Merge your branched baseline and master branches
 
 Once all testing is passing, you can merge your branches back into
 your baseline and master branches.
@@ -98,8 +96,8 @@ your baseline and master branches.
     git checkout master
     git merge updated-master
 
-## Push the updated branches to Git
+## Push the updated branches to GitHub
 
 The changes will be extensive enough that you don't want to do a pull request
-on Github.  Just push the branches up to Github.
+on GitHub.  Just push the branches up to GitHub.
 
