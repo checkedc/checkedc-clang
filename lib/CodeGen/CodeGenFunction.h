@@ -2113,9 +2113,9 @@ public:
     return it->second;
   }
 
-  /// getBoundsTemporaryLValueMapping - Given a bounds temporary (which
+  /// getBoundsTemporaryRValueMapping - Given a bounds temporary (which
   /// must be mapped to an l-value), return its mapping.
-  const RValue &getBoundsTemporaryRValueMapping(const CHKCBindTemporaryExpr *e) {
+  RValue getBoundsTemporaryRValueMapping(const CHKCBindTemporaryExpr *e) {
     assert (!e->getSubExpr()->isLValue());
 
     llvm::DenseMap<const CHKCBindTemporaryExpr *,RValue>::iterator
