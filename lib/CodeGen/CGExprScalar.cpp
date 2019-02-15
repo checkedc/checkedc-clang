@@ -807,7 +807,7 @@ public:
     if (E->getKind() == BoundsValueExpr::Kind::Temporary) {
       CHKCBindTemporaryExpr *Temp = E->getTemporaryBinding();
       assert(!Temp->getSubExpr()->isLValue());
-      Result = CGF.getBoundsTemporaryLValueMapping(Temp).getPointer();
+      Result = CGF.getBoundsTemporaryRValueMapping(Temp).getScalarVal();
     } else
        llvm_unreachable("unexpected bounds value expr");
     assert(Result);
