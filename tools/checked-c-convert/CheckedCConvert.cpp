@@ -132,7 +132,7 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 struct DAndReplace
 {
   Decl        *Declaration; // The declaration to replace.
-  DeclStmt    *Statement;   // The DeclStmt, if it exists.
+  Stmt        *Statement;   // The Stmt, if it exists.
   std::string Replacement;  // The string to replace the declaration with.
   bool        fullDecl;     // If the declaration is a function, true if 
                             // replace the entire declaration or just the 
@@ -153,10 +153,10 @@ struct DAndReplace
                                                 fullDecl(F) {} 
 
 
-  DAndReplace(Decl *D, DeclStmt *S, std::string R) :  Declaration(D),
-                                                      Statement(S),
-                                                      Replacement(R),
-                                                      fullDecl(false) { }
+  DAndReplace(Decl *D, Stmt *S, std::string R) :  Declaration(D),
+                                                  Statement(S),
+                                                  Replacement(R),
+                                                  fullDecl(false) { }
 };
 
 SourceLocation 
@@ -233,11 +233,12 @@ struct DComp
 
     // Also take into account whether or not there is a multi-statement
     // decl, because the generated ranges will overlap. 
- 
-    if (lhs.Statement && !lhs.Statement->isSingleDecl()) {
-      SourceLocation  newBegin = (*lhs.Statement->decls().begin())->getSourceRange().getBegin();
+    DeclStmt *lhStmt = dyn_cast_or_null<DeclStmt>(lhs.Statement);
+
+    if (lhStmt && !lhStmt->isSingleDecl()) {
+      SourceLocation  newBegin = (*lhStmt->decls().begin())->getSourceRange().getBegin();
       bool            found; 
-      for (const auto &DT : lhs.Statement->decls()) {
+      for (const auto &DT : lhStmt->decls()) {
         if (DT == lhs.Declaration) {
           found = true;
           break;
@@ -250,10 +251,11 @@ struct DComp
       srLHS.setEnd(srLHS.getEnd().getLocWithOffset(-1));
     }
 
-    if (rhs.Statement && !rhs.Statement->isSingleDecl()) {
-      SourceLocation  newBegin = (*rhs.Statement->decls().begin())->getSourceRange().getBegin();
+    DeclStmt *rhStmt = dyn_cast_or_null<DeclStmt>(rhs.Statement);
+    if (rhStmt && !rhStmt->isSingleDecl()) {
+      SourceLocation  newBegin = (*rhStmt->decls().begin())->getSourceRange().getBegin();
       bool            found; 
-      for (const auto &DT : rhs.Statement->decls()) {
+      for (const auto &DT : rhStmt->decls()) {
         if (DT == rhs.Declaration) {
           found = true;
           break;
@@ -325,12 +327,14 @@ void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite) {
 void rewrite( VarDecl               *VD, 
               Rewriter              &R, 
               std::string           sRewrite, 
-              DeclStmt              *Where,
+              Stmt                  *WhereStmt,
               RSet                  &skip,
               const DAndReplace     &N,
               RSet                  &toRewrite,
               ASTContext            &A) 
 {
+  DeclStmt *Where = dyn_cast_or_null<DeclStmt>(WhereStmt);
+
   if (Where != NULL) {
     if (Verbose) {
       errs() << "VarDecl at:\n";
@@ -387,7 +391,7 @@ void rewrite( VarDecl               *VD,
       auto I = toRewrite.find(N);
       while (I != toRewrite.end()) {
         DAndReplace tmp = *I;
-        if (tmp.Statement == Where)
+        if (tmp.Statement == WhereStmt)
           rewritesForThisDecl.insert(tmp);
         ++I;
       }
@@ -472,7 +476,7 @@ void rewrite( Rewriter              &R,
 {
   for (const auto &N : toRewrite) {
     Decl *D = N.Declaration;
-    DeclStmt *Where = N.Statement;
+    DeclStmt *Where = dyn_cast_or_null<DeclStmt>(N.Statement);
     assert(D != nullptr);
 
     if (Verbose) {
