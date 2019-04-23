@@ -658,6 +658,7 @@ KEYWORD(_Current_expr_value        , KEYCHECKEDC)
 KEYWORD(_Return_value              , KEYCHECKEDC)
 KEYWORD(_Bounds_only               , KEYCHECKEDC)
 KEYWORD(_Opaque                    , KEYCHECKEDC)
+KEYWORD(_Reveal                    , KEYCHECKEDC)
 
 // Borland Extensions which should be disabled in strict conformance mode.
 ALIAS("_pascal"      , __pascal   , KEYBORLAND)

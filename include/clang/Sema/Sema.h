@@ -2399,6 +2399,8 @@ public:
   bool isIncompatibleTypedef(TypeDecl *Old, TypedefNameDecl *New);
   TypeOpaqueDecl *ParseTypeOpaqueDecl(Scope *S, Declarator &D,
                                       TypeSourceInfo *TInfo);
+  TypeRevealDecl *ParseTypeRevealDecl(Scope *S, Declarator &D,
+                                      TypeSourceInfo *TInfo);
 
   /// \brief Describes the kind of merge to perform for availability
   /// attributes (including "deprecated", "unavailable", and "availability").

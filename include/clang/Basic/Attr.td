@@ -1397,6 +1397,11 @@ def CheckedCTypeOpaque : TypeAttr {
   let Documentation = [Undocumented];
 }
 
+def CheckedCTypeReveal : TypeAttr {
+  let Spellings = [Keyword<"_Reveal">];
+  let Documentation = [Undocumented];
+}
+
 def ObjCKindOf : TypeAttr {
   let Spellings = [Keyword<"__kindof">];
   let Documentation = [Undocumented];

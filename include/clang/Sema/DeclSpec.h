@@ -572,6 +572,17 @@ public:
     return false;
   }
 
+  bool isRevealTypeSpec() const {
+    if(!hasAttributes())
+      return false;
+    const auto* DSAttrList = getAttributes().getList();
+    for(; DSAttrList; DSAttrList = DSAttrList->getNext()) {
+      if(DSAttrList->getKind() == AttributeList::AT_CheckedCTypeReveal)
+        return true;
+    }
+    return false;
+  }
+
   /// \brief Turn a type-specifier-type into a string like "_Bool" or "union".
   static const char *getSpecifierName(DeclSpec::TST T,
                                       const PrintingPolicy &Policy);

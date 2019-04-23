@@ -6173,6 +6173,8 @@ Sema::ActOnTypedefDeclarator(Scope* S, Declarator& D, DeclContext* DC,
   TypedefNameDecl *NewTD = nullptr;
   if(D.getDeclSpec().isOpaqueTypeSpec()) {
     NewTD = ParseTypeOpaqueDecl(S, D, TInfo);
+  } else if(D.getDeclSpec().isRevealTypeSpec()) {
+    NewTD = ParseTypeRevealDecl(S, D, TInfo);
   } else {
     NewTD = ParseTypedefDecl(S, D, TInfo->getType(), TInfo);
   }
@@ -14223,6 +14225,33 @@ TypeOpaqueDecl *Sema::ParseTypeOpaqueDecl(Scope *S, Declarator &D,
 
   // Scope manipulation handled by caller.
   auto* NewTD = TypeOpaqueDecl::Create(Context, CurContext,
+                                       D.getLocStart(),
+                                       D.getIdentifierLoc(),
+                                       D.getIdentifier(),
+                                       TInfo);
+
+  // Bail out immediately if we have an invalid declaration.
+  if (D.isInvalidType()) {
+    NewTD->setInvalidDecl();
+    return NewTD;
+  }
+
+  return NewTD;
+}
+
+TypeRevealDecl *Sema::ParseTypeRevealDecl(Scope *S, Declarator &D,
+                                          TypeSourceInfo *TInfo) {
+  assert(D.getIdentifier() && "Wrong callback for declspec without declarator");
+
+  if (!TInfo) {
+    // though we're returning null anyway, the assertion below
+    // still help us catch some errors
+    assert(D.isInvalidType() && "no declarator info for valid type");
+    return nullptr;
+  }
+
+  // Scope manipulation handled by caller.
+  auto* NewTD = TypeRevealDecl::Create(Context, CurContext,
                                        D.getLocStart(),
                                        D.getIdentifierLoc(),
                                        D.getIdentifier(),

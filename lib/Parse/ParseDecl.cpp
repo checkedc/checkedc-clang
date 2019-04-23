@@ -3522,6 +3522,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         DS.getAttributes().addNew(Tok.getIdentifierInfo(), Loc, nullptr, Loc,
                                   nullptr, 0, AttributeList::AS_Keyword);
       }
+      // handle checked-c reveal type
+      if (!isInvalid && NextToken().is(tok::kw__Reveal)) {
+        (void)ConsumeToken();
+        Loc = Tok.getLocation();
+        DS.getAttributes().addNew(Tok.getIdentifierInfo(), Loc, nullptr, Loc,
+                                  nullptr, 0, AttributeList::AS_Keyword);
+      }
 
       isStorageClass = true;
       break;
