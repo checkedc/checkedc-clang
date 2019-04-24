@@ -4836,13 +4836,15 @@ def err_redefinition_different_typedef : Error<
   "redefinition with different types%diff{ ($ vs $)|}1,2">;
 def err_tag_reference_non_tag : Error<
   "%select{non-struct type|non-class type|non-union type|non-enum "
-  "type|typedef|type alias|template|type alias template|template "
+  "type|typedef|type alias|typedef opaque|typedef reveal|"
+  "template|type alias template|template "
   "template argument}1 %0 cannot be referenced with a "
   "%select{struct|interface|union|class|enum}2 specifier">;
 def err_tag_reference_conflict : Error<
   "implicit declaration introduced by elaborated type conflicts with a "
   "%select{non-struct type|non-class type|non-union type|non-enum "
-  "type|typedef|type alias|template|type alias template|template "
+  "type|typedef|type alias|typedef opaque|typedef reveal|"
+  "template|type alias template|template "
   "template argument}0 of the same name">;
 def err_dependent_tag_decl : Error<
   "%select{declaration|definition}0 of "

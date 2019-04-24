@@ -315,8 +315,8 @@ void DeclInfo::fill() {
     const TypeSourceInfo *TSI =
         K == Decl::Typedef
         ? cast<TypedefDecl>(CommentDecl)->getTypeSourceInfo()
-        : (Decl::TypeOpaque ? cast<TypeOpaqueDecl>(CommentDecl)->getTypeSourceInfo()
-                            : (Decl::TypeReveal ? cast<TypeRevealDecl>(CommentDecl)->getTypeSourceInfo()
+        : (K == Decl::TypeOpaque ? cast<TypeOpaqueDecl>(CommentDecl)->getTypeSourceInfo()
+                            : (K == Decl::TypeReveal ? cast<TypeRevealDecl>(CommentDecl)->getTypeSourceInfo()
                                                 : cast<TypeAliasDecl>(CommentDecl)->getTypeSourceInfo()));
     if (!TSI)
       break;
