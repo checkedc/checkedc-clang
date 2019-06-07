@@ -10,6 +10,7 @@
 #define _UTILS_H
 #include <set>
 #include "llvm/Support/CommandLine.h"
+
 #include "PersistentSourceLoc.h"
 
 class ConstraintVariable;
