@@ -33,4 +33,6 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 
 clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
+
+clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif

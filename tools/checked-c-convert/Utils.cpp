@@ -62,3 +62,26 @@ FunctionDecl *getDefinition(FunctionDecl *FD) {
 
   return nullptr;
 }
+
+SourceLocation
+getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
+{
+  const FunctionDecl *oFD = nullptr;
+
+  if (FD->hasBody(oFD) && oFD == FD) {
+    // Replace everything up to the beginning of the body.
+    const Stmt *Body = FD->getBody(oFD);
+
+    int Offset = 0;
+    const char *Buf = S.getCharacterData(Body->getSourceRange().getBegin());
+
+    while (*Buf != ')') {
+      Buf--;
+      Offset--;
+    }
+
+    return Body->getSourceRange().getBegin().getLocWithOffset(Offset);
+  } else {
+    return FD->getSourceRange().getEnd();
+  }
+}

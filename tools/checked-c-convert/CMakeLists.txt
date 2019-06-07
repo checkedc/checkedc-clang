@@ -12,6 +12,7 @@ add_clang_executable(checked-c-convert
   PersistentSourceLoc.cpp
   Constraints.cpp
   ConstraintVariables.cpp
+  RewriteUtils.cpp
   Utils.cpp
   )
 
