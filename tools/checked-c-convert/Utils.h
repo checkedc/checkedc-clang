@@ -30,4 +30,6 @@ const clang::Type *getNextTy(const clang::Type *Ty);
 ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info);
 
 clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
+
+clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 #endif

@@ -68,17 +68,6 @@ BaseDir("base-dir",
   cl::init(""),
   cl::cat(ConvertCategory));
 
-const clang::Type *getNextTy(const clang::Type *Ty) {
-  if(Ty->isPointerType()) {
-    // TODO: how to keep the qualifiers around, and what qualifiers do
-    //       we want to keep?
-    QualType qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
-    return qtmp.getTypePtr()->getPointeeType().getTypePtr();
-  }
-  else
-    return Ty;
-}
-
 // Test to see if we can rewrite a given SourceRange. 
 // Note that R.getRangeSize will return -1 if SR is within
 // a macro as well. This means that we can't re-write any 
@@ -87,45 +76,6 @@ bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
 
-ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info) {
-  if (Vs.size() == 0)
-    return nullptr;
-
-  ConstraintVariable *V = nullptr;
-
-  for (auto &P : Vs) {
-    if (V) {
-      if (V->isLt(*P, Info))
-        V = P;
-    } else {
-      V = P;
-    }
-  }
-
-  return V;
-}
-
-// Walk the list of declarations and find a declaration accompanied by 
-// a definition and a function body. 
-FunctionDecl *getDefinition(FunctionDecl *FD) {
-  for (const auto &D : FD->redecls())
-    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
-      if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
-        return tFD;
-
-  return nullptr;
-}
-
-// Walk the list of declarations and find a declaration that is NOT 
-// a definition and does NOT have a body. 
-FunctionDecl *getDeclaration(FunctionDecl *FD) {
-  for (const auto &D : FD->redecls())
-    if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
-      if (!tFD->isThisDeclarationADefinition())
-        return tFD;
-
-  return FD;
-}
 
 // A Declaration, optional DeclStmt, and a replacement string
 // for that Declaration. 
