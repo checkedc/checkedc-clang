@@ -19,6 +19,12 @@
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
 
+typedef std::tuple<clang::Stmt*, clang::Decl*, clang::Type*>
+        StmtDeclOrType;
+typedef std::map<PersistentSourceLoc, StmtDeclOrType> SourceToDeclMapType;
+typedef std::pair<SourceToDeclMapType,
+        VariableDecltoStmtMap> MappingResultsType;
+
 class MappingVisitor
   : public clang::RecursiveASTVisitor<MappingVisitor> {
 public:
@@ -26,17 +32,12 @@ public:
     SourceLocs(S),Context(C) {}
 
   // TODO: It's possible the Type field in this tuple isn't needed.
-  typedef std::tuple<clang::Stmt*, clang::Decl*, clang::Type*> 
-    StmtDeclOrType;
 
   bool VisitDeclStmt(clang::DeclStmt *S);
 
   bool VisitDecl(clang::Decl *D);
 
-  std::pair<std::map<PersistentSourceLoc, StmtDeclOrType>, 
-    VariableDecltoStmtMap>
-  getResults() 
-  {
+  MappingResultsType getResults() {
     return std::pair<std::map<PersistentSourceLoc, StmtDeclOrType>, 
       VariableDecltoStmtMap>(PSLtoSDT, DeclToDeclStmt);
   }
@@ -44,7 +45,7 @@ public:
 private:
   // A map from a PersistentSourceLoc to a tuple describing a statement, decl
   // or type.
-  std::map<PersistentSourceLoc, StmtDeclOrType> PSLtoSDT;
+  SourceToDeclMapType PSLtoSDT;
   // The set of PersistentSourceLoc's this instance of MappingVisitor is tasked
   // with re-instantiating as either a Stmt, Decl or Type. 
   std::set<PersistentSourceLoc> SourceLocs;

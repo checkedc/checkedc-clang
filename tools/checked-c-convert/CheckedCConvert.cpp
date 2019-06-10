@@ -32,6 +32,7 @@
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "RewriteUtils.h"
+#include "ArrayBoundsInferenceConsumer.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;
@@ -212,6 +213,15 @@ int main(int argc, const char **argv) {
   
   if (RewriteTool)
     Tool.run(RewriteTool.get());
+  else
+    llvm_unreachable("No action");
+
+  // 4. Handle array bounds detection
+  std::unique_ptr<ToolAction> ABDetectionTool = newFrontendActionFactoryA<
+          GenericAction<ArrayBoundsInferenceConsumer, ProgramInfo>>(Info);
+
+  if (ABDetectionTool)
+    Tool.run(ABDetectionTool.get());
   else
     llvm_unreachable("No action");
 
