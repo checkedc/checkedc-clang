@@ -640,7 +640,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
   for (const auto &I : VarMap)
     keys.insert(I.first);
-  std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> PSLMap;
+  SourceToDeclMapType PSLMap;
   VariableDecltoStmtMap VDLToStmtMap;
 
   RSet skip(DComp(Context.getSourceManager()));

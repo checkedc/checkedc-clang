@@ -343,11 +343,8 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   for (const auto &D : TUD->decls())
     V.TraverseDecl(D);
-  std::pair<std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType>,
-    VariableDecltoStmtMap>
-    res = V.getResults();
-  std::map<PersistentSourceLoc, MappingVisitor::StmtDeclOrType> 
-    PSLtoDecl = res.first;
+  MappingResultsType res = V.getResults();
+  SourceToDeclMapType PSLtoDecl = res.first;
 
   // Re-populate VarDeclToStatement.
   VarDeclToStatement = res.second;
@@ -719,4 +716,12 @@ ProgramInfo::getVariable(Expr *E, ASTContext *C, bool inFunctionContext) {
     return getVariableHelper(E, T, C, inFunctionContext);
   else
     return T;
+}
+
+bool ProgramInfo::insertPotentialArrayVar(Decl *var) {
+  return IdentifiedArrayDecls.insert(var).second;
+}
+
+bool ProgramInfo::isIdentifiedArrayVar(Decl *toCheckVar) {
+  return IdentifiedArrayDecls.find(toCheckVar) != IdentifiedArrayDecls.end();
 }

@@ -24,7 +24,7 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
-  ProgramInfo() : freeKey(0), persisted(true) {}
+  ProgramInfo() : freeKey(0), persisted(true) { IdentifiedArrayDecls.clear(); }
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
@@ -101,6 +101,12 @@ public:
 
   VariableMap &getVarMap() { return Variables;  }
 
+  std::set<Decl *> &getIdentifiedArrayVars() { return IdentifiedArrayDecls; }
+
+  bool isIdentifiedArrayVar(Decl *toCheckVar);
+
+  bool insertPotentialArrayVar(Decl *var);
+
 private:
   // Function to check if an external symbol is okay to leave 
   // constrained. 
@@ -131,6 +137,9 @@ private:
   // seen before.
   std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
+
+  // these are the array declarations identified by the converter.
+  std::set<Decl *> IdentifiedArrayDecls;
 };
 
 #endif
