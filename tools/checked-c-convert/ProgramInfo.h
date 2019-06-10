@@ -101,11 +101,24 @@ public:
 
   VariableMap &getVarMap() { return Variables;  }
 
-  std::set<Decl *> &getIdentifiedArrayVars() { return IdentifiedArrayDecls; }
+  std::set<Decl *> &getIdentifiedArrayVars() {
+#ifdef ARRDEBUG
+    for(auto currD: IdentifiedArrayDecls) {
+      currD->dump();
+    }
+#endif
+    return IdentifiedArrayDecls;
+  }
+
+  // add the size expression used in allocation routine
+  // through which the variable was initialized.
+  bool addAllocationBasedSizeExpr(Decl *targetVar, Expr *sizeExpr);
 
   bool isIdentifiedArrayVar(Decl *toCheckVar);
 
   bool insertPotentialArrayVar(Decl *var);
+
+  void printArrayVarsAndSizes(llvm::raw_ostream &O);
 
 private:
   // Function to check if an external symbol is okay to leave 
@@ -140,6 +153,9 @@ private:
 
   // these are the array declarations identified by the converter.
   std::set<Decl *> IdentifiedArrayDecls;
+  // this is the map of variables that are potential arrays
+  // and their tentative size expression.
+  std::map<Decl *, std::set<Expr*>> AllocationBasedSizeExprs;
 };
 
 #endif

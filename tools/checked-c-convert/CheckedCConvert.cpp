@@ -216,15 +216,6 @@ int main(int argc, const char **argv) {
   else
     llvm_unreachable("No action");
 
-  // 4. Handle array bounds detection
-  std::unique_ptr<ToolAction> ABDetectionTool = newFrontendActionFactoryA<
-          GenericAction<ArrayBoundsInferenceConsumer, ProgramInfo>>(Info);
-
-  if (ABDetectionTool)
-    Tool.run(ABDetectionTool.get());
-  else
-    llvm_unreachable("No action");
-
   if (DumpStats)
     Info.dump_stats(inoutPaths);
 

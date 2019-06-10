@@ -15,15 +15,38 @@
 
 #include "ProgramInfo.h"
 
-class ArrayBoundsInferenceConsumer: public clang::ASTConsumer {
+
+class LocalVarABVisitor: public clang::RecursiveASTVisitor<LocalVarABVisitor> {
 public:
-  explicit ArrayBoundsInferenceConsumer(ProgramInfo &I, clang::ASTContext *C) :
-          Info(I) { }
+  explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)
+          : Context(C), Info(I) {}
 
-  virtual void HandleTranslationUnit(clang::ASTContext &);
+  // handles assignment expression.
+  bool VisitBinAssign(BinaryOperator *O);
 
+
+  bool VisitDeclStmt(DeclStmt *S);
 private:
+  // check if the provided expression is a call
+  // to known memory allocators.
+  // if yes, return true along with the argument used as size
+  // assigned to the second paramter i.e., sizeArgument
+  bool isAllocatorCall(Expr *currExpr, Expr **sizeArgument);
+
+  // check if expression is a simple local variable
+  // i.e., ptr = .
+  // if yes, return the referenced local variable as the return
+  // value of the argument.
+  bool isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetDecl);
+
+  // remove implicit casts added by clang to the AST
+  Expr *removeImpCasts(Expr *toConvert);
+
+  ASTContext *Context;
   ProgramInfo &Info;
+  static std::set<std::string> AllocatorFunctionNames;
 };
+
+void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I);
 
 #endif //_ARRAYBOUNDSINFERENCECONSUMER_H
