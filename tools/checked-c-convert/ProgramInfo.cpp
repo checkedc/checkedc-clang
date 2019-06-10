@@ -359,6 +359,9 @@ void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
 void ProgramInfo::exitCompilationUnit() {
   assert(persisted == false);
   VarDeclToStatement.clear();
+  // remove all the references.
+  IdentifiedArrayDecls.clear();
+  AllocationBasedSizeExprs.clear();
   persisted = true;
   return;
 }
@@ -724,4 +727,22 @@ bool ProgramInfo::insertPotentialArrayVar(Decl *var) {
 
 bool ProgramInfo::isIdentifiedArrayVar(Decl *toCheckVar) {
   return IdentifiedArrayDecls.find(toCheckVar) != IdentifiedArrayDecls.end();
+}
+
+bool ProgramInfo::addAllocationBasedSizeExpr(Decl *targetVar, Expr *sizeExpr) {
+  assert(isIdentifiedArrayVar(targetVar) && "The provided variable is not an array variable");
+  return AllocationBasedSizeExprs[targetVar].insert(sizeExpr).second;
+}
+
+void ProgramInfo::printArrayVarsAndSizes(llvm::raw_ostream &O) {
+  O << "\n\nArray Variables and Sizes\n";
+  for (const auto &currEl: AllocationBasedSizeExprs) {
+    O << "Variable:";
+    currEl.first->dump(O);
+    O << ", Possible Sizes:\n";
+    for (auto sizeExpr: currEl.second) {
+      sizeExpr->dump(O);
+      O << "\n";
+    }
+  }
 }
