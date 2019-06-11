@@ -10,12 +10,24 @@ This tool will invoke checked-c-convert on a compile_commands.json database.
 It contains some work-arounds for cmake+nmake generated compile_commands.json 
 files, where the files are malformed. 
 """
-SLASH = "/"
+SLASH = os.sep
 
 DEFAULT_ARGS = ["-dump-stats", "-output-postfix=checked"]
 if os.name == "nt":
   DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
-  SLASH = "\\"
+
+def getCheckedCArgs(argument_list):
+  """
+    Convert the compilation arguments (include folder and #defines)
+    to checked C format.
+  :param argument_list: list of compiler argument.
+  :return: argument string
+  """
+  clang_x_args = []
+  for curr_arg in argument_list:
+    if curr_arg.startswith("-D") or curr_arg.startswith("-I"):
+      clang_x_args.append('-extra-arg=' + curr_arg)
+  return clang_x_args
 
 def tryFixUp(s):
   """
@@ -47,6 +59,8 @@ def runMain(args):
   s = set()
   for i in cmds:
     file_to_add = i['file']
+    compiler_args = ""
+    target_directory = ""
     if file_to_add.endswith(".cpp"):
       continue # Checked C extension doesn't support cpp files yet
 
@@ -56,21 +70,40 @@ def runMain(args):
     if 'arguments' in i and not 'command' in i:
       # BEAR. Need to add directory.
       file_to_add = i['directory'] + SLASH + file_to_add
+      # get the compiler arguments
+      compiler_args = getCheckedCArgs(i["arguments"])
+      # get the directory used during compilation.
+      target_directory = i['directory']
     file_to_add = os.path.realpath(file_to_add)
-    s.add(file_to_add)
-
-  print s
+    s.add((frozenset(compiler_args), target_directory, file_to_add))
 
   prog_name = args.prog_name
-  args = []
-  args.append(prog_name)
-  args.extend(DEFAULT_ARGS)
-  args.extend(list(s))
   f = open('convert.sh', 'w')
-  f.write(" \\\n".join(args))
+  for compiler_args, target_directory, src_file in s:
+    args = []
+    # get the command to change the working directory
+    change_dir_cmd = ""
+    if len(target_directory) > 0:
+      if os.name == "nt":
+        change_dir_cmd = "dir " + target_directory + " &"
+      else:
+        change_dir_cmd = "cd " + target_directory + " ;"
+    else:
+      # default working directory
+      target_directory = os.getcwd()
+    args.append(prog_name)
+    if len(compiler_args) > 0:
+      args.extend(list(compiler_args))
+    args.extend(DEFAULT_ARGS)
+    args.append(src_file)
+    print str(args)
+    subprocess.check_call(args, cwd=target_directory)
+    # prepend the command to change the working directory.
+    if len(change_dir_cmd) > 0:
+      args = [change_dir_cmd] + args
+    f.write(" \\\n".join(args))
+    f.write("\n")
   f.close()
-  subprocess.check_call(args)
-
   return
 
 if __name__ == '__main__':
