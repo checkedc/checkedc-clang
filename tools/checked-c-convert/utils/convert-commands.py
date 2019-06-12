@@ -11,10 +11,13 @@ It contains some work-arounds for cmake+nmake generated compile_commands.json
 files, where the files are malformed. 
 """
 SLASH = os.sep
+# to separate multiple commands in a line
+CMD_SEP = " &"
 
 DEFAULT_ARGS = ["-dump-stats", "-output-postfix=checked"]
 if os.name == "nt":
   DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
+  CMD_SEP = " ;"
 
 def getCheckedCArgs(argument_list):
   """
@@ -84,10 +87,7 @@ def runMain(args):
     # get the command to change the working directory
     change_dir_cmd = ""
     if len(target_directory) > 0:
-      if os.name == "nt":
-        change_dir_cmd = "dir " + target_directory + " &"
-      else:
-        change_dir_cmd = "cd " + target_directory + " ;"
+      change_dir_cmd = "cd " + target_directory + CMD_SEP
     else:
       # default working directory
       target_directory = os.getcwd()
