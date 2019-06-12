@@ -12,12 +12,12 @@ files, where the files are malformed.
 """
 SLASH = os.sep
 # to separate multiple commands in a line
-CMD_SEP = " ;"
+CMD_SEP = " &"
 
 DEFAULT_ARGS = ["-dump-stats", "-output-postfix=checked"]
 if os.name == "nt":
   DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
-  CMD_SEP = " &"
+  CMD_SEP = " ;"
 
 def getCheckedCArgs(argument_list):
   """
