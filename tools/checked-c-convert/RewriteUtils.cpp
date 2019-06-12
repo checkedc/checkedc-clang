@@ -427,7 +427,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
-        std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false);
+        std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
         std::string bi = declText.str() + " : itype("+ctype+") ";
         parmStrs.push_back(bi);
       } else {
@@ -458,7 +458,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     std::string endStuff = "";
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
     if (Defn->isLt(*Decl, Info) && anyConstrained) {
-      std::string ctype = Defn->mkString(Info.getConstraints().getVariables());
+      std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
       returnVar = Defn->getTy();
       endStuff = " : itype("+ctype+") ";
       didAny = true;

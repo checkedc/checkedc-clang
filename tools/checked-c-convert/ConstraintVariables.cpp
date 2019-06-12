@@ -246,7 +246,7 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.
 std::string
-PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName) {
+PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName, bool forItype) {
   std::ostringstream ss;
   std::ostringstream pss;
   unsigned caratsToAdd = 0;
@@ -262,7 +262,9 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     std::map<uint32_t, Qualification>::iterator q;
     Atom::AtomKind K = C->getKind();
 
-    if (BaseType == "void")
+    // if this is not an itype
+    // make this wild as it can hold any pointer type
+    if (!forItype && BaseType == "void")
       K = Atom::A_Wild;
 
     switch (K) {
@@ -647,7 +649,7 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 }
 
 std::string
-FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName) {
+FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName, bool forItype) {
   std::string s = "";
   // TODO punting on what to do here. The right thing to do is to figure out
   // the LUB of all of the V in returnVars.
