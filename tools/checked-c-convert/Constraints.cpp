@@ -302,6 +302,9 @@ PtrAtom *Constraints::getPtr() const {
 ArrAtom *Constraints::getArr() const {
   return prebuiltArr;
 }
+NTArrAtom *Constraints::getNTArr() const {
+  return prebuiltNTArr;
+}
 WildAtom *Constraints::getWild() const {
   return prebuiltWild;
 }
@@ -321,11 +324,13 @@ Implies *Constraints::createImplies(Constraint *premise, Constraint *conclusion)
 Constraints::Constraints() {
   prebuiltPtr = new PtrAtom();
   prebuiltArr = new ArrAtom();
+  prebuiltNTArr = new NTArrAtom();
   prebuiltWild = new WildAtom();
 }
 
 Constraints::~Constraints() {
   delete prebuiltPtr;
   delete prebuiltArr;
+  delete prebuiltNTArr;
   delete prebuiltWild;
 }

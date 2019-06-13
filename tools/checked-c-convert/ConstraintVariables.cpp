@@ -333,6 +333,8 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
           if (q->second == ConstQualification)
             ss << "const ";
         break;
+      case Atom::A_NTArr:
+        assert(false && "Need to implement");
       case Atom::A_Const:
       case Atom::A_Var:
         llvm_unreachable("impossible");

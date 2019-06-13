@@ -40,6 +40,7 @@ public:
     A_Var,
     A_Ptr,
     A_Arr,
+    A_NTArr,
     A_Wild,
     A_Const
   };
@@ -146,6 +147,8 @@ public:
   }
 };
 
+class NTArrAtom;
+
 // This refers to the constant ARR.
 class ArrAtom : public ConstAtom {
 public:
@@ -172,7 +175,40 @@ public:
   }
 
   bool operator<(const Atom &other) const {
-    if (llvm::isa<PtrAtom>(&other) || *this == other)
+    if (llvm::isa<PtrAtom>(&other) || llvm::isa<NTArrAtom>(&other) || *this == other)
+      return false;
+    else
+      return true;
+  }
+};
+
+// This refers to the constant NTARR.
+class NTArrAtom : public ConstAtom {
+public:
+  NTArrAtom() : ConstAtom(A_NTArr) {}
+
+  static bool classof(const Atom *S) {
+    return S->getKind() == A_NTArr;
+  }
+
+  void print(llvm::raw_ostream &O) const {
+    O << "NTARR";
+  }
+
+  void dump(void) const {
+    print(llvm::errs());
+  }
+
+  bool operator==(const Atom &other) const {
+    return llvm::isa<NTArrAtom>(&other);
+  }
+
+  bool operator!=(const Atom &other) const {
+    return !(*this == other);
+  }
+
+  bool operator<(const Atom &other) const {
+    if (llvm::isa<PtrAtom>(&other) || llvm::isa<NTArrAtom>(&other) || *this == other)
       return false;
     else
       return true;
@@ -440,6 +476,7 @@ public:
   VarAtom *getVar(uint32_t v) const;
   PtrAtom *getPtr() const;
   ArrAtom *getArr() const;
+  NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
 
 private:
@@ -462,6 +499,7 @@ private:
   // Constraints class.
   PtrAtom *prebuiltPtr;
   ArrAtom *prebuiltArr;
+  NTArrAtom *prebuiltNTArr;
   WildAtom *prebuiltWild;
 };
 
