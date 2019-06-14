@@ -53,6 +53,21 @@ if [ -z $BUILD_SOURCESDIRECTORY ]; then
   CHECKEDC_CONFIG_STATUS="error" 
 fi
 
+# Validate that TEST_TARGET_ARCH contains the valid list of targets.
+if [ -z "$TEST_TARGET_ARCH" ]; then
+  echo "TEST_TARGET_ARCH not set"
+  CHECKEDC_CONFIG_STATUS="error"
+fi
+
+# First replace ";" with " " to make parsing easier.
+TEST_TARGET_ARCH=`echo $TEST_TARGET_ARCH | tr ";" " "`
+for TEST_TARGET in $TEST_TARGET_ARCH; do
+  if [ "$TEST_TARGET" != "X86_64" -a "$TEST_TARGET" != "ARM" ]; then
+    echo "Unknown value $TEST_TARGET in TEST_TARGET_ARCH: must be one of X86_64 or ARM."
+    CHECKEDC_CONFIG_STATUS="error"
+  fi
+done
+
 export LLVM_OBJ_DIR="${BUILD_BINARIESDIRECTORY}/LLVM-${BUILDCONFIGURATION}-${BUILDOS}.obj"
 
 # Validate Test Suite configuration

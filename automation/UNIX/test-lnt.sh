@@ -14,17 +14,7 @@ if [ ! -e "`which clang`" ]; then
   exit 1
 fi
 
-if [ -z "$TEST_TARGET_ARCH" ]; then
-  echo "TEST_TARGET_ARCH not set"
-  exit 1
-fi
-
 for TEST_TARGET in $TEST_TARGET_ARCH; do
-  if [ ! -d $TEST_TARGET ]; then
-    echo "Unknown TEST_TARGET_ARCH value $TEST_TARGET"
-    exit 1
-  fi
-
   export RESULTS_DIR=$LNT_RESULTS_DIR/$TEST_TARGET
   mkdir -p $RESULTS_DIR
   export RESULT_DATA="${RESULTS_DIR}/data.xml"
