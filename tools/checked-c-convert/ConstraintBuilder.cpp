@@ -191,6 +191,64 @@ public:
     }
   }
 
+  bool constrainAssignFromCallExpr(std::set<ConstraintVariable*> &LHSConstraints,
+                                   std::set<ConstraintVariable*> &RHSConstraints,
+                                   QualType lhsType,
+                                   Expr *SE) {
+    bool isCallExprHandled = false;
+
+    if (CallExpr *CA = dyn_cast<CallExpr>(SE)) {
+      QualType rhsTy = SE->getType();
+      // Is this a call to malloc? Can we coerce the callee
+      // to a NamedDecl?
+      FunctionDecl *calleeDecl =
+              dyn_cast<FunctionDecl>(CA->getCalleeDecl());
+      if (calleeDecl) {
+        // It's a call to malloc. What about the parameter to the call?
+        if (calleeDecl->getName() == "malloc") {
+          if (CA->getNumArgs() > 0) {
+            UnaryExprOrTypeTraitExpr *arg =
+                    dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
+            if (arg && arg->isArgumentType()) {
+              // Check that the argument is a sizeof.
+              if (arg->getKind() == UETT_SizeOf) {
+                QualType argTy = arg->getArgumentType();
+                // argTy should be made a pointer, then compared for
+                // equality to lhsType and rhsTy.
+                QualType argPTy = Context->getPointerType(argTy);
+
+                if (Info.checkStructuralEquality(LHSConstraints, RHSConstraints, argPTy, lhsType) &&
+                    Info.checkStructuralEquality(LHSConstraints, RHSConstraints, argPTy, rhsTy)) {
+                  // At present, I don't think we need to add an
+                  // implication based constraint since this rule
+                  // only fires if there is a cast from a call to malloc.
+                  // Since malloc is an external, there's no point in
+                  // adding constraints to it.
+                  isCallExprHandled = true;
+                }
+              }
+            }
+          }
+        } else if (calleeDecl->hasInteropTypeExpr()) {
+          isCallExprHandled = true;
+          // if this functions return type is an itype
+          // handle this.
+          Constraints &CS = Info.getConstraints();
+          CheckedPointerKind ptrKind = getItypeCheckedPointerKind(calleeDecl);
+          ConstAtom *targetCons = getCheckedPointerConstraint(ptrKind);
+          // constraint the assignee to the checked type inside
+          // itype
+          for (const auto &U : LHSConstraints)
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
+              for (const auto &J : PVC->getCvars())
+                CS.addConstraint(
+                        CS.createEq(CS.getOrCreateVar(J), targetCons));
+        }
+      }
+    }
+    return isCallExprHandled;
+  }
+
   // Adds constraints for the case where an expression RHS is being assigned
   // to a variable V. There are a few different cases:
   //  1. Straight-up assignment, i.e. int * a = b; with no casting. In this
@@ -206,6 +264,8 @@ public:
   //     int ** b = &(*(a));
   //     and the & * cancel each other out.
   //  4. Assignments from casts. Here, we use the implication rule.
+  //  5. Assignment from return value of call instruction, where the
+  //     return value is an itype
   //
   // In any of these cases, due to conditional expressions, the number of
   // variables on the RHS could be 0 or more. We just do the same rule
@@ -270,40 +330,8 @@ public:
             // finer-grained constraints we can add. One of them is if the 
             // value being cast from on the RHS is a call to malloc, and if
             // the type passed to malloc is equal to both lhsType and rhsTy. 
-            // If it is, we can do something less conservative. 
-            if (CallExpr *CA = dyn_cast<CallExpr>(SE)) {
-              // Is this a call to malloc? Can we coerce the callee 
-              // to a NamedDecl?
-              FunctionDecl *calleeDecl = 
-                dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-              if (calleeDecl && calleeDecl->getName() == "malloc") {
-                // It's a call to malloc. What about the parameter to the call?
-                if (CA->getNumArgs() > 0) {
-                  UnaryExprOrTypeTraitExpr *arg = 
-                    dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
-                  if (arg && arg->isArgumentType()) {
-                    // Check that the argument is a sizeof. 
-                    if (arg->getKind() == UETT_SizeOf) {
-                      QualType argTy = arg->getArgumentType();
-                      // argTy should be made a pointer, then compared for 
-                      // equality to lhsType and rhsTy. 
-                      QualType argPTy = Context->getPointerType(argTy); 
-
-                      if (Info.checkStructuralEquality(V, W, argPTy, lhsType) && 
-                          Info.checkStructuralEquality(V, W, argPTy, rhsTy)) 
-                      {
-                        rulesFired = true;
-                        // At present, I don't think we need to add an 
-                        // implication based constraint since this rule
-                        // only fires if there is a cast from a call to malloc.
-                        // Since malloc is an external, there's no point in 
-                        // adding constraints to it. 
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            // If it is, we can do something less conservative.
+            rulesFired = constrainAssignFromCallExpr(V, W, lhsType, SE);
           } 
 
           // If none of the above rules for cast behavior fired, then 
@@ -328,21 +356,8 @@ public:
           }
         }
         else if (CallExpr *CA = dyn_cast<CallExpr>(RHS)) {
-          // if this is a function call
-          // and the return value is an itype
-          FunctionDecl *calleeDecl =
-                  dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-          if(calleeDecl && calleeDecl->hasInteropTypeExpr()) {
-            CheckedPointerKind ptrKind = getItypeCheckedPointerKind(calleeDecl);
-            ConstAtom *targetCons = getCheckedPointerConstraint(ptrKind);
-            // constraint the assignee to the checked type inside
-            // itype
-            for (const auto &U : V)
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
-                for (const auto &J : PVC->getCvars())
-                  CS.addConstraint(
-                          CS.createEq(CS.getOrCreateVar(J), targetCons));
-          }
+          //case 5
+          constrainAssignFromCallExpr(V, W, lhsType, CA);
         }
       }
     }
@@ -591,8 +606,8 @@ private:
         break;
       case CheckedPointerKind::Unchecked:
         llvm_unreachable("Unchecked type inside an itype. This should be impossible.");
-
     }
+    assert(false && "Invalid Pointer kind.");
   }
 
   ASTContext *Context;
@@ -601,7 +616,7 @@ private:
 };
 
 // This class visits a global declaration and either
-// - Builds an _enviornment_ and _constraints_ for each function
+// - Builds an _environment_ and _constraints_ for each function
 // - Builds _constraints_ for declared struct/records in the translation unit
 // The results are returned in the ProgramInfo parameter to the user.
 class GlobalVisitor : public RecursiveASTVisitor<GlobalVisitor> {
