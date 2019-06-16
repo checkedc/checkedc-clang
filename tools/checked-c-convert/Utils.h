@@ -34,5 +34,9 @@ clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 
 clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
+bool isQualACheckedPointerType(clang::QualType &targetType);
+
+clang::CheckedPointerKind getItypeCheckedPointerKind(clang::FunctionDecl *funcDecl);
+
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif

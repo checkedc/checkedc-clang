@@ -32,7 +32,7 @@ PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_t &K,
                                                      DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
-                           tyToStr(QT.getTypePtr()),N),FV(nullptr)
+                           tyToStr(QT.getTypePtr()),N),FV(nullptr), isOrigCheckedType(false)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
@@ -107,13 +107,22 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       VarAtom * V = CS.getOrCreateVar(K);
 
       if (Ty->isCheckedPointerType()) {
+        // set a flag to indicate that this is originally a checked type
+        isOrigCheckedType = true;
         if (Ty->isCheckedPointerPtrType()) {
           // Constrain V so that it can't be either wild or an array.
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getNTArr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
+          ConstrainedVars.insert(K);
+        } else if(Ty->isCheckedPointerNtArrayType()) {
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getPtr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);
         } else if (Ty->isCheckedPointerArrayType()) {
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getPtr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getNTArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);
         }
@@ -169,6 +178,18 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
 }
 
+bool PVConstraint::emitQualifier(std::ostringstream &ss, ConstraintKey V) {
+  std::map<uint32_t, Qualification>::iterator q;
+
+  q = QualMap.find(V);
+  if (q != QualMap.end()) {
+    if (q->second == ConstQualification) {
+      ss << "const ";
+      return true;
+    }
+  }
+  return false;
+}
 bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
                                  ProgramInfo &Info,
                                  llvm::function_ref<bool (ConstAtom *, ConstAtom *)> Op) const
@@ -259,7 +280,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     ConstAtom *C = E[&VA];
     assert(C != nullptr);
 
-    std::map<uint32_t, Qualification>::iterator q;
     Atom::AtomKind K = C->getKind();
 
     // if this is not an itype
@@ -269,10 +289,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
 
     switch (K) {
       case Atom::A_Ptr:
-        q = QualMap.find(V);
-        if (q != QualMap.end())
-          if (q->second == ConstQualification)
-            ss << "const ";
+        emitQualifier(ss, V);
 
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
@@ -328,13 +345,21 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
           }
         }
 
-        q = QualMap.find(V);
-        if (q != QualMap.end())
-          if (q->second == ConstQualification)
-            ss << "const ";
+        emitQualifier(ss, V);
         break;
       case Atom::A_NTArr:
-        assert(false && "Need to implement");
+        emitQualifier(ss, V);
+
+        // We need to check and see if this level of variable
+        // is constrained by a bounds safe interface. If it is,
+        // then we shouldn't re-write it.
+        if (getItypePresent() == false) {
+          emittedBase = false;
+          ss << "_Nt_array_ptr<";
+          caratsToAdd++;
+          break;
+        }
+        break;
       case Atom::A_Const:
       case Atom::A_Var:
         llvm_unreachable("impossible");
@@ -416,9 +441,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
 
       if (InteropTypeExpr *BA =  FT->getParamAnnots(i).getInteropTypeExpr()) {
         QualType InteropType= Ctx.getInteropTypeAndAdjust(BA, true);
-        // TODO: handle array_ptr types.
-        if (InteropType->isCheckedPointerPtrType())
+        if(isQualACheckedPointerType(InteropType)) {
           QT = InteropType;
+        }
       }
 
       std::string paramName = "";
@@ -438,9 +463,9 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
 
     if (InteropTypeExpr *BA = FT->getReturnAnnots().getInteropTypeExpr()) {
       QualType InteropType = Ctx.getInteropTypeAndAdjust(BA, false);
-      // TODO: handle array_ptr types.
-      if (InteropType->isCheckedPointerPtrType())
+      if(isQualACheckedPointerType(InteropType)) {
         returnType = InteropType;
+      }
     }
     hasproto = true;
   } else if (Ty->isFunctionNoProtoType()) {
@@ -569,6 +594,15 @@ bool FunctionVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
   return false;
 }
 
+bool FunctionVariableConstraint::hasNTArr(Constraints::EnvironmentMap &E)
+{
+  for (const auto& C: returnVars)
+    if (C->hasNTArr(E))
+      return true;
+
+  return false;
+}
+
 void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool checkSkip) {
   for (const auto &V : vars) {
     // Check and see if we've already constrained this variable. This is currently
@@ -595,7 +629,7 @@ bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
-    f |= isa<PtrAtom>(CS);
+    f |= (isa<PtrAtom>(CS) || (isa<NTArrAtom>(CS) && !isOrigCheckedType));
   }
 
   if (FV)
@@ -627,6 +661,22 @@ bool PointerVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
     if (isa<ArrAtom>(CS))
+      return true;
+  }
+
+  if (FV)
+    return FV->anyChanges(E);
+
+  return false;
+}
+
+bool PointerVariableConstraint::hasNTArr(Constraints::EnvironmentMap &E)
+{
+  for (const auto& C: vars) {
+    VarAtom V(C);
+    ConstAtom *CS = E[&V];
+    assert(CS != nullptr);
+    if (isa<NTArrAtom>(CS))
       return true;
   }
 

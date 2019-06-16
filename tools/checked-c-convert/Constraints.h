@@ -208,7 +208,7 @@ public:
   }
 
   bool operator<(const Atom &other) const {
-    if (llvm::isa<PtrAtom>(&other) || llvm::isa<NTArrAtom>(&other) || *this == other)
+    if (llvm::isa<PtrAtom>(&other) || llvm::isa<ArrAtom>(&other) || *this == other)
       return false;
     else
       return true;
@@ -244,7 +244,8 @@ public:
   }
 
   bool operator<(const Atom &other) const {
-    if (llvm::isa<ArrAtom>(&other) || llvm::isa<PtrAtom>(&other) || *this == other)
+    if (llvm::isa<ArrAtom>(&other) || llvm::isa<NTArrAtom>(&other) ||
+        llvm::isa<PtrAtom>(&other) || *this == other)
       return false;
     else
       return true;
@@ -502,5 +503,8 @@ private:
   NTArrAtom *prebuiltNTArr;
   WildAtom *prebuiltWild;
 };
+
+// type that represents a key for each constraint
+typedef uint32_t ConstraintKey;
 
 #endif

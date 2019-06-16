@@ -8,6 +8,7 @@
 // visitors create constraints based on the AST of the program. 
 //===----------------------------------------------------------------------===//
 #include "ConstraintBuilder.h"
+#include "clang/AST/Type.h"
 
 using namespace llvm;
 using namespace clang;
@@ -159,6 +160,37 @@ public:
     return true;
   }
 
+  // Apply ~(V = Ptr) to the first 'level' constraint variable associated with
+  // 'E'
+  void constrainExprFirst(Expr *E) {
+    std::set<ConstraintVariable*> Var =
+            Info.getVariable(E, Context);
+    Constraints &CS = Info.getConstraints();
+    for (const auto &I : Var)
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0)
+          CS.addConstraint(
+                  CS.createNot(
+                          CS.createEq(
+                                  CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
+      }
+  }
+
+  void contrainEqExprFirst(Expr *E, ConstAtom *targetType) {
+    std::set<ConstraintVariable*> Var =
+            Info.getVariable(E, Context, true);
+    Constraints &CS = Info.getConstraints();
+    for (const auto &I : Var) {
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0) {
+          CS.addConstraint(
+                  CS.createEq(
+                          CS.getOrCreateVar(*(PVC->getCvars().begin())), targetType));
+        }
+      }
+    }
+  }
+
   // Adds constraints for the case where an expression RHS is being assigned
   // to a variable V. There are a few different cases:
   //  1. Straight-up assignment, i.e. int * a = b; with no casting. In this
@@ -293,6 +325,23 @@ public:
                 for (const auto &B : PVC->getCvars())
                   CS.addConstraint(
                     CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+          }
+        }
+        else if (CallExpr *CA = dyn_cast<CallExpr>(RHS)) {
+          // if this is a function call
+          // and the return value is an itype
+          FunctionDecl *calleeDecl =
+                  dyn_cast<FunctionDecl>(CA->getCalleeDecl());
+          if(calleeDecl && calleeDecl->hasInteropTypeExpr()) {
+            CheckedPointerKind ptrKind = getItypeCheckedPointerKind(calleeDecl);
+            ConstAtom *targetCons = getCheckedPointerConstraint(ptrKind);
+            // constraint the assignee to the checked type inside
+            // itype
+            for (const auto &U : V)
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
+                for (const auto &J : PVC->getCvars())
+                  CS.addConstraint(
+                          CS.createEq(CS.getOrCreateVar(J), targetCons));
           }
         }
       }
@@ -463,7 +512,7 @@ public:
   }
 
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
-    constrainExprFirstArr(E->getBase());
+    contrainEqExprFirst(E->getBase(), Info.getConstraints().getArr());
     return true;
   }
 
@@ -488,36 +537,6 @@ public:
        constrainEq(FV->getReturnVars(), Var, Info); 
 
     return true;
-  }
-
-  // Apply ~(V = Ptr) to the first 'level' constraint variable associated with 
-  // 'E'
-  void constrainExprFirst(Expr *E) {
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(E, Context);
-    Constraints &CS = Info.getConstraints();
-    for (const auto &I : Var)
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (PVC->getCvars().size() > 0)
-          CS.addConstraint(
-            CS.createNot(
-              CS.createEq(
-                CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
-      }
-  }
-
-  void constrainExprFirstArr(Expr *E) {
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(E, Context, true);
-    Constraints &CS = Info.getConstraints();
-    for (const auto &I : Var)
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (PVC->getCvars().size() > 0) {
-          CS.addConstraint(
-              CS.createEq(
-                CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getArr()));
-        }
-      }
   }
 
 
@@ -556,6 +575,24 @@ private:
   void arithBinop(BinaryOperator *O) {
     constrainExprFirst(O->getLHS());
     constrainExprFirst(O->getRHS());
+  }
+
+  ConstAtom* getCheckedPointerConstraint(CheckedPointerKind ptrKind) {
+    Constraints &CS = Info.getConstraints();
+    switch(ptrKind) {
+      case CheckedPointerKind::NtArray:
+        return CS.getNTArr();
+        break;
+      case CheckedPointerKind::Ptr:
+        return CS.getPtr();
+        break;
+      case CheckedPointerKind::Array:
+        return CS.getArr();
+        break;
+      case CheckedPointerKind::Unchecked:
+        llvm_unreachable("Unchecked type inside an itype. This should be impossible.");
+
+    }
   }
 
   ASTContext *Context;

@@ -36,7 +36,7 @@ class ProgramInfo;
 
 // Holds integers representing constraint variables, with semantics as
 // defined in the text above
-typedef std::set<uint32_t> CVars;
+typedef std::set<ConstraintKey> CVars;
 
 // Base class for ConstraintVariables. A ConstraintVariable can either be a
 // PointerVariableConstraint or a FunctionVariableConstraint. The difference
@@ -61,7 +61,7 @@ protected:
   // bounds-safe interface. They are remembered as being constrained
   // so that later on we do not introduce a spurious constraint
   // making those variables WILD.
-  std::set<uint32_t> ConstrainedVars;
+  std::set<ConstraintKey> ConstrainedVars;
 
 public:
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
@@ -91,6 +91,7 @@ public:
   virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasWild(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasArr(Constraints::EnvironmentMap &E) = 0;
+  virtual bool hasNTArr(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
   std::string getName() { return Name; }
@@ -131,7 +132,7 @@ public:
 private:
   CVars vars;
   FunctionVariableConstraint *FV;
-  std::map<uint32_t, Qualification> QualMap;
+  std::map<ConstraintKey, Qualification> QualMap;
   enum OriginalArrType {
       O_Pointer,
       O_SizedArray,
@@ -142,19 +143,26 @@ private:
   //  * A pointer, then U -> (a,b) , a = O_Pointer, b has no meaning.
   //  * A sized array, then U -> (a,b) , a = O_SizedArray, b is static size.
   //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
-  std::map<uint32_t,std::pair<OriginalArrType,uint64_t>> arrSizes;
+  std::map<ConstraintKey,std::pair<OriginalArrType,uint64_t>> arrSizes;
   // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or
   // O_UnSizedArray, arrPresent is true.
   bool arrPresent;
   // Is there an itype associated with this constraint? If there is, how was it
   // originally stored in the program?
   std::string itypeStr;
+  // is an original checked pointer type?
+  // this flag indicates whether the underlying pointer was originally
+  // declared as a Checked type?
+  bool isOrigCheckedType;
+  // write appropriate qualifier string to
+  // the provided string stream.
+  bool emitQualifier(std::ostringstream &ss, ConstraintKey targetVar);
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name,
                             FunctionVariableConstraint *F, bool isArr, bool isItype, std::string is) :
           ConstraintVariable(PointerVariable, T, Name)
-          ,vars(V),FV(F),arrPresent(isArr), itypeStr(is) {}
+          ,vars(V),FV(F),arrPresent(isArr), itypeStr(is), isOrigCheckedType(false) {}
 
   bool getArrPresent() { return arrPresent; }
 
@@ -189,6 +197,7 @@ public:
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
+  bool hasNTArr(Constraints::EnvironmentMap &E);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
@@ -251,6 +260,7 @@ public:
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
+  bool hasNTArr(Constraints::EnvironmentMap &E);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;

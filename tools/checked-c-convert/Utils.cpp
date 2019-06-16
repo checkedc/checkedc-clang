@@ -85,3 +85,30 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
     return FD->getSourceRange().getEnd();
   }
 }
+
+bool isQualACheckedPointerType(clang::QualType &targetType) {
+  return targetType->isCheckedPointerArrayType() ||
+         targetType->isCheckedPointerNtArrayType() ||
+         targetType->isCheckedPointerPtrType();
+}
+
+static clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
+  TypeSourceInfo * interopTypeInfo = itypeExpr->getTypeInfoAsWritten();
+  const clang::Type *innerType = interopTypeInfo->getType().getTypePtr();
+  if(innerType->isCheckedPointerNtArrayType()) {
+    return CheckedPointerKind ::NtArray;
+  }
+  if(innerType->isCheckedPointerArrayType()) {
+    return CheckedPointerKind ::Array;
+  }
+  if(innerType->isCheckedPointerType()) {
+    return CheckedPointerKind ::Ptr;
+  }
+  return CheckedPointerKind::Unchecked;
+}
+
+clang::CheckedPointerKind getItypeCheckedPointerKind(clang::FunctionDecl *funcDecl) {
+  assert(funcDecl->hasInteropTypeExpr() && "This has to be an itype expression");
+  InteropTypeExpr *childExpression = funcDecl->getInteropTypeExpr();
+  return getCheckedPointerKind(childExpression);
+}
