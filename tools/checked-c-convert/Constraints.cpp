@@ -198,19 +198,47 @@ bool Constraints::step_solve(EnvironmentMap &env) {
     for (const auto &C : Var->Constraints) {
       // Propagate the Neg constraint.
       if (Not *N = dyn_cast<Not>(C)) {
-        if (Eq *E = dyn_cast<Eq>(N->getBody()))
+        if (Eq *E = dyn_cast<Eq>(N->getBody())) {
           // If this is Not ( q == Ptr ) and the current value 
           // of q is Ptr ( < *getArr() ) then bump q up to Arr.
-          if (isa<PtrAtom>(E->getRHS()))
+          if (isa<PtrAtom>(E->getRHS())) {
             if (*Val < *getArr()) {
               VI->second = getArr();
               changedEnvironment = true;
             }
+          }
+          // if this is Not (q == Arr) and the current value
+          // of q is Arr or Ptr then change q to NTArr
+          if(isa<ArrAtom>(E->getRHS())) {
+            if(*Val < *getNTArr() || *Val == *getArr()) {
+              VI->second = getNTArr();
+              changedEnvironment = true;
+            }
+          }
+
+          // if this is Not (q == NTarr)
+          // if q is Ptr change then change to Arr
+          // if q is NTarr change to Wild.
+          // this is to avoid back-forth from NTArr to Arr
+          if (isa<NTArrAtom>(E->getRHS())) {
+            if(*Val < *getArr()) {
+              VI->second = getArr();
+              changedEnvironment = true;
+            } else if (*Val == *getNTArr()) {
+              VI->second = getWild();
+              changedEnvironment = true;
+            }
+          }
+        }
       }
-      else if (Eq *E = dyn_cast<Eq>(C)) 
+      else if (Eq *E = dyn_cast<Eq>(C)) {
+        changedEnvironment |= propEq<NTArrAtom>(env, E, getNTArr(), rmConstraints, VI);
         changedEnvironment |= propEq<ArrAtom>(env, E, getArr(), rmConstraints, VI);
-      else if (Implies *Imp = dyn_cast<Implies>(C)) 
+      }
+      else if (Implies *Imp = dyn_cast<Implies>(C)) {
+        changedEnvironment |= propImp<NTArrAtom>(Imp, getNTArr(), rmConstraints, Val);
         changedEnvironment |= propImp<ArrAtom>(Imp, getArr(), rmConstraints, Val);
+      }
     }
 
     for (const auto &RC : rmConstraints)

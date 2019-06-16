@@ -24,7 +24,10 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
-  ProgramInfo() : freeKey(0), persisted(true) { IdentifiedArrayDecls.clear(); }
+  ProgramInfo(): ProgramInfo(true) {}
+  ProgramInfo(bool mergeMultiple) : freeKey(0), persisted(true), mergeMultipleDeclarations(mergeMultiple) {
+    IdentifiedArrayDecls.clear();
+  }
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
@@ -156,6 +159,12 @@ private:
   // this is the map of variables that are potential arrays
   // and their tentative size expression.
   std::map<Decl *, std::set<Expr*>> AllocationBasedSizeExprs;
+  // flag that controls the merging of constraints
+  // on parameters and return values of functions with multiple
+  // declarations. f
+  // for ex: strcpy and strcpy : itype .., this will merge
+  // the constrains of both these declarations.
+  bool mergeMultipleDeclarations;
 };
 
 #endif

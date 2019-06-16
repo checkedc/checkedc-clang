@@ -53,6 +53,13 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
+cl::opt<bool> MergeMultipleDecls("mergefns",
+                                 cl::desc("For function declared multiple times, "
+                                          "constraint the types of parameters and "
+                                          "return values to be same."),
+                                 cl::init(false),
+                                 cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten files, if "
@@ -176,7 +183,7 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  ProgramInfo Info;
+  ProgramInfo Info(MergeMultipleDecls);
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
