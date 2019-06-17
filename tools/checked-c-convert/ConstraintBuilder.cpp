@@ -160,25 +160,8 @@ public:
     return true;
   }
 
-  // Apply ~(V = Ptr) to the first 'level' constraint variable associated with
-  // 'E'
-  void constrainExprFirst(Expr *E) {
-    std::set<ConstraintVariable*> Var =
-            Info.getVariable(E, Context);
-    Constraints &CS = Info.getConstraints();
-    for (const auto &I : Var)
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (PVC->getCvars().size() > 0)
-          CS.addConstraint(
-                  CS.createNot(
-                          CS.createEq(
-                                  CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
-      }
-  }
-
-  void contrainEqExprFirst(Expr *E, ConstAtom *targetType) {
-    std::set<ConstraintVariable*> Var =
-            Info.getVariable(E, Context, true);
+  // Apply (V = V') for all the provided constraint variables.
+  void constrainExprEq(std::set<ConstraintVariable*> &Var, ConstAtom *targetType) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Var) {
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
@@ -189,6 +172,35 @@ public:
         }
       }
     }
+  }
+
+  // Apply ~(V = V') to the provided constraint variable
+  void constrainExprNotEq(std::set<ConstraintVariable*> &Var, ConstAtom *targetType) {
+    Constraints &CS = Info.getConstraints();
+    for (const auto &I : Var) {
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0) {
+          CS.addConstraint(
+                  CS.createNot(
+                          CS.createEq(
+                                  CS.getOrCreateVar(*(PVC->getCvars().begin())), targetType)));
+        }
+      }
+    }
+  }
+
+  // Apply ~(V = Ptr) to the provided constraint variable
+  void constrainExprNotEqPtr(std::set<ConstraintVariable*> &Var) {
+    Constraints &CS = Info.getConstraints();
+    constrainExprNotEq(Var, CS.getPtr());
+  }
+
+
+  void handleInteropAssign(std::set<ConstraintVariable*> &LHSConstraints, CheckedPointerKind itypePtrKind) {
+    ConstAtom *targetCons = getCheckedPointerConstraint(itypePtrKind);
+    // constraint the assignee to the checked type inside
+    // itype
+    constrainExprEq(LHSConstraints, targetCons);
   }
 
   bool constrainAssignFromCallExpr(std::set<ConstraintVariable*> &LHSConstraints,
@@ -231,18 +243,8 @@ public:
           }
         } else if (calleeDecl->hasInteropTypeExpr()) {
           isCallExprHandled = true;
-          // if this functions return type is an itype
-          // handle this.
-          Constraints &CS = Info.getConstraints();
           CheckedPointerKind ptrKind = getItypeCheckedPointerKind(calleeDecl);
-          ConstAtom *targetCons = getCheckedPointerConstraint(ptrKind);
-          // constraint the assignee to the checked type inside
-          // itype
-          for (const auto &U : LHSConstraints)
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
-              for (const auto &J : PVC->getCvars())
-                CS.addConstraint(
-                        CS.createEq(CS.getOrCreateVar(J), targetCons));
+          handleInteropAssign(LHSConstraints, ptrKind);
         }
       }
     }
@@ -441,10 +443,18 @@ public:
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
         std::set<ConstraintVariable*> ParameterEC =
-          Info.getVariable(A, Context, false);
-
+                Info.getVariable(A, Context, false);
         if (i < FD->getNumParams()) {
-          constrainAssign(FD->getParamDecl(i), A);
+          ParmVarDecl *currParam = FD->getParamDecl(i);
+          // if this paramter is itype?
+          // then restrict the argument to the corresponding itype.
+          if(currParam->hasInteropTypeExpr()) {
+            CheckedPointerKind ptrKind = getItypeCheckedPointerKind(currParam);
+            std::set<ConstraintVariable*> LHSConstraints = Info.getVariable(A, Context, true);
+            handleInteropAssign(LHSConstraints, ptrKind);
+          } else {
+            constrainAssign(currParam, A);
+          }
         } else {
           // Constrain ParameterEC to wild if it is a pointer type.
           Constraints &CS = Info.getConstraints();
@@ -527,7 +537,11 @@ public:
   }
 
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
-    contrainEqExprFirst(E->getBase(), Info.getConstraints().getArr());
+    std::set<ConstraintVariable*> Var = Info.getVariable(E->getBase(), Context, true);
+    // make this an array
+    constrainExprEq(Var, Info.getConstraints().getArr());
+    // this is not a null-terminated array
+    constrainExprNotEq(Var, Info.getConstraints().getNTArr());
     return true;
   }
 
@@ -555,23 +569,38 @@ public:
   }
 
 
+  // The following operations are not allowed on checked and
+  // nt array pointer. Add constraint so that they will be
+  // treated as nt array types.
   bool VisitUnaryPreInc(UnaryOperator *O) {
-    constrainExprFirst(O->getSubExpr());
+    std::set<ConstraintVariable*> Var =
+            Info.getVariable(O->getSubExpr(), Context, true);
+    constrainExprNotEqPtr(Var);
+    constrainExprNotEq(Var, Info.getConstraints().getNTArr());
     return true;
   }
 
   bool VisitUnaryPostInc(UnaryOperator *O) {
-    constrainExprFirst(O->getSubExpr());
+    std::set<ConstraintVariable*> Var =
+            Info.getVariable(O->getSubExpr(), Context, true);
+    constrainExprNotEqPtr(Var);
+    constrainExprNotEq(Var, Info.getConstraints().getNTArr());
     return true;
   }
 
   bool VisitUnaryPreDec(UnaryOperator *O) {
-    constrainExprFirst(O->getSubExpr());
+    std::set<ConstraintVariable*> Var =
+            Info.getVariable(O->getSubExpr(), Context, true);
+    constrainExprNotEqPtr(Var);
+    constrainExprNotEq(Var, Info.getConstraints().getNTArr());
     return true;
   }
 
   bool VisitUnaryPostDec(UnaryOperator *O) {
-    constrainExprFirst(O->getSubExpr());
+    std::set<ConstraintVariable*> Var =
+            Info.getVariable(O->getSubExpr(), Context, true);
+    constrainExprNotEqPtr(Var);
+    constrainExprNotEq(Var, Info.getConstraints().getNTArr());
     return true;
   }
 
@@ -588,8 +617,12 @@ public:
 private:
 
   void arithBinop(BinaryOperator *O) {
-    constrainExprFirst(O->getLHS());
-    constrainExprFirst(O->getRHS());
+    std::set<ConstraintVariable*> Var = Info.getVariable(O->getLHS(), Context, true);
+    constrainExprNotEqPtr(Var);
+    constrainExprNotEq(Var, Info.getConstraints().getNTArr());
+    Var = Info.getVariable(O->getRHS(), Context, true);
+    constrainExprNotEqPtr(Var);
+    constrainExprNotEq(Var, Info.getConstraints().getNTArr());
   }
 
   ConstAtom* getCheckedPointerConstraint(CheckedPointerKind ptrKind) {
