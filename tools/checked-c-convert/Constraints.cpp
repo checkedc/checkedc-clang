@@ -130,8 +130,11 @@ Constraints::propEq(EnvironmentMap &env, Eq *Dyn, T *A, ConstraintSet &R,
       CurValRHS->second = CurValLHS->second;
       changedEnvironment = true;
     }
-    else
-      assert(*(CurValRHS->second) == *(CurValLHS->second));
+    else {
+      // this is possible when we have ARR and NTArr
+      // which are incomparable.
+      //assert(*(CurValRHS->second) == *(CurValLHS->second));
+    }
   }
 
   return changedEnvironment;
@@ -199,17 +202,17 @@ bool Constraints::step_solve(EnvironmentMap &env) {
       // Propagate the Neg constraint.
       if (Not *N = dyn_cast<Not>(C)) {
         if (Eq *E = dyn_cast<Eq>(N->getBody())) {
-          // If this is Not ( q == Ptr ) and the current value 
-          // of q is Ptr ( < *getArr() ) then bump q up to Arr.
+          // If this is Not ( q == Ptr ) and the current value
           if (isa<PtrAtom>(E->getRHS())) {
+            // of q is Ptr ( < *getArr() ) then bump q up to Arr.
             if (*Val < *getArr()) {
               VI->second = getArr();
               changedEnvironment = true;
             }
           }
           // if this is Not (q == Arr) and the current value
-          // of q is Arr or Ptr then change q to NTArr
           if(isa<ArrAtom>(E->getRHS())) {
+            // of q is Arr or Ptr then change q to NTArr
             if(*Val < *getNTArr() || *Val == *getArr()) {
               VI->second = getNTArr();
               changedEnvironment = true;
@@ -217,13 +220,13 @@ bool Constraints::step_solve(EnvironmentMap &env) {
           }
 
           // if this is Not (q == NTarr)
-          // if q is Ptr change then change to Arr
-          // if q is NTarr change to Wild.
           // this is to avoid back-forth from NTArr to Arr
           if (isa<NTArrAtom>(E->getRHS())) {
+            // if q is Ptr change then change to Arr
             if(*Val < *getArr()) {
               VI->second = getArr();
               changedEnvironment = true;
+              // if q is NTarr change to Wild.
             } else if (*Val == *getNTArr()) {
               VI->second = getWild();
               changedEnvironment = true;

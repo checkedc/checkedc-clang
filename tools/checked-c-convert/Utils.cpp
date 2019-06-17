@@ -112,3 +112,9 @@ clang::CheckedPointerKind getItypeCheckedPointerKind(clang::FunctionDecl *funcDe
   InteropTypeExpr *childExpression = funcDecl->getInteropTypeExpr();
   return getCheckedPointerKind(childExpression);
 }
+
+clang::CheckedPointerKind getItypeCheckedPointerKind(clang::ParmVarDecl *paramDecl) {
+  assert(paramDecl->hasInteropTypeExpr() && "This has to be an itype expression");
+  InteropTypeExpr *childExpression = paramDecl->getInteropTypeExpr();
+  return getCheckedPointerKind(childExpression);
+}
