@@ -133,5 +133,102 @@ TEST(Conflicts, test1) {
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(1), CS.getWild())));
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getOrCreateVar(1))));
 
-  EXPECT_FALSE(CS.solve().second);
+  // Here, q_0 will end up being WILD
+  EXPECT_TRUE(CS.solve().second);
+  Constraints::EnvironmentMap env = CS.getVariables();
+
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
+}
+
+TEST(BasicNTArrayTest, NTArrayTests1) {
+  Constraints CS;
+
+  // q_0 != ARR
+  // q_0 != PTR
+  // q_0 != WILD
+
+  // should derive
+  // q_0 = NTArr
+
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getArr()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
+
+  EXPECT_TRUE(CS.solve().second);
+  Constraints::EnvironmentMap env = CS.getVariables();
+
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getNTArr());
+}
+
+TEST(NTArrayAndArrayTest, NTArrayTests2) {
+  // tries to test the following case:
+  /*
+   * // this will derive first set: set 1
+   * char *str = strstr(..,..);
+   * ..
+   * // this will derive the second constraint: set 2
+   * str[j] = 'a';
+   */
+  Constraints CS;
+  // set 1
+  // q_0 != ARR
+  // q_0 != PTR
+  // q_0 != WILD
+  // set 2
+  // q_0 = ARR
+
+  // should derive
+  // q_0 = NTArr
+
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getArr()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getArr())));
+
+  EXPECT_TRUE(CS.solve().second);
+  Constraints::EnvironmentMap env = CS.getVariables();
+
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getNTArr());
+}
+
+TEST(NTArrayAndArrayConflictTest, NTArrayTests3) {
+  // tries to test the following case:
+  /*
+   * // this will derive first set: set 1
+   * char *str = strstr(..,..);
+   * // this will derive second set: when the itype(Array_ptr<..>)
+   * foo(str,..)
+   * ..
+   * str[i] = ..
+   */
+  Constraints CS;
+  // set 1
+  // q_0 != ARR
+  // q_0 != PTR
+  // q_0 != WILD
+  // set 2
+  // q_0 != NTArr
+  // q_0 != PTR
+  // q_0 != WILD
+  // set 3
+  // q_0 = ARR
+
+  // should derive
+  // q_0 = WILD
+
+  // set 1
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getArr()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
+  // set 2
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getNTArr()))));
+  EXPECT_FALSE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
+  EXPECT_FALSE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
+  // set 3
+  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getArr())));
+
+  EXPECT_TRUE(CS.solve().second);
+  Constraints::EnvironmentMap env = CS.getVariables();
+
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
 }

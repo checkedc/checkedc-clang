@@ -318,15 +318,21 @@ public:
     if (K == C_Eq) {
       const Eq *E = llvm::dyn_cast<Eq>(&other);
       assert(E != NULL);
-
-      if (*lhs == *E->lhs && *rhs == *E->rhs)
-        return false;
-      else if (*lhs == *E->lhs && *rhs != *E->rhs)
-        return *rhs < *E->rhs;
-      else
-        return *lhs < *E->lhs;
-    }
-    else 
+      if (*lhs == *E->lhs) {
+        if (*rhs == *E->rhs) {
+          return false;
+        } else if ((*rhs < *E->rhs) || (*E->rhs < *rhs)) {
+          // if these are comparable?
+          return *rhs < *E->rhs;
+        } else if (llvm::dyn_cast<ConstAtom>(rhs) &&
+                   llvm::dyn_cast<ConstAtom>(E->rhs)) {
+          // not comparable and they are constant atoms.
+          // use their kind.
+          return llvm::dyn_cast<ConstAtom>(rhs)->getKind() < llvm::dyn_cast<ConstAtom>(E->rhs)->getKind();
+        }
+      }
+      return *lhs < *E->lhs;
+    } else
       return C_Eq < K;
   }
 
