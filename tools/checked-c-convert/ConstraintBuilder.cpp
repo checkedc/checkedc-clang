@@ -520,33 +520,35 @@ public:
     constrainVarsEq(Var, CS.getArr());
   }
 
-  // Apply ~(V = Ptr) to the first 'level' constraint variable associated with
+  // Apply ~(V = Ptr) and ~(V = NTArr) to the
+  // first 'level' constraint variable associated with
   // 'E'
-  void constrainExprFirst(Expr *E) {
+  void constrainExprNotPtrNotNt(Expr *E) {
     std::set<ConstraintVariable*> Var =
       Info.getVariable(E, Context);
     Constraints &CS = Info.getConstraints();
     constrainVarsNotEq(Var, CS.getPtr());
+    constrainVarsNotEq(Var, CS.getNTArr());
   }
 
 
   bool VisitUnaryPreInc(UnaryOperator *O) {
-    constrainExprFirst(O->getSubExpr());
+    constrainExprNotPtrNotNt(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostInc(UnaryOperator *O) {
-    constrainExprFirst(O->getSubExpr());
+    constrainExprNotPtrNotNt(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPreDec(UnaryOperator *O) {
-    constrainExprFirst(O->getSubExpr());
+    constrainExprNotPtrNotNt(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostDec(UnaryOperator *O) {
-    constrainExprFirst(O->getSubExpr());
+    constrainExprNotPtrNotNt(O->getSubExpr());
     return true;
   }
 
@@ -563,8 +565,8 @@ public:
 private:
 
   void arithBinop(BinaryOperator *O) {
-    constrainExprFirst(O->getLHS());
-    constrainExprFirst(O->getRHS());
+    constrainExprNotPtrNotNt(O->getLHS());
+    constrainExprNotPtrNotNt(O->getRHS());
   }
 
   ASTContext *Context;
