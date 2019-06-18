@@ -490,19 +490,26 @@ public:
     return true;
   }
 
-  // Apply ~(V = Ptr) to the first 'level' constraint variable associated with 
-  // 'E'
-  void constrainExprFirst(Expr *E) {
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(E, Context);
+  void constrainVarsNotEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
     Constraints &CS = Info.getConstraints();
-    for (const auto &I : Var)
+    for (const auto &I : Vars)
       if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
         if (PVC->getCvars().size() > 0)
           CS.addConstraint(
             CS.createNot(
               CS.createEq(
-                CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getPtr())));
+                CS.getOrCreateVar(*(PVC->getCvars().begin())), type)));
+      }
+  }
+
+  void constrainVarsEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
+    Constraints &CS = Info.getConstraints();
+    for (const auto &I : Vars)
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0)
+          CS.addConstraint(
+            CS.createEq(
+              CS.getOrCreateVar(*(PVC->getCvars().begin())), type));
       }
   }
 
@@ -510,14 +517,16 @@ public:
     std::set<ConstraintVariable*> Var =
       Info.getVariable(E, Context, true);
     Constraints &CS = Info.getConstraints();
-    for (const auto &I : Var)
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (PVC->getCvars().size() > 0) {
-          CS.addConstraint(
-              CS.createEq(
-                CS.getOrCreateVar(*(PVC->getCvars().begin())), CS.getArr()));
-        }
-      }
+    constrainVarsEq(Var, CS.getArr());
+  }
+
+  // Apply ~(V = Ptr) to the first 'level' constraint variable associated with
+  // 'E'
+  void constrainExprFirst(Expr *E) {
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(E, Context);
+    Constraints &CS = Info.getConstraints();
+    constrainVarsNotEq(Var, CS.getPtr());
   }
 
 

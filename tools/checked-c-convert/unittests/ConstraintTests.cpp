@@ -133,5 +133,7 @@ TEST(Conflicts, test1) {
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(1), CS.getWild())));
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getOrCreateVar(1))));
 
-  EXPECT_FALSE(CS.solve().second);
+  EXPECT_TRUE(CS.solve().second);
+  Constraints::EnvironmentMap env = CS.getVariables();
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
 }
