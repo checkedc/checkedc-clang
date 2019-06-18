@@ -110,9 +110,16 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
         if (Ty->isCheckedPointerPtrType()) {
           // Constrain V so that it can't be either wild or an array.
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getNTArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);
         } else if (Ty->isCheckedPointerArrayType()) {
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getNTArr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getPtr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
+          ConstrainedVars.insert(K);
+        } else if (Ty->isCheckedPointerNtArrayType()) {
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getPtr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);

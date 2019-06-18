@@ -198,19 +198,25 @@ bool Constraints::step_solve(EnvironmentMap &env) {
     for (const auto &C : Var->Constraints) {
       // Propagate the Neg constraint.
       if (Not *N = dyn_cast<Not>(C)) {
-        if (Eq *E = dyn_cast<Eq>(N->getBody()))
-          // If this is Not ( q == Ptr ) and the current value 
+        if (Eq *E = dyn_cast<Eq>(N->getBody())) {
+          // If this is Not ( q == Ptr ) or Not ( q == NTArr)
+          // and the current value
           // of q is Ptr ( < *getArr() ) then bump q up to Arr.
-          if (isa<PtrAtom>(E->getRHS()))
+          if (isa<PtrAtom>(E->getRHS()) || isa<NTArrAtom>(E->getRHS())) {
             if (*Val < *getArr()) {
               VI->second = getArr();
               changedEnvironment = true;
             }
+          }
+        }
       }
-      else if (Eq *E = dyn_cast<Eq>(C)) 
+      else if (Eq *E = dyn_cast<Eq>(C)) {
+        changedEnvironment |= propEq<NTArrAtom>(env, E, getNTArr(), rmConstraints, VI);
         changedEnvironment |= propEq<ArrAtom>(env, E, getArr(), rmConstraints, VI);
-      else if (Implies *Imp = dyn_cast<Implies>(C)) 
+      } else if (Implies *Imp = dyn_cast<Implies>(C)) {
+        changedEnvironment |= propImp<NTArrAtom>(Imp, getNTArr(), rmConstraints, Val);
         changedEnvironment |= propImp<ArrAtom>(Imp, getArr(), rmConstraints, Val);
+      }
     }
 
     for (const auto &RC : rmConstraints)
@@ -302,6 +308,9 @@ PtrAtom *Constraints::getPtr() const {
 ArrAtom *Constraints::getArr() const {
   return prebuiltArr;
 }
+NTArrAtom *Constraints::getNTArr() const {
+  return prebuiltNTArr;
+}
 WildAtom *Constraints::getWild() const {
   return prebuiltWild;
 }
@@ -321,11 +330,13 @@ Implies *Constraints::createImplies(Constraint *premise, Constraint *conclusion)
 Constraints::Constraints() {
   prebuiltPtr = new PtrAtom();
   prebuiltArr = new ArrAtom();
+  prebuiltNTArr = new NTArrAtom();
   prebuiltWild = new WildAtom();
 }
 
 Constraints::~Constraints() {
   delete prebuiltPtr;
   delete prebuiltArr;
+  delete prebuiltNTArr;
   delete prebuiltWild;
 }
