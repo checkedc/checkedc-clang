@@ -34,5 +34,7 @@ clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 
 clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
+clang::CheckedPointerKind getItypeCheckedPointerKind(clang::ParmVarDecl *paramDecl);
+
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif
