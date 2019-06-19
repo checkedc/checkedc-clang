@@ -133,26 +133,20 @@ TEST(Conflicts, test1) {
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(1), CS.getWild())));
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getOrCreateVar(1))));
 
-  // Here, q_0 will end up being WILD
   EXPECT_TRUE(CS.solve().second);
   Constraints::EnvironmentMap env = CS.getVariables();
-
   EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
 }
 
-TEST(BasicNTArrayTest, NTArrayTests1) {
+TEST(BasicNTArrayTest, NTArrayTests) {
   Constraints CS;
 
-  // q_0 != ARR
-  // q_0 != PTR
-  // q_0 != WILD
+  // q_0 = NTArr
 
   // should derive
   // q_0 = NTArr
 
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getArr()))));
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getNTArr())));
 
   EXPECT_TRUE(CS.solve().second);
   Constraints::EnvironmentMap env = CS.getVariables();
@@ -160,7 +154,7 @@ TEST(BasicNTArrayTest, NTArrayTests1) {
   EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getNTArr());
 }
 
-TEST(NTArrayAndArrayTest, NTArrayTests2) {
+TEST(NTArrayAndArrayTest, NTArrayTests) {
   // tries to test the following case:
   /*
    * // this will derive first set: set 1
@@ -171,64 +165,51 @@ TEST(NTArrayAndArrayTest, NTArrayTests2) {
    */
   Constraints CS;
   // set 1
-  // q_0 != ARR
-  // q_0 != PTR
-  // q_0 != WILD
+  // q_0 == NTARR
   // set 2
   // q_0 = ARR
 
   // should derive
-  // q_0 = NTArr
+  // q_0 = ARR
 
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getArr()))));
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getNTArr())));
   EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getArr())));
 
   EXPECT_TRUE(CS.solve().second);
   Constraints::EnvironmentMap env = CS.getVariables();
 
-  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getNTArr());
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getArr());
 }
 
-TEST(NTArrayAndArrayConflictTest, NTArrayTests3) {
+TEST(NTArrayAndArrayConflictTest, NTArrayTests) {
   // tries to test the following case:
   /*
    * // this will derive first set: set 1
-   * char *str = strstr(..,..);
-   * // this will derive second set: when the itype(Array_ptr<..>)
-   * foo(str,..)
-   * ..
-   * str[i] = ..
+   * char *data;
+   * data = str..
+   * ...
+   * // this will add second set of constraints
+   * data += 1;
    */
   Constraints CS;
   // set 1
-  // q_0 != ARR
-  // q_0 != PTR
-  // q_0 != WILD
+  // q_0 == NTArr
   // set 2
   // q_0 != NTArr
   // q_0 != PTR
-  // q_0 != WILD
-  // set 3
-  // q_0 = ARR
 
   // should derive
-  // q_0 = WILD
+  // q_0 = Arr
 
   // set 1
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getArr()))));
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
-  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
+  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getNTArr())));
   // set 2
   EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getNTArr()))));
-  EXPECT_FALSE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
-  EXPECT_FALSE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getWild()))));
-  // set 3
-  EXPECT_TRUE(CS.addConstraint(CS.createEq(CS.getOrCreateVar(0), CS.getArr())));
+  EXPECT_TRUE(CS.addConstraint(CS.createNot(CS.createEq(CS.getOrCreateVar(0), CS.getPtr()))));
+ 
 
   EXPECT_TRUE(CS.solve().second);
   Constraints::EnvironmentMap env = CS.getVariables();
 
-  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getWild());
+  EXPECT_TRUE(*env[CS.getVar(0)] == *CS.getArr());
 }

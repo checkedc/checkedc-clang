@@ -66,22 +66,22 @@ CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
 
 // Print out statistics of constraint variables on a per-file basis.
 void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
-  std::map<std::string, std::tuple<unsigned, unsigned, unsigned, unsigned, unsigned> > filesToVars;
+  std::map<std::string, std::tuple<int, int, int, int, int> > filesToVars;
   Constraints::EnvironmentMap env = CS.getVariables();
 
   // First, build the map and perform the aggregation.
   for (auto &I : Variables) {
     std::string fileName = I.first.getFileName();
     if (F.count(fileName)) {
-      unsigned varC = 0;
-      unsigned pC = 0;
-      unsigned aC = 0;
-      unsigned ntAC = 0;
-      unsigned wC = 0;
+      int varC = 0;
+      int pC = 0;
+      int ntAC = 0;
+      int aC = 0;
+      int wC = 0;
 
       auto J = filesToVars.find(fileName);
       if (J != filesToVars.end())
-        std::tie(varC, pC, aC, ntAC, wC) = J->second;
+        std::tie(varC, pC, ntAC, aC, wC) = J->second;
 
       CVars foundVars;
       for (auto &C : I.second) {
@@ -98,35 +98,35 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
 
         ConstAtom *CA = K->second;
         switch (CA->getKind()) {
-        case Atom::A_Arr:
-          aC += 1;
-          break;
-        case Atom::A_NTArr:
+          case Atom::A_Arr:
+            aC += 1;
+            break;
+          case Atom::A_NTArr:
             ntAC += 1;
             break;
-        case Atom::A_Ptr:
-          pC += 1;
-          break;
-        case Atom::A_Wild:
-          wC += 1;
-          break;
-        case Atom::A_Var:
-        case Atom::A_Const:
-          llvm_unreachable("bad constant in environment map");
+          case Atom::A_Ptr:
+            pC += 1;
+            break;
+          case Atom::A_Wild:
+            wC += 1;
+            break;
+          case Atom::A_Var:
+          case Atom::A_Const:
+            llvm_unreachable("bad constant in environment map");
         }
       }
 
-      filesToVars[fileName] = std::tuple<unsigned, unsigned, unsigned, unsigned, unsigned>(varC, pC, aC, ntAC, wC);
+      filesToVars[fileName] = std::tuple<int, int, int, int, int>(varC, pC, ntAC, aC, wC);
     }
   }
 
   // Then, dump the map to output.
 
-  O << "file|#constraints|#ptr|#arr|#ntarr|#wild\n";
+  O << "file|#constraints|#ptr|#ntarr|#arr|#wild\n";
   for (const auto &I : filesToVars) {
-    int v, p, a, nta, w;
-    std::tie(v, p, a, nta, w) = I.second;
-    O << I.first << "|" << v << "|" << p << "|" << a << "|" << nta << "|" << w;
+    int v, p, nt, a, w;
+    std::tie(v, p, nt, a, w) = I.second;
+    O << I.first << "|" << v << "|" << p << "|" << nt << "|" << a << "|" << w;
     O << "\n";
   }
 }
@@ -202,7 +202,8 @@ bool ProgramInfo::link() {
         FVConstraint *P2 = *J;
 
         // Constrain the return values to be equal
-        if (!P1->hasBody() && !P2->hasBody() && mergeMultipleDeclarations) {
+        // TODO: make this behavior optional?
+        if (!P1->hasBody() && !P2->hasBody()) {
           constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this);
 
           // Constrain the parameters to be equal, if the parameter arity is

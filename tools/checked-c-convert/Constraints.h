@@ -39,8 +39,8 @@ public:
   enum AtomKind {
     A_Var,
     A_Ptr,
-    A_Arr,
     A_NTArr,
+    A_Arr,
     A_Wild,
     A_Const
   };
@@ -147,7 +147,38 @@ public:
   }
 };
 
-class NTArrAtom;
+// This refers to the constant NTARR.
+class NTArrAtom : public ConstAtom {
+public:
+  NTArrAtom() : ConstAtom(A_NTArr) {}
+
+  static bool classof(const Atom *S) {
+    return S->getKind() == A_NTArr;
+  }
+
+  void print(llvm::raw_ostream &O) const {
+    O << "NTARR";
+  }
+
+  void dump(void) const {
+    print(llvm::errs());
+  }
+
+  bool operator==(const Atom &other) const {
+    return llvm::isa<NTArrAtom>(&other);
+  }
+
+  bool operator!=(const Atom &other) const {
+    return !(*this == other);
+  }
+
+  bool operator<(const Atom &other) const {
+    if (llvm::isa<PtrAtom>(&other) || *this == other)
+      return false;
+    else
+      return true;
+  }
+};
 
 // This refers to the constant ARR.
 class ArrAtom : public ConstAtom {
@@ -182,39 +213,6 @@ public:
   }
 };
 
-// This refers to the constant NTARR.
-class NTArrAtom : public ConstAtom {
-public:
-  NTArrAtom() : ConstAtom(A_NTArr) {}
-
-  static bool classof(const Atom *S) {
-    return S->getKind() == A_NTArr;
-  }
-
-  void print(llvm::raw_ostream &O) const {
-    O << "NTARR";
-  }
-
-  void dump(void) const {
-    print(llvm::errs());
-  }
-
-  bool operator==(const Atom &other) const {
-    return llvm::isa<NTArrAtom>(&other);
-  }
-
-  bool operator!=(const Atom &other) const {
-    return !(*this == other);
-  }
-
-  bool operator<(const Atom &other) const {
-    if (llvm::isa<PtrAtom>(&other) || llvm::isa<ArrAtom>(&other) || *this == other)
-      return false;
-    else
-      return true;
-  }
-};
-
 // This refers to the constant WILD.
 class WildAtom : public ConstAtom {
 public:
@@ -233,9 +231,9 @@ public:
   }
 
   bool operator==(const Atom &other) const {
-    if (llvm::isa<WildAtom>(&other)) 
+    if (llvm::isa<WildAtom>(&other))
       return true;
-    else 
+    else
       return false;
   }
 
@@ -318,21 +316,15 @@ public:
     if (K == C_Eq) {
       const Eq *E = llvm::dyn_cast<Eq>(&other);
       assert(E != NULL);
-      if (*lhs == *E->lhs) {
-        if (*rhs == *E->rhs) {
-          return false;
-        } else if ((*rhs < *E->rhs) || (*E->rhs < *rhs)) {
-          // if these are comparable?
-          return *rhs < *E->rhs;
-        } else if (llvm::dyn_cast<ConstAtom>(rhs) &&
-                   llvm::dyn_cast<ConstAtom>(E->rhs)) {
-          // not comparable and they are constant atoms.
-          // use their kind.
-          return llvm::dyn_cast<ConstAtom>(rhs)->getKind() < llvm::dyn_cast<ConstAtom>(E->rhs)->getKind();
-        }
-      }
-      return *lhs < *E->lhs;
-    } else
+
+      if (*lhs == *E->lhs && *rhs == *E->rhs)
+        return false;
+      else if (*lhs == *E->lhs && *rhs != *E->rhs)
+        return *rhs < *E->rhs;
+      else
+        return *lhs < *E->lhs;
+    }
+    else 
       return C_Eq < K;
   }
 
@@ -510,7 +502,6 @@ private:
   WildAtom *prebuiltWild;
 };
 
-// type that represents a key for each constraint
 typedef uint32_t ConstraintKey;
 
 #endif
