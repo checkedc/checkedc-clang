@@ -36,7 +36,7 @@ class ProgramInfo;
 
 // Holds integers representing constraint variables, with semantics as
 // defined in the text above
-typedef std::set<uint32_t> CVars;
+typedef std::set<ConstraintKey> CVars;
 
 // Base class for ConstraintVariables. A ConstraintVariable can either be a
 // PointerVariableConstraint or a FunctionVariableConstraint. The difference
@@ -61,7 +61,7 @@ protected:
   // bounds-safe interface. They are remembered as being constrained
   // so that later on we do not introduce a spurious constraint
   // making those variables WILD.
-  std::set<uint32_t> ConstrainedVars;
+  std::set<ConstraintKey> ConstrainedVars;
 
 public:
   ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) :
@@ -131,7 +131,7 @@ public:
 private:
   CVars vars;
   FunctionVariableConstraint *FV;
-  std::map<uint32_t, Qualification> QualMap;
+  std::map<ConstraintKey, Qualification> QualMap;
   enum OriginalArrType {
       O_Pointer,
       O_SizedArray,
@@ -142,13 +142,16 @@ private:
   //  * A pointer, then U -> (a,b) , a = O_Pointer, b has no meaning.
   //  * A sized array, then U -> (a,b) , a = O_SizedArray, b is static size.
   //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
-  std::map<uint32_t,std::pair<OriginalArrType,uint64_t>> arrSizes;
+  std::map<ConstraintKey,std::pair<OriginalArrType,uint64_t>> arrSizes;
   // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or
   // O_UnSizedArray, arrPresent is true.
   bool arrPresent;
   // Is there an itype associated with this constraint? If there is, how was it
   // originally stored in the program?
   std::string itypeStr;
+  // get the qualifier string (e.g., const, etc) for the provided constraint var (targetCvar)
+  // into the provided string stream (ss)
+  void getQualString(ConstraintKey targetCVar, std::ostringstream &ss);
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name,
@@ -165,12 +168,12 @@ public:
   // Constructor for when we have a Decl. K is the current free
   // constraint variable index. We don't need to explicitly pass
   // the name because it's available in 'D'.
-  PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
+  PointerVariableConstraint(clang::DeclaratorDecl *D, ConstraintKey &K,
                             Constraints &CS, const clang::ASTContext &C);
 
   // Constructor for when we only have a Type. Needs a string name
   // N for the name of the variable that this represents.
-  PointerVariableConstraint(const clang::QualType &QT, uint32_t &K,
+  PointerVariableConstraint(const clang::QualType &QT, ConstraintKey &K,
                             clang::DeclaratorDecl *D, std::string N, Constraints &CS, const clang::ASTContext &C);
 
   const CVars &getCvars() const { return vars; }
@@ -220,9 +223,9 @@ public:
   FunctionVariableConstraint() :
           ConstraintVariable(FunctionVariable, "", ""),name(""),hasproto(false),hasbody(false) { }
 
-  FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
+  FunctionVariableConstraint(clang::DeclaratorDecl *D, ConstraintKey &K,
                              Constraints &CS, const clang::ASTContext &C);
-  FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
+  FunctionVariableConstraint(const clang::Type *Ty, ConstraintKey &K,
                              clang::DeclaratorDecl *D, std::string N, Constraints &CS, const clang::ASTContext &C);
 
   std::set<ConstraintVariable*> &

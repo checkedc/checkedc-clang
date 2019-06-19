@@ -569,6 +569,21 @@ private:
     constrainExprNotPtrNotNt(O->getRHS());
   }
 
+  ConstAtom* getCheckedPointerConstraint(CheckedPointerKind ptrKind) {
+    Constraints &CS = Info.getConstraints();
+    switch(ptrKind) {
+      case CheckedPointerKind::NtArray:
+        return CS.getNTArr();
+      case CheckedPointerKind::Array:
+        return CS.getArr();
+      case CheckedPointerKind::Ptr:
+        return CS.getPtr();
+      case CheckedPointerKind::Unchecked:
+        llvm_unreachable("Unchecked type inside an itype. This should be impossible.");
+    }
+    assert(false && "Invalid Pointer kind.");
+  }
+
   ASTContext *Context;
   ProgramInfo &Info;
   FunctionDecl *Function;

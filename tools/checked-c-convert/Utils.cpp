@@ -85,3 +85,24 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
     return FD->getSourceRange().getEnd();
   }
 }
+
+static clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
+  TypeSourceInfo * interopTypeInfo = itypeExpr->getTypeInfoAsWritten();
+  const clang::Type *innerType = interopTypeInfo->getType().getTypePtr();
+  if(innerType->isCheckedPointerNtArrayType()) {
+    return CheckedPointerKind ::NtArray;
+  }
+  if(innerType->isCheckedPointerArrayType()) {
+    return CheckedPointerKind ::Array;
+  }
+  if(innerType->isCheckedPointerType()) {
+    return CheckedPointerKind ::Ptr;
+  }
+  return CheckedPointerKind::Unchecked;
+}
+
+clang::CheckedPointerKind getItypeCheckedPointerKind(clang::ParmVarDecl *paramDecl) {
+  assert(paramDecl->hasInteropTypeExpr() && "This has to be an itype expression");
+  InteropTypeExpr *childExpression = paramDecl->getInteropTypeExpr();
+  return getCheckedPointerKind(childExpression);
+}

@@ -502,4 +502,6 @@ private:
   WildAtom *prebuiltWild;
 };
 
+typedef uint32_t ConstraintKey;
+
 #endif
