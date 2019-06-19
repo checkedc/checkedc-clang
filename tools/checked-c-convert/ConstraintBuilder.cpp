@@ -376,11 +376,31 @@ public:
       // Call of a function directly.
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
+        // get declaration constraint variables.
         std::set<ConstraintVariable*> ParameterEC =
           Info.getVariable(A, Context, false);
 
         if (i < FD->getNumParams()) {
-          constrainAssign(FD->getParamDecl(i), A);
+          bool handled = false;
+          if(FD->getParamDecl(i)->hasInteropTypeExpr()) {
+            // we only handle itype of NTArray for now.
+            CheckedPointerKind ptrKind = getItypeCheckedPointerKind(FD->getParamDecl(i));
+            if(ptrKind == CheckedPointerKind::NtArray) {
+              // if the itype is an NTArray
+              handled = true;
+              Constraints &CS = Info.getConstraints();
+              // get the constraint variables for the body
+              ParameterEC =
+                Info.getVariable(A, Context, true);
+              for (const auto &C : ParameterEC) {
+                // add constraint to NTArray
+                C->constrainTo(CS, getCheckedPointerConstraint(ptrKind));
+              }
+            }
+          }
+          if(!handled) {
+            constrainAssign(FD->getParamDecl(i), A);
+          }
         } else {
           // Constrain ParameterEC to wild if it is a pointer type.
           Constraints &CS = Info.getConstraints();
@@ -524,8 +544,10 @@ public:
   // first 'level' constraint variable associated with
   // 'E'
   void constrainExprNotPtrNotNt(Expr *E) {
+    // get the constrain variables
+    // with in the body context
     std::set<ConstraintVariable*> Var =
-      Info.getVariable(E, Context);
+      Info.getVariable(E, Context, true);
     Constraints &CS = Info.getConstraints();
     constrainVarsNotEq(Var, CS.getPtr());
     constrainVarsNotEq(Var, CS.getNTArr());
