@@ -327,6 +327,19 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
 
           break;
         }
+      case Atom::A_NTArr:
+        // if this is an NTArray
+        getQualString(V, ss);
+
+        // We need to check and see if this level of variable
+        // is constrained by a bounds safe interface. If it is,
+        // then we shouldn't re-write it.
+        if (getItypePresent() == false) {
+          emittedBase = false;
+          ss << "_Nt_arr_ptr<";
+          caratsToAdd++;
+          break;
+        }
         // If there is no array in the original program, then we fall through to
         // the case where we write a pointer value.
       case Atom::A_Wild:
@@ -344,18 +357,6 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
 
         getQualString(V, ss);
         break;
-      case Atom::A_NTArr:
-        getQualString(V, ss);
-
-        // We need to check and see if this level of variable
-        // is constrained by a bounds safe interface. If it is,
-        // then we shouldn't re-write it.
-        if (getItypePresent() == false) {
-          emittedBase = false;
-          ss << "_Nt_arr_ptr<";
-          caratsToAdd++;
-          break;
-        }
       case Atom::A_Const:
       case Atom::A_Var:
         llvm_unreachable("impossible");
@@ -617,6 +618,7 @@ bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
     f |= isa<PtrAtom>(CS);
+    f |= isa<NTArrAtom>(CS);
   }
 
   if (FV)

@@ -423,16 +423,21 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
       // If this holds, then we want to insert a bounds safe interface.
       bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-      if (Defn->isLt(*Decl, Info) && anyConstrained) {
+      if(anyConstrained) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
-        std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string bi = declText.str() + " : itype("+ctype+") ";
-        parmStrs.push_back(bi);
-      } else {
-        // Do what we used to do.
-        if (anyConstrained) {
+        // if either definition or declaration
+        // is more constrained then emit an itype
+        if(Defn->isLt(*Decl, Info)) {
+          std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
+          std::string bi = declText.str() + " : itype("+ctype+") ";
+          parmStrs.push_back(bi);
+        } else if(Decl->isLt(*Defn, Info)) {
+          std::string ctype = Decl->mkString(Info.getConstraints().getVariables(), false, true);
+          std::string bi = declText.str() + " : itype("+ctype+") ";
+          parmStrs.push_back(bi);
+        } else {
           std::string v = Defn->mkString(Info.getConstraints().getVariables());
           if (PVConstraint *PVC = dyn_cast<PVConstraint>(Defn)) {
             if (PVC->getItypePresent()) {
@@ -440,12 +445,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
             }
           }
           parmStrs.push_back(v);
-        } else {
-          std::string scratch = "";
-          raw_string_ostream declText(scratch);
-          Definition->getParamDecl(i)->print(declText);
-          parmStrs.push_back(declText.str());
         }
+      } else {
+        std::string scratch = "";
+        raw_string_ostream declText(scratch);
+        Definition->getParamDecl(i)->print(declText);
+        parmStrs.push_back(declText.str());
       }
     }
 
@@ -456,13 +461,26 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     // Insert a bounds safe interface for the return.
     std::string returnVar = "";
     std::string endStuff = "";
+    bool returnHandled = false;
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-    if (Defn->isLt(*Decl, Info) && anyConstrained) {
-      std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
-      returnVar = Defn->getTy();
-      endStuff = " : itype("+ctype+") ";
-      didAny = true;
-    } else {
+    if(anyConstrained) {
+      std::string ctype = "";
+      if(Defn->isLt(*Decl, Info)) {
+        returnHandled = true;
+        ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
+        returnVar = Defn->getTy();
+      } else if(Decl->isLt(*Defn, Info)) {
+        returnHandled = true;
+        ctype = Decl->mkString(Info.getConstraints().getVariables(), true, true);
+        returnVar = Decl->getTy();
+      }
+      if(returnHandled) {
+        endStuff = " : itype("+ctype+") ";
+        didAny = true;
+      }
+    }
+
+    if(!returnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
       returnVar = Decl->mkString(Info.getConstraints().getVariables());
 
