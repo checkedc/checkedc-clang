@@ -77,6 +77,7 @@ public:
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
   virtual void dump() const = 0;
+  virtual void dump_json(llvm::raw_ostream &O) const = 0;
 
   // Constrain everything 'within' this ConstraintVariable to be equal to C.
   // Set checkSkip to true if you would like constrainTo to consider the
@@ -93,7 +94,7 @@ public:
   virtual bool hasArr(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
-  std::string getName() { return Name; }
+  std::string getName() const { return Name; }
 
   virtual ~ConstraintVariable() {};
 
@@ -188,6 +189,7 @@ public:
 
   void print(llvm::raw_ostream &O) const ;
   void dump() const { print(llvm::errs()); }
+  void dump_json(llvm::raw_ostream &O) const;
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
@@ -250,6 +252,7 @@ public:
   std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true, bool forItype=false);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
+  void dump_json(llvm::raw_ostream &O) const;
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);

@@ -253,6 +253,26 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
   }
 }
 
+void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
+  O << "{\"PointerVar\":{";
+  O << "\"Vars\":[";
+  bool addComma = false;
+  for (const auto &I : vars) {
+    if(addComma) {
+      O << ",";
+    }
+    O << "\"q_" << I << "\"";
+    addComma = true;
+  }
+  O << "], \"name\":\"" << getName() << "\"";
+  if(FV) {
+    O << ", \"FunctionVariable\":";
+    FV->dump_json(O);
+  }
+  O << "}}";
+
+}
+
 void PointerVariableConstraint::getQualString(ConstraintKey targetCVar, std::ostringstream &ss) {
   std::map<ConstraintKey, Qualification>::iterator q = QualMap.find(targetCVar);
   if (q != QualMap.end())
@@ -671,6 +691,40 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
       J->print(O);
     O << " )";
   }
+}
+
+void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
+  O << "{\"FunctionVar\":{\"ReturnVar\":[";
+  bool addComma = false;
+  for (const auto &I : returnVars) {
+    if(addComma) {
+      O << ",";
+    }
+    I->dump_json(O);
+  }
+  O << "], \"name\":\"" << name << "\", ";
+  O << "\"Parameters\":[";
+  addComma = false;
+  for (const auto &I : paramVars) {
+    if(I.size() > 0) {
+      if (addComma) {
+        O << ",\n";
+      }
+      O << "[";
+      bool innerComma = false;
+      for (const auto &J : I) {
+        if(innerComma) {
+          O << ",";
+        }
+        J->dump_json(O);
+        innerComma = true;
+      }
+      O << "]";
+      addComma = true;
+    }
+  }
+  O << "]";
+  O << "}}";
 }
 
 std::string

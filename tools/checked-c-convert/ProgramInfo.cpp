@@ -38,6 +38,32 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   O << "{\"Setup\":";
   CS.dump_json(O);
   // dump the constraint variables.
+  O << ", \"ConstraintVariables\":[";
+  bool addComma = false;
+  for( const auto &I : Variables ) {
+    if(addComma) {
+      O << ",\n";
+    }
+    PersistentSourceLoc L = I.first;
+    const std::set<ConstraintVariable*> &S = I.second;
+
+    O << "{\"line\":\"";
+    L.print(O);
+    O << "\",";
+    O << "\"Variables\":[";
+    bool addComma1 = false;
+    for(const auto &J : S) {
+      if(addComma1) {
+        O << ",";
+      }
+      J->dump_json(O);
+      addComma1 = true;
+    }
+    O << "]";
+    O << "}";
+    addComma = true;
+  }
+  O << "]";
   O << "}";
 }
 
