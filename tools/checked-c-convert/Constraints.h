@@ -54,6 +54,7 @@ public:
 
   virtual void print(llvm::raw_ostream &) const = 0;
   virtual void dump(void) const = 0;
+  virtual void dump_json(llvm::raw_ostream &) const = 0;
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &other) const = 0;
@@ -75,6 +76,10 @@ public:
 
   void dump(void) const {
     print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"q_" << Loc << "\"";
   }
 
   bool operator==(const Atom &other) const {
@@ -134,6 +139,10 @@ public:
     print(llvm::errs());
   }
 
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"PTR\"";
+  }
+
   bool operator==(const Atom &other) const {
     return llvm::isa <PtrAtom>(&other);
   }
@@ -162,6 +171,10 @@ public:
 
   void dump(void) const {
     print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"NTARR\"";
   }
 
   bool operator==(const Atom &other) const {
@@ -197,6 +210,10 @@ public:
     print(llvm::errs());
   }
 
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"ARR\"";
+  }
+
   bool operator==(const Atom &other) const {
     return llvm::isa<ArrAtom>(&other);
   }
@@ -228,6 +245,10 @@ public:
 
   void dump(void) const {
     print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"WILD\"";
   }
 
   bool operator==(const Atom &other) const {
@@ -271,6 +292,7 @@ public:
 
   virtual void print(llvm::raw_ostream &) const = 0;
   virtual void dump(void) const = 0;
+  virtual void dump_json(llvm::raw_ostream &) const = 0;
   virtual bool operator==(const Constraint &other) const = 0;
   virtual bool operator!=(const Constraint &other) const = 0;
   virtual bool operator<(const Constraint &other) const = 0;
@@ -295,6 +317,14 @@ public:
 
   void dump(void) const {
     print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "{\"Eq\":{\"Atom1\":";
+    lhs->dump_json(O);
+    O << ", \"Atom2\":";
+    rhs->dump_json(O);
+    O << "}}";
   }
 
   Atom *getLHS(void) const { return lhs; }
@@ -353,6 +383,12 @@ public:
     print(llvm::errs());
   }
 
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "{\"Not\":";
+    body->dump_json(O);
+    O << "}";
+  }
+
   bool operator==(const Constraint &other) const {
     if (const Not *N = llvm::dyn_cast<Not>(&other))
       return *body == *N->body;
@@ -406,6 +442,14 @@ public:
 
   void dump(void) const {
     print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "{\"Implies\":{\"Premise\":";
+    premise->dump_json(O);
+    O << ", \"Conclusion\":";
+    conclusion->dump_json(O);
+    O << "}}";
   }
 
   bool operator==(const Constraint &other) const {
@@ -466,6 +510,7 @@ public:
   std::pair<ConstraintSet, bool> solve(void);
   void dump() const;
   void print(llvm::raw_ostream &) const;
+  void dump_json(llvm::raw_ostream &) const;
 
   Eq *createEq(Atom *lhs, Atom *rhs);
   Not *createNot(Constraint *body);
