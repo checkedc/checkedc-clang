@@ -41,7 +41,7 @@ def getCheckedCArgs(argument_list, work_dir):
         # if this is relative path,
         # convert into absolute path
         if not os.path.isabs(curr_arg[2:]):
-          curr_arg = "-I" + os.path.join(work_dir, curr_arg[2:])
+          curr_arg = "-I" + os.path.abspath(os.path.join(work_dir, curr_arg[2:]))
       clang_x_args.append('-extra-arg=' + curr_arg)
   return clang_x_args
 
@@ -57,7 +57,7 @@ def tryFixUp(s):
   f.close()
   return
 
-def runMain(args):
+def runMain(cmd_args):
   global INDIVIDUAL_COMMANDS_FILE
   global TOTAL_COMMANDS_FILE
   runs = 0
@@ -65,10 +65,10 @@ def runMain(args):
   while runs < 2:
     runs = runs + 1
     try:
-      cmds = json.load(open(args.compile_commands, 'r'))
+      cmds = json.load(open(cmd_args.compile_commands, 'r'))
     except:
       traceback.print_exc()
-      tryFixUp(args.compile_commands)
+      tryFixUp(cmd_args.compile_commands)
 
   if cmds == None:
     print "failed"
@@ -91,7 +91,7 @@ def runMain(args):
       # BEAR. Need to add directory.
       file_to_add = i['directory'] + SLASH + file_to_add
       # get the checked-c-convert and compiler arguments
-      compiler_x_args = getCheckedCArgs(i["arguments"])
+      compiler_x_args = getCheckedCArgs(i["arguments"], i['directory'])
       total_x_args.extend(compiler_x_args)
       # get the directory used during compilation.
       target_directory = i['directory']
@@ -99,7 +99,7 @@ def runMain(args):
     all_files.append(file_to_add)
     s.add((frozenset(compiler_x_args), target_directory, file_to_add))
 
-  prog_name = args.prog_name
+  prog_name = cmd_args.prog_name
   f = open(INDIVIDUAL_COMMANDS_FILE, 'w')
   for compiler_args, target_directory, src_file in s:
     args = []
@@ -116,8 +116,8 @@ def runMain(args):
     args.extend(DEFAULT_ARGS)
     args.append(src_file)
     # run individual commands.
-    if not args.link:
-      print(str(args))
+    if not cmd_args.link:
+      print("Running:" + ' '.join(args))
       subprocess.check_call(args, cwd=target_directory)
     # prepend the command to change the working directory.
     if len(change_dir_cmd) > 0:
@@ -136,8 +136,8 @@ def runMain(args):
   f.write(" \\\n".join(args))
   f.close()
   # run whole command
-  if args.link:
-    print(str(args))
+  if cmd_args.link:
+    print("Running:" + str(' '.join(args)))
     subprocess.check_call(args)
   print("[+] Saved the total command into the file:" + TOTAL_COMMANDS_FILE)
   return
