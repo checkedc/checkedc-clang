@@ -202,8 +202,10 @@ int main(int argc, const char **argv) {
   assert(R.second == true);
   if (Verbose)
     outs() << "Constraints solved\n";
-  if (DumpIntermediate)
+  if (DumpIntermediate) {
     Info.dump();
+    Info.dump_json(llvm::errs());
+  }
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =

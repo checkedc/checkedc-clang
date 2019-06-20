@@ -279,6 +279,36 @@ void Constraints::dump(void) const {
   print(errs());
 }
 
+void Constraints::dump_json(llvm::raw_ostream &O) const {
+  O << "{\"Constraints\":[";
+  bool addComma = false;
+  for (const auto &C : constraints) {
+    if(addComma) {
+      O << ",\n";
+    }
+    C->dump_json(O);
+    addComma = true;
+  }
+  O << "],\n";
+
+  addComma = false;
+
+  O << "\"Environment\":[";
+  for (const auto &V : environment) {
+    if(addComma) {
+      O << ",\n";
+    }
+    O << "{\"var\":";
+    V.first->dump_json(O);
+    O << ", \"value:\":";
+    V.second->dump_json(O);
+    O << "}";
+    addComma = true;
+  }
+  O << "]}";
+
+}
+
 VarAtom *Constraints::getOrCreateVar(uint32_t v) {
   VarAtom tv(v);
   EnvironmentMap::iterator I = environment.find(&tv);

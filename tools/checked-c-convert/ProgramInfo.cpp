@@ -34,6 +34,13 @@ void ProgramInfo::print(raw_ostream &O) const {
   }
 }
 
+void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
+  O << "{\"Setup\":";
+  CS.dump_json(O);
+  // dump the constraint variables.
+  O << "}";
+}
+
 // Given a ConstraintVariable V, retrieve all of the unique
 // constraint variables used by V. If V is just a 
 // PointerVariableConstraint, then this is just the contents 

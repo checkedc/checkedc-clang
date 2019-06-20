@@ -27,6 +27,7 @@ public:
   ProgramInfo() : freeKey(0), persisted(true) { IdentifiedArrayDecls.clear(); }
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
+  void dump_json(llvm::raw_ostream &O) const;
   void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O);
 
