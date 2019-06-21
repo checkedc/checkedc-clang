@@ -201,111 +201,132 @@ public:
     if (!RHS || V.size() == 0)
       return;
 
+    std::set<ConstraintVariable *> RHSConstraints;
+    RHSConstraints.clear();
+
     Constraints &CS = Info.getConstraints();
-    std::set<ConstraintVariable*> W = Info.getVariable(RHS, Context);
-    if (W.size() > 0) {
-      // Case 1.
-      // There are constraint variables for the RHS, so, use those over
-      // anything else we could infer. 
-      constrainEq(V, W, Info);
+    RHS = getNormalizedExpr(RHS);
+    // if this is a call expression?
+    if (dyn_cast<CallExpr>(RHS)) {
+      // if this is a call expression?
+      // get the constraint variable corresponding
+      // to the declaration.
+      RHSConstraints = Info.getVariable(RHS, Context, false);
+      if (RHSConstraints.size() > 0) {
+        constrainEq(V, RHSConstraints, Info);
+      }
     } else {
-      // Remove the parens from the RHS expression, this makes it easier for 
-      // us to look at the semantics.
       RHS = RHS->IgnoreParens();
 
       // Cases 2-4.
       if (RHS->isIntegerConstantExpr(*Context)) {
         // Case 2.
         if (!RHS->isNullPointerConstant(*Context,
-          Expr::NPC_ValueDependentIsNotNull))
-          for (const auto &U : V)
+                                        Expr::NPC_ValueDependentIsNotNull)) {
+          for (const auto &U : V) {
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
-              for (const auto &J : PVC->getCvars())
+              for (const auto &J : PVC->getCvars()) {
                 CS.addConstraint(
                   CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
-      } else {
-        // Cases 3-4.
-        if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
-          if (UO->getOpcode() == UO_AddrOf) {
-            // Case 3.
-            // Is there anything to do here, or is it implicitly handled?
+              }
           }
         }
-        else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
-          // Case 4.
-          Expr *SE = C->getSubExpr();
-          // Remove any binding of a Checked C temporary variable.
-          if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(SE))
-            SE = Temp->getSubExpr();
-          W = Info.getVariable(SE, Context);
-          QualType rhsTy = RHS->getType();
-          bool rulesFired = false;
-          if (Info.checkStructuralEquality(V, W, lhsType, rhsTy)) {
-            // This has become a little stickier to think about. 
-            // What do you do here if we determine that two things with
-            // very different arity are structurally equal? Is that even 
-            // possible? 
-            
-            // We apply a few rules here to determine if there are any
-            // finer-grained constraints we can add. One of them is if the 
-            // value being cast from on the RHS is a call to malloc, and if
-            // the type passed to malloc is equal to both lhsType and rhsTy. 
-            // If it is, we can do something less conservative. 
-            if (CallExpr *CA = dyn_cast<CallExpr>(SE)) {
-              // Is this a call to malloc? Can we coerce the callee 
-              // to a NamedDecl?
-              FunctionDecl *calleeDecl = 
-                dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-              if (calleeDecl && calleeDecl->getName() == "malloc") {
-                // It's a call to malloc. What about the parameter to the call?
-                if (CA->getNumArgs() > 0) {
-                  UnaryExprOrTypeTraitExpr *arg = 
-                    dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
-                  if (arg && arg->isArgumentType()) {
-                    // Check that the argument is a sizeof. 
-                    if (arg->getKind() == UETT_SizeOf) {
-                      QualType argTy = arg->getArgumentType();
-                      // argTy should be made a pointer, then compared for 
-                      // equality to lhsType and rhsTy. 
-                      QualType argPTy = Context->getPointerType(argTy); 
+      } // Cases 3-4.
+      if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
+        if (UO->getOpcode() == UO_AddrOf) {
+          // Case 3.
+          // Is there anything to do here, or is it implicitly handled?
+        }
+      } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
+        // Case 4.
+        Expr *SE = C->getSubExpr();
+        // Remove any binding of a Checked C temporary variable.
+        if (CHKCBindTemporaryExpr *Temp = dyn_cast<CHKCBindTemporaryExpr>(SE))
+          SE = Temp->getSubExpr();
+        RHSConstraints = Info.getVariable(SE, Context);
+        QualType rhsTy = RHS->getType();
+        bool rulesFired = false;
+        if (Info.checkStructuralEquality(V, RHSConstraints, lhsType, rhsTy)) {
+          // This has become a little stickier to think about.
+          // What do you do here if we determine that two things with
+          // very different arity are structurally equal? Is that even
+          // possible?
 
-                      if (Info.checkStructuralEquality(V, W, argPTy, lhsType) && 
-                          Info.checkStructuralEquality(V, W, argPTy, rhsTy)) 
-                      {
-                        rulesFired = true;
-                        // At present, I don't think we need to add an 
-                        // implication based constraint since this rule
-                        // only fires if there is a cast from a call to malloc.
-                        // Since malloc is an external, there's no point in 
-                        // adding constraints to it. 
-                      }
+          // We apply a few rules here to determine if there are any
+          // finer-grained constraints we can add. One of them is if the
+          // value being cast from on the RHS is a call to malloc, and if
+          // the type passed to malloc is equal to both lhsType and rhsTy.
+          // If it is, we can do something less conservative.
+          if (CallExpr *CA = dyn_cast<CallExpr>(SE)) {
+            // get the declaration constraints of the callee.
+            RHSConstraints = Info.getVariable(SE, Context);
+            // Is this a call to malloc? Can we coerce the callee
+            // to a NamedDecl?
+            FunctionDecl *calleeDecl =
+              dyn_cast<FunctionDecl>(CA->getCalleeDecl());
+            if (calleeDecl && calleeDecl->getName() == "malloc") {
+              // It's a call to malloc. What about the parameter to the call?
+              if (CA->getNumArgs() > 0) {
+                UnaryExprOrTypeTraitExpr *arg =
+                  dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
+                if (arg && arg->isArgumentType()) {
+                  // Check that the argument is a sizeof.
+                  if (arg->getKind() == UETT_SizeOf) {
+                    QualType argTy = arg->getArgumentType();
+                    // argTy should be made a pointer, then compared for
+                    // equality to lhsType and rhsTy.
+                    QualType argPTy = Context->getPointerType(argTy);
+
+                    if (Info.checkStructuralEquality(V, RHSConstraints, argPTy, lhsType) &&
+                        Info.checkStructuralEquality(V, RHSConstraints, argPTy, rhsTy)) {
+                      rulesFired = true;
+                      // At present, I don't think we need to add an
+                      // implication based constraint since this rule
+                      // only fires if there is a cast from a call to malloc.
+                      // Since malloc is an external, there's no point in
+                      // adding constraints to it.
                     }
                   }
                 }
               }
             }
-          } 
-
-          // If none of the above rules for cast behavior fired, then 
-          // we need to fall back to doing something conservative. 
-          if (rulesFired == false) {
-            // Constrain everything in both to top.
-            // Remove the casts from RHS and try again to get a variable
-            // from it. We want to constrain that side to wild as well.
-            RHS = RHS->IgnoreCasts(); 
-            W = Info.getVariable(RHS, Context);
-            for (const auto &A : W)
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-                for (const auto &B : PVC->getCvars())
-                  CS.addConstraint(
-                    CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
-
-            for (const auto &A : V)
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-                for (const auto &B : PVC->getCvars())
-                  CS.addConstraint(
-                    CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
           }
+        }
+
+        // If none of the above rules for cast behavior fired, then
+        // we need to fall back to doing something conservative.
+        if (rulesFired == false) {
+          // Constrain everything in both to top.
+          // Remove the casts from RHS and try again to get a variable
+          // from it. We want to constrain that side to wild as well.
+          if(dyn_cast<CallExpr>(SE)) {
+            RHSConstraints = Info.getVariable(SE, Context);
+          } else {
+            // get in-function-body constraint variables.
+            RHSConstraints = Info.getVariable(SE, Context, true);
+          }
+          for (const auto &A : RHSConstraints) {
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+              for (const auto &B : PVC->getCvars())
+                CS.addConstraint(
+                  CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+          }
+
+          for (const auto &A : V) {
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+              for (const auto &B : PVC->getCvars())
+                CS.addConstraint(
+                  CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+          }
+        }
+      } else {
+        // this is a regular assignment.
+        RHSConstraints = Info.getVariable(RHS, Context);
+        if(RHSConstraints.size() > 0) {
+          // Case 1.
+          // There are constraint variables for the RHS, so, use those over
+          // anything else we could infer.
+          constrainEq(V, RHSConstraints, Info);
         }
       }
     }
@@ -645,6 +666,16 @@ private:
         llvm_unreachable("Unchecked type inside an itype. This should be impossible.");
     }
     assert(false && "Invalid Pointer kind.");
+  }
+
+  Expr* getNormalizedExpr(Expr *CE) {
+    if(dyn_cast<CHKCBindTemporaryExpr>(CE)) {
+      CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
+    }
+    if(dyn_cast<ImplicitCastExpr>(CE)) {
+      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
+    }
+    return CE;
   }
 
   ASTContext *Context;
