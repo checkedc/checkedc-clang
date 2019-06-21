@@ -333,12 +333,12 @@ public:
   }
 
   void constrainLocalAssign(Expr *LHS, Expr *RHS) {
-    std::set<ConstraintVariable*> V = Info.getVariable(LHS, Context);
+    std::set<ConstraintVariable*> V = Info.getVariable(LHS, Context, true);
     constrainLocalAssign(V, LHS->getType(), RHS);
   }
 
   void constrainLocalAssign(DeclaratorDecl *D, Expr *RHS) {
-    std::set<ConstraintVariable*> V = Info.getVariable(D, Context);
+    std::set<ConstraintVariable*> V = Info.getVariable(D, Context, true);
     constrainLocalAssign(V, D->getType(), RHS);
   }
 
