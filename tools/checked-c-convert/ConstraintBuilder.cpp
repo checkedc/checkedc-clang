@@ -12,6 +12,11 @@
 using namespace llvm;
 using namespace clang;
 
+// flags
+// constraint all the arguments to a function
+// accepting var args to be wild.
+#define CONSTRAINT_ARGS_TO_VARGS_WILD
+
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
@@ -150,9 +155,16 @@ public:
 
       if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
         (D->getType()->isPointerType() || D->getType()->isArrayType())) {
+        // add the variable with in the function body context.
         Info.addVariable(D, S, Context);
 
         specialCaseVarIntros(D, Info, Context);
+        // if this is a static array declaration.
+        // make this an array.
+        if(D->getType()->isArrayType()) {
+          Constraints &CS = Info.getConstraints();
+          constraintInBodyVariable(D, CS.getArr());
+        }
       }
     }
 
@@ -183,7 +195,7 @@ public:
   // assigning to. V represents constraints on a pointer variable. RHS is 
   // an expression which might produce constraint variables, or, it might 
   // be some expression like NULL, an integer constant or a cast.
-  void constrainAssign( std::set<ConstraintVariable*> V, 
+  void constrainLocalAssign( std::set<ConstraintVariable*> V,
                         QualType lhsType,
                         Expr *RHS) {
     if (!RHS || V.size() == 0)
@@ -299,14 +311,14 @@ public:
     }
   }
 
-  void constrainAssign(Expr *LHS, Expr *RHS) {
+  void constrainLocalAssign(Expr *LHS, Expr *RHS) {
     std::set<ConstraintVariable*> V = Info.getVariable(LHS, Context);
-    constrainAssign(V, LHS->getType(), RHS);
+    constrainLocalAssign(V, LHS->getType(), RHS);
   }
 
-  void constrainAssign(DeclaratorDecl *D, Expr *RHS) {
+  void constrainLocalAssign(DeclaratorDecl *D, Expr *RHS) {
     std::set<ConstraintVariable*> V = Info.getVariable(D, Context);
-    constrainAssign(V, D->getType(), RHS);
+    constrainLocalAssign(V, D->getType(), RHS);
   }
 
   bool VisitDeclStmt(DeclStmt *S) {
@@ -324,7 +336,7 @@ public:
       if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
         std::set<uint32_t> V;
         Expr *InitE = VD->getInit();
-        constrainAssign(VD, InitE);
+        constrainLocalAssign(VD, InitE);
       }
     }
 
@@ -362,8 +374,7 @@ public:
   bool VisitBinAssign(BinaryOperator *O) {
     Expr *LHS = O->getLHS();
     Expr *RHS = O->getRHS();
-    constrainAssign(LHS, RHS);
-
+    constrainLocalAssign(LHS, RHS);
     return true;
   }
 
@@ -376,9 +387,10 @@ public:
       // Call of a function directly.
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
-        // get declaration constraint variables.
-        std::set<ConstraintVariable*> ParameterEC =
-          Info.getVariable(A, Context, false);
+        // get constraint variables for the argument
+        // from with in the context of the caller body
+        std::set<ConstraintVariable*> ArgumentConstraints =
+          Info.getVariable(A, Context, true);
 
         if (i < FD->getNumParams()) {
           bool handled = false;
@@ -389,30 +401,40 @@ public:
               // if the itype is an NTArray
               handled = true;
               Constraints &CS = Info.getConstraints();
-              // get the constraint variables for the body
-              ParameterEC =
-                Info.getVariable(A, Context, true);
-              for (const auto &C : ParameterEC) {
+              for (const auto &C : ArgumentConstraints) {
                 // add constraint to NTArray
                 C->constrainTo(CS, getCheckedPointerConstraint(ptrKind));
               }
             }
           }
           if(!handled) {
-            constrainAssign(FD->getParamDecl(i), A);
+            // Here, we need to get the constraints of the
+            // parameter from the callee's declaration.
+            std::set<ConstraintVariable*> ParameterConstraints =
+              Info.getVariable(FD->getParamDecl(i), Context, false);
+            // add constraint that the arguments are equal to the
+            // parameters.
+            constrainEq(ParameterConstraints, ArgumentConstraints, Info);
           }
         } else {
-          // Constrain ParameterEC to wild if it is a pointer type.
+          // this is the case of an argument passed to a function
+          // with varargs.
+          // Constrain this parameter to be wild.
+#ifdef CONSTRAINT_ARGS_TO_VARGS_WILD
+
           Constraints &CS = Info.getConstraints();
-          for (const auto &C : ParameterEC)
+          for (const auto &C : ArgumentConstraints)
             C->constrainTo(CS, CS.getWild());
+#endif
         }
 
         i++;
       }
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
-      // This could be a function pointer.
-      std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, false);
+      // This could be a function pointer,
+      // get the declaration of the function pointer variable
+      // with in the caller context.
+      std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, true);
       if (V.size() > 0) {
         for (const auto &C : V) {
           FVConstraint *FV = nullptr;
@@ -425,21 +447,22 @@ public:
           }
 
           if (FV) {
-            // Constrain parameters, like in the case above.
+            // Constrain arguments to be of the same type
+            // as the corresponding parameters.
             unsigned i = 0;
             for (const auto &A : E->arguments()) {
-              std::set<ConstraintVariable*> ParameterEC = 
-                Info.getVariable(A, Context, false);
+              std::set<ConstraintVariable*> ArgumentConstraints =
+                Info.getVariable(A, Context, true);
               
               if (i < FV->numParams()) {
                 std::set<ConstraintVariable*> ParameterDC = 
                   FV->getParamVar(i);
-                constrainEq(ParameterEC, ParameterDC, Info);
+                constrainEq(ArgumentConstraints, ParameterDC, Info);
               } else {
-                // Constrain parameter to wild since we can't match it
+                // Constrain argument to wild since we can't match it
                 // to a parameter from the type.
                 Constraints &CS = Info.getConstraints();
-                for (const auto &V : ParameterEC) {
+                for (const auto &V : ArgumentConstraints) {
                   V->constrainTo(CS, CS.getWild());
                 }
               }
@@ -448,129 +471,77 @@ public:
           } else {
             // This can happen when someone does something really wacky, like 
             // cast a char* to a function pointer, then call it. Constrain
-            // everything. 
+            // everything.
+            // what we do is, constraint all arguments to wild.
+            constraintAllArgumentsToWild(E);
             Constraints &CS = Info.getConstraints();
-            for (const auto &A : E->arguments()) 
-              for (const auto &Ct : Info.getVariable(A, Context, false)) 
-                Ct->constrainTo(CS, CS.getWild());
+            // also constraint
             C->constrainTo(CS, CS.getWild());
           }
         }
       } else {
-        // Constrain everything to wild. 
-        for (const auto &A : E->arguments()) {
-          std::set<ConstraintVariable*> ParameterEC = 
-            Info.getVariable(A, Context, false);
-          
-          Constraints &CS = Info.getConstraints();
-          for (const auto &C : ParameterEC) 
-            C->constrainTo(CS, CS.getWild());
-        }
+        // Constrain all arguments to wild.
+        constraintAllArgumentsToWild(E);
       }
     } else {
-      // Constrain everything to wild. 
-      for (const auto &A : E->arguments()) {
-        std::set<ConstraintVariable*> ParameterEC = 
-          Info.getVariable(A, Context, false);
-        
-        Constraints &CS = Info.getConstraints();
-        for (const auto &C : ParameterEC) 
-          C->constrainTo(CS, CS.getWild());
-      }
+      // Constrain all arguments to wild.
+      constraintAllArgumentsToWild(E);
     }
     
     return true;
   }
 
+  // this will add the constraint that
+  // variable is an array i.e., (V=ARR)
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
-    constrainExprFirstArr(E->getBase());
+    Constraints &CS = Info.getConstraints();
+    constraintInBodyVariable(E->getBase(), CS.getArr());
     return true;
   }
 
   bool VisitReturnStmt(ReturnStmt *S) {
-    std::set<ConstraintVariable*> Fun =
-      Info.getVariable(Function, Context);
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(S->getRetValue(), Context);
+    // Here, we should constrain the return type
+    // of the function body with the type of the
+    // return expression.
 
-    // We also want to look up the declaration of Function, if it exists.
-    FunctionDecl *Declaration = getDeclaration(Function);
-    if (Declaration) {
-      std::set<ConstraintVariable*> Fun2 = 
-        Info.getVariable(Declaration, Context);
-      Fun.insert(Fun2.begin(), Fun2.end());
-    }
+    // get function variable constraint of the body
+    std::set<ConstraintVariable*> Fun =
+      Info.getVariable(Function, Context, true);
+    // get the constraint of the return variable (again with in the context of the body)
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(S->getRetValue(), Context, true);
 
     // Constrain the value returned (if present) against the return value
     // of the function.   
-    for (const auto &F : Fun )
-      if (FVConstraint *FV = dyn_cast<FVConstraint>(F))
-       constrainEq(FV->getReturnVars(), Var, Info); 
-
+    for (const auto &F : Fun ) {
+      if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
+        constrainEq(FV->getReturnVars(), Var, Info);
+      }
+    }
     return true;
   }
 
-  void constrainVarsNotEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
-    Constraints &CS = Info.getConstraints();
-    for (const auto &I : Vars)
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (PVC->getCvars().size() > 0)
-          CS.addConstraint(
-            CS.createNot(
-              CS.createEq(
-                CS.getOrCreateVar(*(PVC->getCvars().begin())), type)));
-      }
-  }
-
-  void constrainVarsEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
-    Constraints &CS = Info.getConstraints();
-    for (const auto &I : Vars)
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
-        if (PVC->getCvars().size() > 0)
-          CS.addConstraint(
-            CS.createEq(
-              CS.getOrCreateVar(*(PVC->getCvars().begin())), type));
-      }
-  }
-
-  void constrainExprFirstArr(Expr *E) {
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(E, Context, true);
-    Constraints &CS = Info.getConstraints();
-    constrainVarsEq(Var, CS.getArr());
-  }
-
-  // Apply ~(V = Ptr) and ~(V = NTArr) to the
-  // first 'level' constraint variable associated with
-  // 'E'
-  void constrainExprNotPtrNotNt(Expr *E) {
-    // get the constrain variables
-    // with in the body context
-    std::set<ConstraintVariable*> Var =
-      Info.getVariable(E, Context, true);
-    Constraints &CS = Info.getConstraints();
-    constrainVarsNotEq(Var, CS.getPtr());
-    constrainVarsNotEq(Var, CS.getNTArr());
-  }
-
+  // these are the expressions, that will
+  // add the constraint ~(V = Ptr) and ~(V = NTArr)
+  // i.e., the variable is not a pointer or nt array
 
   bool VisitUnaryPreInc(UnaryOperator *O) {
-    constrainExprNotPtrNotNt(O->getSubExpr());
+    constrainInBodyExprNotPtrNotNt(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostInc(UnaryOperator *O) {
-    constrainExprNotPtrNotNt(O->getSubExpr());
+    constrainInBodyExprNotPtrNotNt(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPreDec(UnaryOperator *O) {
-    constrainExprNotPtrNotNt(O->getSubExpr());
+    constrainInBodyExprNotPtrNotNt(O->getSubExpr());
     return true;
   }
 
   bool VisitUnaryPostDec(UnaryOperator *O) {
-    constrainExprNotPtrNotNt(O->getSubExpr());
+    constrainInBodyExprNotPtrNotNt(O->getSubExpr());
     return true;
   }
 
@@ -586,9 +557,79 @@ public:
 
 private:
 
+  // constraint all the provided vars to be
+  // not equal to the provided type i.e., ~(V = type)
+  void constrainVarsNotEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
+    Constraints &CS = Info.getConstraints();
+    for (const auto &I : Vars)
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0)
+          CS.addConstraint(
+            CS.createNot(
+              CS.createEq(
+                CS.getOrCreateVar(*(PVC->getCvars().begin())), type)));
+      }
+  }
+
+  // constraint all the provided vars to be
+  // equal to the provided type i.e., (V = type)
+  void constrainVarsEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
+    Constraints &CS = Info.getConstraints();
+    for (const auto &I : Vars)
+      if (PVConstraint *PVC = dyn_cast<PVConstraint>(I)) {
+        if (PVC->getCvars().size() > 0)
+          CS.addConstraint(
+            CS.createEq(
+              CS.getOrCreateVar(*(PVC->getCvars().begin())), type));
+      }
+  }
+
+  // Apply ~(V = Ptr) and ~(V = NTArr) to the
+  // first 'level' constraint variable associated with
+  // 'E' for in-body variables
+  void constrainInBodyExprNotPtrNotNt(Expr *E) {
+    // get the constrain variables
+    // with in the body context
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(E, Context, true);
+    Constraints &CS = Info.getConstraints();
+    constrainVarsNotEq(Var, CS.getPtr());
+    constrainVarsNotEq(Var, CS.getNTArr());
+  }
+
+  // constraint helpers.
+  void constraintInBodyVariable(Expr *e, ConstAtom *target) {
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(e, Context, true);
+    Constraints &CS = Info.getConstraints();
+    constrainVarsEq(Var, target);
+  }
+
+  void constraintInBodyVariable(Decl *d, ConstAtom *target) {
+    std::set<ConstraintVariable*> Var =
+      Info.getVariable(d, Context, true);
+    Constraints &CS = Info.getConstraints();
+    constrainVarsEq(Var, target);
+  }
+
+  // constraint all the argument of the provided
+  // call expression to be WILD
+  void constraintAllArgumentsToWild(CallExpr *E) {
+    for (const auto &A : E->arguments()) {
+      // get constraint from within the function body
+      // of the caller
+      std::set<ConstraintVariable*> ParameterEC =
+        Info.getVariable(A, Context, true);
+
+      Constraints &CS = Info.getConstraints();
+      for (const auto &C : ParameterEC)
+        C->constrainTo(CS, CS.getWild());
+    }
+  }
+
   void arithBinop(BinaryOperator *O) {
-    constrainExprNotPtrNotNt(O->getLHS());
-    constrainExprNotPtrNotNt(O->getRHS());
+    constrainInBodyExprNotPtrNotNt(O->getLHS());
+    constrainInBodyExprNotPtrNotNt(O->getRHS());
   }
 
   ConstAtom* getCheckedPointerConstraint(CheckedPointerKind ptrKind) {
