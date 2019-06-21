@@ -671,6 +671,23 @@ ProgramInfo::getVariableHelper( Expr                            *E,
   }
 }
 
+std::set<ConstraintVariable*>
+ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {
+  // if this is a parameter.
+  if(parameterIndex >= 0) {
+    // get the parameter index of the
+    // requested function declaration
+    D = FD->getParamDecl(parameterIndex);
+  } else {
+    // this is the return value of the function
+    D = FD;
+  }
+  VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
+  assert(I != Variables.end());
+  return I->second;
+
+}
+
 // Given a decl, return the variables for the constraints of the Decl.
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(Decl *D, ASTContext *C, bool inFunctionContext) {
@@ -678,65 +695,58 @@ ProgramInfo::getVariable(Decl *D, ASTContext *C, bool inFunctionContext) {
   VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
   if (I != Variables.end()) {
     // If we are looking up a variable, and that variable is a parameter variable,
+    // or return value
     // then we should see if we're looking this up in the context of a function or
-    // not. If we are not, then we should find a declaration 
-    if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(D)) {
-      if (!inFunctionContext) {
-        // We need to do 2 things:
-        //  - Look up a forward declaration of the function for this parameter.
-        //  - Map 'D', which is the ith parameter of Parent, to the ith parameter
-        //    of any forward declaration.
-        //
-        // If such a forward declaration doesn't exist, then we can back off. 
-
-        const DeclContext *DC = PD->getParentFunctionOrMethod();
-        assert(DC != nullptr);
-        if(const FunctionDecl *Parent = dyn_cast<FunctionDecl>(DC)) {
-          // Check that the current function declaration doesn't have a body.
-          bool hasbody = false; 
-          const FunctionDecl *oFD = nullptr;
-          if (Parent->hasBody(oFD) && oFD == Parent)
-            hasbody = true; 
-
-          // This ParmVarDecl belongs to a method declaration that has a body,
-          // and, our caller asked for a non-method declaration variable. Let's
-          // see if we can find one by looking through the re-declarations of
-          // Parent. 
-          if (hasbody) {
-            // Let's look through all the re-declarations of Parent. 
-            const FunctionDecl *fwdDecl = nullptr;
-            for (const auto &RD : Parent->redecls()) {
-              if (RD != Parent) {
-                fwdDecl = RD;
-                break;
-              }
-            }
-
-            if (fwdDecl) {
-              // We found one! Let's figure out the index that D has in Parent,
-              // then get that decl from fwdDecl and look it up in Variables
-              // by PSL, then return it. 
-              int idx = -1;
-              
-              for (unsigned i = 0; i < Parent->getNumParams(); i++) {
-                const ParmVarDecl *tmp = Parent->getParamDecl(i);
-
-                if (tmp == D) {
-                  idx = i;
-                  break;
-                }
-              }
-
-              assert(idx >= 0);
-
-              const ParmVarDecl *otherDecl = fwdDecl->getParamDecl(idx);
-              I = Variables.find(PersistentSourceLoc::mkPSL(otherDecl, *C));
-              assert(I != Variables.end());
-            }
-          }
+    // not. If we are not, then we should find a declaration
+    ParmVarDecl *PD = nullptr;
+    FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+    int parameterIndex = -1;
+    if(PD = dyn_cast<ParmVarDecl>(D)) {
+      // okay, we got a request for a parameter
+      DeclContext *DC = PD->getParentFunctionOrMethod();
+      assert(DC != nullptr);
+      FD = dyn_cast<FunctionDecl>(DC);
+      // get the parameter index with in the function.
+      for (unsigned i = 0; i < FD->getNumParams(); i++) {
+        const ParmVarDecl *tmp = FD->getParamDecl(i);
+        if (tmp == D) {
+          parameterIndex = i;
+          break;
         }
       }
+
+      assert(parameterIndex >= 0 && "Got request for invalid parameter");
     }
+    if(FD || parameterIndex != -1) {
+      // this means either we got a
+      // request for function return value or parameter
+      if(inFunctionContext) {
+        // get the function definition
+        FD = getDefinition(FD);
+        assert(FD != nullptr && "Requesting for in-context constraints, "
+                                "but there is no definition for this function");
+        // return the constraint variable
+        // that belongs to the function definition.
+        return getVariable(D, C, FD, parameterIndex);
+      } else {
+        // get the function declaration.
+        FD = getDeclaration(FD);
+        if(FD == nullptr) {
+          // we need constraint variable
+          // with in the function declaration,
+          // but there is not declaration
+          // TODO: handle this.
+        } else {
+          // return tghe variable
+          return getVariable(D, C, FD, parameterIndex);
+        }
+      }
+      // we got a request for function return or parameter
+      // but we failed to handle the request.
+      assert(false && "Invalid state reached.");
+    }
+    // neither parameter or return value.
+    // just return the original constraint.
     return I->second;
   } else {
     return std::set<ConstraintVariable*>();

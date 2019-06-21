@@ -99,6 +99,8 @@ public:
     getVariable(clang::Expr *E, clang::ASTContext *C, bool inFunctionContext = false);
   std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
+  std::set<ConstraintVariable*>
+    getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex=-1);
 
   VariableMap &getVarMap() { return Variables;  }
 
