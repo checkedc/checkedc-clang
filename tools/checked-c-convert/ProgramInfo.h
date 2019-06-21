@@ -127,17 +127,17 @@ public:
 
   void printArrayVarsAndSizes(llvm::raw_ostream &O);
 
-private:
-  // Function to check if an external symbol is okay to leave 
-  // constrained. 
-  bool isExternOkay(std::string ext);
-
   // get on demand function declaration constraint. This is needed for functions
   // that do not have corresponding declaration.
   // for all functions that do not have corresponding declaration,
   // we create an on demand FunctionVariableConstraint.
   std::set<ConstraintVariable*>&
   getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C);
+
+private:
+  // Function to check if an external symbol is okay to leave 
+  // constrained. 
+  bool isExternOkay(std::string ext);
 
   // Map that contains function definition and corresponding
   // set of function variable constraints.

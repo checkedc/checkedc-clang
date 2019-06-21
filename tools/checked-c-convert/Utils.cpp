@@ -49,7 +49,7 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
       if (!tFD->isThisDeclarationADefinition())
         return tFD;
 
-  return FD;
+  return nullptr;
 }
 
 // Walk the list of declarations and find a declaration accompanied by
