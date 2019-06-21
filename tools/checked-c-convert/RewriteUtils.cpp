@@ -499,8 +499,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         didAny = true;
       } else {
         // this means we were able to infer that return type
-        // is a checked type
-        returnVar = Decl->mkString(Info.getConstraints().getVariables());
+        // is a checked type.
+        // however, the function returns a less precise type, whereas
+        // all the uses of the function converts the return value
+        // into a more precise type.
+        // do not change the type
+        returnVar = Definition->getDeclaredReturnType().getAsString();
         endStuff = getExistingIType(Decl, Defn, Declaration);
         if(!endStuff.empty()) {
           didAny = true;

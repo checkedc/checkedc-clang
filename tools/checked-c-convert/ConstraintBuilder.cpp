@@ -437,6 +437,7 @@ public:
               Info.getVariable(FD->getParamDecl(i), Context, false);
             // add constraint that the arguments are equal to the
             // parameters.
+            assert(!ParameterConstraints.empty() && "Unable to get parameter constraints");
             constrainEq(ParameterConstraints, ArgumentConstraints, Info);
           }
         } else {
