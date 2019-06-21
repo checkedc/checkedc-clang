@@ -671,6 +671,17 @@ ProgramInfo::getVariableHelper( Expr                            *E,
   }
 }
 
+std::set<ConstraintVariable*>&
+ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C) {
+  if(OnDemandFuncDeclConstraint.find(targetFunc) == OnDemandFuncDeclConstraint.end()) {
+    const Type *Ty = targetFunc->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+    assert (!(Ty->isPointerType() || Ty->isArrayType()) && "");
+    assert(Ty->isFunctionType() && "");
+    FVConstraint *F = new FVConstraint(targetFunc, freeKey, CS, *C);
+    OnDemandFuncDeclConstraint[targetFunc].insert(F);
+  }
+  return OnDemandFuncDeclConstraint[targetFunc];
+}
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {
   // if this is a parameter.
@@ -699,13 +710,19 @@ ProgramInfo::getVariable(Decl *D, ASTContext *C, bool inFunctionContext) {
     // then we should see if we're looking this up in the context of a function or
     // not. If we are not, then we should find a declaration
     ParmVarDecl *PD = nullptr;
-    FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
+    FunctionDecl *funcDefinition = nullptr;
+    FunctionDecl *funcDeclaration = nullptr;
+    // get the function declaration and definition
+    if(D != nullptr && dyn_cast<FunctionDecl>(D)) {
+      funcDeclaration = getDeclaration(dyn_cast<FunctionDecl>(D));
+      funcDefinition = getDefinition(dyn_cast<FunctionDecl>(D));
+    }
     int parameterIndex = -1;
     if(PD = dyn_cast<ParmVarDecl>(D)) {
       // okay, we got a request for a parameter
       DeclContext *DC = PD->getParentFunctionOrMethod();
       assert(DC != nullptr);
-      FD = dyn_cast<FunctionDecl>(DC);
+      FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
       // get the parameter index with in the function.
       for (unsigned i = 0; i < FD->getNumParams(); i++) {
         const ParmVarDecl *tmp = FD->getParamDecl(i);
@@ -715,30 +732,45 @@ ProgramInfo::getVariable(Decl *D, ASTContext *C, bool inFunctionContext) {
         }
       }
 
+      // get declaration and definition
+      funcDeclaration = getDeclaration(FD);
+      funcDefinition = getDefinition(FD);
+
       assert(parameterIndex >= 0 && "Got request for invalid parameter");
     }
-    if(FD || parameterIndex != -1) {
+    if(funcDeclaration || funcDefinition || parameterIndex != -1) {
       // this means either we got a
       // request for function return value or parameter
       if(inFunctionContext) {
-        // get the function definition
-        FD = getDefinition(FD);
-        assert(FD != nullptr && "Requesting for in-context constraints, "
-                                "but there is no definition for this function");
+        assert(funcDefinition != nullptr && "Requesting for in-context constraints, "
+                                            "but there is no definition for this function");
         // return the constraint variable
         // that belongs to the function definition.
-        return getVariable(D, C, FD, parameterIndex);
+        return getVariable(D, C, funcDefinition, parameterIndex);
       } else {
-        // get the function declaration.
-        FD = getDeclaration(FD);
-        if(FD == nullptr) {
+        if(funcDeclaration == nullptr) {
           // we need constraint variable
           // with in the function declaration,
-          // but there is not declaration
-          // TODO: handle this.
+          // but there is no declaration
+          // get on demand declaration.
+          std::set<ConstraintVariable*> &fvConstraints = getOnDemandFuncDeclarationConstraint(funcDefinition, C);
+          if(parameterIndex != -1) {
+            // this is a parameter.
+            std::set<ConstraintVariable*> parameterConstraints;
+            parameterConstraints.clear();
+            assert(fvConstraints.size() && "Unable to find on demand fv constraints.");
+            // get all parameters from all the FVConstraints.
+            for(auto fv: fvConstraints) {
+              auto currParamConstraint = (dyn_cast<FunctionVariableConstraint>(fv))->getParamVar(parameterIndex);
+              parameterConstraints.insert(currParamConstraint.begin(), currParamConstraint.end());
+            }
+            return parameterConstraints;
+          }
+          return fvConstraints;
         } else {
-          // return tghe variable
-          return getVariable(D, C, FD, parameterIndex);
+          // return the variable with in
+          // the function declaration
+          return getVariable(D, C, funcDeclaration, parameterIndex);
         }
       }
       // we got a request for function return or parameter

@@ -24,7 +24,10 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
-  ProgramInfo() : freeKey(0), persisted(true) { IdentifiedArrayDecls.clear(); }
+  ProgramInfo() : freeKey(0), persisted(true) {
+    IdentifiedArrayDecls.clear();
+    OnDemandFuncDeclConstraint.clear();
+  }
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
@@ -99,6 +102,7 @@ public:
     getVariable(clang::Expr *E, clang::ASTContext *C, bool inFunctionContext = false);
   std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
+  // get constraint variable for the provided function or its parameter
   std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex=-1);
 
@@ -127,6 +131,17 @@ private:
   // Function to check if an external symbol is okay to leave 
   // constrained. 
   bool isExternOkay(std::string ext);
+
+  // get on demand function declaration constraint. This is needed for functions
+  // that do not have corresponding declaration.
+  // for all functions that do not have corresponding declaration,
+  // we create an on demand FunctionVariableConstraint.
+  std::set<ConstraintVariable*>&
+  getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C);
+
+  // Map that contains function definition and corresponding
+  // set of function variable constraints.
+  std::map<FunctionDecl*, std::set<ConstraintVariable*>> OnDemandFuncDeclConstraint;
 
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
