@@ -673,14 +673,16 @@ ProgramInfo::getVariableHelper( Expr                            *E,
 
 std::set<ConstraintVariable*>&
 ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C) {
-  if(OnDemandFuncDeclConstraint.find(targetFunc) == OnDemandFuncDeclConstraint.end()) {
+  // get function name.
+  std::string funcName = targetFunc->getNameAsString();
+  if(OnDemandFuncDeclConstraint.find(funcName) == OnDemandFuncDeclConstraint.end()) {
     const Type *Ty = targetFunc->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     assert (!(Ty->isPointerType() || Ty->isArrayType()) && "");
     assert(Ty->isFunctionType() && "");
     FVConstraint *F = new FVConstraint(targetFunc, freeKey, CS, *C);
-    OnDemandFuncDeclConstraint[targetFunc].insert(F);
+    OnDemandFuncDeclConstraint[funcName].insert(F);
   }
-  return OnDemandFuncDeclConstraint[targetFunc];
+  return OnDemandFuncDeclConstraint[funcName];
 }
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {

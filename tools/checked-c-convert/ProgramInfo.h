@@ -139,9 +139,13 @@ private:
   // constrained. 
   bool isExternOkay(std::string ext);
 
-  // Map that contains function definition and corresponding
+  // Map that contains function name and corresponding
   // set of function variable constraints.
-  std::map<FunctionDecl*, std::set<ConstraintVariable*>> OnDemandFuncDeclConstraint;
+  // We only create on demand variables for non-declared functions.
+  // we store the constraints based on function name
+  // as the information needs to be stored across multiple
+  // instances of the program AST
+  std::map<std::string, std::set<ConstraintVariable*>> OnDemandFuncDeclConstraint;
 
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
