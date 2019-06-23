@@ -24,7 +24,9 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
-  ProgramInfo() : freeKey(0), persisted(true) {
+  ProgramInfo(bool mergeMultipleDecls) :
+  freeKey(0), persisted(true),
+  MergeMultipleDeclarations(mergeMultipleDecls) {
     IdentifiedArrayDecls.clear();
     OnDemandFuncDeclConstraint.clear();
   }
@@ -172,6 +174,10 @@ private:
   // seen before.
   std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
+
+  // flag that controls the merging of types from multiple
+  // declarations of a function.
+  bool MergeMultipleDeclarations;
 
   // these are the array declarations identified by the converter.
   std::set<Decl *> IdentifiedArrayDecls;

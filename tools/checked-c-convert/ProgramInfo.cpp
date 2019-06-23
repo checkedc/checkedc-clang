@@ -235,8 +235,7 @@ bool ProgramInfo::link() {
         FVConstraint *P2 = *J;
 
         // Constrain the return values to be equal
-        // TODO: make this behavior optional?
-        if (!P1->hasBody() && !P2->hasBody()) {
+        if (!P1->hasBody() && !P2->hasBody() && MergeMultipleDeclarations) {
           constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this);
 
           // Constrain the parameters to be equal, if the parameter arity is
