@@ -186,6 +186,7 @@ public:
   //     int ** b = &(*(a));
   //     and the & * cancel each other out.
   //  4. Assignments from casts. Here, we use the implication rule.
+  //  5. Assignments from call expressions i.e., a = foo(..)
   //
   // In any of these cases, due to conditional expressions, the number of
   // variables on the RHS could be 0 or more. We just do the same rule
@@ -207,13 +208,31 @@ public:
     Constraints &CS = Info.getConstraints();
     RHS = getNormalizedExpr(RHS);
     // if this is a call expression?
-    if (dyn_cast<CallExpr>(RHS)) {
+    if (CallExpr *CE = dyn_cast<CallExpr>(RHS)) {
+      // case 5
       // if this is a call expression?
-      // get the constraint variable corresponding
-      // to the declaration.
-      RHSConstraints = Info.getVariable(RHS, Context, false);
-      if (RHSConstraints.size() > 0) {
-        constrainEq(V, RHSConstraints, Info);
+      // is this functions return type an itype
+      FunctionDecl *Calle = CE->getDirectCallee();
+      if(Calle) {
+        // get the function declaration and look for
+        // itype in the return
+        if(getDeclaration(Calle) != nullptr) {
+          Calle = getDeclaration(Calle);
+        }
+        bool itypeHandled = false;
+        // if this function return an itype?
+        if(Calle->hasInteropTypeExpr()) {
+          itypeHandled = handleITypeAssignment(V, Calle->getInteropTypeExpr());
+        }
+        // if this is not an itype
+        if(!itypeHandled) {
+          // get the constraint variable corresponding
+          // to the declaration.
+          RHSConstraints = Info.getVariable(RHS, Context, false);
+          if (RHSConstraints.size() > 0) {
+            constrainEq(V, RHSConstraints, Info);
+          }
+        }
       }
     } else {
       RHS = RHS->IgnoreParens();
@@ -407,6 +426,12 @@ public:
       return true;
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      // get the function declaration,
+      // if exists, this is needed to check
+      // for itype
+      if(getDeclaration(FD) != nullptr) {
+        FD = getDeclaration(FD);
+      }
       // Call of a function directly.
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
@@ -418,17 +443,9 @@ public:
         if (i < FD->getNumParams()) {
           bool handled = false;
           if(FD->getParamDecl(i)->hasInteropTypeExpr()) {
-            // we only handle itype of NTArray for now.
-            CheckedPointerKind ptrKind = getItypeCheckedPointerKind(FD->getParamDecl(i));
-            if(ptrKind == CheckedPointerKind::NtArray) {
-              // if the itype is an NTArray
-              handled = true;
-              Constraints &CS = Info.getConstraints();
-              for (const auto &C : ArgumentConstraints) {
-                // add constraint to NTArray
-                C->constrainTo(CS, getCheckedPointerConstraint(ptrKind));
-              }
-            }
+            // try handling interop parameters.
+            handled = handleITypeAssignment(ArgumentConstraints,
+                                            FD->getParamDecl(i)->getInteropTypeExpr());
           }
           if(!handled) {
             // Here, we need to get the constraints of the
@@ -581,6 +598,20 @@ public:
 
 private:
 
+  // handle the assignment of constraint variables to an itype expression.
+  bool handleITypeAssignment(std::set<ConstraintVariable*> &Vars, InteropTypeExpr *expr) {
+    bool isHandled = false;
+    CheckedPointerKind ptrKind = getCheckedPointerKind(expr);
+    // currently we only handle NT arrays.
+    if (ptrKind == CheckedPointerKind::NtArray) {
+      isHandled = true;
+      // assign the corresponding checked type to
+      // all teh constraint vars.
+      assignType(Vars, getCheckedPointerConstraint(ptrKind));
+    }
+    return isHandled;
+  }
+
   // constraint all the provided vars to be
   // not equal to the provided type i.e., ~(V = type)
   void constrainVarsNotEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
@@ -636,6 +667,16 @@ private:
     constrainVarsEq(Var, target);
   }
 
+  // assign the provided type (target)
+  // to all the constraint variables (CVars).
+  void assignType(std::set<ConstraintVariable*> &CVars,
+                  ConstAtom *target) {
+    Constraints &CS = Info.getConstraints();
+    for (const auto &C : CVars) {
+      C->constrainTo(CS, target);
+    }
+  }
+
   // constraint all the argument of the provided
   // call expression to be WILD
   void constraintAllArgumentsToWild(CallExpr *E) {
@@ -646,8 +687,9 @@ private:
         Info.getVariable(A, Context, true);
 
       Constraints &CS = Info.getConstraints();
-      for (const auto &C : ParameterEC)
-        C->constrainTo(CS, CS.getWild());
+      // assign WILD to each of the constraint
+      // variables.
+      assignType(ParameterEC, CS.getWild());
     }
   }
 
