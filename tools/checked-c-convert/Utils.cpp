@@ -100,3 +100,21 @@ clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
   }
   return CheckedPointerKind::Unchecked;
 }
+
+// check if function body exists for the
+// provided declaration.
+bool hasFunctionBody(clang::Decl *param) {
+  // if this a parameter?
+  if(ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
+    if(DeclContext *DC = PD->getParentFunctionOrMethod()) {
+      FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
+      if (getDefinition(FD) != nullptr) {
+        return true;
+      }
+    }
+    return false;
+  }
+  // else this should be within body and
+  // the function body should exist.
+  return true;
+}

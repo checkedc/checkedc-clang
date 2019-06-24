@@ -340,7 +340,9 @@ public:
         }
       } else {
         // this is a regular assignment.
-        RHSConstraints = Info.getVariable(RHS, Context);
+        // get the in-function constraint variables
+        // of RHS expr.
+        RHSConstraints = Info.getVariable(RHS, Context, true);
         if(RHSConstraints.size() > 0) {
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
