@@ -36,5 +36,7 @@ clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
 clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExpr);
 
+bool hasFunctionBody(clang::Decl *param);
+
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif
