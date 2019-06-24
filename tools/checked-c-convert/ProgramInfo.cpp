@@ -32,6 +32,18 @@ void ProgramInfo::print(raw_ostream &O) const {
     }
     O << "\n";
   }
+
+  O << "Dummy Declaration Constraint Variables\n";
+  for(const auto &declCons: OnDemandFuncDeclConstraint) {
+    O << "Func Name:" << declCons.first << " => ";
+    const std::set<ConstraintVariable*> &S = declCons.second;
+    for(const auto &J : S) {
+      O << "[ ";
+      J->print(O);
+      O << " ]";
+    }
+    O << "\n";
+  }
 }
 
 // Given a ConstraintVariable V, retrieve all of the unique
