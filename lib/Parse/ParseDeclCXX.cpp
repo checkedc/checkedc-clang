@@ -1646,6 +1646,12 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
 
+  // Checked C - handle generic structs.
+  if (Tok.is(tok::kw__For_any)) {
+    // TODO(abeln): don't allow _any_ specifier, just '_For_any'.
+    ParseDeclarationSpecifiers(DS);
+  }
+
   // Checked C - checked scope keyword, possibly followed by checked scope modifier,
   // followed by '{'.   Set the kind of checked scope and consume the checked scope-related
   // keywords.
