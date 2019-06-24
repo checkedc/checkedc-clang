@@ -5062,8 +5062,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         }
 
         EPI.NumTypeVars = D.getDeclSpec().getNumTypeVars();
-        EPI.GenericFunction = D.getDeclSpec().isGenericFunction();
-        EPI.ItypeGenericFunction = D.getDeclSpec().isItypeGenericFunction();
+        EPI.GenericFunction = D.getDeclSpec().isGenericFunctionOrStruct();
+        EPI.ItypeGenericFunction = D.getDeclSpec().isItypeGenericFunctionOrStruct();
 
         SmallVector<QualType, 4> Exceptions;
         SmallVector<ParsedType, 2> DynamicExceptions;

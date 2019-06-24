@@ -3005,14 +3005,14 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 
 /// ParseDeclarationSpecifiers
 ///       declaration-specifiers: [C99 6.7]
-///         storage-class-specifier declaration-specifiers[opt]
-///         type-specifier declaration-specifiers[opt]
-/// [C99]   function-specifier declaration-specifiers[opt]
-/// [C11]   alignment-specifier declaration-specifiers[opt]
-/// [GNU]   attributes declaration-specifiers[opt]
-/// [Clang] '__module_private__' declaration-specifiers[opt]
-/// [ObjC1] '__kindof' declaration-specifiers[opt]
-///
+///            storage-class-specifier declaration-specifiers[opt]
+///            type-specifier declaration-specifiers[opt]
+/// [C99]      function-specifier declaration-specifiers[opt]
+/// [C11]      alignment-specifier declaration-specifiers[opt]
+/// [GNU]      attributes declaration-specifiers[opt]
+/// [Clang]    '__module_private__' declaration-specifiers[opt]
+/// [ObjC1]    '__kindof' declaration-specifiers[opt]
+/// [CheckedC] for-any-specifier declaration-specifier[opt]
 ///       storage-class-specifier: [C99 6.7.1]
 ///         'typedef'
 ///         'extern'
@@ -3028,11 +3028,12 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 /// [C++]   'virtual'
 /// [C++]   'explicit'
 /// [OpenCL] '__kernel'
+///       'friend': [C++ dcl.friend]
+///       'constexpr': [C++0x dcl.constexpr]
+///       for-any-specifier: [CheckedC]
 /// [CheckedC] '_For_any'
 /// [CheckedC] '_Itype_for_any'
 /// [CheckedC] '_Itype_for_any' and '_For_any' are mutually exclusive
-///       'friend': [C++ dcl.friend]
-///       'constexpr': [C++0x dcl.constexpr]
 void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                         const ParsedTemplateInfo &TemplateInfo,
                                         AccessSpecifier AS,
@@ -3142,13 +3143,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw__Nt_checked:
       goto DoneWithDeclSpec;
     case tok::kw__For_any:
-      isInvalid = DS.setFunctionSpecForany(Loc, PrevSpec, DiagID);
+      isInvalid = DS.setSpecForany(Loc, PrevSpec, DiagID);
       if (isInvalid)
           goto DoneWithDeclSpec;
       ParseForanySpecifier(DS);
       continue;
     case tok::kw__Itype_for_any:
-      isInvalid = DS.setFunctionSpecItypeforany(Loc, PrevSpec, DiagID);
+      isInvalid = DS.setSpecItypeforany(Loc, PrevSpec, DiagID);
       if (isInvalid)
         goto DoneWithDeclSpec;
       ParseItypeforanySpecifier(DS);
@@ -7344,21 +7345,21 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
 }
 
 void Parser::ParseItypeforanySpecifier(DeclSpec &DS) {
-  if(!ParseGenericFunctionSpecifierHelper(DS, Scope::ItypeforanyScope)) {
-    DS.setItypeGenericFunction(true);
+  if(!ParseForanySpecifierHelper(DS, Scope::ItypeforanyScope)) {
+    DS.setItypeGenericFunctionOrStruct(true);
   }
 }
 
 void Parser::ParseForanySpecifier(DeclSpec &DS) {
-  if(!ParseGenericFunctionSpecifierHelper(DS, Scope::ForanyScope)) {
-    DS.setGenericFunction(true);
+  if(!ParseForanySpecifierHelper(DS, Scope::ForanyScope)) {
+    DS.setGenericFunctionOrStruct(true);
   }
 }
 
-/// Parses type variables that are part of function specifiers "_For_any" and "_Itype_for_any"
+/// Parses type variables that are part of function or struct specifiers "_For_any" and "_Itype_for_any"
 /// Parameter "S" can either be "ForanyScope" or "ItypeforanyScope"
 /// Parameter "Ident" is the identifier string(_For_any or _Itype_for_any) that will be used within the parsing error messages
-bool Parser::ParseGenericFunctionSpecifierHelper(DeclSpec &DS,
+bool Parser::ParseForanySpecifierHelper(DeclSpec &DS,
                                                   Scope::ScopeFlags S) {
   assert((S == Scope::ForanyScope) || (S == Scope::ItypeforanyScope));  
 
