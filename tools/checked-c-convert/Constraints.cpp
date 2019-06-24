@@ -157,6 +157,26 @@ Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
   return changedEnvironment;
 }
 
+// This method checks if the template
+// const atom can be assigned to the provided (src)
+// variable.
+template <typename T>
+bool Constraints::canAssignConst(VarAtom *src) {
+
+  for (const auto &C : src->Constraints) {
+    // check if there is a non-equality constraint
+    // of the provided type.
+    if (Not *N = dyn_cast<Not>(C)) {
+      if (Eq *E = dyn_cast<Eq>(N->getBody())) {
+        if(dyn_cast<T>(E->getRHS())) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
 // Takes one iteration to solve the system of constraints. Each step 
 // involves the propagation of quantifiers and the potential firing of
 // implications. Accepts a single parameter, _env_, that is a map of 
@@ -201,9 +221,9 @@ bool Constraints::step_solve(EnvironmentMap &env) {
         if (Eq *E = dyn_cast<Eq>(N->getBody())) {
           // If this is Not ( q == Ptr ) or Not ( q == NTArr)
           // and the current value
-          // of q is Ptr ( < *getArr() ) then bump q up to Arr.
+          // of q is Ptr ( < *getArr() ) and ARR can be assigned then bump q up to Arr.
           if (isa<PtrAtom>(E->getRHS()) || isa<NTArrAtom>(E->getRHS())) {
-            if (*Val < *getArr()) {
+            if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
               VI->second = getArr();
               changedEnvironment = true;
             }
