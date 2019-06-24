@@ -1019,7 +1019,7 @@ bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
   return false;
 }
 
-bool DeclSpec::setFunctionSpecForany(SourceLocation Loc,
+bool DeclSpec::setSpecForany(SourceLocation Loc,
                                         const char *&PrevSpec,
                                         unsigned &DiagID) {
   if (FS_itypeforany_specified) {
@@ -1037,7 +1037,7 @@ bool DeclSpec::setFunctionSpecForany(SourceLocation Loc,
   return false;
 }
 
-bool DeclSpec::setFunctionSpecItypeforany(SourceLocation Loc,
+bool DeclSpec::setSpecItypeforany(SourceLocation Loc,
                                               const char *&PrevSpec,
                                               unsigned &DiagID) {
   if (FS_forany_specified) {
