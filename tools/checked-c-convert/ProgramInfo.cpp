@@ -32,6 +32,18 @@ void ProgramInfo::print(raw_ostream &O) const {
     }
     O << "\n";
   }
+
+  O << "Dummy Declaration Constraint Variables\n";
+  for(const auto &declCons: OnDemandFuncDeclConstraint) {
+    O << "Func Name:" << declCons.first << " => ";
+    const std::set<ConstraintVariable*> &S = declCons.second;
+    for(const auto &J : S) {
+      O << "[ ";
+      J->print(O);
+      O << " ]";
+    }
+    O << "\n";
+  }
 }
 
 void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
@@ -62,6 +74,29 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
     O << "]";
     O << "}";
     addComma = true;
+  }
+  O << "]";
+  // dump on demand constraints
+  O << ", \"DummyFunctionConstraints\":[";
+  addComma = false;
+  for(const auto &declCons: OnDemandFuncDeclConstraint) {
+    if(addComma) {
+      O << ",";
+    }
+    O << "{\"functionName\":\"" << declCons.first << "\"";
+    O << ", \"Constraints\":[";
+    const std::set<ConstraintVariable*> &S = declCons.second;
+    bool addComma1 = false;
+    for(const auto &J : S) {
+      if(addComma1) {
+        O << ",";
+      }
+      J->dump_json(O);
+      addComma1 = true;
+    }
+    O << "]}";
+    addComma = true;
+    O << "\n";
   }
   O << "]";
   O << "}";

@@ -447,16 +447,16 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
       // If this holds, then we want to insert a bounds safe interface.
       bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-      // declaration is less safe than definition
+      // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(anyConstrained && Decl->isLt(*Defn, Info)) {
+      if(anyConstrained && Defn->isLt(*Decl, Info)) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
-        // if either definition or declaration
-        // is more constrained then emit an itype
-        std::string ctype = Decl->mkString(Info.getConstraints().getVariables(), false, true);
+        // if definition is more precise
+        // than declaration emit an itype
+        std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
         std::string bi = declText.str() + " : itype("+ctype+") ";
         parmStrs.push_back(bi);
       } else if (anyConstrained) {
@@ -489,12 +489,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     if(anyConstrained) {
       returnHandled = true;
       std::string ctype = "";
-      // declaration is less safe than definition
+      // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(Decl->isLt(*Defn, Info)) {
-        ctype = Decl->mkString(Info.getConstraints().getVariables(), true, true);
-        returnVar = Decl->getTy();
+      if(Defn->isLt(*Decl, Info)) {
+        ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
+        returnVar = Defn->getTy();
         endStuff = " : itype("+ctype+") ";
         didAny = true;
       } else {
