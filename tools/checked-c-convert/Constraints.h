@@ -482,6 +482,8 @@ private:
   ConstraintSet constraints;
   EnvironmentMap environment;
 
+  template <typename T>
+  bool canAssignConst(VarAtom *src);
   bool step_solve(EnvironmentMap &);
   bool check(Constraint *C);
 
