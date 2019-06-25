@@ -4154,7 +4154,7 @@ unsigned EnumDecl::getODRHash() {
 RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
                        DeclContext *DC, SourceLocation StartLoc,
                        SourceLocation IdLoc, IdentifierInfo *Id,
-                       RecordDecl *PrevDecl)
+                       RecordDecl *PrevDecl, ArrayRef<TypedefDecl*> TypeParams)
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc) {
   assert(classof(static_cast<Decl *>(this)) && "Invalid Kind!");
   setHasFlexibleArrayMember(false);
@@ -4167,13 +4167,14 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setNonTrivialToPrimitiveDestroy(false);
   setParamDestroyedInCallee(false);
   setArgPassingRestrictions(APK_CanPassInRegs);
+  setTypeParams(getASTContext(), TypeParams);
 }
 
 RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
                                SourceLocation StartLoc, SourceLocation IdLoc,
-                               IdentifierInfo *Id, RecordDecl* PrevDecl) {
+                               IdentifierInfo *Id, RecordDecl* PrevDecl, ArrayRef<TypedefDecl*> TypeParams) {
   RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
-                                         StartLoc, IdLoc, Id, PrevDecl);
+                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
 
   C.getTypeDeclType(R, PrevDecl);
@@ -4312,6 +4313,27 @@ const FieldDecl *RecordDecl::findFirstNamedDataMember() const {
 
   // We didn't find a named data member.
   return nullptr;
+}
+
+// Checked C
+
+bool RecordDecl::isGeneric() {
+  return IsGeneric;
+}
+
+ArrayRef<TypedefDecl*> RecordDecl::typeParams() {
+  return { TypeParams, NumTypeParams };
+}
+
+void RecordDecl::setTypeParams(ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams) {
+  NumTypeParams = NewTypeParams.size();
+  IsGeneric = NumTypeParams > 0;
+
+  // Zero params -> null pointer.
+  if (!NewTypeParams.empty()) {
+    TypeParams = new (C) TypedefDecl * [NewTypeParams.size()];
+    std::copy(NewTypeParams.begin(), NewTypeParams.end(), TypeParams);
+  }
 }
 
 //===----------------------------------------------------------------------===//

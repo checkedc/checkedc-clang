@@ -3772,12 +3772,12 @@ public:
 protected:
   RecordDecl(Kind DK, TagKind TK, const ASTContext &C, DeclContext *DC,
              SourceLocation StartLoc, SourceLocation IdLoc,
-             IdentifierInfo *Id, RecordDecl *PrevDecl);
+             IdentifierInfo* Id, RecordDecl* PrevDecl, ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, 0 });
 
 public:
   static RecordDecl *Create(const ASTContext &C, TagKind TK, DeclContext *DC,
                             SourceLocation StartLoc, SourceLocation IdLoc,
-                            IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr);
+                            IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr, ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, 0 });
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
   RecordDecl *getPreviousDecl() {
@@ -3966,9 +3966,32 @@ public:
   /// nullptr is returned if no named data member exists.
   const FieldDecl *findFirstNamedDataMember() const;
 
+  // Checked C
+
+  /// Whether the record is generic.
+  bool isGeneric();
+
+  /// Returns the record's type parameters.
+  /// If there are no type parameters, then the array will be empty.
+  ArrayRef<TypedefDecl*> typeParams();
+
 private:
   /// Deserialize just the fields.
   void LoadFieldsFromExternalStorage() const;
+
+  // Checked C
+
+  /// Whether this record is generic.
+  bool IsGeneric;
+  /// The number of type parameters the record has.
+  size_t NumTypeParams;
+  /// New []'d array of pointers to TypedefDecls for the type
+  /// parameters of this record.  This is null if not a generic record.
+  TypedefDecl **TypeParams;
+
+  /// Sets the type parameters for the record.
+  /// This sets 'TypeParams', but also 'NumTypeParams' and 'IsGeneric'.
+  void setTypeParams(ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams);
 };
 
 class FileScopeAsmDecl : public Decl {
