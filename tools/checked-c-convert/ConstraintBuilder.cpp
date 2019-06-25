@@ -322,7 +322,9 @@ public:
             RHSConstraints = Info.getVariable(SE, Context);
           } else {
             // get in-function-body constraint variables.
-            RHSConstraints = Info.getVariable(SE, Context, true);
+            // only if the expression is not a function pointer.
+            bool inBodyConstraint = !isFunctionPointerExpr(SE);
+            RHSConstraints = Info.getVariable(SE, Context, inBodyConstraint);
           }
           for (const auto &A : RHSConstraints) {
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
@@ -339,10 +341,13 @@ public:
           }
         }
       } else {
-        // this is a regular assignment.
+        // are we assigning a function pointer?
+        // if yes, get the declaration of the function.
+        // else, if this is a regular assignment
         // get the in-function constraint variables
         // of RHS expr.
-        RHSConstraints = Info.getVariable(RHS, Context, true);
+        bool inBodyConstraint = !isFunctionPointerExpr(RHS);
+        RHSConstraints = Info.getVariable(RHS, Context, inBodyConstraint);
         if(RHSConstraints.size() > 0) {
           // Case 1.
           // There are constraint variables for the RHS, so, use those over

@@ -775,6 +775,12 @@ ProgramInfo::getVariable(Decl *D, ASTContext *C, bool inFunctionContext) {
       assert(parameterIndex >= 0 && "Got request for invalid parameter");
     }
     if(funcDeclaration || funcDefinition || parameterIndex != -1) {
+      // if we are asking for the constraint variable of a function
+      // and that function is an external function.
+      // then use declaration.
+      if(dyn_cast<FunctionDecl>(D) && funcDefinition == nullptr) {
+        funcDefinition = funcDeclaration;
+      }
       // this means either we got a
       // request for function return value or parameter
       if(inFunctionContext) {
