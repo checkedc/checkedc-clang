@@ -130,8 +130,13 @@ bool hasFunctionBody(clang::Decl *param) {
 // check if the provided expression is
 // a function pointer.
 bool isFunctionPointerExpr(clang::Expr *toCheck) {
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck)) {
-    return dyn_cast<FunctionDecl>(DRE->getDecl()) != nullptr;
+  if(toCheck != nullptr) {
+    if (ImplicitCastExpr *Im = dyn_cast<ImplicitCastExpr>(toCheck)) {
+      toCheck = Im->getSubExpr();
+    }
+    if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck)) {
+      return dyn_cast<FunctionDecl>(DRE->getDecl()) != nullptr;
+    }
   }
   return false;
 }
