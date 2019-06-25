@@ -38,5 +38,7 @@ clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExp
 
 bool hasFunctionBody(clang::Decl *param);
 
+std::string getStorageQualifierString(clang::Decl *D);
+
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif
