@@ -44,6 +44,10 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 // Walk the list of declarations and find a declaration that is NOT
 // a definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
+  // optimization
+  if(!FD->isThisDeclarationADefinition()) {
+    return FD;
+  }
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (!tFD->isThisDeclarationADefinition())
@@ -55,6 +59,10 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 // Walk the list of declarations and find a declaration accompanied by
 // a definition and a function body.
 FunctionDecl *getDefinition(FunctionDecl *FD) {
+  // optimization
+  if(FD->isThisDeclarationADefinition() && FD->hasBody()) {
+    return FD;
+  }
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
@@ -117,4 +125,13 @@ bool hasFunctionBody(clang::Decl *param) {
   // else this should be within body and
   // the function body should exist.
   return true;
+}
+
+// check if the provided expression is
+// a function pointer.
+bool isFunctionPointerExpr(clang::Expr *toCheck) {
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck)) {
+    return dyn_cast<FunctionDecl>(DRE->getDecl()) != nullptr;
+  }
+  return false;
 }
