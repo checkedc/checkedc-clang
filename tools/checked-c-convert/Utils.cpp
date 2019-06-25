@@ -135,3 +135,24 @@ bool isFunctionPointerExpr(clang::Expr *toCheck) {
   }
   return false;
 }
+
+static std::string storageClassToString(StorageClass SC) {
+  switch(SC) {
+    case StorageClass::SC_Static: return "static ";
+    case StorageClass::SC_Extern: return "extern ";
+    // no default class, we do not care.
+  }
+  return "";
+}
+
+// this method gets the storage qualifier for the
+// provided declaration i.e., static, extern, etc.
+std::string getStorageQualifierString(Decl *D) {
+  if(FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    return storageClassToString(FD->getStorageClass());
+  }
+  if(VarDecl *VD = dyn_cast<VarDecl>(D)) {
+    return storageClassToString(VD->getStorageClass());
+  }
+  return "";
+}

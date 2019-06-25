@@ -33,6 +33,11 @@ struct DAndReplace
                     Statement(nullptr),
                     Replacement(""),
                     fullDecl(false) { }
+    DAndReplace(const DAndReplace &other, std::string R): Declaration(other.Declaration),
+                                                          Statement(other.Statement),
+                                                          Replacement(R),
+                                                          fullDecl(other.fullDecl) {}
+
 
     DAndReplace(Decl *D, std::string R) : Declaration(D),
                                           Statement(nullptr),

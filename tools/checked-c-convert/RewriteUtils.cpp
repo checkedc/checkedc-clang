@@ -522,7 +522,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       }
     }
 
-    s = returnVar + cDecl->getName() + "(";
+    s = getStorageQualifierString(Definition) + returnVar + cDecl->getName() + "(";
     if (parmStrs.size() > 0) {
       std::ostringstream ss;
 
@@ -741,8 +741,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
       if (PV && PV->anyChanges(Info.getConstraints().getVariables())) {
         // Rewrite a declaration.
-        std::string newTy = PV->mkString(Info.getConstraints().getVariables());
-        rewriteThese.insert(DAndReplace(D, DS, newTy));;
+        std::string newTy = getStorageQualifierString(D) + PV->mkString(Info.getConstraints().getVariables());
+        rewriteThese.insert(DAndReplace(D, DS, newTy));
       } else if (FV && FV->anyChanges(Info.getConstraints().getVariables())) {
         // Rewrite a function variables return value.
         std::set<ConstraintVariable*> V = FV->getReturnVars();
