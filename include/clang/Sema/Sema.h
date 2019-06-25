@@ -2249,7 +2249,8 @@ public:
                  bool &IsDependent, SourceLocation ScopedEnumKWLoc,
                  bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
                  bool IsTypeSpecifier, bool IsTemplateParamOrArg,
-                 SkipBodyInfo *SkipBody = nullptr);
+                 SkipBodyInfo *SkipBody = nullptr,
+                 ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*> { nullptr, 0} );
 
   Decl *ActOnTemplatedFriendTag(Scope *S, SourceLocation FriendLoc,
                                 unsigned TagSpec, SourceLocation TagLoc,
