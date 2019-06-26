@@ -856,14 +856,16 @@ bool ProgramInfo::addAllocationBasedSizeExpr(Decl *targetVar, Expr *sizeExpr) {
 }
 
 void ProgramInfo::printArrayVarsAndSizes(llvm::raw_ostream &O) {
-  O << "\n\nArray Variables and Sizes\n";
-  for (const auto &currEl: AllocationBasedSizeExprs) {
-    O << "Variable:";
-    currEl.first->dump(O);
-    O << ", Possible Sizes:\n";
-    for (auto sizeExpr: currEl.second) {
-      sizeExpr->dump(O);
-      O << "\n";
+  if(!AllocationBasedSizeExprs.empty()) {
+    O << "\n\nArray Variables and Sizes\n";
+    for (const auto &currEl: AllocationBasedSizeExprs) {
+      O << "Variable:";
+      currEl.first->dump(O);
+      O << ", Possible Sizes:\n";
+      for (auto sizeExpr: currEl.second) {
+        sizeExpr->dump(O);
+        O << "\n";
+      }
     }
   }
 }
