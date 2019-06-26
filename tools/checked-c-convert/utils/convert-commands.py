@@ -42,7 +42,7 @@ def getCheckedCArgs(argument_list, work_dir):
         # convert into absolute path
         if not os.path.isabs(curr_arg[2:]):
           curr_arg = "-I" + os.path.abspath(os.path.join(work_dir, curr_arg[2:]))
-      clang_x_args.append('-extra-arg=' + curr_arg)
+      clang_x_args.append('-extra-arg-before=' + curr_arg)
   return clang_x_args
 
 def tryFixUp(s):
