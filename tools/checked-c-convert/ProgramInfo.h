@@ -103,6 +103,8 @@ public:
   std::set<ConstraintVariable*>
     getVariable(clang::Expr *E, clang::ASTContext *C, bool inFunctionContext = false);
   std::set<ConstraintVariable*>
+    getVariableOnDemand(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
+  std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
   // get constraint variable for the provided function or its parameter
   std::set<ConstraintVariable*>

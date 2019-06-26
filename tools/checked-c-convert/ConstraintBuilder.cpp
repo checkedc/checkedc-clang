@@ -318,12 +318,7 @@ public:
           // Constrain everything in both to top.
           // Remove the casts from RHS and try again to get a variable
           // from it. We want to constrain that side to wild as well.
-          if(dyn_cast<CallExpr>(SE)) {
-            RHSConstraints = Info.getVariable(SE, Context);
-          } else {
-            // get RHS constraint variables
-            RHSConstraints = getRHSExprConstraintVariable(SE);
-          }
+          RHSConstraints = Info.getVariable(SE, Context, true);
           for (const auto &A : RHSConstraints) {
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
               for (const auto &B : PVC->getCvars())
@@ -341,7 +336,7 @@ public:
       } else {
         // get the constraint variables of the
         // expression from RHS side.
-        RHSConstraints = getRHSExprConstraintVariable(RHS);
+        RHSConstraints = Info.getVariable(RHS, Context, true);
         if(RHSConstraints.size() > 0) {
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
@@ -439,7 +434,7 @@ public:
         // get constraint variables for the argument
         // from with in the context of the caller body
         std::set<ConstraintVariable*> ArgumentConstraints =
-          getRHSExprConstraintVariable(A);
+          Info.getVariable(A, Context, true);
 
         if (i < FD->getNumParams()) {
           bool handled = false;
@@ -456,7 +451,7 @@ public:
             // add constraint that the arguments are equal to the
             // parameters.
             //assert(!ParameterConstraints.empty() && "Unable to get parameter constraints");
-            // the constraits could be empty for builtin functions.
+            // the constrains could be empty for builtin functions.
             constrainEq(ParameterConstraints, ArgumentConstraints, Info);
           }
         } else {
@@ -495,7 +490,7 @@ public:
             unsigned i = 0;
             for (const auto &A : E->arguments()) {
               std::set<ConstraintVariable*> ArgumentConstraints =
-                getRHSExprConstraintVariable(A);
+                Info.getVariable(A, Context, true);
               
               if (i < FV->numParams()) {
                 std::set<ConstraintVariable*> ParameterDC = 
@@ -548,11 +543,12 @@ public:
     // return expression.
 
     // get function variable constraint of the body
+    // we need to call getVariableOnDemand to avoid auto-correct.
     std::set<ConstraintVariable*> Fun =
-      Info.getVariable(Function, Context, true);
+      Info.getVariableOnDemand(Function, Context, true);
     // get the constraint of the return variable (again with in the context of the body)
     std::set<ConstraintVariable*> Var =
-      getRHSExprConstraintVariable(S->getRetValue());
+      Info.getVariable(S->getRetValue(), Context, true);
 
     // Constrain the value returned (if present) against the return value
     // of the function.   
@@ -686,7 +682,7 @@ private:
       // get constraint from within the function body
       // of the caller
       std::set<ConstraintVariable*> ParameterEC =
-        getRHSExprConstraintVariable(A);
+        Info.getVariable(A, Context, true);
 
       Constraints &CS = Info.getConstraints();
       // assign WILD to each of the constraint
@@ -723,15 +719,6 @@ private:
       CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
     }
     return CE;
-  }
-
-  std::set<ConstraintVariable*> getRHSExprConstraintVariable(Expr *ex) {
-    // are we assigning a function to a variable (i.e., function pointer)
-    // if yes, get the constraint variables from the
-    // declaration of the function else, if this is a regular assignment
-    // get the in-function constraint variables
-    // of the provided expr (ex).
-    return Info.getVariable(ex, Context, !isFunctionPointerExpr(ex));
   }
 
   ASTContext *Context;

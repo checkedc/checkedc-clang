@@ -630,6 +630,9 @@ ProgramInfo::getVariableHelper( Expr                            *E,
   } else if (CHKCBindTemporaryExpr *CBE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
     return getVariableHelper(CBE->getSubExpr(), V, C, ifc);
   } else if (CallExpr *CE = dyn_cast<CallExpr>(E)) {
+    // call expression should always get out-of context
+    // constraint variable.
+    ifc = false;
     // Here, we need to look up the target of the call and return the
     // constraints for the return value of that function.
     Decl *D = CE->getCalleeDecl();
@@ -735,9 +738,23 @@ ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD,
 
 }
 
+std::set<ConstraintVariable*>
+ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext) {
+  // here, we auto-correct the inFunctionContext flag.
+  // if someone is asking for in context variable of a function
+  // always give the declaration context.
+
+  // if this a function declaration
+  // set in context to false.
+  if(dyn_cast<FunctionDecl>(D)) {
+    inFunctionContext = false;
+  }
+  return getVariableOnDemand(D, C, inFunctionContext);
+}
+
 // Given a decl, return the variables for the constraints of the Decl.
 std::set<ConstraintVariable*>
-ProgramInfo::getVariable(Decl *D, ASTContext *C, bool inFunctionContext) {
+ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext) {
   assert(persisted == false);
   VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
   if (I != Variables.end()) {

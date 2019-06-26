@@ -127,24 +127,11 @@ bool hasFunctionBody(clang::Decl *param) {
   return true;
 }
 
-// check if the provided expression is
-// a function pointer.
-bool isFunctionPointerExpr(clang::Expr *toCheck) {
-  if(toCheck != nullptr) {
-    if (ImplicitCastExpr *Im = dyn_cast<ImplicitCastExpr>(toCheck)) {
-      toCheck = Im->getSubExpr();
-    }
-    if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck)) {
-      return dyn_cast<FunctionDecl>(DRE->getDecl()) != nullptr;
-    }
-  }
-  return false;
-}
-
 static std::string storageClassToString(StorageClass SC) {
   switch(SC) {
     case StorageClass::SC_Static: return "static ";
     case StorageClass::SC_Extern: return "extern ";
+    case StorageClass::SC_Register: return "register ";
     // no default class, we do not care.
   }
   return "";
