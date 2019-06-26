@@ -143,6 +143,7 @@ def runMain(cmd_args):
   return
 
 if __name__ == '__main__':
+  checked_c_convert_bin = ""
   if 'LLVM_OBJ' in os.environ:
     checked_c_convert_bin = os.path.join(os.environ['LLVM_OBJ'], "bin/checked-c-convert")
 
