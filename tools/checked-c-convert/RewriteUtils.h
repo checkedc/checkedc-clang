@@ -120,6 +120,7 @@ public:
 
   bool VisitCallExpr(CallExpr *);
   bool VisitFunctionDecl(FunctionDecl *);
+  bool isFunctionVisited(std::string funcName);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
   // get existing itype string from constraint variables.
