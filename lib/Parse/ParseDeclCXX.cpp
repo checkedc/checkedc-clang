@@ -1919,9 +1919,15 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
     stripTypeAttributesOffDeclSpec(attrs, DS, TUK);
 
+    // Checked C: if the struct has type parameters, then they introduced a new scope, so we
+    // must make sure to add the struct to the parent scope instead.
+    // The type parameters scope is removed later in 'ParseDeclOrFunctionDefInternal'.
+    assert(getCurScope()->isForanyScope() == DS.isForanySpecified());
+    Scope* structScope = getCurScope()->isForanyScope() ? getCurScope()->getParent() : getCurScope();
+
     // Declaration or definition of a class type
     TagOrTempResult = Actions.ActOnTag(
-        getCurScope(), TagType, TUK, StartLoc, SS, Name, NameLoc, attrs, AS,
+        structScope, TagType, TUK, StartLoc, SS, Name, NameLoc, attrs, AS,
         DS.getModulePrivateSpecLoc(), TParams, Owned, IsDependent,
         SourceLocation(), false, clang::TypeResult(),
         DSC == DeclSpecContext::DSC_type_specifier,
