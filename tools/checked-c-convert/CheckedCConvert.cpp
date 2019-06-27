@@ -174,11 +174,10 @@ int main(int argc, const char **argv) {
   std::set<std::string> inoutPaths;
 
   for (const auto &S : args) {
-    SmallString<255> abs_path(S);
-    if (std::error_code ec = sys::fs::make_absolute(abs_path))
-      errs() << "could not make absolute\n";
-    else
-      inoutPaths.insert(abs_path.str());
+    std::string abs_path;
+    if(getAbsoluteFilePath(S, abs_path)) {
+      inoutPaths.insert(abs_path);
+    }
   }
 
   if (OutputPostfix == "-" && inoutPaths.size() > 1) {
