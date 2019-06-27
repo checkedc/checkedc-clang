@@ -612,8 +612,10 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
     errs() << "Writing files out\n";
 
   SmallString<254> baseAbs(BaseDir);
-  std::error_code ec = sys::fs::make_absolute(baseAbs);
-  assert(!ec);
+  std::string baseDirFP;
+  if(getAbsoluteFilePath(BaseDir, baseDirFP)) {
+    baseAbs = baseDirFP;
+  }
   sys::path::remove_filename(baseAbs);
   std::string base = baseAbs.str();
 
@@ -645,13 +647,10 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
           // Write this file out if it was specified as a file on the command
           // line.
-          SmallString<254>  feAbs(FE->getName());
           std::string feAbsS = "";
-          if (std::error_code ec = sys::fs::make_absolute(feAbs)) {
-            if (Verbose)
-              errs() << "could not make path absolote\n";
-          } else
-            feAbsS = sys::path::remove_leading_dotslash(feAbs.str());
+          if(getAbsoluteFilePath(FE->getName(), feAbsS)) {
+            feAbsS = sys::path::remove_leading_dotslash(feAbsS);
+          }
 
           if(canWrite(feAbsS, InOutFiles, base)) {
             std::error_code EC;
