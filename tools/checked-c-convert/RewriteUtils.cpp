@@ -551,6 +551,11 @@ bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
   return true;
 }
 
+// check if the function is handled by this visitor
+bool CastPlacementVisitor::isFunctionVisited(std::string funcName) {
+  return VisitedSet.find(funcName) != VisitedSet.end();
+}
+
 static bool
 canWrite(std::string filePath, std::set<std::string> &iof, std::string b) {
   // Was this file explicitly provided on the command line?
@@ -743,8 +748,11 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
         // Rewrite a declaration.
         std::string newTy = getStorageQualifierString(D) + PV->mkString(Info.getConstraints().getVariables());
         rewriteThese.insert(DAndReplace(D, DS, newTy));
-      } else if (FV && FV->anyChanges(Info.getConstraints().getVariables())) {
+      } else if (FV && FV->anyChanges(Info.getConstraints().getVariables()) &&
+                 !CPV.isFunctionVisited(FV->getName())) {
         // Rewrite a function variables return value.
+        // only if this function is NOT handled by the
+        // cast placement visitor
         std::set<ConstraintVariable*> V = FV->getReturnVars();
         if (V.size() > 0) {
           std::string newTy =
