@@ -504,7 +504,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // all the uses of the function converts the return value
         // into a more precise type.
         // do not change the type
-        returnVar = Definition->getDeclaredReturnType().getAsString();
+        returnVar = Decl->mkString(Info.getConstraints().getVariables());
         endStuff = getExistingIType(Decl, Defn, Declaration);
         if(!endStuff.empty()) {
           didAny = true;
@@ -514,7 +514,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
     if(!returnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
-      returnVar = Definition->getDeclaredReturnType().getAsString();
+      returnVar = Decl->mkString(Info.getConstraints().getVariables());
 
       endStuff = getExistingIType(Decl, Defn, Declaration);
       if(!endStuff.empty()) {
