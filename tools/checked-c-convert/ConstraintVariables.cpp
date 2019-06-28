@@ -633,12 +633,16 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
     // function, and we don't want the linking phase to un-refine it by introducing
     // a conflicting constraint.
     bool doAdd = true;
-    if (checkSkip)
+    // this will ensure that we do not make an itype constraint
+    // variable to be WILD (which should be impossible)!!
+    if (checkSkip || dyn_cast<WildAtom>(A)) {
       if (ConstrainedVars.find(V) != ConstrainedVars.end())
         doAdd = false;
+    }
 
-    if (doAdd)
+    if (doAdd) {
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
+    }
   }
 
   if (FV)

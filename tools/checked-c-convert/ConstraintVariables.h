@@ -58,7 +58,7 @@ protected:
   // Underlying name of the C variable this ConstraintVariable represents.
   std::string Name;
   // Set of constraint variables that have been constrained due to a
-  // bounds-safe interface. They are remembered as being constrained
+  // bounds-safe interface (itype). They are remembered as being constrained
   // so that later on we do not introduce a spurious constraint
   // making those variables WILD.
   std::set<ConstraintKey> ConstrainedVars;
