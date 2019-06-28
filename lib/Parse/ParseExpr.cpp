@@ -3273,8 +3273,7 @@ bool Parser::ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo:
         if (Tok.getKind() == tok::greater) ConsumeToken();
         return true;
       }
-    }
-    else
+    } else
       firstTypeArgument = false;
 
     // Expect to see type name.
@@ -3287,7 +3286,7 @@ bool Parser::ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo:
       return true;
     }
 
-    TypeSourceInfo* TInfo;
+    TypeSourceInfo *TInfo;
     QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
     typeArgumentInfos.push_back({ realType, TInfo });
   }
