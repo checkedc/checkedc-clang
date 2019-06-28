@@ -1887,7 +1887,9 @@ private:
 
   ExprResult ParseBoundsExpression();
   ExprResult ParseGenericFunctionApplication(ExprResult TypeFunc, SourceLocation Loc);
-  bool ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> &out, SourceLocation Loc);
+
+  using TypeArgVector = SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4>;
+  std::pair<bool, TypeArgVector> ParseGenericTypeArgumentList(SourceLocation Loc);
 
   QualType SubstituteTypeVariable(QualType QT,
     SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);

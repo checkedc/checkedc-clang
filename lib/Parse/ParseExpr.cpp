@@ -3260,8 +3260,9 @@ ExprResult Parser::ParseBoundsExpression() {
 // This is re-used for both generic functions and generic structs.
 // Return false if parsing succeeds, in which case the 'typeArgs' is also populated.
 // Return true if parsing fails.
-bool Parser::ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> &typeArgs, SourceLocation Loc) {
-  SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
+std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(SourceLocation Loc) {
+  Parser::TypeArgVector typeArgumentInfos;
+  auto err = std::make_pair<>(true, Parser::TypeArgVector());
   bool firstTypeArgument = true;
   // Expect to see a list of type names, followed by a '>'.
   while (Tok.getKind() != tok::greater) {
@@ -3271,7 +3272,7 @@ bool Parser::ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo:
         // We want to consume greater, but not consume semi
         SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
         if (Tok.getKind() == tok::greater) ConsumeToken();
-        return true;
+        return err;
       }
     } else
       firstTypeArgument = false;
@@ -3283,7 +3284,7 @@ bool Parser::ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo:
       // We want to consume greater, but not consume semi
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
       if (Tok.getKind() == tok::greater) ConsumeToken();
-      return true;
+      return err;
     }
 
     TypeSourceInfo *TInfo;
@@ -3292,8 +3293,7 @@ bool Parser::ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo:
   }
   ConsumeToken(); // consume '>' token
 
-  typeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>(typeArgumentInfos);
-  return false;
+  return std::make_pair<>(false, typeArgumentInfos);
 }
 
 // Parse a generic type argument list for a function application.  The suffix of postfix expression can
@@ -3302,9 +3302,9 @@ bool Parser::ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo:
 //
 // Returns false if parsing succeeded and true if an error occurred.
 ExprResult Parser::ParseGenericFunctionApplication(ExprResult Res, SourceLocation Loc) {
-  auto TypeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>();
-  if (ParseGenericTypeArgumentList(TypeArgs, Loc)) return ExprError();
-  return Actions.ActOnTypeApplication(Res, Loc, TypeArgs);
+  auto ArgRes = ParseGenericTypeArgumentList(Loc);
+  if (ArgRes.first) return ExprError();
+  return Actions.ActOnTypeApplication(Res, Loc, ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>(ArgRes.second));
 }
 
 bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {
