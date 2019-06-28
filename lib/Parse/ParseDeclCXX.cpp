@@ -2047,13 +2047,14 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 DeclResult Parser::ParseGenericStructInstantiation(RecordDecl* base) {
   assert(base->isGeneric() && "Instantiated record must be generic");
   ExpectAndConsume(tok::less); // eat the initial '<'
-  auto typeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>();
-  if (ParseGenericTypeArgumentList(typeArgs, SourceLocation())) {
-    return true; // problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')
+  auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
+  if (ArgsRes.first) {
+    // Problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')
+    return true;
   }
-  if (typeArgs.size() != base->typeParams().size()) {
+  if (ArgsRes.second.size() != base->typeParams().size()) {
     // TODO(abeln): add real error message
-    printf("expected %d type params but got %d\n", base->typeParams().size(), typeArgs.size());
+    printf("expected %d type params but got %d\n", base->typeParams().size(), ArgsRes.second.size());
     return true;
   } else {
     return base;
