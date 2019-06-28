@@ -9,7 +9,7 @@ typedef struct {
 
 foo obj1;
 
-int *func(_Ptr<int> ptr, char *arrptr) {/*ARR:arrptr*/
+_Ptr<int> func(_Ptr<int> ptr, char *arrptr) {/*ARR:arrptr*/
    obj1.ptr = ptr;
    arrptr++;
    obj1.arrptr = arrptr;

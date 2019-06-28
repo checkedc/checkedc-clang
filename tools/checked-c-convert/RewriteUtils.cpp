@@ -415,7 +415,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     return true;
 
   FVConstraint *cDefn = dyn_cast<FVConstraint>(
-    getHighest(Info.getVariable(Definition, Context, true), Info));
+    getHighest(Info.getVariableOnDemand(Definition, Context, true), Info));
 
   FVConstraint *cDecl = nullptr;
   // Get constraint variables for the declaration and the definition.
@@ -427,7 +427,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       getHighest(Info.getOnDemandFuncDeclarationConstraint(Definition, Context), Info));
   } else {
     cDecl = dyn_cast<FVConstraint>(
-      getHighest(Info.getVariable(Declaration, Context, false), Info));
+      getHighest(Info.getVariableOnDemand(Declaration, Context, false), Info));
   }
 
   assert(cDecl != nullptr);
