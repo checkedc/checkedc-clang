@@ -3,8 +3,8 @@
 
 // we test propagation with and without function
 // declaration.
-intfuncdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild);/*ARR:arrwild*/
-intfuncdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild) {/*ARR:arrwild*/
+int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild);/*ARR:arrwild*/
+int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild) {/*ARR:arrwild*/
    if(ptr != 0) {
     *ptr = 0;
    }   
@@ -14,7 +14,7 @@ intfuncdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild) {/*ARR:
 // ptr is an arr ptr
 // iptr will be itype
 // wild will be a wild ptr.
-intfunc(int *ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {/*ARR:ptr*/
+int func(int *ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {/*ARR:ptr*/
    if(ptr != 0) {
       ptr[0] = 1;
    }

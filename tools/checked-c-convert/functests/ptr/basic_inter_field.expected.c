@@ -7,7 +7,7 @@ typedef struct {
 
 foo obj1;
 
-int *func(_Ptr<int> ptr, char *iwild : itype(_Ptr<char> ) ) {
+_Ptr<int> func(_Ptr<int> ptr, char *iwild : itype(_Ptr<char> ) ) {
    // both the arguments are pointers
    // within function body
    obj1.ptr = ptr;

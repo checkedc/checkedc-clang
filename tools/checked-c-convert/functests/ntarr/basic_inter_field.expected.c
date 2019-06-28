@@ -8,7 +8,7 @@ typedef struct {
 
 foo obj1;
 
-int *func(_Ptr<int> ptr, _Nt_arr_ptr<char> ntptr) {
+_Ptr<int> func(_Ptr<int> ptr, _Nt_arr_ptr<char> ntptr) {
    obj1.ptr = ptr;
    obj1.ntptr = strstr(ntptr, "world");
    return ptr;
