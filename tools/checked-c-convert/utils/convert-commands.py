@@ -71,7 +71,7 @@ def runMain(cmd_args):
       tryFixUp(cmd_args.compile_commands)
 
   if cmds == None:
-    print "failed"
+    print("failed")
     return
 
   s = set()
@@ -99,6 +99,8 @@ def runMain(cmd_args):
     all_files.append(file_to_add)
     s.add((frozenset(compiler_x_args), target_directory, file_to_add))
 
+  # get the common path of the files as the base directory
+  compilation_base_dir = os.path.commonprefix(all_files)
   prog_name = cmd_args.prog_name
   f = open(INDIVIDUAL_COMMANDS_FILE, 'w')
   for compiler_args, target_directory, src_file in s:
@@ -113,6 +115,7 @@ def runMain(cmd_args):
     args.append(prog_name)
     if len(compiler_args) > 0:
       args.extend(list(compiler_args))
+    args.append("-base-dir=\"" + compilation_base_dir + "\"")
     args.extend(DEFAULT_ARGS)
     args.append(src_file)
     # run individual commands.
@@ -131,6 +134,7 @@ def runMain(cmd_args):
   args.append(prog_name)
   args.extend(DEFAULT_ARGS)
   args.extend(list(set(total_x_args)))
+  args.append("-base-dir=\"" + compilation_base_dir + "\"")
   args.extend(list(set(all_files)))
   f = open(TOTAL_COMMANDS_FILE, 'w')
   f.write(" \\\n".join(args))
@@ -141,6 +145,7 @@ def runMain(cmd_args):
     subprocess.check_call(args)
   print("[+] Saved the total command into the file:" + TOTAL_COMMANDS_FILE)
   return
+
 
 if __name__ == '__main__':
   checked_c_convert_bin = ""
