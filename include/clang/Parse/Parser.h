@@ -1914,6 +1914,8 @@ private:
 
   ExprResult ParseReturnValueExpression();
 
+  DeclResult ParseGenericStructInstantiation(RecordDecl *base);
+
   //===--------------------------------------------------------------------===//
   // clang Expressions
 

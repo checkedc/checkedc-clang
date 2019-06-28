@@ -1941,16 +1941,9 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     if (!TagOrTempResult.isInvalid() && TUK == Sema::TUK_Reference) {
       RecordDecl* decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get());
       if (decl && decl->isGeneric()) {
-        ExpectAndConsume(tok::less); // eat the initial '<'
-        auto typeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>(); 
-        if (!ParseGenericTypeArgumentList(typeArgs, SourceLocation())) {
-          if (typeArgs.size() != decl->typeParams().size()) {
-            // TODO(abeln): add real error message
-            printf("expected %d type params but got %d\n", decl->typeParams().size(), typeArgs.size());
-          } else {
-            printf("ready to instantiate reference to %s with %d args\n", decl->getNameAsString().c_str(), typeArgs.size());
-          }
-        }
+        // We're parsing a reference to a generic struct, so need to parse
+        // the type arguments before we can instantiate.
+        TagOrTempResult = ParseGenericStructInstantiation(decl);
       }
     }
 
@@ -2037,6 +2030,33 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       PP.EnterToken(Tok);
       Tok.setKind(tok::semi);
     }
+  }
+}
+
+/// Checked C: parse an instantiation of a generic struct.
+/// Returns the instantiated struct on success, or 'true' on failure.
+///
+/// generic-struct-instantiation
+///   '<' type-name-list '>'
+///
+/// type-name-list
+///   type-name type-name-list-suffix [opt]
+///
+///  type-name-list-suffix
+///    ',' type-name type-name-list-suffix [opt]
+DeclResult Parser::ParseGenericStructInstantiation(RecordDecl* base) {
+  assert(base->isGeneric() && "Instantiated record must be generic");
+  ExpectAndConsume(tok::less); // eat the initial '<'
+  auto typeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>();
+  if (ParseGenericTypeArgumentList(typeArgs, SourceLocation())) {
+    return true; // problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')
+  }
+  if (typeArgs.size() != base->typeParams().size()) {
+    // TODO(abeln): add real error message
+    printf("expected %d type params but got %d\n", base->typeParams().size(), typeArgs.size());
+    return true;
+  } else {
+    return base;
   }
 }
 
