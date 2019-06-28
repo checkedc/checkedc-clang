@@ -1936,6 +1936,24 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
         &SkipBody,
         DS.typeVariables());
 
+    // Checked C: a reference to a struct can be followed by a list of type arguments,
+    // if the struct is generic.
+    if (!TagOrTempResult.isInvalid() && TUK == Sema::TUK_Reference) {
+      RecordDecl* decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get());
+      if (decl && decl->isGeneric()) {
+        ExpectAndConsume(tok::less); // eat the initial '<'
+        auto typeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>(); 
+        if (!ParseGenericTypeArgumentList(typeArgs, SourceLocation())) {
+          if (typeArgs.size() != decl->typeParams().size()) {
+            // TODO(abeln): add real error message
+            printf("expected %d type params but got %d\n", decl->typeParams().size(), typeArgs.size());
+          } else {
+            printf("ready to instantiate reference to %s with %d args\n", decl->getNameAsString().c_str(), typeArgs.size());
+          }
+        }
+      }
+    }
+
     // If ActOnTag said the type was dependent, try again with the
     // less common call.
     if (IsDependent) {

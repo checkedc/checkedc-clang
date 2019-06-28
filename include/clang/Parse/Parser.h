@@ -1886,7 +1886,8 @@ private:
   ExprResult ParseBoundsCastExpression();
 
   ExprResult ParseBoundsExpression();
-  ExprResult ParseGenericTypeArgumentList(ExprResult TypeFunc, SourceLocation Loc);
+  ExprResult ParseGenericFunctionApplication(ExprResult TypeFunc, SourceLocation Loc);
+  bool ParseGenericTypeArgumentList(ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> &out, SourceLocation Loc);
 
   QualType SubstituteTypeVariable(QualType QT,
     SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);
