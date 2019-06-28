@@ -139,6 +139,9 @@ public:
   getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C);
 
 private:
+  // check if the given set has the corresponding constraint variable type
+  template <typename T>
+  bool hasConstraintType(std::set<ConstraintVariable*> &S);
   // Function to check if an external symbol is okay to leave 
   // constrained. 
   bool isExternOkay(std::string ext);

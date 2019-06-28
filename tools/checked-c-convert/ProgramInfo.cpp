@@ -437,6 +437,16 @@ void ProgramInfo::exitCompilationUnit() {
   return;
 }
 
+template <typename T>
+bool ProgramInfo::hasConstraintType(std::set<ConstraintVariable*> &S) {
+  for (const auto &I : S) {
+    if (isa<T>(I)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // For each pointer type in the declaration of D, add a variable to the
 // constraint system for that pointer type.
 bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
@@ -480,24 +490,22 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     F = new FVConstraint(D, freeKey, CS, *C);
 
   std::set<ConstraintVariable*> &S = Variables[PLoc];
-  bool found = false;
-  for (const auto &I : S)
-    if (isa<FVConstraint>(I))
-      found = true;
+  bool newFunction = false;
 
-  if (found == false && F != nullptr)
-    Variables[PLoc].insert(F);
-  found = false;
+  if(F != nullptr && !hasConstraintType<FVConstraint>(S)) {
+    // insert the function constraint only if it doesn't exist
+    newFunction = true;
+    S.insert(F);
+  }
 
-  for (const auto &I : S)
-    if (isa<PVConstraint>(I))
-      found = true;
+  if(P != nullptr && !hasConstraintType<PVConstraint>(S)) {
+    // if there is no pointer constraint in this location
+    // insert it.
+    S.insert(P);
+  }
 
-  if (found == false && P != nullptr)
-    Variables[PLoc].insert(P);
-
-  // Did we create a function?
-  if (F) {
+  // Did we create a function and it is a newly added function
+  if (F && newFunction) {
     // If we did, then we need to add some additional stuff to Variables. 
     //  * A mapping from the parameters PLoc to the constraint variables for
     //    the parameters.

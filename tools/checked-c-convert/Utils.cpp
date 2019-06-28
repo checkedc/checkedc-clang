@@ -150,6 +150,17 @@ std::string getStorageQualifierString(Decl *D) {
   return "";
 }
 
+bool isNULLExpression(clang::Expr *expr, ASTContext &Ctx) {
+  // this checks if the expression is NULL. Specifically, (void*)0
+  if(CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(expr)) {
+    Expr *subExpr = CS->getSubExpr();
+
+    return subExpr->isIntegerConstantExpr(Ctx) &&
+           subExpr->isNullPointerConstant(Ctx, Expr::NPC_ValueDependentIsNotNull);
+  }
+  return false;
+}
+
 bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
   // get absolute path of the provided file
   // returns true if successful else false
