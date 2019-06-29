@@ -12,6 +12,8 @@
 using namespace llvm;
 using namespace clang;
 
+bool ConstraintBuilderConsumer::EnableHandlingVARARGS = false;
+
 // flags
 // constraint all the arguments to a function
 // accepting var args to be wild.
@@ -459,12 +461,10 @@ public:
           // this is the case of an argument passed to a function
           // with varargs.
           // Constrain this parameter to be wild.
-#ifdef CONSTRAINT_ARGS_TO_VARGS_WILD
-
-          Constraints &CS = Info.getConstraints();
-          for (const auto &C : ArgumentConstraints)
-            C->constrainTo(CS, CS.getWild());
-#endif
+          if(ConstraintBuilderConsumer::EnableHandlingVARARGS) {
+            Constraints &CS = Info.getConstraints();
+            assignType(ArgumentConstraints, CS.getWild());
+          }
         }
 
         i++;

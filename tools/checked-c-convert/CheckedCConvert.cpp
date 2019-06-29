@@ -74,6 +74,11 @@ static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::init(false),
                                 cl::cat(ConvertCategory));
 
+static cl::opt<bool> handleVARARGS( "handle-varargs",
+                                   cl::desc("Enable handling of varargs in a sound manner"),
+                                   cl::init(false),
+                                   cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
 BaseDir("base-dir",
   cl::desc("Base directory for the code we're translating"),
@@ -186,6 +191,8 @@ int main(int argc, const char **argv) {
   }
 
   ProgramInfo Info(MergeMultipleFuncDecls);
+  // set the flag to enable handling of var args.
+  ConstraintBuilderConsumer::EnableHandlingVARARGS = handleVARARGS;
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
