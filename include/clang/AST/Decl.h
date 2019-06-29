@@ -3772,13 +3772,18 @@ public:
 protected:
   RecordDecl(Kind DK, TagKind TK, const ASTContext &C, DeclContext *DC,
              SourceLocation StartLoc, SourceLocation IdLoc,
-             IdentifierInfo* Id, RecordDecl* PrevDecl, ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, 0 });
+             IdentifierInfo* Id, RecordDecl* PrevDecl,
+             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, (size_t) 0 },
+             ArrayRef<QualType> TypeArgs = ArrayRef<QualType>{ nullptr, (size_t) 0 });
 
 public:
   static RecordDecl *Create(const ASTContext &C, TagKind TK, DeclContext *DC,
                             SourceLocation StartLoc, SourceLocation IdLoc,
-                            IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr, ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, 0 });
+                            IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr,
+                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, 0 });
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
+
+  static RecordDecl* Instantiate(RecordDecl* Base, ArrayRef<QualType> TypeArgs);
 
   RecordDecl *getPreviousDecl() {
     return cast_or_null<RecordDecl>(
@@ -3970,28 +3975,51 @@ public:
 
   /// Whether the record is generic.
   bool isGeneric();
-
   /// Returns the record's type parameters.
   /// If there are no type parameters, then the array will be empty.
   ArrayRef<TypedefDecl*> typeParams();
+
+  /// Whether the record is generic.
+  bool isInstantiated();
+  /// Returns the record's type arguments.
+  /// If there are no type parameters, then the array will be empty.
+  ArrayRef<QualType> typeArgs();
 
 private:
   /// Deserialize just the fields.
   void LoadFieldsFromExternalStorage() const;
 
   // Checked C
+  // There are two sets of fields we add below to support generic structs:
+  //   - 'isGeneric' and type-params-related fields are set for _definitions_ of generic structs:
+  //      e.g. 'struct List _For_any(T) { /* generic list definition */ }; '
+  //   - 'isInstantiated' and type-args-related fields are set for _instantiations_ of generic structs:
+  //      e.g. 'struct List<int> li;'
+  // In particular, it doesn't make sense to set _both_ 'isGeneric' and 'isInstantiated', since a struct
+  // is either generic or instantiated (we don't support partial instantiations).
 
-  /// Whether this record is generic.
+  /// Whether this struct is generic.
   bool IsGeneric;
   /// The number of type parameters the record has.
   size_t NumTypeParams;
   /// New []'d array of pointers to TypedefDecls for the type
   /// parameters of this record.  This is null if not a generic record.
   TypedefDecl **TypeParams;
-
   /// Sets the type parameters for the record.
   /// This sets 'TypeParams', but also 'NumTypeParams' and 'IsGeneric'.
   void setTypeParams(ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams);
+
+  /// Whether this struct is the result of instantiating a generic struct
+  /// (so the current struct is fully - instantiated no longer generic).
+  bool IsInstantiated;
+  /// The number of type arguments in this instantiated struct (must match the number of parameters
+  /// in the underlying generic base struct).
+  size_t NumTypeArgs;
+  /// New []'d array of pointers to the type arguments. This is null if this RecordDecl
+  /// isn't the result of an instantiation.
+  QualType *TypeArgs;
+  /// Sets the type arguments for an instantiation, as well as 'IsInstantiated' and 'NumTypeArgs'.
+  void setTypeArgs(ASTContext& C, ArrayRef<QualType> NewTypeArgs);
 };
 
 class FileScopeAsmDecl : public Decl {
