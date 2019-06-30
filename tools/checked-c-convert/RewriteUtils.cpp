@@ -494,7 +494,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
       if(Defn->isLt(*Decl, Info)) {
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
-        returnVar = Defn->getTy();
+        returnVar = Defn->getOriginalTy();
         endStuff = " : itype("+ctype+") ";
         didAny = true;
       } else {
