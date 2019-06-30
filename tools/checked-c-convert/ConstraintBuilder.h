@@ -19,7 +19,6 @@ void constrainEq( ConstraintVariable *LHS,
 
 class ConstraintBuilderConsumer : public clang::ASTConsumer {
 public:
-  static bool EnableHandlingVARARGS;
   explicit ConstraintBuilderConsumer(ProgramInfo &I, clang::ASTContext *C) :
     Info(I) { }
 
