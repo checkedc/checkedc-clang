@@ -55,6 +55,7 @@ private:
   ConstraintVariableKind Kind;
 protected:
   std::string BaseType;
+  std::string OriginalType;
   // Underlying name of the C variable this ConstraintVariable represents.
   std::string Name;
   // Set of constraint variables that have been constrained due to a
@@ -94,6 +95,7 @@ public:
   virtual bool hasArr(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
+  std::string getOriginalTy() { return OriginalType; }
   std::string getName() const { return Name; }
 
   virtual ~ConstraintVariable() {};

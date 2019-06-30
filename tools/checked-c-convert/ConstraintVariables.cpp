@@ -36,6 +36,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
+  OriginalType = tyToStr(Ty);
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
   // kind of array type, we want to use that instead.
