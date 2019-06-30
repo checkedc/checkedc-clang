@@ -12,7 +12,6 @@
 using namespace llvm;
 using namespace clang;
 
-bool ConstraintBuilderConsumer::EnableHandlingVARARGS = false;
 
 // flags
 // constraint all the arguments to a function
