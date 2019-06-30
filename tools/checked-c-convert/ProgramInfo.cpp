@@ -134,6 +134,9 @@ CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
 
 // Print out statistics of constraint variables on a per-file basis.
 void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
+  O << "Enable itype propagation:" << enablePropThruIType << "\n";
+  O << "Merge multiple function declaration:" << mergeMultipleFuncDecls << "\n";
+  O << "Sound handling of var args functions:" << handleVARARGS << "\n";
   std::map<std::string, std::tuple<int, int, int, int, int> > filesToVars;
   Constraints::EnvironmentMap env = CS.getVariables();
 
@@ -270,7 +273,7 @@ bool ProgramInfo::link() {
         FVConstraint *P2 = *J;
 
         // Constrain the return values to be equal
-        if (!P1->hasBody() && !P2->hasBody() && MergeMultipleDeclarations) {
+        if (!P1->hasBody() && !P2->hasBody() && mergeMultipleFuncDecls) {
           constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this);
 
           // Constrain the parameters to be equal, if the parameter arity is

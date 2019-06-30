@@ -25,6 +25,9 @@ typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
 
 extern llvm::cl::opt<bool> Verbose;
 extern llvm::cl::opt<bool> DumpIntermediate;
+extern llvm::cl::opt<bool> handleVARARGS;
+extern llvm::cl::opt<bool> mergeMultipleFuncDecls;
+extern llvm::cl::opt<bool> enablePropThruIType;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 
