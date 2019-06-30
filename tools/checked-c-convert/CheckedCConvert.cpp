@@ -53,7 +53,7 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
-cl::opt<bool> MergeMultipleFuncDecls("mergefds",
+cl::opt<bool> mergeMultipleFuncDecls("mergefds",
                                      cl::desc("Merge multiple declarations of functions."),
                                      cl::init(false),
                                      cl::cat(ConvertCategory));
@@ -74,8 +74,13 @@ static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::init(false),
                                 cl::cat(ConvertCategory));
 
-static cl::opt<bool> handleVARARGS( "handle-varargs",
-                                   cl::desc("Enable handling of varargs in a sound manner"),
+cl::opt<bool> handleVARARGS( "handle-varargs",
+                             cl::desc("Enable handling of varargs in a sound manner"),
+                             cl::init(false),
+                             cl::cat(ConvertCategory));
+
+cl::opt<bool> enablePropThruIType( "enable-itypeprop",
+                                   cl::desc("Enable propagation of constraints through ityped parameters/returns."),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
 
@@ -190,9 +195,7 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  ProgramInfo Info(MergeMultipleFuncDecls);
-  // set the flag to enable handling of var args.
-  ConstraintBuilderConsumer::EnableHandlingVARARGS = handleVARARGS;
+  ProgramInfo Info;
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<

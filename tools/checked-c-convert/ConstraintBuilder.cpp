@@ -461,9 +461,14 @@ public:
           // this is the case of an argument passed to a function
           // with varargs.
           // Constrain this parameter to be wild.
-          if(ConstraintBuilderConsumer::EnableHandlingVARARGS) {
+          if(handleVARARGS) {
             Constraints &CS = Info.getConstraints();
             assignType(ArgumentConstraints, CS.getWild());
+          } else {
+            if(Verbose) {
+              std::string funcName = FD->getName();
+              errs() << "Ignoring function as it contains varargs:" << funcName << "\n";
+            }
           }
         }
 
@@ -608,7 +613,10 @@ private:
       // all teh constraint vars.
       assignType(Vars, getCheckedPointerConstraint(ptrKind));
     }
-    return isHandled;
+    // is this handled or propagation through itype
+    // has been disabled. In which case, all itypes
+    // values will be handled.
+    return isHandled || !enablePropThruIType;
   }
 
   // constraint all the provided vars to be
