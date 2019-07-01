@@ -2058,7 +2058,7 @@ DeclResult Parser::ParseGenericStructInstantiation(RecordDecl* Base) {
     printf("expected %d type params but got %d\n", Base->typeParams().size(), ArgsRes.second.size());
     return true;
   } else {
-    return Actions.Instantiate(Base, ArrayRef<TypeArgument>(ArgsRes.second));
+    return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second));
   }
 }
 
