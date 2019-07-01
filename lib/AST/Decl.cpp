@@ -4193,6 +4193,7 @@ RecordDecl *RecordDecl::CreateDeserialized(const ASTContext &C, unsigned ID) {
 }
 
 RecordDecl* RecordDecl::Instantiate(RecordDecl* Base, ArrayRef<QualType> TypeArgs) {
+  // TODO(abeln): implement
   return Base;
 }
 
@@ -4336,8 +4337,10 @@ ArrayRef<TypedefDecl*> RecordDecl::typeParams() {
 }
 
 void RecordDecl::setTypeParams(ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams) {
+  assert(!isGeneric() && "Can't reset type parameters for record");
   NumTypeParams = NewTypeParams.size();
   IsGeneric = NumTypeParams > 0;
+  assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
 
   // Zero params -> null pointer.
   if (!NewTypeParams.empty()) {
@@ -4357,8 +4360,10 @@ ArrayRef<QualType> RecordDecl::typeArgs() {
 }
 
 void RecordDecl::setTypeArgs(ASTContext& C, ArrayRef<QualType> NewTypeArgs) {
+  assert(!isInstantiated() && "Can't reset type parameters for record");
   NumTypeArgs = NewTypeArgs.size();
   IsInstantiated = NumTypeArgs > 0;
+  assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
 
   // Zero args -> null pointer.
   if (!NewTypeArgs.empty()) {

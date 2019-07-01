@@ -3979,10 +3979,10 @@ public:
   /// If there are no type parameters, then the array will be empty.
   ArrayRef<TypedefDecl*> typeParams();
 
-  /// Whether the record is generic.
+  /// Whether the record is a (fully) instantiated generic.
   bool isInstantiated();
   /// Returns the record's type arguments.
-  /// If there are no type parameters, then the array will be empty.
+  /// If there are no type arguments, then the array will be empty.
   ArrayRef<QualType> typeArgs();
 
 private:
