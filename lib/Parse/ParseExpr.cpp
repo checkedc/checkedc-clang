@@ -3304,7 +3304,7 @@ std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(Sour
 ExprResult Parser::ParseGenericFunctionApplication(ExprResult Res, SourceLocation Loc) {
   auto ArgRes = ParseGenericTypeArgumentList(Loc);
   if (ArgRes.first) return ExprError();
-  return Actions.ActOnTypeApplication(Res, Loc, ArrayRef<TypeArgument>(ArgRes.second));
+  return Actions.ActOnFunctionTypeApplication(Res, Loc, ArrayRef<TypeArgument>(ArgRes.second));
 }
 
 bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {

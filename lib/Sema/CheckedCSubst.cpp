@@ -18,7 +18,7 @@
 using namespace clang;
 using namespace sema;
 
-ExprResult Sema::ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
+ExprResult Sema::ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
   ArrayRef<TypeArgument> TypeArgs) {
 
   TypeFunc = CorrectDelayedTyposInExpr(TypeFunc);
@@ -77,7 +77,7 @@ ExprResult Sema::ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
 
 // Type Instantiation
 
-RecordDecl* Sema::Instantiate(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs) {
+RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs) {
   // TODO(abeln): populate the two 'SourceLocation' fields.
   RecordDecl* Inst = RecordDecl::Create(Base->getASTContext(), Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
     Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, (size_t)0) /* TypeParams */, TypeArgs);
@@ -89,8 +89,6 @@ RecordDecl* Sema::Instantiate(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs)
     // Also make sure that TypeSouceInfo and InstType are in-sync.
     FieldDecl* NewField = FieldDecl::Create(Field->getASTContext(), Inst, SourceLocation(), SourceLocation(),
       Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
-    // printf("new field %s with type\n", NewField->getNameAsString().c_str());
-    // NewField->getType()->dump();
     Inst->addDecl(NewField);
   }
 
