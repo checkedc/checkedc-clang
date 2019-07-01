@@ -3773,18 +3773,18 @@ protected:
   RecordDecl(Kind DK, TagKind TK, const ASTContext &C, DeclContext *DC,
              SourceLocation StartLoc, SourceLocation IdLoc,
              IdentifierInfo* Id, RecordDecl* PrevDecl,
-             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, (size_t) 0 },
-             ArrayRef<QualType> TypeArgs = ArrayRef<QualType>{ nullptr, (size_t) 0 });
+             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, (size_t)0),
+             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, (size_t)0));
 
 public:
   static RecordDecl *Create(const ASTContext &C, TagKind TK, DeclContext *DC,
                             SourceLocation StartLoc, SourceLocation IdLoc,
                             IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr,
-                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, 0 },
-                            ArrayRef<QualType> TypeArgs = ArrayRef<QualType>{ nullptr, (size_t)0 });
+                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, (size_t)0),
+                            ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, (size_t)0));
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
-  static RecordDecl* Instantiate(RecordDecl* Base, ArrayRef<QualType> TypeArgs);
+  static RecordDecl* Instantiate(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs);
 
   RecordDecl *getPreviousDecl() {
     return cast_or_null<RecordDecl>(
@@ -3984,7 +3984,7 @@ public:
   bool isInstantiated();
   /// Returns the record's type arguments.
   /// If there are no type arguments, then the array will be empty.
-  ArrayRef<QualType> typeArgs();
+  ArrayRef<TypeArgument> typeArgs();
 
 private:
   /// Deserialize just the fields.
@@ -4018,9 +4018,9 @@ private:
   size_t NumTypeArgs;
   /// New []'d array of pointers to the type arguments. This is null if this RecordDecl
   /// isn't the result of an instantiation.
-  QualType *TypeArgs;
+  TypeArgument *TypeArgs;
   /// Sets the type arguments for an instantiation, as well as 'IsInstantiated' and 'NumTypeArgs'.
-  void setTypeArgs(ASTContext& C, ArrayRef<QualType> NewTypeArgs);
+  void setTypeArgs(ASTContext& C, ArrayRef<TypeArgument> NewTypeArgs);
 };
 
 class FileScopeAsmDecl : public Decl {

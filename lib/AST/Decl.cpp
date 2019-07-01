@@ -4155,7 +4155,7 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
                        DeclContext *DC, SourceLocation StartLoc,
                        SourceLocation IdLoc, IdentifierInfo *Id,
                        RecordDecl *PrevDecl, ArrayRef<TypedefDecl*> TypeParams,
-                       ArrayRef<QualType> TypeArgs)
+                       ArrayRef<TypeArgument> TypeArgs)
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
       IsGeneric(false), NumTypeParams(0), IsInstantiated(false), NumTypeArgs(0) {
   assert(classof(static_cast<Decl *>(this)) && "Invalid Kind!");
@@ -4176,7 +4176,7 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
 RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
                                SourceLocation StartLoc, SourceLocation IdLoc,
                                IdentifierInfo *Id, RecordDecl* PrevDecl, ArrayRef<TypedefDecl*> TypeParams,
-                               ArrayRef<QualType> TypeArgs) {
+                               ArrayRef<TypeArgument> TypeArgs) {
   RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
                                          StartLoc, IdLoc, Id, PrevDecl, TypeParams, TypeArgs);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
@@ -4187,8 +4187,7 @@ RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
 
 RecordDecl *RecordDecl::CreateDeserialized(const ASTContext &C, unsigned ID) {
   RecordDecl *R =
-      new (C, ID) RecordDecl(Record, TTK_Struct, C, nullptr, SourceLocation(),
-        SourceLocation(), nullptr, nullptr, ArrayRef<TypedefDecl*> { nullptr, 0 } /* TypeParams */ , ArrayRef<QualType> { nullptr, (size_t) 0 } /* TypeArgs */);
+      new (C, ID) RecordDecl(Record, TTK_Struct, C, nullptr, SourceLocation(), SourceLocation(), nullptr /* Id */, nullptr /* PrevDecl */);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
   return R;
 }
@@ -4350,11 +4349,11 @@ bool RecordDecl::isInstantiated() {
   return IsInstantiated;
 }
 
-ArrayRef<QualType> RecordDecl::typeArgs() {
+ArrayRef<TypeArgument> RecordDecl::typeArgs() {
   return { TypeArgs, NumTypeArgs };
 }
 
-void RecordDecl::setTypeArgs(ASTContext& C, ArrayRef<QualType> NewTypeArgs) {
+void RecordDecl::setTypeArgs(ASTContext& C, ArrayRef<TypeArgument> NewTypeArgs) {
   assert(!isInstantiated() && "Can't reset type parameters for record");
   NumTypeArgs = NewTypeArgs.size();
   IsInstantiated = NumTypeArgs > 0;
@@ -4362,17 +4361,17 @@ void RecordDecl::setTypeArgs(ASTContext& C, ArrayRef<QualType> NewTypeArgs) {
 
   // Zero args -> null pointer.
   if (!NewTypeArgs.empty()) {
-    TypeArgs = new (C) QualType [NewTypeArgs.size()];
+    TypeArgs = new (C) TypeArgument [NewTypeArgs.size()];
     std::copy(NewTypeArgs.begin(), NewTypeArgs.end(), TypeArgs);
   }
 }
 
 // Type Instantiation
 
-RecordDecl* RecordDecl::Instantiate(RecordDecl* Base, ArrayRef<QualType> TypeArgs) {
+RecordDecl* RecordDecl::Instantiate(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs) {
   // TODO(abeln): populate the two 'SourceLocation' fields.
   RecordDecl* Inst = Create(Base->getASTContext(), Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
-    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>{ nullptr, 0 } /* TypeParams */, TypeArgs);
+    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, (size_t)0) /* TypeParams */, TypeArgs);
 
   for (auto Field = Base->field_begin(); Field != Base->field_end(); Field++) {
     // TODO(abeln): instantiate type properly

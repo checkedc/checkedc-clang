@@ -19,7 +19,7 @@ using namespace clang;
 using namespace sema;
 
 ExprResult Sema::ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
-  ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs) {
+  ArrayRef<TypeArgument> TypeArgs) {
 
   TypeFunc = CorrectDelayedTyposInExpr(TypeFunc);
   if (!TypeFunc.isUsable())
@@ -78,7 +78,7 @@ ExprResult Sema::ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
 namespace {
 class TypeApplication : public TreeTransform<TypeApplication> {
   typedef TreeTransform<TypeApplication> BaseTransform;
-  typedef ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgList;
+  typedef ArrayRef<TypeArgument> TypeArgList;
 
 private:
   TypeArgList TypeArgs;
@@ -104,7 +104,7 @@ public:
     } else if (TVDepth == Depth) {
       // Case 2: the type variable is bound by the type quantifier that is
       // being applied.  Substitute the appropriate type argument.
-      DeclRefExpr::GenericInstInfo::TypeArgument TypeArg = TypeArgs[TV->GetIndex()];
+      TypeArgument TypeArg = TypeArgs[TV->GetIndex()];
       TypeLoc NewTL =  TypeArg.sourceInfo->getTypeLoc();
       TLB.reserve(NewTL.getFullDataSize());
       // Run the type transform with the type argument's location information
@@ -166,7 +166,7 @@ public:
 }
 
 QualType Sema::SubstituteTypeArgs(QualType QT,
- ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs) {
+ ArrayRef<TypeArgument> TypeArgs) {
    if (QT.isNull())
      return QT;
 
