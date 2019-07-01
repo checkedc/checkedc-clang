@@ -4175,9 +4175,10 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
 
 RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
                                SourceLocation StartLoc, SourceLocation IdLoc,
-                               IdentifierInfo *Id, RecordDecl* PrevDecl, ArrayRef<TypedefDecl*> TypeParams) {
+                               IdentifierInfo *Id, RecordDecl* PrevDecl, ArrayRef<TypedefDecl*> TypeParams,
+                               ArrayRef<QualType> TypeArgs) {
   RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
-                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams, ArrayRef<QualType>{ nullptr, (size_t) 0 } /* TypeArgs */);
+                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams, TypeArgs);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
 
   C.getTypeDeclType(R, PrevDecl);
@@ -4191,12 +4192,6 @@ RecordDecl *RecordDecl::CreateDeserialized(const ASTContext &C, unsigned ID) {
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
   return R;
 }
-
-RecordDecl* RecordDecl::Instantiate(RecordDecl* Base, ArrayRef<QualType> TypeArgs) {
-  // TODO(abeln): implement
-  return Base;
-}
-
 
 bool RecordDecl::isInjectedClassName() const {
   return isImplicit() && getDeclName() && getDeclContext()->isRecord() &&
@@ -4370,6 +4365,29 @@ void RecordDecl::setTypeArgs(ASTContext& C, ArrayRef<QualType> NewTypeArgs) {
     TypeArgs = new (C) QualType [NewTypeArgs.size()];
     std::copy(NewTypeArgs.begin(), NewTypeArgs.end(), TypeArgs);
   }
+}
+
+// Type Instantiation
+
+RecordDecl* RecordDecl::Instantiate(RecordDecl* Base, ArrayRef<QualType> TypeArgs) {
+  // TODO(abeln): populate the two 'SourceLocation' fields.
+  RecordDecl* Inst = Create(Base->getASTContext(), Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
+    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>{ nullptr, 0 } /* TypeParams */, TypeArgs);
+
+  for (auto Field = Base->field_begin(); Field != Base->field_end(); Field++) {
+    // TODO(abeln): instantiate type properly
+    QualType InstType = Field->getType();
+    // TODO(abeln): populate 'SouceLocation' fields.
+    // Also make sure that TypeSouceInfo and InstType are in-sync.
+    FieldDecl* NewField = FieldDecl::Create(Field->getASTContext(), Inst, SourceLocation(), SourceLocation(),
+      Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
+    // printf("new field %s with type\n", NewField->getNameAsString().c_str());
+    // NewField->getType()->dump();
+    Inst->addDecl(NewField);
+  }
+
+  Inst->setCompleteDefinition();
+  return Inst;
 }
 
 //===----------------------------------------------------------------------===//

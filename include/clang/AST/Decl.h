@@ -3780,7 +3780,8 @@ public:
   static RecordDecl *Create(const ASTContext &C, TagKind TK, DeclContext *DC,
                             SourceLocation StartLoc, SourceLocation IdLoc,
                             IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr,
-                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, 0 });
+                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>{ nullptr, 0 },
+                            ArrayRef<QualType> TypeArgs = ArrayRef<QualType>{ nullptr, (size_t)0 });
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
   static RecordDecl* Instantiate(RecordDecl* Base, ArrayRef<QualType> TypeArgs);
