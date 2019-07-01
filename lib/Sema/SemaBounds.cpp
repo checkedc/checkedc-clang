@@ -1769,18 +1769,27 @@ namespace {
               Result = ProofResult::False;
             }
           } else { // at least one of the ranges is not constant-sized
+            Result = ProofResult::Maybe;
             if (IsConstantSizedRange()) {
               if (LowerOffset.getExtValue() == 0 &&
                   UpperOffset.getExtValue() == 0 && !R.UpperOffsetExpr &&
                   R.LowerOffsetExpr->getType()->isUnsignedIntegerType())
                 return ProofResult::True;
-            } else if (R.IsConstantSizedRange()) {
+              if (R.LowerOffsetExpr && LowerOffset.getExtValue() == 0 && R.LowerOffsetExpr->getType()->isUnsignedIntegerType()) {
+                Cause = CombineFailures(Cause, ProofFailure::LowerBound);
+                Result = ProofResult::False;
+              }
+            }
+            if (R.IsConstantSizedRange()) {
               if (R.LowerOffset.getExtValue() == 0 &&
                   R.UpperOffset.getExtValue() == 0 && !LowerOffsetExpr &&
                   UpperOffsetExpr->getType()->isUnsignedIntegerType())
                 return ProofResult::True;
-            } else
-              Result = ProofResult::Maybe;
+              if (UpperOffsetExpr && R.UpperOffset.getExtValue() == 0 && UpperOffsetExpr->getType()->isUnsignedIntegerType()) {
+                Cause = CombineFailures(Cause, ProofFailure::UpperBound);
+                Result = ProofResult::False;
+              }
+            }
           }
           return Result;
         }
@@ -1901,14 +1910,17 @@ namespace {
     //   constant integer, return the base and offset.
     // - If E is a pointer arithmetic involving addition or subtraction of
     //   a pointer with an unsigned integer expression, return the pointer as
-    //   the base, and the rest as the offset.
+    //   the base, and the rest as the offset. (If OnlyConstant is set to true,
+    //   this case is not checked. Instead, the function will try to split the
+    //   E into Base and Offset assuming the Offset can only be constant.)
     // - If it is not or we run into issues such as pointer arithmetic overflow,
     // return a default expression of (E, 0).
     // TODO: we use signed integers to represent the result of the Offset.
     // We can't represent unsigned offsets larger the the maximum signed
     // integer that will fit pointer width.
     void SplitIntoBaseAndOffset(Expr *E, Expr *&Base,
-                                llvm::APSInt &Offset, Expr *&OffsetExpr) {
+                                llvm::APSInt &Offset, Expr *&OffsetExpr,
+                                bool OnlyConstant = false) {
       if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
         if (BO->isAdditiveOp()) {
           Expr *Other = nullptr;
@@ -1940,7 +1952,7 @@ namespace {
             if (Overflow)
               goto exit;
             return;
-          } else {
+          } else if (!OnlyConstant) {
             // if the offset is not a number (i.e., it is an expression)
             OffsetExpr = Other;
             return;
@@ -1962,8 +1974,11 @@ namespace {
     // Convert a bounds expression to a constant- or variable-sized range. Returns
     // true if the the bounds expression can be converted and false if it cannot
     // be converted.
+    // If OnlyConstant is set to true, it tries to only create a constant range,
+    // and returns false if it fails to do so. It is especially needed when handling
+    // memory accesses.
     bool CreateBaseRange(const BoundsExpr *Bounds, BaseRange *R,
-                             EquivExprSets *EquivExprs) {
+                             EquivExprSets *EquivExprs, bool OnlyConstant = false) {
       switch (Bounds->getKind()) {
         case BoundsExpr::Kind::Invalid:
         case BoundsExpr::Kind::Unknown:
@@ -1981,9 +1996,20 @@ namespace {
           llvm::APSInt LowerOffset, UpperOffset;
           Expr *LowerOffsetExpr = nullptr;
           Expr *UpperOffsetExpr = nullptr;
-          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset, LowerOffsetExpr);
-          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset, UpperOffsetExpr);
-      
+          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset, LowerOffsetExpr, OnlyConstant);
+          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset, UpperOffsetExpr, OnlyConstant);
+
+          if (OnlyConstant) {
+            if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
+              R->SetBase(LowerBase);
+              R->SetLower(LowerOffset);
+              R->SetUpper(UpperOffset);
+              R->SetRangeType(RangeType::ConstantSized);
+              return true;
+            }
+            return false;
+          }
+
           // If at least one of the offsets is not constant (i.e., it is an
           // expression), the range is considered variable-sized. If both of the
           // offsets are constants, the range is considered constant-sized.
@@ -2097,15 +2123,14 @@ namespace {
              "bounds not in standard form");
       Cause = ProofFailure::None;
       BaseRange ValidRange(S);
-      if (!CreateBaseRange(Bounds, &ValidRange, nullptr))
+      if (!CreateBaseRange(Bounds, &ValidRange, nullptr, true))
         return ProofResult::Maybe;
 
       bool Overflow;
       llvm::APSInt ElementSize;
       if (!getReferentSizeInChars(PtrBase->getType(), ElementSize))
           return ProofResult::Maybe;
-      if (Kind == BoundsCheckKind::BCK_NullTermRead  &&
-          ValidRange.IsConstantSizedRange()) {
+      if (Kind == BoundsCheckKind::BCK_NullTermRead) {
         Overflow = ValidRange.AddToUpper(ElementSize);
         if (Overflow)
           return ProofResult::Maybe;
@@ -2114,7 +2139,8 @@ namespace {
       Expr *AccessBase;
       llvm::APSInt AccessStartOffset;
       Expr *DummyOffset;
-      SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset);
+      SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset, true);
+
       if (Offset) {
         llvm::APSInt IntVal;
         if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
@@ -2131,35 +2157,30 @@ namespace {
       }
       BaseRange MemoryAccessRange(S, AccessBase, AccessStartOffset,
                                            AccessStartOffset);
-      if (!DummyOffset) { // Proceed with the following computation only for constant-sized range
-        Overflow = MemoryAccessRange.AddToUpper(ElementSize);
-        if (Overflow)
-          return ProofResult::Maybe;
-      }
+      Overflow = MemoryAccessRange.AddToUpper(ElementSize);
+      if (Overflow)
+        return ProofResult::Maybe;
 #ifdef TRACE_RANGE
       llvm::outs() << "Memory access range:\n";
       MemoryAccessRange.Dump(llvm::outs());
       llvm::outs() << "Valid range:\n";
       ValidRange.Dump(llvm::outs());
 #endif
-      if (!DummyOffset) {
-        ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, nullptr);
-        if (R == ProofResult::True)
-          return R;
-        if (R == ProofResult::False || R == ProofResult::Maybe) {
-          if (R == ProofResult::False &&
-              ValidRange.PartialOverlap(MemoryAccessRange) == ProofResult::True)
-            Cause = CombineFailures(Cause, ProofFailure::PartialOverlap);
-          if (ValidRange.IsEmpty())
-            Cause = CombineFailures(Cause, ProofFailure::Empty);
-          if (MemoryAccessRange.GetWidth() > ValidRange.GetWidth()) {
-            Cause = CombineFailures(Cause, ProofFailure::Width);
-            R = ProofResult::False;
-          }
-        }
+      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, nullptr);
+      if (R == ProofResult::True)
         return R;
-      } else
-        return ProofResult::Maybe;
+      if (R == ProofResult::False || R == ProofResult::Maybe) {
+        if (R == ProofResult::False &&
+            ValidRange.PartialOverlap(MemoryAccessRange) == ProofResult::True)
+          Cause = CombineFailures(Cause, ProofFailure::PartialOverlap);
+        if (ValidRange.IsEmpty())
+          Cause = CombineFailures(Cause, ProofFailure::Empty);
+        if (MemoryAccessRange.GetWidth() > ValidRange.GetWidth()) {
+          Cause = CombineFailures(Cause, ProofFailure::Width);
+          R = ProofResult::False;
+        }
+      }
+      return R;
     }
 
     // Convert ProofFailure codes into diagnostic notes explaining why the
