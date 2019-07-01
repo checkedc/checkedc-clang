@@ -4876,6 +4876,8 @@ public:
   ExprResult ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
                      ArrayRef<TypeArgument> Args);
 
+  RecordDecl* Instantiate(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs);
+
   QualType SubstituteTypeArgs(QualType QT,
                 ArrayRef<TypeArgument> TypeArgs);
 
