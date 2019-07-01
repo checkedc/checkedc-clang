@@ -3784,8 +3784,6 @@ public:
                             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, (size_t)0));
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
-  static RecordDecl* Instantiate(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs);
-
   RecordDecl *getPreviousDecl() {
     return cast_or_null<RecordDecl>(
             static_cast<TagDecl *>(this)->getPreviousDecl());

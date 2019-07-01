@@ -75,6 +75,29 @@ ExprResult Sema::ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
 
 }
 
+// Type Instantiation
+
+RecordDecl* Sema::Instantiate(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs) {
+  // TODO(abeln): populate the two 'SourceLocation' fields.
+  RecordDecl* Inst = RecordDecl::Create(Base->getASTContext(), Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
+    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, (size_t)0) /* TypeParams */, TypeArgs);
+
+  for (auto Field = Base->field_begin(); Field != Base->field_end(); Field++) {
+    QualType InstType = SubstituteTypeArgs(Field->getType(), TypeArgs);
+    assert(!InstType.isNull() && "Subtitution of type args failed!");
+    // TODO(abeln): populate 'SouceLocation' fields.
+    // Also make sure that TypeSouceInfo and InstType are in-sync.
+    FieldDecl* NewField = FieldDecl::Create(Field->getASTContext(), Inst, SourceLocation(), SourceLocation(),
+      Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
+    // printf("new field %s with type\n", NewField->getNameAsString().c_str());
+    // NewField->getType()->dump();
+    Inst->addDecl(NewField);
+  }
+
+  Inst->setCompleteDefinition();
+  return Inst;
+}
+
 namespace {
 class TypeApplication : public TreeTransform<TypeApplication> {
   typedef TreeTransform<TypeApplication> BaseTransform;
@@ -178,12 +201,16 @@ QualType Sema::SubstituteTypeArgs(QualType QT,
    if (TransformedQT.isNull())
      return QT;
 
-   const FunctionProtoType *FPT = TransformedQT->getAs<FunctionProtoType>();
-   FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
-   EPI.GenericFunction = false;
-   EPI.ItypeGenericFunction = false;
-   EPI.NumTypeVars = 0;
-   QualType Result =
-     Context.getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI);
-    return Result;
+   if (const FunctionProtoType * FPT = TransformedQT->getAs<FunctionProtoType>()) {
+     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+     EPI.GenericFunction = false;
+     EPI.ItypeGenericFunction = false;
+     EPI.NumTypeVars = 0;
+     QualType Result =
+       Context.getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI);
+     return Result;
+   }
+
+   // TODO(abeln): handle types properly (particularly w.r.t caching).
+   return TransformedQT;
 }
