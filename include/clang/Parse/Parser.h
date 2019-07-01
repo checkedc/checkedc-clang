@@ -1888,11 +1888,11 @@ private:
   ExprResult ParseBoundsExpression();
   ExprResult ParseGenericFunctionApplication(ExprResult TypeFunc, SourceLocation Loc);
 
-  using TypeArgVector = SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4>;
+  using TypeArgVector = SmallVector<TypeArgument, 4>;
   std::pair<bool, TypeArgVector> ParseGenericTypeArgumentList(SourceLocation Loc);
 
   QualType SubstituteTypeVariable(QualType QT,
-    SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);
+    SmallVector<TypeArgument, 4> &typeNames);
 
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
   bool ParseBoundsAnnotations(const Declarator &D,
