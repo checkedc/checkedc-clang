@@ -1943,7 +1943,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       if (decl && decl->isGeneric()) {
         // We're parsing a reference to a generic struct, so need to parse
         // the type arguments before we can instantiate.
-        TagOrTempResult = ParseGenericStructInstantiation(decl);
+        TagOrTempResult = ParseGenericStructInstantiation(decl->getDefinition());
       }
     }
 
@@ -2046,6 +2046,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///    ',' type-name type-name-list-suffix [opt]
 DeclResult Parser::ParseGenericStructInstantiation(RecordDecl* Base) {
   assert(Base->isGeneric() && "Instantiated record must be generic");
+  assert(Base->isCompleteDefinition() && "Must pass the record definition and not just a reference");
   ExpectAndConsume(tok::less); // eat the initial '<'
   auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
   if (ArgsRes.first) {
