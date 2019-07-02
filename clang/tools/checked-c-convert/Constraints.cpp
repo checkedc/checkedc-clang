@@ -198,7 +198,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
         changedEnvironment |= propImp<WildAtom>(Imp, getWild(), rmConstraints, Val);
 
     for (const auto &RC : rmConstraints)
-      Var->Constraints.erase(RC);
+      Var->eraseConstraint(RC);
 
     ++VI;
   }
@@ -232,7 +232,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
     }
 
     for (const auto &RC : rmConstraints)
-      Var->Constraints.erase(RC);
+      Var->eraseConstraint(RC);
 
     ++VI;
   }

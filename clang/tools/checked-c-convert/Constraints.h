@@ -104,8 +104,14 @@ public:
     return Loc;
   }
 
+  void eraseConstraint(Constraint *todel) {
+    Constraints.erase(todel);
+    ErasedConstraints.insert(todel);
+  }
+
 private:
   uint32_t  Loc;
+  std::set<Constraint*, PComp<Constraint*>> ErasedConstraints;
   // The constraint expressions where this variable is mentioned on the 
   // LHS of an equality.
   std::set<Constraint*, PComp<Constraint*>> Constraints;
