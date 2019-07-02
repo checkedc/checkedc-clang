@@ -97,6 +97,22 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgu
 }
 
 namespace {
+
+// LocRebuilderTransform is an uncustomized 'TreeTransform' that is used
+// solely for re-building 'TypeLocs' within 'TypeApplication'.
+// We use this vanilla transform instead of a recursive call to 'TypeApplication::TransformType' because
+// we sometimes substitute a type variable for another type variable, and in those cases we
+// want to re-build 'TypeLocs', but not do further substitutions.
+// e.g.
+//   struct Box _For_any(U) { T *x; }
+//   struct List _For_any(T) { struct Box<T> box; }
+//
+// When typing 'Box<T>', we need to substitute 'T' for 'U' in 'Box'.
+class LocRebuilderTransform : public TreeTransform<LocRebuilderTransform> {
+public:
+  LocRebuilderTransform(Sema& SemaRef) : TreeTransform<LocRebuilderTransform>(SemaRef) {}
+};
+
 class TypeApplication : public TreeTransform<TypeApplication> {
   typedef TreeTransform<TypeApplication> BaseTransform;
   typedef ArrayRef<TypeArgument> TypeArgList;
@@ -104,10 +120,11 @@ class TypeApplication : public TreeTransform<TypeApplication> {
 private:
   TypeArgList TypeArgs;
   unsigned Depth;
+  LocRebuilderTransform LocRebuilder;
 
 public:
   TypeApplication(Sema &SemaRef, TypeArgList TypeArgs, unsigned Depth) :
-    BaseTransform(SemaRef), TypeArgs(TypeArgs), Depth(Depth) {}
+    BaseTransform(SemaRef), TypeArgs(TypeArgs), Depth(Depth), LocRebuilder(SemaRef) {}
 
   QualType TransformTypeVariableType(TypeLocBuilder &TLB,
                                      TypeVariableTypeLoc TL) {
@@ -129,9 +146,9 @@ public:
       TypeLoc NewTL =  TypeArg.sourceInfo->getTypeLoc();
       TLB.reserve(NewTL.getFullDataSize());
       // Run the type transform with the type argument's location information
-      // so that the type type location class push on to the TypeBuilder is
-      // the matching class for the transformed type.
-      QualType Result = getDerived().TransformType(TLB, NewTL);
+      // so that the type location class pushed on to the TypeBuilder is the
+      // matching class for the transformed type.
+      QualType Result = LocRebuilder.TransformType(TLB, NewTL);
       // We don't expect the type argument to change.
       assert(Result == TypeArg.typeName);
       return Result;
