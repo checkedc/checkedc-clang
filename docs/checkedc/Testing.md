@@ -48,9 +48,6 @@ The clang-specific documentation on running tests appears to be out-of-date, so 
 
 - The build creates a llvm-lit.py script that you can use to run regression tests by hand.
   It is placed in the same directory as your newly built clang executable.   Those are placed in {your build directory}\debug\bin. 
-- Set the environment variable CLANG to the full path of your clang executable.  For example:
-
-		set CLANG=d:\autobahn1\llvm.obj\Debug\bin\clang.exe
 
 - You can point the llvm-lit script at a directory to run all tests or an individual test.  For example:
 
