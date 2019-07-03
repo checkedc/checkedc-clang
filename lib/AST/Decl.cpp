@@ -4155,6 +4155,7 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
                        DeclContext *DC, SourceLocation StartLoc,
                        SourceLocation IdLoc, IdentifierInfo *Id,
                        RecordDecl *PrevDecl, ArrayRef<TypedefDecl*> TypeParams,
+                       RecordDecl *BaseDecl,
                        ArrayRef<TypeArgument> TypeArgs)
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
       IsGeneric(false), NumTypeParams(0), IsInstantiated(false), NumTypeArgs(0) {
@@ -4170,15 +4171,16 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setParamDestroyedInCallee(false);
   setArgPassingRestrictions(APK_CanPassInRegs);
   setTypeParams(getASTContext(), TypeParams);
-  setTypeArgs(getASTContext(), TypeArgs);
+  setTypeArgs(getASTContext(), BaseDecl, TypeArgs);
 }
 
 RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
                                SourceLocation StartLoc, SourceLocation IdLoc,
                                IdentifierInfo *Id, RecordDecl* PrevDecl, ArrayRef<TypedefDecl*> TypeParams,
+                               RecordDecl *BaseDecl,
                                ArrayRef<TypeArgument> TypeArgs) {
   RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
-                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams, TypeArgs);
+                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams, BaseDecl, TypeArgs);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
 
   C.getTypeDeclType(R, PrevDecl);
@@ -4349,15 +4351,21 @@ bool RecordDecl::isInstantiated() {
   return IsInstantiated;
 }
 
+RecordDecl *RecordDecl::baseDecl() {
+  return BaseDecl;
+}
+
 ArrayRef<TypeArgument> RecordDecl::typeArgs() {
   return { TypeArgs, NumTypeArgs };
 }
 
-void RecordDecl::setTypeArgs(ASTContext& C, ArrayRef<TypeArgument> NewTypeArgs) {
+void RecordDecl::setTypeArgs(ASTContext& C, RecordDecl *NewBaseDecl, ArrayRef<TypeArgument> NewTypeArgs) {
   assert(!isInstantiated() && "Can't reset type parameters for record");
+  BaseDecl = NewBaseDecl;
   NumTypeArgs = NewTypeArgs.size();
   IsInstantiated = NumTypeArgs > 0;
   assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
+  assert(((IsInstantiated && BaseDecl) || !(IsInstantiated || BaseDecl)) && "Must provide both base decl and type arguments, or neither");
 
   // Zero args -> null pointer.
   if (!NewTypeArgs.empty()) {

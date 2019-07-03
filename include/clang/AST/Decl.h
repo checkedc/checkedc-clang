@@ -3774,6 +3774,7 @@ protected:
              SourceLocation StartLoc, SourceLocation IdLoc,
              IdentifierInfo* Id, RecordDecl* PrevDecl,
              ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, (size_t)0),
+             RecordDecl *BaseDecl = nullptr,
              ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, (size_t)0));
 
 public:
@@ -3781,6 +3782,7 @@ public:
                             SourceLocation StartLoc, SourceLocation IdLoc,
                             IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr,
                             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, (size_t)0),
+                            RecordDecl *BaseDecl = nullptr,
                             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, (size_t)0));
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
@@ -3980,6 +3982,8 @@ public:
 
   /// Whether the record is a (fully) instantiated generic.
   bool isInstantiated();
+  /// If this is an instantiated RecordDecl, return the underlying generic RecordDecl.
+  RecordDecl *baseDecl();
   /// Returns the record's type arguments.
   /// If there are no type arguments, then the array will be empty.
   ArrayRef<TypeArgument> typeArgs();
@@ -4011,6 +4015,8 @@ private:
   /// Whether this struct is the result of instantiating a generic struct
   /// (so the current struct is fully - instantiated no longer generic).
   bool IsInstantiated;
+  /// The underlying generic RecordDecl that was instantiated.
+  RecordDecl *BaseDecl;
   /// The number of type arguments in this instantiated struct (must match the number of parameters
   /// in the underlying generic base struct).
   size_t NumTypeArgs;
@@ -4018,7 +4024,7 @@ private:
   /// isn't the result of an instantiation.
   TypeArgument *TypeArgs;
   /// Sets the type arguments for an instantiation, as well as 'IsInstantiated' and 'NumTypeArgs'.
-  void setTypeArgs(ASTContext& C, ArrayRef<TypeArgument> NewTypeArgs);
+  void setTypeArgs(ASTContext& C, RecordDecl *BaseDecl, ArrayRef<TypeArgument> NewTypeArgs);
 };
 
 class FileScopeAsmDecl : public Decl {
