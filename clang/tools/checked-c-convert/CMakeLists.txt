@@ -14,6 +14,7 @@ add_clang_executable(checked-c-convert
   ConstraintVariables.cpp
   ArrayBoundsInferenceConsumer.cpp
   RewriteUtils.cpp
+  ItypeConstraintDetector.cpp
   Utils.cpp
   )
 

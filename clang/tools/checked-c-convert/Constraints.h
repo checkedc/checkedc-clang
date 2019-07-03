@@ -512,9 +512,12 @@ public:
   // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
   EnvironmentMap &getVariables() { return environment; }
+
   FuncKeyToConsMap &getFuncDeclVarMap() { return FuncDeclConstraints; }
   FuncKeyToConsMap &getFuncDefnVarMap() { return FuncDefnConstraints; }
   std::map<std::string, std::string> &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
+  
+  EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
   // Solve the system of constraints. Return true in the second position if
   // the system is solved. If the system is solved, the first position is 
   // an empty. If the system could not be solved, the constraints in conflict
@@ -536,9 +539,12 @@ public:
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
 
+  void resetConstraints();
+
 private:
   ConstraintSet constraints;
   EnvironmentMap environment;
+  EnvironmentMap itypeConstraintVars;
 
   // map of function unique key to it declaration FVConstraintVariable
   FuncKeyToConsMap FuncDeclConstraints;

@@ -115,13 +115,13 @@ def runMain(cmd_args):
     args.append(prog_name)
     if len(compiler_args) > 0:
       args.extend(list(compiler_args))
-    args.append("-base-dir=\"" + compilation_base_dir + "\"")
+    args.append('-base-dir="' + compilation_base_dir + '"')
     args.extend(DEFAULT_ARGS)
     args.append(src_file)
     # run individual commands.
     if cmd_args.individual:
       print("Running:" + ' '.join(args))
-      subprocess.check_call(args, cwd=target_directory)
+      subprocess.check_call(' '.join(args), cwd=target_directory, shell=True)
     # prepend the command to change the working directory.
     if len(change_dir_cmd) > 0:
       args = [change_dir_cmd] + args
@@ -134,7 +134,7 @@ def runMain(cmd_args):
   args.append(prog_name)
   args.extend(DEFAULT_ARGS)
   args.extend(list(set(total_x_args)))
-  args.append("-base-dir=\"" + compilation_base_dir + "\"")
+  args.append('-base-dir="' + compilation_base_dir + '"')
   args.extend(list(set(all_files)))
   f = open(TOTAL_COMMANDS_FILE, 'w')
   f.write(" \\\n".join(args))
@@ -142,7 +142,7 @@ def runMain(cmd_args):
   # run whole command
   if not cmd_args.individual:
     print("Running:" + str(' '.join(args)))
-    subprocess.check_call(args)
+    subprocess.check_call(' '.join(args), shell=True)
   print("[+] Saved the total command into the file:" + TOTAL_COMMANDS_FILE)
   return
 
