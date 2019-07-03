@@ -77,12 +77,13 @@ ExprResult Sema::ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocatio
 
 // Type Instantiation
 
-RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs) {
+RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs) {
+  assert(Base->isGeneric() && "Base decl must be generic in a type application");
   // TODO(abeln): populate the two 'SourceLocation' fields.
   RecordDecl* Inst = RecordDecl::Create(Base->getASTContext(), Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
-    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, (size_t)0) /* TypeParams */, TypeArgs);
+    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, (size_t)0) /* TypeParams */, Base, TypeArgs);
 
-  for (auto Field = Base->field_begin(); Field != Base->field_end(); Field++) {
+  for (auto Field = Base->field_begin(); Field != Base->field_end(); ++Field) {
     QualType InstType = SubstituteTypeArgs(Field->getType(), TypeArgs);
     assert(!InstType.isNull() && "Subtitution of type args failed!");
     // TODO(abeln): populate 'SouceLocation' fields.
@@ -199,6 +200,23 @@ public:
       Result.dump(llvm::outs());
     }
     return Result;
+  }
+
+  Decl* TransformDecl(SourceLocation Loc, Decl* D) {
+    RecordDecl *RDecl;
+    if ((RDecl = dyn_cast<RecordDecl>(D)) && RDecl->isInstantiated()) {
+      llvm::SmallVector<TypeArgument, 4> NewArgs;
+      ArrayRef<TypeArgument> OrigArgs = RDecl->typeArgs();
+      for (auto TArg = OrigArgs.begin(); TArg != OrigArgs.end(); ++TArg) {
+        auto NewType = SemaRef.SubstituteTypeArgs(TArg->typeName, TypeArgs);
+        auto *SourceInfo = getSema().Context.getTrivialTypeSourceInfo(NewType, getDerived().getBaseLocation());
+        NewArgs.push_back(TypeArgument { NewType, SourceInfo });
+      }
+      auto *Res = SemaRef.ActOnRecordTypeApplication(RDecl->baseDecl(), ArrayRef<TypeArgument>(NewArgs));
+      return Res;
+    } else {
+      return BaseTransform::TransformDecl(Loc, D);
+    }
   }
 };
 }
