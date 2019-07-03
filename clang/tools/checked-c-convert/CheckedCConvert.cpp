@@ -27,6 +27,8 @@
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "RewriteUtils.h"
+#include "ArrayBoundsInferenceConsumer.h"
+#include "IterativeItypeHelper.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;
@@ -156,8 +158,9 @@ newFrontendActionFactoryB(ProgramInfo &I, std::set<std::string> &PS) {
     new ArgFrontendActionFactory(I, PS));
 }
 
+
 std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTyping(ProgramInfo &Info) {
-  // solve the constrains by handling function sub-typing.
+// solve the constrains by handling function sub-typing.
   Constraints &CS = Info.getConstraints();
   unsigned numIterations = 0;
   std::pair<Constraints::ConstraintSet, bool> toRet;
@@ -173,6 +176,52 @@ std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTypin
       fixed = true;
   }
   return toRet;
+}
+
+bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
+                                     ClangTool &Tool, std::set<std::string> &inoutPaths) {
+  bool fixedPointReached = false;
+  unsigned long iterationNum = 1;
+  unsigned long numberOfEdgesRemoved = 0;
+  if(Verbose) {
+    errs() << "Trying to capture Constraint Variables for all functions\n";
+  }
+  std::unique_ptr<ToolAction> ITypeDetectorTool = newFrontendActionFactoryA<
+    GenericAction<FVConstraintDetectorConsumer, ProgramInfo>>(Info);
+
+  if (ITypeDetectorTool)
+    Tool.run(ITypeDetectorTool.get());
+  else
+    llvm_unreachable("No action");
+
+  while(!fixedPointReached) {
+    clock_t startTime = clock();
+    if(Verbose) {
+      errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
+    }
+    std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
+
+    if(R.second) {
+      errs() << "Constraints solved for iteration:" << iterationNum << "\n";
+    }
+
+    numberOfEdgesRemoved = CS.resetWithitypeConstraints();
+    errs() << "Iteration:" << iterationNum << ", Number of edges removed:" << numberOfEdgesRemoved << "\n";
+
+    if(DumpStats) {
+      Info.print_stats(inoutPaths, llvm::errs(), true);
+    }
+
+    errs() << "Iteration:" << iterationNum << ", Time:" << getTimeSpentInSeconds(startTime) << "\n";
+
+    // we reach fixed point when no edges are removed from the constraint graph.
+    fixedPointReached = !(numberOfEdgesRemoved > 0);
+    iterationNum++;
+  }
+
+  errs() << "Fixed point reached after " << iterationNum << " iterations.\n";
+
+  return fixedPointReached;
 }
 
 int main(int argc, const char **argv) {
@@ -231,10 +280,13 @@ int main(int argc, const char **argv) {
   // 2. Solve constraints.
   if (Verbose)
     outs() << "Solving constraints\n";
-  std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
+
+  Constraints &CS = Info.getConstraints();
+  bool fPointReached = performIterativeItypeRefinement(CS, Info, Tool, inoutPaths);
+
   // TODO: In the future, R.second will be false when there's a conflict, 
   //       and the tool will need to do something about that. 
-  assert(R.second == true);
+  assert(fPointReached == true);
   if (Verbose)
     outs() << "Constraints solved\n";
   if (DumpIntermediate) {

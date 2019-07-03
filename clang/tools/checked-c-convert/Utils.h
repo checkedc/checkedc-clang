@@ -9,6 +9,7 @@
 #ifndef _UTILS_H
 #define _UTILS_H
 #include <set>
+#include <ctime>
 #include "llvm/Support/CommandLine.h"
 #include "clang/AST/Type.h"
 

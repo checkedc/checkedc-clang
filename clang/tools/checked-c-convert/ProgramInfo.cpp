@@ -132,12 +132,14 @@ CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
 }
 
 // Print out statistics of constraint variables on a per-file basis.
-void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
+void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O, bool onlySummary) {
   O << "Enable itype propagation:" << enablePropThruIType << "\n";
   O << "Merge multiple function declaration:" << mergeMultipleFuncDecls << "\n";
   O << "Sound handling of var args functions:" << handleVARARGS << "\n";
   std::map<std::string, std::tuple<int, int, int, int, int> > filesToVars;
   Constraints::EnvironmentMap env = CS.getVariables();
+  unsigned int totC, totP, totNt, totA, totWi;
+  totC = totP = totNt = totA = totWi = 0;
 
   // First, build the map and perform the aggregation.
   for (auto &I : Variables) {
@@ -191,14 +193,28 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
   }
 
   // Then, dump the map to output.
-
-  O << "file|#constraints|#ptr|#ntarr|#arr|#wild\n";
+  // if not only summary then dump everything.
+  if (!onlySummary) {
+    O << "file|#constraints|#ptr|#ntarr|#arr|#wild\n";
+  }
   for (const auto &I : filesToVars) {
     int v, p, nt, a, w;
     std::tie(v, p, nt, a, w) = I.second;
-    O << I.first << "|" << v << "|" << p << "|" << nt << "|" << a << "|" << w;
-    O << "\n";
+
+    totC += v;
+    totP += p;
+    totNt += nt;
+    totA += a;
+    totWi += w;
+    if (!onlySummary) {
+      O << I.first << "|" << v << "|" << p << "|" << nt << "|" << a << "|" << w;
+      O << "\n";
+    }
   }
+
+  O << "Summary\nTotalConstraints|TotalPtrs|TotalNTArr|TotalArr|TotalWild\n";
+  O << totC << "|" << totP << "|" << totNt << "|" << totA << "|" << totWi << "\n";
+
 }
 
 // Check the equality of VTy and UTy. There are some specific rules that
@@ -728,7 +744,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     return R;
   } else if (StringLiteral *exr = dyn_cast<StringLiteral>(E)) {
     // if this is a string literal. i.e., "foo"
-    // we create a new constraint variable and constrain it to be an Nt_array
+    // we create a new constraint variable and constraint it to an Nt_array
     std::set<ConstraintVariable *> T;
     CVars V;
     V.insert(freeKey);
@@ -736,7 +752,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     freeKey++;
     ConstraintVariable *newC = new PointerVariableConstraint(V, "const char*", exr->getBytes(),
                                                              nullptr, false, false, "");
-    // constrain the newly created variable to be NTArray.
+    // constraint the newly created variable to NTArray.
     newC->constrainTo(CS, CS.getNTArr());
     T.insert(newC);
     return T;

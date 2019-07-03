@@ -23,6 +23,7 @@
 #include <map>
 
 class Constraint;
+class ConstraintVariable;
 class Constraints;
 
 template<typename T>
@@ -32,6 +33,8 @@ struct PComp
     return *lhs < *rhs;
   }
 };
+
+class VarAtom;
 
 // Represents atomic values that can occur at positions in constraints.
 class Atom {
@@ -58,6 +61,22 @@ public:
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &other) const = 0;
+  virtual bool containsConstraint(VarAtom *toFind) = 0;
+};
+
+class ConstAtom : public Atom {
+public:
+  ConstAtom() : Atom(A_Const) {}
+  ConstAtom(AtomKind K) : Atom(K) {}
+
+  static bool classof(const Atom *A) {
+    // Something is a class of ConstAtom if it ISN'T a Var.
+    return A->getKind() != A_Var;
+  }
+
+  virtual bool containsConstraint(VarAtom *toFind) {
+    return false;
+  }
 };
 
 // This refers to a location that we are trying to solve for.
@@ -109,23 +128,30 @@ public:
     ErasedConstraints.insert(todel);
   }
 
+  bool replaceEqConstraint(VarAtom *dstCons, ConstAtom *targetCons);
+
+  bool resetErasedConstraints() {
+    bool added = false;
+    // insert the erased constraints into the original
+    // constraints.
+    for(auto c: ErasedConstraints) {
+      added = Constraints.insert(c).second || added;
+    }
+    // remove all the erased constraints.
+    ErasedConstraints.clear();
+    return added;
+  }
+
+  bool containsConstraint(VarAtom *toFind) {
+    return (*this == *toFind);
+  }
+
 private:
   uint32_t  Loc;
   std::set<Constraint*, PComp<Constraint*>> ErasedConstraints;
   // The constraint expressions where this variable is mentioned on the 
   // LHS of an equality.
   std::set<Constraint*, PComp<Constraint*>> Constraints;
-};
-
-class ConstAtom : public Atom {
-public:
-  ConstAtom() : Atom(A_Const) {}
-  ConstAtom(AtomKind K) : Atom(K) {}
-
-  static bool classof(const Atom *A) {
-    // Something is a class of ConstAtom if it ISN'T a Var.
-    return A->getKind() != A_Var;
-  }
 };
 
 // This refers to the constant PTR.
@@ -302,10 +328,12 @@ public:
   virtual bool operator==(const Constraint &other) const = 0;
   virtual bool operator!=(const Constraint &other) const = 0;
   virtual bool operator<(const Constraint &other) const = 0;
+  virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
 // a = b
 class Eq : public Constraint {
+  friend class VarAtom;
 public:
 
   Eq(Atom *lhs, Atom *rhs)
@@ -364,6 +392,10 @@ public:
       return C_Eq < K;
   }
 
+  bool containsConstraint(VarAtom *toFind) {
+    return lhs->containsConstraint(toFind) || rhs->containsConstraint(toFind);
+  }
+
 private:
   Atom *lhs;
   Atom *rhs;
@@ -420,6 +452,10 @@ public:
 
   Constraint *getBody() const {
     return body;
+  }
+
+  bool containsConstraint(VarAtom *toFind) {
+    return body->containsConstraint(toFind);
   }
 
 private:
@@ -486,6 +522,10 @@ public:
       return C_Imp < K;
   }
 
+  bool containsConstraint(VarAtom *toFind) {
+    return premise->containsConstraint(toFind) || conclusion->containsConstraint(toFind);
+  }
+
 private:
   Constraint *premise;
   Constraint *conclusion;
@@ -503,8 +543,11 @@ public:
   typedef std::set<Constraint*, PComp<Constraint*> > ConstraintSet;
   // The environment maps from Vars to Consts (one of Ptr, Arr, Wild).
   typedef std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > EnvironmentMap;
+
   // Map from a unique key of a function to its constraint variables.
   typedef std::map<std::string, std::set<ConstraintVariable*>> FuncKeyToConsMap;
+
+  typedef std::map<std::string, std::set<ConstraintVariable*>> NameToConsMap;
 
   bool addConstraint(Constraint *c);
   // It's important to return these by reference. Programs can have 
@@ -518,6 +561,7 @@ public:
   std::map<std::string, std::string> &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
   
   EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
+
   // Solve the system of constraints. Return true in the second position if
   // the system is solved. If the system is solved, the first position is 
   // an empty. If the system could not be solved, the constraints in conflict
@@ -539,7 +583,7 @@ public:
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
 
-  void resetConstraints();
+  unsigned long resetWithitypeConstraints();
 
 private:
   ConstraintSet constraints;
@@ -575,6 +619,7 @@ private:
   // map that contains the mapping between the unique keys of function
   // definition to its declaration.
   std::map<std::string, std::string> FuncDefnDeclKeyMap;
+  void resetConstraints();
 };
 
 typedef uint32_t ConstraintKey;

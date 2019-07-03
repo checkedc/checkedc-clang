@@ -19,6 +19,35 @@ static cl::opt<bool> DebugSolver("debug-solver",
   cl::desc("Dump intermediate solver state"),
   cl::init(false), cl::cat(SolverCategory));
 
+bool VarAtom::replaceEqConstraint(VarAtom *dstCons, ConstAtom *targetCons) {
+  bool hasChanged = false;
+  std::set<Constraint*, PComp<Constraint*>> toRemoveConstraints;
+  for(auto currC: Constraints) {
+    if(currC->containsConstraint(dstCons)) {
+      hasChanged = true;
+      Eq* equalityConstraint = dyn_cast<Eq>(currC);
+      assert(equalityConstraint != nullptr &&
+             "Do not know how to replace a non-equality constraint.");
+      if(targetCons == nullptr) {
+        toRemoveConstraints.insert(currC);
+      } else {
+        if(*(equalityConstraint->getLHS()) == *(dstCons)) {
+          equalityConstraint->lhs = equalityConstraint->rhs;
+        }
+        equalityConstraint->rhs = targetCons;
+      }
+    }
+  }
+  for(auto currC: toRemoveConstraints) {
+    // remove the constraint.
+    Constraints.erase(currC);
+    // free the object of the constraint.
+    delete(currC);
+  }
+
+  return hasChanged;
+}
+
 // Add a constraint to the set of constraints. If the constraint is already 
 // present (by syntactic equality) return false. 
 bool Constraints::addConstraint(Constraint *C) {
@@ -369,6 +398,58 @@ Not *Constraints::createNot(Constraint *body) {
 
 Implies *Constraints::createImplies(Constraint *premise, Constraint *conclusion) {
   return new Implies(premise, conclusion);
+}
+
+void Constraints::resetConstraints() {
+  // update all constraints to pointers
+  for(auto &currE: environment) {
+    currE.second = getPtr();
+  }
+}
+
+unsigned long Constraints::resetWithitypeConstraints() {
+  EnvironmentMap backupDeclConstraints;
+  backupDeclConstraints.clear();
+  unsigned long numConstraintsRemoved = 0;
+
+  // restore the erased constraints.
+  // Now, try to remove constraints that
+  // depend on ityped constraint variables.
+  for (auto &currE: environment) {
+    currE.first->resetErasedConstraints();
+    for(auto &currITypeVar: itypeConstraintVars) {
+      ConstAtom *targetCons = currITypeVar.second;
+      if(!dyn_cast<NTArrAtom>(currITypeVar.second)) {
+        targetCons = nullptr;
+      }
+      if(currE.first->replaceEqConstraint(currITypeVar.first, targetCons)) {
+        numConstraintsRemoved++;
+      }
+    }
+  }
+
+  // Check if we removed any constraints?
+  if(numConstraintsRemoved > 0) {
+    // we removed constraints.
+    // Reset everything.
+
+    // backup the computed results of
+    // declaration parameters and returns.
+    for (auto &currITypeVar: itypeConstraintVars) {
+      backupDeclConstraints[currITypeVar.first] = environment[getVar(currITypeVar.first->getLoc())];
+    }
+
+    // reset all constraints to Ptrs.
+    resetConstraints();
+
+    // restore the precomputed constraints for declarations.
+    for (auto &currITypeVar: backupDeclConstraints) {
+      environment[getVar(currITypeVar.first->getLoc())] = currITypeVar.second;
+    }
+  }
+
+  return numConstraintsRemoved;
+
 }
 
 Constraints::Constraints() {
