@@ -183,6 +183,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   bool fixedPointReached = false;
   unsigned long iterationNum = 1;
   unsigned long numberOfEdgesRemoved = 0;
+  unsigned long numItypeVars = 0;
   if(Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
@@ -194,6 +195,9 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   else
     llvm_unreachable("No action");
 
+  assert(CS.checkInitialEnvSanity() && "Invalid initial environment. We expect all pointers to be "
+                                       "initialized with Ptr to begin with.");
+
   while(!fixedPointReached) {
     clock_t startTime = clock();
     if(Verbose) {
@@ -201,18 +205,27 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
     }
     std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
 
+    errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
+
+    startTime = clock();
+
     if(R.second) {
       errs() << "Constraints solved for iteration:" << iterationNum << "\n";
     }
-
-    numberOfEdgesRemoved = CS.resetWithitypeConstraints();
-    errs() << "Iteration:" << iterationNum << ", Number of edges removed:" << numberOfEdgesRemoved << "\n";
 
     if(DumpStats) {
       Info.print_stats(inoutPaths, llvm::errs(), true);
     }
 
-    errs() << "Iteration:" << iterationNum << ", Time:" << getTimeSpentInSeconds(startTime) << "\n";
+    // detect and update itype vars.
+    numItypeVars = detectAndUpdateITypeVars(Info);
+
+    errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:" << numItypeVars << "\n";
+
+    numberOfEdgesRemoved = CS.resetWithitypeConstraints();
+    errs() << "Iteration:" << iterationNum << ", Number of edges removed:" << numberOfEdgesRemoved << "\n";
+
+    errs() << "Iteration:" << iterationNum << ", Refinement Time:" << getTimeSpentInSeconds(startTime) << "\n";
 
     // we reach fixed point when no edges are removed from the constraint graph.
     fixedPointReached = !(numberOfEdgesRemoved > 0);

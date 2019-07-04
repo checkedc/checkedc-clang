@@ -452,6 +452,15 @@ unsigned long Constraints::resetWithitypeConstraints() {
 
 }
 
+bool Constraints::checkInitialEnvSanity() {
+  for(const auto &envVar: environment) {
+    if(envVar.second != getPtr()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 Constraints::Constraints() {
   prebuiltPtr = new PtrAtom();
   prebuiltArr = new ArrAtom();

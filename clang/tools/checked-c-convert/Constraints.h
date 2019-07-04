@@ -585,6 +585,8 @@ public:
 
   unsigned long resetWithitypeConstraints();
 
+  bool checkInitialEnvSanity();
+
 private:
   ConstraintSet constraints;
   EnvironmentMap environment;

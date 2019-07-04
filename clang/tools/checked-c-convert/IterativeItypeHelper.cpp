@@ -33,9 +33,9 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl, ConstraintVariable 
   return changesHappened;
 }
 
-bool detectAndUpdateITypeVars(ProgramInfo &Info) {
+unsigned long detectAndUpdateITypeVars(ProgramInfo &Info) {
   Constraints &CS = Info.getConstraints();
-  bool changedHappened = false;
+  unsigned long numITypeVars = 0;
   for(auto &funDefCon: CS.getFuncDefnVarMap()) {
     std::string funcName = funDefCon.first;
     FVConstraint *cDefn = dyn_cast<FVConstraint>(getHighest(funDefCon.second, Info));
@@ -60,7 +60,7 @@ bool detectAndUpdateITypeVars(ProgramInfo &Info) {
         // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
         if (anyConstrained && Defn->isLt(*Decl, Info)) {
           updateDeclWithDefnType(Decl, Defn, Info);
-          changedHappened = true;
+          numITypeVars++;
         }
       }
 
@@ -78,11 +78,11 @@ bool detectAndUpdateITypeVars(ProgramInfo &Info) {
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
       if (Defn->isLt(*Decl, Info)) {
         updateDeclWithDefnType(Decl, Defn, Info);
-        changedHappened = true;
+        numITypeVars++;
       }
     }
   }
-  return changedHappened;
+  return numITypeVars;
 }
 
 bool FVConstraintDetectorVisitor::VisitFunctionDecl(FunctionDecl *FD) {

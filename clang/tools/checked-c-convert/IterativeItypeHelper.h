@@ -16,7 +16,7 @@
 
 using namespace clang;
 
-bool detectAndUpdateITypeVars(ProgramInfo &Info);
+unsigned long detectAndUpdateITypeVars(ProgramInfo &Info);
 
 class FVConstraintDetectorVisitor : public RecursiveASTVisitor<FVConstraintDetectorVisitor> {
 public:
