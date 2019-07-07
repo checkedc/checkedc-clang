@@ -23,14 +23,23 @@ bool VarAtom::replaceEqConstraint(VarAtom *dstCons, ConstAtom *targetCons) {
   bool hasChanged = false;
   std::set<Constraint*, PComp<Constraint*>> toRemoveConstraints;
   for(auto currC: Constraints) {
+    // check if the constraint contains
+    // the provided constraint variable.
     if(currC->containsConstraint(dstCons)) {
       hasChanged = true;
+      // this has to be an equality constraint.
       Eq* equalityConstraint = dyn_cast<Eq>(currC);
       assert(equalityConstraint != nullptr &&
              "Do not know how to replace a non-equality constraint.");
       if(targetCons == nullptr) {
+        // if the constant atom is null then just remove the
+        // constraint containing the provided constraint variable.
         toRemoveConstraints.insert(currC);
       } else {
+        // if lhs is the target constraint variable, replace
+        // lhs with rhs.
+        // i.e., we will change the constraint of type
+        // dst = var to var = targetCons.
         if(*(equalityConstraint->getLHS()) == *(dstCons)) {
           equalityConstraint->lhs = equalityConstraint->rhs;
         }

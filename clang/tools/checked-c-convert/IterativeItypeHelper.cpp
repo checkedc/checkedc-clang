@@ -4,7 +4,7 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-// Implementation of ItypeConstraintDetector methods.
+// Implementation of IterativeItypeHelper methods.
 //===----------------------------------------------------------------------===//
 
 #include "IterativeItypeHelper.h"
@@ -121,9 +121,13 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl, ConstraintVariable 
                                    ProgramInfo &Info) {
   Constraints &CS = Info.getConstraints();
   bool changesHappened = false;
+  // get the itype map where we store the pointer type of
+  // the declaration constraint variables.
   Constraints::EnvironmentMap &itypeMap = CS.getitypeVarMap();
   PVConstraint *PVDeclCons = dyn_cast<PVConstraint>(decl);
   PVConstraint *PVDefnCons = dyn_cast<PVConstraint>(defn);
+
+  // These has to be pointer constraint variables.
   assert(PVDeclCons != nullptr && PVDefnCons != nullptr &&
          "Expected a pointer variable constraint for function parameter but got nullptr");
 
@@ -138,10 +142,13 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl, ConstraintVariable 
 
   ConstAtom *itypeAtom = nullptr;
 
+  // get the pointer type of the definition constraint variable.
   for(ConstraintKey k: PVDefnCons->getCvars()) {
     itypeAtom = CS.getVariables()[CS.getVar(k)];
   }
   assert(itypeAtom != nullptr && "Unable to find assignment for definition constraint variable.");
+
+  // update the type of the declaration constraint variable.
   for(ConstraintKey k: PVDeclCons->getCvars()) {
     VarAtom *cK = CS.getVar(k);
     itypeMap[cK] = itypeAtom;
@@ -202,6 +209,20 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> 
   }
   return numITypeVars;
 }
+
+// This is a visitor class that identifies all the FVConstraint variables for
+// all function definitions and declarations.
+class FVConstraintDetectorVisitor : public RecursiveASTVisitor<FVConstraintDetectorVisitor> {
+public:
+  explicit FVConstraintDetectorVisitor(ASTContext *C, ProgramInfo &I, std::set<std::string> &V)
+    : Context(C), Info(I), VisitedSet(V) {}
+
+  bool VisitFunctionDecl(FunctionDecl *);
+private:
+  ASTContext            *Context;
+  ProgramInfo           &Info;
+  std::set<std::string> &VisitedSet;
+};
 
 bool FVConstraintDetectorVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 

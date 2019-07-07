@@ -61,6 +61,7 @@ public:
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &other) const = 0;
+  // check if this atom contains the provided atom
   virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
@@ -75,6 +76,7 @@ public:
   }
 
   virtual bool containsConstraint(VarAtom *toFind) {
+    // constant atom can never contain a VarAtom
     return false;
   }
 };
@@ -124,12 +126,18 @@ public:
   }
 
   void eraseConstraint(Constraint *todel) {
+    // remove the constraint
     Constraints.erase(todel);
+    // add the constraint into another set so that
+    // we can restore in future.
     ErasedConstraints.insert(todel);
   }
 
+  // replace the equality constraints that contains the provided
+  // constraint variable with the constant atom
   bool replaceEqConstraint(VarAtom *dstCons, ConstAtom *targetCons);
 
+  // restore the erased constraints into the regular constraints.
   bool resetErasedConstraints() {
     bool added = false;
     // insert the erased constraints into the original
@@ -143,11 +151,13 @@ public:
   }
 
   bool containsConstraint(VarAtom *toFind) {
+    // this is a VarAtom and contains is same as equality.
     return (*this == *toFind);
   }
 
 private:
   uint32_t  Loc;
+  // these are the constraints erased during constraint solving.
   std::set<Constraint*, PComp<Constraint*>> ErasedConstraints;
   // The constraint expressions where this variable is mentioned on the 
   // LHS of an equality.
@@ -328,6 +338,8 @@ public:
   virtual bool operator==(const Constraint &other) const = 0;
   virtual bool operator!=(const Constraint &other) const = 0;
   virtual bool operator<(const Constraint &other) const = 0;
+  // check if the provided constraint contains the
+  // provided VarAtom
   virtual bool containsConstraint(VarAtom *toFind) = 0;
 };
 
@@ -586,11 +598,16 @@ public:
   // reset all constraint variables to Ptrs.
   void resetConstraints();
 
+  // check the sanity of environment map before solving the constraints.
   bool checkInitialEnvSanity();
 
 private:
   ConstraintSet constraints;
   EnvironmentMap environment;
+  // map of constraint variables, which are identified
+  // as itype pointers
+  // These should be the constraint variables of only
+  // function parameters or returns.
   EnvironmentMap itypeConstraintVars;
 
   // map of function unique key to it declaration FVConstraintVariable

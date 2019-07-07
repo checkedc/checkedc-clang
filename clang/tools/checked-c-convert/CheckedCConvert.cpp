@@ -188,6 +188,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   if(Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
+  // first capture itype parameters and return values for all functions
   std::unique_ptr<ToolAction> ITypeDetectorTool = newFrontendActionFactoryA<
     GenericAction<FVConstraintDetectorConsumer, ProgramInfo>>(Info);
 
@@ -196,6 +197,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   else
     llvm_unreachable("No action");
 
+  // sanity check
   assert(CS.checkInitialEnvSanity() && "Invalid initial environment. We expect all pointers to be "
                                        "initialized with Ptr to begin with.");
 
@@ -205,6 +207,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
     if(Verbose) {
       errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
     }
+
     std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
 
     errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
@@ -235,7 +238,8 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
 
     errs() << "Iteration:" << iterationNum << ", Refinement Time:" << getTimeSpentInSeconds(startTime) << "\n";
 
-    // we reach fixed point when no edges are removed from the constraint graph.
+    // if we removed any edges, that means we did not reach fix point.
+    // In other words, we reach fixed point when no edges are removed from the constraint graph.
     fixedPointReached = !(numberOfEdgesRemoved > 0);
     errs() << "****Iteration " << iterationNum << " ends****\n";
     iterationNum++;
@@ -304,10 +308,10 @@ int main(int argc, const char **argv) {
     outs() << "Solving constraints\n";
 
   Constraints &CS = Info.getConstraints();
+
+  // perform constraint solving by iteratively refining based on itypes.
   bool fPointReached = performIterativeItypeRefinement(CS, Info, Tool, inoutPaths);
 
-  // TODO: In the future, R.second will be false when there's a conflict, 
-  //       and the tool will need to do something about that. 
   assert(fPointReached == true);
   if (Verbose)
     outs() << "Constraints solved\n";

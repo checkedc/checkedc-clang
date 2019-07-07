@@ -9,12 +9,10 @@
 //===----------------------------------------------------------------------===//
 #include "llvm/Support/raw_ostream.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/AST/Type.h"
-
 #include <algorithm>
 #include <map>
 #include <sstream>
-
+#include "clang/AST/Type.h"
 #include "RewriteUtils.h"
 #include "MappingVisitor.h"
 #include "Utils.h"
@@ -842,7 +840,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   std::set<FileID> Files;
 
   std::set<std::string> v;
-  RSet                  rewriteThese(DComp(Context.getSourceManager()));
+  RSet rewriteThese(DComp(Context.getSourceManager()));
   // Unification is done, so visit and see if we need to place any casts
   // in the program.
   CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, rewriteThese, v,
