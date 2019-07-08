@@ -133,9 +133,11 @@ CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
 
 // Print out statistics of constraint variables on a per-file basis.
 void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O, bool onlySummary) {
-  O << "Enable itype propagation:" << enablePropThruIType << "\n";
-  O << "Merge multiple function declaration:" << mergeMultipleFuncDecls << "\n";
-  O << "Sound handling of var args functions:" << handleVARARGS << "\n";
+  if(!onlySummary) {
+    O << "Enable itype propagation:" << enablePropThruIType << "\n";
+    O << "Merge multiple function declaration:" << mergeMultipleFuncDecls << "\n";
+    O << "Sound handling of var args functions:" << handleVARARGS << "\n";
+  }
   std::map<std::string, std::tuple<int, int, int, int, int> > filesToVars;
   Constraints::EnvironmentMap env = CS.getVariables();
   unsigned int totC, totP, totNt, totA, totWi;

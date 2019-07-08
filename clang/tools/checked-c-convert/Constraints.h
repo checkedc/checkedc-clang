@@ -583,7 +583,8 @@ public:
   NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
 
-  unsigned long resetWithitypeConstraints();
+  // reset all constraint variables to Ptrs.
+  void resetConstraints();
 
   bool checkInitialEnvSanity();
 
@@ -621,7 +622,6 @@ private:
   // map that contains the mapping between the unique keys of function
   // definition to its declaration.
   std::map<std::string, std::string> FuncDefnDeclKeyMap;
-  void resetConstraints();
 };
 
 typedef uint32_t ConstraintKey;

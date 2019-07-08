@@ -184,6 +184,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   unsigned long iterationNum = 1;
   unsigned long numberOfEdgesRemoved = 0;
   unsigned long numItypeVars = 0;
+  std::set<std::string> modifiedFunctions;
   if(Verbose) {
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
@@ -200,14 +201,13 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
 
   while(!fixedPointReached) {
     clock_t startTime = clock();
+    errs() << "****Iteration " << iterationNum << " starts.****\n";
     if(Verbose) {
       errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
     }
     std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
 
     errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
-
-    startTime = clock();
 
     if(R.second) {
       errs() << "Constraints solved for iteration:" << iterationNum << "\n";
@@ -217,22 +217,31 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
       Info.print_stats(inoutPaths, llvm::errs(), true);
     }
 
-    // detect and update itype vars.
-    numItypeVars = detectAndUpdateITypeVars(Info);
+    // get all the functions whose constraints have been modified.
+    identifyModifiedFunctions(CS, modifiedFunctions);
 
-    errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:" << numItypeVars << "\n";
+    startTime = clock();
+    // detect and update new found itype vars.
+    numItypeVars = detectAndUpdateITypeVars(Info, modifiedFunctions);
 
-    numberOfEdgesRemoved = CS.resetWithitypeConstraints();
+    errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:" << numItypeVars
+           << ", detection time:" << getTimeSpentInSeconds(startTime) << "\n";
+
+    startTime = clock();
+    // update the constraint graph by removing edges from/to iype parameters and returns.
+    numberOfEdgesRemoved = resetWithitypeConstraints(CS);
+
     errs() << "Iteration:" << iterationNum << ", Number of edges removed:" << numberOfEdgesRemoved << "\n";
 
     errs() << "Iteration:" << iterationNum << ", Refinement Time:" << getTimeSpentInSeconds(startTime) << "\n";
 
     // we reach fixed point when no edges are removed from the constraint graph.
     fixedPointReached = !(numberOfEdgesRemoved > 0);
+    errs() << "****Iteration " << iterationNum << " ends****\n";
     iterationNum++;
   }
 
-  errs() << "Fixed point reached after " << iterationNum << " iterations.\n";
+  errs() << "Fixed point reached after " << (iterationNum-1) << " iterations.\n";
 
   return fixedPointReached;
 }

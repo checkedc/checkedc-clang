@@ -407,52 +407,8 @@ void Constraints::resetConstraints() {
   }
 }
 
-unsigned long Constraints::resetWithitypeConstraints() {
-  EnvironmentMap backupDeclConstraints;
-  backupDeclConstraints.clear();
-  unsigned long numConstraintsRemoved = 0;
-
-  // restore the erased constraints.
-  // Now, try to remove constraints that
-  // depend on ityped constraint variables.
-  for (auto &currE: environment) {
-    currE.first->resetErasedConstraints();
-    for(auto &currITypeVar: itypeConstraintVars) {
-      ConstAtom *targetCons = currITypeVar.second;
-      if(!dyn_cast<NTArrAtom>(currITypeVar.second)) {
-        targetCons = nullptr;
-      }
-      if(currE.first->replaceEqConstraint(currITypeVar.first, targetCons)) {
-        numConstraintsRemoved++;
-      }
-    }
-  }
-
-  // Check if we removed any constraints?
-  if(numConstraintsRemoved > 0) {
-    // we removed constraints.
-    // Reset everything.
-
-    // backup the computed results of
-    // declaration parameters and returns.
-    for (auto &currITypeVar: itypeConstraintVars) {
-      backupDeclConstraints[currITypeVar.first] = environment[getVar(currITypeVar.first->getLoc())];
-    }
-
-    // reset all constraints to Ptrs.
-    resetConstraints();
-
-    // restore the precomputed constraints for declarations.
-    for (auto &currITypeVar: backupDeclConstraints) {
-      environment[getVar(currITypeVar.first->getLoc())] = currITypeVar.second;
-    }
-  }
-
-  return numConstraintsRemoved;
-
-}
-
 bool Constraints::checkInitialEnvSanity() {
+  // all variables should be Ptrs
   for(const auto &envVar: environment) {
     if(envVar.second != getPtr()) {
       return false;
