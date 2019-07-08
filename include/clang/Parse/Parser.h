@@ -1916,7 +1916,7 @@ private:
 
   ExprResult ParseReturnValueExpression();
 
-  DeclResult ParseGenericStructInstantiation(RecordDecl *base);
+  DeclResult ParseRecordTypeApplication(RecordDecl *base);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions

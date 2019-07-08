@@ -1943,7 +1943,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       if (decl && decl->isGeneric()) {
         // We're parsing a reference to a generic struct, so need to parse
         // the type arguments before we can instantiate.
-        TagOrTempResult = ParseGenericStructInstantiation(decl->getDefinition());
+        TagOrTempResult = ParseRecordTypeApplication(decl->getDefinition());
       }
     }
 
@@ -2044,7 +2044,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///
 ///  type-name-list-suffix
 ///    ',' type-name type-name-list-suffix [opt]
-DeclResult Parser::ParseGenericStructInstantiation(RecordDecl* Base) {
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base) {
   assert(Base->isGeneric() && "Instantiated record must be generic");
   assert(Base->isCompleteDefinition() && "Must pass the record definition and not just a reference");
   ExpectAndConsume(tok::less); // eat the initial '<'
@@ -2055,7 +2055,7 @@ DeclResult Parser::ParseGenericStructInstantiation(RecordDecl* Base) {
   }
   if (ArgsRes.second.size() != Base->typeParams().size()) {
     // TODO(abeln): add real error message
-    printf("expected %d type params but got %d\n", Base->typeParams().size(), ArgsRes.second.size());
+    printf("expected %d type params but got %u\n", Base->typeParams().size(), ArgsRes.second.size());
     return true;
   } else {
     return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second));
