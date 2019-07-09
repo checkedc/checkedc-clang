@@ -5,8 +5,8 @@
 // we test propagation with and without function
 // declaration.
 // here, ntiptr will be an itype(Nt_ptr)
-int funcdecl(char *ntiptr : itype(_Nt_arr_ptr<char> ) , int *iptr : itype(_Ptr<int> ) , int *wild);
-int funcdecl(char *ntiptr : itype(_Nt_arr_ptr<char> ) , int *iptr : itype(_Ptr<int> ) , int *wild) {
+int funcdecl(char *ntiptr : itype(_Nt_array_ptrchar> ) , int *iptr : itype(_Ptr<int> ) , int *wild);
+int funcdecl(char *ntiptr : itype(_Nt_array_ptrchar> ) , int *iptr : itype(_Ptr<int> ) , int *wild) {
    if(ntiptr != 0) {
     ntiptr = strstr("Hello", "world");
    }   

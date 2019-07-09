@@ -4,7 +4,7 @@
 // we will use b as an NTArr
 typedef struct {
    int a;
-   _Nt_arr_ptr<char> b;
+   _Nt_array_ptrchar> b;
 } foo;
 // here we use b in a safe way as an array, hence
 // it will be a array ptr
@@ -21,7 +21,7 @@ typedef struct {
 
 int main() {
   foo obj;
-  _Nt_arr_ptr<char> bp;
+  _Nt_array_ptrchar> bp;
   float b;
   foo2 obj2;
   int hel;

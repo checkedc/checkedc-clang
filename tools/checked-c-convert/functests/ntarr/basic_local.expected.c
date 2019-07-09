@@ -6,11 +6,11 @@ int main() {
   // as NTArr
   // we use this as an argument
   // to string function.
-  _Nt_arr_ptr<char> a;
+  _Nt_array_ptrchar> a;
   // c should be identified as 
   // ARR as we assign it the return value of
   // string function use it.
-  _Nt_arr_ptr<char> c;
+  _Nt_array_ptrchar> c;
   // we will make this wild.
   int *d;
   int b;
