@@ -1829,6 +1829,7 @@ namespace {
       ProofResult PartialOverlap(BaseRange &R) {
         if (Lexicographic(S.Context, nullptr).CompareExpr(Base, R.Base) ==
             Lexicographic::Result::Equal) {
+          // TODO: generalize to non-constant ranges
           if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
             if (!IsEmpty() && !R.IsEmpty()) {
               // R.LowerOffset is within this range, but R.UpperOffset is above the range
