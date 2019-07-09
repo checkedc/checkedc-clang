@@ -69,7 +69,7 @@ ExprResult Sema::ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocatio
 
   // Substitute type arguments for type variables in the function type of the
   // DeclRefExpr.
-  QualType NewTy = SubstituteTypeArgs(declRef->getType(), TypeArgs);
+  QualType NewTy = SubstituteTypeArgs(declRef->getType(), TypeArgs, false /* WithinFieldDecl */);
   declRef->setType(NewTy);
   return declRef;
 
@@ -77,24 +77,86 @@ ExprResult Sema::ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocatio
 
 // Type Instantiation
 
-RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs) {
+RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl) {
   assert(Base->isGeneric() && "Base decl must be generic in a type application");
+  auto &ctx = Base->getASTContext();
+
+  // Unwrap the type arguments from a 'TypeArgument' to the underlying 'Type *'.
+  // TODO(abeln): will the 'ASTContext' free the memory?
+  auto RawArgs = new (ctx) llvm::SmallVector<const Type *, 4>();
+  for (auto TArg : TypeArgs) {
+    // TODO(abeln): remove the 'const_cast'.
+    RawArgs->push_back(TArg.typeName.getTypePtr());
+  }
+
+  // If possible, just retrieve the application from the cache.
+  // This is needed not only for performance, but for correctness to handle
+  // recursive references in type applications (e.g. a list which contains a list as a field).
+  if (auto Cached = ctx.getCachedTypeApp(Base, *RawArgs)) {
+    return Cached;   
+  }
+
   // TODO(abeln): populate the two 'SourceLocation' fields.
-  RecordDecl* Inst = RecordDecl::Create(Base->getASTContext(), Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
+  RecordDecl* Inst = RecordDecl::Create(ctx, Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
     Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, (size_t)0) /* TypeParams */, Base, TypeArgs);
 
-  for (auto Field = Base->field_begin(); Field != Base->field_end(); ++Field) {
-    QualType InstType = SubstituteTypeArgs(Field->getType(), TypeArgs);
+  // Mark the decl as complete, even though it doesn't have fields yet.
+  // This is because if this method is called as part of creating a 'FieldDecl', then
+  // the record type must be marked as complete as soon as the field is defined (so we can't wait
+  // until 'CompleteTypeAppFields').
+  // Otherwise, we can't type the following example:
+  //   struct Box _For_any(T) {};
+  //   struct List _For_any(T) { struct Box<T> box; };
+  // Notice that the type of 'box' must be complete, since it isn't a pointer.
+  // It's ok to mark the decl as complete, since the fields will eventually be populated.
+  Inst->setCompleteDefinition();
+
+  // Cache the application early on before we tinker with the fields, in case
+  // one of the fields refers back to the application.
+  ctx.addCachedTypeApp(Base, *RawArgs, Inst);
+
+  if (WithinFieldDecl) {
+    // If we're in a field declaration, we don't want to populate the fields of the instantiated 'RecordDecl'.
+    // This is because one of the fields might have a type that recursively refers to the 'Base' record (which we haven't finished parsing).
+    // e.g.
+    // struct List _For_any(T) {
+    //   struct List<T> *next;
+    //   T *head;
+    // };
+    // While processing 'next', we can't instantiate 'List<T>' because we haven't processed the 'head' field yet.
+    // The solution is to just return a "dummy" 'RecordDecl' in this case, and "complete it" after we've parsed all the fields.
+    Inst->setDelayedTypeApp(true);
+    return Inst;
+  }
+
+  // If this isn't a field declaration, then we can fill in the fields right away.
+  CompleteTypeAppFields(Inst);
+  return Inst;
+}
+
+void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
+  assert(Incomplete->isInstantiated() && "Only instantiated record decls can be completed");
+  assert(Incomplete->field_empty() && "Can't complete record decl with non-empty fields");
+
+  auto Base = Incomplete->baseDecl();
+  for (auto Field : Base->fields()) {
+    // Passs WithinFieldDecl = false to force completion of any field types.
+    // e.g. suppose we have
+    //   struct Box _For_any(T) { T *x; };
+    //   struct List _For_any(T) { struct Box<T> box; };
+    // While completing the 'box' field of 'List', we want to ensure that the 'x' field of 'Box' is completed
+    // in the instantiation of 'Box<T>'.
+    QualType InstType = SubstituteTypeArgs(Field->getType(), Incomplete->typeArgs(), false /* WithinFieldDecl */);
     assert(!InstType.isNull() && "Subtitution of type args failed!");
     // TODO(abeln): populate 'SouceLocation' fields.
     // Also make sure that TypeSouceInfo and InstType are in-sync.
-    FieldDecl* NewField = FieldDecl::Create(Field->getASTContext(), Inst, SourceLocation(), SourceLocation(),
+    FieldDecl* NewField = FieldDecl::Create(Field->getASTContext(), Incomplete, SourceLocation(), SourceLocation(),
       Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
-    Inst->addDecl(NewField);
+    Incomplete->addDecl(NewField);
   }
 
-  Inst->setCompleteDefinition();
-  return Inst;
+  Incomplete->setDelayedTypeApp(false);
+  // The decl was already marked as complete in 'ActOnRecordTypeApplication'.
 }
 
 namespace {
@@ -122,10 +184,11 @@ private:
   TypeArgList TypeArgs;
   unsigned Depth;
   LocRebuilderTransform LocRebuilder;
+  bool WithinFieldDecl;
 
 public:
-  TypeApplication(Sema &SemaRef, TypeArgList TypeArgs, unsigned Depth) :
-    BaseTransform(SemaRef), TypeArgs(TypeArgs), Depth(Depth), LocRebuilder(SemaRef) {}
+  TypeApplication(Sema &SemaRef, TypeArgList TypeArgs, unsigned Depth, bool WithinFieldDecl) :
+    BaseTransform(SemaRef), TypeArgs(TypeArgs), Depth(Depth), LocRebuilder(SemaRef), WithinFieldDecl(WithinFieldDecl) {}
 
   QualType TransformTypeVariableType(TypeLocBuilder &TLB,
                                      TypeVariableTypeLoc TL) {
@@ -208,11 +271,11 @@ public:
       llvm::SmallVector<TypeArgument, 4> NewArgs;
       ArrayRef<TypeArgument> OrigArgs = RDecl->typeArgs();
       for (auto TArg = OrigArgs.begin(); TArg != OrigArgs.end(); ++TArg) {
-        auto NewType = SemaRef.SubstituteTypeArgs(TArg->typeName, TypeArgs);
+        auto NewType = SemaRef.SubstituteTypeArgs(TArg->typeName, TypeArgs, WithinFieldDecl);
         auto *SourceInfo = getSema().Context.getTrivialTypeSourceInfo(NewType, getDerived().getBaseLocation());
         NewArgs.push_back(TypeArgument { NewType, SourceInfo });
       }
-      auto *Res = SemaRef.ActOnRecordTypeApplication(RDecl->baseDecl(), ArrayRef<TypeArgument>(NewArgs));
+      auto *Res = SemaRef.ActOnRecordTypeApplication(RDecl->baseDecl(), ArrayRef<TypeArgument>(NewArgs), WithinFieldDecl);
       return Res;
     } else {
       return BaseTransform::TransformDecl(Loc, D);
@@ -221,13 +284,12 @@ public:
 };
 }
 
-QualType Sema::SubstituteTypeArgs(QualType QT,
- ArrayRef<TypeArgument> TypeArgs) {
+QualType Sema::SubstituteTypeArgs(QualType QT, ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl) {
    if (QT.isNull())
      return QT;
 
    // Transform the type and strip off the quantifier.
-   TypeApplication TypeApp(*this, TypeArgs, 0);
+   TypeApplication TypeApp(*this, TypeArgs, 0 /* Depth */, WithinFieldDecl);
    QualType TransformedQT = TypeApp.TransformType(QT);
 
    // Something went wrong in the transformation.

@@ -4876,10 +4876,14 @@ public:
   ExprResult ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
                      ArrayRef<TypeArgument> Args);
 
-  RecordDecl* ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs);
+  RecordDecl* ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl);
+
+  /// Complete a delayed type application by populating the record's fields with the right types.
+  /// Should only be called once per delayed 'RecordDecl'.
+  void CompleteTypeAppFields(RecordDecl *Incomplete);
 
   QualType SubstituteTypeArgs(QualType QT,
-                ArrayRef<TypeArgument> TypeArgs);
+                ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl);
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);

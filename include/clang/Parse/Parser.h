@@ -1889,7 +1889,7 @@ private:
   ExprResult ParseGenericFunctionApplication(ExprResult TypeFunc, SourceLocation Loc);
 
   using TypeArgVector = SmallVector<TypeArgument, 4>;
-  std::pair<bool, TypeArgVector> ParseGenericTypeArgumentList(SourceLocation Loc);
+  std::pair<bool, TypeArgVector> ParseGenericTypeArgumentList(SourceLocation Loc, bool WithinFieldDecl=false);
 
   QualType SubstituteTypeVariable(QualType QT,
     SmallVector<TypeArgument, 4> &typeNames);
@@ -1916,7 +1916,7 @@ private:
 
   ExprResult ParseReturnValueExpression();
 
-  DeclResult ParseRecordTypeApplication(RecordDecl *base);
+  DeclResult ParseRecordTypeApplication(RecordDecl *Base, bool WithinFieldDecl);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
@@ -2192,14 +2192,16 @@ private:
       const ParsedTemplateInfo &TemplateInfo = ParsedTemplateInfo(),
       AccessSpecifier AS = AS_none,
       DeclSpecContext DSC = DeclSpecContext::DSC_normal,
-      LateParsedAttrList *LateAttrs = nullptr);
+      LateParsedAttrList *LateAttrs = nullptr,
+      bool WithinFieldDecl = false);
   bool DiagnoseMissingSemiAfterTagDefinition(
       DeclSpec &DS, AccessSpecifier AS, DeclSpecContext DSContext,
       LateParsedAttrList *LateAttrs = nullptr);
 
   void ParseSpecifierQualifierList(
       DeclSpec &DS, AccessSpecifier AS = AS_none,
-      DeclSpecContext DSC = DeclSpecContext::DSC_normal);
+      DeclSpecContext DSC = DeclSpecContext::DSC_normal,
+      bool WithinFieldDecl = false);
 
   void ParseObjCTypeQualifierList(ObjCDeclSpec &DS,
                                   DeclaratorContext Context);
@@ -2407,7 +2409,8 @@ public:
                              = DeclaratorContext::TypeNameContext,
                            AccessSpecifier AS = AS_none,
                            Decl **OwnedType = nullptr,
-                           ParsedAttributes *Attrs = nullptr);
+                           ParsedAttributes *Attrs = nullptr,
+                           bool WithinFieldDecl = false);
 
 private:
   void ParseBlockId(SourceLocation CaretLoc);
@@ -2825,7 +2828,8 @@ private:
                            DeclSpec &DS, const ParsedTemplateInfo &TemplateInfo,
                            AccessSpecifier AS, bool EnteringContext,
                            DeclSpecContext DSC,
-                           ParsedAttributesWithRange &Attributes);
+                           ParsedAttributesWithRange &Attributes,
+                           bool WithinFieldDecl = false);
   void SkipCXXMemberSpecification(SourceLocation StartLoc,
                                   SourceLocation AttrFixitLoc,
                                   unsigned TagType,

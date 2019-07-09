@@ -279,6 +279,13 @@ private:
   llvm::DenseMap<const MaterializeTemporaryExpr *, APValue *>
     MaterializedTemporaryValues;
 
+  /// Mapping from (generic record decl, type arguments) pairs to instantiated record decls.
+  /// e.g. (List, int) -> List<int>
+  /// This keeps tracks of all type applications both so we can preserve the uniqueness invariant
+  /// for decls and types, and also so we can typecheck gnarly recursive applications.
+  llvm::DenseMap<std::pair<const RecordDecl *, ArrayRef<const Type *> >, RecordDecl *>
+    CachedTypeApps;
+
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
   class CanonicalTemplateTemplateParm : public llvm::FoldingSetNode {
@@ -3074,6 +3081,19 @@ public:
   };
 
   llvm::StringMap<SectionInfo> SectionInfos;
+
+public:
+  //===--------------------------------------------------------------------===//
+  //                     Checked C: cached type applications
+  //===--------------------------------------------------------------------===//
+
+  /// Get the result of the type application 'Base<TypeArgs>', if it's been already cached.
+  /// If it's not cached, return 'nullptr'.
+  RecordDecl *getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs);
+
+  /// Add the instantiated record type 'Inst' as the result of the type application 'Base<TypeArgs>'.
+  /// Cached applications shouldn't be overwritten, so this should be called at most once per key.
+  void addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst);
 };
 
 /// Utility function for constructing a nullary selector.

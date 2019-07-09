@@ -4158,7 +4158,7 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
                        RecordDecl *BaseDecl,
                        ArrayRef<TypeArgument> TypeArgs)
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
-      IsGeneric(false), NumTypeParams(0), IsInstantiated(false), NumTypeArgs(0) {
+      IsGeneric(false), NumTypeParams(0), IsInstantiated(false), NumTypeArgs(0), IsDelayed(false) {
   assert(classof(static_cast<Decl *>(this)) && "Invalid Kind!");
   setHasFlexibleArrayMember(false);
   setAnonymousStructOrUnion(false);
@@ -4357,6 +4357,14 @@ RecordDecl *RecordDecl::baseDecl() {
 
 ArrayRef<TypeArgument> RecordDecl::typeArgs() {
   return { TypeArgs, NumTypeArgs };
+}
+
+bool RecordDecl::isDelayedTypeApp() {
+  return IsDelayed;
+}
+
+void RecordDecl::setDelayedTypeApp(bool IsDelayed) {
+  this->IsDelayed = IsDelayed;
 }
 
 void RecordDecl::setTypeArgs(ASTContext& C, RecordDecl *NewBaseDecl, ArrayRef<TypeArgument> NewTypeArgs) {

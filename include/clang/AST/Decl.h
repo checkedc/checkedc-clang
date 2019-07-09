@@ -3988,6 +3988,13 @@ public:
   /// If there are no type arguments, then the array will be empty.
   ArrayRef<TypeArgument> typeArgs();
 
+  /// Whether this record represents a delayed type application.
+  /// If so, then 'isInstantiated()' will return 'true', and the type arguments will be populated.
+  /// However, the record's fields won't be set yet.
+  bool isDelayedTypeApp();
+  /// Indicate whether this record is currently a delayed type application.
+  void setDelayedTypeApp(bool IsDelayed);
+
 private:
   /// Deserialize just the fields.
   void LoadFieldsFromExternalStorage() const;
@@ -4025,6 +4032,10 @@ private:
   TypeArgument *TypeArgs;
   /// Sets the type arguments for an instantiation, as well as 'IsInstantiated' and 'NumTypeArgs'.
   void setTypeArgs(ASTContext& C, RecordDecl *BaseDecl, ArrayRef<TypeArgument> NewTypeArgs);
+
+  /// Whether this record represents a delayed type application.
+  /// A delayed type application won't contain any fields, until it is completed via 'Sema::CompleteTypeAppFields'.
+  bool IsDelayed;
 };
 
 class FileScopeAsmDecl : public Decl {

@@ -44,7 +44,8 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
                                  DeclaratorContext Context,
                                  AccessSpecifier AS,
                                  Decl **OwnedType,
-                                 ParsedAttributes *Attrs) {
+                                 ParsedAttributes *Attrs,
+                                 bool WithinFieldDecl) {
   DeclSpecContext DSC = getDeclSpecContextFromDeclaratorContext(Context);
   if (DSC == DeclSpecContext::DSC_normal)
     DSC = DeclSpecContext::DSC_type_specifier;
@@ -53,7 +54,7 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
   DeclSpec DS(AttrFactory);
   if (Attrs)
     DS.addAttributes(*Attrs);
-  ParseSpecifierQualifierList(DS, AS, DSC);
+  ParseSpecifierQualifierList(DS, AS, DSC, WithinFieldDecl);
 
   // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
@@ -2495,11 +2496,11 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 /// [GNU]    attributes     specifier-qualifier-list[opt]
 ///
 void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
-                                         DeclSpecContext DSC) {
+                                         DeclSpecContext DSC, bool WithinFieldDecl) {
   /// specifier-qualifier-list is a subset of declaration-specifiers.  Just
   /// parse declaration-specifiers and complain about extra stuff.
   /// TODO: diagnose attribute-specifiers and alignment-specifiers.
-  ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC);
+  ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC, nullptr /* LateAttrs */, WithinFieldDecl);
 
   // Validate declspec for type-name.
   unsigned Specs = DS.getParsedSpecifiers();
@@ -3038,7 +3039,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                         const ParsedTemplateInfo &TemplateInfo,
                                         AccessSpecifier AS,
                                         DeclSpecContext DSContext,
-                                        LateParsedAttrList *LateAttrs) {
+                                        LateParsedAttrList *LateAttrs,
+                                        bool WithinFieldDecl) {
   if (DS.getSourceRange().isInvalid()) {
     // Start the range at the current token but make the end of the range
     // invalid.  This will make the entire range invalid unless we successfully
@@ -3877,7 +3879,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       // parsing class specifier.
       ParsedAttributesWithRange Attributes(AttrFactory);
       ParseClassSpecifier(Kind, Loc, DS, TemplateInfo, AS,
-                          EnteringContext, DSContext, Attributes);
+                          EnteringContext, DSContext, Attributes, WithinFieldDecl);
 
       // If there are attributes following class specifier,
       // take them over and handle them here.
@@ -4078,7 +4080,7 @@ void Parser::ParseStructDeclaration(
   DS.takeAttributesFrom(Attrs);
 
   // Parse the common specifier-qualifiers-list piece.
-  ParseSpecifierQualifierList(DS);
+  ParseSpecifierQualifierList(DS, AS_none, DeclSpecContext::DSC_normal, true /* WithinFieldDecl */);
 
   // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
@@ -4202,6 +4204,24 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   // with bounds expressions on them.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
 
+  // Checked C: a list of 'RecordDecls' corresponding to delayed type applications.
+  // These need to be completed *after* all of the record's fields have been parsed.
+  // Otherwise, consider the following recursive struct:
+  //   struct List _For_any(T) {
+  //     T *head;
+  //     struct List<T> *tail1;
+  //     struct List<T> *tail2;
+  //   }
+  //
+  // If all type applications are done immediately after the corresponding field
+  // is processed, then when we encounter 'List<T>' corresponding to 'tail1', we need
+  // to instantiate a 'List' record for which we don't know the set of fields
+  // (specifically, we don't know that it contains a second 'tail2' field).
+  //
+  // The solution is to initially create "dummy" 'RecordDecls' for 'tail1' and 'tail2'.
+  // After *all* fields have been parsed, then we can fill in the fields of the dummy RecordDecls.
+  SmallVector<RecordDecl *, 4> DelayedTypeApps;
+
   // While we still have something to read, read the declarations in the struct.
   while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
          Tok.isNot(tok::eof)) {
@@ -4274,6 +4294,14 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
         if (FD.BoundsExprTokens != nullptr)
           deferredBoundsExpressions.emplace_back(Field,
             std::move(FD.BoundsExprTokens));
+
+        // Checked C: if the type of the field refers to a delayed type application,
+        // then accumulate the decl for later completion.
+        auto FieldTpe = Field->getType();
+        auto RDecl = Field->getType()->getAsRecordDecl();
+        // TODO(abeln): find a more-robust way to get the underlying 'RecordDecl'.
+        if (!RDecl) RDecl = FieldTpe->getPointeeType()->getAsRecordDecl();
+        if (RDecl && RDecl->isDelayedTypeApp()) DelayedTypeApps.push_back(RDecl);
       };
 
       // Parse all the comma separated declarators.
@@ -4354,6 +4382,24 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
         FD->setInvalidDecl();
     }
   }
+
+  // Checked C: complete the delayed 'RecordDecls' referenced by fields.
+  while (!DelayedTypeApps.empty()) {
+    auto TypeApp = DelayedTypeApps.back();
+    DelayedTypeApps.pop_back();
+    // Re-check whether the 'RecordDecl' is really delayed: because of duplicates it could've been
+    // processed earlier in the loop and no longer be delayed.
+    if (!TypeApp->isDelayedTypeApp()) continue;
+    Actions.CompleteTypeAppFields(TypeApp);
+    assert(!TypeApp->typeArgs().empty() && "Expected at least one type argument in type application");
+    // Complete the arguments to this type application, if necessary: e.g. when completing 'Box<List<int>>', need
+    // to potentially complete 'List<int>'.
+    for (auto TypeArg : TypeApp->typeArgs()) {
+      // TODO(abeln): add more robust logic to extract the underlying 'RecordDecl'.
+      if (auto Decl = TypeArg.typeName.getTypePtr()->getAsRecordDecl()) DelayedTypeApps.push_back(Decl);
+    }
+  }
+
   StructScope.Exit();
   Actions.ActOnTagFinishDefinition(getCurScope(), TagDecl, T.getRange());
 }
