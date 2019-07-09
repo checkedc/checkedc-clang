@@ -1713,12 +1713,16 @@ namespace {
       Unsupported
     };
 
-    // Representation and operations on constant- and variable-sized ranges.  A
-    // constant-sized range is a range that has the form (e1 + const1, e1 +
-    // const2), where e1 is an expression.  For now, we represent const1 and
-    // const2 as signed (APSInt) integers.  They must have the same bitsize. A
-    // variable-sized range is a range that has the form (e1 + e2, e1 + e3), where
-    // e1, e2, and e3 are all expressions.
+    // Representation and operations on ranges.
+    // A range has the form (e1 + e2, e1 + e3) where e1 is an expression.
+    // A range can be either Constant- or Variable-sized.
+    //
+    // - If e2 and e3 are both constant integer expressions, the range is Constant-sized.
+    //   For now, in this case, we represent e2 and e3 as signed (APSInt) integers.
+    //   They must have the same bitsize.
+    //   In this case, UpperOffsetExpr and LowerOffsetExpr should be both null.
+    // - If one or both of e2 and e3 are non-constant expressions, the range is Variable-sized.
+    //   TODO: elaborate more.
     class BaseRange {
     private:
       Sema &S;
@@ -1751,53 +1755,70 @@ namespace {
         BaseRangeType(RangeType::VariableSized) {
       }
 
-      // Is R in range of this range?
+      // Is R a subrange of this range?
       ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
         if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
-          ProofResult Result = ProofResult::True;
-
-          // If both ranges are constant-sized, the constant integer values of the
-          // offsets are compared. Otherwise, depending on which one is
-          // variable-sized, integer and expression comparison is performed.
-          if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
-            if (LowerOffset > R.LowerOffset) {
-              Cause = CombineFailures(Cause, ProofFailure::LowerBound);
-              Result = ProofResult::False;
-            }
-            if (UpperOffset < R.UpperOffset) {
-              Cause = CombineFailures(Cause, ProofFailure::UpperBound);
-              Result = ProofResult::False;
-            }
-          } else { // at least one of the ranges is not constant-sized
-            Result = ProofResult::Maybe;
-            if (IsConstantSizedRange()) {
-              if (LowerOffset.getExtValue() == 0 &&
-                  UpperOffset.getExtValue() == 0 && !R.UpperOffsetExpr &&
-                  R.LowerOffsetExpr->getType()->isUnsignedIntegerType())
-                return ProofResult::True;
-              if (R.LowerOffsetExpr && LowerOffset.getExtValue() == 0 && R.LowerOffsetExpr->getType()->isUnsignedIntegerType()) {
-                Cause = CombineFailures(Cause, ProofFailure::LowerBound);
-                Result = ProofResult::False;
-              }
-            }
-            if (R.IsConstantSizedRange()) {
-              if (R.LowerOffset.getExtValue() == 0 &&
-                  R.UpperOffset.getExtValue() == 0 && !LowerOffsetExpr &&
-                  UpperOffsetExpr->getType()->isUnsignedIntegerType())
-                return ProofResult::True;
-              if (UpperOffsetExpr && R.UpperOffset.getExtValue() == 0 && UpperOffsetExpr->getType()->isUnsignedIntegerType()) {
-                Cause = CombineFailures(Cause, ProofFailure::UpperBound);
-                Result = ProofResult::False;
-              }
-            }
-          }
-          return Result;
+          ProofResult LowerBoundsResult = CompareLowerBounds(R, Cause);
+          ProofResult UpperBoundsResult = CompareUpperBounds(R, Cause);
+          
+          if (LowerBoundsResult == ProofResult::True &&
+              UpperBoundsResult == ProofResult::True)
+            return ProofResult::True;
+          if (LowerBoundsResult == ProofResult::False ||
+              UpperBoundsResult == ProofResult::False)
+            return ProofResult::False;
         }
         return ProofResult::Maybe;
       }
 
+      ProofResult CompareLowerBounds(BaseRange &R, ProofFailure &Cause) {
+        ProofResult Result = ProofResult::Maybe;
+        
+        // If both ranges are constant-sized, the constant integer values of the offsets are compared.
+        // If at least one of the ranges is variable-sized, then in some special cases
+        // we can prove the lower bound is correct.
+        if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
+          assert(!UpperOffsetExpr && !LowerOffsetExpr && !R.UpperOffsetExpr && !R.LowerOffsetExpr);
+          if (LowerOffset <= R.LowerOffset)
+            return ProofResult::True;
+          else {
+            Cause = CombineFailures(Cause, ProofFailure::LowerBound);
+            Result = ProofResult::False;
+          }
+        } else if (LowerOffset.getExtValue() == 0 && !LowerOffsetExpr &&
+                   R.LowerOffsetExpr && R.LowerOffsetExpr->getType()->isUnsignedIntegerType())
+          return ProofResult::True;
+        else if (LowerOffset.getExtValue() == 0 && !R.LowerOffsetExpr)
+          return ProofResult::True;
+        return Result;
+      }
+
+      ProofResult CompareUpperBounds(BaseRange &R, ProofFailure &Cause) {
+        ProofResult Result = ProofResult::Maybe;
+
+        // If both ranges are constant-sized, the constant integer values of the offsets are compared.
+        // If at least one of the ranges is variable-sized, then in some special cases
+        // we can prove the upper bound is correct.
+        if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
+          assert(!UpperOffsetExpr && !LowerOffsetExpr && !R.UpperOffsetExpr && !R.LowerOffsetExpr);
+          if (R.UpperOffset <= UpperOffset)
+            return ProofResult::True;
+          else {
+            Cause = CombineFailures(Cause, ProofFailure::UpperBound);
+            Result = ProofResult::False;
+          }
+        } else if (R.UpperOffset.getExtValue() == 0 && !R.UpperOffsetExpr &&
+                   UpperOffsetExpr && UpperOffsetExpr->getType()->isUnsignedIntegerType())
+          return ProofResult::True;
+        return Result;
+      }
+
       bool IsConstantSizedRange() {
-        return BaseRangeType == RangeType::ConstantSized && !UpperOffsetExpr && !LowerOffsetExpr;
+        return BaseRangeType == RangeType::ConstantSized;
+      }
+
+      bool IsVariableSizedRange() {
+        return BaseRangeType == RangeType::VariableSized;
       }
 
       bool IsEmpty() {
