@@ -11182,3 +11182,18 @@ APFixedPoint ASTContext::getFixedPointMin(QualType Ty) const {
   assert(Ty->isFixedPointType());
   return APFixedPoint::getMin(getFixedPointSemantics(Ty));
 }
+
+RecordDecl *ASTContext::getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs) {
+  auto it = CachedTypeApps.find(std::make_pair(Base, TypeArgs));
+  if (it == CachedTypeApps.end()) return nullptr;
+  return it->second;
+}
+
+void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst) {
+  printf("adding to cache %s #args = %d\n", Base->getNameAsString().c_str(), TypeArgs.size());
+  for (auto TA : TypeArgs) {
+    TA->dump();
+  }
+  assert((getCachedTypeApp(Base, TypeArgs) == nullptr) && "Type application is already cached");
+  CachedTypeApps.insert(std::make_pair(std::make_pair(Base, TypeArgs), Inst));
+}

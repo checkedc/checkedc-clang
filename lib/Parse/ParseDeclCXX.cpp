@@ -1375,7 +1375,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
                                  const ParsedTemplateInfo &TemplateInfo,
                                  AccessSpecifier AS,
                                  bool EnteringContext, DeclSpecContext DSC,
-                                 ParsedAttributesWithRange &Attributes) {
+                                 ParsedAttributesWithRange &Attributes,
+                                 bool WithinFieldDecl) {
   DeclSpec::TST TagType;
   if (TagTokKind == tok::kw_struct)
     TagType = DeclSpec::TST_struct;
@@ -1939,11 +1940,18 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     // Checked C: a reference to a struct can be followed by a list of type arguments,
     // if the struct is generic.
     if (!TagOrTempResult.isInvalid() && TUK == Sema::TUK_Reference) {
-      RecordDecl* decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get());
-      if (decl && decl->isGeneric()) {
-        // We're parsing a reference to a generic struct, so need to parse
+      RecordDecl* Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get());
+      if (Decl && Decl->isGeneric()) {
+        // There are two cases here:
+        //   1) 'Decl' could be a reference to a fully-defined record, in which case
+        //      we want to access the underlying *definition* which contains all the fields.
+        //   2) 'Decl' could be a recursive reference to the record currently being defined.
+        //      In this case, there's no underlying definition because it's currently being built.
+        //      But that's ok, because the fields will be added eventually.
+        if (auto Def = Decl->getDefinition()) Decl = Def;
+        // We're parsing a reference to a generic struct, so we need to parse
         // the type arguments before we can instantiate.
-        TagOrTempResult = ParseRecordTypeApplication(decl->getDefinition());
+        TagOrTempResult = ParseRecordTypeApplication(Decl, WithinFieldDecl);
       }
     }
 
@@ -2033,8 +2041,12 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   }
 }
 
-/// Checked C: parse an instantiation of a generic struct.
-/// Returns the instantiated struct on success, or 'true' on failure.
+/// Checked C: parse an application of the 'Base' 'RecorDecl' to a number of type
+/// arguments that are yet to be parsed.
+/// 'WithinFieldDecl' is set if the parser is currently parsing a field declaration.
+/// This is important to know because we can't immediately perform type applications that
+/// happen in field declarations (see comment in 'RecordDecl::isDelayedTypeApp()').
+/// Return the record that results from the type application, or 'true' on failure.
 ///
 /// generic-struct-instantiation
 ///   '<' type-name-list '>'
@@ -2044,11 +2056,10 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///
 ///  type-name-list-suffix
 ///    ',' type-name type-name-list-suffix [opt]
-DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base) {
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base, bool WithinFieldDecl) {
   assert(Base->isGeneric() && "Instantiated record must be generic");
-  assert(Base->isCompleteDefinition() && "Must pass the record definition and not just a reference");
   ExpectAndConsume(tok::less); // eat the initial '<'
-  auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
+  auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation(), WithinFieldDecl);
   if (ArgsRes.first) {
     // Problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')
     return true;
@@ -2057,9 +2068,8 @@ DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base) {
     // TODO(abeln): add real error message
     printf("expected %d type params but got %u\n", Base->typeParams().size(), ArgsRes.second.size());
     return true;
-  } else {
-    return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second));
-  }
+  } 
+  return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second), WithinFieldDecl);
 }
 
 /// ParseBaseClause - Parse the base-clause of a C++ class [C++ class.derived].
