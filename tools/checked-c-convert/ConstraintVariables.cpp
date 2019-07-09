@@ -371,7 +371,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
           // then we shouldn't re-write it.
           if (getItypePresent() == false) {
             emittedBase = false;
-            ss << "_Nt_arr_ptr<";
+            ss << "_Nt_array_ptr<";
             caratsToAdd++;
             break;
           }
