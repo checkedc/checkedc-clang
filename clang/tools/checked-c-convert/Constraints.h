@@ -135,7 +135,7 @@ public:
 
   // replace the equality constraints that contains the provided
   // constraint variable with the constant atom
-  bool replaceEqConstraint(VarAtom *dstCons, ConstAtom *targetCons);
+  unsigned replaceEqConstraints(std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > &toRemoveVAtoms, class Constraints &CS);
 
   // restore the erased constraints into the regular constraints.
   bool resetErasedConstraints() {

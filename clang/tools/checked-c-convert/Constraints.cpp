@@ -19,42 +19,60 @@ static cl::opt<bool> DebugSolver("debug-solver",
   cl::desc("Dump intermediate solver state"),
   cl::init(false), cl::cat(SolverCategory));
 
-bool VarAtom::replaceEqConstraint(VarAtom *dstCons, ConstAtom *targetCons) {
-  bool hasChanged = false;
+unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAtoms, class Constraints &CS) {
+  unsigned removedConstraints = 0;
   std::set<Constraint*, PComp<Constraint*>> toRemoveConstraints;
-  for(auto currC: Constraints) {
-    // check if the constraint contains
-    // the provided constraint variable.
-    if(currC->containsConstraint(dstCons)) {
-      hasChanged = true;
-      // this has to be an equality constraint.
-      Eq* equalityConstraint = dyn_cast<Eq>(currC);
-      assert(equalityConstraint != nullptr &&
-             "Do not know how to replace a non-equality constraint.");
-      if(targetCons == nullptr) {
-        // if the constant atom is null then just remove the
-        // constraint containing the provided constraint variable.
-        toRemoveConstraints.insert(currC);
-      } else {
-        // if lhs is the target constraint variable, replace
-        // lhs with rhs.
-        // i.e., we will change the constraint of type
-        // dst = var to var = targetCons.
-        if(*(equalityConstraint->getLHS()) == *(dstCons)) {
-          equalityConstraint->lhs = equalityConstraint->rhs;
+  toRemoveConstraints.clear();
+  Constraints::ConstraintSet &csSet = CS.getConstraints();
+  // when we modify a constraint, we need to remove and re-add it.
+  std::set<Constraint*, PComp<Constraint*>> toReAdd;
+  toReAdd.clear();
+  std::set<Constraint*, PComp<Constraint*>> oldConstraints;
+  oldConstraints.clear();
+  oldConstraints.insert(Constraints.begin(), Constraints.end());
+
+  for(auto currC: oldConstraints) {
+    for(auto &vatomP: toRemoveVAtoms) {
+      ConstAtom *targetCons = vatomP.second;
+      VarAtom *dstCons = vatomP.first;
+      // check if the constraint contains
+      // the provided constraint variable.
+      if (currC->containsConstraint(dstCons)) {
+        removedConstraints++;
+        // this has to be an equality constraint.
+        Eq *equalityConstraint = dyn_cast<Eq>(currC);
+        // we will modify this constraint remove it
+        // from the local and global sets.
+        csSet.erase(equalityConstraint);
+        Constraints.erase(equalityConstraint);
+
+        assert(equalityConstraint != nullptr &&
+               "Do not know how to replace a non-equality constraint.");
+        if (targetCons != nullptr) {
+          // if lhs is the target constraint variable, replace
+          // lhs with rhs.
+          // i.e., we will change the constraint of type
+          // dst = var to var = targetCons.
+          if (*(equalityConstraint->getLHS()) == *(dstCons)) {
+            equalityConstraint->lhs = equalityConstraint->rhs;
+          }
+          equalityConstraint->rhs = targetCons;
+          // we need to re-add this constraint.
+          toReAdd.insert(equalityConstraint);
+        } else {
+          toRemoveConstraints.insert(currC);
         }
-        equalityConstraint->rhs = targetCons;
       }
     }
   }
-  for(auto currC: toRemoveConstraints) {
-    // remove the constraint.
-    Constraints.erase(currC);
-    // free the object of the constraint.
-    delete(currC);
+  for(auto toDel: toRemoveConstraints) {
+    delete(toDel);
   }
+  // re-add the modified constraints to the global and local constraints.
+  csSet.insert(toReAdd.begin(), toReAdd.end());
+  Constraints.insert(toReAdd.begin(), toReAdd.end());
 
-  return hasChanged;
+  return removedConstraints;
 }
 
 // Add a constraint to the set of constraints. If the constraint is already 

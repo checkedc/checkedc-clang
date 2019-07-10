@@ -75,20 +75,25 @@ unsigned long resetWithitypeConstraints(Constraints &CS) {
   Constraints::EnvironmentMap &currEnvMap = CS.getVariables();
   unsigned long numConstraintsRemoved = 0;
 
+  Constraints::EnvironmentMap toRemoveVAtoms;
+
   // restore the erased constraints.
   // Now, try to remove constraints that
   // depend on ityped constraint variables.
+
+  // make a map of constraints to remove
+  for(auto &currITypeVar: currIterationItypeMap) {
+    ConstAtom *targetCons = currITypeVar.second;
+    if (!dyn_cast<NTArrAtom>(currITypeVar.second)) {
+      targetCons = nullptr;
+    }
+    toRemoveVAtoms[currITypeVar.first] = targetCons;
+  }
+
+  // now try to remove the constraints.
   for (auto &currE: currEnvMap) {
     currE.first->resetErasedConstraints();
-    for(auto &currITypeVar: currIterationItypeMap) {
-      ConstAtom *targetCons = currITypeVar.second;
-      if(!dyn_cast<NTArrAtom>(currITypeVar.second)) {
-        targetCons = nullptr;
-      }
-      if(currE.first->replaceEqConstraint(currITypeVar.first, targetCons)) {
-        numConstraintsRemoved++;
-      }
-    }
+    numConstraintsRemoved += currE.first->replaceEqConstraints(toRemoveVAtoms, CS);
   }
 
   // Check if we removed any constraints?
