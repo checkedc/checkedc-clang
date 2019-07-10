@@ -294,6 +294,8 @@ int f31(_Ptr<void> p) {
 _Array_ptr<struct S> f37(unsigned num) : count(num) {
   _Array_ptr<struct S> q : count(num) = 0;
   _Array_ptr<struct S> p : count(0) = q; // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}}
+                                         // expected-note {{(expanded) declared bounds are 'bounds(p, p + 0)'}}
+                                         // expected-note {{(expanded) inferred bounds are 'bounds(q, q + num)'}}
   return p;
 }
 
