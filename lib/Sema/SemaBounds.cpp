@@ -1758,9 +1758,9 @@ namespace {
       // Is R a subrange of this range?
       ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
         if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
-          ProofResult LowerBoundsResult = CompareLowerBounds(R, Cause);
-          ProofResult UpperBoundsResult = CompareUpperBounds(R, Cause);
-          
+          ProofResult LowerBoundsResult = CompareLowerOffsets(R, Cause);
+          ProofResult UpperBoundsResult = CompareUpperOffsets(R, Cause);
+
           if (LowerBoundsResult == ProofResult::True &&
               UpperBoundsResult == ProofResult::True)
             return ProofResult::True;
@@ -1771,7 +1771,7 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      ProofResult CompareLowerBounds(BaseRange &R, ProofFailure &Cause) {
+      ProofResult CompareLowerOffsets(BaseRange &R, ProofFailure &Cause) {
         ProofResult Result = ProofResult::Maybe;
         
         // If both ranges are constant-sized, the constant integer values of the offsets are compared.
@@ -1785,15 +1785,16 @@ namespace {
             Cause = CombineFailures(Cause, ProofFailure::LowerBound);
             Result = ProofResult::False;
           }
-        } else if (LowerOffset.getExtValue() == 0 && !LowerOffsetExpr &&
-                   R.LowerOffsetExpr && R.LowerOffsetExpr->getType()->isUnsignedIntegerType())
+        } else if (R.LowerOffsetExpr && R.LowerOffsetExpr->getType()->isUnsignedIntegerType() &&
+                   LowerOffset.getExtValue() == 0)
           return ProofResult::True;
-        else if (LowerOffset.getExtValue() == 0 && !R.LowerOffsetExpr)
+        else if (!R.LowerOffsetExpr && !LowerOffsetExpr &&
+                 R.LowerOffset.getExtValue() == 0 && LowerOffset.getExtValue() == 0)
           return ProofResult::True;
         return Result;
       }
 
-      ProofResult CompareUpperBounds(BaseRange &R, ProofFailure &Cause) {
+      ProofResult CompareUpperOffsets(BaseRange &R, ProofFailure &Cause) {
         ProofResult Result = ProofResult::Maybe;
 
         // If both ranges are constant-sized, the constant integer values of the offsets are compared.
@@ -1807,8 +1808,11 @@ namespace {
             Cause = CombineFailures(Cause, ProofFailure::UpperBound);
             Result = ProofResult::False;
           }
-        } else if (R.UpperOffset.getExtValue() == 0 && !R.UpperOffsetExpr &&
-                   UpperOffsetExpr && UpperOffsetExpr->getType()->isUnsignedIntegerType())
+        } else if (UpperOffsetExpr && UpperOffsetExpr->getType()->isUnsignedIntegerType() &&
+                   R.UpperOffset.getExtValue() == 0)
+          return ProofResult::True;
+        else if (!R.UpperOffsetExpr && !UpperOffsetExpr &&
+                 R.UpperOffset.getExtValue() == 0 && UpperOffset.getExtValue() == 0)
           return ProofResult::True;
         return Result;
       }
