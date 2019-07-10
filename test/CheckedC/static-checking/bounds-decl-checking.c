@@ -291,6 +291,12 @@ int f31(_Ptr<void> p) {
   return 0;
 }
 
+_Array_ptr<struct S> f37(unsigned num) : count(num) {
+  _Array_ptr<struct S> q : count(num) = 0;
+  _Array_ptr<struct S> p : count(0) = q; // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}}
+  return p;
+}
+
 //
 // Test uses of _Return_value.  Handling _Return_value during bounds
 // declaration checking isn't implemented yet, so these uses are
@@ -330,6 +336,7 @@ _Array_ptr<int> f36(unsigned num) : count(num) {
 }
 #endif
 
+
 //
 // Test use of return count bounds.
 //
@@ -362,6 +369,15 @@ _Array_ptr<int> f55(unsigned num1, unsigned num2){
   return p;
 }
 
+_Array_ptr<int> test_f70(int c) : byte_count(c);
+
+_Array_ptr<int> f70(int num){
+  _Array_ptr<int> p : byte_count(0) = test_f70(num); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+                                                     // expected-note {{declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 0)'}} \
+                                                     // expected-note {{inferred bounds are 'bounds((_Array_ptr<char>)value of test_f70(num), (_Array_ptr<char>)value of test_f70(num) + num)'}}
+  return p;
+}
+
 _Ptr<int> test_f56(unsigned c);
 
 _Array_ptr<int> f57(unsigned num) {
@@ -375,5 +391,10 @@ _Array_ptr<int> f58(unsigned num) {
                                                    // expected-note {{destination upper bound is above source upper bound}} \
                                                    // expected-note {{(expanded) declared bounds are 'bounds(p, p + 2)'}} \
                                                    // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<int>)value of test_f56(num), (_Array_ptr<int>)value of test_f56(num) + 1)'}}
+  return p;
+}
+
+_Array_ptr<int> f59(unsigned num) {
+  _Array_ptr<int> p : count(0) = test_f56(num);
   return p;
 }
