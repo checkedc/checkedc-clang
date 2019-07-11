@@ -172,3 +172,15 @@ bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
   }
   return false;
 }
+
+bool functionHasVarArgs(clang::FunctionDecl *FD) {
+  if(FD && FD->getFunctionType()->isFunctionProtoType()) {
+    const FunctionProtoType *srcType = dyn_cast<FunctionProtoType>(FD->getFunctionType());
+    return srcType->isVariadic();
+  }
+  return false;
+}
+
+float getTimeSpentInSeconds(clock_t startTime) {
+  return float(clock() - startTime)/CLOCKS_PER_SEC;
+}

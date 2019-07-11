@@ -532,7 +532,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
                 std::ostream_iterator<std::string>(ss, ", "));
       ss << parmStrs.back();
 
-      s = s + ss.str() + ")";
+      s = s + ss.str();
+      // add varargs
+      if(functionHasVarArgs(Definition)) {
+        s = s + ", ...";
+      }
+      s = s + ")";
     } else {
       s = s + "void)";
     }

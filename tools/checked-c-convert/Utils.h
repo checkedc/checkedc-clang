@@ -47,5 +47,11 @@ bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
 
 bool isNULLExpression(clang::Expr *expr, clang::ASTContext &Ctx);
 
+// get the time spent in seconds since the provided time stamp.
+float getTimeSpentInSeconds(clock_t startTime);
+
+// check if the function has varargs i.e., foo(<named_arg>,...)
+bool functionHasVarArgs(clang::FunctionDecl *FD);
+
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif
