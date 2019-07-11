@@ -114,9 +114,10 @@ void rewrite( Rewriter              &R,
 // insert casts. Right now, it looks specifically for 'free'.
 class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
-  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I, Rewriter &R,
-                                RSet &DR, std::set<FileID> &Files, std::set<std::string> &V)
-          : Context(C), R(R), Info(I), rewriteThese(DR), Files(Files), VisitedSet(V) {}
+  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
+                                RSet &DR, std::set<std::string> &V,
+                                std::map<std::string, std::string> &newFuncSig)
+          : Context(C), Info(I), rewriteThese(DR), VisitedSet(V), ModifiedFuncSignatures(newFuncSig) {}
 
   bool VisitCallExpr(CallExpr *);
   bool VisitFunctionDecl(FunctionDecl *);
@@ -131,11 +132,10 @@ private:
                                FunctionDecl *funcDecl);
   bool anyTop(std::set<ConstraintVariable*>);
   ASTContext            *Context;
-  Rewriter              &R;
   ProgramInfo           &Info;
   RSet                  &rewriteThese;
-  std::set<FileID>      &Files;
   std::set<std::string> &VisitedSet;
+  std::map<std::string, std::string> &ModifiedFuncSignatures;
 };
 
 
@@ -148,8 +148,13 @@ public:
   virtual void HandleTranslationUnit(ASTContext &Context);
 
 private:
+  // functions to handle modified signatures and ensuring that
+  // we always use the latest signature.
+  static std::string getModifiedFuncSignature(std::string funcName);
+  static bool hasModifiedSignature(std::string funcName);
   ProgramInfo &Info;
   std::set<std::string> &InOutFiles;
+  static std::map<std::string, std::string> ModifiedFuncSignatures;
   std::string &OutputPostfix;
   std::string &BaseDir;
 };

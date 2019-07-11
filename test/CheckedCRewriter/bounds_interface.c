@@ -7,10 +7,10 @@
 
 
 extern void bar(int *q : itype(_Ptr<int>));
-//CHECK: extern void bar(int* q : itype(_Ptr<int>));
+//CHECK: extern void bar(int *q : itype(_Ptr<int>));
 
 extern void bar2(int *q : itype(_Ptr<int>), int *z : itype(_Ptr<int>));
-//CHECK: extern void bar2(int* q : itype(_Ptr<int>), int* z : itype(_Ptr<int>));
+//CHECK: extern void bar2(int *q : itype(_Ptr<int>), int *z : itype(_Ptr<int>));
 
 extern int *baz(void) : itype(_Ptr<int>);
 //CHECK: extern int *baz(void) : itype(_Ptr<int>);

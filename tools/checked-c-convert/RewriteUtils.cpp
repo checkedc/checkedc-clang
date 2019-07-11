@@ -409,19 +409,19 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   auto funcName = FD->getNameAsString();
 
-  // Make sure we haven't visited this function name before, and that we
-  // only visit it once.
-  if (VisitedSet.find(funcName) != VisitedSet.end())
-    return true;
-  else
-    VisitedSet.insert(funcName);
-
   // Do we have a definition for this declaration?
   FunctionDecl *Definition = getDefinition(FD);
   FunctionDecl *Declaration = getDeclaration(FD);
 
   if(Definition == nullptr)
     return true;
+
+  // Make sure we haven't visited this function name before, and that we
+  // only visit it once.
+  if (VisitedSet.find(funcName) != VisitedSet.end())
+    return true;
+  else
+    VisitedSet.insert(funcName);
 
   FVConstraint *cDefn = dyn_cast<FVConstraint>(
     getHighest(Info.getVariableOnDemand(Definition, Context, true), Info));
@@ -554,10 +554,13 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     if (endStuff.size() > 0)
       s = s + endStuff;
 
-    if (didAny)
+    if (didAny) {
       // Do all of the declarations.
       for (const auto &RD : Definition->redecls())
         rewriteThese.insert(DAndReplace(RD, s, true));
+      // save the modified function signature.
+      ModifiedFuncSignatures[funcName] = s;
+    }
   }
 
   return true;
@@ -687,6 +690,87 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
         }
 }
 
+// This is a visitor that tries to find all the variables
+// inferred as arrayed by the checked-c-convert
+class DeclArrayVisitor : public clang::RecursiveASTVisitor<DeclArrayVisitor>
+{
+public:
+  explicit DeclArrayVisitor(ASTContext *_C, Rewriter& _R, ProgramInfo& _I)
+          : Context(_C), Writer(_R), Info(_I)
+  {
+  }
+
+  bool VisitDecl(Decl* D)
+  {
+    // check if this is a variable declaration.
+    VarDecl* VD = dyn_cast_or_null<clang::VarDecl>(D);
+    if (!VD)
+      return true;
+
+    // ProgramInfo.getVariable() can find variables in a function
+    // context or not.  I'm not clear of the difference yet, so we
+    // just run our analysis on both.
+
+    std::set<ConstraintVariable*> a;
+    // check if the function body exists before
+    // fetching inbody variable.
+    if(hasFunctionBody(D)) {
+      a = Info.getVariable(D, Context, true);
+    }
+
+    std::set<ConstraintVariable*> b = Info.getVariable(D, Context, false);
+    std::set<ConstraintVariable*> CV;
+    std::set_union(a.begin(), a.end(),
+                   b.begin(), b.end(),
+                   std::inserter(CV, CV.begin()));
+
+    bool foundArr = false;
+    for (const auto& C: CV) {
+      foundArr |= C->hasArr(Info.getConstraints().getVariables());
+    }
+
+    if (foundArr) {
+      // Add the identified array declarations here.
+      Info.insertPotentialArrayVar(D);
+      // Find the end of the line that contains this statement.
+      FullSourceLoc sl(D->getEndLoc(), Context->getSourceManager());
+      const char* buf = sl.getCharacterData();
+      const char* ptr = strchr(buf, '\n');
+
+      // Deal with Windows/DOS "\r\n" line endings.
+      if (ptr && ptr > buf && ptr[-1] == '\r')
+        --ptr;
+
+      if (ptr) {
+        SourceLocation eol = D->getEndLoc().getLocWithOffset(ptr-buf);
+        sl = FullSourceLoc(eol, Context->getSourceManager());
+        Writer.InsertTextBefore(eol, "*/");
+        Writer.InsertTextBefore(eol, VD->getName());
+        Writer.InsertTextBefore(eol, "/*ARR:");
+      }
+    }
+    return true;
+  }
+
+private:
+  ASTContext*  Context;
+  Rewriter&    Writer;
+  ProgramInfo& Info;
+};
+
+std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
+
+std::string RewriteConsumer::getModifiedFuncSignature(std::string funcName) {
+  if(RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end()) {
+    return RewriteConsumer::ModifiedFuncSignatures[funcName];
+  }
+  return "";
+}
+
+bool RewriteConsumer::hasModifiedSignature(std::string funcName) {
+  return RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end();
+}
+
 void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
 
@@ -697,7 +781,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   RSet                  rewriteThese(DComp(Context.getSourceManager()));
   // Unification is done, so visit and see if we need to place any casts
   // in the program.
-  CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, R, rewriteThese, Files, v);
+  CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, rewriteThese, v,
+                                                  RewriteConsumer::ModifiedFuncSignatures);
   for (const auto &D : Context.getTranslationUnitDecl()->decls())
     CPV.TraverseDecl(D);
 
@@ -759,21 +844,17 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
           FV = T;
       }
 
-      if (PV && PV->anyChanges(Info.getConstraints().getVariables())) {
-        // Rewrite a declaration.
+
+      if (PV && PV->anyChanges(Info.getConstraints().getVariables()) && !PV->isPartOfFunctionPrototype()) {
+        // Rewrite a declaration, only if it is not part of function prototype
         std::string newTy = getStorageQualifierString(D) + PV->mkString(Info.getConstraints().getVariables());
         rewriteThese.insert(DAndReplace(D, DS, newTy));
-      } else if (FV && FV->anyChanges(Info.getConstraints().getVariables()) &&
+      } else if (FV && RewriteConsumer::hasModifiedSignature(FV->getName()) &&
                  !CPV.isFunctionVisited(FV->getName())) {
-        // Rewrite a function variables return value.
-        // only if this function is NOT handled by the
-        // cast placement visitor
-        std::set<ConstraintVariable*> V = FV->getReturnVars();
-        if (V.size() > 0) {
-          std::string newTy =
-                  (*V.begin())->mkString(Info.getConstraints().getVariables());
-          rewriteThese.insert(DAndReplace(D, DS, newTy));
-        }
+        // if this function already has a modified signature? and it is not
+        // visited by our cast placement visitor then rewrite it.
+        std::string newSig = RewriteConsumer::getModifiedFuncSignature(FV->getName());
+        rewriteThese.insert(DAndReplace(D, newSig, true));
       }
     }
   }
