@@ -181,6 +181,12 @@ bool functionHasVarArgs(clang::FunctionDecl *FD) {
   return false;
 }
 
+bool isFunctionAllocator(std::string funcName) {
+  return llvm::StringSwitch<bool>(funcName)
+    .Cases("malloc", "calloc", "realloc", true)
+    .Default(false);
+}
+
 float getTimeSpentInSeconds(clock_t startTime) {
   return float(clock() - startTime)/CLOCKS_PER_SEC;
 }

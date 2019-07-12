@@ -29,6 +29,7 @@ extern llvm::cl::opt<bool> DumpIntermediate;
 extern llvm::cl::opt<bool> handleVARARGS;
 extern llvm::cl::opt<bool> mergeMultipleFuncDecls;
 extern llvm::cl::opt<bool> enablePropThruIType;
+extern llvm::cl::opt<bool> considerAllocUnsafe;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 
@@ -65,7 +66,6 @@ bool isStructOrUnionType(clang::VarDecl *VD);
 
 // Helper method to print a Type in a way that can be represented in the source.
 std::string tyToStr(const clang::Type *T);
-
 
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif
