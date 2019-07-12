@@ -11190,10 +11190,6 @@ RecordDecl *ASTContext::getCachedTypeApp(const RecordDecl *Base, ArrayRef<const 
 }
 
 void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst) {
-  printf("adding to cache %s #args = %d\n", Base->getNameAsString().c_str(), TypeArgs.size());
-  for (auto TA : TypeArgs) {
-    TA->dump();
-  }
   assert((getCachedTypeApp(Base, TypeArgs) == nullptr) && "Type application is already cached");
   CachedTypeApps.insert(std::make_pair(std::make_pair(Base, TypeArgs), Inst));
 }

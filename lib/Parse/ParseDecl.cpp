@@ -4383,20 +4383,27 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
   }
 
-  // Checked C: complete the delayed 'RecordDecls' referenced by fields.
-  while (!DelayedTypeApps.empty()) {
-    auto TypeApp = DelayedTypeApps.back();
-    DelayedTypeApps.pop_back();
-    // Re-check whether the 'RecordDecl' is really delayed: because of duplicates it could've been
-    // processed earlier in the loop and no longer be delayed.
-    if (!TypeApp->isDelayedTypeApp()) continue;
-    Actions.CompleteTypeAppFields(TypeApp);
-    assert(!TypeApp->typeArgs().empty() && "Expected at least one type argument in type application");
-    // Complete the arguments to this type application, if necessary: e.g. when completing 'Box<List<int>>', need
-    // to potentially complete 'List<int>'.
-    for (auto TypeArg : TypeApp->typeArgs()) {
-      // TODO(abeln): add more robust logic to extract the underlying 'RecordDecl'.
-      if (auto Decl = TypeArg.typeName.getTypePtr()->getAsRecordDecl()) DelayedTypeApps.push_back(Decl);
+  // Checked C: check that there are no expanding cycles.
+  auto ExpandingCycles = false;
+  auto RecDecl = llvm::dyn_cast<RecordDecl>(TagDecl);
+  if (RecDecl && RecDecl->isGeneric()) ExpandingCycles = Actions.DiagnoseExpandingCycles(RecDecl, RecordLoc);
+
+  if (!ExpandingCycles) {
+    // If there are no expanding cycles, then it's safe to complete the delayed 'RecordDecls' referenced by fields.
+    while (!DelayedTypeApps.empty()) {
+      auto TypeApp = DelayedTypeApps.back();
+      DelayedTypeApps.pop_back();
+      // Re-check whether the 'RecordDecl' is really delayed: because of duplicates it could've been
+      // processed earlier in the loop and no longer be delayed.
+      if (!TypeApp->isDelayedTypeApp()) continue;
+      Actions.CompleteTypeAppFields(TypeApp);
+      assert(!TypeApp->typeArgs().empty() && "Expected at least one type argument in type application");
+      // Complete the arguments to this type application, if necessary: e.g. when completing 'Box<List<int>>', need
+      // to potentially complete 'List<int>'.
+      for (auto TypeArg : TypeApp->typeArgs()) {
+        // TODO(abeln): add more robust logic to extract the underlying 'RecordDecl'.
+        if (auto Decl = TypeArg.typeName.getTypePtr()->getAsRecordDecl()) DelayedTypeApps.push_back(Decl);
+      }
     }
   }
 
