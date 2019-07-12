@@ -4882,6 +4882,12 @@ public:
   /// Should only be called once per delayed 'RecordDecl'.
   void CompleteTypeAppFields(RecordDecl *Incomplete);
 
+  // Determine whether the given 'RecordDecl' is part of an 'expanding cycle'.
+  // For the definition of expanding cycle, see 'ECMA 335 Common Language Infrastructure (CLI) Partitions I to VI'.
+  // Specifically, Partition II, section II.9.2 'Generics and recursive inheritance graphs'.
+  // TODO(abeln): add larger comment describing the algorithm.
+  bool DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc);
+
   QualType SubstituteTypeArgs(QualType QT,
                 ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl);
 

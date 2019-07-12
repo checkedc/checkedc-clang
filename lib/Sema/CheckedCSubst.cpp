@@ -14,6 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TreeTransform.h"
+#include "clang/AST/TypeVisitor.h"
 
 using namespace clang;
 using namespace sema;
@@ -159,8 +160,166 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
   // The decl was already marked as complete in 'ActOnRecordTypeApplication'.
 }
 
+// Definitions for expanding cycles check
 namespace {
+  // A graph node is a triple '(BaseRecordDecl, TypeArg, Expanding)' (here stored as two nested 'std::pairs' so we can keep them in a 'DenseSet').
+  // The semantics of a triple are as follows: a triple is in the set if, starting from one of the type arguments of 'Base', 
+  // it's possible to arrive at 'TypeArg' which is defined in 'BaseRecordDecl'.
+  // 'Expanding' indicates whether any of the edges taken to arrive to (BaseRecordDecl, TypeArg) is expanding ('Expanding = 1')
+  // or if they're all non-expanding ('Expanding = 0'). 
+  using Node = std::pair<std::pair<const RecordDecl *, const TypeVariableType *>, char>;
+  const char NON_EXPANDING = 0;
+  const char EXPANDING = 1;
 
+  // Retrieve the underlying type variable from a typedef that appears as the param to a generic record.
+  // TODO(abeln): handle failure case better.
+  const TypeVariableType *GetTypeVar(TypedefDecl *TDef) {
+    const TypeVariableType *TypeVar = llvm::dyn_cast<TypeVariableType>(TDef->getUnderlyingType());
+    assert(TypeVar && "Expected a type variable as the parameter of a generic record");
+    return TypeVar;
+  };
+
+  // A 'TypeVisitor' that determines whether a type references a given type variable.
+  // e.g. ContainsTypeVar('T').Visit('List<T>') -> true
+  //      ContainsTypeVar('T').Visit('List<int>') -> false
+  class ContainsTypeVarVisitor : public TypeVisitor<ContainsTypeVarVisitor, bool> {
+    // The type variable we're searching for.
+    const TypeVariableType *TypeVar;
+
+  public:
+    ContainsTypeVarVisitor(const TypeVariableType *TypeVar): TypeVar(TypeVar) {}
+
+    // TODO(abeln): do we need to handle additional cases?
+
+    bool VisitTypeVariableType(const TypeVariableType *Type) {
+      return Type == TypeVar;
+    }
+
+    bool VisitPointerType(const PointerType *Type) {
+      return Visit(Type->getPointeeType().getTypePtr());
+    }
+
+    bool VisitElaboratedType(const ElaboratedType *Type) {
+      return Visit(Type->getNamedType().getTypePtr());
+    }
+
+    bool VisitTypedefType(const TypedefType *Type) {
+      return Visit(Type->desugar().getTypePtr());
+    }
+
+    bool VisitRecordType(const RecordType *Type) {
+      auto RDecl = Type->getDecl();
+      if (!RDecl->isInstantiated()) return false;
+      for (auto TArg : RDecl->typeArgs()) {
+        if (Visit(TArg.typeName.getTypePtr())) return true;
+      }
+      return false;
+    }
+  };
+
+  // A 'TypeVisitor' that, given a type and a type variable, generates out-edges from the  
+  // type variable in the expanding cycles graph.
+  // To generate the edges, we need to destruct the given type and find within it all type
+  // applications where the variable appears. The resulting edges are "expanding" or "non-expanding"
+  // depending on whether the variable appears at the top level as a type argument.
+  //
+  // The new edges aren't returned; instead, they're added as a side effect to the
+  // 'Worklist' argument in the constructor.
+  class ExpandingEdgesVisitor : public TypeVisitor<ExpandingEdgesVisitor, void> {
+    // The worklist where the new nodes will be inserted.
+    std::stack<Node> &Worklist;
+    // The type variable that we're looking for in embedded type applications.
+    const TypeVariableType *TypeVar;
+    // Whether the path so far contains at least one expanding edge.
+    char ExpandingSoFar;
+    // A visitor object to find out whether a type variable is referenced within a given type.
+    ContainsTypeVarVisitor ContainsVisitor;
+
+  public:
+  
+    // TODO(abeln): do we need to handle additional cases?
+
+    // Note the worklist argument is mutated by this visitor.
+    class ExpandingEdgesVisitor(std::stack<Node>& Worklist, const TypeVariableType *TypeVar, char ExpandingSoFar):
+      Worklist(Worklist), TypeVar(TypeVar), ExpandingSoFar(ExpandingSoFar), ContainsVisitor(TypeVar) {}
+
+    void VisitRecordType(const RecordType *Type) {
+      auto InstDecl = Type->getDecl();
+      if (!InstDecl->isInstantiated()) return;
+      auto BaseDecl = InstDecl->baseDecl();
+      assert(InstDecl->typeArgs().size() == BaseDecl->typeParams().size() && "Number of type args and params must match");
+      auto NumArgs = InstDecl->typeArgs().size();
+      for (size_t i = 0; i < NumArgs; i++) {
+        auto ArgType = InstDecl->typeArgs()[i].typeName.getCanonicalType().getTypePtr();
+        auto DestTypeVar = GetTypeVar(BaseDecl->typeParams()[i]);
+        if (ArgType == TypeVar) {
+          // Non-expanding edges are created if the type variable appears directly as an argument of the decl.
+          // So in this case the new edge is marked as expanding only if we'd previously seen an expanding edge.
+          Worklist.push(Node(std::make_pair(BaseDecl, DestTypeVar), ExpandingSoFar));
+        } else if (ContainsVisitor.Visit(ArgType)) {
+          // Expanding edges are created if the type variable doesn't appear directly, but is contained in the type argument.
+          // In this case we always mark the edge as expanding.
+          Worklist.push(Node(std::make_pair(BaseDecl, DestTypeVar), true /* expanding */));
+        }
+      }
+    }
+
+    void VisitPointerType(const PointerType *Type) {
+      Visit(Type->getPointeeType().getTypePtr());
+    }
+
+    void VisitElaboratedType(const ElaboratedType *Type) {
+      Visit(Type->getNamedType().getTypePtr());
+    }
+  };
+}
+
+bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
+  assert(Base->isGeneric() && "Can only check expanding cycles for generic structs");
+  llvm::DenseSet<Node> Visited;
+  std::stack<Node> Worklist;
+
+  // 'Base's type variables.
+  llvm::SmallVector<const TypeVariableType *, 4> TypeVars; 
+
+  // Seed the worklist with the type parameters to 'Base'.
+  for (auto TypeDef : Base->typeParams()) {
+    auto TVar = GetTypeVar(TypeDef);
+    TypeVars.push_back(TVar);
+    Worklist.push(Node(std::make_pair<>(Base, TVar), NON_EXPANDING));
+  }
+
+  // Is 'TVar' a type variable of 'Base'?
+  auto IsTypeVarOfBase = [&TypeVars](const TypeVariableType *TVar) -> bool {
+    for (auto BaseVar : TypeVars) {
+      if (BaseVar == TVar) return true;
+    }
+    return false;
+  };
+
+  // Explore the implicit graph via DFS.
+  while (!Worklist.empty()) {
+    auto Curr = Worklist.top();
+    Worklist.pop();
+    if (Visited.find(Curr) != Visited.end()) continue; // already visited: don't explore further
+    Visited.insert(Curr);
+    auto RDecl = Curr.first.first;
+    auto TVar = Curr.first.second;
+    auto ExpandingSoFar = Curr.second;
+    if (ExpandingSoFar == EXPANDING && IsTypeVarOfBase(TVar)) {
+      Diag(Loc, diag::err_expanding_cycle);
+      return true;
+    }
+    ExpandingEdgesVisitor EdgesVisitor(Worklist, TVar, ExpandingSoFar);
+    for (auto Field : RDecl->fields()) {
+      EdgesVisitor.Visit(Field->getType().getTypePtr());
+    }
+  }
+
+  return false; // no cycles: can complete decls
+}
+
+namespace {
 // LocRebuilderTransform is an uncustomized 'TreeTransform' that is used
 // solely for re-building 'TypeLocs' within 'TypeApplication'.
 // We use this vanilla transform instead of a recursive call to 'TypeApplication::TransformType' because
