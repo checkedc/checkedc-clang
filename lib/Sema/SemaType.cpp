@@ -1534,10 +1534,12 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   }
   case DeclSpec::TST_plainPtr:
   case DeclSpec::TST_arrayPtr:
-  case DeclSpec::TST_nt_arrayPtr: {
+  case DeclSpec::TST_nt_arrayPtr:
+  case DeclSpec::TST_mmsafePtr: {
       Result = S.GetTypeFromParser(DS.getRepAsType());
       assert(!Result.isNull() &&
-             "Didn't get a type for _Ptr, _Array_ptr, or _Nt_array_ptr?");
+             "Didn't get a type for _Ptr, _Array_ptr, _Nt_array_ptr, \
+             or _MMSafe_ptr?");
       // The name we're declaring, if any.
       DeclarationName Name;
       if (declarator.getIdentifier())
@@ -1553,6 +1555,9 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
           break;
         case DeclSpec::TST_nt_arrayPtr:
           Kind = CheckedPointerKind::NtArray;
+          break;
+        case DeclSpec::TST_mmsafePtr:
+          Kind = CheckedPointerKind::MMSafe_ptr;
           break;
         default:
             llvm_unreachable("unexpected type spec type");

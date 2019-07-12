@@ -3858,7 +3858,8 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 
     case tok::kw__Ptr:
     case tok::kw__Array_ptr:
-    case tok::kw__Nt_array_ptr: {
+    case tok::kw__Nt_array_ptr:
+    case tok::kw__MMSafe_ptr: {
       ParseCheckedPointerSpecifiers(DS);
       // continue to keep the current token from being consumed.
       continue; 
@@ -4941,6 +4942,7 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw__Array_ptr:
   case tok::kw__Nt_array_ptr:
   case tok::kw__Ptr:
+  case tok::kw__MMSafe_ptr:
 
     return true;
   }
@@ -5067,6 +5069,7 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw__Ptr:
   case tok::kw__Array_ptr:
   case tok::kw__Nt_array_ptr:
+  case tok::kw__MMSafe_ptr:
 
     return true;
 
@@ -5223,6 +5226,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw__Ptr:
   case tok::kw__Array_ptr:
   case tok::kw__Nt_array_ptr:
+  case tok::kw__MMSafe_ptr:
   // Checked C scope keywords for functions/structs
   case tok::kw__Checked:
   case tok::kw__Unchecked:
@@ -7287,10 +7291,11 @@ void Parser::ParseAtomicSpecifier(DeclSpec &DS) {
 /// [Checked C]  new pointer types:
 ///           _Ptr &lt type name &gt
 ///           _Array_ptr &lt type name &gt
-///           _Nt_array_ptr &lt type name & gt
+///           _Nt_array_ptr &lt type name &gt
+///           _MMSafe_ptr &lt type name &gt
 void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
     assert((Tok.is(tok::kw__Ptr) || Tok.is(tok::kw__Array_ptr) ||
-            Tok.is(tok::kw__Nt_array_ptr)) &&
+            Tok.is(tok::kw__Nt_array_ptr) || Tok.is(tok::kw__MMSafe_ptr)) &&
            "Not a checked pointer specifier");
     tok::TokenKind Kind = Tok.getKind();
     SourceLocation StartLoc = ConsumeToken();
@@ -7336,6 +7341,8 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
       pointerKind = TST_arrayPtr;
     else if (Kind == tok::kw__Nt_array_ptr)
       pointerKind = TST_ntarrayPtr;
+    else if (Kind == tok::kw__MMSafe_ptr)
+      pointerKind = TST_mmsafePtr;
 
     if (DS.SetTypeSpecType(pointerKind, StartLoc, PrevSpec,
         DiagID, Result.get(),

@@ -407,6 +407,9 @@ void TypePrinter::printPointerBefore(const PointerType *T, raw_ostream &OS) {
       case CheckedPointerKind::NtArray:
         OS << "_Nt_array_ptr<";
         break;
+      case CheckedPointerKind::MMSafe_ptr:
+        OS << "_MMSafe_ptr<";
+        break;
     }
     print(T->getPointeeType(), OS, StringRef());
     OS << '>';
