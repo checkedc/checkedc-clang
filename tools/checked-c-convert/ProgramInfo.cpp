@@ -169,7 +169,7 @@ void ProgramInfo::print_stats(std::set<std::string> &F, raw_ostream &O) {
       varC += foundVars.size();
       for (const auto &N : foundVars) {
         VarAtom *V = CS.getVar(N);
-        assert(V != NULL);
+        assert(V != nullptr);
         auto K = env.find(V);
         assert(K != env.end());
 
@@ -228,10 +228,7 @@ bool ProgramInfo::checkStructuralEquality(QualType D, QualType S) {
   if (D == S)
     return true;
 
-  if (D->isPointerType() == S->isPointerType())
-    return true;
-
-  return false;
+  return D->isPointerType() == S->isPointerType();
 }
 
 bool ProgramInfo::isExternOkay(std::string ext) {

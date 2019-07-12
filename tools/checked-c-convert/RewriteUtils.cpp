@@ -523,9 +523,11 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       }
     }
 
+    // this means inside the function, the return value is WILD
+    // so the return type is what was originally declared.
     if(!returnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
-      returnVar = Decl->mkString(Info.getConstraints().getVariables());
+      returnVar = Decl->getOriginalTy() + " ";
 
       endStuff = getExistingIType(Decl, Defn, Declaration);
       if(!endStuff.empty()) {
