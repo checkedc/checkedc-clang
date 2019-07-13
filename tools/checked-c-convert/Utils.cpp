@@ -188,3 +188,12 @@ float getTimeSpentInSeconds(clock_t startTime) {
 bool isPointerType(clang::VarDecl *VD) {
   return VD->getType().getTypePtr()->isPointerType();
 }
+
+bool isStructOrUnionType(clang::VarDecl *VD) {
+  return VD->getType().getTypePtr()->isStructureType() || VD->getType().getTypePtr()->isUnionType();
+}
+
+std::string tyToStr(const Type *T) {
+  QualType QT(T, 0);
+  return QT.getAsString();
+}

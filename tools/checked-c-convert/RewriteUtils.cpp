@@ -758,6 +758,83 @@ private:
   ProgramInfo& Info;
 };
 
+// This class initializes all the structure variables that
+// contains at least one checked pointer?
+class StructVariableInitializer : public clang::RecursiveASTVisitor<StructVariableInitializer>
+{
+public:
+  explicit StructVariableInitializer(ASTContext *_C, ProgramInfo &_I, RSet &R)
+    : Context(_C), I(_I), RewriteThese(R)
+  {
+    RecordsWithCPointers.clear();
+  }
+
+  bool VariableNeedsInitializer(VarDecl *VD, DeclStmt *S) {
+    RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
+    if (RecordDecl *Definition = RD->getDefinition()) {
+      // see if we already know that this structure has a checked pointer.
+      if(RecordsWithCPointers.find(Definition) != RecordsWithCPointers.end()) {
+        return true;
+      }
+      for (const auto &D : Definition->fields()) {
+        if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
+          std::set<ConstraintVariable *> fieldConsVars = I.getVariable(D, Context, false);
+          for (auto CV: fieldConsVars) {
+            PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+            if (PV && PV->anyChanges(I.getConstraints().getVariables())) {
+              // ok this contains a pointer that is checked.
+              // store it.
+              RecordsWithCPointers.insert(Definition);
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  // check to see if this variable require an initialization.
+  bool VisitDeclStmt(DeclStmt *S) {
+
+    std::set<VarDecl*> allDecls;
+
+    if (S->isSingleDecl()) {
+      if (VarDecl *VD = dyn_cast<VarDecl>(S->getSingleDecl())) {
+        allDecls.insert(VD);
+      }
+    } else {
+      for (const auto &D : S->decls()) {
+        if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+          allDecls.insert(VD);
+        }
+      }
+    }
+
+    for(auto VD: allDecls) {
+      // check if this variable is a structure or union and doesn't have an initializer.
+      if(!VD->hasInit() && isStructOrUnionType(VD)) {
+        // check if the variable needs a initializer.
+        if(VariableNeedsInitializer(VD, S)) {
+          const clang::Type *Ty = VD->getType().getTypePtr();
+          std::string OriginalType = tyToStr(Ty);
+          // create replacement text with an initializer.
+          std::string toReplace = OriginalType + " " + VD->getName().str() + " = {}";
+          RewriteThese.insert(DAndReplace(VD, S, toReplace));
+        }
+      }
+    }
+
+    return true;
+  }
+private:
+  ASTContext*  Context;
+  ProgramInfo &I;
+  RSet &RewriteThese;
+  std::set<RecordDecl*> RecordsWithCPointers;
+
+};
+
 std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
 
 std::string RewriteConsumer::getModifiedFuncSignature(std::string funcName) {
@@ -799,8 +876,11 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   RSet skip(DComp(Context.getSourceManager()));
   MappingVisitor V(keys, Context);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
-  for (const auto &D : TUD->decls())
+  StructVariableInitializer FV = StructVariableInitializer(&Context, Info, rewriteThese);
+  for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
+    FV.TraverseDecl(D);
+  }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();
 

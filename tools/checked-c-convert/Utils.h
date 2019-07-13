@@ -10,6 +10,7 @@
 #define _UTILS_H
 #include <set>
 #include "llvm/Support/CommandLine.h"
+#include "clang/AST/Type.h"
 
 #include "PersistentSourceLoc.h"
 
@@ -58,6 +59,13 @@ bool isFunctionAllocator(std::string funcName);
 
 // Is the given variable built  in type?
 bool isPointerType(clang::VarDecl *VD);
+
+// check if the variable is of a structure or union type.
+bool isStructOrUnionType(clang::VarDecl *VD);
+
+// Helper method to print a Type in a way that can be represented in the source.
+std::string tyToStr(const clang::Type *T);
+
 
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif

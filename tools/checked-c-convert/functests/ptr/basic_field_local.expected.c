@@ -18,9 +18,9 @@ typedef struct {
   char d; 
 } foo3;
 int main() {
-  foo obj;
+  foo obj = {};
   float b;
-  foo2 obj2;
+  foo2 obj2 = {};
   obj2.b = &b;
   foo3 obj3;
   obj3.p = 0xcafebabe;

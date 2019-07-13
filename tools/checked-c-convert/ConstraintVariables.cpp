@@ -16,15 +16,6 @@
 
 using namespace clang;
 
-// Helper method to print a Type in a way that can be represented in the source.
-static
-std::string
-tyToStr(const Type *T) {
-  QualType QT(T, 0);
-
-  return QT.getAsString();
-}
-
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ConstraintKey &K, Constraints &CS, const ASTContext &C) :
         PointerVariableConstraint(D->getType(), K, D, D->getName(), CS, C) { }
