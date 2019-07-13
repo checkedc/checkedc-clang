@@ -27,9 +27,9 @@ int main() {
   // this will be WILD
   int *bp;
   // this will be _Ptr
-  _Ptr<int> cp;
+  _Ptr<int> cp = NULL;
   // this will be _Ptr
-  _Ptr<int> ap1;
+  _Ptr<int> ap1 = NULL;
   // this will be WILD
   int *bp1;
   // this will be _Ptr

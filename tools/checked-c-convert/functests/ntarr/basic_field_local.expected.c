@@ -21,7 +21,7 @@ typedef struct {
 
 int main() {
   foo obj;
-  _Nt_array_ptr<char> bp;
+  _Nt_array_ptr<char> bp = NULL;
   float b;
   foo2 obj2;
   int hel;

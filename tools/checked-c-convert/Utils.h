@@ -53,5 +53,11 @@ float getTimeSpentInSeconds(clock_t startTime);
 // check if the function has varargs i.e., foo(<named_arg>,...)
 bool functionHasVarArgs(clang::FunctionDecl *FD);
 
+// check if the function is a allocator.
+bool isFunctionAllocator(std::string funcName);
+
+// Is the given variable built  in type?
+bool isPointerType(clang::VarDecl *VD);
+
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif

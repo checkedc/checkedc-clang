@@ -184,3 +184,7 @@ bool functionHasVarArgs(clang::FunctionDecl *FD) {
 float getTimeSpentInSeconds(clock_t startTime) {
   return float(clock() - startTime)/CLOCKS_PER_SEC;
 }
+
+bool isPointerType(clang::VarDecl *VD) {
+  return VD->getType().getTypePtr()->isPointerType();
+}

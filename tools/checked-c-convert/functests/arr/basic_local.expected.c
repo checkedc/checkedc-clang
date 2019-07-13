@@ -7,7 +7,7 @@ int main() {
   int *a;
   // c also should be identified as 
   // _Ptr as we do not use it.
-  _Ptr<int> c;
+  _Ptr<int> c = NULL;
   // we will make this wild.
   int *d;
   int b;

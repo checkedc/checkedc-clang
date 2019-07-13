@@ -26,17 +26,17 @@ static int *func(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *wild) : ity
 int main() {
   int a, b, c;
   // this will be _Ptr
-  _Ptr<int> ap;
+  _Ptr<int> ap = NULL;
   // this will be WILD
   int *bp;
   // this will be _Ptr
-  _Ptr<int> cp;
+  _Ptr<int> cp = NULL;
   // this will be _Ptr
-  _Ptr<int> ap1;
+  _Ptr<int> ap1 = NULL;
   // this will be WILD
   int *bp1;
   // this will be _Ptr
-  _Ptr<int> cp1;
+  _Ptr<int> cp1 = NULL;
 
   
   ap1 = ap = &a;

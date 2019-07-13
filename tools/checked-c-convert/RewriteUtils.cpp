@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <map>
 #include <sstream>
-
+#include "clang/AST/Type.h"
 #include "RewriteUtils.h"
 #include "MappingVisitor.h"
 #include "Utils.h"
@@ -168,6 +168,11 @@ void rewrite( VarDecl               *VD,
       SourceLocation eqLoc = VD->getInitializerStartLoc();
       TR.setEnd(eqLoc);
       sRewrite = sRewrite + " = ";
+    } else {
+      // DAMN, there is no initializer, lets add it.
+      if(isPointerType(VD)) {
+        sRewrite = sRewrite + " = NULL";
+      }
     }
 
     // Is it a variable type? This is the easy case, we can re-write it
@@ -242,6 +247,10 @@ void rewrite( VarDecl               *VD,
           if (Expr *E = VDL->getInit()) {
             newMLDecl << " = ";
             E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
+          } else {
+            if(isPointerType(VDL)) {
+              newMLDecl << " = NULL";
+            }
           }
           newMLDecl << ";\n";
         }

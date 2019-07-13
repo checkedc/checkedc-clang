@@ -29,13 +29,13 @@ int main() {
   // this will be WILD
   int *bp;
   // this will be _Ptr
-  _Ptr<int> cp;
+  _Ptr<int> cp = NULL;
   // this will be wild
   char *ap1;
   // this will be WILD
   int *bp1;
   // this will be _Ptr
-  _Ptr<int> cp1;
+  _Ptr<int> cp1 = NULL;
 
   
   //ap1 = &a;

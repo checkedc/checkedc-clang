@@ -4,11 +4,11 @@
 int main() {
   // a has to identified
   // as _Ptr
-  _Ptr<int> a;
+  _Ptr<int> a = NULL;
   // c also 
   // should be identified as 
   // _Ptr
-  _Ptr<int> c;
+  _Ptr<int> c = NULL;
   int *d;
   int b;
   a = &b;

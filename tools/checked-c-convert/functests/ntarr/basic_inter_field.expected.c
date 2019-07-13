@@ -16,8 +16,8 @@ _Ptr<int> func(_Ptr<int> ptr, _Nt_array_ptr<char> ntptr) {
 
 int main() {
   int a;
-  _Ptr<int> b;
-  _Nt_array_ptr<char> wil;
+  _Ptr<int> b = NULL;
+  _Nt_array_ptr<char> wil = NULL;
   a = strlen(wil);
   b = func(&a, wil);
 }
