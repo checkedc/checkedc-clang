@@ -40,5 +40,9 @@ bool hasFunctionBody(clang::Decl *param);
 
 std::string getStorageQualifierString(clang::Decl *D);
 
+bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
+
+bool isNULLExpression(clang::Expr *expr, clang::ASTContext &Ctx);
+
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif

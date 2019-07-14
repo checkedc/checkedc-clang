@@ -12,6 +12,8 @@
 using namespace llvm;
 using namespace clang;
 
+bool ConstraintBuilderConsumer::EnableHandlingVARARGS = false;
+
 // flags
 // constraint all the arguments to a function
 // accepting var args to be wild.
@@ -237,21 +239,22 @@ public:
     } else {
       RHS = RHS->IgnoreParens();
 
-      // Cases 2-4.
-      if (RHS->isIntegerConstantExpr(*Context)) {
-        // Case 2.
-        if (!RHS->isNullPointerConstant(*Context,
-                                        Expr::NPC_ValueDependentIsNotNull)) {
-          for (const auto &U : V) {
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
-              for (const auto &J : PVC->getCvars()) {
-                CS.addConstraint(
-                  CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
-              }
-          }
+      // Cases 2
+      if(isNULLExpression(RHS, *Context)) {
+        // Do Nothing.
+      } else if (RHS->isIntegerConstantExpr(*Context) &&
+                !RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
+        // Case 2, Special handling. If this is an assignment of non-zero
+        // integer constraint, then make the pointer WILD.
+        for (const auto &U : V) {
+          if (PVConstraint *PVC = dyn_cast<PVConstraint>(U))
+            for (const auto &J : PVC->getCvars()) {
+              CS.addConstraint(
+                CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
+            }
         }
-      } // Cases 3-4.
-      if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
+      } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
+        // Cases 3-4.
         if (UO->getOpcode() == UO_AddrOf) {
           // Case 3.
           // Is there anything to do here, or is it implicitly handled?
@@ -458,12 +461,10 @@ public:
           // this is the case of an argument passed to a function
           // with varargs.
           // Constrain this parameter to be wild.
-#ifdef CONSTRAINT_ARGS_TO_VARGS_WILD
-
-          Constraints &CS = Info.getConstraints();
-          for (const auto &C : ArgumentConstraints)
-            C->constrainTo(CS, CS.getWild());
-#endif
+          if(ConstraintBuilderConsumer::EnableHandlingVARARGS) {
+            Constraints &CS = Info.getConstraints();
+            assignType(ArgumentConstraints, CS.getWild());
+          }
         }
 
         i++;

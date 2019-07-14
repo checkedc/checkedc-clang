@@ -62,7 +62,7 @@ public:
 
 private:
   static
-    PersistentSourceLoc mkPSL(clang::SourceLocation SL, clang::ASTContext &Context);
+    PersistentSourceLoc mkPSL(clang::SourceRange SR, clang::SourceLocation SL, clang::ASTContext &Context);
   std::string fileName;
   uint32_t lineNo;
   uint32_t colNo;

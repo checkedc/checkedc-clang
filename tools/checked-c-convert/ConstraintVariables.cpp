@@ -36,6 +36,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
+  OriginalType = tyToStr(Ty);
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
   // kind of array type, we want to use that instead.
@@ -55,6 +56,18 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
   arrPresent = false;
 
   if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
+    // external variables can also have itype.
+    // check if the provided declaration is an external
+    // variable.
+    if(!dyn_cast<ParmVarDecl>(D) && !dyn_cast<FunctionDecl>(D)) {
+      QualType InteropType = C.getInteropTypeAndAdjust(ITE, false);
+      // TODO: handle array_ptr types.
+      if (InteropType->isCheckedPointerPtrType()) {
+        QTy = InteropType;
+        Ty = QTy.getTypePtr();
+      }
+    }
+
     SourceRange R = ITE->getSourceRange();
     if (R.isValid()) {
       auto &SM = C.getSourceManager();
@@ -621,12 +634,16 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
     // function, and we don't want the linking phase to un-refine it by introducing
     // a conflicting constraint.
     bool doAdd = true;
-    if (checkSkip)
+    // this will ensure that we do not make an itype constraint
+    // variable to be WILD (which should be impossible)!!
+    if (checkSkip || dyn_cast<WildAtom>(A)) {
       if (ConstrainedVars.find(V) != ConstrainedVars.end())
         doAdd = false;
+    }
 
-    if (doAdd)
+    if (doAdd) {
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
+    }
   }
 
   if (FV)

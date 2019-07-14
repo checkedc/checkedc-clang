@@ -1,39 +1,42 @@
 // here we test the propagation of constraints
 // between functions.
-
+static int funcvar;
+static int funcdecvar;
 // we test propagation with and without function
 // declaration.
-int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *wild);
-int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {
+static int* funcdecl(int *ptr, int *iptr, int *wild);
+static int* funcdecl(int *ptr, int *iptr, int *wild) {
    if(ptr != 0) {
     *ptr = 0;
    }   
    wild = 0xdeadbeef;
+   return &funcdecvar;
 }
 
 // ptr is a regular _Ptr
 // iptr will be itype
 // wild will be a wild ptr.
-int func(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {
+static int* func(int *ptr, int *iptr, int *wild) {
    if(ptr != 0) {
     *ptr = 0;
    }
    wild = 0xdeadbeef;
+   return &funcvar;
 }
 int main() {
   int a, b, c;
   // this will be _Ptr
-  _Ptr<int> ap;
+  int *ap;
   // this will be WILD
   int *bp;
   // this will be _Ptr
-  _Ptr<int> cp;
+  int *cp;
   // this will be _Ptr
-  _Ptr<int> ap1;
+  int *ap1;
   // this will be WILD
   int *bp1;
   // this will be _Ptr
-  _Ptr<int> cp1;
+  int *cp1;
 
   
   ap1 = ap = &a;
@@ -45,6 +48,6 @@ int main() {
   // to a paramter that will be 
   // treated as WILD in func, cp
   // is Ptr within main
-  func(ap, bp, cp);
-  funcdecl(ap1, bp1, cp1);
+  bp = func(ap, bp, cp);
+  bp1 = funcdecl(ap1, bp1, cp1);
 }

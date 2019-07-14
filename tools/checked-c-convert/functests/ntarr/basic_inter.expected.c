@@ -5,8 +5,8 @@
 // we test propagation with and without function
 // declaration.
 // here, ntiptr will be an itype(Nt_ptr)
-intfuncdecl(char *ntiptr : itype(_Nt_arr_ptr<char> ) , int *iptr : itype(_Ptr<int> ) , int *wild);
-intfuncdecl(char *ntiptr : itype(_Nt_arr_ptr<char> ) , int *iptr : itype(_Ptr<int> ) , int *wild) {
+int funcdecl(char *ntiptr : itype(_Nt_arr_ptr<char> ) , int *iptr : itype(_Ptr<int> ) , int *wild);
+int funcdecl(char *ntiptr : itype(_Nt_arr_ptr<char> ) , int *iptr : itype(_Ptr<int> ) , int *wild) {
    if(ntiptr != 0) {
     ntiptr = strstr("Hello", "world");
    }   
@@ -16,7 +16,7 @@ intfuncdecl(char *ntiptr : itype(_Nt_arr_ptr<char> ) , int *iptr : itype(_Ptr<in
 // ptr is a ARR ptr
 // iptr will be itype
 // wild will be a wild ptr.
-intfunc(int *ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {/*ARR:ptr*/
+int func(int *ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {/*ARR:ptr*/
    if(ptr != 0) {
       ptr[0] = 1;
    }

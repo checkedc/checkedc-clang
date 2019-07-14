@@ -415,7 +415,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     return true;
 
   FVConstraint *cDefn = dyn_cast<FVConstraint>(
-    getHighest(Info.getVariable(Definition, Context, true), Info));
+    getHighest(Info.getVariableOnDemand(Definition, Context, true), Info));
 
   FVConstraint *cDecl = nullptr;
   // Get constraint variables for the declaration and the definition.
@@ -427,7 +427,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       getHighest(Info.getOnDemandFuncDeclarationConstraint(Definition, Context), Info));
   } else {
     cDecl = dyn_cast<FVConstraint>(
-      getHighest(Info.getVariable(Declaration, Context, false), Info));
+      getHighest(Info.getVariableOnDemand(Declaration, Context, false), Info));
   }
 
   assert(cDecl != nullptr);
@@ -494,7 +494,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
       if(Defn->isLt(*Decl, Info)) {
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
-        returnVar = Defn->getTy();
+        returnVar = Defn->getOriginalTy();
         endStuff = " : itype("+ctype+") ";
         didAny = true;
       } else {
@@ -504,7 +504,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // all the uses of the function converts the return value
         // into a more precise type.
         // do not change the type
-        returnVar = Definition->getDeclaredReturnType().getAsString();
+        returnVar = Decl->mkString(Info.getConstraints().getVariables());
         endStuff = getExistingIType(Decl, Defn, Declaration);
         if(!endStuff.empty()) {
           didAny = true;
@@ -514,7 +514,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
     if(!returnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
-      returnVar = Definition->getDeclaredReturnType().getAsString();
+      returnVar = Decl->mkString(Info.getConstraints().getVariables());
 
       endStuff = getExistingIType(Decl, Defn, Declaration);
       if(!endStuff.empty()) {
@@ -612,8 +612,10 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
     errs() << "Writing files out\n";
 
   SmallString<254> baseAbs(BaseDir);
-  std::error_code ec = sys::fs::make_absolute(baseAbs);
-  assert(!ec);
+  std::string baseDirFP;
+  if(getAbsoluteFilePath(BaseDir, baseDirFP)) {
+    baseAbs = baseDirFP;
+  }
   sys::path::remove_filename(baseAbs);
   std::string base = baseAbs.str();
 
@@ -645,13 +647,10 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
           // Write this file out if it was specified as a file on the command
           // line.
-          SmallString<254>  feAbs(FE->getName());
           std::string feAbsS = "";
-          if (std::error_code ec = sys::fs::make_absolute(feAbs)) {
-            if (Verbose)
-              errs() << "could not make path absolote\n";
-          } else
-            feAbsS = sys::path::remove_leading_dotslash(feAbs.str());
+          if(getAbsoluteFilePath(FE->getName(), feAbsS)) {
+            feAbsS = sys::path::remove_leading_dotslash(feAbsS);
+          }
 
           if(canWrite(feAbsS, InOutFiles, base)) {
             std::error_code EC;
