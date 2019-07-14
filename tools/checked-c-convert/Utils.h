@@ -34,7 +34,11 @@ clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 
 clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
-clang::CheckedPointerKind getItypeCheckedPointerKind(clang::ParmVarDecl *paramDecl);
+clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExpr);
+
+bool hasFunctionBody(clang::Decl *param);
+
+std::string getStorageQualifierString(clang::Decl *D);
 
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif

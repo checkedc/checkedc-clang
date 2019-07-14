@@ -367,6 +367,22 @@ bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
   return anyTopFound;
 }
 
+std::string CastPlacementVisitor::getExistingIType(ConstraintVariable *decl,
+                                                   ConstraintVariable *defn,
+                                                   FunctionDecl *funcDecl) {
+  std::string ret = "";
+  ConstraintVariable *target = decl;
+  if(funcDecl == nullptr) {
+    target = defn;
+  }
+  if (PVConstraint *PVC = dyn_cast<PVConstraint>(target)) {
+    if (PVC->getItypePresent()) {
+      ret = " : " + PVC->getItype();
+    }
+  }
+  return ret;
+}
+
 // This function checks how to re-write a function declaration.
 bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
@@ -398,14 +414,22 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   if(Definition == nullptr)
     return true;
 
-  assert (Declaration != nullptr);
+  FVConstraint *cDefn = dyn_cast<FVConstraint>(
+    getHighest(Info.getVariable(Definition, Context, true), Info));
 
+  FVConstraint *cDecl = nullptr;
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
-  auto cDecl = dyn_cast<FVConstraint>(
-          getHighest(Info.getVariable(Declaration, Context, false), Info));
-  auto cDefn = dyn_cast<FVConstraint>(
-          getHighest(Info.getVariable(Definition, Context, true), Info));
+  if(Declaration == nullptr) {
+    // if there is no declaration?
+    // get the on demand function variable constraint.
+    cDecl = dyn_cast<FVConstraint>(
+      getHighest(Info.getOnDemandFuncDeclarationConstraint(Definition, Context), Info));
+  } else {
+    cDecl = dyn_cast<FVConstraint>(
+      getHighest(Info.getVariable(Declaration, Context, false), Info));
+  }
+
   assert(cDecl != nullptr);
   assert(cDefn != nullptr);
 
@@ -423,29 +447,28 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
       // If this holds, then we want to insert a bounds safe interface.
       bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-      if(anyConstrained) {
+      // definition is more precise than declaration.
+      // Section 5.3:
+      // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
+      if(anyConstrained && Defn->isLt(*Decl, Info)) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
-        // if either definition or declaration
-        // is more constrained then emit an itype
-        if(Defn->isLt(*Decl, Info)) {
-          std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
-          std::string bi = declText.str() + " : itype("+ctype+") ";
-          parmStrs.push_back(bi);
-        } else if(Decl->isLt(*Defn, Info)) {
-          std::string ctype = Decl->mkString(Info.getConstraints().getVariables(), false, true);
-          std::string bi = declText.str() + " : itype("+ctype+") ";
-          parmStrs.push_back(bi);
-        } else {
-          std::string v = Defn->mkString(Info.getConstraints().getVariables());
-          if (PVConstraint *PVC = dyn_cast<PVConstraint>(Defn)) {
-            if (PVC->getItypePresent()) {
-              v = v + " : " + PVC->getItype();
-            }
-          }
-          parmStrs.push_back(v);
-        }
+        // if definition is more precise
+        // than declaration emit an itype
+        std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
+        std::string bi = declText.str() + " : itype("+ctype+") ";
+        parmStrs.push_back(bi);
+      } else if (anyConstrained) {
+        // both the declaration and definition are same
+        // and they are safer than what was originally declared.
+        // here we should emit a checked type!
+        std::string v = Decl->mkString(Info.getConstraints().getVariables());
+
+        // if there is no declaration?
+        // check the itype in definition
+        v = v + getExistingIType(Decl, Defn, Declaration);
+        parmStrs.push_back(v);
       } else {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
@@ -464,36 +487,42 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     bool returnHandled = false;
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
     if(anyConstrained) {
+      returnHandled = true;
       std::string ctype = "";
+      // definition is more precise than declaration.
+      // Section 5.3:
+      // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
       if(Defn->isLt(*Decl, Info)) {
-        returnHandled = true;
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
         returnVar = Defn->getTy();
-      } else if(Decl->isLt(*Defn, Info)) {
-        returnHandled = true;
-        ctype = Decl->mkString(Info.getConstraints().getVariables(), true, true);
-        returnVar = Decl->getTy();
-      }
-      if(returnHandled) {
         endStuff = " : itype("+ctype+") ";
         didAny = true;
-      }
-    }
-
-    if(!returnHandled) {
-      // If we used to implement a bounds-safe interface, continue to do that.
-      returnVar = Decl->mkString(Info.getConstraints().getVariables());
-
-      if (PVConstraint *PVC = dyn_cast<PVConstraint>(Decl)) {
-        if (PVC->getItypePresent()) {
-          assert(PVC->getItype().size() > 0);
-          endStuff = " : " + PVC->getItype();
+      } else {
+        // this means we were able to infer that return type
+        // is a checked type.
+        // however, the function returns a less precise type, whereas
+        // all the uses of the function converts the return value
+        // into a more precise type.
+        // do not change the type
+        returnVar = Definition->getDeclaredReturnType().getAsString();
+        endStuff = getExistingIType(Decl, Defn, Declaration);
+        if(!endStuff.empty()) {
           didAny = true;
         }
       }
     }
 
-    s = returnVar + cDecl->getName() + "(";
+    if(!returnHandled) {
+      // If we used to implement a bounds-safe interface, continue to do that.
+      returnVar = Definition->getDeclaredReturnType().getAsString();
+
+      endStuff = getExistingIType(Decl, Defn, Declaration);
+      if(!endStuff.empty()) {
+        didAny = true;
+      }
+    }
+
+    s = getStorageQualifierString(Definition) + returnVar + cDecl->getName() + "(";
     if (parmStrs.size() > 0) {
       std::ostringstream ss;
 
@@ -712,8 +741,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
       if (PV && PV->anyChanges(Info.getConstraints().getVariables())) {
         // Rewrite a declaration.
-        std::string newTy = PV->mkString(Info.getConstraints().getVariables());
-        rewriteThese.insert(DAndReplace(D, DS, newTy));;
+        std::string newTy = getStorageQualifierString(D) + PV->mkString(Info.getConstraints().getVariables());
+        rewriteThese.insert(DAndReplace(D, DS, newTy));
       } else if (FV && FV->anyChanges(Info.getConstraints().getVariables())) {
         // Rewrite a function variables return value.
         std::set<ConstraintVariable*> V = FV->getReturnVars();

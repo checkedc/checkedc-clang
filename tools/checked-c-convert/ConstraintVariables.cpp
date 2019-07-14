@@ -253,6 +253,26 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
   }
 }
 
+void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
+  O << "{\"PointerVar\":{";
+  O << "\"Vars\":[";
+  bool addComma = false;
+  for (const auto &I : vars) {
+    if(addComma) {
+      O << ",";
+    }
+    O << "\"q_" << I << "\"";
+    addComma = true;
+  }
+  O << "], \"name\":\"" << getName() << "\"";
+  if(FV) {
+    O << ", \"FunctionVariable\":";
+    FV->dump_json(O);
+  }
+  O << "}}";
+
+}
+
 void PointerVariableConstraint::getQualString(ConstraintKey targetCVar, std::ostringstream &ss) {
   std::map<ConstraintKey, Qualification>::iterator q = QualMap.find(targetCVar);
   if (q != QualMap.end())
@@ -328,17 +348,20 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
           break;
         }
       case Atom::A_NTArr:
-        // if this is an NTArray
-        getQualString(V, ss);
+        // this additional check is to prevent fall-through from the array.
+        if(K == Atom::A_NTArr) {
+          // if this is an NTArray
+          getQualString(V, ss);
 
-        // We need to check and see if this level of variable
-        // is constrained by a bounds safe interface. If it is,
-        // then we shouldn't re-write it.
-        if (getItypePresent() == false) {
-          emittedBase = false;
-          ss << "_Nt_arr_ptr<";
-          caratsToAdd++;
-          break;
+          // We need to check and see if this level of variable
+          // is constrained by a bounds safe interface. If it is,
+          // then we shouldn't re-write it.
+          if (getItypePresent() == false) {
+            emittedBase = false;
+            ss << "_Nt_arr_ptr<";
+            caratsToAdd++;
+            break;
+          }
         }
         // If there is no array in the original program, then we fall through to
         // the case where we write a pointer value.
@@ -671,6 +694,40 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
       J->print(O);
     O << " )";
   }
+}
+
+void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
+  O << "{\"FunctionVar\":{\"ReturnVar\":[";
+  bool addComma = false;
+  for (const auto &I : returnVars) {
+    if(addComma) {
+      O << ",";
+    }
+    I->dump_json(O);
+  }
+  O << "], \"name\":\"" << name << "\", ";
+  O << "\"Parameters\":[";
+  addComma = false;
+  for (const auto &I : paramVars) {
+    if(I.size() > 0) {
+      if (addComma) {
+        O << ",\n";
+      }
+      O << "[";
+      bool innerComma = false;
+      for (const auto &J : I) {
+        if(innerComma) {
+          O << ",";
+        }
+        J->dump_json(O);
+        innerComma = true;
+      }
+      O << "]";
+      addComma = true;
+    }
+  }
+  O << "]";
+  O << "}}";
 }
 
 std::string

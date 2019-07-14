@@ -116,11 +116,13 @@ Expr *LocalVarABVisitor::removeCHKCBindTempExpr(Expr *toVeri) {
 }
 
 void LocalVarABVisitor::dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw_ostream &O) {
+#ifdef DEBUG
   O << "Not identified as a array variable.\n RHS:";
   RHS->dump(O);
   O << "\n LHS:";
   LHS->dump(O);
   O << "\n";
+#endif
 }
 
 Expr *LocalVarABVisitor::removeAuxillaryCasts(Expr *srcExpr) {

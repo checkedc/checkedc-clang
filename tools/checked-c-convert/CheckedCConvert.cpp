@@ -53,11 +53,21 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
+cl::opt<bool> MergeMultipleFuncDecls("mergefds",
+                                     cl::desc("Merge multiple declarations of functions."),
+                                     cl::init(false),
+                                     cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten files, if "
                            "not supplied writes to STDOUT"),
                   cl::init("-"), cl::cat(ConvertCategory));
+
+static cl::opt<std::string>
+  ConstraintOutputJson("constraint-output",
+                       cl::desc("Path to the file where all the analysis information will be dumped as json"),
+                       cl::init("constraint_output.json"), cl::cat(ConvertCategory));
 
 static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::desc("Dump statistics"),
@@ -176,7 +186,7 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
-  ProgramInfo Info;
+  ProgramInfo Info(MergeMultipleFuncDecls);
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
@@ -202,8 +212,18 @@ int main(int argc, const char **argv) {
   assert(R.second == true);
   if (Verbose)
     outs() << "Constraints solved\n";
-  if (DumpIntermediate)
+  if (DumpIntermediate) {
     Info.dump();
+    outs() << "Writing json output to:" << ConstraintOutputJson << "\n";
+    std::error_code ec;
+    llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
+    if(!output_json.has_error()) {
+      Info.dump_json(output_json);
+      output_json.close();
+    } else {
+      Info.dump_json(llvm::errs());
+    }
+  }
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =

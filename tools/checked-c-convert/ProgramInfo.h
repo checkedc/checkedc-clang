@@ -24,9 +24,15 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
-  ProgramInfo() : freeKey(0), persisted(true) { IdentifiedArrayDecls.clear(); }
+  ProgramInfo(bool mergeMultipleDecls) :
+  freeKey(0), persisted(true),
+  MergeMultipleDeclarations(mergeMultipleDecls) {
+    IdentifiedArrayDecls.clear();
+    OnDemandFuncDeclConstraint.clear();
+  }
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
+  void dump_json(llvm::raw_ostream &O) const;
   void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O);
 
@@ -97,7 +103,12 @@ public:
   std::set<ConstraintVariable*>
     getVariable(clang::Expr *E, clang::ASTContext *C, bool inFunctionContext = false);
   std::set<ConstraintVariable*>
+    getVariableOnDemand(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
+  std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
+  // get constraint variable for the provided function or its parameter
+  std::set<ConstraintVariable*>
+    getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex=-1);
 
   VariableMap &getVarMap() { return Variables;  }
 
@@ -120,10 +131,25 @@ public:
 
   void printArrayVarsAndSizes(llvm::raw_ostream &O);
 
+  // get on demand function declaration constraint. This is needed for functions
+  // that do not have corresponding declaration.
+  // for all functions that do not have corresponding declaration,
+  // we create an on demand FunctionVariableConstraint.
+  std::set<ConstraintVariable*>&
+  getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C);
+
 private:
   // Function to check if an external symbol is okay to leave 
   // constrained. 
   bool isExternOkay(std::string ext);
+
+  // Map that contains function name and corresponding
+  // set of function variable constraints.
+  // We only create on demand variables for non-declared functions.
+  // we store the constraints based on function name
+  // as the information needs to be stored across multiple
+  // instances of the program AST
+  std::map<std::string, std::set<ConstraintVariable*>> OnDemandFuncDeclConstraint;
 
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
@@ -150,6 +176,10 @@ private:
   // seen before.
   std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
+
+  // flag that controls the merging of types from multiple
+  // declarations of a function.
+  bool MergeMultipleDeclarations;
 
   // these are the array declarations identified by the converter.
   std::set<Decl *> IdentifiedArrayDecls;

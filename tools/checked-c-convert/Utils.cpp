@@ -44,17 +44,25 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 // Walk the list of declarations and find a declaration that is NOT
 // a definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
+  // optimization
+  if(!FD->isThisDeclarationADefinition()) {
+    return FD;
+  }
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (!tFD->isThisDeclarationADefinition())
         return tFD;
 
-  return FD;
+  return nullptr;
 }
 
 // Walk the list of declarations and find a declaration accompanied by
 // a definition and a function body.
 FunctionDecl *getDefinition(FunctionDecl *FD) {
+  // optimization
+  if(FD->isThisDeclarationADefinition() && FD->hasBody()) {
+    return FD;
+  }
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
@@ -86,7 +94,7 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
   }
 }
 
-static clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
+clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
   TypeSourceInfo * interopTypeInfo = itypeExpr->getTypeInfoAsWritten();
   const clang::Type *innerType = interopTypeInfo->getType().getTypePtr();
   if(innerType->isCheckedPointerNtArrayType()) {
@@ -101,8 +109,42 @@ static clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExp
   return CheckedPointerKind::Unchecked;
 }
 
-clang::CheckedPointerKind getItypeCheckedPointerKind(clang::ParmVarDecl *paramDecl) {
-  assert(paramDecl->hasInteropTypeExpr() && "This has to be an itype expression");
-  InteropTypeExpr *childExpression = paramDecl->getInteropTypeExpr();
-  return getCheckedPointerKind(childExpression);
+// check if function body exists for the
+// provided declaration.
+bool hasFunctionBody(clang::Decl *param) {
+  // if this a parameter?
+  if(ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
+    if(DeclContext *DC = PD->getParentFunctionOrMethod()) {
+      FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
+      if (getDefinition(FD) != nullptr) {
+        return true;
+      }
+    }
+    return false;
+  }
+  // else this should be within body and
+  // the function body should exist.
+  return true;
+}
+
+static std::string storageClassToString(StorageClass SC) {
+  switch(SC) {
+    case StorageClass::SC_Static: return "static ";
+    case StorageClass::SC_Extern: return "extern ";
+    case StorageClass::SC_Register: return "register ";
+    // no default class, we do not care.
+  }
+  return "";
+}
+
+// this method gets the storage qualifier for the
+// provided declaration i.e., static, extern, etc.
+std::string getStorageQualifierString(Decl *D) {
+  if(FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+    return storageClassToString(FD->getStorageClass());
+  }
+  if(VarDecl *VD = dyn_cast<VarDecl>(D)) {
+    return storageClassToString(VD->getStorageClass());
+  }
+  return "";
 }
