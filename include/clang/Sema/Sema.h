@@ -4888,6 +4888,12 @@ public:
   // TODO(abeln): add larger comment describing the algorithm.
   bool DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc);
 
+  // Like 'Type::getAsRecordDecl', but for generic records. Additionally, it unwraps pointer types multiple times, if necessary.
+  // If there's no underlying generic record, return 'nullptr'.
+  // e.g. GetAsGenericRecordDecl(struct Foo<T>**) -> struct Foo<T>
+  //      GetAsGenericRecordDecl(struct Bar) -> nullptr
+  RecordDecl *GetAsGenericRecordDecl(const Type *Type);
+
   QualType SubstituteTypeArgs(QualType QT,
                 ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl);
 
