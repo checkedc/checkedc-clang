@@ -4298,9 +4298,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
         // Checked C: if the type of the field refers to a delayed type application,
         // then accumulate the decl for later completion.
         auto FieldTpe = Field->getType();
-        auto RDecl = Field->getType()->getAsRecordDecl();
-        // TODO(abeln): find a more-robust way to get the underlying 'RecordDecl'.
-        if (!RDecl) RDecl = FieldTpe->getPointeeType()->getAsRecordDecl();
+        auto RDecl = Actions.GetAsGenericRecordDecl(FieldTpe.getTypePtr());
         if (RDecl && RDecl->isDelayedTypeApp()) DelayedTypeApps.push_back(RDecl);
       };
 
@@ -4401,8 +4399,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
       // Complete the arguments to this type application, if necessary: e.g. when completing 'Box<List<int>>', need
       // to potentially complete 'List<int>'.
       for (auto TypeArg : TypeApp->typeArgs()) {
-        // TODO(abeln): add more robust logic to extract the underlying 'RecordDecl'.
-        if (auto Decl = TypeArg.typeName.getTypePtr()->getAsRecordDecl()) DelayedTypeApps.push_back(Decl);
+        if (auto Decl = Actions.GetAsGenericRecordDecl(TypeArg.typeName.getTypePtr())) DelayedTypeApps.push_back(Decl);
       }
     }
   }
