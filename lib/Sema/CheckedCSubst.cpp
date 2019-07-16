@@ -162,12 +162,12 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
 
 // Definitions for expanding cycles check
 namespace {
-  // A graph node is a triple '(BaseRecordDecl, TypeArg, Expanding)' (here stored as two nested 'std::pairs' so we can keep them in a 'DenseSet').
+  // A graph node is a triple '(BaseRecordDecl, TypeArgIndex, Expanding)' (here stored as two nested 'std::pairs' so we can keep them in a 'DenseSet').
   // The semantics of a triple are as follows: a triple is in the set if, starting from one of the type arguments of 'Base', 
-  // it's possible to arrive at 'TypeArg' which is defined in 'BaseRecordDecl'.
-  // 'Expanding' indicates whether any of the edges taken to arrive to (BaseRecordDecl, TypeArg) is expanding ('Expanding = 1')
+  // it's possible to arrive at the type argument with index 'TypeArgIndex' which is defined in 'BaseRecordDecl'.
+  // 'Expanding' indicates whether any of the edges taken to arrive to (BaseRecordDecl, TypeArgIndex) is expanding ('Expanding = 1')
   // or if they're all non-expanding ('Expanding = 0'). 
-  using Node = std::pair<std::pair<const RecordDecl *, const TypeVariableType *>, char>;
+  using Node = std::pair<std::pair<RecordDecl *, int>, char>;
   const char NON_EXPANDING = 0;
   const char EXPANDING = 1;
 
@@ -250,17 +250,22 @@ namespace {
       assert(InstDecl->typeArgs().size() == BaseDecl->typeParams().size() && "Number of type args and params must match");
       auto NumArgs = InstDecl->typeArgs().size();
       for (size_t i = 0; i < NumArgs; i++) {
-        auto ArgType = InstDecl->typeArgs()[i].typeName.getCanonicalType().getTypePtr();
+        auto TypeArg = InstDecl->typeArgs()[i].typeName.getCanonicalType().getTypePtr();
         auto DestTypeVar = GetTypeVar(BaseDecl->typeParams()[i]);
-        if (ArgType == TypeVar) {
+        auto DestIndex = DestTypeVar->GetIndex();
+        if (TypeArg == TypeVar) {
           // Non-expanding edges are created if the type variable appears directly as an argument of the decl.
           // So in this case the new edge is marked as expanding only if we'd previously seen an expanding edge.
-          Worklist.push(Node(std::make_pair(BaseDecl, DestTypeVar), ExpandingSoFar));
-        } else if (ContainsVisitor.Visit(ArgType)) {
+          Worklist.push(Node(std::make_pair(BaseDecl, DestIndex), ExpandingSoFar));
+        } else if (ContainsVisitor.Visit(TypeArg)) {
           // Expanding edges are created if the type variable doesn't appear directly, but is contained in the type argument.
           // In this case we always mark the edge as expanding.
-          Worklist.push(Node(std::make_pair(BaseDecl, DestTypeVar), true /* expanding */));
+          Worklist.push(Node(std::make_pair(BaseDecl, DestIndex), true /* expanding */));
         }
+
+        // Now recurse in the type argument to uncover edges that might show up there.
+        // e.g. as in the argument to 'struct A<struct B<struct B<T> > >'
+        Visit(TypeArg);
       }
     }
 
@@ -279,23 +284,10 @@ bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
   llvm::DenseSet<Node> Visited;
   std::stack<Node> Worklist;
 
-  // 'Base's type variables.
-  llvm::SmallVector<const TypeVariableType *, 4> TypeVars; 
-
   // Seed the worklist with the type parameters to 'Base'.
-  for (auto TypeDef : Base->typeParams()) {
-    auto TVar = GetTypeVar(TypeDef);
-    TypeVars.push_back(TVar);
-    Worklist.push(Node(std::make_pair<>(Base, TVar), NON_EXPANDING));
+  for (size_t i = 0; i < Base->typeParams().size(); ++i) {
+    Worklist.push(Node(std::make_pair<>(Base, i), NON_EXPANDING));
   }
-
-  // Is 'TVar' a type variable of 'Base'?
-  auto IsTypeVarOfBase = [&TypeVars](const TypeVariableType *TVar) -> bool {
-    for (auto BaseVar : TypeVars) {
-      if (BaseVar == TVar) return true;
-    }
-    return false;
-  };
 
   // Explore the implicit graph via DFS.
   while (!Worklist.empty()) {
@@ -304,9 +296,10 @@ bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
     if (Visited.find(Curr) != Visited.end()) continue; // already visited: don't explore further
     Visited.insert(Curr);
     auto RDecl = Curr.first.first;
-    auto TVar = Curr.first.second;
+    auto TVarIndex = Curr.first.second;
+    auto TVar = GetTypeVar(RDecl->typeParams()[TVarIndex]);
     auto ExpandingSoFar = Curr.second;
-    if (ExpandingSoFar == EXPANDING && IsTypeVarOfBase(TVar)) {
+    if (ExpandingSoFar == EXPANDING && RDecl == Base) {
       Diag(Loc, diag::err_expanding_cycle);
       return true;
     }
