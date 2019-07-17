@@ -2058,8 +2058,8 @@ DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base, bool WithinField
     return true;
   }
   if (ArgsRes.second.size() != Base->typeParams().size()) {
-    // TODO(abeln): add real error message
-    printf("expected %d type params but got %u\n", Base->typeParams().size(), ArgsRes.second.size());
+    Diag(Tok.getLocation(), diag::err_num_type_args_params_mistmatch)
+      << static_cast<unsigned int>(Base->typeParams().size()) << static_cast<unsigned int>(ArgsRes.second.size());
     return true;
   } 
   return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second), WithinFieldDecl);
