@@ -1707,12 +1707,6 @@ namespace {
               static_cast<unsigned>(Test));
     }
 
-    enum class RangeType {
-      ConstantSized,
-      VariableSized,
-      Unsupported
-    };
-
     // Representation and operations on ranges.
     // A range has the form (e1 + e2, e1 + e3) where e1 is an expression.
     // A range can be either Constant- or Variable-sized.
@@ -1724,6 +1718,13 @@ namespace {
     // - If one or both of e2 and e3 are non-constant expressions, the range is Variable-sized.
     //   TODO: elaborate more.
     class BaseRange {
+    public:
+      enum Kind {
+        ConstantSized,
+        VariableSized,
+        Invalid
+      };
+
     private:
       Sema &S;
       Expr *Base;
@@ -1731,12 +1732,12 @@ namespace {
       llvm::APSInt UpperOffset;
       Expr *LowerOffsetExpr;
       Expr *UpperOffsetExpr;
-      RangeType BaseRangeType;
+      Kind BaseRangeKind;
 
     public:
       BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffset(1, true),
         UpperOffset(1, true), LowerOffsetExpr(nullptr), UpperOffsetExpr(nullptr),
-        BaseRangeType(RangeType::Unsupported) {
+        BaseRangeKind(Kind::Invalid) {
       }
 
       BaseRange(Sema &S, Expr *Base,
@@ -1744,7 +1745,7 @@ namespace {
                          llvm::APSInt &UpperOffset) :
         S(S), Base(Base), LowerOffset(LowerOffset), UpperOffset(UpperOffset),
         LowerOffsetExpr(nullptr), UpperOffsetExpr(nullptr),
-        BaseRangeType(RangeType::ConstantSized) {
+        BaseRangeKind(Kind::ConstantSized) {
       }
 
       BaseRange(Sema &S, Expr *Base,
@@ -1752,7 +1753,7 @@ namespace {
                          Expr *UpperOffsetExpr) :
         S(S), Base(Base), LowerOffset(1, true), UpperOffset(1, true),
         LowerOffsetExpr(LowerOffsetExpr), UpperOffsetExpr(UpperOffsetExpr),
-        BaseRangeType(RangeType::VariableSized) {
+        BaseRangeKind(Kind::VariableSized) {
       }
 
       // Is R a subrange of this range?
@@ -1824,11 +1825,11 @@ namespace {
       }
 
       bool IsConstantSizedRange() {
-        return BaseRangeType == RangeType::ConstantSized;
+        return BaseRangeKind == Kind::ConstantSized;
       }
 
       bool IsVariableSizedRange() {
-        return BaseRangeType == RangeType::VariableSized;
+        return BaseRangeKind == Kind::VariableSized;
       }
 
       bool IsEmpty() {
@@ -1887,8 +1888,8 @@ namespace {
         UpperOffsetExpr = Upper;
       }
 
-      void SetRangeType(RangeType RT) {
-        BaseRangeType = RT;
+      void SetRangeType(Kind RT) {
+        BaseRangeKind = RT;
       }
 
       void Dump(raw_ostream &OS) {
@@ -1950,9 +1951,8 @@ namespace {
     // TODO: we use signed integers to represent the result of the Offset.
     // We can't represent unsigned offsets larger the the maximum signed
     // integer that will fit pointer width.
-    void SplitIntoBaseAndOffset(Expr *E, Expr *&Base,
-                                llvm::APSInt &Offset, Expr *&OffsetExpr,
-                                bool OnlyConstant = false) {
+    BaseRange::Kind SplitIntoBaseAndOffset(Expr *E, Expr *&Base, llvm::APSInt &Offset,
+                                Expr *&OffsetExpr) {
       if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
         if (BO->isAdditiveOp()) {
           Expr *Other = nullptr;
@@ -1983,11 +1983,11 @@ namespace {
             Offset = Offset.smul_ov(ElemSize, Overflow);
             if (Overflow)
               goto exit;
-            return;
-          } else if (!OnlyConstant) {
+            return BaseRange::Kind::ConstantSized;
+          } else {
             // if the offset is not a number (i.e., it is an expression)
             OffsetExpr = Other;
-            return;
+            return BaseRange::Kind::VariableSized;
           }
         }
       }
@@ -1996,6 +1996,7 @@ namespace {
       // Return (E, 0).
       Base = E->IgnoreParens();
       Offset = llvm::APSInt(PointerWidth, false);
+      return BaseRange::Kind::ConstantSized;
     }
 
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
@@ -2003,23 +2004,22 @@ namespace {
       return R == Lexicographic::Result::Equal;
     }
 
-    // Convert a bounds expression to a constant- or variable-sized range. Returns
-    // true if the the bounds expression can be converted and false if it cannot
-    // be converted.
-    // If OnlyConstant is set to true, it tries to only create a constant range,
-    // and returns false if it fails to do so. It is especially needed when handling
-    // memory accesses.
-    bool CreateBaseRange(const BoundsExpr *Bounds, BaseRange *R,
-                             EquivExprSets *EquivExprs, bool OnlyConstant = false) {
+    // Convert a bounds expression to a constant- or variable-sized range and returns
+    // the Kind of the created range.
+    // The kind of the created range is determined by the result of
+    // SplitIntoBaseAndOffset which is called on lower and upper expressions
+    // of the given BoundsExpr.
+    BaseRange::Kind CreateBaseRange(const BoundsExpr *Bounds, BaseRange *R,
+                             EquivExprSets *EquivExprs) {
       switch (Bounds->getKind()) {
         case BoundsExpr::Kind::Invalid:
         case BoundsExpr::Kind::Unknown:
         case BoundsExpr::Kind::Any:
-          return false;
+          return BaseRange::Kind::Invalid;
         case BoundsExpr::Kind::ByteCount:
         case BoundsExpr::Kind::ElementCount:
           // TODO: fill these cases in.
-          return false;
+          return BaseRange::Kind::Invalid;
         case BoundsExpr::Kind::Range: {
           const RangeBoundsExpr *RB = cast<RangeBoundsExpr>(Bounds);
           Expr *Lower = RB->getLowerExpr();
@@ -2028,44 +2028,29 @@ namespace {
           llvm::APSInt LowerOffset, UpperOffset;
           Expr *LowerOffsetExpr = nullptr;
           Expr *UpperOffsetExpr = nullptr;
-          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset, LowerOffsetExpr, OnlyConstant);
-          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset, UpperOffsetExpr, OnlyConstant);
+          BaseRange::Kind LowerType = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset, LowerOffsetExpr);
+          BaseRange::Kind UpperType = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset, UpperOffsetExpr);
 
-          if (OnlyConstant) {
-            if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
-              R->SetBase(LowerBase);
+          // If both of the offsets are constants, the range is considered constant-sized.
+          // Otherwise, it is a variable-sized range.
+          if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
+            R->SetBase(LowerBase);
+            if (LowerType == BaseRange::Kind::ConstantSized && UpperType == BaseRange::Kind::ConstantSized) {
               R->SetLower(LowerOffset);
               R->SetUpper(UpperOffset);
-              R->SetRangeType(RangeType::ConstantSized);
-              return true;
-            }
-            return false;
-          }
-
-          // If at least one of the offsets is not constant (i.e., it is an
-          // expression), the range is considered variable-sized. If both of the
-          // offsets are constants, the range is considered constant-sized.
-          if (!LowerOffsetExpr && !UpperOffsetExpr) {
-            if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
-              R->SetBase(LowerBase);
-              R->SetLower(LowerOffset);
-              R->SetUpper(UpperOffset);
-              R->SetRangeType(RangeType::ConstantSized);
-              return true;
-            }
-          } else {
-            if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
-              R->SetBase(LowerBase);
+              R->SetRangeType(BaseRange::Kind::ConstantSized);
+              return BaseRange::Kind::ConstantSized;
+            } else {
               R->SetLowerExpr(LowerOffsetExpr);
               R->SetUpperExpr(UpperOffsetExpr);
-              R->SetRangeType(RangeType::VariableSized);
-              return true;
+              R->SetRangeType(BaseRange::Kind::VariableSized);
+              return BaseRange::Kind::VariableSized;
             }
           }
-          return false;
+          return BaseRange::Kind::Invalid;
         }
       }
-      return false;
+      return BaseRange::Kind::Invalid;
     }
 
     // Try to prove that SrcBounds implies the validity of DeclaredBounds.
@@ -2101,8 +2086,9 @@ namespace {
 
       BaseRange DeclaredRange(S);
       BaseRange SrcRange(S);
-      if (CreateBaseRange(DeclaredBounds, &DeclaredRange, EquivExprs) &&
-          CreateBaseRange(SrcBounds, &SrcRange, EquivExprs)) {
+
+      if (CreateBaseRange(DeclaredBounds, &DeclaredRange, EquivExprs) != BaseRange::Kind::Invalid &&
+          CreateBaseRange(SrcBounds, &SrcRange, EquivExprs) != BaseRange::Kind::Invalid) {
 #ifdef TRACE_RANGE
         llvm::outs() << "Found constant ranges:\n";
         llvm::outs() << "Declared bounds";
@@ -2155,7 +2141,8 @@ namespace {
              "bounds not in standard form");
       Cause = ProofFailure::None;
       BaseRange ValidRange(S);
-      if (!CreateBaseRange(Bounds, &ValidRange, nullptr, true))
+
+      if (CreateBaseRange(Bounds, &ValidRange, nullptr) != BaseRange::Kind::ConstantSized)
         return ProofResult::Maybe;
 
       bool Overflow;
@@ -2171,7 +2158,10 @@ namespace {
       Expr *AccessBase;
       llvm::APSInt AccessStartOffset;
       Expr *DummyOffset;
-      SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset, true);
+      BaseRange::Kind PtrBaseType = SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset);
+
+      if (PtrBaseType != BaseRange::Kind::ConstantSized)
+        return ProofResult::Maybe;
 
       if (Offset) {
         llvm::APSInt IntVal;
