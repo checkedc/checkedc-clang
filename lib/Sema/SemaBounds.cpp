@@ -1714,9 +1714,9 @@ namespace {
     // - If e2 and e3 are both constant integer expressions, the range is Constant-sized.
     //   For now, in this case, we represent e2 and e3 as signed (APSInt) integers.
     //   They must have the same bitsize.
-    //   In this case, UpperOffsetExpr and LowerOffsetExpr should be both null.
+    //   More specifically: (UpperOffsetExpr == nullptr && LowerOffsetExpr == nullptr && BaseRangeKind == Kind::ConstantSized)
     // - If one or both of e2 and e3 are non-constant expressions, the range is Variable-sized.
-    //   TODO: elaborate more.
+    //   More specifically: ((UpperOffsetExpr != nullptr || LowerOffsetExpr != nullptr) && BaseRangeKind == Kind::VariableSized)
     class BaseRange {
     public:
       enum Kind {
@@ -1728,32 +1728,28 @@ namespace {
     private:
       Sema &S;
       Expr *Base;
-      llvm::APSInt LowerOffset;
-      llvm::APSInt UpperOffset;
-      Expr *LowerOffsetExpr;
-      Expr *UpperOffsetExpr;
-      Kind BaseRangeKind;
+      llvm::APSInt LowerOffsetConstant;
+      llvm::APSInt UpperOffsetConstant;
+      Expr *LowerOffsetVariable;
+      Expr *UpperOffsetVariable;
 
     public:
-      BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffset(1, true),
-        UpperOffset(1, true), LowerOffsetExpr(nullptr), UpperOffsetExpr(nullptr),
-        BaseRangeKind(Kind::Invalid) {
+      BaseRange(Sema &S) : S(S), Base(nullptr), LowerOffsetConstant(1, true),
+        UpperOffsetConstant(1, true), LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
       }
 
       BaseRange(Sema &S, Expr *Base,
-                         llvm::APSInt &LowerOffset,
-                         llvm::APSInt &UpperOffset) :
-        S(S), Base(Base), LowerOffset(LowerOffset), UpperOffset(UpperOffset),
-        LowerOffsetExpr(nullptr), UpperOffsetExpr(nullptr),
-        BaseRangeKind(Kind::ConstantSized) {
+                         llvm::APSInt &LowerOffsetConstant,
+                         llvm::APSInt &UpperOffsetConstant) :
+        S(S), Base(Base), LowerOffsetConstant(LowerOffsetConstant), UpperOffsetConstant(UpperOffsetConstant),
+        LowerOffsetVariable(nullptr), UpperOffsetVariable(nullptr) {
       }
 
       BaseRange(Sema &S, Expr *Base,
                          Expr *LowerOffsetExpr,
                          Expr *UpperOffsetExpr) :
-        S(S), Base(Base), LowerOffset(1, true), UpperOffset(1, true),
-        LowerOffsetExpr(LowerOffsetExpr), UpperOffsetExpr(UpperOffsetExpr),
-        BaseRangeKind(Kind::VariableSized) {
+        S(S), Base(Base), LowerOffsetConstant(1, true), UpperOffsetConstant(1, true),
+        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetExpr) {
       }
 
       // Is R a subrange of this range?
@@ -1778,22 +1774,26 @@ namespace {
         // If both ranges are constant-sized, the constant integer values of the offsets are compared.
         // If at least one of the ranges is variable-sized, then in some special cases
         // we can prove the lower bound is correct.
+        if (IsLowerOffsetConstant() && R.IsLowerOffsetConstant())
+
+
+
         if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
-          assert(!UpperOffsetExpr && !LowerOffsetExpr && !R.UpperOffsetExpr && !R.LowerOffsetExpr);
-          if (LowerOffset <= R.LowerOffset)
+          assert(!UpperOffsetVariable && !LowerOffsetVariable && !R.UpperOffsetVariable && !R.LowerOffsetVariable);
+          if (LowerOffsetConstant <= R.LowerOffsetConstant)
             return ProofResult::True;
           else {
             Cause = CombineFailures(Cause, ProofFailure::LowerBound);
             Result = ProofResult::False;
           }
-        } else if (LowerOffsetExpr && R.LowerOffsetExpr &&
-                   !EqualValue(S.Context, LowerOffsetExpr, R.LowerOffsetExpr, EquivExprs))
+        } else if (LowerOffsetVariable && R.LowerOffsetVariable &&
+                   !EqualValue(S.Context, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
           return ProofResult::Maybe;
-        else if (R.LowerOffsetExpr && R.LowerOffsetExpr->getType()->isUnsignedIntegerType() &&
-                 LowerOffset.getExtValue() == 0)
+        else if (R.LowerOffsetVariable && R.LowerOffsetVariable->getType()->isUnsignedIntegerType() &&
+                 LowerOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
-        else if (!R.LowerOffsetExpr && !LowerOffsetExpr &&
-                 R.LowerOffset.getExtValue() == 0 && LowerOffset.getExtValue() == 0)
+        else if (!R.LowerOffsetVariable && !LowerOffsetVariable &&
+                 R.LowerOffsetConstant.getExtValue() == 0 && LowerOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
         return Result;
       }
@@ -1805,35 +1805,51 @@ namespace {
         // If at least one of the ranges is variable-sized, then in some special cases
         // we can prove the upper bound is correct.
         if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
-          assert(!UpperOffsetExpr && !LowerOffsetExpr && !R.UpperOffsetExpr && !R.LowerOffsetExpr);
-          if (R.UpperOffset <= UpperOffset)
+          assert(!UpperOffsetVariable && !LowerOffsetVariable && !R.UpperOffsetVariable && !R.LowerOffsetVariable);
+          if (R.UpperOffsetConstant <= UpperOffsetConstant)
             return ProofResult::True;
           else {
             Cause = CombineFailures(Cause, ProofFailure::UpperBound);
             Result = ProofResult::False;
           }
-        } else if (UpperOffsetExpr && R.UpperOffsetExpr &&
-                   !EqualValue(S.Context, UpperOffsetExpr, R.UpperOffsetExpr, EquivExprs))
+        } else if (UpperOffsetVariable && R.UpperOffsetVariable &&
+                   !EqualValue(S.Context, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
           return ProofResult::Maybe;
-        else if (UpperOffsetExpr && UpperOffsetExpr->getType()->isUnsignedIntegerType() &&
-                   R.UpperOffset.getExtValue() == 0)
+        else if (UpperOffsetVariable && UpperOffsetVariable->getType()->isUnsignedIntegerType() &&
+                   R.UpperOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
-        else if (!R.UpperOffsetExpr && !UpperOffsetExpr &&
-                 R.UpperOffset.getExtValue() == 0 && UpperOffset.getExtValue() == 0)
+        else if (!R.UpperOffsetVariable && !UpperOffsetVariable &&
+                 R.UpperOffsetConstant.getExtValue() == 0 && UpperOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
         return Result;
       }
 
       bool IsConstantSizedRange() {
-        return BaseRangeKind == Kind::ConstantSized;
+        return IsLowerOffsetConstant() && IsUpperOffsetConstant();
       }
 
       bool IsVariableSizedRange() {
-        return BaseRangeKind == Kind::VariableSized;
+        return IsLowerOffsetVariable() || IsUpperOffsetVariable();
+      }
+
+      bool IsLowerOffsetConstant() {
+        return !LowerOffsetVariable;
+      }
+
+      bool IsLowerOffsetVariable() {
+        return LowerOffsetVariable;
+      }
+
+      bool IsUpperOffsetConstant() {
+        return !UpperOffsetVariable;
+      }
+
+      bool IsUpperOffsetVariable() {
+        return UpperOffsetVariable;
       }
 
       bool IsEmpty() {
-        return UpperOffset <= LowerOffset;
+        return UpperOffsetConstant <= LowerOffsetConstant;
       }
 
       // Does R partially overlap this range?
@@ -1844,12 +1860,12 @@ namespace {
           if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
             if (!IsEmpty() && !R.IsEmpty()) {
               // R.LowerOffset is within this range, but R.UpperOffset is above the range
-              if (LowerOffset <= R.LowerOffset && R.LowerOffset < UpperOffset &&
-                  UpperOffset < R.UpperOffset)
+              if (LowerOffsetConstant <= R.LowerOffsetConstant && R.LowerOffsetConstant < UpperOffsetConstant &&
+                  UpperOffsetConstant < R.UpperOffsetConstant)
                 return ProofResult::True;
               // Or R.UpperOffset is within this range, but R.LowerOffset is below the range.
-              if (LowerOffset < R.UpperOffset && R.UpperOffset <= UpperOffset &&
-                  R.LowerOffset < LowerOffset)
+              if (LowerOffsetConstant < R.UpperOffsetConstant && R.UpperOffsetConstant <= UpperOffsetConstant &&
+                  R.LowerOffsetConstant < LowerOffsetConstant)
                 return ProofResult::True;
             }
           }
@@ -1860,36 +1876,32 @@ namespace {
 
       bool AddToUpper(llvm::APSInt &Num) {
         bool Overflow;
-        UpperOffset = UpperOffset.sadd_ov(Num, Overflow);
+        UpperOffsetConstant = UpperOffsetConstant.sadd_ov(Num, Overflow);
         return Overflow;
       }
 
       llvm::APSInt GetWidth() {
-        return UpperOffset - LowerOffset;
+        return UpperOffsetConstant - LowerOffsetConstant;
       }
 
       void SetBase(Expr *B) {
         Base = B;
       }
 
-      void SetLower(llvm::APSInt &Lower) {
-        LowerOffset = Lower;
+      void SetLowerConstant(llvm::APSInt &Lower) {
+        LowerOffsetConstant = Lower;
       }
 
-      void SetUpper(llvm::APSInt &Upper) {
-        UpperOffset = Upper;
+      void SetUpperConstant(llvm::APSInt &Upper) {
+        UpperOffsetConstant = Upper;
       }
 
-      void SetLowerExpr(Expr *Lower) {
-        LowerOffsetExpr = Lower;
+      void SetLowerVariable(Expr *Lower) {
+        LowerOffsetVariable = Lower;
       }
 
-      void SetUpperExpr(Expr *Upper) {
-        UpperOffsetExpr = Upper;
-      }
-
-      void SetRangeType(Kind RT) {
-        BaseRangeKind = RT;
+      void SetUpperVariable(Expr *Upper) {
+        UpperOffsetVariable = Upper;
       }
 
       void Dump(raw_ostream &OS) {
@@ -1901,8 +1913,8 @@ namespace {
           OS << "nullptr\n";
         SmallString<12> Str1;
         SmallString<12> Str2;
-        LowerOffset.toString(Str1);
-        UpperOffset.toString(Str2);
+        LowerOffsetConstant.toString(Str1);
+        UpperOffsetConstant.toString(Str2);
         OS << "Lower offset:" << Str1 << "\nUpper offset:" << Str2 << "\n";
       }
     };
@@ -2025,25 +2037,23 @@ namespace {
           Expr *Lower = RB->getLowerExpr();
           Expr *Upper = RB->getUpperExpr();
           Expr *LowerBase, *UpperBase;
-          llvm::APSInt LowerOffset, UpperOffset;
-          Expr *LowerOffsetExpr = nullptr;
-          Expr *UpperOffsetExpr = nullptr;
-          BaseRange::Kind LowerType = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffset, LowerOffsetExpr);
-          BaseRange::Kind UpperType = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffset, UpperOffsetExpr);
+          llvm::APSInt LowerOffsetConstant, UpperOffsetConstant;
+          Expr *LowerOffsetVariable = nullptr;
+          Expr *UpperOffsetVariable = nullptr;
+          BaseRange::Kind LowerKind = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
+          BaseRange::Kind UpperKind = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
           if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
             R->SetBase(LowerBase);
-            if (LowerType == BaseRange::Kind::ConstantSized && UpperType == BaseRange::Kind::ConstantSized) {
-              R->SetLower(LowerOffset);
-              R->SetUpper(UpperOffset);
-              R->SetRangeType(BaseRange::Kind::ConstantSized);
+            if (LowerKind == BaseRange::Kind::ConstantSized && UpperKind == BaseRange::Kind::ConstantSized) {
+              R->SetLowerConstant(LowerOffsetConstant);
+              R->SetUpperConstant(UpperOffsetConstant);
               return BaseRange::Kind::ConstantSized;
             } else {
-              R->SetLowerExpr(LowerOffsetExpr);
-              R->SetUpperExpr(UpperOffsetExpr);
-              R->SetRangeType(BaseRange::Kind::VariableSized);
+              R->SetLowerVariable(LowerOffsetVariable);
+              R->SetUpperVariable(UpperOffsetVariable);
               return BaseRange::Kind::VariableSized;
             }
           }
