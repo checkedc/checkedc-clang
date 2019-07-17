@@ -1940,15 +1940,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     // Checked C: a reference to a struct can be followed by a list of type arguments,
     // if the struct is generic.
     if (!TagOrTempResult.isInvalid() && TUK == Sema::TUK_Reference) {
-      RecordDecl* Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get());
+      RecordDecl* Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get()->getCanonicalDecl());
       if (Decl && Decl->isGeneric()) {
-        // There are two cases here:
-        //   1) 'Decl' could be a reference to a fully-defined record, in which case
-        //      we want to access the underlying *definition* which contains all the fields.
-        //   2) 'Decl' could be a recursive reference to the record currently being defined.
-        //      In this case, there's no underlying definition because it's currently being built.
-        //      But that's ok, because the fields will be added eventually.
-        if (auto Def = Decl->getDefinition()) Decl = Def;
         // We're parsing a reference to a generic struct, so we need to parse
         // the type arguments before we can instantiate.
         TagOrTempResult = ParseRecordTypeApplication(Decl, WithinFieldDecl);

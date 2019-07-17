@@ -4203,25 +4203,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   // We are guessing that most structure declarations have 4 or fewer members
   // with bounds expressions on them.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
-
-  // Checked C: a list of 'RecordDecls' corresponding to delayed type applications.
-  // These need to be completed *after* all of the record's fields have been parsed.
-  // Otherwise, consider the following recursive struct:
-  //   struct List _For_any(T) {
-  //     T *head;
-  //     struct List<T> *tail1;
-  //     struct List<T> *tail2;
-  //   }
-  //
-  // If all type applications are done immediately after the corresponding field
-  // is processed, then when we encounter 'List<T>' corresponding to 'tail1', we need
-  // to instantiate a 'List' record for which we don't know the set of fields
-  // (specifically, we don't know that it contains a second 'tail2' field).
-  //
-  // The solution is to initially create "dummy" 'RecordDecls' for 'tail1' and 'tail2'.
-  // After *all* fields have been parsed, then we can fill in the fields of the dummy RecordDecls.
-  SmallVector<RecordDecl *, 4> DelayedTypeApps;
-
+ 
   // While we still have something to read, read the declarations in the struct.
   while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
          Tok.isNot(tok::eof)) {
@@ -4294,12 +4276,6 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
         if (FD.BoundsExprTokens != nullptr)
           deferredBoundsExpressions.emplace_back(Field,
             std::move(FD.BoundsExprTokens));
-
-        // Checked C: if the type of the field refers to a delayed type application,
-        // then accumulate the decl for later completion.
-        auto FieldTpe = Field->getType();
-        auto RDecl = Actions.GetAsGenericRecordDecl(FieldTpe.getTypePtr());
-        if (RDecl && RDecl->isDelayedTypeApp()) DelayedTypeApps.push_back(RDecl);
       };
 
       // Parse all the comma separated declarators.
@@ -4381,26 +4357,30 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
   }
 
-  // Checked C: check that there are no expanding cycles.
-  auto ExpandingCycles = false;
+  // Checked C: complete delayed type applications.
   auto RecDecl = llvm::dyn_cast<RecordDecl>(TagDecl);
-  if (RecDecl && RecDecl->isGeneric()) ExpandingCycles = Actions.DiagnoseExpandingCycles(RecDecl, RecordLoc);
-
-  if (!ExpandingCycles) {
-    // If there are no expanding cycles, then it's safe to complete the delayed 'RecordDecls' referenced by fields.
-    while (!DelayedTypeApps.empty()) {
-      auto TypeApp = DelayedTypeApps.back();
-      DelayedTypeApps.pop_back();
-      // Re-check whether the 'RecordDecl' is really delayed: because of duplicates it could've been
-      // processed earlier in the loop and no longer be delayed.
-      if (!TypeApp->isDelayedTypeApp()) continue;
-      Actions.CompleteTypeAppFields(TypeApp);
-      assert(!TypeApp->typeArgs().empty() && "Expected at least one type argument in type application");
-      // Complete the arguments to this type application, if necessary: e.g. when completing 'Box<List<int>>', need
-      // to potentially complete 'List<int>'.
-      for (auto TypeArg : TypeApp->typeArgs()) {
-        if (auto Decl = Actions.GetAsGenericRecordDecl(TypeArg.typeName.getTypePtr())) DelayedTypeApps.push_back(Decl);
-      }
+  if (RecDecl && RecDecl->isGeneric()) {
+    auto Base = llvm::dyn_cast<RecordDecl>(RecDecl->getCanonicalDecl());
+    if (!Actions.DiagnoseExpandingCycles(Base, RecordLoc)) {
+      // Complete all delayed type applications corresponding to this definition.
+      // These need to be completed *after* all of the record's fields have been parsed.
+      // Otherwise, consider the following recursive struct:
+      //   struct List _For_any(T) {
+      //     T *head;
+      //     struct List<T> *tail1;
+      //     struct List<T> *tail2;
+      //   }
+      //
+      // If all type applications are done immediately after the corresponding field
+      // is processed, then when we encounter 'List<T>' corresponding to 'tail1', we need
+      // to instantiate a 'List' record for which we don't know the set of fields
+      // (specifically, we don't know that it contains a second 'tail2' field).
+      //
+      // The solution is to initially create "dummy" 'RecordDecls' for 'tail1' and 'tail2'.
+      // After *all* fields have been parsed, then we can fill in the fields of the dummy RecordDecls.
+      auto Delayed = Actions.getASTContext().getDelayedTypeApps(Base);
+      for (auto TypeApp : Delayed) Actions.CompleteTypeAppFields(TypeApp);
+      Actions.getASTContext().removeDelayedTypeApps(Base);
     }
   }
 
