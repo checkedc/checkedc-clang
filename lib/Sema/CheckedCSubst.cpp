@@ -80,6 +80,8 @@ ExprResult Sema::ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocatio
 
 RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl) {
   assert(Base->isGeneric() && "Base decl must be generic in a type application");
+  assert(Base->getCanonicalDecl() == Base && "Base must be canonical decl");
+ 
   auto &ctx = Base->getASTContext();
 
   // Unwrap the type arguments from a 'TypeArgument' to the underlying 'Type *'.
@@ -121,12 +123,13 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
     // This is because one of the fields might have a type that recursively refers to the 'Base' record (which we haven't finished parsing).
     // e.g.
     // struct List _For_any(T) {
-    //   struct List<T> *next;
     //   T *head;
     // };
     // While processing 'next', we can't instantiate 'List<T>' because we haven't processed the 'head' field yet.
     // The solution is to just return a "dummy" 'RecordDecl' in this case, and "complete it" after we've parsed all the fields.
     Inst->setDelayedTypeApp(true);
+    // Save the delayed application so we can complete it later on.
+    ctx.addDelayedTypeApp(Inst);
     return Inst;
   }
 
@@ -139,8 +142,9 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
   assert(Incomplete->isInstantiated() && "Only instantiated record decls can be completed");
   assert(Incomplete->field_empty() && "Can't complete record decl with non-empty fields");
 
-  auto Base = Incomplete->baseDecl();
-  for (auto Field : Base->fields()) {
+  auto Defn = Incomplete->baseDecl()->getDefinition();
+  assert(Defn && "The record definition should be populated at this point");
+  for (auto Field : Defn->fields()) {
     // Passs WithinFieldDecl = false to force completion of any field types.
     // e.g. suppose we have
     //   struct Box _For_any(T) { T *x; };
@@ -281,6 +285,7 @@ namespace {
 
 bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
   assert(Base->isGeneric() && "Can only check expanding cycles for generic structs");
+  assert(Base == Base->getCanonicalDecl() && "Expected canonical base decl");
   llvm::DenseSet<Node> Visited;
   std::stack<Node> Worklist;
 
@@ -304,7 +309,10 @@ bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
       return true;
     }
     ExpandingEdgesVisitor EdgesVisitor(Worklist, TVar, ExpandingSoFar);
-    for (auto Field : RDecl->fields()) {
+    auto Defn = RDecl->getDefinition();
+    // TODO(abeln): add comment
+    if (!Defn) continue;
+    for (auto Field : Defn->fields()) {
       EdgesVisitor.Visit(Field->getType().getTypePtr());
     }
   }

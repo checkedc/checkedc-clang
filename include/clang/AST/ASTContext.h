@@ -286,6 +286,14 @@ private:
   llvm::DenseMap<std::pair<const RecordDecl *, ArrayRef<const Type *> >, RecordDecl *>
     CachedTypeApps;
 
+  // Mapping from record decls to list of delayed type applications.
+  // The key is a declaration or definition of the generic RecordDecl, and the
+  // corresponding values all have the given RecordDecl as base.
+  // e.g. List<T> -> [List<int>, List<List<char>>, List<char>, ...]
+  //      Foo<T>  -> [Foo<Foo<int>>, Foo<char>, ...]
+  llvm::DenseMap<RecordDecl *, llvm::SmallVector<RecordDecl *, 4>* >
+    DelayedTypeApps;
+
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
   class CanonicalTemplateTemplateParm : public llvm::FoldingSetNode {
@@ -3084,7 +3092,7 @@ public:
 
 public:
   //===--------------------------------------------------------------------===//
-  //                     Checked C: cached type applications
+  //                     Checked C: type applications
   //===--------------------------------------------------------------------===//
 
   /// Get the result of the type application 'Base<TypeArgs>', if it's been already cached.
@@ -3094,6 +3102,16 @@ public:
   /// Add the instantiated record type 'Inst' as the result of the type application 'Base<TypeArgs>'.
   /// Cached applications shouldn't be overwritten, so this should be called at most once per key.
   void addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst);
+
+  /// Get the list of type applications that have 'Base' as their base RecordDecl.
+  ArrayRef<RecordDecl *> getDelayedTypeApps(RecordDecl *Base);
+
+  /// Add 'TypeApp' to the cache using its base field as key.
+  void addDelayedTypeApp(RecordDecl *TypeApp);
+
+  /// Remove all type applications that have 'Base' as their base RecordDecl.
+  /// Return 'true' if the removed key was in the cache, and 'false' otherwise.
+  bool removeDelayedTypeApps(RecordDecl *Base);
 };
 
 /// Utility function for constructing a nullary selector.
