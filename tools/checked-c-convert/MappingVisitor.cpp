@@ -6,8 +6,9 @@
 //===----------------------------------------------------------------------===//
 // Implementations of the MappingVisitor functions for VisitStmt and VisitDecl.
 //===----------------------------------------------------------------------===//
-#include "MappingVisitor.h"
 #include "llvm/Support/Path.h"
+
+#include "MappingVisitor.h"
 
 using namespace clang;
 
