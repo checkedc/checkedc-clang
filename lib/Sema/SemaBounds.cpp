@@ -1714,9 +1714,9 @@ namespace {
     // - If e2 and e3 are both constant integer expressions, the range is Constant-sized.
     //   For now, in this case, we represent e2 and e3 as signed (APSInt) integers.
     //   They must have the same bitsize.
-    //   More specifically: (UpperOffsetExpr == nullptr && LowerOffsetExpr == nullptr && BaseRangeKind == Kind::ConstantSized)
+    //   More specifically: (UpperOffsetExpr == nullptr && LowerOffsetExpr == nullptr)
     // - If one or both of e2 and e3 are non-constant expressions, the range is Variable-sized.
-    //   More specifically: ((UpperOffsetExpr != nullptr || LowerOffsetExpr != nullptr) && BaseRangeKind == Kind::VariableSized)
+    //   More specifically: (UpperOffsetExpr != nullptr || LowerOffsetExpr != nullptr)
     class BaseRange {
     public:
       enum Kind {
