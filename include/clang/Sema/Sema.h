@@ -4876,7 +4876,7 @@ public:
   ExprResult ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
                      ArrayRef<TypeArgument> Args);
 
-  RecordDecl* ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl);
+  RecordDecl* ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs);
 
   /// Complete a delayed type application by populating the record's fields with the right types.
   /// Should only be called once per delayed 'RecordDecl'.
@@ -4922,8 +4922,7 @@ public:
   //      GetAsGenericRecordDecl(struct Bar) -> nullptr
   RecordDecl *GetAsGenericRecordDecl(const Type *Type);
 
-  QualType SubstituteTypeArgs(QualType QT,
-                ArrayRef<TypeArgument> TypeArgs, bool WithinFieldDecl);
+  QualType SubstituteTypeArgs(QualType QT, ArrayRef<TypeArgument> TypeArgs);
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);
