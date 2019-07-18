@@ -1854,7 +1854,7 @@ namespace {
             if (LowerOffsetConstant <= R.LowerOffsetConstant && R.LowerOffsetConstant < UpperOffsetConstant &&
                 UpperOffsetConstant < R.UpperOffsetConstant)
               return ProofResult::True;
-              // Or R.UpperOffset is within this range, but R.LowerOffset is below the range.
+            // Or R.UpperOffset is within this range, but R.LowerOffset is below the range.
             if (LowerOffsetConstant < R.UpperOffsetConstant && R.UpperOffsetConstant <= UpperOffsetConstant &&
                 R.LowerOffsetConstant < LowerOffsetConstant)
               return ProofResult::True;
@@ -2175,9 +2175,7 @@ namespace {
       Expr *DummyOffset;
       // Currently, we do not try to prove whether the memory access is in range for non-constant ranges
       // TODO: generalize memory access range check to non-constants
-      BaseRange::Kind PtrBaseType = SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset);
-
-      if (PtrBaseType != BaseRange::Kind::ConstantSized)
+      if (SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset) != BaseRange::Kind::ConstantSized)
         return ProofResult::Maybe;
 
       if (Offset) {
