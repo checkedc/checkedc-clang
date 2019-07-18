@@ -1911,17 +1911,30 @@ namespace {
       }
 
       void Dump(raw_ostream &OS) {
-        OS << "ConstantRange:\n";
+        OS << "Range:\n";
         OS << "Base: ";
         if (Base)
           Base->dump(OS);
         else
           OS << "nullptr\n";
-        SmallString<12> Str1;
-        SmallString<12> Str2;
-        LowerOffsetConstant.toString(Str1);
-        UpperOffsetConstant.toString(Str2);
-        OS << "Lower offset:" << Str1 << "\nUpper offset:" << Str2 << "\n";
+        if (IsLowerOffsetConstant()) {
+          SmallString<12> Str;
+          LowerOffsetConstant.toString(Str);
+          OS << "Lower offset:" << Str << "\n";
+        }
+        if (IsUpperOffsetConstant()) {
+          SmallString<12> Str;
+          UpperOffsetConstant.toString(Str);
+          OS << "Upper offset:" << Str << "\n";
+        }
+        if (IsLowerOffsetVariable()) {
+          OS << "Lower offset:\n";
+          LowerOffsetVariable->dump(OS);
+        }
+        if (IsUpperOffsetVariable()) {
+          OS << "Upper offset:\n";
+          UpperOffsetVariable->dump(OS);
+        }
       }
     };
 
