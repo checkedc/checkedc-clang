@@ -1776,11 +1776,7 @@ namespace {
       // If R's lower offset is an unsigned expression and this lower offset is zero, return true.
       ProofResult CompareLowerOffsets(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
         if (IsLowerOffsetConstant() && R.IsLowerOffsetConstant()) {
-          if (LowerOffsetConstant.getExtValue() == 0 &&
-              R.LowerOffsetConstant.getExtValue() == 0)
-            return ProofResult::True;
-          if (SignsMatch(UpperOffsetConstant, R.UpperOffsetConstant) &&
-              LowerOffsetConstant <= R.LowerOffsetConstant)
+          if (LowerOffsetConstant <= R.LowerOffsetConstant)
             return ProofResult::True;
           Cause = CombineFailures(Cause, ProofFailure::LowerBound);
           return ProofResult::False;
@@ -1803,11 +1799,7 @@ namespace {
       // If this upper offset is an unsigned expression and R's upper offset is zero, return true.
       ProofResult CompareUpperOffsets(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
         if (IsUpperOffsetConstant() && R.IsUpperOffsetConstant()) {
-          if (UpperOffsetConstant.getExtValue() == 0 &&
-              R.UpperOffsetConstant.getExtValue() == 0)
-            return ProofResult::True;
-          if (SignsMatch(UpperOffsetConstant, R.UpperOffsetConstant) &&
-              R.UpperOffsetConstant <= UpperOffsetConstant)
+          if (R.UpperOffsetConstant <= UpperOffsetConstant)
             return ProofResult::True;
           Cause = CombineFailures(Cause, ProofFailure::UpperBound);
           return ProofResult::False;
@@ -1820,14 +1812,6 @@ namespace {
           return ProofResult::True;
 
         return ProofResult::Maybe;
-      }
-
-      static bool SignsMatch(llvm::APSInt &A, llvm::APSInt &B) {
-        if (A.isUnsigned() && B.isUnsigned())
-          return true;
-        if (A.isSigned() && B.isSigned())
-          return true;
-        return false;
       }
 
       bool IsConstantSizedRange() {
@@ -1855,25 +1839,25 @@ namespace {
       }
 
       bool IsEmpty() {
-        return UpperOffsetConstant <= LowerOffsetConstant;
+        if (IsConstantSizedRange())
+          return UpperOffsetConstant <= LowerOffsetConstant;
+        // TODO: can we generalize IsEmpty to non-constant ranges?
+        return false;
       }
 
       // Does R partially overlap this range?
       ProofResult PartialOverlap(BaseRange &R) {
         if (Lexicographic(S.Context, nullptr).CompareExpr(Base, R.Base) ==
             Lexicographic::Result::Equal) {
-          // TODO: generalize to non-constant ranges
-          if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
-            if (!IsEmpty() && !R.IsEmpty()) {
-              // R.LowerOffset is within this range, but R.UpperOffset is above the range
-              if (LowerOffsetConstant <= R.LowerOffsetConstant && R.LowerOffsetConstant < UpperOffsetConstant &&
-                  UpperOffsetConstant < R.UpperOffsetConstant)
-                return ProofResult::True;
+          if (!IsEmpty() && !R.IsEmpty()) {
+            // R.LowerOffset is within this range, but R.UpperOffset is above the range
+            if (LowerOffsetConstant <= R.LowerOffsetConstant && R.LowerOffsetConstant < UpperOffsetConstant &&
+                UpperOffsetConstant < R.UpperOffsetConstant)
+              return ProofResult::True;
               // Or R.UpperOffset is within this range, but R.LowerOffset is below the range.
-              if (LowerOffsetConstant < R.UpperOffsetConstant && R.UpperOffsetConstant <= UpperOffsetConstant &&
-                  R.LowerOffsetConstant < LowerOffsetConstant)
-                return ProofResult::True;
-            }
+            if (LowerOffsetConstant < R.UpperOffsetConstant && R.UpperOffsetConstant <= UpperOffsetConstant &&
+                R.LowerOffsetConstant < LowerOffsetConstant)
+              return ProofResult::True;
           }
           return ProofResult::False;
         }
@@ -2041,45 +2025,42 @@ namespace {
     // The kind of the created range is determined by the result of
     // SplitIntoBaseAndOffset which is called on lower and upper expressions
     // of the given BoundsExpr.
-    BaseRange::Kind CreateBaseRange(const BoundsExpr *Bounds, BaseRange *R,
+    bool CreateBaseRange(const BoundsExpr *Bounds, BaseRange *R,
                              EquivExprSets *EquivExprs) {
       switch (Bounds->getKind()) {
         case BoundsExpr::Kind::Invalid:
         case BoundsExpr::Kind::Unknown:
         case BoundsExpr::Kind::Any:
-          return BaseRange::Kind::Invalid;
+          return false;
         case BoundsExpr::Kind::ByteCount:
         case BoundsExpr::Kind::ElementCount:
           // TODO: fill these cases in.
-          return BaseRange::Kind::Invalid;
+          return false;
         case BoundsExpr::Kind::Range: {
           const RangeBoundsExpr *RB = cast<RangeBoundsExpr>(Bounds);
           Expr *Lower = RB->getLowerExpr();
           Expr *Upper = RB->getUpperExpr();
           Expr *LowerBase, *UpperBase;
-          llvm::APSInt LowerOffsetConstant, UpperOffsetConstant;
+          llvm::APSInt LowerOffsetConstant(1, true);
+          llvm::APSInt  UpperOffsetConstant(1, true);
           Expr *LowerOffsetVariable = nullptr;
           Expr *UpperOffsetVariable = nullptr;
-          BaseRange::Kind LowerOffsetKind = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
-          BaseRange::Kind UpperOffsetKind = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
+          SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
+          SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
           if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
             R->SetBase(LowerBase);
-            if (LowerOffsetKind == BaseRange::Kind::ConstantSized && UpperOffsetKind == BaseRange::Kind::ConstantSized) {
-              R->SetLowerConstant(LowerOffsetConstant);
-              R->SetUpperConstant(UpperOffsetConstant);
-              return BaseRange::Kind::ConstantSized;
-            } else {
-              R->SetLowerVariable(LowerOffsetVariable);
-              R->SetUpperVariable(UpperOffsetVariable);
-              return BaseRange::Kind::VariableSized;
-            }
+            R->SetLowerConstant(LowerOffsetConstant);
+            R->SetLowerVariable(LowerOffsetVariable);
+            R->SetUpperConstant(UpperOffsetConstant);
+            R->SetUpperVariable(UpperOffsetVariable);
+            return true;
           }
         }
       }
-      return BaseRange::Kind::Invalid;
+      return false;
     }
 
     // Try to prove that SrcBounds implies the validity of DeclaredBounds.
@@ -2116,8 +2097,8 @@ namespace {
       BaseRange DeclaredRange(S);
       BaseRange SrcRange(S);
 
-      if (CreateBaseRange(DeclaredBounds, &DeclaredRange, EquivExprs) != BaseRange::Kind::Invalid &&
-          CreateBaseRange(SrcBounds, &SrcRange, EquivExprs) != BaseRange::Kind::Invalid) {
+      if (CreateBaseRange(DeclaredBounds, &DeclaredRange, EquivExprs) &&
+          CreateBaseRange(SrcBounds, &SrcRange, EquivExprs)) {
 
 #ifdef TRACE_RANGE
         llvm::outs() << "Found constant ranges:\n";
@@ -2174,7 +2155,9 @@ namespace {
 
       // Currently, we do not try to prove whether the memory access is in range for non-constant ranges
       // TODO: generalize memory access range check to non-constants
-      if (CreateBaseRange(Bounds, &ValidRange, nullptr) != BaseRange::Kind::ConstantSized)
+      if (!CreateBaseRange(Bounds, &ValidRange, nullptr))
+        return ProofResult::Maybe;
+      if (ValidRange.IsVariableSizedRange())
         return ProofResult::Maybe;
 
       bool Overflow;
@@ -2399,7 +2382,6 @@ namespace {
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
                                                    SrcBounds, Cause, &EquivExprs);
       if (Result != ProofResult::True) {
-        llvm::errs() << ".......\n";
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
           (InCheckedScope ?
