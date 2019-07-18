@@ -44,8 +44,7 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
                                  DeclaratorContext Context,
                                  AccessSpecifier AS,
                                  Decl **OwnedType,
-                                 ParsedAttributes *Attrs,
-                                 bool WithinFieldDecl) {
+                                 ParsedAttributes *Attrs) {
   DeclSpecContext DSC = getDeclSpecContextFromDeclaratorContext(Context);
   if (DSC == DeclSpecContext::DSC_normal)
     DSC = DeclSpecContext::DSC_type_specifier;
@@ -54,7 +53,7 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
   DeclSpec DS(AttrFactory);
   if (Attrs)
     DS.addAttributes(*Attrs);
-  ParseSpecifierQualifierList(DS, AS, DSC, WithinFieldDecl);
+  ParseSpecifierQualifierList(DS, AS, DSC);
 
   // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
@@ -2495,12 +2494,11 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 ///          type-qualifier specifier-qualifier-list[opt]
 /// [GNU]    attributes     specifier-qualifier-list[opt]
 ///
-void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
-                                         DeclSpecContext DSC, bool WithinFieldDecl) {
+void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS, DeclSpecContext DSC) {
   /// specifier-qualifier-list is a subset of declaration-specifiers.  Just
   /// parse declaration-specifiers and complain about extra stuff.
   /// TODO: diagnose attribute-specifiers and alignment-specifiers.
-  ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC, nullptr /* LateAttrs */, WithinFieldDecl);
+  ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC, nullptr /* LateAttrs */);
 
   // Validate declspec for type-name.
   unsigned Specs = DS.getParsedSpecifiers();
@@ -3039,8 +3037,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                         const ParsedTemplateInfo &TemplateInfo,
                                         AccessSpecifier AS,
                                         DeclSpecContext DSContext,
-                                        LateParsedAttrList *LateAttrs,
-                                        bool WithinFieldDecl) {
+                                        LateParsedAttrList *LateAttrs) {
   if (DS.getSourceRange().isInvalid()) {
     // Start the range at the current token but make the end of the range
     // invalid.  This will make the entire range invalid unless we successfully
@@ -3879,7 +3876,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       // parsing class specifier.
       ParsedAttributesWithRange Attributes(AttrFactory);
       ParseClassSpecifier(Kind, Loc, DS, TemplateInfo, AS,
-                          EnteringContext, DSContext, Attributes, WithinFieldDecl);
+                          EnteringContext, DSContext, Attributes);
 
       // If there are attributes following class specifier,
       // take them over and handle them here.
@@ -4080,7 +4077,7 @@ void Parser::ParseStructDeclaration(
   DS.takeAttributesFrom(Attrs);
 
   // Parse the common specifier-qualifiers-list piece.
-  ParseSpecifierQualifierList(DS, AS_none, DeclSpecContext::DSC_normal, true /* WithinFieldDecl */);
+  ParseSpecifierQualifierList(DS, AS_none, DeclSpecContext::DSC_normal);
 
   // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);

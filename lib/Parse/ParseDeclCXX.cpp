@@ -1375,8 +1375,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
                                  const ParsedTemplateInfo &TemplateInfo,
                                  AccessSpecifier AS,
                                  bool EnteringContext, DeclSpecContext DSC,
-                                 ParsedAttributesWithRange &Attributes,
-                                 bool WithinFieldDecl) {
+                                 ParsedAttributesWithRange &Attributes) {
   DeclSpec::TST TagType;
   if (TagTokKind == tok::kw_struct)
     TagType = DeclSpec::TST_struct;
@@ -1944,7 +1943,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       if (Decl && Decl->isGeneric()) {
         // We're parsing a reference to a generic struct, so we need to parse
         // the type arguments before we can instantiate.
-        TagOrTempResult = ParseRecordTypeApplication(Decl, WithinFieldDecl);
+        TagOrTempResult = ParseRecordTypeApplication(Decl);
       }
     }
 
@@ -2036,10 +2035,6 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
 /// Checked C: parse an application of the 'Base' 'RecorDecl' to a number of type
 /// arguments that are yet to be parsed.
-/// 'WithinFieldDecl' is set if the parser is currently parsing a field declaration.
-/// This is important to know because we can't immediately perform type applications that
-/// happen in field declarations (see comment in 'RecordDecl::isDelayedTypeApp()').
-/// Return the record that results from the type application, or 'true' on failure.
 ///
 /// generic-struct-instantiation
 ///   '<' type-name-list '>'
@@ -2049,10 +2044,10 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///
 ///  type-name-list-suffix
 ///    ',' type-name type-name-list-suffix [opt]
-DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base, bool WithinFieldDecl) {
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base) {
   assert(Base->isGeneric() && "Instantiated record must be generic");
   ExpectAndConsume(tok::less); // eat the initial '<'
-  auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation(), WithinFieldDecl);
+  auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
   if (ArgsRes.first) {
     // Problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')
     return true;
@@ -2062,7 +2057,7 @@ DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base, bool WithinField
       << static_cast<unsigned int>(Base->typeParams().size()) << static_cast<unsigned int>(ArgsRes.second.size());
     return true;
   } 
-  return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second), WithinFieldDecl);
+  return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second));
 }
 
 /// ParseBaseClause - Parse the base-clause of a C++ class [C++ class.derived].

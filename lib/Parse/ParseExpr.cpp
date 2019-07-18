@@ -3260,7 +3260,7 @@ ExprResult Parser::ParseBoundsExpression() {
 // This is re-used for both generic functions and generic structs.
 // Return false if parsing succeeds, in which case the 'typeArgs' is also populated.
 // Return true if parsing fails.
-std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(SourceLocation Loc, bool WithinFieldDecl) {
+std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(SourceLocation Loc) {
   Parser::TypeArgVector typeArgumentInfos;
   auto err = std::make_pair<>(true, Parser::TypeArgVector());
   bool firstTypeArgument = true;
@@ -3278,7 +3278,7 @@ std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(Sour
       firstTypeArgument = false;
 
     // Expect to see type name.
-    TypeResult Ty = ParseTypeName(nullptr /*Range*/, DeclaratorContext::TypeNameContext, AS_none, nullptr /*OwnedType*/, nullptr /*Attrs*/, WithinFieldDecl);
+    TypeResult Ty = ParseTypeName(nullptr /*Range*/, DeclaratorContext::TypeNameContext, AS_none, nullptr /*OwnedType*/, nullptr /*Attrs*/);
     if (Ty.isInvalid()) {
       // We do not need to write an error message since ParseTypeName does.
       // We want to consume greater, but not consume semi
