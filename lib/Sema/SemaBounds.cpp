@@ -2060,14 +2060,14 @@ namespace {
           llvm::APSInt LowerOffsetConstant, UpperOffsetConstant;
           Expr *LowerOffsetVariable = nullptr;
           Expr *UpperOffsetVariable = nullptr;
-          BaseRange::Kind LowerKind = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
-          BaseRange::Kind UpperKind = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
+          BaseRange::Kind LowerOffsetKind = SplitIntoBaseAndOffset(Lower, LowerBase, LowerOffsetConstant, LowerOffsetVariable);
+          BaseRange::Kind UpperOffsetKind = SplitIntoBaseAndOffset(Upper, UpperBase, UpperOffsetConstant, UpperOffsetVariable);
 
           // If both of the offsets are constants, the range is considered constant-sized.
           // Otherwise, it is a variable-sized range.
           if (EqualValue(S.Context, LowerBase, UpperBase, EquivExprs)) {
             R->SetBase(LowerBase);
-            if (LowerKind == BaseRange::Kind::ConstantSized && UpperKind == BaseRange::Kind::ConstantSized) {
+            if (LowerOffsetKind == BaseRange::Kind::ConstantSized && UpperOffsetKind == BaseRange::Kind::ConstantSized) {
               R->SetLowerConstant(LowerOffsetConstant);
               R->SetUpperConstant(UpperOffsetConstant);
               return BaseRange::Kind::ConstantSized;
@@ -2172,6 +2172,8 @@ namespace {
       Cause = ProofFailure::None;
       BaseRange ValidRange(S);
 
+      // Currently, we do not try to prove whether the memory access is in range for non-constant ranges
+      // TODO: generalize memory access range check to non-constants
       if (CreateBaseRange(Bounds, &ValidRange, nullptr) != BaseRange::Kind::ConstantSized)
         return ProofResult::Maybe;
 
@@ -2188,6 +2190,8 @@ namespace {
       Expr *AccessBase;
       llvm::APSInt AccessStartOffset;
       Expr *DummyOffset;
+      // Currently, we do not try to prove whether the memory access is in range for non-constant ranges
+      // TODO: generalize memory access range check to non-constants
       BaseRange::Kind PtrBaseType = SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset);
 
       if (PtrBaseType != BaseRange::Kind::ConstantSized)
