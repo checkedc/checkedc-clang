@@ -307,6 +307,13 @@ _Array_ptr<int> f37(unsigned num) : count(num) {
   return p;
 }
 
+
+_Nt_array_ptr<int> f37_n(unsigned num) : count(num) {
+  _Nt_array_ptr<int> q : count(num) = 0;
+  _Nt_array_ptr<int> p : count(0) = q;
+  return p;
+}
+
 //
 // Test uses of _Return_value.  Handling _Return_value during bounds
 // declaration checking isn't implemented yet, so these uses are
@@ -380,6 +387,7 @@ _Array_ptr<int> f55(unsigned num1, unsigned num2){
 }
 
 _Array_ptr<int> test_f70(int c) : byte_count(c);
+_Nt_array_ptr<int> test_f70_n(int c) : byte_count(c);
 
 _Array_ptr<int> f70(int num){
   _Array_ptr<int> p : byte_count(0) = test_f70(num); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
@@ -388,10 +396,22 @@ _Array_ptr<int> f70(int num){
   return p;
 }
 
+_Nt_array_ptr<int> f70_n(int num){
+  _Nt_array_ptr<int> p : byte_count(0) = test_f70_n(num); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+                                                          // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 0)'}} \
+                                                          // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of test_f70_n(num), (_Array_ptr<char>)value of test_f70_n(num) + num)'}}
+  return p;
+}
+
 _Ptr<int> test_f56(unsigned c);
 
 _Array_ptr<int> f57(unsigned num) {
   _Array_ptr<int> p : count(1) = test_f56(num);
+  return p;
+}
+
+_Nt_array_ptr<char> f57_n(unsigned num) {
+  _Nt_array_ptr<char> p : count(1) = test_f56(num); // expected-error {{initializing '_Nt_array_ptr<char>' with an expression of incompatible type '_Ptr<int>'}}
   return p;
 }
 
@@ -406,5 +426,10 @@ _Array_ptr<int> f58(unsigned num) {
 
 _Array_ptr<int> f59(unsigned num) {
   _Array_ptr<int> p : count(0) = test_f56(num);
+  return p;
+}
+
+_Nt_array_ptr<int> f60(unsigned num) {
+  _Nt_array_ptr<int> p : count(0) = test_f56(num); // expected-error {{initializing '_Nt_array_ptr<int>' with an expression of incompatible type '_Ptr<int>'}}
   return p;
 }
