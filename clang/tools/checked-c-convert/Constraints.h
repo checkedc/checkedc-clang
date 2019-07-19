@@ -573,7 +573,6 @@ public:
   std::map<std::string, std::string> &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
   
   EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
-
   // Solve the system of constraints. Return true in the second position if
   // the system is solved. If the system is solved, the first position is 
   // an empty. If the system could not be solved, the constraints in conflict

@@ -23,10 +23,7 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
   unsigned removedConstraints = 0;
   std::set<Constraint*, PComp<Constraint*>> toRemoveConstraints;
   toRemoveConstraints.clear();
-  Constraints::ConstraintSet &csSet = CS.getConstraints();
-  // when we modify a constraint, we need to remove and re-add it.
-  std::set<Constraint*, PComp<Constraint*>> toReAdd;
-  toReAdd.clear();
+  Constraints::ConstraintSet &globalConstraints = CS.getConstraints();
   std::set<Constraint*, PComp<Constraint*>> oldConstraints;
   oldConstraints.clear();
   oldConstraints.insert(Constraints.begin(), Constraints.end());
@@ -37,40 +34,51 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
       VarAtom *dstCons = vatomP.first;
       // check if the constraint contains
       // the provided constraint variable.
-      if (currC->containsConstraint(dstCons)) {
+      if (currC->containsConstraint(dstCons) && dyn_cast<Eq>(currC)) {
         removedConstraints++;
         // this has to be an equality constraint.
         Eq *equalityConstraint = dyn_cast<Eq>(currC);
         // we will modify this constraint remove it
         // from the local and global sets.
-        csSet.erase(equalityConstraint);
-        Constraints.erase(equalityConstraint);
+        globalConstraints.erase(currC);
+        Constraints.erase(currC);
+
+        // mark this constraint to be deleted.
+        toRemoveConstraints.insert(currC);
 
         assert(equalityConstraint != nullptr &&
                "Do not know how to replace a non-equality constraint.");
         if (targetCons != nullptr) {
-          // if lhs is the target constraint variable, replace
-          // lhs with rhs.
-          // i.e., we will change the constraint of type
-          // dst = var to var = targetCons.
+          Eq* newC = nullptr;
           if (*(equalityConstraint->getLHS()) == *(dstCons)) {
-            equalityConstraint->lhs = equalityConstraint->rhs;
+            // if this is of the form var1 = var2
+            if (dyn_cast<VarAtom>(equalityConstraint->rhs)) {
+              // create a constraint var2 = const
+              VarAtom *VA = dyn_cast<VarAtom>(equalityConstraint->rhs);
+              newC = CS.createEq(VA, targetCons);
+            } else {
+              // else, create a constraint var1 = const
+              VarAtom *VA = dyn_cast<VarAtom>(equalityConstraint->lhs);
+              newC = CS.createEq(VA, targetCons);
+            }
           }
-          equalityConstraint->rhs = targetCons;
-          // we need to re-add this constraint.
-          toReAdd.insert(equalityConstraint);
-        } else {
-          toRemoveConstraints.insert(currC);
+          // if we have created a new equality constraint
+          if(newC) {
+            // add the constraint
+            if(!CS.addConstraint(newC)) {
+              // if this is already added?
+              // delete it.
+              delete(newC);
+            }
+          }
         }
       }
     }
   }
+
   for(auto toDel: toRemoveConstraints) {
     delete(toDel);
   }
-  // re-add the modified constraints to the global and local constraints.
-  csSet.insert(toReAdd.begin(), toReAdd.end());
-  Constraints.insert(toReAdd.begin(), toReAdd.end());
 
   return removedConstraints;
 }

@@ -138,11 +138,14 @@ public:
   // get a unique string representing the declaration object.
   std::string getUniqueDeclKey(Decl *decl, ASTContext *C);
 
+  // given the unique key for the function definition, get the pointer to
+  // the constraint set of the declaration (if exists) else null.
+  std::set<ConstraintVariable*> *getFuncDeclConstraintSet(std::string funcDefKey);
+
   std::map<std::string, std::set<ConstraintVariable*>>& getOnDemandFuncDeclConstraintMap();
 
   // handle assigning constraints based on function subtyping.
   bool handleFunctionSubtyping();
-
 private:
   // check if the given set has the corresponding constraint variable type
   template <typename T>

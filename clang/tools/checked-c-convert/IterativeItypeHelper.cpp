@@ -21,30 +21,31 @@ static std::map<std::string, std::map<VarAtom*, ConstAtom*>> funcParamsReturnSav
 // FVConstraint vars with default value as null.
 // these are used to later check if anything has changed, in which case the corresponding
 // function will be considered as modified.
-static void updateFunctionConstraintVars(std::string funcName, Constraints &CS, std::set<ConstraintVariable*> &fvconstraintVars) {
-  for(auto fvcvar: fvconstraintVars) {
-    assert(dyn_cast<FVConstraint>(fvcvar) && "Expected a function variable.");
-    FVConstraint *fvCons = dyn_cast<FVConstraint>(fvcvar);
-    // update the variables of function parameters
-    for(unsigned i=0; i < fvCons->numParams(); i++) {
-      for(ConstraintVariable *paramVar: fvCons->getParamVar(i)) {
-        assert(dyn_cast<PVConstraint>(paramVar) && "Expected a pointer variable constraint.");
-        PVConstraint *pvConst = dyn_cast<PVConstraint>(paramVar);
-        for(auto cVar: pvConst->getCvars()) {
-          VarAtom *currVarAtom = CS.getVar(cVar);
-          // default value is null
-          funcParamsReturnSavedValues[funcName][currVarAtom] = nullptr;
+static void updateFunctionConstraintVars(std::string funcUniqKey, Constraints &CS, std::set<ConstraintVariable*> &fvconstraintVars) {
+  for(auto topVar: fvconstraintVars) {
+    // if this is a function constraint?
+    if(FVConstraint *fvCons = dyn_cast<FVConstraint>(topVar)) {
+      // update the variables of function parameters
+      for (unsigned i = 0; i < fvCons->numParams(); i++) {
+        for (ConstraintVariable *paramVar: fvCons->getParamVar(i)) {
+          assert(dyn_cast<PVConstraint>(paramVar) && "Expected a pointer variable constraint.");
+          PVConstraint *pvConst = dyn_cast<PVConstraint>(paramVar);
+          for (auto cVar: pvConst->getCvars()) {
+            VarAtom *currVarAtom = CS.getVar(cVar);
+            // default value is null
+            funcParamsReturnSavedValues[funcUniqKey][currVarAtom] = nullptr;
+          }
         }
       }
-    }
-    // update the variables of function return vars.
-    for(ConstraintVariable *returnVar: fvCons->getReturnVars()) {
-      assert(dyn_cast<PVConstraint>(returnVar) && "Expected a pointer variable constraint.");
-      PVConstraint *retVarConst = dyn_cast<PVConstraint>(returnVar);
-      for(auto cVar: retVarConst->getCvars()) {
-        VarAtom *currVarAtom = CS.getVar(cVar);
-        // the default value is null.
-        funcParamsReturnSavedValues[funcName][currVarAtom] = nullptr;
+      // update the variables of function return vars.
+      for (ConstraintVariable *returnVar: fvCons->getReturnVars()) {
+        assert(dyn_cast<PVConstraint>(returnVar) && "Expected a pointer variable constraint.");
+        PVConstraint *retVarConst = dyn_cast<PVConstraint>(returnVar);
+        for (auto cVar: retVarConst->getCvars()) {
+          VarAtom *currVarAtom = CS.getVar(cVar);
+          // the default value is null.
+          funcParamsReturnSavedValues[funcUniqKey][currVarAtom] = nullptr;
+        }
       }
     }
   }
@@ -231,14 +232,14 @@ private:
 
 bool FVConstraintDetectorVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
-  auto funcName = FD->getNameAsString();
+  auto functionName = FD->getNameAsString();
 
   // Make sure we haven't visited this function name before, and that we
   // only visit it once.
-  if (VisitedSet.find(funcName) != VisitedSet.end())
+  if (VisitedSet.find(functionName) != VisitedSet.end())
     return true;
   else
-    VisitedSet.insert(funcName);
+    VisitedSet.insert(functionName);
 
   // Do we have a definition for this declaration?
   FunctionDecl *Definition = getDefinition(FD);
@@ -248,22 +249,24 @@ bool FVConstraintDetectorVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     return true;
 
   Constraints &CS = Info.getConstraints();
+  // get a unique key for the current function
+  std::string funcUniqKey = Info.getUniqueFuncKey(FD, Context);
 
-  CS.getFuncDefnVarMap()[funcName] = Info.getVariableOnDemand(Definition, Context, true);
+  CS.getFuncDefnVarMap()[funcUniqKey] = Info.getVariableOnDemand(Definition, Context, true);
   // save the constraint vars of parameters and return of the definition.
-  updateFunctionConstraintVars(funcName, CS, CS.getFuncDefnVarMap()[funcName]);
+  updateFunctionConstraintVars(funcUniqKey, CS, CS.getFuncDefnVarMap()[funcUniqKey]);
 
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
   if(Declaration == nullptr) {
     // if there is no declaration?
     // get the on demand function variable constraint.
-    CS.getFuncDeclVarMap()[funcName] = Info.getOnDemandFuncDeclarationConstraint(Definition, Context);
+    CS.getFuncDeclVarMap()[funcUniqKey] = Info.getOnDemandFuncDeclarationConstraint(Definition, Context);
   } else {
-    CS.getFuncDeclVarMap()[funcName] = Info.getVariableOnDemand(Declaration, Context, false);
+    CS.getFuncDeclVarMap()[funcUniqKey] = Info.getVariableOnDemand(Declaration, Context, false);
   }
   // save the constraint vars of parameters and return of the declaration.
-  updateFunctionConstraintVars(funcName, CS, CS.getFuncDeclVarMap()[funcName]);
+  updateFunctionConstraintVars(funcUniqKey, CS, CS.getFuncDeclVarMap()[funcUniqKey]);
 
   return true;
 }
@@ -272,6 +275,7 @@ void FVConstraintDetectorConsumer::HandleTranslationUnit(ASTContext &C) {
   Info.enterCompilationUnit(C);
 
   std::set<std::string> v;
+  v.clear();
   FVConstraintDetectorVisitor CPV = FVConstraintDetectorVisitor(&C, Info, v);
   for (const auto &D : C.getTranslationUnitDecl()->decls())
     CPV.TraverseDecl(D);

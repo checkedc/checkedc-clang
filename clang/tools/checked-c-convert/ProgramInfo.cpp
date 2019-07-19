@@ -937,6 +937,24 @@ VariableMap &ProgramInfo::getVarMap() {
   return Variables;
 }
 
+std::set<ConstraintVariable*> *ProgramInfo::getFuncDeclConstraintSet(std::string funcDefKey) {
+  std::set<ConstraintVariable*> *declCVarsPtr = nullptr;
+  auto &defnDeclKeyMap = CS.getFuncDefnDeclMap();
+  auto &declConstrains = CS.getFuncDeclVarMap();
+  // see if we do not have constraint variables for declaration
+  if(defnDeclKeyMap.find(funcDefKey) != defnDeclKeyMap.end()) {
+    auto funcDeclKey = defnDeclKeyMap[funcDefKey];
+    declCVarsPtr = &(declConstrains[funcDeclKey]);
+  } else {
+    // no? then check the ondemand declarations
+    auto &onDemandMap = getOnDemandFuncDeclConstraintMap();
+    if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
+      declCVarsPtr = &(onDemandMap[funcDefKey]);
+    }
+  }
+  return declCVarsPtr;
+}
+
 bool ProgramInfo::handleFunctionSubtyping() {
   // The subtyping rule for functions is:
   // T2 <: S2
@@ -955,20 +973,7 @@ bool ProgramInfo::handleFunctionSubtyping() {
     auto funcDefKey = currFDef.first;
     std::set<ConstraintVariable*> &defCVars = currFDef.second;
 
-    std::set<ConstraintVariable*> *declCVarsPtr = nullptr;
-    auto &defnDeclKeyMap = CS.getFuncDefnDeclMap();
-    auto &declConstrains = CS.getFuncDeclVarMap();
-    // see if we do not have constraint variables for declaration
-    if (defnDeclKeyMap.find(funcDefKey) != defnDeclKeyMap.end()) {
-      auto funcDeclKey = defnDeclKeyMap[funcDefKey];
-      declCVarsPtr = &(declConstrains[funcDeclKey]);
-    } else {
-      // no? then check the on demand declarations
-      auto &onDemandMap = getOnDemandFuncDeclConstraintMap();
-      if (onDemandMap.find(funcDefKey) != onDemandMap.end()) {
-        declCVarsPtr = &(onDemandMap[funcDefKey]);
-      }
-    }
+    std::set<ConstraintVariable*> *declCVarsPtr = getFuncDeclConstraintSet(funcDefKey);
 
     if (declCVarsPtr != nullptr) {
       // if we have declaration constraint variables?
