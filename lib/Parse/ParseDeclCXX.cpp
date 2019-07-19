@@ -1648,8 +1648,11 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   // Checked C - handle generic structs.
   if (Tok.is(tok::kw__For_any)) {
-    // TODO(abeln): don't allow _any_ specifier, just '_For_any'.
-    ParseDeclarationSpecifiers(DS);
+    // TODO(abeln): add error handling here
+    unsigned DiagID;
+    const char *PrevSpec;
+    DS.setSpecForany(Tok.getLocation(), PrevSpec, DiagID);
+    ParseForanySpecifier(DS);
   }
 
   // Checked C - checked scope keyword, possibly followed by checked scope modifier,
