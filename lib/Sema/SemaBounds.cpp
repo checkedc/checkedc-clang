@@ -1849,15 +1849,18 @@ namespace {
       ProofResult PartialOverlap(BaseRange &R) {
         if (Lexicographic(S.Context, nullptr).CompareExpr(Base, R.Base) ==
             Lexicographic::Result::Equal) {
-          if (!IsEmpty() && !R.IsEmpty()) {
-            // R.LowerOffset is within this range, but R.UpperOffset is above the range
-            if (LowerOffsetConstant <= R.LowerOffsetConstant && R.LowerOffsetConstant < UpperOffsetConstant &&
-                UpperOffsetConstant < R.UpperOffsetConstant)
-              return ProofResult::True;
-            // Or R.UpperOffset is within this range, but R.LowerOffset is below the range.
-            if (LowerOffsetConstant < R.UpperOffsetConstant && R.UpperOffsetConstant <= UpperOffsetConstant &&
-                R.LowerOffsetConstant < LowerOffsetConstant)
-              return ProofResult::True;
+          // TODO: can we generalize this function to non-constant ranges?
+          if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
+            if (!IsEmpty() && !R.IsEmpty()) {
+              // R.LowerOffset is within this range, but R.UpperOffset is above the range
+              if (LowerOffsetConstant <= R.LowerOffsetConstant && R.LowerOffsetConstant < UpperOffsetConstant &&
+                  UpperOffsetConstant < R.UpperOffsetConstant)
+                return ProofResult::True;
+              // Or R.UpperOffset is within this range, but R.LowerOffset is below the range.
+              if (LowerOffsetConstant < R.UpperOffsetConstant && R.UpperOffsetConstant <= UpperOffsetConstant &&
+                  R.LowerOffsetConstant < LowerOffsetConstant)
+                return ProofResult::True;
+            }
           }
           return ProofResult::False;
         }
@@ -1955,14 +1958,14 @@ namespace {
 
     // Convert an expression E into a base and offset form.
     // - If E is pointer arithmetic involving addition or subtraction of a
-    //   constant integer, return the base and offset.
+    //   constant integer, populate the base and the constant offset and
+    //   return `Kind::ConstantSized`.
     // - If E is a pointer arithmetic involving addition or subtraction of
-    //   a pointer with an unsigned integer expression, return the pointer as
-    //   the base, and the rest as the offset. (If OnlyConstant is set to true,
-    //   this case is not checked. Instead, the function will try to split the
-    //   E into Base and Offset assuming the Offset can only be constant.)
+    //   a pointer with an unsigned integer expression, create a range in which
+    //   the pointer is the base, and the rest serves as the variable offset. Also,
+    //   return `Kind::VariableSized`.
     // - If it is not or we run into issues such as pointer arithmetic overflow,
-    // return a default expression of (E, 0).
+    //   create a default expression of (E, 0), and return `Kind::ConstantSized`.
     // TODO: we use signed integers to represent the result of the Offset.
     // We can't represent unsigned offsets larger the the maximum signed
     // integer that will fit pointer width.
