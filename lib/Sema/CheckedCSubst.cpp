@@ -84,10 +84,8 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
   auto &ctx = Base->getASTContext();
 
   // Unwrap the type arguments from a 'TypeArgument' to the underlying 'Type *'.
-  // TODO(abeln): will the 'ASTContext' free the memory?
   auto RawArgs = new (ctx) llvm::SmallVector<const Type *, 4>();
   for (auto TArg : TypeArgs) {
-    // TODO(abeln): remove the 'const_cast'.
     RawArgs->push_back(TArg.typeName.getTypePtr());
   }
 
@@ -98,7 +96,7 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
     return Cached;   
   }
 
-  // TODO(abeln): populate the two 'SourceLocation' fields.
+  // Notice we pass dummy location arguments, since the type application doesn't exist in user code.
   RecordDecl* Inst = RecordDecl::Create(ctx, Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
     Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, (size_t)0) /* TypeParams */, Base, TypeArgs);
 
@@ -135,8 +133,7 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
   for (auto Field : Defn->fields()) {
     QualType InstType = SubstituteTypeArgs(Field->getType(), Incomplete->typeArgs());
     assert(!InstType.isNull() && "Subtitution of type args failed!");
-    // TODO(abeln): populate 'SouceLocation' fields.
-    // Also make sure that TypeSouceInfo and InstType are in-sync.
+    // TODO(abeln): are TypeSouceInfo and InstType in sync?
     FieldDecl* NewField = FieldDecl::Create(Field->getASTContext(), Incomplete, SourceLocation(), SourceLocation(),
       Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
     Incomplete->addDecl(NewField);
@@ -158,7 +155,6 @@ namespace {
   const char EXPANDING = 1;
 
   // Retrieve the underlying type variable from a typedef that appears as the param to a generic record.
-  // TODO(abeln): handle failure case better.
   const TypeVariableType *GetTypeVar(TypedefDecl *TDef) {
     const TypeVariableType *TypeVar = llvm::dyn_cast<TypeVariableType>(TDef->getUnderlyingType());
     assert(TypeVar && "Expected a type variable as the parameter of a generic record");
@@ -174,8 +170,6 @@ namespace {
 
   public:
     ContainsTypeVarVisitor(const TypeVariableType *TypeVar): TypeVar(TypeVar) {}
-
-    // TODO(abeln): do we need to handle additional cases?
 
     bool VisitTypeVariableType(const TypeVariableType *Type) {
       return Type == TypeVar;
@@ -223,8 +217,6 @@ namespace {
 
   public:
   
-    // TODO(abeln): do we need to handle additional cases?
-
     // Note the worklist argument is mutated by this visitor.
     class ExpandingEdgesVisitor(std::stack<Node>& Worklist, const TypeVariableType *TypeVar, char ExpandingSoFar):
       Worklist(Worklist), TypeVar(TypeVar), ExpandingSoFar(ExpandingSoFar), ContainsVisitor(TypeVar) {}
@@ -292,9 +284,11 @@ bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
     }
     ExpandingEdgesVisitor EdgesVisitor(Worklist, TVar, ExpandingSoFar);
     auto Defn = RDecl->getDefinition();
-    // TODO(abeln): add comment
+    // There might not be an underlying definition, because 'RDecl' might refer
+    // to a forward-declared struct.
     if (!Defn) continue;
     for (auto Field : Defn->fields()) {
+      // 'EdgesVisitor' mutates the worklist by adding new nodes to it.
       EdgesVisitor.Visit(Field->getType().getTypePtr());
     }
   }
@@ -458,6 +452,5 @@ QualType Sema::SubstituteTypeArgs(QualType QT, ArrayRef<TypeArgument> TypeArgs) 
      return Result;
    }
 
-   // TODO(abeln): handle types properly (particularly w.r.t caching).
    return TransformedQT;
 }
