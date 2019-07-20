@@ -11,6 +11,9 @@ add_clang_executable(checked-c-convert
   ConstraintBuilder.cpp
   PersistentSourceLoc.cpp
   Constraints.cpp
+  ConstraintVariables.cpp
+  RewriteUtils.cpp
+  Utils.cpp
   )
 
 target_link_libraries(checked-c-convert

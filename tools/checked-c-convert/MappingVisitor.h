@@ -16,7 +16,7 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 
-#include "utils.h"
+#include "Utils.h"
 #include "PersistentSourceLoc.h"
 
 class MappingVisitor
