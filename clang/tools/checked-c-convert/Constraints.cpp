@@ -99,15 +99,17 @@ bool Constraints::addConstraint(Constraint *C) {
         vLHS->Constraints.insert(C);
     }
     else if (Not *N = dyn_cast<Not>(C)) {
-      if (Eq *E = dyn_cast<Eq>(N->getBody()))
+      if (Eq *E = dyn_cast<Eq>(N->getBody())) {
         if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
           vLHS->Constraints.insert(C);
 
+      }
     }
     else if (Implies *I = dyn_cast<Implies>(C)) {
-      if (Eq *E = dyn_cast<Eq>(I->getPremise()))
+      if (Eq *E = dyn_cast<Eq>(I->getPremise())) {
         if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
           vLHS->Constraints.insert(C);
+      }
     }
     else
       llvm_unreachable("unsupported constraint");
@@ -126,7 +128,7 @@ bool Constraints::addConstraint(Constraint *C) {
 bool Constraints::check(Constraint *C) {
 
   if (Not *N = dyn_cast<Not>(C)) {
-    if (Eq *E = dyn_cast<Eq>(N->getBody()))
+    if(Eq *E = dyn_cast<Eq>(N->getBody()))
       if (!isa<VarAtom>(E->getLHS()) || isa<VarAtom>(E->getRHS()))
         return false;
   }
@@ -148,6 +150,7 @@ bool Constraints::check(Constraint *C) {
     }
   }
   else if (Eq *E = dyn_cast<Eq>(C)) {
+
     if (!isa<VarAtom>(E->getLHS()))
       return false;
   }
@@ -228,10 +231,13 @@ bool Constraints::canAssignConst(VarAtom *src) {
   for (const auto &C : src->Constraints) {
     // check if there is a non-equality constraint
     // of the provided type.
-    if (Not *N = dyn_cast<Not>(C))
-      if (Eq *E = dyn_cast<Eq>(N->getBody()))
-        if (isa<T>(E->getRHS()))
+    if (Not *N = dyn_cast<Not>(C)) {
+      if (Eq *E = dyn_cast<Eq>(N->getBody())) {
+        if(dyn_cast<T>(E->getRHS())) {
           return false;
+        }
+      }
+    }
   }
   return true;
 }
@@ -277,16 +283,26 @@ bool Constraints::step_solve(EnvironmentMap &env) {
     for (const auto &C : Var->Constraints) {
       // Propagate the Neg constraint.
       if (Not *N = dyn_cast<Not>(C)) {
-        if (Eq *E = dyn_cast<Eq>(N->getBody()))
-          // If this is Not ( q == Ptr ) or Not ( q == NTArr) and the current
-          // value of q is Ptr (i.e., q < *getArr()) and ARR can be assigned
-          // then bump q up to Arr.
-          if (isa<PtrAtom>(E->getRHS()) || isa<NTArrAtom>(E->getRHS()))
+        if (Eq *E = dyn_cast<Eq>(N->getBody())) {
+          // If this is Not ( q == Ptr )
+          if (isa<PtrAtom>(E->getRHS())) {
+            // check if we can make it an Arr?
             if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
+              // yes? make it Arr
               VI->second = getArr();
               changedEnvironment = true;
+            } else if(*Val < *getNTArr() && canAssignConst<NTArrAtom>(Var)){
+              // No? Can we make it NTArr?
+              // lets make it an NTArr.
+              VI->second = getNTArr();
+              changedEnvironment = true;
             }
-      } else if (Eq *E = dyn_cast<Eq>(C)) {
+          }
+
+
+        }
+      }
+      else if (Eq *E = dyn_cast<Eq>(C)) {
         changedEnvironment |= propEq<NTArrAtom>(env, E, getNTArr(), rmConstraints, VI);
         changedEnvironment |= propEq<ArrAtom>(env, E, getArr(), rmConstraints, VI);
       } else if (Implies *Imp = dyn_cast<Implies>(C)) {
@@ -360,11 +376,12 @@ void Constraints::dump(void) const {
 }
 
 void Constraints::dump_json(llvm::raw_ostream &O) const {
-  O << R"({"Constraints":[)";
+  O << "{\"Constraints\":[";
   bool addComma = false;
   for (const auto &C : constraints) {
-    if (addComma)
+    if(addComma) {
       O << ",\n";
+    }
     C->dump_json(O);
     addComma = true;
   }
@@ -372,13 +389,14 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
 
   addComma = false;
 
-  O << R"("Environment":[)";
+  O << "\"Environment\":[";
   for (const auto &V : environment) {
-    if (addComma)
+    if(addComma) {
       O << ",\n";
-    O << R"({"var":)";
+    }
+    O << "{\"var\":";
     V.first->dump_json(O);
-    O << R"(, "value:":)";
+    O << ", \"value:\":";
     V.second->dump_json(O);
     O << "}";
     addComma = true;

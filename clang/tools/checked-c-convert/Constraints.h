@@ -42,8 +42,8 @@ public:
   enum AtomKind {
     A_Var,
     A_Ptr,
-    A_NTArr,
     A_Arr,
+    A_NTArr,
     A_Wild,
     A_Const
   };
@@ -198,43 +198,6 @@ public:
   }
 };
 
-// This refers to the constant NTARR.
-class NTArrAtom : public ConstAtom {
-public:
-  NTArrAtom() : ConstAtom(A_NTArr) {}
-
-  static bool classof(const Atom *S) {
-    return S->getKind() == A_NTArr;
-  }
-
-  void print(llvm::raw_ostream &O) const {
-    O << "NTARR";
-  }
-
-  void dump(void) const {
-    print(llvm::errs());
-  }
-
-  void dump_json(llvm::raw_ostream &O) const {
-    O << "\"NTARR\"";
-  }
-
-  bool operator==(const Atom &other) const {
-    return llvm::isa<NTArrAtom>(&other);
-  }
-
-  bool operator!=(const Atom &other) const {
-    return !(*this == other);
-  }
-
-  bool operator<(const Atom &other) const {
-    if (llvm::isa<PtrAtom>(&other) || *this == other)
-      return false;
-    else
-      return true;
-  }
-};
-
 // This refers to the constant ARR.
 class ArrAtom : public ConstAtom {
 public:
@@ -265,7 +228,44 @@ public:
   }
 
   bool operator<(const Atom &other) const {
-    if (llvm::isa<PtrAtom>(&other) || llvm::isa<NTArrAtom>(&other) || *this == other)
+    if (llvm::isa<PtrAtom>(&other) || *this == other)
+      return false;
+    else
+      return true;
+  }
+};
+
+// This refers to the constant NTARR.
+class NTArrAtom : public ConstAtom {
+public:
+  NTArrAtom() : ConstAtom(A_NTArr) {}
+
+  static bool classof(const Atom *S) {
+    return S->getKind() == A_NTArr;
+  }
+
+  void print(llvm::raw_ostream &O) const {
+    O << "NTARR";
+  }
+
+  void dump(void) const {
+    print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"NTARR\"";
+  }
+
+  bool operator==(const Atom &other) const {
+    return llvm::isa<NTArrAtom>(&other);
+  }
+
+  bool operator!=(const Atom &other) const {
+    return !(*this == other);
+  }
+
+  bool operator<(const Atom &other) const {
+    if (llvm::isa<PtrAtom>(&other) || llvm::isa<ArrAtom>(&other) || *this == other)
       return false;
     else
       return true;
