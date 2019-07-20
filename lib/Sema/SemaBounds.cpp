@@ -1714,9 +1714,9 @@ namespace {
     // - If e2 and e3 are both constant integer expressions, the range is Constant-sized.
     //   For now, in this case, we represent e2 and e3 as signed (APSInt) integers.
     //   They must have the same bitsize.
-    //   More specifically: (UpperOffsetExpr == nullptr && LowerOffsetExpr == nullptr)
+    //   More specifically: (UpperOffsetVariable == nullptr && LowerOffsetVariable == nullptr)
     // - If one or both of e2 and e3 are non-constant expressions, the range is Variable-sized.
-    //   More specifically: (UpperOffsetExpr != nullptr || LowerOffsetExpr != nullptr)
+    //   More specifically: (UpperOffsetVariable != nullptr || LowerOffsetVariable != nullptr)
     class BaseRange {
     public:
       enum Kind {
@@ -1746,10 +1746,10 @@ namespace {
       }
 
       BaseRange(Sema &S, Expr *Base,
-                         Expr *LowerOffsetExpr,
-                         Expr *UpperOffsetExpr) :
+                         Expr *LowerOffsetVariable,
+                         Expr *UpperOffsetVariable) :
         S(S), Base(Base), LowerOffsetConstant(1, true), UpperOffsetConstant(1, true),
-        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetExpr) {
+        LowerOffsetVariable(LowerOffsetVariable), UpperOffsetVariable(UpperOffsetVariable) {
       }
 
       // Is R a subrange of this range?
@@ -1768,12 +1768,21 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      // This function compares two lower offsets and returns true in the following cases:
-      // If both lower offsets are constant,
-      //   - regardless of their signs, if both of them evaluate to zero, return true.
-      //   - otherwise, the constant values will be compared if their have matching signs.
-      // If both lower offsets are non-constant, return true if EqualValue() returns true.
-      // If R's lower offset is an unsigned expression and this lower offset is zero, return true.
+      // This function proves whether this.LowerOffset <= R.LowerOffset.
+      // Depending on whether these lower offsets are ConstantSized or VariableSized, various cases should be checked:
+      // - If `this` and `R` both have constant lower offsets (i.e., if the following condition holds:
+      //   `IsLowerOffsetConstant() && R.IsLowerOffsetConstant()`), the function returns
+      //   true only if `LowerOffsetConstant <= R.LowerOffsetConstant`. Otherwise, it should return false.
+      // - If `this` and `R` both have variable lower offsets (i.e., if the following condition holds:
+      //   `IsLowerOffsetVariable() && R.IsLowerOffsetVariable()`), the function returns true if
+      //   `EqualValue()` determines that `LowerOffsetVariable` and `R.LowerOffsetVariable` are equal.
+      // - If `this` has a constant lower offset (i.e., `IsLowerOffsetConstant()` is true),
+      //   but `R` has a variable lower offset (i.e., `R.IsLowerOffsetVariable()` is true), the function
+      //   returns true only if `R.LowerOffsetVariable` has unsgined integer type and `this.LowerOffsetConstant`
+      //   has value 0 when it is extended to int64_t.
+      // - If none of the above cases happen, it means that the function has not been able to prove
+      //   whether this.LowerOffset is less than or equal to R.LowerOffset, or not. Therefore,
+      //   it returns maybe as the result.
       ProofResult CompareLowerOffsets(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
         if (IsLowerOffsetConstant() && R.IsLowerOffsetConstant()) {
           if (LowerOffsetConstant <= R.LowerOffsetConstant)
@@ -1791,12 +1800,21 @@ namespace {
         return ProofResult::Maybe;
       }
 
-      // This function compares two upper offsets and returns true in the following cases:
-      // If both uppper offsets are constant,
-      //   - regardless of their signs, if both of them evaluate to zero, return true.
-      //   - otherwise, the constant values will be compared if their have matching signs.
-      // If both upper offsets are non-constant, return true if EqualValue() returns true.
-      // If this upper offset is an unsigned expression and R's upper offset is zero, return true.
+      // This function proves whether R.UpperOffset <= this.UpperOffset.
+      // Depending on whether these upper offsets are ConstantSized or VariableSized, various cases should be checked:
+      // - If `this` and `R` both have constant upper offsets (i.e., if the following condition holds:
+      //   `IsUpperOffsetConstant() && R.IsUpperOffsetConstant()`), the function returns
+      //   true only if `R.UpperOffsetConstant <= UpperOffsetConstant`. Otherwise, it should return false.
+      // - If `this` and `R` both have variable upper offsets (i.e., if the following condition holds:
+      //   `IsUpperOffsetVariable() && R.IsUpperOffsetVariable()`), the function returns true if
+      //   `EqualValue()` determines that `UpperOffsetVariable` and `R.UpperOffsetVariable` are equal.
+      // - If `R` has a constant upper offset (i.e., `R.IsUpperOffsetConstant()` is true),
+      //   but `this` has a variable upper offset (i.e., `IsUpperOffsetVariable()` is true), the function
+      //   returns true only if `UpperOffsetVariable` has unsgined integer type and `R.UpperOffsetConstant`
+      //   has value 0 when it is extended to int64_t.
+      // - If none of the above cases happen, it means that the function has not been able to prove
+      //   whether R.UpperOffset is less than or equal to this.UpperOffset, or not. Therefore,
+      //   it returns maybe as the result.
       ProofResult CompareUpperOffsets(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
         if (IsUpperOffsetConstant() && R.IsUpperOffsetConstant()) {
           if (R.UpperOffsetConstant <= UpperOffsetConstant)
@@ -1838,6 +1856,10 @@ namespace {
         return UpperOffsetVariable;
       }
 
+      // This function returns true if, when the range is ConstantSized,
+      // `UpperOffsetConstant <= LowerOffsetConstant`.
+      // Currently, it returns false when the range is not ConstantSized.
+      // However, this should be generalized in the future.
       bool IsEmpty() {
         if (IsConstantSizedRange())
           return UpperOffsetConstant <= LowerOffsetConstant;
@@ -1956,17 +1978,35 @@ namespace {
         return I;
     }
 
-    // Convert an expression E into a base and offset form.
-    // - If E is pointer arithmetic involving addition or subtraction of a
-    //   constant integer, populate the base and the constant offset and
-    //   return `Kind::ConstantSized`.
-    // - If E is a pointer arithmetic involving addition or subtraction of
-    //   a pointer with an unsigned integer expression, create a range in which
-    //   the pointer is the base, and the rest serves as the variable offset. Also,
-    //   return `Kind::VariableSized`.
-    // - If it is not or we run into issues such as pointer arithmetic overflow,
-    //   create a default expression of (E, 0), and return `Kind::ConstantSized`.
-    // TODO: we use signed integers to represent the result of the Offset.
+    // This function splits the expression `E` into an expression `Base`, and an offset.
+    // The offset can be an integer constant or not. If it is an integer constant, the
+    // extracted offset can be found in `OffsetConstant`, and `OffsetVariable` will be nullptr.
+    // In this case, the return value is `BaseRange::Kind::ConstantSized`.
+    // Otherwise, the extracted offset can be found in `OffsetVariable`, and `OffsetConstant`
+    // will not be updated. In this case, the return value is `BaseRange::Kind::VariableSized`.
+    //
+    // Implementation details:
+    // - If `E` is a BinaryOperator with an additive opcode, depending on whether the LHS or RHS
+    //   is a pointer, Base and offset can get different values in different cases:
+    //
+    //    First, for extracting the `Base`,
+    //     1a. if E.LHS is a pointer, Base = E.LHS.
+    //     2a. if E.RHS is a pointer, Base = E.RHS.
+    //     If (1a) and (2a) do not hold, Base = E and OffsetConstant = 0 and OffsetVariable = nullptr. Also,
+    //     `BaseRange::Kind::ConstantSized` will be returned.
+    //
+    //    Next, for extracting the offset,
+    //     1b. if E.LHS is a pointer and E.RHS is a constant integer,
+    //         or, if E.RHS is a pointer and E.LHS is a constant integer, the function will set
+    //        `OffsetConstant` to the constant integer and widen and/or normalize it if needed.
+    //        Then, it returns `BaseRange::Kind::ConstantSized`. When manipulating the extracted
+    //        constant integer, if an overflow occurres in any of the steps, `OffsetConstant = 0`
+    //        and `OffsetVariable = nullptr`. Also, `BaseRange::Kind::ConstantSized` will be returned.
+    //     If (1b) does not hold, we define the offset to be VariableSized. Therefore,
+    //     `OffsetVariable = E.RHS` if E.LHS is a pointer, and `OffsetVariable = E.LHS` if E.RHS is
+    //     a pointer. In this case, `BaseRange::Kind::VariableSized` will be returned.
+    //
+    // TODO: we use signed integers to represent the result of the OffsetConstant.
     // We can't represent unsigned offsets larger the the maximum signed
     // integer that will fit pointer width.
     BaseRange::Kind SplitIntoBaseAndOffset(Expr *E, Expr *&Base, llvm::APSInt &OffsetConstant,
@@ -2001,9 +2041,9 @@ namespace {
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
               goto exit;
+            OffsetVariable = nullptr;
             return BaseRange::Kind::ConstantSized;
           } else {
-            // if the offset is not constant:
             OffsetVariable = Other;
             return BaseRange::Kind::VariableSized;
           }
@@ -2023,11 +2063,17 @@ namespace {
       return R == Lexicographic::Result::Equal;
     }
 
-    // Convert a bounds expression to a constant- or variable-sized range and returns
-    // the Kind of the created range.
-    // The kind of the created range is determined by the result of
-    // SplitIntoBaseAndOffset which is called on lower and upper expressions
-    // of the given BoundsExpr.
+    // Convert the bounds expression `Bounds` to a range `R`. This function returns true
+    // if the conversion is successful, and false otherwise.
+    // Currently, this function only performs the conversion for bounds expression of
+    // kind Range and returns false for other kinds.
+    //
+    // Implementation details:
+    // - First, SplitIntoBaseAndOffset is called on lower and upper fields in BoundsExpr to extract
+    //   the bases and offsets. Note that offsets can be either ConstantSized or VariablesSized.
+    // - Next, if the extracted lower base and upper base are equal, the function sets the base and
+    //   the offsets of `R` based on the extracted values. Finally, it returns true to indicate success.
+    //   If bases are not equal, R's fields will not be updated and the function returns false.
     bool CreateBaseRange(const BoundsExpr *Bounds, BaseRange *R,
                              EquivExprSets *EquivExprs) {
       switch (Bounds->getKind()) {
