@@ -1405,7 +1405,7 @@ enum class CheckedPointerKind {
   /// \brief Checked C _Nt_array_ptr type (pointer-to null-terminated array)
   NtArray,
   /// Checked C _MMSafe_ptr type.
-  MMSafe_ptr,
+  MMSafe,
 };
 
 /// Checked C generalizes arrays to 3 different kinds of arrays.
@@ -1546,7 +1546,7 @@ protected:
     friend class PointerType;
 
     unsigned : NumTypeBits;
-    unsigned CheckedPointerKind : 2;
+    unsigned CheckedPointerKind : 4;
   };
 
   class ArrayTypeBitfields {
@@ -6614,7 +6614,7 @@ inline bool Type::isCheckedPointerNtArrayType() const {
 
 inline bool Type::isCheckedPointerMMSafeType() const {
   if (const PointerType *T = getAs<PointerType>())
-    return T->getKind() == CheckedPointerKind::MMSafe_ptr;
+    return T->getKind() == CheckedPointerKind::MMSafe;
   return false;
 }
 

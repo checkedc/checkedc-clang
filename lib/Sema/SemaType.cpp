@@ -1557,7 +1557,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
           Kind = CheckedPointerKind::NtArray;
           break;
         case DeclSpec::TST_mmsafePtr:
-          Kind = CheckedPointerKind::MMSafe_ptr;
+          Kind = CheckedPointerKind::MMSafe;
           break;
         default:
             llvm_unreachable("unexpected type spec type");
@@ -2010,6 +2010,13 @@ QualType Sema::BuildPointerType(QualType T, CheckedPointerKind kind,
   if (kind == CheckedPointerKind::NtArray && !T->isIntegerType() &&
       !T->isPointerType()) {
     Diag(Loc, diag::err_illegal_decl_nt_array_ptr_of_nonscalar)
+      << getPrintableNameForEntity(Entity) << T;
+    return QualType();
+  }
+
+  // In Checked C, _MMSafe_ptr is only allowed to point to struct types.
+  if (kind == CheckedPointerKind::MMSafe&& !T->isStructureType()) {
+    Diag(Loc, diag::err_illegal_decl_mmsafe_ptr_to_non_struct)
       << getPrintableNameForEntity(Entity) << T;
     return QualType();
   }

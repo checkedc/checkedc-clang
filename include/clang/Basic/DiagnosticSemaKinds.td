@@ -9534,6 +9534,10 @@ def err_illegal_decl_nt_array_ptr_of_nonscalar : Error<
   "'%0' declared as _Nt_array_ptr of type %1; "
   "only integer and pointer types are allowed">;
 
+def err_illegal_decl_mmsafe_ptr_to_non_struct : Error<
+  "'%0' declared as _MMSafe_ptr to type %1; "
+  "only struct types are allowed">;
+
 def err_checked_cplusplus : Error<
   "checked extension not supported for C++">;
 
