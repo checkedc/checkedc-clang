@@ -291,15 +291,8 @@ bool Constraints::step_solve(EnvironmentMap &env) {
               // yes? make it Arr
               VI->second = getArr();
               changedEnvironment = true;
-            } else if(*Val < *getNTArr() && canAssignConst<NTArrAtom>(Var)){
-              // No? Can we make it NTArr?
-              // lets make it an NTArr.
-              VI->second = getNTArr();
-              changedEnvironment = true;
             }
           }
-
-
         }
       }
       else if (Eq *E = dyn_cast<Eq>(C)) {
