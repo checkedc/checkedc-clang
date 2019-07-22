@@ -1941,7 +1941,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
     // Checked C: a reference to a struct can be followed by a list of type arguments,
     // if the struct is generic.
-    if (!TagOrTempResult.isInvalid() && TUK == Sema::TUK_Reference) {
+    if (TagOrTempResult.isUsable() && TUK == Sema::TUK_Reference) {
       RecordDecl* Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get()->getCanonicalDecl());
       if (Decl && Decl->isGeneric()) {
         // We're parsing a reference to a generic struct, so we need to parse
