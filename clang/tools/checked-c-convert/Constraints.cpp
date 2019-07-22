@@ -277,10 +277,12 @@ bool Constraints::step_solve(EnvironmentMap &env) {
   // Step 2. Propagate any ARITH constraints.
   while(VI != env.end()) {
     VarAtom *Var = VI->first;
-    ConstAtom *Val = VI->second;
 
     ConstraintSet rmConstraints;
     for (const auto &C : Var->Constraints) {
+      // re-read the assignment as the propagating might have
+      // changed this and the constraints will get removed.
+      ConstAtom *Val = VI->second;
       // Propagate the Neg constraint.
       if (Not *N = dyn_cast<Not>(C)) {
         if (Eq *E = dyn_cast<Eq>(N->getBody())) {
@@ -294,8 +296,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
             }
           }
         }
-      }
-      else if (Eq *E = dyn_cast<Eq>(C)) {
+      } else if (Eq *E = dyn_cast<Eq>(C)) {
         changedEnvironment |= propEq<NTArrAtom>(env, E, getNTArr(), rmConstraints, VI);
         changedEnvironment |= propEq<ArrAtom>(env, E, getArr(), rmConstraints, VI);
       } else if (Implies *Imp = dyn_cast<Implies>(C)) {

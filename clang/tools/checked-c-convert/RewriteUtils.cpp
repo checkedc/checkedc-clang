@@ -499,6 +499,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
     if(anyConstrained) {
       returnHandled = true;
+      didAny = true;
       std::string ctype = "";
       didAny = true;
       // definition is more precise than declaration.
