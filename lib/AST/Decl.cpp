@@ -4170,8 +4170,8 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setNonTrivialToPrimitiveDestroy(false);
   setParamDestroyedInCallee(false);
   setArgPassingRestrictions(APK_CanPassInRegs);
-  setTypeParams(getASTContext(), TypeParams);
-  setTypeArgs(getASTContext(), BaseDecl, TypeArgs);
+  setTypeParams(C, TypeParams);
+  setTypeArgs(C, BaseDecl, TypeArgs);
 }
 
 RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
@@ -4332,7 +4332,7 @@ ArrayRef<TypedefDecl*> RecordDecl::typeParams() {
   return { TypeParams, NumTypeParams };
 }
 
-void RecordDecl::setTypeParams(ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams) {
+void RecordDecl::setTypeParams(const ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams) {
   assert(!isGeneric() && "Can't reset type parameters for record");
   NumTypeParams = NewTypeParams.size();
   IsGeneric = NumTypeParams > 0;
@@ -4367,7 +4367,7 @@ void RecordDecl::setDelayedTypeApp(bool IsDelayed) {
   this->IsDelayed = IsDelayed;
 }
 
-void RecordDecl::setTypeArgs(ASTContext& C, RecordDecl *NewBaseDecl, ArrayRef<TypeArgument> NewTypeArgs) {
+void RecordDecl::setTypeArgs(const ASTContext& C, RecordDecl *NewBaseDecl, ArrayRef<TypeArgument> NewTypeArgs) {
   assert(!isInstantiated() && "Can't reset type parameters for record");
   BaseDecl = NewBaseDecl;
   NumTypeArgs = NewTypeArgs.size();

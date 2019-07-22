@@ -4017,7 +4017,7 @@ private:
   TypedefDecl **TypeParams;
   /// Sets the type parameters for the record.
   /// This sets 'TypeParams', but also 'NumTypeParams' and 'IsGeneric'.
-  void setTypeParams(ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams);
+  void setTypeParams(const ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams);
 
   /// Whether this struct is the result of instantiating a generic struct
   /// (so the current struct is fully - instantiated no longer generic).
@@ -4031,7 +4031,7 @@ private:
   /// isn't the result of an instantiation.
   TypeArgument *TypeArgs;
   /// Sets the type arguments for an instantiation, as well as 'IsInstantiated' and 'NumTypeArgs'.
-  void setTypeArgs(ASTContext& C, RecordDecl *BaseDecl, ArrayRef<TypeArgument> NewTypeArgs);
+  void setTypeArgs(const ASTContext& C, RecordDecl *BaseDecl, ArrayRef<TypeArgument> NewTypeArgs);
 
   /// Whether this record represents a delayed type application.
   /// A delayed type application won't contain any fields, until it is completed via 'Sema::CompleteTypeAppFields'.
