@@ -159,7 +159,7 @@ namespace {
     const TypeVariableType *TypeVar = llvm::dyn_cast<TypeVariableType>(TDef->getUnderlyingType());
     assert(TypeVar && "Expected a type variable as the parameter of a generic record");
     return TypeVar;
-  };
+  }
 
   // A 'TypeVisitor' that determines whether a type references a given type variable.
   // e.g. ContainsTypeVar('T').Visit('List<T>') -> true
@@ -205,7 +205,7 @@ namespace {
   //
   // The new edges aren't returned; instead, they're added as a side effect to the
   // 'Worklist' argument in the constructor.
-  class ExpandingEdgesVisitor : public TypeVisitor<ExpandingEdgesVisitor, void> {
+  class ExpandingEdgesVisitor : public TypeVisitor<ExpandingEdgesVisitor> {
     // The worklist where the new nodes will be inserted.
     std::stack<Node> &Worklist;
     // The type variable that we're looking for in embedded type applications.
@@ -218,7 +218,7 @@ namespace {
   public:
   
     // Note the worklist argument is mutated by this visitor.
-    class ExpandingEdgesVisitor(std::stack<Node>& Worklist, const TypeVariableType *TypeVar, char ExpandingSoFar):
+    ExpandingEdgesVisitor(std::stack<Node>& Worklist, const TypeVariableType *TypeVar, char ExpandingSoFar):
       Worklist(Worklist), TypeVar(TypeVar), ExpandingSoFar(ExpandingSoFar), ContainsVisitor(TypeVar) {}
 
     void VisitRecordType(const RecordType *Type) {
