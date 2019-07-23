@@ -116,7 +116,7 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
     //   T *head;
     // };
     // While processing 'next', we can't instantiate 'List<T>' because we haven't processed the 'head' field yet.
-    // The solution is to mark the applycation as "delayed" and "complete it" after we've parsed all the fields.
+    // The solution is to mark the application as "delayed" and "complete it" after we've parsed all the fields.
     Inst->setDelayedTypeApp(true);
     ctx.addDelayedTypeApp(Inst);
   }
