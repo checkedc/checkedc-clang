@@ -252,12 +252,9 @@ public:
                 CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
             }
         }
-      } else if (UnaryOperator *UO = dyn_cast<UnaryOperator>(RHS)) {
+      } else if (dyn_cast<UnaryOperator>(RHS) && (dyn_cast<UnaryOperator>(RHS))->getOpcode() == UO_AddrOf) {
         // Cases 3-4.
-        if (UO->getOpcode() == UO_AddrOf) {
-          // Case 3.
-          // Is there anything to do here, or is it implicitly handled?
-        }
+        // nothing to do for assignment from address of operator.
       } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
         // Case 4.
         Expr *SE = C->getSubExpr();
@@ -454,7 +451,7 @@ public:
             // parameters.
             //assert(!ParameterConstraints.empty() && "Unable to get parameter constraints");
             // the constrains could be empty for builtin functions.
-            constrainEq(ParameterConstraints, ArgumentConstraints, Info);
+            constrainLocalAssign(ParameterConstraints, FD->getParamDecl(i)->getType(), A);
           }
         } else {
           // this is the case of an argument passed to a function
