@@ -296,17 +296,6 @@ bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
   return false; // no cycles: can complete decls
 }
 
-RecordDecl *Sema::GetAsGenericRecordDecl(const Type *Type) {
-  while (Type != nullptr) {
-    auto AsRec = Type->getAsRecordDecl();
-    if (AsRec && AsRec->isInstantiated()) return AsRec;
-    // Assume it's a pointer and try again.
-    // Use 'getTypePtrOrNull' because 'Type' might in fact not be a pointer.
-    Type = Type->getPointeeType().getTypePtrOrNull();
-  }
-  return nullptr;
-}
-
 namespace {
 // LocRebuilderTransform is an uncustomized 'TreeTransform' that is used
 // solely for re-building 'TypeLocs' within 'TypeApplication'.
