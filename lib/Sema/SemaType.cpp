@@ -2015,7 +2015,10 @@ QualType Sema::BuildPointerType(QualType T, CheckedPointerKind kind,
   }
 
   // In Checked C, _MMSafe_ptr is only allowed to point to struct types.
-  if (kind == CheckedPointerKind::MMSafe&& !T->isStructureType()) {
+  // One special case is when a _MMSafe_ptr is in a generic function, the
+  // type of its pointee is allowed to be a TypeVariableType.
+  if (kind == CheckedPointerKind::MMSafe &&
+      (!T->isStructureType() && !T.getTypePtr()->getAs<TypeVariableType>())) {
     Diag(Loc, diag::err_illegal_decl_mmsafe_ptr_to_non_struct)
       << getPrintableNameForEntity(Entity) << T;
     return QualType();

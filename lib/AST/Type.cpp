@@ -420,6 +420,10 @@ template <> const TypedefType *Type::getAs() const {
   return getAsSugar<TypedefType>(this);
 }
 
+template <> const TypeVariableType *Type::getAs() const {
+  return getAsSugar<TypeVariableType>(this);
+}
+
 template <> const TemplateSpecializationType *Type::getAs() const {
   return getAsSugar<TemplateSpecializationType>(this);
 }
