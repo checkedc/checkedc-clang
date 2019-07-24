@@ -67,17 +67,19 @@ bool LocalVarABVisitor::isAllocatorCall(Expr *currExpr, Expr **sizeArgument) {
     currExpr = removeAuxillaryCasts(currExpr);
     // check if this is a call expression.
     if (CallExpr *CA = dyn_cast<CallExpr>(currExpr)) {
-      // Is this a call to a named function?
-      FunctionDecl *calleeDecl = dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-      if (calleeDecl) {
-        StringRef funcName = calleeDecl->getName();
-        // check if the called function is a known allocator?
-        if (LocalVarABVisitor::AllocatorFunctionNames.find(funcName) !=
-            LocalVarABVisitor::AllocatorFunctionNames.end()) {
-          if (sizeArgument != nullptr) {
-            *sizeArgument = CA->getArg(0);
+      if(CA->getCalleeDecl() != nullptr) {
+        // Is this a call to a named function?
+        FunctionDecl *calleeDecl = dyn_cast<FunctionDecl>(CA->getCalleeDecl());
+        if (calleeDecl) {
+          StringRef funcName = calleeDecl->getName();
+          // check if the called function is a known allocator?
+          if (LocalVarABVisitor::AllocatorFunctionNames.find(funcName) !=
+              LocalVarABVisitor::AllocatorFunctionNames.end()) {
+            if (sizeArgument != nullptr) {
+              *sizeArgument = CA->getArg(0);
+            }
+            return true;
           }
-          return true;
         }
       }
     }
