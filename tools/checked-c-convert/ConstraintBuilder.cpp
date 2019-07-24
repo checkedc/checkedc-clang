@@ -208,31 +208,30 @@ public:
 
     Constraints &CS = Info.getConstraints();
     RHS = getNormalizedExpr(RHS);
-    // if this is a call expression?
-    if (CallExpr *CE = dyn_cast<CallExpr>(RHS)) {
+    CallExpr *CE = dyn_cast<CallExpr>(RHS);
+    // if this is a call expression to a function.
+    if (CE != nullptr && CE->getDirectCallee() != nullptr) {
       // case 5
       // if this is a call expression?
       // is this functions return type an itype
       FunctionDecl *Calle = CE->getDirectCallee();
-      if(Calle) {
-        // get the function declaration and look for
-        // itype in the return
-        if(getDeclaration(Calle) != nullptr) {
-          Calle = getDeclaration(Calle);
-        }
-        bool itypeHandled = false;
-        // if this function return an itype?
-        if(Calle->hasInteropTypeExpr()) {
-          itypeHandled = handleITypeAssignment(V, Calle->getInteropTypeExpr());
-        }
-        // if this is not an itype
-        if(!itypeHandled) {
-          // get the constraint variable corresponding
-          // to the declaration.
-          RHSConstraints = Info.getVariable(RHS, Context, false);
-          if (RHSConstraints.size() > 0) {
-            constrainEq(V, RHSConstraints, Info);
-          }
+      // get the function declaration and look for
+      // itype in the return
+      if (getDeclaration(Calle) != nullptr) {
+        Calle = getDeclaration(Calle);
+      }
+      bool itypeHandled = false;
+      // if this function return an itype?
+      if (Calle->hasInteropTypeExpr()) {
+        itypeHandled = handleITypeAssignment(V, Calle->getInteropTypeExpr());
+      }
+      // if this is not an itype
+      if (!itypeHandled) {
+        // get the constraint variable corresponding
+        // to the declaration.
+        RHSConstraints = Info.getVariable(RHS, Context, false);
+        if (RHSConstraints.size() > 0) {
+          constrainEq(V, RHSConstraints, Info);
         }
       }
     } else {
@@ -252,9 +251,6 @@ public:
                 CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
             }
         }
-      } else if (dyn_cast<UnaryOperator>(RHS) && (dyn_cast<UnaryOperator>(RHS))->getOpcode() == UO_AddrOf) {
-        // Cases 3-4.
-        // nothing to do for assignment from address of operator.
       } else if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(RHS)) {
         // Case 4.
         Expr *SE = C->getSubExpr();
@@ -471,58 +467,7 @@ public:
         i++;
       }
     } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
-      // This could be a function pointer,
-      // get the declaration of the function pointer variable
-      // with in the caller context.
-      std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, true);
-      if (V.size() > 0) {
-        for (const auto &C : V) {
-          FVConstraint *FV = nullptr;
-          if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) {
-            if (FVConstraint *F = PVC->getFV()) {
-              FV = F;
-            }
-          } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(C)) {
-            FV = FVC;
-          }
-
-          if (FV) {
-            // Constrain arguments to be of the same type
-            // as the corresponding parameters.
-            unsigned i = 0;
-            for (const auto &A : E->arguments()) {
-              std::set<ConstraintVariable*> ArgumentConstraints =
-                Info.getVariable(A, Context, true);
-              
-              if (i < FV->numParams()) {
-                std::set<ConstraintVariable*> ParameterDC = 
-                  FV->getParamVar(i);
-                constrainEq(ArgumentConstraints, ParameterDC, Info);
-              } else {
-                // Constrain argument to wild since we can't match it
-                // to a parameter from the type.
-                Constraints &CS = Info.getConstraints();
-                for (const auto &V : ArgumentConstraints) {
-                  V->constrainTo(CS, CS.getWild());
-                }
-              }
-              i++;
-            }
-          } else {
-            // This can happen when someone does something really wacky, like 
-            // cast a char* to a function pointer, then call it. Constrain
-            // everything.
-            // what we do is, constraint all arguments to wild.
-            constraintAllArgumentsToWild(E);
-            Constraints &CS = Info.getConstraints();
-            // also constraint
-            C->constrainTo(CS, CS.getWild());
-          }
-        }
-      } else {
-        // Constrain all arguments to wild.
-        constraintAllArgumentsToWild(E);
-      }
+      handleFunctionPointerCall(E);
     } else {
       // Constrain all arguments to wild.
       constraintAllArgumentsToWild(E);
@@ -597,6 +542,68 @@ public:
   }
 
 private:
+
+
+  bool handleFunctionPointerCall(CallExpr *E) {
+    Decl *D = E->getCalleeDecl();
+    if(!D) {
+      if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
+        // This could be a function pointer,
+        // get the declaration of the function pointer variable
+        // with in the caller context.
+        std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, true);
+        if (V.size() > 0) {
+          for (const auto &C : V) {
+            FVConstraint *FV = nullptr;
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) {
+              if (FVConstraint *F = PVC->getFV()) {
+                FV = F;
+              }
+            } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(C)) {
+              FV = FVC;
+            }
+
+            if (FV) {
+              // Constrain arguments to be of the same type
+              // as the corresponding parameters.
+              unsigned i = 0;
+              for (const auto &A : E->arguments()) {
+                std::set<ConstraintVariable*> ArgumentConstraints =
+                  Info.getVariable(A, Context, true);
+
+                if (i < FV->numParams()) {
+                  std::set<ConstraintVariable*> ParameterDC =
+                    FV->getParamVar(i);
+                  constrainEq(ArgumentConstraints, ParameterDC, Info);
+                } else {
+                  // Constrain argument to wild since we can't match it
+                  // to a parameter from the type.
+                  Constraints &CS = Info.getConstraints();
+                  for (const auto &V : ArgumentConstraints) {
+                    V->constrainTo(CS, CS.getWild());
+                  }
+                }
+                i++;
+              }
+            } else {
+              // This can happen when someone does something really wacky, like
+              // cast a char* to a function pointer, then call it. Constrain
+              // everything.
+              // what we do is, constraint all arguments to wild.
+              constraintAllArgumentsToWild(E);
+              Constraints &CS = Info.getConstraints();
+              // also constraint
+              C->constrainTo(CS, CS.getWild());
+            }
+          }
+        } else {
+          // Constrain all arguments to wild.
+          constraintAllArgumentsToWild(E);
+        }
+      }
+    }
+    return true;
+  }
 
   // handle the assignment of constraint variables to an itype expression.
   bool handleITypeAssignment(std::set<ConstraintVariable*> &Vars, InteropTypeExpr *expr) {
