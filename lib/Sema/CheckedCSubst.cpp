@@ -140,6 +140,16 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
     // TODO: are TypeSouceInfo and InstType in sync?
     FieldDecl *NewField = FieldDecl::Create(Field->getASTContext(), Incomplete, SourceLocation(), SourceLocation(),
       Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
+
+    // Substitute in the bounds-safe interface type (itype).
+    if (auto IType = Field->getInteropTypeExpr()) {
+      auto InstType = SubstituteTypeArgs(IType->getType(), Incomplete->typeArgs());
+      InteropTypeExpr *NewIType = new (Context) InteropTypeExpr(InstType, SourceLocation(), SourceLocation(), IType->getTypeInfoAsWritten());
+      NewField->setInteropTypeExpr(Context, NewIType);
+    }
+    // No substitution is needed for the bounds expression, because no types appear here.
+    NewField->setBoundsExpr(Context, Field->getBoundsExpr());
+
     Incomplete->addDecl(NewField);
   }
 
