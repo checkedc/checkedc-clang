@@ -1790,9 +1790,10 @@ namespace {
           Cause = CombineFailures(Cause, ProofFailure::LowerBound);
           return ProofResult::False;
         }
-        if (IsLowerOffsetVariable() && R.IsLowerOffsetVariable() &&
-            EqualValue(S.Context, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
-          return ProofResult::True;
+        if (IsLowerOffsetVariable() && R.IsLowerOffsetVariable())
+          if (EqualValue(S.Context, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs) ||
+              EqualPointerArithOffset(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
+            return ProofResult::True;
         if (R.IsLowerOffsetVariable() && IsLowerOffsetConstant() &&
             R.LowerOffsetVariable->getType()->isUnsignedIntegerType() && LowerOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
@@ -1822,9 +1823,10 @@ namespace {
           Cause = CombineFailures(Cause, ProofFailure::UpperBound);
           return ProofResult::False;
         }
-        if (IsUpperOffsetVariable() && R.IsUpperOffsetVariable() &&
-            EqualValue(S.Context, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
-          return ProofResult::True;
+        if (IsUpperOffsetVariable() && R.IsUpperOffsetVariable())
+          if (EqualValue(S.Context, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs) ||
+              EqualPointerArithOffset(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
+            return ProofResult::True;
         if (IsUpperOffsetVariable() && R.IsUpperOffsetConstant() &&
             UpperOffsetVariable->getType()->isUnsignedIntegerType() && R.UpperOffsetConstant.getExtValue() == 0)
           return ProofResult::True;
@@ -2056,6 +2058,126 @@ namespace {
       OffsetConstant = llvm::APSInt(PointerWidth, false);
       OffsetVariable = nullptr;
       return BaseRange::Kind::ConstantSized;
+    }
+
+    // In this function, the goal is to compare two expressions: `Base1 + Offset1` and `Base2 + Offset2`
+    // assuming one side follows the bytewise arithmetic and the other side follows pointer arithmetic.
+    // It then returns true if it can be proved and false otherwise.
+    //
+    // Implementation details:
+    // 0. If Offset1 or Offset2 is null, return false.
+    // 1. If Base1 and Base2 are not equal according to EqualValue(), return false.
+    // 2. If none of `Base1` or `Base2` is a checked pointer array, return false.
+    // 3. If the Offset that corresponds to bytewise arithmetic is not in multiplication form, return false.
+    // 4. If the Offset that corresponds to bytewise arithmetic does not contain a correct `sizeof()` statement
+    //    or a correct constant integer, return false.
+    //    Here, a correct `sizeof` is a sizeof statement whose argument type is equal to the type of elements that
+    //    pointer arithmetic base points to.
+    //    Moreover, a correct constant integer means a constant integer with the same value as the correct `sizeof`
+    //    which is explained above.
+    // 5. If the Base that corresponds to bytewise arithmetic does not point to elements of type char, return false.
+    // 6. If offsets that correspond to pointer arithmetic and bytewise arithmetic are equal according to EqualValue,
+    //    return true. Otherwise, return false.
+    //
+    // Note that in all steps involving in checking the equality of the types or values of offsets, parentheses and
+    // casts are ignored.
+    static bool EqualPointerArithOffset(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs) {
+      if (!Offset1 && !Offset2)
+        return false;
+      if (!EqualValue(Ctx, Base1, Base2, EquivExprs))
+        return false;
+
+      Offset1 = Offset1->IgnoreParenCasts();
+      Offset2 = Offset2->IgnoreParenCasts();
+
+      if (!Base1->getType()->isCheckedPointerArrayType() || !Base2->getType()->isCheckedPointerArrayType())
+        return false;
+
+      // We need to know which tuple of (base, offset)
+      // belongs to a pointer arithmetic and which one belongs to a bytewise arithmetic.
+      Expr *PointerArithBase = Base1, *PointerArithOffset = Offset1;
+      Expr *BytewiseArithBase = Base2, *BytewiseArithOffset = Offset2;
+      bool SizeofExists = false, ConstantExists = false;
+      QualType SizeOfArgType;
+
+      if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset1)) {
+        if (BO->getOpcode() == BinaryOperatorKind::BO_Mul) {
+          BytewiseArithBase = Base1;
+          PointerArithBase = Base2;
+          PointerArithOffset = Offset2;
+          if (UnaryExprOrTypeTraitExpr *SO = dyn_cast<UnaryExprOrTypeTraitExpr>(BO->getRHS()->IgnoreParenCasts())) {
+            BytewiseArithOffset = BO->getLHS()->IgnoreParenCasts();
+            SizeOfArgType = SO->getTypeOfArgument();
+            SizeofExists = true;
+          }
+          if (UnaryExprOrTypeTraitExpr *SO = dyn_cast<UnaryExprOrTypeTraitExpr>(BO->getLHS()->IgnoreParenCasts())) {
+            BytewiseArithOffset = BO->getRHS()->IgnoreParenCasts();
+            SizeOfArgType = SO->getTypeOfArgument();
+            SizeofExists = true;
+          }
+          // `sizeof` not found, so look for a correct constant instead:
+          if (!SizeofExists) {
+            llvm::APSInt ConstantAsSizeof;
+            int64_t SizeofWidth = Ctx.getTypeInfoInChars(PointerArithBase->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal()).first.getQuantity();
+            if (BO->getRHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantAsSizeof, Ctx)) {
+              if (SizeofWidth == ConstantAsSizeof.getExtValue()) {
+                BytewiseArithOffset = BO->getLHS()->IgnoreParenCasts();
+                ConstantExists = true;
+              }
+            }
+            if (BO->getLHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantAsSizeof, Ctx)) {
+              if (SizeofWidth == ConstantAsSizeof.getExtValue()) {
+                BytewiseArithOffset = BO->getRHS()->IgnoreParenCasts();
+                ConstantExists = true;
+              }
+            }
+          }
+        }
+      }
+      if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset2)) {
+        if (BO->getOpcode() == BinaryOperatorKind::BO_Mul) {
+          BytewiseArithBase = Base2;
+          PointerArithBase = Base1;
+          PointerArithOffset = Offset1;
+          if (UnaryExprOrTypeTraitExpr *SO = dyn_cast<UnaryExprOrTypeTraitExpr>(BO->getRHS()->IgnoreParenCasts())) {
+            BytewiseArithOffset = BO->getLHS()->IgnoreParenCasts();;
+            SizeOfArgType = SO->getTypeOfArgument();
+            SizeofExists = true;
+          }
+          if (UnaryExprOrTypeTraitExpr *SO = dyn_cast<UnaryExprOrTypeTraitExpr>(BO->getLHS()->IgnoreParenCasts())) {
+            BytewiseArithOffset = BO->getRHS()->IgnoreParenCasts();
+            SizeOfArgType = SO->getTypeOfArgument();
+            SizeofExists = true;
+          }
+          // `sizeof` not found, so look for a correct constant instead:
+          if (!SizeofExists) {
+            llvm::APSInt ConstantAsSizeof;
+            int64_t SizeofWidth = Ctx.getTypeInfoInChars(PointerArithBase->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal()).first.getQuantity();
+            if (BO->getRHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantAsSizeof, Ctx)) {
+              if (SizeofWidth == ConstantAsSizeof.getExtValue()) {
+                BytewiseArithOffset = BO->getLHS()->IgnoreParenCasts();
+                ConstantExists = true;
+              }
+            }
+            if (BO->getLHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantAsSizeof, Ctx)) {
+              if (SizeofWidth == ConstantAsSizeof.getExtValue()) {
+                BytewiseArithOffset = BO->getRHS()->IgnoreParenCasts();
+                ConstantExists = true;
+              }
+            }
+          }
+        }
+      }
+
+      if (!ConstantExists && !SizeofExists)
+        return false;
+      if (!BytewiseArithBase->getType()->getPointeeOrArrayElementType()->isCharType())
+        return false;
+      if (SizeofExists && SizeOfArgType.isNull())
+        return false;
+      if (SizeofExists && SizeOfArgType.getCanonicalType() != PointerArithBase->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal())
+        return false;
+      return EqualValue(Ctx, BytewiseArithOffset, PointerArithOffset, EquivExprs);
     }
 
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
