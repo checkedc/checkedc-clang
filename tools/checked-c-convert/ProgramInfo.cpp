@@ -342,7 +342,12 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
   
   // Add this to the map of global symbols. 
   std::set<FVConstraint*> toAdd;
-  std::set<ConstraintVariable*> K = getVariable(F, C);
+  // get the constraint variable directly.
+  std::set<ConstraintVariable*> K;
+  VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(F, *C));
+  if (I != Variables.end()) {
+    K = I->second;
+  }
   for (const auto &J : K)
     if(FVConstraint *FJ = dyn_cast<FVConstraint>(J))
       toAdd.insert(FJ);
@@ -499,6 +504,27 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     // insert the function constraint only if it doesn't exist
     newFunction = true;
     S.insert(F);
+
+    // if this is a function. Save the created constraint.
+    // this needed for resolving function subtypes later.
+    // save the created constraint
+    FunctionDecl *UD = dyn_cast<FunctionDecl>(D);
+    std::string funcKey = getUniqueFuncKey(UD, C);
+    // this is a definition. Create a constraint variable
+    // and save the mapping between defintion and declaration.
+    if(UD->isThisDeclarationADefinition() && UD->hasBody()) {
+      CS.getFuncDefnVarMap()[funcKey].insert(F);
+      // this is a definition.
+      // get the declartion and store the unique key mapping
+      FunctionDecl *FDecl = getDeclaration(UD);
+      if(FDecl != nullptr) {
+        CS.getFuncDefnDeclMap()[funcKey] = getUniqueFuncKey(FDecl, C);
+      }
+    }
+    // this is a declaration, just save the constraint variable.
+    if(!UD->isThisDeclarationADefinition()) {
+      CS.getFuncDeclVarMap()[funcKey].insert(F);
+    }
   }
 
   if(P != nullptr && !hasConstraintType<PVConstraint>(S)) {
@@ -719,18 +745,31 @@ ProgramInfo::getVariableHelper( Expr                            *E,
   }
 }
 
+std::string ProgramInfo::getUniqueFuncKey(FunctionDecl *funcDecl, ASTContext *C) {
+  // get unique key for a function: which is function name, file and line number
+  if(FunctionDecl *funcDefn = getDefinition(funcDecl)) {
+    funcDecl = funcDefn;
+  }
+  auto Psl = PersistentSourceLoc::mkPSL(funcDecl, *C);
+  std::string fileName = Psl.getFileName() + ":" + std::to_string(Psl.getLineNo());
+  std::string funcName = funcDecl->getNameAsString();
+  std::string declKey = fileName + ":" + funcName;
+  return declKey;
+}
+
 std::set<ConstraintVariable*>&
 ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C) {
-  // get function name.
-  std::string funcName = targetFunc->getNameAsString();
-  if(OnDemandFuncDeclConstraint.find(funcName) == OnDemandFuncDeclConstraint.end()) {
+  std::string declKey = getUniqueFuncKey(targetFunc, C);
+  if(OnDemandFuncDeclConstraint.find(declKey) == OnDemandFuncDeclConstraint.end()) {
     const Type *Ty = targetFunc->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     assert (!(Ty->isPointerType() || Ty->isArrayType()) && "");
     assert(Ty->isFunctionType() && "");
     FVConstraint *F = new FVConstraint(targetFunc, freeKey, CS, *C);
-    OnDemandFuncDeclConstraint[funcName].insert(F);
+    OnDemandFuncDeclConstraint[declKey].insert(F);
+    // insert into declaration map.
+    CS.getFuncDeclVarMap()[declKey].insert(F);
   }
-  return OnDemandFuncDeclConstraint[funcName];
+  return OnDemandFuncDeclConstraint[declKey];
 }
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {

@@ -485,6 +485,9 @@ private:
   Constraint *conclusion;
 };
 
+class ConstraintVariable;
+class ProgramInfo;
+
 class Constraints {
 public:
   Constraints();
@@ -495,6 +498,8 @@ public:
   typedef std::set<Constraint*, PComp<Constraint*> > ConstraintSet;
   // The environment maps from Vars to Consts (one of Ptr, Arr, Wild).
   typedef std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > EnvironmentMap;
+  // Map from a unique key of a function to its constraint variables.
+  typedef std::map<std::string, std::set<ConstraintVariable*>> FuncKeyToConsMap;
 
   bool addConstraint(Constraint *c);
   // It's important to return these by reference. Programs can have 
@@ -502,12 +507,15 @@ public:
   // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
   EnvironmentMap &getVariables() { return environment; }
+  FuncKeyToConsMap &getFuncDeclVarMap() { return FuncDeclConstraints; }
+  FuncKeyToConsMap &getFuncDefnVarMap() { return FuncDefnConstraints; }
+  std::map<std::string, std::string> &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
   // Solve the system of constraints. Return true in the second position if
   // the system is solved. If the system is solved, the first position is 
   // an empty. If the system could not be solved, the constraints in conflict
   // are returned in the first position.
   // TODO: this functionality is not implemented yet.
-  std::pair<ConstraintSet, bool> solve(void);
+  std::pair<ConstraintSet, bool> solve(ProgramInfo &Info);
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -527,10 +535,17 @@ private:
   ConstraintSet constraints;
   EnvironmentMap environment;
 
+  // map of function unique key to it declaration FVConstraintVariable
+  FuncKeyToConsMap FuncDeclConstraints;
+  // map of function unique key to it definition FVConstraintVariable
+  FuncKeyToConsMap FuncDefnConstraints;
+
   template <typename T>
   bool canAssignConst(VarAtom *src);
   bool step_solve(EnvironmentMap &);
   bool check(Constraint *C);
+  // handle assigning constraints based on function subtyping.
+  bool handleFunctionSubtyping(ProgramInfo &);
 
   template <typename T>
   bool
@@ -547,6 +562,10 @@ private:
   ArrAtom *prebuiltArr;
   NTArrAtom *prebuiltNTArr;
   WildAtom *prebuiltWild;
+
+  // map that contains the mapping between the unique keys of function
+  // definition to its declaration.
+  std::map<std::string, std::string> FuncDefnDeclKeyMap;
 };
 
 typedef uint32_t ConstraintKey;

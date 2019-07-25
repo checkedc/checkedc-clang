@@ -93,6 +93,8 @@ public:
   virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasWild(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasArr(Constraints::EnvironmentMap &E) = 0;
+  // get the highest type assigned to the cvars of this constraint variable
+  virtual ConstAtom* getHighestType(Constraints::EnvironmentMap &E) = 0;
 
   std::string getTy() { return BaseType; }
   std::string getOriginalTy() { return OriginalType; }
@@ -196,6 +198,8 @@ public:
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
+  // get the highest type assigned to the cvars of this constraint variable
+  ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
@@ -259,6 +263,7 @@ public:
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
+  ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;

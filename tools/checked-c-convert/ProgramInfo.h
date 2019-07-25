@@ -137,6 +137,13 @@ public:
   std::set<ConstraintVariable*>&
   getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C);
 
+  // get a unique key for a given function declaration node.
+  std::string getUniqueFuncKey(FunctionDecl *funcDecl, ASTContext *C);
+
+  std::map<std::string, std::set<ConstraintVariable*>>& getOnDemandFuncDeclConstraintMap() {
+    return OnDemandFuncDeclConstraint;
+  }
+
 private:
   // check if the given set has the corresponding constraint variable type
   template <typename T>

@@ -211,7 +211,7 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
   auto I = getCvars().begin();
   auto J = OC.begin();
   Constraints &CS = Info.getConstraints();
-  auto env = CS.getVariables();
+  auto &env = CS.getVariables();
 
   while(I != getCvars().end() && J != OC.end()) {
     // Look up the valuation for I and J.
@@ -627,6 +627,18 @@ bool FunctionVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
   return false;
 }
 
+ConstAtom* FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
+  ConstAtom *toRet = nullptr;
+  for (const auto& C: returnVars) {
+    ConstAtom *CS = C->getHighestType(E);
+    assert(CS != nullptr);
+    if(toRet == nullptr || ((*toRet) < *CS)) {
+      toRet = CS;
+    }
+  }
+  return toRet;
+}
+
 void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool checkSkip) {
   for (const auto &V : vars) {
     // Check and see if we've already constrained this variable. This is currently
@@ -678,7 +690,7 @@ bool PointerVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
   }
 
   if (FV)
-    return FV->anyChanges(E);
+    return FV->hasWild(E);
 
   return false;
 }
@@ -697,6 +709,19 @@ bool PointerVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
     return FV->anyChanges(E);
 
   return false;
+}
+
+ConstAtom* PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
+  ConstAtom *toRet = nullptr;
+  for (const auto& C: vars) {
+    VarAtom V(C);
+    ConstAtom *CS = E[&V];
+    assert(CS != nullptr);
+    if(toRet == nullptr || ((*toRet) < *CS)) {
+      toRet = CS;
+    }
+  }
+  return toRet;
 }
 
 void FunctionVariableConstraint::print(raw_ostream &O) const {

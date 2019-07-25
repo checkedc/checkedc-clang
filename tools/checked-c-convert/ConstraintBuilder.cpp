@@ -546,7 +546,7 @@ private:
 
   bool handleFunctionPointerCall(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
-    if(!D) {
+    if(D) {
       if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
         // This could be a function pointer,
         // get the declaration of the function pointer variable
