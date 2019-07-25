@@ -423,8 +423,13 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   if(Declaration == nullptr) {
     // if there is no declaration?
     // get the on demand function variable constraint.
-    cDecl = dyn_cast<FVConstraint>(
-      getHighest(Info.getOnDemandFuncDeclarationConstraint(Definition, Context), Info));
+    auto funcDefKey = Info.getUniqueFuncKey(Definition, Context);
+    auto &onDemandMap = Info.getOnDemandFuncDeclConstraintMap();
+    if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
+      cDecl = dyn_cast<FVConstraint>(getHighest(onDemandMap[funcDefKey], Info));
+    } else {
+      cDecl = cDefn;
+    }
   } else {
     cDecl = dyn_cast<FVConstraint>(
       getHighest(Info.getVariableOnDemand(Declaration, Context, false), Info));
@@ -450,7 +455,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(anyConstrained && Defn->isLt(*Decl, Info)) {
+      if(anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
@@ -463,7 +468,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // both the declaration and definition are same
         // and they are safer than what was originally declared.
         // here we should emit a checked type!
-        std::string v = Decl->mkString(Info.getConstraints().getVariables());
+        std::string v = Defn->mkString(Info.getConstraints().getVariables());
 
         // if there is no declaration?
         // check the itype in definition
@@ -489,14 +494,14 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     if(anyConstrained) {
       returnHandled = true;
       std::string ctype = "";
+      didAny = true;
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(Defn->isLt(*Decl, Info)) {
+      if(Decl->hasWild(Info.getConstraints().getVariables())) {
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
         returnVar = Defn->getOriginalTy();
         endStuff = " : itype("+ctype+") ";
-        didAny = true;
       } else {
         // this means we were able to infer that return type
         // is a checked type.
@@ -506,9 +511,6 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // do not change the type
         returnVar = Decl->mkString(Info.getConstraints().getVariables());
         endStuff = getExistingIType(Decl, Defn, Declaration);
-        if(!endStuff.empty()) {
-          didAny = true;
-        }
       }
     }
 
