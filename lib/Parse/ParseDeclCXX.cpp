@@ -1655,6 +1655,14 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     ParseForanySpecifier(DS);
   }
 
+  if (Tok.is(tok::kw__Itype_for_any)) {
+    // TODO(abeln): add error handling here
+    unsigned DiagID;
+    const char *PrevSpec;
+    DS.setSpecItypeforany(Tok.getLocation(), PrevSpec, DiagID);
+    ParseItypeforanySpecifier(DS);
+  }
+
   // Checked C - checked scope keyword, possibly followed by checked scope modifier,
   // followed by '{'.   Set the kind of checked scope and consume the checked scope-related
   // keywords.
@@ -1928,6 +1936,14 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     assert(getCurScope()->isForanyScope() == DS.isForanySpecified());
     Scope *structScope = getCurScope()->isForanyScope() ? getCurScope()->getParent() : getCurScope();
 
+    // Checked C: figure out what (if any) kind of generic we're dealing with.
+    RecordDecl::Genericity GenericKind = RecordDecl::NonGeneric;
+    if (DS.isForanySpecified()) {
+      GenericKind = RecordDecl::Generic;
+    } else if (DS.isItypeforanySpecified()) {
+      GenericKind = RecordDecl::ItypeGeneric;
+    }
+
     // Declaration or definition of a class type
     TagOrTempResult = Actions.ActOnTag(
         structScope, TagType, TUK, StartLoc, SS, Name, NameLoc, attrs, AS,
@@ -1937,6 +1953,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
         DSC == DeclSpecContext::DSC_template_param ||
             DSC == DeclSpecContext::DSC_template_type_arg,
         &SkipBody,
+        GenericKind,
         DS.typeVariables());
 
     // Checked C: a reference to a struct can be followed by a list of type arguments,

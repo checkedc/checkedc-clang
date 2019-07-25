@@ -2250,8 +2250,9 @@ public:
                  bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
                  bool IsTypeSpecifier, bool IsTemplateParamOrArg,
                  SkipBodyInfo *SkipBody = nullptr,
+                 RecordDecl::Genericity GenericKind = RecordDecl::NonGeneric,
                  ArrayRef<TypedefDecl *> TypeParams = ArrayRef<TypedefDecl *> {nullptr, 0} );
-
+  
   Decl *ActOnTemplatedFriendTag(Scope *S, SourceLocation FriendLoc,
                                 unsigned TagSpec, SourceLocation TagLoc,
                                 CXXScopeSpec &SS, IdentifierInfo *Name,

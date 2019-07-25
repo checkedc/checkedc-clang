@@ -3769,6 +3769,18 @@ public:
     APK_CanNeverPassInRegs
   };
 
+  // Checked C
+
+  /// Denotes the kind of generic a RecordDecl is.
+  enum Genericity {
+    /// The record isn't generic.
+    NonGeneric,
+    /// The record is a true generic (has a 'for_any' clause).
+    Generic,
+    /// The record has a generic interface (via a 'itype_for_any' clause).
+    ItypeGeneric
+  };
+
 protected:
   RecordDecl(Kind DK,
              TagKind TK,
@@ -3778,6 +3790,7 @@ protected:
              SourceLocation IdLoc,
              IdentifierInfo *Id,
              RecordDecl *PrevDecl,
+             Genericity GenericKind = NonGeneric,
              ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
              RecordDecl *GenericBaseDecl = nullptr,
              ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
@@ -3790,9 +3803,11 @@ public:
                             SourceLocation IdLoc,
                             IdentifierInfo *Id,
                             RecordDecl *PrevDecl = nullptr,
+                            Genericity GenericKind = NonGeneric,
                             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
                             RecordDecl *GenericBaseDecl = nullptr,
                             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
+
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
   RecordDecl *getPreviousDecl() {
@@ -3983,8 +3998,11 @@ public:
 
   // Checked C
 
-  /// Whether the record is generic.
+  /// Whether the record is generic. At most one of 'isGeneric' and 'isItypeGeneric' will be set.
   bool isGeneric() const;
+  /// Whether the record has a generic interface. At most one of 'isTypeGeneric' and 'isGeneric' will be set.
+  bool isItypeGeneric() const;
+
   /// Returns the record's type parameters.
   /// If there are no type parameters, then the array will be empty.
   ArrayRef<TypedefDecl *> typeParams() const;
@@ -4010,12 +4028,15 @@ private:
 
   // Checked C
   // There are two sets of fields we add below to support generic structs:
-  //   - 'isGeneric' and type-params-related fields are set for _definitions_ of generic structs:
+  //   - 'GenericKind' and type-params-related fields are set for _definitions_ of generic structs:
   //      e.g. 'struct List _For_any(T) { /* generic list definition */ }; '
   //   - 'isInstantiated' and type-args-related fields are set for _instantiations_ of generic structs:
   //      e.g. 'struct List<int> li;'
   // In particular, it doesn't make sense to set _both_ 'isGeneric' and 'isInstantiated', since a struct
   // is either generic or instantiated (we don't support partial instantiations).
+
+  /// The kind of generic the record is.
+  const Genericity GenericKind;
 
   /// Type parameters for this record. Empty iff this isn't a generic record.
   std::vector<TypedefDecl *> TypeParams;
