@@ -24,11 +24,7 @@ class ProgramInfo;
 
 class ProgramInfo {
 public:
-  ProgramInfo() :
-  freeKey(0), persisted(true) {
-    IdentifiedArrayDecls.clear();
-    OnDemandFuncDeclConstraint.clear();
-  }
+  ProgramInfo();
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
@@ -109,7 +105,7 @@ public:
   std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex=-1);
 
-  VariableMap &getVarMap() { return Variables;  }
+  VariableMap &getVarMap();
 
   std::set<Decl *> &getIdentifiedArrayVars() {
 #ifdef ARRDEBUG
@@ -143,9 +139,10 @@ public:
   // get a unique string representing the declaration object.
   std::string getUniqueDeclKey(Decl *decl, ASTContext *C);
 
-  std::map<std::string, std::set<ConstraintVariable*>>& getOnDemandFuncDeclConstraintMap() {
-    return OnDemandFuncDeclConstraint;
-  }
+  std::map<std::string, std::set<ConstraintVariable*>>& getOnDemandFuncDeclConstraintMap();
+
+  // handle assigning constraints based on function subtyping.
+  bool handleFunctionSubtyping();
 
 private:
   // check if the given set has the corresponding constraint variable type

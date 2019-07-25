@@ -486,7 +486,6 @@ private:
 };
 
 class ConstraintVariable;
-class ProgramInfo;
 
 class Constraints {
 public:
@@ -515,7 +514,7 @@ public:
   // an empty. If the system could not be solved, the constraints in conflict
   // are returned in the first position.
   // TODO: this functionality is not implemented yet.
-  std::pair<ConstraintSet, bool> solve(ProgramInfo &Info);
+  std::pair<ConstraintSet, bool> solve(unsigned &numOfIterations);
   void dump() const;
   void print(llvm::raw_ostream &) const;
   void dump_json(llvm::raw_ostream &) const;
@@ -544,8 +543,6 @@ private:
   bool canAssignConst(VarAtom *src);
   bool step_solve(EnvironmentMap &);
   bool check(Constraint *C);
-  // handle assigning constraints based on function subtyping.
-  bool handleFunctionSubtyping(ProgramInfo &);
 
   template <typename T>
   bool

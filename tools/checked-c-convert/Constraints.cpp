@@ -11,7 +11,6 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "Constraints.h"
-#include "ProgramInfo.h"
 
 using namespace llvm;
 
@@ -250,11 +249,11 @@ bool Constraints::step_solve(EnvironmentMap &env) {
   return (changedEnvironment == false);
 }
 
-std::pair<Constraints::ConstraintSet, bool> Constraints::solve(ProgramInfo &Info) {
+std::pair<Constraints::ConstraintSet, bool> Constraints::solve(unsigned &numOfIterations) {
   bool fixed = false;
-  unsigned numOfIterations = 0;
   Constraints::ConstraintSet conflicts;
 
+  numOfIterations = 0;
   if (DebugSolver) {
     errs() << "constraints beginning solve\n";
     dump();
@@ -278,112 +277,11 @@ std::pair<Constraints::ConstraintSet, bool> Constraints::solve(ProgramInfo &Info
       errs() << "constraints post step\n";
       dump();
     }
-    if(!fixed) {
-      handleFunctionSubtyping(Info);
-    }
+
+    numOfIterations++;
   }
 
   return std::pair<Constraints::ConstraintSet, bool>(conflicts, true);
-}
-
-bool Constraints::handleFunctionSubtyping(ProgramInfo &Info) {
-  // The subtyping rule for functions is:
-  // T2 <: S2
-  // S1 <: T1
-  //--------------------
-  // T1 -> T2 <: S1 -> S2
-  // A way of interpreting this is that the type of a declaration argument `S1` can be a
-  // subtype of a definition parameter type `T1`, and the type of a definition
-  // return type `S2` can be a subtype of the declaration expected type `T2`.
-  //
-  bool retVal = false;
-  for(auto &currFDef: FuncDefnConstraints) {
-    // get the key for the function definition.
-    auto funcDefKey = currFDef.first;
-    std::set<ConstraintVariable*> &defCVars = currFDef.second;
-
-    std::set<ConstraintVariable*> *declCVarsPtr = nullptr;
-    // see if we do not have constraint variables for declaration
-    if(FuncDefnDeclKeyMap.find(funcDefKey) != FuncDefnDeclKeyMap.end()) {
-      auto funcDeclKey = FuncDefnDeclKeyMap[funcDefKey];
-      declCVarsPtr = &(FuncDeclConstraints[funcDeclKey]);
-    } else {
-      // no? then check the ondemand declarations
-      auto &onDemandMap = Info.getOnDemandFuncDeclConstraintMap();
-      if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
-        declCVarsPtr = &(onDemandMap[funcDefKey]);
-      }
-    }
-
-    if(declCVarsPtr != nullptr) {
-      // if we have declaration constraint variables?
-      std::set<ConstraintVariable*> &declCVars = *declCVarsPtr;
-      // get the highest def and decl FVars
-      auto defCVar = dyn_cast<FVConstraint>(getHighest(defCVars, Info));
-      auto declCVar = dyn_cast<FVConstraint>(getHighest(declCVars, Info));
-
-      // handle the return types.
-      auto defRetType = getHighest(defCVar->getReturnVars(), Info);
-      auto declRetType = getHighest(declCVar->getReturnVars(), Info);
-
-      ConstAtom *targetDeclType = nullptr;
-
-      if(defRetType->hasWild(environment)) {
-        // the function is returning WILD with in the body.
-        // make the declaration type also WILD.
-        targetDeclType = getWild();
-      } else if(!defRetType->hasWild(environment) && !declRetType->hasWild(environment)) {
-        // okay, both declaration and definition are checked types.
-        // here we should apply the sub-typing relation.
-        if(defRetType->isLt(*declRetType, Info)) {
-          // i.e., definition is not a subtype of declaration.
-          // e.g., def = PTR and decl = ARR,
-          //  here PTR is not a subtype of ARR
-          // Oh, definition is more restrictive than declaration.
-          // promote the type of definition to higher type.
-          targetDeclType = declRetType->getHighestType(environment);
-        }
-      }
-
-      // should we change the type of the declaration return?
-      if(targetDeclType != nullptr) {
-        if (PVConstraint *PVC = dyn_cast<PVConstraint>(defRetType)){
-          for (const auto &B : PVC->getCvars()) {
-            addConstraint(createEq(getOrCreateVar(B), targetDeclType));
-          }
-        }
-        retVal = true;
-      }
-
-      // handle the parameter types.
-      if (declCVar->numParams() == defCVar->numParams()) {
-        // Compare parameters.
-        for (unsigned i = 0; i < declCVar->numParams(); ++i) {
-          auto declParam = getHighest(declCVar->getParamVar(i), Info);
-          auto defParam = getHighest(defCVar->getParamVar(i), Info);
-          if(!declParam->hasWild(environment) && !defParam->hasWild(environment)) {
-            // here we should apply the sub-typing relation.
-            if(declParam->isLt(*defParam, Info)) {
-              // i.e., declaration is not a subtype of definition.
-              // e.g., decl = PTR and defn = ARR,
-              //  here PTR is not a subtype of ARR
-              // Oh, declaration is more restrictive than definition.
-              // promote the type of declaration to higher type.
-              ConstAtom *defType = defParam->getHighestType(environment);
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(declParam)){
-                for (const auto &B : PVC->getCvars()) {
-                  addConstraint(createEq(getOrCreateVar(B), defType));
-                }
-              }
-              retVal = true;
-            }
-          }
-        }
-      }
-    }
-
-  }
-  return retVal;
 }
 
 void Constraints::print(raw_ostream &O) const {
