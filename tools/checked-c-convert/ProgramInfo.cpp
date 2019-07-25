@@ -15,6 +15,12 @@
 
 using namespace clang;
 
+ProgramInfo::ProgramInfo() :
+  freeKey(0), persisted(true) {
+  IdentifiedArrayDecls.clear();
+  OnDemandFuncDeclConstraint.clear();
+}
+
 void ProgramInfo::print(raw_ostream &O) const {
   CS.print(O);
   O << "\n";
@@ -751,6 +757,10 @@ ProgramInfo::getVariableHelper( Expr                            *E,
   }
 }
 
+std::map<std::string, std::set<ConstraintVariable*>>& ProgramInfo::getOnDemandFuncDeclConstraintMap() {
+  return OnDemandFuncDeclConstraint;
+}
+
 std::string ProgramInfo::getUniqueDeclKey(Decl *decl, ASTContext *C) {
   auto Psl = PersistentSourceLoc::mkPSL(decl, *C);
   std::string fileName = Psl.getFileName() + ":" + std::to_string(Psl.getLineNo());
@@ -920,6 +930,113 @@ ProgramInfo::getVariable(Expr *E, ASTContext *C, bool inFunctionContext) {
     return getVariableHelper(E, T, C, inFunctionContext);
   else
     return T;
+}
+
+VariableMap &ProgramInfo::getVarMap() {
+  return Variables;
+}
+
+bool ProgramInfo::handleFunctionSubtyping() {
+  // The subtyping rule for functions is:
+  // T2 <: S2
+  // S1 <: T1
+  //--------------------
+  // T1 -> T2 <: S1 -> S2
+  // A way of interpreting this is that the type of a declaration argument `S1` can be a
+  // subtype of a definition parameter type `T1`, and the type of a definition
+  // return type `S2` can be a subtype of the declaration expected type `T2`.
+  //
+  bool retVal = false;
+  auto &envMap = CS.getVariables();
+  for(auto &currFDef: CS.getFuncDefnVarMap()) {
+    // get the key for the function definition.
+    auto funcDefKey = currFDef.first;
+    std::set<ConstraintVariable*> &defCVars = currFDef.second;
+
+    std::set<ConstraintVariable*> *declCVarsPtr = nullptr;
+    auto &defnDeclKeyMap = CS.getFuncDefnDeclMap();
+    auto &declConstrains = CS.getFuncDeclVarMap();
+    // see if we do not have constraint variables for declaration
+    if(defnDeclKeyMap.find(funcDefKey) != defnDeclKeyMap.end()) {
+      auto funcDeclKey = defnDeclKeyMap[funcDefKey];
+      declCVarsPtr = &(declConstrains[funcDeclKey]);
+    } else {
+      // no? then check the ondemand declarations
+      auto &onDemandMap = getOnDemandFuncDeclConstraintMap();
+      if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
+        declCVarsPtr = &(onDemandMap[funcDefKey]);
+      }
+    }
+
+    if(declCVarsPtr != nullptr) {
+      // if we have declaration constraint variables?
+      std::set<ConstraintVariable*> &declCVars = *declCVarsPtr;
+      // get the highest def and decl FVars
+      auto defCVar = dyn_cast<FVConstraint>(getHighest(defCVars, *this));
+      auto declCVar = dyn_cast<FVConstraint>(getHighest(declCVars, *this));
+
+      // handle the return types.
+      auto defRetType = getHighest(defCVar->getReturnVars(), *this);
+      auto declRetType = getHighest(declCVar->getReturnVars(), *this);
+
+      ConstAtom *targetDeclType = nullptr;
+
+      if(defRetType->hasWild(CS.getVariables())) {
+        // the function is returning WILD with in the body.
+        // make the declaration type also WILD.
+        targetDeclType = CS.getWild();
+      } else if(!defRetType->hasWild(envMap) && !declRetType->hasWild(envMap)) {
+        // okay, both declaration and definition are checked types.
+        // here we should apply the sub-typing relation.
+        if(defRetType->isLt(*declRetType, *this)) {
+          // i.e., definition is not a subtype of declaration.
+          // e.g., def = PTR and decl = ARR,
+          //  here PTR is not a subtype of ARR
+          // Oh, definition is more restrictive than declaration.
+          // promote the type of definition to higher type.
+          targetDeclType = declRetType->getHighestType(envMap);
+        }
+      }
+
+      // should we change the type of the declaration return?
+      if(targetDeclType != nullptr) {
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(defRetType)){
+          for (const auto &B : PVC->getCvars()) {
+            CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), targetDeclType));
+          }
+        }
+        retVal = true;
+      }
+
+      // handle the parameter types.
+      if (declCVar->numParams() == defCVar->numParams()) {
+        // Compare parameters.
+        for (unsigned i = 0; i < declCVar->numParams(); ++i) {
+          auto declParam = getHighest(declCVar->getParamVar(i), *this);
+          auto defParam = getHighest(defCVar->getParamVar(i), *this);
+          if(!declParam->hasWild(envMap) && !defParam->hasWild(envMap)) {
+            // here we should apply the sub-typing relation.
+            if(declParam->isLt(*defParam, *this)) {
+              // i.e., declaration is not a subtype of definition.
+              // e.g., decl = PTR and defn = ARR,
+              //  here PTR is not a subtype of ARR
+              // Oh, declaration is more restrictive than definition.
+              // promote the type of declaration to higher type.
+              ConstAtom *defType = defParam->getHighestType(envMap);
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(declParam)){
+                for (const auto &B : PVC->getCvars()) {
+                  CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), defType));
+                }
+              }
+              retVal = true;
+            }
+          }
+        }
+      }
+    }
+
+  }
+  return retVal;
 }
 
 bool ProgramInfo::insertPotentialArrayVar(Decl *var) {

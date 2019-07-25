@@ -157,6 +157,26 @@ newFrontendActionFactoryB(ProgramInfo &I, std::set<std::string> &PS) {
     new ArgFrontendActionFactory(I, PS));
 }
 
+std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTyping(ProgramInfo &Info) {
+  // solve the constrains by handling function sub-typing.
+  Constraints &CS = Info.getConstraints();
+  unsigned numIterations = 0;
+  std::pair<Constraints::ConstraintSet, bool> toRet;
+  bool fixed = false;
+  while(!fixed) {
+    toRet = CS.solve(numIterations);
+    if(numIterations > 1) {
+      // this means we have made some changes to the environment
+      // see if the function subtype handling causes any changes?
+      fixed = Info.handleFunctionSubtyping();
+    } else {
+      // we reached a fixed point.
+      fixed = true;
+    }
+  }
+  return toRet;
+}
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
@@ -214,8 +234,7 @@ int main(int argc, const char **argv) {
   // 2. Solve constraints.
   if (Verbose)
     outs() << "Solving constraints\n";
-  Constraints &CS = Info.getConstraints();
-  std::pair<Constraints::ConstraintSet, bool> R = CS.solve(Info);
+  std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
   // TODO: In the future, R.second will be false when there's a conflict, 
   //       and the tool will need to do something about that. 
   assert(R.second == true);
