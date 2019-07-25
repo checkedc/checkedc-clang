@@ -140,6 +140,9 @@ public:
   // get a unique key for a given function declaration node.
   std::string getUniqueFuncKey(FunctionDecl *funcDecl, ASTContext *C);
 
+  // get a unique string representing the declaration object.
+  std::string getUniqueDeclKey(Decl *decl, ASTContext *C);
+
   std::map<std::string, std::set<ConstraintVariable*>>& getOnDemandFuncDeclConstraintMap() {
     return OnDemandFuncDeclConstraint;
   }

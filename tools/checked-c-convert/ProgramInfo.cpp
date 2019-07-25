@@ -507,9 +507,15 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
 
     // if this is a function. Save the created constraint.
     // this needed for resolving function subtypes later.
-    // save the created constraint
+    // we create a unique key for the declaration and definition
+    // of a function.
+    // We save the mapping between these unique keys.
+    // This is needed so that later when we have to
+    // resolve function subtyping. where for each function
+    // we need access to teh definition and declaration
+    // constraint variables.
     FunctionDecl *UD = dyn_cast<FunctionDecl>(D);
-    std::string funcKey = getUniqueFuncKey(UD, C);
+    std::string funcKey =  getUniqueDeclKey(UD, C);
     // this is a definition. Create a constraint variable
     // and save the mapping between defintion and declaration.
     if(UD->isThisDeclarationADefinition() && UD->hasBody()) {
@@ -518,7 +524,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
       // get the declartion and store the unique key mapping
       FunctionDecl *FDecl = getDeclaration(UD);
       if(FDecl != nullptr) {
-        CS.getFuncDefnDeclMap()[funcKey] = getUniqueFuncKey(FDecl, C);
+        CS.getFuncDefnDeclMap()[funcKey] = getUniqueDeclKey(FDecl, C);
       }
     }
     // this is a declaration, just save the constraint variable.
@@ -745,16 +751,23 @@ ProgramInfo::getVariableHelper( Expr                            *E,
   }
 }
 
+std::string ProgramInfo::getUniqueDeclKey(Decl *decl, ASTContext *C) {
+  auto Psl = PersistentSourceLoc::mkPSL(decl, *C);
+  std::string fileName = Psl.getFileName() + ":" + std::to_string(Psl.getLineNo());
+  std::string name = decl->getDeclKindName();
+  if(FunctionDecl *FD = dyn_cast<FunctionDecl>(decl)) {
+    name = FD->getNameAsString();
+  }
+  std::string declKey = fileName + ":" + name;
+  return declKey;
+}
+
 std::string ProgramInfo::getUniqueFuncKey(FunctionDecl *funcDecl, ASTContext *C) {
   // get unique key for a function: which is function name, file and line number
   if(FunctionDecl *funcDefn = getDefinition(funcDecl)) {
     funcDecl = funcDefn;
   }
-  auto Psl = PersistentSourceLoc::mkPSL(funcDecl, *C);
-  std::string fileName = Psl.getFileName() + ":" + std::to_string(Psl.getLineNo());
-  std::string funcName = funcDecl->getNameAsString();
-  std::string declKey = fileName + ":" + funcName;
-  return declKey;
+  return getUniqueDeclKey(funcDecl, C);
 }
 
 std::set<ConstraintVariable*>&
