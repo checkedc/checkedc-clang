@@ -2064,8 +2064,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///
 ///  type-name-list-suffix
 ///    ',' type-name type-name-list-suffix [opt]
-DeclResult Parser::ParseRecordTypeApplication(RecordDecl *Base) {
-  assert(Base->isGeneric() && "Instantiated record must be generic");
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base) {
+  assert(Base->isGenericOrItypeGeneric() && "Instantiated record must be generic");
   ExpectAndConsume(tok::less); // eat the initial '<'
   auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
   if (ArgsRes.first) {

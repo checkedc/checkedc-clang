@@ -4356,7 +4356,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
 
   // Checked C: complete delayed generic type applications.
   auto RecDecl = llvm::dyn_cast<RecordDecl>(TagDecl);
-  if (RecDecl && RecDecl->isGeneric()) {
+  if (RecDecl && RecDecl->isGenericOrItypeGeneric()) {
     auto Base = llvm::dyn_cast<RecordDecl>(RecDecl->getCanonicalDecl());
     if (!Actions.DiagnoseExpandingCycles(Base, RecordLoc)) {
       // Complete all delayed type applications corresponding to this definition.

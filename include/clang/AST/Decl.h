@@ -4003,6 +4003,9 @@ public:
   /// Whether the record has a generic interface. At most one of 'isTypeGeneric' and 'isGeneric' will be set.
   bool isItypeGeneric() const;
 
+  /// Whether the record is generic or has a generic bounds interface (itype).
+  bool isGenericOrItypeGeneric() const;
+
   /// Returns the record's type parameters.
   /// If there are no type parameters, then the array will be empty.
   ArrayRef<TypedefDecl *> typeParams() const;

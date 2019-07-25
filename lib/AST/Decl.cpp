@@ -4343,6 +4343,10 @@ bool RecordDecl::isItypeGeneric() const {
   return GenericKind == ItypeGeneric;
 }
 
+bool RecordDecl::isGenericOrItypeGeneric() const {
+  return GenericKind != NonGeneric;
+}
+
 ArrayRef<TypedefDecl*> RecordDecl::typeParams() const {
   return TypeParams;
 }

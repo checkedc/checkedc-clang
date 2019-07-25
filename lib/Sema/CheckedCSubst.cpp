@@ -78,7 +78,7 @@ ExprResult Sema::ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocatio
 
 // Type Instantiation
 RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs) {
-  assert(Base->isGeneric() && "Base decl must be generic in a type application");
+  assert(Base->isGenericOrItypeGeneric() && "Base decl must be generic in a type application");
   assert(Base->getCanonicalDecl() == Base && "Base must be canonical decl");
  
   auto &ctx = Base->getASTContext();
@@ -280,7 +280,7 @@ namespace {
 }
 
 bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
-  assert(Base->isGeneric() && "Can only check expanding cycles for generic structs");
+  assert(Base->isGenericOrItypeGeneric() && "Can only check expanding cycles for generic structs");
   assert(Base == Base->getCanonicalDecl() && "Expected canonical base decl");
   llvm::DenseSet<Node> Visited;
   std::stack<Node> Worklist;
