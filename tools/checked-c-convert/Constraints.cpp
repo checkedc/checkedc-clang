@@ -287,6 +287,15 @@ std::pair<Constraints::ConstraintSet, bool> Constraints::solve(ProgramInfo &Info
 }
 
 bool Constraints::handleFunctionSubtyping(ProgramInfo &Info) {
+  // The subtyping rule for functions is:
+  // T2 <: S2
+  // S1 <: T1
+  //--------------------
+  // T1 -> T2 <: S1 -> S2
+  // A way of interpreting this is that the type of a declaration argument `S1` can be a
+  // subtype of a definition parameter type `T1`, and the type of a definition
+  // return type `S2` can be a subtype of the declaration expected type `T2`.
+  //
   bool retVal = false;
   for(auto &currFDef: FuncDefnConstraints) {
     // get the key for the function definition.
@@ -327,6 +336,9 @@ bool Constraints::handleFunctionSubtyping(ProgramInfo &Info) {
         // okay, both declaration and definition are checked types.
         // here we should apply the sub-typing relation.
         if(defRetType->isLt(*declRetType, Info)) {
+          // i.e., definition is not a subtype of declaration.
+          // e.g., def = PTR and decl = ARR,
+          //  here PTR is not a subtype of ARR
           // Oh, definition is more restrictive than declaration.
           // promote the type of definition to higher type.
           targetDeclType = declRetType->getHighestType(environment);
@@ -352,6 +364,9 @@ bool Constraints::handleFunctionSubtyping(ProgramInfo &Info) {
           if(!declParam->hasWild(environment) && !defParam->hasWild(environment)) {
             // here we should apply the sub-typing relation.
             if(declParam->isLt(*defParam, Info)) {
+              // i.e., declaration is not a subtype of definition.
+              // e.g., decl = PTR and defn = ARR,
+              //  here PTR is not a subtype of ARR
               // Oh, declaration is more restrictive than definition.
               // promote the type of declaration to higher type.
               ConstAtom *defType = defParam->getHighestType(environment);
