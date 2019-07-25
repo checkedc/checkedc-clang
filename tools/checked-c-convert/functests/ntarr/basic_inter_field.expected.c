@@ -3,12 +3,12 @@
 // within the fields of structure.
 typedef struct {  
   _Ptr<int> ptr;
-  _Nt_array_ptrchar> ntptr; 
+  _Nt_array_ptr<char> ntptr; 
 } foo;
 
 foo obj1;
 
-_Ptr<int> func(_Ptr<int> ptr, _Nt_array_ptrchar> ntptr) {
+_Ptr<int> func(_Ptr<int> ptr, _Nt_array_ptr<char> ntptr) {
    obj1.ptr = ptr;
    obj1.ntptr = strstr(ntptr, "world");
    return ptr;
@@ -17,7 +17,7 @@ _Ptr<int> func(_Ptr<int> ptr, _Nt_array_ptrchar> ntptr) {
 int main() {
   int a;
   _Ptr<int> b;
-  _Nt_array_ptrchar> wil;
+  _Nt_array_ptr<char> wil;
   a = strlen(wil);
   b = func(&a, wil);
 }

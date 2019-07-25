@@ -3,8 +3,8 @@
 
 // we test propagation with and without function
 // declaration.
-int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild);/*ARR:arrwild*/
-int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild) {/*ARR:arrwild*/
+int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild);
+int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild) {
    if(ptr != 0) {
     *ptr = 0;
    }   
@@ -14,7 +14,7 @@ int funcdecl(_Ptr<int> ptr, int *iptr : itype(_Ptr<int> ) , int *arrwild) {/*ARR
 // ptr is an arr ptr
 // iptr will be itype
 // wild will be a wild ptr.
-int func(int *ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {/*ARR:ptr*/
+int func(int *ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {
    if(ptr != 0) {
       ptr[0] = 1;
    }
@@ -23,7 +23,7 @@ int func(int *ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {/*ARR:ptr*/
 int main() {
   int a, b, c;
   // this will be Ptr
-  _Ptr<int> ap;
+  int *ap;
   // this will be WILD
   int *bp;
   // this will be _Ptr
@@ -33,7 +33,7 @@ int main() {
   // this will be WILD
   int *bp1;
   // this will be _Ptr
-  _Ptr<int> cp1;
+  int *cp1;
 
   
   ap1 = &a;

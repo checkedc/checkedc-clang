@@ -4,7 +4,7 @@
 int main() {
   // a has to identified
   // as ARR
-  int *a;/*ARR:a*/
+  int *a;
   // c also should be identified as 
   // _Ptr as we do not use it.
   _Ptr<int> c;
