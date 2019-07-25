@@ -1982,7 +1982,9 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           // If the scope is unchecked but the user provides arguments, we allow that too.
           TagOrTempResult = ParseRecordTypeApplication(Decl);
         } else {
-          // In an unchecked scope without type arguments, we synthesize all arguments as void. 
+          // In an unchecked scope without type arguments, we synthesize all arguments as void.
+          // TODO: factour out the generation of void arguments into a function that can be reused here
+          // and for functions.
           auto &Ctx = Actions.getASTContext();
           TypeArgVector VoidArgs;
           for (size_t i = 0; i < Decl->numTypeParams(); ++i) {
