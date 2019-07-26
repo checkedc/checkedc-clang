@@ -2648,6 +2648,8 @@ public:
   //          Predicates and methods for Checked C checked types and bounds
   //===--------------------------------------------------------------------===//
 
+  bool typeAppsMatch(const RecordType *T1, const RecordType *T2) const;
+
   /// \brief Determine whether a pointer, array, or function type T1 provides
   /// at least as much checking as the other type T2.  Return true if it does
   /// or false if it does not or the types differ in some other way than

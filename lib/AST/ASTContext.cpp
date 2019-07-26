@@ -9526,6 +9526,11 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
 
     return true;
   }
+  case Type::Record : {
+    const RecordType *T1RecType = cast<RecordType>(T1Type);
+    const RecordType *T2RecType = cast<RecordType>(T2Type);
+    return typeAppsMatch(T1RecType, T2RecType);
+  }
   default:
     return false;
   }
@@ -9634,9 +9639,47 @@ bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
 
     return true;
   }
+  case Type::Record : {
+    const RecordType *T1RecType = cast<RecordType>(T1Type);
+    const RecordType *T2RecType = cast<RecordType>(T2Type);
+    return typeAppsMatch(T1RecType, T2RecType);
+  }
   default:
     return false;
   }
+}
+
+bool ASTContext::typeAppsMatch(const RecordType *T1, const RecordType *T2) const {
+  RecordDecl *T1Decl = T1->getDecl();
+  RecordDecl *T2Decl = T2->getDecl();
+
+  // If either T1 or T2 isn't a type application, the two types can't match, because
+  // we already know the type pointers aren't the same.
+  if (!T1Decl->isInstantiated() || !T2Decl->isInstantiated()) return false;
+  auto T1BaseType = getRecordType(T1Decl->baseDecl());
+  auto T2BaseType = getRecordType(T2Decl->baseDecl());
+
+  // We know at this point that T1 and T2 are type applications.
+  // T1 and T2 match if the following three conditions hold:
+  //   1) T1 and T2's bases match
+  //   2) T2's base is a generic bounds interface (itype_for_any)
+  //   3) T2 = Base<void, ..., void> (i.e. all of T2's type arguments are 'void')
+  // This rule allows us to match 'struct List *next : itype(_Ptr<struct List<T> >)'.
+  // Even though the user doesn't write T2 explicitly as an application, it is desugared into the special
+  // application where all arguments are 'void' by the type system.
+
+  // Check 1) and 2)
+  if (T1BaseType != T2BaseType || !T2Decl->baseDecl()->isItypeGeneric()) return false;
+
+  // Check 3)
+  // TODO(abeln): add accessor for number of type arguments
+  assert(T1Decl->typeArgs().size() == T2Decl->typeArgs().size() && "Expected same number of type arguments");
+  for (size_t i = 0; i < T2Decl->typeArgs().size(); ++i) {
+    auto TArg = T2Decl->typeArgs()[i].typeName.getTypePtr();
+    if (TArg != VoidTy.getTypePtr()) return false;
+  }
+
+  return true;
 }
 
 // For the Checked C extension, compute whether a type is allowed to be an
