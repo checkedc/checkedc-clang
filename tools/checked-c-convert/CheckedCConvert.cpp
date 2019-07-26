@@ -168,7 +168,7 @@ std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTypin
     if(numIterations > 1) {
       // this means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
-      fixed = Info.handleFunctionSubtyping();
+      fixed = !Info.handleFunctionSubtyping();
     } else {
       // we reached a fixed point.
       fixed = true;
