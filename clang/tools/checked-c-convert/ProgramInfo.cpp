@@ -867,7 +867,12 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
       // get declaration and definition
       funcDeclaration = getDeclaration(FD);
       funcDefinition = getDefinition(FD);
-
+      
+      // if this is an external function and we are unable
+      // to find the body. Get the FD object from the parameter.
+      if(!funcDefinition && !funcDeclaration) {
+        funcDeclaration = FD;
+      }
       assert(parameterIndex >= 0 && "Got request for invalid parameter");
     }
     if (funcDeclaration || funcDefinition || parameterIndex != -1) {
