@@ -189,13 +189,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
     errs() << "Trying to capture Constraint Variables for all functions\n";
   }
   // first capture itype parameters and return values for all functions
-  std::unique_ptr<ToolAction> ITypeDetectorTool = newFrontendActionFactoryA<
-    GenericAction<FVConstraintDetectorConsumer, ProgramInfo>>(Info);
-
-  if (ITypeDetectorTool)
-    Tool.run(ITypeDetectorTool.get());
-  else
-    llvm_unreachable("No action");
+  performConstraintSetup(Info);
 
   // sanity check
   assert(CS.checkInitialEnvSanity() && "Invalid initial environment. We expect all pointers to be "

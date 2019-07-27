@@ -57,13 +57,13 @@ bool identifyModifiedFunctions(Constraints &CS, std::set<std::string> &modifiedF
   Constraints::EnvironmentMap &currEnvMap = CS.getVariables();
   // check to see if they differ from previous values
   for (auto &prevFuncVals: funcParamsReturnSavedValues) {
-    std::string funcName = prevFuncVals.first;
+    std::string funcDefKey = prevFuncVals.first;
     for (auto &currVar: prevFuncVals.second) {
       // check if the value of the constraint variable changed?
       // then we consider the corresponding function as modified.
       if (currEnvMap[currVar.first] != currVar.second) {
         currVar.second = currEnvMap[currVar.first];
-        modifiedFunctions.insert(funcName);
+        modifiedFunctions.insert(funcDefKey);
       }
     }
   }
@@ -137,15 +137,6 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl, ConstraintVariable 
   assert(PVDeclCons != nullptr && PVDefnCons != nullptr &&
          "Expected a pointer variable constraint for function parameter but got nullptr");
 
-  // check if this is already identified itype
-  for(ConstraintKey k: PVDeclCons->getCvars()) {
-    VarAtom *cK = CS.getVar(k);
-    if (itypeMap.find(cK) != itypeMap.end()) {
-        //yes, then no need to do anything.
-        return changesHappened;
-    }
-  }
-
   ConstAtom *itypeAtom = nullptr;
 
   // get the pointer type of the definition constraint variable.
@@ -153,6 +144,15 @@ static bool updateDeclWithDefnType(ConstraintVariable *decl, ConstraintVariable 
     itypeAtom = CS.getVariables()[CS.getVar(k)];
   }
   assert(itypeAtom != nullptr && "Unable to find assignment for definition constraint variable.");
+
+  // check if this is already identified itype
+  for(ConstraintKey k: PVDeclCons->getCvars()) {
+    VarAtom *cK = CS.getVar(k);
+    if (itypeMap.find(cK) != itypeMap.end() && itypeMap[cK] == itypeAtom) {
+        //yes, then no need to do anything.
+        return changesHappened;
+    }
+  }
 
   // update the type of the declaration constraint variable.
   for(ConstraintKey k: PVDeclCons->getCvars()) {
@@ -169,10 +169,13 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> 
   unsigned long numITypeVars = 0;
   // clear the current iteration itype vars.
   currIterationItypeMap.clear();
-  for (auto funcName: modifiedFunctions) {
-    FVConstraint *cDefn = dyn_cast<FVConstraint>(getHighest(CS.getFuncDefnVarMap()[funcName], Info));
+  for (auto funcDefKey: modifiedFunctions) {
+    FVConstraint *cDefn = dyn_cast<FVConstraint>(getHighest(CS.getFuncDefnVarMap()[funcDefKey], Info));
 
-    FVConstraint *cDecl = dyn_cast<FVConstraint>(getHighest(CS.getFuncDeclVarMap()[funcName], Info));
+    auto declConstraintsPtr = Info.getFuncDeclConstraintSet(funcDefKey);
+    assert(declConstraintsPtr != nullptr && "This cannot be nullptr, if it was null, we would never have "
+                                            "inserted this info modified functions.");
+    FVConstraint *cDecl = dyn_cast<FVConstraint>(getHighest(*declConstraintsPtr, Info));
 
     assert(cDecl != nullptr);
     assert(cDefn != nullptr);
@@ -188,9 +191,8 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> 
         // If this holds, then we want to insert a bounds safe interface.
         bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
         // definition is more precise than declaration.
-        // Section 5.3:
-        // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-        if (anyConstrained && Defn->isLt(*Decl, Info) && updateDeclWithDefnType(Decl, Defn, Info)) {
+        // and declaration has to be WILD.
+        if (anyConstrained && Decl->hasWild(CS.getVariables()) && updateDeclWithDefnType(Decl, Defn, Info)) {
           numITypeVars++;
         }
       }
@@ -206,9 +208,8 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> 
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
     if (anyConstrained) {
       // definition is more precise than declaration.
-      // Section 5.3:
-      // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if (Defn->isLt(*Decl, Info) && updateDeclWithDefnType(Decl, Defn, Info)) {
+      // and declaration has to be WILD.
+      if (Decl->hasWild(CS.getVariables()) && updateDeclWithDefnType(Decl, Defn, Info)) {
         numITypeVars++;
       }
     }
@@ -216,71 +217,24 @@ unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> 
   return numITypeVars;
 }
 
-// This is a visitor class that identifies all the FVConstraint variables for
-// all function definitions and declarations.
-class FVConstraintDetectorVisitor : public RecursiveASTVisitor<FVConstraintDetectorVisitor> {
-public:
-  explicit FVConstraintDetectorVisitor(ASTContext *C, ProgramInfo &I, std::set<std::string> &V)
-    : Context(C), Info(I), VisitedSet(V) {}
-
-  bool VisitFunctionDecl(FunctionDecl *);
-private:
-  ASTContext            *Context;
-  ProgramInfo           &Info;
-  std::set<std::string> &VisitedSet;
-};
-
-bool FVConstraintDetectorVisitor::VisitFunctionDecl(FunctionDecl *FD) {
-
-  auto functionName = FD->getNameAsString();
-
-  // Make sure we haven't visited this function name before, and that we
-  // only visit it once.
-  if (VisitedSet.find(functionName) != VisitedSet.end())
-    return true;
-  else
-    VisitedSet.insert(functionName);
-
-  // Do we have a definition for this declaration?
-  FunctionDecl *Definition = getDefinition(FD);
-  FunctionDecl *Declaration = getDeclaration(FD);
-
-  if(Definition == nullptr)
-    return true;
-
+bool performConstraintSetup(ProgramInfo &Info) {
+  bool hasSome = false;
   Constraints &CS = Info.getConstraints();
-  // get a unique key for the current function
-  std::string funcUniqKey = Info.getUniqueFuncKey(FD, Context);
+  for(auto &currFDef: CS.getFuncDefnVarMap()) {
+    // get the key for the function definition.
+    auto funcDefKey = currFDef.first;
+    std::set<ConstraintVariable *> &defCVars = currFDef.second;
 
-  CS.getFuncDefnVarMap()[funcUniqKey] = Info.getVariableOnDemand(Definition, Context, true);
-  // save the constraint vars of parameters and return of the definition.
-  updateFunctionConstraintVars(funcUniqKey, CS, CS.getFuncDefnVarMap()[funcUniqKey]);
+    std::set<ConstraintVariable *> *declCVarsPtr = Info.getFuncDeclConstraintSet(funcDefKey);
 
-  // Get constraint variables for the declaration and the definition.
-  // Those constraints should be function constraints.
-  if(Declaration == nullptr) {
-    // if there is no declaration?
-    // get the on demand function variable constraint.
-    CS.getFuncDeclVarMap()[funcUniqKey] = Info.getOnDemandFuncDeclarationConstraint(Definition, Context);
-  } else {
-    CS.getFuncDeclVarMap()[funcUniqKey] = Info.getVariableOnDemand(Declaration, Context, false);
+    if (declCVarsPtr != nullptr) {
+      // okay, we have constraint variables for declaration.
+      // there could be a possibility of itypes.
+      // save the var atoms.
+      updateFunctionConstraintVars(funcDefKey, CS, defCVars);
+      hasSome = true;
+    }
   }
-  // save the constraint vars of parameters and return of the declaration.
-  updateFunctionConstraintVars(funcUniqKey, CS, CS.getFuncDeclVarMap()[funcUniqKey]);
-
-  return true;
-}
-
-void FVConstraintDetectorConsumer::HandleTranslationUnit(ASTContext &C) {
-  Info.enterCompilationUnit(C);
-
-  std::set<std::string> v;
-  v.clear();
-  FVConstraintDetectorVisitor CPV = FVConstraintDetectorVisitor(&C, Info, v);
-  for (const auto &D : C.getTranslationUnitDecl()->decls())
-    CPV.TraverseDecl(D);
-
-  Info.exitCompilationUnit();
-  return;
+  return hasSome;
 }
 

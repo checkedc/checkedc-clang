@@ -32,18 +32,8 @@ bool identifyModifiedFunctions(Constraints &CS, std::set<std::string> &modifiedF
 // Note that, these are the detections made by the tool, i.e., not the ones provided by user
 unsigned long detectAndUpdateITypeVars(ProgramInfo &Info, std::set<std::string> &modifiedFunctions);
 
-
-// This is an AST consumer class that invokes the FVConstraintDetectorVisitor
-// on all detected fucntion declarations.
-class FVConstraintDetectorConsumer : public ASTConsumer {
-public:
-  explicit FVConstraintDetectorConsumer(ProgramInfo &I, ASTContext *C) :
-  Info(I) { }
-
-  virtual void HandleTranslationUnit(ASTContext &Context);
-
-private:
-  ProgramInfo &Info;
-};
+// set up a map of constraint variables.
+// so that we know if a function constraint variables are modified
+bool performConstraintSetup(ProgramInfo &Info);
 
 #endif //_ITYPECONSTRAINTDETECTOR_H
