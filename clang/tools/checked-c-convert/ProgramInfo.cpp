@@ -519,7 +519,7 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     // declaration and definition of a function.
     // We save the mapping between these unique keys to access them later.
     FunctionDecl *UD = dyn_cast<FunctionDecl>(D);
-    std::string funcKey =  getUniqueDeclKey(UD, C);
+    std::string funcKey = getUniqueDeclKey(UD, C);
     // this is a definition. Create a constraint variable and save the mapping
     // between definition and declaration.
     if (UD->isThisDeclarationADefinition() && UD->hasBody()) {
@@ -529,10 +529,11 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
       FunctionDecl *FDecl = getDeclaration(UD);
       if (FDecl != nullptr)
         CS.getFuncDefnDeclMap()[funcKey] = getUniqueDeclKey(FDecl, C);
-    }
-    // this is a declaration, just save the constraint variable.
-    if (!UD->isThisDeclarationADefinition())
+
+    } else {
+      // this is a declaration, just save the constraint variable.
       CS.getFuncDeclVarMap()[funcKey].insert(F);
+    }
   }
 
   if (P != nullptr && !hasConstraintType<PVConstraint>(S))
@@ -949,7 +950,11 @@ std::set<ConstraintVariable*> *ProgramInfo::getFuncDeclConstraintSet(std::string
   // see if we do not have constraint variables for declaration
   if(defnDeclKeyMap.find(funcDefKey) != defnDeclKeyMap.end()) {
     auto funcDeclKey = defnDeclKeyMap[funcDefKey];
-    declCVarsPtr = &(declConstrains[funcDeclKey]);
+    // if this has a declaration constraint?
+    // then fetch the constraint.
+    if(declConstrains.find(funcDeclKey) != declConstrains.end()) {
+      declCVarsPtr = &(declConstrains[funcDeclKey]);
+    }
   } else {
     // no? then check the ondemand declarations
     auto &onDemandMap = getOnDemandFuncDeclConstraintMap();
