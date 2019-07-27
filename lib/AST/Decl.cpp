@@ -4152,9 +4152,12 @@ unsigned EnumDecl::getODRHash() {
 //===----------------------------------------------------------------------===//
 
 RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
-                       DeclContext *DC, SourceLocation StartLoc,
-                       SourceLocation IdLoc, IdentifierInfo *Id,
-                       RecordDecl *PrevDecl, ArrayRef<TypedefDecl*> TypeParams,
+                       DeclContext *DC,
+                       SourceLocation StartLoc,
+                       SourceLocation IdLoc,
+                       IdentifierInfo *Id,
+                       RecordDecl *PrevDecl,
+                       ArrayRef<TypedefDecl*> TypeParams,
                        RecordDecl *BaseDecl,
                        ArrayRef<TypeArgument> TypeArgs)
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
@@ -4174,9 +4177,14 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setTypeArgs(C, BaseDecl, TypeArgs);
 }
 
-RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
-                               SourceLocation StartLoc, SourceLocation IdLoc,
-                               IdentifierInfo *Id, RecordDecl* PrevDecl, ArrayRef<TypedefDecl*> TypeParams,
+RecordDecl *RecordDecl::Create(const ASTContext &C,
+                               TagKind TK,
+                               DeclContext *DC,
+                               SourceLocation StartLoc,
+                               SourceLocation IdLoc,
+                               IdentifierInfo *Id,
+                               RecordDecl* PrevDecl,
+                               ArrayRef<TypedefDecl*> TypeParams,
                                RecordDecl *BaseDecl,
                                ArrayRef<TypeArgument> TypeArgs) {
   RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
@@ -4324,7 +4332,7 @@ const FieldDecl *RecordDecl::findFirstNamedDataMember() const {
 
 // Type Parameters
 
-bool RecordDecl::isGeneric() {
+bool RecordDecl::isGeneric() const {
   return IsGeneric;
 }
 
@@ -4347,7 +4355,7 @@ void RecordDecl::setTypeParams(const ASTContext& C, ArrayRef<TypedefDecl*> NewTy
 
 // Type Arguments
 
-bool RecordDecl::isInstantiated() {
+bool RecordDecl::isInstantiated() const {
   return IsInstantiated;
 }
 
@@ -4359,7 +4367,7 @@ ArrayRef<TypeArgument> RecordDecl::typeArgs() {
   return { TypeArgs, NumTypeArgs };
 }
 
-bool RecordDecl::isDelayedTypeApp() {
+bool RecordDecl::isDelayedTypeApp() const {
   return IsDelayed;
 }
 

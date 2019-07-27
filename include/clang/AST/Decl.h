@@ -3770,20 +3770,29 @@ public:
   };
 
 protected:
-  RecordDecl(Kind DK, TagKind TK, const ASTContext &C, DeclContext *DC,
-             SourceLocation StartLoc, SourceLocation IdLoc,
-             IdentifierInfo* Id, RecordDecl* PrevDecl,
-             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, (size_t)0),
+  RecordDecl(Kind DK,
+             TagKind TK,
+             const ASTContext &C,
+             DeclContext *DC,
+             SourceLocation StartLoc,
+             SourceLocation IdLoc,
+             IdentifierInfo *Id,
+             RecordDecl *PrevDecl,
+             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
              RecordDecl *BaseDecl = nullptr,
-             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, (size_t)0));
+             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
 
 public:
-  static RecordDecl *Create(const ASTContext &C, TagKind TK, DeclContext *DC,
-                            SourceLocation StartLoc, SourceLocation IdLoc,
-                            IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr,
-                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, (size_t)0),
+  static RecordDecl *Create(const ASTContext &C,
+                            TagKind TK,
+                            DeclContext *DC,
+                            SourceLocation StartLoc,
+                            SourceLocation IdLoc,
+                            IdentifierInfo *Id,
+                            RecordDecl *PrevDecl = nullptr,
+                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
                             RecordDecl *BaseDecl = nullptr,
-                            ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, (size_t)0));
+                            ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
   RecordDecl *getPreviousDecl() {
@@ -3975,13 +3984,13 @@ public:
   // Checked C
 
   /// Whether the record is generic.
-  bool isGeneric();
+  bool isGeneric() const;
   /// Returns the record's type parameters.
   /// If there are no type parameters, then the array will be empty.
-  ArrayRef<TypedefDecl*> typeParams();
+  ArrayRef<TypedefDecl *> typeParams();
 
   /// Whether the record is a (fully) instantiated generic.
-  bool isInstantiated();
+  bool isInstantiated() const;
   /// If this is an instantiated RecordDecl, return the underlying generic RecordDecl.
   RecordDecl *baseDecl();
   /// Returns the record's type arguments.
@@ -3991,7 +4000,7 @@ public:
   /// Whether this record represents a delayed type application.
   /// If so, then 'isInstantiated()' will return 'true', and the type arguments will be populated.
   /// However, the record's fields won't be set yet.
-  bool isDelayedTypeApp();
+  bool isDelayedTypeApp() const;
   /// Indicate whether this record is currently a delayed type application.
   void setDelayedTypeApp(bool IsDelayed);
 
@@ -4017,7 +4026,7 @@ private:
   TypedefDecl **TypeParams;
   /// Sets the type parameters for the record.
   /// This sets 'TypeParams', but also 'NumTypeParams' and 'IsGeneric'.
-  void setTypeParams(const ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams);
+  void setTypeParams(const ASTContext &C, ArrayRef<TypedefDecl *> NewTypeParams);
 
   /// Whether this struct is the result of instantiating a generic struct
   /// (so the current struct is fully - instantiated no longer generic).
@@ -4031,7 +4040,7 @@ private:
   /// isn't the result of an instantiation.
   TypeArgument *TypeArgs;
   /// Sets the type arguments for an instantiation, as well as 'IsInstantiated' and 'NumTypeArgs'.
-  void setTypeArgs(const ASTContext& C, RecordDecl *BaseDecl, ArrayRef<TypeArgument> NewTypeArgs);
+  void setTypeArgs(const ASTContext &C, RecordDecl *BaseDecl, ArrayRef<TypeArgument> NewTypeArgs);
 
   /// Whether this record represents a delayed type application.
   /// A delayed type application won't contain any fields, until it is completed via 'Sema::CompleteTypeAppFields'.

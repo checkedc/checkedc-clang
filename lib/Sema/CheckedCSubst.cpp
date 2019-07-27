@@ -98,7 +98,7 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
 
   // Notice we pass dummy location arguments, since the type application doesn't exist in user code.
   RecordDecl* Inst = RecordDecl::Create(ctx, Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
-    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, (size_t)0) /* TypeParams */, Base, TypeArgs);
+    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)) /* TypeParams */, Base, TypeArgs);
 
   // Cache the application early on before we tinker with the fields, in case
   // one of the fields refers back to the application.
