@@ -150,7 +150,7 @@ namespace {
   // it's possible to arrive at the type argument with index 'TypeArgIndex' which is defined in 'BaseRecordDecl'.
   // 'Expanding' indicates whether any of the edges taken to arrive to (BaseRecordDecl, TypeArgIndex) is expanding ('Expanding = 1')
   // or if they're all non-expanding ('Expanding = 0'). 
-  using Node = std::pair<std::pair<RecordDecl *, int>, char>;
+  using Node = std::pair<std::pair<const RecordDecl *, int>, char>;
   const char NON_EXPANDING = 0;
   const char EXPANDING = 1;
 

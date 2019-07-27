@@ -4161,8 +4161,13 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
                        RecordDecl *BaseDecl,
                        ArrayRef<TypeArgument> TypeArgs)
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
-      IsGeneric(false), NumTypeParams(0), IsInstantiated(false), NumTypeArgs(0), IsDelayed(false) {
+      TypeParams(TypeParams.begin(), TypeParams.end()),
+      BaseDecl(BaseDecl),
+      TypeArgs(TypeArgs.begin(), TypeArgs.end()),
+      IsDelayed(false) {
   assert(classof(static_cast<Decl *>(this)) && "Invalid Kind!");
+  assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
+  assert(!(isInstantiated() ^ static_cast<bool>(BaseDecl)) && "Must provide both base decl and type arguments, or neither");
   setHasFlexibleArrayMember(false);
   setAnonymousStructOrUnion(false);
   setHasObjectMember(false);
@@ -4173,8 +4178,6 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setNonTrivialToPrimitiveDestroy(false);
   setParamDestroyedInCallee(false);
   setArgPassingRestrictions(APK_CanPassInRegs);
-  setTypeParams(C, TypeParams);
-  setTypeArgs(C, BaseDecl, TypeArgs);
 }
 
 RecordDecl *RecordDecl::Create(const ASTContext &C,
@@ -4333,38 +4336,25 @@ const FieldDecl *RecordDecl::findFirstNamedDataMember() const {
 // Type Parameters
 
 bool RecordDecl::isGeneric() const {
-  return IsGeneric;
+  return !TypeParams.empty();
 }
 
-ArrayRef<TypedefDecl*> RecordDecl::typeParams() {
-  return { TypeParams, NumTypeParams };
-}
-
-void RecordDecl::setTypeParams(const ASTContext& C, ArrayRef<TypedefDecl*> NewTypeParams) {
-  assert(!isGeneric() && "Can't reset type parameters for record");
-  NumTypeParams = NewTypeParams.size();
-  IsGeneric = NumTypeParams > 0;
-  assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
-
-  // Zero params -> null pointer.
-  if (!NewTypeParams.empty()) {
-    TypeParams = new (C) TypedefDecl * [NewTypeParams.size()];
-    std::copy(NewTypeParams.begin(), NewTypeParams.end(), TypeParams);
-  }
+ArrayRef<TypedefDecl *> RecordDecl::typeParams() const {
+  return TypeParams;
 }
 
 // Type Arguments
 
 bool RecordDecl::isInstantiated() const {
-  return IsInstantiated;
+  return !TypeArgs.empty();
 }
 
-RecordDecl *RecordDecl::baseDecl() {
+RecordDecl *RecordDecl::baseDecl() const {
   return BaseDecl;
 }
 
-ArrayRef<TypeArgument> RecordDecl::typeArgs() {
-  return { TypeArgs, NumTypeArgs };
+ArrayRef<TypeArgument> RecordDecl::typeArgs() const {
+  return TypeArgs;
 }
 
 bool RecordDecl::isDelayedTypeApp() const {
@@ -4373,21 +4363,6 @@ bool RecordDecl::isDelayedTypeApp() const {
 
 void RecordDecl::setDelayedTypeApp(bool IsDelayed) {
   this->IsDelayed = IsDelayed;
-}
-
-void RecordDecl::setTypeArgs(const ASTContext& C, RecordDecl *NewBaseDecl, ArrayRef<TypeArgument> NewTypeArgs) {
-  assert(!isInstantiated() && "Can't reset type parameters for record");
-  BaseDecl = NewBaseDecl;
-  NumTypeArgs = NewTypeArgs.size();
-  IsInstantiated = NumTypeArgs > 0;
-  assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
-  assert(((IsInstantiated && BaseDecl) || !(IsInstantiated || BaseDecl)) && "Must provide both base decl and type arguments, or neither");
-
-  // Zero args -> null pointer.
-  if (!NewTypeArgs.empty()) {
-    TypeArgs = new (C) TypeArgument [NewTypeArgs.size()];
-    std::copy(NewTypeArgs.begin(), NewTypeArgs.end(), TypeArgs);
-  }
 }
 
 //===----------------------------------------------------------------------===//

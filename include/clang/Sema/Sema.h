@@ -4873,10 +4873,9 @@ public:
 
   BoundsExpr *CheckNonModifyingBounds(BoundsExpr *Bounds, Expr *E);
 
-  ExprResult ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
-                     ArrayRef<TypeArgument> Args);
+  ExprResult ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocation Loc, ArrayRef<TypeArgument> Args);
 
-  RecordDecl* ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs);
+  RecordDecl *ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs);
 
   /// Complete a delayed type application by populating the record's fields with the right types.
   /// Should only be called once per delayed 'RecordDecl'.

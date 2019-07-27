@@ -3987,15 +3987,15 @@ public:
   bool isGeneric() const;
   /// Returns the record's type parameters.
   /// If there are no type parameters, then the array will be empty.
-  ArrayRef<TypedefDecl *> typeParams();
+  ArrayRef<TypedefDecl *> typeParams() const;
 
   /// Whether the record is a (fully) instantiated generic.
   bool isInstantiated() const;
   /// If this is an instantiated RecordDecl, return the underlying generic RecordDecl.
-  RecordDecl *baseDecl();
+  RecordDecl *baseDecl() const;
   /// Returns the record's type arguments.
   /// If there are no type arguments, then the array will be empty.
-  ArrayRef<TypeArgument> typeArgs();
+  ArrayRef<TypeArgument> typeArgs() const;
 
   /// Whether this record represents a delayed type application.
   /// If so, then 'isInstantiated()' will return 'true', and the type arguments will be populated.
@@ -4017,30 +4017,13 @@ private:
   // In particular, it doesn't make sense to set _both_ 'isGeneric' and 'isInstantiated', since a struct
   // is either generic or instantiated (we don't support partial instantiations).
 
-  /// Whether this struct is generic.
-  bool IsGeneric;
-  /// The number of type parameters the record has.
-  size_t NumTypeParams;
-  /// New []'d array of pointers to TypedefDecls for the type
-  /// parameters of this record.  This is null if not a generic record.
-  TypedefDecl **TypeParams;
-  /// Sets the type parameters for the record.
-  /// This sets 'TypeParams', but also 'NumTypeParams' and 'IsGeneric'.
-  void setTypeParams(const ASTContext &C, ArrayRef<TypedefDecl *> NewTypeParams);
+  /// Type parameters for this record. Empty iff this isn't a generic record.
+  std::vector<TypedefDecl *> TypeParams;
 
-  /// Whether this struct is the result of instantiating a generic struct
-  /// (so the current struct is fully - instantiated no longer generic).
-  bool IsInstantiated;
   /// The underlying generic RecordDecl that was instantiated.
   RecordDecl *BaseDecl;
-  /// The number of type arguments in this instantiated struct (must match the number of parameters
-  /// in the underlying generic base struct).
-  size_t NumTypeArgs;
-  /// New []'d array of pointers to the type arguments. This is null if this RecordDecl
-  /// isn't the result of an instantiation.
-  TypeArgument *TypeArgs;
-  /// Sets the type arguments for an instantiation, as well as 'IsInstantiated' and 'NumTypeArgs'.
-  void setTypeArgs(const ASTContext &C, RecordDecl *BaseDecl, ArrayRef<TypeArgument> NewTypeArgs);
+  /// Type parameters for this record. Empty iff this isn't a type application.
+  std::vector<TypeArgument> TypeArgs;
 
   /// Whether this record represents a delayed type application.
   /// A delayed type application won't contain any fields, until it is completed via 'Sema::CompleteTypeAppFields'.

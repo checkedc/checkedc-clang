@@ -291,7 +291,7 @@ private:
   // corresponding values all have the given RecordDecl as base.
   // e.g. List<T> -> [List<int>, List<List<char>>, List<char>, ...]
   //      Foo<T>  -> [Foo<Foo<int>>, Foo<char>, ...]
-  llvm::DenseMap<RecordDecl *, llvm::SmallVector<RecordDecl *, 4>* >
+  llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4>* >
     DelayedTypeApps;
 
   /// Representation of a "canonical" template template parameter that
