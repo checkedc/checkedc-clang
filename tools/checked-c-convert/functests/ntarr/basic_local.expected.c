@@ -6,7 +6,7 @@ int main() {
   // as NTArr
   // we use this as an argument
   // to string function.
-  _Ptr<char> a;
+  _Nt_array_ptr<char> a;
   // c should be identified as 
   // ARR as we assign it the return value of
   // string function use it.
