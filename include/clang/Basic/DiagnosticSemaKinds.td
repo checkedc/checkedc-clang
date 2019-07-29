@@ -9995,6 +9995,7 @@ def err_bounds_type_annotation_lost_checking : Error<
     "type arguments only supported for variables and function names right now">;
 
   // TODO: describe cycle in error message
+  // See https://github.com/microsoft/checkedc-clang/issues/644
   def err_expanding_cycle : Error<
 	"expanding cycle in struct definition">;
 
