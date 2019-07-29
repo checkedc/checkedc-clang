@@ -992,12 +992,14 @@ bool ProgramInfo::handleFunctionSubtyping() {
       auto defRetType = getHighest(defCVar->getReturnVars(), *this);
       auto declRetType = getHighest(declCVar->getReturnVars(), *this);
 
-      ConstAtom *targetDeclType = nullptr;
+      PVConstraint *toChangeVar = nullptr;
+      ConstAtom *targetConstAtom = nullptr;
 
       if(defRetType->hasWild(CS.getVariables())) {
         // the function is returning WILD with in the body.
         // make the declaration type also WILD.
-        targetDeclType = CS.getWild();
+        targetConstAtom = CS.getWild();
+        toChangeVar = dyn_cast<PVConstraint>(declRetType);
       } else if(!defRetType->hasWild(envMap) && !declRetType->hasWild(envMap)) {
         // okay, both declaration and definition are checked types.
         // here we should apply the sub-typing relation.
@@ -1007,15 +1009,16 @@ bool ProgramInfo::handleFunctionSubtyping() {
           //  here PTR is not a subtype of ARR
           // Oh, definition is more restrictive than declaration.
           // promote the type of definition to higher type.
-          targetDeclType = declRetType->getHighestType(envMap);
+          toChangeVar = dyn_cast<PVConstraint>(defRetType);
+          targetConstAtom = declRetType->getHighestType(envMap);
         }
       }
 
       // should we change the type of the declaration return?
-      if(targetDeclType != nullptr) {
-        if (PVConstraint *PVC = dyn_cast<PVConstraint>(defRetType)){
+      if(targetConstAtom != nullptr && toChangeVar != nullptr) {
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(toChangeVar)){
           for (const auto &B : PVC->getCvars()) {
-            CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), targetDeclType));
+            CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), targetConstAtom));
           }
         }
         retVal = true;
