@@ -282,17 +282,18 @@ private:
   /// Mapping from (generic record decl, type arguments) pairs to instantiated record decls.
   /// e.g. (List, int) -> List<int>
   /// This keeps tracks of all type applications both so we can preserve the uniqueness invariant
-  /// for decls and types, and also so we can typecheck gnarly recursive applications.
+  /// for decls and types, and also so we can typecheck complex recursive applications.
   llvm::DenseMap<std::pair<const RecordDecl *, ArrayRef<const Type *> >, RecordDecl *>
     CachedTypeApps;
 
-  // Mapping from record decls to list of delayed type applications.
-  // The key is a declaration or definition of the generic RecordDecl, and the
-  // corresponding values all have the given RecordDecl as base.
-  // e.g. List<T> -> [List<int>, List<List<char>>, List<char>, ...]
-  //      Foo<T>  -> [Foo<Foo<int>>, Foo<char>, ...]
-  llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4>* >
-    DelayedTypeApps;
+  /// Mapping from RecordDecls to list of delayed type applications.
+  /// The key is a declaration or definition of the generic RecordDecl, and the
+  /// corresponding values all have the given RecordDecl as base.
+  /// e.g. List<T> -> [List<int>, List<List<char>>, List<char>, ...]
+  ///      Foo<T>  -> [Foo<Foo<int>>, Foo<char>, ...]
+  /// A delayed type application is represented as a RecordDecl for which RecordDecl::isInstantiated()
+  /// returns 'true'. The parameters in a type application can be retrieved via RecordDecl::typeParams().
+  llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4>* > DelayedTypeApps;
 
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
@@ -3106,7 +3107,7 @@ public:
   /// Get the list of type applications that have 'Base' as their base RecordDecl.
   ArrayRef<RecordDecl *> getDelayedTypeApps(RecordDecl *Base);
 
-  /// Add 'TypeApp' to the cache using its base field as key.
+  /// Add TypeApp to the cache using TypeApp's base field as the key.
   void addDelayedTypeApp(RecordDecl *TypeApp);
 
   /// Remove all type applications that have 'Base' as their base RecordDecl.
