@@ -4186,7 +4186,7 @@ RecordDecl *RecordDecl::Create(const ASTContext &C,
                                SourceLocation StartLoc,
                                SourceLocation IdLoc,
                                IdentifierInfo *Id,
-                               RecordDecl* PrevDecl,
+                               RecordDecl *PrevDecl,
                                ArrayRef<TypedefDecl*> TypeParams,
                                RecordDecl *BaseDecl,
                                ArrayRef<TypeArgument> TypeArgs) {

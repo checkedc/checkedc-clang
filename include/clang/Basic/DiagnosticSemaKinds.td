@@ -9997,7 +9997,7 @@ def err_bounds_type_annotation_lost_checking : Error<
   // TODO: describe cycle in error message.
   // See https://github.com/microsoft/checkedc-clang/issues/644
   def err_expanding_cycle : Error<
-	"expanding cycle in struct definition">;
+    "expanding cycle in struct definition">;
 
 } // end of Checked C Category
 } // end of sema component.

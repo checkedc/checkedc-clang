@@ -3293,7 +3293,7 @@ std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(Sour
   }
   ConsumeToken(); // consume '>' token
 
-  return std::make_pair<>(false, typeArgumentInfos);
+  return std::make_pair(false, typeArgumentInfos);
 }
 
 // Parse a generic type argument list for a function application.  The suffix of postfix expression can

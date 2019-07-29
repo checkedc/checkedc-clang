@@ -2250,7 +2250,7 @@ public:
                  bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
                  bool IsTypeSpecifier, bool IsTemplateParamOrArg,
                  SkipBodyInfo *SkipBody = nullptr,
-                 ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*> { nullptr, 0} );
+                 ArrayRef<TypedefDecl *> TypeParams = ArrayRef<TypedefDecl *> {nullptr, 0} );
 
   Decl *ActOnTemplatedFriendTag(Scope *S, SourceLocation FriendLoc,
                                 unsigned TagSpec, SourceLocation TagLoc,
@@ -4875,7 +4875,7 @@ public:
 
   ExprResult ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocation Loc, ArrayRef<TypeArgument> Args);
 
-  RecordDecl *ActOnRecordTypeApplication(RecordDecl* Base, ArrayRef<TypeArgument> TypeArgs);
+  RecordDecl *ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs);
 
   /// Complete a delayed type application by populating the record's fields with the right types.
   /// Should only be called once per delayed 'RecordDecl'.

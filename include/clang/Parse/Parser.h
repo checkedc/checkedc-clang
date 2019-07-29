@@ -2647,8 +2647,7 @@ private:
   void ParseAtomicSpecifier(DeclSpec &DS);
   void ParseCheckedPointerSpecifiers(DeclSpec & DS);
   void ParseForanySpecifier(DeclSpec &DS);
-  bool ParseForanySpecifierHelper(DeclSpec &DS,
-                                            Scope::ScopeFlags S);
+  bool ParseForanySpecifierHelper(DeclSpec &DS, Scope::ScopeFlags S);
   void ParseItypeforanySpecifier(DeclSpec &DS);
 
   ExprResult ParseAlignArgument(SourceLocation Start,

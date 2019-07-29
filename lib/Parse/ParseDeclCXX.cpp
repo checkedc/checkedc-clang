@@ -1648,7 +1648,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   // Checked C - handle generic structs.
   if (Tok.is(tok::kw__For_any)) {
-    // TODO: add error handling here
+    // TODO: add error handling here.
     unsigned DiagID;
     const char *PrevSpec;
     DS.setSpecForany(Tok.getLocation(), PrevSpec, DiagID);
@@ -1926,7 +1926,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     // must make sure to add the struct to the parent scope instead.
     // The type parameters scope is removed later in 'ParseDeclOrFunctionDefInternal'.
     assert(getCurScope()->isForanyScope() == DS.isForanySpecified());
-    Scope* structScope = getCurScope()->isForanyScope() ? getCurScope()->getParent() : getCurScope();
+    Scope *structScope = getCurScope()->isForanyScope() ? getCurScope()->getParent() : getCurScope();
 
     // Declaration or definition of a class type
     TagOrTempResult = Actions.ActOnTag(
@@ -1942,7 +1942,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     // Checked C: a reference to a struct can be followed by a list of type arguments,
     // if the struct is generic.
     if (TagOrTempResult.isUsable() && TUK == Sema::TUK_Reference) {
-      RecordDecl* Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get()->getCanonicalDecl());
+      RecordDecl *Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get()->getCanonicalDecl());
       if (Decl && Decl->isGeneric()) {
         // We're parsing a reference to a generic struct, so we need to parse
         // the type arguments before we can instantiate.
@@ -2047,7 +2047,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///
 ///  type-name-list-suffix
 ///    ',' type-name type-name-list-suffix [opt]
-DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base) {
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl *Base) {
   assert(Base->isGeneric() && "Instantiated record must be generic");
   ExpectAndConsume(tok::less); // eat the initial '<'
   auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
