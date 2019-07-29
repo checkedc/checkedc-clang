@@ -464,7 +464,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(anyConstrained && Defn->isLt(*Decl, Info)) {
+      if(anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
         // if definition is more precise
         // than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
