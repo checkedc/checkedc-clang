@@ -15272,7 +15272,7 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
                      bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
                      bool IsTypeSpecifier, bool IsTemplateParamOrArg,
                      SkipBodyInfo *SkipBody,
-                     ArrayRef<TypedefDecl*> TypeParams) {
+                     ArrayRef<TypedefDecl *> TypeParams) {
   // If this is not a definition, it must have a name.
   IdentifierInfo *OrigName = Name;
   assert((Name != nullptr || TUK == TUK_Definition) &&

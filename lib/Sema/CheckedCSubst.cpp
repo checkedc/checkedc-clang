@@ -97,8 +97,8 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
   }
 
   // Notice we pass dummy location arguments, since the type application doesn't exist in user code.
-  RecordDecl* Inst = RecordDecl::Create(ctx, Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
-    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)) /* TypeParams */, Base, TypeArgs);
+  RecordDecl *Inst = RecordDecl::Create(ctx, Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
+    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl *>(nullptr, static_cast<size_t>(0)) /* TypeParams */, Base, TypeArgs);
 
   // Cache the application early on before we tinker with the fields, in case
   // one of the fields refers back to the application.
@@ -130,11 +130,11 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
 
   auto Defn = Incomplete->baseDecl()->getDefinition();
   assert(Defn && "The record definition should be populated at this point");
-  for (auto Field : Defn->fields()) {
+  for (auto *Field : Defn->fields()) {
     QualType InstType = SubstituteTypeArgs(Field->getType(), Incomplete->typeArgs());
     assert(!InstType.isNull() && "Subtitution of type args failed!");
     // TODO: are TypeSouceInfo and InstType in sync?
-    FieldDecl* NewField = FieldDecl::Create(Field->getASTContext(), Incomplete, SourceLocation(), SourceLocation(),
+    FieldDecl *NewField = FieldDecl::Create(Field->getASTContext(), Incomplete, SourceLocation(), SourceLocation(),
       Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
     Incomplete->addDecl(NewField);
   }
@@ -400,13 +400,12 @@ public:
     return Result;
   }
 
-  Decl* TransformDecl(SourceLocation Loc, Decl* D) {
+  Decl *TransformDecl(SourceLocation Loc, Decl *D) {
     RecordDecl *RDecl;
     if ((RDecl = dyn_cast<RecordDecl>(D)) && RDecl->isInstantiated()) {
       llvm::SmallVector<TypeArgument, 4> NewArgs;
-      ArrayRef<TypeArgument> OrigArgs = RDecl->typeArgs();
-      for (auto TArg = OrigArgs.begin(); TArg != OrigArgs.end(); ++TArg) {
-        auto NewType = SemaRef.SubstituteTypeArgs(TArg->typeName, TypeArgs);
+      for (auto TArg : RDecl->typeArgs()) {
+        auto NewType = SemaRef.SubstituteTypeArgs(TArg.typeName, TypeArgs);
         auto *SourceInfo = getSema().Context.getTrivialTypeSourceInfo(NewType, getDerived().getBaseLocation());
         NewArgs.push_back(TypeArgument { NewType, SourceInfo });
       }

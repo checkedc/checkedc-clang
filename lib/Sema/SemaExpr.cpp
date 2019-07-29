@@ -5692,8 +5692,7 @@ ExprResult Sema::ActOnCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
       }
       // In an unchecked scope, pass void types as the type arguments.
       if (DeclRefExpr *DR = dyn_cast<DeclRefExpr>(Fn)) {
-        SmallVector<TypeArgument, 4>
-           typeArgumentInfos;
+        SmallVector<TypeArgument, 4> typeArgumentInfos;
         const FunctionProtoType *FPT = DR->getType()->getAs<FunctionProtoType>();
         unsigned count = FPT->getNumTypeVars();
         for (unsigned int i = 0; i < count; i++) {

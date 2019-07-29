@@ -1019,9 +1019,7 @@ bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
   return false;
 }
 
-bool DeclSpec::setSpecForany(SourceLocation Loc,
-                                        const char *&PrevSpec,
-                                        unsigned &DiagID) {
+bool DeclSpec::setSpecForany(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID) {
   if (FS_itypeforany_specified) {
     PrevSpec = "_Itype_for_any";
     DiagID = diag::err_invalid_decl_spec_combination;
@@ -1037,9 +1035,7 @@ bool DeclSpec::setSpecForany(SourceLocation Loc,
   return false;
 }
 
-bool DeclSpec::setSpecItypeforany(SourceLocation Loc,
-                                              const char *&PrevSpec,
-                                              unsigned &DiagID) {
+bool DeclSpec::setSpecItypeforany(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID) {
   if (FS_forany_specified) {
     PrevSpec = "_For_any";
     DiagID = diag::err_invalid_decl_spec_combination;
