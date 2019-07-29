@@ -133,7 +133,7 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
   for (auto Field : Defn->fields()) {
     QualType InstType = SubstituteTypeArgs(Field->getType(), Incomplete->typeArgs());
     assert(!InstType.isNull() && "Subtitution of type args failed!");
-    // TODO(abeln): are TypeSouceInfo and InstType in sync?
+    // TODO: are TypeSouceInfo and InstType in sync?
     FieldDecl* NewField = FieldDecl::Create(Field->getASTContext(), Incomplete, SourceLocation(), SourceLocation(),
       Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
     Incomplete->addDecl(NewField);

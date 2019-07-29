@@ -9994,7 +9994,7 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_type_args_limited : Error<
     "type arguments only supported for variables and function names right now">;
 
-  // TODO(abeln): describe cycle in error message
+  // TODO: describe cycle in error message
   def err_expanding_cycle : Error<
 	"expanding cycle in struct definition">;
 

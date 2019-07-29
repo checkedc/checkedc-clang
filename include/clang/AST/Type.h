@@ -1452,7 +1452,7 @@ public:
 /// or record.
 struct TypeArgument {
   QualType typeName;
-  TypeSourceInfo* sourceInfo;
+  TypeSourceInfo *sourceInfo;
 };
 
 /// The base class of the type hierarchy.
