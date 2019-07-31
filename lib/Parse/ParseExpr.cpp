@@ -3263,7 +3263,7 @@ ExprResult Parser::ParseBoundsExpression() {
 std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(SourceLocation Loc) {
   Parser::TypeArgVector typeArgumentInfos;
   auto err = std::make_pair<>(true, Parser::TypeArgVector());
-  bool firstTypeArgument = true;
+  auto firstTypeArgument = true;
   // Expect to see a list of type names, followed by a '>'.
   while (Tok.getKind() != tok::greater) {
     if (!firstTypeArgument) {

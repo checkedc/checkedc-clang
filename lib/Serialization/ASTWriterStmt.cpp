@@ -495,8 +495,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
 
   if (isGenericFunction || isItypeGenericFunction) {
     Record.push_back(E->GetTypeArgumentInfo()->typeArgumentss().size());
-    for (TypeArgument tn :
-         E->GetTypeArgumentInfo()->typeArgumentss()) {
+    for (auto tn : E->GetTypeArgumentInfo()->typeArgumentss()) {
       Record.AddTypeRef(tn.typeName);
       Record.AddTypeSourceInfo(tn.sourceInfo);
     }

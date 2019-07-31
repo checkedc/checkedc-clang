@@ -84,15 +84,15 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
   auto &ctx = Base->getASTContext();
 
   // Unwrap the type arguments from a 'TypeArgument' to the underlying 'Type *'.
-  auto RawArgs = new (ctx) llvm::SmallVector<const Type *, 4>();
+  llvm::SmallVector<const Type *, 4> RawArgs;
   for (auto TArg : TypeArgs) {
-    RawArgs->push_back(TArg.typeName.getTypePtr());
+    RawArgs.push_back(TArg.typeName.getTypePtr());
   }
 
   // If possible, just retrieve the application from the cache.
   // This is needed not only for performance, but for correctness to handle
   // recursive references in type applications (e.g. a list which contains a list as a field).
-  if (auto Cached = ctx.getCachedTypeApp(Base, *RawArgs)) {
+  if (auto Cached = ctx.getCachedTypeApp(Base, RawArgs)) {
     return Cached;   
   }
 
@@ -102,7 +102,7 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
 
   // Cache the application early on before we tinker with the fields, in case
   // one of the fields refers back to the application.
-  ctx.addCachedTypeApp(Base, *RawArgs, Inst);
+  ctx.addCachedTypeApp(Base, RawArgs, Inst);
 
   auto Defn = Base->getDefinition();
   if (Defn && Defn->isCompleteDefinition()) {
@@ -110,7 +110,7 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
     // the type application.
     CompleteTypeAppFields(Inst);
   } else {
-    // If the definition isn't available, it might be because we're typing a recursive field declaration: e.g.
+    // If the definition isn't available, it might be because we're typing a recursive struct declaration: e.g.
     // struct List _For_any(T) {
     //   struct List<T> *next;
     //   T *head;
@@ -151,8 +151,8 @@ namespace {
   // 'Expanding' indicates whether any of the edges taken to arrive to (BaseRecordDecl, TypeArgIndex) is expanding ('Expanding = 1')
   // or if they're all non-expanding ('Expanding = 0'). 
   using Node = std::pair<std::pair<const RecordDecl *, int>, char>;
-  const char NON_EXPANDING = 0;
-  const char EXPANDING = 1;
+  constexpr char NON_EXPANDING = 0;
+  constexpr char EXPANDING = 1;
 
   // Retrieve the underlying type variable from a typedef that appears as the param to a generic record.
   const TypeVariableType *GetTypeVar(TypedefDecl *TDef) {
@@ -209,9 +209,9 @@ namespace {
     // The worklist where the new nodes will be inserted.
     std::stack<Node> &Worklist;
     // The type variable that we're looking for in embedded type applications.
-    const TypeVariableType *TypeVar;
+    const TypeVariableType *TypeVar = nullptr;
     // Whether the path so far contains at least one expanding edge.
-    char ExpandingSoFar;
+    bool ExpandingSoFar = false;
     // A visitor object to find out whether a type variable is referenced within a given type.
     ContainsTypeVarVisitor ContainsVisitor;
 
@@ -303,7 +303,7 @@ namespace {
 // we sometimes substitute a type variable for another type variable, and in those cases we
 // want to re-build 'TypeLocs', but not do further substitutions.
 // e.g.
-//   struct Box _For_any(U) { T *x; }
+//   struct Box _For_any(U) { U *x; }
 //   struct List _For_any(T) { struct Box<T> box; }
 //
 // When typing 'Box<T>', we need to substitute 'T' for 'U' in 'Box'.

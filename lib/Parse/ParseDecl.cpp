@@ -4200,7 +4200,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   // We are guessing that most structure declarations have 4 or fewer members
   // with bounds expressions on them.
   SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
- 
+
   // While we still have something to read, read the declarations in the struct.
   while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
          Tok.isNot(tok::eof)) {
@@ -4354,7 +4354,7 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
     }
   }
 
-  // Checked C: complete delayed type applications.
+  // Checked C: complete delayed generic type applications.
   auto RecDecl = llvm::dyn_cast<RecordDecl>(TagDecl);
   if (RecDecl && RecDecl->isGeneric()) {
     auto Base = llvm::dyn_cast<RecordDecl>(RecDecl->getCanonicalDecl());
@@ -4373,7 +4373,8 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
       // to instantiate a 'List' record for which we don't know the set of fields
       // (specifically, we don't know that it contains a second 'tail2' field).
       //
-      // The solution is to initially create "dummy" 'RecordDecls' for 'tail1' and 'tail2'.
+      // The solution is to initially create a "dummy" RecordDecl to represent 'List<T>'
+      // and give the 'tail1' and 'tail2' fields that type.
       // After *all* fields have been parsed, then we can fill in the fields of the dummy RecordDecls.
       auto Delayed = Actions.getASTContext().getDelayedTypeApps(Base);
       for (auto TypeApp : Delayed) Actions.CompleteTypeAppFields(TypeApp);

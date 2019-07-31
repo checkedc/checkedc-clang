@@ -4163,8 +4163,7 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
       TypeParams(TypeParams.begin(), TypeParams.end()),
       BaseDecl(BaseDecl),
-      TypeArgs(TypeArgs.begin(), TypeArgs.end()),
-      IsDelayed(false) {
+      TypeArgs(TypeArgs.begin(), TypeArgs.end()) {
   assert(classof(static_cast<Decl *>(this)) && "Invalid Kind!");
   assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
   assert(!(isInstantiated() ^ static_cast<bool>(BaseDecl)) && "Must provide both base decl and type arguments, or neither");

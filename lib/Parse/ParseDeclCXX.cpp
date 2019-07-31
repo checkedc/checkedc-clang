@@ -2036,7 +2036,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   }
 }
 
-/// Checked C: parse an application of the 'Base' 'RecorDecl' to a number of type
+/// Checked C: parse an application of the 'Base' 'RecordDecl' to a number of type
 /// arguments that are yet to be parsed.
 ///
 /// generic-struct-instantiation

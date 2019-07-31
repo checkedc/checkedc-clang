@@ -4027,7 +4027,7 @@ private:
 
   /// Whether this record represents a delayed type application.
   /// A delayed type application won't contain any fields, until it is completed via 'Sema::CompleteTypeAppFields'.
-  bool IsDelayed;
+  bool IsDelayed = false;
 };
 
 class FileScopeAsmDecl : public Decl {

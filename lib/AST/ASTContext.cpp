@@ -11193,7 +11193,10 @@ void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *>
   assert(Base == Base->getCanonicalDecl() && "Expected key to be canonical decl");
   assert(Base == Inst->baseDecl() && "Base decl must match in key and value");
   assert((getCachedTypeApp(Base, TypeArgs) == nullptr) && "Type application is already cached");
-  CachedTypeApps.insert(std::make_pair(std::make_pair(Base, TypeArgs), Inst));
+  // Copy the storage backing up the type arguments, since we'll potentially continue to query the map
+  // after `TypeArgs` has been de-allocated (e.g. if `TypeArgs` was allocated on the stack).
+  auto TypeArgsCopy = new (*this) llvm::SmallVector<const Type *, 4>(TypeArgs.begin(), TypeArgs.end());
+  CachedTypeApps.insert(std::make_pair(std::make_pair(Base, ArrayRef<const Type *>(*TypeArgsCopy)), Inst));
 }
 
 ArrayRef<RecordDecl *> ASTContext::getDelayedTypeApps(RecordDecl *Base) {
