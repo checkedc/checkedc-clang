@@ -11204,23 +11204,23 @@ ArrayRef<RecordDecl *> ASTContext::getDelayedTypeApps(RecordDecl *Base) {
   assert(Base->getCanonicalDecl() == Base && "Key should be a canonical decl");
   auto Iter = DelayedTypeApps.find(Base);
   if (Iter == DelayedTypeApps.end()) return ArrayRef<RecordDecl *>();
-  return ArrayRef<RecordDecl *>(*Iter->second);
+  return ArrayRef<RecordDecl *>(Iter->second);
 }
 
 void ASTContext::addDelayedTypeApp(RecordDecl *TypeApp) {
   assert(TypeApp->isInstantiated() && TypeApp->isDelayedTypeApp() && "Expected a delayed type application");
   auto Base = TypeApp->baseDecl();
   assert(Base->getCanonicalDecl() == Base && "Base should be a canonical decl");
-  llvm::SmallVector<RecordDecl *, 4> *Delayed = nullptr;
   auto Iter = DelayedTypeApps.find(Base);
   if (Iter == DelayedTypeApps.end()) {
-    Delayed = new (*this) llvm::SmallVector<RecordDecl *, 4>();
-    DelayedTypeApps.insert(std::make_pair(Base, Delayed));
-  } else {
-    Delayed = Iter->second;
+    // This is the first type application added with 'Base' as key.
+    DelayedTypeApps.insert(std::make_pair(Base, llvm::SmallVector<RecordDecl *, 4>()));
   }
-  // Invariant: at this point the delayed map contains the mapping Base -> Delayed.
-  Delayed->push_back(TypeApp);
+  Iter = DelayedTypeApps.find(Base);
+  assert(Iter != DelayedTypeApps.end() && "Expected key to be found");
+  // Take a reference so we can modify the vector stored in the map (as opposed to a copy).
+  llvm::SmallVector<RecordDecl *, 4> &Delayed = Iter->second;
+  Delayed.push_back(TypeApp);
 }
 
 bool ASTContext::removeDelayedTypeApps(RecordDecl *Base) {

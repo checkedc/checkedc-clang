@@ -293,7 +293,7 @@ private:
   ///      Foo<T>  -> [Foo<Foo<int>>, Foo<char>, ...]
   /// A delayed type application is represented as a RecordDecl for which RecordDecl::isInstantiated()
   /// returns 'true'. The parameters in a type application can be retrieved via RecordDecl::typeParams().
-  llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4>* > DelayedTypeApps;
+  llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4> > DelayedTypeApps;
 
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
