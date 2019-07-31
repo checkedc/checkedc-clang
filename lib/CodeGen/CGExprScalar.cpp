@@ -2344,15 +2344,6 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
                                            bool isInc, bool isPre) {
   QualType type = E->getSubExpr()->getType();
 
-  // Add a dynamic check for pointer arithmetic of null pointers.
-  if (type->isCheckedPointerType() || type->isCheckedArrayType()) {
-    LValueBaseInfo BaseInfo;
-    TBAAAccessInfo TBAAInfo;
-    Address Addr = CGF.EmitPointerWithAlignment(E->getSubExpr(),
-                                                &BaseInfo, &TBAAInfo);
-    CGF.EmitDynamicNonNullCheck(Addr, type);
-  }
-
   llvm::PHINode *atomicPHI = nullptr;
   llvm::Value *value;
   llvm::Value *input;
@@ -2436,6 +2427,15 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
 
   // Next most common: pointer increment.
   } else if (const PointerType *ptr = type->getAs<PointerType>()) {
+    // Add a dynamic check for pointer arithmetic on null pointers.
+    if (type->isCheckedPointerType() || type->isCheckedArrayType()) {
+      LValueBaseInfo BaseInfo;
+      TBAAAccessInfo TBAAInfo;
+      Address Addr = CGF.EmitPointerWithAlignment(E->getSubExpr(),
+                                                  &BaseInfo, &TBAAInfo);
+      CGF.EmitDynamicNonNullCheck(Addr, type);
+    }
+
     QualType type = ptr->getPointeeType();
 
     // VLA types don't have constant size.
