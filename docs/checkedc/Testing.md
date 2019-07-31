@@ -53,6 +53,34 @@ The clang-specific documentation on running tests appears to be out-of-date, so 
 
 		llvm-lit d:\autobahn1\llvm\tools\clang\test
 
+### Running lit tests for ARM
+By default, the lit tests are built and run for the native X86 target.  But you
+can also build and run them for other targets. Currently, we support lit
+testing for ARM. Here is how you enable ARM lit testing:
+
+- Configure the Checked C compiler
+  Specify these two CMake options when configuring the compiler during the
+build step:
+
+    `-DCHECKEDC_ARM_SYSROOT=<sysroot>` Specify the path to the top of an ARM
+sysroot which contains the ARM-specific headers and runtime libs.
+
+    `-DCHECKEDC_ARM_RUNUNDER=<device>` Specify the device to run the arm lit
+tests on. For example, specify this as `qemu-arm` in order to run the tests on
+the ARM QEMU.
+
+    NOTE: If you want to run the tests on the QEMU, make sure that the QEMU is
+installed on the host machine.
+
+- Run lit for ARM
+  Once you have built the Checked C compiler, this is how you would invoke lit
+for ARM testing:
+
+    `llvm-lit d:\autobahn1\llvm\projects\checkedc-wrapper\checkedc\tests -DCHECKEDC_TARGET=ARM`
+
+NOTE: LIT testing for ARM is only supported for tests under the directory
+`llvm\projects\checkedc-wrapper\checkedc\tests`.
+
 ### Unexpected test failures and line endings
 
 If you see unexpected test failures when working on Windows using unchanged
