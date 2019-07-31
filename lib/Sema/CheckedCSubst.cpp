@@ -307,6 +307,8 @@ namespace {
 //   struct List _For_any(T) { struct Box<T> box; }
 //
 // When typing 'Box<T>', we need to substitute 'T' for 'U' in 'Box'.
+// T and U end up with the same representation in the IR because we use an
+// index-based representation for variables, not a name-based representation.
 class LocRebuilderTransform : public TreeTransform<LocRebuilderTransform> {
 public:
   LocRebuilderTransform(Sema& SemaRef) : TreeTransform<LocRebuilderTransform>(SemaRef) {}

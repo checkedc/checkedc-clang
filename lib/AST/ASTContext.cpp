@@ -11184,12 +11184,14 @@ APFixedPoint ASTContext::getFixedPointMin(QualType Ty) const {
 }
 
 RecordDecl *ASTContext::getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs) {
-  auto it = CachedTypeApps.find(std::make_pair(Base, TypeArgs));
+  assert(Base != nullptr && "Base decl shouldn't be null");
+  const auto it = CachedTypeApps.find(std::make_pair(Base, TypeArgs));
   if (it == CachedTypeApps.end()) return nullptr;
   return it->second;
 }
 
 void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst) {
+  assert(Base != nullptr && Inst != nullptr && "Decls shouldn't be null");
   assert(Base == Base->getCanonicalDecl() && "Expected key to be canonical decl");
   assert(Base == Inst->baseDecl() && "Base decl must match in key and value");
   assert((getCachedTypeApp(Base, TypeArgs) == nullptr) && "Type application is already cached");
@@ -11200,14 +11202,16 @@ void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *>
 }
 
 ArrayRef<RecordDecl *> ASTContext::getDelayedTypeApps(RecordDecl *Base) {
+  assert(Base != nullptr && "Base decl shouldn't be null");
   assert(Base->isGeneric() && "Expected a generic struct");
   assert(Base->getCanonicalDecl() == Base && "Key should be a canonical decl");
-  auto Iter = DelayedTypeApps.find(Base);
+  const auto Iter = DelayedTypeApps.find(Base);
   if (Iter == DelayedTypeApps.end()) return ArrayRef<RecordDecl *>();
   return ArrayRef<RecordDecl *>(Iter->second);
 }
 
 void ASTContext::addDelayedTypeApp(RecordDecl *TypeApp) {
+  assert(TypeApp != nullptr && "Type application decl shouldn't be null");
   assert(TypeApp->isInstantiated() && TypeApp->isDelayedTypeApp() && "Expected a delayed type application");
   auto Base = TypeApp->baseDecl();
   assert(Base->getCanonicalDecl() == Base && "Base should be a canonical decl");
@@ -11224,6 +11228,7 @@ void ASTContext::addDelayedTypeApp(RecordDecl *TypeApp) {
 }
 
 bool ASTContext::removeDelayedTypeApps(RecordDecl *Base) {
+  assert(Base != nullptr && "Base decl shouldn't be null");
   assert(Base->isGeneric() && "Expected a generic struct");
   assert(Base->getCanonicalDecl() == Base && "Key should be a canonical decl");
   return DelayedTypeApps.erase(Base);

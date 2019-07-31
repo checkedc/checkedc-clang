@@ -1567,8 +1567,7 @@ void ASTDumper::VisitCastExpr(const CastExpr *Node) {
 void ASTDumper::VisitDeclRefExpr(const DeclRefExpr *Node) {
   if (Node->GetTypeArgumentInfo() &&
       !Node->GetTypeArgumentInfo()->typeArgumentss().empty()) {
-    for (TypeArgument tn :
-         Node->GetTypeArgumentInfo()->typeArgumentss()) {
+    for (const auto& tn : Node->GetTypeArgumentInfo()->typeArgumentss()) {
       dumpTypeAsChild(tn.typeName);
     }
   }
