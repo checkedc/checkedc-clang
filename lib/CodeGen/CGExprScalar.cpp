@@ -2319,6 +2319,17 @@ static BinOpInfo createBinOpInfoFromIncDec(const UnaryOperator *E,
   return BinOp;
 }
 
+static void emitDynamicNonNullCheck(CodeGenFunction &CGF, Expr *E) {
+  const auto Ty = E->getType();
+  if (!Ty->isCheckedPointerType() && !Ty->isCheckedArrayType())
+    return;
+
+  LValueBaseInfo BaseInfo;
+  TBAAAccessInfo TBAAInfo;
+  const auto Addr = CGF.EmitPointerWithAlignment(E, &BaseInfo, &TBAAInfo);
+  CGF.EmitDynamicNonNullCheck(Addr, Ty);
+}
+
 llvm::Value *ScalarExprEmitter::EmitIncDecConsiderOverflowBehavior(
     const UnaryOperator *E, llvm::Value *InVal, bool IsInc) {
   llvm::Value *Amount =
@@ -2427,14 +2438,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
 
   // Next most common: pointer increment.
   } else if (const PointerType *ptr = type->getAs<PointerType>()) {
-    // Add a dynamic check for pointer arithmetic on null pointers.
-    if (type->isCheckedPointerType() || type->isCheckedArrayType()) {
-      LValueBaseInfo BaseInfo;
-      TBAAAccessInfo TBAAInfo;
-      Address Addr = CGF.EmitPointerWithAlignment(E->getSubExpr(),
-                                                  &BaseInfo, &TBAAInfo);
-      CGF.EmitDynamicNonNullCheck(Addr, type);
-    }
+    // Insert a dynamic check for arithmetic on null checked pointers.
+    emitDynamicNonNullCheck(CGF, E->getSubExpr());
 
     QualType type = ptr->getPointeeType();
 
@@ -3170,6 +3175,9 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
     std::swap(pointer, index);
     std::swap(pointerOperand, indexOperand);
   }
+
+  // Insert a dynamic check for arithmetic on null checked pointers.
+  emitDynamicNonNullCheck(CGF, pointerOperand);
 
   bool isSigned = indexOperand->getType()->isSignedIntegerOrEnumerationType();
 
