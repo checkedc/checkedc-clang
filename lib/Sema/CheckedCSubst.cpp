@@ -161,12 +161,16 @@ namespace {
     return TypeVar;
   }
 
-  // A 'TypeVisitor' that determines whether a type references a given type variable.
-  // e.g. ContainsTypeVar('T').Visit('List<T>') -> true
-  //      ContainsTypeVar('T').Visit('List<int>') -> false
+  /// A 'TypeVisitor' that determines whether a type references a given type variable.
+  /// e.g. ContainsTypeVar('T').Visit('List<T>') -> true
+  ///      ContainsTypeVar('T').Visit('List<int>') -> false
   class ContainsTypeVarVisitor : public TypeVisitor<ContainsTypeVarVisitor, bool> {
-    // The type variable we're searching for.
+    /// The type variable we're searching for.
     const TypeVariableType *TypeVar;
+
+    bool VisitQualType(QualType Type) {
+      return Visit(Type.getTypePtr());
+    }
 
   public:
     ContainsTypeVarVisitor(const TypeVariableType *TypeVar): TypeVar(TypeVar) {}
@@ -176,44 +180,67 @@ namespace {
     }
 
     bool VisitPointerType(const PointerType *Type) {
-      return Visit(Type->getPointeeType().getTypePtr());
+      return VisitQualType(Type->getPointeeType());
     }
 
     bool VisitElaboratedType(const ElaboratedType *Type) {
-      return Visit(Type->getNamedType().getTypePtr());
+      return VisitQualType(Type->getNamedType());
     }
 
     bool VisitTypedefType(const TypedefType *Type) {
-      return Visit(Type->desugar().getTypePtr());
+      return VisitQualType(Type->desugar());
+    }
+
+    // Needed when a function pointer contains a generic type:
+    // e.g. 'struct F _For_any(T) { void (*f)(struct F<struct F<T> >); };'
+    bool VisitParenType(const ParenType *Type) {
+      return VisitQualType(Type->getInnerType());
     }
 
     bool VisitRecordType(const RecordType *Type) {
       auto RDecl = Type->getDecl();
       if (!RDecl->isInstantiated()) return false;
       for (auto TArg : RDecl->typeArgs()) {
-        if (Visit(TArg.typeName.getTypePtr())) return true;
+        if (VisitQualType(TArg.typeName)) return true;
       }
       return false;
     }
+
+    // Needed for K&R style functions where we don't know the arguments.
+    bool VisitFunctionType(const FunctionType *Type) {
+      return VisitQualType(Type->getReturnType());
+    }
+
+    bool VisitFunctionProtoType(const FunctionProtoType *Type) {
+      auto numParams = Type->getNumParams();
+      for (unsigned int i = 0; i < numParams; ++i) {
+        if (VisitQualType(Type->getParamType(i))) return true;
+      }
+      return VisitQualType(Type->getReturnType());
+    }
   };
 
-  // A 'TypeVisitor' that, given a type and a type variable, generates out-edges from the  
-  // type variable in the expanding cycles graph.
-  // To generate the edges, we need to destruct the given type and find within it all type
-  // applications where the variable appears. The resulting edges are "expanding" or "non-expanding"
-  // depending on whether the variable appears at the top level as a type argument.
-  //
-  // The new edges aren't returned; instead, they're added as a side effect to the
-  // 'Worklist' argument in the constructor.
+  /// A 'TypeVisitor' that, given a type and a type variable, generates out-edges from the
+  /// type variable in the expanding cycles graph.
+  /// To generate the edges, we need to destruct the given type and find within it all type
+  /// applications where the variable appears. The resulting edges are "expanding" or "non-expanding"
+  /// depending on whether the variable appears at the top level as a type argument.
+  ///
+  /// The new edges aren't returned; instead, they're added as a side effect to the
+  /// 'Worklist' argument in the constructor.
   class ExpandingEdgesVisitor : public TypeVisitor<ExpandingEdgesVisitor> {
-    // The worklist where the new nodes will be inserted.
+    /// The worklist where the new nodes will be inserted.
     std::stack<Node> &Worklist;
-    // The type variable that we're looking for in embedded type applications.
+    /// The type variable that we're looking for in embedded type applications.
     const TypeVariableType *TypeVar = nullptr;
-    // Whether the path so far contains at least one expanding edge.
+    /// Whether the path so far contains at least one expanding edge.
     bool ExpandingSoFar = false;
-    // A visitor object to find out whether a type variable is referenced within a given type.
+    /// A visitor object to find out whether a type variable is referenced within a given type.
     ContainsTypeVarVisitor ContainsVisitor;
+
+    void VisitQualType(QualType Type) {
+      Visit(Type.getTypePtr());
+    }
 
   public:
   
@@ -248,11 +275,32 @@ namespace {
     }
 
     void VisitPointerType(const PointerType *Type) {
-      Visit(Type->getPointeeType().getTypePtr());
+      VisitQualType(Type->getPointeeType());
     }
 
     void VisitElaboratedType(const ElaboratedType *Type) {
-      Visit(Type->getNamedType().getTypePtr());
+      VisitQualType(Type->getNamedType());
+    }
+
+    void VisitTypedefType(const TypedefType *Type) {
+      VisitQualType(Type->desugar());
+    }
+
+    // Needed for K&R style functions where we don't know the arguments.
+    void VisitFunctionType(const FunctionType *Type) {
+      VisitQualType(Type->getReturnType());
+    }
+
+    void VisitFunctionProtoType(const FunctionProtoType *Type) {
+      auto numParams = Type->getNumParams();
+      for (unsigned int i = 0; i < numParams; ++i) {
+        VisitQualType(Type->getParamType(i));
+      }
+      VisitQualType(Type->getReturnType());
+    }
+
+    void VisitParenType(const ParenType *Type) {
+      VisitQualType(Type->getInnerType());
     }
   };
 }
