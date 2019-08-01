@@ -364,7 +364,8 @@ CODEGENOPT(BranchTargetEnforcement, 1, 0)
 /// Whether to emit unused static constants.
 CODEGENOPT(KeepStaticConsts, 1, 0)
 
-CODEGENOPT(CheckedCRuntimeChecks, 1, 0) ///< Insert Checked C runtime checks.
+/// Whether to add runtime checks for checkedc.
+CODEGENOPT(CheckedCRuntimeChecks, 1, 0)
 
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
