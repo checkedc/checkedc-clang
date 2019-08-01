@@ -54,6 +54,9 @@ void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr, const Qual
   if (!getLangOpts().CheckedC)
     return;
 
+  if (!CGM.getCodeGenOpts().CheckedCRuntimeChecks)
+    return;
+
   if (!(BaseTy->isCheckedPointerType() || BaseTy->isCheckedArrayType()))
     return;
 

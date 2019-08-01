@@ -1322,6 +1322,8 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
 
   Opts.DefaultFunctionAttrs = Args.getAllArgValues(OPT_default_function_attr);
 
+  Opts.CheckedCRuntimeChecks = Args.hasArg(OPT_fcheckedc_runtime_checks);
+
   return Success;
 }
 

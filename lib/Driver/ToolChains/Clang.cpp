@@ -4721,6 +4721,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fno_checkedc_extension);
   Args.AddLastArg(CmdArgs, options::OPT_fdump_inferred_bounds);
 
+  Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_runtime_checks,
+                           options::OPT_fno_checkedc_runtime_checks);
+
   // -fno-declspec is default, except for PS4.
   if (Args.hasFlag(options::OPT_fdeclspec, options::OPT_fno_declspec,
                    RawTriple.isPS4()))

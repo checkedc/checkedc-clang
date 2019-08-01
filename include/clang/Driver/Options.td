@@ -2621,6 +2621,12 @@ def fintegrated_as : Flag<["-"], "fintegrated-as">, Flags<[DriverOption]>,
 def fno_integrated_as : Flag<["-"], "fno-integrated-as">,
                         Flags<[CC1Option, DriverOption]>, Group<f_Group>,
                         HelpText<"Disable the integrated assembler">;
+
+def fcheckedc_runtime_checks : Flag<["-"], "fcheckedc-runtime-checks">,
+  Group<f_Group>, Flags<[CC1Option]>;
+def fno_checkedc_runtime_checks : Flag<["-"], "fno-checkedc-runtime-checks">,
+  Group<f_Group>, Flags<[CC1Option]>;
+
 def : Flag<["-"], "integrated-as">, Alias<fintegrated_as>, Flags<[DriverOption]>;
 def : Flag<["-"], "no-integrated-as">, Alias<fno_integrated_as>,
       Flags<[CC1Option, DriverOption]>;
