@@ -4158,15 +4158,15 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
                        IdentifierInfo *Id,
                        RecordDecl *PrevDecl,
                        ArrayRef<TypedefDecl*> TypeParams,
-                       RecordDecl *BaseDecl,
+                       RecordDecl *GenericBaseDecl,
                        ArrayRef<TypeArgument> TypeArgs)
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
       TypeParams(TypeParams.begin(), TypeParams.end()),
-      BaseDecl(BaseDecl),
+      GenericBaseDecl(GenericBaseDecl),
       TypeArgs(TypeArgs.begin(), TypeArgs.end()) {
   assert(classof(static_cast<Decl *>(this)) && "Invalid Kind!");
   assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
-  assert(!(isInstantiated() ^ static_cast<bool>(BaseDecl)) && "Must provide both base decl and type arguments, or neither");
+  assert(!(isInstantiated() ^ static_cast<bool>(GenericBaseDecl)) && "Must provide both base decl and type arguments, or neither");
   setHasFlexibleArrayMember(false);
   setAnonymousStructOrUnion(false);
   setHasObjectMember(false);
@@ -4187,10 +4187,10 @@ RecordDecl *RecordDecl::Create(const ASTContext &C,
                                IdentifierInfo *Id,
                                RecordDecl *PrevDecl,
                                ArrayRef<TypedefDecl*> TypeParams,
-                               RecordDecl *BaseDecl,
+                               RecordDecl *GenericBaseDecl,
                                ArrayRef<TypeArgument> TypeArgs) {
   RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
-                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams, BaseDecl, TypeArgs);
+                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams, GenericBaseDecl, TypeArgs);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
 
   C.getTypeDeclType(R, PrevDecl);
@@ -4348,8 +4348,8 @@ bool RecordDecl::isInstantiated() const {
   return !TypeArgs.empty();
 }
 
-RecordDecl *RecordDecl::baseDecl() const {
-  return BaseDecl;
+RecordDecl *RecordDecl::genericBaseDecl() const {
+  return GenericBaseDecl;
 }
 
 ArrayRef<TypeArgument> RecordDecl::typeArgs() const {

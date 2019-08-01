@@ -3779,7 +3779,7 @@ protected:
              IdentifierInfo *Id,
              RecordDecl *PrevDecl,
              ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
-             RecordDecl *BaseDecl = nullptr,
+             RecordDecl *GenericBaseDecl = nullptr,
              ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
 
 public:
@@ -3791,7 +3791,7 @@ public:
                             IdentifierInfo *Id,
                             RecordDecl *PrevDecl = nullptr,
                             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
-                            RecordDecl *BaseDecl = nullptr,
+                            RecordDecl *GenericBaseDecl = nullptr,
                             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
@@ -3992,7 +3992,7 @@ public:
   /// Whether the record is a (fully) instantiated generic.
   bool isInstantiated() const;
   /// If this is an instantiated RecordDecl, return the underlying generic RecordDecl.
-  RecordDecl *baseDecl() const;
+  RecordDecl *genericBaseDecl() const;
   /// Returns the record's type arguments.
   /// If there are no type arguments, then the array will be empty.
   ArrayRef<TypeArgument> typeArgs() const;
@@ -4021,7 +4021,7 @@ private:
   std::vector<TypedefDecl *> TypeParams;
 
   /// The underlying generic RecordDecl that was instantiated.
-  RecordDecl *BaseDecl;
+  RecordDecl *GenericBaseDecl;
   /// Type parameters for this record. Empty iff this isn't a type application.
   std::vector<TypeArgument> TypeArgs;
 

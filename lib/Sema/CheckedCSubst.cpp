@@ -128,7 +128,7 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
   assert(Incomplete->isInstantiated() && "Only instantiated record decls can be completed");
   assert(Incomplete->field_empty() && "Can't complete record decl with non-empty fields");
 
-  auto Defn = Incomplete->baseDecl()->getDefinition();
+  auto Defn = Incomplete->genericBaseDecl()->getDefinition();
   assert(Defn && "The record definition should be populated at this point");
   for (auto *Field : Defn->fields()) {
     QualType InstType = SubstituteTypeArgs(Field->getType(), Incomplete->typeArgs());
@@ -255,7 +255,7 @@ namespace {
     void VisitRecordType(const RecordType *Type) {
       auto InstDecl = Type->getDecl();
       if (!InstDecl->isInstantiated()) return;
-      auto BaseDecl = InstDecl->baseDecl();
+      auto BaseDecl = InstDecl->genericBaseDecl();
       assert(InstDecl->typeArgs().size() == BaseDecl->typeParams().size() && "Number of type args and params must match");
       auto NumArgs = InstDecl->typeArgs().size();
       for (size_t i = 0; i < NumArgs; i++) {
@@ -467,7 +467,7 @@ public:
         auto *SourceInfo = getSema().Context.getTrivialTypeSourceInfo(NewType, getDerived().getBaseLocation());
         NewArgs.push_back(TypeArgument { NewType, SourceInfo });
       }
-      auto *Res = SemaRef.ActOnRecordTypeApplication(RDecl->baseDecl(), ArrayRef<TypeArgument>(NewArgs));
+      auto *Res = SemaRef.ActOnRecordTypeApplication(RDecl->genericBaseDecl(), ArrayRef<TypeArgument>(NewArgs));
       return Res;
     } else {
       return BaseTransform::TransformDecl(Loc, D);

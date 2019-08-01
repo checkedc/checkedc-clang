@@ -11193,7 +11193,7 @@ RecordDecl *ASTContext::getCachedTypeApp(const RecordDecl *Base, ArrayRef<const 
 void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst) {
   assert(Base != nullptr && Inst != nullptr && "Decls shouldn't be null");
   assert(Base == Base->getCanonicalDecl() && "Expected key to be canonical decl");
-  assert(Base == Inst->baseDecl() && "Base decl must match in key and value");
+  assert(Base == Inst->genericBaseDecl() && "Base decl must match in key and value");
   assert((getCachedTypeApp(Base, TypeArgs) == nullptr) && "Type application is already cached");
   // Copy the storage backing up the type arguments, since we'll potentially continue to query the map
   // after `TypeArgs` has been de-allocated (e.g. if `TypeArgs` was allocated on the stack).
@@ -11213,7 +11213,7 @@ ArrayRef<RecordDecl *> ASTContext::getDelayedTypeApps(RecordDecl *Base) {
 void ASTContext::addDelayedTypeApp(RecordDecl *TypeApp) {
   assert(TypeApp != nullptr && "Type application decl shouldn't be null");
   assert(TypeApp->isInstantiated() && TypeApp->isDelayedTypeApp() && "Expected a delayed type application");
-  auto Base = TypeApp->baseDecl();
+  auto Base = TypeApp->genericBaseDecl();
   assert(Base->getCanonicalDecl() == Base && "Base should be a canonical decl");
   auto Iter = DelayedTypeApps.find(Base);
   if (Iter == DelayedTypeApps.end()) {
