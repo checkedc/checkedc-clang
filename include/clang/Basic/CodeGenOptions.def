@@ -365,7 +365,7 @@ CODEGENOPT(BranchTargetEnforcement, 1, 0)
 CODEGENOPT(KeepStaticConsts, 1, 0)
 
 /// Whether to add runtime checks for checkedc.
-CODEGENOPT(CheckedCRuntimeChecks, 1, 0)
+CODEGENOPT(CheckedCRuntimeChecks, 1, 1)
 
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
