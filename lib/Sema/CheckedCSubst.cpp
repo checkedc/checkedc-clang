@@ -218,6 +218,10 @@ namespace {
       }
       return VisitQualType(Type->getReturnType());
     }
+
+    bool VisitArrayType(const ArrayType *Type) {
+      return VisitQualType(Type->getElementType());
+    }
   };
 
   /// A 'TypeVisitor' that, given a type and a type variable, generates out-edges from the
@@ -301,6 +305,10 @@ namespace {
 
     void VisitParenType(const ParenType *Type) {
       VisitQualType(Type->getInnerType());
+    }
+
+    void VisitArrayType(const ArrayType *Type) {
+      VisitQualType(Type->getElementType());
     }
   };
 }
