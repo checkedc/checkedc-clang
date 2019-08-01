@@ -1491,6 +1491,8 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
 
 namespace {
   class CheckBoundsDeclarations {
+  public:
+    typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
   private:
     Sema &S;
     bool DumpBounds;
@@ -2519,7 +2521,7 @@ namespace {
       Cfg(Cfg),
       ReturnBounds(ReturnBounds) {}
 
-    typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
+    
 
     void IdentifyChecked(Stmt *S, StmtSet &CheckedStmts, bool InCheckedScope) {
       if (!S)
@@ -3285,6 +3287,167 @@ namespace {
   };
 }
 
+namespace {
+class AvailableExprAnalysis {
+private:
+  Sema &S;
+  CFG *Cfg;
+  typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
+  typedef llvm::SmallPtrSet<const Expr *, 16> ExprSet;
+  typedef llvm::SmallPtrSet<const CFGBlock *, 16> CFGBlockSet;
+
+  llvm::DenseMap<Stmt *, ExprSet> AvailableIn;
+  llvm::DenseMap<Stmt *, ExprSet> AvailableOut;
+  llvm::DenseMap<Stmt *, ExprSet> Kill;
+  llvm::DenseMap<Stmt *, ExprSet> Gen;
+  CFGBlockSet WorkList;
+  ExprSet AllComparisons;
+
+public:
+  AvailableExprAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg) {}
+
+  void Analyze() {
+    assert(Cfg && "expected CFG to exist");
+
+    StmtSet NestedElements;
+    FindNestedElements(NestedElements);
+
+    llvm::outs() << "NESTED ELEMENTS:\n";
+    for (auto E : NestedElements)
+      E->dumpPretty(S.Context);
+    llvm::outs() << "....\n";
+
+    PostOrderCFGView POView = PostOrderCFGView(Cfg);
+    for (const CFGBlock *Block : POView) {
+      WorkList.insert(Block);
+      for (CFGElement Elem : *Block) {
+        if (Elem.getKind() == CFGElement::Statement) {
+          CFGStmt CS = Elem.castAs<CFGStmt>();
+          Stmt *St = const_cast<Stmt *>(CS.getStmt());
+          if (NestedElements.find(St) != NestedElements.end())
+            continue;
+
+          ExprSet AllExprsInS, AllComparisonsInS;
+          llvm::SmallPtrSet<const VarDecl *, 16> DefinedVariables;
+          CollectExpressionsInStmt(St, NestedElements, AllExprsInS, AllComparisonsInS, DefinedVariables);
+          AllComparisons.insert(AllComparisons.begin(), AllComparisons.end());
+
+
+          llvm::outs() << "stats:\n" << "allexprsHere: " << AllExprsInS.size() << ", allcomparesHere: " << AllComparisonsInS.size() << ", defined variables: " << DefinedVariables.size() << "\n";
+          for (auto E : AllExprsInS)
+          { E->dumpPretty(S.Context); llvm::outs() << "\n";}
+          llvm::outs() << "---\n\n";
+          for (auto E : AllComparisonsInS)
+            { E->dumpPretty(S.Context); llvm::outs() << "\n";}
+          llvm::outs() << "---\n\n";
+          for (auto E : DefinedVariables)
+            E->dump();
+          llvm::outs() << "----------\n\n";
+
+          AvailableIn.insert(std::pair<Stmt *, ExprSet>(St, ExprSet()));
+          AvailableOut.insert(std::pair<Stmt *, ExprSet>(St, ExprSet()));
+
+          // gen and kill sets
+          ExprSet KillSet;
+          for (const Expr *E : AllComparisonsInS) {
+            for (const VarDecl *V : DefinedVariables) {
+              if (DoesExprContainsVar(E, V))
+                KillSet.insert(E);
+            }
+          }
+
+          Kill.insert(std::pair<Stmt *, ExprSet>(St, KillSet));
+          Gen.insert(std::pair<Stmt *, ExprSet>(St, AllComparisonsInS));
+        }
+      }
+    }
+    // so far, we have all the expressions.
+    // we have populated the WorkList.
+    // we have genSets
+
+    // initialize avail-out to all expressions
+    for (std::pair<Stmt *, ExprSet> &Element : AvailableOut)
+      Element.second = AllComparisons;
+  }
+
+  bool DoesExprContainsVar(const Expr *E, const VarDecl *V) {
+    ExprSet Exprs, DummyC;
+    llvm::SmallPtrSet<const VarDecl *, 16> DummyDV;
+    StmtSet DummySet;
+    CollectExpressionsInStmt(E, DummySet, Exprs, DummyC, DummyDV);
+    for (auto E : Exprs)
+      if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E))
+        if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl()))
+          if (VD == V)
+            return true;
+    return false;
+  }
+
+private:
+  void CollectExpressionsInStmt(const Stmt *S, StmtSet &NestedElements, ExprSet &AllExprs, ExprSet &ComparisonExprs, llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars) {
+    if (!S)
+      return;
+    bool IsNested = NestedElements.find(S) != NestedElements.end();
+    if (const Expr *E = dyn_cast<Expr>(S)) {
+      if (!IsNested)
+        AllExprs.insert(E);
+      if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(E)) {
+        if (BO->isComparisonOp() && !IsNested)
+          ComparisonExprs.insert(E);
+        else if (BO->isAssignmentOp()) {
+          Expr *LHS = BO->getLHS()->ignoreParenBaseCasts()->IgnoreImpCasts();
+          if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS)) {
+            if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl())) {
+              DefinedVars.insert(V);
+            }
+          }
+        }
+      }
+    }
+
+    auto Begin = S->child_begin(), End = S->child_end();
+    for (auto I = Begin; I != End; ++I)
+      CollectExpressionsInStmt(*I, NestedElements, AllExprs, ComparisonExprs, DefinedVars);
+  }
+
+  void MarkNested(const Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
+    auto Begin = S->child_begin(), End = S->child_end();
+    for (auto I = Begin; I != End; ++I) {
+      const Stmt *Child = *I;
+      if (!Child)
+        continue;
+      if (TopLevelElems.find(Child) != TopLevelElems.end())
+        NestedExprs.insert(Child);
+        MarkNested(Child, NestedExprs, TopLevelElems);
+    }
+  }
+
+  void FindNestedElements(StmtSet &NestedStmts) {
+    StmtSet TopLevelElems;
+    for (const CFGBlock *Block : *Cfg) {
+      for (CFGElement Elem : *Block) {
+        if (Elem.getKind() == CFGElement::Statement) {
+          CFGStmt CS = Elem.castAs<CFGStmt>();
+          const Stmt *S = CS.getStmt();
+           TopLevelElems.insert(S);
+        }
+      }
+    }
+
+    for (const CFGBlock *Block : *Cfg) {
+      for (CFGElement Elem : *Block) {
+        if (Elem.getKind() == CFGElement::Statement) {
+          CFGStmt CS = Elem.castAs<CFGStmt>();
+          const Stmt *S = CS.getStmt();
+          MarkNested(S, NestedStmts, TopLevelElems);
+        }
+      }
+    }
+  }
+
+};
+}
+
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   if (Body == nullptr)
     return;
@@ -3301,8 +3464,11 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   ComputeBoundsDependencies(Tracker, FD, Body);
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
   CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr());
-  if (Cfg != nullptr)
+  AvailableExprAnalysis Collector(*this, Cfg.get());
+  if (Cfg != nullptr) {
+    Collector.Analyze();
     Checker.TraverseCFG();
+  }
   else
     // A CFG couldn't be constructed.  CFG construction doesn't support
     // __finally or may encounter a malformed AST.  Fall back on to non-flow 
