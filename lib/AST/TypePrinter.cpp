@@ -1303,7 +1303,18 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
 }
 
 void TypePrinter::printRecordBefore(const RecordType *T, raw_ostream &OS) {
-  printTag(T->getDecl(), OS);
+  auto Decl = T->getDecl();
+  printTag(Decl, OS);
+  if (Decl->isInstantiated()) {
+    OS << "<";
+    auto HasPrev = false;
+    for (auto TArg : Decl->typeArgs()) {
+      if (HasPrev) OS << ", ";
+      print(TArg.typeName, OS, "");
+      HasPrev = true;
+    }
+    OS << ">";
+  }
 }
 
 void TypePrinter::printRecordAfter(const RecordType *T, raw_ostream &OS) {}

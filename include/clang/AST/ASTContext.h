@@ -3100,6 +3100,11 @@ public:
   /// If it's not cached, return 'nullptr'.
   RecordDecl *getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs);
 
+  /// Return all type applications that have the given generic decl as base.
+  /// This is currently slow since it iterates over all cached type applications.
+  /// TODO: improve its efficiency.
+  std::vector<const RecordDecl *> getTypeAppsWithBase(const RecordDecl *Base);
+
   /// Add the instantiated record type 'Inst' as the result of the type application 'Base<TypeArgs>'.
   /// Cached applications shouldn't be overwritten, so this should be called at most once per key.
   void addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst);

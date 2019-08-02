@@ -598,6 +598,12 @@ void ASTDumper::VisitRecordDecl(const RecordDecl *D) {
   NodeDumper.dumpName(D);
   if (D->isModulePrivate())
     OS << " __module_private__";
+  // If the record is generic, it's ok to print only the number of type parameters,
+  // becaue the type variables are already printed _before_ the record declaration is dumped.
+  if (D->isGeneric())
+    OS << " _For_any(" << D->typeParams().size() << ")";
+  // TODO: handle 'itype_forany' case here when structs support generic interop types.
+  if (D->isInstantiated()) NodeDumper.dumpType(D->getASTContext().getTypeDeclType(D));
   if (D->isCompleteDefinition())
     OS << " definition";
 }

@@ -100,6 +100,10 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
   RecordDecl *Inst = RecordDecl::Create(ctx, Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
     Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl *>(nullptr, static_cast<size_t>(0)) /* TypeParams */, Base, TypeArgs);
 
+  // Add the new instance to the base's context, so that the instance is discoverable
+  // by AST traversal operations: e.g. the AST dumper.
+  Base->getDeclContext()->addDecl(Inst);
+
   // Cache the application early on before we tinker with the fields, in case
   // one of the fields refers back to the application.
   ctx.addCachedTypeApp(Base, RawArgs, Inst);

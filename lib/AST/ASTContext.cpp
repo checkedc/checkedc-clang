@@ -11190,6 +11190,17 @@ RecordDecl *ASTContext::getCachedTypeApp(const RecordDecl *Base, ArrayRef<const 
   return it->second;
 }
 
+std::vector<const RecordDecl *> ASTContext::getTypeAppsWithBase(const RecordDecl *Base) {
+  std::vector<const RecordDecl *> TypeApps;
+  for (const auto Iter : CachedTypeApps) {
+    auto Key = Iter.getFirst();
+    // The key is a pair (generic base, type application).
+    // The value ('Iter.getSecond()') is the corresponding (instantiated) RecordDecl.
+    if (Key.first == Base) TypeApps.push_back(Iter.getSecond());
+  }
+  return TypeApps;
+}
+
 void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst) {
   assert(Base != nullptr && Inst != nullptr && "Decls shouldn't be null");
   assert(Base == Base->getCanonicalDecl() && "Expected key to be canonical decl");
