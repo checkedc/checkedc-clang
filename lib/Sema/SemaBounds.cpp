@@ -3298,9 +3298,9 @@ private:
   typedef std::queue<const CFGBlock *> CFGBlockQueue;
 
   llvm::DenseMap<const CFGBlock *, ExprSet> In;
-  llvm::DenseMap<const CFGBlock *, ExprSet> Out;
+  llvm::DenseMap<const CFGBlock *, ExprSet> OutThen, OutElse;
   llvm::DenseMap<const CFGBlock *, ExprSet> Kill;
-  llvm::DenseMap<const CFGBlock *, ExprSet> Gen;
+  llvm::DenseMap<const CFGBlock *, ExprSet> GenThen, GenElse;
   CFGBlockQueue WorkList;
 
 public:
@@ -3318,9 +3318,11 @@ public:
     for (const CFGBlock *Block : POView) {
       // initialize In, Out, Kill, and Gen sets for each CFGBlock
       In.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
-      Out.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+      OutThen.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+      OutElse.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
       Kill.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
-      Gen.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+      GenThen.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+      GenElse.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
 
       // initialize the worklist
       WorkList.push(Block);
@@ -3329,10 +3331,10 @@ public:
       if (const Stmt *Term = Block->getTerminator()) {
         if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Block->getTerminatorCondition()))
           if (BO->isComparisonOp())
-            Gen[Block].insert(BO);
+            GenThen[Block].insert(BO);
       }
       // Collect all the conditions across all CFGBlocks
-      AllConditions.insert(Gen[Block].begin(), Gen[Block].end());
+      AllConditions.insert(GenThen[Block].begin(), GenThen[Block].end());
     }
 
     // compute kill sets
@@ -3361,7 +3363,8 @@ public:
     while (!WorkList.empty()) {
       const CFGBlock *CurrentBlock = WorkList.front();
       WorkList.pop();
-      auto OldVal = Out[CurrentBlock];
+      auto OldValThen = OutThen[CurrentBlock];
+      auto OldValElse = OutElse[CurrentBlock];
       
       llvm::outs() << "WORKING ON BLOCK #" << CurrentBlock->getBlockID() << ":\n";
       llvm::outs() << "InSet before update: ";
@@ -3369,12 +3372,38 @@ public:
         E->dumpPretty(S.Context); llvm::outs() << ", ";
       }
       llvm::outs() << "\n";
+
       // Update InSet
-      ExprSet IntermediateIntersecions = Out[*(CurrentBlock->pred_begin())];
+      ExprSet IntermediateIntersecionsNormal = OutThen[*(CurrentBlock->pred_begin())];
+      for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
+        // if this pred has < 2 successors --> no else branch, we are good!
+        if ((*I)->succ_size() < 2) {
+          IntermediateIntersecionsNormal = Intersect(IntermediateIntersecionsNormal, OutThen[*I]);
+        }
+      }
+      In[CurrentBlock] = IntermediateIntersecionsNormal;
+
+
+      ExprSet IntermediateIntersecionsBranch = IntermediateIntersecionsNormal;
+      for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
+        // if this pred has == 2 successors --> then-else branches
+        if ((*I)->succ_size() == 2) {
+          // it is first --> then
+          if (*((*I)->succ_begin()) == CurrentBlock)
+            IntermediateIntersecionsBranch = Intersect(IntermediateIntersecionsBranch, OutThen[*I]);
+          // it is second --> else
+          if (*(((*I)->succ_begin())+1) == CurrentBlock)
+            IntermediateIntersecionsBranch = Intersect(IntermediateIntersecionsBranch, OutElse[*I]);
+          //IntermediateIntersecionsThen = Intersect(IntermediateIntersecionsThen, OutThen[*I]);
+        }
+      }
+      In[CurrentBlock] = Intersect(IntermediateIntersecionsNormal, IntermediateIntersecionsBranch);
+
+      /*ExprSet IntermediateIntersecions = Out[*(CurrentBlock->pred_begin())];
       for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
         IntermediateIntersecions = Intersect(IntermediateIntersecions, Out[*I]);
       }
-      In[CurrentBlock] = IntermediateIntersecions;
+      In[CurrentBlock] = IntermediateIntersecions;*/
 
       llvm::outs() << "InSet after update: ";
       for (auto E : In[CurrentBlock]) {
@@ -3382,24 +3411,43 @@ public:
       }
       llvm::outs() << "\n";
       // Update OutSet
-            llvm::outs() << "OutSet before update: ";
-      for (auto E : Out[CurrentBlock]) {
+      llvm::outs() << "OutThen before update: ";
+      for (auto E : OutThen[CurrentBlock]) {
+        E->dumpPretty(S.Context); llvm::outs() << ", ";
+      }
+      llvm::outs() << "\n";
+      llvm::outs() << "OutElse before update: ";
+      for (auto E : OutElse[CurrentBlock]) {
         E->dumpPretty(S.Context); llvm::outs() << ", ";
       }
       llvm::outs() << "\n";
 
-      Out[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), Gen[CurrentBlock]);
-            llvm::outs() << "OutSet after update: ";
-      for (auto E : Out[CurrentBlock]) {
+      OutThen[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), GenThen[CurrentBlock]);
+      OutElse[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), GenElse[CurrentBlock]);
+
+       llvm::outs() << "OutThen after update: ";
+      for (auto E : OutThen[CurrentBlock]) {
         E->dumpPretty(S.Context); llvm::outs() << ", ";
       }
       llvm::outs() << "\n";
-      if (!SetEqual(Out[CurrentBlock], OldVal)) {
+      llvm::outs() << "OutElse after update: ";
+      for (auto E : OutElse[CurrentBlock]) {
+        E->dumpPretty(S.Context); llvm::outs() << ", ";
+      }
+      llvm::outs() << "\n";
+
+
+      if (!SetEqual(OutElse[CurrentBlock], OldValElse)) {
         // Add the successors
         for (CFGBlock::const_pred_iterator I = CurrentBlock->succ_begin(), E = CurrentBlock->succ_end(); I != E; ++I) {
           WorkList.push(*I);
         }
-        
+      }
+      if (!SetEqual(OutThen[CurrentBlock], OldValThen)) {
+        // Add the successors
+        for (CFGBlock::const_pred_iterator I = CurrentBlock->succ_begin(), E = CurrentBlock->succ_end(); I != E; ++I) {
+          WorkList.push(*I);
+        }
       }
     }
 
@@ -3413,8 +3461,13 @@ public:
         E->dumpPretty(S.Context);
         llvm::outs() << "\n";
       }
-      llvm::outs() << "Out set:\n";
-      for (auto E : Out[Block]) {
+      llvm::outs() << "OutThen set:\n";
+      for (auto E : OutThen[Block]) {
+        E->dumpPretty(S.Context);
+        llvm::outs() << "\n";
+      }
+      llvm::outs() << "OutElse set:\n";
+      for (auto E : OutElse[Block]) {
         E->dumpPretty(S.Context);
         llvm::outs() << "\n";
       }
@@ -3423,8 +3476,13 @@ public:
         E->dumpPretty(S.Context);
         llvm::outs() << "\n";
       }
-      llvm::outs() << "Gen set:\n";
-      for (auto E : Gen[Block]) {
+      llvm::outs() << "GenThen set:\n";
+      for (auto E : GenThen[Block]) {
+        E->dumpPretty(S.Context);
+        llvm::outs() << "\n";
+      }
+      llvm::outs() << "GenElse set:\n";
+      for (auto E : GenElse[Block]) {
         E->dumpPretty(S.Context);
         llvm::outs() << "\n";
       }
