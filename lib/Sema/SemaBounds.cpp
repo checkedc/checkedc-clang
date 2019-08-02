@@ -3308,13 +3308,9 @@ public:
 
   void Analyze() {
     assert(Cfg && "expected CFG to exist");
-    ExprSet AllComparisons;
-    StmtSet NestedElements;
-    FindNestedElements(NestedElements);
+    ExprSet AllConditions;
 
     PostOrderCFGView POView = PostOrderCFGView(Cfg);
-
-    ExprSet AllConditions;
     for (const CFGBlock *Block : POView) {
       // initialize In, Out, Kill, and Gen sets for each CFGBlock
       In.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
@@ -3329,9 +3325,10 @@ public:
 
       // compute Gen sets
       if (const Stmt *Term = Block->getTerminator()) {
-        if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Block->getTerminatorCondition()))
-          if (BO->isComparisonOp())
-            GenThen[Block].insert(BO);
+        if(const IfStmt *IS = dyn_cast<IfStmt>(Term))
+          if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Block->getTerminatorCondition()))
+            if (BO->isComparisonOp())
+              GenThen[Block].insert(BO);
       }
       // Collect all the conditions across all CFGBlocks
       AllConditions.insert(GenThen[Block].begin(), GenThen[Block].end());
@@ -3347,9 +3344,8 @@ public:
       ExprSet AllExprsInThisBlock, AllComparisonsInThisBlock;
       llvm::SmallPtrSet<const VarDecl *, 16> DefinedVarsInThisBlock;
       for (auto St : AllStmtsInThisBlock) {
-        ExprSet AllExprsInSt, AllComparisonsInSt;
         llvm::SmallPtrSet<const VarDecl *, 16> DefinedVarsInSt;
-        CollectExpressionsInStmt(St, NestedElements, AllExprsInSt, AllComparisonsInSt, DefinedVarsInSt);
+        CollectDefinedVarsInStmt(St, DefinedVarsInSt);
         DefinedVarsInThisBlock.insert(DefinedVarsInSt.begin(), DefinedVarsInSt.end());
       }
 
@@ -3365,13 +3361,6 @@ public:
       WorkList.pop();
       auto OldValThen = OutThen[CurrentBlock];
       auto OldValElse = OutElse[CurrentBlock];
-      
-      llvm::outs() << "WORKING ON BLOCK #" << CurrentBlock->getBlockID() << ":\n";
-      llvm::outs() << "InSet before update: ";
-      for (auto E : In[CurrentBlock]) {
-        E->dumpPretty(S.Context); llvm::outs() << ", ";
-      }
-      llvm::outs() << "\n";
 
       // Update InSet
       ExprSet IntermediateIntersecionsNormal = OutThen[*(CurrentBlock->pred_begin())];
@@ -3383,7 +3372,6 @@ public:
       }
       In[CurrentBlock] = IntermediateIntersecionsNormal;
 
-
       ExprSet IntermediateIntersecionsBranch = IntermediateIntersecionsNormal;
       for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
         // if this pred has == 2 successors --> then-else branches
@@ -3394,64 +3382,21 @@ public:
           // it is second --> else
           if (*(((*I)->succ_begin())+1) == CurrentBlock)
             IntermediateIntersecionsBranch = Intersect(IntermediateIntersecionsBranch, OutElse[*I]);
-          //IntermediateIntersecionsThen = Intersect(IntermediateIntersecionsThen, OutThen[*I]);
         }
       }
       In[CurrentBlock] = Intersect(IntermediateIntersecionsNormal, IntermediateIntersecionsBranch);
 
-      /*ExprSet IntermediateIntersecions = Out[*(CurrentBlock->pred_begin())];
-      for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
-        IntermediateIntersecions = Intersect(IntermediateIntersecions, Out[*I]);
-      }
-      In[CurrentBlock] = IntermediateIntersecions;*/
-
-      llvm::outs() << "InSet after update: ";
-      for (auto E : In[CurrentBlock]) {
-        E->dumpPretty(S.Context); llvm::outs() << ", ";
-      }
-      llvm::outs() << "\n";
       // Update OutSet
-      llvm::outs() << "OutThen before update: ";
-      for (auto E : OutThen[CurrentBlock]) {
-        E->dumpPretty(S.Context); llvm::outs() << ", ";
-      }
-      llvm::outs() << "\n";
-      llvm::outs() << "OutElse before update: ";
-      for (auto E : OutElse[CurrentBlock]) {
-        E->dumpPretty(S.Context); llvm::outs() << ", ";
-      }
-      llvm::outs() << "\n";
-
       OutThen[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), GenThen[CurrentBlock]);
       OutElse[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), GenElse[CurrentBlock]);
 
-       llvm::outs() << "OutThen after update: ";
-      for (auto E : OutThen[CurrentBlock]) {
-        E->dumpPretty(S.Context); llvm::outs() << ", ";
-      }
-      llvm::outs() << "\n";
-      llvm::outs() << "OutElse after update: ";
-      for (auto E : OutElse[CurrentBlock]) {
-        E->dumpPretty(S.Context); llvm::outs() << ", ";
-      }
-      llvm::outs() << "\n";
-
-
-      if (!SetEqual(OutElse[CurrentBlock], OldValElse)) {
-        // Add the successors
-        for (CFGBlock::const_pred_iterator I = CurrentBlock->succ_begin(), E = CurrentBlock->succ_end(); I != E; ++I) {
+      // Only add the affected Blocks
+      if (!SetEqual(OutElse[CurrentBlock], OldValElse) || !SetEqual(OutThen[CurrentBlock], OldValThen))
+        for (CFGBlock::const_pred_iterator I = CurrentBlock->succ_begin(), E = CurrentBlock->succ_end(); I != E; ++I)
           WorkList.push(*I);
-        }
-      }
-      if (!SetEqual(OutThen[CurrentBlock], OldValThen)) {
-        // Add the successors
-        for (CFGBlock::const_pred_iterator I = CurrentBlock->succ_begin(), E = CurrentBlock->succ_end(); I != E; ++I) {
-          WorkList.push(*I);
-        }
-      }
     }
 
-//#if DEBUG_DATAFLOW
+#if DEBUG_DATAFLOW
     // print everything we have so far
     for (const CFGBlock *Block : POView) {
       Block->dump();
@@ -3487,7 +3432,7 @@ public:
         llvm::outs() << "\n";
       }
     }
-//#endif
+#endif
   }
 
   // S1 - S2
@@ -3502,10 +3447,10 @@ public:
   }
 
   ExprSet Union(ExprSet S1, ExprSet S2) {
-    if (S2.size() == 0)
-      return S1;
     if (S1.size() == 0)
       return S2;
+    if (S2.size() == 0)
+      return S1;
     ExprSet Result;
     Result.insert(S1.begin(), S1.end());
     Result.insert(S2.begin(), S2.end());
@@ -3513,10 +3458,10 @@ public:
   }
 
   ExprSet Intersect(ExprSet S1, ExprSet S2) {
-    if (S2.size() == 0)
-      return S2;
     if (S1.size() == 0)
       return S1;
+    if (S2.size() == 0)
+      return S2;
     ExprSet Result;
     for (auto E1 : S1)
       if (S2.find(E1) != S2.end())
@@ -3527,48 +3472,38 @@ public:
   bool SetEqual(ExprSet S1, ExprSet S2) {
     if (S1.size() != S2.size())
       return false;
-    for (auto E : S1) {
+    for (auto E : S1)
       if (S2.find(E) == S2.end())
         return false;
-    }
     return true;
   }
 
-  Stmt *getPred(Stmt *St, CFGBlock *Block) {
-    for (CFGElement Elem : *Block) {
-      if (Elem.getKind() == CFGElement::Statement) {
-        CFGStmt CS = Elem.castAs<CFGStmt>();
-        Stmt *St = const_cast<Stmt *>(CS.getStmt());
-      }
-    }
-  }
-
   bool DoesExprContainVar(const Expr *E, const VarDecl *V) {
-    ExprSet Exprs, DummyC;
-    llvm::SmallPtrSet<const VarDecl *, 16> DummyDV;
-    StmtSet DummySet;
-    CollectExpressionsInStmt(E, DummySet, Exprs, DummyC, DummyDV);
-
-    for (auto E : Exprs) {
-      if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
-        if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
-          if (VD == V) {
+    ExprSet Exprs;
+    CollectExpressionsInStmt(E, Exprs);
+    for (auto InnerExpr : Exprs)
+      if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(InnerExpr))
+        if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl()))
+          if (VD == V)
             return true;
-          }
-        }
-      }
-    }
     return false;
   }
 
 private:
-  void CollectExpressionsInStmt(const Stmt *St, StmtSet &NestedElements, ExprSet &AllExprs, ExprSet &ComparisonExprs,
-                                llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars) {
+  void CollectExpressionsInStmt(const Stmt *St, ExprSet &AllExprs) {
     if (!St)
       return;
-    if (const Expr *E = dyn_cast<Expr>(St)) {
+    if (const Expr *E = dyn_cast<Expr>(St))
       AllExprs.insert(E);
-      if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(E)) {
+    for (auto I = St->child_begin(); I != St->child_end(); ++I)
+      CollectExpressionsInStmt(*I, AllExprs);
+  }
+
+  void CollectDefinedVarsInStmt(const Stmt *St, llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars) {
+    if (!St)
+      return;
+
+      if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(St)) {
         if (BO->isAssignmentOp()) {
           Expr *LHS = BO->getLHS()->ignoreParenBaseCasts()->IgnoreImpCasts();
           if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS)) {
@@ -3577,7 +3512,7 @@ private:
             }
           }
         }
-      } else if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(E)) {
+      } else if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(St)) {
         if (UO->isIncrementDecrementOp()) {
           Expr *LHS = UO->getSubExpr()->ignoreParenBaseCasts()->IgnoreImpCasts();
           if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS)) {
@@ -3587,55 +3522,10 @@ private:
           }
         }
       }
-    }
 
-    auto Begin = St->child_begin(), End = St->child_end();
-    for (auto I = Begin; I != End; ++I)
-      CollectExpressionsInStmt(*I, NestedElements, AllExprs, ComparisonExprs, DefinedVars);
+    for (auto I = St->child_begin(); I != St->child_end(); ++I)
+      CollectDefinedVarsInStmt(*I, DefinedVars);
   }
-
-  void MarkNested(const Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
-    auto Begin = S->child_begin(), End = S->child_end();
-    for (auto I = Begin; I != End; ++I) {
-      const Stmt *Child = *I;
-      if (!Child)
-        continue;
-      if (TopLevelElems.find(Child) != TopLevelElems.end())
-        NestedExprs.insert(Child);
-        MarkNested(Child, NestedExprs, TopLevelElems);
-    }
-  }
-
-  // nested elements (and in terminator)
-  void FindNestedElements(StmtSet &NestedStmts) {
-    StmtSet TopLevelElems;
-    for (const CFGBlock *Block : *Cfg) {
-      for (CFGElement Elem : *Block) {
-        if (Elem.getKind() == CFGElement::Statement) {
-          CFGStmt CS = Elem.castAs<CFGStmt>();
-          const Stmt *S = CS.getStmt();
-          TopLevelElems.insert(S);
-        }
-      }
-      if (const Stmt *Term = Block->getTerminator()) {
-        TopLevelElems.insert(Block->getTerminatorCondition());
-      }
-    }
-
-    for (const CFGBlock *Block : *Cfg) {
-      for (CFGElement Elem : *Block) {
-        if (Elem.getKind() == CFGElement::Statement) {
-          CFGStmt CS = Elem.castAs<CFGStmt>();
-          const Stmt *S = CS.getStmt();
-          MarkNested(S, NestedStmts, TopLevelElems);
-        }
-      }
-      if (const Stmt *Term = Block->getTerminator()) {
-        MarkNested(Block->getTerminatorCondition(), NestedStmts, TopLevelElems);
-      }
-    }
-  }
-
 };
 }
 
