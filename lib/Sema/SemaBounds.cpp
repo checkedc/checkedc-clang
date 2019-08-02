@@ -38,6 +38,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "TreeTransform.h"
+#include <queue>
 
 // #define TRACE_CFG 1
 
@@ -3294,13 +3295,13 @@ private:
   CFG *Cfg;
   typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
   typedef llvm::SmallPtrSet<const Expr *, 16> ExprSet;
-  typedef llvm::SmallPtrSet<const CFGBlock *, 16> CFGBlockSet;
+  typedef std::queue<const CFGBlock *> CFGBlockQueue;
 
   llvm::DenseMap<const CFGBlock *, ExprSet> In;
   llvm::DenseMap<const CFGBlock *, ExprSet> Out;
   llvm::DenseMap<const CFGBlock *, ExprSet> Kill;
   llvm::DenseMap<const CFGBlock *, ExprSet> Gen;
-  CFGBlockSet WorkList;
+  CFGBlockQueue WorkList;
 
 public:
   AvailableExprAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg) {}
@@ -3312,34 +3313,29 @@ public:
     FindNestedElements(NestedElements);
 
     PostOrderCFGView POView = PostOrderCFGView(Cfg);
-    
-    // create the worklist
-    for (const CFGBlock *Block : POView) {
-      WorkList.insert(Block);
-    }
 
-    // define in and out, kill and gen
+    ExprSet AllConditions;
     for (const CFGBlock *Block : POView) {
+      // initialize In, Out, Kill, and Gen sets for each CFGBlock
       In.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
       Out.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
       Kill.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
       Gen.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
-    }
 
-    // Collect all conditions, prepare gen sets
-    ExprSet AllConditions;
-    for (const CFGBlock *Block : POView) {
+      // initialize the worklist
+      WorkList.push(Block);
+
+      // compute Gen sets
       if (const Stmt *Term = Block->getTerminator()) {
-        if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Block->getTerminatorCondition())) {
-          if (BO->isComparisonOp()) {
+        if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Block->getTerminatorCondition()))
+          if (BO->isComparisonOp())
             Gen[Block].insert(BO);
-          }
-        }
       }
+      // Collect all the conditions across all CFGBlocks
       AllConditions.insert(Gen[Block].begin(), Gen[Block].end());
     }
 
-    // prepare kill sets
+    // compute kill sets
     for (const CFGBlock *Block : POView) {
       StmtSet AllStmtsInThisBlock;
       for (CFGElement Elem : *Block)
@@ -3361,21 +3357,80 @@ public:
             Kill[Block].insert(E);
     }
 
-    // Main algorithm
-    // reverse post order
-    //while (true) {
+    // Main algorithm, iterative worklist
+    while (!WorkList.empty()) {
+      const CFGBlock *CurrentBlock = WorkList.front();
+      WorkList.pop();
+      auto OldVal = Out[CurrentBlock];
+      
+      llvm::outs() << "WORKING ON BLOCK #" << CurrentBlock->getBlockID() << ":\n";
+      llvm::outs() << "InSet before update: ";
+      for (auto E : In[CurrentBlock]) {
+        E->dumpPretty(S.Context); llvm::outs() << ", ";
+      }
+      llvm::outs() << "\n";
+      // Update InSet
+      ExprSet IntermediateIntersecions = Out[*(CurrentBlock->pred_begin())];
+      for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
+                    llvm::outs() << "computing intersection between: ";
+      for (auto E : Out[*I]) {
+        E->dumpPretty(S.Context); llvm::outs() << ", ";
+      }
+      llvm::outs() << "\n";
+        ExprSet SetIntersect = Intersect(IntermediateIntersecions, Out[*I]);
+        
+        //In[CurrentBlock].insert(Out[*I].begin(), Out[*I].end());
+      }
+      In[CurrentBlock] = IntermediateIntersecions;
+
+      llvm::outs() << "InSet after update: ";
+      for (auto E : In[CurrentBlock]) {
+        E->dumpPretty(S.Context); llvm::outs() << ", ";
+      }
+      llvm::outs() << "\n";
+      // Update OutSet
+            llvm::outs() << "OutSet before update: ";
+      for (auto E : Out[CurrentBlock]) {
+        E->dumpPretty(S.Context); llvm::outs() << ", ";
+      }
+      llvm::outs() << "\n";
+      Out[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), Gen[CurrentBlock]);
+            llvm::outs() << "OutSet after update: ";
+      for (auto E : Out[CurrentBlock]) {
+        E->dumpPretty(S.Context); llvm::outs() << ", ";
+      }
+      llvm::outs() << "\n";
+      if (!SetEqual(Out[CurrentBlock], OldVal)) {
+        // Add the successors
+        for (CFGBlock::const_pred_iterator I = CurrentBlock->succ_begin(), E = CurrentBlock->succ_end(); I != E; ++I) {
+          WorkList.push(*I);
+        }
+        
+      }
+    }
+    /*while (true) {
+      llvm::outs() << "loop iteration...\n";
+      bool Changed = false;
       for (const CFGBlock *Block : POView) {
         ExprSet IntermediateIntersecions;
         for (CFGBlock::const_pred_iterator I = Block->pred_begin(), E = Block->pred_end(); I != E; ++I) {
-          IntermediateIntersecions.insert(Out[*I].begin(), Out[*I].end());
+          std::pair<ExprSet, bool> SetIntersect = Intersect(IntermediateIntersecions, Out[*I]);
           //In(B) = join over all preds(B) Out(P)
+          if (SetIntersect.second)
+            Changed = true;
         }
         In[Block] = IntermediateIntersecions;
-        Out[Block] = Union(Difference(In[Block], Kill[Block]), Gen[Block]);
+        std::pair<ExprSet, bool> SetDiff = Difference(In[Block], Kill[Block]);
+        std::pair<ExprSet, bool> SetUnion = Union(SetDiff.first, Gen[Block]);
+        Out[Block] = SetUnion.first;
+        if (SetDiff.second || SetUnion.second)
+          Changed = true;
       }
-    //}
+      if (!Changed)
+        break;
+    }*/
 
-    #if 1
+//#if DEBUG_DATAFLOW
     // print everything we have so far
     for (const CFGBlock *Block : POView) {
       Block->dump();
@@ -3401,12 +3456,13 @@ public:
         llvm::outs() << "\n";
       }
     }
-#endif
-
+//#endif
   }
 
   // S1 - S2
   ExprSet Difference(ExprSet S1, ExprSet S2) {
+   if (S2.size() == 0)
+      return S1;
     ExprSet Result;
     for (auto E1 : S1)
       if (S2.find(E1) == S2.end())
@@ -3415,6 +3471,10 @@ public:
   }
 
   ExprSet Union(ExprSet S1, ExprSet S2) {
+    if (S2.size() == 0)
+      return S1;
+    if (S1.size() == 0)
+      return S2;
     ExprSet Result;
     Result.insert(S1.begin(), S1.end());
     Result.insert(S2.begin(), S2.end());
@@ -3422,11 +3482,25 @@ public:
   }
 
   ExprSet Intersect(ExprSet S1, ExprSet S2) {
+    if (S2.size() == 0)
+      return S2;
+    if (S1.size() == 0)
+      return S1;
     ExprSet Result;
     for (auto E1 : S1)
       if (S2.find(E1) != S2.end())
         Result.insert(E1);
     return Result;
+  }
+
+  bool SetEqual(ExprSet S1, ExprSet S2) {
+    if (S1.size() != S2.size())
+      return false;
+    for (auto E : S1) {
+      if (S2.find(E) == S2.end())
+        return false;
+    }
+    return true;
   }
 
   Stmt *getPred(Stmt *St, CFGBlock *Block) {
