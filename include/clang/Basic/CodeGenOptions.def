@@ -364,8 +364,8 @@ CODEGENOPT(BranchTargetEnforcement, 1, 0)
 /// Whether to emit unused static constants.
 CODEGENOPT(KeepStaticConsts, 1, 0)
 
-/// Whether to add runtime checks for checkedc.
-CODEGENOPT(CheckedCRuntimeChecks, 1, 1)
+/// Whether to add null ptr checks for checkedc.
+CODEGENOPT(CheckedCNullPtrChecks, 1, 1)
 
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
