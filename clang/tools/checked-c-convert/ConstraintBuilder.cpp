@@ -726,6 +726,9 @@ private:
   }
 
   Expr* getNormalizedExpr(Expr *CE) {
+    if(dyn_cast<ImplicitCastExpr>(CE)) {
+      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
+    }
     if(dyn_cast<CHKCBindTemporaryExpr>(CE)) {
       CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
     }
