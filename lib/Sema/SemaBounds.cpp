@@ -2631,8 +2631,8 @@ namespace {
 
            // Skip top-level elements that are nested in
            // another top-level element.
-	         if (NestedElements.find(S) != NestedElements.end())
-	           continue;
+           if (NestedElements.find(S) != NestedElements.end())
+             continue;
 
            bool IsChecked = false;
            if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
@@ -3296,106 +3296,185 @@ private:
   typedef llvm::SmallPtrSet<const Expr *, 16> ExprSet;
   typedef llvm::SmallPtrSet<const CFGBlock *, 16> CFGBlockSet;
 
-  llvm::DenseMap<Stmt *, ExprSet> AvailableIn;
-  llvm::DenseMap<Stmt *, ExprSet> AvailableOut;
-  llvm::DenseMap<Stmt *, ExprSet> Kill;
-  llvm::DenseMap<Stmt *, ExprSet> Gen;
+  llvm::DenseMap<const CFGBlock *, ExprSet> In;
+  llvm::DenseMap<const CFGBlock *, ExprSet> Out;
+  llvm::DenseMap<const CFGBlock *, ExprSet> Kill;
+  llvm::DenseMap<const CFGBlock *, ExprSet> Gen;
   CFGBlockSet WorkList;
-  ExprSet AllComparisons;
 
 public:
   AvailableExprAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg) {}
 
   void Analyze() {
     assert(Cfg && "expected CFG to exist");
-
+    ExprSet AllComparisons;
     StmtSet NestedElements;
     FindNestedElements(NestedElements);
 
-    llvm::outs() << "NESTED ELEMENTS:\n";
-    for (auto E : NestedElements)
-      E->dumpPretty(S.Context);
-    llvm::outs() << "....\n";
-
     PostOrderCFGView POView = PostOrderCFGView(Cfg);
+    
+    // create the worklist
     for (const CFGBlock *Block : POView) {
       WorkList.insert(Block);
-      for (CFGElement Elem : *Block) {
-        if (Elem.getKind() == CFGElement::Statement) {
-          CFGStmt CS = Elem.castAs<CFGStmt>();
-          Stmt *St = const_cast<Stmt *>(CS.getStmt());
-          if (NestedElements.find(St) != NestedElements.end())
-            continue;
+    }
 
-          ExprSet AllExprsInS, AllComparisonsInS;
-          llvm::SmallPtrSet<const VarDecl *, 16> DefinedVariables;
-          CollectExpressionsInStmt(St, NestedElements, AllExprsInS, AllComparisonsInS, DefinedVariables);
-          AllComparisons.insert(AllComparisons.begin(), AllComparisons.end());
+    // define in and out, kill and gen
+    for (const CFGBlock *Block : POView) {
+      In.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+      Out.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+      Kill.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+      Gen.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+    }
 
-
-          llvm::outs() << "stats:\n" << "allexprsHere: " << AllExprsInS.size() << ", allcomparesHere: " << AllComparisonsInS.size() << ", defined variables: " << DefinedVariables.size() << "\n";
-          for (auto E : AllExprsInS)
-          { E->dumpPretty(S.Context); llvm::outs() << "\n";}
-          llvm::outs() << "---\n\n";
-          for (auto E : AllComparisonsInS)
-            { E->dumpPretty(S.Context); llvm::outs() << "\n";}
-          llvm::outs() << "---\n\n";
-          for (auto E : DefinedVariables)
-            E->dump();
-          llvm::outs() << "----------\n\n";
-
-          AvailableIn.insert(std::pair<Stmt *, ExprSet>(St, ExprSet()));
-          AvailableOut.insert(std::pair<Stmt *, ExprSet>(St, ExprSet()));
-
-          // gen and kill sets
-          ExprSet KillSet;
-          for (const Expr *E : AllComparisonsInS) {
-            for (const VarDecl *V : DefinedVariables) {
-              if (DoesExprContainsVar(E, V))
-                KillSet.insert(E);
-            }
+    // Collect all conditions, prepare gen sets
+    ExprSet AllConditions;
+    for (const CFGBlock *Block : POView) {
+      if (const Stmt *Term = Block->getTerminator()) {
+        if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Block->getTerminatorCondition())) {
+          if (BO->isComparisonOp()) {
+            Gen[Block].insert(BO);
           }
-
-          Kill.insert(std::pair<Stmt *, ExprSet>(St, KillSet));
-          Gen.insert(std::pair<Stmt *, ExprSet>(St, AllComparisonsInS));
         }
       }
+      AllConditions.insert(Gen[Block].begin(), Gen[Block].end());
     }
-    // so far, we have all the expressions.
-    // we have populated the WorkList.
-    // we have genSets
 
-    // initialize avail-out to all expressions
-    for (std::pair<Stmt *, ExprSet> &Element : AvailableOut)
-      Element.second = AllComparisons;
+    // prepare kill sets
+    for (const CFGBlock *Block : POView) {
+      StmtSet AllStmtsInThisBlock;
+      for (CFGElement Elem : *Block)
+        if (Elem.getKind() == CFGElement::Statement)
+          AllStmtsInThisBlock.insert(Elem.castAs<CFGStmt>().getStmt());
+
+      ExprSet AllExprsInThisBlock, AllComparisonsInThisBlock;
+      llvm::SmallPtrSet<const VarDecl *, 16> DefinedVarsInThisBlock;
+      for (auto St : AllStmtsInThisBlock) {
+        ExprSet AllExprsInSt, AllComparisonsInSt;
+        llvm::SmallPtrSet<const VarDecl *, 16> DefinedVarsInSt;
+        CollectExpressionsInStmt(St, NestedElements, AllExprsInSt, AllComparisonsInSt, DefinedVarsInSt);
+        DefinedVarsInThisBlock.insert(DefinedVarsInSt.begin(), DefinedVarsInSt.end());
+      }
+
+      for (auto E : AllConditions)
+        for (auto V : DefinedVarsInThisBlock)
+          if (DoesExprContainVar(E, V))
+            Kill[Block].insert(E);
+    }
+
+    // Main algorithm
+    // reverse post order
+    //while (true) {
+      for (const CFGBlock *Block : POView) {
+        ExprSet IntermediateIntersecions;
+        for (CFGBlock::const_pred_iterator I = Block->pred_begin(), E = Block->pred_end(); I != E; ++I) {
+          IntermediateIntersecions.insert(Out[*I].begin(), Out[*I].end());
+          //In(B) = join over all preds(B) Out(P)
+        }
+        In[Block] = IntermediateIntersecions;
+        Out[Block] = Union(Difference(In[Block], Kill[Block]), Gen[Block]);
+      }
+    //}
+
+    #if 1
+    // print everything we have so far
+    for (const CFGBlock *Block : POView) {
+      Block->dump();
+
+      llvm::outs() << "In set:\n";
+      for (auto E : In[Block]) {
+        E->dumpPretty(S.Context);
+        llvm::outs() << "\n";
+      }
+      llvm::outs() << "Out set:\n";
+      for (auto E : Out[Block]) {
+        E->dumpPretty(S.Context);
+        llvm::outs() << "\n";
+      }
+      llvm::outs() << "Kill set:\n";
+      for (auto E : Kill[Block]) {
+        E->dumpPretty(S.Context);
+        llvm::outs() << "\n";
+      }
+      llvm::outs() << "Gen set:\n";
+      for (auto E : Gen[Block]) {
+        E->dumpPretty(S.Context);
+        llvm::outs() << "\n";
+      }
+    }
+#endif
+
   }
 
-  bool DoesExprContainsVar(const Expr *E, const VarDecl *V) {
+  // S1 - S2
+  ExprSet Difference(ExprSet S1, ExprSet S2) {
+    ExprSet Result;
+    for (auto E1 : S1)
+      if (S2.find(E1) == S2.end())
+        Result.insert(E1);
+    return Result;
+  }
+
+  ExprSet Union(ExprSet S1, ExprSet S2) {
+    ExprSet Result;
+    Result.insert(S1.begin(), S1.end());
+    Result.insert(S2.begin(), S2.end());
+    return Result;
+  }
+
+  ExprSet Intersect(ExprSet S1, ExprSet S2) {
+    ExprSet Result;
+    for (auto E1 : S1)
+      if (S2.find(E1) != S2.end())
+        Result.insert(E1);
+    return Result;
+  }
+
+  Stmt *getPred(Stmt *St, CFGBlock *Block) {
+    for (CFGElement Elem : *Block) {
+      if (Elem.getKind() == CFGElement::Statement) {
+        CFGStmt CS = Elem.castAs<CFGStmt>();
+        Stmt *St = const_cast<Stmt *>(CS.getStmt());
+      }
+    }
+  }
+
+  bool DoesExprContainVar(const Expr *E, const VarDecl *V) {
     ExprSet Exprs, DummyC;
     llvm::SmallPtrSet<const VarDecl *, 16> DummyDV;
     StmtSet DummySet;
     CollectExpressionsInStmt(E, DummySet, Exprs, DummyC, DummyDV);
-    for (auto E : Exprs)
-      if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E))
-        if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl()))
-          if (VD == V)
+
+    for (auto E : Exprs) {
+      if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+        if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+          if (VD == V) {
             return true;
+          }
+        }
+      }
+    }
     return false;
   }
 
 private:
-  void CollectExpressionsInStmt(const Stmt *S, StmtSet &NestedElements, ExprSet &AllExprs, ExprSet &ComparisonExprs, llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars) {
-    if (!S)
+  void CollectExpressionsInStmt(const Stmt *St, StmtSet &NestedElements, ExprSet &AllExprs, ExprSet &ComparisonExprs,
+                                llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars) {
+    if (!St)
       return;
-    bool IsNested = NestedElements.find(S) != NestedElements.end();
-    if (const Expr *E = dyn_cast<Expr>(S)) {
-      if (!IsNested)
-        AllExprs.insert(E);
+    if (const Expr *E = dyn_cast<Expr>(St)) {
+      AllExprs.insert(E);
       if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(E)) {
-        if (BO->isComparisonOp() && !IsNested)
-          ComparisonExprs.insert(E);
-        else if (BO->isAssignmentOp()) {
+        if (BO->isAssignmentOp()) {
           Expr *LHS = BO->getLHS()->ignoreParenBaseCasts()->IgnoreImpCasts();
+          if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS)) {
+            if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl())) {
+              DefinedVars.insert(V);
+            }
+          }
+        }
+      } else if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(E)) {
+        if (UO->isIncrementDecrementOp()) {
+          Expr *LHS = UO->getSubExpr()->ignoreParenBaseCasts()->IgnoreImpCasts();
           if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS)) {
             if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl())) {
               DefinedVars.insert(V);
@@ -3405,7 +3484,7 @@ private:
       }
     }
 
-    auto Begin = S->child_begin(), End = S->child_end();
+    auto Begin = St->child_begin(), End = St->child_end();
     for (auto I = Begin; I != End; ++I)
       CollectExpressionsInStmt(*I, NestedElements, AllExprs, ComparisonExprs, DefinedVars);
   }
@@ -3422,6 +3501,7 @@ private:
     }
   }
 
+  // nested elements (and in terminator)
   void FindNestedElements(StmtSet &NestedStmts) {
     StmtSet TopLevelElems;
     for (const CFGBlock *Block : *Cfg) {
@@ -3429,8 +3509,11 @@ private:
         if (Elem.getKind() == CFGElement::Statement) {
           CFGStmt CS = Elem.castAs<CFGStmt>();
           const Stmt *S = CS.getStmt();
-           TopLevelElems.insert(S);
+          TopLevelElems.insert(S);
         }
+      }
+      if (const Stmt *Term = Block->getTerminator()) {
+        TopLevelElems.insert(Block->getTerminatorCondition());
       }
     }
 
@@ -3441,6 +3524,9 @@ private:
           const Stmt *S = CS.getStmt();
           MarkNested(S, NestedStmts, TopLevelElems);
         }
+      }
+      if (const Stmt *Term = Block->getTerminator()) {
+        MarkNested(Block->getTerminatorCondition(), NestedStmts, TopLevelElems);
       }
     }
   }
