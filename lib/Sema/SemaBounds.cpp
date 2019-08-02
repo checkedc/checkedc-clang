@@ -3372,14 +3372,7 @@ public:
       // Update InSet
       ExprSet IntermediateIntersecions = Out[*(CurrentBlock->pred_begin())];
       for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
-                    llvm::outs() << "computing intersection between: ";
-      for (auto E : Out[*I]) {
-        E->dumpPretty(S.Context); llvm::outs() << ", ";
-      }
-      llvm::outs() << "\n";
-        ExprSet SetIntersect = Intersect(IntermediateIntersecions, Out[*I]);
-        
-        //In[CurrentBlock].insert(Out[*I].begin(), Out[*I].end());
+        IntermediateIntersecions = Intersect(IntermediateIntersecions, Out[*I]);
       }
       In[CurrentBlock] = IntermediateIntersecions;
 
@@ -3394,6 +3387,7 @@ public:
         E->dumpPretty(S.Context); llvm::outs() << ", ";
       }
       llvm::outs() << "\n";
+
       Out[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), Gen[CurrentBlock]);
             llvm::outs() << "OutSet after update: ";
       for (auto E : Out[CurrentBlock]) {
@@ -3408,27 +3402,6 @@ public:
         
       }
     }
-    /*while (true) {
-      llvm::outs() << "loop iteration...\n";
-      bool Changed = false;
-      for (const CFGBlock *Block : POView) {
-        ExprSet IntermediateIntersecions;
-        for (CFGBlock::const_pred_iterator I = Block->pred_begin(), E = Block->pred_end(); I != E; ++I) {
-          std::pair<ExprSet, bool> SetIntersect = Intersect(IntermediateIntersecions, Out[*I]);
-          //In(B) = join over all preds(B) Out(P)
-          if (SetIntersect.second)
-            Changed = true;
-        }
-        In[Block] = IntermediateIntersecions;
-        std::pair<ExprSet, bool> SetDiff = Difference(In[Block], Kill[Block]);
-        std::pair<ExprSet, bool> SetUnion = Union(SetDiff.first, Gen[Block]);
-        Out[Block] = SetUnion.first;
-        if (SetDiff.second || SetUnion.second)
-          Changed = true;
-      }
-      if (!Changed)
-        break;
-    }*/
 
 //#if DEBUG_DATAFLOW
     // print everything we have so far
