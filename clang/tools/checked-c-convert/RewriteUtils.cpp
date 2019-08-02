@@ -479,7 +479,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // if definition is more precise
         // than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string bi =  Defn->getOriginalTy() + Defn->getName() + " : itype("+ctype+") ";
+        std::string bi =  Defn->getRewritableOriginalTy() + Defn->getName() + " : itype("+ctype+") ";
         parmStrs.push_back(bi);
       } else if (anyConstrained) {
         // both the declaration and definition are same
@@ -518,7 +518,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
       if(Decl->hasWild(Info.getConstraints().getVariables())) {
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
-        returnVar = Defn->getOriginalTy();
+        returnVar = Defn->getRewritableOriginalTy();
         endStuff = " : itype("+ctype+") ";
       } else {
         // this means we were able to infer that return type
