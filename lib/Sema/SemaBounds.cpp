@@ -3325,10 +3325,11 @@ public:
 
       // compute Gen sets
       if (const Stmt *Term = Block->getTerminator()) {
-        if(const IfStmt *IS = dyn_cast<IfStmt>(Term))
-          if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(Block->getTerminatorCondition()))
-            if (BO->isComparisonOp())
-              GenThen[Block].insert(BO);
+        if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
+          ExprSet Comparisons;
+          ExtractComparisons(Block->getTerminatorCondition(), Comparisons);
+          GenThen[Block].insert(Comparisons.begin(), Comparisons.end());
+        }
       }
       // Collect all the conditions across all CFGBlocks
       AllConditions.insert(GenThen[Block].begin(), GenThen[Block].end());
@@ -3435,6 +3436,7 @@ public:
 #endif
   }
 
+private:
   // S1 - S2
   ExprSet Difference(ExprSet S1, ExprSet S2) {
    if (S2.size() == 0)
@@ -3489,7 +3491,26 @@ public:
     return false;
   }
 
-private:
+  void ExtractComparisons(const Stmt *St, ExprSet &ComparisonExprs) {
+    if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(St)) {
+      switch (BO->getOpcode()) {
+        case BinaryOperatorKind::BO_LOr:
+          return;
+        case BinaryOperatorKind::BO_GE:
+        case BinaryOperatorKind::BO_GT:
+        case BinaryOperatorKind::BO_LE:
+        case BinaryOperatorKind::BO_LT:
+        case BinaryOperatorKind::BO_EQ:
+          ComparisonExprs.insert(BO);
+          break;
+        default:
+          break;
+      }
+    }
+    for (auto I = St->child_begin(); I != St->child_end(); ++I)
+      ExtractComparisons(*I, ComparisonExprs);
+  }
+
   void CollectExpressionsInStmt(const Stmt *St, ExprSet &AllExprs) {
     if (!St)
       return;
