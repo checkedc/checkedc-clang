@@ -9672,11 +9672,10 @@ bool ASTContext::typeAppsMatch(const RecordType *T1, const RecordType *T2) const
   if (T1BaseType != T2BaseType || !T2Decl->genericBaseDecl()->isItypeGeneric()) return false;
 
   // Check 3)
-  // TODO(abeln): add accessor for number of type arguments
-  assert(T1Decl->typeArgs().size() == T2Decl->typeArgs().size() && "Expected same number of type arguments");
-  for (size_t i = 0; i < T2Decl->typeArgs().size(); ++i) {
-    auto TArg = T2Decl->typeArgs()[i].typeName.getTypePtr();
-    if (TArg != VoidTy.getTypePtr()) return false;
+  auto NumArgs = T2Decl->typeArgs().size();
+  assert(T1Decl->typeArgs().size() == NumArgs && "Expected same number of type arguments");
+  for (auto TArg : T2Decl->typeArgs()) {
+    if (TArg.typeName.getTypePtr() != VoidTy.getTypePtr()) return false;
   }
 
   return true;
@@ -11229,7 +11228,7 @@ APFixedPoint ASTContext::getFixedPointMin(QualType Ty) const {
 RecordDecl *ASTContext::getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs) {
   assert(Base != nullptr && "Base decl shouldn't be null");
   assert(Base->isGenericOrItypeGeneric() && "Base RecordDecl should be generic");
-  auto it = CachedTypeApps.find(std::make_pair(Base, TypeArgs));
+  const auto it = CachedTypeApps.find(std::make_pair(Base, TypeArgs));
   if (it == CachedTypeApps.end()) return nullptr;
   return it->second;
 }

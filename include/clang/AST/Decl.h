@@ -4002,7 +4002,6 @@ public:
   bool isGeneric() const;
   /// Whether the record has a generic interface. At most one of 'isTypeGeneric' and 'isGeneric' will be set.
   bool isItypeGeneric() const;
-
   /// Whether the record is generic or has a generic bounds interface (itype).
   bool isGenericOrItypeGeneric() const;
 

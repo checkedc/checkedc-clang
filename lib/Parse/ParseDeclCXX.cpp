@@ -1930,11 +1930,12 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
     stripTypeAttributesOffDeclSpec(attrs, DS, TUK);
 
+    assert(getCurScope()->isForanyScope() == DS.isForanySpecified());
+    assert(getCurScope()->isItypeforanyScope() == DS.isItypeforanySpecified());
+
     // Checked C: if the struct has type parameters, then they introduced a new scope, so we
     // must make sure to add the struct to the parent scope instead.
     // The type parameters scope is removed later in 'ParseDeclOrFunctionDefInternal'.
-    assert(getCurScope()->isForanyScope() == DS.isForanySpecified());
-    assert(getCurScope()->isItypeforanyScope() == DS.isItypeforanySpecified());
     Scope *structScope = (getCurScope()->isForanyScope() || getCurScope()->isItypeforanyScope()) ? getCurScope()->getParent() : getCurScope();
 
     // Checked C: figure out what (if any) kind of generic we're dealing with.
@@ -1978,7 +1979,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           TypeArgVector VoidArgs;
           auto numTypeParams = Decl->typeParams().size();
           for (size_t i = 0; i < numTypeParams; ++i) {
-            TypeSourceInfo *TInfo = Ctx.getTrivialTypeSourceInfo( Ctx.VoidTy, SourceLocation());
+            TypeSourceInfo *TInfo = Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy, SourceLocation());
             VoidArgs.push_back({ Ctx.VoidTy, TInfo });
           }
           TagOrTempResult = Actions.ActOnRecordTypeApplication(Decl, VoidArgs);
@@ -2083,7 +2084,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///
 ///  type-name-list-suffix
 ///    ',' type-name type-name-list-suffix [opt]
-DeclResult Parser::ParseRecordTypeApplication(RecordDecl* Base) {
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl *Base) {
   assert(Base->isGenericOrItypeGeneric() && "Instantiated record must be generic");
   ExpectAndConsume(tok::less); // eat the initial '<'
   auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
