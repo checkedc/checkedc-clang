@@ -666,14 +666,12 @@ private:
   void constraintInBodyVariable(Expr *e, ConstAtom *target) {
     std::set<ConstraintVariable*> Var =
       Info.getVariable(e, Context, true);
-    Constraints &CS = Info.getConstraints();
     constrainVarsEq(Var, target);
   }
 
   void constraintInBodyVariable(Decl *d, ConstAtom *target) {
     std::set<ConstraintVariable*> Var =
       Info.getVariable(d, Context, true);
-    Constraints &CS = Info.getConstraints();
     constrainVarsEq(Var, target);
   }
 
