@@ -1791,8 +1791,7 @@ namespace {
           return ProofResult::False;
         }
         if (IsLowerOffsetVariable() && R.IsLowerOffsetVariable())
-          if (EqualValue(S.Context, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs) ||
-              EqualPointerArithOffset(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
+          if (EqualValue(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
             return ProofResult::True;
         if (R.IsLowerOffsetVariable() && IsLowerOffsetConstant() &&
             R.LowerOffsetVariable->getType()->isUnsignedIntegerType() && LowerOffsetConstant.getExtValue() == 0)
@@ -1824,8 +1823,7 @@ namespace {
           return ProofResult::False;
         }
         if (IsUpperOffsetVariable() && R.IsUpperOffsetVariable())
-          if (EqualValue(S.Context, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs) ||
-              EqualPointerArithOffset(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
+          if (EqualValue(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
             return ProofResult::True;
         if (IsUpperOffsetVariable() && R.IsUpperOffsetConstant() &&
             UpperOffsetVariable->getType()->isUnsignedIntegerType() && R.UpperOffsetConstant.getExtValue() == 0)
@@ -2060,124 +2058,95 @@ namespace {
       return BaseRange::Kind::ConstantSized;
     }
 
-    // In this function, the goal is to compare two expressions: `Base1 + Offset1` and `Base2 + Offset2`
-    // assuming one side follows the bytewise arithmetic and the other side follows pointer arithmetic.
-    // It then returns true if it can be proved and false otherwise.
+    // Given a `Base` and `Offset`, this function tries to convert it to a standard form `Base + (ConstantPart OP VariablePart)`.
+    // The OP's signedness is stored in IsOpSigned. If the function fails to create the standard form, it returns false. Otherwise,
+    // it returns true to indicate success, and stores each part of the standard form in a separate argument as follows:
+    // `ConstantPart`: a signed integer
+    // `IsOpSigned`: a boolean which is true if VariablePart is signed, and false otherwise
+    // `VariablePart`: an integer expression that can be a either signed or unsigned integer
     //
-    // Implementation details:
-    // 0. If Offset1 or Offset2 is null, return false.
-    // 1. If Base1 and Base2 are not equal according to EqualValue(), return false.
-    // 2. If none of `Base1` or `Base2` is a checked pointer array, return false.
-    // 3. If the Offset that corresponds to bytewise arithmetic is not in multiplication form, return false.
-    // 4. If the Offset that corresponds to bytewise arithmetic does not contain a correct `sizeof()` statement
-    //    or a correct constant integer, return false.
-    //    Here, a correct `sizeof` is a sizeof statement whose argument type is equal to the type of elements that
-    //    pointer arithmetic base points to.
-    //    Moreover, a correct constant integer means a constant integer with the same value as the correct `sizeof`
-    //    which is explained above.
-    // 5. If the Base that corresponds to bytewise arithmetic does not point to elements of type char, return false.
-    // 6. If offsets that correspond to pointer arithmetic and bytewise arithmetic are equal according to EqualValue,
-    //    return true. Otherwise, return false.
+    // Given array_ptr<T> p:
+    // 1. For (char *)p + e1 or (unsigned char *)p + e1, ConstantPart = 1, VariablePart = e1.
+    // 2. For p + e1, ConstantPart = sizeof(T), VariablePart = e1.
+    //
+    // Note that another way to interpret the functionality of this function is that it expands
+    // pointer arithmetic to bytewise arithmetic.
+    static bool CreateStandardForm(ASTContext &Ctx, Expr *Base, Expr *Offset, llvm::APSInt &ConstantPart, bool &IsOpSigned, Expr *&VariablePart) {
+      ConstantPart = llvm::APSInt(Ctx.getTargetInfo().getPointerWidth(0), false);
+
+      if (Base->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal()->isCharType()) {
+        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset->IgnoreParenCasts())) {
+          if (BO->getRHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantPart, Ctx))
+            VariablePart = BO->getLHS()->IgnoreParenCasts();
+          else if (BO->getLHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantPart, Ctx))
+            VariablePart = BO->getRHS()->IgnoreParenCasts();
+          else
+            goto exit;
+          IsOpSigned = VariablePart->getType()->isSignedIntegerType();
+          ConstantPart = llvm::APSInt(ConstantPart, false);
+          if (ConstantPart.getBitWidth() < Ctx.getTargetInfo().getPointerWidth(0))
+            ConstantPart = ConstantPart.extend(Ctx.getTargetInfo().getPointerWidth(0));
+        } else
+          goto exit;
+        return true;
+
+      exit:
+        VariablePart = Offset->IgnoreParenCasts();
+        ConstantPart = 1;
+        ConstantPart = llvm::APSInt(ConstantPart, false);
+        IsOpSigned = VariablePart->getType()->isSignedIntegerType();
+        if (ConstantPart.getBitWidth() < Ctx.getTargetInfo().getPointerWidth(0))
+          ConstantPart = ConstantPart.extend(Ctx.getTargetInfo().getPointerWidth(0));
+        return true;
+      } else {
+        VariablePart = Offset->IgnoreParenCasts();
+        ConstantPart = Ctx.getTypeInfoInChars(Base->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal()).first.getQuantity();
+        ConstantPart = llvm::APSInt(ConstantPart, false);
+        IsOpSigned = VariablePart->getType()->isSignedIntegerType();
+        return true;
+      }
+    }
+
+    // In this function, the goal is to compare two expressions: `Base1 + Offset1` and `Base2 + Offset2`.
+    // The function returns true if they are equal, and false otherwise. Note that before checking equivalence
+    // of expressions, the function expands pointer arithmetic to bytewise arithmetic.
+    //
+    // Steps in checking the equivalence:
+    // 0. If `Offset1` or `Offset2` is null, return false.
+    // 1. If `Base1` and `Base2` are not lexicographically equal, return false.
+    // 2. Next, both bounds are converted into standard forms `Base + ConstantPart * VariablePart` as explained in `CreateStandardForm()`
+    // 3. If any of the expressions cannot be converted successfully, return false.
+    // 4. If VariableParts are not lexicographically equal, return false.
+    // 5. If OP signs are not equivalent in both, return false.
+    // 6. If ConstantParts are not equal, return false.
+    // If the expressions pass all the above tests, then return true.
     //
     // Note that in all steps involving in checking the equality of the types or values of offsets, parentheses and
     // casts are ignored.
-    static bool EqualPointerArithOffset(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs) {
+    static bool EqualValue(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs) {
       if (!Offset1 && !Offset2)
         return false;
+
       if (!EqualValue(Ctx, Base1, Base2, EquivExprs))
         return false;
 
-      Offset1 = Offset1->IgnoreParenCasts();
-      Offset2 = Offset2->IgnoreParenCasts();
+      llvm::APSInt ConstantPart1, ConstantPart2;
+      bool IsOpSigned1, IsOpSigned2;
+      Expr *VariablePart1, *VariablePart2;
 
-      if (!Base1->getType()->isCheckedPointerArrayType() || !Base2->getType()->isCheckedPointerArrayType())
+      bool CreatedStdForm1 = CreateStandardForm(Ctx, Base1, Offset1, ConstantPart1, IsOpSigned1, VariablePart1);
+      bool CreatedStdForm2 = CreateStandardForm(Ctx, Base2, Offset2, ConstantPart2, IsOpSigned2, VariablePart2);
+
+      if (!CreatedStdForm1 || !CreatedStdForm2)
+        return false;
+      if (!EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
+        return false;
+      if (IsOpSigned1 != IsOpSigned2)
+        return false;
+      if (ConstantPart1 != ConstantPart2)
         return false;
 
-      // We need to know which tuple of (base, offset)
-      // belongs to a pointer arithmetic and which one belongs to a bytewise arithmetic.
-      Expr *PointerArithBase = Base1, *PointerArithOffset = Offset1;
-      Expr *BytewiseArithBase = Base2, *BytewiseArithOffset = Offset2;
-      bool SizeofExists = false, ConstantExists = false;
-      QualType SizeOfArgType;
-
-      if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset1)) {
-        if (BO->getOpcode() == BinaryOperatorKind::BO_Mul) {
-          BytewiseArithBase = Base1;
-          PointerArithBase = Base2;
-          PointerArithOffset = Offset2;
-          if (UnaryExprOrTypeTraitExpr *SO = dyn_cast<UnaryExprOrTypeTraitExpr>(BO->getRHS()->IgnoreParenCasts())) {
-            BytewiseArithOffset = BO->getLHS()->IgnoreParenCasts();
-            SizeOfArgType = SO->getTypeOfArgument();
-            SizeofExists = true;
-          }
-          if (UnaryExprOrTypeTraitExpr *SO = dyn_cast<UnaryExprOrTypeTraitExpr>(BO->getLHS()->IgnoreParenCasts())) {
-            BytewiseArithOffset = BO->getRHS()->IgnoreParenCasts();
-            SizeOfArgType = SO->getTypeOfArgument();
-            SizeofExists = true;
-          }
-          // `sizeof` not found, so look for a correct constant instead:
-          if (!SizeofExists) {
-            llvm::APSInt ConstantAsSizeof;
-            int64_t SizeofWidth = Ctx.getTypeInfoInChars(PointerArithBase->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal()).first.getQuantity();
-            if (BO->getRHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantAsSizeof, Ctx)) {
-              if (SizeofWidth == ConstantAsSizeof.getExtValue()) {
-                BytewiseArithOffset = BO->getLHS()->IgnoreParenCasts();
-                ConstantExists = true;
-              }
-            }
-            if (BO->getLHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantAsSizeof, Ctx)) {
-              if (SizeofWidth == ConstantAsSizeof.getExtValue()) {
-                BytewiseArithOffset = BO->getRHS()->IgnoreParenCasts();
-                ConstantExists = true;
-              }
-            }
-          }
-        }
-      }
-      if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset2)) {
-        if (BO->getOpcode() == BinaryOperatorKind::BO_Mul) {
-          BytewiseArithBase = Base2;
-          PointerArithBase = Base1;
-          PointerArithOffset = Offset1;
-          if (UnaryExprOrTypeTraitExpr *SO = dyn_cast<UnaryExprOrTypeTraitExpr>(BO->getRHS()->IgnoreParenCasts())) {
-            BytewiseArithOffset = BO->getLHS()->IgnoreParenCasts();;
-            SizeOfArgType = SO->getTypeOfArgument();
-            SizeofExists = true;
-          }
-          if (UnaryExprOrTypeTraitExpr *SO = dyn_cast<UnaryExprOrTypeTraitExpr>(BO->getLHS()->IgnoreParenCasts())) {
-            BytewiseArithOffset = BO->getRHS()->IgnoreParenCasts();
-            SizeOfArgType = SO->getTypeOfArgument();
-            SizeofExists = true;
-          }
-          // `sizeof` not found, so look for a correct constant instead:
-          if (!SizeofExists) {
-            llvm::APSInt ConstantAsSizeof;
-            int64_t SizeofWidth = Ctx.getTypeInfoInChars(PointerArithBase->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal()).first.getQuantity();
-            if (BO->getRHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantAsSizeof, Ctx)) {
-              if (SizeofWidth == ConstantAsSizeof.getExtValue()) {
-                BytewiseArithOffset = BO->getLHS()->IgnoreParenCasts();
-                ConstantExists = true;
-              }
-            }
-            if (BO->getLHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantAsSizeof, Ctx)) {
-              if (SizeofWidth == ConstantAsSizeof.getExtValue()) {
-                BytewiseArithOffset = BO->getRHS()->IgnoreParenCasts();
-                ConstantExists = true;
-              }
-            }
-          }
-        }
-      }
-
-      if (!ConstantExists && !SizeofExists)
-        return false;
-      if (!BytewiseArithBase->getType()->getPointeeOrArrayElementType()->isCharType())
-        return false;
-      if (SizeofExists && SizeOfArgType.isNull())
-        return false;
-      if (SizeofExists && SizeOfArgType.getCanonicalType() != PointerArithBase->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal())
-        return false;
-      return EqualValue(Ctx, BytewiseArithOffset, PointerArithOffset, EquivExprs);
+      return true;
     }
 
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
