@@ -47,8 +47,9 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 // Walk the list of declarations and find a declaration that is NOT
 // a definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
-  // optimization
-  if(!FD->isThisDeclarationADefinition()) {
+  // optimization: if the provided Decl is itself
+  // a declaration then return the same Decl
+  if (!FD->isThisDeclarationADefinition()) {
     return FD;
   }
   for (const auto &D : FD->redecls())
@@ -62,8 +63,9 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 // Walk the list of declarations and find a declaration accompanied by
 // a definition and a function body.
 FunctionDecl *getDefinition(FunctionDecl *FD) {
-  // optimization
-  if(FD->isThisDeclarationADefinition() && FD->hasBody()) {
+  // optimization: if the provided Decl is itself
+  // associated with a function body return the same Decl
+  if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
     return FD;
   }
   for (const auto &D : FD->redecls())
