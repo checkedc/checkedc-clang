@@ -19,6 +19,8 @@
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
 
+// TODO: It's possible the Type field in this tuple isn't needed.
+
 typedef std::tuple<clang::Stmt*, clang::Decl*, clang::Type*>
         StmtDeclOrType;
 typedef std::map<PersistentSourceLoc, StmtDeclOrType> SourceToDeclMapType;
@@ -30,8 +32,6 @@ class MappingVisitor
 public:
   MappingVisitor(std::set<PersistentSourceLoc> S, clang::ASTContext &C) : 
     SourceLocs(S),Context(C) {}
-
-  // TODO: It's possible the Type field in this tuple isn't needed.
 
   bool VisitDeclStmt(clang::DeclStmt *S);
 

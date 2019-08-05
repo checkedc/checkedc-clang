@@ -37,8 +37,8 @@ PersistentSourceLoc::mkPSL(const Stmt *S, ASTContext &Context) {
   return mkPSL(S->getSourceRange(), S->getBeginLoc(), Context);
 }
 
-// Use the PresumedLoc infrastructure to get a file name and expansion
-// line and column numbers for a SourceLocation.
+// Use the PresumedLoc infrastructure to get the absolute file name, expansion
+// line and column number for a SourceLocation and corresponding SourceRange
 PersistentSourceLoc 
 PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL, ASTContext &Context) {
   SourceManager &SM = Context.getSourceManager();
