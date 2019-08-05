@@ -238,7 +238,7 @@ public:
       RHS = RHS->IgnoreParens();
 
       // Cases 2
-      if(isNULLExpression(RHS, *Context)) {
+      if(RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
         // Do Nothing.
       } else if (RHS->isIntegerConstantExpr(*Context) &&
                 !RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
