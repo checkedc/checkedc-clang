@@ -362,7 +362,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
         }
       case Atom::A_NTArr:
         // this additional check is to prevent fall-through from the array.
-        if(K == Atom::A_NTArr) {
+        if (K == Atom::A_NTArr) {
           // if this is an NTArray
           getQualString(V, ss);
 

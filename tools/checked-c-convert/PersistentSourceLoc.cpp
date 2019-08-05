@@ -24,7 +24,7 @@ PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
     SL = C.getSourceManager().getSpellingLoc(FD->getLocation());
   else if (const ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) 
     SL = C.getSourceManager().getSpellingLoc(PV->getLocation());
-  else if(const VarDecl *V = dyn_cast<VarDecl>(D))
+  else if (const VarDecl *V = dyn_cast<VarDecl>(D))
     SL = C.getSourceManager().getExpansionLoc(V->getLocation());
   
   return mkPSL(D->getSourceRange(), SL, C);
@@ -57,7 +57,7 @@ PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL, ASTContext 
   FullSourceLoc tFSL(SR.getBegin(), SM);
   const FileEntry *fe = SM.getFileEntryForID(tFSL.getFileID());
   std::string feAbsS = "";
-  if(fe != nullptr && getAbsoluteFilePath(fe->getName(), feAbsS)) {
+  if (fe != nullptr && getAbsoluteFilePath(fe->getName(), feAbsS)) {
     fn = sys::path::remove_leading_dotslash(feAbsS);
   }
 

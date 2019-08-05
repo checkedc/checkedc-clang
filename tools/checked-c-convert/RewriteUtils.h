@@ -124,7 +124,7 @@ public:
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
   // get existing itype string from constraint variables.
-  // if tries to get the string from declaration, however,
+  // it tries to get the string from declaration, however,
   // if there is no declaration of the function,
   // it will try to get it from the definition.
   std::string getExistingIType(ConstraintVariable *decl, ConstraintVariable *defn,
