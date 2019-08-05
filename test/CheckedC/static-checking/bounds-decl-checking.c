@@ -462,19 +462,24 @@ void a_f_1(int num1, int num2) {
   int n = num1/num2;
   _Array_ptr<long> v : count(n) = 0;
   v = simulate_calloc<long>(n, sizeof(long));
+  v = simulate_calloc<long>(n, sizeof(unsigned long));
+  v = simulate_calloc<long>(n, sizeof(unsigned long long)); // expected-warning {{cannot prove declared bounds for v are valid after assignment}} \
+                                                            // expected-note {{(expanded) declared bounds are 'bounds(v, v + n)'}} \
+                                                            // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(n, sizeof(unsigned long long)), (_Array_ptr<char>)value of simulate_calloc(n, sizeof(unsigned long long)) + (size_t)n * sizeof(unsigned long long))'}}
 }
 
 static int k = 0;
 extern _Array_ptr<long> v2 : count(k + 1);
 void a_f_2(void) {
   v2 = simulate_malloc<long>((k + 1) * sizeof(long));
+  v2 = simulate_malloc<long>(sizeof(long) * (k + 1));
 }
 
 extern _Array_ptr<long> v10 : count(k + 1);
 void a_f_3(void) {
-  v10 = simulate_malloc<long>((k + 1) * sizeof(int)); // expected-warning {{cannot prove declared bounds for v10 are valid after assignment}} \
-                                                      // expected-note {{(expanded) declared bounds are 'bounds(v10, v10 + k + 1)'}} \
-                                                      // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc((k + 1) * sizeof(int)), (_Array_ptr<char>)value of simulate_malloc((k + 1) * sizeof(int)) + (k + 1) * sizeof(int))'}}
+  v10 = simulate_malloc<long>((k + 1) * -1); // expected-warning {{cannot prove declared bounds for v10 are valid after assignment}} \
+                                             // expected-note {{(expanded) declared bounds are 'bounds(v10, v10 + k + 1)'}} \
+                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc((k + 1) * -1), (_Array_ptr<char>)value of simulate_malloc((k + 1) * -1) + (size_t)(k + 1) * -1)'}}
 }
 
 extern _Array_ptr<long> v11 : count(k);
@@ -544,10 +549,12 @@ void a_f_11(void) {
 }
 
 static _Array_ptr<char> x1 : count(k);
+static _Array_ptr<char> x2 : count(3);
 void a_f_12(void) {
   x1 = simulate_calloc<char>(32768, sizeof(char)); // expected-warning {{cannot prove declared bounds for x1 are valid after assignment}} \
                                                    // expected-note {{(expanded) declared bounds are 'bounds(x1, x1 + k)'}} \
                                                    // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(32768, sizeof(char)), (_Array_ptr<char>)value of simulate_calloc(32768, sizeof(char)) + (size_t)32768 * sizeof(char))'}}
+  x2 = simulate_calloc<char>(3, sizeof(char));
 }
 
 typedef struct ts1 {
