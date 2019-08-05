@@ -1934,12 +1934,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     // must make sure to add the struct to the parent scope instead.
     // The type parameters scope is removed later in 'ParseDeclOrFunctionDefInternal'.
     assert(getCurScope()->isForanyScope() == DS.isForanySpecified());
-<<<<<<< HEAD
-    Scope *structScope = getCurScope()->isForanyScope() ? getCurScope()->getParent() : getCurScope();
-=======
     assert(getCurScope()->isItypeforanyScope() == DS.isItypeforanySpecified());
-    Scope* structScope = (getCurScope()->isForanyScope() || getCurScope()->isItypeforanyScope()) ? getCurScope()->getParent() : getCurScope();
->>>>>>> Add support for type applications of itype structs
+    Scope *structScope = (getCurScope()->isForanyScope() || getCurScope()->isItypeforanyScope()) ? getCurScope()->getParent() : getCurScope();
 
     // Checked C: figure out what (if any) kind of generic we're dealing with.
     RecordDecl::Genericity GenericKind = RecordDecl::NonGeneric;
@@ -1963,18 +1959,11 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
     // Checked C: a reference to a struct can be followed by a list of type arguments,
     // if the struct is generic.
-<<<<<<< HEAD
     if (TagOrTempResult.isUsable() && TUK == Sema::TUK_Reference) {
       RecordDecl *Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get()->getCanonicalDecl());
       if (Decl && Decl->isGeneric()) {
         // We're parsing a reference to a generic struct, so we need to parse
         // the type arguments before we can instantiate.
-=======
-    RecordDecl *Decl;
-    if (TagOrTempResult.isUsable() && TUK == Sema::TUK_Reference && (Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get()->getCanonicalDecl()))) {
-      if (Decl->isGeneric()) {
-        // For generic structs, we always need to specify type arguments.
->>>>>>> Add support for type applications of itype structs
         TagOrTempResult = ParseRecordTypeApplication(Decl);
       } else if (Decl->isItypeGeneric()) {
         if (Actions.IsCheckedScope() || Tok.is(tok::less)) {
@@ -1987,7 +1976,8 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
           // and for functions.
           auto &Ctx = Actions.getASTContext();
           TypeArgVector VoidArgs;
-          for (size_t i = 0; i < Decl->numTypeParams(); ++i) {
+          auto numTypeParams = Decl->typeParams().size();
+          for (size_t i = 0; i < numTypeParams; ++i) {
             TypeSourceInfo *TInfo = Ctx.getTrivialTypeSourceInfo( Ctx.VoidTy, SourceLocation());
             VoidArgs.push_back({ Ctx.VoidTy, TInfo });
           }

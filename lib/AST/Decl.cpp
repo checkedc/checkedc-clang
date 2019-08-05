@@ -4347,11 +4347,7 @@ bool RecordDecl::isGenericOrItypeGeneric() const {
   return GenericKind != NonGeneric;
 }
 
-size_t RecordDecl::numTypeParams() const {
-  return NumTypeParams;
-}
-
-ArrayRef<TypedefDecl*> RecordDecl::typeParams() {
+ArrayRef<TypedefDecl *> RecordDecl::typeParams() const {
   return TypeParams;
 }
 

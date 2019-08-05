@@ -9656,8 +9656,8 @@ bool ASTContext::typeAppsMatch(const RecordType *T1, const RecordType *T2) const
   // If either T1 or T2 isn't a type application, the two types can't match, because
   // we already know the type pointers aren't the same.
   if (!T1Decl->isInstantiated() || !T2Decl->isInstantiated()) return false;
-  auto T1BaseType = getRecordType(T1Decl->baseDecl());
-  auto T2BaseType = getRecordType(T2Decl->baseDecl());
+  auto T1BaseType = getRecordType(T1Decl->genericBaseDecl());
+  auto T2BaseType = getRecordType(T2Decl->genericBaseDecl());
 
   // We know at this point that T1 and T2 are type applications.
   // T1 and T2 match if the following three conditions hold:
@@ -9669,7 +9669,7 @@ bool ASTContext::typeAppsMatch(const RecordType *T1, const RecordType *T2) const
   // application where all arguments are 'void' by the type system.
 
   // Check 1) and 2)
-  if (T1BaseType != T2BaseType || !T2Decl->baseDecl()->isItypeGeneric()) return false;
+  if (T1BaseType != T2BaseType || !T2Decl->genericBaseDecl()->isItypeGeneric()) return false;
 
   // Check 3)
   // TODO(abeln): add accessor for number of type arguments
