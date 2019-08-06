@@ -602,7 +602,7 @@ void ASTDumper::VisitRecordDecl(const RecordDecl *D) {
   // becaue the type variables are already printed _before_ the record declaration is dumped.
   if (D->isGeneric())
     OS << " _For_any(" << D->typeParams().size() << ")";
-  // TODO: handle 'itype_forany' case here when structs support generic interop types.
+  if (D->isItypeGeneric()) OS << "_Itype_for_any(" << D->typeParams().size() << ")";
   if (D->isInstantiated()) NodeDumper.dumpType(D->getASTContext().getTypeDeclType(D));
   if (D->isCompleteDefinition())
     OS << " definition";
