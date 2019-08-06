@@ -304,14 +304,18 @@ bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
       Diag(Loc, diag::err_expanding_cycle);
       return true;
     }
+    // 'EdgesVisitor' mutates the worklist by adding new nodes to it.
     ExpandingEdgesVisitor EdgesVisitor(Worklist, TVar, ExpandingSoFar);
     auto Defn = RDecl->getDefinition();
     // There might not be an underlying definition, because 'RDecl' might refer
     // to a forward-declared struct.
     if (!Defn) continue;
     for (auto Field : Defn->fields()) {
-      // 'EdgesVisitor' mutates the worklist by adding new nodes to it.
+      // Visit the field's type.
       EdgesVisitor.AddEdges(Field->getType());
+      // Visit the field's interop type, if one exists.
+      auto Itype = Field->getInteropType();
+      if (!Itype.isNull()) EdgesVisitor.AddEdges(Itype);
     }
   }
 
