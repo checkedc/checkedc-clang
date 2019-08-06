@@ -3329,10 +3329,19 @@ public:
           ExprSet Comparisons;
           ExtractComparisons(Block->getTerminatorCondition(), Comparisons);
           GenThen[Block].insert(Comparisons.begin(), Comparisons.end());
+
+          if (const BinaryOperator *E = dyn_cast<BinaryOperator>(Block->getTerminatorCondition())) {
+            if (E->isComparisonOp()) {
+              BinaryOperator *NewE = new (S.Context) BinaryOperator(*E);
+              NewE->setOpcode(NegatedOpcode(E->getOpcode()));
+              GenElse[Block].insert(NewE);
+            }
+          }
         }
       }
       // Collect all the conditions across all CFGBlocks
       AllConditions.insert(GenThen[Block].begin(), GenThen[Block].end());
+      AllConditions.insert(GenElse[Block].begin(), GenElse[Block].end());
     }
 
     // compute kill sets
@@ -3342,7 +3351,6 @@ public:
         if (Elem.getKind() == CFGElement::Statement)
           AllStmtsInThisBlock.insert(Elem.castAs<CFGStmt>().getStmt());
 
-      ExprSet AllExprsInThisBlock, AllComparisonsInThisBlock;
       llvm::SmallPtrSet<const VarDecl *, 16> DefinedVarsInThisBlock;
       for (auto St : AllStmtsInThisBlock) {
         llvm::SmallPtrSet<const VarDecl *, 16> DefinedVarsInSt;
@@ -3364,41 +3372,49 @@ public:
       auto OldValElse = OutElse[CurrentBlock];
 
       // Update InSet
-      ExprSet IntermediateIntersecionsNormal = OutThen[*(CurrentBlock->pred_begin())];
-      for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
-        // if this pred has < 2 successors --> no else branch, we are good!
-        if ((*I)->succ_size() < 2) {
-          IntermediateIntersecionsNormal = Intersect(IntermediateIntersecionsNormal, OutThen[*I]);
-        }
-      }
-      In[CurrentBlock] = IntermediateIntersecionsNormal;
-
-      ExprSet IntermediateIntersecionsBranch = IntermediateIntersecionsNormal;
+      ExprSet IntermediateIntersecions;
+      bool FirstIteration = true;
       for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
         // if this pred has == 2 successors --> then-else branches
+        if ((*I)->succ_size() < 2) {
+          if (FirstIteration) {
+            IntermediateIntersecions = OutThen[*I];
+            FirstIteration = false;
+          } else
+            IntermediateIntersecions = Intersect(IntermediateIntersecions, OutThen[*I]);
+        }
         if ((*I)->succ_size() == 2) {
           // it is first --> then
-          if (*((*I)->succ_begin()) == CurrentBlock)
-            IntermediateIntersecionsBranch = Intersect(IntermediateIntersecionsBranch, OutThen[*I]);
+          if (*((*I)->succ_begin()) == CurrentBlock) {
+            if (FirstIteration) {
+              IntermediateIntersecions = OutThen[*I];
+              FirstIteration = false;
+          } else
+            IntermediateIntersecions = Intersect(IntermediateIntersecions, OutThen[*I]);
+          }
           // it is second --> else
-          if (*(((*I)->succ_begin())+1) == CurrentBlock)
-            IntermediateIntersecionsBranch = Intersect(IntermediateIntersecionsBranch, OutElse[*I]);
+          if (*(((*I)->succ_begin())+1) == CurrentBlock) {
+            if (FirstIteration) {
+              IntermediateIntersecions = OutElse[*I];
+              FirstIteration = false;
+            } else
+              IntermediateIntersecions = Intersect(IntermediateIntersecions, OutElse[*I]);
+          }
         }
       }
-      In[CurrentBlock] = Intersect(IntermediateIntersecionsNormal, IntermediateIntersecionsBranch);
+      In[CurrentBlock] = IntermediateIntersecions;
 
       // Update OutSet
       OutThen[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), GenThen[CurrentBlock]);
       OutElse[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), GenElse[CurrentBlock]);
 
-      // Only add the affected Blocks
+      // Only recompute the affected Blocks
       if (!SetEqual(OutElse[CurrentBlock], OldValElse) || !SetEqual(OutThen[CurrentBlock], OldValThen))
         for (CFGBlock::const_pred_iterator I = CurrentBlock->succ_begin(), E = CurrentBlock->succ_end(); I != E; ++I)
           WorkList.push(*I);
     }
 
 #if DEBUG_DATAFLOW
-    // print everything we have so far
     for (const CFGBlock *Block : POView) {
       Block->dump();
 
@@ -3437,7 +3453,24 @@ public:
   }
 
 private:
-  // S1 - S2
+  BinaryOperator::Opcode NegatedOpcode(BinaryOperator::Opcode Op) {
+    switch(Op) {
+    case BO_EQ:
+      return BO_NE;
+    case BO_LE:
+      return BO_GT;
+    case BO_LT:
+      return BO_GE;
+    case BO_GE:
+      return BO_LT;
+    case BO_GT:
+      return BO_LE;
+    default:
+      return Op;
+    }
+  }
+
+  // Given two sets S1 and S2, the return value is S1 \ S2.
   ExprSet Difference(ExprSet S1, ExprSet S2) {
    if (S2.size() == 0)
       return S1;
@@ -3448,6 +3481,7 @@ private:
     return Result;
   }
 
+  // Given two sets S1 and S2, the return value is the union of these sets.
   ExprSet Union(ExprSet S1, ExprSet S2) {
     if (S1.size() == 0)
       return S2;
@@ -3459,6 +3493,7 @@ private:
     return Result;
   }
 
+  // Given two sets S1 and S2, the return value is the intersection of these sets.
   ExprSet Intersect(ExprSet S1, ExprSet S2) {
     if (S1.size() == 0)
       return S1;
@@ -3471,6 +3506,7 @@ private:
     return Result;
   }
 
+  // Given two sets S1 and S2, this function returns true only if they have the same elements.
   bool SetEqual(ExprSet S1, ExprSet S2) {
     if (S1.size() != S2.size())
       return false;
@@ -3492,6 +3528,10 @@ private:
   }
 
   void ExtractComparisons(const Stmt *St, ExprSet &ComparisonExprs) {
+    /*if (const ConditionalOperator *CO = dyn_cast<ConditionalOperator>(St))
+      return;
+    if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(St))
+      return;*/
     if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(St)) {
       switch (BO->getOpcode()) {
         case BinaryOperatorKind::BO_LOr:
@@ -3506,7 +3546,8 @@ private:
         default:
           break;
       }
-    }
+    } else
+      return;
     for (auto I = St->child_begin(); I != St->child_end(); ++I)
       ExtractComparisons(*I, ComparisonExprs);
   }
