@@ -39,7 +39,7 @@ clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
 clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExpr);
 
-bool hasFunctionBody(clang::Decl *param);
+bool isDeclarationParam(clang::Decl *param);
 
 std::string getStorageQualifierString(clang::Decl *D);
 

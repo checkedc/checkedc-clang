@@ -765,25 +765,25 @@ std::string ProgramInfo::getUniqueDeclKey(Decl *decl, ASTContext *C) {
   auto Psl = PersistentSourceLoc::mkPSL(decl, *C);
   std::string fileName = Psl.getFileName() + ":" + std::to_string(Psl.getLineNo());
   std::string name = decl->getDeclKindName();
-  if(FunctionDecl *FD = dyn_cast<FunctionDecl>(decl)) {
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(decl))
     name = FD->getNameAsString();
-  }
+
   std::string declKey = fileName + ":" + name;
   return declKey;
 }
 
 std::string ProgramInfo::getUniqueFuncKey(FunctionDecl *funcDecl, ASTContext *C) {
   // get unique key for a function: which is function name, file and line number
-  if(FunctionDecl *funcDefn = getDefinition(funcDecl)) {
+  if (FunctionDecl *funcDefn = getDefinition(funcDecl))
     funcDecl = funcDefn;
-  }
+
   return getUniqueDeclKey(funcDecl, C);
 }
 
 std::set<ConstraintVariable*>&
 ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C) {
   std::string declKey = getUniqueFuncKey(targetFunc, C);
-  if(OnDemandFuncDeclConstraint.find(declKey) == OnDemandFuncDeclConstraint.end()) {
+  if (OnDemandFuncDeclConstraint.find(declKey) == OnDemandFuncDeclConstraint.end()) {
     const Type *Ty = targetFunc->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     assert (!(Ty->isPointerType() || Ty->isArrayType()) && "");
     assert(Ty->isFunctionType() && "");
@@ -797,7 +797,7 @@ ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTC
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {
   // if this is a parameter.
-  if(parameterIndex >= 0) {
+  if (parameterIndex >= 0) {
     // get the parameter index of the
     // requested function declaration
     D = FD->getParamDecl(parameterIndex);
@@ -819,9 +819,9 @@ ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionCo
 
   // if this a function declaration
   // set in context to false.
-  if(dyn_cast<FunctionDecl>(D)) {
+  if (dyn_cast<FunctionDecl>(D))
     inFunctionContext = false;
-  }
+
   return getVariableOnDemand(D, C, inFunctionContext);
 }
 
@@ -839,12 +839,12 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
     FunctionDecl *funcDefinition = nullptr;
     FunctionDecl *funcDeclaration = nullptr;
     // get the function declaration and definition
-    if(D != nullptr && dyn_cast<FunctionDecl>(D)) {
+    if (D != nullptr && dyn_cast<FunctionDecl>(D)) {
       funcDeclaration = getDeclaration(dyn_cast<FunctionDecl>(D));
       funcDefinition = getDefinition(dyn_cast<FunctionDecl>(D));
     }
     int parameterIndex = -1;
-    if(PD = dyn_cast<ParmVarDecl>(D)) {
+    if (PD = dyn_cast<ParmVarDecl>(D)) {
       // okay, we got a request for a parameter
       DeclContext *DC = PD->getParentFunctionOrMethod();
       assert(DC != nullptr);
@@ -864,23 +864,23 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
 
       assert(parameterIndex >= 0 && "Got request for invalid parameter");
     }
-    if(funcDeclaration || funcDefinition || parameterIndex != -1) {
+    if (funcDeclaration || funcDefinition || parameterIndex != -1) {
       // if we are asking for the constraint variable of a function
       // and that function is an external function.
       // then use declaration.
-      if(dyn_cast<FunctionDecl>(D) && funcDefinition == nullptr) {
+      if (dyn_cast<FunctionDecl>(D) && funcDefinition == nullptr) {
         funcDefinition = funcDeclaration;
       }
       // this means either we got a
       // request for function return value or parameter
-      if(inFunctionContext) {
+      if (inFunctionContext) {
         assert(funcDefinition != nullptr && "Requesting for in-context constraints, "
                                             "but there is no definition for this function");
         // return the constraint variable
         // that belongs to the function definition.
         return getVariable(D, C, funcDefinition, parameterIndex);
       } else {
-        if(funcDeclaration == nullptr) {
+        if (funcDeclaration == nullptr) {
           // we need constraint variable
           // with in the function declaration,
           // but there is no declaration

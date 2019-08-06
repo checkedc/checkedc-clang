@@ -49,9 +49,9 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
   // optimization: if the provided Decl is itself
   // a declaration then return the same Decl
-  if (!FD->isThisDeclarationADefinition()) {
+  if (!FD->isThisDeclarationADefinition())
     return FD;
-  }
+
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (!tFD->isThisDeclarationADefinition())
@@ -65,9 +65,9 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 FunctionDecl *getDefinition(FunctionDecl *FD) {
   // optimization: if the provided Decl is itself
   // associated with a function body return the same Decl
-  if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
+  if (FD->isThisDeclarationADefinition() && FD->hasBody())
     return FD;
-  }
+
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
@@ -105,21 +105,17 @@ clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
   return ptrType->getKind();
 }
 
-// check if function body exists for the
-// provided declaration.
-bool hasFunctionBody(clang::Decl *param) {
+// check if the provided declaration is a function parameter
+// and is part of a declaration only function
+bool isDeclarationParam(clang::Decl *param) {
   // if this a parameter?
-  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
+  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param))
     if (DeclContext *DC = PD->getParentFunctionOrMethod()) {
       FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
-      if (getDefinition(FD) != nullptr)
-        return true;
+      return getDefinition(FD) == nullptr;
     }
-    return false;
-  }
-  // else this should be within body and
-  // the function body should exist.
-  return true;
+  // else this is not a parameter
+  return false;
 }
 
 static std::string storageClassToString(StorageClass SC) {
@@ -135,12 +131,12 @@ static std::string storageClassToString(StorageClass SC) {
 // this method gets the storage qualifier for the
 // provided declaration i.e., static, extern, etc.
 std::string getStorageQualifierString(Decl *D) {
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
     return storageClassToString(FD->getStorageClass());
-  }
-  if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+
+  if (VarDecl *VD = dyn_cast<VarDecl>(D))
     return storageClassToString(VD->getStorageClass());
-  }
+
   return "";
 }
 

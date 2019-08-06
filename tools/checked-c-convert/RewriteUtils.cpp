@@ -411,7 +411,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FunctionDecl *Definition = getDefinition(FD);
   FunctionDecl *Declaration = getDeclaration(FD);
 
-  if(Definition == nullptr)
+  if (Definition == nullptr)
     return true;
 
   FVConstraint *cDefn = dyn_cast<FVConstraint>(
@@ -420,7 +420,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FVConstraint *cDecl = nullptr;
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
-  if(Declaration == nullptr) {
+  if (Declaration == nullptr) {
     // if there is no declaration?
     // get the on demand function variable constraint.
     auto funcDefKey = Info.getUniqueFuncKey(Definition, Context);
@@ -455,7 +455,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
+      if (anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
@@ -491,14 +491,14 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     std::string endStuff = "";
     bool returnHandled = false;
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-    if(anyConstrained) {
+    if (anyConstrained) {
       returnHandled = true;
       std::string ctype = "";
       didAny = true;
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(Decl->hasWild(Info.getConstraints().getVariables())) {
+      if (Decl->hasWild(Info.getConstraints().getVariables())) {
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
         returnVar = Defn->getOriginalTy();
         endStuff = " : itype("+ctype+") ";
@@ -514,12 +514,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       }
     }
 
-    if(!returnHandled) {
+    if (!returnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
       returnVar = Decl->mkString(Info.getConstraints().getVariables());
 
       endStuff = getExistingIType(Decl, Defn, Declaration);
-      if(!endStuff.empty()) {
+      if (!endStuff.empty()) {
         didAny = true;
       }
     }
@@ -615,7 +615,7 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
   SmallString<254> baseAbs(BaseDir);
   std::string baseDirFP;
-  if(getAbsoluteFilePath(BaseDir, baseDirFP)) {
+  if (getAbsoluteFilePath(BaseDir, baseDirFP)) {
     baseAbs = baseDirFP;
   }
   sys::path::remove_filename(baseAbs);
@@ -650,11 +650,11 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           // Write this file out if it was specified as a file on the command
           // line.
           std::string feAbsS = "";
-          if(getAbsoluteFilePath(FE->getName(), feAbsS)) {
+          if (getAbsoluteFilePath(FE->getName(), feAbsS)) {
             feAbsS = sys::path::remove_leading_dotslash(feAbsS);
           }
 
-          if(canWrite(feAbsS, InOutFiles, base)) {
+          if (canWrite(feAbsS, InOutFiles, base)) {
             std::error_code EC;
             raw_fd_ostream out(nFile, EC, sys::fs::F_None);
 
