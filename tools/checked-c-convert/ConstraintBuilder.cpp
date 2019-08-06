@@ -238,7 +238,7 @@ public:
       RHS = RHS->IgnoreParens();
 
       // Cases 2
-      if(RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
+      if (RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
         // Do Nothing.
       } else if (RHS->isIntegerConstantExpr(*Context) &&
                 !RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
@@ -722,10 +722,13 @@ private:
   }
 
   Expr* getNormalizedExpr(Expr *CE) {
-    if(dyn_cast<CHKCBindTemporaryExpr>(CE)) {
+    if (dyn_cast<ImplicitCastExpr>(CE)) {
+      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
+    }
+    if (dyn_cast<CHKCBindTemporaryExpr>(CE)) {
       CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
     }
-    if(dyn_cast<ImplicitCastExpr>(CE)) {
+    if (dyn_cast<ImplicitCastExpr>(CE)) {
       CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
     }
     return CE;
