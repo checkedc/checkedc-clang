@@ -2319,14 +2319,100 @@ static BinOpInfo createBinOpInfoFromIncDec(const UnaryOperator *E,
   return BinOp;
 }
 
+static Expr *peelOffPointerArithmetic(const BinaryOperator *B) {
+  if (B->isAdditiveOp() && B->getType()->isPointerType()) {
+    if (B->getLHS()->getType()->isPointerType()) {
+      return B->getLHS();
+    } else if (B->getRHS()->getType()->isPointerType()) {
+      return B->getRHS();
+    }
+  }
+  return nullptr;
+}
+
+static Expr *peelOffOuterExpr(Expr *E) {
+  if (auto *ICE = dyn_cast<ImplicitCastExpr>(E))
+    return peelOffOuterExpr(ICE->getSubExpr());
+
+  if (const auto *BO = dyn_cast<BinaryOperator>(E))
+    if (Expr *SubE = peelOffPointerArithmetic(BO))
+      return peelOffOuterExpr(SubE);
+
+  return E;
+}
+
+// Determine whether to emit a dynamic non-null check.
 static void emitDynamicNonNullCheck(CodeGenFunction &CGF, Expr *E) {
+  // CHKCBindTemporaryExpr needs to be processed separately. In order to
+  // determine whether E contains any CHKCBindTemporaryExpr we need to
+  // recursively peel off the outer exprs.
+  E = peelOffOuterExpr(E);
+
   const auto Ty = E->getType();
-  if (!Ty->isCheckedPointerType() && !Ty->isCheckedArrayType())
+  if (!Ty->isCheckedPointerType())
     return;
 
-  LValueBaseInfo BaseInfo;
-  TBAAAccessInfo TBAAInfo;
-  const auto Addr = CGF.EmitPointerWithAlignment(E, &BaseInfo, &TBAAInfo);
+  if (!isa<CHKCBindTemporaryExpr>(E)) {
+    const auto Addr = CGF.EmitPointerWithAlignment(E);
+    CGF.EmitDynamicNonNullCheck(Addr, Ty);
+    return;
+  }
+
+  const auto *TE = cast<CHKCBindTemporaryExpr>(E);
+  if (TE->isLValue()) {
+  // Example of CHKCBindTemporaryExpr LValue:
+
+  // #define ACCESS_DIM(e, index) (*(e + index))
+  // ACCESS_DIM(((int checked[]) { }), 0);
+
+  // This results in the following AST:
+
+  // ImplicitCastExpr '_Array_ptr<int>' <ArrayToPointerDecay>
+  // `-CHKCBindTemporaryExpr 'int _Checked[0]' lvalue
+  //  `-ParenExpr 'int _Checked[0]' lvalue
+  //   `-CompoundLiteralExpr 'int _Checked[0]' lvalue
+  //    `-InitListExpr 'int _Checked[0]'
+
+    const auto Addr = CGF.getBoundsTemporaryLValueMapping(TE).getAddress();
+    CGF.EmitDynamicNonNullCheck(Addr, Ty);
+    return;
+  }
+
+  const auto RV = CGF.getBoundsTemporaryRValueMapping(TE);
+  if (RV.isScalar()) {
+    // Example of CHKCBindTemporaryExpr Scalar RValue:
+
+    // array_ptr<int> bar(int i) : count(i) { return 0; }
+    // void foo() { ACCESS_DIM(bar(1), 0); }
+
+    // This results in the following AST:
+
+    // CHKCBindTemporaryExpr '_Array_ptr<int>'
+    //  `-CallExpr '_Array_ptr<int>'
+    //   |-ImplicitCastExpr '_Array_ptr<int> (*)(int) : count(arg #0)' <FunctionToPointerDecay>
+    //   | `-DeclRefExpr '_Array_ptr<int> (int) : count(arg #0)' Function 'bar' '_Array_ptr<int> (int) : count(arg #0)'
+    //   `-IntegerLiteral 'int' 1
+
+    const auto *V = CGF.getBoundsTemporaryRValueMapping(TE).getScalarVal();
+    const auto Addr =
+      CGF.CreateDefaultAlignTempAlloca(V->getType(), "saved-rvalue");
+    CGF.EmitDynamicNonNullCheck(Addr, Ty);
+    return;
+
+  } else if (RV.isComplex()) {
+    CodeGenFunction::ComplexPairTy V =
+      CGF.getBoundsTemporaryRValueMapping(TE).getComplexVal();
+
+    llvm::Type *ComplexTy =
+      llvm::StructType::get(V.first->getType(), V.second->getType());
+    const auto Addr =
+      CGF.CreateDefaultAlignTempAlloca(ComplexTy, "saved-complex");
+    CGF.EmitDynamicNonNullCheck(Addr, Ty);
+    return;
+  }
+
+  assert(RV.isAggregate());
+  const auto Addr = RV.getAggregateAddress();
   CGF.EmitDynamicNonNullCheck(Addr, Ty);
 }
 
