@@ -3366,6 +3366,7 @@ public:
 
     // Main algorithm, iterative worklist
     while (!WorkList.empty()) {
+
       const CFGBlock *CurrentBlock = WorkList.front();
       WorkList.pop();
       auto OldValThen = OutThen[CurrentBlock];
@@ -3375,6 +3376,8 @@ public:
       ExprSet IntermediateIntersecions;
       bool FirstIteration = true;
       for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
+        if (!*I)
+          continue;
         // if this pred has == 2 successors --> then-else branches
         if ((*I)->succ_size() < 2) {
           if (FirstIteration) {
