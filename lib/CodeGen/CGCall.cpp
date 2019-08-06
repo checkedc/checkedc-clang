@@ -4495,11 +4495,23 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           return RValue::getAggregate(DestPtr);
         }
         case TEK_Scalar: {
-          // If the argument doesn't match, perform a bitcast to coerce it.  This
-          // can happen due to trivial type mismatches.
           llvm::Value *V = CI;
-          if (V->getType() != RetIRTy)
+
+          // Checked C
+          // When a generic function returns a _MMSafe_ptr<T>, there would be
+          // a mismatch between the generic return type and the real return
+          // type. In this situation, we need mutate the type of the generic
+          // function to the real type.
+          if (V->getType()->isMMSafePointerTy() &&
+              RetIRTy->isMMSafePointerTy()) {
+              V->mutateType(RetIRTy);
+          }
+
+          // If the argument doesn't match, perform a bitcast to coerce it. This
+          // can happen due to trivial type mismatches.
+          if (V->getType() != RetIRTy) {
             V = Builder.CreateBitCast(V, RetIRTy);
+          }
           return RValue::get(V);
         }
         }
