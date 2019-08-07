@@ -13,8 +13,8 @@ fi
 set -ue
 set -o pipefail
 
-./setup-files.sh
-./run-cmake.sh
-./test-clang.sh
+#./setup-files.sh
+#./run-cmake.sh
+#./test-clang.sh
 ./test-lnt.sh
-./build-package.sh
+#./build-package.sh

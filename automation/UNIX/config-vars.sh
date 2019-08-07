@@ -142,7 +142,7 @@ if [ -z "$LNT" ]; then
 else
   export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${BUILDOS}"
   # We assume that lnt is installed in /lnt-install on test machines.
-  export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
+#  export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
 fi
  
 if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
