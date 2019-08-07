@@ -59,7 +59,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
     // external variables can also have itype.
     // check if the provided declaration is an external
     // variable.
-    if(!dyn_cast<ParmVarDecl>(D) && !dyn_cast<FunctionDecl>(D)) {
+    if (!dyn_cast<ParmVarDecl>(D) && !dyn_cast<FunctionDecl>(D)) {
       QualType InteropType = C.getInteropTypeAndAdjust(ITE, false);
       // TODO: handle array_ptr types.
       if (InteropType->isCheckedPointerPtrType()) {
@@ -101,13 +101,13 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
       K++;
 
       // Boil off the typedefs in the array case.
-      while(const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
+      while (const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
         QTy = tydTy->desugar();
         Ty = QTy.getTypePtr();
       }
 
       // Iterate.
-      if(const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
+      if (const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
         QTy = arrTy->getElementType();
         Ty = QTy.getTypePtr();
       } else {
@@ -213,7 +213,7 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
   Constraints &CS = Info.getConstraints();
   auto &env = CS.getVariables();
 
-  while(I != getCvars().end() && J != OC.end()) {
+  while (I != getCvars().end() && J != OC.end()) {
     // Look up the valuation for I and J.
     ConstAtom *CI = env[CS.getVar(*I)];
     ConstAtom *CJ = env[CS.getVar(*J)];
@@ -271,14 +271,14 @@ void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
   O << "\"Vars\":[";
   bool addComma = false;
   for (const auto &I : vars) {
-    if(addComma) {
+    if (addComma) {
       O << ",";
     }
     O << "\"q_" << I << "\"";
     addComma = true;
   }
   O << "], \"name\":\"" << getName() << "\"";
-  if(FV) {
+  if (FV) {
     O << ", \"FunctionVariable\":";
     FV->dump_json(O);
   }
@@ -632,7 +632,7 @@ ConstAtom* FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMa
   for (const auto& C: returnVars) {
     ConstAtom *CS = C->getHighestType(E);
     assert(CS != nullptr);
-    if(toRet == nullptr || ((*toRet) < *CS)) {
+    if (toRet == nullptr || ((*toRet) < *CS)) {
       toRet = CS;
     }
   }
@@ -717,7 +717,7 @@ ConstAtom* PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
-    if(toRet == nullptr || ((*toRet) < *CS)) {
+    if (toRet == nullptr || ((*toRet) < *CS)) {
       toRet = CS;
     }
   }
