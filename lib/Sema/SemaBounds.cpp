@@ -3291,193 +3291,167 @@ namespace {
 namespace {
 class AvailableExprAnalysis {
 private:
+  typedef llvm::SmallPtrSet<const Expr *, 16> ExprSet;
+  typedef std::pair<Expr *, Expr *> Inequality;
+  typedef std::set<Inequality> InequalitySet;
+
+  class ElevatedCFGBlock {
+  private:
+    const CFGBlock *Block;
+    InequalitySet In, OutThen, OutElse;
+    InequalitySet Kill, GenThen, GenElse;
+
+  public:
+    ElevatedCFGBlock(const CFGBlock *Block) : Block(Block) {}
+
+    friend class AvailableExprAnalysis;
+  };
+
   Sema &S;
   CFG *Cfg;
-  typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
-  typedef llvm::SmallPtrSet<const Expr *, 16> ExprSet;
-  typedef std::queue<const CFGBlock *> CFGBlockQueue;
 
-  llvm::DenseMap<const CFGBlock *, ExprSet> In;
-  llvm::DenseMap<const CFGBlock *, ExprSet> OutThen, OutElse;
-  llvm::DenseMap<const CFGBlock *, ExprSet> Kill;
-  llvm::DenseMap<const CFGBlock *, ExprSet> GenThen, GenElse;
-  CFGBlockQueue WorkList;
+  std::vector<ElevatedCFGBlock *> Blocks;
+  std::size_t CurrentIndex;
+  std::queue<ElevatedCFGBlock *> WorkList;
 
 public:
-  AvailableExprAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg) {}
+  AvailableExprAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), CurrentIndex(0) {}
 
   void Analyze() {
     assert(Cfg && "expected CFG to exist");
-    ExprSet AllConditions;
+    InequalitySet AllInequalities;
 
     PostOrderCFGView POView = PostOrderCFGView(Cfg);
     for (const CFGBlock *Block : POView) {
-      // initialize In, Out, Kill, and Gen sets for each CFGBlock
-      In.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
-      OutThen.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
-      OutElse.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
-      Kill.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
-      GenThen.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
-      GenElse.insert(std::pair<const CFGBlock *, ExprSet>(Block, ExprSet()));
+      auto NewBlock = new ElevatedCFGBlock(Block);
+      WorkList.push(NewBlock);
+      Blocks.emplace_back(NewBlock);
+    }
 
-      // initialize the worklist
-      WorkList.push(Block);
-
-      // compute Gen sets
-      if (const Stmt *Term = Block->getTerminator()) {
+    // Compute Gen Sets
+    for (auto B : Blocks) {
+      if (const Stmt *Term = B->Block->getTerminator()) {
         if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
-          ExprSet Comparisons;
-          ExtractComparisons(Block->getTerminatorCondition(), Comparisons);
-          GenThen[Block].insert(Comparisons.begin(), Comparisons.end());
+          InequalitySet Comparisons;
+          ExtractComparisons(B->Block->getTerminatorCondition(), Comparisons);
+          B->GenThen.insert(Comparisons.begin(), Comparisons.end());
+          //Insert(Comparisons, B->GenThen);
+          //B->GenThen.insert(Comparisons.begin(), Comparisons.end());
 
-          if (const BinaryOperator *E = dyn_cast<BinaryOperator>(Block->getTerminatorCondition())) {
-            if (E->isComparisonOp()) {
-              BinaryOperator *NewE = new (S.Context) BinaryOperator(*E);
-              NewE->setOpcode(NegatedOpcode(E->getOpcode()));
-              GenElse[Block].insert(NewE);
-            }
-          }
+          InequalitySet NegatedComparisons;
+          Negate(Comparisons, NegatedComparisons);
+          B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
+          //B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
         }
       }
-      // Collect all the conditions across all CFGBlocks
-      AllConditions.insert(GenThen[Block].begin(), GenThen[Block].end());
-      AllConditions.insert(GenElse[Block].begin(), GenElse[Block].end());
+      AllInequalities.insert(B->GenThen.begin(), B->GenThen.end());
+      AllInequalities.insert(B->GenElse.begin(), B->GenElse.end());
     }
 
-    // compute kill sets
-    for (const CFGBlock *Block : POView) {
-      StmtSet AllStmtsInThisBlock;
-      for (CFGElement Elem : *Block)
+    // Compute Kill Sets
+    for (auto B : Blocks) {
+      llvm::SmallPtrSet<const VarDecl *, 16> DefinedVars;
+      for (CFGElement Elem : *(B->Block))
         if (Elem.getKind() == CFGElement::Statement)
-          AllStmtsInThisBlock.insert(Elem.castAs<CFGStmt>().getStmt());
+          CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
 
-      llvm::SmallPtrSet<const VarDecl *, 16> DefinedVarsInThisBlock;
-      for (auto St : AllStmtsInThisBlock) {
-        llvm::SmallPtrSet<const VarDecl *, 16> DefinedVarsInSt;
-        CollectDefinedVarsInStmt(St, DefinedVarsInSt);
-        DefinedVarsInThisBlock.insert(DefinedVarsInSt.begin(), DefinedVarsInSt.end());
-      }
-
-      for (auto E : AllConditions)
-        for (auto V : DefinedVarsInThisBlock)
-          if (DoesExprContainVar(E, V))
-            Kill[Block].insert(E);
+      for (auto E : AllInequalities)
+        for (auto V : DefinedVars)
+          if (ContainsVariable(E, V))
+            B->Kill.insert(E);
     }
 
-    // Main algorithm, iterative worklist
-    while (!WorkList.empty()) {
-
-      const CFGBlock *CurrentBlock = WorkList.front();
+    // Iterative Worklist Algorithm
+    while(!WorkList.empty()) {
+      ElevatedCFGBlock *CurrentBlock = WorkList.front();
       WorkList.pop();
-      auto OldValThen = OutThen[CurrentBlock];
-      auto OldValElse = OutElse[CurrentBlock];
 
-      // Update InSet
-      ExprSet IntermediateIntersecions;
+      // Update In set
+      InequalitySet IntermediateIntersecions;
       bool FirstIteration = true;
-      for (CFGBlock::const_pred_iterator I = CurrentBlock->pred_begin(), E = CurrentBlock->pred_end(); I != E; ++I) {
+      for (CFGBlock::const_pred_iterator I = CurrentBlock->Block->pred_begin(), E = CurrentBlock->Block->pred_end(); I != E; ++I) {
         if (!*I)
           continue;
-        // if this pred has == 2 successors --> then-else branches
-        if ((*I)->succ_size() < 2) {
+        if (*((*I)->succ_begin()) == CurrentBlock->Block) {
           if (FirstIteration) {
-            IntermediateIntersecions = OutThen[*I];
+            IntermediateIntersecions = GetByCFGBlock(*I)->OutThen;
             FirstIteration = false;
           } else
-            IntermediateIntersecions = Intersect(IntermediateIntersecions, OutThen[*I]);
-        }
-        if ((*I)->succ_size() == 2) {
-          // it is first --> then
-          if (*((*I)->succ_begin()) == CurrentBlock) {
-            if (FirstIteration) {
-              IntermediateIntersecions = OutThen[*I];
-              FirstIteration = false;
+            IntermediateIntersecions = Intersect(IntermediateIntersecions, CurrentBlock->OutThen);
+        } else {
+          if (FirstIteration) {
+            IntermediateIntersecions = GetByCFGBlock(*I)->OutElse;
+            FirstIteration = false;
           } else
-            IntermediateIntersecions = Intersect(IntermediateIntersecions, OutThen[*I]);
-          }
-          // it is second --> else
-          if (*(((*I)->succ_begin())+1) == CurrentBlock) {
-            if (FirstIteration) {
-              IntermediateIntersecions = OutElse[*I];
-              FirstIteration = false;
-            } else
-              IntermediateIntersecions = Intersect(IntermediateIntersecions, OutElse[*I]);
-          }
+            IntermediateIntersecions = Intersect(IntermediateIntersecions, CurrentBlock->OutElse);
         }
       }
-      In[CurrentBlock] = IntermediateIntersecions;
+      CurrentBlock->In = IntermediateIntersecions;
 
-      // Update OutSet
-      OutThen[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), GenThen[CurrentBlock]);
-      OutElse[CurrentBlock] = Union(Difference(In[CurrentBlock], Kill[CurrentBlock]), GenElse[CurrentBlock]);
-
-      // Only recompute the affected Blocks
-      if (!SetEqual(OutElse[CurrentBlock], OldValElse) || !SetEqual(OutThen[CurrentBlock], OldValThen))
-        for (CFGBlock::const_pred_iterator I = CurrentBlock->succ_begin(), E = CurrentBlock->succ_end(); I != E; ++I)
-          WorkList.push(*I);
+      // Update Out Set
+      InequalitySet OldOutThen = CurrentBlock->OutThen, OldOutElse = CurrentBlock->OutElse;
+      CurrentBlock->OutThen = Difference(Union(CurrentBlock->In, CurrentBlock->GenThen), CurrentBlock->Kill);
+      CurrentBlock->OutElse = Difference(Union(CurrentBlock->In, CurrentBlock->GenElse), CurrentBlock->Kill);
+      
+      // Recompute the Affected Blocks
+      if (Differ(OldOutThen, CurrentBlock->OutThen) || Differ(OldOutElse, CurrentBlock->OutElse))
+        for (CFGBlock::const_succ_iterator I = CurrentBlock->Block->succ_begin(), E = CurrentBlock->Block->succ_end(); I != E; ++I)
+          WorkList.push(GetByCFGBlock(*I));
     }
 
 #if DEBUG_DATAFLOW
-    for (const CFGBlock *Block : POView) {
-      Block->dump();
+    for (auto B : Blocks) {
+      B->Block->dump();
 
       llvm::outs() << "In set:\n";
-      for (auto E : In[Block]) {
-        E->dumpPretty(S.Context);
-        llvm::outs() << "\n";
-      }
+      PrintInequalitySet(B->In);
+
       llvm::outs() << "OutThen set:\n";
-      for (auto E : OutThen[Block]) {
-        E->dumpPretty(S.Context);
-        llvm::outs() << "\n";
-      }
+      PrintInequalitySet(B->OutThen);
+
       llvm::outs() << "OutElse set:\n";
-      for (auto E : OutElse[Block]) {
-        E->dumpPretty(S.Context);
-        llvm::outs() << "\n";
-      }
+      PrintInequalitySet(B->OutElse);
+
       llvm::outs() << "Kill set:\n";
-      for (auto E : Kill[Block]) {
-        E->dumpPretty(S.Context);
-        llvm::outs() << "\n";
-      }
+      PrintInequalitySet(B->Kill);
+
       llvm::outs() << "GenThen set:\n";
-      for (auto E : GenThen[Block]) {
-        E->dumpPretty(S.Context);
-        llvm::outs() << "\n";
-      }
+      PrintInequalitySet(B->GenThen);
+
       llvm::outs() << "GenElse set:\n";
-      for (auto E : GenElse[Block]) {
-        E->dumpPretty(S.Context);
-        llvm::outs() << "\n";
-      }
+      PrintInequalitySet(B->GenElse);
     }
 #endif
   }
 
+  void Reset() {
+    CurrentIndex = 0;
+  }
+
+  void Next() {
+    CurrentIndex++;
+  }
+
+  // This function fills `InequalityFacts` with pairs (Expr1, Expr2) where
+  // Expr1 < Expr2, Expr1 <= Expr2, Expr2 > Expr1, or Expr2 >= Expr1.
+  // These inequalities correspond to the current block.
+  void GetFacts(std::set<std::pair<Expr *, Expr *>>& InequalityFacts) {
+    InequalityFacts = Blocks[CurrentIndex]->In;
+  }
+
 private:
-  BinaryOperator::Opcode NegatedOpcode(BinaryOperator::Opcode Op) {
-    switch(Op) {
-    case BO_EQ:
-      return BO_NE;
-    case BO_LE:
-      return BO_GT;
-    case BO_LT:
-      return BO_GE;
-    case BO_GE:
-      return BO_LT;
-    case BO_GT:
-      return BO_LE;
-    default:
-      return Op;
-    }
+  ElevatedCFGBlock* GetByCFGBlock(const CFGBlock *B) {
+    for (auto E : Blocks)
+    if (E->Block == B)
+      return E;
+    return nullptr;
   }
 
   // Given two sets S1 and S2, the return value is S1 \ S2.
-  ExprSet Difference(ExprSet S1, ExprSet S2) {
+  InequalitySet Difference(InequalitySet& S1, InequalitySet& S2) {
    if (S2.size() == 0)
       return S1;
-    ExprSet Result;
+    InequalitySet Result;
     for (auto E1 : S1)
       if (S2.find(E1) == S2.end())
         Result.insert(E1);
@@ -3485,43 +3459,50 @@ private:
   }
 
   // Given two sets S1 and S2, the return value is the union of these sets.
-  ExprSet Union(ExprSet S1, ExprSet S2) {
+  InequalitySet Union(InequalitySet& S1, InequalitySet& S2) {
     if (S1.size() == 0)
       return S2;
     if (S2.size() == 0)
       return S1;
-    ExprSet Result;
-    Result.insert(S1.begin(), S1.end());
+    InequalitySet Result(S1);
     Result.insert(S2.begin(), S2.end());
     return Result;
   }
 
+  bool Differ(InequalitySet& S1, InequalitySet& S2) {
+    if (S1.size() != S2.size())
+      return true;
+    if (S1.size() == 0 || S2.size() == 0)
+      return true;
+    if (S1.size() > S2.size())
+      for (auto E : S1)
+        if (S2.find(E) == S2.end())
+          return true;
+    if (S1.size() < S2.size())
+      for (auto E : S2)
+        if (S1.find(E) == S1.end())
+          return true;
+    return false;
+  }
+
   // Given two sets S1 and S2, the return value is the intersection of these sets.
-  ExprSet Intersect(ExprSet S1, ExprSet S2) {
+  InequalitySet Intersect(InequalitySet& S1, InequalitySet& S2) {
     if (S1.size() == 0)
       return S1;
     if (S2.size() == 0)
       return S2;
-    ExprSet Result;
+    InequalitySet Result;
+
     for (auto E1 : S1)
       if (S2.find(E1) != S2.end())
         Result.insert(E1);
     return Result;
   }
 
-  // Given two sets S1 and S2, this function returns true only if they have the same elements.
-  bool SetEqual(ExprSet S1, ExprSet S2) {
-    if (S1.size() != S2.size())
-      return false;
-    for (auto E : S1)
-      if (S2.find(E) == S2.end())
-        return false;
-    return true;
-  }
-
-  bool DoesExprContainVar(const Expr *E, const VarDecl *V) {
+  bool ContainsVariable(Inequality& I, const VarDecl *V) {
     ExprSet Exprs;
-    CollectExpressionsInStmt(E, Exprs);
+    CollectExpressions(I.first, Exprs);
+    CollectExpressions(I.second, Exprs);
     for (auto InnerExpr : Exprs)
       if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(InnerExpr))
         if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl()))
@@ -3530,21 +3511,20 @@ private:
     return false;
   }
 
-  void ExtractComparisons(const Stmt *St, ExprSet &ComparisonExprs) {
-    /*if (const ConditionalOperator *CO = dyn_cast<ConditionalOperator>(St))
-      return;
-    if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(St))
-      return;*/
+  void ExtractComparisons(const Stmt *St, InequalitySet &ISet) {
     if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(St)) {
       switch (BO->getOpcode()) {
         case BinaryOperatorKind::BO_LOr:
           return;
-        case BinaryOperatorKind::BO_GE:
-        case BinaryOperatorKind::BO_GT:
+        case BinaryOperatorKind::BO_LAnd:
+          return;
         case BinaryOperatorKind::BO_LE:
         case BinaryOperatorKind::BO_LT:
-        case BinaryOperatorKind::BO_EQ:
-          ComparisonExprs.insert(BO);
+          ISet.insert(Inequality(BO->getLHS(), BO->getRHS()));
+          break;
+        case BinaryOperatorKind::BO_GE:
+        case BinaryOperatorKind::BO_GT:
+          ISet.insert(Inequality(BO->getRHS(), BO->getLHS()));
           break;
         default:
           break;
@@ -3552,19 +3532,24 @@ private:
     } else
       return;
     for (auto I = St->child_begin(); I != St->child_end(); ++I)
-      ExtractComparisons(*I, ComparisonExprs);
+      ExtractComparisons(*I, ISet);
   }
 
-  void CollectExpressionsInStmt(const Stmt *St, ExprSet &AllExprs) {
+  void Negate(InequalitySet &InputSet, InequalitySet &OutputSet) {
+    for (auto I : InputSet)
+      OutputSet.insert(Inequality(I.second, I.first));
+  }
+
+  void CollectExpressions(const Stmt *St, ExprSet &AllExprs) {
     if (!St)
       return;
     if (const Expr *E = dyn_cast<Expr>(St))
       AllExprs.insert(E);
     for (auto I = St->child_begin(); I != St->child_end(); ++I)
-      CollectExpressionsInStmt(*I, AllExprs);
+      CollectExpressions(*I, AllExprs);
   }
 
-  void CollectDefinedVarsInStmt(const Stmt *St, llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars) {
+  void CollectDefinedVars(const Stmt *St, llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars) {
     if (!St)
       return;
 
@@ -3589,8 +3574,21 @@ private:
       }
 
     for (auto I = St->child_begin(); I != St->child_end(); ++I)
-      CollectDefinedVarsInStmt(*I, DefinedVars);
+      CollectDefinedVars(*I, DefinedVars);
   }
+
+#if DEBUG_DATAFLOW
+  void PrintInequalitySet(InequalitySet &ISet) {
+      for (auto I : ISet) {
+        llvm::outs() << "(";
+        I.first->dumpPretty(S.Context);
+        llvm::outs() << ", ";
+        I.second->dumpPretty(S.Context);
+        llvm::outs() << "), ";
+      }
+      llvm::outs() << "\n";
+  }
+#endif
 };
 }
 
