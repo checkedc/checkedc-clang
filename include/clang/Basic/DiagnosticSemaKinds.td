@@ -9751,6 +9751,9 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_initializer_expected_for_ptr : Error<
     "automatic variable %0 with _Ptr type must have initializer">;
 
+  def err_initializer_expected_for_mmsafe_ptr : Error<
+    "automatic variable %0 with _MMSafe_ptr type must have initializer">;
+
   def err_initializer_not_null_terminated_for_nt_checked : Error<
     "null terminator expected in _Nt_checked array initializer">;
 

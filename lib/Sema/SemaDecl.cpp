@@ -12217,6 +12217,9 @@ void Sema::ActOnUninitializedDecl(Decl *RealDecl) {
       else if (B && !B->isInvalid() && !B->isUnknown() && !Ty->isArrayType())
         Diag(Var->getLocation(), diag::err_initializer_expected_with_bounds)
           << Var;
+      else if (Ty->isCheckedPointerMMSafeType())
+        Diag(Var->getLocation(), diag::err_initializer_expected_for_ptr)
+          << Var;
 
       // An unchecked pointer in a checked scope with a bounds expression must
       // be initialized
