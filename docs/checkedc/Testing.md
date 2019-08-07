@@ -36,10 +36,16 @@ Set up the build system and then change to your new object directory.  Use the f
 In your build directory,
 
 - Checked C tests: `make -j nnn check-checkedc`
+- Checked C tests (for ARM target): `make -j nnn check-checkedc-arm`
 - clang tests: `make -j nnn check-clang`
 - All tests: `make -j nnn check-all`
 
 where `nnn` is replaced by the number of CPU cores that your computer has.
+
+Note: If you use CMake with ninja, then you can simply replace `make -j nnn` in
+the above commands with `ninja`. For exammple:
+
+    `ninja check-checkedc`
 
 ### From a command shell using the testing harness
 You can use the testing harness to run individual tests or sets of tests.
@@ -65,7 +71,7 @@ build step:
     `-DCHECKEDC_ARM_SYSROOT=<sysroot>` Specify the path to the top of an ARM
 sysroot which contains the ARM-specific headers and runtime libs.
 
-    `-DCHECKEDC_ARM_RUNUNDER=<device>` Specify the device to run the arm lit
+    `-DCHECKEDC_ARM_RUNUNDER=<device>` Specify the device to run the ARM lit
 tests on. For example, specify this as `qemu-arm` in order to run the tests on
 the ARM QEMU.
 
