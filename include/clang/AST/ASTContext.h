@@ -3102,7 +3102,7 @@ public:
 
   /// Return all type applications that have the given generic decl as base.
   /// This is currently slow since it iterates over all cached type applications.
-  /// TODO: improve its efficiency.
+  /// TODO: improve its efficiency. See issues/644.
   std::vector<const RecordDecl *> getTypeAppsWithBase(const RecordDecl *Base);
 
   /// Add the instantiated record type 'Inst' as the result of the type application 'Base<TypeArgs>'.

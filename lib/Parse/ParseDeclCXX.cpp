@@ -1648,7 +1648,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   // Checked C - handle generic structs.
   if (Tok.is(tok::kw__For_any)) {
-    // TODO: add error handling here.
+    // TODO: add error handling here. See issues/644.
     unsigned DiagID;
     const char *PrevSpec;
     DS.setSpecForany(Tok.getLocation(), PrevSpec, DiagID);

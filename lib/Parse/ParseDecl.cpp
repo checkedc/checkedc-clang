@@ -3004,15 +3004,15 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 
 /// ParseDeclarationSpecifiers
 ///       declaration-specifiers: [C99 6.7]
-///            storage-class-specifier declaration-specifiers[opt]
-///            type-specifier declaration-specifiers[opt]
-/// [C99]      function-specifier declaration-specifiers[opt]
-/// [C11]      alignment-specifier declaration-specifiers[opt]
-/// [GNU]      attributes declaration-specifiers[opt]
-/// [Clang]    '__module_private__' declaration-specifiers[opt]
-/// [ObjC1]    '__kindof' declaration-specifiers[opt]
+///         storage-class-specifier declaration-specifiers[opt]
+///         type-specifier declaration-specifiers[opt]
+/// [C99]   function-specifier declaration-specifiers[opt]
+/// [C11]   alignment-specifier declaration-specifiers[opt]
+/// [GNU]   attributes declaration-specifiers[opt]
+/// [Clang] '__module_private__' declaration-specifiers[opt]
+/// [ObjC1] '__kindof' declaration-specifiers[opt]
 /// [CheckedC] for-any-specifier declaration-specifier[opt]
-///       storage-class-specifier: [C99 6.7.1]
+///    storage-class-specifier: [C99 6.7.1]
 ///         'typedef'
 ///         'extern'
 ///         'static'
