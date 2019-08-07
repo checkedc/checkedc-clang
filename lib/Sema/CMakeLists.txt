@@ -15,6 +15,7 @@ add_clang_library(clangSema
   CheckedCAlias.cpp
   CheckedCInterop.cpp
   CheckedCSubst.cpp
+  ExpandingCycles.cpp
   CodeCompleteConsumer.cpp
   DeclSpec.cpp
   DelayedDiagnostic.cpp
