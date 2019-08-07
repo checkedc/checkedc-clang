@@ -2624,10 +2624,10 @@ def fno_integrated_as : Flag<["-"], "fno-integrated-as">,
 
 def fcheckedc_null_ptr_checks : Flag<["-"], "fcheckedc-null-ptr-checks">,
   Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Enable runtime null ptr checks">;
+  HelpText<"Enable runtime null pointer checks">;
 def fno_checkedc_null_ptr_checks : Flag<["-"], "fno-checkedc-null-ptr-checks">,
   Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Disable runtime null ptr checks">;
+  HelpText<"Disable runtime null pointer checks">;
 
 def : Flag<["-"], "integrated-as">, Alias<fintegrated_as>, Flags<[DriverOption]>;
 def : Flag<["-"], "no-integrated-as">, Alias<fno_integrated_as>,
