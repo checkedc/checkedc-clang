@@ -14,7 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "TreeTransform.h"
-#include "clang/AST/TypeVisitor.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 
 using namespace clang;
 using namespace sema;
@@ -165,66 +165,47 @@ namespace {
     return TypeVar;
   }
 
-  /// A 'TypeVisitor' that determines whether a type references a given type variable.
-  /// e.g. ContainsTypeVar('T').Visit('List<T>') -> true
-  ///      ContainsTypeVar('T').Visit('List<int>') -> false
-  class ContainsTypeVarVisitor : public TypeVisitor<ContainsTypeVarVisitor, bool> {
+  /// A visitor that determines whether a type references a given type variable.
+  /// Even though this class is a RecursiveASTVisitor, the entry point to call is
+  /// the 'ContainsTypeVar' method.
+  ///
+  /// e.g. ContainsTypeVarVisitor().ContainsTypeVar('List<T>', 'T') == true
+  ///      ContainsTypeVarVisitor().ContainsTypeVar('List<int>', 'T') == false
+  class ContainsTypeVarVisitor : public RecursiveASTVisitor<ContainsTypeVarVisitor> {
     /// The type variable we're searching for.
-    const TypeVariableType *TypeVar;
-
-    bool VisitQualType(QualType Type) {
-      return Visit(Type.getTypePtr());
-    }
+    /// This is set by 'ContainsTypeVar' before every search.
+    const TypeVariableType *TypeVar = nullptr;
+    /// Whether the type contains the type variable we're looking for.
+    /// Set after calling 'RecursiveASTVisitor::TraverType'.
+    bool ContainsTV = false;
 
   public:
-    ContainsTypeVarVisitor(const TypeVariableType *TypeVar): TypeVar(TypeVar) {}
-
-    bool VisitTypeVariableType(const TypeVariableType *Type) {
-      return Type == TypeVar;
+    /// Determine whether 'Type' contains within it any references to 'TypeVar'.
+    bool ContainsTypeVar(QualType Type, const TypeVariableType *TypeVar) {
+      this->TypeVar = TypeVar;
+      this->ContainsTV = false;
+      TraverseType(Type);
+      return ContainsTV;
     }
 
-    bool VisitPointerType(const PointerType *Type) {
-      return VisitQualType(Type->getPointeeType());
+    bool TraverseTypeVariableType(const TypeVariableType *Type) {
+      ContainsTV = ContainsTV || (Type == TypeVar);
+      return true;
     }
 
-    bool VisitElaboratedType(const ElaboratedType *Type) {
-      return VisitQualType(Type->getNamedType());
+    // The following methods are needed because 'RecursiveASTVisitor' doesn't
+    // know how to decompose the corresponding types.
+   
+    bool TraverseTypedefType(const TypedefType *Type) {
+      return TraverseType(Type->desugar());
     }
 
-    bool VisitTypedefType(const TypedefType *Type) {
-      return VisitQualType(Type->desugar());
-    }
-
-    // Needed when a function pointer contains a generic type:
-    // e.g. 'struct F _For_any(T) { void (*f)(struct F<struct F<T> >); };'
-    bool VisitParenType(const ParenType *Type) {
-      return VisitQualType(Type->getInnerType());
-    }
-
-    bool VisitRecordType(const RecordType *Type) {
+    bool TraverseRecordType(const RecordType *Type) {
       auto RDecl = Type->getDecl();
-      if (!RDecl->isInstantiated()) return false;
-      for (auto TArg : RDecl->typeArgs()) {
-        if (VisitQualType(TArg.typeName)) return true;
+      if (RDecl->isInstantiated()) {
+        for (auto TArg : RDecl->typeArgs()) TraverseType(TArg.typeName);
       }
-      return false;
-    }
-
-    // Needed for K&R style functions where we don't know the arguments.
-    bool VisitFunctionType(const FunctionType *Type) {
-      return VisitQualType(Type->getReturnType());
-    }
-
-    bool VisitFunctionProtoType(const FunctionProtoType *Type) {
-      auto numParams = Type->getNumParams();
-      for (unsigned int i = 0; i < numParams; ++i) {
-        if (VisitQualType(Type->getParamType(i))) return true;
-      }
-      return VisitQualType(Type->getReturnType());
-    }
-
-    bool VisitArrayType(const ArrayType *Type) {
-      return VisitQualType(Type->getElementType());
+      return true;
     }
   };
 
@@ -236,7 +217,7 @@ namespace {
   ///
   /// The new edges aren't returned; instead, they're added as a side effect to the
   /// 'Worklist' argument in the constructor.
-  class ExpandingEdgesVisitor : public TypeVisitor<ExpandingEdgesVisitor> {
+  class ExpandingEdgesVisitor : public RecursiveASTVisitor<ExpandingEdgesVisitor> {
     /// The worklist where the new nodes will be inserted.
     std::stack<Node> &Worklist;
     /// The type variable that we're looking for in embedded type applications.
@@ -246,31 +227,30 @@ namespace {
     /// A visitor object to find out whether a type variable is referenced within a given type.
     ContainsTypeVarVisitor ContainsVisitor;
 
-    void VisitQualType(QualType Type) {
-      Visit(Type.getTypePtr());
+  public:
+    /// Note the worklist argument is mutated by this visitor.
+    ExpandingEdgesVisitor(std::stack<Node>& Worklist, const TypeVariableType *TypeVar, char ExpandingSoFar):
+      Worklist(Worklist), TypeVar(TypeVar), ExpandingSoFar(ExpandingSoFar) {}
+
+    void AddEdges(QualType Type) {
+      TraverseType(Type);
     }
 
-  public:
-  
-    // Note the worklist argument is mutated by this visitor.
-    ExpandingEdgesVisitor(std::stack<Node>& Worklist, const TypeVariableType *TypeVar, char ExpandingSoFar):
-      Worklist(Worklist), TypeVar(TypeVar), ExpandingSoFar(ExpandingSoFar), ContainsVisitor(TypeVar) {}
-
-    void VisitRecordType(const RecordType *Type) {
+    bool TraverseRecordType(const RecordType *Type) {
       auto InstDecl = Type->getDecl();
-      if (!InstDecl->isInstantiated()) return;
+      if (!InstDecl->isInstantiated()) return true;
       auto BaseDecl = InstDecl->genericBaseDecl();
       assert(InstDecl->typeArgs().size() == BaseDecl->typeParams().size() && "Number of type args and params must match");
       auto NumArgs = InstDecl->typeArgs().size();
       for (size_t i = 0; i < NumArgs; i++) {
-        auto TypeArg = InstDecl->typeArgs()[i].typeName.getCanonicalType().getTypePtr();
+        auto TypeArg = InstDecl->typeArgs()[i].typeName.getCanonicalType();
         auto DestTypeVar = GetTypeVar(BaseDecl->typeParams()[i]);
         auto DestIndex = DestTypeVar->GetIndex();
-        if (TypeArg == TypeVar) {
+        if (TypeArg.getTypePtr() == TypeVar) {
           // Non-expanding edges are created if the type variable appears directly as an argument of the decl.
           // So in this case the new edge is marked as expanding only if we'd previously seen an expanding edge.
           Worklist.push(Node(std::make_pair(BaseDecl, DestIndex), ExpandingSoFar));
-        } else if (ContainsVisitor.Visit(TypeArg)) {
+        } else if (ContainsVisitor.ContainsTypeVar(TypeArg, TypeVar)) {
           // Expanding edges are created if the type variable doesn't appear directly, but is contained in the type argument.
           // In this case we always mark the edge as expanding.
           Worklist.push(Node(std::make_pair(BaseDecl, DestIndex), true /* expanding */));
@@ -278,41 +258,13 @@ namespace {
 
         // Now recurse in the type argument to uncover edges that might show up there.
         // e.g. as in the argument to 'struct A<struct B<struct B<T> > >'
-        Visit(TypeArg);
+        TraverseType(TypeArg);
       }
+      return true;
     }
 
-    void VisitPointerType(const PointerType *Type) {
-      VisitQualType(Type->getPointeeType());
-    }
-
-    void VisitElaboratedType(const ElaboratedType *Type) {
-      VisitQualType(Type->getNamedType());
-    }
-
-    void VisitTypedefType(const TypedefType *Type) {
-      VisitQualType(Type->desugar());
-    }
-
-    // Needed for K&R style functions where we don't know the arguments.
-    void VisitFunctionType(const FunctionType *Type) {
-      VisitQualType(Type->getReturnType());
-    }
-
-    void VisitFunctionProtoType(const FunctionProtoType *Type) {
-      auto numParams = Type->getNumParams();
-      for (unsigned int i = 0; i < numParams; ++i) {
-        VisitQualType(Type->getParamType(i));
-      }
-      VisitQualType(Type->getReturnType());
-    }
-
-    void VisitParenType(const ParenType *Type) {
-      VisitQualType(Type->getInnerType());
-    }
-
-    void VisitArrayType(const ArrayType *Type) {
-      VisitQualType(Type->getElementType());
+    bool TraverseTypedefType(const TypedefType *Type) {
+      return TraverseType(Type->desugar());
     }
   };
 }
@@ -349,7 +301,7 @@ bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
     if (!Defn) continue;
     for (auto Field : Defn->fields()) {
       // 'EdgesVisitor' mutates the worklist by adding new nodes to it.
-      EdgesVisitor.Visit(Field->getType().getTypePtr());
+      EdgesVisitor.AddEdges(Field->getType());
     }
   }
 
