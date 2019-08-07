@@ -4106,6 +4106,18 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           Address EltPtr = Builder.CreateStructGEP(Src, i, Offset);
           llvm::Value *LI = Builder.CreateLoad(EltPtr);
           IRCallArgs[FirstIRArg + i] = LI;
+
+          if (STy->isMMSafePointerRep()) {
+            // Checked C
+            // LLVM flatterns the struct representation of _MMSafe_ptr<T>.
+            // There would be a type mismatch between the pointer of
+            // the generic type (implemented as "i8*") and the concrete pointer
+            // type for _MMSafe_ptr<T>. Here we coerce the concrete type to be
+            // the same as the generic type. Vice versa does not work because
+            // it breaks the prototype of the function.
+            IRCallArgs[FirstIRArg + i]->mutateType(
+                IRFuncTy->getParamType(FirstIRArg + i));
+          }
         }
       } else {
         // In the simple case, just pass the coerced loaded value.
