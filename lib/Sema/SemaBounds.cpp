@@ -3335,13 +3335,10 @@ public:
           InequalitySet Comparisons;
           ExtractComparisons(B->Block->getTerminatorCondition(), Comparisons);
           B->GenThen.insert(Comparisons.begin(), Comparisons.end());
-          //Insert(Comparisons, B->GenThen);
-          //B->GenThen.insert(Comparisons.begin(), Comparisons.end());
 
           InequalitySet NegatedComparisons;
           Negate(Comparisons, NegatedComparisons);
           B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
-          //B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
         }
       }
       AllInequalities.insert(B->GenThen.begin(), B->GenThen.end());
