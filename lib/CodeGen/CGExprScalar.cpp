@@ -2343,6 +2343,9 @@ static Expr *peelOffOuterExpr(Expr *E) {
 
 // Determine whether to emit a dynamic non-null check.
 static void emitDynamicNonNullCheck(CodeGenFunction &CGF, Expr *E) {
+  if (!CGF.CGM.getCodeGenOpts().CheckedCNullPtrChecks)
+    return;
+
   // CHKCBindTemporaryExpr needs to be processed separately. In order to
   // determine whether E contains any CHKCBindTemporaryExpr we need to
   // recursively peel off the outer exprs.
