@@ -3289,7 +3289,7 @@ namespace {
 }
 
 namespace {
-class AvailableExprAnalysis {
+class AvailableFactsAnalysis {
 private:
   typedef llvm::SmallPtrSet<const Expr *, 16> ExprSet;
   typedef std::pair<Expr *, Expr *> Inequality;
@@ -3304,7 +3304,7 @@ private:
   public:
     ElevatedCFGBlock(const CFGBlock *Block) : Block(Block) {}
 
-    friend class AvailableExprAnalysis;
+    friend class AvailableFactsAnalysis;
   };
 
   Sema &S;
@@ -3315,7 +3315,7 @@ private:
   std::queue<ElevatedCFGBlock *> WorkList;
 
 public:
-  AvailableExprAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), CurrentIndex(0) {}
+  AvailableFactsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), CurrentIndex(0) {}
 
   void Analyze() {
     assert(Cfg && "expected CFG to exist");
@@ -3608,7 +3608,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   ComputeBoundsDependencies(Tracker, FD, Body);
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
   CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr());
-  AvailableExprAnalysis Collector(*this, Cfg.get());
+  AvailableFactsAnalysis Collector(*this, Cfg.get());
   if (Cfg != nullptr) {
     Collector.Analyze();
     Checker.TraverseCFG();
