@@ -1391,7 +1391,7 @@ enum class AutoTypeKeyword {
 ///      and bounds checks before memory accesses. Bounds
 ///      expressions must be statically specified.  Pointer
 ///      arithmetic is allowed.  It has overflow checking.
-///   4. Checked C _Nt_Arrary_ptr: these are pointers to
+///   4. Checked C _Nt_Array_ptr: these are pointers to
 ///      null-terminated arrays. Pointer arithmetic is allowed.
 enum class CheckedPointerKind {
   /// \brief Unchecked C pointer.
