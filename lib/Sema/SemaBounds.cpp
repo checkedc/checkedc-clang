@@ -3323,8 +3323,12 @@ public:
     InequalitySet AllInequalities;
 
     PostOrderCFGView POView = PostOrderCFGView(Cfg);
-    auto Size = POView.end() - POView.begin();
-    BlockIDs.resize(Size);
+    unsigned int MaxBlockID = 0;
+    for (const CFGBlock *Block : POView)
+      if (Block->getBlockID() > MaxBlockID)
+        MaxBlockID = Block->getBlockID();
+
+    BlockIDs.resize(MaxBlockID + 1, 0);
     for (const CFGBlock *Block : POView) {
       auto NewBlock = new ElevatedCFGBlock(Block);
       WorkList.push(NewBlock);
@@ -3393,7 +3397,7 @@ public:
       InequalitySet OldOutThen = CurrentBlock->OutThen, OldOutElse = CurrentBlock->OutElse;
       CurrentBlock->OutThen = Difference(Union(CurrentBlock->In, CurrentBlock->GenThen), CurrentBlock->Kill);
       CurrentBlock->OutElse = Difference(Union(CurrentBlock->In, CurrentBlock->GenElse), CurrentBlock->Kill);
-      
+
       // Recompute the Affected Blocks
       if (Differ(OldOutThen, CurrentBlock->OutThen) || Differ(OldOutElse, CurrentBlock->OutElse))
         for (CFGBlock::const_succ_iterator I = CurrentBlock->Block->succ_begin(), E = CurrentBlock->Block->succ_end(); I != E; ++I)
