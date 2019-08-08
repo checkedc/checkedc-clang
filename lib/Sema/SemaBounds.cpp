@@ -3579,7 +3579,7 @@ private:
       CollectDefinedVars(*I, DefinedVars);
   }
 
-#if 1//DEBUG_DATAFLOW
+#if DEBUG_DATAFLOW
   void PrintInequalitySet(InequalitySet &ISet) {
       for (auto I : ISet) {
         llvm::outs() << "(";
