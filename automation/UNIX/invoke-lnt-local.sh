@@ -8,10 +8,8 @@ LNT_BIN=~/mysandbox/bin/lnt
 
 export PATH=$BUILD_DIR/llvm/bin:$PATH
 
-if [ ! -s $BUILD_DIR/LLVM-Release-Linux.obj ]; then
-  echo "Symlink created $BUILD_DIR/LLVM-Release-Linux.obj"
-  ln -s $BUILD_DIR/llvm $BUILD_DIR/LLVM-Release-Linux.obj
-fi
+rm -rf $BUILD_DIR/LNT-Results-Release-Linux $BUILD_DIR/LLVM-Release-Linux.obj
+ln -s $BUILD_DIR/llvm $BUILD_DIR/LLVM-Release-Linux.obj
 
 if [ ! -d $SRC_DIR/llvm-test-suite ]; then
   echo "llvm-test-suite not found. Checking out llvm-test-suite at $SRC_DIR/llvm-test-suite."
