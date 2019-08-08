@@ -153,3 +153,33 @@ _Nt_array_ptr<int> fn_5(int a) {
 // CHECK: }
 // CHECK: {
 // CHECK: }
+
+_Nt_array_ptr<int> fn_6(int a) {
+  int d;
+  if (d <= a) {
+    _Nt_array_ptr<int> p : byte_count(d) = g(a); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
+                                               // expected-note {{(expanded) declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + d)'}} \
+                                               // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of g(a), (_Array_ptr<char>)value of g(a) + a)'}}
+    return p;
+  }
+  return 0;
+}
+
+// CHECK: {
+// CHECK: }
+// CHECK: {
+// CHECK: OutThen: (d, a),
+// CHECK: OutElse: (a, d),
+// CHECK: }
+// CHECK: {
+// CHECK: In: (a, d),
+// CHECK: OutThen: (a, d),
+// CHECK: OutElse: (a, d),
+// CHECK: }
+// CHECK: {
+// CHECK: In: (d, a),
+// CHECK: OutThen: (d, a),
+// CHECK: OutElse: (d, a),
+// CHECK: }
+// CHECK: {
+// CHECK: }
