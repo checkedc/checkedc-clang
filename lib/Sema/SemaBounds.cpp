@@ -3311,6 +3311,7 @@ private:
   CFG *Cfg;
 
   std::vector<ElevatedCFGBlock *> Blocks;
+  std::vector<unsigned int> BlockIDs;
   std::size_t CurrentIndex;
   std::queue<ElevatedCFGBlock *> WorkList;
 
@@ -3322,10 +3323,13 @@ public:
     InequalitySet AllInequalities;
 
     PostOrderCFGView POView = PostOrderCFGView(Cfg);
+    auto Size = POView.end() - POView.begin();
+    BlockIDs.resize(Size);
     for (const CFGBlock *Block : POView) {
       auto NewBlock = new ElevatedCFGBlock(Block);
       WorkList.push(NewBlock);
       Blocks.emplace_back(NewBlock);
+      BlockIDs[Block->getBlockID()] = Blocks.size() - 1;
     }
 
     // Compute Gen Sets
@@ -3359,7 +3363,7 @@ public:
     }
 
     // Iterative Worklist Algorithm
-    while(!WorkList.empty()) {
+    while (!WorkList.empty()) {
       ElevatedCFGBlock *CurrentBlock = WorkList.front();
       WorkList.pop();
 
@@ -3438,10 +3442,7 @@ public:
 
 private:
   ElevatedCFGBlock* GetByCFGBlock(const CFGBlock *B) {
-    for (auto E : Blocks)
-    if (E->Block == B)
-      return E;
-    return nullptr;
+    return Blocks[BlockIDs[B->getBlockID()]];
   }
 
   // Given two sets S1 and S2, the return value is S1 \ S2.
@@ -3469,8 +3470,8 @@ private:
   bool Differ(InequalitySet& S1, InequalitySet& S2) {
     if (S1.size() != S2.size())
       return true;
-    if (S1.size() == 0 || S2.size() == 0)
-      return true;
+    if (S1.size() == 0 && S2.size() == 0)
+      return false;
     if (S1.size() > S2.size())
       for (auto E : S1)
         if (S2.find(E) == S2.end())
@@ -3574,7 +3575,7 @@ private:
       CollectDefinedVars(*I, DefinedVars);
   }
 
-#if DEBUG_DATAFLOW
+#if 1//DEBUG_DATAFLOW
   void PrintInequalitySet(InequalitySet &ISet) {
       for (auto I : ISet) {
         llvm::outs() << "(";
