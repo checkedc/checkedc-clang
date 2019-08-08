@@ -2319,13 +2319,15 @@ static BinOpInfo createBinOpInfoFromIncDec(const UnaryOperator *E,
   return BinOp;
 }
 
+// Get the pointer in a pointer arithmetic expression.
+// *(p + i) -> p
+// *(i + p) -> p
 static Expr *peelOffPointerArithmetic(const BinaryOperator *B) {
   if (B->isAdditiveOp() && B->getType()->isPointerType()) {
-    if (B->getLHS()->getType()->isPointerType()) {
+    if (B->getLHS()->getType()->isPointerType())
       return B->getLHS();
-    } else if (B->getRHS()->getType()->isPointerType()) {
+    else if (B->getRHS()->getType()->isPointerType())
       return B->getRHS();
-    }
   }
   return nullptr;
 }
