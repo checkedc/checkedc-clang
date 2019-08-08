@@ -11182,3 +11182,65 @@ APFixedPoint ASTContext::getFixedPointMin(QualType Ty) const {
   assert(Ty->isFixedPointType());
   return APFixedPoint::getMin(getFixedPointSemantics(Ty));
 }
+
+RecordDecl *ASTContext::getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs) {
+  assert(Base != nullptr && "Base decl shouldn't be null");
+  const auto it = CachedTypeApps.find(std::make_pair(Base, TypeArgs));
+  if (it == CachedTypeApps.end()) return nullptr;
+  return it->second;
+}
+
+std::vector<const RecordDecl *> ASTContext::getTypeAppsWithBase(const RecordDecl *Base) {
+  std::vector<const RecordDecl *> TypeApps;
+  for (const auto Iter : CachedTypeApps) {
+    auto Key = Iter.getFirst();
+    // The key is a pair (generic base, type application).
+    // The value ('Iter.getSecond()') is the corresponding (instantiated) RecordDecl.
+    if (Key.first == Base) TypeApps.push_back(Iter.getSecond());
+  }
+  return TypeApps;
+}
+
+void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst) {
+  assert(Base != nullptr && Inst != nullptr && "Decls shouldn't be null");
+  assert(Base == Base->getCanonicalDecl() && "Expected key to be canonical decl");
+  assert(Base == Inst->genericBaseDecl() && "Base decl must match in key and value");
+  assert((getCachedTypeApp(Base, TypeArgs) == nullptr) && "Type application is already cached");
+  // Copy the storage backing up the type arguments, since we'll potentially continue to query the map
+  // after `TypeArgs` has been de-allocated (e.g. if `TypeArgs` was allocated on the stack).
+  auto TypeArgsCopy = new (*this) llvm::SmallVector<const Type *, 4>(TypeArgs.begin(), TypeArgs.end());
+  CachedTypeApps.insert(std::make_pair(std::make_pair(Base, ArrayRef<const Type *>(*TypeArgsCopy)), Inst));
+}
+
+ArrayRef<RecordDecl *> ASTContext::getDelayedTypeApps(RecordDecl *Base) {
+  assert(Base != nullptr && "Base decl shouldn't be null");
+  assert(Base->isGeneric() && "Expected a generic struct");
+  assert(Base->getCanonicalDecl() == Base && "Key should be a canonical decl");
+  const auto Iter = DelayedTypeApps.find(Base);
+  if (Iter == DelayedTypeApps.end()) return ArrayRef<RecordDecl *>();
+  return ArrayRef<RecordDecl *>(Iter->second);
+}
+
+void ASTContext::addDelayedTypeApp(RecordDecl *TypeApp) {
+  assert(TypeApp != nullptr && "Type application decl shouldn't be null");
+  assert(TypeApp->isInstantiated() && TypeApp->isDelayedTypeApp() && "Expected a delayed type application");
+  auto Base = TypeApp->genericBaseDecl();
+  assert(Base->getCanonicalDecl() == Base && "Base should be a canonical decl");
+  auto Iter = DelayedTypeApps.find(Base);
+  if (Iter == DelayedTypeApps.end()) {
+    // This is the first type application added with 'Base' as key.
+    DelayedTypeApps.insert(std::make_pair(Base, llvm::SmallVector<RecordDecl *, 4>()));
+  }
+  Iter = DelayedTypeApps.find(Base);
+  assert(Iter != DelayedTypeApps.end() && "Expected key to be found");
+  // Take a reference so we can modify the vector stored in the map (as opposed to a copy).
+  llvm::SmallVector<RecordDecl *, 4> &Delayed = Iter->second;
+  Delayed.push_back(TypeApp);
+}
+
+bool ASTContext::removeDelayedTypeApps(RecordDecl *Base) {
+  assert(Base != nullptr && "Base decl shouldn't be null");
+  assert(Base->isGeneric() && "Expected a generic struct");
+  assert(Base->getCanonicalDecl() == Base && "Key should be a canonical decl");
+  return DelayedTypeApps.erase(Base);
+}

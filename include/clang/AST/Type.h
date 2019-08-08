@@ -61,6 +61,7 @@ class ExtQuals;
 class QualType;
 class TagDecl;
 class Type;
+class TypeSourceInfo;
 
 enum {
   TypeAlignmentInBits = 4,
@@ -1445,6 +1446,13 @@ public:
 
   /// \brief Always write data for individual elements.
   void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Ctx) const;
+};
+
+/// Checked C: an argument in an instantiation of a generic function
+/// or record.
+struct TypeArgument {
+  QualType typeName;
+  TypeSourceInfo *sourceInfo;
 };
 
 /// The base class of the type hierarchy.
