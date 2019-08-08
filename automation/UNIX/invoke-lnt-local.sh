@@ -1,12 +1,18 @@
 #!/bin/bash
 
 CURDIR=$PWD
-SRC_DIR=/usr/local/magrang/master/src
-BUILD_DIR=/usr/local/magrang/master/build
-TEST_TARGET=X86_64
+TEST_TARGET="X86_64;ARM"
 LNT_BIN=~/mysandbox/bin/lnt
 
 export PATH=$BUILD_DIR/llvm/bin:$PATH
+
+if [ -z "$SRC_DIR" ]; then
+  SRC_DIR=/usr/local/magrang/master/src
+fi
+
+if [ -z "$BUILD_DIR" ]; then
+  BUILD_DIR=/usr/local/magrang/master/build
+fi
 
 rm -rf $BUILD_DIR/LNT-Results-Release-Linux $BUILD_DIR/LLVM-Release-Linux.obj
 ln -s $BUILD_DIR/llvm $BUILD_DIR/LLVM-Release-Linux.obj
