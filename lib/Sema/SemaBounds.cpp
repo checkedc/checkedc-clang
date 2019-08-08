@@ -3292,14 +3292,14 @@ namespace {
 class AvailableFactsAnalysis {
 private:
   typedef llvm::SmallPtrSet<const Expr *, 16> ExprSet;
-  typedef std::pair<Expr *, Expr *> Inequality;
-  typedef std::set<Inequality> InequalitySet;
+  typedef std::pair<Expr *, Expr *> Comparison;
+  typedef std::set<Comparison> ComparisonSet;
 
   class ElevatedCFGBlock {
   private:
     const CFGBlock *Block;
-    InequalitySet In, OutThen, OutElse;
-    InequalitySet Kill, GenThen, GenElse;
+    ComparisonSet In, OutThen, OutElse;
+    ComparisonSet Kill, GenThen, GenElse;
 
   public:
     ElevatedCFGBlock(const CFGBlock *Block) : Block(Block) {}
@@ -3320,7 +3320,7 @@ public:
 
   void Analyze() {
     assert(Cfg && "expected CFG to exist");
-    InequalitySet AllInequalities;
+    ComparisonSet AllComparisons;
 
     PostOrderCFGView POView = PostOrderCFGView(Cfg);
     unsigned int MaxBlockID = 0;
@@ -3340,17 +3340,17 @@ public:
     for (auto B : Blocks) {
       if (const Stmt *Term = B->Block->getTerminator()) {
         if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
-          InequalitySet Comparisons;
+          ComparisonSet Comparisons;
           ExtractComparisons(B->Block->getTerminatorCondition(), Comparisons);
           B->GenThen.insert(Comparisons.begin(), Comparisons.end());
 
-          InequalitySet NegatedComparisons;
+          ComparisonSet NegatedComparisons;
           Negate(Comparisons, NegatedComparisons);
           B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
         }
       }
-      AllInequalities.insert(B->GenThen.begin(), B->GenThen.end());
-      AllInequalities.insert(B->GenElse.begin(), B->GenElse.end());
+      AllComparisons.insert(B->GenThen.begin(), B->GenThen.end());
+      AllComparisons.insert(B->GenElse.begin(), B->GenElse.end());
     }
 
     // Compute Kill Sets
@@ -3360,7 +3360,7 @@ public:
         if (Elem.getKind() == CFGElement::Statement)
           CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
 
-      for (auto E : AllInequalities)
+      for (auto E : AllComparisons)
         for (auto V : DefinedVars)
           if (ContainsVariable(E, V))
             B->Kill.insert(E);
@@ -3372,7 +3372,7 @@ public:
       WorkList.pop();
 
       // Update In set
-      InequalitySet IntermediateIntersecions;
+      ComparisonSet IntermediateIntersecions;
       bool FirstIteration = true;
       for (CFGBlock::const_pred_iterator I = CurrentBlock->Block->pred_begin(), E = CurrentBlock->Block->pred_end(); I != E; ++I) {
         if (!*I)
@@ -3394,7 +3394,7 @@ public:
       CurrentBlock->In = IntermediateIntersecions;
 
       // Update Out Set
-      InequalitySet OldOutThen = CurrentBlock->OutThen, OldOutElse = CurrentBlock->OutElse;
+      ComparisonSet OldOutThen = CurrentBlock->OutThen, OldOutElse = CurrentBlock->OutElse;
       CurrentBlock->OutThen = Difference(Union(CurrentBlock->In, CurrentBlock->GenThen), CurrentBlock->Kill);
       CurrentBlock->OutElse = Difference(Union(CurrentBlock->In, CurrentBlock->GenElse), CurrentBlock->Kill);
 
@@ -3404,29 +3404,16 @@ public:
           WorkList.push(GetByCFGBlock(*I));
     }
 
-#if DEBUG_DATAFLOW
+  //if(DEBUG_DATAFLOW)
     for (auto B : Blocks) {
+      llvm::errs() << "Block #" << B->Block->getBlockID() << ":\n";
       B->Block->dump();
-
-      llvm::outs() << "In set:\n";
-      PrintInequalitySet(B->In);
-
-      llvm::outs() << "OutThen set:\n";
-      PrintInequalitySet(B->OutThen);
-
-      llvm::outs() << "OutElse set:\n";
-      PrintInequalitySet(B->OutElse);
-
-      llvm::outs() << "Kill set:\n";
-      PrintInequalitySet(B->Kill);
-
-      llvm::outs() << "GenThen set:\n";
-      PrintInequalitySet(B->GenThen);
-
-      llvm::outs() << "GenElse set:\n";
-      PrintInequalitySet(B->GenElse);
+      llvm::errs() << "{\n";
+      PrintComparisonSet(B->In, std::string("In"));
+      PrintComparisonSet(B->OutThen, std::string("OutThen"));
+      PrintComparisonSet(B->OutElse, std::string("OutElse"));
+      llvm::errs() << "}\n";
     }
-#endif
   }
 
   void Reset() {
@@ -3437,11 +3424,11 @@ public:
     CurrentIndex++;
   }
 
-  // This function fills `InequalityFacts` with pairs (Expr1, Expr2) where
+  // This function fills `ComparisonFacts` with pairs (Expr1, Expr2) where
   // Expr1 < Expr2, Expr1 <= Expr2, Expr2 > Expr1, or Expr2 >= Expr1.
-  // These inequalities correspond to the current block.
-  void GetFacts(std::set<std::pair<Expr *, Expr *>>& InequalityFacts) {
-    InequalityFacts = Blocks[CurrentIndex]->In;
+  // These comparisons correspond to the current block.
+  void GetFacts(std::set<std::pair<Expr *, Expr *>>& ComparisonFacts) {
+    ComparisonFacts = Blocks[CurrentIndex]->In;
   }
 
 private:
@@ -3450,10 +3437,10 @@ private:
   }
 
   // Given two sets S1 and S2, the return value is S1 \ S2.
-  InequalitySet Difference(InequalitySet& S1, InequalitySet& S2) {
+  ComparisonSet Difference(ComparisonSet& S1, ComparisonSet& S2) {
    if (S2.size() == 0)
       return S1;
-    InequalitySet Result;
+    ComparisonSet Result;
     for (auto E1 : S1)
       if (S2.find(E1) == S2.end())
         Result.insert(E1);
@@ -3461,17 +3448,17 @@ private:
   }
 
   // Given two sets S1 and S2, the return value is the union of these sets.
-  InequalitySet Union(InequalitySet& S1, InequalitySet& S2) {
+  ComparisonSet Union(ComparisonSet& S1, ComparisonSet& S2) {
     if (S1.size() == 0)
       return S2;
     if (S2.size() == 0)
       return S1;
-    InequalitySet Result(S1);
+    ComparisonSet Result(S1);
     Result.insert(S2.begin(), S2.end());
     return Result;
   }
 
-  bool Differ(InequalitySet& S1, InequalitySet& S2) {
+  bool Differ(ComparisonSet& S1, ComparisonSet& S2) {
     if (S1.size() != S2.size())
       return true;
     if (S1.size() == 0 && S2.size() == 0)
@@ -3488,12 +3475,12 @@ private:
   }
 
   // Given two sets S1 and S2, the return value is the intersection of these sets.
-  InequalitySet Intersect(InequalitySet& S1, InequalitySet& S2) {
+  ComparisonSet Intersect(ComparisonSet& S1, ComparisonSet& S2) {
     if (S1.size() == 0)
       return S1;
     if (S2.size() == 0)
       return S2;
-    InequalitySet Result;
+    ComparisonSet Result;
 
     for (auto E1 : S1)
       if (S2.find(E1) != S2.end())
@@ -3501,7 +3488,7 @@ private:
     return Result;
   }
 
-  bool ContainsVariable(Inequality& I, const VarDecl *V) {
+  bool ContainsVariable(Comparison& I, const VarDecl *V) {
     ExprSet Exprs;
     CollectExpressions(I.first, Exprs);
     CollectExpressions(I.second, Exprs);
@@ -3513,7 +3500,7 @@ private:
     return false;
   }
 
-  void ExtractComparisons(const Stmt *St, InequalitySet &ISet) {
+  void ExtractComparisons(const Stmt *St, ComparisonSet &ISet) {
     if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(St)) {
       switch (BO->getOpcode()) {
         case BinaryOperatorKind::BO_LOr:
@@ -3522,11 +3509,11 @@ private:
           return;
         case BinaryOperatorKind::BO_LE:
         case BinaryOperatorKind::BO_LT:
-          ISet.insert(Inequality(BO->getLHS(), BO->getRHS()));
+          ISet.insert(Comparison(BO->getLHS(), BO->getRHS()));
           break;
         case BinaryOperatorKind::BO_GE:
         case BinaryOperatorKind::BO_GT:
-          ISet.insert(Inequality(BO->getRHS(), BO->getLHS()));
+          ISet.insert(Comparison(BO->getRHS(), BO->getLHS()));
           break;
         default:
           break;
@@ -3537,9 +3524,9 @@ private:
       ExtractComparisons(*I, ISet);
   }
 
-  void Negate(InequalitySet &InputSet, InequalitySet &OutputSet) {
+  void Negate(ComparisonSet &InputSet, ComparisonSet &OutputSet) {
     for (auto I : InputSet)
-      OutputSet.insert(Inequality(I.second, I.first));
+      OutputSet.insert(Comparison(I.second, I.first));
   }
 
   void CollectExpressions(const Stmt *St, ExprSet &AllExprs) {
@@ -3579,18 +3566,21 @@ private:
       CollectDefinedVars(*I, DefinedVars);
   }
 
-#if DEBUG_DATAFLOW
-  void PrintInequalitySet(InequalitySet &ISet) {
-      for (auto I : ISet) {
-        llvm::outs() << "(";
-        I.first->dumpPretty(S.Context);
-        llvm::outs() << ", ";
-        I.second->dumpPretty(S.Context);
-        llvm::outs() << "), ";
-      }
-      llvm::outs() << "\n";
+//#if DEBUG_DATAFLOW
+  void PrintComparisonSet(ComparisonSet &ISet, std::string Title) {
+    if (ISet.size() == 0)
+      return;
+    llvm::errs() << Title << ": ";
+    for (auto I : ISet) {
+      llvm::errs() << "(";
+      I.first->dumpPretty(S.Context);
+      llvm::errs() << ", ";
+      I.second->dumpPretty(S.Context);
+      llvm::errs() << "), ";
+    }
+    llvm::errs() << "\n";
   }
-#endif
+//#endif
 };
 }
 
