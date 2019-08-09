@@ -3458,6 +3458,10 @@ private:
     return Result;
   }
 
+  // Given two sets S1 and S2, this function returns true if the two sets
+  // are not equal.
+  // Equality means that their sizes are the same, and every member of S1 is found in
+  // S2 and vice versa.
   bool Differ(ComparisonSet& S1, ComparisonSet& S2) {
     if (S1.size() != S2.size())
       return true;
@@ -3488,6 +3492,7 @@ private:
     return Result;
   }
 
+  // This function returns true if variable V is used in the comparison I.
   bool ContainsVariable(Comparison& I, const VarDecl *V) {
     ExprSet Exprs;
     CollectExpressions(I.first, Exprs);
@@ -3500,6 +3505,15 @@ private:
     return false;
   }
 
+  // This function looks recursively for comparisons in statement `S`.
+  // Then, it records them as elements of type Comparison in `ISet`.
+  // Each Comparison is a pair in form of (Expr1, Expr2) where both
+  // Expr1 and Expr2 are of type Expr*.
+  // Each pair corresponds to a comparison expression of one of the following forms:
+  // - Expr1 < Expr2
+  // - Expr1 <= Expr2
+  // - Expr2 > Expr1
+  // - Expr2 >= Expr1
   void ExtractComparisons(const Stmt *St, ComparisonSet &ISet) {
     if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(St)) {
       switch (BO->getOpcode()) {
@@ -3524,6 +3538,8 @@ private:
       ExtractComparisons(*I, ISet);
   }
 
+  // Given a set of Comparisons `InputSet`, this function negates them
+  // by swaping the element of pairs, and records them in `OutputSet`.
   void Negate(ComparisonSet &InputSet, ComparisonSet &OutputSet) {
     for (auto I : InputSet)
       OutputSet.insert(Comparison(I.second, I.first));
