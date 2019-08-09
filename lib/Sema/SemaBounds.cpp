@@ -3434,11 +3434,11 @@ public:
       if (const Stmt *Term = B->Block->getTerminator()) {
         if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
           ComparisonSet Comparisons;
-          ExtractComparisons(B->Block->getTerminatorCondition(), Comparisons);
+          ExtractComparisons(IS->getCond(), Comparisons);
           B->GenThen.insert(Comparisons.begin(), Comparisons.end());
 
           ComparisonSet NegatedComparisons;
-          Negate(Comparisons, NegatedComparisons);
+          ExtractNegatedComparisons(IS->getCond(), NegatedComparisons);
           B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
         }
       }
@@ -3518,7 +3518,7 @@ public:
   }
 
   // This function fills `ComparisonFacts` with pairs (Expr1, Expr2) where
-  // Expr1 < Expr2, Expr1 <= Expr2, Expr2 > Expr1, or Expr2 >= Expr1.
+  // Expr1 <= Expr2.
   // These comparisons correspond to the current block.
   void GetFacts(std::set<std::pair<Expr *, Expr *>>& ComparisonFacts) {
     ComparisonFacts = Blocks[CurrentIndex]->In;
@@ -3558,16 +3558,9 @@ private:
   bool Differ(ComparisonSet& S1, ComparisonSet& S2) {
     if (S1.size() != S2.size())
       return true;
-    if (S1.size() == 0 && S2.size() == 0)
-      return false;
-    if (S1.size() > S2.size())
-      for (auto E : S1)
-        if (S2.find(E) == S2.end())
-          return true;
-    if (S1.size() < S2.size())
-      for (auto E : S2)
-        if (S1.find(E) == S1.end())
-          return true;
+    for (auto E : S1)
+      if (S2.find(E) == S2.end())
+        return true;
     return false;
   }
 
@@ -3598,22 +3591,18 @@ private:
     return false;
   }
 
-  // This function looks recursively for comparisons in statement `S`.
-  // Then, it records them as elements of type Comparison in `ISet`.
-  // Each Comparison is a pair in form of (Expr1, Expr2) where both
-  // Expr1 and Expr2 are of type Expr*.
-  // Each pair corresponds to a comparison expression of one of the following forms:
-  // - Expr1 < Expr2
-  // - Expr1 <= Expr2
-  // - Expr2 > Expr1
-  // - Expr2 >= Expr1
-  void ExtractComparisons(const Stmt *St, ComparisonSet &ISet) {
-    if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(St)) {
+  // This function computes a list of comparisons E1 <= E2 from `E`.
+  // - If `E` is a simple direct comparison expression `A op B`, then the comparison
+  // can be created if `op` is one of LE, LT, GE, GT, or EQ.
+  // - If `E` has the form `A && B`, comparisons can be created for A and B.
+  //
+  // Some examples:
+  // - `E` has the form A < B: add (A, B) to `ISet`.
+  // - `E` has the form `E1 && E2`: ExtractComparisons in E1 and E2 and add them to `ISet`.
+  // TODO: handle the case where logical negation operator (!) is used.
+  void ExtractComparisons(const Expr *E, ComparisonSet &ISet) {
+    if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
       switch (BO->getOpcode()) {
-        case BinaryOperatorKind::BO_LOr:
-          return;
-        case BinaryOperatorKind::BO_LAnd:
-          return;
         case BinaryOperatorKind::BO_LE:
         case BinaryOperatorKind::BO_LT:
           ISet.insert(Comparison(BO->getLHS(), BO->getRHS()));
@@ -3622,20 +3611,48 @@ private:
         case BinaryOperatorKind::BO_GT:
           ISet.insert(Comparison(BO->getRHS(), BO->getLHS()));
           break;
+        case BinaryOperatorKind::BO_EQ:
+          ISet.insert(Comparison(BO->getRHS(), BO->getLHS()));
+          ISet.insert(Comparison(BO->getLHS(), BO->getRHS()));
+          break;
+        case BinaryOperatorKind::BO_LAnd:
+          ExtractComparisons(BO->getRHS(), ISet);
+          ExtractComparisons(BO->getLHS(), ISet);
+          break;
         default:
           break;
       }
-    } else
-      return;
-    for (auto I = St->child_begin(); I != St->child_end(); ++I)
-      ExtractComparisons(*I, ISet);
   }
 
-  // Given a set of Comparisons `InputSet`, this function negates them
-  // by swaping the element of pairs, and records them in `OutputSet`.
-  void Negate(ComparisonSet &InputSet, ComparisonSet &OutputSet) {
-    for (auto I : InputSet)
-      OutputSet.insert(Comparison(I.second, I.first));
+  // This function computes a list of negated comparisons from `E`.
+  // - If `E` is a simple direct comparison expression `A op B`, then the negated
+  //   comparison can be created if `op` is one of LE, LT, GE, GT, or NE.
+  // - If `E` has the form `A || B`, negated comparisons can be created for A and B.
+  // Some examples:
+  // - `E` has the form A < B: add (B, A) to `ISet`.
+  // - `E` has the form `E1 || E2`: ExtractNegatedComparisons in E1 and E2 and add them to `ISet`.
+  void ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet) {
+    if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
+      switch (BO->getOpcode()) {
+        case BinaryOperatorKind::BO_LE:
+        case BinaryOperatorKind::BO_LT:
+          ISet.insert(Comparison(BO->getRHS(), BO->getLHS()));
+          break;
+        case BinaryOperatorKind::BO_GE:
+        case BinaryOperatorKind::BO_GT:
+          ISet.insert(Comparison(BO->getLHS(), BO->getRHS()));
+          break;
+        case BinaryOperatorKind::BO_NE:
+          ISet.insert(Comparison(BO->getRHS(), BO->getLHS()));
+          ISet.insert(Comparison(BO->getLHS(), BO->getRHS()));
+          break;
+        case BinaryOperatorKind::BO_LOr:
+          ExtractNegatedComparisons(BO->getRHS(), ISet);
+          ExtractNegatedComparisons(BO->getLHS(), ISet);
+          break;
+        default:
+          break;
+      }
   }
 
   void CollectExpressions(const Stmt *St, ExprSet &AllExprs) {
