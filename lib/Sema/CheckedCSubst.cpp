@@ -14,12 +14,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "TreeTransform.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 
 using namespace clang;
 using namespace sema;
 
-ExprResult Sema::ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
-  ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs) {
+ExprResult Sema::ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
+  ArrayRef<TypeArgument> TypeArgs) {
 
   TypeFunc = CorrectDelayedTyposInExpr(TypeFunc);
   if (!TypeFunc.isUsable())
@@ -75,18 +76,268 @@ ExprResult Sema::ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
 
 }
 
+// Type Instantiation
+RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs) {
+  assert(Base->isGeneric() && "Base decl must be generic in a type application");
+  assert(Base->getCanonicalDecl() == Base && "Base must be canonical decl");
+ 
+  auto &ctx = Base->getASTContext();
+
+  // Unwrap the type arguments from a 'TypeArgument' to the underlying 'Type *'.
+  llvm::SmallVector<const Type *, 4> RawArgs;
+  for (auto TArg : TypeArgs) {
+    RawArgs.push_back(TArg.typeName.getTypePtr());
+  }
+
+  // If possible, just retrieve the application from the cache.
+  // This is needed not only for performance, but for correctness to handle
+  // recursive references in type applications (e.g. a list which contains a list as a field).
+  if (auto Cached = ctx.getCachedTypeApp(Base, RawArgs)) {
+    return Cached;   
+  }
+
+  // Notice we pass dummy location arguments, since the type application doesn't exist in user code.
+  RecordDecl *Inst = RecordDecl::Create(ctx, Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
+    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl *>(nullptr, static_cast<size_t>(0)) /* TypeParams */, Base, TypeArgs);
+
+  // Add the new instance to the base's context, so that the instance is discoverable
+  // by AST traversal operations: e.g. the AST dumper.
+  Base->getDeclContext()->addDecl(Inst);
+
+  // Cache the application early on before we tinker with the fields, in case
+  // one of the fields refers back to the application.
+  ctx.addCachedTypeApp(Base, RawArgs, Inst);
+
+  auto Defn = Base->getDefinition();
+  if (Defn && Defn->isCompleteDefinition()) {
+    // If the underlying definition exists and has all its fields already populated, then we can complete
+    // the type application.
+    CompleteTypeAppFields(Inst);
+  } else {
+    // If the definition isn't available, it might be because we're typing a recursive struct declaration: e.g.
+    // struct List _For_any(T) {
+    //   struct List<T> *next;
+    //   T *head;
+    // };
+    // While processing 'next', we can't instantiate 'List<T>' because we haven't processed the 'head' field yet.
+    // The solution is to mark the application as "delayed" and "complete it" after we've parsed all the fields.
+    Inst->setDelayedTypeApp(true);
+    ctx.addDelayedTypeApp(Inst);
+  }
+
+  return Inst;
+}
+
+void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
+  assert(Incomplete->isInstantiated() && "Only instantiated record decls can be completed");
+  assert(Incomplete->field_empty() && "Can't complete record decl with non-empty fields");
+
+  auto Defn = Incomplete->genericBaseDecl()->getDefinition();
+  assert(Defn && "The record definition should be populated at this point");
+  for (auto *Field : Defn->fields()) {
+    QualType InstType = SubstituteTypeArgs(Field->getType(), Incomplete->typeArgs());
+    assert(!InstType.isNull() && "Subtitution of type args failed!");
+    // TODO: are TypeSouceInfo and InstType in sync?
+    FieldDecl *NewField = FieldDecl::Create(Field->getASTContext(), Incomplete, SourceLocation(), SourceLocation(),
+      Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
+    Incomplete->addDecl(NewField);
+  }
+
+  Incomplete->setDelayedTypeApp(false);
+  Incomplete->setCompleteDefinition();
+}
+
+// Definitions for expanding cycles check
 namespace {
+  // A graph node is a triple '(BaseRecordDecl, TypeArgIndex, Expanding)' (here stored as two nested 'std::pairs' so we can keep them in a 'DenseSet').
+  // The semantics of a triple are as follows: a triple is in the set if, starting from one of the type arguments of 'Base', 
+  // it's possible to arrive at the type argument with index 'TypeArgIndex' which is defined in 'BaseRecordDecl'.
+  // 'Expanding' indicates whether any of the edges taken to arrive to (BaseRecordDecl, TypeArgIndex) is expanding ('Expanding = 1')
+  // or if they're all non-expanding ('Expanding = 0'). 
+  using Node = std::pair<std::pair<const RecordDecl *, int>, char>;
+  constexpr char NON_EXPANDING = 0;
+  constexpr char EXPANDING = 1;
+
+  // Retrieve the underlying type variable from a typedef that appears as the param to a generic record.
+  const TypeVariableType *GetTypeVar(TypedefDecl *TDef) {
+    const TypeVariableType *TypeVar = llvm::dyn_cast<TypeVariableType>(TDef->getUnderlyingType());
+    assert(TypeVar && "Expected a type variable as the parameter of a generic record");
+    return TypeVar;
+  }
+
+  /// A visitor that determines whether a type references a given type variable.
+  /// Even though this class is a RecursiveASTVisitor, the entry point to call is
+  /// the 'ContainsTypeVar' method.
+  ///
+  /// e.g. ContainsTypeVarVisitor().ContainsTypeVar('List<T>', 'T') == true
+  ///      ContainsTypeVarVisitor().ContainsTypeVar('List<int>', 'T') == false
+  class ContainsTypeVarVisitor : public RecursiveASTVisitor<ContainsTypeVarVisitor> {
+    /// The type variable we're searching for.
+    /// This is set by 'ContainsTypeVar' before every search.
+    const TypeVariableType *TypeVar = nullptr;
+    /// Whether the type contains the type variable we're looking for.
+    /// Set after calling 'RecursiveASTVisitor::TraverType'.
+    bool ContainsTV = false;
+
+  public:
+    /// Determine whether 'Type' contains within it any references to 'TypeVar'.
+    bool ContainsTypeVar(QualType Type, const TypeVariableType *TypeVar) {
+      this->TypeVar = TypeVar;
+      this->ContainsTV = false;
+      TraverseType(Type);
+      return ContainsTV;
+    }
+
+    bool TraverseTypeVariableType(const TypeVariableType *Type) {
+      ContainsTV = ContainsTV || (Type == TypeVar);
+      return true;
+    }
+
+    // The following methods are needed because 'RecursiveASTVisitor' doesn't
+    // know how to decompose the corresponding types.
+   
+    bool TraverseTypedefType(const TypedefType *Type) {
+      return TraverseType(Type->desugar());
+    }
+
+    bool TraverseRecordType(const RecordType *Type) {
+      auto RDecl = Type->getDecl();
+      if (RDecl->isInstantiated()) {
+        for (auto TArg : RDecl->typeArgs()) TraverseType(TArg.typeName);
+      }
+      return true;
+    }
+  };
+
+  /// A visitor that, given a type and a type variable, generates out-edges from the
+  /// type variable in the expanding cycles graph.
+  /// To generate the edges, we need to destruct the given type and find within it all type
+  /// applications where the variable appears. The resulting edges are "expanding" or "non-expanding"
+  /// depending on whether the variable appears at the top level as a type argument.
+  ///
+  /// The new edges aren't returned; instead, they're added as a side effect to the
+  /// 'Worklist' argument in the constructor.
+  class ExpandingEdgesVisitor : public RecursiveASTVisitor<ExpandingEdgesVisitor> {
+    /// The worklist where the new nodes will be inserted.
+    std::stack<Node> &Worklist;
+    /// The type variable that we're looking for in embedded type applications.
+    const TypeVariableType *TypeVar = nullptr;
+    /// Whether the path so far contains at least one expanding edge.
+    char ExpandingSoFar = NON_EXPANDING;
+    /// A visitor object to find out whether a type variable is referenced within a given type.
+    ContainsTypeVarVisitor ContainsVisitor;
+
+  public:
+    /// Note the worklist argument is mutated by this visitor.
+    ExpandingEdgesVisitor(std::stack<Node>& Worklist, const TypeVariableType *TypeVar, char ExpandingSoFar):
+      Worklist(Worklist), TypeVar(TypeVar), ExpandingSoFar(ExpandingSoFar) {}
+
+    void AddEdges(QualType Type) {
+      TraverseType(Type);
+    }
+
+    bool TraverseRecordType(const RecordType *Type) {
+      auto InstDecl = Type->getDecl();
+      if (!InstDecl->isInstantiated()) return true;
+      auto BaseDecl = InstDecl->genericBaseDecl();
+      assert(InstDecl->typeArgs().size() == BaseDecl->typeParams().size() && "Number of type args and params must match");
+      auto NumArgs = InstDecl->typeArgs().size();
+      for (size_t i = 0; i < NumArgs; i++) {
+        auto TypeArg = InstDecl->typeArgs()[i].typeName.getCanonicalType();
+        auto DestTypeVar = GetTypeVar(BaseDecl->typeParams()[i]);
+        auto DestIndex = DestTypeVar->GetIndex();
+        if (TypeArg.getTypePtr() == TypeVar) {
+          // Non-expanding edges are created if the type variable appears directly as an argument of the decl.
+          // So in this case the new edge is marked as expanding only if we'd previously seen an expanding edge.
+          Worklist.push(Node(std::make_pair(BaseDecl, DestIndex), ExpandingSoFar));
+        } else if (ContainsVisitor.ContainsTypeVar(TypeArg, TypeVar)) {
+          // Expanding edges are created if the type variable doesn't appear directly, but is contained in the type argument.
+          // In this case we always mark the edge as expanding.
+          Worklist.push(Node(std::make_pair(BaseDecl, DestIndex), EXPANDING));
+        }
+
+        // Now recurse in the type argument to uncover edges that might show up there.
+        // e.g. as in the argument to 'struct A<struct B<struct B<T> > >'
+        TraverseType(TypeArg);
+      }
+      return true;
+    }
+
+    bool TraverseTypedefType(const TypedefType *Type) {
+      return TraverseType(Type->desugar());
+    }
+  };
+}
+
+bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
+  assert(Base->isGeneric() && "Can only check expanding cycles for generic structs");
+  assert(Base == Base->getCanonicalDecl() && "Expected canonical base decl");
+  llvm::DenseSet<Node> Visited;
+  std::stack<Node> Worklist;
+
+  // Seed the worklist with the type parameters to 'Base'.
+  for (size_t i = 0; i < Base->typeParams().size(); ++i) {
+    Worklist.push(Node(std::make_pair<>(Base, i), NON_EXPANDING));
+  }
+
+  // Explore the implicit graph via DFS.
+  while (!Worklist.empty()) {
+    auto Curr = Worklist.top();
+    Worklist.pop();
+    if (Visited.find(Curr) != Visited.end()) continue; // already visited: don't explore further
+    Visited.insert(Curr);
+    auto RDecl = Curr.first.first;
+    auto TVarIndex = Curr.first.second;
+    auto TVar = GetTypeVar(RDecl->typeParams()[TVarIndex]);
+    auto ExpandingSoFar = Curr.second;
+    if (ExpandingSoFar == EXPANDING && RDecl == Base) {
+      Diag(Loc, diag::err_expanding_cycle);
+      return true;
+    }
+    ExpandingEdgesVisitor EdgesVisitor(Worklist, TVar, ExpandingSoFar);
+    auto Defn = RDecl->getDefinition();
+    // There might not be an underlying definition, because 'RDecl' might refer
+    // to a forward-declared struct.
+    if (!Defn) continue;
+    for (auto Field : Defn->fields()) {
+      // 'EdgesVisitor' mutates the worklist by adding new nodes to it.
+      EdgesVisitor.AddEdges(Field->getType());
+    }
+  }
+
+  return false; // no cycles: can complete decls
+}
+
+namespace {
+// LocRebuilderTransform is an uncustomized 'TreeTransform' that is used
+// solely for re-building 'TypeLocs' within 'TypeApplication'.
+// We use this vanilla transform instead of a recursive call to 'TypeApplication::TransformType' because
+// we sometimes substitute a type variable for another type variable, and in those cases we
+// want to re-build 'TypeLocs', but not do further substitutions.
+// e.g.
+//   struct Box _For_any(U) { U *x; }
+//   struct List _For_any(T) { struct Box<T> box; }
+//
+// When typing 'Box<T>', we need to substitute 'T' for 'U' in 'Box'.
+// T and U end up with the same representation in the IR because we use an
+// index-based representation for variables, not a name-based representation.
+class LocRebuilderTransform : public TreeTransform<LocRebuilderTransform> {
+public:
+  LocRebuilderTransform(Sema& SemaRef) : TreeTransform<LocRebuilderTransform>(SemaRef) {}
+};
+
 class TypeApplication : public TreeTransform<TypeApplication> {
   typedef TreeTransform<TypeApplication> BaseTransform;
-  typedef ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgList;
+  typedef ArrayRef<TypeArgument> TypeArgList;
 
 private:
   TypeArgList TypeArgs;
   unsigned Depth;
+  LocRebuilderTransform LocRebuilder;
 
 public:
   TypeApplication(Sema &SemaRef, TypeArgList TypeArgs, unsigned Depth) :
-    BaseTransform(SemaRef), TypeArgs(TypeArgs), Depth(Depth) {}
+    BaseTransform(SemaRef), TypeArgs(TypeArgs), Depth(Depth), LocRebuilder(SemaRef) {}
 
   QualType TransformTypeVariableType(TypeLocBuilder &TLB,
                                      TypeVariableTypeLoc TL) {
@@ -104,13 +355,13 @@ public:
     } else if (TVDepth == Depth) {
       // Case 2: the type variable is bound by the type quantifier that is
       // being applied.  Substitute the appropriate type argument.
-      DeclRefExpr::GenericInstInfo::TypeArgument TypeArg = TypeArgs[TV->GetIndex()];
+      TypeArgument TypeArg = TypeArgs[TV->GetIndex()];
       TypeLoc NewTL =  TypeArg.sourceInfo->getTypeLoc();
       TLB.reserve(NewTL.getFullDataSize());
       // Run the type transform with the type argument's location information
-      // so that the type type location class push on to the TypeBuilder is
-      // the matching class for the transformed type.
-      QualType Result = getDerived().TransformType(TLB, NewTL);
+      // so that the type location class pushed on to the TypeBuilder is the
+      // matching class for the transformed type.
+      QualType Result = LocRebuilder.TransformType(TLB, NewTL);
       // We don't expect the type argument to change.
       assert(Result == TypeArg.typeName);
       return Result;
@@ -162,28 +413,46 @@ public:
     }
     return Result;
   }
+
+  Decl *TransformDecl(SourceLocation Loc, Decl *D) {
+    RecordDecl *RDecl;
+    if ((RDecl = dyn_cast<RecordDecl>(D)) && RDecl->isInstantiated()) {
+      llvm::SmallVector<TypeArgument, 4> NewArgs;
+      for (auto TArg : RDecl->typeArgs()) {
+        auto NewType = SemaRef.SubstituteTypeArgs(TArg.typeName, TypeArgs);
+        auto *SourceInfo = getSema().Context.getTrivialTypeSourceInfo(NewType, getDerived().getBaseLocation());
+        NewArgs.push_back(TypeArgument { NewType, SourceInfo });
+      }
+      auto *Res = SemaRef.ActOnRecordTypeApplication(RDecl->genericBaseDecl(), ArrayRef<TypeArgument>(NewArgs));
+      return Res;
+    } else {
+      return BaseTransform::TransformDecl(Loc, D);
+    }
+  }
 };
 }
 
-QualType Sema::SubstituteTypeArgs(QualType QT,
- ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs) {
+QualType Sema::SubstituteTypeArgs(QualType QT, ArrayRef<TypeArgument> TypeArgs) {
    if (QT.isNull())
      return QT;
 
    // Transform the type and strip off the quantifier.
-   TypeApplication TypeApp(*this, TypeArgs, 0);
+   TypeApplication TypeApp(*this, TypeArgs, 0 /* Depth */);
    QualType TransformedQT = TypeApp.TransformType(QT);
 
    // Something went wrong in the transformation.
    if (TransformedQT.isNull())
      return QT;
 
-   const FunctionProtoType *FPT = TransformedQT->getAs<FunctionProtoType>();
-   FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
-   EPI.GenericFunction = false;
-   EPI.ItypeGenericFunction = false;
-   EPI.NumTypeVars = 0;
-   QualType Result =
-     Context.getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI);
-    return Result;
+   if (const FunctionProtoType * FPT = TransformedQT->getAs<FunctionProtoType>()) {
+     FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+     EPI.GenericFunction = false;
+     EPI.ItypeGenericFunction = false;
+     EPI.NumTypeVars = 0;
+     QualType Result =
+       Context.getFunctionType(FPT->getReturnType(), FPT->getParamTypes(), EPI);
+     return Result;
+   }
+
+   return TransformedQT;
 }

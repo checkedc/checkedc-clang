@@ -1,4 +1,4 @@
-//===---- CGDynamicCheck.cpp - Emit LLVM Code for Checked C Dynamic Checks -===//
+//===--- CGDynamicCheck.cpp - Emit LLVM Code for Checked C Dynamic Checks -===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -21,14 +21,20 @@ using namespace llvm;
 #define DEBUG_TYPE "DynamicCheckCodeGen"
 
 namespace {
-  STATISTIC(NumDynamicChecksElided, "The # of dynamic checks elided (due to constant folding)");
-  STATISTIC(NumDynamicChecksInserted, "The # of dynamic checks inserted");
-
-  STATISTIC(NumDynamicChecksExplicit, "The # of dynamic _Dynamic_check(cond) checks found");
-  STATISTIC(NumDynamicChecksNonNull, "The # of dynamic non-null checks found");
-  STATISTIC(NumDynamicChecksOverflow, "The # of dynamic overflow checks found");
-  STATISTIC(NumDynamicChecksRange, "The # of dynamic bounds checks found");
-  STATISTIC(NumDynamicChecksCast, "The # of dynamic cast checks found");
+  STATISTIC(NumDynamicChecksElided,
+              "The # of dynamic checks elided (due to constant folding)");
+  STATISTIC(NumDynamicChecksInserted,
+              "The # of dynamic checks inserted");
+  STATISTIC(NumDynamicChecksExplicit,
+              "The # of dynamic _Dynamic_check(cond) checks found");
+  STATISTIC(NumDynamicChecksNonNull,
+              "The # of dynamic non-null checks found");
+  STATISTIC(NumDynamicChecksOverflow,
+              "The # of dynamic overflow checks found");
+  STATISTIC(NumDynamicChecksRange,
+              "The # of dynamic bounds checks found");
+  STATISTIC(NumDynamicChecksCast,
+              "The # of dynamic cast checks found");
 }
 
 //
@@ -50,7 +56,8 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
 // General Functions for inserting dynamic checks
 //
 
-void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy) {
+void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr,
+                                              const QualType BaseTy) {
   if (!getLangOpts().CheckedC)
     return;
 
@@ -59,12 +66,15 @@ void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr, const Qual
 
   ++NumDynamicChecksNonNull;
 
-  Value *ConditionVal = Builder.CreateIsNotNull(BaseAddr.getPointer(), "_Dynamic_check.non_null");
+  Value *ConditionVal =
+    Builder.CreateIsNotNull(BaseAddr.getPointer(), "_Dynamic_check.non_null");
   EmitDynamicCheckBlocks(ConditionVal);
 }
 
 // TODO: This is currently unused. It may never be used.
-void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy, const Address PtrAddr) {
+void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr,
+                                               const QualType BaseTy,
+                                               const Address PtrAddr) {
   if (!getLangOpts().CheckedC)
     return;
 
@@ -73,8 +83,10 @@ void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr, const Qua
   // EmitDynamicCheckBlocks(Condition);
 }
 
-void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const BoundsExpr *Bounds,
-                                             BoundsCheckKind CheckKind, llvm::Value *Val) {
+void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr,
+                                             const BoundsExpr *Bounds,
+                                             BoundsCheckKind CheckKind,
+                                             llvm::Value *Val) {
   if (!getLangOpts().CheckedC)
     return;
 
@@ -84,14 +96,15 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
   if (Bounds->isAny() || Bounds->isInvalid())
     return;
 
-  // We'll insert the bounds check for an assignment through a null-terminated pointer
-  // later, when we know the value.
+  // We'll insert the bounds check for an assignment through a null-terminated
+  // pointer later, when we know the value.
   if (CheckKind == BoundsCheckKind::BCK_NullTermWriteAssign && !Val)
     return;
 
   // We can only generate the check if we have the bounds as a range.
   if (!isa<RangeBoundsExpr>(Bounds)) {
-    llvm_unreachable("Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
+    llvm_unreachable(
+      "Can Only Emit Dynamic Bounds Check For RangeBounds Exprs");
     return;
   }
 
@@ -131,7 +144,8 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
     // at the upper bound to be read.
     UpperChk = Builder.CreateICmpULE(PtrAddr.getPointer(), Upper.getPointer(),
                                      "_Dynamic_check.upper");
-  llvm::Value *Condition = Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range");
+  llvm::Value *Condition =
+    Builder.CreateAnd(LowerChk, UpperChk, "_Dynamic_check.range");
   if (const ConstantInt *ConditionConstant = dyn_cast<ConstantInt>(Condition)) {
     if (ConditionConstant->isOne())
       return;
@@ -149,9 +163,10 @@ void CodeGenFunction::EmitDynamicBoundsCheck(const Address PtrAddr, const Bounds
   Builder.SetInsertPoint(DyCkSuccess);
 }
 
-void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
-                                                 const BoundsExpr *CastBounds,
-                                                 const BoundsExpr *SubExprBounds) {
+void
+CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
+                                            const BoundsExpr *CastBounds,
+                                            const BoundsExpr *SubExprBounds) {
   if (!getLangOpts().CheckedC)
     return;
 
@@ -292,7 +307,8 @@ void CodeGenFunction::EmitDynamicBoundsCastCheck(const Address BaseAddr,
       // This check will always pass, directly jump to the success block.
       Builder.CreateBr(DyCkSuccess);
 
-      // This ensures the success block comes directly after the subsumption branch
+      // This ensures the success block comes directly after the subsumption
+      // branch
       EmitBlock(DyCkSuccess);
       Builder.SetInsertPoint(DyCkSuccess);
 
@@ -365,14 +381,18 @@ BasicBlock *CodeGenFunction::EmitNulltermWriteAdditionalCheck(
   BasicBlock *Begin = Builder.GetInsertBlock();
 
   // Add a "failed block", which will be inserted at the end of CurFn
-  BasicBlock *FailBlock = createBasicBlock("_Nullterm_range_check.failed", CurFn);
+  BasicBlock *FailBlock =
+    createBasicBlock("_Nullterm_range_check.failed", CurFn);
   Builder.SetInsertPoint(FailBlock);
-  Value *AtUpper = Builder.CreateICmpEQ(PtrAddr.getPointer(), Upper.getPointer(),
+  Value *AtUpper =
+    Builder.CreateICmpEQ(PtrAddr.getPointer(), Upper.getPointer(),
                                         "_Dynamic_check.at_upper");
   BasicBlock *OnFailure = EmitDynamicCheckFailedBlock();
-  llvm::Value *Condition1 = Builder.CreateAnd(LowerChk, AtUpper, "_Dynamic_check.nt_upper_bound");
+  llvm::Value *Condition1 =
+    Builder.CreateAnd(LowerChk, AtUpper, "_Dynamic_check.nt_upper_bound");
   Value *IsZero = Builder.CreateIsNull(Val, "_Dynamic_check.write_nul");
-  llvm::Value *Condition2 = Builder.CreateAnd(Condition1, IsZero, "_Dynamic_check.allowed_write");
+  llvm::Value *Condition2 =
+    Builder.CreateAnd(Condition1, IsZero, "_Dynamic_check.allowed_write");
   Builder.CreateCondBr(Condition2, Succeeded, OnFailure);
   // Return the insert point back to the saved insert point
   Builder.SetInsertPoint(Begin);
