@@ -1656,7 +1656,7 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   }
 
   if (Tok.is(tok::kw__Itype_for_any)) {
-    // TODO(abeln): add error handling here
+    // TODO: add error handling here
     unsigned DiagID;
     const char *PrevSpec;
     DS.setSpecItypeforany(Tok.getLocation(), PrevSpec, DiagID);
