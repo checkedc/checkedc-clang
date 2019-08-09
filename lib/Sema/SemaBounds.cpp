@@ -51,10 +51,7 @@ public:
     BoundsExpr::Kind K = BE->getKind();
     return (K == BoundsExpr::Kind::Any || K == BoundsExpr::Kind::Unknown ||
       K == BoundsExpr::Kind::Range || K == BoundsExpr::Kind::Invalid);
- }
-
-
-
+  }
 
   static Expr *IgnoreRedundantCast(ASTContext &Ctx, CastKind NewCK, Expr *E) {
     CastExpr *P = dyn_cast<CastExpr>(E);
@@ -67,6 +64,38 @@ public:
       return SE;
 
     return E;
+  }
+
+  static bool getReferentSizeInChars(ASTContext &Ctx, QualType Ty, llvm::APSInt &Size) {
+    assert(Ty->isPointerType());
+    const Type *Pointee = Ty->getPointeeOrArrayElementType();
+    if (Pointee->isIncompleteType())
+      return false;
+    uint64_t ElemBitSize = Ctx.getTypeSize(Pointee);
+    uint64_t ElemSize = Ctx.toCharUnitsFromBits(ElemBitSize).getQuantity();
+    Size = llvm::APSInt(llvm::APInt(Ctx.getTargetInfo().getPointerWidth(0), ElemSize), false);
+    return true;
+  }
+
+  // Convert I to a signed integer with Ctx.PointerWidth.
+  static llvm::APSInt ConvertToSignedPointerWidth(ASTContext &Ctx, llvm::APSInt I, bool &Overflow) {
+    uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
+    Overflow = false;
+    if (I.getBitWidth() > PointerWidth) {
+      Overflow = true;
+      goto exit;
+    }
+    if (I.getBitWidth() < PointerWidth)
+      I = I.extend(PointerWidth);
+    if (I.isUnsigned()) {
+      if (I > llvm::APSInt(I.getSignedMaxValue(PointerWidth))) {
+        Overflow = true;
+        goto exit;
+      }
+      I = llvm::APSInt(I, false);
+    }
+    exit:
+      return I;
   }
 };
 }
@@ -1791,7 +1820,7 @@ namespace {
           return ProofResult::False;
         }
         if (IsLowerOffsetVariable() && R.IsLowerOffsetVariable())
-          if (EqualValue(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
+          if (EqualExtended(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
             return ProofResult::True;
         if (R.IsLowerOffsetVariable() && IsLowerOffsetConstant() &&
             R.LowerOffsetVariable->getType()->isUnsignedIntegerType() && LowerOffsetConstant.getExtValue() == 0)
@@ -1823,7 +1852,7 @@ namespace {
           return ProofResult::False;
         }
         if (IsUpperOffsetVariable() && R.IsUpperOffsetVariable())
-          if (EqualValue(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
+          if (EqualExtended(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
             return ProofResult::True;
         if (IsUpperOffsetVariable() && R.IsUpperOffsetConstant() &&
             UpperOffsetVariable->getType()->isUnsignedIntegerType() && R.UpperOffsetConstant.getExtValue() == 0)
@@ -1947,36 +1976,7 @@ namespace {
       }
     };
 
-    bool getReferentSizeInChars(QualType Ty, llvm::APSInt &Size) {
-      assert(Ty->isPointerType());
-      const Type *Pointee = Ty->getPointeeOrArrayElementType();
-      if (Pointee->isIncompleteType())
-        return false;
-      uint64_t ElemBitSize = S.Context.getTypeSize(Pointee);
-      uint64_t ElemSize = S.Context.toCharUnitsFromBits(ElemBitSize).getQuantity();
-      Size = llvm::APSInt(llvm::APInt(PointerWidth, ElemSize), false);
-      return true;
-    }
 
-    // Convert I to a signed integer with PointerWidth.
-    llvm::APSInt ConvertToSignedPointerWidth(llvm::APSInt I,bool &Overflow) {
-      Overflow = false;
-      if (I.getBitWidth() > PointerWidth) {
-        Overflow = true;
-        goto exit;
-      }
-      if (I.getBitWidth() < PointerWidth)
-         I = I.extend(PointerWidth);
-      if (I.isUnsigned()) {
-        if (I > llvm::APSInt(I.getSignedMaxValue(PointerWidth))) {
-          Overflow = true;
-          goto exit;
-        }
-        I = llvm::APSInt(I, false);
-      }
-      exit:
-        return I;
-    }
 
     // This function splits the expression `E` into an expression `Base`, and an offset.
     // The offset can be an integer constant or not. If it is an integer constant, the
@@ -2026,7 +2026,7 @@ namespace {
           if (Other->isIntegerConstantExpr(OffsetConstant, S.Context)) {
             // Widen the integer to the number of bits in a pointer.
             bool Overflow;
-            OffsetConstant = ConvertToSignedPointerWidth(OffsetConstant, Overflow);
+            OffsetConstant = BoundsUtil::ConvertToSignedPointerWidth(S.Context, OffsetConstant, Overflow);
             if (Overflow)
               goto exit;
             // Normalize the operation by negating the offset if necessary.
@@ -2036,7 +2036,7 @@ namespace {
                 goto exit;
             }
             llvm::APSInt ElemSize;
-            if (!getReferentSizeInChars(Base->getType(), ElemSize))
+            if (!BoundsUtil::getReferentSizeInChars(S.Context, Base->getType(), ElemSize))
                 goto exit;
             OffsetConstant = OffsetConstant.smul_ov(ElemSize, Overflow);
             if (Overflow)
@@ -2072,37 +2072,39 @@ namespace {
     // Note that another way to interpret the functionality of this function is that it expands
     // pointer arithmetic to bytewise arithmetic.
     static bool CreateStandardForm(ASTContext &Ctx, Expr *Base, Expr *Offset, llvm::APSInt &ConstantPart, bool &IsOpSigned, Expr *&VariablePart) {
-      ConstantPart = llvm::APSInt(Ctx.getTargetInfo().getPointerWidth(0), false);
-
-      if (Base->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal()->isCharType()) {
-        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset->IgnoreParenCasts())) {
-          if (BO->getRHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantPart, Ctx))
-            VariablePart = BO->getLHS()->IgnoreParenCasts();
-          else if (BO->getLHS()->IgnoreParenCasts()->isIntegerConstantExpr(ConstantPart, Ctx))
-            VariablePart = BO->getRHS()->IgnoreParenCasts();
+      bool Overflow;
+      uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
+      //if (!Base->getType()->isPointerType())
+        //return false;
+      if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
+        if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset)) {
+          if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+            VariablePart = BO->getLHS();
+          else if (BO->getLHS()->isIntegerConstantExpr(ConstantPart, Ctx))
+            VariablePart = BO->getRHS();
           else
             goto exit;
           IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-          ConstantPart = llvm::APSInt(ConstantPart, false);
-          if (ConstantPart.getBitWidth() < Ctx.getTargetInfo().getPointerWidth(0))
-            ConstantPart = ConstantPart.extend(Ctx.getTargetInfo().getPointerWidth(0));
+          ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+          if (Overflow)
+            goto exit;
         } else
           goto exit;
         return true;
 
       exit:
-        VariablePart = Offset->IgnoreParenCasts();
-        ConstantPart = 1;
-        ConstantPart = llvm::APSInt(ConstantPart, false);
+        VariablePart = Offset;
+        ConstantPart = llvm::APSInt(llvm::APInt(PointerWidth, 1), false);
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
-        if (ConstantPart.getBitWidth() < Ctx.getTargetInfo().getPointerWidth(0))
-          ConstantPart = ConstantPart.extend(Ctx.getTargetInfo().getPointerWidth(0));
         return true;
       } else {
-        VariablePart = Offset->IgnoreParenCasts();
-        ConstantPart = Ctx.getTypeInfoInChars(Base->getType()->getPointeeOrArrayElementType()->getCanonicalTypeInternal()).first.getQuantity();
-        ConstantPart = llvm::APSInt(ConstantPart, false);
+        VariablePart = Offset;
         IsOpSigned = VariablePart->getType()->isSignedIntegerType();
+        if (!BoundsUtil::getReferentSizeInChars(Ctx, Base->getType(), ConstantPart))
+          return false;
+        ConstantPart = BoundsUtil::ConvertToSignedPointerWidth(Ctx, ConstantPart, Overflow);
+        if (Overflow)
+          return false;
         return true;
       }
     }
@@ -2123,7 +2125,7 @@ namespace {
     //
     // Note that in all steps involving in checking the equality of the types or values of offsets, parentheses and
     // casts are ignored.
-    static bool EqualValue(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs) {
+    static bool EqualExtended(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs) {
       if (!Offset1 && !Offset2)
         return false;
 
@@ -2136,7 +2138,23 @@ namespace {
 
       bool CreatedStdForm1 = CreateStandardForm(Ctx, Base1, Offset1, ConstantPart1, IsOpSigned1, VariablePart1);
       bool CreatedStdForm2 = CreateStandardForm(Ctx, Base2, Offset2, ConstantPart2, IsOpSigned2, VariablePart2);
-
+      
+      llvm::outs() << "STANDARD FORMS:\n";
+      llvm::outs() << "CreatedStdForm1: " << CreatedStdForm1 << "\n";
+      llvm::outs() << "Std form 1:\n";
+      llvm::outs() << "ConstantPart = " << ConstantPart1.getExtValue() << "\n";
+      llvm::outs() << "IsOpSigned = " << IsOpSigned1 << "\n";
+      llvm::outs() << "VariablePart = ";
+      VariablePart1->dumpPretty(Ctx);
+      llvm::outs() << "\n\n";
+            llvm::outs() << "Std form 2:\n";
+            llvm::outs() << "CreatedStdForm2: " << CreatedStdForm2 << "\n";
+      llvm::outs() << "ConstantPart = " << ConstantPart2.getExtValue() << "\n";
+      llvm::outs() << "IsOpSigned = " << IsOpSigned2 << "\n";
+      llvm::outs() << "VariablePart = ";
+      VariablePart2->dumpPretty(Ctx);
+      llvm::outs() << "\n================\n";
+      
       if (!CreatedStdForm1 || !CreatedStdForm2)
         return false;
       if (!EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
@@ -2302,7 +2320,7 @@ namespace {
 
       bool Overflow;
       llvm::APSInt ElementSize;
-      if (!getReferentSizeInChars(PtrBase->getType(), ElementSize))
+      if (!BoundsUtil::getReferentSizeInChars(S.Context, PtrBase->getType(), ElementSize))
           return ProofResult::Maybe;
       if (Kind == BoundsCheckKind::BCK_NullTermRead) {
         Overflow = ValidRange.AddToUpper(ElementSize);
@@ -2322,7 +2340,7 @@ namespace {
         llvm::APSInt IntVal;
         if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
           return ProofResult::Maybe;
-        IntVal = ConvertToSignedPointerWidth(IntVal, Overflow);
+        IntVal = BoundsUtil::ConvertToSignedPointerWidth(S.Context, IntVal, Overflow);
         if (Overflow)
           return ProofResult::Maybe;
         IntVal = IntVal.smul_ov(ElementSize, Overflow);
