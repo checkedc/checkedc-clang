@@ -183,3 +183,31 @@ _Nt_array_ptr<int> fn_6(int a) {
 // CHECK: }
 // CHECK: {
 // CHECK: }
+
+void fn_7(void) {
+  int a, b, c;
+  while (a++ < 2) {
+    if (a < b)
+      c++;
+  }
+}
+
+// CHECK: {
+// CHECK: }
+// CHECK: {
+// CHECK: }
+// CHECK: {
+// CHECK: }
+// CHECK: {
+// CHECK: }
+// CHECK: {
+// CHECK: OutThen: (a, b),
+// CHECK: OutElse: (b, a),
+// CHECK: }
+// CHECK: {
+// CHECK: In: (a, b),
+// CHECK: OutThen: (a, b),
+// CHECK: OutElse: (a, b),
+// CHECK: }
+// CHECK: {
+// CHECK: }
