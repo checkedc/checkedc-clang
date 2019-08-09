@@ -460,7 +460,19 @@ struct s2 {
 };
 
 void a_f_1(int num1, int num2) {
-  int n = num1/num2;
+  short n = num1/num2;
+  _Array_ptr<long> v : count(n) = 0;
+  _Array_ptr<int> v2 : count(n) = 0;
+  v = simulate_calloc<long>(n, sizeof(long));           // expected-warning {{cannot prove declared bounds for v are valid after assignment}} \
+                                                        // expected-note {{(expanded) declared bounds are 'bounds(v, v + n)'}} \
+                                                        // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(n, sizeof(long)), (_Array_ptr<char>)value of simulate_calloc(n, sizeof(long)) + (size_t)n * sizeof(long))'}}
+  v = simulate_calloc<long>(n, sizeof(unsigned long));  // expected-warning {{cannot prove declared bounds for v are valid after assignment}} \
+                                                        // expected-note {{(expanded) declared bounds are 'bounds(v, v + n)'}} \
+                                                        // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(n, sizeof(unsigned long)), (_Array_ptr<char>)value of simulate_calloc(n, sizeof(unsigned long)) + (size_t)n * sizeof(unsigned long))'}}
+}
+
+void a_f_1_size_t(int num1, int num2) {
+  size_t n = num1/num2;
   _Array_ptr<long> v : count(n) = 0;
   _Array_ptr<int> v2 : count(n) = 0;
   v = simulate_calloc<long>(n, sizeof(long));
@@ -468,7 +480,6 @@ void a_f_1(int num1, int num2) {
 }
 
 static size_t k = 0;
-//static unsigned int k_u = 0;
 
 extern _Array_ptr<long> v2 : count(k + 1);
 void a_f_2(void) {
@@ -546,7 +557,15 @@ int v33;
 t2 v = 0, v22 = 0;
 _Array_ptr<struct s4> v24 : count(v33) = 0;
 void a_f_11(void) {
-  v24 = simulate_calloc<struct s4>(v33, sizeof(*v22));
+  v24 = simulate_calloc<struct s4>(v33, sizeof(*v22)); // expected-warning {{cannot prove declared bounds for v24 are valid after assignment}} \
+                                                       // expected-note {{(expanded) declared bounds are 'bounds(v24, v24 + v33)'}} \
+                                                       // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(v33, sizeof (*v22)), (_Array_ptr<char>)value of simulate_calloc(v33, sizeof (*v22)) + (size_t)v33 * sizeof (*v22))'}}
+}
+
+size_t v34;
+_Array_ptr<struct s4> v25 : count(v34) = 0;
+void a_f_11_u(void) {
+  v25 = simulate_calloc<struct s4>(v34, sizeof(*v22));
 }
 
 static _Array_ptr<char> x1 : count(k);
@@ -563,6 +582,12 @@ typedef struct ts1 {
 } ts1;
 
 void a_f_13(int n) {
+  _Array_ptr<_Ptr<ts1>> v22 : count(n) = simulate_calloc<_Ptr<ts1>>(n, (sizeof(_Ptr<ts1>))); // expected-warning {{cannot prove declared bounds for 'v22' are valid after initialization}} \
+                                                                                             // expected-note {{(expanded) declared bounds are 'bounds(v22, v22 + n)'}} \
+                                                                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(n, (sizeof(_Ptr<ts1>))), (_Array_ptr<char>)value of simulate_calloc(n, (sizeof(_Ptr<ts1>))) + (size_t)n * (sizeof(_Ptr<ts1>)))'}}
+}
+
+void a_f_13_u(size_t n) {
   _Array_ptr<_Ptr<ts1>> v22 : count(n) = simulate_calloc<_Ptr<ts1>>(n, (sizeof(_Ptr<ts1>)));
 }
 
