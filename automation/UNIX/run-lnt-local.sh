@@ -1,5 +1,7 @@
 #!/bin/bash
 
+CURDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+
 if [ -z "$SRC_DIR" ]; then
   echo "Specify SRC_DIR as the dir containing LLVM sources."
   exit 1
@@ -18,9 +20,6 @@ if [ -z "$LNT_BIN" ]; then
   LNT_BIN=~/mysandbox/bin/lnt
 fi
 
-CURDIR=$PWD
-export PATH=$BUILD_DIR/llvm/bin:$PATH
-
 rm -rf $BUILD_DIR/LNT-Results-Release-Linux $BUILD_DIR/LLVM-Release-Linux.obj
 ln -s $BUILD_DIR/llvm $BUILD_DIR/LLVM-Release-Linux.obj
 
@@ -31,6 +30,7 @@ if [ ! -d $SRC_DIR/llvm-test-suite ]; then
 fi
 
 cd $CURDIR
+export PATH=$BUILD_DIR/llvm/bin:$PATH
 
 # Invoke lnt.
 BUILDCONFIGURATION=Release \
