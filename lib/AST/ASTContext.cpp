@@ -9529,7 +9529,7 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
   case Type::Record : {
     const RecordType *T1RecType = cast<RecordType>(T1Type);
     const RecordType *T2RecType = cast<RecordType>(T2Type);
-    return typeAppsMatch(T1RecType, T2RecType);
+    return recordTypesMatch(T1RecType, T2RecType);
   }
   default:
     return false;
@@ -9642,16 +9642,18 @@ bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
   case Type::Record : {
     const RecordType *T1RecType = cast<RecordType>(T1Type);
     const RecordType *T2RecType = cast<RecordType>(T2Type);
-    return typeAppsMatch(T1RecType, T2RecType);
+    return recordTypesMatch(T1RecType, T2RecType);
   }
   default:
     return false;
   }
 }
 
-bool ASTContext::typeAppsMatch(const RecordType *T1, const RecordType *T2) const {
+bool ASTContext::recordTypesMatch(const RecordType *T1, const RecordType *T2) const {
+  if (T1 == T2) return true;
   RecordDecl *T1Decl = T1->getDecl();
   RecordDecl *T2Decl = T2->getDecl();
+  assert(T1Decl != T2Decl && "Expected RecordDecls to be different, since the corresponding RecordTypes are different");
 
   // If either T1 or T2 isn't a type application, the two types can't match, because
   // we already know the type pointers aren't the same.
