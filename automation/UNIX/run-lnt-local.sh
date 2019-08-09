@@ -1,20 +1,20 @@
 #!/bin/bash
 
-if [[ -z "$SRC_DIR" ]]; then
+if [ -z "$SRC_DIR" ]; then
   echo "Specify SRC_DIR as the dir containing LLVM sources."
   exit 1
 fi
 
-if [[ -z "$BUILD_DIR" ]]; then
+if [ -z "$BUILD_DIR" ]; then
   echo "Specify BUILD_DIR as the dir containing LLVM build."
   exit 1
 fi
 
-if [[ -z "$TEST_TARGET" ]]; then
+if [ -z "$TEST_TARGET" ]; then
   TEST_TARGET="X86_64;ARM"
 fi
 
-if [[ -z "$LNT_BIN" ]]; then
+if [ -z "$LNT_BIN" ]; then
   LNT_BIN=~/mysandbox/bin/lnt
 fi
 
