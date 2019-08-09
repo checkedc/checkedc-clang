@@ -81,8 +81,13 @@ void constrainEq(ConstraintVariable *LHS,
         llvm_unreachable("impossible");
       }
     }
-    else if (const PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
-      if (const PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
+    else if (PVConstraint *PCLHS = dyn_cast<PVConstraint>(CLHS)) {
+      if (PVConstraint *PCRHS = dyn_cast<PVConstraint>(CRHS)) {
+        // This is to handle function subtyping.
+        // try to add LHS and RHS to each others
+        // argument constraints.
+        PCLHS->addArgumentConstraint(PCRHS);
+        PCRHS->addArgumentConstraint(PCLHS);
         // Element-wise constrain PCLHS and PCRHS to be equal
         CVars CLHS = PCLHS->getCvars();
         CVars CRHS = PCRHS->getCvars();

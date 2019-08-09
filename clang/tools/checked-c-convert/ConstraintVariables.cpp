@@ -29,6 +29,22 @@ std::string ConstraintVariable::getRewritableOriginalTy() {
   return originalTyString;
 }
 
+ConstraintVariable* ConstraintVariable::getHighestNonWildConstraint(std::set<ConstraintVariable*> &toCheck,
+                                                                    Constraints::EnvironmentMap &E,
+                                                                    ProgramInfo &I) {
+  ConstraintVariable *highestConVar = nullptr;
+  for (auto currCons: toCheck) {
+    // if the current constraint is not WILD
+    if (!currCons->hasWild(E)) {
+      if (highestConVar == nullptr)
+        highestConVar = currCons;
+      else if (highestConVar->isLt(*currCons, I))
+        highestConVar = currCons;
+    }
+  }
+  return highestConVar;
+}
+
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ConstraintKey &K, Constraints &CS, const ASTContext &C) :
         PointerVariableConstraint(D->getType(), K, D, D->getName(), CS, C) { }
@@ -431,6 +447,16 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
   }
 
   return finalDec;
+}
+
+bool PVConstraint::addArgumentConstraint(ConstraintVariable *dstCons) {
+  if (isPartOfFunctionPrototype())
+    return argumentConstraints.insert(dstCons).second;
+
+  return false;
+}
+std::set<ConstraintVariable*> &PVConstraint::getArgumentConstraints() {
+  return argumentConstraints;
 }
 
 // This describes a function, either a function pointer or a function

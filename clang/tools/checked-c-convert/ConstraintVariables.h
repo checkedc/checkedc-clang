@@ -51,6 +51,12 @@ public:
 
   ConstraintVariableKind getKind() const { return Kind; }
 
+  // from a given set of ConstraintVariables (toCheck), get the constraint
+  // variable that is not WILD and sits highest in the type lattice.
+  static ConstraintVariable* getHighestNonWildConstraint(std::set<ConstraintVariable*> &toCheck,
+                                                         Constraints::EnvironmentMap &E,
+                                                         ProgramInfo &I);
+
 private:
   ConstraintVariableKind Kind;
 protected:
@@ -163,6 +169,10 @@ private:
   // flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return
   bool partOFFuncPrototype;
+  // for the function parameters and returns,
+  // this set contains the constraint variable of
+  // the values used as arguments.
+  std::set<ConstraintVariable*> argumentConstraints;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name,
@@ -210,6 +220,10 @@ public:
   ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
 
   bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
+  // add the provided constraint variable as an argument constraint.
+  bool addArgumentConstraint(ConstraintVariable *dstCons);
+  // get the set of constraint variables corresponding to the arguments.
+  std::set<ConstraintVariable*> &getArgumentConstraints();
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
