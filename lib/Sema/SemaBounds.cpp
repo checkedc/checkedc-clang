@@ -2074,8 +2074,8 @@ namespace {
     static bool CreateStandardForm(ASTContext &Ctx, Expr *Base, Expr *Offset, llvm::APSInt &ConstantPart, bool &IsOpSigned, Expr *&VariablePart) {
       bool Overflow;
       uint64_t PointerWidth = Ctx.getTargetInfo().getPointerWidth(0);
-      //if (!Base->getType()->isPointerType())
-        //return false;
+      if (!Base->getType()->isPointerType())
+        return false;
       if (Base->getType()->getPointeeOrArrayElementType()->isCharType()) {
         if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Offset)) {
           if (BO->getRHS()->isIntegerConstantExpr(ConstantPart, Ctx))
@@ -2138,22 +2138,6 @@ namespace {
 
       bool CreatedStdForm1 = CreateStandardForm(Ctx, Base1, Offset1, ConstantPart1, IsOpSigned1, VariablePart1);
       bool CreatedStdForm2 = CreateStandardForm(Ctx, Base2, Offset2, ConstantPart2, IsOpSigned2, VariablePart2);
-      
-      llvm::outs() << "STANDARD FORMS:\n";
-      llvm::outs() << "CreatedStdForm1: " << CreatedStdForm1 << "\n";
-      llvm::outs() << "Std form 1:\n";
-      llvm::outs() << "ConstantPart = " << ConstantPart1.getExtValue() << "\n";
-      llvm::outs() << "IsOpSigned = " << IsOpSigned1 << "\n";
-      llvm::outs() << "VariablePart = ";
-      VariablePart1->dumpPretty(Ctx);
-      llvm::outs() << "\n\n";
-            llvm::outs() << "Std form 2:\n";
-            llvm::outs() << "CreatedStdForm2: " << CreatedStdForm2 << "\n";
-      llvm::outs() << "ConstantPart = " << ConstantPart2.getExtValue() << "\n";
-      llvm::outs() << "IsOpSigned = " << IsOpSigned2 << "\n";
-      llvm::outs() << "VariablePart = ";
-      VariablePart2->dumpPretty(Ctx);
-      llvm::outs() << "\n================\n";
       
       if (!CreatedStdForm1 || !CreatedStdForm2)
         return false;
