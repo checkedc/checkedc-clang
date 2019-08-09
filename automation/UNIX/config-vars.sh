@@ -138,11 +138,13 @@ if [ -z "$LNT" ]; then
   # to be defined do not break.
   export LNT=""
   export LNT_RESULTS_DIR=""
-  export LN_SCRIPT=""
+  export LNT_SCRIPT=""
 else
   export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${BUILDOS}"
-  # We assume that lnt is installed in /lnt-install on test machines.
-#  export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
+  if [ -z "$RUN_LOCAL" ]; then
+    # We assume that lnt is installed in /lnt-install on test machines.
+    export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
+  fi
 fi
  
 if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
