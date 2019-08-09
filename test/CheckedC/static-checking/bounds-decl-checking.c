@@ -491,21 +491,21 @@ extern _Array_ptr<long> v10 : count(k + 1);
 void a_f_3(void) {
   v10 = simulate_malloc<long>((k + 1) * -1); // expected-warning {{cannot prove declared bounds for v10 are valid after assignment}} \
                                              // expected-note {{(expanded) declared bounds are 'bounds(v10, v10 + k + 1)'}} \
-                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc((k + 1) * -1), (_Array_ptr<char>)value of simulate_malloc((k + 1) * -1) + (size_t)(k + 1) * -1)'}}
+                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc((k + 1) * -1), (_Array_ptr<char>)value of simulate_malloc((k + 1) * -1) + (k + 1) * -1)'}}
 }
 
 extern _Array_ptr<long> v11 : count(k);
 void a_f_4(void) {
   v11 = simulate_malloc<long>(k * 1); // expected-warning {{cannot prove declared bounds for v11 are valid after assignment}} \
                                       // expected-note {{(expanded) declared bounds are 'bounds(v11, v11 + k)'}} \
-                                      // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc(k * 1), (_Array_ptr<char>)value of simulate_malloc(k * 1) + (size_t)k * 1)'}}
+                                      // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc(k * 1), (_Array_ptr<char>)value of simulate_malloc(k * 1) + k * 1)'}}
 }
 
 extern _Array_ptr<long> v12 : count(k);
 void a_f_5(void) {
   v12 = simulate_malloc<long>(k); // expected-warning {{cannot prove declared bounds for v12 are valid after assignment}} \
                                   // expected-note {{(expanded) declared bounds are 'bounds(v12, v12 + k)'}} \
-                                  // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc(k), (_Array_ptr<char>)value of simulate_malloc(k) + (size_t)k)'}}
+                                  // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc(k), (_Array_ptr<char>)value of simulate_malloc(k) + k)'}}
 }
 
 extern _Array_ptr<long> v25_l : count(k);
