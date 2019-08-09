@@ -467,7 +467,9 @@ void a_f_1(int num1, int num2) {
   v = simulate_calloc<long>(n, sizeof(unsigned long));
 }
 
-static int k = 0;
+static size_t k = 0;
+//static unsigned int k_u = 0;
+
 extern _Array_ptr<long> v2 : count(k + 1);
 void a_f_2(void) {
   v2 = simulate_malloc<long>((k + 1) * sizeof(long));
