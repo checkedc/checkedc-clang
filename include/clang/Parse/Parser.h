@@ -1886,10 +1886,13 @@ private:
   ExprResult ParseBoundsCastExpression();
 
   ExprResult ParseBoundsExpression();
-  ExprResult ParseGenericTypeArgumentList(ExprResult TypeFunc, SourceLocation Loc);
+  ExprResult ParseGenericFunctionApplication(ExprResult TypeFunc, SourceLocation Loc);
+
+  using TypeArgVector = SmallVector<TypeArgument, 4>;
+  std::pair<bool, TypeArgVector> ParseGenericTypeArgumentList(SourceLocation Loc);
 
   QualType SubstituteTypeVariable(QualType QT,
-    SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> &typeNames);
+    SmallVector<TypeArgument, 4> &typeNames);
 
   ExprResult ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn=false);
   bool ParseBoundsAnnotations(const Declarator &D,
@@ -1912,6 +1915,8 @@ private:
                                   const Declarator &D);
 
   ExprResult ParseReturnValueExpression();
+
+  DeclResult ParseRecordTypeApplication(RecordDecl *Base);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
@@ -2642,8 +2647,7 @@ private:
   void ParseAtomicSpecifier(DeclSpec &DS);
   void ParseCheckedPointerSpecifiers(DeclSpec & DS);
   void ParseForanySpecifier(DeclSpec &DS);
-  bool ParseGenericFunctionSpecifierHelper(DeclSpec &DS,
-                                            Scope::ScopeFlags S);
+  bool ParseForanySpecifierHelper(DeclSpec &DS, Scope::ScopeFlags S);
   void ParseItypeforanySpecifier(DeclSpec &DS);
 
   ExprResult ParseAlignArgument(SourceLocation Start,
