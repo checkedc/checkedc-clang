@@ -4106,6 +4106,18 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           Address EltPtr = Builder.CreateStructGEP(Src, i, Offset);
           llvm::Value *LI = Builder.CreateLoad(EltPtr);
           IRCallArgs[FirstIRArg + i] = LI;
+
+          if (STy->isMMSafePointerRep()) {
+            // Checked C
+            // LLVM flatterns the struct representation of _MMSafe_ptr<T>.
+            // There would be a type mismatch between the pointer of
+            // the generic type (implemented as "i8*") and the concrete pointer
+            // type for _MMSafe_ptr<T>. Here we coerce the concrete type to be
+            // the same as the generic type. Vice versa does not work because
+            // it breaks the prototype of the function.
+            IRCallArgs[FirstIRArg + i]->mutateType(
+                IRFuncTy->getParamType(FirstIRArg + i));
+          }
         }
       } else {
         // In the simple case, just pass the coerced loaded value.
@@ -4495,11 +4507,23 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
           return RValue::getAggregate(DestPtr);
         }
         case TEK_Scalar: {
-          // If the argument doesn't match, perform a bitcast to coerce it.  This
-          // can happen due to trivial type mismatches.
           llvm::Value *V = CI;
-          if (V->getType() != RetIRTy)
+
+          // Checked C
+          // When a generic function returns a _MMSafe_ptr<T>, there would be
+          // a mismatch between the generic return type and the real return
+          // type. In this situation, we need mutate the type of the generic
+          // function to the real type.
+          if (V->getType()->isMMSafePointerTy() &&
+              RetIRTy->isMMSafePointerTy()) {
+              V->mutateType(RetIRTy);
+          }
+
+          // If the argument doesn't match, perform a bitcast to coerce it. This
+          // can happen due to trivial type mismatches.
+          if (V->getType() != RetIRTy) {
             V = Builder.CreateBitCast(V, RetIRTy);
+          }
           return RValue::get(V);
         }
         }

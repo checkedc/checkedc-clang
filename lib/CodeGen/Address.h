@@ -42,6 +42,12 @@ public:
 
   /// Return the type of the pointer value.
   llvm::PointerType *getType() const {
+    llvm::Type *pointerTy = getPointer()->getType();
+    if (pointerTy->isMMSafePointerTy()) {
+      // Checked C: extract the inner pointer inside an _MMSafe_ptr.
+      return pointerTy->getInnerPtrFromMMSafePtr();
+    }
+
     return llvm::cast<llvm::PointerType>(getPointer()->getType());
   }
 
