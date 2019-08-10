@@ -371,7 +371,8 @@ public:
 
     LValue R;
     R.LVType = Simple;
-    assert(address.getPointer()->getType()->isPointerTy());
+    assert(address.getPointer()->getType()->isPointerTy() ||
+           address.getPointer()->getType()->isMMSafePointerTy());
     R.V = address.getPointer();
     R.Initialize(type, qs, address.getAlignment(), BaseInfo, TBAAInfo);
     return R;
