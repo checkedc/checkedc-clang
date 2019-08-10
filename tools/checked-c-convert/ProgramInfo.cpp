@@ -11,7 +11,6 @@
 #include "ConstraintBuilder.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "clang/Lex/Lexer.h"
-#include <sstream>
 
 using namespace clang;
 
@@ -40,7 +39,7 @@ void ProgramInfo::print(raw_ostream &O) const {
   }
 
   O << "Dummy Declaration Constraint Variables\n";
-  for(const auto &declCons: OnDemandFuncDeclConstraint) {
+  for (const auto &declCons: OnDemandFuncDeclConstraint) {
     O << "Func Name:" << declCons.first << " => ";
     const std::set<ConstraintVariable*> &S = declCons.second;
     for (const auto &J : S) {
@@ -59,9 +58,8 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   O << ", \"ConstraintVariables\":[";
   bool addComma = false;
   for ( const auto &I : Variables ) {
-    if (addComma) {
+    if (addComma)
       O << ",\n";
-    }
     PersistentSourceLoc L = I.first;
     const std::set<ConstraintVariable*> &S = I.second;
 
@@ -71,9 +69,8 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
     O << "\"Variables\":[";
     bool addComma1 = false;
     for (const auto &J : S) {
-      if (addComma1) {
+      if (addComma1)
         O << ",";
-      }
       J->dump_json(O);
       addComma1 = true;
     }
@@ -86,17 +83,15 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   O << ", \"DummyFunctionConstraints\":[";
   addComma = false;
   for (const auto &declCons: OnDemandFuncDeclConstraint) {
-    if (addComma) {
+    if (addComma)
       O << ",";
-    }
     O << "{\"functionName\":\"" << declCons.first << "\"";
     O << ", \"Constraints\":[";
     const std::set<ConstraintVariable*> &S = declCons.second;
     bool addComma1 = false;
-    for(const auto &J : S) {
-      if(addComma1) {
+    for (const auto &J : S) {
+      if (addComma1)
         O << ",";
-      }
       J->dump_json(O);
       addComma1 = true;
     }
@@ -216,12 +211,11 @@ bool ProgramInfo::checkStructuralEquality(std::set<ConstraintVariable*> V,
                                           QualType UTy) 
 {
   // First specific rule: Are these types directly equal? 
-  if (VTy == UTy) {
+  if (VTy == UTy)
     return true;
-  } else {
+  else
     // Further structural checking is TODO.
     return false;
-  } 
 }
 
 bool ProgramInfo::checkStructuralEquality(QualType D, QualType S) {
@@ -323,12 +317,11 @@ bool ProgramInfo::link() {
       const std::set<FVConstraint*> &Gs = (*I).second;
 
       for (const auto &G : Gs) {
-        for(const auto &U : G->getReturnVars()) {
+        for (const auto &U : G->getReturnVars())
           U->constrainTo(CS, CS.getWild(), true);
-        }
 
-        for(unsigned i = 0; i < G->numParams(); i++) 
-          for(const auto &U : G->getParamVar(i)) 
+        for (unsigned i = 0; i < G->numParams(); i++)
+          for (const auto &U : G->getParamVar(i))
             U->constrainTo(CS, CS.getWild(), true);
       }
     }
@@ -355,7 +348,7 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
     K = I->second;
   }
   for (const auto &J : K)
-    if(FVConstraint *FJ = dyn_cast<FVConstraint>(J))
+    if (FVConstraint *FJ = dyn_cast<FVConstraint>(J))
       toAdd.insert(FJ);
 
   assert(toAdd.size() > 0);
@@ -453,11 +446,9 @@ void ProgramInfo::exitCompilationUnit() {
 
 template <typename T>
 bool ProgramInfo::hasConstraintType(std::set<ConstraintVariable*> &S) {
-  for (const auto &I : S) {
-    if (isa<T>(I)) {
+  for (const auto &I : S)
+    if (isa<T>(I))
       return true;
-    }
-  }
   return false;
 }
 
@@ -529,21 +520,18 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
       // this is a definition.
       // get the declartion and store the unique key mapping
       FunctionDecl *FDecl = getDeclaration(UD);
-      if (FDecl != nullptr) {
+      if (FDecl != nullptr)
         CS.getFuncDefnDeclMap()[funcKey] = getUniqueDeclKey(FDecl, C);
-      }
     }
     // this is a declaration, just save the constraint variable.
-    if (!UD->isThisDeclarationADefinition()) {
+    if (!UD->isThisDeclarationADefinition())
       CS.getFuncDeclVarMap()[funcKey].insert(F);
-    }
   }
 
-  if (P != nullptr && !hasConstraintType<PVConstraint>(S)) {
+  if (P != nullptr && !hasConstraintType<PVConstraint>(S))
     // if there is no pointer constraint in this location
     // insert it.
     S.insert(P);
-  }
 
   // Did we create a function and it is a newly added function
   if (F && newFunction) {
@@ -628,7 +616,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
         // Subtract one from this constraint. If that generates an empty 
         // constraint, then, don't add it 
         std::set<uint32_t> C = PVC->getCvars();
-        if(C.size() > 0) {
+        if (C.size() > 0) {
           C.erase(C.begin());
           if (C.size() > 0) {
             bool a = PVC->getArrPresent();
@@ -654,7 +642,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
           // Subtract one from this constraint. If that generates an empty 
           // constraint, then, don't add it 
           std::set<uint32_t> C = PVC->getCvars();
-          if(C.size() > 0) {
+          if (C.size() > 0) {
             C.erase(C.begin());
             if (C.size() > 0) {
               bool a = PVC->getArrPresent();
@@ -693,12 +681,11 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       std::set<ConstraintVariable*> T;
 
       for (ConstraintVariable *C : tmp) {
-        if (FVConstraint *FV = dyn_cast<FVConstraint>(C)) {
+        if (FVConstraint *FV = dyn_cast<FVConstraint>(C))
           T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
-        } else if(PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
-          if (FVConstraint *FV = PV->getFV()) {
+        else if(PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
+          if (FVConstraint *FV = PV->getFV())
             T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
-          }
         }
       }
 
@@ -725,16 +712,15 @@ ProgramInfo::getVariableHelper( Expr                            *E,
             FVC = tmp2;
       }
 
-      if (FVC) {
+      if (FVC)
         TR.insert(FVC->getReturnVars().begin(), FVC->getReturnVars().end());
-      } else {
+      else
         // Our options are slim. For some reason, we have failed to find a 
         // FVConstraint for the Decl that we are calling. This can't be good
         // so we should constrain everything in the caller to top. We can
         // fake this by returning a nullary-ish FVConstraint and that will
         // make the logic above us freak out and over-constrain everything.
-        TR.insert(new FVConstraint()); 
-      }
+        TR.insert(new FVConstraint());
 
       return TR;
     } else {
@@ -868,9 +854,8 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
       // if we are asking for the constraint variable of a function
       // and that function is an external function.
       // then use declaration.
-      if (dyn_cast<FunctionDecl>(D) && funcDefinition == nullptr) {
+      if (dyn_cast<FunctionDecl>(D) && funcDefinition == nullptr)
         funcDefinition = funcDeclaration;
-      }
       // this means either we got a
       // request for function return value or parameter
       if (inFunctionContext) {
@@ -886,13 +871,13 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
           // but there is no declaration
           // get on demand declaration.
           std::set<ConstraintVariable*> &fvConstraints = getOnDemandFuncDeclarationConstraint(funcDefinition, C);
-          if(parameterIndex != -1) {
+          if (parameterIndex != -1) {
             // this is a parameter.
             std::set<ConstraintVariable*> parameterConstraints;
             parameterConstraints.clear();
             assert(fvConstraints.size() && "Unable to find on demand fv constraints.");
             // get all parameters from all the FVConstraints.
-            for(auto fv: fvConstraints) {
+            for (auto fv: fvConstraints) {
               auto currParamConstraint = (dyn_cast<FunctionVariableConstraint>(fv))->getParamVar(parameterIndex);
               parameterConstraints.insert(currParamConstraint.begin(), currParamConstraint.end());
             }
@@ -1003,11 +988,9 @@ bool ProgramInfo::handleFunctionSubtyping() {
 
       // should we change the type of the declaration return?
       if (targetConstAtom != nullptr && toChangeVar != nullptr) {
-        if (PVConstraint *PVC = dyn_cast<PVConstraint>(toChangeVar)){
-          for (const auto &B : PVC->getCvars()) {
+        if (PVConstraint *PVC = dyn_cast<PVConstraint>(toChangeVar))
+          for (const auto &B : PVC->getCvars())
             CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), targetConstAtom));
-          }
-        }
         retVal = true;
       }
 
@@ -1026,11 +1009,9 @@ bool ProgramInfo::handleFunctionSubtyping() {
               // Oh, declaration is more restrictive than definition.
               // promote the type of declaration to higher type.
               ConstAtom *defType = defParam->getHighestType(envMap);
-              if (PVConstraint *PVC = dyn_cast<PVConstraint>(declParam)){
-                for (const auto &B : PVC->getCvars()) {
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(declParam))
+                for (const auto &B : PVC->getCvars())
                   CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), defType));
-                }
-              }
               retVal = true;
             }
           }

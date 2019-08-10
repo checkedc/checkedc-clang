@@ -119,7 +119,7 @@ bool isDeclarationParam(clang::Decl *param) {
 }
 
 static std::string storageClassToString(StorageClass SC) {
-  switch(SC) {
+  switch (SC) {
     case StorageClass::SC_Static: return "static ";
     case StorageClass::SC_Extern: return "extern ";
     case StorageClass::SC_Register: return "register ";

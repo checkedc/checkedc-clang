@@ -354,16 +354,16 @@ bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
   bool anyTopFound = false;
   Constraints &CS = Info.getConstraints();
   Constraints::EnvironmentMap &env = CS.getVariables();
-  for (ConstraintVariable *c : C) {
-    if (PointerVariableConstraint *pvc = dyn_cast<PointerVariableConstraint>(c)) {
+  for (ConstraintVariable *c : C)
+    if (PointerVariableConstraint *pvc = dyn_cast<PointerVariableConstraint>(c))
       for (uint32_t v : pvc->getCvars()) {
         ConstAtom *CK = env[CS.getVar(v)];
         if (CK->getKind() == Atom::A_Wild) {
           anyTopFound = true;
+          break;
         }
       }
-    }
-  }
+
   return anyTopFound;
 }
 
@@ -372,14 +372,11 @@ std::string CastPlacementVisitor::getExistingIType(ConstraintVariable *decl,
                                                    FunctionDecl *funcDecl) {
   std::string ret = "";
   ConstraintVariable *target = decl;
-  if(funcDecl == nullptr) {
+  if (funcDecl == nullptr)
     target = defn;
-  }
-  if (PVConstraint *PVC = dyn_cast<PVConstraint>(target)) {
-    if (PVC->getItypePresent()) {
+  if (PVConstraint *PVC = dyn_cast<PVConstraint>(target))
+    if (PVC->getItypePresent())
       ret = " : " + PVC->getItype();
-    }
-  }
   return ret;
 }
 
@@ -425,11 +422,10 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     // get the on demand function variable constraint.
     auto funcDefKey = Info.getUniqueFuncKey(Definition, Context);
     auto &onDemandMap = Info.getOnDemandFuncDeclConstraintMap();
-    if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
+    if (onDemandMap.find(funcDefKey) != onDemandMap.end())
       cDecl = dyn_cast<FVConstraint>(getHighest(onDemandMap[funcDefKey], Info));
-    } else {
+    else
       cDecl = cDefn;
-    }
   } else {
     cDecl = dyn_cast<FVConstraint>(
       getHighest(Info.getVariableOnDemand(Declaration, Context, false), Info));
@@ -519,9 +515,8 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       returnVar = Decl->mkString(Info.getConstraints().getVariables());
 
       endStuff = getExistingIType(Decl, Defn, Declaration);
-      if (!endStuff.empty()) {
+      if (!endStuff.empty())
         didAny = true;
-      }
     }
 
     s = getStorageQualifierString(Definition) + returnVar + cDecl->getName() + "(";
@@ -615,9 +610,8 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
   SmallString<254> baseAbs(BaseDir);
   std::string baseDirFP;
-  if (getAbsoluteFilePath(BaseDir, baseDirFP)) {
+  if (getAbsoluteFilePath(BaseDir, baseDirFP))
     baseAbs = baseDirFP;
-  }
   sys::path::remove_filename(baseAbs);
   std::string base = baseAbs.str();
 
@@ -650,9 +644,8 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           // Write this file out if it was specified as a file on the command
           // line.
           std::string feAbsS = "";
-          if (getAbsoluteFilePath(FE->getName(), feAbsS)) {
+          if (getAbsoluteFilePath(FE->getName(), feAbsS))
             feAbsS = sys::path::remove_leading_dotslash(feAbsS);
-          }
 
           if (canWrite(feAbsS, InOutFiles, base)) {
             std::error_code EC;

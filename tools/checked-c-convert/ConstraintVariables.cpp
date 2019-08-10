@@ -135,7 +135,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);
         } else if (Ty->isCheckedPointerPtrType()) {
-          // Constrain V so that it can't be either wild or an array or an NTArray
+          // Constrain V so that it can't be either wild or
+          // an array or an NTArray
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getNTArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
@@ -181,9 +182,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
 
   BaseType = tyToStr(Ty);
 
-  if (QTy.isConstQualified()) {
+  if (QTy.isConstQualified())
     BaseType = "const " + BaseType;
-  }
 
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
@@ -271,9 +271,8 @@ void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
   O << "\"Vars\":[";
   bool addComma = false;
   for (const auto &I : vars) {
-    if (addComma) {
+    if (addComma)
       O << ",";
-    }
     O << "\"q_" << I << "\"";
     addComma = true;
   }
@@ -648,14 +647,12 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
     bool doAdd = true;
     // this will ensure that we do not make an itype constraint
     // variable to be WILD (which should be impossible)!!
-    if (checkSkip || dyn_cast<WildAtom>(A)) {
+    if (checkSkip || dyn_cast<WildAtom>(A))
       if (ConstrainedVars.find(V) != ConstrainedVars.end())
         doAdd = false;
-    }
 
-    if (doAdd) {
+    if (doAdd)
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
-    }
   }
 
   if (FV)
@@ -717,9 +714,8 @@ ConstAtom* PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
-    if (toRet == nullptr || ((*toRet) < *CS)) {
+    if (toRet == nullptr || ((*toRet) < *CS))
       toRet = CS;
-    }
   }
   return toRet;
 }
@@ -742,25 +738,22 @@ void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
   O << "{\"FunctionVar\":{\"ReturnVar\":[";
   bool addComma = false;
   for (const auto &I : returnVars) {
-    if(addComma) {
+    if (addComma)
       O << ",";
-    }
     I->dump_json(O);
   }
   O << "], \"name\":\"" << name << "\", ";
   O << "\"Parameters\":[";
   addComma = false;
   for (const auto &I : paramVars) {
-    if(I.size() > 0) {
-      if (addComma) {
+    if (I.size() > 0) {
+      if (addComma)
         O << ",\n";
-      }
       O << "[";
       bool innerComma = false;
       for (const auto &J : I) {
-        if(innerComma) {
+        if (innerComma)
           O << ",";
-        }
         J->dump_json(O);
         innerComma = true;
       }

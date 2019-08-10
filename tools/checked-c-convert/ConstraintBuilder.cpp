@@ -162,7 +162,7 @@ public:
         specialCaseVarIntros(D, Info, Context);
         // if this is a static array declaration.
         // make this an array.
-        if(D->getType()->isArrayType()) {
+        if (D->getType()->isArrayType()) {
           Constraints &CS = Info.getConstraints();
           constraintInBodyVariable(D, CS.getArr());
         }
@@ -420,9 +420,9 @@ public:
       // get the function declaration,
       // if exists, this is needed to check
       // for itype
-      if(getDeclaration(FD) != nullptr) {
+      if (getDeclaration(FD) != nullptr)
         FD = getDeclaration(FD);
-      }
+
       // Call of a function directly.
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
@@ -433,12 +433,12 @@ public:
 
         if (i < FD->getNumParams()) {
           bool handled = false;
-          if(FD->getParamDecl(i)->hasInteropTypeExpr()) {
+          if (FD->getParamDecl(i)->hasInteropTypeExpr()) {
             // try handling interop parameters.
             handled = handleITypeAssignment(ArgumentConstraints,
                                             FD->getParamDecl(i)->getInteropTypeExpr());
           }
-          if(!handled) {
+          if (!handled) {
             // Here, we need to get the constraints of the
             // parameter from the callee's declaration.
             std::set<ConstraintVariable*> ParameterConstraints =
@@ -453,11 +453,11 @@ public:
           // this is the case of an argument passed to a function
           // with varargs.
           // Constrain this parameter to be wild.
-          if(handleVARARGS) {
+          if (handleVARARGS) {
             Constraints &CS = Info.getConstraints();
             assignType(ArgumentConstraints, CS.getWild());
           } else {
-            if(Verbose) {
+            if (Verbose) {
               std::string funcName = FD->getName();
               errs() << "Ignoring function as it contains varargs:" << funcName << "\n";
             }
@@ -466,12 +466,11 @@ public:
 
         i++;
       }
-    } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
+    } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D))
       handleFunctionPointerCall(E);
-    } else {
+    else
       // Constrain all arguments to wild.
       constraintAllArgumentsToWild(E);
-    }
     
     return true;
   }
@@ -499,11 +498,10 @@ public:
 
     // Constrain the value returned (if present) against the return value
     // of the function.   
-    for (const auto &F : Fun ) {
-      if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
+    for (const auto &F : Fun )
+      if (FVConstraint *FV = dyn_cast<FVConstraint>(F))
         constrainEq(FV->getReturnVars(), Var, Info);
-      }
-    }
+
     return true;
   }
 
@@ -546,7 +544,7 @@ private:
 
   bool handleFunctionPointerCall(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
-    if(D) {
+    if (D) {
       if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
         // This could be a function pointer,
         // get the declaration of the function pointer variable
@@ -556,9 +554,8 @@ private:
           for (const auto &C : V) {
             FVConstraint *FV = nullptr;
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) {
-              if (FVConstraint *F = PVC->getFV()) {
+              if (FVConstraint *F = PVC->getFV())
                 FV = F;
-              }
             } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(C)) {
               FV = FVC;
             }
@@ -579,9 +576,8 @@ private:
                   // Constrain argument to wild since we can't match it
                   // to a parameter from the type.
                   Constraints &CS = Info.getConstraints();
-                  for (const auto &V : ArgumentConstraints) {
+                  for (const auto &V : ArgumentConstraints)
                     V->constrainTo(CS, CS.getWild());
-                  }
                 }
                 i++;
               }
@@ -680,9 +676,8 @@ private:
   void assignType(std::set<ConstraintVariable*> &CVars,
                   ConstAtom *target) {
     Constraints &CS = Info.getConstraints();
-    for (const auto &C : CVars) {
+    for (const auto &C : CVars)
       C->constrainTo(CS, target);
-    }
   }
 
   // constraint all the argument of the provided
