@@ -25,12 +25,25 @@ namespace CodeGen {
 class Address {
   llvm::Value *Pointer;
   CharUnits Alignment;
+
+private:
+  bool _containMMSafePtr;
+
 public:
   Address(llvm::Value *pointer, CharUnits alignment)
       : Pointer(pointer), Alignment(alignment) {
     assert((!alignment.isZero() || pointer == nullptr) &&
            "creating valid address with invalid alignment");
+
+    // Checked C: for _MMSafe_ptr, reset the real poitner type.
+    if (pointer && pointer->getType()->isMMSafePointerTy()) {
+      _containMMSafePtr = true;
+      pointer->mutateType(pointer->getType()->getInnerPtrFromMMSafePtr());
+    }
   }
+
+
+  bool containMMSafePtr() const { return _containMMSafePtr; }
 
   static Address invalid() { return Address(nullptr, CharUnits()); }
   bool isValid() const { return Pointer != nullptr; }
