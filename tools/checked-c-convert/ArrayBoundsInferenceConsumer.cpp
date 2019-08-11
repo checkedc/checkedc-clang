@@ -61,7 +61,7 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
 // assigned to the second paramter i.e., sizeArgument
 bool LocalVarABVisitor::isAllocatorCall(Expr *currExpr, Expr **sizeArgument) {
   if (currExpr != nullptr) {
-    currExpr = removeAuxillaryCasts(currExpr);
+    currExpr = removeAuxiliaryCasts(currExpr);
     // check if this is a call expression.
     if (CallExpr *CA = dyn_cast<CallExpr>(currExpr))
       if (CA->getCalleeDecl() != nullptr) {
@@ -96,12 +96,6 @@ bool LocalVarABVisitor::isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetD
   return false;
 }
 
-Expr *LocalVarABVisitor::removeCHKCBindTempExpr(Expr *toVeri) {
-  if (CHKCBindTemporaryExpr *toChkExpr = dyn_cast<CHKCBindTemporaryExpr>(toVeri))
-    return toChkExpr->getSubExpr();
-  return toVeri;
-}
-
 void LocalVarABVisitor::dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw_ostream &O) {
 #ifdef DEBUG
   O << "Not identified as a array variable.\n RHS:";
@@ -112,12 +106,11 @@ void LocalVarABVisitor::dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw
 #endif
 }
 
-Expr *LocalVarABVisitor::removeAuxillaryCasts(Expr *srcExpr) {
-  srcExpr = removeCHKCBindTempExpr(srcExpr);
+Expr *LocalVarABVisitor::removeAuxiliaryCasts(Expr *srcExpr) {
+  srcExpr = srcExpr->IgnoreParenImpCasts();
   if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(srcExpr))
     srcExpr = C->getSubExpr();
-  srcExpr = removeCHKCBindTempExpr(srcExpr);
-  srcExpr = srcExpr->IgnoreImpCasts();
+  srcExpr = srcExpr->IgnoreParenImpCasts();
   return srcExpr;
 }
 

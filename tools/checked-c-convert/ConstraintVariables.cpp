@@ -266,18 +266,18 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
 }
 
 void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
-  O << "{\"PointerVar\":{";
-  O << "\"Vars\":[";
+  O << R"({"PointerVar":{)";
+  O << R"("Vars":[)";
   bool addComma = false;
   for (const auto &I : vars) {
     if (addComma)
       O << ",";
-    O << "\"q_" << I << "\"";
+    O << R"("q_)" << I << R"(")";
     addComma = true;
   }
-  O << "], \"name\":\"" << getName() << "\"";
+  O << R"(], "name":")" << getName() << R"(")";
   if (FV) {
-    O << ", \"FunctionVariable\":";
+    O << R"(, "FunctionVariable":)";
     FV->dump_json(O);
   }
   O << "}}";
@@ -736,15 +736,15 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 }
 
 void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
-  O << "{\"FunctionVar\":{\"ReturnVar\":[";
+  O << R"({"FunctionVar":{"ReturnVar":[)";
   bool addComma = false;
   for (const auto &I : returnVars) {
     if (addComma)
       O << ",";
     I->dump_json(O);
   }
-  O << "], \"name\":\"" << name << "\", ";
-  O << "\"Parameters\":[";
+  O << R"(], "name":")" << name << R"(", )";
+  O << R"("Parameters":[)";
   addComma = false;
   for (const auto &I : paramVars) {
     if (I.size() > 0) {

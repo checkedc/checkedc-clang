@@ -296,7 +296,7 @@ void Constraints::dump(void) const {
 }
 
 void Constraints::dump_json(llvm::raw_ostream &O) const {
-  O << "{\"Constraints\":[";
+  O << R"({"Constraints":[)";
   bool addComma = false;
   for (const auto &C : constraints) {
     if (addComma)
@@ -308,13 +308,13 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
 
   addComma = false;
 
-  O << "\"Environment\":[";
+  O << R"("Environment":[)";
   for (const auto &V : environment) {
     if (addComma)
       O << ",\n";
-    O << "{\"var\":";
+    O << R"({"var":)";
     V.first->dump_json(O);
-    O << ", \"value:\":";
+    O << R"(, "value:":)";
     V.second->dump_json(O);
     O << "}";
     addComma = true;

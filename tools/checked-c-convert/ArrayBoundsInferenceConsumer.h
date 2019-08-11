@@ -39,9 +39,8 @@ private:
   // value of the argument.
   bool isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetDecl);
 
-  Expr *removeCHKCBindTempExpr(Expr *toVeri);
 
-  Expr *removeAuxillaryCasts(Expr *srcExpr);
+  Expr *removeAuxiliaryCasts(Expr *srcExpr);
 
   // print variables that should have been detected as arrays but not.
   void dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw_ostream &O);
