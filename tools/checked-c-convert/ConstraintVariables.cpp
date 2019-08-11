@@ -398,7 +398,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     }
   }
 
-  if(emittedBase == false) {
+  if (emittedBase == false) {
     // If we have a FV pointer, then our "base" type is a function pointer
     // type.
     if (FV) {

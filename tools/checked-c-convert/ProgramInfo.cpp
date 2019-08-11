@@ -683,7 +683,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
       for (ConstraintVariable *C : tmp) {
         if (FVConstraint *FV = dyn_cast<FVConstraint>(C))
           T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
-        else if(PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
+        else if (PVConstraint *PV = dyn_cast<PVConstraint>(C)) {
           if (FVConstraint *FV = PV->getFV())
             T.insert(FV->getReturnVars().begin(), FV->getReturnVars().end());
         }

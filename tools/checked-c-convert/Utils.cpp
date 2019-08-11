@@ -16,7 +16,7 @@ using namespace clang;
 static std::map<std::string, std::string> AbsoluteFilePathCache;
 
 const clang::Type *getNextTy(const clang::Type *Ty) {
-  if(Ty->isPointerType()) {
+  if (Ty->isPointerType()) {
     // TODO: how to keep the qualifiers around, and what qualifiers do
     //       we want to keep?
     QualType qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
