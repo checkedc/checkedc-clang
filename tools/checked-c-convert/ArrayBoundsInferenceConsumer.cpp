@@ -13,8 +13,8 @@
 // This visitor handles the bounds of function local array variables.
 
 bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
-  Expr *LHS = removeImpCasts(O->getLHS());
-  Expr *RHS = removeImpCasts(O->getRHS());
+  Expr *LHS = O->getLHS()->IgnoreImpCasts();
+  Expr *RHS = O->getRHS()->IgnoreImpCasts();
 
   Expr *sizeExpression;
   // is the RHS expression a call to allocator function?
@@ -96,12 +96,6 @@ bool LocalVarABVisitor::isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetD
   return false;
 }
 
-Expr *LocalVarABVisitor::removeImpCasts(Expr *toConvert) {
-  if (ImplicitCastExpr *impCast =dyn_cast<ImplicitCastExpr>(toConvert))
-    return impCast->getSubExpr();
-  return toConvert;
-}
-
 Expr *LocalVarABVisitor::removeCHKCBindTempExpr(Expr *toVeri) {
   if (CHKCBindTemporaryExpr *toChkExpr = dyn_cast<CHKCBindTemporaryExpr>(toVeri))
     return toChkExpr->getSubExpr();
@@ -123,7 +117,7 @@ Expr *LocalVarABVisitor::removeAuxillaryCasts(Expr *srcExpr) {
   if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(srcExpr))
     srcExpr = C->getSubExpr();
   srcExpr = removeCHKCBindTempExpr(srcExpr);
-  srcExpr = removeImpCasts(srcExpr);
+  srcExpr = srcExpr->IgnoreImpCasts();
   return srcExpr;
 }
 

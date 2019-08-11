@@ -207,7 +207,7 @@ public:
     RHSConstraints.clear();
 
     Constraints &CS = Info.getConstraints();
-    RHS = getNormalizedExpr(RHS);
+    RHS = RHS->IgnoreParenImpCasts();
     CallExpr *CE = dyn_cast<CallExpr>(RHS);
     // if this is a call expression to a function.
     if (CE != nullptr && CE->getDirectCallee() != nullptr) {
@@ -714,19 +714,6 @@ private:
         llvm_unreachable("Unchecked type inside an itype. This should be impossible.");
     }
     assert(false && "Invalid Pointer kind.");
-  }
-
-  Expr* getNormalizedExpr(Expr *CE) {
-    if (dyn_cast<ImplicitCastExpr>(CE)) {
-      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
-    }
-    if (dyn_cast<CHKCBindTemporaryExpr>(CE)) {
-      CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
-    }
-    if (dyn_cast<ImplicitCastExpr>(CE)) {
-      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
-    }
-    return CE;
   }
 
   ASTContext *Context;

@@ -41,9 +41,6 @@ private:
 
   Expr *removeCHKCBindTempExpr(Expr *toVeri);
 
-  // remove implicit casts added by clang to the AST
-  Expr *removeImpCasts(Expr *toConvert);
-
   Expr *removeAuxillaryCasts(Expr *srcExpr);
 
   // print variables that should have been detected as arrays but not.
