@@ -784,8 +784,7 @@ std::set<ConstraintVariable*>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {
   // if this is a parameter.
   if (parameterIndex >= 0) {
-    // get the parameter index of the
-    // requested function declaration
+    // get the parameter at parameterIndex
     D = FD->getParamDecl(parameterIndex);
   } else {
     // this is the return value of the function
@@ -817,10 +816,10 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
   assert(!persisted);
   VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(D, *C));
   if (I != Variables.end()) {
-    // If we are looking up a variable, and that variable is a parameter variable,
-    // or return value
-    // then we should see if we're looking this up in the context of a function or
-    // not. If we are not, then we should find a declaration
+    // If we are looking up a variable, and that variable is a parameter
+    // variable, or return value then we should see if we're looking this
+    // up in the context of a function or not. If we are not, then we
+    // should find a declaration
     ParmVarDecl *PD = nullptr;
     FunctionDecl *funcDefinition = nullptr;
     FunctionDecl *funcDeclaration = nullptr;
@@ -852,12 +851,11 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
     }
     if (funcDeclaration || funcDefinition || parameterIndex != -1) {
       // if we are asking for the constraint variable of a function
-      // and that function is an external function.
-      // then use declaration.
+      // and that function is an external function then use declaration.
       if (dyn_cast<FunctionDecl>(D) && funcDefinition == nullptr)
         funcDefinition = funcDeclaration;
-      // this means either we got a
-      // request for function return value or parameter
+      // this means either we got a request for function return value or
+      // parameter
       if (inFunctionContext) {
         assert(funcDefinition != nullptr && "Requesting for in-context constraints, "
                                             "but there is no definition for this function");
@@ -866,10 +864,8 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
         return getVariable(D, C, funcDefinition, parameterIndex);
       } else {
         if (funcDeclaration == nullptr) {
-          // we need constraint variable
-          // with in the function declaration,
-          // but there is no declaration
-          // get on demand declaration.
+          // we need constraint variables within the function declaration,
+          // but there is no declaration, so get on-demand declaration.
           std::set<ConstraintVariable*> &fvConstraints = getOnDemandFuncDeclarationConstraint(funcDefinition, C);
           if (parameterIndex != -1) {
             // this is a parameter.
@@ -885,17 +881,16 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
           }
           return fvConstraints;
         } else {
-          // return the variable with in
-          // the function declaration
+          // return the variable within the function declaration
           return getVariable(D, C, funcDeclaration, parameterIndex);
         }
       }
-      // we got a request for function return or parameter
-      // but we failed to handle the request.
+      // we got a request for function return or parameter but we
+      // failed to handle the request.
       assert(false && "Invalid state reached.");
     }
-    // neither parameter or return value.
-    // just return the original constraint.
+    // neither parameter or return value. So, just return the original
+    // constraint.
     return I->second;
   } else {
     return std::set<ConstraintVariable*>();
