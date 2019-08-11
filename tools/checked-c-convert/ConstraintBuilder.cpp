@@ -156,12 +156,11 @@ public:
 
       if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
         (D->getType()->isPointerType() || D->getType()->isArrayType())) {
-        // add the variable with in the function body context.
+        // add the variable within the function body context.
         Info.addVariable(D, S, Context);
 
         specialCaseVarIntros(D, Info, Context);
-        // if this is a static array declaration.
-        // make this an array.
+        // if this is a static array declaration. make this an array.
         if (D->getType()->isArrayType()) {
           Constraints &CS = Info.getConstraints();
           constraintInBodyVariable(D, CS.getArr());
@@ -426,8 +425,8 @@ public:
       // Call of a function directly.
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
-        // get constraint variables for the argument
-        // from with in the context of the caller body
+        // get constraint variables for the argument from within the context
+        // of the caller body
         std::set<ConstraintVariable*> ArgumentConstraints =
           Info.getVariable(A, Context, true);
 
@@ -484,15 +483,15 @@ public:
   }
 
   bool VisitReturnStmt(ReturnStmt *S) {
-    // Here, we should constrain the return type
-    // of the function body with the type of the
-    // return expression.
+    // Here, we should constrain the return type of the function body with
+    // the type of the return expression.
 
-    // get function variable constraint of the body
-    // we need to call getVariableOnDemand to avoid auto-correct.
+    // To get function variable constraint of the body we need to call
+    // getVariableOnDemand to avoid auto-correct.
     std::set<ConstraintVariable*> Fun =
       Info.getVariableOnDemand(Function, Context, true);
-    // get the constraint of the return variable (again with in the context of the body)
+    // get the constraint of the return variable
+    // (again within the context of the body)
     std::set<ConstraintVariable*> Var =
       Info.getVariable(S->getRetValue(), Context, true);
 
@@ -505,9 +504,8 @@ public:
     return true;
   }
 
-  // these are the expressions, that will
-  // add the constraint ~(V = Ptr) and ~(V = NTArr)
-  // i.e., the variable is not a pointer or nt array
+  // these are the expressions, that will add the constraints ~(V = Ptr)
+  // and ~(V = NTArr) i.e., the variable is neither a pointer nor an nt array
 
   bool VisitUnaryPreInc(UnaryOperator *O) {
     constrainInBodyExprNotPtrNotNt(O->getSubExpr());
@@ -546,9 +544,8 @@ private:
     Decl *D = E->getCalleeDecl();
     if (D) {
       if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
-        // This could be a function pointer,
-        // get the declaration of the function pointer variable
-        // with in the caller context.
+        // This could be a function pointer. So, get the declaration of the
+        // function pointer variable within the caller context.
         std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, true);
         if (V.size() > 0) {
           for (const auto &C : V) {
@@ -561,8 +558,8 @@ private:
             }
 
             if (FV) {
-              // Constrain arguments to be of the same type
-              // as the corresponding parameters.
+              // Constrain arguments to be of the same type as the
+              // corresponding parameters.
               unsigned i = 0;
               for (const auto &A : E->arguments()) {
                 std::set<ConstraintVariable*> ArgumentConstraints =
@@ -584,8 +581,7 @@ private:
             } else {
               // This can happen when someone does something really wacky, like
               // cast a char* to a function pointer, then call it. Constrain
-              // everything.
-              // what we do is, constraint all arguments to wild.
+              // everything. what we do is, constraint all arguments to wild.
               constraintAllArgumentsToWild(E);
               Constraints &CS = Info.getConstraints();
               // also constraint
@@ -645,12 +641,10 @@ private:
       }
   }
 
-  // Apply ~(V = Ptr) and ~(V = NTArr) to the
-  // first 'level' constraint variable associated with
-  // 'E' for in-body variables
+  // Apply ~(V = Ptr) and ~(V = NTArr) to the first 'level' in-body constraint
+  // variables associated with 'E'.
   void constrainInBodyExprNotPtrNotNt(Expr *E) {
-    // get the constrain variables
-    // with in the body context
+    // get the constrain variables within the body context.
     std::set<ConstraintVariable*> Var =
       Info.getVariable(E, Context, true);
     Constraints &CS = Info.getConstraints();

@@ -49,7 +49,7 @@ int main() {
   cp = &c;
   cp1 = &c;
   // although, we are passing cp
-  // to a paramter that will be
+  // to a parameter that will be
   // treated as WILD in func, cp
   // is Ptr within main
   bp = func(ap, bp, cp);

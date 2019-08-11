@@ -834,7 +834,7 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
       DeclContext *DC = PD->getParentFunctionOrMethod();
       assert(DC != nullptr);
       FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
-      // get the parameter index with in the function.
+      // get the parameter index within the function.
       for (unsigned i = 0; i < FD->getNumParams(); i++) {
         const ParmVarDecl *tmp = FD->getParamDecl(i);
         if (tmp == D) {
@@ -963,18 +963,18 @@ bool ProgramInfo::handleFunctionSubtyping() {
       ConstAtom *targetConstAtom = nullptr;
 
       if (defRetType->hasWild(CS.getVariables())) {
-        // the function is returning WILD with in the body.
-        // make the declaration type also WILD.
+        // The function is returning WILD within the body. Make the declaration
+        // type also WILD.
         targetConstAtom = CS.getWild();
         toChangeVar = dyn_cast<PVConstraint>(declRetType);
       } else if (!defRetType->hasWild(envMap) && !declRetType->hasWild(envMap)) {
-        // okay, both declaration and definition are checked types.
-        // here we should apply the sub-typing relation.
+        // Okay, both declaration and definition are checked types. Here we
+        // should apply the sub-typing relation.
         if (defRetType->isLt(*declRetType, *this)) {
-          // i.e., definition is not a subtype of declaration.
-          // e.g., def = PTR and decl = ARR,
-          //  here PTR is not a subtype of ARR
           // Oh, definition is more restrictive than declaration.
+          // In other words, Definition is not a subtype of declaration.
+          // e.g., def = PTR and decl = ARR. Here PTR is not a subtype of ARR
+
           // promote the type of definition to higher type.
           toChangeVar = dyn_cast<PVConstraint>(defRetType);
           targetConstAtom = declRetType->getHighestType(envMap);
@@ -998,11 +998,10 @@ bool ProgramInfo::handleFunctionSubtyping() {
           if (!declParam->hasWild(envMap) && !defParam->hasWild(envMap)) {
             // here we should apply the sub-typing relation.
             if (declParam->isLt(*defParam, *this)) {
-              // i.e., declaration is not a subtype of definition.
-              // e.g., decl = PTR and defn = ARR,
-              //  here PTR is not a subtype of ARR
               // Oh, declaration is more restrictive than definition.
-              // promote the type of declaration to higher type.
+              // In other words, declaration is not a subtype of definition.
+
+              // promote the type of declaration to higher (i.e., defn) type.
               ConstAtom *defType = defParam->getHighestType(envMap);
               if (PVConstraint *PVC = dyn_cast<PVConstraint>(declParam))
                 for (const auto &B : PVC->getCvars())

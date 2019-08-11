@@ -1,6 +1,6 @@
 // Tests for Checked C rewriter tool.
 //
-// Tests rewriting of Nt_array_ptrs with in structure fields
+// Tests rewriting of Nt_array_ptrs within structure fields
 
 // RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
 //
