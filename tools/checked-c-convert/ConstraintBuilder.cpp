@@ -543,7 +543,7 @@ private:
   bool handleFunctionPointerCall(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
     if (D) {
-      if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
+      if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
         // This could be a function pointer. So, get the declaration of the
         // function pointer variable within the caller context.
         std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, true);
