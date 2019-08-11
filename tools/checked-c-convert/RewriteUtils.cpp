@@ -458,7 +458,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // if definition is more precise
         // than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string bi = declText.str() + " : itype("+ctype+") ";
+        std::string bi = declText.str() + " : itype("+ctype+")";
         parmStrs.push_back(bi);
       } else if (anyConstrained) {
         // both the declaration and definition are same
@@ -497,7 +497,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       if (Decl->hasWild(Info.getConstraints().getVariables())) {
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
         returnVar = Defn->getOriginalTy();
-        endStuff = " : itype("+ctype+") ";
+        endStuff = " : itype("+ctype+")";
       } else {
         // this means we were able to infer that return type
         // is a checked type.

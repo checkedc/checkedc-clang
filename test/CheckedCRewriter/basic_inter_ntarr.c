@@ -19,8 +19,8 @@ int funcdecl(char *ntiptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return 0;
 }
-//CHECK: int funcdecl(char *ntiptr : itype(_Nt_array_ptr<char> ) , int *iptr : itype(_Ptr<int> ) , int *wild);
-//CHECK-NEXT: int funcdecl(char *ntiptr : itype(_Nt_array_ptr<char> ) , int *iptr : itype(_Ptr<int> ) , int *wild) {
+//CHECK: int funcdecl(char *ntiptr : itype(_Nt_array_ptr<char>), int *iptr : itype(_Ptr<int>), int *wild);
+//CHECK-NEXT: int funcdecl(char *ntiptr : itype(_Nt_array_ptr<char>), int *iptr : itype(_Ptr<int>), int *wild) {
 
 // ptr is a ARR ptr
 // iptr will be itype
@@ -32,7 +32,7 @@ int func(int *ptr, int *iptr, int *wild) {
   wild = (int*)0xdeadbeef;
   return 0;
 }
-//CHECK: int func(int *ptr, int *iptr : itype(_Ptr<int> ) , int *wild) {
+//CHECK: int func(int *ptr, int *iptr : itype(_Ptr<int>), int *wild) {
 
 int main() {
   int a, b, c;

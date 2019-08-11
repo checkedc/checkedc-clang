@@ -414,7 +414,9 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     ss << ">";
   }
 
-  ss << " ";
+  // if this is for an itype? No need to add space.
+  if (!forItype)
+    ss << " ";
 
   std::string finalDec;
   if (emittedName == false) {

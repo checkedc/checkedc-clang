@@ -25,7 +25,7 @@ int* func(int *ptr, char *iwild) {
   return ptr;
 }
 
-//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *iwild : itype(_Ptr<char> ) ) {
+//CHECK: _Ptr<int> func(_Ptr<int> ptr, char *iwild : itype(_Ptr<char>)) {
 
 int main() {
   int a;
