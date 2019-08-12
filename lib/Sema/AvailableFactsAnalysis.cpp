@@ -25,6 +25,7 @@ void AvailableFactsAnalysis::Analyze() {
 
   PostOrderCFGView POView = PostOrderCFGView(Cfg);
   unsigned int MaxBlockID = 0;
+  std::vector<unsigned int> InWorkList;
   for (const CFGBlock *Block : POView)
     if (Block->getBlockID() > MaxBlockID)
       MaxBlockID = Block->getBlockID();
@@ -33,6 +34,7 @@ void AvailableFactsAnalysis::Analyze() {
    for (const CFGBlock *Block : POView) {
      auto NewBlock = new ElevatedCFGBlock(Block);
      WorkList.push(NewBlock);
+     InWorkList.emplace_back(Block->getBlockID());
      Blocks.emplace_back(NewBlock);
      BlockIDs[Block->getBlockID()] = Blocks.size() - 1;
    }
@@ -68,8 +70,15 @@ void AvailableFactsAnalysis::Analyze() {
    }
 
    // Iterative Worklist Algorithm
+   int i = 0;
    while (!WorkList.empty()) {
+     llvm::outs() << "iteration: " << i << "\n";
+     i++;
      ElevatedCFGBlock *CurrentBlock = WorkList.front();
+     InWorkList.erase(std::remove(InWorkList.begin(),
+                                     InWorkList.end(),
+                                     CurrentBlock->Block->getBlockID()),
+                                     InWorkList.end());
      WorkList.pop();
 
      // Update In set
@@ -102,11 +111,16 @@ void AvailableFactsAnalysis::Analyze() {
      CurrentBlock->OutThen = Difference(UnionThen, CurrentBlock->Kill);
      CurrentBlock->OutElse = Difference(UnionElse, CurrentBlock->Kill);
 
-     // Recompute the Affected Blocks
+     // Recompute the Affected Blocks and _uniquely_ add them to the worklist
      if (Differ(OldOutThen, CurrentBlock->OutThen) ||
          Differ(OldOutElse, CurrentBlock->OutElse))
-       for (auto I : CurrentBlock->Block->succs())
-         WorkList.push(GetByCFGBlock(I));
+       for (auto I : CurrentBlock->Block->succs()) {
+         if (std::find(InWorkList.begin(), InWorkList.end(), I->getBlockID()) ==
+             InWorkList.end()) {
+           InWorkList.emplace_back(I->getBlockID());
+           WorkList.push(GetByCFGBlock(I));
+         }
+       }
    }
 
    if (DumpFacts)
@@ -133,7 +147,7 @@ AvailableFactsAnalysis::GetByCFGBlock(const CFGBlock *B) {
   return Blocks[BlockIDs[B->getBlockID()]];
 }
 
-// Given two sets S1 and S2, the return value is S1 \ S2.
+// Given two sets S1 and S2, the return value is S1 - S2.
 ComparisonSet AvailableFactsAnalysis::Difference(ComparisonSet& S1, ComparisonSet& S2) {
  if (S2.size() == 0)
     return S1;
