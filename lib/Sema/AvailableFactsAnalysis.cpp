@@ -70,10 +70,7 @@ void AvailableFactsAnalysis::Analyze() {
    }
 
    // Iterative Worklist Algorithm
-   int i = 0;
    while (!WorkList.empty()) {
-     llvm::outs() << "iteration: " << i << "\n";
-     i++;
      ElevatedCFGBlock *CurrentBlock = WorkList.front();
      InWorkList.erase(std::remove(InWorkList.begin(),
                                      InWorkList.end(),
