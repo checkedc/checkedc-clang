@@ -25,21 +25,26 @@
 
 class PersistentSourceLoc {
 protected:
-  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c) :
-    fileName(f), lineNo(l), colNo(c), isValid(true) {}
-  
+  PersistentSourceLoc(std::string f, uint32_t l, uint32_t c, uint64_t i) :
+    fileName(f), lineNo(l), colNo(c), astId(i), isValid(true) {}
+
 public:
-  PersistentSourceLoc() : fileName(""), lineNo(0), colNo(0), isValid(false) {}
+  PersistentSourceLoc() :
+      fileName(""), lineNo(0), colNo(0), astId(0), isValid(false) {}
   std::string getFileName() const { return fileName; }
   uint32_t getLineNo() const { return lineNo; }
   uint32_t getColNo() const { return colNo; }
+  uint64_t getAstId() const { return astId; }
   bool valid() { return isValid; }
 
   bool operator<(const PersistentSourceLoc &o) const {
     if (fileName == o.fileName)
       if (lineNo == o.lineNo)
         if (colNo == o.colNo)
-          return false;
+          if (astId == o.astId)
+            return false;
+          else
+            return astId < o.astId;
         else
           return colNo < o.colNo;
       else
@@ -49,23 +54,27 @@ public:
   }
 
   void print(llvm::raw_ostream &O) const {
-    O << fileName << ":" << lineNo << ":" << colNo;
+    O << fileName << ":" << lineNo << ":" << colNo << ":" << astId;
   }
 
   void dump() const { print(llvm::errs()); }
 
   static
-    PersistentSourceLoc mkPSL(const clang::Decl *D, clang::ASTContext &Context);
+  PersistentSourceLoc mkPSL(const clang::Decl *D, clang::ASTContext &Context);
 
   static
-    PersistentSourceLoc mkPSL(const clang::Stmt *S, clang::ASTContext &Context);
+  PersistentSourceLoc mkPSL(const clang::Stmt *S, clang::ASTContext &Context);
 
 private:
   static
-    PersistentSourceLoc mkPSL(clang::SourceRange SR, clang::SourceLocation SL, clang::ASTContext &Context);
+  PersistentSourceLoc mkPSL(clang::SourceRange SR,
+                            clang::SourceLocation SL,
+                            int64_t ID,
+                            clang::ASTContext &Context);
   std::string fileName;
   uint32_t lineNo;
   uint32_t colNo;
+  int64_t astId;
   bool isValid;
 };
 
