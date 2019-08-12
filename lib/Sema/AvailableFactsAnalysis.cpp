@@ -73,38 +73,40 @@ void AvailableFactsAnalysis::Analyze() {
      WorkList.pop();
 
      // Update In set
-     ComparisonSet IntermediateIntersecions;
+     ComparisonSet Intersecions;
      bool FirstIteration = true;
-     for (CFGBlock::const_pred_iterator I = CurrentBlock->Block->pred_begin(), E = CurrentBlock->Block->pred_end(); I != E; ++I) {
-       if (!*I)
+     for (auto I : CurrentBlock->Block->preds()) {
+       if (!I)
          continue;
-       if (*((*I)->succ_begin()) == CurrentBlock->Block) {
+       if (*(I->succ_begin()) == CurrentBlock->Block) {
          if (FirstIteration) {
-           IntermediateIntersecions = GetByCFGBlock(*I)->OutThen;
+           Intersecions = GetByCFGBlock(I)->OutThen;
            FirstIteration = false;
          } else
-           IntermediateIntersecions = Intersect(IntermediateIntersecions, CurrentBlock->OutThen);
+           Intersecions = Intersect(Intersecions, CurrentBlock->OutThen);
        } else {
          if (FirstIteration) {
-           IntermediateIntersecions = GetByCFGBlock(*I)->OutElse;
+           Intersecions = GetByCFGBlock(I)->OutElse;
            FirstIteration = false;
          } else
-           IntermediateIntersecions = Intersect(IntermediateIntersecions, CurrentBlock->OutElse);
+           Intersecions = Intersect(Intersecions, CurrentBlock->OutElse);
        }
      }
-     CurrentBlock->In = IntermediateIntersecions;
+     CurrentBlock->In = Intersecions;
 
      // Update Out Set
-     ComparisonSet OldOutThen = CurrentBlock->OutThen, OldOutElse = CurrentBlock->OutElse;
+     ComparisonSet OldOutThen = CurrentBlock->OutThen;
+     ComparisonSet OldOutElse = CurrentBlock->OutElse;
      ComparisonSet UnionThen = Union(CurrentBlock->In, CurrentBlock->GenThen);
      ComparisonSet UnionElse = Union(CurrentBlock->In, CurrentBlock->GenElse);
      CurrentBlock->OutThen = Difference(UnionThen, CurrentBlock->Kill);
      CurrentBlock->OutElse = Difference(UnionElse, CurrentBlock->Kill);
 
      // Recompute the Affected Blocks
-     if (Differ(OldOutThen, CurrentBlock->OutThen) || Differ(OldOutElse, CurrentBlock->OutElse))
-       for (CFGBlock::const_succ_iterator I = CurrentBlock->Block->succ_begin(), E = CurrentBlock->Block->succ_end(); I != E; ++I)
-         WorkList.push(GetByCFGBlock(*I));
+     if (Differ(OldOutThen, CurrentBlock->OutThen) ||
+         Differ(OldOutElse, CurrentBlock->OutElse))
+       for (auto I : CurrentBlock->Block->succs())
+         WorkList.push(GetByCFGBlock(I));
    }
 
    if (DumpFacts)
@@ -126,7 +128,8 @@ void AvailableFactsAnalysis::GetFacts(std::set<std::pair<Expr *, Expr *>>& Compa
   ComparisonFacts = Blocks[CurrentIndex]->In;
 }
 
-AvailableFactsAnalysis::ElevatedCFGBlock* AvailableFactsAnalysis::GetByCFGBlock(const CFGBlock *B) {
+AvailableFactsAnalysis::ElevatedCFGBlock*
+AvailableFactsAnalysis::GetByCFGBlock(const CFGBlock *B) {
   return Blocks[BlockIDs[B->getBlockID()]];
 }
 
@@ -231,7 +234,8 @@ void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &IS
 // - If `E` has the form `A || B`, negated comparisons can be created for A and B.
 // Some examples:
 // - `E` has the form A < B: add (B, A) to `ISet`.
-// - `E` has the form `E1 || E2`: ExtractNegatedComparisons in E1 and E2 and add them to `ISet`.
+// - `E` has the form `E1 || E2`: ExtractNegatedComparisons in E1 and E2 and add
+//   them to `ISet`.
 void AvailableFactsAnalysis::ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet) {
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
     switch (BO->getOpcode()) {
@@ -285,8 +289,8 @@ void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const V
     }
   }
 
-  for (auto I = St->child_begin(); I != St->child_end(); ++I)
-    CollectDefinedVars(*I, DefinedVars);
+  for (auto I : St->children())
+    CollectDefinedVars(I, DefinedVars);
 }
 
 void AvailableFactsAnalysis::PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title) {

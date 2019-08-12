@@ -2625,7 +2625,7 @@ def : Flag<["-"], "integrated-as">, Alias<fintegrated_as>, Flags<[DriverOption]>
 def : Flag<["-"], "no-integrated-as">, Alias<fno_integrated_as>,
       Flags<[CC1Option, DriverOption]>;
 
-def fdump_extracted_comparison_facts : Flag<["-"], "fdump_extracted_comparison_facts">, Group<f_Group>, Flags<[CC1Option]>,
+def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump extracted comparison facts">;
 
 def working_directory : JoinedOrSeparate<["-"], "working-directory">, Flags<[CC1Option]>,

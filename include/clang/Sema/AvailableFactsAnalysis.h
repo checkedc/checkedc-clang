@@ -18,11 +18,11 @@
 #ifndef LLVM_AVAILABLE_FACTS_ANALYSIS_H
 #define LLVM_AVAILABLE_FACTS_ANALYSIS_H
 
-#include "clang/Analysis/CFG.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
+#include "clang/Analysis/CFG.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "clang/Sema/Sema.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include <queue>
 
 namespace clang {

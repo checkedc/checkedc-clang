@@ -1,6 +1,6 @@
 // Tests for dumping of datafow analysis for collecting facts
 //
-// RUN: %clang_cc1 -fcheckedc-extension -fdump_extracted_comparison_facts %s 2>1 | FileCheck %s
+// RUN: %clang_cc1 -fcheckedc-extension -fdump-extracted-comparison-facts %s 2>1 | FileCheck %s
 
 //===================================================================
 // Dumps of different kinds of collected dataflow facts

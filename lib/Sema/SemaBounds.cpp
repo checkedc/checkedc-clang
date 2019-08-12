@@ -3396,8 +3396,8 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   ComputeBoundsDependencies(Tracker, FD, Body);
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
   CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr());
-  AvailableFactsAnalysis Collector(*this, Cfg.get());
   if (Cfg != nullptr) {
+    AvailableFactsAnalysis Collector(*this, Cfg.get());
     Collector.Analyze();
     Checker.TraverseCFG();
   }
