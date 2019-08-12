@@ -2568,6 +2568,9 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   if (Args.hasArg(OPT_fdump_inferred_bounds))
     Opts.DumpInferredBounds = true;
 
+  if (Args.hasArg(OPT_fdump_extracted_comparison_facts))
+    Opts.DumpExtractedComparisonFacts = true;
+
   Opts.WritableStrings = Args.hasArg(OPT_fwritable_strings);
   Opts.ConstStrings = Args.hasFlag(OPT_fconst_strings, OPT_fno_const_strings,
                                    Opts.ConstStrings);

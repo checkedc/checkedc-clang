@@ -22,6 +22,7 @@
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "clang/Sema/Sema.h"
 #include <queue>
 
 namespace clang {
@@ -35,6 +36,7 @@ namespace clang {
   private:
     Sema &S;
     CFG *Cfg;
+    bool DumpFacts;
     std::vector<ElevatedCFGBlock *> Blocks;
     std::vector<unsigned int> BlockIDs;
     std::size_t CurrentIndex;
@@ -53,7 +55,8 @@ namespace clang {
     };
 
   public:
-    AvailableFactsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), CurrentIndex(0) {}
+    AvailableFactsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), CurrentIndex(0),
+                                                DumpFacts(S.getLangOpts().DumpExtractedComparisonFacts) {}
 
     void Analyze();
     void Reset();
@@ -71,7 +74,8 @@ namespace clang {
     void ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet);
     void CollectExpressions(const Stmt *St, ExprSet &AllExprs);
     void CollectDefinedVars(const Stmt *St, llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars);
-    void PrintComparisonSet(ComparisonSet &ISet, std::string Title);
+    void PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title);
+    void DumpComparisonFacts(raw_ostream &OS);
   };
 }
 

@@ -96,14 +96,19 @@ void AvailableFactsAnalysis::Analyze() {
 
      // Update Out Set
      ComparisonSet OldOutThen = CurrentBlock->OutThen, OldOutElse = CurrentBlock->OutElse;
-     CurrentBlock->OutThen = Difference(Union(CurrentBlock->In, CurrentBlock->GenThen), CurrentBlock->Kill);
-     CurrentBlock->OutElse = Difference(Union(CurrentBlock->In, CurrentBlock->GenElse), CurrentBlock->Kill);
+     ComparisonSet UnionThen = Union(CurrentBlock->In, CurrentBlock->GenThen);
+     ComparisonSet UnionElse = Union(CurrentBlock->In, CurrentBlock->GenElse);
+     CurrentBlock->OutThen = Difference(UnionThen, CurrentBlock->Kill);
+     CurrentBlock->OutElse = Difference(UnionElse, CurrentBlock->Kill);
 
      // Recompute the Affected Blocks
      if (Differ(OldOutThen, CurrentBlock->OutThen) || Differ(OldOutElse, CurrentBlock->OutElse))
        for (CFGBlock::const_succ_iterator I = CurrentBlock->Block->succ_begin(), E = CurrentBlock->Block->succ_end(); I != E; ++I)
          WorkList.push(GetByCFGBlock(*I));
    }
+
+   if (DumpFacts)
+     DumpComparisonFacts(llvm::outs());
 }
 
 void AvailableFactsAnalysis::Reset() {
@@ -282,5 +287,26 @@ void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, llvm::SmallPtrSe
 
   for (auto I = St->child_begin(); I != St->child_end(); ++I)
     CollectDefinedVars(*I, DefinedVars);
+}
+
+void AvailableFactsAnalysis::PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title) {
+  OS << Title << ": ";
+  for (auto I : ISet) {
+    OS << "(";
+    I.first->printPretty(OS, nullptr, PrintingPolicy(S.Context.getLangOpts()));
+    OS << ", ";
+    I.second->printPretty(OS, nullptr, PrintingPolicy(S.Context.getLangOpts()));
+    OS << "), ";
+  }
+  OS << "\n";
+}
+
+void AvailableFactsAnalysis::DumpComparisonFacts(raw_ostream &OS) {
+  for (auto B : Blocks) {
+    OS << "Block #" << B->Block->getBlockID() << ": {\n";
+    PrintComparisonSet(OS, B->In, "In");
+    PrintComparisonSet(OS, B->Kill, "Kill");
+    OS << "}\n";
+  }
 }
 }
