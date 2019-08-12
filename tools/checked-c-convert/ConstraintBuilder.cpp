@@ -13,11 +13,6 @@ using namespace llvm;
 using namespace clang;
 
 
-// flags
-// constraint all the arguments to a function
-// accepting var args to be wild.
-#define CONSTRAINT_ARGS_TO_VARGS_WILD
-
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
@@ -160,7 +155,7 @@ public:
         Info.addVariable(D, S, Context);
 
         specialCaseVarIntros(D, Info, Context);
-        // if this is a static array declaration. make this an array.
+        // if this is a statically sized array declaration? make this an array.
         if (D->getType()->isArrayType()) {
           Constraints &CS = Info.getConstraints();
           constraintInBodyVariable(D, CS.getArr());
@@ -211,11 +206,9 @@ public:
     // if this is a call expression to a function.
     if (CE != nullptr && CE->getDirectCallee() != nullptr) {
       // case 5
-      // if this is a call expression?
-      // is this functions return type an itype
+      // Check if this functions; return type is an itype
       FunctionDecl *Calle = CE->getDirectCallee();
-      // get the function declaration and look for
-      // itype in the return
+      // get the function declaration and look for itype in the return.
       if (getDeclaration(Calle) != nullptr) {
         Calle = getDeclaration(Calle);
       }
@@ -226,8 +219,7 @@ public:
       }
       // if this is not an itype
       if (!itypeHandled) {
-        // get the constraint variable corresponding
-        // to the declaration.
+        // get the constraint variable corresponding to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
           constrainEq(V, RHSConstraints, Info);
@@ -261,9 +253,8 @@ public:
         bool rulesFired = false;
         if (Info.checkStructuralEquality(V, RHSConstraints, lhsType, rhsTy)) {
           // This has become a little stickier to think about.
-          // What do you do here if we determine that two things with
-          // very different arity are structurally equal? Is that even
-          // possible?
+          // What do you do here if we determine that two things with very
+          // different arity are structurally equal? Is that even possible?
 
           // We apply a few rules here to determine if there are any
           // finer-grained constraints we can add. One of them is if the
@@ -294,8 +285,8 @@ public:
                         Info.checkStructuralEquality(V, RHSConstraints, argPTy, rhsTy)) {
                       rulesFired = true;
                       // At present, I don't think we need to add an
-                      // implication based constraint since this rule
-                      // only fires if there is a cast from a call to malloc.
+                      // implication based constraint since this rule only
+                      // fires if there is a cast from a call to malloc.
                       // Since malloc is an external, there's no point in
                       // adding constraints to it.
                     }
@@ -328,8 +319,7 @@ public:
           }
         }
       } else {
-        // get the constraint variables of the
-        // expression from RHS side.
+        // get the constraint variables of the expression from RHS side.
         RHSConstraints = Info.getVariable(RHS, Context, true);
         if (RHSConstraints.size() > 0) {
           // Case 1.
@@ -416,9 +406,7 @@ public:
       return true;
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      // get the function declaration,
-      // if exists, this is needed to check
-      // for itype
+      // If exists, get the function declaration.
       if (getDeclaration(FD) != nullptr)
         FD = getDeclaration(FD);
 
@@ -438,19 +426,17 @@ public:
                                             FD->getParamDecl(i)->getInteropTypeExpr());
           }
           if (!handled) {
-            // Here, we need to get the constraints of the
-            // parameter from the callee's declaration.
+            // Here, we need to get the constraints of the parameter from
+            // the callee's declaration.
             std::set<ConstraintVariable*> ParameterConstraints =
               Info.getVariable(FD->getParamDecl(i), Context, false);
-            // add constraint that the arguments are equal to the
-            // parameters.
+            // add constraint that the arguments are equal to the parameters.
             //assert(!ParameterConstraints.empty() && "Unable to get parameter constraints");
             // the constrains could be empty for builtin functions.
             constrainLocalAssign(ParameterConstraints, FD->getParamDecl(i)->getType(), A);
           }
         } else {
-          // this is the case of an argument passed to a function
-          // with varargs.
+          // this is the case of an argument passed to a function with varargs.
           // Constrain this parameter to be wild.
           if (handleVARARGS) {
             Constraints &CS = Info.getConstraints();
@@ -474,8 +460,7 @@ public:
     return true;
   }
 
-  // this will add the constraint that
-  // variable is an array i.e., (V=ARR)
+  // this will add the constraint that variable is an array i.e., (V=ARR)
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
     Constraints &CS = Info.getConstraints();
     constraintInBodyVariable(E->getBase(), CS.getArr());
@@ -570,8 +555,8 @@ private:
                     FV->getParamVar(i);
                   constrainEq(ArgumentConstraints, ParameterDC, Info);
                 } else {
-                  // Constrain argument to wild since we can't match it
-                  // to a parameter from the type.
+                  // Constrain argument to wild since we can't match it to a
+                  // parameter from the type.
                   Constraints &CS = Info.getConstraints();
                   for (const auto &V : ArgumentConstraints)
                     V->constrainTo(CS, CS.getWild());
@@ -604,18 +589,16 @@ private:
     // currently we only handle NT arrays.
     if (ptrKind == CheckedPointerKind::NtArray) {
       isHandled = true;
-      // assign the corresponding checked type to
-      // all teh constraint vars.
+      // assign the corresponding checked type to all the constraint vars.
       assignType(Vars, getCheckedPointerConstraint(ptrKind));
     }
-    // is this handled or propagation through itype
-    // has been disabled. In which case, all itypes
-    // values will be handled.
+    // is this handled or propagation through itype has been disabled.
+    // In which case, all itypes values will be handled.
     return isHandled || !enablePropThruIType;
   }
 
-  // constraint all the provided vars to be
-  // not equal to the provided type i.e., ~(V = type)
+  // constraint all the provided vars to be not equal to the provided
+  // type i.e., ~(V = type)
   void constrainVarsNotEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
@@ -628,8 +611,8 @@ private:
       }
   }
 
-  // constraint all the provided vars to be
-  // equal to the provided type i.e., (V = type)
+  // constraint all the provided vars to be equal to the provided type
+  // i.e., (V = type)
   void constrainVarsEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
@@ -665,8 +648,7 @@ private:
     constrainVarsEq(Var, target);
   }
 
-  // assign the provided type (target)
-  // to all the constraint variables (CVars).
+  // assign the provided type (target) to all the constraint variables (CVars).
   void assignType(std::set<ConstraintVariable*> &CVars,
                   ConstAtom *target) {
     Constraints &CS = Info.getConstraints();
@@ -674,18 +656,15 @@ private:
       C->constrainTo(CS, target);
   }
 
-  // constraint all the argument of the provided
-  // call expression to be WILD
+  // constraint all the argument of the provided call expression to be WILD.
   void constraintAllArgumentsToWild(CallExpr *E) {
     for (const auto &A : E->arguments()) {
-      // get constraint from within the function body
-      // of the caller
+      // get constraint from within the function body of the caller
       std::set<ConstraintVariable*> ParameterEC =
         Info.getVariable(A, Context, true);
 
       Constraints &CS = Info.getConstraints();
-      // assign WILD to each of the constraint
-      // variables.
+      // assign WILD to each of the constraint variables.
       assignType(ParameterEC, CS.getWild());
     }
   }
@@ -765,10 +744,9 @@ public:
         const FileEntry *FE = SM.getFileEntryForID(FID);
 
         if (FE && FE->isValid()) {
-          // We only want to re-write a record if it contains
-          // any pointer types, to include array types. 
-          // Most record types probably do,
-          // but let's scan it and not consider any records
+          // We only want to re-write a record if it contains any
+          // pointer types, to include array types. Most record types
+          // probably do, but let's scan it and not consider any records
           // that don't have any pointers or arrays. 
 
           for (const auto &D : Definition->fields())

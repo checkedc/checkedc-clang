@@ -44,11 +44,11 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
   return V;
 }
 
-// Walk the list of declarations and find a declaration that is NOT
-// a definition and does NOT have a body.
+// Walk the list of declarations and find a declaration that is NOT a
+// definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
-  // optimization: if the provided Decl is itself
-  // a declaration then return the same Decl
+  // optimization: if the provided Decl is itself a declaration then
+  // return the same Decl
   if (!FD->isThisDeclarationADefinition())
     return FD;
 
@@ -63,8 +63,8 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 // Walk the list of declarations and find a declaration accompanied by
 // a definition and a function body.
 FunctionDecl *getDefinition(FunctionDecl *FD) {
-  // optimization: if the provided Decl is itself
-  // associated with a function body return the same Decl
+  // optimization: if the provided Decl is itself associated with a function
+  // body return the same Decl
   if (FD->isThisDeclarationADefinition() && FD->hasBody())
     return FD;
 
@@ -105,8 +105,8 @@ clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
   return ptrType->getKind();
 }
 
-// check if the provided declaration is a function parameter
-// and is part of a declaration only function
+// check if the provided declaration is a function parameter and is part of
+// a declaration only function
 bool isDeclarationParam(clang::Decl *param) {
   // if this a parameter?
   if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param))
@@ -128,8 +128,8 @@ static std::string storageClassToString(StorageClass SC) {
   return "";
 }
 
-// this method gets the storage qualifier for the
-// provided declaration i.e., static, extern, etc.
+// this method gets the storage qualifier for the provided declaration
+// i.e., static, extern, etc.
 std::string getStorageQualifierString(Decl *D) {
   if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
     return storageClassToString(FD->getStorageClass());
@@ -141,9 +141,8 @@ std::string getStorageQualifierString(Decl *D) {
 }
 
 bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
-  // get absolute path of the provided file
-  // returns true if successful else false
-  // check the cache.
+  // get absolute path of the provided file returns true if successful else
+  // false check the cache.
   if (AbsoluteFilePathCache.find(fileName) == AbsoluteFilePathCache.end()) {
     SmallString<255> abs_path(fileName);
     std::error_code ec = llvm::sys::fs::make_absolute(abs_path);

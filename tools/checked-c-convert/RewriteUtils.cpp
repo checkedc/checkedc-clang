@@ -97,9 +97,8 @@ bool DComp::operator()(const DAndReplace lhs, const DAndReplace rhs) const {
 }
 
 // Test to see if we can rewrite a given SourceRange.
-// Note that R.getRangeSize will return -1 if SR is within
-// a macro as well. This means that we can't re-write any
-// text that occurs within a macro.
+// Note that R.getRangeSize will return -1 if SR is within a macro as well.
+// This means that we can't re-write any text that occurs within a macro.
 static bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
@@ -455,19 +454,17 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
-        // if definition is more precise
-        // than declaration emit an itype
+        // if definition is more precise than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
         std::string bi = declText.str() + " : itype("+ctype+")";
         parmStrs.push_back(bi);
       } else if (anyConstrained) {
-        // both the declaration and definition are same
-        // and they are safer than what was originally declared.
-        // here we should emit a checked type!
+        // both the declaration and definition are same and they are safer
+        // than what was originally declared. Here we should emit a checked
+        // type!
         std::string v = Defn->mkString(Info.getConstraints().getVariables());
 
-        // if there is no declaration?
-        // check the itype in definition
+        // if there is no declaration? check the itype in definition
         v = v + getExistingIType(Decl, Defn, Declaration);
         parmStrs.push_back(v);
       } else {
@@ -499,12 +496,10 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         returnVar = Defn->getOriginalTy();
         endStuff = " : itype("+ctype+")";
       } else {
-        // this means we were able to infer that return type
-        // is a checked type.
-        // however, the function returns a less precise type, whereas
-        // all the uses of the function converts the return value
-        // into a more precise type.
-        // do not change the type
+        // this means we were able to infer that return type is a checked type.
+        // however, the function returns a less precise type, whereas all the
+        // uses of the function converts the return value into a more precise
+        // type. do not change the type.
         returnVar = Decl->mkString(Info.getConstraints().getVariables());
         endStuff = getExistingIType(Decl, Defn, Declaration);
       }
@@ -658,10 +653,9 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
             }
             else
               errs() << "could not open file " << nFile << "\n";
-            // This is awkward. What to do? Since we're iterating,
-            // we could have created other files successfully. Do we go back
-            // and erase them? Is that surprising? For now, let's just keep
-            // going.
+            // This is awkward. What to do? Since we're iterating, we could
+            // have created other files successfully. Do we go back and erase
+            // them? Is that surprising? For now, let's just keep going.
           }
         }
 }
@@ -744,9 +738,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
         rewriteThese.insert(DAndReplace(D, DS, newTy));
       } else if (FV && FV->anyChanges(Info.getConstraints().getVariables()) &&
                  !CPV.isFunctionVisited(FV->getName())) {
-        // Rewrite a function variables return value.
-        // only if this function is NOT handled by the
-        // cast placement visitor
+        // Rewrite a function variables return value. Only if this function is
+        // NOT handled by the cast placement visitor
         std::set<ConstraintVariable*> V = FV->getReturnVars();
         if (V.size() > 0) {
           std::string newTy =

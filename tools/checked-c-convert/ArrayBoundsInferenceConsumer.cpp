@@ -19,13 +19,11 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
   Expr *sizeExpression;
   // is the RHS expression a call to allocator function?
   if (isAllocatorCall(RHS, &sizeExpression)) {
-    // if this an allocator function then
-    // sizeExpression contains the argument
-    // used for size argument
+    // if this is an allocator function then sizeExpression contains the
+    // argument used for size argument
 
-    // if LHS is just a variable?
-    // i.e., ptr = ..
-    // if yes, get the AST node of the target variable
+    // if LHS is just a variable? i.e., ptr = .., get the AST node of the
+    // target variable
     Decl *targetVar;
     if (isExpressionSimpleLocalVar(LHS, &targetVar)) {
       if (Info.isIdentifiedArrayVar(targetVar))
@@ -55,17 +53,15 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
   return true;
 }
 
-// check if the provided expression is a call
-// to known memory allocators.
-// if yes, return true along with the argument used as size
-// assigned to the second paramter i.e., sizeArgument
+// check if the provided expression is a call to known memory allocators.
+// if yes, return true along with the argument used as the size assigned
+// to the second parameter i.e., sizeArgument
 bool LocalVarABVisitor::isAllocatorCall(Expr *currExpr, Expr **sizeArgument) {
   if (currExpr != nullptr) {
     currExpr = removeAuxiliaryCasts(currExpr);
-    // check if this is a call expression.
+    // check if this is a call expression to a named function.
     if (CallExpr *CA = dyn_cast<CallExpr>(currExpr))
       if (CA->getCalleeDecl() != nullptr) {
-        // Is this a call to a named function?
         FunctionDecl *calleeDecl = dyn_cast<FunctionDecl>(CA->getCalleeDecl());
         if (calleeDecl) {
           StringRef funcName = calleeDecl->getName();

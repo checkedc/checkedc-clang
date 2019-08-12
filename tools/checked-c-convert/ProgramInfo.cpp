@@ -103,12 +103,10 @@ void ProgramInfo::dump_json(llvm::raw_ostream &O) const {
   O << "}";
 }
 
-// Given a ConstraintVariable V, retrieve all of the unique
-// constraint variables used by V. If V is just a 
-// PointerVariableConstraint, then this is just the contents 
-// of 'vars'. If it either has a function pointer, or V is
-// a function, then recurses on the return and parameter
-// constraints.
+// Given a ConstraintVariable V, retrieve all of the unique constraint
+// variables used by V. If V is just a PointerVariableConstraint, then
+// this is just the contents of 'vars'. If it either has a function pointer,
+// or V is a function, then recurses on the return and parameter constraints.
 static
 CVars getVarsFromConstraint(ConstraintVariable *V, CVars T) {
   CVars R = T;
@@ -308,8 +306,8 @@ bool ProgramInfo::link() {
     // If we've seen this symbol, but never seen a body for it, constrain
     // everything about it.
     if (U.second == false && isExternOkay(U.first) == false) {
-      // Some global symbols we don't need to constrain to wild, like 
-      // malloc and free. Check those here and skip if we find them. 
+      // Some global symbols we don't need to constrain to wild, like malloc
+      // and free. Check those here and skip if we find them.
       std::string UnkSymbol = U.first;
       std::map<std::string, std::set<FVConstraint*> >::iterator I =
         GlobalSymbols.find(UnkSymbol);
@@ -406,9 +404,8 @@ void ProgramInfo::seeGlobalDecl(clang::VarDecl *G) {
 
 }
 
-// Populate Variables, VarDeclToStatement, RVariables, and DepthMap with
-// AST data structures that correspond do the data stored in PDMap and
-// ReversePDMap.
+// Populate Variables, VarDeclToStatement, RVariables, and DepthMap with AST
+// data structures that correspond do the data stored in PDMap and ReversePDMap
 void ProgramInfo::enterCompilationUnit(ASTContext &Context) {
   assert(persisted);
   // Get a set of all of the PersistentSourceLoc's we need to fill in
@@ -502,23 +499,18 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
     newFunction = true;
     S.insert(F);
 
-    // if this is a function. Save the created constraint.
-    // this needed for resolving function subtypes later.
-    // we create a unique key for the declaration and definition
-    // of a function.
-    // We save the mapping between these unique keys.
-    // This is needed so that later when we have to
-    // resolve function subtyping. where for each function
-    // we need access to teh definition and declaration
-    // constraint variables.
+    // if this is a function. Save the created constraint. This is needed for
+    // resolving function subtypes later. we create a unique key for the
+    // declaration and definition of a function.
+    // We save the mapping between these unique keys to access them later.
     FunctionDecl *UD = dyn_cast<FunctionDecl>(D);
     std::string funcKey =  getUniqueDeclKey(UD, C);
-    // this is a definition. Create a constraint variable
-    // and save the mapping between defintion and declaration.
+    // this is a definition. Create a constraint variable and save the mapping
+    // between definition and declaration.
     if (UD->isThisDeclarationADefinition() && UD->hasBody()) {
       CS.getFuncDefnVarMap()[funcKey].insert(F);
-      // this is a definition.
-      // get the declartion and store the unique key mapping
+      // this is a definition. So, get the declaration and store the unique
+      // key mapping
       FunctionDecl *FDecl = getDeclaration(UD);
       if (FDecl != nullptr)
         CS.getFuncDefnDeclMap()[funcKey] = getUniqueDeclKey(FDecl, C);
@@ -529,15 +521,14 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   }
 
   if (P != nullptr && !hasConstraintType<PVConstraint>(S))
-    // if there is no pointer constraint in this location
-    // insert it.
+    // if there is no pointer constraint in this location insert it.
     S.insert(P);
 
-  // Did we create a function and it is a newly added function
+  // Did we create a function and it is a newly added function?
   if (F && newFunction) {
     // If we did, then we need to add some additional stuff to Variables. 
-    //  * A mapping from the parameters PLoc to the constraint variables for
-    //    the parameters.
+    // A mapping from the parameters PLoc to the constraint variables for
+    // the parameters.
     FunctionDecl *FD = dyn_cast<FunctionDecl>(D);
     assert(FD != nullptr);
     // We just created this, so they should be equal.
@@ -850,8 +841,8 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
       assert(parameterIndex >= 0 && "Got request for invalid parameter");
     }
     if (funcDeclaration || funcDefinition || parameterIndex != -1) {
-      // if we are asking for the constraint variable of a function
-      // and that function is an external function then use declaration.
+      // if we are asking for the constraint variable of a function and that
+      // function is an external function then use declaration.
       if (dyn_cast<FunctionDecl>(D) && funcDefinition == nullptr)
         funcDefinition = funcDeclaration;
       // this means either we got a request for function return value or
@@ -898,7 +889,7 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
 }
 // Given some expression E, what is the top-most constraint variable that
 // E refers to? It could be none, in which case the returned set is empty. 
-// Otherwise, the returned setcontains the constraint variable(s) that E 
+// Otherwise, the returned set contains the constraint variable(s) that E
 // refers to.
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(Expr *E, ASTContext *C, bool inFunctionContext) {
@@ -922,9 +913,10 @@ bool ProgramInfo::handleFunctionSubtyping() {
   // S1 <: T1
   //--------------------
   // T1 -> T2 <: S1 -> S2
-  // A way of interpreting this is that the type of a declaration argument `S1` can be a
-  // subtype of a definition parameter type `T1`, and the type of a definition
-  // return type `S2` can be a subtype of the declaration expected type `T2`.
+  // A way of interpreting this is that the type of a declaration argument
+  // `S1` can be a subtype of a definition parameter type `T1`, and the type
+  // of a definition return type `S2` can be a subtype of the declaration
+  // expected type `T2`.
   //
   bool retVal = false;
   auto &envMap = CS.getVariables();
@@ -941,7 +933,7 @@ bool ProgramInfo::handleFunctionSubtyping() {
       auto funcDeclKey = defnDeclKeyMap[funcDefKey];
       declCVarsPtr = &(declConstrains[funcDeclKey]);
     } else {
-      // no? then check the ondemand declarations
+      // no? then check the on demand declarations
       auto &onDemandMap = getOnDemandFuncDeclConstraintMap();
       if (onDemandMap.find(funcDefKey) != onDemandMap.end()) {
         declCVarsPtr = &(onDemandMap[funcDefKey]);
@@ -971,9 +963,9 @@ bool ProgramInfo::handleFunctionSubtyping() {
         // Okay, both declaration and definition are checked types. Here we
         // should apply the sub-typing relation.
         if (defRetType->isLt(*declRetType, *this)) {
-          // Oh, definition is more restrictive than declaration.
-          // In other words, Definition is not a subtype of declaration.
-          // e.g., def = PTR and decl = ARR. Here PTR is not a subtype of ARR
+          // Oh, definition is more restrictive than declaration. In other
+          // words, Definition is not a subtype of declaration. e.g., def = PTR
+          // and decl = ARR. Here PTR is not a subtype of ARR
 
           // promote the type of definition to higher type.
           toChangeVar = dyn_cast<PVConstraint>(defRetType);
