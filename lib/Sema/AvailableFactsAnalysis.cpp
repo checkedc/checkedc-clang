@@ -269,21 +269,21 @@ void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, llvm::SmallPtrSe
   if (!St)
     return;
 
-    if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(St)) {
-      if (BO->isAssignmentOp()) {
-        Expr *LHS = BO->getLHS()->ignoreParenBaseCasts()->IgnoreImpCasts();
-        if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS))
-          if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
-            DefinedVars.insert(V);
-      }
-    } else if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(St)) {
-      if (UO->isIncrementDecrementOp()) {
-        Expr *LHS = UO->getSubExpr()->ignoreParenBaseCasts()->IgnoreImpCasts();
-        if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS))
-          if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
-            DefinedVars.insert(V);
-      }
+  if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(St)) {
+    if (BO->isAssignmentOp()) {
+      Expr *LHS = BO->getLHS()->ignoreParenBaseCasts()->IgnoreImpCasts();
+      if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS))
+        if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
+          DefinedVars.insert(V);
     }
+  } else if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(St)) {
+    if (UO->isIncrementDecrementOp()) {
+      Expr *LHS = UO->getSubExpr()->ignoreParenBaseCasts()->IgnoreImpCasts();
+      if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS))
+        if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
+          DefinedVars.insert(V);
+    }
+  }
 
   for (auto I = St->child_begin(); I != St->child_end(); ++I)
     CollectDefinedVars(*I, DefinedVars);
