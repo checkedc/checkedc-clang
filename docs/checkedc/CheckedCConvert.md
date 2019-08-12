@@ -8,7 +8,7 @@ The tool is available under: `tools/checked-c-convert`
 
 ## Redesigning and new features
 
-Corresponding pull request: [Porting Tool Updates]([https://github.com/microsoft/checkedc-clang/pull/642](https://github.com/microsoft/checkedc-clang/pull/642))
+Corresponding pull request: [Porting Tool Updates](https://github.com/microsoft/checkedc-clang/pull/642)
 
 In this pull request, we tried to faithfully implement the highlevel idea as described in the paper (Section 5.3 of [https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf](https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf))
 
