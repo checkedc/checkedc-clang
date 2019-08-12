@@ -181,7 +181,7 @@ ComparisonSet AvailableFactsAnalysis::Intersect(ComparisonSet& S1, ComparisonSet
 
 // This function returns true if variable V is used in the comparison I.
 bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
-  ExprSet Exprs;
+  std::set<const Expr *> Exprs;
   CollectExpressions(I.first, Exprs);
   CollectExpressions(I.second, Exprs);
   for (auto InnerExpr : Exprs)
@@ -256,7 +256,7 @@ void AvailableFactsAnalysis::ExtractNegatedComparisons(const Expr *E, Comparison
     }
 }
 
-void AvailableFactsAnalysis::CollectExpressions(const Stmt *St, ExprSet &AllExprs) {
+void AvailableFactsAnalysis::CollectExpressions(const Stmt *St, std::set<const Expr *> &AllExprs) {
   if (!St)
     return;
   if (const Expr *E = dyn_cast<Expr>(St))

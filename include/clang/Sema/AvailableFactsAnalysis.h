@@ -26,9 +26,8 @@
 #include <queue>
 
 namespace clang {
-  typedef std::set<const Expr *> ExprSet;
-  typedef std::pair<Expr *, Expr *> Comparison;
-  typedef std::set<Comparison> ComparisonSet;
+  using Comparison = std::pair<Expr *, Expr *>;
+  using ComparisonSet = std::set<Comparison>;
 
   class AvailableFactsAnalysis {
     class ElevatedCFGBlock;
@@ -72,7 +71,7 @@ namespace clang {
     bool ContainsVariable(Comparison& I, const VarDecl *V);
     void ExtractComparisons(const Expr *E, ComparisonSet &ISet);
     void ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet);
-    void CollectExpressions(const Stmt *St, ExprSet &AllExprs);
+    void CollectExpressions(const Stmt *St, std::set<const Expr *> &AllExprs);
     void CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars);
     void PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title);
     void DumpComparisonFacts(raw_ostream &OS);
