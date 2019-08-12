@@ -56,7 +56,7 @@ void AvailableFactsAnalysis::Analyze() {
 
    // Compute Kill Sets
    for (auto B : Blocks) {
-     llvm::SmallPtrSet<const VarDecl *, 16> DefinedVars;
+     std::set<const VarDecl *> DefinedVars;
      for (CFGElement Elem : *(B->Block))
        if (Elem.getKind() == CFGElement::Statement)
          CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
@@ -265,7 +265,7 @@ void AvailableFactsAnalysis::CollectExpressions(const Stmt *St, ExprSet &AllExpr
     CollectExpressions(*I, AllExprs);
 }
 
-void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars) {
+void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars) {
   if (!St)
     return;
 

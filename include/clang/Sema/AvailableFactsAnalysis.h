@@ -26,7 +26,7 @@
 #include <queue>
 
 namespace clang {
-  typedef llvm::SmallPtrSet<const Expr *, 16> ExprSet;
+  typedef std::set<const Expr *> ExprSet;
   typedef std::pair<Expr *, Expr *> Comparison;
   typedef std::set<Comparison> ComparisonSet;
 
@@ -73,7 +73,7 @@ namespace clang {
     void ExtractComparisons(const Expr *E, ComparisonSet &ISet);
     void ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet);
     void CollectExpressions(const Stmt *St, ExprSet &AllExprs);
-    void CollectDefinedVars(const Stmt *St, llvm::SmallPtrSet<const VarDecl *, 16> &DefinedVars);
+    void CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars);
     void PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title);
     void DumpComparisonFacts(raw_ostream &OS);
   };

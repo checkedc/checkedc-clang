@@ -1522,8 +1522,6 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
 
 namespace {
   class CheckBoundsDeclarations {
-  public:
-    typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
   private:
     Sema &S;
     bool DumpBounds;
@@ -2616,7 +2614,7 @@ namespace {
       Cfg(Cfg),
       ReturnBounds(ReturnBounds) {}
 
-    
+    typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
 
     void IdentifyChecked(Stmt *S, StmtSet &CheckedStmts, bool InCheckedScope) {
       if (!S)
