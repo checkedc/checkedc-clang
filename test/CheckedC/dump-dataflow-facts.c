@@ -6,7 +6,6 @@
 // Dumps of different kinds of collected dataflow facts
 //===================================================================
 
-
 int f(int a);
 void fn_1(void) {
   int a, b, c;
@@ -250,6 +249,30 @@ void fn_7(void) {
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+
+void fn_8(void) {
+  volatile int a;
+  int b, n, c;
+  if (a < b)
+    n = c;
+}
+
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }

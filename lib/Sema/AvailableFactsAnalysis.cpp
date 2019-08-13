@@ -208,6 +208,21 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
   return false;
 }
 
+// This function return true if an expression is volatile, and false otherwise.
+// An expression is volatile if there is at least one volatile variable in it.
+bool AvailableFactsAnalysis::IsVolatile(const Expr *E) {
+  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E))
+    if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl()))
+      if (VD->getType().isVolatileQualified())
+        return true;
+  for (auto Child : E->children()) {
+    if (const Expr *EChild = dyn_cast<Expr>(Child))
+      if (IsVolatile(EChild))
+        return true;
+  }
+  return false;
+}
+
 // This function computes a list of comparisons E1 <= E2 from `E`.
 // - If `E` is a simple direct comparison expression `A op B`, then the comparison
 // can be created if `op` is one of LE, LT, GE, GT, or EQ.
@@ -218,7 +233,9 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
 // - `E` has the form `E1 && E2`: ExtractComparisons in E1 and E2 and add them to `ISet`.
 // TODO: handle the case where logical negation operator (!) is used.
 void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &ISet) {
-  if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
+  if (IsVolatile(E))
+    return;
+  if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
     switch (BO->getOpcode()) {
       case BinaryOperatorKind::BO_LE:
       case BinaryOperatorKind::BO_LT:
@@ -239,6 +256,7 @@ void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &IS
       default:
         break;
     }
+  }
 }
 
 // This function computes a list of negated comparisons from `E`.
@@ -250,6 +268,8 @@ void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &IS
 // - `E` has the form `E1 || E2`: ExtractNegatedComparisons in E1 and E2 and add
 //   them to `ISet`.
 void AvailableFactsAnalysis::ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet) {
+  if (IsVolatile(E))
+    return;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
     switch (BO->getOpcode()) {
       case BinaryOperatorKind::BO_LE:

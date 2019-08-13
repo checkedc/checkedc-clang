@@ -22,7 +22,6 @@
 #include "clang/Analysis/CFG.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/Sema.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include <queue>
 
 namespace clang {
@@ -63,7 +62,6 @@ namespace clang {
     void DumpComparisonFacts(raw_ostream &OS);
 
   private:
-    ElevatedCFGBlock GetByCFGBlock(const CFGBlock *B);
     ComparisonSet Difference(ComparisonSet& S1, ComparisonSet& S2);
     ComparisonSet Union(ComparisonSet& S1, ComparisonSet& S2);
     ComparisonSet Intersect(ComparisonSet& S1, ComparisonSet& S2);
@@ -74,6 +72,7 @@ namespace clang {
     void CollectExpressions(const Stmt *St, std::set<const Expr *> &AllExprs);
     void CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars);
     void PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title);
+    bool IsVolatile(const Expr *E);
   };
 }
 
