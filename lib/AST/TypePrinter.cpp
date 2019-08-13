@@ -1060,6 +1060,16 @@ void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
 
 void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream &OS) { }
 
+void TypePrinter::printExistentialBefore(const ExistentialType *T, raw_ostream &OS) {
+  OS << "Exists(";
+  printTypeVariableBefore(T->typeVar(), OS);
+  OS << ", ";
+  print(T->innerType(), OS, "");
+  OS << ")";
+}
+
+void TypePrinter::printExistentialAfter(const ExistentialType *T, raw_ostream &OS) { }
+
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
   printTypeSpec(T->getDecl(), OS);
 }

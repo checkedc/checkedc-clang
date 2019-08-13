@@ -5816,6 +5816,15 @@ QualType TreeTransform<Derived>::TransformTypeVariableType(TypeLocBuilder &TLB,
 }
 
 template<typename Derived>
+QualType TreeTransform<Derived>::TransformExistentialType(TypeLocBuilder &TLB,
+                                                          ExistentialTypeLoc TL) {
+  // TODO: is this correct?
+  ExistentialTypeLoc NewT = TLB.push<ExistentialTypeLoc>(TL.getType());
+  NewT.setNameLoc(TL.getNameLoc());
+  return TL.getType();
+}
+
+template<typename Derived>
 QualType TreeTransform<Derived>::TransformTypeOfType(TypeLocBuilder &TLB,
                                                      TypeOfTypeLoc TL) {
   TypeSourceInfo* Old_Under_TI = TL.getUnderlyingTInfo();

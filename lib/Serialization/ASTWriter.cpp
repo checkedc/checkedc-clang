@@ -364,6 +364,11 @@ void ASTTypeWriter::VisitTypeVariableType(const TypeVariableType *T) {
   Code = TYPE_TYPEVARIABLE;
 }
 
+void ASTTypeWriter::VisitExistentialType(const ExistentialType *TL) {
+  // TODO: implement
+  assert(false && "currently unimplemented");
+}
+
 void ASTTypeWriter::VisitTypeOfExprType(const TypeOfExprType *T) {
   Record.AddStmt(T->getUnderlyingExpr());
   Code = TYPE_TYPEOF_EXPR;
@@ -744,6 +749,11 @@ void TypeLocWriter::VisitTypedefTypeLoc(TypedefTypeLoc TL) {
 
 void TypeLocWriter::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
   Record.AddSourceLocation(TL.getNameLoc());
+}
+
+void TypeLocWriter::VisitExistentialTypeLoc(ExistentialTypeLoc TL) {
+  // TODO: implement
+  assert(false && "currently unimplemented");
 }
 
 void TypeLocWriter::VisitObjCTypeParamTypeLoc(ObjCTypeParamTypeLoc TL) {

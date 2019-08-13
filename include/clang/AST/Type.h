@@ -4437,6 +4437,9 @@ public:
       false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
     TypeVar(TypeVar), InnerType(InnerType) {}
 
+  const TypeVariableType *typeVar() const { return TypeVar; }
+  QualType innerType() const { return InnerType; }
+
   bool isSugared(void) const { return false; }
   QualType desugar(void) const { return QualType(this, 0); }
 
