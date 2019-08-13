@@ -21,7 +21,8 @@ class Sema;
 
 void AvailableFactsAnalysis::Analyze() {
   assert(Cfg && "expected CFG to exist");
-  ComparisonSet AllComparisons;
+  std::vector<Comparison> AllComparisons;
+
   std::queue<ElevatedCFGBlock *> WorkList;
   std::vector<ElevatedCFGBlock *> Blocks;
 
@@ -55,8 +56,30 @@ void AvailableFactsAnalysis::Analyze() {
          B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
        }
      }
-     AllComparisons.insert(B->GenThen.begin(), B->GenThen.end());
-     AllComparisons.insert(B->GenElse.begin(), B->GenElse.end());
+     AllComparisons.insert(AllComparisons.end(), B->GenThen.begin(), B->GenThen.end());
+     AllComparisons.insert(AllComparisons.end(), B->GenElse.begin(), B->GenElse.end());
+   }
+
+   // Which comparisons contain pointer derefs?
+   std::vector<bool> ComparisonContainsDeref;
+   for (auto C : AllComparisons) {
+     if (ContainsPointerDeref(C))
+       ComparisonContainsDeref.emplace_back(true);
+     else
+       ComparisonContainsDeref.emplace_back(false);
+   }
+
+   // Which blocks contain potential pointer assignments? (assignment via a pointer or a call)
+   std::vector<bool> PointerAssignmentInBlocks(Blocks.size(), false);
+   for (unsigned int Index = 0; Index < Blocks.size(); Index++) {
+     std::set<const VarDecl *> DefinedVars;
+     for (CFGElement Elem : *(Blocks[Index]->Block))
+       if (Elem.getKind() == CFGElement::Statement)
+         CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
+
+     if (std::any_of(DefinedVars.begin(), DefinedVars.end(),
+                     [](const VarDecl *VD){return VD->getType()->isPointerType();}))
+       PointerAssignmentInBlocks[Index] = true;
    }
 
    // Compute Kill Sets
@@ -71,6 +94,16 @@ void AvailableFactsAnalysis::Analyze() {
          if (ContainsVariable(E, V))
            B->Kill.insert(E);
    }
+   // If an expression in a comparison contains a pointer deref, kill the comparison
+   // at any potential pointer assignment expression.
+   // A pointer deref can appear in any of the following forms:
+   // *p, ->, (*p)., *(p+1), or p[1]
+   for (int CompInd = 0; CompInd < AllComparisons.size(); CompInd++)
+     if (ComparisonContainsDeref[CompInd])
+       for (int BlockInd = 0; BlockInd < Blocks.size(); BlockInd++)
+         if (PointerAssignmentInBlocks[BlockInd])
+           Blocks[BlockInd]->Kill.insert(AllComparisons[CompInd]);
+
 
    // Iterative Worklist Algorithm
    while (!WorkList.empty()) {
@@ -208,6 +241,23 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
   return false;
 }
 
+bool AvailableFactsAnalysis::ContainsPointerDeref(Comparison& I) {
+  std::set<const Expr *> Exprs;
+  CollectExpressions(I.first, Exprs);
+  CollectExpressions(I.second, Exprs);
+  for (auto InnerExpr : Exprs) {
+    if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(InnerExpr))
+      if (UO->getOpcode() == UO_Deref)
+        return true;
+    if (const MemberExpr *ME = dyn_cast<MemberExpr>(InnerExpr))
+      if (ME->isArrow())
+        return true;
+    if (const ArraySubscriptExpr *A = dyn_cast<ArraySubscriptExpr>(InnerExpr))
+      return true;
+  }
+  return false;
+}
+
 // This function return true if an expression is volatile, and false otherwise.
 // An expression is volatile if there is at least one volatile variable in it.
 bool AvailableFactsAnalysis::IsVolatile(const Expr *E) {
@@ -223,17 +273,31 @@ bool AvailableFactsAnalysis::IsVolatile(const Expr *E) {
   return false;
 }
 
+bool AvailableFactsAnalysis::ContainsFunctionCall(const Expr *E) {
+  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E))
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+      return true;
+  for (auto Child : E->children()) {
+    if (const Expr *EChild = dyn_cast<Expr>(Child))
+      if (ContainsFunctionCall(EChild))
+        return true;
+  }
+  return false;
+}
+
 // This function computes a list of comparisons E1 <= E2 from `E`.
 // - If `E` is a simple direct comparison expression `A op B`, then the comparison
 // can be created if `op` is one of LE, LT, GE, GT, or EQ.
 // - If `E` has the form `A && B`, comparisons can be created for A and B.
+// Note that we do not include comparisons whose expressions involve
+// calls or references to volatile variables.
 //
 // Some examples:
 // - `E` has the form A < B: add (A, B) to `ISet`.
 // - `E` has the form `E1 && E2`: ExtractComparisons in E1 and E2 and add them to `ISet`.
 // TODO: handle the case where logical negation operator (!) is used.
 void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &ISet) {
-  if (IsVolatile(E))
+  if (IsVolatile(E) || ContainsFunctionCall(E))
     return;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
     switch (BO->getOpcode()) {
@@ -263,12 +327,15 @@ void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &IS
 // - If `E` is a simple direct comparison expression `A op B`, then the negated
 //   comparison can be created if `op` is one of LE, LT, GE, GT, or NE.
 // - If `E` has the form `A || B`, negated comparisons can be created for A and B.
+// Note that we do not include comparisons whose expressions involve
+// calls or references to volatile variables.
+//
 // Some examples:
 // - `E` has the form A < B: add (B, A) to `ISet`.
 // - `E` has the form `E1 || E2`: ExtractNegatedComparisons in E1 and E2 and add
 //   them to `ISet`.
 void AvailableFactsAnalysis::ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet) {
-  if (IsVolatile(E))
+  if (IsVolatile(E) || ContainsFunctionCall(E))
     return;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
     switch (BO->getOpcode()) {
@@ -302,6 +369,10 @@ void AvailableFactsAnalysis::CollectExpressions(const Stmt *St, std::set<const E
     CollectExpressions(*I, AllExprs);
 }
 
+// This function collects the defined variables in statement `St`.
+// We assume a variable is define:
+// 1. if it appears in the left hand side of an assignment
+// 2. if it is a pointer which is passed as an argument of a function call
 void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars) {
   if (!St)
     return;
@@ -320,6 +391,11 @@ void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const V
         if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
           DefinedVars.insert(V);
     }
+  } else if (const DeclRefExpr *DRE = dyn_cast<const DeclRefExpr>(St)) {
+    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
+      for (auto V : FD->parameters())
+        if (V->getType()->isPointerType())
+          DefinedVars.insert(V);
   }
 
   for (auto I : St->children())
