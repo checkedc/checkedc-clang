@@ -22,7 +22,8 @@ class Sema;
 void AvailableFactsAnalysis::Analyze() {
   assert(Cfg && "expected CFG to exist");
   ComparisonSet AllComparisons;
-  std::queue<ElevatedCFGBlock> WorkList;
+  std::queue<ElevatedCFGBlock *> WorkList;
+  std::vector<ElevatedCFGBlock *> Blocks;
 
   PostOrderCFGView POView = PostOrderCFGView(Cfg);
   unsigned int MaxBlockID = 0;
@@ -34,7 +35,7 @@ void AvailableFactsAnalysis::Analyze() {
    BlockIDs.clear();
    BlockIDs.resize(MaxBlockID + 1, 0);
    for (const CFGBlock *Block : POView) {
-     auto NewBlock = ElevatedCFGBlock(Block);
+     auto NewBlock = new ElevatedCFGBlock(Block);
      WorkList.push(NewBlock);
      InWorkList.emplace_back(Block->getBlockID());
      Blocks.emplace_back(NewBlock);
@@ -43,87 +44,92 @@ void AvailableFactsAnalysis::Analyze() {
 
    // Compute Gen Sets
    for (auto B : Blocks) {
-     if (const Stmt *Term = B.Block->getTerminator()) {
+     if (const Stmt *Term = B->Block->getTerminator()) {
        if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
          ComparisonSet Comparisons;
          ExtractComparisons(IS->getCond(), Comparisons);
-         B.GenThen.insert(Comparisons.begin(), Comparisons.end());
+         B->GenThen.insert(Comparisons.begin(), Comparisons.end());
 
          ComparisonSet NegatedComparisons;
          ExtractNegatedComparisons(IS->getCond(), NegatedComparisons);
-         B.GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
+         B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
        }
      }
-     AllComparisons.insert(B.GenThen.begin(), B.GenThen.end());
-     AllComparisons.insert(B.GenElse.begin(), B.GenElse.end());
+     AllComparisons.insert(B->GenThen.begin(), B->GenThen.end());
+     AllComparisons.insert(B->GenElse.begin(), B->GenElse.end());
    }
 
    // Compute Kill Sets
    for (auto B : Blocks) {
      std::set<const VarDecl *> DefinedVars;
-     for (CFGElement Elem : *(B.Block))
+     for (CFGElement Elem : *(B->Block))
        if (Elem.getKind() == CFGElement::Statement)
          CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
 
      for (auto E : AllComparisons)
        for (auto V : DefinedVars)
          if (ContainsVariable(E, V))
-           B.Kill.insert(E);
+           B->Kill.insert(E);
    }
 
    // Iterative Worklist Algorithm
    while (!WorkList.empty()) {
-     ElevatedCFGBlock CurrentBlock = WorkList.front();
+     ElevatedCFGBlock *CurrentBlock = WorkList.front();
      InWorkList.erase(std::remove(InWorkList.begin(),
                                      InWorkList.end(),
-                                     CurrentBlock.Block->getBlockID()),
+                                     CurrentBlock->Block->getBlockID()),
                                      InWorkList.end());
      WorkList.pop();
 
      // Update In set
      ComparisonSet Intersecions;
      bool FirstIteration = true;
-     for (auto I : CurrentBlock.Block->preds()) {
+     for (auto I : CurrentBlock->Block->preds()) {
        if (!I)
          continue;
-       if (*(I->succ_begin()) == CurrentBlock.Block) {
+       if (*(I->succ_begin()) == CurrentBlock->Block) {
          if (FirstIteration) {
-           Intersecions = GetByCFGBlock(I).OutThen;
+           Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutThen;
            FirstIteration = false;
          } else
-           Intersecions = Intersect(Intersecions, CurrentBlock.OutThen);
+           Intersecions = Intersect(Intersecions, CurrentBlock->OutThen);
        } else {
          if (FirstIteration) {
-           Intersecions = GetByCFGBlock(I).OutElse;
+           Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutElse;
            FirstIteration = false;
          } else
-           Intersecions = Intersect(Intersecions, CurrentBlock.OutElse);
+           Intersecions = Intersect(Intersecions, CurrentBlock->OutElse);
        }
      }
-     CurrentBlock.In = Intersecions;
+     CurrentBlock->In = Intersecions;
 
      // Update Out Set
-     ComparisonSet OldOutThen = CurrentBlock.OutThen;
-     ComparisonSet OldOutElse = CurrentBlock.OutElse;
-     ComparisonSet UnionThen = Union(CurrentBlock.In, CurrentBlock.GenThen);
-     ComparisonSet UnionElse = Union(CurrentBlock.In, CurrentBlock.GenElse);
-     CurrentBlock.OutThen = Difference(UnionThen, CurrentBlock.Kill);
-     CurrentBlock.OutElse = Difference(UnionElse, CurrentBlock.Kill);
+     ComparisonSet OldOutThen = CurrentBlock->OutThen;
+     ComparisonSet OldOutElse = CurrentBlock->OutElse;
+     ComparisonSet UnionThen = Union(CurrentBlock->In, CurrentBlock->GenThen);
+     ComparisonSet UnionElse = Union(CurrentBlock->In, CurrentBlock->GenElse);
+     CurrentBlock->OutThen = Difference(UnionThen, CurrentBlock->Kill);
+     CurrentBlock->OutElse = Difference(UnionElse, CurrentBlock->Kill);
 
      // Recompute the Affected Blocks and _uniquely_ add them to the worklist
-     if (Differ(OldOutThen, CurrentBlock.OutThen) ||
-         Differ(OldOutElse, CurrentBlock.OutElse))
-       for (auto I : CurrentBlock.Block->succs()) {
+     if (Differ(OldOutThen, CurrentBlock->OutThen) ||
+         Differ(OldOutElse, CurrentBlock->OutElse))
+       for (auto I : CurrentBlock->Block->succs()) {
          if (std::find(InWorkList.begin(), InWorkList.end(), I->getBlockID()) ==
              InWorkList.end()) {
            InWorkList.emplace_back(I->getBlockID());
-           WorkList.push(GetByCFGBlock(I));
+           WorkList.push(Blocks[BlockIDs[I->getBlockID()]]);
          }
        }
    }
 
-   if (DumpFacts)
-     DumpComparisonFacts(llvm::outs());
+   for (auto B : Blocks)
+     Facts.emplace_back(std::pair<ComparisonSet, ComparisonSet>(B->In, B->Kill));
+
+   while(!Blocks.empty()) {
+     delete Blocks.back();
+     Blocks.pop_back();
+   }
 }
 
 void AvailableFactsAnalysis::Reset() {
@@ -137,40 +143,29 @@ void AvailableFactsAnalysis::Next() {
 // This function fills `ComparisonFacts` with pairs (Expr1, Expr2) where
 // Expr1 <= Expr2.
 // These comparisons correspond to the current block.
-void AvailableFactsAnalysis::GetFacts(std::set<std::pair<Expr *, Expr *>>& ComparisonFacts) {
-  ComparisonFacts = Blocks[CurrentIndex].In;
-}
-
-AvailableFactsAnalysis::ElevatedCFGBlock
-AvailableFactsAnalysis::GetByCFGBlock(const CFGBlock *B) {
-  return Blocks[BlockIDs[B->getBlockID()]];
+void AvailableFactsAnalysis::GetFacts(std::pair<ComparisonSet, ComparisonSet> &CFacts) {
+  CFacts = Facts[CurrentIndex];
 }
 
 // Given two sets S1 and S2, the return value is S1 - S2.
-ComparisonSet AvailableFactsAnalysis::Difference(ComparisonSet S1, ComparisonSet S2) {
+ComparisonSet AvailableFactsAnalysis::Difference(ComparisonSet &S1, ComparisonSet &S2) {
  if (S2.size() == 0)
     return S1;
   ComparisonSet Result;
   for (auto E1 : S1)
     if (S2.find(E1) == S2.end())
       Result.insert(E1);
-      PrintComparisonSet(llvm::outs(), S1, "S1");
-  PrintComparisonSet(llvm::outs(), S2, "S2");
-  PrintComparisonSet(llvm::outs(), Result, "S1 - S2");
   return Result;
 }
 
 // Given two sets S1 and S2, the return value is the union of these sets.
-ComparisonSet AvailableFactsAnalysis::Union(ComparisonSet S1, ComparisonSet S2) {
+ComparisonSet AvailableFactsAnalysis::Union(ComparisonSet &S1, ComparisonSet &S2) {
   if (S1.size() == 0)
     return S2;
   if (S2.size() == 0)
     return S1;
   ComparisonSet Result(S1);
   Result.insert(S2.begin(), S2.end());
-    PrintComparisonSet(llvm::outs(), S1, "S1");
-  PrintComparisonSet(llvm::outs(), S2, "S2");
-  PrintComparisonSet(llvm::outs(), Result, "S1 union S2");
   return Result;
 }
 
@@ -178,7 +173,7 @@ ComparisonSet AvailableFactsAnalysis::Union(ComparisonSet S1, ComparisonSet S2) 
 // are not equal.
 // Equality means that their sizes are the same, and every member of S1 is found in
 // S2 and vice versa.
-bool AvailableFactsAnalysis::Differ(ComparisonSet S1, ComparisonSet S2) {
+bool AvailableFactsAnalysis::Differ(ComparisonSet &S1, ComparisonSet &S2) {
   if (S1.size() != S2.size())
     return true;
   for (auto E : S1)
@@ -188,20 +183,15 @@ bool AvailableFactsAnalysis::Differ(ComparisonSet S1, ComparisonSet S2) {
 }
 
 // Given two sets S1 and S2, the return value is the intersection of these sets.
-ComparisonSet AvailableFactsAnalysis::Intersect(ComparisonSet S1, ComparisonSet S2) {
+ComparisonSet AvailableFactsAnalysis::Intersect(ComparisonSet &S1, ComparisonSet &S2) {
   if (S1.size() == 0)
     return S1;
   if (S2.size() == 0)
     return S2;
   ComparisonSet Result;
-
   for (auto E1 : S1)
     if (S2.find(E1) != S2.end())
       Result.insert(E1);
-  
-  PrintComparisonSet(llvm::outs(), S1, "S1");
-  PrintComparisonSet(llvm::outs(), S2, "S2");
-  PrintComparisonSet(llvm::outs(), Result, "S1 intersect S2");
   return Result;
 }
 
@@ -329,11 +319,16 @@ void AvailableFactsAnalysis::PrintComparisonSet(raw_ostream &OS, ComparisonSet &
 }
 
 void AvailableFactsAnalysis::DumpComparisonFacts(raw_ostream &OS) {
-  for (auto B : Blocks) {
-    OS << "Block #" << B.Block->getBlockID() << ": {\n";
-    PrintComparisonSet(OS, B.In, "In");
-    PrintComparisonSet(OS, B.Kill, "Kill");
+  Reset();
+  for (unsigned int Index = 0; Index < BlockIDs.size(); Index++) {
+    OS << "Block #" <<  BlockIDs[Index] << ": {\n";
+    std::pair<ComparisonSet, ComparisonSet> Facts;
+    GetFacts(Facts);
+    PrintComparisonSet(OS, Facts.first, "In");
+    PrintComparisonSet(OS, Facts.second, "Kill");
     OS << "}\n";
+    Next();
   }
+  Reset();
 }
 }

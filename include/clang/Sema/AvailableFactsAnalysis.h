@@ -35,10 +35,10 @@ namespace clang {
   private:
     Sema &S;
     CFG *Cfg;
-    bool DumpFacts;
-    std::vector<ElevatedCFGBlock> Blocks;
+    std::vector<std::pair<ComparisonSet, ComparisonSet>> Facts;
     std::vector<unsigned int> BlockIDs;
     std::size_t CurrentIndex;
+    bool DumpFacts;
 
     class ElevatedCFGBlock {
     private:
@@ -47,35 +47,33 @@ namespace clang {
       ComparisonSet Kill, GenThen, GenElse;
 
     public:
-      ElevatedCFGBlock(const CFGBlock *Block) : Block(Block), In(ComparisonSet()),
-        OutThen(ComparisonSet()), OutElse(ComparisonSet()), Kill(ComparisonSet()),
-        GenThen(ComparisonSet()), GenElse(ComparisonSet()) {}
+      ElevatedCFGBlock(const CFGBlock *Block) : Block(Block) {}
 
       friend class AvailableFactsAnalysis;
     };
 
   public:
     AvailableFactsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), CurrentIndex(0),
-                                                DumpFacts(S.getLangOpts().DumpExtractedComparisonFacts) {}
+      DumpFacts(S.getLangOpts().DumpExtractedComparisonFacts) {}
 
     void Analyze();
     void Reset();
     void Next();
-    void GetFacts(std::set<std::pair<Expr *, Expr *>>& ComparisonFacts);
-  
+    void GetFacts(std::pair<ComparisonSet, ComparisonSet> &Facts);
+    void DumpComparisonFacts(raw_ostream &OS);
+
   private:
     ElevatedCFGBlock GetByCFGBlock(const CFGBlock *B);
-    ComparisonSet Difference(ComparisonSet S1, ComparisonSet S2);
-    ComparisonSet Union(ComparisonSet S1, ComparisonSet S2);
-    ComparisonSet Intersect(ComparisonSet S1, ComparisonSet S2);
-    bool Differ(ComparisonSet S1, ComparisonSet S2);
+    ComparisonSet Difference(ComparisonSet& S1, ComparisonSet& S2);
+    ComparisonSet Union(ComparisonSet& S1, ComparisonSet& S2);
+    ComparisonSet Intersect(ComparisonSet& S1, ComparisonSet& S2);
+    bool Differ(ComparisonSet& S1, ComparisonSet& S2);
     bool ContainsVariable(Comparison& I, const VarDecl *V);
     void ExtractComparisons(const Expr *E, ComparisonSet &ISet);
     void ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet);
     void CollectExpressions(const Stmt *St, std::set<const Expr *> &AllExprs);
     void CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars);
     void PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title);
-    void DumpComparisonFacts(raw_ostream &OS);
   };
 }
 
