@@ -36,10 +36,9 @@ namespace clang {
     Sema &S;
     CFG *Cfg;
     bool DumpFacts;
-    std::vector<ElevatedCFGBlock *> Blocks;
+    std::vector<ElevatedCFGBlock> Blocks;
     std::vector<unsigned int> BlockIDs;
     std::size_t CurrentIndex;
-    std::queue<ElevatedCFGBlock *> WorkList;
 
     class ElevatedCFGBlock {
     private:
@@ -48,7 +47,9 @@ namespace clang {
       ComparisonSet Kill, GenThen, GenElse;
 
     public:
-      ElevatedCFGBlock(const CFGBlock *Block) : Block(Block) {}
+      ElevatedCFGBlock(const CFGBlock *Block) : Block(Block), In(ComparisonSet()),
+        OutThen(ComparisonSet()), OutElse(ComparisonSet()), Kill(ComparisonSet()),
+        GenThen(ComparisonSet()), GenElse(ComparisonSet()) {}
 
       friend class AvailableFactsAnalysis;
     };
@@ -63,11 +64,11 @@ namespace clang {
     void GetFacts(std::set<std::pair<Expr *, Expr *>>& ComparisonFacts);
   
   private:
-    ElevatedCFGBlock* GetByCFGBlock(const CFGBlock *B);
-    ComparisonSet Difference(ComparisonSet& S1, ComparisonSet& S2);
-    ComparisonSet Union(ComparisonSet& S1, ComparisonSet& S2);
-    bool Differ(ComparisonSet& S1, ComparisonSet& S2);
-    ComparisonSet Intersect(ComparisonSet& S1, ComparisonSet& S2);
+    ElevatedCFGBlock GetByCFGBlock(const CFGBlock *B);
+    ComparisonSet Difference(ComparisonSet S1, ComparisonSet S2);
+    ComparisonSet Union(ComparisonSet S1, ComparisonSet S2);
+    ComparisonSet Intersect(ComparisonSet S1, ComparisonSet S2);
+    bool Differ(ComparisonSet S1, ComparisonSet S2);
     bool ContainsVariable(Comparison& I, const VarDecl *V);
     void ExtractComparisons(const Expr *E, ComparisonSet &ISet);
     void ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet);
