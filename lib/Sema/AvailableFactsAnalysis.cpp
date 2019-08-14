@@ -19,7 +19,7 @@
 namespace clang {
 class Sema;
 
-void AvailableFactsAnalysis::Analyze() {
+void AvailableFactsAnalysis::Analyze(unsigned int Limit) {
   assert(Cfg && "expected CFG to exist");
 
   std::vector<Comparison> AllComparisons;
@@ -105,6 +105,7 @@ void AvailableFactsAnalysis::Analyze() {
            Blocks[BlockInd]->Kill.insert(AllComparisons[CompInd]);
 
    // Iterative Worklist Algorithm
+   unsigned int Iteration = 0;
    while (!WorkList.empty()) {
      ElevatedCFGBlock *CurrentBlock = WorkList.front();
      InWorkList.erase(std::remove(InWorkList.begin(),
@@ -163,6 +164,9 @@ void AvailableFactsAnalysis::Analyze() {
            WorkList.push(Blocks[BlockIDs[I->getBlockID()]]);
          }
        }
+
+     if (++Iteration > (2 * Blocks.size()) + Limit)
+       break;
    }
 
    for (auto B : Blocks)

@@ -3398,7 +3398,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr());
   if (Cfg != nullptr) {
     AvailableFactsAnalysis Collector(*this, Cfg.get());
-    Collector.Analyze();
+    Collector.Analyze(20);
     if (getLangOpts().DumpExtractedComparisonFacts)
       Collector.DumpComparisonFacts(llvm::outs());
     Checker.TraverseCFG();
