@@ -1565,6 +1565,10 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       }
       break;
   }
+  case DeclSpec::TST_exists: {
+    Result = S.GetTypeFromParser(DS.getRepAsType());
+    break;
+  }
   case DeclSpec::TST_decltype: {
     Expr *E = DS.getRepAsExpr();
     assert(E && "Didn't get an expression for decltype?");

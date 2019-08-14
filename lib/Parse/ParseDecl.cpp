@@ -3863,6 +3863,11 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       // continue to keep the current token from being consumed.
       continue; 
     }
+    case tok::kw__Exists: {
+      ParseExistentialTypeSpecifier(DS);
+      // Continue to keep the current token from being consumed.
+      continue;
+    }
     // class-specifier:
     case tok::kw_class:
     case tok::kw_struct:
@@ -7370,6 +7375,54 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
         DiagID, Result.get(),
         Actions.getASTContext().getPrintingPolicy()))
         Diag(StartLoc, DiagID) << PrevSpec;
+}
+
+/// [Checked C] Parse a specifier for an existential type.
+/// exist-spec:
+///   _Exists '(' type-var , type ')'
+/// TODO: use the proper names for the non-terminals above.
+void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
+  assert(Tok.is(tok::kw__Exists) && "Expected an '_Exists' token");
+  SourceLocation StartLoc = ConsumeToken();
+  DS.SetRangeStart(StartLoc);
+
+  if (ExpectAndConsume(tok::l_paren)) return;
+
+  if (Tok.getKind() != tok::identifier) {
+    // TODO: add proper error message
+    printf("expected a type variable name\n");
+    return;
+  }
+  ConsumeToken(); // eat the type variable
+
+  if (ExpectAndConsume(tok::comma)) return;
+
+  TypeResult InnerType = ParseTypeName();
+  if (InnerType.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return;
+  }
+
+  if (ExpectAndConsume(tok::r_paren)) return;
+
+  // TODO: do we need to adjust the end location?
+  SourceLocation EndLoc = Tok.getLocation();
+  DS.SetRangeEnd(EndLoc);
+
+  // The following are mutated by SetTypeSpecType and used for
+  // error reporting.
+  const char *PrevSpec = nullptr;
+  unsigned DiagID;
+
+  auto Err = DS.SetTypeSpecType(
+    TST_exists,
+    StartLoc,
+    PrevSpec,
+    DiagID,
+    InnerType.get(),
+    Actions.getASTContext().getPrintingPolicy());
+
+  if (Err) Diag(StartLoc, DiagID) << PrevSpec;
 }
 
 void Parser::ParseItypeforanySpecifier(DeclSpec &DS) {

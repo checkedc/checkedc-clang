@@ -307,6 +307,7 @@ public:
   static const TST TST_plainPtr = clang::TST_plainPtr;
   static const TST TST_arrayPtr = clang::TST_arrayPtr;
   static const TST TST_nt_arrayPtr = clang::TST_ntarrayPtr;
+  static const TST TST_exists = clang::TST_exists;
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   static const TST TST_##ImgType##_t = clang::TST_##ImgType##_t;
 #include "clang/Basic/OpenCLImageTypes.def"
@@ -431,7 +432,7 @@ private:
     return (T == TST_typename || T == TST_typeofType ||
             T == TST_underlyingType || T == TST_atomic ||
             T == TST_plainPtr || T == TST_arrayPtr ||
-            T == TST_nt_arrayPtr);
+            T == TST_nt_arrayPtr || T == TST_exists);
   }
   static bool isExprRep(TST T) {
     return (T == TST_typeofExpr || T == TST_decltype);
