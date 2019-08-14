@@ -364,6 +364,9 @@ CODEGENOPT(BranchTargetEnforcement, 1, 0)
 /// Whether to emit unused static constants.
 CODEGENOPT(KeepStaticConsts, 1, 0)
 
+/// Whether to add null pointer checks for Checked C.
+CODEGENOPT(CheckedCNullPtrChecks, 1, 1)
+
 #undef CODEGENOPT
 #undef ENUM_CODEGENOPT
 #undef VALUE_CODEGENOPT

@@ -56,19 +56,41 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
 // General Functions for inserting dynamic checks
 //
 
-void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr,
-                                              const QualType BaseTy) {
-  if (!getLangOpts().CheckedC)
-    return;
+static bool shouldEmitNonNullCheck(const CodeGenModule &CGM,
+                                   const QualType BaseTy) {
+  if (!CGM.getLangOpts().CheckedC)
+    return false;
+
+  if (!CGM.getCodeGenOpts().CheckedCNullPtrChecks)
+    return false;
 
   if (!(BaseTy->isCheckedPointerType() || BaseTy->isCheckedArrayType()))
+    return false;
+
+  return true;
+}
+
+void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr,
+                                              const QualType BaseTy) {
+  if (!shouldEmitNonNullCheck(CGM, BaseTy))
     return;
 
-  ++NumDynamicChecksNonNull;
+   ++NumDynamicChecksNonNull;
 
-  Value *ConditionVal =
+   Value *ConditionVal =
     Builder.CreateIsNotNull(BaseAddr.getPointer(), "_Dynamic_check.non_null");
   EmitDynamicCheckBlocks(ConditionVal);
+}
+
+void CodeGenFunction::EmitDynamicNonNullCheck(Value *Val,
+                                              const QualType BaseTy) {
+  if (!shouldEmitNonNullCheck(CGM, BaseTy))
+    return;
+
+   ++NumDynamicChecksNonNull;
+
+   Value *ConditionVal = Builder.CreateIsNotNull(Val, "_Dynamic_check.non_null");
+  EmitDynamicCheckBlocks(ConditionVal);	  EmitDynamicCheckBlocks(ConditionVal);
 }
 
 // TODO: This is currently unused. It may never be used.

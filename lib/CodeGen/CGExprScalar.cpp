@@ -2319,6 +2319,11 @@ static BinOpInfo createBinOpInfoFromIncDec(const UnaryOperator *E,
   return BinOp;
 }
 
+static void emitDynamicNonNullCheck(CodeGenFunction &CGF,
+                                    Value *Val, QualType Ty) {
+  CGF.EmitDynamicNonNullCheck(Val, Ty);
+}
+
 llvm::Value *ScalarExprEmitter::EmitIncDecConsiderOverflowBehavior(
     const UnaryOperator *E, llvm::Value *InVal, bool IsInc) {
   llvm::Value *Amount =
@@ -2427,6 +2432,9 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
 
   // Next most common: pointer increment.
   } else if (const PointerType *ptr = type->getAs<PointerType>()) {
+    // Insert a dynamic check for arithmetic on null checked pointers.
+    emitDynamicNonNullCheck(CGF, value, type);
+
     QualType type = ptr->getPointeeType();
 
     // VLA types don't have constant size.
@@ -3161,6 +3169,9 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
     std::swap(pointer, index);
     std::swap(pointerOperand, indexOperand);
   }
+
+  // Insert a dynamic check for arithmetic on null checked pointers.
+  emitDynamicNonNullCheck(CGF, pointer, pointerOperand->getType());
 
   bool isSigned = indexOperand->getType()->isSignedIntegerOrEnumerationType();
 
