@@ -237,7 +237,7 @@ ComparisonSet AvailableFactsAnalysis::Intersect(ComparisonSet &S1, ComparisonSet
   return Result;
 }
 
-// This function returns true if variable V is used in the comparison I.
+// This function returns true if variable `V` is used in the comparison `I`.
 bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
   std::set<const Expr *> Exprs;
   CollectExpressions(I.first, Exprs);
@@ -250,6 +250,11 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
   return false;
 }
 
+// This function returns true only if an expression in Comparison `I` contains
+// a pointer deref. A pointer deref can appear as one of the following form:
+// 1. With Deref operator `*`
+// 2. `->` for accessing a member
+// 3. Array subscript `[]`
 bool AvailableFactsAnalysis::ContainsPointerDeref(Comparison& I) {
   std::set<const Expr *> Exprs;
   CollectExpressions(I.first, Exprs);
@@ -299,7 +304,7 @@ bool AvailableFactsAnalysis::ContainsFunctionCall(const Expr *E) {
 // can be created if `op` is one of LE, LT, GE, GT, or EQ.
 // - If `E` has the form `A && B`, comparisons can be created for A and B.
 // Note that we do not include comparisons whose expressions involve
-// calls or references to volatile variables.
+// function calls or references to volatile variables.
 //
 // Some examples:
 // - `E` has the form A < B: add (A, B) to `ISet`.
@@ -337,7 +342,7 @@ void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &IS
 //   comparison can be created if `op` is one of LE, LT, GE, GT, or NE.
 // - If `E` has the form `A || B`, negated comparisons can be created for A and B.
 // Note that we do not include comparisons whose expressions involve
-// calls or references to volatile variables.
+// function calls or references to volatile variables.
 //
 // Some examples:
 // - `E` has the form A < B: add (B, A) to `ISet`.
@@ -379,8 +384,8 @@ void AvailableFactsAnalysis::CollectExpressions(const Stmt *St, std::set<const E
 }
 
 // This function collects the defined variables in statement `St`.
-// We assume a variable is define:
-// 1. if it appears in the left hand side of an assignment
+// We assume a variable is defined
+// 1. if it appears in the left hand side of an assignment (a = ..., a++, etc.)
 // 2. if it is a pointer which is passed as an argument of a function call
 void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars) {
   if (!St)
