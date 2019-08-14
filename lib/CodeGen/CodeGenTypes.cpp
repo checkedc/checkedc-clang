@@ -555,7 +555,13 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     ResultType = llvm::Type::getInt8Ty(getLLVMContext());
     break;
   }
-
+  case Type::Existential: {
+    // Existential types desugar into their inner types.
+    // e.g.: '_Exists(T, struct Foo<T>)' becomes 'struct Foo<T>', which in turn
+    // becomes 'struct Foo', where uses of 'T' are replaces by 'void'.
+    ResultType = ConvertType(cast<ExistentialType>(Ty)->innerType());
+    break;
+  }
   case Type::VariableArray: {
     const VariableArrayType *A = cast<VariableArrayType>(Ty);
     assert(A->getIndexTypeCVRQualifiers() == 0 &&
