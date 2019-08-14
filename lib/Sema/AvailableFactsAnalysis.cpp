@@ -98,12 +98,11 @@ void AvailableFactsAnalysis::Analyze() {
    // at any potential pointer assignment expression.
    // A pointer deref can appear in any of the following forms:
    // *p, ->, (*p)., *(p+1), or p[1]
-   for (int CompInd = 0; CompInd < AllComparisons.size(); CompInd++)
+   for (std::size_t CompInd = 0; CompInd < AllComparisons.size(); CompInd++)
      if (ComparisonContainsDeref[CompInd])
-       for (int BlockInd = 0; BlockInd < Blocks.size(); BlockInd++)
+       for (std::size_t BlockInd = 0; BlockInd < Blocks.size(); BlockInd++)
          if (PointerAssignmentInBlocks[BlockInd])
            Blocks[BlockInd]->Kill.insert(AllComparisons[CompInd]);
-
 
    // Iterative Worklist Algorithm
    while (!WorkList.empty()) {
@@ -156,6 +155,8 @@ void AvailableFactsAnalysis::Analyze() {
      if (Differ(OldOutThen, CurrentBlock->OutThen) ||
          Differ(OldOutElse, CurrentBlock->OutElse))
        for (auto I : CurrentBlock->Block->succs()) {
+         if (!I)
+           continue;
          if (std::find(InWorkList.begin(), InWorkList.end(), I->getBlockID()) ==
              InWorkList.end()) {
            InWorkList.push_back(I->getBlockID());
@@ -163,6 +164,7 @@ void AvailableFactsAnalysis::Analyze() {
          }
        }
    }
+
    for (auto B : Blocks)
      Facts.push_back(std::pair<ComparisonSet, ComparisonSet>(B->In, B->Kill));
 
