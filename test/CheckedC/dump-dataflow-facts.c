@@ -14,7 +14,7 @@ void fn_1(void) {
   if (b < c)
     if (f((a=5)+3))
       b = c;
-// CHECK-LABEL: fn_1
+
 // CHECK: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -49,7 +49,7 @@ void fn_2(void) {
     f((b = 2) + 1);
   else
     q = n;
-// CHECK-LABEL: fn_2
+
 // CHECK: Block #8: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -92,7 +92,7 @@ void fn_3(void) {
   int a, b, c;
   if (a ? b : (c>=2))
     a = b;
-// CHECK-LABEL: fn_3
+
 // CHECK: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -129,7 +129,7 @@ void fn_4(void) {
     if (c < b)
       c = c + b;
   }
-// CHECK-LABEL: fn_4
+
 // CHECK: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -168,7 +168,7 @@ _Nt_array_ptr<int> fn_5(int a) {
 
   _Nt_array_ptr<int> p : byte_count(d) = g(a);
   return p;
-// CHECK-LABEL: fn_5
+
 // CHECK: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -198,7 +198,7 @@ _Nt_array_ptr<int> fn_6(int a) {
     return p;
   }
   return 0;
-// CHECK-LABEL: fn_6
+
 // CHECK: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -229,7 +229,7 @@ void fn_7(void) {
     if (c < b)
       goto L;
   }
-// CHECK-LABEL: fn_7
+
 // CHECK: Block #8: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -277,7 +277,7 @@ void fn_8(void) {
     a = c;
   if (f(c) < c)
     c = a;
-// CHECK-LABEL: fn_8
+
 // CHECK: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -316,7 +316,7 @@ void fn_9(void) {
   } else
     c = 2;
   c = 3;
-// CHECK-LABEL: fn_9
+
 // CHECK: Block #10: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -377,7 +377,7 @@ void fn_10(void) {
 
   if (*p < q[1])
     b=1;
-// CHECK-LABEL: fn_10
+
 // CHECK: Block #5: {
 // CHECK-NEXT: In: 
 // CHECK-NEXT: Kill: 
@@ -417,7 +417,7 @@ void fn_11(void) {
     if (*(q + 4) <= 8)
       a = 3;
   q = &a;
-// CHECK-LABEL: fn_11
+
 // CHECK: Block #8: {
 // CHECK-NEXT: In: 
 // CHECK-NEXT: Kill: 
