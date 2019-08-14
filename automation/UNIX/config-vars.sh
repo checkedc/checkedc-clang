@@ -142,6 +142,7 @@ if [ -z "$LNT" ]; then
 else
   export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${BUILDOS}"
   if [ -z "$RUN_LOCAL" ]; then
+    export RUN_LOCAL=""
     # We assume that lnt is installed in /lnt-install on test machines.
     export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
   fi
