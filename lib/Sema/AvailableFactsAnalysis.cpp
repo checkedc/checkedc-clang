@@ -38,8 +38,8 @@ void AvailableFactsAnalysis::Analyze() {
    for (const CFGBlock *Block : POView) {
      auto NewBlock = new ElevatedCFGBlock(Block);
      WorkList.push(NewBlock);
-     InWorkList.emplace_back(Block->getBlockID());
-     Blocks.emplace_back(NewBlock);
+     InWorkList.push_back(Block->getBlockID());
+     Blocks.push_back(NewBlock);
      BlockIDs[Block->getBlockID()] = Blocks.size() - 1;
    }
 
@@ -64,9 +64,9 @@ void AvailableFactsAnalysis::Analyze() {
    std::vector<bool> ComparisonContainsDeref;
    for (auto C : AllComparisons) {
      if (ContainsPointerDeref(C))
-       ComparisonContainsDeref.emplace_back(true);
+       ComparisonContainsDeref.push_back(true);
      else
-       ComparisonContainsDeref.emplace_back(false);
+       ComparisonContainsDeref.push_back(false);
    }
 
    // Which blocks contain potential pointer assignments? (assignment via a pointer or a call)
@@ -158,15 +158,13 @@ void AvailableFactsAnalysis::Analyze() {
        for (auto I : CurrentBlock->Block->succs()) {
          if (std::find(InWorkList.begin(), InWorkList.end(), I->getBlockID()) ==
              InWorkList.end()) {
-           InWorkList.emplace_back(I->getBlockID());
+           InWorkList.push_back(I->getBlockID());
            WorkList.push(Blocks[BlockIDs[I->getBlockID()]]);
          }
        }
    }
-   for (auto B : Blocks) {
-     B->Block->dump();
-     Facts.emplace_back(std::pair<ComparisonSet, ComparisonSet>(B->In, B->Kill));
-   }
+   for (auto B : Blocks)
+     Facts.push_back(std::pair<ComparisonSet, ComparisonSet>(B->In, B->Kill));
 
    while(!Blocks.empty()) {
      delete Blocks.back();
