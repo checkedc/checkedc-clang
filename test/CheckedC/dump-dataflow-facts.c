@@ -392,7 +392,7 @@ void fn_10(void) {
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: (*p, a), (a, *p), (*p, *q), (*q, *p), 
+// CHECK-NEXT: Kill: (*p, a), (a, *p), (*p, q[1]), (q[1], *p), 
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In: 
