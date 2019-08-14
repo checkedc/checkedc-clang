@@ -525,13 +525,22 @@ void fn_11(void) {
 
 void fn_12(void) {
   static int X;
-  int i;
+  int i, a;
   X = (X+1) & 1023;
   if (X != 0) return;
-  for (i = 0; i < cpwLast; i++) _Unchecked { wprint((_Nt_array_ptr<char>)apwSol[i]->pchWord); }
-  printf("\n");
+  for (i = 0; i < a; i++) _Unchecked { printf("\n"); }
 
 // CHECK-LABEL: fn_12
+// CHECK-NEXT: Block #7: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #6: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (0, X),
+// CHECK-DAG: (X, 0),
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -539,14 +548,16 @@ void fn_12(void) {
 // CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
-// CHECK-DAG: (0, X),
-// CHECK-DAG: (X, 0),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
