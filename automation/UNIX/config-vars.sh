@@ -131,10 +131,9 @@ if [ -z "$BUILD_CPU_COUNT" ]; then
   export BUILD_CPU_COUNT=$(($NPROC*3/4))
 fi
 
-if [ "$RUN_LOCAL" != "yes" ]; then
-  RUN_LOCAL="no"
+if [ -z "$RUN_LOCAL" ]; then
+  export RUN_LOCAL="no"
 fi
-export RUN_LOCAL
 
 # LLVM Nightly Tests are enabled when LNT is a non-empty
 # string.
