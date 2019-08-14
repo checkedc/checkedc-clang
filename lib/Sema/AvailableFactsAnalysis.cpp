@@ -21,8 +21,8 @@ class Sema;
 
 void AvailableFactsAnalysis::Analyze() {
   assert(Cfg && "expected CFG to exist");
-  std::vector<Comparison> AllComparisons;
 
+  std::vector<Comparison> AllComparisons;
   std::queue<ElevatedCFGBlock *> WorkList;
   std::vector<ElevatedCFGBlock *> Blocks;
 
@@ -120,18 +120,26 @@ void AvailableFactsAnalysis::Analyze() {
      for (auto I : CurrentBlock->Block->preds()) {
        if (!I)
          continue;
-       if (*(I->succ_begin()) == CurrentBlock->Block) {
+       if (I->succ_size() == 2) {
+         if (*(I->succ_begin()) == CurrentBlock->Block) {
+           if (FirstIteration) {
+             Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutThen;
+             FirstIteration = false;
+           } else
+             Intersecions = Intersect(Intersecions, Blocks[BlockIDs[I->getBlockID()]]->OutThen);
+         } else {
+           if (FirstIteration) {
+             Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutElse;
+             FirstIteration = false;
+           } else
+             Intersecions = Intersect(Intersecions, Blocks[BlockIDs[I->getBlockID()]]->OutElse);
+         }
+       } else if (I->succ_size() == 1) {
          if (FirstIteration) {
            Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutThen;
            FirstIteration = false;
          } else
-           Intersecions = Intersect(Intersecions, CurrentBlock->OutThen);
-       } else {
-         if (FirstIteration) {
-           Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutElse;
-           FirstIteration = false;
-         } else
-           Intersecions = Intersect(Intersecions, CurrentBlock->OutElse);
+           Intersecions = Intersect(Intersecions, Blocks[BlockIDs[I->getBlockID()]]->OutThen);
        }
      }
      CurrentBlock->In = Intersecions;
@@ -155,9 +163,10 @@ void AvailableFactsAnalysis::Analyze() {
          }
        }
    }
-
-   for (auto B : Blocks)
+   for (auto B : Blocks) {
+     B->Block->dump();
      Facts.emplace_back(std::pair<ComparisonSet, ComparisonSet>(B->In, B->Kill));
+   }
 
    while(!Blocks.empty()) {
      delete Blocks.back();
@@ -417,14 +426,16 @@ void AvailableFactsAnalysis::PrintComparisonSet(raw_ostream &OS, ComparisonSet &
 void AvailableFactsAnalysis::DumpComparisonFacts(raw_ostream &OS) {
   Reset();
   for (unsigned int Index = 0; Index < BlockIDs.size(); Index++) {
-    OS << "Block #" <<  BlockIDs[Index] << ": {\n";
+    OS << "// CHECK-NEXT: Block #" << (std::find(BlockIDs.begin(), BlockIDs.end(), Index) - BlockIDs.begin()) << ": {\n";
     std::pair<ComparisonSet, ComparisonSet> Facts;
     GetFacts(Facts);
-    PrintComparisonSet(OS, Facts.first, "In");
-    PrintComparisonSet(OS, Facts.second, "Kill");
-    OS << "}\n";
+    PrintComparisonSet(OS, Facts.first, "// CHECK-NEXT: In");
+    PrintComparisonSet(OS, Facts.second, "// CHECK-NEXT: Kill");
+    OS << "// CHECK-NEXT: }\n";
     Next();
   }
   Reset();
+  llvm::outs() << "===============================\n";
 }
 }
+

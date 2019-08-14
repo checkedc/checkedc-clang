@@ -6,6 +6,8 @@
 // Dumps of different kinds of collected dataflow facts
 //===================================================================
 
+// --- Testing Basic Functionalities --- //
+
 int f(int a);
 void fn_1(void) {
   int a, b, c;
@@ -18,19 +20,19 @@ void fn_1(void) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #3: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #2: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In: (b, c),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #1: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In: (b, c),
 // CHECK-NEXT: Kill: (b, c), (c, b),
 // CHECK-NEXT: }
-// CHECK: Block #0: {
+// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -53,35 +55,35 @@ void fn_2(void) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #7: {
+// CHECK-NEXT: Block #7: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #6: {
+// CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In: (e1, e2),
 // CHECK-NEXT: Kill: (b, c), (c, b),
 // CHECK-NEXT: }
-// CHECK: Block #5: {
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #4: {
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #3: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #1: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In: (c, b),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #2: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In: (b, c),
 // CHECK-NEXT: Kill: (b, c), (c, b),
 // CHECK-NEXT: }
-// CHECK: Block #0: {
+// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -96,61 +98,64 @@ void fn_3(void) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #5: {
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #4: {
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #3: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #2: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #1: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #0: {
+// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-
 
 void fn_4(void) {
   int a, b, c;
   while ((c = a) < 2) {
-    f(a = c);
-    c = c + b;
+    if (c < b)
+      c = c + b;
   }
 }
 
-// CHECK: Block #5: {
+// CHECK: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #4: {
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #3: {
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill: (c, b), (b, c),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #0: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #2: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In: (c, b),
+// CHECK-NEXT: Kill: (c, b), (b, c),
 // CHECK-NEXT: }
-// CHECK: Block #1: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -159,7 +164,7 @@ _Nt_array_ptr<int> g(int a) : byte_count(a);
 _Nt_array_ptr<int> fn_5(int a) {
   int d;
   if (d > a)
-  return 0;
+    return 0;
 
   _Nt_array_ptr<int> p : byte_count(d) = g(a);
   return p;
@@ -169,19 +174,19 @@ _Nt_array_ptr<int> fn_5(int a) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #3: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #1: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In: (d, a),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #2: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In: (a, d),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #0: {
+// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -199,19 +204,19 @@ _Nt_array_ptr<int> fn_6(int a) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #3: {
+// CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #1: {
+// CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In: (a, d),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #2: {
+// CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In: (d, a),
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #0: {
+// CHECK-NEXT: Block #0: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -219,47 +224,69 @@ _Nt_array_ptr<int> fn_6(int a) {
 void fn_7(void) {
   int a, b, c;
   while (a++ < 2) {
-    if (a < b)
+  L:if (a < b)
       c++;
+    if (c < b)
+      goto L;
   }
 }
 
-// CHECK: Block #6: {
+// CHECK: Block #8: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
+// CHECK-NEXT: Block #7: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #6: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill: (a, b), (b, a),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #5: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In: (a, b),
+// CHECK-NEXT: Kill: (c, b), (b, c),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In: (b, c),
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In: (c, b),
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+
+// --- Facts should not contain volatiles or calls --- //
+
+void fn_8(void) {
+  volatile int a;
+  int c;
+  if (a < c)
+    a = c;
+  if (f(c) < c)
+    c = a;
+}
+
 // CHECK: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #4: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill: (a, b), (b, a),
-// CHECK-NEXT: }
-// CHECK: Block #0: {
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
-// CHECK: Block #3: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK: Block #2: {
-// CHECK-NEXT: In: (a, b),
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-// CHECK: Block #1: {
-// CHECK-NEXT: In:
-// CHECK-NEXT: Kill:
-// CHECK-NEXT: }
-
-void fn_8(void) {
-  volatile int a;
-  int b, n, c;
-  if (a < b)
-    n = c;
-}
-
 // CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -276,3 +303,75 @@ void fn_8(void) {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
+
+// --- Handling logical AND and logical OR --- //
+
+void fn_9(void) {
+  int a, b, c, d;
+  if (a < b && b < c) {
+    if (a != 1 || b != 2 || c != 3)
+      d = 0;
+    else
+      d = 1;
+  } else
+    c = 2;
+  c = 3;
+}
+
+// CHECK: Block #10: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #9: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #8: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill: (b, c), (3, c), (c, 3),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #7: {
+// CHECK-NEXT: In: (a, b), (b, c),
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #6: {
+// CHECK-NEXT: In: (a, b), (b, c),
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #5: {
+// CHECK-NEXT: In: (a, b), (b, c),
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In: (a, b), (b, c), (1, a), (a, 1), (2, b), (b, 2), (3, c), (c, 3),
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In: (a, b), (b, c),
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill: (b, c), (3, c), (c, 3),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+
+// -- Handling pointer derefs --- //
+
+int h(int *p);
+void fn_10(void) {
+  int *p, *q;
+  int a, b, c;
+
+  if (*p < a)
+    b = 1;
+  q = &a;
+  h(q);
+}
