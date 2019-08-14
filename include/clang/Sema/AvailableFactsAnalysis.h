@@ -59,7 +59,7 @@ namespace clang {
     void Reset();
     void Next();
     void GetFacts(std::pair<ComparisonSet, ComparisonSet> &Facts);
-    void DumpComparisonFacts(raw_ostream &OS);
+    void DumpComparisonFacts(raw_ostream &OS, std::string Title);
 
   private:
     ComparisonSet Difference(ComparisonSet& S1, ComparisonSet& S2);

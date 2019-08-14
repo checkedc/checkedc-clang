@@ -15,7 +15,8 @@ void fn_1(void) {
     if (f((a=5)+3))
       b = c;
 
-// CHECK: Block #4: {
+// CHECK-LABEL: fn_1
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -50,7 +51,8 @@ void fn_2(void) {
   else
     q = n;
 
-// CHECK: Block #8: {
+// CHECK-LABEL: fn_2
+// CHECK-NEXT: Block #8: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -93,7 +95,8 @@ void fn_3(void) {
   if (a ? b : (c>=2))
     a = b;
 
-// CHECK: Block #6: {
+// CHECK-LABEL: fn_3
+// CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -130,7 +133,8 @@ void fn_4(void) {
       c = c + b;
   }
 
-// CHECK: Block #6: {
+// CHECK-LABEL: fn_4
+// CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -169,7 +173,8 @@ _Nt_array_ptr<int> fn_5(int a) {
   _Nt_array_ptr<int> p : byte_count(d) = g(a);
   return p;
 
-// CHECK: Block #4: {
+// CHECK-LABEL: fn_5
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -199,7 +204,8 @@ _Nt_array_ptr<int> fn_6(int a) {
   }
   return 0;
 
-// CHECK: Block #4: {
+// CHECK-LABEL: fn_6
+// CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -230,7 +236,8 @@ void fn_7(void) {
       goto L;
   }
 
-// CHECK: Block #8: {
+// CHECK-LABEL: fn_7
+// CHECK-NEXT: Block #8: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -278,7 +285,8 @@ void fn_8(void) {
   if (f(c) < c)
     c = a;
 
-// CHECK: Block #5: {
+// CHECK-LABEL: fn_8
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -317,7 +325,8 @@ void fn_9(void) {
     c = 2;
   c = 3;
 
-// CHECK: Block #10: {
+// CHECK-LABEL: fn_9
+// CHECK-NEXT: Block #10: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
@@ -378,7 +387,8 @@ void fn_10(void) {
   if (*p < q[1])
     b=1;
 
-// CHECK: Block #5: {
+// CHECK-LABEL: fn_10
+// CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In: 
 // CHECK-NEXT: Kill: 
 // CHECK-NEXT: }
@@ -418,7 +428,8 @@ void fn_11(void) {
       a = 3;
   q = &a;
 
-// CHECK: Block #8: {
+// CHECK-LABEL: fn_11
+// CHECK-NEXT: Block #8: {
 // CHECK-NEXT: In: 
 // CHECK-NEXT: Kill: 
 // CHECK-NEXT: }

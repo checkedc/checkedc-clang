@@ -432,8 +432,9 @@ void AvailableFactsAnalysis::PrintComparisonSet(raw_ostream &OS, ComparisonSet &
   OS << "\n";
 }
 
-void AvailableFactsAnalysis::DumpComparisonFacts(raw_ostream &OS) {
+void AvailableFactsAnalysis::DumpComparisonFacts(raw_ostream &OS, std::string Title) {
   Reset();
+  OS << Title << "\n";
   for (unsigned int Index = 0; Index < BlockIDs.size(); Index++) {
     OS << "Block #" << (std::find(BlockIDs.begin(), BlockIDs.end(), Index) - BlockIDs.begin()) << ": {\n";
     std::pair<ComparisonSet, ComparisonSet> Facts;
