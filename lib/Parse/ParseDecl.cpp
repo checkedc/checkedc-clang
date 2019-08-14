@@ -7383,7 +7383,7 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
 /// TODO: use the proper names for the non-terminals above.
 void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
   assert(Tok.is(tok::kw__Exists) && "Expected an '_Exists' token");
-  SourceLocation StartLoc = ConsumeToken();
+  auto StartLoc = ConsumeToken();
   DS.SetRangeStart(StartLoc);
 
   if (ExpectAndConsume(tok::l_paren)) return;
@@ -7393,7 +7393,32 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
     printf("expected a type variable name\n");
     return;
   }
-  ConsumeToken(); // eat the type variable
+  auto TypeVarLoc = ConsumeToken(); // eat the type variable
+
+  // TODO: abstract into a function so this logic can re-used here and when parsing
+  // for_any specifiers.
+  // Calculate the depth of the type variable introduced by the existential.
+  auto Depth = 0;
+  auto *scope = getCurScope()->getParent();
+  while (scope) {
+    if (scope->isForanyScope() || scope->isItypeforanyScope()) Depth++;
+    scope = scope->getParent();
+  }
+
+  // Introduce typedef name that will be bound to type variable. Create a
+  // DeclSpec of typedef, in order to use clang code for checking whether
+  // the type name already exists. The underlying type of typedef is
+  // TypeVariableType.
+  QualType R = Actions.Context.getTypeVariableType(Depth, 0 /* position */, false /* isBoundsInterfaceType */);
+  TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
+  TypedefDecl *NewTD = TypedefDecl::Create(
+    Actions.Context,
+    Actions.CurContext,
+    TypeVarLoc,
+    Tok.getLocation(),
+    Tok.getIdentifierInfo(),
+    TInfo);
+   Actions.PushOnScopeChains(NewTD, getCurScope(), true);
 
   if (ExpectAndConsume(tok::comma)) return;
 
