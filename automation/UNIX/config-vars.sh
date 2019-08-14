@@ -162,6 +162,7 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " SKIP_CHECKEDC_TESTS: $SKIP_CHECKEDC_TESTS"
   echo " LNT: $LNT"
   echo " LNT_SCRIPT: $LNT_SCRIPT"
+  echo " RUN_LOCAL: $RUN_LOCAL"
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"

@@ -13,6 +13,8 @@ fi
 set -ue
 set -o pipefail
 
+echo RUN_LOCAL:$RUN_LOCAL
+
 if [ "$RUN_LOCAL" = "yes" ]; then
   ./setup-files.sh
   ./run-cmake.sh
