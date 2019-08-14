@@ -27,7 +27,6 @@
 #include "clang/Basic/FixedPoint.h"
 #include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/Optional.h"
-#include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"

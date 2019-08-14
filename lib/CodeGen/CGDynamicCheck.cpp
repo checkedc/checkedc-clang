@@ -93,6 +93,17 @@ void CodeGenFunction::EmitDynamicNonNullCheck(Value *Val,
   EmitDynamicCheckBlocks(ConditionVal);
 }
 
+void CodeGenFunction::EmitDynamicNonNullCheck(Value *Val,
+                                              const QualType BaseTy) {
+  if (!shouldEmitNonNullCheck(CGM, BaseTy))
+    return;
+
+  ++NumDynamicChecksNonNull;
+
+  Value *ConditionVal = Builder.CreateIsNotNull(Val, "_Dynamic_check.non_null");
+  EmitDynamicCheckBlocks(ConditionVal);
+}
+
 // TODO: This is currently unused. It may never be used.
 void CodeGenFunction::EmitDynamicOverflowCheck(const Address BaseAddr,
                                                const QualType BaseTy,
