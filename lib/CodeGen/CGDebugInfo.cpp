@@ -628,6 +628,11 @@ llvm::DIType *CGDebugInfo::CreateType(const TypeVariableType *TvT) {
   return nullptr;
 }
 
+llvm::DIType *CGDebugInfo::CreateType(const ExistentialType *Ty) {
+  // TODO: is this correct?
+  return nullptr;
+}
+
 llvm::DIType *CGDebugInfo::CreateType(const BuiltinType *BT) {
   llvm::dwarf::TypeKind Encoding;
   StringRef BTName;
@@ -2910,6 +2915,9 @@ llvm::DIType *CGDebugInfo::CreateTypeNode(QualType Ty, llvm::DIFile *Unit) {
     return CreateType(cast<BuiltinType>(Ty));
   case Type::TypeVariable:
     return CreateType(cast<TypeVariableType>(Ty));
+  case Type::Existential:
+    // TODO: is this correct?
+    return CreateType(cast<ExistentialType>(Ty));
   case Type::Complex:
     return CreateType(cast<ComplexType>(Ty));
   case Type::Pointer:

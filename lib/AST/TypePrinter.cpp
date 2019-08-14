@@ -248,6 +248,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::Atomic:
     case Type::Pipe:
     case Type::TypeVariable:
+    case Type::Existential:
       CanPrefixQualifiers = true;
       break;
 

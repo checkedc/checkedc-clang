@@ -231,6 +231,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::IncompleteArray:
     case Type::VariableArray:
     case Type::Record:
+    case Type::Existential: // TODO: is this correct?
     case Type::ObjCObject:
     case Type::ObjCInterface:
       return TEK_Aggregate;
@@ -2055,6 +2056,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::ObjCInterface:
     case Type::ObjCObjectPointer:
     case Type::TypeVariable:
+    case Type::Existential:
       llvm_unreachable("type class is never variably-modified!");
 
     case Type::Adjusted:

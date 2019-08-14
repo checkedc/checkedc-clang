@@ -7757,6 +7757,9 @@ EvaluateBuiltinClassifyType(QualType T, const LangOptions &LangOpts) {
 
   case Type::TypeVariable:
     return GCCTypeClass::Void;
+  case Type::Existential:
+    // Classify _Exists(T, InnerType) the same as InnerType.
+    return EvaluateBuiltinClassifyType(CanTy->castAs<ExistentialType>()->innerType(), LangOpts);
 
   case Type::BlockPointer:
   case Type::Vector:
