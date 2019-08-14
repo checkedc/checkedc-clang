@@ -4099,6 +4099,8 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
     case Type::Pipe:
     case Type::TypeVariable:
       llvm_unreachable("type class is never variably-modified!");
+    case Type::Existential:
+      llvm_unreachable("existential type is never variably-modified!");
     case Type::Adjusted:
       T = cast<AdjustedType>(Ty)->getOriginalType();
       break;

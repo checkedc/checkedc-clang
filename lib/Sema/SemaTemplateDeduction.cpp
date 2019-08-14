@@ -1494,8 +1494,9 @@ DeduceTemplateArgumentsByTypeMatch(Sema &S,
       llvm_unreachable("Type nodes handled above");
 
     case Type::TypeVariable:
+      llvm_unreachable("Type Variable cannot be used in templates");
     case Type::Existential:
-      llvm_unreachable("type cannot be used in templates");
+      llvm_unreachable("existential type cannot be used in templates");
 
     // These types cannot be dependent, so simply check whether the types are
     // the same.
