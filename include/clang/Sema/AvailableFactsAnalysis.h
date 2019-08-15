@@ -56,7 +56,7 @@ namespace clang {
     AvailableFactsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), CurrentIndex(0),
       DumpFacts(S.getLangOpts().DumpExtractedComparisonFacts), UnreachableBlock(new ElevatedCFGBlock(nullptr)) {}
 
-    void Analyze(unsigned int Limit);
+    void Analyze();
     void Reset();
     void Next();
     void GetFacts(std::pair<ComparisonSet, ComparisonSet> &Facts);

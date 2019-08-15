@@ -19,7 +19,7 @@
 namespace clang {
 class Sema;
 
-void AvailableFactsAnalysis::Analyze(unsigned int Limit) {
+void AvailableFactsAnalysis::Analyze() {
   assert(Cfg && "expected CFG to exist");
 
   std::vector<Comparison> AllComparisons;
@@ -165,7 +165,7 @@ void AvailableFactsAnalysis::Analyze(unsigned int Limit) {
          }
        }
 
-     if (++Iteration > (2 * Blocks.size()) + Limit)
+     if (++Iteration > (2 * Blocks.size()))
        break;
    }
 
