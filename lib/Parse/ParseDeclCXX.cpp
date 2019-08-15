@@ -1646,6 +1646,15 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
 
+  // Checked C - handle generic structs.
+  if (Tok.is(tok::kw__For_any)) {
+    // TODO: add error handling here. See issues/644.
+    unsigned DiagID;
+    const char *PrevSpec;
+    DS.setSpecForany(Tok.getLocation(), PrevSpec, DiagID);
+    ParseForanySpecifier(DS);
+  }
+
   // Checked C - checked scope keyword, possibly followed by checked scope modifier,
   // followed by '{'.   Set the kind of checked scope and consume the checked scope-related
   // keywords.
@@ -1913,15 +1922,33 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
     stripTypeAttributesOffDeclSpec(attrs, DS, TUK);
 
+    // Checked C: if the struct has type parameters, then they introduced a new scope, so we
+    // must make sure to add the struct to the parent scope instead.
+    // The type parameters scope is removed later in 'ParseDeclOrFunctionDefInternal'.
+    assert(getCurScope()->isForanyScope() == DS.isForanySpecified());
+    Scope *structScope = getCurScope()->isForanyScope() ? getCurScope()->getParent() : getCurScope();
+
     // Declaration or definition of a class type
     TagOrTempResult = Actions.ActOnTag(
-        getCurScope(), TagType, TUK, StartLoc, SS, Name, NameLoc, attrs, AS,
+        structScope, TagType, TUK, StartLoc, SS, Name, NameLoc, attrs, AS,
         DS.getModulePrivateSpecLoc(), TParams, Owned, IsDependent,
         SourceLocation(), false, clang::TypeResult(),
         DSC == DeclSpecContext::DSC_type_specifier,
         DSC == DeclSpecContext::DSC_template_param ||
             DSC == DeclSpecContext::DSC_template_type_arg,
-        &SkipBody);
+        &SkipBody,
+        DS.typeVariables());
+
+    // Checked C: a reference to a struct can be followed by a list of type arguments,
+    // if the struct is generic.
+    if (TagOrTempResult.isUsable() && TUK == Sema::TUK_Reference) {
+      RecordDecl *Decl = llvm::dyn_cast<RecordDecl>(TagOrTempResult.get()->getCanonicalDecl());
+      if (Decl && Decl->isGeneric()) {
+        // We're parsing a reference to a generic struct, so we need to parse
+        // the type arguments before we can instantiate.
+        TagOrTempResult = ParseRecordTypeApplication(Decl);
+      }
+    }
 
     // If ActOnTag said the type was dependent, try again with the
     // less common call.
@@ -2007,6 +2034,33 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       Tok.setKind(tok::semi);
     }
   }
+}
+
+/// Checked C: parse an application of the 'Base' 'RecordDecl' to a number of type
+/// arguments that are yet to be parsed.
+///
+/// generic-struct-instantiation
+///   '<' type-name-list '>'
+///
+/// type-name-list
+///   type-name type-name-list-suffix [opt]
+///
+///  type-name-list-suffix
+///    ',' type-name type-name-list-suffix [opt]
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl *Base) {
+  assert(Base->isGeneric() && "Instantiated record must be generic");
+  ExpectAndConsume(tok::less); // eat the initial '<'
+  auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
+  if (ArgsRes.first) {
+    // Problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')
+    return true;
+  }
+  if (ArgsRes.second.size() != Base->typeParams().size()) {
+    Diag(Tok.getLocation(), diag::err_num_type_args_params_mistmatch)
+      << static_cast<unsigned int>(Base->typeParams().size()) << static_cast<unsigned int>(ArgsRes.second.size());
+    return true;
+  } 
+  return Actions.ActOnRecordTypeApplication(Base, ArrayRef<TypeArgument>(ArgsRes.second));
 }
 
 /// ParseBaseClause - Parse the base-clause of a C++ class [C++ class.derived].
