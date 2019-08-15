@@ -610,3 +610,17 @@ static _Array_ptr<void> a_f_16(int size) : byte_count(size) {
   v23 = simulate_calloc<char>(32768, sizeof(char));
   return v23;
 }
+
+/*_Array_ptr<int> f52_correct(unsigned num1, unsigned num2) {
+  if (num1 > num2)
+    return 0;
+  _Array_ptr<int> p : count(num1) = test_f50(num2);
+  return p;
+}
+
+_Array_ptr<int> f70_correct(int num) {
+  if (0 > num)
+    return 0;
+  _Array_ptr<int> p : byte_count(0) = test_f70(num);
+  return p;
+}*/
