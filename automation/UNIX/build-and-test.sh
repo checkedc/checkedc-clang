@@ -13,7 +13,7 @@ fi
 set -ue
 set -o pipefail
 
-if [ -z "$RUN_LOCAL" ]; then
+if [ "$RUN_LOCAL" = "no" ]; then
   ./setup-files.sh
   ./run-cmake.sh
   ./test-clang.sh
@@ -21,6 +21,6 @@ fi
 
 ./test-lnt.sh
 
-if [ -z "$RUN_LOCAL" ]; then
+if [ "$RUN_LOCAL" = "no" ]; then
   ./build-package.sh
 fi
