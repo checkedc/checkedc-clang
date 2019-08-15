@@ -34,7 +34,7 @@ void AvailableFactsAnalysis::Analyze(unsigned int Limit) {
       MaxBlockID = Block->getBlockID();
 
    BlockIDs.clear();
-   BlockIDs.resize(MaxBlockID + 1, 0);
+   BlockIDs.resize(MaxBlockID + 1, -1);
    for (const CFGBlock *Block : POView) {
      auto NewBlock = new ElevatedCFGBlock(Block);
      WorkList.push(NewBlock);
@@ -123,23 +123,23 @@ void AvailableFactsAnalysis::Analyze(unsigned int Limit) {
        if (I->succ_size() == 2) {
          if (*(I->succ_begin()) == CurrentBlock->Block) {
            if (FirstIteration) {
-             Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutThen;
+             Intersecions = GetBlock(Blocks, I)->OutThen;
              FirstIteration = false;
            } else
-             Intersecions = Intersect(Intersecions, Blocks[BlockIDs[I->getBlockID()]]->OutThen);
+             Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutThen);
          } else {
            if (FirstIteration) {
-             Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutElse;
+             Intersecions = GetBlock(Blocks, I)->OutElse;
              FirstIteration = false;
            } else
-             Intersecions = Intersect(Intersecions, Blocks[BlockIDs[I->getBlockID()]]->OutElse);
+             Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutElse);
          }
        } else if (I->succ_size() == 1) {
          if (FirstIteration) {
-           Intersecions = Blocks[BlockIDs[I->getBlockID()]]->OutThen;
+           Intersecions = GetBlock(Blocks, I)->OutThen;
            FirstIteration = false;
          } else
-           Intersecions = Intersect(Intersecions, Blocks[BlockIDs[I->getBlockID()]]->OutThen);
+           Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutThen);
        }
      }
      CurrentBlock->In = Intersecions;
@@ -161,7 +161,7 @@ void AvailableFactsAnalysis::Analyze(unsigned int Limit) {
          if (std::find(InWorkList.begin(), InWorkList.end(), I->getBlockID()) ==
              InWorkList.end()) {
            InWorkList.push_back(I->getBlockID());
-           WorkList.push(Blocks[BlockIDs[I->getBlockID()]]);
+           WorkList.push(GetBlock(Blocks, I));
          }
        }
 
@@ -176,6 +176,12 @@ void AvailableFactsAnalysis::Analyze(unsigned int Limit) {
      delete Blocks.back();
      Blocks.pop_back();
    }
+}
+
+AvailableFactsAnalysis::ElevatedCFGBlock* AvailableFactsAnalysis::GetBlock(std::vector<ElevatedCFGBlock *>& Blocks, CFGBlock *I) {
+  if (BlockIDs[I->getBlockID()] != -1)
+    return Blocks[BlockIDs[I->getBlockID()]];
+  return UnreachableBlock;
 }
 
 void AvailableFactsAnalysis::Reset() {
@@ -436,6 +442,8 @@ void AvailableFactsAnalysis::DumpComparisonFacts(raw_ostream &OS, std::string Ti
   Reset();
   OS << Title << "\n";
   for (unsigned int Index = 0; Index < BlockIDs.size(); Index++) {
+    if (BlockIDs[Index] == -1)
+      continue;
     OS << "Block #" << (std::find(BlockIDs.begin(), BlockIDs.end(), Index) - BlockIDs.begin()) << ": {\n";
     std::pair<ComparisonSet, ComparisonSet> Facts;
     GetFacts(Facts);

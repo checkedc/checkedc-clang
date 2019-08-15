@@ -35,9 +35,10 @@ namespace clang {
     Sema &S;
     CFG *Cfg;
     std::vector<std::pair<ComparisonSet, ComparisonSet>> Facts;
-    std::vector<unsigned int> BlockIDs;
+    std::vector<int> BlockIDs;
     std::size_t CurrentIndex;
     bool DumpFacts;
+    ElevatedCFGBlock *UnreachableBlock;
 
     class ElevatedCFGBlock {
     private:
@@ -53,13 +54,14 @@ namespace clang {
 
   public:
     AvailableFactsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), CurrentIndex(0),
-      DumpFacts(S.getLangOpts().DumpExtractedComparisonFacts) {}
+      DumpFacts(S.getLangOpts().DumpExtractedComparisonFacts), UnreachableBlock(new ElevatedCFGBlock(nullptr)) {}
 
     void Analyze(unsigned int Limit);
     void Reset();
     void Next();
     void GetFacts(std::pair<ComparisonSet, ComparisonSet> &Facts);
     void DumpComparisonFacts(raw_ostream &OS, std::string Title);
+    ElevatedCFGBlock* GetBlock(std::vector<ElevatedCFGBlock *>& Blocks, CFGBlock *I);
 
   private:
     ComparisonSet Difference(ComparisonSet& S1, ComparisonSet& S2);
