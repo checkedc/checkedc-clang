@@ -7383,6 +7383,16 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
 /// TODO: use the proper names for the non-terminals above.
 void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
   assert(Tok.is(tok::kw__Exists) && "Expected an '_Exists' token");
+  // TODO: do we need a try-finally to handle the scopes?
+  EnterScope(Scope::DeclScope | Scope::ExistentialTypeScope);
+  ParseExistentialTypeSpecifierHelper(DS);
+  ExitScope();
+}
+
+/// This helper is split from the main method so we can guarantee that we always
+/// maintain the right nesting of scopes.
+void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
+  assert(getCurScope()->isExistentialTypeScope() && "Current scope should correspond to an existential type");
   auto StartLoc = ConsumeToken();
   DS.SetRangeStart(StartLoc);
 
@@ -7400,16 +7410,16 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
   auto Depth = 0;
   auto *scope = getCurScope()->getParent();
   while (scope) {
-    if (scope->isForanyScope() || scope->isItypeforanyScope()) Depth++;
+    if (scope->isForanyScope() || scope->isItypeforanyScope() || scope->isExistentialTypeScope()) Depth++;
     scope = scope->getParent();
   }
 
-  // Introduce typedef name that will be bound to type variable. Create a
-  // DeclSpec of typedef, in order to use clang code for checking whether
-  // the type name already exists. The underlying type of typedef is
-  // TypeVariableType.
+  // An '_Exists(T, InnerType)' type is desugared into
+  //   1) typedef T TypeVariableType(depth, offset)
+  //   2) InnerType (which has access to T)
   QualType R = Actions.Context.getTypeVariableType(Depth, 0 /* position */, false /* isBoundsInterfaceType */);
   TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
+  // TODO: find out why decl doesn't show up in AST dump.
   TypedefDecl *NewTD = TypedefDecl::Create(
     Actions.Context,
     Actions.CurContext,
@@ -7417,6 +7427,7 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
     Tok.getLocation(),
     Tok.getIdentifierInfo(),
     TInfo);
+
   Actions.PushOnScopeChains(NewTD, getCurScope(), true);
 
   ConsumeToken(); // eat the type variable

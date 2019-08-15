@@ -2647,6 +2647,7 @@ private:
   void ParseAtomicSpecifier(DeclSpec &DS);
   void ParseCheckedPointerSpecifiers(DeclSpec & DS);
   void ParseExistentialTypeSpecifier(DeclSpec &DS);
+  void ParseExistentialTypeSpecifierHelper(DeclSpec &DS);
   void ParseForanySpecifier(DeclSpec &DS);
   bool ParseForanySpecifierHelper(DeclSpec &DS, Scope::ScopeFlags S);
   void ParseItypeforanySpecifier(DeclSpec &DS);
