@@ -1857,7 +1857,6 @@ namespace {
           return ProofResult::False;
         }
         if (IsUpperOffsetVariable() && R.IsUpperOffsetVariable())
-          //if (EqualExtended(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
           if (LessThanOrEqualExtended(S.Context, R.Base, Base, R.UpperOffsetVariable, UpperOffsetVariable, EquivExprs, Facts))
             return ProofResult::True;
         if (IsUpperOffsetVariable() && R.IsUpperOffsetConstant() &&
@@ -2181,7 +2180,7 @@ namespace {
 
       bool EqualWithoutFacts = EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs);
       bool LEWithFacts = FactExists(Ctx, VariablePart1, VariablePart2, EquivExprs, Facts);
-      if (!(EqualWithoutFacts))
+      if (!EqualWithoutFacts && !LEWithFacts)
         return false;
 
       return true;
@@ -2189,7 +2188,7 @@ namespace {
 
     static bool FactExists(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs,
                            std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      bool ExistsIn = false, ExistsKill = true;
+      bool ExistsIn = false, ExistsKill = false;
       for (auto InFact : Facts.first) {
         if (Lexicographic(Ctx, EquivExprs).CompareExpr(E1, InFact.first) == Lexicographic::Result::Equal &&
             Lexicographic(Ctx, EquivExprs).CompareExpr(E2, InFact.second) == Lexicographic::Result::Equal) {
@@ -2200,7 +2199,7 @@ namespace {
       for (auto KillFact : Facts.second) {
         if (Lexicographic(Ctx, EquivExprs).CompareExpr(E1, KillFact.first) == Lexicographic::Result::Equal &&
             Lexicographic(Ctx, EquivExprs).CompareExpr(E2, KillFact.second) == Lexicographic::Result::Equal) {
-          ExistsKill = false;
+          ExistsKill = true;
           break;
         }
       }
