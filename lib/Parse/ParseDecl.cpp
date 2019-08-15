@@ -7417,10 +7417,10 @@ void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
   // An '_Exists(T, InnerType)' type is desugared into
   //   1) typedef T TypeVariableType(depth, offset)
   //   2) InnerType (which has access to T)
-  QualType R = Actions.Context.getTypeVariableType(Depth, 0 /* position */, false /* isBoundsInterfaceType */);
-  TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
+  QualType TypeVar = Actions.Context.getTypeVariableType(Depth, 0 /* position */, false /* isBoundsInterfaceType */);
+  TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(TypeVar);
   // TODO: find out why decl doesn't show up in AST dump.
-  TypedefDecl *NewTD = TypedefDecl::Create(
+  TypedefDecl *TypeDef = TypedefDecl::Create(
     Actions.Context,
     Actions.CurContext,
     SourceLocation(), // TODO: fill in proper location
@@ -7428,7 +7428,7 @@ void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
     Tok.getIdentifierInfo(),
     TInfo);
 
-  Actions.PushOnScopeChains(NewTD, getCurScope(), true);
+  Actions.PushOnScopeChains(TypeDef, getCurScope(), true);
 
   ConsumeToken(); // eat the type variable
 
