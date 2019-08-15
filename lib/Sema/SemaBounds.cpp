@@ -1824,7 +1824,7 @@ namespace {
           return ProofResult::False;
         }
         if (IsLowerOffsetVariable() && R.IsLowerOffsetVariable())
-          if (EqualExtended(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
+          if (LessThanOrEqualExtended(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs, Facts))
             return ProofResult::True;
         if (R.IsLowerOffsetVariable() && IsLowerOffsetConstant() &&
             R.LowerOffsetVariable->getType()->isUnsignedIntegerType() && LowerOffsetConstant.getExtValue() == 0)
@@ -1857,7 +1857,8 @@ namespace {
           return ProofResult::False;
         }
         if (IsUpperOffsetVariable() && R.IsUpperOffsetVariable())
-          if (EqualExtended(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
+          //if (EqualExtended(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
+          if (LessThanOrEqualExtended(S.Context, R.Base, Base, R.UpperOffsetVariable, UpperOffsetVariable, EquivExprs, Facts))
             return ProofResult::True;
         if (IsUpperOffsetVariable() && R.IsUpperOffsetConstant() &&
             UpperOffsetVariable->getType()->isUnsignedIntegerType() && R.UpperOffsetConstant.getExtValue() == 0)
@@ -2154,6 +2155,42 @@ namespace {
         return false;
 
       return true;
+    }
+
+    static bool LessThanOrEqualExtended(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs,
+                                        std::pair<ComparisonSet, ComparisonSet>& Facts) {
+      if (!Offset1 && !Offset2)
+        return false;
+
+      if (!EqualValue(Ctx, Base1, Base2, EquivExprs))
+        return false;
+
+      llvm::APSInt ConstantPart1, ConstantPart2;
+      bool IsOpSigned1, IsOpSigned2;
+      Expr *VariablePart1, *VariablePart2;
+
+      bool CreatedStdForm1 = CreateStandardForm(Ctx, Base1, Offset1, ConstantPart1, IsOpSigned1, VariablePart1);
+      bool CreatedStdForm2 = CreateStandardForm(Ctx, Base2, Offset2, ConstantPart2, IsOpSigned2, VariablePart2);
+
+      if (!CreatedStdForm1 || !CreatedStdForm2)
+        return false;
+      if (IsOpSigned1 != IsOpSigned2)
+        return false;
+      if (ConstantPart1 != ConstantPart2)
+        return false;
+
+      bool EqualWithoutFacts = EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs);
+      bool LEWithFacts = FactExists(Ctx, VariablePart1, VariablePart2, EquivExprs, Facts);
+      if (!(EqualWithoutFacts))
+        return false;
+
+      return true;
+    }
+
+    static bool FactExists(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs,
+                           std::pair<ComparisonSet, ComparisonSet>& Facts) {
+      Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
+      return R == Lexicographic::Result::Equal;
     }
 
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
