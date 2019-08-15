@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/AST/ASTConsumer.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Rewrite/Core/Rewriter.h"
@@ -15,20 +14,16 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Option/OptTable.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 
 #include <algorithm>
-#include <map>
-#include <sstream>
 
 #include "Constraints.h"
 
 #include "ConstraintBuilder.h"
-#include "PersistentSourceLoc.h"
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "RewriteUtils.h"
@@ -52,16 +47,36 @@ cl::opt<bool> Verbose("verbose",
                       cl::init(false),
                       cl::cat(ConvertCategory));
 
+cl::opt<bool> mergeMultipleFuncDecls("mergefds",
+                                     cl::desc("Merge multiple declarations of functions."),
+                                     cl::init(false),
+                                     cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
     OutputPostfix("output-postfix",
                   cl::desc("Postfix to add to the names of rewritten files, if "
                            "not supplied writes to STDOUT"),
                   cl::init("-"), cl::cat(ConvertCategory));
 
+static cl::opt<std::string>
+  ConstraintOutputJson("constraint-output",
+                       cl::desc("Path to the file where all the analysis information will be dumped as json"),
+                       cl::init("constraint_output.json"), cl::cat(ConvertCategory));
+
 static cl::opt<bool> DumpStats( "dump-stats",
                                 cl::desc("Dump statistics"),
                                 cl::init(false),
                                 cl::cat(ConvertCategory));
+
+cl::opt<bool> handleVARARGS( "handle-varargs",
+                             cl::desc("Enable handling of varargs in a sound manner"),
+                             cl::init(false),
+                             cl::cat(ConvertCategory));
+
+cl::opt<bool> enablePropThruIType( "enable-itypeprop",
+                                   cl::desc("Enable propagation of constraints through ityped parameters/returns."),
+                                   cl::init(false),
+                                   cl::cat(ConvertCategory));
 
 static cl::opt<std::string>
 BaseDir("base-dir",
@@ -136,6 +151,25 @@ newFrontendActionFactoryB(ProgramInfo &I, std::set<std::string> &PS) {
     new ArgFrontendActionFactory(I, PS));
 }
 
+std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTyping(ProgramInfo &Info) {
+  // solve the constrains by handling function sub-typing.
+  Constraints &CS = Info.getConstraints();
+  unsigned numIterations = 0;
+  std::pair<Constraints::ConstraintSet, bool> toRet;
+  bool fixed = false;
+  while (!fixed) {
+    toRet = CS.solve(numIterations);
+    if (numIterations > 1)
+      // this means we have made some changes to the environment
+      // see if the function subtype handling causes any changes?
+      fixed = !Info.handleFunctionSubtyping();
+    else
+      // we reached a fixed point.
+      fixed = true;
+  }
+  return toRet;
+}
+
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
@@ -163,11 +197,9 @@ int main(int argc, const char **argv) {
   std::set<std::string> inoutPaths;
 
   for (const auto &S : args) {
-    SmallString<255> abs_path(S);
-    if (std::error_code ec = sys::fs::make_absolute(abs_path))
-      errs() << "could not make absolute\n";
-    else
-      inoutPaths.insert(abs_path.str());
+    std::string abs_path;
+    if (getAbsoluteFilePath(S, abs_path))
+      inoutPaths.insert(abs_path);
   }
 
   if (OutputPostfix == "-" && inoutPaths.size() > 1) {
@@ -194,15 +226,24 @@ int main(int argc, const char **argv) {
   // 2. Solve constraints.
   if (Verbose)
     outs() << "Solving constraints\n";
-  Constraints &CS = Info.getConstraints();
-  std::pair<Constraints::ConstraintSet, bool> R = CS.solve();
+  std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
   // TODO: In the future, R.second will be false when there's a conflict, 
   //       and the tool will need to do something about that. 
   assert(R.second == true);
   if (Verbose)
     outs() << "Constraints solved\n";
-  if (DumpIntermediate)
+  if (DumpIntermediate) {
     Info.dump();
+    outs() << "Writing json output to:" << ConstraintOutputJson << "\n";
+    std::error_code ec;
+    llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
+    if (!output_json.has_error()) {
+      Info.dump_json(output_json);
+      output_json.close();
+    } else {
+      Info.dump_json(llvm::errs());
+    }
+  }
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =

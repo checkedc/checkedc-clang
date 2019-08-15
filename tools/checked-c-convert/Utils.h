@@ -25,6 +25,9 @@ typedef std::map<clang::Decl*, clang::DeclStmt*> VariableDecltoStmtMap;
 
 extern llvm::cl::opt<bool> Verbose;
 extern llvm::cl::opt<bool> DumpIntermediate;
+extern llvm::cl::opt<bool> handleVARARGS;
+extern llvm::cl::opt<bool> mergeMultipleFuncDecls;
+extern llvm::cl::opt<bool> enablePropThruIType;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 
@@ -33,6 +36,14 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
 clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
 
 clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
+
+clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExpr);
+
+bool isDeclarationParam(clang::Decl *param);
+
+std::string getStorageQualifierString(clang::Decl *D);
+
+bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
 
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif

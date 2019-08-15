@@ -39,6 +39,7 @@ public:
   enum AtomKind {
     A_Var,
     A_Ptr,
+    A_NTArr,
     A_Arr,
     A_Wild,
     A_Const
@@ -53,6 +54,7 @@ public:
 
   virtual void print(llvm::raw_ostream &) const = 0;
   virtual void dump(void) const = 0;
+  virtual void dump_json(llvm::raw_ostream &) const = 0;
   virtual bool operator==(const Atom &) const = 0;
   virtual bool operator!=(const Atom &) const = 0;
   virtual bool operator<(const Atom &other) const = 0;
@@ -74,6 +76,10 @@ public:
 
   void dump(void) const {
     print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"q_" << Loc << "\"";
   }
 
   bool operator==(const Atom &other) const {
@@ -133,6 +139,10 @@ public:
     print(llvm::errs());
   }
 
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"PTR\"";
+  }
+
   bool operator==(const Atom &other) const {
     return llvm::isa <PtrAtom>(&other);
   }
@@ -143,6 +153,43 @@ public:
 
   bool operator<(const Atom &other) const {
     return *this != other;
+  }
+};
+
+// This refers to the constant NTARR.
+class NTArrAtom : public ConstAtom {
+public:
+  NTArrAtom() : ConstAtom(A_NTArr) {}
+
+  static bool classof(const Atom *S) {
+    return S->getKind() == A_NTArr;
+  }
+
+  void print(llvm::raw_ostream &O) const {
+    O << "NTARR";
+  }
+
+  void dump(void) const {
+    print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"NTARR\"";
+  }
+
+  bool operator==(const Atom &other) const {
+    return llvm::isa<NTArrAtom>(&other);
+  }
+
+  bool operator!=(const Atom &other) const {
+    return !(*this == other);
+  }
+
+  bool operator<(const Atom &other) const {
+    if (llvm::isa<PtrAtom>(&other) || *this == other)
+      return false;
+    else
+      return true;
   }
 };
 
@@ -163,6 +210,10 @@ public:
     print(llvm::errs());
   }
 
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"ARR\"";
+  }
+
   bool operator==(const Atom &other) const {
     return llvm::isa<ArrAtom>(&other);
   }
@@ -172,7 +223,7 @@ public:
   }
 
   bool operator<(const Atom &other) const {
-    if (llvm::isa<PtrAtom>(&other) || *this == other)
+    if (llvm::isa<PtrAtom>(&other) || llvm::isa<NTArrAtom>(&other) || *this == other)
       return false;
     else
       return true;
@@ -196,10 +247,14 @@ public:
     print(llvm::errs());
   }
 
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "\"WILD\"";
+  }
+
   bool operator==(const Atom &other) const {
-    if (llvm::isa<WildAtom>(&other)) 
+    if (llvm::isa<WildAtom>(&other))
       return true;
-    else 
+    else
       return false;
   }
 
@@ -208,7 +263,8 @@ public:
   }
 
   bool operator<(const Atom &other) const {
-    if (llvm::isa<ArrAtom>(&other) || llvm::isa<PtrAtom>(&other) || *this == other)
+    if (llvm::isa<ArrAtom>(&other) || llvm::isa<NTArrAtom>(&other) ||
+        llvm::isa<PtrAtom>(&other) || *this == other)
       return false;
     else
       return true;
@@ -236,6 +292,7 @@ public:
 
   virtual void print(llvm::raw_ostream &) const = 0;
   virtual void dump(void) const = 0;
+  virtual void dump_json(llvm::raw_ostream &) const = 0;
   virtual bool operator==(const Constraint &other) const = 0;
   virtual bool operator!=(const Constraint &other) const = 0;
   virtual bool operator<(const Constraint &other) const = 0;
@@ -260,6 +317,14 @@ public:
 
   void dump(void) const {
     print(llvm::errs());
+  }
+
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "{\"Eq\":{\"Atom1\":";
+    lhs->dump_json(O);
+    O << ", \"Atom2\":";
+    rhs->dump_json(O);
+    O << "}}";
   }
 
   Atom *getLHS(void) const { return lhs; }
@@ -318,6 +383,12 @@ public:
     print(llvm::errs());
   }
 
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "{\"Not\":";
+    body->dump_json(O);
+    O << "}";
+  }
+
   bool operator==(const Constraint &other) const {
     if (const Not *N = llvm::dyn_cast<Not>(&other))
       return *body == *N->body;
@@ -373,6 +444,14 @@ public:
     print(llvm::errs());
   }
 
+  void dump_json(llvm::raw_ostream &O) const {
+    O << "{\"Implies\":{\"Premise\":";
+    premise->dump_json(O);
+    O << ", \"Conclusion\":";
+    conclusion->dump_json(O);
+    O << "}}";
+  }
+
   bool operator==(const Constraint &other) const {
     if (const Implies *I = llvm::dyn_cast<Implies>(&other)) 
       return *premise == *I->premise && *conclusion == *I->conclusion;
@@ -406,6 +485,8 @@ private:
   Constraint *conclusion;
 };
 
+class ConstraintVariable;
+
 class Constraints {
 public:
   Constraints();
@@ -416,6 +497,8 @@ public:
   typedef std::set<Constraint*, PComp<Constraint*> > ConstraintSet;
   // The environment maps from Vars to Consts (one of Ptr, Arr, Wild).
   typedef std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > EnvironmentMap;
+  // Map from a unique key of a function to its constraint variables.
+  typedef std::map<std::string, std::set<ConstraintVariable*>> FuncKeyToConsMap;
 
   bool addConstraint(Constraint *c);
   // It's important to return these by reference. Programs can have 
@@ -423,14 +506,18 @@ public:
   // a client wants to examine the environment is untenable.
   ConstraintSet &getConstraints() { return constraints; }
   EnvironmentMap &getVariables() { return environment; }
+  FuncKeyToConsMap &getFuncDeclVarMap() { return FuncDeclConstraints; }
+  FuncKeyToConsMap &getFuncDefnVarMap() { return FuncDefnConstraints; }
+  std::map<std::string, std::string> &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
   // Solve the system of constraints. Return true in the second position if
   // the system is solved. If the system is solved, the first position is 
   // an empty. If the system could not be solved, the constraints in conflict
   // are returned in the first position.
   // TODO: this functionality is not implemented yet.
-  std::pair<ConstraintSet, bool> solve(void);
+  std::pair<ConstraintSet, bool> solve(unsigned &numOfIterations);
   void dump() const;
   void print(llvm::raw_ostream &) const;
+  void dump_json(llvm::raw_ostream &) const;
 
   Eq *createEq(Atom *lhs, Atom *rhs);
   Not *createNot(Constraint *body);
@@ -440,12 +527,20 @@ public:
   VarAtom *getVar(uint32_t v) const;
   PtrAtom *getPtr() const;
   ArrAtom *getArr() const;
+  NTArrAtom *getNTArr() const;
   WildAtom *getWild() const;
 
 private:
   ConstraintSet constraints;
   EnvironmentMap environment;
 
+  // map of function unique key to it declaration FVConstraintVariable
+  FuncKeyToConsMap FuncDeclConstraints;
+  // map of function unique key to it definition FVConstraintVariable
+  FuncKeyToConsMap FuncDefnConstraints;
+
+  template <typename T>
+  bool canAssignConst(VarAtom *src);
   bool step_solve(EnvironmentMap &);
   bool check(Constraint *C);
 
@@ -462,7 +557,14 @@ private:
   // Constraints class.
   PtrAtom *prebuiltPtr;
   ArrAtom *prebuiltArr;
+  NTArrAtom *prebuiltNTArr;
   WildAtom *prebuiltWild;
+
+  // map that contains the mapping between the unique keys of function
+  // definition to its declaration.
+  std::map<std::string, std::string> FuncDefnDeclKeyMap;
 };
+
+typedef uint32_t ConstraintKey;
 
 #endif

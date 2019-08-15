@@ -17,21 +17,29 @@ import argparse
 
 # This default value will be overwritten if an alternate path is provided
 # in an argument.
+CHECKEDC_INCLUDE_REL_PATH = "projects/checkedc-wrapper/checkedc/include"
 checkedcHeaderDir = os.path.abspath(
-    os.path.join("../../../../.." ,
-                 "projects/checkedc-wrapper/checkedc/include"))
+    os.path.join("../../../../..",
+                 CHECKEDC_INCLUDE_REL_PATH))
+
 
 # If the arg is a valid filename, returns the absolute path to it
 def parseTheArg():
     global checkedcHeaderDir
-    parser = argparse.ArgumentParser(
-        description='Convert includes of standard headers to their checked versions for a list of c files.')
-    parser.add_argument(
-        'filename', default="",
-        help='Filename containing list of C files to have includes converted')
-    parser.add_argument(
-        '--includeDir', default=checkedcHeaderDir, required=False,
-        help='Path to the checkedC headers, run from a checkedCclang repo')
+    global CHECKEDC_INCLUDE_REL_PATH
+    # get the directory based on `LLVM_SRC` environment variable.
+    pathBasedDir = ""
+    if 'LLVM_SRC' in os.environ:
+      pathBasedDir = os.path.join(os.environ['LLVM_SRC'], CHECKEDC_INCLUDE_REL_PATH)
+
+    parser = argparse.ArgumentParser(description='Convert includes of standard headers to their '
+                                                 'checked versions for a list of c files.')
+    parser.add_argument('filename', default="",
+                        help='Filename containing list of C files to have includes converted')
+    parser.add_argument('--includeDir',
+                        default=checkedcHeaderDir if os.path.exists(checkedcHeaderDir) else pathBasedDir,
+                        required=False,
+                        help='Path to the checkedC headers, run from a checkedCclang repo')
     args = parser.parse_args()
 
     if not args.filename or not os.path.isfile(args.filename):
@@ -47,6 +55,7 @@ def parseTheArg():
     checkedcHeaderDir = os.path.abspath(args.includeDir)
 
     return os.path.abspath(args.filename)
+
 
 # Initializes the find replace function so it can be run on multiple files
 def makeFindReplace():    
