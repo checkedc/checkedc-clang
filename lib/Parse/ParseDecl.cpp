@@ -7393,7 +7393,6 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
     printf("expected a type variable name\n");
     return;
   }
-  auto TypeVarLoc = ConsumeToken(); // eat the type variable
 
   // TODO: abstract into a function so this logic can re-used here and when parsing
   // for_any specifiers.
@@ -7414,11 +7413,13 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
   TypedefDecl *NewTD = TypedefDecl::Create(
     Actions.Context,
     Actions.CurContext,
-    TypeVarLoc,
+    SourceLocation(), // TODO: fill in proper location
     Tok.getLocation(),
     Tok.getIdentifierInfo(),
     TInfo);
-   Actions.PushOnScopeChains(NewTD, getCurScope(), true);
+  Actions.PushOnScopeChains(NewTD, getCurScope(), true);
+
+  ConsumeToken(); // eat the type variable
 
   if (ExpectAndConsume(tok::comma)) return;
 
