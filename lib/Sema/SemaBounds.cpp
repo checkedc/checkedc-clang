@@ -2700,7 +2700,7 @@ namespace {
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
-   void TraverseCFG() {
+   void TraverseCFG(AvailableFactsAnalysis& AFA) {
      assert(Cfg && "expected CFG to exist");
 #if TRACE_CFG
      llvm::outs() << "Dumping AST";
@@ -2714,7 +2714,9 @@ namespace {
      StmtSet CheckedStmts;
      IdentifyChecked(Body, CheckedStmts, false);
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
+     std::pair<ComparisonSet, ComparisonSet> Facts;
      for (const CFGBlock *Block : POView) {
+       AFA.GetFacts(Facts);
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2745,6 +2747,7 @@ namespace {
             TraverseStmt(S, IsChecked);
          }
        }
+       AFA.Next();
      }
     }
 
@@ -3401,7 +3404,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     Collector.Analyze();
     if (getLangOpts().DumpExtractedComparisonFacts)
       Collector.DumpComparisonFacts(llvm::outs(), FD->getNameInfo().getName().getAsString());
-    Checker.TraverseCFG();
+    Checker.TraverseCFG(Collector);
   }
   else
     // A CFG couldn't be constructed.  CFG construction doesn't support
