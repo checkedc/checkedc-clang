@@ -787,6 +787,8 @@ def fcheckedc_extension : Flag<["-"], "fcheckedc-extension">, Group<f_Group>, Fl
   HelpText<"Accept Checked C extension">;
 def fno_checkedc_extension : Flag<["-"], "fno-checkedc-extension">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Do ont accept Checked C extension">;
+def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump extracted comparison facts">;
 def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump inferred Checked C bounds for assignments and declarations">;
 def fcaret_diagnostics : Flag<["-"], "fcaret-diagnostics">, Group<f_Group>;
@@ -2624,9 +2626,6 @@ def fno_integrated_as : Flag<["-"], "fno-integrated-as">,
 def : Flag<["-"], "integrated-as">, Alias<fintegrated_as>, Flags<[DriverOption]>;
 def : Flag<["-"], "no-integrated-as">, Alias<fno_integrated_as>,
       Flags<[CC1Option, DriverOption]>;
-
-def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
-  HelpText<"Dump extracted comparison facts">;
 
 def working_directory : JoinedOrSeparate<["-"], "working-directory">, Flags<[CC1Option]>,
   HelpText<"Resolve file paths relative to the specified directory">;
