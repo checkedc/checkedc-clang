@@ -2189,8 +2189,22 @@ namespace {
 
     static bool FactExists(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs,
                            std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
-      return R == Lexicographic::Result::Equal;
+      bool ExistsIn = false, ExistsKill = true;
+      for (auto InFact : Facts.first) {
+        if (Lexicographic(Ctx, EquivExprs).CompareExpr(E1, InFact.first) == Lexicographic::Result::Equal &&
+            Lexicographic(Ctx, EquivExprs).CompareExpr(E2, InFact.second) == Lexicographic::Result::Equal) {
+          ExistsIn = true;
+          break;
+        }
+      }
+      for (auto KillFact : Facts.second) {
+        if (Lexicographic(Ctx, EquivExprs).CompareExpr(E1, KillFact.first) == Lexicographic::Result::Equal &&
+            Lexicographic(Ctx, EquivExprs).CompareExpr(E2, KillFact.second) == Lexicographic::Result::Equal) {
+          ExistsKill = false;
+          break;
+        }
+      }
+      return ExistsIn && !ExistsKill;
     }
 
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
