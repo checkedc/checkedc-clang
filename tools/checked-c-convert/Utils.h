@@ -39,13 +39,11 @@ clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
 clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExpr);
 
-bool hasFunctionBody(clang::Decl *param);
+bool isDeclarationParam(clang::Decl *param);
 
 std::string getStorageQualifierString(clang::Decl *D);
 
 bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
-
-bool isNULLExpression(clang::Expr *expr, clang::ASTContext &Ctx);
 
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif

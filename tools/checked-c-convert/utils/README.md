@@ -49,7 +49,7 @@ this script will look for `#include` statements in each file in the list
 that `#include` headers for which there are CheckedC replacements (e.g. stdlib, math) 
 and substitutes in those replacements. **This rewrites the files in place!**
 
-**Hint: To get all the `.c` and `.h` files in a directory recursively use the following command: `find <path_to_the_directory> -regex '.*/.*\.\(cpp\|h\)$'`**
+**Hint: To get all the `.c` and `.h` files in a directory recursively use the following command: `find <path_to_the_directory> -regex '.*/.*\.\(c\|h\)$'`**
 
 
 Details: 

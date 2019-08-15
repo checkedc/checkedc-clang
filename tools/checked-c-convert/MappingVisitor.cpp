@@ -39,7 +39,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
         llvm::errs() << "\n";
       }
 
-      if(So == NULL)
+      if (So == NULL)
         PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
 
@@ -76,7 +76,7 @@ bool MappingVisitor::VisitDecl(Decl *D) {
         llvm::errs() << " the same location";
       }
       
-      if(Do == NULL)
+      if (Do == NULL)
         PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
   }

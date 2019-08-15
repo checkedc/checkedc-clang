@@ -56,10 +56,9 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
   arrPresent = false;
 
   if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
-    // external variables can also have itype.
-    // check if the provided declaration is an external
-    // variable.
-    if(!dyn_cast<ParmVarDecl>(D) && !dyn_cast<FunctionDecl>(D)) {
+    // External variables can also have itype. So, check if the provided
+    // declaration is an external variable.
+    if (dyn_cast<VarDecl>(D) && dyn_cast<VarDecl>(D)->isExternC()) {
       QualType InteropType = C.getInteropTypeAndAdjust(ITE, false);
       // TODO: handle array_ptr types.
       if (InteropType->isCheckedPointerPtrType()) {
@@ -101,13 +100,13 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
       K++;
 
       // Boil off the typedefs in the array case.
-      while(const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
+      while (const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
         QTy = tydTy->desugar();
         Ty = QTy.getTypePtr();
       }
 
       // Iterate.
-      if(const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
+      if (const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
         QTy = arrTy->getElementType();
         Ty = QTy.getTypePtr();
       } else {
@@ -135,7 +134,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);
         } else if (Ty->isCheckedPointerPtrType()) {
-          // Constrain V so that it can't be either wild or an array or an NTArray
+          // Constrain V so that it can't be either wild or
+          // an array or an NTArray
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getNTArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
@@ -181,9 +181,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
 
   BaseType = tyToStr(Ty);
 
-  if (QTy.isConstQualified()) {
+  if (QTy.isConstQualified())
     BaseType = "const " + BaseType;
-  }
 
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
@@ -213,7 +212,7 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
   Constraints &CS = Info.getConstraints();
   auto &env = CS.getVariables();
 
-  while(I != getCvars().end() && J != OC.end()) {
+  while (I != getCvars().end() && J != OC.end()) {
     // Look up the valuation for I and J.
     ConstAtom *CI = env[CS.getVar(*I)];
     ConstAtom *CJ = env[CS.getVar(*J)];
@@ -267,19 +266,18 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
 }
 
 void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
-  O << "{\"PointerVar\":{";
-  O << "\"Vars\":[";
+  O << R"({"PointerVar":{)";
+  O << R"("Vars":[)";
   bool addComma = false;
   for (const auto &I : vars) {
-    if(addComma) {
+    if (addComma)
       O << ",";
-    }
-    O << "\"q_" << I << "\"";
+    O << R"("q_)" << I << R"(")";
     addComma = true;
   }
-  O << "], \"name\":\"" << getName() << "\"";
-  if(FV) {
-    O << ", \"FunctionVariable\":";
+  O << R"(], "name":")" << getName() << R"(")";
+  if (FV) {
+    O << R"(, "FunctionVariable":)";
     FV->dump_json(O);
   }
   O << "}}";
@@ -362,7 +360,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
         }
       case Atom::A_NTArr:
         // this additional check is to prevent fall-through from the array.
-        if(K == Atom::A_NTArr) {
+        if (K == Atom::A_NTArr) {
           // if this is an NTArray
           getQualString(V, ss);
 
@@ -400,7 +398,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     }
   }
 
-  if(emittedBase == false) {
+  if (emittedBase == false) {
     // If we have a FV pointer, then our "base" type is a function pointer
     // type.
     if (FV) {
@@ -415,7 +413,9 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     ss << ">";
   }
 
-  ss << " ";
+  // if this is for an itype? No need to add space.
+  if (!forItype)
+    ss << " ";
 
   std::string finalDec;
   if (emittedName == false) {
@@ -632,7 +632,7 @@ ConstAtom* FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMa
   for (const auto& C: returnVars) {
     ConstAtom *CS = C->getHighestType(E);
     assert(CS != nullptr);
-    if(toRet == nullptr || ((*toRet) < *CS)) {
+    if (toRet == nullptr || ((*toRet) < *CS)) {
       toRet = CS;
     }
   }
@@ -648,14 +648,12 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
     bool doAdd = true;
     // this will ensure that we do not make an itype constraint
     // variable to be WILD (which should be impossible)!!
-    if (checkSkip || dyn_cast<WildAtom>(A)) {
+    if (checkSkip || dyn_cast<WildAtom>(A))
       if (ConstrainedVars.find(V) != ConstrainedVars.end())
         doAdd = false;
-    }
 
-    if (doAdd) {
+    if (doAdd)
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
-    }
   }
 
   if (FV)
@@ -717,9 +715,8 @@ ConstAtom* PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap
     VarAtom V(C);
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
-    if(toRet == nullptr || ((*toRet) < *CS)) {
+    if (toRet == nullptr || ((*toRet) < *CS))
       toRet = CS;
-    }
   }
   return toRet;
 }
@@ -739,28 +736,25 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
 }
 
 void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
-  O << "{\"FunctionVar\":{\"ReturnVar\":[";
+  O << R"({"FunctionVar":{"ReturnVar":[)";
   bool addComma = false;
   for (const auto &I : returnVars) {
-    if(addComma) {
+    if (addComma)
       O << ",";
-    }
     I->dump_json(O);
   }
-  O << "], \"name\":\"" << name << "\", ";
-  O << "\"Parameters\":[";
+  O << R"(], "name":")" << name << R"(", )";
+  O << R"("Parameters":[)";
   addComma = false;
   for (const auto &I : paramVars) {
-    if(I.size() > 0) {
-      if (addComma) {
+    if (I.size() > 0) {
+      if (addComma)
         O << ",\n";
-      }
       O << "[";
       bool innerComma = false;
       for (const auto &J : I) {
-        if(innerComma) {
+        if (innerComma)
           O << ",";
-        }
         J->dump_json(O);
         innerComma = true;
       }
