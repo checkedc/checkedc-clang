@@ -4403,7 +4403,7 @@ public:
     return isBoundsInterfaceType;
   }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
+  void Profile(llvm::FoldingSetNodeID &ID) const {
     Profile(ID, depth, index, isBoundsInterfaceType);
   }
   static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex,
@@ -4414,44 +4414,6 @@ public:
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
-};
-
-/// (Checked C extension)
-/// Represents the type '_Exists(T, InnerType)', where 'T' is a type variable and
-/// 'InnerType' is some type that potentially uses 'T'.
-/// There are some restrictions on what 'InnerType' can be. These restrictions are enforced
-/// via checks in the 'pack' and 'unpack' operations, but they amount to requiring that
-/// 'InnerType' is one of:
-///   1) another existential type: e.g. '_Exists(T, _Exists(U, struct Foo<T, U>))'
-///   2) a type application 'C<T>', where 'C' is a generic struct: e.g. '_Exists(T, struct List<T>)'
-class ExistentialType : public Type, public llvm::FoldingSetNode {
-  /// The type variable that is bound by the existential.
-  TypeVariableType *TypeVar = nullptr;
-  /// The type wrapped by the existential that potentially uses the bound type variable.
-  QualType InnerType;
-
-public:
-
-  ExistentialType(TypeVariableType *TypeVar, QualType InnerType) :
-    Type(Existential, QualType() /* canon */, false /* Dependent */ , false /* InstantiationDependent */,
-      false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
-    TypeVar(TypeVar), InnerType(InnerType) {}
-
-  const TypeVariableType *typeVar() const { return TypeVar; }
-  QualType innerType() const { return InnerType; }
-
-  bool isSugared(void) const { return false; }
-  QualType desugar(void) const { return QualType(this, 0); }
-
-  void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, TypeVar, InnerType);
-  }
-  static void Profile(llvm::FoldingSetNodeID &ID, TypeVariableType *TypeVar, QualType InnerType) {
-    TypeVar->Profile(ID);
-    InnerType.Profile(ID);
-  }
-
-  static bool classof(const Type *T) { return T->getTypeClass() == Existential; }
 };
 
 class TypedefType : public Type {
@@ -4476,6 +4438,48 @@ public:
   QualType desugar() const;
 
   static bool classof(const Type *T) { return T->getTypeClass() == Typedef; }
+};
+
+/// (Checked C extension)
+/// Represents the type '_Exists(T, InnerType)', where 'T' is a type variable and
+/// 'InnerType' is some type that potentially uses 'T'.
+/// There are some restrictions on what 'InnerType' can be. These restrictions are enforced
+/// via checks in the 'pack' and 'unpack' operations, but they amount to requiring that
+/// 'InnerType' is one of:
+///   1) another existential type: e.g. '_Exists(T, _Exists(U, struct Foo<T, U>))'
+///   2) a type application 'C<T>', where 'C' is a generic struct: e.g. '_Exists(T, struct List<T>)'
+class ExistentialType : public Type, public llvm::FoldingSetNode {
+  /// The typedef that introduces the type variable bound by the existential.
+  const TypedefType *TypeDef = nullptr;
+  /// The type variable that is bound by the existential.
+  const TypeVariableType *TypeVar = nullptr;
+  /// The type wrapped by the existential that potentially uses the bound type variable.
+  QualType InnerType;
+
+public:
+
+  ExistentialType(const TypedefType *TypeDef, QualType InnerType) :
+    Type(Existential, QualType() /* canon */, false /* Dependent */ , false /* InstantiationDependent */,
+      false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
+    TypeDef(TypeDef), TypeVar(dyn_cast<TypeVariableType>(TypeDef->desugar().getTypePtr())), InnerType(InnerType) {
+    assert(TypeVar && TypeVariableType::classof(TypeVar) && "In an existential type, expected the typedef to point to a type variable");
+  }
+
+  const TypeVariableType *typeVar() const { return TypeVar; }
+  QualType innerType() const { return InnerType; }
+
+  bool isSugared(void) const { return false; }
+  QualType desugar(void) const { return QualType(this, 0); }
+
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, TypeVar, InnerType);
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, const TypeVariableType *TypeVar, QualType InnerType) {
+    TypeVar->Profile(ID);
+    InnerType.Profile(ID);
+  }
+
+  static bool classof(const Type *T) { return T->getTypeClass() == Existential; }
 };
 
 /// Represents a `typeof` (or __typeof__) expression (a GCC extension).

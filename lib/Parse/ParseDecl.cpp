@@ -7451,6 +7451,8 @@ void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
   const char *PrevSpec = nullptr;
   unsigned DiagID;
 
+  DS.setTypeVars(Actions.getASTContext(), ArrayRef<TypedefDecl *>(TypeDef), 1 /* NewNumTypeVars */);
+
   auto Err = DS.SetTypeSpecType(
     TST_exists,
     StartLoc,
