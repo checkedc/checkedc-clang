@@ -2156,8 +2156,12 @@ namespace {
       return true;
     }
 
-    static bool LessThanOrEqualExtended(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2, EquivExprSets *EquivExprs,
-                                        std::pair<ComparisonSet, ComparisonSet>& Facts) {
+    // This function is an extension of EqualExtended. It looks into the provided `Facts`
+    // in order to prove `Base1 + Offset1 <= Offset2 + Offset2`.
+    // Note that in order to prove this, Base1 must equal Base2 (as in EqualExtended), and the fact that
+    // "Offset1 <= Offset2" must exist in `Facts`.
+    static bool LessThanOrEqualExtended(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2,
+                                        EquivExprSets *EquivExprs, std::pair<ComparisonSet, ComparisonSet>& Facts) {
       if (!Offset1 && !Offset2)
         return false;
 
@@ -2186,6 +2190,8 @@ namespace {
       return true;
     }
 
+    // Given `Facts`, `E1`, and `E2`, this function looks for the fact `E1 <= E2` inside
+    // the fatcs and returns true if it is able to find it. Otherwise, it returns false.
     static bool FactExists(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs,
                            std::pair<ComparisonSet, ComparisonSet>& Facts) {
       bool ExistsIn = false, ExistsKill = false;
