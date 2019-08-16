@@ -73,11 +73,11 @@ void AvailableFactsAnalysis::Analyze() {
   std::vector<bool> PointerAssignmentInBlocks(Blocks.size(), false);
   for (unsigned int Index = 0; Index < Blocks.size(); Index++) {
     for (CFGElement Elem : *(Blocks[Index]->Block))
-      if (const Expr *E = dyn_cast<Expr>(Elem.castAs<CFGStmt>().getStmt())) {
+      if (const Expr *E = dyn_cast<Expr>(Elem.castAs<CFGStmt>().getStmt()))
         if (IsPointerAssignment(E)) {
           PointerAssignmentInBlocks[Index] = true;
+          break;
         }
-      }
   }
 
   // Compute Kill Sets
@@ -95,8 +95,6 @@ void AvailableFactsAnalysis::Analyze() {
 
   // If an expression in a comparison contains a pointer deref, kill the comparison
   // at any potential pointer assignment expression.
-  // A pointer deref can appear in any of the following forms:
-  // *p, ->, (*p)., *(p+1), or p[1]
   for (std::size_t CompInd = 0; CompInd < AllComparisons.size(); CompInd++)
     if (ComparisonContainsDeref[CompInd])
       for (std::size_t BlockInd = 0; BlockInd < Blocks.size(); BlockInd++)
@@ -177,12 +175,6 @@ void AvailableFactsAnalysis::Analyze() {
   }
 }
 
-AvailableFactsAnalysis::ElevatedCFGBlock* AvailableFactsAnalysis::GetBlock(std::vector<ElevatedCFGBlock *>& Blocks, CFGBlock *I) {
-  if (BlockIDs[I->getBlockID()] != -1)
-    return Blocks[BlockIDs[I->getBlockID()]];
-  return UnreachableBlock;
-}
-
 void AvailableFactsAnalysis::Reset() {
   CurrentIndex = 0;
 }
@@ -196,6 +188,15 @@ void AvailableFactsAnalysis::Next() {
 // These comparisons correspond to the current block.
 void AvailableFactsAnalysis::GetFacts(std::pair<ComparisonSet, ComparisonSet> &CFacts) {
   CFacts = Facts[CurrentIndex];
+}
+
+// Given a vector of `Blocks` and a CFGBlock `I`, this function returns the corresponding
+// `ElevatedCFGBlock`.
+// If it fails to find the object, an `UnreachleBlock` will be returned.
+AvailableFactsAnalysis::ElevatedCFGBlock* AvailableFactsAnalysis::GetBlock(std::vector<ElevatedCFGBlock *>& Blocks, CFGBlock *I) {
+  if (BlockIDs[I->getBlockID()] != -1)
+    return Blocks[BlockIDs[I->getBlockID()]];
+  return UnreachableBlock;
 }
 
 // Given two sets S1 and S2, the return value is S1 - S2.
@@ -259,16 +260,17 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
   return false;
 }
 
-// This function returns true only if an expression in Comparison `I` contains
-// a pointer deref. A pointer deref can appear as one of the following form:
-// 1. With Deref operator `*`
-// 2. `->` for accessing a member
-// 3. Array subscript `[]`
+// This function returns true only if expression `E` is a pointer deref.
+// A pointer deref is defined as follows:
+// - `E` should be a cast of type `LValueToRValue, and
+// - If the child of `E` is `e`, then `f(e)` must be true. `f(e)` is defined in
+//   a separate function `IsPointerDerefLValue`.
+// Otherwise, the function returns false;
 bool AvailableFactsAnalysis::IsPointerDeref(const Expr *E) {
   if (const CastExpr *CE = dyn_cast<CastExpr>(E)) {
     if (CE->getCastKind() != CastKind::CK_LValueToRValue)
       return false;
-    return IsChildOfPointerDeref(CE->getSubExpr());
+    return IsPointerDerefLValue(CE->getSubExpr());
   }
   return false;
 }
@@ -276,18 +278,31 @@ bool AvailableFactsAnalysis::IsPointerDeref(const Expr *E) {
 bool AvailableFactsAnalysis::IsPointerAssignment(const Expr *E) {
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
     if (BO->isAssignmentOp())
-      if (IsChildOfPointerDeref(BO->getLHS()))
+      if (IsPointerDerefLValue(BO->getLHS()))
         return true;
   }
   if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
     if (UO->isIncrementDecrementOp())
-      if (IsChildOfPointerDeref(UO->getSubExpr()))
+      if (IsPointerDerefLValue(UO->getSubExpr()))
         return true;
+  }
+  if (const CallExpr *CE = dyn_cast<CallExpr>(E)) {
+    for (int ArgIndex = 0; ArgIndex < CE->getNumArgs(); ArgIndex++) {
+      if (CE->getArg(ArgIndex)->getType()->isAnyPointerType())
+        return true;
+    }
   }
   return false;
 }
 
-bool AvailableFactsAnalysis::IsChildOfPointerDeref(const Expr *E) {
+// Given expression `E`, this function is defined as below:
+// 1. If `E` is one of the expressions (*, ->, or []) return true.
+// 2. If `E` is a parenthesized expression `(F)`, then return the result
+//    of this function on `F`.
+// 3. If `E` is a NoOp or LValueBitCast of `F`, then return the result
+//    of this function on `F`.
+// 4. Otherwise, return false.
+bool AvailableFactsAnalysis::IsPointerDerefLValue(const Expr *E) {
   if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E))
     if (UO->getOpcode() == UO_Deref)
       return true;
@@ -295,16 +310,16 @@ bool AvailableFactsAnalysis::IsChildOfPointerDeref(const Expr *E) {
     if (ME->isArrow())
       return true;
     else
-      return IsChildOfPointerDeref(ME->getBase());
+      return IsPointerDerefLValue(ME->getBase());
   }
   if (const ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E))
     return true;
   if (const ParenExpr *PE = dyn_cast<ParenExpr>(E))
-    return IsChildOfPointerDeref(PE->getSubExpr());
+    return IsPointerDerefLValue(PE->getSubExpr());
   if (const CastExpr *CE = dyn_cast<CastExpr>(E))
     if (CE->getCastKind() == CastKind::CK_LValueBitCast ||
         CE->getCastKind() == CastKind::CK_NoOp)
-      return IsChildOfPointerDeref(CE->getSubExpr());
+      return IsPointerDerefLValue(CE->getSubExpr());
   return false;
 }
 
@@ -326,11 +341,10 @@ bool AvailableFactsAnalysis::IsVolatile(const Expr *E) {
 bool AvailableFactsAnalysis::ContainsCallExpr(const Expr *E) {
   if (const CallExpr *CE = dyn_cast<CallExpr>(E))
     return true;
-  for (auto Child : E->children()) {
+  for (auto Child : E->children())
     if (const Expr *EChild = dyn_cast<Expr>(Child))
       if (ContainsCallExpr(EChild))
         return true;
-  }
   return false;
 }
 
@@ -419,32 +433,35 @@ void AvailableFactsAnalysis::CollectExpressions(const Stmt *St, std::set<const E
 }
 
 // This function collects the defined variables in statement `St`.
-// We assume a variable is defined
-// 1. if it appears in the left hand side of an assignment (a = ..., a++, etc.)
-// 2. if it is a pointer which is passed as an argument of a function call
+// We assume a variable is defined if it appears in the lhs of an assignment:
+// 1. increment or decrement operator (a++)
+// 2. assignment operator (a += 1, a = 2)
 void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars) {
   if (!St)
     return;
 
   if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(St)) {
     if (BO->isAssignmentOp()) {
-      Expr *LHS = BO->getLHS()->ignoreParenBaseCasts()->IgnoreImpCasts();
+      Expr *LHS = BO->getLHS()->IgnoreParenNoopCasts(S.Context);
+      if (const CastExpr *CE = dyn_cast<const CastExpr>(LHS))
+        if (CE->getCastKind() == CK_LValueBitCast)
+          LHS = const_cast<Expr*>(CE->getSubExpr());
       if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS))
         if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
           DefinedVars.insert(V);
     }
-  } else if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(St)) {
+  }
+  if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(St)) {
     if (UO->isIncrementDecrementOp()) {
-      Expr *LHS = UO->getSubExpr()->ignoreParenBaseCasts()->IgnoreImpCasts();
-      if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS))
+      Expr *LHS = UO->getSubExpr();
+      if (const CastExpr *CE = dyn_cast<const CastExpr>(LHS))
+        if (CE->getCastKind() == CK_LValueBitCast)
+          LHS = const_cast<Expr*>(CE->getSubExpr());
+      if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS)) {
         if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
           DefinedVars.insert(V);
+      }
     }
-  } else if (const DeclRefExpr *DRE = dyn_cast<const DeclRefExpr>(St)) {
-    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
-      for (auto V : FD->parameters())
-        if (V->getType()->isPointerType())
-          DefinedVars.insert(V);
   }
 
   for (auto I : St->children())
@@ -480,4 +497,3 @@ void AvailableFactsAnalysis::DumpComparisonFacts(raw_ostream &OS, std::string Ti
   Reset();
 }
 }
-
