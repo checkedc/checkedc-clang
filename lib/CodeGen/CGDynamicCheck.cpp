@@ -75,10 +75,10 @@ void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr,
   if (!shouldEmitNonNullCheck(CGM, BaseTy))
     return;
 
-   ++NumDynamicChecksNonNull;
+  ++NumDynamicChecksNonNull;
 
-   Value *ConditionVal =
-    Builder.CreateIsNotNull(BaseAddr.getPointer(), "_Dynamic_check.non_null");
+  Value *ConditionVal = Builder.CreateIsNotNull(BaseAddr.getPointer(),
+                                                "_Dynamic_check.non_null");
   EmitDynamicCheckBlocks(ConditionVal);
 }
 
@@ -87,10 +87,11 @@ void CodeGenFunction::EmitDynamicNonNullCheck(Value *Val,
   if (!shouldEmitNonNullCheck(CGM, BaseTy))
     return;
 
-   ++NumDynamicChecksNonNull;
+  ++NumDynamicChecksNonNull;
 
-   Value *ConditionVal = Builder.CreateIsNotNull(Val, "_Dynamic_check.non_null");
-  EmitDynamicCheckBlocks(ConditionVal);	  EmitDynamicCheckBlocks(ConditionVal);
+  Value *ConditionVal = Builder.CreateIsNotNull(Val,
+                                                "_Dynamic_check.non_null");
+  EmitDynamicCheckBlocks(ConditionVal);
 }
 
 // TODO: This is currently unused. It may never be used.
