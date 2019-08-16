@@ -33,151 +33,148 @@ void AvailableFactsAnalysis::Analyze() {
     if (Block->getBlockID() > MaxBlockID)
       MaxBlockID = Block->getBlockID();
 
-   BlockIDs.clear();
-   BlockIDs.resize(MaxBlockID + 1, -1);
-   for (const CFGBlock *Block : POView) {
-     auto NewBlock = new ElevatedCFGBlock(Block);
-     WorkList.push(NewBlock);
-     InWorkList.push_back(Block->getBlockID());
-     Blocks.push_back(NewBlock);
-     BlockIDs[Block->getBlockID()] = Blocks.size() - 1;
-   }
+  BlockIDs.clear();
+  BlockIDs.resize(MaxBlockID + 1, -1);
+  for (const CFGBlock *Block : POView) {
+    auto NewBlock = new ElevatedCFGBlock(Block);
+    WorkList.push(NewBlock);
+    InWorkList.push_back(Block->getBlockID());
+    Blocks.push_back(NewBlock);
+    BlockIDs[Block->getBlockID()] = Blocks.size() - 1;
+  }
 
-   // Compute Gen Sets
-   for (auto B : Blocks) {
-     if (const Stmt *Term = B->Block->getTerminator()) {
-       if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
-         ComparisonSet Comparisons;
-         ExtractComparisons(IS->getCond(), Comparisons);
-         B->GenThen.insert(Comparisons.begin(), Comparisons.end());
+  // Compute Gen Sets
+  for (auto B : Blocks) {
+    if (const Stmt *Term = B->Block->getTerminator()) {
+      if(const IfStmt *IS = dyn_cast<IfStmt>(Term)) {
+        ComparisonSet Comparisons;
+        ExtractComparisons(IS->getCond(), Comparisons);
+        B->GenThen.insert(Comparisons.begin(), Comparisons.end());
 
-         ComparisonSet NegatedComparisons;
-         ExtractNegatedComparisons(IS->getCond(), NegatedComparisons);
-         B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
-       }
-     }
-     AllComparisons.insert(AllComparisons.end(), B->GenThen.begin(), B->GenThen.end());
-     AllComparisons.insert(AllComparisons.end(), B->GenElse.begin(), B->GenElse.end());
-   }
+        ComparisonSet NegatedComparisons;
+        ExtractNegatedComparisons(IS->getCond(), NegatedComparisons);
+        B->GenElse.insert(NegatedComparisons.begin(), NegatedComparisons.end());
+      }
+    }
+    AllComparisons.insert(AllComparisons.end(), B->GenThen.begin(), B->GenThen.end());
+    AllComparisons.insert(AllComparisons.end(), B->GenElse.begin(), B->GenElse.end());
+  }
 
-   // Which comparisons contain pointer derefs?
-   std::vector<bool> ComparisonContainsDeref;
-   for (auto C : AllComparisons) {
-     if (IsPointerDeref(C.first) || IsPointerDeref(C.second))
-       ComparisonContainsDeref.push_back(true);
-     else
-       ComparisonContainsDeref.push_back(false);
-   }
+  // Which comparisons contain pointer derefs?
+  std::vector<bool> ComparisonContainsDeref;
+  for (auto C : AllComparisons) {
+    if (IsPointerDeref(C.first) || IsPointerDeref(C.second))
+      ComparisonContainsDeref.push_back(true);
+    else
+      ComparisonContainsDeref.push_back(false);
+  }
 
-   // Which blocks contain potential pointer assignments? (assignment via a pointer or a call)
-   std::vector<bool> PointerAssignmentInBlocks(Blocks.size(), false);
-   for (unsigned int Index = 0; Index < Blocks.size(); Index++) {
-     std::set<const VarDecl *> DefinedVars;
-     for (CFGElement Elem : *(Blocks[Index]->Block))
-       if (Elem.getKind() == CFGElement::Statement)
-         CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
+  // Which blocks contain potential pointer assignments?
+  std::vector<bool> PointerAssignmentInBlocks(Blocks.size(), false);
+  for (unsigned int Index = 0; Index < Blocks.size(); Index++) {
+    for (CFGElement Elem : *(Blocks[Index]->Block))
+      if (const Expr *E = dyn_cast<Expr>(Elem.castAs<CFGStmt>().getStmt())) {
+        if (IsPointerAssignment(E)) {
+          PointerAssignmentInBlocks[Index] = true;
+        }
+      }
+  }
 
-     if (std::any_of(DefinedVars.begin(), DefinedVars.end(),
-                     [](const VarDecl *VD){return VD->getType()->isPointerType();}))
-       PointerAssignmentInBlocks[Index] = true;
-   }
+  // Compute Kill Sets
+  for (auto B : Blocks) {
+    std::set<const VarDecl *> DefinedVars;
+    for (CFGElement Elem : *(B->Block))
+      if (Elem.getKind() == CFGElement::Statement)
+        CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
 
-   // Compute Kill Sets
-   for (auto B : Blocks) {
-     std::set<const VarDecl *> DefinedVars;
-     for (CFGElement Elem : *(B->Block))
-       if (Elem.getKind() == CFGElement::Statement)
-         CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
+    for (auto E : AllComparisons)
+      for (auto V : DefinedVars)
+        if (ContainsVariable(E, V))
+          B->Kill.insert(E);
+  }
 
-     for (auto E : AllComparisons)
-       for (auto V : DefinedVars)
-         if (ContainsVariable(E, V))
-           B->Kill.insert(E);
-   }
-   // If an expression in a comparison contains a pointer deref, kill the comparison
-   // at any potential pointer assignment expression.
-   // A pointer deref can appear in any of the following forms:
-   // *p, ->, (*p)., *(p+1), or p[1]
-   for (std::size_t CompInd = 0; CompInd < AllComparisons.size(); CompInd++)
-     if (ComparisonContainsDeref[CompInd])
-       for (std::size_t BlockInd = 0; BlockInd < Blocks.size(); BlockInd++)
-         if (PointerAssignmentInBlocks[BlockInd])
-           Blocks[BlockInd]->Kill.insert(AllComparisons[CompInd]);
+  // If an expression in a comparison contains a pointer deref, kill the comparison
+  // at any potential pointer assignment expression.
+  // A pointer deref can appear in any of the following forms:
+  // *p, ->, (*p)., *(p+1), or p[1]
+  for (std::size_t CompInd = 0; CompInd < AllComparisons.size(); CompInd++)
+    if (ComparisonContainsDeref[CompInd])
+      for (std::size_t BlockInd = 0; BlockInd < Blocks.size(); BlockInd++)
+        if (PointerAssignmentInBlocks[BlockInd])
+          Blocks[BlockInd]->Kill.insert(AllComparisons[CompInd]);
 
-   // Iterative Worklist Algorithm
-   unsigned int Iteration = 0;
-   while (!WorkList.empty()) {
-     ElevatedCFGBlock *CurrentBlock = WorkList.front();
-     InWorkList.erase(std::remove(InWorkList.begin(),
-                                     InWorkList.end(),
-                                     CurrentBlock->Block->getBlockID()),
-                                     InWorkList.end());
-     WorkList.pop();
+  // Iterative Worklist Algorithm
+  unsigned int Iteration = 0;
+  while (!WorkList.empty()) {
+    ElevatedCFGBlock *CurrentBlock = WorkList.front();
+    InWorkList.erase(std::remove(InWorkList.begin(),
+                                 InWorkList.end(),
+                                 CurrentBlock->Block->getBlockID()),
+                                 InWorkList.end());
+    WorkList.pop();
 
-     // Update In set
-     ComparisonSet Intersecions;
-     bool FirstIteration = true;
-     for (auto I : CurrentBlock->Block->preds()) {
-       if (!I)
-         continue;
-       if (I->succ_size() == 2) {
-         if (*(I->succ_begin()) == CurrentBlock->Block) {
-           if (FirstIteration) {
-             Intersecions = GetBlock(Blocks, I)->OutThen;
-             FirstIteration = false;
-           } else
-             Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutThen);
-         } else {
-           if (FirstIteration) {
-             Intersecions = GetBlock(Blocks, I)->OutElse;
-             FirstIteration = false;
-           } else
-             Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutElse);
-         }
-       } else if (I->succ_size() == 1) {
-         if (FirstIteration) {
-           Intersecions = GetBlock(Blocks, I)->OutThen;
-           FirstIteration = false;
-         } else
-           Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutThen);
-       }
-     }
-     CurrentBlock->In = Intersecions;
+    // Update In set
+    ComparisonSet Intersecions;
+    bool FirstIteration = true;
+    for (auto I : CurrentBlock->Block->preds()) {
+      if (!I)
+        continue;
+      if (I->succ_size() == 2) {
+        if (*(I->succ_begin()) == CurrentBlock->Block) {
+          if (FirstIteration) {
+            Intersecions = GetBlock(Blocks, I)->OutThen;
+            FirstIteration = false;
+          } else
+            Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutThen);
+        } else {
+          if (FirstIteration) {
+            Intersecions = GetBlock(Blocks, I)->OutElse;
+            FirstIteration = false;
+          } else
+            Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutElse);
+        }
+      } else if (I->succ_size() == 1) {
+        if (FirstIteration) {
+          Intersecions = GetBlock(Blocks, I)->OutThen;
+          FirstIteration = false;
+        } else
+          Intersecions = Intersect(Intersecions, GetBlock(Blocks, I)->OutThen);
+      }
+    }
+    CurrentBlock->In = Intersecions;
 
-     // Update Out Set
-     ComparisonSet OldOutThen = CurrentBlock->OutThen;
-     ComparisonSet OldOutElse = CurrentBlock->OutElse;
-     ComparisonSet UnionThen = Union(CurrentBlock->In, CurrentBlock->GenThen);
-     ComparisonSet UnionElse = Union(CurrentBlock->In, CurrentBlock->GenElse);
-     CurrentBlock->OutThen = Difference(UnionThen, CurrentBlock->Kill);
-     CurrentBlock->OutElse = Difference(UnionElse, CurrentBlock->Kill);
+    // Update Out Set
+    ComparisonSet OldOutThen = CurrentBlock->OutThen;
+    ComparisonSet OldOutElse = CurrentBlock->OutElse;
+    ComparisonSet UnionThen = Union(CurrentBlock->In, CurrentBlock->GenThen);
+    ComparisonSet UnionElse = Union(CurrentBlock->In, CurrentBlock->GenElse);
+    CurrentBlock->OutThen = Difference(UnionThen, CurrentBlock->Kill);
+    CurrentBlock->OutElse = Difference(UnionElse, CurrentBlock->Kill);
 
-     // Recompute the Affected Blocks and _uniquely_ add them to the worklist
-     if (Differ(OldOutThen, CurrentBlock->OutThen) ||
-         Differ(OldOutElse, CurrentBlock->OutElse))
-       for (auto I : CurrentBlock->Block->succs()) {
-         if (!I)
-           continue;
-         if (std::find(InWorkList.begin(), InWorkList.end(), I->getBlockID()) ==
-             InWorkList.end()) {
-           InWorkList.push_back(I->getBlockID());
-           WorkList.push(GetBlock(Blocks, I));
-         }
-       }
+    // Recompute the Affected Blocks and _uniquely_ add them to the worklist
+    if (Differ(OldOutThen, CurrentBlock->OutThen) ||
+        Differ(OldOutElse, CurrentBlock->OutElse))
+      for (auto I : CurrentBlock->Block->succs()) {
+        if (!I)
+          continue;
+        if (std::find(InWorkList.begin(), InWorkList.end(), I->getBlockID()) ==
+            InWorkList.end()) {
+          InWorkList.push_back(I->getBlockID());
+          WorkList.push(GetBlock(Blocks, I));
+        }
+      }
 
-     if (++Iteration > (2 * Blocks.size()))
-       break;
-   }
-   for (auto B : Blocks)
-     B->Block->dump();
+    if (++Iteration > (2 * Blocks.size()))
+      break;
+  }
 
-   for (auto B : Blocks)
-     Facts.push_back(std::pair<ComparisonSet, ComparisonSet>(B->In, B->Kill));
+  for (auto B : Blocks)
+    Facts.push_back(std::pair<ComparisonSet, ComparisonSet>(B->In, B->Kill));
 
-   while(!Blocks.empty()) {
-     delete Blocks.back();
-     Blocks.pop_back();
-   }
+  while(!Blocks.empty()) {
+    delete Blocks.back();
+    Blocks.pop_back();
+  }
 }
 
 AvailableFactsAnalysis::ElevatedCFGBlock* AvailableFactsAnalysis::GetBlock(std::vector<ElevatedCFGBlock *>& Blocks, CFGBlock *I) {
@@ -276,6 +273,20 @@ bool AvailableFactsAnalysis::IsPointerDeref(const Expr *E) {
   return false;
 }
 
+bool AvailableFactsAnalysis::IsPointerAssignment(const Expr *E) {
+  if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+    if (BO->isAssignmentOp())
+      if (IsChildOfPointerDeref(BO->getLHS()))
+        return true;
+  }
+  if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->isIncrementDecrementOp())
+      if (IsChildOfPointerDeref(UO->getSubExpr()))
+        return true;
+  }
+  return false;
+}
+
 bool AvailableFactsAnalysis::IsChildOfPointerDeref(const Expr *E) {
   if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E))
     if (UO->getOpcode() == UO_Deref)
@@ -291,7 +302,8 @@ bool AvailableFactsAnalysis::IsChildOfPointerDeref(const Expr *E) {
   if (const ParenExpr *PE = dyn_cast<ParenExpr>(E))
     return IsChildOfPointerDeref(PE->getSubExpr());
   if (const CastExpr *CE = dyn_cast<CastExpr>(E))
-    if (CE->getCastKind() == CastKind::CK_LValueBitCast || CE->getCastKind() == CastKind::CK_NoOp)
+    if (CE->getCastKind() == CastKind::CK_LValueBitCast ||
+        CE->getCastKind() == CastKind::CK_NoOp)
       return IsChildOfPointerDeref(CE->getSubExpr());
   return false;
 }

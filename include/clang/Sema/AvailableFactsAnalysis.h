@@ -78,6 +78,7 @@ namespace clang {
     bool IsVolatile(const Expr *E);
     bool IsPointerDeref(const Expr *E);
     bool IsChildOfPointerDeref(const Expr *E);
+    bool IsPointerAssignment(const Expr *E);
   };
 }
 
