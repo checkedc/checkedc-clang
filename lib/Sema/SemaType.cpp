@@ -1568,8 +1568,9 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   case DeclSpec::TST_exists: {
     auto InnerType = S.GetTypeFromParser(DS.getRepAsType());
     assert(DS.typeVariables().size() == 1 && "Expected exactly one type variable for an existential");
-    auto *TypeVar = dyn_cast<TypedefType>(DS.typeVariables()[0]->getTypeForDecl());
-    assert(TypeVar && "Expected the type to be a typedef type");
+    const auto *Decl = DS.typeVariables()[0];
+    auto *TypeVar = dyn_cast<TypeVariableType>(Decl->getTypeSourceInfo()->getType().getTypePtr());
+    assert(TypeVar && "Expected the type to be a TypeVariableType");
     // TODO: allocate this properly.
     auto *NewExistential = new ExistentialType(TypeVar, InnerType);
     Result = QualType(NewExistential, 0 /* Quals */);

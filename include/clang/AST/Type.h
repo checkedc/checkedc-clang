@@ -4449,8 +4449,6 @@ public:
 ///   1) another existential type: e.g. '_Exists(T, _Exists(U, struct Foo<T, U>))'
 ///   2) a type application 'C<T>', where 'C' is a generic struct: e.g. '_Exists(T, struct List<T>)'
 class ExistentialType : public Type, public llvm::FoldingSetNode {
-  /// The typedef that introduces the type variable bound by the existential.
-  const TypedefType *TypeDef = nullptr;
   /// The type variable that is bound by the existential.
   const TypeVariableType *TypeVar = nullptr;
   /// The type wrapped by the existential that potentially uses the bound type variable.
@@ -4458,12 +4456,10 @@ class ExistentialType : public Type, public llvm::FoldingSetNode {
 
 public:
 
-  ExistentialType(const TypedefType *TypeDef, QualType InnerType) :
+  ExistentialType(const TypeVariableType *TypeVar, QualType InnerType) :
     Type(Existential, QualType() /* canon */, false /* Dependent */ , false /* InstantiationDependent */,
       false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
-    TypeDef(TypeDef), TypeVar(dyn_cast<TypeVariableType>(TypeDef->desugar().getTypePtr())), InnerType(InnerType) {
-    assert(TypeVar && TypeVariableType::classof(TypeVar) && "In an existential type, expected the typedef to point to a type variable");
-  }
+    TypeVar(TypeVar), InnerType(InnerType) {}
 
   const TypeVariableType *typeVar() const { return TypeVar; }
   QualType innerType() const { return InnerType; }
