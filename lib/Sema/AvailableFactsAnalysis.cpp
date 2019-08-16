@@ -63,7 +63,13 @@ void AvailableFactsAnalysis::Analyze() {
    // Which comparisons contain pointer derefs?
    std::vector<bool> ComparisonContainsDeref;
    for (auto C : AllComparisons) {
-     if (ContainsPointerDeref(C))
+       llvm::outs() << "Is this pointer deref : ";
+       C.first->dumpPretty(S.Context);
+       llvm::outs() << " --> " << IsPointerDeref(C.first) << "\n";
+       llvm::outs() << "Is this pointer deref : ";
+       C.second->dumpPretty(S.Context);
+       llvm::outs() << " --> " << IsPointerDeref(C.second) << "\n";
+     if (IsPointerDeref(C.first) || IsPointerDeref(C.second))
        ComparisonContainsDeref.push_back(true);
      else
        ComparisonContainsDeref.push_back(false);
@@ -168,6 +174,8 @@ void AvailableFactsAnalysis::Analyze() {
      if (++Iteration > (2 * Blocks.size()))
        break;
    }
+   for (auto B : Blocks)
+     B->Block->dump();
 
    for (auto B : Blocks)
      Facts.push_back(std::pair<ComparisonSet, ComparisonSet>(B->In, B->Kill));
@@ -265,20 +273,34 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
 // 1. With Deref operator `*`
 // 2. `->` for accessing a member
 // 3. Array subscript `[]`
-bool AvailableFactsAnalysis::ContainsPointerDeref(Comparison& I) {
-  std::set<const Expr *> Exprs;
-  CollectExpressions(I.first, Exprs);
-  CollectExpressions(I.second, Exprs);
-  for (auto InnerExpr : Exprs) {
-    if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(InnerExpr))
-      if (UO->getOpcode() == UO_Deref)
-        return true;
-    if (const MemberExpr *ME = dyn_cast<MemberExpr>(InnerExpr))
-      if (ME->isArrow())
-        return true;
-    if (const ArraySubscriptExpr *A = dyn_cast<ArraySubscriptExpr>(InnerExpr))
-      return true;
+bool AvailableFactsAnalysis::IsPointerDeref(const Expr *E) {
+  E->dump();
+  if (const CastExpr *CE = dyn_cast<CastExpr>(E)) {
+    if (CE->getCastKind() != CastKind::CK_LValueToRValue)
+      return false;
+    //if (const CastExpr *ChildCE = dyn_cast<CastExpr>(CE->getSubExpr())) {
+      //if (ChildCE->getCastKind() != CastKind::CK_LValueBitCast)
+        //return false;
+      return IsChildOfPointerDeref(CE->getSubExpr());
+    //}
   }
+  return false;
+}
+
+bool AvailableFactsAnalysis::IsChildOfPointerDeref(const Expr *E) {
+  if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E))
+    if (UO->getOpcode() == UO_Deref)
+      return true;
+  if (const MemberExpr *ME = dyn_cast<MemberExpr>(E))
+    if (ME->isArrow())
+      return true;
+  if (const ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E))
+    return true;
+  if (const ParenExpr *PE = dyn_cast<ParenExpr>(E))
+    return IsChildOfPointerDeref(PE->getSubExpr());
+  if (const CastExpr *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueBitCast || CE->getCastKind() == CastKind::CK_NoOp)
+      return IsChildOfPointerDeref(CE->getSubExpr());
   return false;
 }
 
@@ -297,13 +319,12 @@ bool AvailableFactsAnalysis::IsVolatile(const Expr *E) {
   return false;
 }
 
-bool AvailableFactsAnalysis::ContainsFunctionCall(const Expr *E) {
-  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E))
-    if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(DRE->getDecl()))
-      return true;
+bool AvailableFactsAnalysis::ContainsCallExpr(const Expr *E) {
+  if (const CallExpr *CE = dyn_cast<CallExpr>(E))
+    return true;
   for (auto Child : E->children()) {
     if (const Expr *EChild = dyn_cast<Expr>(Child))
-      if (ContainsFunctionCall(EChild))
+      if (ContainsCallExpr(EChild))
         return true;
   }
   return false;
@@ -321,7 +342,7 @@ bool AvailableFactsAnalysis::ContainsFunctionCall(const Expr *E) {
 // - `E` has the form `E1 && E2`: ExtractComparisons in E1 and E2 and add them to `ISet`.
 // TODO: handle the case where logical negation operator (!) is used.
 void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &ISet) {
-  if (IsVolatile(E) || ContainsFunctionCall(E))
+  if (IsVolatile(E) || ContainsCallExpr(E))
     return;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
     switch (BO->getOpcode()) {
@@ -359,7 +380,7 @@ void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &IS
 // - `E` has the form `E1 || E2`: ExtractNegatedComparisons in E1 and E2 and add
 //   them to `ISet`.
 void AvailableFactsAnalysis::ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet) {
-  if (IsVolatile(E) || ContainsFunctionCall(E))
+  if (IsVolatile(E) || ContainsCallExpr(E))
     return;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
     switch (BO->getOpcode()) {

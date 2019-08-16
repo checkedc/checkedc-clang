@@ -69,14 +69,15 @@ namespace clang {
     ComparisonSet Intersect(ComparisonSet& S1, ComparisonSet& S2);
     bool Differ(ComparisonSet& S1, ComparisonSet& S2);
     bool ContainsVariable(Comparison& I, const VarDecl *V);
-    bool ContainsPointerDeref(Comparison& I);
-    bool ContainsFunctionCall(const Expr *E);
+    bool ContainsCallExpr(const Expr *E);
     void ExtractComparisons(const Expr *E, ComparisonSet &ISet);
     void ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet);
     void CollectExpressions(const Stmt *St, std::set<const Expr *> &AllExprs);
     void CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars);
     void PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title);
     bool IsVolatile(const Expr *E);
+    bool IsPointerDeref(const Expr *E);
+    bool IsChildOfPointerDeref(const Expr *E);
   };
 }
 
