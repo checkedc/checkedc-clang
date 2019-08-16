@@ -63,12 +63,6 @@ void AvailableFactsAnalysis::Analyze() {
    // Which comparisons contain pointer derefs?
    std::vector<bool> ComparisonContainsDeref;
    for (auto C : AllComparisons) {
-       llvm::outs() << "Is this pointer deref : ";
-       C.first->dumpPretty(S.Context);
-       llvm::outs() << " --> " << IsPointerDeref(C.first) << "\n";
-       llvm::outs() << "Is this pointer deref : ";
-       C.second->dumpPretty(S.Context);
-       llvm::outs() << " --> " << IsPointerDeref(C.second) << "\n";
      if (IsPointerDeref(C.first) || IsPointerDeref(C.second))
        ComparisonContainsDeref.push_back(true);
      else
@@ -274,15 +268,10 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
 // 2. `->` for accessing a member
 // 3. Array subscript `[]`
 bool AvailableFactsAnalysis::IsPointerDeref(const Expr *E) {
-  E->dump();
   if (const CastExpr *CE = dyn_cast<CastExpr>(E)) {
     if (CE->getCastKind() != CastKind::CK_LValueToRValue)
       return false;
-    //if (const CastExpr *ChildCE = dyn_cast<CastExpr>(CE->getSubExpr())) {
-      //if (ChildCE->getCastKind() != CastKind::CK_LValueBitCast)
-        //return false;
-      return IsChildOfPointerDeref(CE->getSubExpr());
-    //}
+    return IsChildOfPointerDeref(CE->getSubExpr());
   }
   return false;
 }
@@ -291,9 +280,12 @@ bool AvailableFactsAnalysis::IsChildOfPointerDeref(const Expr *E) {
   if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E))
     if (UO->getOpcode() == UO_Deref)
       return true;
-  if (const MemberExpr *ME = dyn_cast<MemberExpr>(E))
+  if (const MemberExpr *ME = dyn_cast<MemberExpr>(E)) {
     if (ME->isArrow())
       return true;
+    else
+      return IsChildOfPointerDeref(ME->getBase());
+  }
   if (const ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E))
     return true;
   if (const ParenExpr *PE = dyn_cast<ParenExpr>(E))
