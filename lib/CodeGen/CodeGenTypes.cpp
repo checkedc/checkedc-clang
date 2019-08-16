@@ -559,7 +559,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     // Existential types desugar into their inner types.
     // e.g.: '_Exists(T, struct Foo<T>)' becomes 'struct Foo<T>', which in turn
     // becomes 'struct Foo', where uses of 'T' are replaces by 'void'.
-    ResultType = ConvertType(cast<ExistentialType>(Ty)->innerType());
+    ResultType = ConvertType(dyn_cast<ExistentialType>(Ty)->innerType());
     break;
   }
   case Type::VariableArray: {
