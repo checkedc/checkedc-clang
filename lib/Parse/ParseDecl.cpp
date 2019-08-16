@@ -4976,6 +4976,9 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw__Nt_array_ptr:
   case tok::kw__Ptr:
 
+  // Checked C existential type
+  case tok::kw__Exists:
+
     return true;
   }
 }
@@ -5260,6 +5263,8 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   // Checked C scope keywords for functions/structs
   case tok::kw__Checked:
   case tok::kw__Unchecked:
+  // Checked C existential types
+  case tok::kw__Exists:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
