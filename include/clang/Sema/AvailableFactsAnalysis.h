@@ -61,7 +61,6 @@ namespace clang {
     void Next();
     void GetFacts(std::pair<ComparisonSet, ComparisonSet> &Facts);
     void DumpComparisonFacts(raw_ostream &OS, std::string Title);
-    ElevatedCFGBlock* GetBlock(std::vector<ElevatedCFGBlock *>& Blocks, CFGBlock *I);
 
   private:
     ComparisonSet Difference(ComparisonSet& S1, ComparisonSet& S2);
@@ -77,8 +76,9 @@ namespace clang {
     void PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title);
     bool IsVolatile(const Expr *E);
     bool IsPointerDeref(const Expr *E);
-    bool IsChildOfPointerDeref(const Expr *E);
+    bool IsPointerDerefLValue(const Expr *E);
     bool IsPointerAssignment(const Expr *E);
+    ElevatedCFGBlock* GetBlock(std::vector<ElevatedCFGBlock *>& Blocks, CFGBlock *I);
   };
 }
 
