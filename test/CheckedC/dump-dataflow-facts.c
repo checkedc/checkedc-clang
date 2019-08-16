@@ -418,44 +418,79 @@ void fn_10(void) {
   if (*p < a)
     b = 1;
   q = &a;
-  h(q);
 
   if (*p < q[1])
     b=1;
+  *q = 5;
 
 // CHECK-LABEL: fn_10
+// CHECK-NEXT: Block #6: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
 // CHECK-NEXT: Block #5: {
-// CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #4: {
-// CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In: (*p, a),
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #3: {
-// CHECK-NEXT: In: (*p, a), 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (*p, q[1]),
+// CHECK-DAG: (q[1], *p),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #2: {
-// CHECK-NEXT: In: 
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (*p, a),
 // CHECK-DAG: (a, *p),
 // CHECK-DAG: (*p, q[1]),
-// CHECK-DAG: (q[1], *p), 
-// CHECK-NEXT: }
-// CHECK-NEXT: Block #1: {
-// CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: 
+// CHECK-DAG: (q[1], *p),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #0: {
-// CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+}
+
+void o(int *p);
+void fn_11(void) {
+  int a, *p, b;
+  if (*p < a) {
+    b = 2;
+    o(p);
+  }
+
+// CHECK-LABEL: fn_11
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In: (*p, a),
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (*p, a),
+// CHECK-DAG: (a, *p),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 }
 
 struct st { int x; int y; };
-void fn_11(void) {
+void fn_12(void) {
   struct st *st_a;
   int b, a, *q;
 
@@ -466,71 +501,72 @@ void fn_11(void) {
   else
     if (*(q + 4) <= 8)
       a = 3;
-  q = &a;
+  (*st_a).x = 7;
 
-// CHECK-LABEL: fn_11
+// CHECK-LABEL: fn_12
 // CHECK-NEXT: Block #8: {
-// CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #7: {
-// CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #6: {
-// CHECK-NEXT: In: (st_a->x, a), 
+// CHECK-NEXT: In: (st_a->x, a),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: ((*st_a).x, b),
-// CHECK-DAG: (b, (*st_a).x), 
+// CHECK-DAG: (b, (*st_a).x),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #5: {
-// CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #3: {
-// CHECK-NEXT: In: (b, (*st_a).x), 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In: (b, (*st_a).x),
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In:
 // CHECK-DAG: (b, (*st_a).x),
-// CHECK-DAG: (*(q + 4), 8), 
+// CHECK-DAG: (*(q + 4), 8),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (st_a->x, a),
-// CHECK-DAG: (a, st_a->x), 
+// CHECK-DAG: (a, st_a->x),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #4: {
-// CHECK-NEXT: In: ((*st_a).x, b), 
+// CHECK-NEXT: In: ((*st_a).x, b),
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (st_a->x, a),
-// CHECK-DAG: (a, st_a->x), 
+// CHECK-DAG: (a, st_a->x),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #1: {
-// CHECK-NEXT: In: 
+// CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
 // CHECK-DAG: (st_a->x, a),
 // CHECK-DAG: (a, st_a->x),
 // CHECK-DAG: ((*st_a).x, b),
 // CHECK-DAG: (b, (*st_a).x),
 // CHECK-DAG: (8, *(q + 4)),
-// CHECK-DAG: (*(q + 4), 8), 
+// CHECK-DAG: (*(q + 4), 8),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #0: {
-// CHECK-NEXT: In: 
-// CHECK-NEXT: Kill: 
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 }
 
 // --- More complex cases --- //
 
-void fn_12(void) {
-  static int X;
+void fn_13(void) {
+  static int x, y;
   int i, a;
-  X = (X+1) & 1023;
-  if (X != 0) return;
-  for (i = 0; i < a; i++) _Unchecked { printf("\n"); }
+  y = a = x;
+  if (x != 0) return;
+  for (i = 0, x = (x + i) & 1023; i < a; i++)
+    _Unchecked { printf("\n"); }
 
-// CHECK-LABEL: fn_12
+// CHECK-LABEL: fn_13
 // CHECK-NEXT: Block #7: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -538,12 +574,14 @@ void fn_12(void) {
 // CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
-// CHECK-DAG: (0, X),
-// CHECK-DAG: (X, 0),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
+// CHECK-DAG: (0, x),
+// CHECK-DAG: (x, 0),
 // CHECK-NEXT: Kill:
+// CHECK-DAG: (0, x),
+// CHECK-DAG: (x, 0),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #3: {
 // CHECK-NEXT: In:
@@ -567,7 +605,7 @@ void fn_12(void) {
 // CHECK-NEXT: }
 }
 
-void fn_13(void) {
+void fn_14(void) {
   int a, b, c, d;
   _Array_ptr<int> arr1 : count(10) = 0;
   _Array_ptr<int> arr2 : count(10) = 0;
@@ -588,7 +626,7 @@ void fn_13(void) {
     d--;
   }
 
-// CHECK-LABEL: fn_13
+// CHECK-LABEL: fn_14
 // CHECK-NEXT: Block #11: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
@@ -596,8 +634,8 @@ void fn_13(void) {
 // CHECK-NEXT: Block #10: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
-// CHECK-DAG: (a, arr2[c]),
 // CHECK-DAG: (arr1[c], a),
+// CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #9: {
 // CHECK-NEXT: In:
@@ -614,6 +652,8 @@ void fn_13(void) {
 // CHECK-NEXT: Block #2: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
+// CHECK-DAG: (arr1[c], a),
+// CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #1: {
 // CHECK-NEXT: In:
@@ -630,24 +670,28 @@ void fn_13(void) {
 // CHECK-NEXT: Block #5: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
+// CHECK-DAG: (arr1[c], a),
+// CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #6: {
 // CHECK-NEXT: In:
-// CHECK-DAG: (a, arr2[c]),
 // CHECK-DAG: (arr1[c], a),
+// CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: Kill:
+// CHECK-DAG: (arr1[c], a),
+// CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: }
 // CHECK-NEXT: Block #4: {
 // CHECK-NEXT: In:
-// CHECK-NEXT: Kill
+// CHECK-NEXT: Kill:
 // CHECK-DAG: (arr1[c], a),
-// CHECK-DAG: (a, arr2[c]), 
+// CHECK-DAG: (a, arr2[c]),
 // CHECK-NEXT: }
 }
 
 int j(_Ptr<char> i);
 _Ptr<char> k(void);
-void fn_14(void) {
+void fn_15(void) {
   unsigned int i = 0;
   int m = 0;
   _Ptr<char> r = 0;
@@ -676,7 +720,7 @@ void fn_14(void) {
   }
   m = -1;
 
-// CHECK-LABEL: fn_14
+// CHECK-LABEL: fn_15
 // CHECK-NEXT: Block #18: {
 // CHECK-NEXT: In:
 // CHECK-NEXT: Kill:
