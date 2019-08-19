@@ -2321,6 +2321,11 @@ static BinOpInfo createBinOpInfoFromIncDec(const UnaryOperator *E,
 
 static void emitDynamicNonNullCheck(CodeGenFunction &CGF,
                                     Value *Val, QualType Ty) {
+llvm::dbgs() << "### BEFORE\n";
+  if (!CGF.CGM.getCodeGenOpts().CheckedCNullPtrArith)
+    return;
+
+llvm::dbgs() << "### AFTER\n";
   CGF.EmitDynamicNonNullCheck(Val, Ty);
 }
 

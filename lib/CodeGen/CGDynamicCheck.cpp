@@ -58,10 +58,8 @@ void CodeGenFunction::EmitExplicitDynamicCheck(const Expr *Condition) {
 
 static bool shouldEmitNonNullCheck(const CodeGenModule &CGM,
                                    const QualType BaseTy) {
+llvm::dbgs() << "### BEFORE2\n";
   if (!CGM.getLangOpts().CheckedC)
-    return false;
-
-  if (!CGM.getCodeGenOpts().CheckedCNullPtrChecks)
     return false;
 
   if (!(BaseTy->isCheckedPointerType() || BaseTy->isCheckedArrayType()))
@@ -74,6 +72,7 @@ void CodeGenFunction::EmitDynamicNonNullCheck(const Address BaseAddr,
                                               const QualType BaseTy) {
   if (!shouldEmitNonNullCheck(CGM, BaseTy))
     return;
+llvm::dbgs() << "### AFTER2\n";
 
   ++NumDynamicChecksNonNull;
 

@@ -4721,8 +4721,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_fno_checkedc_extension);
   Args.AddLastArg(CmdArgs, options::OPT_fdump_inferred_bounds);
 
-  Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_null_ptr_checks,
-                           options::OPT_fno_checkedc_null_ptr_checks);
+  Args.AddLastArg(CmdArgs, options::OPT_fcheckedc_null_ptr_arith,
+                           options::OPT_fno_checkedc_null_ptr_arith);
 
   // -fno-declspec is default, except for PS4.
   if (Args.hasFlag(options::OPT_fdeclspec, options::OPT_fno_declspec,
