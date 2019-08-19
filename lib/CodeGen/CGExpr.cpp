@@ -2623,6 +2623,10 @@ LValue CodeGenFunction::EmitUnaryOpLValue(const UnaryOperator *E) {
     EmitDynamicNonNullCheck(Addr, BaseTy);
     EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), E->getBoundsCheckKind(),
                            nullptr);
+
+    // Checked C: Check for Struct ID matching.
+    EmitDynamicStructIDCheck(E->getSubExpr());
+
     // We should not generate __weak write barrier on indirect reference
     // of a pointer to object; as in void foo (__weak id *param); *param = 0;
     // But, we continue to generate __strong write barrier on indirect write
