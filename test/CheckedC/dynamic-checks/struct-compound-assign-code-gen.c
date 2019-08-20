@@ -1,6 +1,6 @@
 
 // RUN: %clang_cc1 -fcheckedc-extension %s -ast-dump | FileCheck %s --check-prefix=CHECK-AST
-// RUN: %clang_cc1 -fcheckedc-extension %s -emit-llvm -O0 -o - | FileCheck %s --check-prefix=CHECK-IR
+// RUN: %clang_cc1 -fcheckedc-extension -fno-checkedc-null-ptr-arith %s -emit-llvm -O0 -o - | FileCheck %s --check-prefix=CHECK-IR
 
 // In the following generated IR, we do not verify the alignment of any loads/stores
 // ie, the IR checked by line 37 might read "%1 = load i32*, i32** @gp1, align 4"
