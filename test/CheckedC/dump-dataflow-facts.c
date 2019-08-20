@@ -822,3 +822,77 @@ void fn_15(void) {
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 }
+
+struct st_80;
+struct st_80_arr {
+    struct st_80 **e : itype(_Array_ptr<_Ptr<struct st_80>>) count(c);
+    int d;
+    int c;
+};
+void fn_16(_Ptr<struct st_80_arr> arr, int b) {
+  _Array_ptr<_Ptr<struct st_80>> a : count(b) = 0;
+  if (arr->c <= b) {
+    arr->c = b * b;
+    arr->e = a;
+  }
+// CHECK-LABEL: fn_16
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In: (arr->c, b),
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (arr->c, b),
+// CHECK-DAG: (b, arr->c),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+}
+
+void fn_17(void) {
+  int a, b, c;
+  while (((c) = a) < 2) {
+    if (c < b)
+      ((c))++;
+  }
+// CHECK-LABEL: fn_17
+// CHECK-NEXT: Block #6: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #5: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (c, b),
+// CHECK-DAG: (b, c),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In: (c, b),
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (c, b),
+// CHECK-DAG: (b, c),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+}
