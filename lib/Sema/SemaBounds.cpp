@@ -2182,12 +2182,12 @@ namespace {
       if (ConstantPart1 != ConstantPart2)
         return false;
 
-      bool EqualWithoutFacts = EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs);
-      bool LEWithFacts = FactExists(Ctx, VariablePart1, VariablePart2, EquivExprs, Facts);
-      if (!EqualWithoutFacts && !LEWithFacts)
-        return false;
+      if (EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
+        return true;
+      if (FactExists(Ctx, VariablePart1, VariablePart2, EquivExprs, Facts))
+        return true;
 
-      return true;
+      return false;
     }
 
     // Given `Facts`, `E1`, and `E2`, this function looks for the fact `E1 <= E2` inside
