@@ -63,7 +63,7 @@ void AvailableFactsAnalysis::Analyze() {
   // Which comparisons contain pointer derefs?
   std::vector<bool> ComparisonContainsDeref;
   for (auto C : AllComparisons) {
-    if (IsPointerDeref(C.first) || IsPointerDeref(C.second))
+    if (ContainsPointerDeref(C.first) || ContainsPointerDeref(C.second))
       ComparisonContainsDeref.push_back(true);
     else
       ComparisonContainsDeref.push_back(false);
@@ -74,7 +74,7 @@ void AvailableFactsAnalysis::Analyze() {
   for (unsigned int Index = 0; Index < Blocks.size(); Index++) {
     for (CFGElement Elem : *(Blocks[Index]->Block))
       if (const Expr *E = dyn_cast<Expr>(Elem.castAs<CFGStmt>().getStmt()))
-        if (IsPointerAssignment(E)) {
+        if (ContainsPointerAssignment(E)) {
           PointerAssignmentInBlocks[Index] = true;
           break;
         }
@@ -144,10 +144,9 @@ void AvailableFactsAnalysis::Analyze() {
     // Update Out Set
     ComparisonSet OldOutThen = CurrentBlock->OutThen;
     ComparisonSet OldOutElse = CurrentBlock->OutElse;
-    ComparisonSet UnionThen = Union(CurrentBlock->In, CurrentBlock->GenThen);
-    ComparisonSet UnionElse = Union(CurrentBlock->In, CurrentBlock->GenElse);
-    CurrentBlock->OutThen = Difference(UnionThen, CurrentBlock->Kill);
-    CurrentBlock->OutElse = Difference(UnionElse, CurrentBlock->Kill);
+    ComparisonSet Diff = Difference(CurrentBlock->In, CurrentBlock->Kill);
+    CurrentBlock->OutThen = Union(Diff, CurrentBlock->GenThen);
+    CurrentBlock->OutElse = Union(Diff, CurrentBlock->GenElse);
 
     // Recompute the Affected Blocks and _uniquely_ add them to the worklist
     if (Differ(OldOutThen, CurrentBlock->OutThen) ||
@@ -164,6 +163,7 @@ void AvailableFactsAnalysis::Analyze() {
 
     if (++Iteration > (2 * Blocks.size()))
       break;
+
   }
 
   for (auto B : Blocks)
@@ -252,11 +252,16 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
   std::set<const Expr *> Exprs;
   CollectExpressions(I.first, Exprs);
   CollectExpressions(I.second, Exprs);
-  for (auto InnerExpr : Exprs)
-    if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(InnerExpr))
-      if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl()))
-        if (VD == V)
-          return true;
+  for (auto InnerExpr : Exprs) {
+    if (const CastExpr *CE = dyn_cast<CastExpr>(InnerExpr)) {
+      if (CE->getCastKind() != CK_LValueToRValue)
+        return false;
+      if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(CE->getSubExpr()))
+        if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl()))
+          if (VD == V)
+            return true;
+    }
+  }
   return false;
 }
 
@@ -266,32 +271,34 @@ bool AvailableFactsAnalysis::ContainsVariable(Comparison& I, const VarDecl *V) {
 // - If the child of `E` is `e`, then `f(e)` must be true. `f(e)` is defined in
 //   a separate function `IsPointerDerefLValue`.
 // Otherwise, the function returns false;
-bool AvailableFactsAnalysis::IsPointerDeref(const Expr *E) {
+bool AvailableFactsAnalysis::ContainsPointerDeref(const Expr *E) {
   if (const CastExpr *CE = dyn_cast<CastExpr>(E)) {
     if (CE->getCastKind() != CastKind::CK_LValueToRValue)
       return false;
     return IsPointerDerefLValue(CE->getSubExpr());
   }
+  for (auto Child : E->children())
+    if (const Expr *EChild = dyn_cast<Expr>(Child))
+      if (ContainsPointerDeref(EChild))
+        return true;
   return false;
 }
 
-bool AvailableFactsAnalysis::IsPointerAssignment(const Expr *E) {
-  if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
+bool AvailableFactsAnalysis::ContainsPointerAssignment(const Expr *E) {
+  if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E))
     if (BO->isAssignmentOp())
       if (IsPointerDerefLValue(BO->getLHS()))
         return true;
-  }
-  if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+  if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E))
     if (UO->isIncrementDecrementOp())
       if (IsPointerDerefLValue(UO->getSubExpr()))
         return true;
-  }
-  if (const CallExpr *CE = dyn_cast<CallExpr>(E)) {
-    for (int ArgIndex = 0; ArgIndex < CE->getNumArgs(); ArgIndex++) {
-      if (CE->getArg(ArgIndex)->getType()->isAnyPointerType())
+  if (const CallExpr *CE = dyn_cast<CallExpr>(E))
+    return true;
+  for (auto Child : E->children())
+    if (const Expr *EChild = dyn_cast<Expr>(Child))
+      if (ContainsPointerAssignment(EChild))
         return true;
-    }
-  }
   return false;
 }
 
@@ -323,31 +330,6 @@ bool AvailableFactsAnalysis::IsPointerDerefLValue(const Expr *E) {
   return false;
 }
 
-// This function return true if an expression is volatile, and false otherwise.
-// An expression is volatile if there is at least one volatile variable in it.
-bool AvailableFactsAnalysis::IsVolatile(const Expr *E) {
-  if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E))
-    if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl()))
-      if (VD->getType().isVolatileQualified())
-        return true;
-  for (auto Child : E->children()) {
-    if (const Expr *EChild = dyn_cast<Expr>(Child))
-      if (IsVolatile(EChild))
-        return true;
-  }
-  return false;
-}
-
-bool AvailableFactsAnalysis::ContainsCallExpr(const Expr *E) {
-  if (const CallExpr *CE = dyn_cast<CallExpr>(E))
-    return true;
-  for (auto Child : E->children())
-    if (const Expr *EChild = dyn_cast<Expr>(Child))
-      if (ContainsCallExpr(EChild))
-        return true;
-  return false;
-}
-
 // This function computes a list of comparisons E1 <= E2 from `E`.
 // - If `E` is a simple direct comparison expression `A op B`, then the comparison
 // can be created if `op` is one of LE, LT, GE, GT, or EQ.
@@ -360,7 +342,9 @@ bool AvailableFactsAnalysis::ContainsCallExpr(const Expr *E) {
 // - `E` has the form `E1 && E2`: ExtractComparisons in E1 and E2 and add them to `ISet`.
 // TODO: handle the case where logical negation operator (!) is used.
 void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &ISet) {
-  if (IsVolatile(E) || ContainsCallExpr(E))
+  if (!S.CheckIsNonModifying(const_cast<Expr *>(E),
+                             Sema::NonModifyingContext::NMC_Unknown,
+                             Sema::NonModifyingMessage::NMM_None))
     return;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens())) {
     switch (BO->getOpcode()) {
@@ -398,7 +382,9 @@ void AvailableFactsAnalysis::ExtractComparisons(const Expr *E, ComparisonSet &IS
 // - `E` has the form `E1 || E2`: ExtractNegatedComparisons in E1 and E2 and add
 //   them to `ISet`.
 void AvailableFactsAnalysis::ExtractNegatedComparisons(const Expr *E, ComparisonSet &ISet) {
-  if (IsVolatile(E) || ContainsCallExpr(E))
+  if (!S.CheckIsNonModifying(const_cast<Expr *>(E),
+                             Sema::NonModifyingContext::NMC_Unknown,
+                             Sema::NonModifyingMessage::NMM_None))
     return;
   if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E->IgnoreParens()))
     switch (BO->getOpcode()) {
@@ -436,13 +422,15 @@ void AvailableFactsAnalysis::CollectExpressions(const Stmt *St, std::set<const E
 // We assume a variable is defined if it appears in the lhs of an assignment:
 // 1. increment or decrement operator (a++)
 // 2. assignment operator (a += 1, a = 2)
+// Any parenthesis, LValueBitCast or NoOp cast is ignored when searching
+// for defined variables.
 void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const VarDecl *> &DefinedVars) {
   if (!St)
     return;
 
   if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(St)) {
     if (BO->isAssignmentOp()) {
-      Expr *LHS = BO->getLHS()->IgnoreParenNoopCasts(S.Context);
+      Expr *LHS = IgnoreParenNoOpLValueBitCasts(BO->getLHS());
       if (const CastExpr *CE = dyn_cast<const CastExpr>(LHS))
         if (CE->getCastKind() == CK_LValueBitCast)
           LHS = const_cast<Expr*>(CE->getSubExpr());
@@ -453,7 +441,7 @@ void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const V
   }
   if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(St)) {
     if (UO->isIncrementDecrementOp()) {
-      Expr *LHS = UO->getSubExpr();
+      Expr *LHS = IgnoreParenNoOpLValueBitCasts(UO->getSubExpr());
       if (const CastExpr *CE = dyn_cast<const CastExpr>(LHS))
         if (CE->getCastKind() == CK_LValueBitCast)
           LHS = const_cast<Expr*>(CE->getSubExpr());
@@ -466,6 +454,40 @@ void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const V
 
   for (auto I : St->children())
     CollectDefinedVars(I, DefinedVars);
+}
+
+// Ignore parenthesis, NoOp, and LValueBitCasts until nothing changes.
+// This function is a modification of the original IgnoreParenCasts().
+Expr *AvailableFactsAnalysis::IgnoreParenNoOpLValueBitCasts(Expr *E) {
+  while (true) {
+    E = E->IgnoreParens();
+    if (CastExpr *P = dyn_cast<CastExpr>(E)) {
+      if (P->getCastKind() == CK_LValueBitCast ||
+          P->getCastKind() == CK_NoOp) {
+        E = P->getSubExpr();
+        continue;
+      }
+    }
+    if (MaterializeTemporaryExpr *Materialize
+                                      = dyn_cast<MaterializeTemporaryExpr>(E)) {
+      E = Materialize->GetTemporaryExpr();
+      continue;
+    }
+    if (SubstNonTypeTemplateParmExpr *NTTP
+                                  = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
+      E = NTTP->getReplacement();
+      continue;
+    }
+    if (FullExpr *FE = dyn_cast<FullExpr>(E)) {
+      E = FE->getSubExpr();
+      continue;
+    }
+    if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E)) {
+      E = Binding->getSubExpr();
+      continue;
+    }
+    return E;
+  }
 }
 
 void AvailableFactsAnalysis::PrintComparisonSet(raw_ostream &OS, ComparisonSet &ISet, std::string Title) {
