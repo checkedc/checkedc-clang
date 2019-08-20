@@ -431,9 +431,6 @@ void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const V
   if (const BinaryOperator *BO = dyn_cast<const BinaryOperator>(St)) {
     if (BO->isAssignmentOp()) {
       Expr *LHS = IgnoreParenNoOpLValueBitCasts(BO->getLHS());
-      if (const CastExpr *CE = dyn_cast<const CastExpr>(LHS))
-        if (CE->getCastKind() == CK_LValueBitCast)
-          LHS = const_cast<Expr*>(CE->getSubExpr());
       if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS))
         if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
           DefinedVars.insert(V);
@@ -442,9 +439,6 @@ void AvailableFactsAnalysis::CollectDefinedVars(const Stmt *St, std::set<const V
   if (const UnaryOperator *UO = dyn_cast<const UnaryOperator>(St)) {
     if (UO->isIncrementDecrementOp()) {
       Expr *LHS = IgnoreParenNoOpLValueBitCasts(UO->getSubExpr());
-      if (const CastExpr *CE = dyn_cast<const CastExpr>(LHS))
-        if (CE->getCastKind() == CK_LValueBitCast)
-          LHS = const_cast<Expr*>(CE->getSubExpr());
       if (const DeclRefExpr *D = dyn_cast<const DeclRefExpr>(LHS)) {
         if (const VarDecl *V = dyn_cast<const VarDecl>(D->getDecl()))
           DefinedVars.insert(V);
@@ -468,13 +462,11 @@ Expr *AvailableFactsAnalysis::IgnoreParenNoOpLValueBitCasts(Expr *E) {
         continue;
       }
     }
-    if (MaterializeTemporaryExpr *Materialize
-                                      = dyn_cast<MaterializeTemporaryExpr>(E)) {
+    if (MaterializeTemporaryExpr *Materialize = dyn_cast<MaterializeTemporaryExpr>(E)) {
       E = Materialize->GetTemporaryExpr();
       continue;
     }
-    if (SubstNonTypeTemplateParmExpr *NTTP
-                                  = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
+    if (SubstNonTypeTemplateParmExpr *NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
       E = NTTP->getReplacement();
       continue;
     }
