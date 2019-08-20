@@ -144,10 +144,9 @@ void AvailableFactsAnalysis::Analyze() {
     // Update Out Set
     ComparisonSet OldOutThen = CurrentBlock->OutThen;
     ComparisonSet OldOutElse = CurrentBlock->OutElse;
-    ComparisonSet UnionThen = Union(CurrentBlock->In, CurrentBlock->GenThen);
-    ComparisonSet UnionElse = Union(CurrentBlock->In, CurrentBlock->GenElse);
-    CurrentBlock->OutThen = Difference(UnionThen, CurrentBlock->Kill);
-    CurrentBlock->OutElse = Difference(UnionElse, CurrentBlock->Kill);
+    ComparisonSet Diff = Difference(CurrentBlock->In, CurrentBlock->Kill);
+    CurrentBlock->OutThen = Union(Diff, CurrentBlock->GenThen);
+    CurrentBlock->OutElse = Union(Diff, CurrentBlock->GenElse);
 
     // Recompute the Affected Blocks and _uniquely_ add them to the worklist
     if (Differ(OldOutThen, CurrentBlock->OutThen) ||
@@ -164,6 +163,7 @@ void AvailableFactsAnalysis::Analyze() {
 
     if (++Iteration > (2 * Blocks.size()))
       break;
+
   }
 
   for (auto B : Blocks)
