@@ -896,3 +896,110 @@ void fn_17(void) {
 // CHECK-NEXT: Kill:
 // CHECK-NEXT: }
 }
+
+void fn_18(void) {
+  int a, b;
+  _Array_ptr<int> v1 : count(3) = 0;
+  int v2 _Checked[2];
+  int v3 _Checked[3][3];
+  if (v2[1] < v2[0])
+    (v1[0])++;
+  v3[0][a]--;
+
+// CHECK-LABEL: fn_18
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In: (v2[1], v2[0]),
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (v2[1], v2[0]),
+// CHECK-DAG: (v2[0], v2[1]),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (v2[1], v2[0]),
+// CHECK-DAG: (v2[0], v2[1]),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+}
+
+void fn_19(void) {
+  int a, b;
+  _Array_ptr<int> v1 : count(3) = 0;
+  int v2 _Checked[2];
+  if (v2[1] < v2[0])
+    (v1[0])++;
+  (*v2)++;
+
+// CHECK-LABEL: fn_19
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In: (v2[1], v2[0]),
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (v2[1], v2[0]),
+// CHECK-DAG: (v2[0], v2[1]),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (v2[1], v2[0]),
+// CHECK-DAG: (v2[0], v2[1]),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+}
+
+typedef struct {
+  int f1;
+} S1;
+void fn_20(void) {
+  int a;
+  _Array_ptr<S1> gp1 : count(3) = 0;
+  _Array_ptr<S1> gp3 : count(3) = 0;
+  if (gp3->f1 != 0)
+    ++(a);
+  (gp3 + 2)->f1 += 1;
+
+// CHECK-LABEL: fn_20
+// CHECK-NEXT: Block #4: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #3: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #2: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #1: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-DAG: (0, gp3->f1),
+// CHECK-DAG: (gp3->f1, 0),
+// CHECK-NEXT: }
+// CHECK-NEXT: Block #0: {
+// CHECK-NEXT: In:
+// CHECK-NEXT: Kill:
+// CHECK-NEXT: }
+}
