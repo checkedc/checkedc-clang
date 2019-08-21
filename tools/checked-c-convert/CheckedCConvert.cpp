@@ -7,7 +7,6 @@
 //
 //===----------------------------------------------------------------------===//
 #include "clang/AST/ASTConsumer.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Rewrite/Core/Rewriter.h"
@@ -15,24 +14,19 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Option/OptTable.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
 
 #include <algorithm>
-#include <map>
-#include <sstream>
 
 #include "Constraints.h"
 
 #include "ConstraintBuilder.h"
-#include "PersistentSourceLoc.h"
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "RewriteUtils.h"
-#include "ArrayBoundsInferenceConsumer.h"
 
 using namespace clang::driver;
 using namespace clang::tooling;
@@ -168,16 +162,15 @@ std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTypin
   unsigned numIterations = 0;
   std::pair<Constraints::ConstraintSet, bool> toRet;
   bool fixed = false;
-  while(!fixed) {
+  while (!fixed) {
     toRet = CS.solve(numIterations);
-    if(numIterations > 1) {
+    if (numIterations > 1)
       // this means we have made some changes to the environment
       // see if the function subtype handling causes any changes?
       fixed = !Info.handleFunctionSubtyping();
-    } else {
+    else
       // we reached a fixed point.
       fixed = true;
-    }
   }
   return toRet;
 }
@@ -210,9 +203,8 @@ int main(int argc, const char **argv) {
 
   for (const auto &S : args) {
     std::string abs_path;
-    if(getAbsoluteFilePath(S, abs_path)) {
+    if (getAbsoluteFilePath(S, abs_path))
       inoutPaths.insert(abs_path);
-    }
   }
 
   if (OutputPostfix == "-" && inoutPaths.size() > 1) {
@@ -250,7 +242,7 @@ int main(int argc, const char **argv) {
     outs() << "Writing json output to:" << ConstraintOutputJson << "\n";
     std::error_code ec;
     llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
-    if(!output_json.has_error()) {
+    if (!output_json.has_error()) {
       Info.dump_json(output_json);
       output_json.close();
     } else {

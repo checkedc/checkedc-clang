@@ -97,9 +97,8 @@ bool DComp::operator()(const DAndReplace lhs, const DAndReplace rhs) const {
 }
 
 // Test to see if we can rewrite a given SourceRange.
-// Note that R.getRangeSize will return -1 if SR is within
-// a macro as well. This means that we can't re-write any
-// text that occurs within a macro.
+// Note that R.getRangeSize will return -1 if SR is within a macro as well.
+// This means that we can't re-write any text that occurs within a macro.
 static bool canRewrite(Rewriter &R, SourceRange &SR) {
   return SR.isValid() && (R.getRangeSize(SR) != -1);
 }
@@ -363,16 +362,16 @@ bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
   bool anyTopFound = false;
   Constraints &CS = Info.getConstraints();
   Constraints::EnvironmentMap &env = CS.getVariables();
-  for (ConstraintVariable *c : C) {
-    if (PointerVariableConstraint *pvc = dyn_cast<PointerVariableConstraint>(c)) {
+  for (ConstraintVariable *c : C)
+    if (PointerVariableConstraint *pvc = dyn_cast<PointerVariableConstraint>(c))
       for (uint32_t v : pvc->getCvars()) {
         ConstAtom *CK = env[CS.getVar(v)];
         if (CK->getKind() == Atom::A_Wild) {
           anyTopFound = true;
+          break;
         }
       }
-    }
-  }
+
   return anyTopFound;
 }
 
@@ -381,14 +380,11 @@ std::string CastPlacementVisitor::getExistingIType(ConstraintVariable *decl,
                                                    FunctionDecl *funcDecl) {
   std::string ret = "";
   ConstraintVariable *target = decl;
-  if(funcDecl == nullptr) {
+  if (funcDecl == nullptr)
     target = defn;
-  }
-  if (PVConstraint *PVC = dyn_cast<PVConstraint>(target)) {
-    if (PVC->getItypePresent()) {
+  if (PVConstraint *PVC = dyn_cast<PVConstraint>(target))
+    if (PVC->getItypePresent())
       ret = " : " + PVC->getItype();
-    }
-  }
   return ret;
 }
 
@@ -413,7 +409,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FunctionDecl *Definition = getDefinition(FD);
   FunctionDecl *Declaration = getDeclaration(FD);
 
-  if(Definition == nullptr)
+  if (Definition == nullptr)
     return true;
 
   // Make sure we haven't visited this function name before, and that we
@@ -429,16 +425,15 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   FVConstraint *cDecl = nullptr;
   // Get constraint variables for the declaration and the definition.
   // Those constraints should be function constraints.
-  if(Declaration == nullptr) {
+  if (Declaration == nullptr) {
     // if there is no declaration?
     // get the on demand function variable constraint.
     auto funcDefKey = Info.getUniqueFuncKey(Definition, Context);
     auto &onDemandMap = Info.getOnDemandFuncDeclConstraintMap();
-    if(onDemandMap.find(funcDefKey) != onDemandMap.end()) {
+    if (onDemandMap.find(funcDefKey) != onDemandMap.end())
       cDecl = dyn_cast<FVConstraint>(getHighest(onDemandMap[funcDefKey], Info));
-    } else {
+    else
       cDecl = cDefn;
-    }
   } else {
     cDecl = dyn_cast<FVConstraint>(
       getHighest(Info.getVariableOnDemand(Declaration, Context, false), Info));
@@ -464,23 +459,21 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
+      if (anyConstrained && Decl->hasWild(Info.getConstraints().getVariables())) {
         std::string scratch = "";
         raw_string_ostream declText(scratch);
         Definition->getParamDecl(i)->print(declText);
-        // if definition is more precise
-        // than declaration emit an itype
+        // if definition is more precise than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string bi = declText.str() + " : itype("+ctype+") ";
+        std::string bi = declText.str() + " : itype("+ctype+")";
         parmStrs.push_back(bi);
       } else if (anyConstrained) {
-        // both the declaration and definition are same
-        // and they are safer than what was originally declared.
-        // here we should emit a checked type!
+        // both the declaration and definition are same and they are safer
+        // than what was originally declared. Here we should emit a checked
+        // type!
         std::string v = Defn->mkString(Info.getConstraints().getVariables());
 
-        // if there is no declaration?
-        // check the itype in definition
+        // if there is no declaration? check the itype in definition
         v = v + getExistingIType(Decl, Defn, Declaration);
         parmStrs.push_back(v);
       } else {
@@ -500,24 +493,22 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     std::string endStuff = "";
     bool returnHandled = false;
     bool anyConstrained = Defn->anyChanges(Info.getConstraints().getVariables());
-    if(anyConstrained) {
+    if (anyConstrained) {
       returnHandled = true;
       std::string ctype = "";
       didAny = true;
       // definition is more precise than declaration.
       // Section 5.3:
       // https://www.microsoft.com/en-us/research/uploads/prod/2019/05/checkedc-post2019.pdf
-      if(Decl->hasWild(Info.getConstraints().getVariables())) {
+      if (Decl->hasWild(Info.getConstraints().getVariables())) {
         ctype = Defn->mkString(Info.getConstraints().getVariables(), true, true);
         returnVar = Defn->getOriginalTy();
-        endStuff = " : itype("+ctype+") ";
+        endStuff = " : itype("+ctype+")";
       } else {
-        // this means we were able to infer that return type
-        // is a checked type.
-        // however, the function returns a less precise type, whereas
-        // all the uses of the function converts the return value
-        // into a more precise type.
-        // do not change the type
+        // this means we were able to infer that return type is a checked type.
+        // however, the function returns a less precise type, whereas all the
+        // uses of the function converts the return value into a more precise
+        // type. do not change the type.
         returnVar = Decl->mkString(Info.getConstraints().getVariables());
         endStuff = getExistingIType(Decl, Defn, Declaration);
       }
@@ -525,14 +516,13 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
     // this means inside the function, the return value is WILD
     // so the return type is what was originally declared.
-    if(!returnHandled) {
+    if (!returnHandled) {
       // If we used to implement a bounds-safe interface, continue to do that.
       returnVar = Decl->getOriginalTy() + " ";
 
       endStuff = getExistingIType(Decl, Defn, Declaration);
-      if(!endStuff.empty()) {
+      if (!endStuff.empty())
         didAny = true;
-      }
     }
 
     s = getStorageQualifierString(Definition) + returnVar + cDecl->getName() + "(";
@@ -634,9 +624,8 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
   SmallString<254> baseAbs(BaseDir);
   std::string baseDirFP;
-  if(getAbsoluteFilePath(BaseDir, baseDirFP)) {
+  if (getAbsoluteFilePath(BaseDir, baseDirFP))
     baseAbs = baseDirFP;
-  }
   sys::path::remove_filename(baseAbs);
   std::string base = baseAbs.str();
 
@@ -669,11 +658,10 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           // Write this file out if it was specified as a file on the command
           // line.
           std::string feAbsS = "";
-          if(getAbsoluteFilePath(FE->getName(), feAbsS)) {
+          if (getAbsoluteFilePath(FE->getName(), feAbsS))
             feAbsS = sys::path::remove_leading_dotslash(feAbsS);
-          }
 
-          if(canWrite(feAbsS, InOutFiles, base)) {
+          if (canWrite(feAbsS, InOutFiles, base)) {
             std::error_code EC;
             raw_fd_ostream out(nFile, EC, sys::fs::F_None);
 
@@ -684,10 +672,9 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
             }
             else
               errs() << "could not open file " << nFile << "\n";
-            // This is awkward. What to do? Since we're iterating,
-            // we could have created other files successfully. Do we go back
-            // and erase them? Is that surprising? For now, let's just keep
-            // going.
+            // This is awkward. What to do? Since we're iterating, we could
+            // have created other files successfully. Do we go back and erase
+            // them? Is that surprising? For now, let's just keep going.
           }
         }
 }
@@ -716,7 +703,7 @@ public:
     std::set<ConstraintVariable*> a;
     // check if the function body exists before
     // fetching inbody variable.
-    if(hasFunctionBody(D)) {
+    if (isDeclarationParam(D)) {
       a = Info.getVariable(D, Context, true);
     }
 
@@ -926,15 +913,14 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
           FV = T;
       }
 
-
       if (PV && PV->anyChanges(Info.getConstraints().getVariables()) && !PV->isPartOfFunctionPrototype()) {
         // Rewrite a declaration, only if it is not part of function prototype
         std::string newTy = getStorageQualifierString(D) + PV->mkString(Info.getConstraints().getVariables());
         rewriteThese.insert(DAndReplace(D, DS, newTy));
       } else if (FV && RewriteConsumer::hasModifiedSignature(FV->getName()) &&
                  !CPV.isFunctionVisited(FV->getName())) {
-        // if this function already has a modified signature? and it is not
-        // visited by our cast placement visitor then rewrite it.
+        // Rewrite a function variables return value. Only if this function is
+        // NOT handled by the cast placement visitor
         std::string newSig = RewriteConsumer::getModifiedFuncSignature(FV->getName());
         rewriteThese.insert(DAndReplace(D, newSig, true));
       }

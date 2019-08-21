@@ -13,26 +13,23 @@
 // This visitor handles the bounds of function local array variables.
 
 bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
-  Expr *LHS = removeImpCasts(O->getLHS());
-  Expr *RHS = removeImpCasts(O->getRHS());
+  Expr *LHS = O->getLHS()->IgnoreImpCasts();
+  Expr *RHS = O->getRHS()->IgnoreImpCasts();
 
   Expr *sizeExpression;
   // is the RHS expression a call to allocator function?
-  if(isAllocatorCall(RHS, &sizeExpression)) {
-    // if this an allocator function then
-    // sizeExpression contains the argument
-    // used for size argument
+  if (isAllocatorCall(RHS, &sizeExpression)) {
+    // if this is an allocator function then sizeExpression contains the
+    // argument used for size argument
 
-    // if LHS is just a variable?
-    // i.e., ptr = ..
-    // if yes, get the AST node of the target variable
+    // if LHS is just a variable? i.e., ptr = .., get the AST node of the
+    // target variable
     Decl *targetVar;
-    if(isExpressionSimpleLocalVar(LHS, &targetVar)) {
-      if(Info.isIdentifiedArrayVar(targetVar)) {
+    if (isExpressionSimpleLocalVar(LHS, &targetVar)) {
+      if (Info.isIdentifiedArrayVar(targetVar))
         Info.addAllocationBasedSizeExpr(targetVar, sizeExpression);
-      } else {
+      else
         dumpNotArrayIdentifiedVariable(targetVar, RHS, llvm::dbgs());
-      }
     }
   }
 
@@ -41,48 +38,42 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
 
 bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
   // Build rules based on initializers.
-  for (const auto &D : S->decls()) {
+  for (const auto &D : S->decls())
     if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
       Expr *InitE = VD->getInit();
       Expr *sizeArg;
-      if(isAllocatorCall(InitE, &sizeArg)) {
-        if(Info.isIdentifiedArrayVar(D)) {
+      if (isAllocatorCall(InitE, &sizeArg)) {
+        if (Info.isIdentifiedArrayVar(D))
           Info.addAllocationBasedSizeExpr(D, sizeArg);
-        } else {
+        else
           dumpNotArrayIdentifiedVariable(D, InitE, llvm::dbgs());
-        }
       }
     }
-  }
 
   return true;
 }
 
-// check if the provided expression is a call
-// to known memory allocators.
-// if yes, return true along with the argument used as size
-// assigned to the second paramter i.e., sizeArgument
+// check if the provided expression is a call to known memory allocators.
+// if yes, return true along with the argument used as the size assigned
+// to the second parameter i.e., sizeArgument
 bool LocalVarABVisitor::isAllocatorCall(Expr *currExpr, Expr **sizeArgument) {
-  if(currExpr != nullptr) {
-    currExpr = removeAuxillaryCasts(currExpr);
-    // check if this is a call expression.
-    if (CallExpr *CA = dyn_cast<CallExpr>(currExpr)) {
-      if(CA->getCalleeDecl() != nullptr) {
-        // Is this a call to a named function?
+  if (currExpr != nullptr) {
+    currExpr = removeAuxiliaryCasts(currExpr);
+    // check if this is a call expression to a named function.
+    if (CallExpr *CA = dyn_cast<CallExpr>(currExpr))
+      if (CA->getCalleeDecl() != nullptr) {
         FunctionDecl *calleeDecl = dyn_cast<FunctionDecl>(CA->getCalleeDecl());
         if (calleeDecl) {
           StringRef funcName = calleeDecl->getName();
           // check if the called function is a known allocator?
           if (LocalVarABVisitor::AllocatorFunctionNames.find(funcName) !=
               LocalVarABVisitor::AllocatorFunctionNames.end()) {
-            if (sizeArgument != nullptr) {
+            if (sizeArgument != nullptr)
               *sizeArgument = CA->getArg(0);
-            }
             return true;
           }
         }
       }
-    }
   }
   return false;
 }
@@ -92,29 +83,13 @@ bool LocalVarABVisitor::isAllocatorCall(Expr *currExpr, Expr **sizeArgument) {
 // if yes, return the referenced local variable as the return
 // value of the argument.
 bool LocalVarABVisitor::isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetDecl) {
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck)) {
-    if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(DRE->getDecl())) {
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck))
+    if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(DRE->getDecl()))
       if (Decl *V = dyn_cast<Decl>(FD)) {
         *targetDecl = V;
         return true;
       }
-    }
-  }
   return false;
-}
-
-Expr *LocalVarABVisitor::removeImpCasts(Expr *toConvert) {
-  if(ImplicitCastExpr *impCast =dyn_cast<ImplicitCastExpr>(toConvert)) {
-    return impCast->getSubExpr();
-  }
-  return toConvert;
-}
-
-Expr *LocalVarABVisitor::removeCHKCBindTempExpr(Expr *toVeri) {
-  if(CHKCBindTemporaryExpr *toChkExpr = dyn_cast<CHKCBindTemporaryExpr>(toVeri)) {
-    return toChkExpr->getSubExpr();
-  }
-  return toVeri;
 }
 
 void LocalVarABVisitor::dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw_ostream &O) {
@@ -127,13 +102,11 @@ void LocalVarABVisitor::dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw
 #endif
 }
 
-Expr *LocalVarABVisitor::removeAuxillaryCasts(Expr *srcExpr) {
-  srcExpr = removeCHKCBindTempExpr(srcExpr);
-  if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(srcExpr)) {
+Expr *LocalVarABVisitor::removeAuxiliaryCasts(Expr *srcExpr) {
+  srcExpr = srcExpr->IgnoreParenImpCasts();
+  if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(srcExpr))
     srcExpr = C->getSubExpr();
-  }
-  srcExpr = removeCHKCBindTempExpr(srcExpr);
-  srcExpr = removeImpCasts(srcExpr);
+  srcExpr = srcExpr->IgnoreParenImpCasts();
   return srcExpr;
 }
 

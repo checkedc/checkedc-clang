@@ -73,7 +73,7 @@ public:
   // the name of the variable, false for just the type.
   // The 'forIType' parameter is true when the generated string is expected
   // to be used inside an itype
-  virtual std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true, bool forItype=false) = 0;
+  virtual std::string mkString(Constraints::EnvironmentMap &E, bool emitName = true, bool forItype = false) = 0;
 
   // Debug printing of the constraint variable.
   virtual void print(llvm::raw_ostream &O) const = 0;
@@ -84,7 +84,7 @@ public:
   // Set checkSkip to true if you would like constrainTo to consider the
   // ConstrainedVars when applying constraints. This should be set when
   // applying constraints due to external symbols, during linking.
-  virtual void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false) = 0;
+  virtual void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip = false) = 0;
 
   // Returns true if any of the constraint variables 'within' this instance
   // have a binding in E other than top. E should be the EnvironmentMap that
@@ -192,7 +192,7 @@ public:
     return S->getKind() == PointerVariable;
   }
 
-  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true, bool forItype=false);
+  std::string mkString(Constraints::EnvironmentMap &E, bool emitName = true, bool forItype = false);
 
   FunctionVariableConstraint *getFV() { return FV; }
 
@@ -204,7 +204,7 @@ public:
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
   // get the highest type assigned to the cvars of this constraint variable
-  ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
+  ConstAtom *getHighestType(Constraints::EnvironmentMap &E);
 
   bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
 
@@ -262,15 +262,15 @@ public:
     return paramVars.at(i);
   }
 
-  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true, bool forItype=false);
+  std::string mkString(Constraints::EnvironmentMap &E, bool emitName = true, bool forItype = false);
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
-  void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
+  void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip = false);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
-  ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
+  ConstAtom *getHighestType(Constraints::EnvironmentMap &E);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;

@@ -8,6 +8,7 @@ if (MSVC)
   set_source_files_properties(SemaExprCXX.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(SemaTemplate.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(SemaBounds.cpp PROPERTIES COMPILE_FLAGS /bigobj)
+  set_source_files_properties(CheckedCSubst.cpp PROPERTIES COMPILE_FLAGS /bigobj)
 endif()
 
 add_clang_library(clangSema

@@ -61,6 +61,7 @@ class ExtQuals;
 class QualType;
 class TagDecl;
 class Type;
+class TypeSourceInfo;
 
 enum {
   TypeAlignmentInBits = 4,
@@ -1390,7 +1391,9 @@ enum class AutoTypeKeyword {
 ///   3. Checked C _Array_ptr types: these have null checks
 ///      and bounds checks before memory accesses. Bounds
 ///      expressions must be statically specified.  Pointer
-///     arithmetic.  It has overflow checking.
+///      arithmetic is allowed.  It has overflow checking.
+///   4. Checked C _Nt_Array_ptr: these are pointers to
+///      null-terminated arrays. Pointer arithmetic is allowed.
 enum class CheckedPointerKind {
   /// \brief Unchecked C pointer.
   Unchecked = 0,
@@ -1443,6 +1446,13 @@ public:
 
   /// \brief Always write data for individual elements.
   void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Ctx) const;
+};
+
+/// Checked C: an argument in an instantiation of a generic function
+/// or record.
+struct TypeArgument {
+  QualType typeName;
+  TypeSourceInfo *sourceInfo;
 };
 
 /// The base class of the type hierarchy.

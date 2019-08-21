@@ -39,12 +39,8 @@ private:
   // value of the argument.
   bool isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetDecl);
 
-  Expr *removeCHKCBindTempExpr(Expr *toVeri);
 
-  // remove implicit casts added by clang to the AST
-  Expr *removeImpCasts(Expr *toConvert);
-
-  Expr *removeAuxillaryCasts(Expr *srcExpr);
+  Expr *removeAuxiliaryCasts(Expr *srcExpr);
 
   // print variables that should have been detected as arrays but not.
   void dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw_ostream &O);

@@ -13,11 +13,6 @@ using namespace llvm;
 using namespace clang;
 
 
-// flags
-// constraint all the arguments to a function
-// accepting var args to be wild.
-#define CONSTRAINT_ARGS_TO_VARGS_WILD
-
 // Special-case handling for decl introductions. For the moment this covers:
 //  * void-typed variables
 //  * va_list-typed variables
@@ -156,13 +151,12 @@ public:
 
       if (SR.isValid() && FL.isValid() && !FL.isInSystemHeader() &&
         (D->getType()->isPointerType() || D->getType()->isArrayType())) {
-        // add the variable with in the function body context.
+        // add the variable within the function body context.
         Info.addVariable(D, S, Context);
 
         specialCaseVarIntros(D, Info, Context);
-        // if this is a static array declaration.
-        // make this an array.
-        if(D->getType()->isArrayType()) {
+        // if this is a statically sized array declaration? make this an array.
+        if (D->getType()->isArrayType()) {
           Constraints &CS = Info.getConstraints();
           constraintInBodyVariable(D, CS.getArr());
         }
@@ -207,16 +201,14 @@ public:
     RHSConstraints.clear();
 
     Constraints &CS = Info.getConstraints();
-    RHS = getNormalizedExpr(RHS);
+    RHS = RHS->IgnoreParenImpCasts();
     CallExpr *CE = dyn_cast<CallExpr>(RHS);
     // if this is a call expression to a function.
     if (CE != nullptr && CE->getDirectCallee() != nullptr) {
       // case 5
-      // if this is a call expression?
-      // is this functions return type an itype
+      // Check if this functions; return type is an itype
       FunctionDecl *Calle = CE->getDirectCallee();
-      // get the function declaration and look for
-      // itype in the return
+      // get the function declaration and look for itype in the return.
       if (getDeclaration(Calle) != nullptr) {
         Calle = getDeclaration(Calle);
       }
@@ -227,8 +219,7 @@ public:
       }
       // if this is not an itype
       if (!itypeHandled) {
-        // get the constraint variable corresponding
-        // to the declaration.
+        // get the constraint variable corresponding to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
           constrainEq(V, RHSConstraints, Info);
@@ -238,7 +229,7 @@ public:
       RHS = RHS->IgnoreParens();
 
       // Cases 2
-      if(isNULLExpression(RHS, *Context)) {
+      if (RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
         // Do Nothing.
       } else if (RHS->isIntegerConstantExpr(*Context) &&
                 !RHS->isNullPointerConstant(*Context, Expr::NPC_ValueDependentIsNotNull)) {
@@ -262,9 +253,8 @@ public:
         bool rulesFired = false;
         if (Info.checkStructuralEquality(V, RHSConstraints, lhsType, rhsTy)) {
           // This has become a little stickier to think about.
-          // What do you do here if we determine that two things with
-          // very different arity are structurally equal? Is that even
-          // possible?
+          // What do you do here if we determine that two things with very
+          // different arity are structurally equal? Is that even possible?
 
           // We apply a few rules here to determine if there are any
           // finer-grained constraints we can add. One of them is if the
@@ -334,10 +324,9 @@ public:
           }
         }
       } else {
-        // get the constraint variables of the
-        // expression from RHS side.
+        // get the constraint variables of the expression from RHS side.
         RHSConstraints = Info.getVariable(RHS, Context, true);
-        if(RHSConstraints.size() > 0) {
+        if (RHSConstraints.size() > 0) {
           // Case 1.
           // There are constraint variables for the RHS, so, use those over
           // anything else we could infer.
@@ -422,47 +411,43 @@ public:
       return true;
 
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-      // get the function declaration,
-      // if exists, this is needed to check
-      // for itype
-      if(getDeclaration(FD) != nullptr) {
+      // If exists, get the function declaration.
+      if (getDeclaration(FD) != nullptr)
         FD = getDeclaration(FD);
-      }
+
       // Call of a function directly.
       unsigned i = 0;
       for (const auto &A : E->arguments()) {
-        // get constraint variables for the argument
-        // from with in the context of the caller body
+        // get constraint variables for the argument from within the context
+        // of the caller body
         std::set<ConstraintVariable*> ArgumentConstraints =
           Info.getVariable(A, Context, true);
 
         if (i < FD->getNumParams()) {
           bool handled = false;
-          if(FD->getParamDecl(i)->hasInteropTypeExpr()) {
+          if (FD->getParamDecl(i)->hasInteropTypeExpr()) {
             // try handling interop parameters.
             handled = handleITypeAssignment(ArgumentConstraints,
                                             FD->getParamDecl(i)->getInteropTypeExpr());
           }
-          if(!handled) {
-            // Here, we need to get the constraints of the
-            // parameter from the callee's declaration.
+          if (!handled) {
+            // Here, we need to get the constraints of the parameter from
+            // the callee's declaration.
             std::set<ConstraintVariable*> ParameterConstraints =
               Info.getVariable(FD->getParamDecl(i), Context, false);
-            // add constraint that the arguments are equal to the
-            // parameters.
+            // add constraint that the arguments are equal to the parameters.
             //assert(!ParameterConstraints.empty() && "Unable to get parameter constraints");
             // the constrains could be empty for builtin functions.
             constrainLocalAssign(ParameterConstraints, FD->getParamDecl(i)->getType(), A);
           }
         } else {
-          // this is the case of an argument passed to a function
-          // with varargs.
+          // this is the case of an argument passed to a function with varargs.
           // Constrain this parameter to be wild.
-          if(handleVARARGS) {
+          if (handleVARARGS) {
             Constraints &CS = Info.getConstraints();
             assignType(ArgumentConstraints, CS.getWild());
           } else {
-            if(Verbose) {
+            if (Verbose) {
               std::string funcName = FD->getName();
               errs() << "Ignoring function as it contains varargs:" << funcName << "\n";
             }
@@ -471,18 +456,16 @@ public:
 
         i++;
       }
-    } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
+    } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D))
       handleFunctionPointerCall(E);
-    } else {
+    else
       // Constrain all arguments to wild.
       constraintAllArgumentsToWild(E);
-    }
     
     return true;
   }
 
-  // this will add the constraint that
-  // variable is an array i.e., (V=ARR)
+  // this will add the constraint that variable is an array i.e., (V=ARR)
   bool VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
     Constraints &CS = Info.getConstraints();
     constraintInBodyVariable(E->getBase(), CS.getArr());
@@ -490,31 +473,29 @@ public:
   }
 
   bool VisitReturnStmt(ReturnStmt *S) {
-    // Here, we should constrain the return type
-    // of the function body with the type of the
-    // return expression.
+    // Here, we should constrain the return type of the function body with
+    // the type of the return expression.
 
-    // get function variable constraint of the body
-    // we need to call getVariableOnDemand to avoid auto-correct.
+    // To get function variable constraint of the body we need to call
+    // getVariableOnDemand to avoid auto-correct.
     std::set<ConstraintVariable*> Fun =
       Info.getVariableOnDemand(Function, Context, true);
-    // get the constraint of the return variable (again with in the context of the body)
+    // get the constraint of the return variable
+    // (again within the context of the body)
     std::set<ConstraintVariable*> Var =
       Info.getVariable(S->getRetValue(), Context, true);
 
     // Constrain the value returned (if present) against the return value
     // of the function.   
-    for (const auto &F : Fun ) {
-      if (FVConstraint *FV = dyn_cast<FVConstraint>(F)) {
+    for (const auto &F : Fun )
+      if (FVConstraint *FV = dyn_cast<FVConstraint>(F))
         constrainEq(FV->getReturnVars(), Var, Info);
-      }
-    }
+
     return true;
   }
 
-  // these are the expressions, that will
-  // add the constraint ~(V = Ptr) and ~(V = NTArr)
-  // i.e., the variable is not a pointer or nt array
+  // these are the expressions, that will add the constraints ~(V = Ptr)
+  // and ~(V = NTArr) i.e., the variable is neither a pointer nor an nt array
 
   bool VisitUnaryPreInc(UnaryOperator *O) {
     constrainInBodyExprNotPtrNotNt(O->getSubExpr());
@@ -551,26 +532,24 @@ private:
 
   bool handleFunctionPointerCall(CallExpr *E) {
     Decl *D = E->getCalleeDecl();
-    if(D) {
-      if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)){
-        // This could be a function pointer,
-        // get the declaration of the function pointer variable
-        // with in the caller context.
+    if (D) {
+      if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D)) {
+        // This could be a function pointer. So, get the declaration of the
+        // function pointer variable within the caller context.
         std::set<ConstraintVariable*> V = Info.getVariable(DD, Context, true);
         if (V.size() > 0) {
           for (const auto &C : V) {
             FVConstraint *FV = nullptr;
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(C)) {
-              if (FVConstraint *F = PVC->getFV()) {
+              if (FVConstraint *F = PVC->getFV())
                 FV = F;
-              }
             } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(C)) {
               FV = FVC;
             }
 
             if (FV) {
-              // Constrain arguments to be of the same type
-              // as the corresponding parameters.
+              // Constrain arguments to be of the same type as the
+              // corresponding parameters.
               unsigned i = 0;
               for (const auto &A : E->arguments()) {
                 std::set<ConstraintVariable*> ArgumentConstraints =
@@ -581,20 +560,18 @@ private:
                     FV->getParamVar(i);
                   constrainEq(ArgumentConstraints, ParameterDC, Info);
                 } else {
-                  // Constrain argument to wild since we can't match it
-                  // to a parameter from the type.
+                  // Constrain argument to wild since we can't match it to a
+                  // parameter from the type.
                   Constraints &CS = Info.getConstraints();
-                  for (const auto &V : ArgumentConstraints) {
+                  for (const auto &V : ArgumentConstraints)
                     V->constrainTo(CS, CS.getWild());
-                  }
                 }
                 i++;
               }
             } else {
               // This can happen when someone does something really wacky, like
               // cast a char* to a function pointer, then call it. Constrain
-              // everything.
-              // what we do is, constraint all arguments to wild.
+              // everything. what we do is, constraint all arguments to wild.
               constraintAllArgumentsToWild(E);
               Constraints &CS = Info.getConstraints();
               // also constraint
@@ -617,18 +594,16 @@ private:
     // currently we only handle NT arrays.
     if (ptrKind == CheckedPointerKind::NtArray) {
       isHandled = true;
-      // assign the corresponding checked type to
-      // all teh constraint vars.
+      // assign the corresponding checked type to all the constraint vars.
       assignType(Vars, getCheckedPointerConstraint(ptrKind));
     }
-    // is this handled or propagation through itype
-    // has been disabled. In which case, all itypes
-    // values will be handled.
+    // is this handled or propagation through itype has been disabled.
+    // In which case, all itypes values will be handled.
     return isHandled || !enablePropThruIType;
   }
 
-  // constraint all the provided vars to be
-  // not equal to the provided type i.e., ~(V = type)
+  // constraint all the provided vars to be not equal to the provided
+  // type i.e., ~(V = type)
   void constrainVarsNotEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
@@ -641,8 +616,8 @@ private:
       }
   }
 
-  // constraint all the provided vars to be
-  // equal to the provided type i.e., (V = type)
+  // constraint all the provided vars to be equal to the provided type
+  // i.e., (V = type)
   void constrainVarsEq(std::set<ConstraintVariable*> &Vars, ConstAtom *type) {
     Constraints &CS = Info.getConstraints();
     for (const auto &I : Vars)
@@ -654,12 +629,10 @@ private:
       }
   }
 
-  // Apply ~(V = Ptr) and ~(V = NTArr) to the
-  // first 'level' constraint variable associated with
-  // 'E' for in-body variables
+  // Apply ~(V = Ptr) and ~(V = NTArr) to the first 'level' in-body constraint
+  // variables associated with 'E'.
   void constrainInBodyExprNotPtrNotNt(Expr *E) {
-    // get the constrain variables
-    // with in the body context
+    // get the constrain variables within the body context.
     std::set<ConstraintVariable*> Var =
       Info.getVariable(E, Context, true);
     Constraints &CS = Info.getConstraints();
@@ -671,39 +644,32 @@ private:
   void constraintInBodyVariable(Expr *e, ConstAtom *target) {
     std::set<ConstraintVariable*> Var =
       Info.getVariable(e, Context, true);
-    Constraints &CS = Info.getConstraints();
     constrainVarsEq(Var, target);
   }
 
   void constraintInBodyVariable(Decl *d, ConstAtom *target) {
     std::set<ConstraintVariable*> Var =
       Info.getVariable(d, Context, true);
-    Constraints &CS = Info.getConstraints();
     constrainVarsEq(Var, target);
   }
 
-  // assign the provided type (target)
-  // to all the constraint variables (CVars).
+  // assign the provided type (target) to all the constraint variables (CVars).
   void assignType(std::set<ConstraintVariable*> &CVars,
                   ConstAtom *target) {
     Constraints &CS = Info.getConstraints();
-    for (const auto &C : CVars) {
+    for (const auto &C : CVars)
       C->constrainTo(CS, target);
-    }
   }
 
-  // constraint all the argument of the provided
-  // call expression to be WILD
+  // constraint all the argument of the provided call expression to be WILD.
   void constraintAllArgumentsToWild(CallExpr *E) {
     for (const auto &A : E->arguments()) {
-      // get constraint from within the function body
-      // of the caller
+      // get constraint from within the function body of the caller
       std::set<ConstraintVariable*> ParameterEC =
         Info.getVariable(A, Context, true);
 
       Constraints &CS = Info.getConstraints();
-      // assign WILD to each of the constraint
-      // variables.
+      // assign WILD to each of the constraint variables.
       assignType(ParameterEC, CS.getWild());
     }
   }
@@ -726,16 +692,6 @@ private:
         llvm_unreachable("Unchecked type inside an itype. This should be impossible.");
     }
     assert(false && "Invalid Pointer kind.");
-  }
-
-  Expr* getNormalizedExpr(Expr *CE) {
-    if(dyn_cast<CHKCBindTemporaryExpr>(CE)) {
-      CE = (dyn_cast<CHKCBindTemporaryExpr>(CE))->getSubExpr();
-    }
-    if(dyn_cast<ImplicitCastExpr>(CE)) {
-      CE = (dyn_cast<ImplicitCastExpr>(CE))->getSubExpr();
-    }
-    return CE;
   }
 
   ASTContext *Context;
@@ -793,10 +749,9 @@ public:
         const FileEntry *FE = SM.getFileEntryForID(FID);
 
         if (FE && FE->isValid()) {
-          // We only want to re-write a record if it contains
-          // any pointer types, to include array types. 
-          // Most record types probably do,
-          // but let's scan it and not consider any records
+          // We only want to re-write a record if it contains any
+          // pointer types, to include array types. Most record types
+          // probably do, but let's scan it and not consider any records
           // that don't have any pointers or arrays. 
 
           for (const auto &D : Definition->fields())
