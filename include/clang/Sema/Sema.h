@@ -5124,6 +5124,12 @@ public:
 
   bool DisableSubstitionDiagnostics;
 
+  ExprResult ActOnPackExpression(Expr *PackedExpr,
+                                 ParsedType ExistTpe,
+                                 ParsedType SubstTpe,
+                                 SourceLocation StartLoc,
+                                 SourceLocation EndLoc);
+
   //===---------------------------- Clang Extensions ----------------------===//
 
   /// __builtin_convertvector(...)

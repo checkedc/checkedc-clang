@@ -3559,9 +3559,47 @@ ExprResult Parser::ParseReturnValueExpression() {
   return Actions.ActOnReturnValueExpr(Loc);
 }
 
+/// [Checked C] pack-expression:
+///   _Pack '(' expression ',' type-name ',' type-name ')'
 ExprResult Parser::ParsePackExpression() {
   assert(Tok.is(tok::kw__Pack) && "Not a pack expression");
-  llvm_unreachable("unimplemented");
+  SourceLocation StartLoc = ConsumeToken();
+
+  if (Tok.isNot(tok::l_paren)) return ExprError();
+  ConsumeParen();
+
+  auto PackedExpr = ParseExpression();
+  if (PackedExpr.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (ExpectAndConsume(tok::comma)) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  auto ExistTpe = ParseTypeName();
+  if (ExistTpe.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (ExpectAndConsume(tok::comma)) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  auto SubstTpe = ParseTypeName();
+  if (SubstTpe.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (Tok.isNot(tok::r_paren)) return ExprError();
+  SourceLocation EndLoc = ConsumeParen();
+
+  return Actions.ActOnPackExpression(PackedExpr.get(), ExistTpe.get(), SubstTpe.get(), StartLoc, EndLoc);
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks

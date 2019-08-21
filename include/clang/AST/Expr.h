@@ -3160,30 +3160,31 @@ private:
   Stmt *SubExprs[END_EXPR];
 
   /// The result type of the pack operation.
-  const ExistentialType *ExistTpe = nullptr;
+  QualType ExistTpe;
   /// The type that will be substituted for the variable in the existential.
   /// We can combine the existential and this type to check type of the expression
   /// being packed.
   /// e.g. if we do '_Pack(foo, _Exists(T, struct Foo<T, U, T>), int)', then
   /// 'foo' must have type 'struct Foo<int, U, int>'.
-  const Type *Subst = nullptr;
+  QualType Subst;
 
 public:
-  PackExpr(Expr *PackedExpr, const ExistentialType *ExistTpe, const Type *Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
-   Expr(PackExprClass, QualType(ExistTpe, 0 /* Quals */), VK_RValue, OK_Ordinary, false, false, false, false),
+  PackExpr(Expr *PackedExpr, QualType ExistTpe, QualType Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
+   Expr(PackExprClass, ExistTpe, VK_RValue, OK_Ordinary, false, false, false, false),
     PackedExpr(PackedExpr), ExistTpe(ExistTpe), Subst(Subst), StartLoc(StartLoc), EndLoc(EndLoc) {
+    assert(ExistentialType::classof(ExistTpe.getTypePtr()) && "Pack expects an existential type");
     SubExprs[PACKED_EXPR] = PackedExpr;
   }
 
   /// Return the expression packed by this pack expression.
   Expr *getPackedExpr() const { return PackedExpr; }
 
-  /// Return the type of the pack expression, which must be an existential.
-  const ExistentialType *getExistentialType() const { return ExistTpe; }
+  /// Return the type of the pack expression, which must be an existential (after unwrapping).
+  QualType getExistentialType() const { return ExistTpe; }
 
   /// Return the "substitution" type that is used to verify that
   /// the underlying expr can be packed with the existential type.
-  const Type *getSubst() const { return Subst; }
+  QualType getSubst() const { return Subst; }
 
   SourceLocation getBeginLoc() const LLVM_READONLY { return StartLoc; }
   SourceLocation getEndLoc() const LLVM_READONLY { return EndLoc; }
