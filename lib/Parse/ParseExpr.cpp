@@ -168,6 +168,8 @@ ExprResult Parser::ParseAssignmentExpression(TypeCastState isTypeCast) {
     return ParseThrowExpression();
   if (Tok.is(tok::kw_co_yield))
     return ParseCoyieldExpression();
+  if (Tok.is(tok::kw__Pack))
+    return ParsePackExpression();
 
   ExprResult LHS = ParseCastExpression(/*isUnaryExpression=*/false,
                                        /*isAddressOfOperand=*/false,
@@ -3555,6 +3557,11 @@ ExprResult Parser::ParseReturnValueExpression() {
          "Not bounds value expression");
   SourceLocation Loc = ConsumeToken();
   return Actions.ActOnReturnValueExpr(Loc);
+}
+
+ExprResult Parser::ParsePackExpression() {
+  assert(Tok.is(tok::kw__Pack) && "Not a pack expression");
+  llvm_unreachable("unimplemented");
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks

@@ -1918,6 +1918,9 @@ private:
 
   DeclResult ParseRecordTypeApplication(RecordDecl *Base, bool IsItypeGeneric);
 
+  /// Parse a pack expression of the form '_Pack(expr, existential_type, substitution_type)'.
+  ExprResult ParsePackExpression();
+
   //===--------------------------------------------------------------------===//
   // clang Expressions
 
