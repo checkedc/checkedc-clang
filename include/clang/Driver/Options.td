@@ -2621,6 +2621,14 @@ def fintegrated_as : Flag<["-"], "fintegrated-as">, Flags<[DriverOption]>,
 def fno_integrated_as : Flag<["-"], "fno-integrated-as">,
                         Flags<[CC1Option, DriverOption]>, Group<f_Group>,
                         HelpText<"Disable the integrated assembler">;
+
+def fcheckedc_null_ptr_arith : Flag<["-"], "fcheckedc-null-ptr-arith">,
+  Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Enable runtime null pointer arithmetic checks">;
+def fno_checkedc_null_ptr_arith : Flag<["-"], "fno-checkedc-null-ptr-arith">,
+  Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Disable runtime null pointer arithmetic checks">;
+
 def : Flag<["-"], "integrated-as">, Alias<fintegrated_as>, Flags<[DriverOption]>;
 def : Flag<["-"], "no-integrated-as">, Alias<fno_integrated_as>,
       Flags<[CC1Option, DriverOption]>;

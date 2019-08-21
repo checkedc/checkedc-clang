@@ -50,7 +50,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
   if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
     // External variables can also have itype. So, check if the provided
     // declaration is an external variable.
-    if (dyn_cast<VarDecl>(D) && dyn_cast<VarDecl>(D)->isExternC()) {
+    if (isa<VarDecl>(D) && cast<VarDecl>(D)->isExternC()) {
       QualType InteropType = C.getInteropTypeAndAdjust(ITE, false);
       // TODO: handle array_ptr types.
       if (InteropType->isCheckedPointerPtrType()) {

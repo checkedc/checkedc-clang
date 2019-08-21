@@ -2923,6 +2923,7 @@ public:
 
   void EmitExplicitDynamicCheck(const Expr *Condition);
   void EmitDynamicNonNullCheck(const Address BaseAddr, const QualType BaseTy);
+  void EmitDynamicNonNullCheck(llvm::Value *Val, const QualType BaseTy);
   void EmitDynamicOverflowCheck(const Address BaseAddr, const QualType BaseTy,
                                 const Address PtrAddr);
   /// \brief Emit a dynamic bounds check.

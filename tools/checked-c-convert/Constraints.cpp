@@ -166,7 +166,7 @@ bool Constraints::canAssignConst(VarAtom *src) {
     // of the provided type.
     if (Not *N = dyn_cast<Not>(C))
       if (Eq *E = dyn_cast<Eq>(N->getBody()))
-        if (dyn_cast<T>(E->getRHS()))
+        if (isa<T>(E->getRHS()))
           return false;
   }
   return true;
