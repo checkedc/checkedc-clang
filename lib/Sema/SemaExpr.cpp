@@ -14370,12 +14370,12 @@ void Sema::SetDeferredBoundsCallBack(void *OpaqueData, ParseDeferredBoundsCallBa
 }
 
 ExprResult Sema::ActOnPackExpression(Expr *PackedExpr,
-                                     ParsedType ExistTpe,
-                                     ParsedType SubstTpe,
+                                     QualType ExistTpe,
+                                     QualType SubstTpe,
                                      SourceLocation StartLoc,
                                      SourceLocation EndLoc) {
 
-  return new (Context) PackExpr(PackedExpr, ExistTpe.get(), SubstTpe.get(), StartLoc, EndLoc);
+  return new (Context) PackExpr(PackedExpr, ExistTpe, SubstTpe, StartLoc, EndLoc);
 }
 
 //===----------------------------------------------------------------------===//

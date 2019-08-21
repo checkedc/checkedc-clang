@@ -3599,7 +3599,13 @@ ExprResult Parser::ParsePackExpression() {
   if (Tok.isNot(tok::r_paren)) return ExprError();
   SourceLocation EndLoc = ConsumeParen();
 
-  return Actions.ActOnPackExpression(PackedExpr.get(), ExistTpe.get(), SubstTpe.get(), StartLoc, EndLoc);
+  // TODO: figure out what to do with the TypeSourceInfos
+  TypeSourceInfo *ExistTInfo = nullptr;
+  auto UnwrappedExist = Actions.GetTypeFromParser(ExistTpe.get(), &ExistTInfo);
+  TypeSourceInfo *SubstTInfo = nullptr;
+  auto UnwrappedSubst = Actions.GetTypeFromParser(SubstTpe.get(), &SubstTInfo);
+
+  return Actions.ActOnPackExpression(PackedExpr.get(), UnwrappedExist, UnwrappedSubst, StartLoc, EndLoc);
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks
