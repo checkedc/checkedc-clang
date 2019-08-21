@@ -117,12 +117,10 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   LocalVarABVisitor LVAB(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
   for (const auto &D : TUD->decls()) {
-    if (dyn_cast<FunctionDecl>(D)) {
-      FunctionDecl *fb = dyn_cast<FunctionDecl>(D);
 #ifdef DEBUG
-      llvm::dbgs() << "Analyzing function:" << fb->getName() << "\n";
+    if (auto *FB = dyn_cast<FunctionDecl>(D))
+      llvm::dbgs() << "Analyzing function:" << FB->getName() << "\n";
 #endif
-    }
     LVAB.TraverseDecl(D);
   }
 }
