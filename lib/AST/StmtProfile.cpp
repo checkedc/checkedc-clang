@@ -1134,6 +1134,11 @@ void StmtProfiler::VisitCastExpr(const CastExpr *S) {
   ID.AddBoolean(S->isBoundsSafeInterface());
 }
 
+void StmtProfiler::VisitPackExpr(const PackExpr *S) {
+  // TODO: implement
+  llvm_unreachable("unimplemented");
+}
+
 void StmtProfiler::VisitImplicitCastExpr(const ImplicitCastExpr *S) {
   VisitCastExpr(S);
   ID.AddInteger(S->getValueKind());

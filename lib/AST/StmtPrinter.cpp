@@ -1692,6 +1692,13 @@ void StmtPrinter::VisitInteropTypeExpr(
     OS << ")";
 }
 
+void StmtPrinter::VisitPackExpr(PackExpr *Node) {
+  // TODO: print the rest of the components
+  OS << "_Pack(";
+  Visit(Node->getPackedExpr());
+  OS << ")";
+}
+
 void StmtPrinter::VisitBoundsCastExpr(BoundsCastExpr *Node) {
   
   if (Node->getCastKind() == CK_DynamicPtrBounds)

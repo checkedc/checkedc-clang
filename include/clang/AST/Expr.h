@@ -3176,7 +3176,7 @@ public:
   }
 
   /// Return the expression packed by this pack expression.
-  const Expr *getPackedExpr() const { return PackedExpr; }
+  Expr *getPackedExpr() const { return PackedExpr; }
 
   /// Return the type of the pack expression, which must be an existential.
   const ExistentialType *getExistentialType() const { return ExistTpe; }
