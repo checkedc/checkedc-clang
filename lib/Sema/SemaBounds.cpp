@@ -2157,9 +2157,11 @@ namespace {
     }
 
     // This function is an extension of EqualExtended. It looks into the provided `Facts`
-    // in order to prove `Base1 + Offset1 <= Offset2 + Offset2`.
-    // Note that in order to prove this, Base1 must equal Base2 (as in EqualExtended), and the fact that
+    // in order to prove `Base1 + Offset1 <= Base2 + Offset2`. Note that in order to prove this,
+    // Base1 must equal Base2 (as in EqualExtended), and the fact that
     // "Offset1 <= Offset2" must exist in `Facts`.
+    //
+    // TODO: we are ignoring the possibility of overflow in the addition.
     static bool LessThanOrEqualExtended(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2,
                                         EquivExprSets *EquivExprs, std::pair<ComparisonSet, ComparisonSet>& Facts) {
       if (!Offset1 && !Offset2)
