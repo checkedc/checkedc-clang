@@ -206,7 +206,7 @@ public:
   // Checked C
 
   /// To codegen a pack expression such as '_Pack(foo-expr, _Exists(T, struct Foo<T>), subst-type)',
-  /// we simply codegen 'foo-expr'. That is, pack expressions are erased during codegen.
+  /// where 'foo-expr' is an aggregate, we simply codegen 'foo-expr'. That is, pack expressions are erased during codegen.
   void VisitPackExpr(const PackExpr *E) { Visit(E->getPackedExpr()); }
 };
 }  // end anonymous namespace.

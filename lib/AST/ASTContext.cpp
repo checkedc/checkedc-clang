@@ -9272,7 +9272,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     return {};
   case Type::Existential:
     // TODO: is this correct?
-    llvm_unreachable("Existential types shouldn't be merged");
+    return {};
   }
 
   llvm_unreachable("Invalid Type::Class!");
