@@ -12678,6 +12678,12 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
 
 template<typename Derived>
 ExprResult
+TreeTransform<Derived>::TransformPackExpr(PackExpr *E) {
+   return E;
+}
+
+template<typename Derived>
+ExprResult
 TreeTransform<Derived>::TransformInteropTypeExpr(InteropTypeExpr *E) {
   TypeSourceInfo *TInfo =
     getDerived().TransformType(E->getTypeInfoAsWritten());
