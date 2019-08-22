@@ -295,6 +295,18 @@ private:
   /// returns 'true'. The parameters in a type application can be retrieved via RecordDecl::typeParams().
   llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4> > DelayedTypeApps;
 
+  /// Mapping from a (type-variable, inner-type) pair to the corresponding existential type.
+  /// e.g. if we've previously created a type E = '_Exists(T, struct Foo<T>)',
+  /// then, this map links '(T, struct Foo<T>) -> E'.
+  /// This map alone is not enough to guarantee unique existential types.
+  /// e.g. consider two types '_Exists(T, struct Foo<T>)' and '_Exists(U, struct Foo<U>)',
+  /// where 'T = TypeVariableType(0, 0)' and 'U = TypeVariableType(1, 0)' (say, because
+  /// U shows up at a higher nestedness level). Then the two types will look different
+  /// when compared with pointer equality, but they should be considered the same type.
+  /// Another way to say this is to say that this map contains entries that are (functional)
+  /// duplicates.
+  llvm::DenseMap<std::pair<const TypeVariableType *, const Type *>, const ExistentialType *> CachedExistTypes;
+
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
   class CanonicalTemplateTemplateParm : public llvm::FoldingSetNode {
@@ -3138,6 +3150,25 @@ public:
   /// Remove all type applications that have 'Base' as their base RecordDecl.
   /// Return 'true' if the removed key was in the cache, and 'false' otherwise.
   bool removeDelayedTypeApps(RecordDecl *Base);
+
+  // Checked C: Existential Types
+
+  /// Get the cached existential type corresponding to the pair (type-var, inner-type).
+  /// If there is no matching existential, then return 'nullptr'.
+  const ExistentialType *getCachedExistType(const TypeVariableType *TypeVar, const Type *InnerType) const {
+    auto Iter = CachedExistTypes.find(std::make_pair(TypeVar, InnerType));
+    if (Iter == CachedExistTypes.end()) return nullptr;
+    return Iter->second;
+  }
+
+  /// Add an existential type to the cache.
+  /// The type can later be retrieved using 'getCachedExistType'.
+  void addCachedExistType(const ExistentialType *ExistType) {
+    auto *TypeVar = ExistType->typeVar();
+    auto *InnerType = ExistType->innerType().getTypePtr();
+    assert(getCachedExistType(TypeVar, InnerType) == nullptr && "Existential type is already added");
+    CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistType));
+  }
 };
 
 /// Utility function for constructing a nullary selector.

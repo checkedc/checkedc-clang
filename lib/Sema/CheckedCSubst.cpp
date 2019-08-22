@@ -86,7 +86,14 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
   // Unwrap the type arguments from a 'TypeArgument' to the underlying 'Type *'.
   llvm::SmallVector<const Type *, 4> RawArgs;
   for (auto TArg : TypeArgs) {
-    RawArgs.push_back(TArg.typeName.getTypePtr());
+    // Use the canonical type of the argument when caching. Otherwise, the types of
+    // s1 and s2 below are considered different, when they shouldn't.
+    //   typedef int int1;
+    //   typedef int int2;
+    //   struct Foo<int1> s1;
+    //   struct Foo<int2> s2;
+    //   s1 = s2;
+    RawArgs.push_back(TArg.typeName.getCanonicalType().getTypePtr());
   }
 
   // If possible, just retrieve the application from the cache.
