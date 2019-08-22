@@ -88,8 +88,8 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
   for (auto TArg : TypeArgs) {
     // Use the canonical type of the argument when caching. Otherwise, the types of
     // s1 and s2 below are considered different, when they shouldn't.
-    //   typedef int int1;
-    //   typedef int int2;
+    //   typedef int1 int;
+    //   typedef int2 int;
     //   struct Foo<int1> s1;
     //   struct Foo<int2> s2;
     //   s1 = s2;
