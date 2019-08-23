@@ -1965,12 +1965,12 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
       if (Decl && Decl->isGeneric()) {
         // We're parsing a reference to a generic struct, so we need to parse
         // the type arguments before we can instantiate.
-        TagOrTempResult = ParseRecordTypeApplication(Decl);
+        TagOrTempResult = ParseRecordTypeApplication(Decl, false /* IsItypeGeneric */);
       } else if (Decl->isItypeGeneric()) {
         if (Actions.IsCheckedScope() || Tok.is(tok::less)) {
           // For an itype generic in a checked scope, we require type arguments as well.
           // If the scope is unchecked but the user provides arguments, we allow that too.
-          TagOrTempResult = ParseRecordTypeApplication(Decl);
+          TagOrTempResult = ParseRecordTypeApplication(Decl, true /* IsItypeGeneric */);
         } else {
           // In an unchecked scope without type arguments, we synthesize all arguments as void.
           // TODO: factour out the generation of void arguments into a function that can be reused here
@@ -2075,6 +2075,9 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
 /// Checked C: parse an application of the 'Base' 'RecordDecl' to a number of type
 /// arguments that are yet to be parsed.
+/// 'IsItypeGeneric' is true if we're parsing a type application where the base type
+/// is an "itype generic" (as opposed to a regular generic). This is used when generatingq
+/// error messages.
 ///
 /// generic-struct-instantiation
 ///   '<' type-name-list '>'
@@ -2084,9 +2087,14 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 ///
 ///  type-name-list-suffix
 ///    ',' type-name type-name-list-suffix [opt]
-DeclResult Parser::ParseRecordTypeApplication(RecordDecl *Base) {
+DeclResult Parser::ParseRecordTypeApplication(RecordDecl *Base, bool IsItypeGeneric) {
   assert(Base->isGenericOrItypeGeneric() && "Instantiated record must be generic");
-  ExpectAndConsume(tok::less); // eat the initial '<'
+  if (Tok.isNot(tok::less)) {
+    if (IsItypeGeneric) Diag(Tok.getLocation(), diag::err_expected_type_argument_list_for_itype_generic_instance);
+    else Diag(Tok.getLocation(), diag::err_expected_type_argument_list_for_generic_instance);
+    SkipUntil(tok::greater, StopAtSemi);
+    return true;
+  }
   auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
   if (ArgsRes.first) {
     // Problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')

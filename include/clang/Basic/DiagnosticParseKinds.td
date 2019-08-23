@@ -1306,6 +1306,12 @@ def err_type_function_comma_or_greater_expected : Error<
 def err_num_type_args_params_mistmatch : Error<
   "generic struct takes %0 type arguments, but instantiation provided %1">;
 
+def err_expected_type_argument_list_for_generic_instance : Error<
+  "expected a type argument list for a generic struct instance">;
+
+def err_expected_type_argument_list_for_itype_generic_instance : Error<
+  "expected a type argument list for a bounds-safe interface struct instance in a checked scope">;
+
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<
   "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
