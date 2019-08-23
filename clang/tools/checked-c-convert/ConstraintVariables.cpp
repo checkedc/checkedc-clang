@@ -352,6 +352,8 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
           break;
         }
       case Atom::A_Arr:
+        // if this is an array
+        getQualString(V, ss);
         // If it's an Arr, then the character we substitute should
         // be [] instead of *, IF, the original type was an array.
         // And, if the original type was a sized array of size K,
@@ -379,6 +381,15 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
               break;
           }
 
+          break;
+        }
+        // We need to check and see if this level of variable
+        // is constrained by a bounds safe interface. If it is,
+        // then we shouldn't re-write it.
+        if (getItypePresent() == false) {
+          emittedBase = false;
+          ss << "_Array_ptr<";
+          caratsToAdd++;
           break;
         }
       case Atom::A_NTArr:
@@ -702,6 +713,7 @@ bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
     assert(CS != nullptr);
     f |= isa<PtrAtom>(CS);
     f |= isa<NTArrAtom>(CS);
+    f |= isa<ArrAtom>(CS);
   }
 
   if (FV)
