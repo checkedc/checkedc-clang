@@ -910,11 +910,13 @@ namespace {
           return CreateBoundsAlwaysUnknown();
       }
       case Expr::PredefinedExprClass: {
-        // PredefinedExprClass defines pre-defined literals like __func__ which
-        // holds the name of the current function.
+        // PredefinedExprClass defines pre-defined literals like __func__,
+        // __FILE__, etc.
         auto *PE = cast<PredefinedExpr>(E);
-        const auto *Lit = PE->getFunctionName();
-        const auto *SL = cast<StringLiteral>(Lit);
+        const StringLiteral *SL = PE->getFunctionName();
+
+        if (!SL)
+          return CreateBoundsAlwaysUnknown();
 
         auto *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
         auto *CBE =
@@ -922,8 +924,8 @@ namespace {
                                         Size, SourceLocation(),
                                         SourceLocation());
 
-        QualType PtrType = Context.getDecayedType(E->getType());
-        Expr *Base = CreateImplicitCast(PtrType,
+        const auto PtrType = Context.getDecayedType(E->getType());
+        auto *Base = CreateImplicitCast(PtrType,
                                         CastKind::CK_ArrayToPointerDecay,
                                         PE);
         return ExpandToRange(Base, CBE);
