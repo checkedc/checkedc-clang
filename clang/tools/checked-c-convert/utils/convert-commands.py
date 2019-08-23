@@ -19,7 +19,7 @@ TOTAL_COMMANDS_FILE = os.path.realpath("convert_all.sh")
 
 # to separate multiple commands in a line
 CMD_SEP = " &"
-DEFAULT_ARGS = ["-dump-stats", "-output-postfix=checked"]
+DEFAULT_ARGS = ["-dump-stats", "-output-postfix=checked", "-dump-intermediate"]
 if os.name == "nt":
   DEFAULT_ARGS.append("-extra-arg-before=--driver-mode=cl")
   CMD_SEP = " ;"
