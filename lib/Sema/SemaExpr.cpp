@@ -14371,11 +14371,24 @@ void Sema::SetDeferredBoundsCallBack(void *OpaqueData, ParseDeferredBoundsCallBa
 
 ExprResult Sema::ActOnPackExpression(Expr *PackedExpr,
                                      QualType ExistTpe,
-                                     QualType SubstTpe,
+                                     TypeArgument SubstArg,
                                      SourceLocation StartLoc,
                                      SourceLocation EndLoc) {
 
-  return new (Context) PackExpr(PackedExpr, ExistTpe, SubstTpe, StartLoc, EndLoc);
+  // Calculate the witness type by substituting the subst argument into the inner type of the existential.
+  // Example: suppose the existential is '_Exists(T, struct Foo<T>)'. Then the witness should have
+  // type 'struct Foo<int>'.
+  auto *Exist = dyn_cast<ExistentialType>(ExistTpe.getTypePtr());
+  assert(Exist && "Expected existential type in pack expression");
+  // Substitute in the inner type, not in the entire existential.
+  auto WitnessType = SubstituteTypeArgs(Exist->innerType(), SubstArg);
+  // TODO: do we need to compare the type pointers, or can we just compare the QualTypes?
+  if (PackedExpr->getType().getCanonicalType().getTypePtr() != WitnessType.getTypePtr()) {
+    // TODO: improve error message by showing both the witness and expected types.
+    Diag(StartLoc, diag::err_typecheck_existential_type_witness_mismatch);
+    return ExprError();
+  }
+  return new (Context) PackExpr(PackedExpr, ExistTpe, SubstArg.typeName, StartLoc, EndLoc);
 }
 
 //===----------------------------------------------------------------------===//

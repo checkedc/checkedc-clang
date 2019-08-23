@@ -3599,13 +3599,15 @@ ExprResult Parser::ParsePackExpression() {
   if (Tok.isNot(tok::r_paren)) return ExprError();
   SourceLocation EndLoc = ConsumeParen();
 
-  // TODO: figure out what to do with the TypeSourceInfos
+  // TODO: figure out what to do with the TypeSourceInfo for the existential.
   TypeSourceInfo *ExistTInfo = nullptr;
   auto UnwrappedExist = Actions.GetTypeFromParser(ExistTpe.get(), &ExistTInfo);
+  // TODO: check that this is an existential type.
   TypeSourceInfo *SubstTInfo = nullptr;
   auto UnwrappedSubst = Actions.GetTypeFromParser(SubstTpe.get(), &SubstTInfo);
+  auto SubstArg = TypeArgument { UnwrappedSubst, SubstTInfo };
 
-  return Actions.ActOnPackExpression(PackedExpr.get(), UnwrappedExist, UnwrappedSubst, StartLoc, EndLoc);
+  return Actions.ActOnPackExpression(PackedExpr.get(), UnwrappedExist, SubstArg, StartLoc, EndLoc);
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks

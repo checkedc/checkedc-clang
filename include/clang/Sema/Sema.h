@@ -5126,7 +5126,7 @@ public:
 
   ExprResult ActOnPackExpression(Expr *PackedExpr,
                                  QualType ExistTpe,
-                                 QualType SubstTpe,
+                                 TypeArgument SubstArg,
                                  SourceLocation StartLoc,
                                  SourceLocation EndLoc);
 

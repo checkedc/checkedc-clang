@@ -9659,6 +9659,9 @@ def err_typecheck_bounds_type_annotation_incompatible : Error<
 def err_typecheck_bounds_type_annotation_must_be_checked_type : Error<
   "type must be a checked type">;
 
+def err_typecheck_existential_type_witness_mismatch : Error<
+  "witness type does not match existential type">;
+
 def err_bounds_type_annotation_lost_checking : Error<
   "type %diff{$ loses checking of declared type $|"
   "loses checking of declared type}0,1">;
