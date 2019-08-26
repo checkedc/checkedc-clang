@@ -7,9 +7,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "Constraints.h"
-#include "llvm/Support/CommandLine.h"
 #include <set>
+#include "llvm/Support/CommandLine.h"
+
+#include "Constraints.h"
 
 using namespace llvm;
 
@@ -34,17 +35,15 @@ bool Constraints::addConstraint(Constraint *C) {
         vLHS->Constraints.insert(C);
     }
     else if (Not *N = dyn_cast<Not>(C)) {
-      if (Eq *E = dyn_cast<Eq>(N->getBody())) {
+      if (Eq *E = dyn_cast<Eq>(N->getBody()))
         if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
           vLHS->Constraints.insert(C);
 
-      }
     }
     else if (Implies *I = dyn_cast<Implies>(C)) {
-      if (Eq *E = dyn_cast<Eq>(I->getPremise())) {
+      if (Eq *E = dyn_cast<Eq>(I->getPremise()))
         if (VarAtom *vLHS = dyn_cast<VarAtom>(E->getLHS()))
           vLHS->Constraints.insert(C);
-      }
     }
     else
       llvm_unreachable("unsupported constraint");
@@ -63,7 +62,7 @@ bool Constraints::addConstraint(Constraint *C) {
 bool Constraints::check(Constraint *C) {
 
   if (Not *N = dyn_cast<Not>(C)) {
-    if(Eq *E = dyn_cast<Eq>(N->getBody()))
+    if (Eq *E = dyn_cast<Eq>(N->getBody()))
       if (!isa<VarAtom>(E->getLHS()) || isa<VarAtom>(E->getRHS()))
         return false;
   }
@@ -85,7 +84,6 @@ bool Constraints::check(Constraint *C) {
     }
   }
   else if (Eq *E = dyn_cast<Eq>(C)) {
-
     if (!isa<VarAtom>(E->getLHS()))
       return false;
   }
@@ -157,6 +155,23 @@ Constraints::propImp(Implies *Imp, T *A, ConstraintSet &R, ConstAtom *V) {
   return changedEnvironment;
 }
 
+// This method checks if the template
+// const atom can be assigned to the provided (src)
+// variable.
+template <typename T>
+bool Constraints::canAssignConst(VarAtom *src) {
+
+  for (const auto &C : src->Constraints) {
+    // check if there is a non-equality constraint
+    // of the provided type.
+    if (Not *N = dyn_cast<Not>(C))
+      if (Eq *E = dyn_cast<Eq>(N->getBody()))
+        if (isa<T>(E->getRHS()))
+          return false;
+  }
+  return true;
+}
+
 // Takes one iteration to solve the system of constraints. Each step 
 // involves the propagation of quantifiers and the potential firing of
 // implications. Accepts a single parameter, _env_, that is a map of 
@@ -199,18 +214,21 @@ bool Constraints::step_solve(EnvironmentMap &env) {
       // Propagate the Neg constraint.
       if (Not *N = dyn_cast<Not>(C)) {
         if (Eq *E = dyn_cast<Eq>(N->getBody()))
-          // If this is Not ( q == Ptr ) and the current value 
-          // of q is Ptr ( < *getArr() ) then bump q up to Arr.
-          if (isa<PtrAtom>(E->getRHS()))
-            if (*Val < *getArr()) {
+          // If this is Not ( q == Ptr ) or Not ( q == NTArr) and the current
+          // value of q is Ptr (i.e., q < *getArr()) and ARR can be assigned
+          // then bump q up to Arr.
+          if (isa<PtrAtom>(E->getRHS()) || isa<NTArrAtom>(E->getRHS()))
+            if (*Val < *getArr() && canAssignConst<ArrAtom>(Var)) {
               VI->second = getArr();
               changedEnvironment = true;
             }
-      }
-      else if (Eq *E = dyn_cast<Eq>(C)) 
+      } else if (Eq *E = dyn_cast<Eq>(C)) {
+        changedEnvironment |= propEq<NTArrAtom>(env, E, getNTArr(), rmConstraints, VI);
         changedEnvironment |= propEq<ArrAtom>(env, E, getArr(), rmConstraints, VI);
-      else if (Implies *Imp = dyn_cast<Implies>(C)) 
+      } else if (Implies *Imp = dyn_cast<Implies>(C)) {
+        changedEnvironment |= propImp<NTArrAtom>(Imp, getNTArr(), rmConstraints, Val);
         changedEnvironment |= propImp<ArrAtom>(Imp, getArr(), rmConstraints, Val);
+      }
     }
 
     for (const auto &RC : rmConstraints)
@@ -222,14 +240,16 @@ bool Constraints::step_solve(EnvironmentMap &env) {
   return (changedEnvironment == false);
 }
 
-std::pair<Constraints::ConstraintSet, bool> Constraints::solve(void) {
+std::pair<Constraints::ConstraintSet, bool> Constraints::solve(unsigned &numOfIterations) {
   bool fixed = false;
   Constraints::ConstraintSet conflicts;
 
+  numOfIterations = 0;
   if (DebugSolver) {
     errs() << "constraints beginning solve\n";
     dump();
   }
+
 
   // It's (probably) possible that a pathologically constructed environment 
   // could cause us to loop n**2 times. It would be ideal to have an upper 
@@ -248,6 +268,8 @@ std::pair<Constraints::ConstraintSet, bool> Constraints::solve(void) {
       errs() << "constraints post step\n";
       dump();
     }
+
+    numOfIterations++;
   }
 
   return std::pair<Constraints::ConstraintSet, bool>(conflicts, true);
@@ -271,6 +293,34 @@ void Constraints::print(raw_ostream &O) const {
 
 void Constraints::dump(void) const {
   print(errs());
+}
+
+void Constraints::dump_json(llvm::raw_ostream &O) const {
+  O << R"({"Constraints":[)";
+  bool addComma = false;
+  for (const auto &C : constraints) {
+    if (addComma)
+      O << ",\n";
+    C->dump_json(O);
+    addComma = true;
+  }
+  O << "],\n";
+
+  addComma = false;
+
+  O << R"("Environment":[)";
+  for (const auto &V : environment) {
+    if (addComma)
+      O << ",\n";
+    O << R"({"var":)";
+    V.first->dump_json(O);
+    O << R"(, "value:":)";
+    V.second->dump_json(O);
+    O << "}";
+    addComma = true;
+  }
+  O << "]}";
+
 }
 
 VarAtom *Constraints::getOrCreateVar(uint32_t v) {
@@ -302,6 +352,9 @@ PtrAtom *Constraints::getPtr() const {
 ArrAtom *Constraints::getArr() const {
   return prebuiltArr;
 }
+NTArrAtom *Constraints::getNTArr() const {
+  return prebuiltNTArr;
+}
 WildAtom *Constraints::getWild() const {
   return prebuiltWild;
 }
@@ -321,11 +374,13 @@ Implies *Constraints::createImplies(Constraint *premise, Constraint *conclusion)
 Constraints::Constraints() {
   prebuiltPtr = new PtrAtom();
   prebuiltArr = new ArrAtom();
+  prebuiltNTArr = new NTArrAtom();
   prebuiltWild = new WildAtom();
 }
 
 Constraints::~Constraints() {
   delete prebuiltPtr;
   delete prebuiltArr;
+  delete prebuiltNTArr;
   delete prebuiltWild;
 }

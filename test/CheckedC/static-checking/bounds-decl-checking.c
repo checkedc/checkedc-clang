@@ -3,7 +3,9 @@
 // mostly unimplemented, we only issue warnings when bounds declarations
 // cannot be provided to hold.
 //
-// RUN: %clang -cc1 -fcheckedc-extension -Wcheck-bounds-decls -verify %s
+// RUN: %clang_cc1 -fcheckedc-extension -Wcheck-bounds-decls -verify %s
+
+#include <stddef.h>
 
 // Initialization by null - no warning.
 void f1(_Array_ptr<int> p : bounds(p, p + x), int x) {
@@ -198,6 +200,7 @@ struct S2 {
   int x;
   int y;
   int z;
+  unsigned long long p;
 };
 
 void test_cast(_Ptr<struct S1> s1, _Ptr<struct S2> s2) {
@@ -432,4 +435,261 @@ _Array_ptr<int> f59(unsigned num) {
 _Nt_array_ptr<int> f60(unsigned num) {
   _Nt_array_ptr<int> p : count(0) = test_f56(num); // expected-error {{initializing '_Nt_array_ptr<int>' with an expression of incompatible type '_Ptr<int>'}}
   return p;
+}
+
+//
+
+// Test pointer artihmetic equivalence
+
+//
+
+_Itype_for_any(T) void *simulate_calloc(size_t nmemb, size_t size) : itype(_Array_ptr<T>) byte_count(nmemb * size);
+_Itype_for_any(T) void *simulate_malloc(size_t size) : itype(_Array_ptr<T>) byte_count(size);
+
+#pragma CHECKED_SCOPE OFF
+
+struct s1 {
+  _Ptr<struct s1> next;
+};
+
+#pragma CHECKED_SCOPE ON
+
+struct s2 {
+  int s2a;
+  int s2b;
+};
+
+void a_f_1(int num1, int num2) {
+  short n = num1/num2;
+  _Array_ptr<long> v : count(n) = 0;
+  _Array_ptr<int> v2 : count(n) = 0;
+  v = simulate_calloc<long>(n, sizeof(long));           // expected-warning {{cannot prove declared bounds for v are valid after assignment}} \
+                                                        // expected-note {{(expanded) declared bounds are 'bounds(v, v + n)'}} \
+                                                        // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(n, sizeof(long)), (_Array_ptr<char>)value of simulate_calloc(n, sizeof(long)) + (size_t)n * sizeof(long))'}}
+  v = simulate_calloc<long>(n, sizeof(unsigned long));  // expected-warning {{cannot prove declared bounds for v are valid after assignment}} \
+                                                        // expected-note {{(expanded) declared bounds are 'bounds(v, v + n)'}} \
+                                                        // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(n, sizeof(unsigned long)), (_Array_ptr<char>)value of simulate_calloc(n, sizeof(unsigned long)) + (size_t)n * sizeof(unsigned long))'}}
+}
+
+void a_f_1_size_t(int num1, int num2) {
+  size_t n = num1/num2;
+  _Array_ptr<long> v : count(n) = 0;
+  _Array_ptr<int> v2 : count(n) = 0;
+  v = simulate_calloc<long>(n, sizeof(long));
+  v = simulate_calloc<long>(n, sizeof(unsigned long));
+}
+
+static size_t k = 0;
+
+extern _Array_ptr<long> v2 : count(k + 1);
+void a_f_2(void) {
+  v2 = simulate_malloc<long>((k + 1) * sizeof(long));
+  v2 = simulate_malloc<long>(sizeof(long) * (k + 1));
+}
+
+extern _Array_ptr<long> v10 : count(k + 1);
+void a_f_3(void) {
+  v10 = simulate_malloc<long>((k + 1) * -1); // expected-warning {{cannot prove declared bounds for v10 are valid after assignment}} \
+                                             // expected-note {{(expanded) declared bounds are 'bounds(v10, v10 + k + 1)'}} \
+                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc((k + 1) * -1), (_Array_ptr<char>)value of simulate_malloc((k + 1) * -1) + (k + 1) * -1)'}}
+}
+
+extern _Array_ptr<long> v11 : count(k);
+void a_f_4(void) {
+  v11 = simulate_malloc<long>(k * 1); // expected-warning {{cannot prove declared bounds for v11 are valid after assignment}} \
+                                      // expected-note {{(expanded) declared bounds are 'bounds(v11, v11 + k)'}} \
+                                      // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc(k * 1), (_Array_ptr<char>)value of simulate_malloc(k * 1) + k * 1)'}}
+}
+
+extern _Array_ptr<long> v12 : count(k);
+void a_f_5(void) {
+  v12 = simulate_malloc<long>(k); // expected-warning {{cannot prove declared bounds for v12 are valid after assignment}} \
+                                  // expected-note {{(expanded) declared bounds are 'bounds(v12, v12 + k)'}} \
+                                  // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc(k), (_Array_ptr<char>)value of simulate_malloc(k) + k)'}}
+}
+
+extern _Array_ptr<long> v25_l : count(k);
+void a_f_6_l(void) {
+  v25_l = simulate_malloc<long>(k * __SIZEOF_LONG__);
+}
+
+extern _Array_ptr<long> v25_r : count(k);
+void a_f_6_r(void) {
+  v25_r = simulate_malloc<long>(__SIZEOF_LONG__ * k);
+}
+
+extern _Array_ptr<struct s2> v3 : count(k);
+void a_f_7(void) {
+  v3 = simulate_malloc<struct s2>(k * sizeof(struct s2));
+}
+
+extern _Array_ptr<struct s2> v32 : count(k);
+void a_f_8(void) {
+  v32 = simulate_malloc<struct s2>(sizeof(struct s2) * k);
+}
+
+extern _Array_ptr<struct s2> v4 : count(k);
+void a_f_9(void) {
+  v4 = simulate_malloc<struct s2>(k * sizeof(int)); // expected-warning {{cannot prove declared bounds for v4 are valid after assignment}} \
+                                                    // expected-note {{(expanded) declared bounds are 'bounds(v4, v4 + k)'}} \
+                                                    // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc(k * sizeof(int)), (_Array_ptr<char>)value of simulate_malloc(k * sizeof(int)) + k * sizeof(int))'}}
+}
+
+extern _Array_ptr<int> v20 : count(k);
+void a_f_10(void) {
+  v20 = simulate_malloc<int>(k * sizeof(unsigned long long)); // expected-warning {{cannot prove declared bounds for v20 are valid after assignment}} \
+                                                              // expected-note {{(expanded) declared bounds are 'bounds(v20, v20 + k)'}} \
+                                                              // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc(k * sizeof(unsigned long long)), (_Array_ptr<char>)value of simulate_malloc(k * sizeof(unsigned long long)) + k * sizeof(unsigned long long))'}}
+}
+
+typedef _Ptr<struct s1> t1;
+struct s3 {
+  _Array_ptr<t1> array : count(size);
+  int size;
+};
+
+struct s4 {
+  _Ptr<struct s4> next;
+};
+
+typedef _Ptr<struct s4> t2;
+int v33;
+t2 v = 0, v22 = 0;
+_Array_ptr<struct s4> v24 : count(v33) = 0;
+void a_f_11(void) {
+  v24 = simulate_calloc<struct s4>(v33, sizeof(*v22)); // expected-warning {{cannot prove declared bounds for v24 are valid after assignment}} \
+                                                       // expected-note {{(expanded) declared bounds are 'bounds(v24, v24 + v33)'}} \
+                                                       // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(v33, sizeof (*v22)), (_Array_ptr<char>)value of simulate_calloc(v33, sizeof (*v22)) + (size_t)v33 * sizeof (*v22))'}}
+}
+
+size_t v34;
+_Array_ptr<struct s4> v25 : count(v34) = 0;
+void a_f_11_u(void) {
+  v25 = simulate_calloc<struct s4>(v34, sizeof(*v22));
+}
+
+static _Array_ptr<char> x1 : count(k);
+static _Array_ptr<char> x2 : count(3);
+void a_f_12(void) {
+  x1 = simulate_calloc<char>(32768, sizeof(char)); // expected-warning {{cannot prove declared bounds for x1 are valid after assignment}} \
+                                                   // expected-note {{(expanded) declared bounds are 'bounds(x1, x1 + k)'}} \
+                                                   // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(32768, sizeof(char)), (_Array_ptr<char>)value of simulate_calloc(32768, sizeof(char)) + (size_t)32768 * sizeof(char))'}}
+  x2 = simulate_calloc<char>(3, sizeof(char));
+}
+
+typedef struct ts1 {
+  _Ptr<struct ts1> next;
+} ts1;
+
+void a_f_13(int n) {
+  _Array_ptr<_Ptr<ts1>> v22 : count(n) = simulate_calloc<_Ptr<ts1>>(n, (sizeof(_Ptr<ts1>))); // expected-warning {{cannot prove declared bounds for 'v22' are valid after initialization}} \
+                                                                                             // expected-note {{(expanded) declared bounds are 'bounds(v22, v22 + n)'}} \
+                                                                                             // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_calloc(n, (sizeof(_Ptr<ts1>))), (_Array_ptr<char>)value of simulate_calloc(n, (sizeof(_Ptr<ts1>))) + (size_t)n * (sizeof(_Ptr<ts1>)))'}}
+}
+
+void a_f_13_u(size_t n) {
+  _Array_ptr<_Ptr<ts1>> v22 : count(n) = simulate_calloc<_Ptr<ts1>>(n, (sizeof(_Ptr<ts1>)));
+}
+
+void a_f_14(void) {
+  long i;
+  _Array_ptr<long> v21 : count(i + 1) = simulate_malloc<long>((i + 1) * (i + 1) * sizeof(long)); // expected-warning {{cannot prove declared bounds for 'v21' are valid after initialization}} \
+                                                                                                 // expected-note {{(expanded) declared bounds are 'bounds(v21, v21 + i + 1)'}} \
+                                                                                                 // expected-note {{(expanded) inferred bounds}}
+}
+
+void a_f_15(void) {
+  long i, j;
+  _Array_ptr<long> v : count(j + 1) = simulate_malloc<long>((i + 1) * sizeof(long)); // expected-warning {{cannot prove declared bounds for 'v' are valid after initialization}} \
+                                                                                     // expected-note {{(expanded) declared bounds are 'bounds(v, v + j + 1)'}} \
+                                                                                     // expected-note {{(expanded) inferred bounds}}
+}
+
+static _Array_ptr<char> v23 : count(32768);
+static _Array_ptr<void> a_f_16(int size) : byte_count(size) {
+  v23 = simulate_calloc<char>(32768, sizeof(char));
+  return v23;
+}
+
+//
+// Test use of the extracted comparison facts for proving bounds declarations
+//
+
+_Itype_for_any(T) void *simulate_memcpy(void * restrict dest : itype(restrict _Array_ptr<T>) byte_count(n),
+             const void * restrict src : itype(restrict _Array_ptr<const T>) byte_count(n),
+             size_t n) : itype(_Array_ptr<T>) byte_count(n);
+
+_Array_ptr<int> f80(unsigned num1, unsigned num2) {
+  if (num1 > num2)
+    return 0;
+  _Array_ptr<int> p : count(num1) = test_f50(num2);
+  return p;
+}
+
+void f81(_Ptr<int> d, size_t a) {
+  _Array_ptr<_Ptr<int>> b : count(a) = 0;
+  _Array_ptr<_Ptr<int>> c : count(a) = 0;
+  if (a == 0 || a < *d)
+    return;
+  b = simulate_malloc<_Ptr<int>>(a * sizeof(_Ptr<int>));
+  if (b == 0)
+    return;
+  if (c != 0 && *d > 0)
+    simulate_memcpy<_Ptr<int>>(b, c, *d * sizeof(_Ptr<int>));
+}
+
+void f82(_Ptr<int> d, size_t a) {
+  _Array_ptr<_Ptr<int>> b : count(a) = 0;
+  _Array_ptr<_Ptr<int>> c : count(a) = 0;
+  if (a == 0)
+    return;
+  b = simulate_malloc<_Ptr<int>>(a * sizeof(_Ptr<int>));
+  if (b == 0)
+    return;
+  if (c != 0 && *d > 0)
+    simulate_memcpy<_Ptr<int>>(b, c, *d * sizeof(_Ptr<int>)); // expected-warning {{cannot prove argument meets declared bounds for 1st parameter}} \
+                                                              // expected-note {{expected argument bounds are 'bounds((_Array_ptr<char>)b, (_Array_ptr<char>)b + *d * sizeof(_Ptr<int>))'}} \
+                                                              // expected-note {{inferred bounds are 'bounds(b, b + a)'}} \
+                                                              // expected-warning {{cannot prove argument meets declared bounds for 2nd parameter}} \
+                                                              // expected-note {{expected argument bounds are 'bounds((_Array_ptr<char>)(_Array_ptr<_Ptr<int> const>)c, (_Array_ptr<char>)(_Array_ptr<_Ptr<int> const>)c + *d * sizeof(_Ptr<int>))'}} \
+                                                              // expected-note {{inferred bounds are 'bounds(c, c + a)'}}
+}
+
+void f83(_Ptr<int> d, size_t a) {
+  _Array_ptr<_Ptr<int>> b : count(a) = 0;
+  _Array_ptr<_Ptr<int>> c : count(a) = 0;
+  if (a == 0 || a < *d)
+    return;
+  b = simulate_malloc<_Ptr<int>>(a * sizeof(_Ptr<int>));
+  if (b == 0)
+    return;
+  if (c != 0 && *d > 0)
+    simulate_memcpy<_Ptr<int>>(b, c, *d * sizeof(_Ptr<int>));
+}
+
+struct st_80;
+struct st_80_arr {
+  struct st_80 **e : itype(_Array_ptr<_Ptr<struct st_80>>) count(c);
+  int d;
+  int c;
+};
+
+void f84(_Ptr<struct st_80_arr> arr, int b) {
+  _Array_ptr<_Ptr<struct st_80>> a : count(b) = 0;
+  if (arr->c <= b) {
+    arr->c = b * b;
+    arr->e = a; // expected-warning {{cannot prove declared bounds for arr->e are valid after assignment}} \
+                // expected-note {{declared bounds are 'bounds(arr->e, arr->e + arr->c)'}} \
+                // expected-note {{inferred bounds are 'bounds(a, a + b)'}}
+  }
+}
+
+void f85(_Ptr<struct st_80_arr> arr, int b) {
+  _Array_ptr<_Ptr<struct st_80>> a : count(b) = 0;
+  if (arr->c <= b) {
+    arr->e = a; // expected-warning {{cannot prove declared bounds for arr->e are valid after assignment}} \
+                // expected-note {{declared bounds are 'bounds(arr->e, arr->e + arr->c)'}} \
+                // expected-note {{inferred bounds are 'bounds(a, a + b)'}}
+    arr->c = b * b;
+  }
 }

@@ -26,16 +26,17 @@ tyToStr(const Type *T) {
 }
 
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
-                                                     uint32_t &K, Constraints &CS, const ASTContext &C) :
+                                                     ConstraintKey &K, Constraints &CS, const ASTContext &C) :
         PointerVariableConstraint(D->getType(), K, D, D->getName(), CS, C) { }
 
-PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_t &K,
+PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, ConstraintKey &K,
                                                      DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
                            tyToStr(QT.getTypePtr()),N),FV(nullptr)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
+  OriginalType = tyToStr(Ty);
   // If the type is a decayed type, then maybe this is the result of
   // decaying an array to a pointer. If the original type is some
   // kind of array type, we want to use that instead.
@@ -55,6 +56,17 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
   arrPresent = false;
 
   if (InteropTypeExpr *ITE = D->getInteropTypeExpr()) {
+    // External variables can also have itype. So, check if the provided
+    // declaration is an external variable.
+    if (isa<VarDecl>(D) && cast<VarDecl>(D)->isExternC()) {
+      QualType InteropType = C.getInteropTypeAndAdjust(ITE, false);
+      // TODO: handle array_ptr types.
+      if (InteropType->isCheckedPointerPtrType()) {
+        QTy = InteropType;
+        Ty = QTy.getTypePtr();
+      }
+    }
+
     SourceRange R = ITE->getSourceRange();
     if (R.isValid()) {
       auto &SM = C.getSourceManager();
@@ -88,13 +100,13 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       K++;
 
       // Boil off the typedefs in the array case.
-      while(const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
+      while (const TypedefType *tydTy = dyn_cast<TypedefType>(Ty)) {
         QTy = tydTy->desugar();
         Ty = QTy.getTypePtr();
       }
 
       // Iterate.
-      if(const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
+      if (const ArrayType *arrTy = dyn_cast<ArrayType>(Ty)) {
         QTy = arrTy->getElementType();
         Ty = QTy.getTypePtr();
       } else {
@@ -107,13 +119,25 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       VarAtom * V = CS.getOrCreateVar(K);
 
       if (Ty->isCheckedPointerType()) {
-        if (Ty->isCheckedPointerPtrType()) {
-          // Constrain V so that it can't be either wild or an array.
+        if (Ty->isCheckedPointerNtArrayType()) {
+          // this is an NT array type
+          // Constrain V to be not equal to Arr, Ptr or Wild
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getPtr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);
         } else if (Ty->isCheckedPointerArrayType()) {
+          // this is an array type
+          // Constrain V to be not equal to NTArr, Ptr or Wild
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getNTArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getPtr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
+          ConstrainedVars.insert(K);
+        } else if (Ty->isCheckedPointerPtrType()) {
+          // Constrain V so that it can't be either wild or
+          // an array or an NTArray
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getArr())));
+          CS.addConstraint(CS.createNot(CS.createEq(V, CS.getNTArr())));
           CS.addConstraint(CS.createNot(CS.createEq(V, CS.getWild())));
           ConstrainedVars.insert(K);
         }
@@ -123,7 +147,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
       // indexes K to the qualification of QTy, if any.
       if (QTy.isConstQualified())
         QualMap.insert(
-                std::pair<uint32_t, Qualification>(K, ConstQualification));
+                std::pair<ConstraintKey, Qualification>(K, ConstQualification));
 
       arrSizes[K] = std::pair<OriginalArrType,uint64_t>(O_Pointer,0);
 
@@ -157,9 +181,8 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, uint32_
 
   BaseType = tyToStr(Ty);
 
-  if (QTy.isConstQualified()) {
+  if (QTy.isConstQualified())
     BaseType = "const " + BaseType;
-  }
 
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
@@ -187,9 +210,9 @@ bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
   auto I = getCvars().begin();
   auto J = OC.begin();
   Constraints &CS = Info.getConstraints();
-  auto env = CS.getVariables();
+  auto &env = CS.getVariables();
 
-  while(I != getCvars().end() && J != OC.end()) {
+  while (I != getCvars().end() && J != OC.end()) {
     // Look up the valuation for I and J.
     ConstAtom *CI = env[CS.getVar(*I)];
     ConstAtom *CJ = env[CS.getVar(*J)];
@@ -242,11 +265,37 @@ void PointerVariableConstraint::print(raw_ostream &O) const {
   }
 }
 
+void PointerVariableConstraint::dump_json(llvm::raw_ostream &O) const {
+  O << R"({"PointerVar":{)";
+  O << R"("Vars":[)";
+  bool addComma = false;
+  for (const auto &I : vars) {
+    if (addComma)
+      O << ",";
+    O << R"("q_)" << I << R"(")";
+    addComma = true;
+  }
+  O << R"(], "name":")" << getName() << R"(")";
+  if (FV) {
+    O << R"(, "FunctionVariable":)";
+    FV->dump_json(O);
+  }
+  O << "}}";
+
+}
+
+void PointerVariableConstraint::getQualString(ConstraintKey targetCVar, std::ostringstream &ss) {
+  std::map<ConstraintKey, Qualification>::iterator q = QualMap.find(targetCVar);
+  if (q != QualMap.end())
+    if (q->second == ConstQualification)
+      ss << "const ";
+}
+
 // Mesh resolved constraints with the PointerVariableConstraints set of
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.
 std::string
-PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName) {
+PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName, bool forItype) {
   std::ostringstream ss;
   std::ostringstream pss;
   unsigned caratsToAdd = 0;
@@ -259,18 +308,16 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     ConstAtom *C = E[&VA];
     assert(C != nullptr);
 
-    std::map<uint32_t, Qualification>::iterator q;
     Atom::AtomKind K = C->getKind();
 
-    if (BaseType == "void")
+    // if this is not an itype
+    // make this wild as it can hold any pointer type
+    if (!forItype && BaseType == "void")
       K = Atom::A_Wild;
 
     switch (K) {
       case Atom::A_Ptr:
-        q = QualMap.find(V);
-        if (q != QualMap.end())
-          if (q->second == ConstQualification)
-            ss << "const ";
+        getQualString(V, ss);
 
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
@@ -311,6 +358,22 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
 
           break;
         }
+      case Atom::A_NTArr:
+        // this additional check is to prevent fall-through from the array.
+        if (K == Atom::A_NTArr) {
+          // if this is an NTArray
+          getQualString(V, ss);
+
+          // We need to check and see if this level of variable
+          // is constrained by a bounds safe interface. If it is,
+          // then we shouldn't re-write it.
+          if (getItypePresent() == false) {
+            emittedBase = false;
+            ss << "_Nt_array_ptr<";
+            caratsToAdd++;
+            break;
+          }
+        }
         // If there is no array in the original program, then we fall through to
         // the case where we write a pointer value.
       case Atom::A_Wild:
@@ -326,10 +389,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
           }
         }
 
-        q = QualMap.find(V);
-        if (q != QualMap.end())
-          if (q->second == ConstQualification)
-            ss << "const ";
+        getQualString(V, ss);
         break;
       case Atom::A_Const:
       case Atom::A_Var:
@@ -338,7 +398,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     }
   }
 
-  if(emittedBase == false) {
+  if (emittedBase == false) {
     // If we have a FV pointer, then our "base" type is a function pointer
     // type.
     if (FV) {
@@ -353,7 +413,9 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
     ss << ">";
   }
 
-  ss << " ";
+  // if this is for an itype? No need to add space.
+  if (!forItype)
+    ss << " ";
 
   std::string finalDec;
   if (emittedName == false) {
@@ -370,13 +432,13 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
 // declaration itself. Either require constraint variables for any pointer
 // types that are either return values or paraemeters for the function.
 FunctionVariableConstraint::FunctionVariableConstraint(DeclaratorDecl *D,
-                                                       uint32_t &K, Constraints &CS, const ASTContext &C) :
+                                                       ConstraintKey &K, Constraints &CS, const ASTContext &C) :
         FunctionVariableConstraint(D->getType().getTypePtr(), K, D,
                                    (D->getDeclName().isIdentifier() ? D->getName() : ""), CS, C)
 { }
 
 FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
-                                                       uint32_t &K, DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &Ctx) :
+                                                       ConstraintKey &K, DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &Ctx) :
         ConstraintVariable(ConstraintVariable::FunctionVariable, tyToStr(Ty), N),name(N)
 {
   QualType returnType;
@@ -565,6 +627,18 @@ bool FunctionVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
   return false;
 }
 
+ConstAtom* FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
+  ConstAtom *toRet = nullptr;
+  for (const auto& C: returnVars) {
+    ConstAtom *CS = C->getHighestType(E);
+    assert(CS != nullptr);
+    if (toRet == nullptr || ((*toRet) < *CS)) {
+      toRet = CS;
+    }
+  }
+  return toRet;
+}
+
 void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool checkSkip) {
   for (const auto &V : vars) {
     // Check and see if we've already constrained this variable. This is currently
@@ -572,7 +646,9 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
     // function, and we don't want the linking phase to un-refine it by introducing
     // a conflicting constraint.
     bool doAdd = true;
-    if (checkSkip)
+    // this will ensure that we do not make an itype constraint
+    // variable to be WILD (which should be impossible)!!
+    if (checkSkip || dyn_cast<WildAtom>(A))
       if (ConstrainedVars.find(V) != ConstrainedVars.end())
         doAdd = false;
 
@@ -592,6 +668,7 @@ bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
     f |= isa<PtrAtom>(CS);
+    f |= isa<NTArrAtom>(CS);
   }
 
   if (FV)
@@ -611,7 +688,7 @@ bool PointerVariableConstraint::hasWild(Constraints::EnvironmentMap &E)
   }
 
   if (FV)
-    return FV->anyChanges(E);
+    return FV->hasWild(E);
 
   return false;
 }
@@ -632,6 +709,18 @@ bool PointerVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
   return false;
 }
 
+ConstAtom* PointerVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
+  ConstAtom *toRet = nullptr;
+  for (const auto& C: vars) {
+    VarAtom V(C);
+    ConstAtom *CS = E[&V];
+    assert(CS != nullptr);
+    if (toRet == nullptr || ((*toRet) < *CS))
+      toRet = CS;
+  }
+  return toRet;
+}
+
 void FunctionVariableConstraint::print(raw_ostream &O) const {
   O << "( ";
   for (const auto &I : returnVars)
@@ -646,8 +735,39 @@ void FunctionVariableConstraint::print(raw_ostream &O) const {
   }
 }
 
+void FunctionVariableConstraint::dump_json(raw_ostream &O) const {
+  O << R"({"FunctionVar":{"ReturnVar":[)";
+  bool addComma = false;
+  for (const auto &I : returnVars) {
+    if (addComma)
+      O << ",";
+    I->dump_json(O);
+  }
+  O << R"(], "name":")" << name << R"(", )";
+  O << R"("Parameters":[)";
+  addComma = false;
+  for (const auto &I : paramVars) {
+    if (I.size() > 0) {
+      if (addComma)
+        O << ",\n";
+      O << "[";
+      bool innerComma = false;
+      for (const auto &J : I) {
+        if (innerComma)
+          O << ",";
+        J->dump_json(O);
+        innerComma = true;
+      }
+      O << "]";
+      addComma = true;
+    }
+  }
+  O << "]";
+  O << "}}";
+}
+
 std::string
-FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName) {
+FunctionVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitName, bool forItype) {
   std::string s = "";
   // TODO punting on what to do here. The right thing to do is to figure out
   // the LUB of all of the V in returnVars.
