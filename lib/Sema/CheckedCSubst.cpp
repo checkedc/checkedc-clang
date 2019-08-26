@@ -147,10 +147,12 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
       InteropTypeExpr *NewIType = new (Context) InteropTypeExpr(InstType, SourceLocation(), SourceLocation(), IType->getTypeInfoAsWritten());
       NewField->setInteropTypeExpr(Context, NewIType);
     }
-    // Types can appear in the bound expression, but only under a `sizeof()` expression:
-    // e.g. `_Array_ptr<int> a : count(sizeof(T*))`. However, we don't need to replace
-    // types under `sizeof()` because `sizeof(T*)` is already erased to `sizeof(void*)`,
-    // which is the correct value anyway.
+    // Type variables can appear in the bounds expression, but the only relevant information they provide
+    // is their size. However, since type variables represent incomplete types, they will only
+    // appear in the bounds expression as pointers, whose size is known (equivalent to 'void *').
+    // This allows us to not do any replacements in bounds expressions.
+    // e.g. `_Array_ptr<int> a : count(sizeof(T*))` will be erased to `sizeof(void*)`,
+    // which is correct because 'sizeof(T *) = sizeof(void *)' for all 'T'.
     NewField->setBoundsExpr(Context, Field->getBoundsExpr());
 
     Incomplete->addDecl(NewField);
