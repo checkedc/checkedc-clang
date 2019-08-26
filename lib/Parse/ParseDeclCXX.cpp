@@ -2095,6 +2095,7 @@ DeclResult Parser::ParseRecordTypeApplication(RecordDecl *Base, bool IsItypeGene
     SkipUntil(tok::greater, StopAtSemi);
     return true;
   }
+  ConsumeToken(); // eat '<'
   auto ArgsRes = ParseGenericTypeArgumentList(SourceLocation());
   if (ArgsRes.first) {
     // Problem while parsing the type arguments (error is produced by 'ParseGenericTypeArgumentList')
