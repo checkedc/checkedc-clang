@@ -3032,7 +3032,10 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 ///       for-any-specifier: [CheckedC]
 /// [CheckedC] '_For_any'
 /// [CheckedC] '_Itype_for_any'
-/// [CheckedC] '_Itype_for_any' and '_For_any' are mutually exclusive
+///            '_Itype_for_any' and '_For_any' are mutually exclusive
+/// [CheckedC] '_Unpack' '(' type-variables ')'
+///            Where type-variables stands for one or more comma-separated
+///            type variables.
 void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                         const ParsedTemplateInfo &TemplateInfo,
                                         AccessSpecifier AS,
@@ -3153,7 +3156,6 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         goto DoneWithDeclSpec;
       ParseItypeforanySpecifier(DS);
       continue;
-
     case tok::code_completion: {
       Sema::ParserCompletionContext CCC = Sema::PCC_Namespace;
       if (DS.hasTypeSpecifier()) {
@@ -3866,6 +3868,10 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw__Exists: {
       ParseExistentialTypeSpecifier(DS);
       // Continue to keep the current token from being consumed.
+      continue;
+    }
+    case tok::kw__Unpack: {
+      ParseUnpackTypeSpecifier(DS);
       continue;
     }
     // class-specifier:
@@ -7392,6 +7398,10 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
   EnterScope(Scope::DeclScope | Scope::ExistentialTypeScope);
   ParseExistentialTypeSpecifierHelper(DS);
   ExitScope();
+}
+
+void Parser::ParseUnpackTypeSpecifier(DeclSpec &DS) {
+  assert(Tok.is(tok::kw__Unpack) && "Expected an '_Unpack' token");
 }
 
 /// This helper is split from the main method so we can guarantee that we always
