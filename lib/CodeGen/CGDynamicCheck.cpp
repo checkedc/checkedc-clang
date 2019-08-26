@@ -29,6 +29,7 @@ namespace {
   STATISTIC(NumDynamicChecksOverflow, "The # of dynamic overflow checks found");
   STATISTIC(NumDynamicChecksRange, "The # of dynamic bounds checks found");
   STATISTIC(NumDynamicChecksCast, "The # of dynamic cast checks found");
+  STATISTIC(NumDynamicObjIDCheck, "The # of dynamic Object ID matching found");
 }
 
 //
@@ -354,6 +355,77 @@ BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
 
   return FailBlock;
 }
+
+
+//
+// Checked C
+// EmitDynamicStructIDCheck()
+//
+// This method dynamically checks if the ID of a dereferenced mmsafe_ptr
+// matches the ID of the struct object pointed to by this mmsafe_ptr.
+// If they don't match, insert and jumps to an llvm.trap() intrinsic.
+//
+// \param E - a clang Expr representing a dereference to a mmsafe_ptr.
+//
+// Outputs:
+//   A series of IR instructions that extract the ID of the mmsafe_ptr and
+//   the ID of the pointee, and do the comparison.
+//
+void CodeGenFunction::EmitDynamicStructIDCheck(const Expr *E) {
+  if (!getLangOpts().CheckedC) return;
+
+  // Return if the dereference is not a _MMSafe_ptr type.
+  if (!E->getType()->isCheckedPointerMMSafeType()) return;
+
+  // Double-check that this is a dereference to a pointer variable.
+  assert((isa<CastExpr>(E) && isa<DeclRefExpr>(cast<CastExpr>(E)->getSubExpr()))
+      && "This is not a reference to a declared mmsafe_ptr variable.");
+
+  NumDynamicObjIDCheck++;
+
+  // Get the LValue of the mmsafe_ptr.
+  LValue mmsafe_ptr_LV = EmitDeclRefLValue(
+      cast<DeclRefExpr>(cast<CastExpr>(E)->getSubExpr()));
+
+  Address mmsafe_ptr_Addr = mmsafe_ptr_LV.getAddress();
+
+  // Get the name of the variable
+  StringRef ptrName = mmsafe_ptr_Addr.getName();
+
+  // Step 1: get the pointer to the ID field of the mmsafe_ptr.
+  Address mmsafe_ptr_IDAddr =
+    Builder.CreateStructGEP(mmsafe_ptr_Addr,
+                            1,  // The ID is the second field of a mmsafe_ptr.
+                            CharUnits::fromQuantity(8),
+                            ptrName + "_MMSafe_ptr_ID_Ptr");
+
+  // Step 2: load the ID to an integer.
+  llvm::LoadInst *mmsafe_ptr_ID =
+    Builder.CreateLoad(mmsafe_ptr_IDAddr, false, ptrName + "_MMSafe_ptr_ID");
+
+  CharUnits alignment = CharUnits::fromQuantity(8);
+
+  // Step 3: get the pointer to the ID field of the target struct.
+  Address objAddr(mmsafe_ptr_Addr.getPointer(), alignment);
+  llvm::LoadInst *objIDPtr =
+    Builder.CreateLoad(objAddr, false, ptrName + "_pointee_ID_Ptr");
+  Address objIDAddr =
+    Builder.CreateStructGEP(Address(objIDPtr, alignment),
+                            0,  // ID is always the first field of a struct.
+                            CharUnits::fromQuantity(0), ptrName + "_Obj_Ptr");
+
+  // Step 4: load the pointee object's ID to an integer.
+  llvm::LoadInst *objID =
+    Builder.CreateLoad(objIDAddr, false, ptrName + "_Obj_ID");
+
+  // Step 5: create a comparison instrution of the two IDs.
+  Value *IDCheckInst =
+    Builder.CreateICmpEQ(mmsafe_ptr_ID, objID, ptrName + "_ID_Checking");
+
+  // Step 6: emit a dynamic checking block.
+  EmitDynamicCheckBlocks(IDCheckInst);
+}
+
 
 BasicBlock *CodeGenFunction::EmitNulltermWriteAdditionalCheck(
    const Address PtrAddr,
