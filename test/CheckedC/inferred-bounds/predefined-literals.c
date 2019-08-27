@@ -8,12 +8,10 @@ void f1() {
 // CHECK-NEXT: |-Inferred SubExpr Bounds
 // CHECK-NEXT: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK-NEXT: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *':'const char *' <ArrayToPointerDecay>
-// CHECK-NEXT: |   | `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __func__
-// CHECK-NEXT: |   |   `-StringLiteral {{0x[0-9a-f]+}} 'const char [3]' lvalue "f1"
+// CHECK-NEXT: |   | `-BoundsValueExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue _BoundTemporary  {{0x[0-9a-f]+}}
 // CHECK-NEXT: |   `-BinaryOperator {{0x[0-9a-f]+}} 'const char *':'const char *' '+'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *':'const char *' <ArrayToPointerDecay>
-// CHECK-NEXT: |     | `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __func__
-// CHECK-NEXT: |     |   `-StringLiteral {{0x[0-9a-f]+}} 'const char [3]' lvalue "f1"
+// CHECK-NEXT: |     | `-BoundsValueExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue _BoundTemporary  {{0x[0-9a-f]+}}
 // CHECK-NEXT: |     `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 2
 // CHECK-NEXT: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *' <ArrayToPointerDecay>
 // CHECK-NEXT:   `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __func__
@@ -27,12 +25,10 @@ void f3() {
 // CHECK-NEXT: |-Inferred SubExpr Bounds
 // CHECK-NEXT: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK-NEXT: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *':'const char *' <ArrayToPointerDecay>
-// CHECK-NEXT: |   | `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __func__
-// CHECK-NEXT: |   |   `-StringLiteral {{0x[0-9a-f]+}} 'const char [3]' lvalue "f3"
+// CHECK-NEXT: |   | `-BoundsValueExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue _BoundTemporary  {{0x[0-9a-f]+}}
 // CHECK-NEXT: |   `-BinaryOperator {{0x[0-9a-f]+}} 'const char *':'const char *' '+'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *':'const char *' <ArrayToPointerDecay>
-// CHECK-NEXT: |     | `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __func__
-// CHECK-NEXT: |     |   `-StringLiteral {{0x[0-9a-f]+}} 'const char [3]' lvalue "f3"
+// CHECK-NEXT: |     | `-BoundsValueExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue _BoundTemporary  {{0x[0-9a-f]+}}
 // CHECK-NEXT: |     `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 2
 // CHECK-NEXT: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *' <ArrayToPointerDecay>
 // CHECK-NEXT:   `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __func__
@@ -45,12 +41,10 @@ void f4() {
 // CHECK-NEXT: |-Inferred SubExpr Bounds
 // CHECK-NEXT: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK-NEXT: |   |-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *':'const char *' <ArrayToPointerDecay>
-// CHECK-NEXT: |   | `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __FUNCTION__
-// CHECK-NEXT: |   |   `-StringLiteral {{0x[0-9a-f]+}} 'const char [3]' lvalue "f4"
+// CHECK-NEXT: |   | `-BoundsValueExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue _BoundTemporary  {{0x[0-9a-f]+}}
 // CHECK-NEXT: |   `-BinaryOperator {{0x[0-9a-f]+}} 'const char *':'const char *' '+'
 // CHECK-NEXT: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *':'const char *' <ArrayToPointerDecay>
-// CHECK-NEXT: |     | `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __FUNCTION__
-// CHECK-NEXT: |     |   `-StringLiteral {{0x[0-9a-f]+}} 'const char [3]' lvalue "f4"
+// CHECK-NEXT: |     | `-BoundsValueExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue _BoundTemporary  {{0x[0-9a-f]+}}
 // CHECK-NEXT: |     `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 2
 // CHECK-NEXT: `-ImplicitCastExpr {{0x[0-9a-f]+}} 'const char *' <ArrayToPointerDecay>
 // CHECK-NEXT:   `-PredefinedExpr {{0x[0-9a-f]+}} 'const char [3]' lvalue __FUNCTION__
