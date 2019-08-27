@@ -7430,10 +7430,24 @@ void Parser::ParseUnpackSpecifier(DeclSpec &DS) {
     scope = scope->getParent();
   }
 
+  // Calculate the "position" component of the type variable by
+  // iterating over the current scope and counting how many previous
+  // _Unpacks have been desugared.
+  // TODO: is this robust enough?
+  auto Pos = 0;
+  for (auto *Decl : getCurScope()->decls()) {
+    auto *TdefDecl = dyn_cast<TypedefDecl>(Decl);
+    if (!TdefDecl) continue;
+    auto TypeVarTpe = dyn_cast<TypeVariableType>(TdefDecl->getUnderlyingType().getTypePtr());
+    if (!TypeVarTpe) continue;
+    assert(TypeVarTpe->GetIndex() == Pos && "TypeVariable index doesn't match expected value in previous declaration");
+    Pos += 1;
+  }
+
   // The effect of an '_Unpack (T)' specifier is to introduce
   // into the _current_ scope a new incomplete type 'T' represented
   // by a TypeVariableType. As usual, we do this with a typedef.
-  QualType TypeVar = Actions.Context.getTypeVariableType(Depth, 0 /* position */, false /* isBoundsInterfaceType */);
+  QualType TypeVar = Actions.Context.getTypeVariableType(Depth, Pos, false /* isBoundsInterfaceType */);
   TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(TypeVar);
   // TODO: find out why decl doesn't show up in AST dump.
   TypedefDecl *TypeDef = TypedefDecl::Create(
