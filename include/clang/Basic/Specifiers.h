@@ -82,7 +82,6 @@ namespace clang {
     TST_arrayPtr,     // Checked C _Array_ptr type
     TST_ntarrayPtr ,  // Chcecked C _Nt_array_ptr type
     TST_exists,       // Checked C _Exists type
-    TST_unpack,       // Checked C _Unpack specifier. Note this isn't a type, but a specifier like 'typedef' (e.g. '_Unpack (T) struct Foo<T>')
 #define GENERIC_IMAGE_TYPE(ImgType, Id) TST_##ImgType##_t, // OpenCL image types
 #include "clang/Basic/OpenCLImageTypes.def"
     TST_error // erroneous type

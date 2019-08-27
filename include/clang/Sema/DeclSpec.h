@@ -308,7 +308,6 @@ public:
   static const TST TST_arrayPtr = clang::TST_arrayPtr;
   static const TST TST_nt_arrayPtr = clang::TST_ntarrayPtr;
   static const TST TST_exists = clang::TST_exists;
-  static const TST TST_unpack = clang::TST_unpack;
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   static const TST TST_##ImgType##_t = clang::TST_##ImgType##_t;
 #include "clang/Basic/OpenCLImageTypes.def"
@@ -378,6 +377,9 @@ private:
   // Checked C - _Itype_for_any function specifier
   unsigned FS_itypeforany_specified : 1;
 
+  // Checked C - '_Unpack (T)' specifier
+  unsigned Unpack_specified : 1;
+
   // friend-specifier
   unsigned Friend_specified : 1;
 
@@ -421,6 +423,8 @@ private:
   SourceLocation FS_forceinlineLoc;
   // Checked C - checked keyword location
   SourceLocation FS_checkedLoc, FS_foranyLoc, FS_itypeforanyloc;
+  // Checked C - _Unpack keyword location
+  SourceLocation UnpackLoc;
   SourceLocation FriendLoc, ModulePrivateLoc, ConstexprLoc;
   SourceLocation TQ_pipeLoc;
 
@@ -472,6 +476,8 @@ public:
       FS_checked_specified(CSS_None),
       FS_forany_specified(false),
       FS_itypeforany_specified(false),
+      // Checked C - _Unpack specifier
+      Unpack_specified(false),
       Friend_specified(false),
       Constexpr_specified(false),
       Attrs(attrFactory),
@@ -624,6 +630,9 @@ public:
   bool isForanySpecified() const { return FS_forany_specified; }
   bool isItypeforanySpecified() const { return FS_itypeforany_specified; }
   SourceLocation getForanySpecLoc() const { return FS_foranyLoc; }
+
+  bool isUnpackSpecified() const { return Unpack_specified; }
+  SourceLocation getUnpackSpecLoc() const { return UnpackLoc; }
 
   // TODO: add comment about how this method is also used for generics (the comment for existentials is below).
   // TODO: does this method really need to take both an 'ArrayRef' and the number of type variables (the 'ArrayRef' already contains)
@@ -794,6 +803,7 @@ public:
                                 unsigned &DiagID);
   bool setSpecItypeforany(SourceLocation Loc, const char *&PrevSpec,
                                     unsigned &DiagID);
+  bool setUnpackSpec(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID);
   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                      unsigned &DiagID);
   bool setModulePrivateSpec(SourceLocation Loc, const char *&PrevSpec,

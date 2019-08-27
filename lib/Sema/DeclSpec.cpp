@@ -580,7 +580,6 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   case DeclSpec::TST_plainPtr: return "_Ptr";
   case DeclSpec::TST_nt_arrayPtr: return "_Nt_array_ptr";
   case DeclSpec::TST_exists: return "_Exists";
-  case DeclSpec::TST_unpack: return "_Unpack";
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   case DeclSpec::TST_##ImgType##_t: \
     return #ImgType "_t";
@@ -1051,6 +1050,13 @@ bool DeclSpec::setSpecItypeforany(SourceLocation Loc, const char *&PrevSpec, uns
   }
   FS_itypeforany_specified = true;
   FS_itypeforanyloc = Loc;
+  return false;
+}
+
+bool DeclSpec::setUnpackSpec(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID) {
+  // TODO: add error handling
+  Unpack_specified = true;
+  UnpackLoc = Loc;
   return false;
 }
 

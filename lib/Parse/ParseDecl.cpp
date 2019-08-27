@@ -3871,7 +3871,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       continue;
     }
     case tok::kw__Unpack: {
-      ParseUnpackTypeSpecifier(DS);
+      ParseUnpackSpecifier(DS);
       continue;
     }
     // class-specifier:
@@ -7406,7 +7406,7 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
 /// unpack-spec:
 ///   '_Unpack' '(' type-var ')'
 /// TODO: use the proper names for the non-terminals above.
-void Parser::ParseUnpackTypeSpecifier(DeclSpec &DS) {
+void Parser::ParseUnpackSpecifier(DeclSpec &DS) {
   assert(Tok.is(tok::kw__Unpack) && "Expected an '_Unpack' token");
   auto StartLoc = ConsumeToken(); // eat '_Unpack'
   DS.SetRangeStart(StartLoc);
@@ -7465,16 +7465,9 @@ void Parser::ParseUnpackTypeSpecifier(DeclSpec &DS) {
   const char *PrevSpec = nullptr;
   unsigned DiagID;
 
+  // TODO: check return value of setUnpackSpec for errors.
+  DS.setUnpackSpec(StartLoc, PrevSpec, DiagID);
   DS.setTypeVars(Actions.getASTContext(), ArrayRef<TypedefDecl *>(TypeDef), 1 /* NewNumTypeVars */);
-
-  auto Err = DS.SetTypeSpecType(
-    TST_unpack,
-    StartLoc,
-    PrevSpec,
-    DiagID,
-    Actions.getASTContext().getPrintingPolicy());
-
-  if (Err) Diag(StartLoc, DiagID) << PrevSpec;
 }
 
 /// This helper is split from the main method so we can guarantee that we always
