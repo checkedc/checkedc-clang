@@ -4982,8 +4982,9 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw__Nt_array_ptr:
   case tok::kw__Ptr:
 
-  // Checked C existential type
+  // Checked C existential types
   case tok::kw__Exists:
+  case tok::kw__Unpack:
 
     return true;
   }
@@ -5271,6 +5272,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw__Unchecked:
   // Checked C existential types
   case tok::kw__Exists:
+  case tok::kw__Unpack:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
@@ -7400,15 +7402,86 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
   ExitScope();
 }
 
+/// [Checked C] Parse an unpack type specifier.
+/// unpack-spec:
+///   '_Unpack' '(' type-var ')'
+/// TODO: use the proper names for the non-terminals above.
 void Parser::ParseUnpackTypeSpecifier(DeclSpec &DS) {
   assert(Tok.is(tok::kw__Unpack) && "Expected an '_Unpack' token");
+  auto StartLoc = ConsumeToken(); // eat '_Unpack'
+  DS.SetRangeStart(StartLoc);
+
+  if (ExpectAndConsume(tok::l_paren)) return;
+
+  if (Tok.getKind() != tok::identifier) {
+    // TODO: add proper error message
+    printf("expected a type variable name\n");
+    return;
+  }
+
+  // TODO: abstract into a function so this logic can re-used here and when parsing
+  // for_any specifiers.
+  // Calculate the depth of the type variable introduced by the existential.
+  auto Depth = 0;
+  auto *scope = getCurScope()->getParent();
+  while (scope) {
+    // TODO: count prior '_Unpacks'
+    if (scope->isForanyScope() || scope->isItypeforanyScope() || scope->isExistentialTypeScope()) Depth++; 
+    scope = scope->getParent();
+  }
+
+  // The effect of an '_Unpack (T)' specifier is to introduce
+  // into the _current_ scope a new incomplete type 'T' represented
+  // by a TypeVariableType. As usual, we do this with a typedef.
+  QualType TypeVar = Actions.Context.getTypeVariableType(Depth, 0 /* position */, false /* isBoundsInterfaceType */);
+  TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(TypeVar);
+  // TODO: find out why decl doesn't show up in AST dump.
+  TypedefDecl *TypeDef = TypedefDecl::Create(
+    Actions.Context,
+    Actions.CurContext,
+    SourceLocation(), // TODO: fill in proper location
+    Tok.getLocation(),
+    Tok.getIdentifierInfo(),
+    TInfo);
+
+  // Notice that we didn't create a new scope for the new typedef (unlike, say, in the
+  // '_Exists' case). This is because the scope the new variable such be _current_ scope.
+  // e.g.
+  //    {
+  //      _Unpack (T) struct Foo<T> = packedFoo;
+  //      T *t = Foo.field' <--- T should be accessible here
+  //    } <--- T should _NOT_ be accessible past this point
+  Actions.PushOnScopeChains(TypeDef, getCurScope(), true);
+
+  ConsumeToken(); // eat the type variable
+  if (ExpectAndConsume(tok::r_paren)) return;
+
+  // TODO: do we need to adjust the end location?
+  SourceLocation EndLoc = Tok.getLocation();
+  DS.SetRangeEnd(EndLoc);
+
+  // The following are mutated by SetTypeSpecType and used for
+  // error reporting.
+  const char *PrevSpec = nullptr;
+  unsigned DiagID;
+
+  DS.setTypeVars(Actions.getASTContext(), ArrayRef<TypedefDecl *>(TypeDef), 1 /* NewNumTypeVars */);
+
+  auto Err = DS.SetTypeSpecType(
+    TST_unpack,
+    StartLoc,
+    PrevSpec,
+    DiagID,
+    Actions.getASTContext().getPrintingPolicy());
+
+  if (Err) Diag(StartLoc, DiagID) << PrevSpec;
 }
 
 /// This helper is split from the main method so we can guarantee that we always
 /// maintain the right nesting of scopes.
 void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
   assert(getCurScope()->isExistentialTypeScope() && "Current scope should correspond to an existential type");
-  auto StartLoc = ConsumeToken();
+  auto StartLoc = ConsumeToken(); // eat '_Exists'
   DS.SetRangeStart(StartLoc);
 
   if (ExpectAndConsume(tok::l_paren)) return;
