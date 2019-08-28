@@ -15,11 +15,11 @@ The key properties of the analysis are described below.
 
 ## Implementation Details
 The main class that implements the analysis is [`AvailableFactsAnalysis`](https://github.com/microsoft/checkedc-clang/blob/master/lib/Sema/AvailableFactsAnalysis.cpp), and the main function is `AvailableFactsAnalysis::Analyze()`.
-For using the facts in checking bounds declarations, we call `Analyze`. Afterwards, using `AvailableFactsAnalysis::GetFacts(std::pair&)`, we can get the facts in the *current* basic block. By calling `AvailableFactsAnalysis::Next()`, we move to the next basic block in the reverse post-order.
+Prior to checking bounds declarations, `Analyze()` is called. Afterwards, using `AvailableFactsAnalysis::GetFacts(std::pair&)`, we can get the facts that correspond to the *current* basic block. By calling `AvailableFactsAnalysis::Next()`, we move to the next basic block in reverse post-order.
 
 The approach used for implementing the analysis is the iterative worklist algorithm.
 
-*Algorithm*
+*Algorithm:*
 * For every basic block, we need the following sets: `Kill`, `GenElse`, `GenThen`, `In`, `OutElse`, and `OutThen`. All of them are initialized as empty sets.
     * `Gen*[B]`: for every block `B` of kind `if`-condition,
       1. if it is a comparison, add the comparison to `GenThen[B]` and add the negated comparison to `GenElse[B]`.
@@ -53,7 +53,7 @@ For the sake of conservativity, we had to follow the following rules:
 3. Any call expression must be considered as possibly doing a pointer assignment.
 
 ### Notes on Debugging
-In order to debug dataflow-related code, you might use the clang flag `-fdump-extracted-comparison-facts`. This will dump, in reverse post-order, block ID, `Kill` set, and `In` set for every block.
+In order to debug dataflow-related code, you might use the clang flag `-fdump-extracted-comparison-facts`. This will dump, in reverse post-order, the block ID, `Kill` set, and `In` set for every block.
 
 ### Future Improvements
 1. For improving the performance, the analysis can be skipped in functions that do not need bounds declaration checking. Currently, the analysis is performed on every function.
