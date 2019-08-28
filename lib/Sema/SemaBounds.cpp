@@ -917,10 +917,9 @@ namespace {
                                           CastKind::CK_ArrayToPointerDecay,
                                           ArrLValue);
           return ExpandToRange(Base, BE);
-        } else if (StringLiteral *SL = dyn_cast<StringLiteral>(SE)) {
+        } else if (StringLiteral *SL = dyn_cast<StringLiteral>(SE))
           return InferBoundsForStringLiteral(E, SL, Binding);
-        } else
-          return CreateBoundsAlwaysUnknown();
+        return CreateBoundsAlwaysUnknown();
       }
       case Expr::PredefinedExprClass: {
         // PredefinedExprClass defines pre-defined literals like __func__,
