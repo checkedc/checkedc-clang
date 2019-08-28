@@ -760,7 +760,7 @@ namespace {
     }
 
     // Infer bounds for string literals.
-    BoundsExpr *inferBoundsForStringLiteral(Expr *E, StringLiteral *SL,
+    BoundsExpr *InferBoundsForStringLiteral(Expr *E, StringLiteral *SL,
                                             CHKCBindTemporaryExpr *Binding) {
       // Use the number of characters in the string (excluding the null
       // terminator) to calcaulte size.  Don't use the array type of the
@@ -918,7 +918,7 @@ namespace {
                                           ArrLValue);
           return ExpandToRange(Base, BE);
         } else if (StringLiteral *SL = dyn_cast<StringLiteral>(SE)) {
-          return inferBoundsForStringLiteral(E, SL, Binding);
+          return InferBoundsForStringLiteral(E, SL, Binding);
         } else
           return CreateBoundsAlwaysUnknown();
       }
@@ -929,7 +929,7 @@ namespace {
         if (!SL)
           return CreateBoundsAlwaysUnknown();
         auto *Binding = new (Context) CHKCBindTemporaryExpr(E);
-        return inferBoundsForStringLiteral(E, SL, Binding);
+        return InferBoundsForStringLiteral(E, SL, Binding);
       }
       default:
         return CreateBoundsAlwaysUnknown();
