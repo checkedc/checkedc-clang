@@ -166,6 +166,9 @@ private:
   // get the qualifier string (e.g., const, etc) for the provided constraint var (targetCvar)
   // into the provided string stream (ss)
   void getQualString(ConstraintKey targetCVar, std::ostringstream &ss);
+  // This function tries to emit an array size for the variable.
+  // and returns true if the variable is an array and a size is emitted.
+  bool emitArraySize(std::ostringstream &pss, ConstraintKey V, bool &emitName, bool &emittedCheckedAnnotation);
   // flag to indicate that this constraint is a part of function prototype
   // e.g., Parameters or Return
   bool partOFFuncPrototype;

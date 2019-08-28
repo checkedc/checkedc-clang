@@ -167,9 +167,25 @@ public:
         specialCaseVarIntros(D, Info, Context);
         // if this is a static array declaration.
         // make this an array.
-        if(D->getType()->isArrayType()) {
+        if (D->getType()->isArrayType()) {
+          // try to see if this is a multi-dimensional array?
+          // if yes, assign ARR constraint to all the inside vars.
+          const clang::Type *currTypePtr = D->getType().getTypePtr();
           Constraints &CS = Info.getConstraints();
-          constraintInBodyVariable(D, CS.getArr());
+          std::set<ConstraintVariable*> Var = Info.getVariable(D, Context, true);
+          assert(Var.size() == 1 && "Invalid number of ConstraintVariables.");
+          const CVars &PtrCVars = (dyn_cast<PVConstraint>(*(Var.begin())))->getCvars();
+          for (ConstraintKey cKey: PtrCVars) {
+            if (const clang::ArrayType *AT = dyn_cast<clang::ArrayType>(currTypePtr)) {
+              CS.addConstraint(
+                CS.createEq(
+                  CS.getOrCreateVar(cKey), CS.getArr()));
+              currTypePtr = AT->getElementType().getTypePtr();
+              continue;
+            }
+            break;
+          }
+
         }
       }
     }

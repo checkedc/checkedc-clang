@@ -314,6 +314,39 @@ void PointerVariableConstraint::getQualString(ConstraintKey targetCVar, std::ost
       ss << "const ";
 }
 
+bool PointerVariableConstraint::emitArraySize(std::ostringstream &pss, ConstraintKey V,
+                                              bool &emitName, bool &emittedCheckedAnnotation) {
+  bool wroteArray = false;
+  if (arrPresent) {
+    auto i = arrSizes.find(V);
+    assert(i != arrSizes.end());
+    OriginalArrType oat = i->second.first;
+    uint64_t oas = i->second.second;
+
+    if (emitName == false) {
+      emitName = true;
+      pss << getName();
+    }
+
+    switch (oat) {
+      case O_SizedArray:
+        if (!emittedCheckedAnnotation) {
+          pss << " _Checked";
+          emittedCheckedAnnotation = true;
+        }
+        pss << "[" << oas << "]";
+        wroteArray = true;
+        break;
+      case O_UnSizedArray:
+        pss << "[]";
+        wroteArray = true;
+        break;
+    }
+    return wroteArray;
+  }
+  return wroteArray;
+}
+
 // Mesh resolved constraints with the PointerVariableConstraints set of
 // variables and potentially nested function pointer declaration. Produces a
 // string that can be replaced in the source code.
@@ -324,6 +357,7 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
   unsigned caratsToAdd = 0;
   bool emittedBase = false;
   bool emittedName = false;
+  bool emittedCheckedAnnotation = false;
   if (emitName == false && getItypePresent() == false)
     emittedName = true;
   for (const auto &V : vars) {
@@ -358,31 +392,8 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
         // be [] instead of *, IF, the original type was an array.
         // And, if the original type was a sized array of size K,
         // we should substitute [K].
-        if (arrPresent) {
-          auto i = arrSizes.find(V);
-          assert(i != arrSizes.end());
-          OriginalArrType oat = i->second.first;
-          uint64_t oas = i->second.second;
-
-          if (emittedName == false) {
-            emittedName = true;
-            pss << getName();
-          }
-
-          switch(oat) {
-            case O_Pointer:
-              pss << "*";
-              break;
-            case O_SizedArray:
-              pss << "[" << oas << "]";
-              break;
-            case O_UnSizedArray:
-              pss << "[]";
-              break;
-          }
-
+        if (emitArraySize(pss, V, emittedName, emittedCheckedAnnotation))
           break;
-        }
         // We need to check and see if this level of variable
         // is constrained by a bounds safe interface. If it is,
         // then we shouldn't re-write it.
@@ -393,6 +404,9 @@ PointerVariableConstraint::mkString(Constraints::EnvironmentMap &E, bool emitNam
           break;
         }
       case Atom::A_NTArr:
+
+        if (emitArraySize(pss, V, emittedName, emittedCheckedAnnotation))
+          break;
         // this additional check is to prevent fall-through from the array.
         if(K == Atom::A_NTArr) {
           // if this is an NTArray
