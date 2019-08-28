@@ -1307,10 +1307,10 @@ def err_num_type_args_params_mistmatch : Error<
   "generic struct takes %0 type arguments, but instantiation provided %1">;
 
 def err_expected_type_argument_list_for_generic_instance : Error<
-  "expected a type argument list for an instance of a generic struct">;
+  "expected a type argument list for a generic struct type">;
 
 def err_expected_type_argument_list_for_itype_generic_instance : Error<
-  "expected a type argument list for an instance of a struct with a bounds-safe interface, since we are in a checked scope">;
+  "expected a type argument list for a struct with a bounds-safe interface in a checked scope">;
 
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<

@@ -147,6 +147,9 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
       InteropTypeExpr *NewIType = new (Context) InteropTypeExpr(InstType, SourceLocation(), SourceLocation(), IType->getTypeInfoAsWritten());
       NewField->setInteropTypeExpr(Context, NewIType);
     }
+    // TODO: substitute type arguments in bounds expressions as well.
+    //
+    // Incomplete solution for now: leave free variables in bounds expressions.
     // Type variables can appear in the bounds expression, but the only relevant information they provide
     // is their size. However, since type variables represent incomplete types, they will only
     // appear in the bounds expression as pointers, whose size is known (equivalent to 'void *').
