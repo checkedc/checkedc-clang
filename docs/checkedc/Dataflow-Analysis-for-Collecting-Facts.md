@@ -9,8 +9,8 @@ The key properties of the analysis are described below.
 1. **Forward:** the basic blocks of the function are traversed in reverse post-order. In other words, a basic block is visited before its successors.
 2. **Path-sensitive:** path-sensitivity in this context means we should be able to distinguish between `else` and `then` branches since they generate different facts.
 3. **Flow-sensitive:** as any other dataflow analysis, the sequence of basic blocks are taken into consideration when performing the analysis. Note that a basic block might consist of multiple statements. For more information on CFG basic blocks in clang, please refer to the [documentation](https://clang.llvm.org/doxygen/classclang_1_1CFGBlock.html).
-4. **Intra-procedural:** the analysis is done on function at a time. The reason behind this decision is scalability.
-5. **Conservative:** since we do not perform pointer analysis prior to collecting facts we have to be careful about facts that involve pointer dereferences. Also, when collecting the facts in one function, we are not aware of the side effects of function calls. The details about conservativity will be clarified under implementation details.
+4. **Intra-procedural:** the analysis is done on one function at a time. The reason behind this decision is scalability.
+5. **Conservative:** since we do not perform pointer analysis prior to collecting facts, we have to be careful about those involving pointer dereferences. Also, when collecting the facts in one function, we are not aware of the side effects of function calls. The details about conservativity will be clarified under implementation details.
 
 
 ## Implementation Details
