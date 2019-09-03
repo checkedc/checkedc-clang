@@ -4451,30 +4451,47 @@ public:
 ///   3) a pointer that satisfies one of 1) - 3)
 class ExistentialType : public Type, public llvm::FoldingSetNode {
   /// The type variable that is bound by the existential.
-  const TypeVariableType *TypeVar = nullptr;
+  /// This is of type 'Type' to allow for some polymorphism:
+  /// non-canonical existential types will contain a 'TypedefType' here,
+  /// while canonical ones will contain the underlying 'TypeVariableType'.
+  /// This isn't a 'QualType' because the variable bound by an existential cannot be
+  /// qualified.
+  const Type *TypeVar = nullptr;
   /// The type wrapped by the existential that potentially uses the bound type variable.
   QualType InnerType;
 
-public:
+protected:
+  /// Contains the factory method for creating existential types.
+  friend class ASTContext;
 
-  ExistentialType(const TypeVariableType *TypeVar, QualType InnerType) :
+  /// Create via the factory 'ASTContext::getExistentialType'.
+  ExistentialType(const Type *TypeVar, QualType InnerType) :
     Type(Existential, QualType() /* canon */, false /* Dependent */ , false /* InstantiationDependent */,
       false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
-    TypeVar(TypeVar), InnerType(InnerType) {}
+    TypeVar(TypeVar), InnerType(InnerType) {
+    if (!TypedefType::classof(TypeVar) && !TypeVariableType::classof(TypeVar)) {
+      llvm_unreachable("Type variable should be a 'TypedefType' or 'TypeVariableType'");
+    }
+  }
 
-  const TypeVariableType *typeVar() const { return TypeVar; }
+public:
+  const Type *typeVar() const { return TypeVar; }
   QualType innerType() const { return InnerType; }
 
   bool isSugared(void) const { return false; }
   QualType desugar(void) const { return QualType(this, 0); }
 
+  // TODO: can't implement 'Profile' because TypedefType doesn't have a 'Profile' method.
+  /*
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, TypeVar, InnerType);
   }
-  static void Profile(llvm::FoldingSetNodeID &ID, const TypeVariableType *TypeVar, QualType InnerType) {
-    TypeVar->Profile(ID);
+  static void Profile(llvm::FoldingSetNodeID &ID, const Type *TypeVar, QualType InnerType) {
+    if (const auto *TV = TypeVar->getAs<TypedefType>()) TV->Profile(ID);
+    else if (const auto *TV = TypeVar->getAs<TypeVariableType>()) TV->Profile(ID);
     InnerType.Profile(ID);
   }
+  */
 
   static bool classof(const Type *T) { return T->getTypeClass() == Existential; }
 };

@@ -1063,7 +1063,7 @@ void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream 
 
 void TypePrinter::printExistentialBefore(const ExistentialType *T, raw_ostream &OS) {
   OS << "Exists(";
-  printTypeVariableBefore(T->typeVar(), OS);
+  print(QualType(T->typeVar(), 0 /* Quals */), OS, "");
   OS << ", ";
   print(T->innerType(), OS, "");
   OS << ")";

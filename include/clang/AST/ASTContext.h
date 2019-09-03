@@ -32,6 +32,7 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Basic/AttrKinds.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -305,7 +306,7 @@ private:
   /// when compared with pointer equality, but they should be considered the same type.
   /// Another way to say this is to say that this map contains entries that are (functional)
   /// duplicates.
-  llvm::DenseMap<std::pair<const TypeVariableType *, const Type *>, const ExistentialType *> CachedExistTypes;
+  llvm::DenseMap<std::pair<const Type *, QualType>, const ExistentialType *> CachedExistTypes;
 
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
@@ -3153,21 +3154,19 @@ public:
 
   // Checked C: Existential Types
 
-  /// Get the cached existential type corresponding to the pair (type-var, inner-type).
-  /// If there is no matching existential, then return 'nullptr'.
-  const ExistentialType *getCachedExistType(const TypeVariableType *TypeVar, const Type *InnerType) const {
+  /// Get the existential type corresponding to the pair (type-var, inner-type).
+  /// If there is no cached existential, one will be created.
+  const ExistentialType *getExistentialType(const Type *TypeVar, QualType InnerType)  {
     auto Iter = CachedExistTypes.find(std::make_pair(TypeVar, InnerType));
-    if (Iter == CachedExistTypes.end()) return nullptr;
-    return Iter->second;
-  }
-
-  /// Add an existential type to the cache.
-  /// The type can later be retrieved using 'getCachedExistType'.
-  void addCachedExistType(const ExistentialType *ExistType) {
-    auto *TypeVar = ExistType->typeVar();
-    auto *InnerType = ExistType->innerType().getTypePtr();
-    assert(getCachedExistType(TypeVar, InnerType) == nullptr && "Existential type is already added");
-    CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistType));
+    if (Iter != CachedExistTypes.end()) return Iter->second;
+    // TODO: allocate the new existential type properly (so that we don't leak memory).
+    // For that, we need to figure out why the commented line below triggers the assertion
+    //   Assertion failed: (PtrWord & ~PointerBitMask) == 0 && "Pointer is not sufficiently aligned",\
+    //   file C:\cygwin64\home\t-abniet\src\llvm\include\llvm/ADT/PointerIntPair.h, line 165
+    // new (Context) ExistentialType(TypeVar, InnerType);
+    auto *ExistTpe = new ExistentialType(TypeVar, InnerType);
+    CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistTpe));
+    return ExistTpe;
   }
 };
 

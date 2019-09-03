@@ -4297,6 +4297,9 @@ recurse:
     Out << "v18co_yield";
     mangleExpression(cast<CoawaitExpr>(E)->getOperand());
     break;
+  case Expr::PackExprClass:
+    llvm_unreachable("Don't know how to mangle pack expressions");
+    break;
   }
 }
 

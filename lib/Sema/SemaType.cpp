@@ -1572,16 +1572,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     const auto *Decl = DS.typeVariables()[0];
     auto *TypeVar = dyn_cast<TypeVariableType>(Decl->getTypeSourceInfo()->getType().getTypePtr());
     assert(TypeVar && "Expected the type to be a TypeVariableType");
-    auto *ExistTpe = Context.getCachedExistType(TypeVar, InnerType.getTypePtr());
-    if (ExistTpe == nullptr) {
-      // TODO: allocate the new existential type properly (so that we don't leak memory).
-      // For that, we need to figure out why the commented line below triggers the assertion
-      //   Assertion failed: (PtrWord & ~PointerBitMask) == 0 && "Pointer is not sufficiently aligned",\
-      //   file C:\cygwin64\home\t-abniet\src\llvm\include\llvm/ADT/PointerIntPair.h, line 165
-      // new (Context) ExistentialType(TypeVar, InnerType);
-      ExistTpe = new ExistentialType(TypeVar, InnerType);
-      Context.addCachedExistType(ExistTpe);
-    }
+    auto *ExistTpe = Context.getExistentialType(TypeVar, InnerType);
     Result = QualType(ExistTpe, 0 /* Quals */);
     break;
   }
