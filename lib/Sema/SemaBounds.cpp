@@ -34,10 +34,12 @@
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Sema/AvailableFactsAnalysis.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "TreeTransform.h"
+#include <queue>
 
 // #define TRACE_CFG 1
 
@@ -1782,10 +1784,11 @@ namespace {
       }
 
       // Is R a subrange of this range?
-      ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
+      ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
+                          std::pair<ComparisonSet, ComparisonSet>& Facts) {
         if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
-          ProofResult LowerBoundsResult = CompareLowerOffsets(R, Cause, EquivExprs);
-          ProofResult UpperBoundsResult = CompareUpperOffsets(R, Cause, EquivExprs);
+          ProofResult LowerBoundsResult = CompareLowerOffsets(R, Cause, EquivExprs, Facts);
+          ProofResult UpperBoundsResult = CompareUpperOffsets(R, Cause, EquivExprs, Facts);
 
           if (LowerBoundsResult == ProofResult::True &&
               UpperBoundsResult == ProofResult::True)
@@ -1812,7 +1815,8 @@ namespace {
       // - If none of the above cases happen, it means that the function has not been able to prove
       //   whether this.LowerOffset is less than or equal to R.LowerOffset, or not. Therefore,
       //   it returns maybe as the result.
-      ProofResult CompareLowerOffsets(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
+      ProofResult CompareLowerOffsets(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
+                                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
         if (IsLowerOffsetConstant() && R.IsLowerOffsetConstant()) {
           if (LowerOffsetConstant <= R.LowerOffsetConstant)
             return ProofResult::True;
@@ -1820,7 +1824,7 @@ namespace {
           return ProofResult::False;
         }
         if (IsLowerOffsetVariable() && R.IsLowerOffsetVariable())
-          if (EqualExtended(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs))
+          if (LessThanOrEqualExtended(S.Context, Base, R.Base, LowerOffsetVariable, R.LowerOffsetVariable, EquivExprs, Facts))
             return ProofResult::True;
         if (R.IsLowerOffsetVariable() && IsLowerOffsetConstant() &&
             R.LowerOffsetVariable->getType()->isUnsignedIntegerType() && LowerOffsetConstant.getExtValue() == 0)
@@ -1844,7 +1848,8 @@ namespace {
       // - If none of the above cases happen, it means that the function has not been able to prove
       //   whether R.UpperOffset is less than or equal to this.UpperOffset, or not. Therefore,
       //   it returns maybe as the result.
-      ProofResult CompareUpperOffsets(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs) {
+      ProofResult CompareUpperOffsets(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
+                                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
         if (IsUpperOffsetConstant() && R.IsUpperOffsetConstant()) {
           if (R.UpperOffsetConstant <= UpperOffsetConstant)
             return ProofResult::True;
@@ -1852,7 +1857,7 @@ namespace {
           return ProofResult::False;
         }
         if (IsUpperOffsetVariable() && R.IsUpperOffsetVariable())
-          if (EqualExtended(S.Context, Base, R.Base, UpperOffsetVariable, R.UpperOffsetVariable, EquivExprs))
+          if (LessThanOrEqualExtended(S.Context, R.Base, Base, R.UpperOffsetVariable, UpperOffsetVariable, EquivExprs, Facts))
             return ProofResult::True;
         if (IsUpperOffsetVariable() && R.IsUpperOffsetConstant() &&
             UpperOffsetVariable->getType()->isUnsignedIntegerType() && R.UpperOffsetConstant.getExtValue() == 0)
@@ -2151,6 +2156,64 @@ namespace {
       return true;
     }
 
+    // This function is an extension of EqualExtended. It looks into the provided `Facts`
+    // in order to prove `Base1 + Offset1 <= Base2 + Offset2`. Note that in order to prove this,
+    // Base1 must equal Base2 (as in EqualExtended), and the fact that
+    // "Offset1 <= Offset2" must exist in `Facts`.
+    //
+    // TODO: we are ignoring the possibility of overflow in the addition.
+    static bool LessThanOrEqualExtended(ASTContext &Ctx, Expr *Base1, Expr *Base2, Expr *Offset1, Expr *Offset2,
+                                        EquivExprSets *EquivExprs, std::pair<ComparisonSet, ComparisonSet>& Facts) {
+      if (!Offset1 && !Offset2)
+        return false;
+
+      if (!EqualValue(Ctx, Base1, Base2, EquivExprs))
+        return false;
+
+      llvm::APSInt ConstantPart1, ConstantPart2;
+      bool IsOpSigned1, IsOpSigned2;
+      Expr *VariablePart1, *VariablePart2;
+
+      bool CreatedStdForm1 = CreateStandardForm(Ctx, Base1, Offset1, ConstantPart1, IsOpSigned1, VariablePart1);
+      bool CreatedStdForm2 = CreateStandardForm(Ctx, Base2, Offset2, ConstantPart2, IsOpSigned2, VariablePart2);
+
+      if (!CreatedStdForm1 || !CreatedStdForm2)
+        return false;
+      if (IsOpSigned1 != IsOpSigned2)
+        return false;
+      if (ConstantPart1 != ConstantPart2)
+        return false;
+
+      if (EqualValue(Ctx, VariablePart1, VariablePart2, EquivExprs))
+        return true;
+      if (FactExists(Ctx, VariablePart1, VariablePart2, EquivExprs, Facts))
+        return true;
+
+      return false;
+    }
+
+    // Given `Facts`, `E1`, and `E2`, this function looks for the fact `E1 <= E2` inside
+    // the fatcs and returns true if it is able to find it. Otherwise, it returns false.
+    static bool FactExists(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs,
+                           std::pair<ComparisonSet, ComparisonSet>& Facts) {
+      bool ExistsIn = false, ExistsKill = false;
+      for (auto InFact : Facts.first) {
+        if (Lexicographic(Ctx, EquivExprs).CompareExpr(E1, InFact.first) == Lexicographic::Result::Equal &&
+            Lexicographic(Ctx, EquivExprs).CompareExpr(E2, InFact.second) == Lexicographic::Result::Equal) {
+          ExistsIn = true;
+          break;
+        }
+      }
+      for (auto KillFact : Facts.second) {
+        if (Lexicographic(Ctx, EquivExprs).CompareExpr(E1, KillFact.first) == Lexicographic::Result::Equal &&
+            Lexicographic(Ctx, EquivExprs).CompareExpr(E2, KillFact.second) == Lexicographic::Result::Equal) {
+          ExistsKill = true;
+          break;
+        }
+      }
+      return ExistsIn && !ExistsKill;
+    }
+
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
       Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
       return R == Lexicographic::Result::Equal;
@@ -2213,6 +2276,7 @@ namespace {
                                         const BoundsExpr *SrcBounds,
                                         ProofFailure &Cause,
                                         EquivExprSets *EquivExprs,
+                                        std::pair<ComparisonSet, ComparisonSet>& Facts,
                                         ProofStmtKind Kind =
                                           ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
@@ -2253,7 +2317,7 @@ namespace {
         llvm::outs() << "\nSource range:";
         SrcRange.Dump(llvm::outs());
 #endif
-        ProofResult R = SrcRange.InRange(DeclaredRange, Cause, EquivExprs);
+        ProofResult R = SrcRange.InRange(DeclaredRange, Cause, EquivExprs, Facts);
         if (R == ProofResult::True)
           return R;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
@@ -2345,7 +2409,8 @@ namespace {
       llvm::outs() << "Valid range:\n";
       ValidRange.Dump(llvm::outs());
 #endif
-      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, nullptr);
+      std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+      ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, nullptr, EmptyFacts);
       if (R == ProofResult::True)
         return R;
       if (R == ProofResult::False || R == ProofResult::Maybe) {
@@ -2398,7 +2463,8 @@ namespace {
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
-                                     bool InCheckedScope) {
+                                     bool InCheckedScope,
+                                     std::pair<ComparisonSet, ComparisonSet>& Facts) {
       // Record expression equality implied by assignment.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
@@ -2425,7 +2491,7 @@ namespace {
 
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                   Cause, &EquivExprs);
+                                                   Cause, &EquivExprs, Facts);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -2452,11 +2518,12 @@ namespace {
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
                                   BoundsExpr *ArgBounds,
                                   bool InCheckedScope,
-                                  SmallVector<SmallVector <Expr *, 4> *, 4> *EquivExprs) {
+                                  SmallVector<SmallVector <Expr *, 4> *, 4> *EquivExprs,
+                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
-                                                   ArgBounds, Cause, EquivExprs);
+                                                   ArgBounds, Cause, EquivExprs, Facts);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -2478,7 +2545,8 @@ namespace {
     void CheckBoundsDeclAtInitializer(SourceLocation ExprLoc, VarDecl *D,
                                       BoundsExpr *DeclaredBounds, Expr *Src,
                                       BoundsExpr *SrcBounds,
-                                      bool InCheckedScope) {
+                                      bool InCheckedScope,
+                                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
       // Record expression equality implied by initialization.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
       SmallVector<Expr *, 4> EqualExpr;
@@ -2520,7 +2588,7 @@ namespace {
       }
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
-                                                   SrcBounds, Cause, &EquivExprs);
+                                                   SrcBounds, Cause, &EquivExprs, Facts);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -2548,14 +2616,15 @@ namespace {
                                         BoundsExpr *TargetBounds,
                                         Expr *Src,
                                         BoundsExpr *SrcBounds,
-                                        bool InCheckedScope) {
+                                        bool InCheckedScope,
+                                        std::pair<ComparisonSet, ComparisonSet>& Facts) {
       ProofFailure Cause;
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
                               Cast->getType()->isCheckedPointerPtrType());
       ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
                              ProofStmtKind::BoundsDeclaration;
       ProofResult Result =
-        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Kind);
+        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Facts, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
@@ -2698,7 +2767,7 @@ namespace {
    // Walk the CFG, traversing basic blocks in reverse post-oder.
    // For each element of a block, check bounds declarations.  Skip
    // CFG elements that are subexpressions of other CFG elements.
-   void TraverseCFG() {
+   void TraverseCFG(AvailableFactsAnalysis& AFA) {
      assert(Cfg && "expected CFG to exist");
 #if TRACE_CFG
      llvm::outs() << "Dumping AST";
@@ -2712,7 +2781,9 @@ namespace {
      StmtSet CheckedStmts;
      IdentifyChecked(Body, CheckedStmts, false);
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
+     std::pair<ComparisonSet, ComparisonSet> Facts;
      for (const CFGBlock *Block : POView) {
+       AFA.GetFacts(Facts);
        for (CFGElement Elem : *Block) {
          if (Elem.getKind() == CFGElement::Statement) {
            CFGStmt CS = Elem.castAs<CFGStmt>();
@@ -2722,8 +2793,8 @@ namespace {
 
            // Skip top-level elements that are nested in
            // another top-level element.
-	         if (NestedElements.find(S) != NestedElements.end())
-	           continue;
+           if (NestedElements.find(S) != NestedElements.end())
+             continue;
 
            bool IsChecked = false;
            if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
@@ -2740,9 +2811,10 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            TraverseStmt(S, IsChecked);
+            TraverseStmt(S, IsChecked, Facts);
          }
        }
+       AFA.Next();
      }
     }
 
@@ -2751,7 +2823,8 @@ namespace {
     //
     // Visit methods do work on individual nodes, such as checking bounds
     // declarations or inserting bounds checks.
-    void TraverseStmt(Stmt *S, bool InCheckedScope) {
+    void TraverseStmt(Stmt *S, bool InCheckedScope,
+                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
       if (!S)
         return;
 
@@ -2760,7 +2833,7 @@ namespace {
           VisitUnaryOperator(cast<UnaryOperator>(S), InCheckedScope);
           break;
         case Expr::CallExprClass:
-          VisitCallExpr(cast<CallExpr>(S), InCheckedScope);
+          VisitCallExpr(cast<CallExpr>(S), InCheckedScope, Facts);
           break;
         case Expr::MemberExprClass:
           VisitMemberExpr(cast<MemberExpr>(S), InCheckedScope);
@@ -2768,11 +2841,11 @@ namespace {
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          VisitCastExpr(cast<CastExpr>(S), InCheckedScope);
+          VisitCastExpr(cast<CastExpr>(S), InCheckedScope, Facts);
           break;
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
-          VisitBinaryOperator(cast<BinaryOperator>(S), InCheckedScope);
+          VisitBinaryOperator(cast<BinaryOperator>(S), InCheckedScope, Facts);
           break;
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
@@ -2787,7 +2860,7 @@ namespace {
             // If an initializer expression is present, it is visited
             // during the traversal of children nodes.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
-              VisitVarDecl(VD, InCheckedScope);
+              VisitVarDecl(VD, InCheckedScope, Facts);
           }
           break;
         }
@@ -2800,16 +2873,17 @@ namespace {
       }
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
-        TraverseStmt(*I, InCheckedScope);
+        TraverseStmt(*I, InCheckedScope, Facts);
       }
     }
 
     // Traverse a top-level variable declaration.  If there is an
     // initializer, it has to be traversed explicitly.
-    void TraverseTopLevelVarDecl(VarDecl *VD, bool InCheckedScope) {
-      VisitVarDecl(VD, InCheckedScope);
+    void TraverseTopLevelVarDecl(VarDecl *VD, bool InCheckedScope,
+                                 std::pair<ComparisonSet, ComparisonSet>& Facts) {
+      VisitVarDecl(VD, InCheckedScope, Facts);
       if (Expr *Init = VD->getInit())
-        TraverseStmt(Init, InCheckedScope);
+        TraverseStmt(Init, InCheckedScope, Facts);
     }
 
     bool IsBoundsSafeInterfaceAssignment(QualType DestTy, Expr *E) {
@@ -2822,7 +2896,8 @@ namespace {
       return false;
     }
 
-    void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope) {
+    void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope,
+                             std::pair<ComparisonSet, ComparisonSet>& Facts) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
       QualType LHSType = LHS->getType();
@@ -2859,7 +2934,7 @@ namespace {
           }
 
           CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                      RHS, RHSBounds, InCheckedScope);
+                                      RHS, RHSBounds, InCheckedScope, Facts);
         }
       }
 
@@ -2875,7 +2950,8 @@ namespace {
       return;
     }
 
-    void VisitCallExpr(CallExpr *CE, bool InCheckedScope) {
+    void VisitCallExpr(CallExpr *CE, bool InCheckedScope,
+                       std::pair<ComparisonSet, ComparisonSet>& Facts) {
       QualType CalleeType = CE->getCallee()->getType();
       // Extract the pointee type.  The caller type could be a regular pointer
       // type or a block pointer type.
@@ -2983,13 +3059,14 @@ namespace {
         }
 
         CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds,
-                                 InCheckedScope, nullptr);
+                                 InCheckedScope, nullptr, Facts);
       }
       return;
    }
 
     // This includes both ImplicitCastExprs and CStyleCastExprs
-    void VisitCastExpr(CastExpr *E, bool InCheckedScope) {
+    void VisitCastExpr(CastExpr *E, bool InCheckedScope,
+                       std::pair<ComparisonSet, ComparisonSet>& Facts) {
       CheckDisallowedFunctionPtrCasts(E);
 
       CastKind CK = E->getCastKind();
@@ -3056,7 +3133,7 @@ namespace {
           BoundsExpr *TargetBounds =
             S.CreateTypeBasedBounds(E, E->getType(), false, false);
           CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, E->getSubExpr(),
-                                         SubExprBounds, InCheckedScope);
+                                         SubExprBounds, InCheckedScope, Facts);
         }
         assert(SubExprBounds);
         assert(!E->getSubExprBoundsExpr());
@@ -3094,7 +3171,8 @@ namespace {
       return;
     }
 
-    void VisitVarDecl(VarDecl *D, bool InCheckedScope) {
+    void VisitVarDecl(VarDecl *D, bool InCheckedScope,
+                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
       if (D->isInvalidDecl())
         return;
 
@@ -3130,7 +3208,7 @@ namespace {
        } else {
          BoundsExpr *NormalizedDeclaredBounds = S.ExpandToRange(D, DeclaredBounds);
          CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
-           Init, InitBounds, InCheckedScope);
+           Init, InitBounds, InCheckedScope, Facts);
        }
        if (DumpBounds)
          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
@@ -3394,14 +3472,21 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   ComputeBoundsDependencies(Tracker, FD, Body);
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
   CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr());
-  if (Cfg != nullptr)
-    Checker.TraverseCFG();
-  else
+  if (Cfg != nullptr) {
+    AvailableFactsAnalysis Collector(*this, Cfg.get());
+    Collector.Analyze();
+    if (getLangOpts().DumpExtractedComparisonFacts)
+      Collector.DumpComparisonFacts(llvm::outs(), FD->getNameInfo().getName().getAsString());
+    Checker.TraverseCFG(Collector);
+  }
+  else {
     // A CFG couldn't be constructed.  CFG construction doesn't support
     // __finally or may encounter a malformed AST.  Fall back on to non-flow 
     // based analysis.  The IsChecked parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
-    Checker.TraverseStmt(Body, false);
+    std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+    Checker.TraverseStmt(Body, false, EmptyFacts);
+  }
 
 
 #if TRACE_CFG
@@ -3412,7 +3497,8 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
     CheckBoundsDeclarations Checker(*this, nullptr, nullptr, nullptr);
-    Checker.TraverseTopLevelVarDecl(D, IsCheckedScope());
+    std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+    Checker.TraverseTopLevelVarDecl(D, IsCheckedScope(), EmptyFacts);
   }
 }
 

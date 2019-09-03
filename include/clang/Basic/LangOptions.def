@@ -229,6 +229,7 @@ BENIGN_LANGOPT(DumpRecordLayouts , 1, 0, "dumping the layout of IRgen'd records"
 BENIGN_LANGOPT(DumpRecordLayoutsSimple , 1, 0, "dumping the layout of IRgen'd records in a simple form")
 BENIGN_LANGOPT(DumpVTableLayouts , 1, 0, "dumping the layouts of emitted vtables")
 BENIGN_LANGOPT(DumpInferredBounds, 1, 0, "dump inferred Checked C bounds for assignments and declarations")
+BENIGN_LANGOPT(DumpExtractedComparisonFacts, 1, 0, "dump extracted comparison facts")
 LANGOPT(NoConstantCFStrings , 1, 0, "no constant CoreFoundation strings")
 BENIGN_LANGOPT(InlineVisibilityHidden , 1, 0, "hidden visibility for inline C++ methods")
 LANGOPT(GlobalAllocationFunctionVisibilityHidden , 1, 0, "hidden visibility for global operator new and delete declaration")
