@@ -19,18 +19,15 @@ using namespace llvm;
 PersistentSourceLoc
 PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
   SourceLocation SL = D->getLocation();
-  int64_t funcID = -1;
 
-  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+  if (const FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) 
     SL = C.getSourceManager().getSpellingLoc(FD->getLocation());
-    funcID = D->getID();  // Only incorporate AST IDs to distinguish functions.
-  }
   else if (const ParmVarDecl *PV = dyn_cast<ParmVarDecl>(D)) 
     SL = C.getSourceManager().getSpellingLoc(PV->getLocation());
   else if (const VarDecl *V = dyn_cast<VarDecl>(D))
     SL = C.getSourceManager().getExpansionLoc(V->getLocation());
 
-  return mkPSL(D->getSourceRange(), SL, funcID, C);
+  return mkPSL(D->getSourceRange(), SL, C);
 }
 
 
@@ -39,7 +36,6 @@ PersistentSourceLoc
 PersistentSourceLoc::mkPSL(const Stmt *S, ASTContext &Context) {
   return mkPSL(S->getSourceRange(),
                S->getBeginLoc(),
-               S->getID(Context),
                Context);
 }
 
@@ -48,7 +44,6 @@ PersistentSourceLoc::mkPSL(const Stmt *S, ASTContext &Context) {
 PersistentSourceLoc
 PersistentSourceLoc::mkPSL(clang::SourceRange SR,
                            SourceLocation SL,
-                           int64_t ID,
                            ASTContext &Context) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc PL = SM.getPresumedLoc(SL);
@@ -69,8 +64,8 @@ PersistentSourceLoc::mkPSL(clang::SourceRange SR,
   if (fe != nullptr && getAbsoluteFilePath(fe->getName(), feAbsS))
     fn = sys::path::remove_leading_dotslash(feAbsS);
 
-  return PersistentSourceLoc(fn,
-                             FESL.getExpansionLineNumber(),
-                             FESL.getExpansionColumnNumber(),
-                             ID);
+  PersistentSourceLoc PSL(fn, 
+    FESL.getExpansionLineNumber(), FESL.getExpansionColumnNumber());
+
+  return PSL;
 }
