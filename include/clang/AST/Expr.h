@@ -3153,11 +3153,6 @@ private:
 
   /// The expression that is being packed.
   Expr *PackedExpr = nullptr;
-  /// A duplicate of the expression being packed.
-  /// This time, we store it in an array as a statement so we can implement
-  /// the 'children' method.
-  enum { PACKED_EXPR, END_EXPR = 1 };
-  Stmt *SubExprs[END_EXPR];
 
   /// The result type of the pack operation.
   QualType ExistTpe;
@@ -3172,8 +3167,9 @@ public:
   PackExpr(Expr *PackedExpr, QualType ExistTpe, QualType Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
    Expr(PackExprClass, ExistTpe, VK_RValue, OK_Ordinary, false, false, false, false),
     PackedExpr(PackedExpr), ExistTpe(ExistTpe), Subst(Subst), StartLoc(StartLoc), EndLoc(EndLoc) {
-    assert(ExistentialType::classof(ExistTpe.getTypePtr()) && "Pack expects an existential type");
-    SubExprs[PACKED_EXPR] = PackedExpr;
+    if(!ExistentialType::classof(ExistTpe.getTypePtr())) {
+      llvm_unreachable("_Pack expression expects an existential type");
+    }
   }
 
   /// Return the expression packed by this pack expression.
@@ -3189,8 +3185,16 @@ public:
   SourceLocation getBeginLoc() const LLVM_READONLY { return StartLoc; }
   SourceLocation getEndLoc() const LLVM_READONLY { return EndLoc; }
 
-  child_range children() { return child_range(&SubExprs[PACKED_EXPR], &SubExprs[PACKED_EXPR] + 1); }
-  const_child_range children() const { return const_child_range(&SubExprs[PACKED_EXPR], &SubExprs[PACKED_EXPR] + 1); }
+  child_range children() {
+    // Pretend the children are stored in a one-element array.
+    Stmt *Child = PackedExpr;
+    return child_range(&Child, &Child + 1);
+  }
+  const_child_range children() const {
+    // Pretend the children are stored in a one-element array.
+    Stmt *Child = PackedExpr;
+    return const_child_range(&Child, &Child + 1);
+  }
 };
 
 /// \brief Represents a Checked C bounds expression.

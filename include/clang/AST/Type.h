@@ -4448,6 +4448,7 @@ public:
 /// 'InnerType' is one of:
 ///   1) another existential type: e.g. '_Exists(T, _Exists(U, struct Foo<T, U>))'
 ///   2) a type application 'C<T>', where 'C' is a generic struct: e.g. '_Exists(T, struct List<T>)'
+///   3) a pointer that satisfies one of 1) - 3)
 class ExistentialType : public Type, public llvm::FoldingSetNode {
   /// The type variable that is bound by the existential.
   const TypeVariableType *TypeVar = nullptr;
