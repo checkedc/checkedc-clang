@@ -683,6 +683,15 @@ bool FunctionVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
   return false;
 }
 
+bool FunctionVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
+{
+  for (const auto& C: returnVars)
+    if (C->hasNtArr(E))
+      return true;
+
+  return false;
+}
+
 ConstAtom* FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMap &E) {
   ConstAtom *toRet = nullptr;
   for (const auto& C: returnVars) {
@@ -763,7 +772,23 @@ bool PointerVariableConstraint::hasArr(Constraints::EnvironmentMap &E)
   }
 
   if (FV)
-    return FV->anyChanges(E);
+    return FV->hasArr(E);
+
+  return false;
+}
+
+bool PointerVariableConstraint::hasNtArr(Constraints::EnvironmentMap &E)
+{
+  for (const auto& C: vars) {
+    VarAtom V(C);
+    ConstAtom *CS = E[&V];
+    assert(CS != nullptr);
+    if (isa<NTArrAtom>(CS))
+      return true;
+  }
+
+  if (FV)
+    return FV->hasNtArr(E);
 
   return false;
 }

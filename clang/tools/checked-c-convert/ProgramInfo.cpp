@@ -17,7 +17,8 @@ using namespace clang;
 
 ProgramInfo::ProgramInfo() :
   freeKey(0), persisted(true) {
-  IdentifiedArrayDecls.clear();
+  ArrayBoundCorrespondenceExprs.clear();
+  ArrayBoundCorrespondenceVars.clear();
   OnDemandFuncDeclConstraint.clear();
 }
 
@@ -460,8 +461,8 @@ void ProgramInfo::exitCompilationUnit() {
   assert(persisted == false);
   VarDeclToStatement.clear();
   // remove all the references.
-  IdentifiedArrayDecls.clear();
-  AllocationBasedSizeExprs.clear();
+  ArrayBoundCorrespondenceExprs.clear();
+  ArrayBoundCorrespondenceVars.clear();
   persisted = true;
   return;
 }
@@ -1117,26 +1118,36 @@ bool ProgramInfo::handleFunctionSubtyping() {
   return retVal;
 }
 
-bool ProgramInfo::insertPotentialArrayVar(Decl *var) {
-  return IdentifiedArrayDecls.insert(var).second;
+bool ProgramInfo::addArrayBoundsVar(Decl *arrVar, Decl *sizeVar) {
+  return ArrayBoundCorrespondenceVars[arrVar].insert(sizeVar).second;
 }
 
-bool ProgramInfo::isIdentifiedArrayVar(Decl *toCheckVar) {
-  return IdentifiedArrayDecls.find(toCheckVar) != IdentifiedArrayDecls.end();
+bool ProgramInfo::addArrayBoundsExpr(Decl *arrVar, Expr *sizeExpr) {
+  return ArrayBoundCorrespondenceExprs[arrVar].insert(sizeExpr).second;
 }
 
-bool ProgramInfo::addAllocationBasedSizeExpr(Decl *targetVar, Expr *sizeExpr) {
-  assert(isIdentifiedArrayVar(targetVar) && "The provided variable is not an array variable");
-  return AllocationBasedSizeExprs[targetVar].insert(sizeExpr).second;
+bool ProgramInfo::hasArrSizeInfo(Decl *arrVar) {
+  return ArrayBoundCorrespondenceVars.find(arrVar) != ArrayBoundCorrespondenceVars.end() ||
+         ArrayBoundCorrespondenceExprs.find(arrVar) != ArrayBoundCorrespondenceExprs.end();
 }
 
 void ProgramInfo::printArrayVarsAndSizes(llvm::raw_ostream &O) {
-  if(!AllocationBasedSizeExprs.empty()) {
+  if(!ArrayBoundCorrespondenceVars.empty() || !ArrayBoundCorrespondenceExprs.empty()) {
     O << "\n\nArray Variables and Sizes\n";
-    for (const auto &currEl: AllocationBasedSizeExprs) {
+    for (const auto &currEl: ArrayBoundCorrespondenceVars) {
       O << "Variable:";
       currEl.first->dump(O);
       O << ", Possible Sizes:\n";
+      for (auto sizeVar: currEl.second) {
+        sizeVar->dump(O);
+        O << "\n";
+      }
+    }
+    O << "\n\nArray Variables and Size Expressions\n";
+    for (const auto &currEl: ArrayBoundCorrespondenceExprs) {
+      O << "Variable:";
+      currEl.first->dump(O);
+      O << ", Possible Sizes Expressions:\n";
       for (auto sizeExpr: currEl.second) {
         sizeExpr->dump(O);
         O << "\n";

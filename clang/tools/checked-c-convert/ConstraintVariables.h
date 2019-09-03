@@ -99,6 +99,7 @@ public:
   virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasWild(Constraints::EnvironmentMap &E) = 0;
   virtual bool hasArr(Constraints::EnvironmentMap &E) = 0;
+  virtual bool hasNtArr(Constraints::EnvironmentMap &E) = 0;
   // get the highest type assigned to the cvars of this constraint variable
   virtual ConstAtom* getHighestType(Constraints::EnvironmentMap &E) = 0;
 
@@ -219,6 +220,7 @@ public:
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
+  bool hasNtArr(Constraints::EnvironmentMap &E);
   // get the highest type assigned to the cvars of this constraint variable
   ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
 
@@ -290,6 +292,7 @@ public:
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
+  bool hasNtArr(Constraints::EnvironmentMap &E);
   ConstAtom* getHighestType(Constraints::EnvironmentMap &E);
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;

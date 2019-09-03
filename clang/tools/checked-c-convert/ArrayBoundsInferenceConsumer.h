@@ -16,16 +16,15 @@
 #include "ProgramInfo.h"
 
 
-class LocalVarABVisitor: public clang::RecursiveASTVisitor<LocalVarABVisitor> {
+class HeuristicBasedABVisitor: public clang::RecursiveASTVisitor<HeuristicBasedABVisitor> {
 public:
-  explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)
+  explicit HeuristicBasedABVisitor(ASTContext *C, ProgramInfo &I)
           : Context(C), Info(I) {}
 
-  // handles assignment expression.
-  bool VisitBinAssign(BinaryOperator *O);
+  bool VisitRecordDecl(RecordDecl *RD);
 
+  bool VisitFunctionDecl(FunctionDecl *FD);
 
-  bool VisitDeclStmt(DeclStmt *S);
 private:
   // check if the provided expression is a call
   // to known memory allocators.
@@ -39,11 +38,12 @@ private:
   // value of the argument.
   bool isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetDecl);
 
+  Expr *removeCHKCBindTempExpr(Expr *toVeri);
 
-  Expr *removeAuxiliaryCasts(Expr *srcExpr);
+  // remove implicit casts added by clang to the AST
+  Expr *removeImpCasts(Expr *toConvert);
 
-  // print variables that should have been detected as arrays but not.
-  void dumpNotArrayIdentifiedVariable(Decl *LHS, Expr *RHS, raw_ostream &O);
+  Expr *removeAuxillaryCasts(Expr *srcExpr);
 
   ASTContext *Context;
   ProgramInfo &Info;

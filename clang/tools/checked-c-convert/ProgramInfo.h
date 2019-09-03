@@ -107,21 +107,15 @@ public:
 
   VariableMap &getVarMap();
 
-  std::set<Decl *> &getIdentifiedArrayVars() {
-#ifdef ARRDEBUG
-    for (auto currD: IdentifiedArrayDecls)
-      currD->dump();
-#endif
-    return IdentifiedArrayDecls;
-  }
+  // add a variable that is the potential bound for the provided
+  // array variable.
+  bool addArrayBoundsVar(Decl *arrVar, Decl *sizeVar);
 
-  // add the size expression used in allocation routine
-  // through which the variable was initialized.
-  bool addAllocationBasedSizeExpr(Decl *targetVar, Expr *sizeExpr);
+  // add the expression that represents the size of the provided
+  // array variable
+  bool addArrayBoundsExpr(Decl *arrVar, Expr *sizeExpr);
 
-  bool isIdentifiedArrayVar(Decl *toCheckVar);
-
-  bool insertPotentialArrayVar(Decl *var);
+  bool hasArrSizeInfo(Decl *arrVar);
 
   void printArrayVarsAndSizes(llvm::raw_ostream &O);
 
@@ -188,11 +182,11 @@ private:
   std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
 
-  // these are the array declarations identified by the converter.
-  std::set<Decl *> IdentifiedArrayDecls;
   // this is the map of variables that are potential arrays
   // and their tentative size expression.
-  std::map<Decl *, std::set<Expr*>> AllocationBasedSizeExprs;
+  std::map<Decl *, std::set<Expr*>> ArrayBoundCorrespondenceExprs;
+  // map that contains potential length declarations for array pointers
+  std::map<Decl *, std::set<Decl*>> ArrayBoundCorrespondenceVars;
 };
 
 #endif

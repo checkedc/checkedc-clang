@@ -741,8 +741,6 @@ public:
     }
 
     if (foundArr) {
-      // Add the identified array declarations here.
-      Info.insertPotentialArrayVar(D);
       // Find the end of the line that contains this statement.
       FullSourceLoc sl(D->getEndLoc(), Context->getSourceManager());
       const char* buf = sl.getCharacterData();
