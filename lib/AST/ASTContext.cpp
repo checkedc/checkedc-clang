@@ -9526,6 +9526,11 @@ bool ASTContext::isAtLeastAsCheckedAs(QualType T1, QualType T2) const {
 
     return true;
   }
+  case Type::Record : {
+    const RecordType *T1RecType = cast<RecordType>(T1Type);
+    const RecordType *T2RecType = cast<RecordType>(T2Type);
+    return recordTypesMatch(T1RecType, T2RecType);
+  }
   default:
     return false;
   }
@@ -9634,9 +9639,48 @@ bool ASTContext::isEqualIgnoringChecked(QualType T1, QualType T2) const {
 
     return true;
   }
+  case Type::Record : {
+    const RecordType *T1RecType = cast<RecordType>(T1Type);
+    const RecordType *T2RecType = cast<RecordType>(T2Type);
+    return recordTypesMatch(T1RecType, T2RecType);
+  }
   default:
     return false;
   }
+}
+
+bool ASTContext::recordTypesMatch(const RecordType *T1, const RecordType *T2) const {
+  if (T1 == T2) return true;
+  RecordDecl *T1Decl = T1->getDecl();
+  RecordDecl *T2Decl = T2->getDecl();
+  assert(T1Decl != T2Decl && "Expected RecordDecls to be different, since the corresponding RecordTypes are different");
+
+  // If either T1 or T2 isn't a type application, the two types can't match, because
+  // we already know the type pointers aren't the same.
+  if (!T1Decl->isInstantiated() || !T2Decl->isInstantiated()) return false;
+  auto T1BaseType = getRecordType(T1Decl->genericBaseDecl());
+  auto T2BaseType = getRecordType(T2Decl->genericBaseDecl());
+
+  // We know at this point that T1 and T2 are type applications.
+  // T1 and T2 match if the following three conditions hold:
+  //   1) T1 and T2's bases match
+  //   2) T2's base is a generic bounds interface (itype_for_any)
+  //   3) T2 = Base<void, ..., void> (i.e. all of T2's type arguments are 'void')
+  // This rule allows us to match 'struct List *next : itype(_Ptr<struct List<T> >)'.
+  // Even though the user doesn't write T2 explicitly as an application, it is desugared into the special
+  // application where all arguments are 'void' by the type system.
+
+  // Check 1) and 2)
+  if (T1BaseType != T2BaseType || !T2Decl->genericBaseDecl()->isItypeGeneric()) return false;
+
+  // Check 3)
+  auto NumArgs = T2Decl->typeArgs().size();
+  assert(T1Decl->typeArgs().size() == NumArgs && "Expected same number of type arguments");
+  for (auto TArg : T2Decl->typeArgs()) {
+    if (TArg.typeName.getTypePtr() != VoidTy.getTypePtr()) return false;
+  }
+
+  return true;
 }
 
 // For the Checked C extension, compute whether a type is allowed to be an
@@ -11185,6 +11229,7 @@ APFixedPoint ASTContext::getFixedPointMin(QualType Ty) const {
 
 RecordDecl *ASTContext::getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs) {
   assert(Base != nullptr && "Base decl shouldn't be null");
+  assert(Base->isGenericOrItypeGeneric() && "Base RecordDecl should be generic");
   const auto it = CachedTypeApps.find(std::make_pair(Base, TypeArgs));
   if (it == CachedTypeApps.end()) return nullptr;
   return it->second;
@@ -11203,6 +11248,7 @@ std::vector<const RecordDecl *> ASTContext::getTypeAppsWithBase(const RecordDecl
 
 void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst) {
   assert(Base != nullptr && Inst != nullptr && "Decls shouldn't be null");
+  assert(Base->isGenericOrItypeGeneric() && "Base RecordDecl should be generic");
   assert(Base == Base->getCanonicalDecl() && "Expected key to be canonical decl");
   assert(Base == Inst->genericBaseDecl() && "Base decl must match in key and value");
   assert((getCachedTypeApp(Base, TypeArgs) == nullptr) && "Type application is already cached");
@@ -11214,7 +11260,7 @@ void ASTContext::addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *>
 
 ArrayRef<RecordDecl *> ASTContext::getDelayedTypeApps(RecordDecl *Base) {
   assert(Base != nullptr && "Base decl shouldn't be null");
-  assert(Base->isGeneric() && "Expected a generic struct");
+  assert(Base->isGenericOrItypeGeneric() && "Base RecordDecl should be generic");
   assert(Base->getCanonicalDecl() == Base && "Key should be a canonical decl");
   const auto Iter = DelayedTypeApps.find(Base);
   if (Iter == DelayedTypeApps.end()) return ArrayRef<RecordDecl *>();
@@ -11240,7 +11286,7 @@ void ASTContext::addDelayedTypeApp(RecordDecl *TypeApp) {
 
 bool ASTContext::removeDelayedTypeApps(RecordDecl *Base) {
   assert(Base != nullptr && "Base decl shouldn't be null");
-  assert(Base->isGeneric() && "Expected a generic struct");
+  assert(Base->isGenericOrItypeGeneric() && "Base RecordDecl should be generic");
   assert(Base->getCanonicalDecl() == Base && "Key should be a canonical decl");
   return DelayedTypeApps.erase(Base);
 }

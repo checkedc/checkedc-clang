@@ -4157,10 +4157,12 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
                        SourceLocation IdLoc,
                        IdentifierInfo *Id,
                        RecordDecl *PrevDecl,
+                       Genericity GenericKind,
                        ArrayRef<TypedefDecl*> TypeParams,
                        RecordDecl *GenericBaseDecl,
                        ArrayRef<TypeArgument> TypeArgs)
     : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
+      GenericKind(GenericKind),
       TypeParams(TypeParams.begin(), TypeParams.end()),
       GenericBaseDecl(GenericBaseDecl),
       TypeArgs(TypeArgs.begin(), TypeArgs.end()) {
@@ -4186,13 +4188,12 @@ RecordDecl *RecordDecl::Create(const ASTContext &C,
                                SourceLocation IdLoc,
                                IdentifierInfo *Id,
                                RecordDecl *PrevDecl,
+                               Genericity GenericKind,
                                ArrayRef<TypedefDecl*> TypeParams,
                                RecordDecl *GenericBaseDecl,
                                ArrayRef<TypeArgument> TypeArgs) {
-  RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
-                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams, GenericBaseDecl, TypeArgs);
+  RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC, StartLoc, IdLoc, Id, PrevDecl, GenericKind, TypeParams, GenericBaseDecl, TypeArgs);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
-
   C.getTypeDeclType(R, PrevDecl);
   return R;
 }
@@ -4335,7 +4336,15 @@ const FieldDecl *RecordDecl::findFirstNamedDataMember() const {
 // Type Parameters
 
 bool RecordDecl::isGeneric() const {
-  return !TypeParams.empty();
+  return GenericKind == Generic;
+}
+
+bool RecordDecl::isItypeGeneric() const {
+  return GenericKind == ItypeGeneric;
+}
+
+bool RecordDecl::isGenericOrItypeGeneric() const {
+  return GenericKind != NonGeneric;
 }
 
 ArrayRef<TypedefDecl *> RecordDecl::typeParams() const {
