@@ -2411,8 +2411,9 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
           // TODO: make more robust, add asserts, etc.
           auto TpeVars = D.getDeclSpec().typeVariables();
           assert(TpeVars.size() == 1 && "Expected exactly one type variable in _Unpack specifier");
-          auto TVar = TpeVars[0]->getUnderlyingType();
-          auto TypeArg = TypeArgument { TVar, TpeVars[0]->getTypeSourceInfo() };
+          auto TVar = Actions.getASTContext().getTypedefType(TpeVars[0], QualType());
+          auto *SourceInfo = Actions.Context.getTrivialTypeSourceInfo(TVar, TpeVars[0]->getLocation());
+          auto TypeArg = TypeArgument { TVar, SourceInfo };
           auto *InitExpr = Init.get();
           auto InitType = cast<ExistentialType>(InitExpr->getType().getTypePtr())->innerType();
           auto NewType = Actions.SubstituteTypeArgs(InitType, TypeArg);
