@@ -110,12 +110,23 @@ public:
   // add a variable that is the potential bound for the provided
   // array variable.
   bool addArrayBoundsVar(Decl *arrVar, Decl *sizeVar);
+  // remove the bounds information for the provided array variable.
+  bool removeArrayBoundsVar(Decl *arrVar);
 
   // add the expression that represents the size of the provided
   // array variable
   bool addArrayBoundsExpr(Decl *arrVar, Expr *sizeExpr);
+  // get the possible length declarations for the provided array variable.
+  std::set<Decl*> &getArrayBoundsDeclInfo(Decl *arrVar);
 
+  // check if the provided variable has any information regarding its size.
   bool hasArrSizeInfo(Decl *arrVar);
+
+  // check if the provided variable has a size variable.
+  bool hasArrSizeVar(Decl *arrVar);
+
+  // check if the provided variable has a size expression.
+  bool hasArrSizeExpr(Decl *arrVar);
 
   void printArrayVarsAndSizes(llvm::raw_ostream &O);
 

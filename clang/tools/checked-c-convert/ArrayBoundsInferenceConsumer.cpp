@@ -14,11 +14,34 @@
 #include "Utils.h"
 
 static std::set<std::string> possibleLengthVarNames = {"len", "count", "size", "num"};
+#define PREFIXLENRATIO 1
+
 // Name based heuristics
 static bool hasNameMatch(std::string ptrName, std::string lenFieldName) {
   // if the name field starts with ptrName?
   if (lenFieldName.rfind(ptrName, 0) == 0)
     return true;
+}
+
+std::string commonPrefixUtil(std::string str1, std::string str2) {
+  std::string result;
+  int n1 = str1.length(), n2 = str2.length();
+
+  // Compare str1 and str2
+  for (int i=0, j=0; i<=n1-1 && j<=n2-1; i++,j++) {
+    if (str1[i] != str2[j])
+      break;
+    result.push_back(str1[i]);
+  }
+  return (result);
+}
+
+static bool prefixNameMatch(std::string ptrName, std::string lenFieldName) {
+    std::string commonPrefix = commonPrefixUtil(ptrName, lenFieldName);
+    if (commonPrefix.length() > 0)
+      return (ptrName.length() / commonPrefix.length()) <= PREFIXLENRATIO;
+
+    return false;
 }
 
 static bool fieldNameMatch(std::string lenFieldName) {
@@ -76,8 +99,14 @@ bool HeuristicBasedABVisitor::VisitRecordDecl(RecordDecl *RD) {
       for (auto ptrField : identifiedArrayVars) {
         for (auto lenField: potentialLengthFields) {
           if (hasNameMatch(ptrField->getNameAsString(), lenField->getNameAsString())) {
+            // if we find a field which matches both the pointer name and
+            // variable name heuristic lets use it.
+            if (fieldNameMatch(lenField->getNameAsString())) {
+              Info.removeArrayBoundsVar(ptrField);
+              Info.addArrayBoundsVar(ptrField, lenField);
+              break;
+            }
             Info.addArrayBoundsVar(ptrField, lenField);
-            break;
           }
         }
         // if the name-correspondence heuristics failed.
@@ -102,8 +131,8 @@ bool HeuristicBasedABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     if (FT != nullptr) {
       std::map<ParmVarDecl *, std::set<ParmVarDecl *>> arrayVarLenCorrespondence;
-      std::set<std::pair<int, ParmVarDecl *>> identifiedParamArrays;
-      std::set<std::pair<int, ParmVarDecl *>> potentialLengthParams;
+      std::map<unsigned , ParmVarDecl *> identifiedParamArrays;
+      std::map<unsigned , ParmVarDecl *> potentialLengthParams;
 
       for (unsigned i = 0; i < FT->getNumParams(); i++) {
         ParmVarDecl *PVD = FD->getParamDecl(i);
@@ -113,37 +142,55 @@ bool HeuristicBasedABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           for (auto currCVar: defsCVar) {
             // is this an array?
             if (needArrayBounds(currCVar, envMap))
-              identifiedParamArrays.insert(std::make_pair(i, PVD));
+              identifiedParamArrays[i] = PVD;
           }
         }
         // if this is a length field?
         if (PVD->getType().getTypePtr()->isIntegerType())
-          potentialLengthParams.insert(std::make_pair(i, PVD));
+          potentialLengthParams[i] = PVD;
       }
       if (!identifiedParamArrays.empty() && !potentialLengthParams.empty()) {
         // We have multiple parameters that are arrays and multiple params
         // that could be potentially length fields
         for (auto &currArrParamPair: identifiedParamArrays) {
+          bool foundLen = false;
+
+          // If this is right next to the array param?
+          // Then most likely this will be a length field.
+          unsigned paramIdx = currArrParamPair.first;
+          if (potentialLengthParams.find(paramIdx+1) != potentialLengthParams.end()) {
+            Info.addArrayBoundsVar(currArrParamPair.second, potentialLengthParams[paramIdx+1]);
+            continue;
+          }
+          if (paramIdx > 0 && potentialLengthParams.find(paramIdx-1) != potentialLengthParams.end()) {
+            if (prefixNameMatch(currArrParamPair.second->getNameAsString(),
+                                potentialLengthParams[paramIdx-1]->getNameAsString()))
+              Info.addArrayBoundsVar(currArrParamPair.second, potentialLengthParams[paramIdx-1]);
+            continue;
+
+          }
+
           for (auto &currLenParamPair: potentialLengthParams) {
-            // 1. if this is right next to the array param?
-            // Then most likely this will be a length field.
-            if (currLenParamPair.first + 1 == currArrParamPair.first) {
+            // if the name of the length field matches
+            if (hasNameMatch(currArrParamPair.second->getNameAsString(),
+                             currLenParamPair.second->getNameAsString())) {
+              foundLen = true;
               Info.addArrayBoundsVar(currArrParamPair.second, currLenParamPair.second);
               break;
-            } else {
-              // if the name of the length field matches
-              if (hasNameMatch(currArrParamPair.second->getNameAsString(),
-                               currLenParamPair.second->getNameAsString())) {
-                Info.addArrayBoundsVar(currArrParamPair.second, currLenParamPair.second);
-                break;
-              }
-              // check if the length parameter name matches our heuristics.
-              if (fieldNameMatch(currLenParamPair.second->getNameAsString())) {
-                Info.addArrayBoundsVar(currArrParamPair.second, currLenParamPair.second);
-                break;
-              }
+            }
+            // check if the length parameter name matches our heuristics.
+            if (fieldNameMatch(currLenParamPair.second->getNameAsString())) {
+              foundLen = true;
+              Info.addArrayBoundsVar(currArrParamPair.second, currLenParamPair.second);
+              continue;
             }
           }
+
+          if (!foundLen) {
+            llvm::errs() << "[-] Array variable length not found.\n";
+            currArrParamPair.second->dump();
+          }
+
         }
       }
     }

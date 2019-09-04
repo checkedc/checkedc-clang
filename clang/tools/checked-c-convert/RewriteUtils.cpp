@@ -479,7 +479,8 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // if definition is more precise
         // than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string bi =  Defn->getRewritableOriginalTy() + Defn->getName() + " : itype("+ctype+") ";
+        std::string bi =  Defn->getRewritableOriginalTy() + Defn->getName() + " : itype("+ctype +
+                          ABRewriter.getBoundsString(FD->getParamDecl(i), true)+") ";
         parmStrs.push_back(bi);
       } else if (anyConstrained) {
         // both the declaration and definition are same
@@ -489,7 +490,8 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
         // if there is no declaration?
         // check the itype in definition
-        v = v + getExistingIType(Decl, Defn, Declaration);
+        v = v + getExistingIType(Decl, Defn, Declaration) + ABRewriter.getBoundsString(FD->getParamDecl(i));
+
         parmStrs.push_back(v);
       } else {
         std::string scratch = "";
@@ -857,8 +859,42 @@ bool RewriteConsumer::hasModifiedSignature(std::string funcName) {
   return RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end();
 }
 
+void ArrayBoundsRewriter::computeArrayBounds() {
+  HandleArrayVariablesBoundsDetection(Context, Info);
+}
+
+std::string ArrayBoundsRewriter::getBoundsString(Decl *decl, bool isitype) {
+  std::string boundsString = "";
+  if (Info.hasArrSizeVar(decl)) {
+    std::string boundVarString = "";
+    for (auto sizeVar: Info.getArrayBoundsDeclInfo(decl)) {
+      // is the bounds a function parameter ?
+      if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(sizeVar)) {
+        boundVarString = PD->getNameAsString();
+        break;
+      }
+      // if the bounds a field declaration?
+      if(FieldDecl *FD = dyn_cast<FieldDecl>(sizeVar)) {
+        boundVarString = FD->getNameAsString();
+        break;
+      }
+    }
+    if (boundVarString.length() > 0) {
+      // for itype we do not need ":"
+      if (!isitype)
+        boundsString = ":";
+      boundsString += " count(" + boundVarString + ")";
+    }
+  }
+  return boundsString;
+}
+
 void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
+
+  // compute the bounds information for all the array variables.
+  ArrayBoundsRewriter ABRewriter(&Context, Info);
+  ABRewriter.computeArrayBounds();
 
   Rewriter R(Context.getSourceManager(), Context.getLangOpts());
   std::set<FileID> Files;
@@ -868,7 +904,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   // Unification is done, so visit and see if we need to place any casts
   // in the program.
   CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, rewriteThese, v,
-                                                  RewriteConsumer::ModifiedFuncSignatures);
+                                                  RewriteConsumer::ModifiedFuncSignatures, ABRewriter);
   for (const auto &D : Context.getTranslationUnitDecl()->decls())
     CPV.TraverseDecl(D);
 
@@ -936,7 +972,8 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
       if (PV && PV->anyChanges(Info.getConstraints().getVariables()) && !PV->isPartOfFunctionPrototype()) {
         // Rewrite a declaration, only if it is not part of function prototype
-        std::string newTy = getStorageQualifierString(D) + PV->mkString(Info.getConstraints().getVariables());
+        std::string newTy = getStorageQualifierString(D) + PV->mkString(Info.getConstraints().getVariables()) +
+                            ABRewriter.getBoundsString(D);
         rewriteThese.insert(DAndReplace(D, DS, newTy));
       } else if (FV && RewriteConsumer::hasModifiedSignature(FV->getName()) &&
                  !CPV.isFunctionVisited(FV->getName())) {
@@ -953,7 +990,6 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   // Output files.
   emit(R, Context, Files, InOutFiles, BaseDir, OutputPostfix);
 
-  HandleArrayVariablesBoundsDetection(&Context, Info);
   Info.printArrayVarsAndSizes(errs());
 
   Info.exitCompilationUnit();

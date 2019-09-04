@@ -109,6 +109,19 @@ void rewrite( Rewriter              &R,
               ASTContext            &A,
               std::set<FileID>      &Files);
 
+// Class that handles rewriting bounds information for all the
+// detected array variables.
+class ArrayBoundsRewriter {
+public:
+  ArrayBoundsRewriter(ASTContext *C, ProgramInfo &I): Context(C), Info(I) {}
+  // compute the possible bounds for all the array variables.
+  void computeArrayBounds();
+  // get the string representation of the bounds for the given variable.
+  std::string getBoundsString(Decl *decl, bool isitype = false);
+private:
+  ASTContext *Context;
+  ProgramInfo &Info;
+};
 
 // Class for visiting declarations during re-writing to find locations to
 // insert casts. Right now, it looks specifically for 'free'.
@@ -116,17 +129,19 @@ class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
 public:
   explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
                                 RSet &DR, std::set<std::string> &V,
-                                std::map<std::string, std::string> &newFuncSig)
-          : Context(C), Info(I), rewriteThese(DR), VisitedSet(V), ModifiedFuncSignatures(newFuncSig) {}
+                                std::map<std::string, std::string> &newFuncSig, ArrayBoundsRewriter &ArrRewriter)
+          : Context(C), Info(I), rewriteThese(DR), VisitedSet(V),
+            ModifiedFuncSignatures(newFuncSig), ABRewriter(ArrRewriter) {}
 
   bool VisitCallExpr(CallExpr *);
   bool VisitFunctionDecl(FunctionDecl *);
   bool isFunctionVisited(std::string funcName);
 private:
   std::set<unsigned int> getParamsForExtern(std::string);
-  // get existing itype string from constraint variables. It tries to get
-  // the string from declaration, however, if there is no declaration of the
-  // function, it will try to get it from the definition.
+  // get existing itype string from constraint variables.
+  // if tries to get the string from declaration, however,
+  // if there is no declaration of the function,
+  // it will try to get it from the definition.
   std::string getExistingIType(ConstraintVariable *decl, ConstraintVariable *defn,
                                FunctionDecl *funcDecl);
   bool anyTop(std::set<ConstraintVariable*>);
@@ -135,6 +150,7 @@ private:
   RSet                  &rewriteThese;
   std::set<std::string> &VisitedSet;
   std::map<std::string, std::string> &ModifiedFuncSignatures;
+  ArrayBoundsRewriter   &ABRewriter;
 };
 
 
