@@ -7515,17 +7515,21 @@ void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
   // TODO: abstract into a function so this logic can re-used here and when parsing
   // for_any specifiers.
   // Calculate the depth of the type variable introduced by the existential.
-  auto Depth = 0;
+  auto ExistDepth = 0;
   auto *scope = getCurScope()->getParent();
   while (scope) {
-    if (scope->isForanyScope() || scope->isItypeforanyScope() || scope->isExistentialTypeScope()) Depth++;
+    if (scope->isExistentialTypeScope()) ExistDepth++;
     scope = scope->getParent();
   }
+
+  // TODO: document properly.
+  // TODO: fix substitution to handle this.
+  ExistDepth += TypeVariableType::ExistentialVariableDepthStart;
 
   // An '_Exists(T, InnerType)' type is desugared into
   //   1) typedef T TypeVariableType(depth, offset)
   //   2) InnerType (which has access to T)
-  QualType TypeVar = Actions.Context.getTypeVariableType(Depth, 0 /* position */, false /* isBoundsInterfaceType */);
+  QualType TypeVar = Actions.Context.getTypeVariableType(ExistDepth, 0 /* position */, false /* isBoundsInterfaceType */);
   TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(TypeVar);
   // TODO: find out why decl doesn't show up in AST dump.
   TypedefDecl *TypeDef = TypedefDecl::Create(

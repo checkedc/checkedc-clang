@@ -3165,14 +3165,14 @@ public:
     //   Assertion failed: (PtrWord & ~PointerBitMask) == 0 && "Pointer is not sufficiently aligned",\
     //   file C:\cygwin64\home\t-abniet\src\llvm\include\llvm/ADT/PointerIntPair.h, line 165
     // new (Context) ExistentialType(TypeVar, InnerType);
-    if (ExistentialType::areComponentsCanonical(TypeVar, InnerType)) {
-      ExistTpe = new ExistentialType(TypeVar, InnerType);
+    auto *CanonVar = getCanonicalType(TypeVar);
+    auto CanonInner = InnerType.getCanonicalType();
+    if (CanonVar == TypeVar && CanonInner == InnerType) {
+      ExistTpe = new ExistentialType(TypeVar, InnerType, QualType() /* indicates that it's canonical */);
     } else {
-      auto *CanonVar = getCanonicalType(TypeVar);
-      auto CanonInner = InnerType.getCanonicalType();
       // TODO: explain why this won't loop.
-      auto *CanonExist = getExistentialType(CanonVar, CanonInner);
-      ExistTpe = new ExistentialType(TypeVar, InnerType, QualType(CanonExist, 0 /* Quals */));
+      auto CanonExist = QualType(getExistentialType(CanonVar, CanonInner), 0 /* Quals */);
+      ExistTpe = new ExistentialType(TypeVar, InnerType, CanonExist);
     }
     CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistTpe));
     return ExistTpe;
