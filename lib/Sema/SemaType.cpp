@@ -1569,9 +1569,8 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     // Use the canonical type for the inner type, so we can cache properly.
     auto InnerType = S.GetTypeFromParser(DS.getRepAsType()).getCanonicalType();
     assert(DS.typeVariables().size() == 1 && "Expected exactly one type variable for an existential");
-    const auto *Decl = DS.typeVariables()[0];
-    auto *TypeVar = dyn_cast<TypeVariableType>(Decl->getTypeSourceInfo()->getType().getTypePtr());
-    assert(TypeVar && "Expected the type to be a TypeVariableType");
+    auto *TypeVar = DS.typeVariables()[0]->getTypeForDecl();
+    assert(TypeVar->getAs<TypedefType>() && "Expected the type to be a TypedefType");
     auto *ExistTpe = Context.getExistentialType(TypeVar, InnerType);
     Result = QualType(ExistTpe, 0 /* Quals */);
     break;

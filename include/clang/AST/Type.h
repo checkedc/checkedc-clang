@@ -4464,9 +4464,15 @@ protected:
   /// Contains the factory method for creating existential types.
   friend class ASTContext;
 
+  /// Constructor for a canonical existential type.
+  /// WARNING: will throw if called with non-canonical arguments.
+  ExistentialType(const Type *TypeVar, QualType InnerType) : ExistentialType(TypeVar, InnerType, QualType(this, 0 /* Quals */)) {
+    if (!areComponentsCanonical(TypeVar, InnerType)) llvm_unreachable("Expected canonical arguments in constructor");
+  }
+
   /// Create via the factory 'ASTContext::getExistentialType'.
-  ExistentialType(const Type *TypeVar, QualType InnerType) :
-    Type(Existential, QualType() /* canon */, false /* Dependent */ , false /* InstantiationDependent */,
+  ExistentialType(const Type *TypeVar, QualType InnerType, QualType Canon) :
+    Type(Existential, Canon, false /* Dependent */ , false /* InstantiationDependent */,
       false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
     TypeVar(TypeVar), InnerType(InnerType) {
     if (!TypedefType::classof(TypeVar) && !TypeVariableType::classof(TypeVar)) {
@@ -4494,6 +4500,11 @@ public:
   */
 
   static bool classof(const Type *T) { return T->getTypeClass() == Existential; }
+
+  /// Whether the components of an existential type not yet formed are canonical.
+  static bool areComponentsCanonical(const Type *TypeVar, QualType InnerType) {
+    return TypeVar == TypeVar->getCanonicalTypeInternal().getTypePtr() && InnerType == InnerType.getCanonicalType();
+  }
 };
 
 /// Represents a `typeof` (or __typeof__) expression (a GCC extension).

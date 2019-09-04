@@ -3159,12 +3159,21 @@ public:
   const ExistentialType *getExistentialType(const Type *TypeVar, QualType InnerType)  {
     auto Iter = CachedExistTypes.find(std::make_pair(TypeVar, InnerType));
     if (Iter != CachedExistTypes.end()) return Iter->second;
+    ExistentialType *ExistTpe = nullptr;
     // TODO: allocate the new existential type properly (so that we don't leak memory).
     // For that, we need to figure out why the commented line below triggers the assertion
     //   Assertion failed: (PtrWord & ~PointerBitMask) == 0 && "Pointer is not sufficiently aligned",\
     //   file C:\cygwin64\home\t-abniet\src\llvm\include\llvm/ADT/PointerIntPair.h, line 165
     // new (Context) ExistentialType(TypeVar, InnerType);
-    auto *ExistTpe = new ExistentialType(TypeVar, InnerType);
+    if (ExistentialType::areComponentsCanonical(TypeVar, InnerType)) {
+      ExistTpe = new ExistentialType(TypeVar, InnerType);
+    } else {
+      auto *CanonVar = getCanonicalType(TypeVar);
+      auto CanonInner = InnerType.getCanonicalType();
+      // TODO: explain why this won't loop.
+      auto *CanonExist = getExistentialType(CanonVar, CanonInner);
+      ExistTpe = new ExistentialType(TypeVar, InnerType, QualType(CanonExist, 0 /* Quals */));
+    }
     CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistTpe));
     return ExistTpe;
   }
