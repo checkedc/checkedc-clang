@@ -2030,14 +2030,7 @@ public:
   }
 
   static bool hasAggregateEvaluationKind(QualType T) {
-    switch (T->getTypeClass()) {
-    case Type::Existential: {
-      auto *Existential = dyn_cast<ExistentialType>(T.getTypePtr());
-      return hasAggregateEvaluationKind(Existential->innerType());
-    }
-    default:
-      return getEvaluationKind(T) == TEK_Aggregate;
-    }
+    return getEvaluationKind(T) == TEK_Aggregate;
   }
 
   /// createBasicBlock - Create an LLVM basic block.

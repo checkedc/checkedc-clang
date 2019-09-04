@@ -231,7 +231,6 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::IncompleteArray:
     case Type::VariableArray:
     case Type::Record:
-    case Type::Existential: // TODO: is this correct?
     case Type::ObjCObject:
     case Type::ObjCInterface:
       return TEK_Aggregate;
@@ -239,6 +238,10 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     // We operate on atomic values according to their underlying type.
     case Type::Atomic:
       type = cast<AtomicType>(type)->getValueType();
+      continue;
+    // An existential type's evaluation kind delegates to its inner type.
+    case Type::Existential:
+      type = cast<ExistentialType>(type)->innerType();
       continue;
     }
     llvm_unreachable("unknown type kind!");
