@@ -270,7 +270,7 @@ public:
               dyn_cast<FunctionDecl>(CA->getCalleeDecl());
             if (calleeDecl && isFunctionAllocator(calleeDecl->getName())) {
               // this is an allocator, should we treat it as safe?
-              if(!considerAllocUnsafe) {
+              if (!considerAllocUnsafe) {
                 rulesFired = true;
               } else {
                 // It's a call to allocator. What about the parameter to the call?

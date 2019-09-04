@@ -109,9 +109,8 @@ public:
 
   std::set<Decl *> &getIdentifiedArrayVars() {
 #ifdef ARRDEBUG
-    for(auto currD: IdentifiedArrayDecls) {
+    for (auto currD: IdentifiedArrayDecls)
       currD->dump();
-    }
 #endif
     return IdentifiedArrayDecls;
   }

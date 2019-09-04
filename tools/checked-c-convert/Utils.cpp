@@ -155,7 +155,7 @@ bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
 }
 
 bool functionHasVarArgs(clang::FunctionDecl *FD) {
-  if(FD && FD->getFunctionType()->isFunctionProtoType()) {
+  if (FD && FD->getFunctionType()->isFunctionProtoType()) {
     const FunctionProtoType *srcType = dyn_cast<FunctionProtoType>(FD->getFunctionType());
     return srcType->isVariadic();
   }

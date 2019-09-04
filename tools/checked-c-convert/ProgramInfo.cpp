@@ -726,11 +726,10 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     T = getVariableHelper(CO->getRHS(), V, C, ifc);
     R.insert(T.begin(), T.end());
     return R;
-  } else if(StringLiteral *exr = dyn_cast<StringLiteral>(E)) {
+  } else if (StringLiteral *exr = dyn_cast<StringLiteral>(E)) {
     // if this is a string literal. i.e., "foo"
     // we create a new constraint variable and constraint it to an Nt_array
     std::set<ConstraintVariable *> T;
-    // create a new constraint var number.
     CVars V;
     V.insert(freeKey);
     CS.getOrCreateVar(freeKey);

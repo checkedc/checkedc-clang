@@ -168,10 +168,9 @@ void rewrite( VarDecl               *VD,
       TR.setEnd(eqLoc);
       sRewrite = sRewrite + " = ";
     } else {
-      // DAMN, there is no initializer, lets add it.
-      if(isPointerType(VD)) {
+      // There is no initializer, lets add it.
+      if (isPointerType(VD))
         sRewrite = sRewrite + " = NULL";
-      }
     }
 
     // Is it a variable type? This is the easy case, we can re-write it
@@ -247,9 +246,8 @@ void rewrite( VarDecl               *VD,
             newMLDecl << " = ";
             E->printPretty(newMLDecl, nullptr, A.getPrintingPolicy());
           } else {
-            if(isPointerType(VDL)) {
+            if (isPointerType(VDL))
               newMLDecl << " = NULL";
-            }
           }
           newMLDecl << ";\n";
         }
@@ -535,9 +533,8 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
       s = s + ss.str();
       // add varargs
-      if(functionHasVarArgs(Definition)) {
+      if (functionHasVarArgs(Definition))
         s = s + ", ...";
-      }
       s = s + ")";
     } else {
       s = s + "void)";
@@ -762,9 +759,8 @@ public:
     RecordDecl *RD = VD->getType().getTypePtr()->getAsRecordDecl();
     if (RecordDecl *Definition = RD->getDefinition()) {
       // see if we already know that this structure has a checked pointer.
-      if(RecordsWithCPointers.find(Definition) != RecordsWithCPointers.end()) {
+      if (RecordsWithCPointers.find(Definition) != RecordsWithCPointers.end())
         return true;
-      }
       for (const auto &D : Definition->fields()) {
         if (D->getType()->isPointerType() || D->getType()->isArrayType()) {
           std::set<ConstraintVariable *> fieldConsVars = I.getVariable(D, Context, false);
@@ -800,11 +796,11 @@ public:
       }
     }
 
-    for(auto VD: allDecls) {
+    for (auto VD: allDecls) {
       // check if this variable is a structure or union and doesn't have an initializer.
-      if(!VD->hasInit() && isStructOrUnionType(VD)) {
+      if (!VD->hasInit() && isStructOrUnionType(VD)) {
         // check if the variable needs a initializer.
-        if(VariableNeedsInitializer(VD, S)) {
+        if (VariableNeedsInitializer(VD, S)) {
           const clang::Type *Ty = VD->getType().getTypePtr();
           std::string OriginalType = tyToStr(Ty);
           // create replacement text with an initializer.
@@ -827,9 +823,9 @@ private:
 std::map<std::string, std::string> RewriteConsumer::ModifiedFuncSignatures;
 
 std::string RewriteConsumer::getModifiedFuncSignature(std::string funcName) {
-  if(RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end()) {
+  if (RewriteConsumer::ModifiedFuncSignatures.find(funcName) != RewriteConsumer::ModifiedFuncSignatures.end())
     return RewriteConsumer::ModifiedFuncSignatures[funcName];
-  }
+
   return "";
 }
 
