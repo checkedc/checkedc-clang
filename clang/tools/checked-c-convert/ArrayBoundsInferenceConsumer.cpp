@@ -45,11 +45,22 @@ static bool prefixNameMatch(std::string ptrName, std::string lenFieldName) {
 }
 
 static bool fieldNameMatch(std::string lenFieldName) {
-  // convert the file name to lower case
+  // convert the field name to lower case
   std::transform(lenFieldName.begin(), lenFieldName.end(), lenFieldName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
   for (auto &potentialName : possibleLengthVarNames) {
     if (lenFieldName.rfind(potentialName, 0) == 0)
+      return true;
+  }
+  return false;
+}
+
+static bool hasLengthKeyword(std::string varName) {
+  // convert the field name to lower case
+  std::transform(varName.begin(), varName.end(), varName.begin(),
+                 [](unsigned char c){ return std::tolower(c); });
+  for (auto &potentialName : possibleLengthVarNames) {
+    if (varName.find(potentialName) != std::string::npos)
       return true;
   }
   return false;
@@ -101,7 +112,7 @@ bool HeuristicBasedABVisitor::VisitRecordDecl(RecordDecl *RD) {
           if (hasNameMatch(ptrField->getNameAsString(), lenField->getNameAsString())) {
             // if we find a field which matches both the pointer name and
             // variable name heuristic lets use it.
-            if (fieldNameMatch(lenField->getNameAsString())) {
+            if (hasLengthKeyword(lenField->getNameAsString())) {
               Info.removeArrayBoundsVar(ptrField);
               Info.addArrayBoundsVar(ptrField, lenField);
               break;
