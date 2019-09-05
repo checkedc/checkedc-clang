@@ -3264,25 +3264,29 @@ ExprResult Sema::BuildPredefinedExpr(SourceLocation Loc,
     unsigned Length = Str.length();
 
     llvm::APInt LengthI(32, Length + 1);
+    // Get an array type for the string, according to C99 6.4.5.
+    CheckedArrayKind ArrayKind = IsCheckedScope() ?
+      CheckedArrayKind::NtChecked : CheckedArrayKind::Unchecked;
+
     if (IK == PredefinedExpr::LFunction || IK == PredefinedExpr::LFuncSig) {
       ResTy =
           Context.adjustStringLiteralBaseType(Context.WideCharTy.withConst());
       SmallString<32> RawChars;
       ConvertUTF8ToWideString(Context.getTypeSizeInChars(ResTy).getQuantity(),
                               Str, RawChars);
+
       ResTy = Context.getConstantArrayType(ResTy, LengthI, ArrayType::Normal,
-                                           /*IndexTypeQuals*/ 0);
+                                           /*IndexTypeQuals*/ 0, ArrayKind);
       SL = StringLiteral::Create(Context, RawChars, StringLiteral::Wide,
                                  /*Pascal*/ false, ResTy, Loc);
     } else {
       ResTy = Context.adjustStringLiteralBaseType(Context.CharTy.withConst());
       ResTy = Context.getConstantArrayType(ResTy, LengthI, ArrayType::Normal,
-                                           /*IndexTypeQuals*/ 0);
+                                           /*IndexTypeQuals*/ 0, ArrayKind);
       SL = StringLiteral::Create(Context, Str, StringLiteral::Ascii,
                                  /*Pascal*/ false, ResTy, Loc);
     }
   }
-
   return PredefinedExpr::Create(Context, Loc, ResTy, IK, SL);
 }
 

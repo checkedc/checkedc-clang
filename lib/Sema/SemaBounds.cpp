@@ -909,6 +909,7 @@ namespace {
       case Expr::CHKCBindTemporaryExprClass: {
         CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
         Expr *SE = Binding->getSubExpr()->IgnoreParens();
+
         if (isa<CompoundLiteralExpr>(SE)) {
           BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
           QualType PtrType = Context.getDecayedType(E->getType());
@@ -917,18 +918,15 @@ namespace {
                                           CastKind::CK_ArrayToPointerDecay,
                                           ArrLValue);
           return ExpandToRange(Base, BE);
-        } else if (StringLiteral *SL = dyn_cast<StringLiteral>(SE))
+        }
+
+        if (auto *SL = dyn_cast<StringLiteral>(SE))
           return InferBoundsForStringLiteral(E, SL, Binding);
-        return CreateBoundsAlwaysUnknown();
-      }
-      case Expr::PredefinedExprClass: {
-        // PredefinedExprClass defines pre-defined literals like __func__,
-        // __FILE__, etc.
-        StringLiteral *SL = cast<PredefinedExpr>(E)->getFunctionName();
-        if (!SL)
-          return CreateBoundsAlwaysUnknown();
-        auto *Binding = new (Context) CHKCBindTemporaryExpr(E);
-        return InferBoundsForStringLiteral(E, SL, Binding);
+
+        if (auto *PE = dyn_cast<PredefinedExpr>(SE)) {
+          auto *SL = PE->getFunctionName();
+          return InferBoundsForStringLiteral(E, SL, Binding);
+        }
       }
       default:
         return CreateBoundsAlwaysUnknown();
