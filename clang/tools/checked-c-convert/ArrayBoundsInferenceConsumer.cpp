@@ -212,7 +212,7 @@ bool HeuristicBasedABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 // check if the provided expression is a call
 // to known memory allocators.
 // if yes, return true along with the argument used as size
-// assigned to the second paramter i.e., sizeArgument
+// assigned to the second parameter i.e., sizeArgument
 bool HeuristicBasedABVisitor::isAllocatorCall(Expr *currExpr, Expr **sizeArgument) {
   if (currExpr != nullptr) {
     currExpr = removeAuxillaryCasts(currExpr);
