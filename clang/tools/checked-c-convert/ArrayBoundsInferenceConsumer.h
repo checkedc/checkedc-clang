@@ -52,4 +52,8 @@ private:
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I);
 
+// Add constraints based on heuristics to the parameters of the
+// provided function.
+void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD);
+
 #endif //_ARRAYBOUNDSINFERENCECONSUMER_H

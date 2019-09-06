@@ -155,6 +155,11 @@ public:
     return (*this == *toFind);
   }
 
+  // returns the constraints associated with this atom.
+  std::set<Constraint*, PComp<Constraint*>> &getAllConstraints() {
+    return Constraints;
+  }
+
 private:
   uint32_t  Loc;
   // these are the constraints erased during constraint solving.
