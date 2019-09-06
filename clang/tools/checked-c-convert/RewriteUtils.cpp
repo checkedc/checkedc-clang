@@ -480,7 +480,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
         std::string bi =  Defn->getRewritableOriginalTy() + Defn->getName() + " : itype("+ctype +
-                          ABRewriter.getBoundsString(FD->getParamDecl(i), true)+") ";
+                          ABRewriter.getBoundsString(Definition->getParamDecl(i), true)+") ";
         parmStrs.push_back(bi);
       } else if (anyConstrained) {
         // both the declaration and definition are same
@@ -490,7 +490,7 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
         // if there is no declaration?
         // check the itype in definition
-        v = v + getExistingIType(Decl, Defn, Declaration) + ABRewriter.getBoundsString(FD->getParamDecl(i));
+        v = v + getExistingIType(Decl, Defn, Declaration) + ABRewriter.getBoundsString(Definition->getParamDecl(i));
 
         parmStrs.push_back(v);
       } else {

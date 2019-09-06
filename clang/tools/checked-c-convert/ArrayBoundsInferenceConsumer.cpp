@@ -278,6 +278,39 @@ Expr *HeuristicBasedABVisitor::removeAuxillaryCasts(Expr *srcExpr) {
   return srcExpr;
 }
 
+void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
+  if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
+    // Heuristic: If the function has just a single parameter
+    // and we found that it is an array then it must be an Nt_array.
+    const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
+    const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
+    if (FT != nullptr) {
+      if (FT->getNumParams() == 1) {
+        ParmVarDecl *PVD = FD->getParamDecl(0);
+        auto &CS = I.getConstraints();
+        auto &envMap = CS.getVariables();
+        std::set<ConstraintVariable *> defsCVar = I.getVariable(PVD, C, true);
+        for (auto constraintVar: defsCVar)
+          if (PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
+            auto &cVars = PV->getCvars();
+            if (cVars.size() > 0) {
+              // we should constraint only the outer most constraint variable.
+              auto cVar = *(cVars.begin());
+              for (auto currConstraint: I.getConstraints().getVar(cVar)->getAllConstraints())
+                if (Eq *eq = dyn_cast<Eq>(currConstraint))
+                  if (eq->getRHS() == CS.getArr()) {
+                    CS.addConstraint(
+                      CS.createEq(
+                        CS.getOrCreateVar(cVar), CS.getNTArr()));
+                    break;
+                  }
+            }
+          }
+      }
+    }
+  }
+}
+
 std::set<std::string> HeuristicBasedABVisitor::AllocatorFunctionNames = {"malloc", "calloc"};
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {

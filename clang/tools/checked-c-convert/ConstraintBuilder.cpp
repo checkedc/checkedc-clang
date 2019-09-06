@@ -8,6 +8,7 @@
 // visitors create constraints based on the AST of the program. 
 //===----------------------------------------------------------------------===//
 #include "ConstraintBuilder.h"
+#include "ArrayBoundsInferenceConsumer.h"
 
 using namespace llvm;
 using namespace clang;
@@ -798,6 +799,8 @@ public:
 
         // Visit the body of the function and build up information.
         FV.TraverseStmt(Body);
+        // Add constraints based on heuristics.
+        AddArrayHeuristics(Context, Info, D);
       }
     }
 
