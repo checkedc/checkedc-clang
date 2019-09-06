@@ -160,7 +160,7 @@ If you are using CMake 3.14 or higher, you use the -G option to specify
 the geneerator (the target build system) and the -A option to specify
 the architecture.  The clang tests will build and run for that architecture
 and the architecture will be the default target architecture for clang (these options
-are explained [here])(https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2016%202019.html).
+are explained [here](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2016%202019.html)).
 By default, CMake uses the 64-bit toolset on 64-bit Windows systems, so you
 do not have to worry about that.
 
