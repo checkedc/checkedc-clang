@@ -507,7 +507,7 @@ private:
   ASTContext &Context;
 
 public:
-  FreeVariablesFinder(Sema &SemaRef, ASTContext &Context) : BaseTransform(SemaRef), Context(Context) {}
+  FreeVariablesFinder(Sema &SemaRef) : BaseTransform(SemaRef), Context(SemaRef.Context) {}
 
   /// Returns the list of free type variables referenced in the given type.
   std::vector<const TypeVariableType *> find(QualType Tpe) {
@@ -536,14 +536,13 @@ public:
     // We go about it carefully: we can't call 'TL.getType().getCanonical()' because
     // canonical types for existentials aren't compositional.
     // Instead, we get the "raw" type.
-    auto *ExistTpe = TL.getTypePtr()->getAs<ExistentialType>();
+    auto *ExistTpe = TL.getTypePtr();
     // We call '.getCanonical()' because the type in the variable position
     // in an existential could be either a `TypedefType` or a `TypeVariableType`.
     // In the former case, we want to make sure we get the raw type variable.
     auto *TypeVar = Context.getCanonicalType(ExistTpe->typeVar())->getAs<TypeVariableType>();
     if (!TypeVar) llvm_unreachable("expected a TypeVariableType");
     BoundVars.insert(TypeVar);
-    TransformType(ExistTpe->innerType());
     return BaseTransform::TransformExistentialType(TLB, TL);
   }
 
@@ -563,33 +562,92 @@ public:
     return BaseTransform::TransformDecl(Loc, D);
   }
 };
+
+class AlphaRenamer : public TreeTransform<AlphaRenamer> {
+
+public:
+  using SubstMap = llvm::DenseMap<const TypeVariableType *, QualType>;
+
+private:
+  typedef TreeTransform<AlphaRenamer> BaseTransform;
+
+  ASTContext &Context;
+  /// Maps olds bound variables to new variables so we can renumber them.
+  SubstMap Substs;
+  /// The depth to use for renumbering if we encounter a new bound variable.
+  int NewDepth;
+
+public:
+  AlphaRenamer(Sema &SemaRef) : BaseTransform(SemaRef), Context(SemaRef.Context) {}
+
+  QualType Rename(QualType Tpe, int NewDepth, SubstMap Substs) {
+    this->NewDepth = NewDepth;
+    this->Substs = Substs;
+    return TransformType(Tpe);
+  }
+
+  QualType TransformTypeVariableType(TypeLocBuilder &TLB, TypeVariableTypeLoc TL) {
+    auto *TypeVar = TL.getTypePtr();
+    auto Iter = Substs.find(TypeVar);
+    if (Iter == Substs.end()) return BaseTransform::TransformTypeVariableType(TLB, TL);
+    // We need to renumber the variable.
+    auto NewT = TLB.push<TypeVariableTypeLoc>(Iter->second);
+    NewT.setNameLoc(TL.getNameLoc());
+    return TL.getType();
+  }
+
+  QualType TransformExistentialType(TypeLocBuilder &TLB, ExistentialTypeLoc TL) {
+    auto *ExistTpe = TL.getTypePtr();
+    // We call '.getCanonical()' because the type in the variable position
+    // in an existential could be either a `TypedefType` or a `TypeVariableType`.
+    // In the former case, we want to make sure we get the raw type variable.
+    auto *TypeVar = Context.getCanonicalType(ExistTpe->typeVar())->getAs<TypeVariableType>();
+    if (!TypeVar) llvm_unreachable("expected a TypeVariableType");
+    // We need to renumber `TypeVar`, so we add the mapping `TypeVar -> NewDepth` to the substitutions.
+    // The index is 0 because existentials only bound one type variable.
+    // IsBoundsInterfaceType is false because an existential isn't a bounds interface.
+    Substs.insert(std::make_pair(TypeVar, Context.getTypeVariableType(NewDepth, 0 /* Index */, false /* IsBoundsInterfaceType */)));
+    // Increment NewDepth so that there are no future collisions.
+    NewDepth += 1;
+    // Now the default recursion on both components so that the substitution can happen.
+    return BaseTransform::TransformExistentialType(TLB, TL);
+  }
+
+};
 }
 
 const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Type *TypeVar, QualType InnerType) {
-  /*
-  printf("ActOnExistentialType\n");
-  TypeVar->dump();
-  InnerType.dump();
-  printf("Free Variables\n");
-  FreeVariablesFinder Finder(*this, Context);
-  auto FreeVars = Finder.find(InnerType);
-  for (auto FV : FreeVars) {
-    printf(" - ");
-    FV->dump();
-  }
-  */
   auto *Cached = Context.getCachedExistentialType(TypeVar, InnerType);
   if (Cached) return Cached;
-  ExistentialType *ExistTpe = nullptr;
-  auto *CanonVar = Context.getCanonicalType(TypeVar);
-  auto CanonInner = InnerType.getCanonicalType();
-  if (CanonVar == TypeVar && CanonInner == InnerType) {
-    ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType() /* indicates that it's canonical */);
-  } else {
-    // TODO: explain why this won't loop.
-    auto CanonExist = QualType(ActOnExistentialType(Context, CanonVar, CanonInner), 0 /* Quals */);
-    ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, CanonExist);
-  }
+  // The type we need to generate isn't already cached, so we need to cache it.
+  // Before caching it we need to generate an underlying canonical type.
+  //
+  // Generating the canonical type is a multi-step process:
+  //   1) First we generate the set of free variables in `InnerType`.
+  //   2) Then we compute `NewDepth` = max free variable + 1.
+  //   3) We shift every bound variable in `InnerType` so they're numbered starting at `NewDepth`.
+  // The result of step 3) yields a canonical type.
+  //
+  // Example:
+  //   _Exists(X, _Exists(Y, struct Foo<X, Y, Z>)) // assume Z -> 0, X -> 1, Y -> 2
+  //   Free variables = {0}, so NewDepth = 1
+  //   Shift all bound variables so they start at `NewDepth`:
+  //   _Exists(1, Exists(2, struct Foo<1, 2, 0>)) // this is the canonical type
+  //
+  // Once we have the canonical type, we can insert the new existential in the cache while
+  // making it point to the canonical type.
+  FreeVariablesFinder FreeVarsFinder(*this);
+  auto FreeVars = FreeVarsFinder.find(InnerType);
+  // `TypeVar` could be a TypedefType, so we need to get its underlying type.
+  auto *TypeVarRaw = Context.getCanonicalType(TypeVar)->getAs<TypeVariableType>();
+  if (!TypeVarRaw) llvm_unreachable("Expected a TypeVariableType as the canonical type");
+  // If the set of free variables contains `TypeVarRaw`, remove `TypeVarRaw` from the set
+  // because `TypeVarRaw` isn't really free. Example:
+  //   TypeVarRaw = 0, InnerType = struct Foo<0>
+  //   In the resulting type _Exists(0, struct Foo<0>), 0 isn't free.
+  FreeVars.erase(std::remove(FreeVars.begin(), FreeVars.end(), TypeVarRaw), FreeVars.end());
+  // Now compute the new depth to which the bound variables should be moved in the canonical type.
+  // auto *ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, CanonExist);
   Context.addCachedExistentialType(TypeVar, InnerType, ExistTpe);
   return ExistTpe;
 }
