@@ -3,7 +3,7 @@
 ## Setting up your machine
 
 See the clang [Getting started guide](http://clang.llvm.org/get_started.html) for information
-on how to set up your machine.  For Linux, you should install 3.8 or later.
+on how to set up your machine.  For Linux, you should install CMake 3.8 or later.
 If you will be developing on Windows, you should install CMake 3.14 or later on your machine.
 
 ### Developing on Windows
@@ -160,7 +160,7 @@ If you are using CMake 3.14 or higher, you use the -G option to specify
 the geneerator (the target build system) and the -A option to specify
 the architecture.  The clang tests will build and run for that architecture
 and the architecture will be the default target architecture for clang (these options
-are explained [here](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2016%202019.html).
+are explained [here])(https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2016%202019.html).
 By default, CMake uses the 64-bit toolset on 64-bit Windows systems, so you
 do not have to worry about that.
 
@@ -172,7 +172,7 @@ For x64, use
 ```
     cmake -G "Visual Studio 16 2019" -A x64 {llvm-path}
 ```
-To target Visual Studio 2017, substitute "Visual Studo 15 2017" for "Visual Studio 16 2019".
+To target Visual Studio 2017, substitute "Visual Studio 15 2017" for "Visual Studio 16 2019".
 `cmake --help` will list all the available generators on your platform.
 
 ### Visual Studio with earlier versions of CMake
