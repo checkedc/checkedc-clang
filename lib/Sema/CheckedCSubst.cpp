@@ -15,6 +15,8 @@
 
 #include "TreeTransform.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Sema/Sema.h"
+#include "llvm/ADT/DenseSet.h"
 
 using namespace clang;
 using namespace sema;
@@ -484,4 +486,110 @@ QualType Sema::SubstituteTypeArgs(QualType QT, ArrayRef<TypeArgument> TypeArgs) 
    }
 
    return TransformedQT;
+}
+
+namespace {
+/// A `TreeTransform` that computes the list of free `TypeVariableTypes` in a type.
+/// A variable is free if isn't bound.
+/// Example:
+///   FreeVariablesFinder().find(_Exists(3, _Exists(4, struct Foo<1, 3, struct Foo<4, 0>>)))
+///   ==> [1, 0] (3 and 4 are bound)
+/// TODO: add list of variable binders
+class FreeVariablesFinder : public TreeTransform<FreeVariablesFinder> {
+
+private:
+  typedef TreeTransform<FreeVariablesFinder> BaseTransform;
+
+  /// The set of current bound variables
+  llvm::DenseSet<const TypeVariableType *> BoundVars;
+  /// The set of free variables found so far
+  llvm::DenseSet<const TypeVariableType *> FreeVars;
+  ASTContext &Context;
+
+public:
+  FreeVariablesFinder(Sema &SemaRef, ASTContext &Context) : BaseTransform(SemaRef), Context(Context) {}
+
+  /// Returns the list of free type variables referenced in the given type.
+  std::vector<const TypeVariableType *> find(QualType Tpe) {
+    TransformType(Tpe); // Populates `FreeVars` as a side effect.
+    return std::vector<const TypeVariableType *>(FreeVars.begin(), FreeVars.end());
+  }
+
+  // The TransformType* static overrides are below.
+  // For each one, we just want to compute bound and free variables. We're not
+  // really interested in transforming the type, so we always ultimately return
+  // whatever the base class returns.
+
+  /// For a type variable, add it to the list of free variables if it isn't bound.
+  QualType TransformTypeVariableType(TypeLocBuilder &TLB, TypeVariableTypeLoc TL) {
+    // We don't need to call `.getCanonical()` here because type variables
+    // are their own canonical types.
+    auto *TypeVar = TL.getTypePtr()->getAs<TypeVariableType>();
+    if (BoundVars.find(TypeVar) == BoundVars.end()) FreeVars.insert(TypeVar);
+    return BaseTransform::TransformTypeVariableType(TLB, TL);
+  }
+
+  /// For an existential type, add the introduced variable to the set of bound variables
+  /// and recurse on the inner type.
+  QualType TransformExistentialType(TypeLocBuilder &TLB, ExistentialTypeLoc TL) {
+    // What we want is to extract the new bound type variable.
+    // We go about it carefully: we can't call 'TL.getType().getCanonical()' because
+    // canonical types for existentials aren't compositional.
+    // Instead, we get the "raw" type.
+    auto *ExistTpe = TL.getTypePtr()->getAs<ExistentialType>();
+    // We call '.getCanonical()' because the type in the variable position
+    // in an existential could be either a `TypedefType` or a `TypeVariableType`.
+    // In the former case, we want to make sure we get the raw type variable.
+    auto *TypeVar = Context.getCanonicalType(ExistTpe->typeVar())->getAs<TypeVariableType>();
+    if (!TypeVar) llvm_unreachable("expected a TypeVariableType");
+    BoundVars.insert(TypeVar);
+    TransformType(ExistTpe->innerType());
+    return BaseTransform::TransformExistentialType(TLB, TL);
+  }
+
+  /// For a `TypedefType`, just visit the underlying type.
+  QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
+    QualType TransformedType = TransformType(TL.getTypePtr()->desugar());
+    return BaseTransform::TransformTypedefType(TLB, TL);
+  }
+
+  /// For a `RecordDecl` corresponding to a type application, recursively explore the type arguments.
+  /// TODO: replace this case once we have a dedicated type for type applications.
+  Decl *TransformDecl(SourceLocation Loc, Decl *D) {
+    RecordDecl *RDecl;
+    if ((RDecl = dyn_cast<RecordDecl>(D)) && RDecl->isInstantiated()) {
+      for (auto TArg : RDecl->typeArgs()) TransformType(TArg.typeName);
+    }
+    return BaseTransform::TransformDecl(Loc, D);
+  }
+};
+}
+
+const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Type *TypeVar, QualType InnerType) {
+  /*
+  printf("ActOnExistentialType\n");
+  TypeVar->dump();
+  InnerType.dump();
+  printf("Free Variables\n");
+  */
+  FreeVariablesFinder Finder(*this, Context);
+  auto FreeVars = Finder.find(InnerType);
+  for (auto FV : FreeVars) {
+    printf(" - ");
+    FV->dump();
+  }
+  auto *Cached = Context.getCachedExistentialType(TypeVar, InnerType);
+  if (Cached) return Cached;
+  ExistentialType *ExistTpe = nullptr;
+  auto *CanonVar = Context.getCanonicalType(TypeVar);
+  auto CanonInner = InnerType.getCanonicalType();
+  if (CanonVar == TypeVar && CanonInner == InnerType) {
+    ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType() /* indicates that it's canonical */);
+  } else {
+    // TODO: explain why this won't loop.
+    auto CanonExist = QualType(ActOnExistentialType(Context, CanonVar, CanonInner), 0 /* Quals */);
+    ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, CanonExist);
+  }
+  Context.addCachedExistentialType(TypeVar, InnerType, ExistTpe);
+  return ExistTpe;
 }

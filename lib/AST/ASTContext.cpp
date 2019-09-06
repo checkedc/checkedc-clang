@@ -11301,19 +11301,13 @@ bool ASTContext::removeDelayedTypeApps(RecordDecl *Base) {
   return DelayedTypeApps.erase(Base);
 }
 
-const ExistentialType *ASTContext::getExistentialType(const Type *TypeVar, QualType InnerType)  {
-    auto Iter = CachedExistTypes.find(std::make_pair(TypeVar, InnerType));
-    if (Iter != CachedExistTypes.end()) return Iter->second;
-    ExistentialType *ExistTpe = nullptr;
-    auto *CanonVar = getCanonicalType(TypeVar);
-    auto CanonInner = InnerType.getCanonicalType();
-    if (CanonVar == TypeVar && CanonInner == InnerType) {
-      ExistTpe = new (*this, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType() /* indicates that it's canonical */);
-    } else {
-      // TODO: explain why this won't loop.
-      auto CanonExist = QualType(getExistentialType(CanonVar, CanonInner), 0 /* Quals */);
-      ExistTpe = new (*this, TypeAlignment) ExistentialType(TypeVar, InnerType, CanonExist);
-    }
-    CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistTpe));
-    return ExistTpe;
-  }
+const ExistentialType *ASTContext::getCachedExistentialType(const Type *TypeVar, QualType InnerType) {
+  auto Iter = CachedExistTypes.find(std::make_pair(TypeVar, InnerType));
+  if (Iter != CachedExistTypes.end()) return Iter->second;
+  return nullptr;
+}
+
+void ASTContext::addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistTpe) {
+  if (getCachedExistentialType(TypeVar, InnerType)) llvm_unreachable("Cannot re-add existential type to the cache");
+  CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistTpe));
+}

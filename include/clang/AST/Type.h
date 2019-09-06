@@ -4463,11 +4463,7 @@ class ExistentialType : public Type, public llvm::FoldingSetNode {
   /// The type wrapped by the existential that potentially uses the bound type variable.
   QualType InnerType;
 
-protected:
-  /// Contains the factory method for creating existential types.
-  friend class ASTContext;
-
-  /// Create via the factory 'ASTContext::getExistentialType'.
+public:
   ExistentialType(const Type *TypeVar, QualType InnerType, QualType Canon) :
     Type(Existential, Canon, false /* Dependent */ , false /* InstantiationDependent */,
       false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
@@ -4477,7 +4473,6 @@ protected:
     }
   }
 
-public:
   const Type *typeVar() const { return TypeVar; }
   QualType innerType() const { return InnerType; }
 

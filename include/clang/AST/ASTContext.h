@@ -3155,8 +3155,13 @@ public:
   // Checked C: Existential Types
 
   /// Get the existential type corresponding to the pair (type-var, inner-type).
-  /// If there is no cached existential, one will be created.
-  const ExistentialType *getExistentialType(const Type *TypeVar, QualType InnerType);
+  /// If there is no cached existential, return `nullptr`.
+  const ExistentialType *getCachedExistentialType(const Type *TypeVar, QualType InnerType);
+
+  /// Add the mapping `(type-var, inner-type) -> exist-type` to the cache of
+  /// existential types. This should only be called once per key (i.e. cache elements
+  /// should not be re-written).
+  void addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistTpe);
 };
 
 /// Utility function for constructing a nullary selector.
