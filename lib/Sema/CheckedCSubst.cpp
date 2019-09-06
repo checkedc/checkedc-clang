@@ -571,13 +571,13 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   TypeVar->dump();
   InnerType.dump();
   printf("Free Variables\n");
-  */
   FreeVariablesFinder Finder(*this, Context);
   auto FreeVars = Finder.find(InnerType);
   for (auto FV : FreeVars) {
     printf(" - ");
     FV->dump();
   }
+  */
   auto *Cached = Context.getCachedExistentialType(TypeVar, InnerType);
   if (Cached) return Cached;
   ExistentialType *ExistTpe = nullptr;
