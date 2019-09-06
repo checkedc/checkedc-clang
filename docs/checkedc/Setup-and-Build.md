@@ -3,8 +3,8 @@
 ## Setting up your machine
 
 See the clang [Getting started guide](http://clang.llvm.org/get_started.html) for information
-on how to set up your machine. If you will be developing on Windows, you should install CMake 3.8
-or later on your machine.
+on how to set up your machine.  For Linux, you should install 3.8 or later.
+If you will be developing on Windows, you should install CMake 3.14 or later on your machine.
 
 ### Developing on Windows
 
@@ -18,8 +18,8 @@ of Windows too.
  
 You will need to install the following before building: 
 
-- Visual Studio 2015 or later, CMake (version 3.8 or later), Python (version 2.7), and versions of UNIX command
-line tools.  We recommend using Visual Studio 2017.
+- Visual Studio 2017 or later, CMake (version 3.14 or later), Python (version 2.7), and versions of UNIX command
+line tools.  We recommend using Visual Studio 2019.
 - For UNIX command-line tools, we recommend installing them via Cygwin because these are well-maintained. 
 Go to [http://www.cygwin.com](http://www.cygwin.com) and download the installer (put it in a known place).
 Then run it and use the GUI to install the coreutils and diffutils packages.  Add the bin subdirectory to your system path.
@@ -32,7 +32,7 @@ to start paging.  This will make your machine unresponsive and slow down your bu
 See the Wiki page on [Parallel builds of clang on Windows](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
 for more details.
 
-in VS 2017, go to _Debug->Options->Projects and Solutions->VC++ Project Settings_ and set
+in VS 2017 or VS 2019, go to _Debug->Options->Projects and Solutions->VC++ Project Settings_ and set
 the `Maximum Number of concurrent C++ compilations` to 3, if your development machine has
 1 GByte of memory or more per core.  If not, see the
 [Wiki page](https://github.com/Microsoft/checkedc-clang/wiki/Parallel-builds-of-clang-on-Windows/)
@@ -141,12 +141,41 @@ git clone https://github.com/Microsoft/checkedc
 3. Cmake will produce a build system by default that builds code generators for all LLVM-supported architectures.
    This can increase build and link times.  You might want to build the code generator for a specific target, such as x86.  To
    do that,  add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
-4. Make sure that you are using whatever shell you normally do compiles in.  On Linux, cd your build directory and invoke CMake
+4. Make sure that you are using whatever shell you normally do compiles in.
+
+On Linux, cd your build directory and invoke CMake
    with:
 ```
     cmake {llvm-path}
 ```
 where `{llvm-path}` is the path to the root of your LLVM repo.
+
+The directions for generating a build system for Visual Studio depend on which
+version of CMake you are using.  You must use CMake 3.14 or higher to
+generate a build system for Visual Studio 2019.
+
+### Visual Studio with CMake 3.14 or higher
+
+If you are using CMake 3.14 or higher, you use the -G option to specify
+the geneerator (the target build system) and the -A option to specify
+the architecture.  The clang tests will build and run for that architecture
+and the architecture will be the default target architecture for clang (these options
+are explained [here](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2016%202019.html).
+By default, CMake uses the 64-bit toolset on 64-bit Windows systems, so you
+do not have to worry about that.
+
+To generate a build system for Visual Studio 2019 targeting x86, use
+```
+    cmake -G "Visual Studio 16 2019" -A Win32 {llvm-path}
+```
+For x64, use
+```
+    cmake -G "Visual Studio 16 2019" -A x64 {llvm-path}
+```
+To target Visual Studio 2017, substitute "Visual Studo 15 2017" for "Visual Studio 16 2019".
+`cmake --help` will list all the available generators on your platform.
+
+### Visual Studio with earlier versions of CMake
 
    On Windows, when using Visual Studio, you should specify that the 64-bit hosted toolset be used.
    Visual Studio has both 32-bit hosted and 64-bit hosted versions of tools.
@@ -156,9 +185,11 @@ where `{llvm-path}` is the path to the root of your LLVM repo.
     cmake -T "host=x64" {llvm-path}
 ```
 
-   On Windows, when using Visual Studio, CMake by default produces a build system for x86.  This means that
-   the clang tests will run in 32-bit compatiblity mode, even on a 64-bit version of Windows.  To build and run
-   tests on x64, specify a different generator using the `-G` option.  For Visual Studio 2017, you can use:
+   On Windows, when using Visual Studio, CMake versions earlier than 3.14
+   by default produce a build system for x86.  This means that the clang tests
+   will run in 32-bit compatiblity mode, even on a 64-bit version of Windows.
+   To build and run tests on x64, specify a different generator using the `-G`
+   option.  For    Visual Studio 2017, you can use:
 ```
     cmake -T "host=x64" -G "Visual Studio 15 2017 Win64" {llvm-path}
 ```
