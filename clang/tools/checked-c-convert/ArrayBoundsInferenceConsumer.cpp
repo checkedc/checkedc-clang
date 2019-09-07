@@ -296,14 +296,7 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
             if (cVars.size() > 0) {
               // we should constraint only the outer most constraint variable.
               auto cVar = *(cVars.begin());
-              for (auto currConstraint: I.getConstraints().getVar(cVar)->getAllConstraints())
-                if (Eq *eq = dyn_cast<Eq>(currConstraint))
-                  if (eq->getRHS() == CS.getArr()) {
-                    CS.addConstraint(
-                      CS.createEq(
-                        CS.getOrCreateVar(cVar), CS.getNTArr()));
-                    break;
-                  }
+              CS.getOrCreateVar(cVar)->setNtArrayIfArray();
             }
           }
       }

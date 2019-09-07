@@ -108,7 +108,10 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
       // values stored in the array.
       vars.insert(K);
       assert(CS.getVar(K) == nullptr);
-      CS.getOrCreateVar(K);
+      VarAtom *stArrAtom = CS.getOrCreateVar(K);
+
+      // This is a static array and make it impossible to ever have WILD.
+      stArrAtom->setConstImpossible(CS.getWild());
 
       // See if there is a constant size to this array type at this position.
       if (const ConstantArrayType *CAT = dyn_cast<ConstantArrayType>(Ty)) {
@@ -715,6 +718,9 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
     // variable to be WILD (which should be impossible)!!
     if (checkSkip || dyn_cast<WildAtom>(A)) {
       if (ConstrainedVars.find(V) != ConstrainedVars.end())
+        doAdd = false;
+      // if this is a static array, it cannot be WILD.
+      if (arrSizes.find(V) != arrSizes.end())
         doAdd = false;
     }
 

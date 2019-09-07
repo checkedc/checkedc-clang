@@ -158,6 +158,17 @@ bool Constraints::check(Constraint *C) {
   return true;
 }
 
+// function that handles assignment of the provided ConstAtom to
+// the provided srcVar.
+// returns true if the assignment has been made.
+bool Constraints::assignConstToVar(EnvironmentMap::iterator &srcVar, ConstAtom *toAssign) {
+  if (srcVar->first->canAssign(toAssign)) {
+    srcVar->second = toAssign;
+    return true;
+  }
+  return false;
+}
+
 // Given an equality constraint _Dyn_, and a current variable binding 
 // _CurValLHS_, where _CurValLHS_ represents the pair (q_i:C) and the
 // equality constraint _Dyn_ := q_i == K, pattern match over K. It 
@@ -178,9 +189,8 @@ Constraints::propEq(EnvironmentMap &env, Eq *Dyn, T *A, ConstraintSet &R,
 
   if (isa<T>(Dyn->getRHS())) {
     if (*(CurValLHS->second) < *A) {
-      CurValLHS->second = A;
       R.insert(Dyn);
-      changedEnvironment = true;
+      changedEnvironment = assignConstToVar(CurValLHS, A);
     }
   } // Also propagate from equality when v = v'.
   else if (VarAtom *RHSVar = dyn_cast<VarAtom>(Dyn->getRHS())) {
@@ -188,12 +198,10 @@ Constraints::propEq(EnvironmentMap &env, Eq *Dyn, T *A, ConstraintSet &R,
     assert(CurValRHS != env.end()); // The var on the RHS should be in the env.
 
     if (*(CurValLHS->second) < *(CurValRHS->second)) {
-      CurValLHS->second = CurValRHS->second;
-      changedEnvironment = true;
+      changedEnvironment = assignConstToVar(CurValLHS, CurValRHS->second);
     }
     else if (*(CurValRHS->second) < *(CurValLHS->second)) {
-      CurValRHS->second = CurValLHS->second;
-      changedEnvironment = true;
+      changedEnvironment = assignConstToVar(CurValRHS, CurValLHS->second);;
     }
     else
       assert(*(CurValRHS->second) == *(CurValLHS->second));
@@ -303,6 +311,11 @@ bool Constraints::step_solve(EnvironmentMap &env) {
         changedEnvironment |= propImp<NTArrAtom>(Imp, getNTArr(), rmConstraints, Val);
         changedEnvironment |= propImp<ArrAtom>(Imp, getArr(), rmConstraints, Val);
       }
+    }
+
+    // NTArray adjustment.
+    if (Var->couldBeNtArr(VI->second)) {
+      addConstraint(createEq(Var, getNTArr()));
     }
 
     for (const auto &RC : rmConstraints)

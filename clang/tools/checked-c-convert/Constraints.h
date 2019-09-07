@@ -85,7 +85,9 @@ public:
 class VarAtom : public Atom {
   friend class Constraints;
 public:
-  VarAtom(uint32_t D) : Atom(A_Var), Loc(D) {}
+  VarAtom(uint32_t D) : Atom(A_Var), Loc(D) {
+    ifArrThenNtArray = false;
+  }
 
   static bool classof(const Atom *S) {
     return S->getKind() == A_Var;
@@ -135,7 +137,9 @@ public:
 
   // replace the equality constraints that contains the provided
   // constraint variable with the constant atom
-  unsigned replaceEqConstraints(std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > &toRemoveVAtoms, class Constraints &CS);
+  unsigned replaceEqConstraints(std::map<VarAtom*, ConstAtom*,
+                                PComp<VarAtom*> > &toRemoveVAtoms,
+                                class Constraints &CS);
 
   // restore the erased constraints into the regular constraints.
   bool resetErasedConstraints() {
@@ -160,7 +164,33 @@ public:
     return Constraints;
   }
 
+  // check if we can assign the provided const atom to this VarAtom
+  // this is to implement a Band Pass filter mechanism.
+  // i.e., this VarAtom cannot be assigned or involved in propagating
+  // some ConstAtom.
+  // for example: a static array i.e., int arr[10] can never be WILD.
+  bool inline canAssign(ConstAtom *toAssign) {
+    return ImpossibleVals.find(toAssign->getKind()) == ImpossibleVals.end();
+  }
+
+  // set the provided constant atom as being impossible for this VarAtom
+  void setConstImpossible(ConstAtom *impossibleConst) {
+    ImpossibleVals.insert(impossibleConst->getKind());
+  }
+
+  void setNtArrayIfArray() {
+    ifArrThenNtArray = true;
+  }
+
+  bool couldBeNtArr(ConstAtom *cVal) {
+    return ifArrThenNtArray && cVal->getKind() == A_Arr;
+  }
+
 private:
+  std::set<ConstAtom::AtomKind> ImpossibleVals;
+  // flag that indicates that if this atom is an array then
+  // should be tried to promote to NtArr.
+  bool ifArrThenNtArray;
   uint32_t  Loc;
   // these are the constraints erased during constraint solving.
   std::set<Constraint*, PComp<Constraint*>> ErasedConstraints;
@@ -623,6 +653,8 @@ private:
   bool canAssignConst(VarAtom *src);
   bool step_solve(EnvironmentMap &);
   bool check(Constraint *C);
+
+  bool assignConstToVar(EnvironmentMap::iterator &srcVar, ConstAtom *toAssign);
 
   template <typename T>
   bool
