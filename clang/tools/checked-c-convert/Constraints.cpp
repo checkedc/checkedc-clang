@@ -315,7 +315,7 @@ bool Constraints::step_solve(EnvironmentMap &env) {
 
     // NTArray adjustment.
     if (Var->couldBeNtArr(VI->second)) {
-      addConstraint(createEq(Var, getNTArr()));
+      changedEnvironment |= addConstraint(createEq(Var, getNTArr()));
     }
 
     for (const auto &RC : rmConstraints)
