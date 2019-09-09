@@ -635,7 +635,9 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   //   _Exists(1, Exists(2, struct Foo<1, 2, 0>)) // this is the canonical type
   //
   // Once we have the canonical type, we can insert the new existential in the cache while
-  // making it point to the canonical type.
+  // making it point to the canonical type. Also notice that in computing the canonical type
+  // we moved from using the user-visible names for type variables (e.g. 'X', 'Y', and 'Z') to
+  // the low-level representation with depth levels.
   FreeVariablesFinder FreeVarsFinder(*this);
   auto FreeVars = FreeVarsFinder.find(InnerType);
   // `TypeVar` could be a TypedefType, so we need to get its underlying type.
@@ -647,7 +649,33 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   //   In the resulting type _Exists(0, struct Foo<0>), 0 isn't free.
   FreeVars.erase(std::remove(FreeVars.begin(), FreeVars.end(), TypeVarRaw), FreeVars.end());
   // Now compute the new depth to which the bound variables should be moved in the canonical type.
-  // auto *ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, CanonExist);
+  // This is just the max depth of any free variables, plus 1.
+  // Example 1: if there are no free variables, then we start at 0.
+  // Example 2: if the free variables are [0, 3, 4], we start at 5.
+  auto NewDepth = 0;
+  for (auto *FreeVar : FreeVars) {
+    if (FreeVar->GetDepth() >= NewDepth) NewDepth = FreeVar->GetDepth + 1;
+  }
+  // We can now alpha-rename `InnerType` so that bound variables start at `NewDepth`.
+  // Example: E(3, E(4, struct Foo<3, 4, 1>)) -> E(2, E(3, struct Foo<2, 3, 1>))
+  AlphaRenamer::SubstMap Substs;
+  // We first insert the mapping OuterMostTypeVar -> NewDepth, because the outermost existential
+  // isn't built yet (we're building it right now).
+  // Example:
+  // To canonicalze E(1, struct Foo<1>), we're given the two components separately (1, struct Foo<1>).
+  // We need to alpha-rename 'struct Foo<1>', but we're missing the outermost binder and its correponding mapping
+  // 1 -> 0. We need to inject this mapping into the substitution map before we alpha-rename the body.
+  Substs.insert(std::make_pair(TypeVarRaw, Context.getTypeVariableType(NewDepth, 0 /* position */, false /* isBoundsInterfaceType */)));
+  AlphaRenamer Renamer(*this);
+  auto NewInnerType = Renamer.Rename(InnerType, NewDepth + 1 /* NewDepth is already used */, Substs);
+  // We can finally get the canonical type with components (TypeVarRaw, NewInnerType).
+  auto *CanonType = Context.getCachedExistentialType(TypeVarRaw, NewInnerType);
+  if (!CanonType) {
+    CanonType = new (Context, TypeAlignment) ExistentialType(TypeVarRaw, NewInnerType, QualType());
+    Context.addCachedExistentialType(TypeVar, NewInnerType, CanonType);
+  }
+  // An then we create the existential the user requested, and cache it.
+  auto *ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
   Context.addCachedExistentialType(TypeVar, InnerType, ExistTpe);
   return ExistTpe;
 }
