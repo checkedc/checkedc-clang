@@ -511,7 +511,7 @@ public:
 
   /// Returns the list of free type variables referenced in the given type.
   std::vector<const TypeVariableType *> find(QualType Tpe) {
-    TransformType(Tpe); // Populates `FreeVars` as a side effect.
+    getDerived().TransformType(Tpe); // Populates `FreeVars` as a side effect.
     return std::vector<const TypeVariableType *>(FreeVars.begin(), FreeVars.end());
   }
 
@@ -559,7 +559,7 @@ public:
   Decl *TransformDecl(SourceLocation Loc, Decl *D) {
     RecordDecl *RDecl;
     if ((RDecl = dyn_cast<RecordDecl>(D)) && RDecl->isInstantiated()) {
-      for (auto TArg : RDecl->typeArgs()) TransformType(TArg.typeName);
+      for (auto TArg : RDecl->typeArgs()) getDerived().TransformType(TArg.typeName);
     }
     return BaseTransform::TransformDecl(Loc, D);
   }
@@ -585,7 +585,7 @@ public:
   QualType Rename(QualType Tpe, int NewDepth, SubstMap Substs) {
     this->NewDepth = NewDepth;
     this->Substs = Substs;
-    return TransformType(Tpe);
+    return getDerived().TransformType(Tpe);
   }
 
   QualType TransformTypeVariableType(TypeLocBuilder &TLB, TypeVariableTypeLoc TL) {
@@ -611,6 +611,22 @@ public:
     // that the type location class pushed on to the TypeBuilder is the matching
     // class for the underlying type.
     return getDerived().TransformType(TLB, NewTL);
+  }
+
+  Decl *TransformDecl(SourceLocation Loc, Decl *D) {
+    RecordDecl *RDecl;
+    if ((RDecl = dyn_cast<RecordDecl>(D)) && RDecl->isInstantiated()) {
+      llvm::SmallVector<TypeArgument, 4> NewArgs;
+      for (auto TArg : RDecl->typeArgs()) {
+        auto NewType = getDerived().TransformType(TArg.typeName);
+        auto *SourceInfo = getSema().Context.getTrivialTypeSourceInfo(NewType, getDerived().getBaseLocation());
+        NewArgs.push_back(TypeArgument { NewType, SourceInfo });
+      }
+      auto *Res = SemaRef.ActOnRecordTypeApplication(RDecl->genericBaseDecl(), ArrayRef<TypeArgument>(NewArgs));
+      return Res;
+    } else {
+      return BaseTransform::TransformDecl(Loc, D);
+    }
   }
 
   QualType TransformExistentialType(TypeLocBuilder &TLB, ExistentialTypeLoc TL) {
