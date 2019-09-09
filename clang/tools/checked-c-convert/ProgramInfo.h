@@ -18,6 +18,7 @@
 #include "ConstraintVariables.h"
 #include "Utils.h"
 #include "PersistentSourceLoc.h"
+#include "ArrayBoundsInformation.h"
 
 class ProgramInfo;
 
@@ -107,29 +108,6 @@ public:
 
   VariableMap &getVarMap();
 
-  // add a variable that is the potential bound for the provided
-  // array variable.
-  bool addArrayBoundsVar(Decl *arrVar, Decl *sizeVar);
-  // remove the bounds information for the provided array variable.
-  bool removeArrayBoundsVar(Decl *arrVar);
-
-  // add the expression that represents the size of the provided
-  // array variable
-  bool addArrayBoundsExpr(Decl *arrVar, Expr *sizeExpr);
-  // get the possible length declarations for the provided array variable.
-  std::set<Decl*> &getArrayBoundsDeclInfo(Decl *arrVar);
-
-  // check if the provided variable has any information regarding its size.
-  bool hasArrSizeInfo(Decl *arrVar);
-
-  // check if the provided variable has a size variable.
-  bool hasArrSizeVar(Decl *arrVar);
-
-  // check if the provided variable has a size expression.
-  bool hasArrSizeExpr(Decl *arrVar);
-
-  void printArrayVarsAndSizes(llvm::raw_ostream &O);
-
   // get on demand function declaration constraint. This is needed for functions
   // that do not have corresponding declaration.
   // for all functions that do not have corresponding declaration,
@@ -151,6 +129,10 @@ public:
 
   // handle assigning constraints based on function subtyping.
   bool handleFunctionSubtyping();
+
+  ArrayBoundsInformation &getArrayBoundsInformation() {
+    return *ArrBoundsInfo;
+  }
 private:
   // check if the given set has the corresponding constraint variable type
   template <typename T>
@@ -193,11 +175,9 @@ private:
   std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
 
-  // this is the map of variables that are potential arrays
-  // and their tentative size expression.
-  std::map<Decl *, std::set<Expr*>> ArrayBoundCorrespondenceExprs;
-  // map that contains potential length declarations for array pointers
-  std::map<Decl *, std::set<Decl*>> ArrayBoundCorrespondenceVars;
+  // object that contains all the bounds information of various
+  // array variables.
+  ArrayBoundsInformation *ArrBoundsInfo;
 };
 
 #endif

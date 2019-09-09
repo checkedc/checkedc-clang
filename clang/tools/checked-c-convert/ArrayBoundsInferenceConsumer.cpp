@@ -7,11 +7,13 @@
 // Implementation of all the methods of the class ArrayBoundsInferenceConsumer.
 //===----------------------------------------------------------------------===//
 
+#include <sstream>
 #include "clang/AST/RecursiveASTVisitor.h"
 
 #include "Constraints.h"
 #include "ArrayBoundsInferenceConsumer.h"
 #include "Utils.h"
+#include "ArrayBoundsInformation.h"
 
 static std::set<std::string> possibleLengthVarNames = {"len", "count", "size", "num"};
 #define PREFIXLENRATIO 1
@@ -77,10 +79,73 @@ static bool needArrayBounds(ConstraintVariable *CV, Constraints::EnvironmentMap 
   return false;
 }
 
+static bool needArrayBounds(Decl *decl, ProgramInfo &Info, ASTContext *Context) {
+  std::set<ConstraintVariable*> consVar = Info.getVariable(decl, Context);
+  for (auto currCVar: consVar) {
+    if (needArrayBounds(currCVar, Info.getConstraints().getVariables()))
+      return true;
+    return false;
+  }
+  return false;
+}
+
+// map that contains association of allocator functions and indexes of
+// parameters that correspond to the size of the object being assigned.
+static std::map<std::string, std::set<int>> AllocatorSizeAssoc = {
+                                            {"malloc", {0}},
+                                            {"calloc", {0, 1}}};
+
+
+// get the name of the function called by this call expression
+std::string getCalledFunctionName(Expr *E) {
+  CallExpr *CE = dyn_cast<CallExpr>(E);
+  assert(CE && "The provided expression should be a call expression.");
+  FunctionDecl *calleeDecl = dyn_cast<FunctionDecl>(CE->getCalleeDecl());
+  if (calleeDecl && calleeDecl->getDeclName().isIdentifier())
+    return calleeDecl->getName();
+  return "";
+}
+
+// check if the provided expression is a call to
+// one of the known memory allocators.
+static bool isAllocatorCall(Expr *E) {
+  if (CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E)))
+    if (CE->getCalleeDecl() != nullptr) {
+      // Is this a call to a named function?
+      std::string funcName = getCalledFunctionName(CE);
+      // check if the called function is a known allocator?
+      return AllocatorSizeAssoc.find(funcName) !=
+             AllocatorSizeAssoc.end();
+    }
+  return false;
+}
+
+static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E, ASTContext *C, ProgramInfo &Info) {
+  assert(isAllocatorCall(E) && "The provided expression should be a call to "
+                                "to a known allocator function.");
+  auto &arrBoundsInfo = Info.getArrayBoundsInformation();
+  CallExpr *CE = dyn_cast<CallExpr>(removeAuxillaryCasts(E));
+  std::string funcName = getCalledFunctionName(CE);
+  std::string sizeExpr = "";
+  ArrayBoundsInformation::BOUNDSINFOTYPE previousBoundsInfo;
+  bool isFirstExpr = true;
+  for (auto parmIdx : AllocatorSizeAssoc[funcName]) {
+    Expr *e = CE->getArg(parmIdx);
+    auto currBoundsInfo = arrBoundsInfo.getExprBoundsInfo(nullptr, e);
+    if (!isFirstExpr) {
+      currBoundsInfo = arrBoundsInfo.combineBoundsInfo(nullptr, previousBoundsInfo, currBoundsInfo, "*");
+      isFirstExpr = false;
+    }
+    previousBoundsInfo = currBoundsInfo;
+  }
+  return previousBoundsInfo;
+
+}
+
 // This visitor handles the bounds of function local array variables.
 
 // This handles the length based heuristics for structure fields.
-bool HeuristicBasedABVisitor::VisitRecordDecl(RecordDecl *RD) {
+bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
   // for each of the struct or union types.
   if (RD->isStruct() || RD->isUnion()) {
     // Get fields that are identified as arrays and also fields that could be
@@ -88,6 +153,7 @@ bool HeuristicBasedABVisitor::VisitRecordDecl(RecordDecl *RD) {
     std::set<FieldDecl*> potentialLengthFields;
     std::set<FieldDecl*> identifiedArrayVars;
     const auto &allFields = RD->fields();
+    auto &arrBoundInfo = Info.getArrayBoundsInformation();
     auto &envMap = Info.getConstraints().getVariables();
     for (auto *fld: allFields) {
       FieldDecl *fldDecl = dyn_cast<FieldDecl>(fld);
@@ -113,19 +179,19 @@ bool HeuristicBasedABVisitor::VisitRecordDecl(RecordDecl *RD) {
             // if we find a field which matches both the pointer name and
             // variable name heuristic lets use it.
             if (hasLengthKeyword(lenField->getNameAsString())) {
-              Info.removeArrayBoundsVar(ptrField);
-              Info.addArrayBoundsVar(ptrField, lenField);
+              arrBoundInfo.removeBoundsInformation(ptrField);
+              arrBoundInfo.addBoundsInformation(ptrField, lenField);
               break;
             }
-            Info.addArrayBoundsVar(ptrField, lenField);
+            arrBoundInfo.addBoundsInformation(ptrField, lenField);
           }
         }
         // if the name-correspondence heuristics failed.
         // Then use the named based heuristics.
-        if (!Info.hasArrSizeInfo(ptrField)) {
+        if (!arrBoundInfo.hasBoundsInformation(ptrField)) {
           for (auto lenField: potentialLengthFields) {
             if (fieldNameMatch(lenField->getNameAsString()))
-              Info.addArrayBoundsVar(ptrField, lenField);
+              arrBoundInfo.addBoundsInformation(ptrField, lenField);
           }
         }
       }
@@ -134,10 +200,11 @@ bool HeuristicBasedABVisitor::VisitRecordDecl(RecordDecl *RD) {
   return true;
 }
 
-bool HeuristicBasedABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
+bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   // if we have seen the body of this function? Then try to guess the length
   // of the parameters that are arrays.
   if (FD->isThisDeclarationADefinition() && FD->hasBody()) {
+    auto &arrBoundsInfo = Info.getArrayBoundsInformation();
     const Type *Ty = FD->getTypeSourceInfo()->getTypeLoc().getTypePtr();
     const FunctionProtoType *FT = Ty->getAs<FunctionProtoType>();
     if (FT != nullptr) {
@@ -170,13 +237,13 @@ bool HeuristicBasedABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           // Then most likely this will be a length field.
           unsigned paramIdx = currArrParamPair.first;
           if (potentialLengthParams.find(paramIdx+1) != potentialLengthParams.end()) {
-            Info.addArrayBoundsVar(currArrParamPair.second, potentialLengthParams[paramIdx+1]);
+            arrBoundsInfo.addBoundsInformation(currArrParamPair.second, potentialLengthParams[paramIdx+1]);
             continue;
           }
           if (paramIdx > 0 && potentialLengthParams.find(paramIdx-1) != potentialLengthParams.end()) {
             if (prefixNameMatch(currArrParamPair.second->getNameAsString(),
                                 potentialLengthParams[paramIdx-1]->getNameAsString()))
-              Info.addArrayBoundsVar(currArrParamPair.second, potentialLengthParams[paramIdx-1]);
+              arrBoundsInfo.addBoundsInformation(currArrParamPair.second, potentialLengthParams[paramIdx-1]);
             continue;
 
           }
@@ -186,13 +253,13 @@ bool HeuristicBasedABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
             if (hasNameMatch(currArrParamPair.second->getNameAsString(),
                              currLenParamPair.second->getNameAsString())) {
               foundLen = true;
-              Info.addArrayBoundsVar(currArrParamPair.second, currLenParamPair.second);
+              arrBoundsInfo.addBoundsInformation(currArrParamPair.second, currLenParamPair.second);
               break;
             }
             // check if the length parameter name matches our heuristics.
             if (fieldNameMatch(currLenParamPair.second->getNameAsString())) {
               foundLen = true;
-              Info.addArrayBoundsVar(currArrParamPair.second, currLenParamPair.second);
+              arrBoundsInfo.addBoundsInformation(currArrParamPair.second, currLenParamPair.second);
               continue;
             }
           }
@@ -209,73 +276,57 @@ bool HeuristicBasedABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   return true;
 }
 
-// check if the provided expression is a call
-// to known memory allocators.
-// if yes, return true along with the argument used as size
-// assigned to the second parameter i.e., sizeArgument
-bool HeuristicBasedABVisitor::isAllocatorCall(Expr *currExpr, Expr **sizeArgument) {
-  if (currExpr != nullptr) {
-    currExpr = removeAuxillaryCasts(currExpr);
-    // check if this is a call expression.
-    if (CallExpr *CA = dyn_cast<CallExpr>(currExpr)) {
-      if(CA->getCalleeDecl() != nullptr) {
-        // Is this a call to a named function?
-        FunctionDecl *calleeDecl = dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-        if (calleeDecl && calleeDecl->getDeclName().isIdentifier()) {
-          StringRef funcName = calleeDecl->getName();
-          // check if the called function is a known allocator?
-          if (HeuristicBasedABVisitor::AllocatorFunctionNames.find(funcName) !=
-              HeuristicBasedABVisitor::AllocatorFunctionNames.end()) {
-            if (sizeArgument != nullptr) {
-              *sizeArgument = CA->getArg(0);
-            }
-            return true;
-          }
-        }
-      }
+
+bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
+  Expr *LHS = O->getLHS()->IgnoreImpCasts();
+  Expr *RHS = O->getRHS()->IgnoreImpCasts();
+  auto &arrBoundsInfo = Info.getArrayBoundsInformation();
+  Expr *sizeExpression;
+  auto &envMap = Info.getConstraints().getVariables();
+  // is the RHS expression a call to allocator function?
+  if (isAllocatorCall(RHS)) {
+    // if this is an allocator function then sizeExpression contains the
+    // argument used for size argument
+
+    // if LHS is just a variable? i.e., ptr = .., get the AST node of the
+    // target variable
+    VarDecl *targetVar;
+    if (isExpressionSimpleLocalVar(LHS, &targetVar) && needArrayBounds(targetVar, Info, Context)) {
+      arrBoundsInfo.addBoundsInformation(targetVar, getAllocatedSizeExpr(RHS, Context, Info));
     }
   }
-  return false;
+
+  return true;
+}
+
+bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
+  // Build rules based on initializers.
+  auto &arrBoundsInfo = Info.getArrayBoundsInformation();
+  for (const auto &D : S->decls())
+    if (VarDecl *VD = dyn_cast<VarDecl>(D)) {
+      Expr *InitE = VD->getInit();
+      if (needArrayBounds(VD, Info, Context) && InitE && isAllocatorCall(InitE)) {
+        arrBoundsInfo.addBoundsInformation(VD, getAllocatedSizeExpr(InitE, Context, Info));
+      }
+    }
+
+  return true;
 }
 
 // check if expression is a simple local variable
 // i.e., ptr = .
 // if yes, return the referenced local variable as the return
 // value of the argument.
-bool HeuristicBasedABVisitor::isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetDecl) {
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck)) {
-    if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(DRE->getDecl())) {
-      if (Decl *V = dyn_cast<Decl>(FD)) {
-        *targetDecl = V;
-        return true;
-      }
-    }
-  }
+bool LocalVarABVisitor::isExpressionSimpleLocalVar(Expr *toCheck, VarDecl **targetDecl) {
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck))
+    if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(DRE->getDecl()))
+      if (!dyn_cast<FieldDecl>(FD) && !dyn_cast<ParmVarDecl>(FD))
+        if (VarDecl *VD = dyn_cast<VarDecl>(FD))
+          if (!VD->hasGlobalStorage()) {
+            *targetDecl = VD;
+            return true;
+          }
   return false;
-}
-
-Expr *HeuristicBasedABVisitor::removeImpCasts(Expr *toConvert) {
-  if(ImplicitCastExpr *impCast =dyn_cast<ImplicitCastExpr>(toConvert)) {
-    return impCast->getSubExpr();
-  }
-  return toConvert;
-}
-
-Expr *HeuristicBasedABVisitor::removeCHKCBindTempExpr(Expr *toVeri) {
-  if(CHKCBindTemporaryExpr *toChkExpr = dyn_cast<CHKCBindTemporaryExpr>(toVeri)) {
-    return toChkExpr->getSubExpr();
-  }
-  return toVeri;
-}
-
-Expr *HeuristicBasedABVisitor::removeAuxillaryCasts(Expr *srcExpr) {
-  srcExpr = removeCHKCBindTempExpr(srcExpr);
-  if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(srcExpr)) {
-    srcExpr = C->getSubExpr();
-  }
-  srcExpr = removeCHKCBindTempExpr(srcExpr);
-  srcExpr = removeImpCasts(srcExpr);
-  return srcExpr;
 }
 
 void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
@@ -304,13 +355,18 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
   }
 }
 
-std::set<std::string> HeuristicBasedABVisitor::AllocatorFunctionNames = {"malloc", "calloc"};
-
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   // Run array bounds
-  HeuristicBasedABVisitor HBABV(C, I);
+  GlobalABVisitor GlobABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
   for (const auto &D : TUD->decls()) {
-    HBABV.TraverseDecl(D);
+    GlobABV.TraverseDecl(D);
+    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+      if (FD->hasBody() && FD->isThisDeclarationADefinition()) {
+        Stmt *Body = FD->getBody();
+        LocalVarABVisitor LFV = LocalVarABVisitor(C, I);
+        LFV.TraverseStmt(Body);
+      }
+    }
   }
 }

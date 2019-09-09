@@ -13,10 +13,8 @@
 
 using namespace clang;
 
-static std::map<std::string, std::string> AbsoluteFilePathCache;
-
 const clang::Type *getNextTy(const clang::Type *Ty) {
-  if (Ty->isPointerType()) {
+  if(Ty->isPointerType()) {
     // TODO: how to keep the qualifiers around, and what qualifiers do
     //       we want to keep?
     QualType qtmp = Ty->getLocallyUnqualifiedSingleStepDesugaredType();
@@ -44,14 +42,13 @@ ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &In
   return V;
 }
 
-// Walk the list of declarations and find a declaration that is NOT a
-// definition and does NOT have a body.
+// Walk the list of declarations and find a declaration that is NOT
+// a definition and does NOT have a body.
 FunctionDecl *getDeclaration(FunctionDecl *FD) {
-  // optimization: if the provided Decl is itself a declaration then
-  // return the same Decl
-  if (!FD->isThisDeclarationADefinition())
+  // optimization
+  if(!FD->isThisDeclarationADefinition()) {
     return FD;
-
+  }
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (!tFD->isThisDeclarationADefinition())
@@ -63,11 +60,10 @@ FunctionDecl *getDeclaration(FunctionDecl *FD) {
 // Walk the list of declarations and find a declaration accompanied by
 // a definition and a function body.
 FunctionDecl *getDefinition(FunctionDecl *FD) {
-  // optimization: if the provided Decl is itself associated with a function
-  // body return the same Decl
-  if (FD->isThisDeclarationADefinition() && FD->hasBody())
+  // optimization
+  if(FD->isThisDeclarationADefinition() && FD->hasBody()) {
     return FD;
-
+  }
   for (const auto &D : FD->redecls())
     if (FunctionDecl *tFD = dyn_cast<FunctionDecl>(D))
       if (tFD->isThisDeclarationADefinition() && tFD->hasBody())
@@ -100,26 +96,40 @@ getFunctionDeclarationEnd(FunctionDecl *FD, SourceManager &S)
 }
 
 clang::CheckedPointerKind getCheckedPointerKind(InteropTypeExpr *itypeExpr) {
-  const clang::PointerType *ptrType = itypeExpr->getType().getTypePtr()->getAs<PointerType>();
-  assert(ptrType != nullptr && "itype used for non-pointer value.");
-  return ptrType->getKind();
+  TypeSourceInfo * interopTypeInfo = itypeExpr->getTypeInfoAsWritten();
+  const clang::Type *innerType = interopTypeInfo->getType().getTypePtr();
+  if(innerType->isCheckedPointerNtArrayType()) {
+    return CheckedPointerKind ::NtArray;
+  }
+  if(innerType->isCheckedPointerArrayType()) {
+    return CheckedPointerKind ::Array;
+  }
+  if(innerType->isCheckedPointerType()) {
+    return CheckedPointerKind ::Ptr;
+  }
+  return CheckedPointerKind::Unchecked;
 }
 
-// check if the provided declaration is a function parameter and is part of
-// a declaration only function
-bool isDeclarationParam(clang::Decl *param) {
+// check if function body exists for the
+// provided declaration.
+bool hasFunctionBody(clang::Decl *param) {
   // if this a parameter?
-  if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param))
-    if (DeclContext *DC = PD->getParentFunctionOrMethod()) {
+  if(ParmVarDecl *PD = dyn_cast<ParmVarDecl>(param)) {
+    if(DeclContext *DC = PD->getParentFunctionOrMethod()) {
       FunctionDecl *FD = dyn_cast<FunctionDecl>(DC);
-      return getDefinition(FD) == nullptr;
+      if (getDefinition(FD) != nullptr) {
+        return true;
+      }
     }
-  // else this is not a parameter
-  return false;
+    return false;
+  }
+  // else this should be within body and
+  // the function body should exist.
+  return true;
 }
 
 static std::string storageClassToString(StorageClass SC) {
-  switch (SC) {
+  switch(SC) {
     case StorageClass::SC_Static: return "static ";
     case StorageClass::SC_Extern: return "extern ";
     case StorageClass::SC_Register: return "register ";
@@ -128,34 +138,43 @@ static std::string storageClassToString(StorageClass SC) {
   return "";
 }
 
-// this method gets the storage qualifier for the provided declaration
-// i.e., static, extern, etc.
+// this method gets the storage qualifier for the
+// provided declaration i.e., static, extern, etc.
 std::string getStorageQualifierString(Decl *D) {
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
+  if(FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
     return storageClassToString(FD->getStorageClass());
-
-  if (VarDecl *VD = dyn_cast<VarDecl>(D))
+  }
+  if(VarDecl *VD = dyn_cast<VarDecl>(D)) {
     return storageClassToString(VD->getStorageClass());
-
+  }
   return "";
 }
 
-bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
-  // get absolute path of the provided file returns true if successful else
-  // false check the cache.
-  if (AbsoluteFilePathCache.find(fileName) == AbsoluteFilePathCache.end()) {
-    SmallString<255> abs_path(fileName);
-    std::error_code ec = llvm::sys::fs::make_absolute(abs_path);
-    if (ec)
-      return false;
-    AbsoluteFilePathCache[fileName] = abs_path.str();
+bool isNULLExpression(clang::Expr *expr, ASTContext &Ctx) {
+  // this checks if the expression is NULL. Specifically, (void*)0
+  if(CStyleCastExpr *CS = dyn_cast<CStyleCastExpr>(expr)) {
+    Expr *subExpr = CS->getSubExpr();
+
+    return subExpr->isIntegerConstantExpr(Ctx) &&
+           subExpr->isNullPointerConstant(Ctx, Expr::NPC_ValueDependentIsNotNull);
   }
-  absoluteFP = AbsoluteFilePathCache[fileName];
-  return true;
+  return false;
+}
+
+bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
+  // get absolute path of the provided file
+  // returns true if successful else false
+  SmallString<255> abs_path(fileName);
+  std::error_code ec = llvm::sys::fs::make_absolute(abs_path);
+  if(!ec) {
+    absoluteFP = abs_path.str();
+    return true;
+  }
+  return false;
 }
 
 bool functionHasVarArgs(clang::FunctionDecl *FD) {
-  if (FD && FD->getFunctionType()->isFunctionProtoType()) {
+  if(FD && FD->getFunctionType()->isFunctionProtoType()) {
     const FunctionProtoType *srcType = dyn_cast<FunctionProtoType>(FD->getFunctionType());
     return srcType->isVariadic();
   }
@@ -183,4 +202,12 @@ bool isStructOrUnionType(clang::VarDecl *VD) {
 std::string tyToStr(const Type *T) {
   QualType QT(T, 0);
   return QT.getAsString();
+}
+
+Expr* removeAuxillaryCasts(Expr *srcExpr) {
+  srcExpr = srcExpr->IgnoreParenImpCasts();
+  if (CStyleCastExpr *C = dyn_cast<CStyleCastExpr>(srcExpr))
+    srcExpr = C->getSubExpr();
+  srcExpr = srcExpr->IgnoreParenImpCasts();
+  return srcExpr;
 }

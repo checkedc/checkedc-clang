@@ -15,6 +15,7 @@ add_clang_executable(checked-c-convert
   ArrayBoundsInferenceConsumer.cpp
   RewriteUtils.cpp
   IterativeItypeHelper.cpp
+  ArrayBoundsInformation.cpp
   Utils.cpp
   )
 

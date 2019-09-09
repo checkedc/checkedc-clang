@@ -865,26 +865,17 @@ void ArrayBoundsRewriter::computeArrayBounds() {
 
 std::string ArrayBoundsRewriter::getBoundsString(Decl *decl, bool isitype) {
   std::string boundsString = "";
-  if (Info.hasArrSizeVar(decl)) {
-    std::string boundVarString = "";
-    for (auto sizeVar: Info.getArrayBoundsDeclInfo(decl)) {
-      // is the bounds a function parameter ?
-      if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(sizeVar)) {
-        boundVarString = PD->getNameAsString();
-        break;
-      }
-      // if the bounds a field declaration?
-      if(FieldDecl *FD = dyn_cast<FieldDecl>(sizeVar)) {
-        boundVarString = FD->getNameAsString();
-        break;
-      }
-    }
-    if (boundVarString.length() > 0) {
-      // for itype we do not need ":"
-      if (!isitype)
-        boundsString = ":";
-      boundsString += " count(" + boundVarString + ")";
-    }
+  std::string boundVarString = "";
+  auto &arrBoundsInfo = Info.getArrayBoundsInformation();
+
+  if (arrBoundsInfo.hasBoundsInformation(decl))
+    boundVarString = arrBoundsInfo.getBoundsInformation(decl).second;
+
+  if (boundVarString.length() > 0) {
+    // for itype we do not need ":"
+    if (!isitype)
+      boundsString = ":";
+    boundsString += " count(" + boundVarString + ")";
   }
   return boundsString;
 }
@@ -989,8 +980,6 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
 
   // Output files.
   emit(R, Context, Files, InOutFiles, BaseDir, OutputPostfix);
-
-  Info.printArrayVarsAndSizes(errs());
 
   Info.exitCompilationUnit();
   return;

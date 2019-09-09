@@ -42,11 +42,13 @@ clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
 
 clang::CheckedPointerKind getCheckedPointerKind(clang::InteropTypeExpr *itypeExpr);
 
-bool isDeclarationParam(clang::Decl *param);
+bool hasFunctionBody(clang::Decl *param);
 
 std::string getStorageQualifierString(clang::Decl *D);
 
 bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP);
+
+bool isNULLExpression(clang::Expr *expr, clang::ASTContext &Ctx);
 
 // get the time spent in seconds since the provided time stamp.
 float getTimeSpentInSeconds(clock_t startTime);
@@ -67,4 +69,7 @@ bool isStructOrUnionType(clang::VarDecl *VD);
 std::string tyToStr(const clang::Type *T);
 
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
+
+clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);
+
 #endif

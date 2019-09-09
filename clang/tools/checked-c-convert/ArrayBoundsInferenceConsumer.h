@@ -15,10 +15,11 @@
 
 #include "ProgramInfo.h"
 
-
-class HeuristicBasedABVisitor: public clang::RecursiveASTVisitor<HeuristicBasedABVisitor> {
+// This class handles determining bounds of global array variables.
+// i.e., function parameters, structure fields and global variables.
+class GlobalABVisitor: public clang::RecursiveASTVisitor<GlobalABVisitor> {
 public:
-  explicit HeuristicBasedABVisitor(ASTContext *C, ProgramInfo &I)
+  explicit GlobalABVisitor(ASTContext *C, ProgramInfo &I)
           : Context(C), Info(I) {}
 
   bool VisitRecordDecl(RecordDecl *RD);
@@ -26,28 +27,31 @@ public:
   bool VisitFunctionDecl(FunctionDecl *FD);
 
 private:
-  // check if the provided expression is a call
-  // to known memory allocators.
-  // if yes, return true along with the argument used as size
-  // assigned to the second paramter i.e., sizeArgument
-  bool isAllocatorCall(Expr *currExpr, Expr **sizeArgument);
+
+  ASTContext *Context;
+  ProgramInfo &Info;
+};
+
+// This class handles determining bounds of function-local array variables.
+class LocalVarABVisitor : public clang::RecursiveASTVisitor<LocalVarABVisitor> {
+
+public:
+  explicit LocalVarABVisitor(ASTContext *C, ProgramInfo &I)
+  : Context(C), Info(I) {}
+
+  bool VisitBinAssign(BinaryOperator *O);
+  bool VisitDeclStmt(DeclStmt *S);
+
+private:
 
   // check if expression is a simple local variable
   // i.e., ptr = .
   // if yes, return the referenced local variable as the return
   // value of the argument.
-  bool isExpressionSimpleLocalVar(Expr *toCheck, Decl **targetDecl);
-
-  Expr *removeCHKCBindTempExpr(Expr *toVeri);
-
-  // remove implicit casts added by clang to the AST
-  Expr *removeImpCasts(Expr *toConvert);
-
-  Expr *removeAuxillaryCasts(Expr *srcExpr);
+  bool isExpressionSimpleLocalVar(Expr *toCheck, VarDecl **targetDecl);
 
   ASTContext *Context;
   ProgramInfo &Info;
-  static std::set<std::string> AllocatorFunctionNames;
 };
 
 void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I);
