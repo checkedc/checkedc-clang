@@ -629,7 +629,9 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   // The result of step 3) yields a canonical type.
   //
   // Example:
-  //   _Exists(X, _Exists(Y, struct Foo<X, Y, Z>)) // assume Z -> 0, X -> 1, Y -> 2
+  //   _Exists(X, _Exists(Y, struct Foo<X, Y, Z>))
+  //   Suppose the underlying type really is
+  //   _Exists(3, _Exists(4, struct Foo<3, 4, 0>))
   //   Free variables = {0}, so NewDepth = 1
   //   Shift all bound variables so they start at `NewDepth`:
   //   _Exists(1, Exists(2, struct Foo<1, 2, 0>)) // this is the canonical type
@@ -643,18 +645,18 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   // `TypeVar` could be a TypedefType, so we need to get its underlying type.
   auto *TypeVarRaw = Context.getCanonicalType(TypeVar)->getAs<TypeVariableType>();
   if (!TypeVarRaw) llvm_unreachable("Expected a TypeVariableType as the canonical type");
-  // If the set of free variables contains `TypeVarRaw`, remove `TypeVarRaw` from the set
-  // because `TypeVarRaw` isn't really free. Example:
-  //   TypeVarRaw = 0, InnerType = struct Foo<0>
-  //   In the resulting type _Exists(0, struct Foo<0>), 0 isn't free.
-  FreeVars.erase(std::remove(FreeVars.begin(), FreeVars.end(), TypeVarRaw), FreeVars.end());
   // Now compute the new depth to which the bound variables should be moved in the canonical type.
   // This is just the max depth of any free variables, plus 1.
   // Example 1: if there are no free variables, then we start at 0.
   // Example 2: if the free variables are [0, 3, 4], we start at 5.
-  auto NewDepth = 0;
+  unsigned int NewDepth = 0;
   for (auto *FreeVar : FreeVars) {
-    if (FreeVar->GetDepth() >= NewDepth) NewDepth = FreeVar->GetDepth + 1;
+    // We want the largest free variable, but we want to ignore `TypeVarRaw` because
+    // it's not really free. Example:
+    //   TypeVarRaw = 0, InnerType = struct Foo<0>
+    //   FreeVars(struct Foo<0>) = [0], but we want to ignore it, because
+    //   in the resulting type _Exists(0, struct Foo<0>), 0 isn't free.
+    if (FreeVar != TypeVarRaw && FreeVar->GetDepth() >= NewDepth) NewDepth = FreeVar->GetDepth() + 1;
   }
   // We can now alpha-rename `InnerType` so that bound variables start at `NewDepth`.
   // Example: E(3, E(4, struct Foo<3, 4, 1>)) -> E(2, E(3, struct Foo<2, 3, 1>))
@@ -665,14 +667,15 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   // To canonicalze E(1, struct Foo<1>), we're given the two components separately (1, struct Foo<1>).
   // We need to alpha-rename 'struct Foo<1>', but we're missing the outermost binder and its correponding mapping
   // 1 -> 0. We need to inject this mapping into the substitution map before we alpha-rename the body.
-  Substs.insert(std::make_pair(TypeVarRaw, Context.getTypeVariableType(NewDepth, 0 /* position */, false /* isBoundsInterfaceType */)));
+  auto NewTypeVar = Context.getTypeVariableType(NewDepth, 0 /* position */, false /* isBoundsInterfaceType */);
+  Substs.insert(std::make_pair(TypeVarRaw, NewTypeVar));
   AlphaRenamer Renamer(*this);
   auto NewInnerType = Renamer.Rename(InnerType, NewDepth + 1 /* NewDepth is already used */, Substs);
-  // We can finally get the canonical type with components (TypeVarRaw, NewInnerType).
-  auto *CanonType = Context.getCachedExistentialType(TypeVarRaw, NewInnerType);
+  // We can finally get the canonical type with components (NewTypeVar, NewInnerType).
+  auto *CanonType = Context.getCachedExistentialType(NewTypeVar.getTypePtr(), NewInnerType);
   if (!CanonType) {
-    CanonType = new (Context, TypeAlignment) ExistentialType(TypeVarRaw, NewInnerType, QualType());
-    Context.addCachedExistentialType(TypeVar, NewInnerType, CanonType);
+    CanonType = new (Context, TypeAlignment) ExistentialType(NewTypeVar.getTypePtr(), NewInnerType, QualType());
+    Context.addCachedExistentialType(NewTypeVar.getTypePtr(), NewInnerType, CanonType);
   }
   // An then we create the existential the user requested, and cache it.
   auto *ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
