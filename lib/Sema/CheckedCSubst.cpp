@@ -548,6 +548,8 @@ public:
 
   /// For a `TypedefType`, just visit the underlying type.
   QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
+    // TODO: doing two recursive calls is potentially slow. Figure out a way to do this
+    // with just one call.
     QualType TransformedType = TransformType(TL.getTypePtr()->desugar());
     return BaseTransform::TransformTypedefType(TLB, TL);
   }
@@ -575,7 +577,7 @@ private:
   /// Maps olds bound variables to new variables so we can renumber them.
   SubstMap Substs;
   /// The depth to use for renumbering if we encounter a new bound variable.
-  int NewDepth;
+  int NewDepth = 0;
 
 public:
   AlphaRenamer(Sema &SemaRef) : BaseTransform(SemaRef), Context(SemaRef.Context) {}
@@ -596,6 +598,21 @@ public:
     return TL.getType();
   }
 
+  QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
+    auto UnderlyingType = QualType(Context.getCanonicalType(TL.getTypePtr()), 0 /* Quals */);
+    // Something changed, so we need to delete the typedef type from the AST and
+    // and use the underlying transformed type.
+    // Synthesize some dummy type source information.
+    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(UnderlyingType, getDerived().getBaseLocation());
+    // Use that to get dummy location information.
+    TypeLoc NewTL = DI->getTypeLoc();
+    TLB.reserve(NewTL.getFullDataSize());
+    // Re-run the type transformation with the dummy location information so
+    // that the type location class pushed on to the TypeBuilder is the matching
+    // class for the underlying type.
+    return getDerived().TransformType(TLB, NewTL);
+  }
+
   QualType TransformExistentialType(TypeLocBuilder &TLB, ExistentialTypeLoc TL) {
     auto *ExistTpe = TL.getTypePtr();
     // We call '.getCanonical()' because the type in the variable position
@@ -612,7 +629,6 @@ public:
     // Now the default recursion on both components so that the substitution can happen.
     return BaseTransform::TransformExistentialType(TLB, TL);
   }
-
 };
 }
 
