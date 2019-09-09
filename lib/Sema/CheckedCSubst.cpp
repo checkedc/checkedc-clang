@@ -595,7 +595,7 @@ public:
     // We need to renumber the variable.
     auto NewT = TLB.push<TypeVariableTypeLoc>(Iter->second);
     NewT.setNameLoc(TL.getNameLoc());
-    return TL.getType();
+    return NewT.getType();
   }
 
   QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
