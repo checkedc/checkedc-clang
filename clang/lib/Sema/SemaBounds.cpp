@@ -876,7 +876,7 @@ namespace {
                                           ArrLValue);
           return ExpandToRange(Base, CBE);
         } else
-          CreateBoundsAlwaysUnknown();
+          return CreateBoundsAlwaysUnknown();
       }
       default:
         return CreateBoundsAlwaysUnknown();

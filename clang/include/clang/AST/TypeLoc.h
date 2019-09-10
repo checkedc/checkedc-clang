@@ -1201,8 +1201,16 @@ public:
     this->getLocalData()->StarLoc = Loc;
   }
 
+  SourceLocation getRightSymLoc() const {
+      return this->getLocalData()->RightSymLoc;
+  }
+
   void setRightSymLoc(SourceLocation Loc) {
     this->getLocalData()->RightSymLoc = Loc;
+  }
+
+  SourceLocation getKWLoc() const {
+      return this->getLocalData()->KWLoc;
   }
 
   void setKWLoc(SourceLocation Loc) {
@@ -1242,38 +1250,12 @@ public:
     setKWLoc(Loc);
   }
 
-  SourceLocation getKWLoc() const {
-      return this->getLocalData()->KWLoc;
-  }
-  void setKWLoc(SourceLocation Loc) {
-      this->getLocalData()->KWLoc = Loc;
-  }
-
   SourceLocation getLeftSymLoc() const {
-      return this->getLocalData()->StarLoc;
+      return getSigilLoc();
   }
 
   void setLeftSymLoc(SourceLocation Loc) {
-      this->getLocalData()->StarLoc = Loc;
-  }
-
-  SourceLocation getRightSymLoc() const {
-      return this->getLocalData()->RightSymLoc;
-  }
-
-  void setRightSymLoc(SourceLocation Loc) {
-      this->getLocalData()->RightSymLoc = Loc;
-  }
-
-  // CheckedC : do we need this?
-  SourceRange getBracketsRange() const {
-      return SourceRange(getLeftSymLoc(), getRightSymLoc());
-  }
-
-  // CheckedC : do we need this?
-  void setParensRange(SourceRange Range) {
-      setLeftSymLoc(Range.getBegin());
-      setRightSymLoc(Range.getEnd());
+    setSigilLoc(Loc);
   }
 
   SourceRange getLocalSourceRange() const {
