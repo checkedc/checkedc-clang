@@ -14382,8 +14382,7 @@ ExprResult Sema::ActOnPackExpression(Expr *PackedExpr,
   assert(Exist && "Expected existential type in pack expression");
   // Substitute in the inner type, not in the entire existential.
   auto WitnessType = SubstituteTypeArgs(Exist->innerType(), SubstArg);
-  // TODO: do we need to compare the type pointers, or can we just compare the QualTypes?
-  if (PackedExpr->getType().getCanonicalType().getTypePtr() != WitnessType.getTypePtr()) {
+  if (PackedExpr->getType().getCanonicalType() != WitnessType.getCanonicalType()) {
     // TODO: improve error message by showing both the witness and expected types.
     Diag(StartLoc, diag::err_typecheck_existential_type_witness_mismatch);
     return ExprError();
