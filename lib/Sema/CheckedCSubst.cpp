@@ -709,8 +709,13 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
     CanonType = new (Context, TypeAlignment) ExistentialType(NewTypeVar.getTypePtr(), NewInnerType, QualType());
     Context.addCachedExistentialType(NewTypeVar.getTypePtr(), NewInnerType, CanonType);
   }
-  // An then we create the existential the user requested, and cache it.
-  auto *ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
-  Context.addCachedExistentialType(TypeVar, InnerType, ExistTpe);
+  // An then we create the existential the user requested.
+  // We have to query the cache again, because if the original and canonical types are equal
+  // then the type we're looking for might have been added while creating the canonical type.
+  auto *ExistTpe = Context.getCachedExistentialType(TypeVar, InnerType);
+  if (!ExistTpe) {
+    ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
+    Context.addCachedExistentialType(TypeVar, InnerType, ExistTpe);
+  }
   return ExistTpe;
 }
