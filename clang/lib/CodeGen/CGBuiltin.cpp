@@ -26,6 +26,7 @@
 #include "clang/Basic/TargetInfo.h"
 #include "clang/CodeGen/CGFunctionInfo.h"
 #include "llvm/ADT/SmallPtrSet.h"
+// #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/InlineAsm.h"
@@ -3988,6 +3989,18 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
   case Builtin::BI__builtin_os_log_format:
     return emitBuiltinOSLogFormat(*E);
+
+  case Builtin::BI_Dynamic_check: {
+    // This disables specific code generation for dynamic checks
+    // if Checked C is not enabled. Code Generation will fall-through
+    // to emitting a "Unknown Builtin" error.
+    if (!getLangOpts().CheckedC)
+      break;
+
+    const Expr *Condition = E->getArg(0);
+    EmitExplicitDynamicCheck(Condition);
+    return RValue::get(nullptr);
+  }
 
   case Builtin::BI__xray_customevent: {
     if (!ShouldXRayInstrumentFunction())

@@ -176,6 +176,12 @@ namespace {
 /// PrintRawCompoundStmt - Print a compound stmt without indenting the {, and
 /// with no newline after the }.
 void StmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
+  switch (Node->getWrittenCheckedSpecifier()) {
+      case CSS_None: break;
+      case CSS_Unchecked: OS << "_Unchecked "; break;
+      case CSS_Bounds: OS << "_Checked _Bounds_only "; break;
+      case CSS_Memory: OS << "_Checked "; break;
+  }
   OS << "{" << NL;
   for (auto *I : Node->body())
     PrintStmt(I);
@@ -1620,6 +1626,128 @@ void StmtPrinter::VisitAtomicExpr(AtomicExpr *Node) {
   OS << ")";
 }
 
+// Checked C extension
+
+void StmtPrinter::VisitCountBoundsExpr(CountBoundsExpr *Node) {
+  BoundsExpr::Kind K = Node->getKind();
+
+  // Exit early if this bounds expression is marked as invalid.
+  // The operand might be null.
+  if (K == BoundsExpr::Kind::Invalid) {
+     OS << "invalid_count()";
+     return;
+  }
+  
+  switch (K) {
+    case BoundsExpr::Kind::ByteCount:
+      OS << "byte_count(";
+      break;
+    case BoundsExpr::Kind::ElementCount:
+      OS << "count(";
+      break;
+    default:
+      llvm_unreachable("unexpected bounds kind for count bounds expr");
+  }
+  PrintExpr(Node->getCountExpr());
+  OS << ")";
+}
+
+void StmtPrinter::VisitNullaryBoundsExpr(NullaryBoundsExpr *Node) {
+  switch (Node->getKind()) {
+    case BoundsExpr::Invalid:
+      OS << "invalid_bounds()";
+      break;
+    case BoundsExpr::Any:
+      OS << "bounds(any)";
+      break;
+    case BoundsExpr::Unknown:
+      OS << "bounds(unknown)";
+      break;
+    default:
+      llvm_unreachable("unexpected bounds kind for nullary bounds expr");
+  }
+}
+
+void StmtPrinter::VisitRangeBoundsExpr(RangeBoundsExpr *Node) {
+  BoundsExpr::Kind K = Node->getKind();
+
+  // Exit early if this bounds expression is marked as invalid.
+  // The operands might be null.
+  if (K == BoundsExpr::Kind::Invalid) {
+    OS << "invalid_range_bounds()";
+    return;
+  }
+
+  if (K != BoundsExpr::Kind::Range) {
+    llvm_unreachable("unexpected bounds kind for range bounds expr");
+  }
+
+  OS << "bounds(";
+  PrintExpr(Node->getLowerExpr());
+  OS << ", ";
+  PrintExpr(Node->getUpperExpr());
+  OS << ")";
+  if (Node->hasRelativeBoundsClause()) {
+    RelativeBoundsClause *Expr =
+        cast<RelativeBoundsClause>(Node->getRelativeBoundsClause());
+    if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Type) {
+      OS << " rel_align(";
+      (cast<RelativeTypeBoundsClause>(Expr)->getType()).print(OS, Policy);
+    } else if (Expr->getClauseKind() == RelativeBoundsClause::Kind::Const) {
+      OS << " rel_align_value(";
+      PrintExpr(cast<RelativeConstExprBoundsClause>(Expr)->getConstExpr());
+    } else {
+      llvm_unreachable("unexpected kind field of relative bounds clause");
+    }
+    OS << ")";
+  }
+}
+
+void StmtPrinter::VisitInteropTypeExpr(
+  InteropTypeExpr *Node) {
+    OS << "itype(";
+    Node->getTypeAsWritten().print(OS, Policy);
+    OS << ")";
+}
+
+void StmtPrinter::VisitBoundsCastExpr(BoundsCastExpr *Node) {
+  
+  if (Node->getCastKind() == CK_DynamicPtrBounds)
+    OS << "_Dynamic_bounds_cast<";
+  else if (Node->getCastKind() == CK_AssumePtrBounds)
+    OS << "_Assume_bounds_cast<";
+  else
+    OS << "Illegal_bounds_cast_kind";
+  Node->getTypeAsWritten().print(OS, Policy);
+  OS << '>';
+  PrintExpr(Node->getSubExpr());
+  OS << '(';
+  PrintExpr(Node->getBoundsExpr());
+  OS << ')';
+}
+
+// PositionalParameterExpr is used in the representation of bounds
+// expressions that appear in function types.
+//
+// - If we are dumping the AST, these may appear.
+// - If we're printing C code from the AST, we should never end up printing
+//   one of these.  The printing code never directly prints the clang function
+//   type data structure to C code because important information may have been
+//   lost.
+void StmtPrinter::VisitPositionalParameterExpr(PositionalParameterExpr *E) {
+  OS << "arg #";
+  OS << (E->getIndex());
+}
+
+void StmtPrinter::VisitBoundsValueExpr(BoundsValueExpr *E) {
+  if (E->getKind() == BoundsValueExpr::Return)
+    OS << "_Return_value";
+  else {
+    OS <<  "value of ";
+    Visit(E->getTemporaryBinding()->getSubExpr());
+  }
+}
+
 // C++
 void StmtPrinter::VisitCXXOperatorCallExpr(CXXOperatorCallExpr *Node) {
   OverloadedOperatorKind Kind = Node->getOperator();
@@ -1836,6 +1964,10 @@ void StmtPrinter::VisitCXXFunctionalCastExpr(CXXFunctionalCastExpr *Node) {
 }
 
 void StmtPrinter::VisitCXXBindTemporaryExpr(CXXBindTemporaryExpr *Node) {
+  PrintExpr(Node->getSubExpr());
+}
+
+void StmtPrinter::VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *Node) {
   PrintExpr(Node->getSubExpr());
 }
 

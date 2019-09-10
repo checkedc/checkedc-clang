@@ -75,6 +75,7 @@ class TypeAliasTemplateDecl;
 class TypeLoc;
 class UnresolvedSetImpl;
 class VarTemplateDecl;
+class TypedefDecl;
 
 /// A container of type source information.
 ///
@@ -706,8 +707,10 @@ protected:
   DeclaratorDecl(Kind DK, DeclContext *DC, SourceLocation L,
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
                  SourceLocation StartL)
-      : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL) {}
+      : ValueDecl(DK, DC, L, N, T), DeclInfo(TInfo), InnerLocStart(StartL),
+        Annotations(nullptr) {}
 
+  BoundsAnnotations *Annotations;
 public:
   friend class ASTDeclReader;
   friend class ASTDeclWriter;
@@ -774,6 +777,101 @@ public:
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) {
     return K >= firstDeclarator && K <= lastDeclarator;
+  }
+
+  // Checked C bounds information
+  // For function declarations, this is the return bounds of the function.
+
+  /// \brief Whether this declaration has a bounds expresssion
+  /// associated with it.  This could be a bounds declaration or
+  /// bounds-safe interface, depending on the type of the declaration
+  /// (or it if is a function, the return type).
+  bool hasBoundsExpr() const;
+
+  /// \brief Whether this declaration has a bounds declaration .
+  bool hasBoundsDeclaration(const ASTContext &Ctx) const;
+
+  /// \brief Whether this declaration has a bounds-safe interface.
+  bool hasBoundsSafeInterface(const ASTContext &Ctx) const;
+
+  /// \brief The bounds expression for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  const BoundsExpr *getBoundsExpr() const {
+    return const_cast<DeclaratorDecl *>(this)->getBoundsExpr();
+  }
+
+  /// \brief The bounds expression for this declaration. For function
+  /// declarations, this is the return bounds of the function. Null if no
+  /// bounds have been declared.
+  BoundsExpr *getBoundsExpr() {
+    return (Annotations ? Annotations->getBoundsExpr() : nullptr);
+  }
+
+  /// \brief Set the bounds expression for this declaration. For function
+  /// declarations, this is the return bounds of the function.
+  void setBoundsExpr(ASTContext &Context, BoundsExpr *E) {
+     // If E is null and we have no annotations, do nothing.
+    if (!E && !Annotations)
+      return;
+    if (!Annotations)
+      Annotations = new (Context) BoundsAnnotations();
+    Annotations->setBoundsExpr(E);
+  }
+
+  /// \brief The Checked C interop type declared or inferred for this
+  /// declaration.  For function declarations, this is the return
+  /// interop type of the function.  Null if none has been declared
+  /// or inferred.
+  const InteropTypeExpr *getInteropTypeExpr() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropTypeExpr();
+  }
+
+  /// \brief The Checked C interop type declared or inferred for this
+  /// declaration.  For function declarations, this is the rreturn
+  /// interop type of the function.  Null if none has been declared
+  /// or inferred.
+  InteropTypeExpr *getInteropTypeExpr() {
+    return (Annotations ? Annotations->getInteropTypeExpr() : nullptr);
+  }
+
+  QualType getInteropType() const {
+    return const_cast<DeclaratorDecl *>(this)->getInteropType();
+  }
+
+  QualType getInteropType();
+
+  bool hasInteropTypeExpr() const {
+    return getInteropTypeExpr() != nullptr;
+  }
+
+  /// \brief Set the Checked C interop type for this declaration.  For function
+  /// declarations, this is the return interop type of the function.
+  void setInteropTypeExpr(ASTContext &Context, InteropTypeExpr *IT) {
+    // If IT is null and we have no annotations, do nothing.
+    if (!IT && !Annotations)
+      return;
+    if (!Annotations)
+      Annotations = new (Context) BoundsAnnotations();
+    Annotations->setInteropTypeExpr(IT);
+  }
+
+  void setBoundsAnnotations(ASTContext &Context, BoundsAnnotations BA) {
+    setBoundsExpr(Context, BA.getBoundsExpr());
+    setInteropTypeExpr(Context, BA.getInteropTypeExpr());
+  }
+
+  BoundsAnnotations getBoundsAnnotations() const {
+    if (Annotations)
+      return *Annotations;
+    else {
+      BoundsAnnotations Empty;
+      return Empty;
+    }
+  }
+
+  bool hasBoundsAnnotations() const {
+    return Annotations != nullptr && !(Annotations->IsEmpty());
   }
 };
 
@@ -853,6 +951,8 @@ protected:
   /// The initializer for this variable or, for a ParmVarDecl, the
   /// C++ default argument.
   mutable InitType Init;
+
+  SourceLocation InitializerStartLoc;
 
 private:
   friend class ASTDeclReader;
@@ -965,7 +1065,6 @@ protected:
     /// Defines kind of the ImplicitParamDecl: 'this', 'self', 'vtt', '_cmd' or
     /// something else.
     unsigned ImplicitParamKind : 3;
-
     unsigned EscapingByref : 1;
   };
 
@@ -1226,7 +1325,21 @@ public:
 
   void setInit(Expr *I);
 
-  /// Determine whether this variable's value might be usable in a
+  /// \brief Set the location of the first token of the initializer
+  /// expression.  For C-style intializers, this is the location of
+  /// the equal token.
+  void setInitializerStartLoc(SourceLocation Loc) {
+    InitializerStartLoc = Loc;
+  }
+
+  /// \brief Get the location of the first token of the initializer
+  /// expression.  For C-style intializers, this is the location of
+  /// the equal token.
+  SourceLocation getInitializerStartLoc() {
+    return InitializerStartLoc;
+  }
+
+  /// Determine whether this variable's value can be used in a
   /// constant expression, according to the relevant language standard.
   /// This only checks properties of the declaration, and does not check
   /// whether the initializer is in fact a constant expression.
@@ -1250,6 +1363,7 @@ public:
   /// initializer, or NULL if the value is not yet known. Returns pointer
   /// to untyped APValue if the value could not be evaluated.
   APValue *getEvaluatedValue() const;
+
 
   /// Determines whether it is already known whether the
   /// initializer is an integral constant expression or not.
@@ -1775,6 +1889,10 @@ private:
   /// no formals.
   ParmVarDecl **ParamInfo = nullptr;
 
+  /// TypeVarInfo - new []'d array of pointers to TypedefDecls for the type
+  /// variables of this function.  This is null if not generic function.
+  TypedefDecl **TypeVarInfo;
+
   LazyDeclStmtPtr Body;
 
   unsigned ODRHash;
@@ -1845,6 +1963,7 @@ private:
                                         TemplateSpecializationKind TSK);
 
   void setParams(ASTContext &C, ArrayRef<ParmVarDecl *> NewParamInfo);
+  void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo);
 
   // This is unfortunately needed because ASTDeclWriter::VisitFunctionDecl
   // need to access this bit but we want to avoid making ASTDeclWriter
@@ -1947,6 +2066,26 @@ public:
   bool hasBody() const override {
     const FunctionDecl* Definition;
     return hasBody(Definition);
+  }
+
+  void setGenericFunctionFlag(bool f) { FunctionDeclBits.IsGenericFunction = f; }
+  bool isGenericFunction() const { return FunctionDeclBits.IsGenericFunction; }
+
+  void setItypeGenericFunctionFlag(bool f) { FunctionDeclBits.IsItypeGenericFunction = f; }
+  bool isItypeGenericFunction() const { return FunctionDeclBits.IsItypeGenericFunction; }
+
+  void setWrittenCheckedSpecifier(CheckedScopeSpecifier CSS) {
+    FunctionDeclBits.WrittenCheckedSpecifier = CSS;
+  }
+
+  CheckedScopeSpecifier getWrittenCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) FunctionDeclBits.WrittenCheckedSpecifier;
+  }
+
+  void setCheckedSpecifier(CheckedScopeSpecifier CS) { FunctionDeclBits.CheckedSpecifier = CS; }
+
+  CheckedScopeSpecifier getCheckedSpecifier() const {
+    return (CheckedScopeSpecifier) FunctionDeclBits.CheckedSpecifier;
   }
 
   /// Returns whether the function has a trivial body that does not require any
@@ -2293,6 +2432,13 @@ public:
     return {ParamInfo, getNumParams()};
   }
 
+  ArrayRef<TypedefDecl *> typeVariables() const {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+  MutableArrayRef<TypedefDecl *> typeVariables() {
+    return{ TypeVarInfo, getNumTypeVars() };
+  }
+
   // Iterator access to formal parameters.
   using param_iterator = MutableArrayRef<ParmVarDecl *>::iterator;
   using param_const_iterator = ArrayRef<ParmVarDecl *>::const_iterator;
@@ -2308,6 +2454,7 @@ public:
   /// FunctionType.  This is the length of the ParamInfo array after it has been
   /// created.
   unsigned getNumParams() const;
+  unsigned getNumTypeVars() const;
 
   const ParmVarDecl *getParamDecl(unsigned i) const {
     assert(i < getNumParams() && "Illegal param #");
@@ -2319,6 +2466,9 @@ public:
   }
   void setParams(ArrayRef<ParmVarDecl *> NewParamInfo) {
     setParams(getASTContext(), NewParamInfo);
+  }
+  void setTypeVars(ArrayRef<TypedefDecl *> NewTypeVarInfo) {
+    setTypeVars(getASTContext(), NewTypeVarInfo);
   }
 
   /// Returns the minimum number of arguments needed to call this function. This

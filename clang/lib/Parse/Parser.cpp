@@ -490,7 +490,24 @@ void Parser::Initialize() {
   Ident_strict = nullptr;
   Ident_replacement = nullptr;
 
-  Ident_language = Ident_defined_in = Ident_generated_declaration = nullptr;
+  if (getLangOpts().CheckedC) {
+    Ident_bounds = &PP.getIdentifierTable().get("bounds");
+    Ident_byte_count = &PP.getIdentifierTable().get("byte_count");
+    Ident_count = &PP.getIdentifierTable().get("count");
+    Ident_unknown = &PP.getIdentifierTable().get("unknown");
+    Ident_itype = &PP.getIdentifierTable().get("itype");
+    Ident_rel_align = &PP.getIdentifierTable().get("rel_align");
+    Ident_rel_align_value = &PP.getIdentifierTable().get("rel_align_value");
+  } else {
+    Ident_bounds = nullptr;
+    Ident_byte_count = nullptr;
+    Ident_count = nullptr;
+    Ident_unknown = nullptr;
+    Ident_itype = nullptr;
+    Ident_rel_align = nullptr;
+    Ident_rel_align_value = nullptr;
+  }
+  Ident_language = Ident_defined_in = Ident_generated_declaration = nullptr;\
 
   Ident__except = nullptr;
 
@@ -583,6 +600,10 @@ bool Parser::ParseTopLevelDecl(DeclGroupPtrTy &Result, bool IsFirstDecl) {
   switch (Tok.getKind()) {
   case tok::annot_pragma_unused:
     HandlePragmaUnused();
+    return false;
+
+  case tok::annot_pragma_checked_scope:
+    HandlePragmaCheckedScope();
     return false;
 
   case tok::kw_export:
@@ -962,6 +983,18 @@ bool Parser::isStartOfFunctionDefinition(const ParsingDeclarator &Declarator) {
   if (Tok.is(tok::l_brace))   // int X() {}
     return true;
 
+  // Checked C - checked scopes.
+  //   int X() _Unchecked{}
+  //   int X() _Checked _Bounds_only{}
+  //   int X() _Checked {}
+  if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace))
+    return true;
+  if (Tok.is(tok::kw__Checked))
+    if (NextToken().is(tok::l_brace) ||
+        (NextToken().is(tok::kw__Bounds_only) &&
+         GetLookAheadToken(2).is(tok::l_brace)))
+    return true;
+
   // Handle K&R C argument lists: int X(f) int f; {}
   if (!getLangOpts().CPlusPlus &&
       Declarator.getFunctionTypeInfo().isKNRPrototype())
@@ -1001,6 +1034,9 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS,
                              DeclSpecContext::DSC_top_level);
 
+  // Checked C - mark the current scope as checked or unchecked if necessary.
+  Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
+
   // If we had a free-standing type definition with a missing semicolon, we
   // may get this far before the problem becomes obvious.
   if (DS.hasTagDefinition() && DiagnoseMissingSemiAfterTagDefinition(
@@ -1036,6 +1072,7 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
             : SourceLocation();
     ProhibitAttributes(attrs, CorrectLocationForAttributes);
     ConsumeToken();
+    ExitQuantifiedTypeScope(DS);
     RecordDecl *AnonRecord = nullptr;
     Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(getCurScope(), AS_none,
                                                        DS, AnonRecord);
@@ -1061,6 +1098,7 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
         !Tok.isObjCAtKeyword(tok::objc_implementation)) {
       Diag(Tok, diag::err_objc_unexpected_attr);
       SkipUntil(tok::semi);
+      ExitQuantifiedTypeScope(DS);
       return nullptr;
     }
 
@@ -1089,6 +1127,7 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
       DS.getStorageClassSpec() == DeclSpec::SCS_extern &&
       DS.getParsedSpecifiers() == DeclSpec::PQ_StorageClassSpecifier) {
     Decl *TheDecl = ParseLinkage(DS, DeclaratorContext::FileContext);
+    ExitQuantifiedTypeScope(DS);
     return Actions.ConvertDeclToDeclGroup(TheDecl);
   }
 
@@ -1155,11 +1194,31 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
 
   // We should have either an opening brace or, in a C++ constructor,
   // we may have a colon.
+  //
+  // For Checked C, the brace may be preceded with a _Checked / _Unchecked keyword.
+
+  CheckedScopeSpecifier CSS = CSS_None;
+  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)) {
+    CSS = CSS_Memory;
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Checked) && NextToken().is(tok::kw__Bounds_only) &&
+    GetLookAheadToken(2).is(tok::l_brace)) {
+    CSS = CSS_Bounds;
+    ConsumeToken();
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace)) {
+    CSS = CSS_Unchecked;
+    ConsumeToken();
+  }
+
   if (Tok.isNot(tok::l_brace) &&
       (!getLangOpts().CPlusPlus ||
        (Tok.isNot(tok::colon) && Tok.isNot(tok::kw_try) &&
         Tok.isNot(tok::equal)))) {
-    Diag(Tok, diag::err_expected_fn_body);
+    if (getLangOpts().CheckedC && Tok.is(tok::colon))
+      Diag(Tok, diag::err_expected_bounds_expr_or_interop_type);
+    else
+      Diag(Tok, diag::err_expected_fn_body);
 
     // Skip over garbage, until we get to '{'.  Don't eat the '{'.
     SkipUntil(tok::l_brace, StopAtSemi | StopBeforeMatch);
@@ -1241,7 +1300,9 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   // Tell the actions module that we have entered a function definition with the
   // specified Declarator for the function.
   Sema::SkipBodyInfo SkipBody;
-  Decl *Res = Actions.ActOnStartOfFunctionDef(getCurScope(), D,
+  Scope* funcDeclScope = (D.getDeclSpec().isForanySpecified() || D.getDeclSpec().isItypeforanySpecified()) ?
+                            getCurScope()->getParent() : getCurScope();
+  Decl *Res = Actions.ActOnStartOfFunctionDef(funcDeclScope, D,
                                               TemplateInfo.TemplateParams
                                                   ? *TemplateInfo.TemplateParams
                                                   : MultiTemplateParamsArg(),
@@ -1323,7 +1384,7 @@ Decl *Parser::ParseFunctionDefinition(ParsingDeclarator &D,
   if (LateParsedAttrs)
     ParseLexedAttributeList(*LateParsedAttrs, Res, false, true);
 
-  return ParseFunctionStatementBody(Res, BodyScope);
+  return ParseFunctionStatementBody(Res, BodyScope, CSS);
 }
 
 void Parser::SkipFunctionBody() {
@@ -1366,6 +1427,9 @@ void Parser::ParseKNRParamDeclarations(Declarator &D) {
     // Parse the common declaration-specifiers piece.
     DeclSpec DS(AttrFactory);
     ParseDeclarationSpecifiers(DS);
+
+    // Checked C - mark the current scope as checked or unchecked if necessary.
+    Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
     // C99 6.9.1p6: 'each declaration in the declaration list shall have at
     // least one declarator'.

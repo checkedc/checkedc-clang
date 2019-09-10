@@ -542,6 +542,12 @@ public:
   void VisitCXXDeleteExpr(const CXXDeleteExpr *CDE, ExplodedNode *Pred,
                           ExplodedNodeSet &Dst);
 
+  /// VisitCHKCBindTemporaryExpr - Transfer function logic for binding an
+  /// expression to a temporary
+  void VisitCHKCBindTemporaryExpr(const CHKCBindTemporaryExpr *Binding,
+                                  const Expr *SE, ExplodedNode *Pred,
+                                  ExplodedNodeSet &Dst);
+
   /// Create a C++ temporary object for an rvalue.
   void CreateCXXTemporaryObject(const MaterializeTemporaryExpr *ME,
                                 ExplodedNode *Pred,

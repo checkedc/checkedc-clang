@@ -763,7 +763,11 @@ static void maybeSynthesizeBlockSignature(TypeProcessingState &state,
       /*NumExceptions=*/0,
       /*NoexceptExpr=*/nullptr,
       /*ExceptionSpecTokens=*/nullptr,
-      /*DeclsInPrototype=*/None, loc, loc, declarator));
+      /*DeclsInPrototype=*/None, loc, loc,
+      /*ReturnAnnotsColon=*/NoLoc,
+      /*ReturnInteropTypeExpr=*/nullptr,
+      /*ReturnBoundsAnnots=*/nullptr,
+      declarator));
 
   // For consistency, make sure the state still has us as processing
   // the decl spec.
@@ -1571,6 +1575,39 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     }
     break;
   }
+  case DeclSpec::TST_plainPtr:
+  case DeclSpec::TST_arrayPtr:
+  case DeclSpec::TST_nt_arrayPtr: {
+      Result = S.GetTypeFromParser(DS.getRepAsType());
+      assert(!Result.isNull() &&
+             "Didn't get a type for _Ptr, _Array_ptr, or _Nt_array_ptr?");
+      // The name we're declaring, if any.
+      DeclarationName Name;
+      if (declarator.getIdentifier())
+        Name = declarator.getIdentifier();
+      CheckedPointerKind Kind = CheckedPointerKind::Ptr;
+      TypeSpecifierType TS = DS.getTypeSpecType();
+      switch (TS) {
+        case DeclSpec::TST_plainPtr:
+          Kind = CheckedPointerKind::Ptr;
+          break;
+        case DeclSpec::TST_arrayPtr:
+          Kind = CheckedPointerKind::Array;
+          break;
+        case DeclSpec::TST_nt_arrayPtr:
+          Kind = CheckedPointerKind::NtArray;
+          break;
+        default:
+            llvm_unreachable("unexpected type spec type");
+            break;
+      }
+      Result = S.BuildPointerType(Result, Kind, DS.getTypeSpecTypeLoc(), Name);
+      if (Result.isNull()) {
+        Result = Context.IntTy;
+        declarator.setInvalidType(true);
+      }
+      break;
+  }
   case DeclSpec::TST_decltype: {
     Expr *E = DS.getRepAsExpr();
     assert(E && "Didn't get an expression for decltype?");
@@ -1975,7 +2012,7 @@ static bool checkQualifiedFunction(Sema &S, QualType T, SourceLocation Loc,
 ///
 /// \returns A suitable pointer type, if there are no
 /// errors. Otherwise, returns a NULL type.
-QualType Sema::BuildPointerType(QualType T,
+QualType Sema::BuildPointerType(QualType T, CheckedPointerKind kind,
                                 SourceLocation Loc, DeclarationName Entity) {
   if (T->isReferenceType()) {
     // C++ 8.3.2p4: There shall be no ... pointers to references ...
@@ -1998,8 +2035,25 @@ QualType Sema::BuildPointerType(QualType T,
   if (getLangOpts().ObjCAutoRefCount)
     T = inferARCLifetimeForPointee(*this, T, Loc, /*reference*/ false);
 
+  // In Checked C, _Array_ptr of functions is not allowed
+  if ((kind == CheckedPointerKind::Array ||
+       kind == CheckedPointerKind::NtArray) && T->isFunctionType()) {
+    Diag(Loc, diag::err_illegal_decl_array_ptr_to_function)
+      << getPrintableNameForEntity(Entity) << T;
+    return QualType();
+  }
+
+  // In Checked C, null-terminated array_ptr of non-integer/non-pointer are not
+  // allowed
+  if (kind == CheckedPointerKind::NtArray && !T->isIntegerType() &&
+      !T->isPointerType()) {
+    Diag(Loc, diag::err_illegal_decl_nt_array_ptr_of_nonscalar)
+      << getPrintableNameForEntity(Entity) << T;
+    return QualType();
+  }
+
   // Build the pointer type.
-  return Context.getPointerType(T);
+  return Context.getPointerType(T, kind);
 }
 
 /// Build a reference type.
@@ -2127,7 +2181,8 @@ static bool isArraySizeVLA(Sema &S, Expr *ArraySize, llvm::APSInt &SizeVal) {
 /// returns a NULL type.
 QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
                               Expr *ArraySize, unsigned Quals,
-                              SourceRange Brackets, DeclarationName Entity) {
+                              CheckedArrayKind Kind, SourceRange Brackets,
+                              DeclarationName Entity) {
 
   SourceLocation Loc = Brackets.getBegin();
   if (getLangOpts().CPlusPlus) {
@@ -2178,6 +2233,13 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     return QualType();
   }
 
+  if (Kind == CheckedArrayKind::NtChecked && !T->isIntegerType() &&
+      !T->isPointerType()) {
+    Diag(Loc, diag::err_illegal_decl_nullterm_array_of_nonscalar)
+      << getPrintableNameForEntity(Entity) << T;
+    return QualType();
+  }
+
   if (const RecordType *EltTy = T->getAs<RecordType>()) {
     // If the element type is a struct or union that contains a variadic
     // array, accept it as a GNU extension: C99 6.7.2.1p2.
@@ -2219,7 +2281,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
     if (ASM == ArrayType::Star)
       T = Context.getVariableArrayType(T, nullptr, ASM, Quals, Brackets);
     else
-      T = Context.getIncompleteArrayType(T, ASM, Quals);
+      T = Context.getIncompleteArrayType(T, ASM, Quals, Kind);
   } else if (ArraySize->isTypeDependent() || ArraySize->isValueDependent()) {
     T = Context.getDependentSizedArrayType(T, ArraySize, ASM, Quals, Brackets);
   } else if ((!T->isDependentType() && !T->isIncompleteType() &&
@@ -2276,7 +2338,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
       }
     }
 
-    T = Context.getConstantArrayType(T, ConstVal, ASM, Quals);
+    T = Context.getConstantArrayType(T, ConstVal, ASM, Quals, Kind);
   }
 
   // OpenCL v1.2 s6.9.d: variable length arrays are not supported.
@@ -2293,6 +2355,20 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
         << ((getLangOpts().CUDA && getLangOpts().CUDAIsDevice)
                 ? CurrentCUDATarget()
                 : CFT_InvalidTarget);
+  }
+
+  if (getLangOpts().CheckedC && Kind != CheckedArrayKind::Unchecked) {
+    // checked extensions are not supported for variable length arrays.
+    if (T->isVariableArrayType()) {
+      Diag(Loc, diag::err_checked_vla);
+      return QualType();
+    }
+
+    // checked extensions are not supported for C++ templates.
+    if (T->isDependentSizedArrayType()) {
+      Diag(Loc, diag::err_checked_cplusplus);
+      return QualType();
+    }
   }
 
   // If this is not C99, extwarn about VLA's and C99 array size modifiers.
@@ -3986,6 +4062,78 @@ static TypeSourceInfo *
 GetTypeSourceInfoForDeclarator(TypeProcessingState &State,
                                QualType T, TypeSourceInfo *ReturnTypeInfo);
 
+// Propagate checked property to directly-nested array types.  Stops at arrays
+// that are already checked, typedefs, non-array types, and array types that
+// cannot be checked array types (such as variable-length array types).
+//
+// Issue an error message if the propagation stops at a typedef that is an
+// unchecked array type.  Dimensions of multi-dimensional arrays must either 
+// all be checked or all be unchecked.
+QualType Sema::MakeCheckedArrayType(QualType T, bool Diagnose,
+                                    SourceLocation Loc) {
+  if (isa<ArrayType>(T)) {
+    ASTContext &Context = this->Context;
+    SplitQualType split = T.split();
+    const Type *ty = split.Ty;
+    const ArrayType *arrTy = cast<ArrayType>(ty);
+    if (arrTy->isChecked())
+      return T;
+    QualType elemTy = MakeCheckedArrayType(arrTy->getElementType(), Diagnose,
+                                           Loc);
+    switch (ty->getTypeClass()) {
+      case Type::ConstantArray: {
+        const ConstantArrayType *constArrTy = cast<ConstantArrayType>(ty);
+        return Context.getConstantArrayType(elemTy,
+                                            constArrTy->getSize(),
+                                            constArrTy->getSizeModifier(),
+                                            T.getCVRQualifiers(),
+                                            CheckedArrayKind::Checked);
+      }
+      case Type::IncompleteArray: {
+        const IncompleteArrayType *incArrTy = cast<IncompleteArrayType>(ty);
+        return Context.getIncompleteArrayType(elemTy,
+                                              incArrTy->getSizeModifier(),
+                                              T.getCVRQualifiers(),
+                                              CheckedArrayKind::Checked);
+      }
+      case Type::DependentSizedArray:
+      case Type::VariableArray:
+        // Checked versions of these arrays cannot be created. An error
+        // message is produced by BuildArrayType for the outer error type
+        // because these result in the outer array type being
+        // dependently-typed or variably-sized.
+        break;
+      default:
+          llvm_unreachable("unexpected array type");
+          break;
+    }
+  } else if (const TypedefType *TD = dyn_cast<TypedefType>(T)) {
+    const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType());
+    if (AT != nullptr && !AT->isChecked() && Diagnose)
+      Diag(Loc, diag::err_checked_array_of_unchecked_array) << TD->getDecl();
+  } else if (const ParenType *PT = dyn_cast<ParenType>(T)) {
+    assert(!T.hasLocalQualifiers());
+    QualType innerType = MakeCheckedArrayType(PT->getInnerType(), Diagnose,
+                                              Loc);
+    return this->Context.getParenType(innerType);
+  } else {
+     // Make sure that we're not missing some wrapper type for an array type.
+     // This checks that the canonical type for T is not an array type.
+     assert(!T->isArrayType());
+  }
+
+  return T;
+}
+
+Sema::CheckedTypeClassification Sema::classifyForCheckedTypeDiagnostic(QualType QT) {
+  if (QT->isStructureType())
+    return CheckedTypeClassification::CCT_Struct;
+  else if (QT->isUnionType())
+    return CheckedTypeClassification::CCT_Union;
+  else
+    return CheckedTypeClassification::CCT_Any;
+}
+
 static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
                                                 QualType declSpecType,
                                                 TypeSourceInfo *TInfo) {
@@ -4420,7 +4568,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         }
       }
 
-      T = S.BuildPointerType(T, DeclType.Loc, Name);
+      T = S.BuildPointerType(T, CheckedPointerKind::Unchecked, DeclType.Loc, Name);
       if (DeclType.Ptr.TypeQuals)
         T = S.BuildQualifiedType(T, DeclType.Loc, DeclType.Ptr.TypeQuals);
       break;
@@ -4513,7 +4661,57 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         checkNullabilityConsistency(S, SimplePointerKind::Array, DeclType.Loc);
       }
 
-      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals,
+      CheckedArrayKind Kind = (CheckedArrayKind) ATI.kind;
+      // Handle multi-dimensional arrays for Checked C. A multi-dimensional
+      // array is an array of arrays, so look for a nested type that is an array.
+      // - Dimensions must either all be checked or all be unchecked.
+      // - The checked property propagates to nested array types, if the array
+      //   types are unchecked.  The nested array types must be declared as part
+      //   of this declaration.
+      if (const ArrayType *AT = dyn_cast<ArrayType>(T.getCanonicalType())) {
+        if (Kind != AT->getKind()) {
+          if (Kind == CheckedArrayKind::Checked)
+            // The new array type is checked. Propagate this to nested array
+            // types declared as part of this declaration.
+            T = S.MakeCheckedArrayType(T, true, DeclType.Loc);
+          else if (Kind == CheckedArrayKind::NtChecked) {
+            // Do not propagate. Null-terminated arrays of arrays are illegal to
+            // declare, so we don't care about the checkedness of arrays nested
+            // with them.  The call to BuildArrayType below will issue a
+            // diagnostic message about the illegal array type.
+          } else {
+            // The new array type is unchecked and the nested array type is checked,
+            // See if an enclosing array type will eventually make the new array
+            // type a checked array.
+            bool parentIsChecked = false;
+            for (unsigned x = chunkIndex; x > 0; ) {
+              x--;
+              const DeclaratorChunk &DC = D.getTypeObject(x);
+              if (DC.Kind == DeclaratorChunk::Array) {
+                const DeclaratorChunk::ArrayTypeInfo &ParentInfo = DC.Arr;
+                if ((CheckedArrayKind) ParentInfo.kind == CheckedArrayKind::Checked) {
+                  parentIsChecked = true;
+                  break;
+                }
+              } else if (DC.Kind != DeclaratorChunk::Paren) 
+                 break;
+            }
+            if (!parentIsChecked) {
+              D.setInvalidType(true);;
+              if (const TypedefType *TD = dyn_cast<TypedefType>(T))
+                S.Diag(DeclType.Loc, 
+                       diag::err_unchecked_array_of_typedef_checked_array) <<
+                        TD->getDecl();
+              else
+                S.Diag(DeclType.Loc, 
+                       diag::err_unchecked_array_of_checked_array);
+
+            }
+          }
+        }
+      }
+
+      T = S.BuildArrayType(T, ASM, ArraySize, ATI.TypeQuals, Kind,
                            SourceRange(DeclType.Loc, DeclType.EndLoc), Name);
       break;
     }
@@ -4674,6 +4872,17 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           diagnoseRedundantReturnTypeQualifiers(S, T, D, chunkIndex);
       }
 
+      // In Checked C, no prototype functions cannot return checked types
+      // See Section 5.5 of the Checked C language extension specification.
+      if (LangOpts.CheckedC && !FTI.NumParams) {
+        if (Context.isNotAllowedForNoPrototypeFunction(T)) {
+          S.Diag(DeclType.Loc,
+                 diag::err_no_prototype_function_with_checked_return_type)
+            << (unsigned) S.classifyForCheckedTypeDiagnostic(T);
+          D.setInvalidType(true);
+        }
+      }
+
       // Objective-C ARC ownership qualifiers are ignored on the function
       // return type (by type canonicalization). Complain if this attribute
       // was written here.
@@ -4773,9 +4982,16 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
         SmallVector<QualType, 16> ParamTys;
         ParamTys.reserve(FTI.NumParams);
 
+        SmallVector<BoundsAnnotations, 16> ParamAnnots;
+        ParamAnnots.reserve(FTI.NumParams);
+        bool HasAnyParameterAnnots = false;
+
         SmallVector<FunctionProtoType::ExtParameterInfo, 16>
           ExtParameterInfos(FTI.NumParams);
         bool HasAnyInterestingExtParameterInfos = false;
+        auto ParamInfo =
+          llvm::makeArrayRef<DeclaratorChunk::ParamInfo>(FTI.Params,
+                                                         FTI.NumParams);
 
         for (unsigned i = 0, e = FTI.NumParams; i != e; ++i) {
           ParmVarDecl *Param = cast<ParmVarDecl>(FTI.Params[i].Param);
@@ -4833,6 +5049,16 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
             }
           }
 
+          // Record parameter bounds for Checked C extension.  When the
+          // Checked C extension is not enabled, the annotations will
+          // always be empty and HasAnyParameterAnnots will always be false.
+          BoundsAnnotations Annots = Param->getBoundsAnnotations();
+          if (!Annots.IsEmpty()) {
+            HasAnyParameterAnnots = true;
+            S.AbstractForFunctionType(Annots, ParamInfo);
+          }
+          ParamAnnots.push_back(Annots);
+
           if (LangOpts.ObjCAutoRefCount && Param->hasAttr<NSConsumedAttr>()) {
             ExtParameterInfos[i] = ExtParameterInfos[i].withIsConsumed(true);
             HasAnyInterestingExtParameterInfos = true;
@@ -4857,11 +5083,54 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           ParamTys.push_back(ParamTy);
         }
 
+        BoundsAnnotations ReturnAnnots;
+        // Delay parse return bounds expression, if there is one.
+        if (FTI.ReturnBounds && !FTI.ReturnBounds->empty()) {
+          SmallVector<ParmVarDecl *, 16> ParamVars;
+          for (unsigned i = 0, e = FTI.NumParams; i != e; ++i) {
+            ParmVarDecl *Param = cast<ParmVarDecl>(FTI.Params[i].Param);
+            ParamVars.push_back(Param);
+          }
+          Sema::CheckedCReturnValueRAII ReturnValueRAII(S, T);
+          std::unique_ptr<CachedTokens> ReturnBoundsTokens(FTI.ReturnBounds);
+          assert(S.DeferredBoundsParser);
+          if (S.DeferredBoundsParser(S.DeferredBoundsParserData,
+                                     std::move(ReturnBoundsTokens),
+                                     ParamVars,
+                                     ReturnAnnots,
+                                     D))
+            D.setInvalidType();
+          else
+            D.setReturnBounds(ReturnAnnots.getBoundsExpr());
+
+          assert(!ReturnAnnots.getInteropTypeExpr() &&
+                 "should only have parsed bounds expression");
+        }
+
+        ReturnAnnots.setInteropTypeExpr(FTI.ReturnInteropType);
+        S.InferBoundsAnnots(T, ReturnAnnots, false);
+
+        if (S.DiagnoseBoundsDeclType(T, nullptr, ReturnAnnots, true))
+          D.setInvalidType(true);
+        else
+          S.AbstractForFunctionType(ReturnAnnots, ParamInfo);
+
+
+        // Record bounds for Checked C extension.  Only record parameter bounds array if there are
+        // parameter bounds.
+        if (HasAnyParameterAnnots)
+          EPI.ParamAnnots = ParamAnnots.data();
+        EPI.ReturnAnnots = ReturnAnnots;
+
         if (HasAnyInterestingExtParameterInfos) {
           EPI.ExtParameterInfos = ExtParameterInfos.data();
           checkExtParameterInfos(S, ParamTys, EPI,
               [&](unsigned i) { return FTI.Params[i].Param->getLocation(); });
         }
+
+        EPI.NumTypeVars = D.getDeclSpec().getNumTypeVars();
+        EPI.GenericFunction = D.getDeclSpec().isGenericFunction();
+        EPI.ItypeGenericFunction = D.getDeclSpec().isItypeGenericFunction();
 
         SmallVector<QualType, 4> Exceptions;
         SmallVector<ParsedType, 2> DynamicExceptions;
@@ -5406,6 +5675,9 @@ namespace {
     void VisitTypedefTypeLoc(TypedefTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
     }
+    void VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
+      TL.setNameLoc(DS.getTypeSpecTypeNameLoc());
+    }
     void VisitObjCInterfaceTypeLoc(ObjCInterfaceTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeLoc());
       // FIXME. We should have DS.getTypeSpecTypeEndLoc(). But, it requires
@@ -5814,9 +6086,14 @@ void LocInfoType::getAsStringInternal(std::string &Str,
 
 TypeResult Sema::ActOnTypeName(Scope *S, Declarator &D) {
   // C99 6.7.6: Type names have no identifier.  This is already validated by
-  // the parser.
-  assert(D.getIdentifier() == nullptr &&
+  // the parser when the context is TypeName.
+  assert((D.getContext() != DeclaratorContext::TypeNameContext ||
+         D.getIdentifier() == nullptr) &&
          "Type name should have no identifier!");
+  if (D.getIdentifier()) {
+     Diag(D.getIdentifierLoc(), diag::err_typecheck_bounds_type_annotation_identifier);
+     return true;
+  }
 
   TypeSourceInfo *TInfo = GetTypeForDeclarator(D, S);
   QualType T = TInfo->getType();

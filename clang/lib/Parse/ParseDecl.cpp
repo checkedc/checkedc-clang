@@ -53,12 +53,18 @@ TypeResult Parser::ParseTypeName(SourceRange *Range,
   if (Attrs)
     DS.addAttributes(*Attrs);
   ParseSpecifierQualifierList(DS, AS, DSC);
+
+  // Checked C - mark the current scope as checked or unchecked if necessary.
+  Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
+
   if (OwnedType)
     *OwnedType = DS.isTypeSpecOwned() ? DS.getRepAsDecl() : nullptr;
 
   // Parse the abstract-declarator, if present.
   Declarator DeclaratorInfo(DS, Context);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
+
   if (Range)
     *Range = DeclaratorInfo.getSourceRange();
 
@@ -1796,15 +1802,21 @@ Parser::ParseSimpleDeclaration(DeclaratorContext Context,
   DeclSpecContext DSContext = getDeclSpecContextFromDeclaratorContext(Context);
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS_none, DSContext);
 
+  // Checked C - mark the current scope as checked or unchecked if necessary.
+  Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
+
   // If we had a free-standing type definition with a missing semicolon, we
   // may get this far before the problem becomes obvious.
   if (DS.hasTagDefinition() &&
-      DiagnoseMissingSemiAfterTagDefinition(DS, AS_none, DSContext))
+      DiagnoseMissingSemiAfterTagDefinition(DS, AS_none, DSContext)) {
+    ExitQuantifiedTypeScope(DS);
     return nullptr;
+  }
 
   // C99 6.7.2.3p6: Handle "struct-or-union identifier;", "enum { X };"
   // declaration-specifiers init-declarator-list[opt] ';'
   if (Tok.is(tok::semi)) {
+    ExitQuantifiedTypeScope(DS);
     ProhibitAttributes(Attrs);
     DeclEnd = Tok.getLocation();
     if (RequireSemi) ConsumeToken();
@@ -1814,6 +1826,7 @@ Parser::ParseSimpleDeclaration(DeclaratorContext Context,
     DS.complete(TheDecl);
     if (AnonRecord) {
       Decl* decls[] = {AnonRecord, TheDecl};
+
       return Actions.BuildDeclaratorGroup(decls);
     }
     return Actions.ConvertDeclToDeclGroup(TheDecl);
@@ -1860,6 +1873,8 @@ bool Parser::MightBeDeclarator(DeclaratorContext Context) {
     case tok::equalequal: // Might be a typo for '='.
     case tok::kw_alignas:
     case tok::kw_asm:
+    case tok::kw__Checked:
+    case tok::kw__Nt_checked:
     case tok::kw___attribute:
     case tok::l_brace:
     case tok::l_paren:
@@ -1875,9 +1890,14 @@ bool Parser::MightBeDeclarator(DeclaratorContext Context) {
       // At namespace scope, 'identifier:' is probably a typo for 'identifier::'
       // and in block scope it's probably a label. Inside a class definition,
       // this is a bit-field.
+      //
+      // For Checked C 'identifier:' is a valid start to a declarator because
+      // it may be followed by a bounds expression declaring the bounds of
+      // identifier.
       return Context == DeclaratorContext::MemberContext ||
              (getLangOpts().CPlusPlus &&
-              Context == DeclaratorContext::FileContext);
+              Context == DeclaratorContext::FileContext) ||
+              getLangOpts().CheckedC;
 
     case tok::identifier: // Possible virt-specifier.
       return getLangOpts().CPlusPlus11 && isCXX11VirtSpecifier(NextToken());
@@ -1972,6 +1992,19 @@ void Parser::SkipMalformedDecl() {
   }
 }
 
+void Parser::ExitQuantifiedTypeScope(DeclSpec &DS) {
+  if (DS.isForanySpecified()) {
+    assert(getCurScope()->isForanyScope()
+      && "Current scope should be created by _For_any specifier.");
+    ExitScope();
+  }
+  if (DS.isItypeforanySpecified()) {
+    assert(getCurScope()->isItypeforanyScope()
+      && "Current scope should be created by _Itype_forany specifier.");
+    ExitScope();
+  }
+}
+
 /// ParseDeclGroup - Having concluded that this is either a function
 /// definition or a group of object declarations, actually parse the
 /// result.
@@ -1986,6 +2019,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   // Bail out if the first declarator didn't seem well-formed.
   if (!D.hasName() && !D.mayOmitIdentifier()) {
     SkipMalformedDecl();
+    ExitQuantifiedTypeScope(DS);
     return nullptr;
   }
 
@@ -2028,6 +2062,34 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     // The C++ inline method definition case is handled elsewhere, so we only
     // need to handle the file scope definition case.
     if (Context == DeclaratorContext::FileContext) {
+
+      if (getLangOpts().CheckedC) {
+        // In Checked C, the return bounds expression is placed after the
+        // parameter list for a function and before the function body.
+        // It is easy to misplace it.  Handle the case where the return bounds
+        // expression is misplaced for a complex function declarator.
+        // Diagnosis this, suggest a fix, and bail out.
+        if (Tok.is(tok::colon)) {
+          Token Next = NextToken();
+          if (StartsBoundsExpression(Next) ||
+              StartsInteropTypeAnnotation(Next)) {
+            Diag(Tok.getLocation(),
+                 diag::err_unexpected_bounds_expr_after_declarator);
+            unsigned Count = D.getNumTypeObjects();
+            const DeclaratorChunk &lastChunk = D.getTypeObject(Count - 1);
+            if (lastChunk.Kind != DeclaratorChunk::Function && D.hasName()) {
+              SourceLocation RParen = D.getFunctionTypeInfo().getRParenLoc();
+              Diag(RParen, diag::note_place_for_return_bounds_declarator) <<
+                D.getIdentifier();
+              // bail out
+              SkipMalformedDecl();
+              ExitQuantifiedTypeScope(DS);
+              return nullptr;
+            }
+          }
+        }
+      }
+
       if (isStartOfFunctionDefinition(D)) {
         if (DS.getStorageClassSpec() == DeclSpec::SCS_typedef) {
           Diag(Tok, diag::err_function_declared_typedef);
@@ -2036,8 +2098,14 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
           DS.ClearStorageClassSpecs();
         }
 
+        // Checked C - mark the current scope as checked or unchecked if
+        // necessary.
+        Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
+
         Decl *TheDecl =
           ParseFunctionDefinition(D, ParsedTemplateInfo(), &LateParsedAttrs);
+        // If we encountered _For_any make sure we're in Forany scope and exit.
+        ExitQuantifiedTypeScope(DS);
         return Actions.ConvertDeclToDeclGroup(TheDecl);
       }
 
@@ -2057,13 +2125,16 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
       if (Tok.is(tok::l_brace)) {
         Diag(Tok, diag::err_function_definition_not_allowed);
         SkipMalformedDecl();
+        ExitQuantifiedTypeScope(DS);
         return nullptr;
       }
     }
   }
 
-  if (ParseAsmAttributesAfterDeclarator(D))
+  if (ParseAsmAttributesAfterDeclarator(D)) {
+    ExitQuantifiedTypeScope(DS);
     return nullptr;
+  }
 
   // C++0x [stmt.iter]p1: Check if we have a for-range-declarator. If so, we
   // must parse and analyze the for-range-initializer before the declaration is
@@ -2072,6 +2143,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
   // Handle the Objective-C for-in loop variable similarly, although we
   // don't need to parse the container in advance.
   if (FRI && (Tok.is(tok::colon) || isTokIdentifier_in())) {
+    ExitQuantifiedTypeScope(DS);
     bool IsForRangeLoop = false;
     if (TryConsumeToken(tok::colon, FRI->ColonLoc)) {
       IsForRangeLoop = true;
@@ -2091,6 +2163,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     }
     Actions.FinalizeDeclaration(ThisDecl);
     D.complete(ThisDecl);
+
     return Actions.FinalizeDeclaratorGroup(getCurScope(), DS, ThisDecl);
   }
 
@@ -2161,6 +2234,7 @@ Parser::DeclGroupPtrTy Parser::ParseDeclGroup(ParsingDeclSpec &DS,
     }
   }
 
+  ExitQuantifiedTypeScope(DS);
   return Actions.FinalizeDeclaratorGroup(getCurScope(), DS, DeclsInGroup);
 }
 
@@ -2195,6 +2269,8 @@ bool Parser::ParseAsmAttributesAfterDeclarator(Declarator &D) {
 /// [GNU]   declarator simple-asm-expr[opt] attributes[opt]
 /// [GNU]   declarator simple-asm-expr[opt] attributes[opt] '=' initializer
 /// [C++]   declarator initializer[opt]
+/// [Checked C] declarator ':' bounds-expression
+/// [Checked C] declarator ':' bounds-expression '=' initializer
 ///
 /// [C++] initializer:
 /// [C++]   '=' initializer-clause
@@ -2250,9 +2326,14 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
   // Inform the current actions module that we just parsed this declarator.
   Decl *ThisDecl = nullptr;
   switch (TemplateInfo.Kind) {
-  case ParsedTemplateInfo::NonTemplate:
-    ThisDecl = Actions.ActOnDeclarator(getCurScope(), D);
+  case ParsedTemplateInfo::NonTemplate: {
+    // if _For_any specifier, make sure to add function decl in correct scope.
+    bool isQuantifiedScope =
+      D.getDeclSpec().isForanySpecified() || D.getDeclSpec().isItypeforanySpecified();
+    ThisDecl = Actions.ActOnDeclarator(isQuantifiedScope ?
+                               getCurScope()->getParent() : getCurScope(), D);
     break;
+  }
 
   case ParsedTemplateInfo::Template:
   case ParsedTemplateInfo::ExplicitSpecialization: {
@@ -2304,6 +2385,32 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
     }
     break;
     }
+  }
+
+  // If this is a variable declarator in Checked C, parse the bounds expression
+  // (if any) and set the bounds expression.  Function declarators are ignored
+  // here because return bounds expressions are parsed as part of function
+  // declarators already.
+  if (getLangOpts().CheckedC && isa<VarDecl>(ThisDecl)) {
+    VarDecl *ThisVarDecl = dyn_cast<VarDecl>(ThisDecl);
+    BoundsAnnotations Annots;
+    // The optional Checked C bounds expression or interop type annotation.
+    if (Tok.is(tok::colon)) {
+      SourceLocation BoundsColonLoc = Tok.getLocation();
+      ConsumeToken();
+
+      if (ParseBoundsAnnotations(D, BoundsColonLoc, Annots)) {
+        SkipUntil(tok::comma, tok::equal, StopAtSemi | StopBeforeMatch);
+        ThisVarDecl->setInvalidDecl();
+      }
+    }
+    Actions.ActOnBoundsDecl(ThisVarDecl, Annots);
+
+    // Check type restrictions on variable declarators.  We need to do this
+    // after the variable declaration has been parsed because some
+    // types are allowed if a bounds declaration is present.
+    if (!Actions.DiagnoseCheckedDecl(ThisVarDecl))
+      ThisVarDecl->setInvalidDecl();
   }
 
   // Parse declarator '=' initializer.
@@ -2360,7 +2467,8 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         Actions.ActOnInitializerError(ThisDecl);
       } else
         Actions.AddInitializerToDecl(ThisDecl, Init.get(),
-                                     /*DirectInit=*/false);
+                                     /*DirectInit=*/false,
+                                     EqualLoc);
     }
   } else if (Tok.is(tok::l_paren)) {
     // Parse C++ direct initializer: '(' expression-list ')'
@@ -2513,9 +2621,10 @@ void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
 ///    int (x)
 ///
 static bool isValidAfterIdentifierInDeclarator(const Token &T) {
-  return T.isOneOf(tok::l_square, tok::l_paren, tok::r_paren, tok::semi,
-                   tok::comma, tok::equal, tok::kw_asm, tok::l_brace,
-                   tok::colon);
+  return T.isOneOf(tok::l_square, tok::kw__Checked, tok::kw__Nt_checked,
+                   tok::l_paren, tok::r_paren,
+                   tok::semi, tok::comma, tok::equal, tok::kw_asm,
+                   tok::l_brace, tok::colon);
 }
 
 /// ParseImplicitInt - This method is called when we have an non-typename
@@ -2691,6 +2800,8 @@ bool Parser::ParseImplicitInt(DeclSpec &DS, CXXScopeSpec *SS,
     case tok::kw_asm:
     case tok::l_brace:
     case tok::l_square:
+    case tok::kw__Checked:
+    case tok::kw__Nt_checked:
     case tok::semi:
       // This looks like a variable or function declaration. The type is
       // probably missing. We're done parsing decl-specifiers.
@@ -2948,6 +3059,7 @@ Parser::DiagnoseMissingSemiAfterTagDefinition(DeclSpec &DS, AccessSpecifier AS,
   DS.ClearTypeSpecType();
   ParsedTemplateInfo NotATemplate;
   ParseDeclarationSpecifiers(DS, NotATemplate, AS, DSContext, LateAttrs);
+  ExitQuantifiedTypeScope(DS);
   return false;
 }
 
@@ -2987,6 +3099,9 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 /// [C++]   'virtual'
 /// [C++]   'explicit'
 /// [OpenCL] '__kernel'
+/// [CheckedC] '_For_any'
+/// [CheckedC] '_Itype_for_any'
+/// [CheckedC] '_Itype_for_any' and '_For_any' are mutually exclusive
 ///       'friend': [C++ dcl.friend]
 ///       'constexpr': [C++0x dcl.constexpr]
 void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
@@ -3065,6 +3180,53 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
 
       ParseCXX11Attributes(attrs);
       AttrsLastTime = true;
+      continue;
+
+    case tok::kw__Checked:
+    case tok::kw__Unchecked: {
+      // Checked C - handle _Checked and _Unchecked declaration specifiers.
+      //
+      // First make sure it is a declaration specifier.  _Checked,
+      // _Checked _Bounds_only, and _Unchecked are only declaration
+      // specifiers if they aren't followed by a `{` or `['.
+
+      // Look past any optional _Bounds_only modifier.
+      int nextLoc = 1;
+      if (Tok.is(tok::kw__Checked) && NextToken().is(tok::kw__Bounds_only))
+        nextLoc = 2;
+      if (GetLookAheadToken(nextLoc).is(tok::l_square)) {
+        goto DoneWithDeclSpec;
+      } else if (GetLookAheadToken(nextLoc).is(tok::l_brace)) {
+        // This indicates the beginning of a checked scope or the
+        // body of structure/union in a checked scope.
+        break;
+      } else {
+        CheckedScopeSpecifier CSS = CSS_Unchecked;
+        // checked function, it acts as function specifier
+        if (Tok.is(tok::kw__Checked)) {
+          if (NextToken().is(tok::kw__Bounds_only)) {
+            CSS = CSS_Bounds;
+            ConsumeToken();
+           } else
+            CSS = CSS_Memory;
+        }
+        isInvalid = DS.setFunctionSpecChecked(Loc, CSS, PrevSpec, DiagID);
+        break;
+      }
+    }
+    case tok::kw__Nt_checked:
+      goto DoneWithDeclSpec;
+    case tok::kw__For_any:
+      isInvalid = DS.setFunctionSpecForany(Loc, PrevSpec, DiagID);
+      if (isInvalid)
+          goto DoneWithDeclSpec;
+      ParseForanySpecifier(DS);
+      continue;
+    case tok::kw__Itype_for_any:
+      isInvalid = DS.setFunctionSpecItypeforany(Loc, PrevSpec, DiagID);
+      if (isInvalid)
+        goto DoneWithDeclSpec;
+      ParseItypeforanySpecifier(DS);
       continue;
 
     case tok::code_completion: {
@@ -3801,6 +3963,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                      PrevSpec, DiagID, Policy);
       break;
 
+    case tok::kw__Ptr:
+    case tok::kw__Array_ptr:
+    case tok::kw__Nt_array_ptr: {
+      ParseCheckedPointerSpecifiers(DS);
+      // continue to keep the current token from being consumed.
+      continue; 
+    }
     // class-specifier:
     case tok::kw_class:
     case tok::kw_struct:
@@ -4016,14 +4185,19 @@ void Parser::ParseStructDeclaration(
   // Parse the common specifier-qualifiers-list piece.
   ParseSpecifierQualifierList(DS);
 
+  // Checked C - mark the current scope as checked or unchecked if necessary.
+  Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
+
   // If there are no declarators, this is a free-standing declaration
   // specifier. Let the actions module cope with it.
   if (Tok.is(tok::semi)) {
+    ExitQuantifiedTypeScope(DS);
     RecordDecl *AnonRecord = nullptr;
     Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(getCurScope(), AS_none,
                                                        DS, AnonRecord);
     assert(!AnonRecord && "Did not expect anonymous struct or union here");
     DS.complete(TheDecl);
+
     return;
   }
 
@@ -4047,19 +4221,46 @@ void Parser::ParseStructDeclaration(
     } else
       DeclaratorInfo.D.SetIdentifier(nullptr, Tok.getLocation());
 
+    // If there is a ':', parse one of the following after it:
+    //  a constant-expression (a bit field width), or
+    //  a sequence of bounds annotations for Checked C:
+    //  - bounds expressions
+    //  - bounds-safe interface type (for Checked C)
+    // The bounds expression must be parsed in a deferred fashion because it
+    // can refer to members declared after this member.
+    SourceLocation Loc = Tok.getLocation();
     if (TryConsumeToken(tok::colon)) {
-      ExprResult Res(ParseConstantExpression());
-      if (Res.isInvalid())
-        SkipUntil(tok::semi, StopBeforeMatch);
-      else
-        DeclaratorInfo.BitfieldSize = Res.get();
+      if (getLangOpts().CheckedC && (StartsBoundsExpression(Tok) ||
+          StartsInteropTypeAnnotation(Tok))) {
+        BoundsAnnotations BA;
+        std::unique_ptr<CachedTokens> BoundsExprTokens(new CachedTokens);
+        if (ParseBoundsAnnotations(DeclaratorInfo.D, Loc, BA, &BoundsExprTokens, false))
+          SkipUntil(tok::semi, StopBeforeMatch);
+        assert(BA.getBoundsExpr() == nullptr);
+        DeclaratorInfo.InteropType = BA.getInteropTypeExpr();
+        if (!BoundsExprTokens->empty()) 
+          DeclaratorInfo.BoundsExprTokens = std::move(BoundsExprTokens);
+      } else {
+        ExprResult Res(ParseConstantExpression());
+
+        if (getLangOpts().CheckedC && StartsRelativeBoundsClause(Tok))
+          ParseRelativeBoundsClauseForDecl(Res);
+
+        if (Res.isInvalid())
+          SkipUntil(tok::semi, StopBeforeMatch);
+        else
+          DeclaratorInfo.BitfieldSize = Res.get();
+      }
     }
 
     // If attributes exist after the declarator, parse them.
     MaybeParseGNUAttributes(DeclaratorInfo.D);
 
     // We're done with this declarator;  invoke the callback.
+
     FieldsCallback(DeclaratorInfo);
+
+    ExitQuantifiedTypeScope(DS);
 
     // If we don't have a comma, it is either the end of the list (a ';')
     // or an error, bail out.
@@ -4090,10 +4291,21 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
   if (T.consumeOpen())
     return;
 
-  ParseScope StructScope(this, Scope::ClassScope|Scope::DeclScope);
+  unsigned structScopeFlag = (Scope::ClassScope | Scope::DeclScope);
+  ParseScope StructScope(this, structScopeFlag);
   Actions.ActOnTagStartDefinition(getCurScope(), TagDecl);
 
   SmallVector<Decl *, 32> FieldDecls;
+
+  // Delay parsing/semantic processing of member bounds expressions until after the
+  // member list is parsed. For each member with a bounds declaration,
+  // keep a list of tokens for the bounds expression.   Parsing/processing
+  // member bounds expressions is done in a scope that includes all
+  // the members in the member list.
+  typedef std::pair<FieldDecl *, std::unique_ptr<CachedTokens>> BoundsExprInfo;
+  // We are guessing that most structure declarations have 4 or fewer members
+  // with bounds expressions on them.
+  SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
 
   // While we still have something to read, read the declarations in the struct.
   while (!tryParseMisplacedModuleImport() && Tok.isNot(tok::r_brace) &&
@@ -4131,15 +4343,42 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
       continue;
     }
 
+    if (Tok.is(tok::annot_pragma_checked_scope)) {
+      HandlePragmaCheckedScope();
+      continue;
+    }
+
     if (!Tok.is(tok::at)) {
       auto CFieldCallback = [&](ParsingFieldDeclarator &FD) {
         // Install the declarator into the current TagDecl.
-        Decl *Field =
-            Actions.ActOnField(getCurScope(), TagDecl,
-                               FD.D.getDeclSpec().getSourceRange().getBegin(),
-                               FD.D, FD.BitfieldSize);
+        FieldDecl *Field =
+          Actions.ActOnField(getCurScope(), TagDecl,
+                             FD.D.getDeclSpec().getSourceRange().getBegin(),
+                             FD.D, FD.BitfieldSize);
         FieldDecls.push_back(Field);
         FD.complete(Field);
+
+        if (!FD.InteropType && !FD.BoundsExprTokens)
+          // Set default bounds annotations.
+          Actions.ActOnEmptyBoundsDecl(Field);
+        else {
+          // Add the interop type,  if there is one.
+          InteropTypeExpr *IT = FD.InteropType;
+
+          // If there is no interop type, try synthesizing one implied by the
+          // presence of a bounds expression.
+          if (!IT && FD.BoundsExprTokens)
+            IT = Actions.SynthesizeInteropTypeExpr(Field->getType(), false);
+
+          if (IT) {
+            BoundsAnnotations Annots(nullptr, IT);
+            Actions.ActOnBoundsDecl(Field, Annots);
+          }
+        }
+
+        if (FD.BoundsExprTokens != nullptr)
+          deferredBoundsExpressions.emplace_back(Field,
+            std::move(FD.BoundsExprTokens));
       };
 
       // Parse all the comma separated declarators.
@@ -4190,6 +4429,36 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
 
   Actions.ActOnFields(getCurScope(), RecordLoc, TagDecl, FieldDecls,
                       T.getOpenLocation(), T.getCloseLocation(), attrs);
+  // Parse the deferred bounds expressions
+  ParsingDeclSpec DS(*this);
+  ParsingFieldDeclarator DeclaratorsInfo(*this,DS);
+  for (auto &Pair : deferredBoundsExpressions) {
+    EnterMemberBoundsExprRAII MemberBoundsContext(Actions);
+    FieldDecl *FieldDecl = Pair.first;
+    std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
+    BoundsAnnotations Annots;
+    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, DeclaratorsInfo.D))
+      Actions.ActOnInvalidBoundsDecl(FieldDecl);
+    else
+      Actions.ActOnBoundsDecl(FieldDecl, Annots,/*MergeDeferredBounds=*/true);
+  }
+
+  // For Checked C, check type restrictions on declarations in checked scopes.
+  // We wait to do this until parsing of deferred bounds expressions is complete.
+  // A member declaration in a checked scope cannot use unchecked types, unless
+  // there is a bounds-safe interface,
+
+  // TODO: this should be invoked as part of semantic checking of struct defnitions,
+  // not directly by the parser.
+  if (getLangOpts().CheckedC) {
+    for (ArrayRef<Decl *>::iterator i = FieldDecls.begin(),
+                                  end = FieldDecls.end();
+         i != end; ++i) {
+      FieldDecl *FD = cast<FieldDecl>(*i);
+      if (!FD->isInvalidDecl() && !Actions.DiagnoseCheckedDecl(FD))
+        FD->setInvalidDecl();
+    }
+  }
   StructScope.Exit();
   Actions.ActOnTagFinishDefinition(getCurScope(), TagDecl, T.getRange());
 }
@@ -4334,7 +4603,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
   // Parse the fixed underlying type.
   bool CanBeBitfield = getCurScope()->getFlags() & Scope::ClassScope;
   if (AllowDeclaration && Tok.is(tok::colon)) {
-    bool PossibleBitfield = false;
+    bool PossibleBitFieldOrBounds = false;
     if (CanBeBitfield) {
       // If we're in class scope, this can either be an enum declaration with
       // an underlying type, or a declaration of a bitfield member. We try to
@@ -4349,7 +4618,7 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
       // If the next token starts an expression, we know we're parsing a
       // bit-field. This is the common case.
       if (TPR == TPResult::True)
-        PossibleBitfield = true;
+        PossibleBitFieldOrBounds = true;
       // If the next token starts a type-specifier-seq, it may be either a
       // a fixed underlying type or the start of a function-style cast in C++;
       // lookahead one more token to see if it's obvious that we have a
@@ -4377,19 +4646,24 @@ void Parser::ParseEnumSpecifier(SourceLocation StartLoc, DeclSpec &DS,
              isCXXDeclarationSpecifier(TPResult::True) != TPResult::True) ||
             (!getLangOpts().CPlusPlus && !isDeclarationSpecifier(true))) {
           // We'll parse this as a bitfield later.
-          PossibleBitfield = true;
+          PossibleBitFieldOrBounds = true;
           TPA.Revert();
         } else {
           // We have a type-specifier-seq.
           TPA.Commit();
         }
       }
+    } else if (StartsBoundsExpression(NextToken())) {
+      // We have 'enum E1 : bounds-expression.  this is syntactically legal 
+      // in Checked C and shouldn't be parsed as an enum declaration with
+      // a base type.
+      PossibleBitFieldOrBounds = true;
     } else {
       // Consume the ':'.
       ConsumeToken();
     }
 
-    if (!PossibleBitfield) {
+    if (!PossibleBitFieldOrBounds) {
       SourceRange Range;
       BaseType = ParseTypeName(&Range);
 
@@ -4768,6 +5042,12 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
 
     // typedef-name
   case tok::annot_typename:
+
+  // Checked C pointer types
+  case tok::kw__Array_ptr:
+  case tok::kw__Nt_array_ptr:
+  case tok::kw__Ptr:
+
     return true;
   }
 }
@@ -4888,6 +5168,12 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw___read_only:
   case tok::kw___read_write:
   case tok::kw___write_only:
+
+  // Checked C pointer types
+  case tok::kw__Ptr:
+  case tok::kw__Array_ptr:
+  case tok::kw__Nt_array_ptr:
+
     return true;
 
   case tok::kw_private:
@@ -5018,6 +5304,8 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw_virtual:
   case tok::kw_explicit:
   case tok::kw__Noreturn:
+  case tok::kw__For_any:
+  case tok::kw__Itype_for_any:
 
     // alignment-specifier
   case tok::kw__Alignas:
@@ -5043,6 +5331,14 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
 
     // C11 _Atomic
   case tok::kw__Atomic:
+
+  // Checked C new pointer types
+  case tok::kw__Ptr:
+  case tok::kw__Array_ptr:
+  case tok::kw__Nt_array_ptr:
+  // Checked C scope keywords for functions/structs
+  case tok::kw__Checked:
+  case tok::kw__Unchecked:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
@@ -5947,10 +6243,13 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
     if (Tok.is(tok::l_paren)) {
       // Enter function-declaration scope, limiting any declarators to the
       // function prototype scope, including parameter declarators.
-      ParseScope PrototypeScope(this,
-                                Scope::FunctionPrototypeScope|Scope::DeclScope|
-                                (D.isFunctionDeclaratorAFunctionDeclaration()
-                                   ? Scope::FunctionDeclarationScope : 0));
+      unsigned PrototypeScopeFlag =
+          Scope::FunctionPrototypeScope | Scope::DeclScope |
+          (D.isFunctionDeclaratorAFunctionDeclaration()
+               ? Scope::FunctionDeclarationScope
+               : 0);
+
+      ParseScope PrototypeScope(this, PrototypeScopeFlag);
 
       // The paren may be part of a C++ direct initializer, eg. "int x(1);".
       // In such a case, check if we actually have a function declarator; if it
@@ -5970,12 +6269,19 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       T.consumeOpen();
       ParseFunctionDeclarator(D, attrs, T, IsAmbiguous);
       PrototypeScope.Exit();
-    } else if (Tok.is(tok::l_square)) {
-      ParseBracketDeclarator(D);
-    } else {
-      break;
     }
-  }
+    // Checked C - checked keyword is used checked array type
+    // as well as checked scope
+    // distinguish checked array type from other uses of checked keyword
+    else if (Tok.is(tok::l_square) ||
+             ((Tok.is(tok::kw__Checked) || Tok.is(tok::kw__Nt_checked))
+              && NextToken().is(tok::l_square))) {
+       // distinguish checked array from checked scope
+       ParseBracketDeclarator(D);
+     } else {
+       break;
+     }
+   }
 }
 
 void Parser::ParseDecompositionDeclarator(Declarator &D) {
@@ -6144,10 +6450,12 @@ void Parser::ParseParenDeclarator(Declarator &D) {
 
   // Enter function-declaration scope, limiting any declarators to the
   // function prototype scope, including parameter declarators.
-  ParseScope PrototypeScope(this,
-                            Scope::FunctionPrototypeScope | Scope::DeclScope |
-                            (D.isFunctionDeclaratorAFunctionDeclaration()
-                               ? Scope::FunctionDeclarationScope : 0));
+  unsigned PrototypeScopeFlag = Scope::FunctionPrototypeScope |
+                                Scope::DeclScope |
+                                (D.isFunctionDeclaratorAFunctionDeclaration()
+                                     ? Scope::FunctionDeclarationScope
+                                     : 0);
+  ParseScope PrototypeScope(this, PrototypeScopeFlag);
   ParseFunctionDeclarator(D, attrs, T, false, RequiresArg);
   PrototypeScope.Exit();
 }
@@ -6171,6 +6479,10 @@ void Parser::ParseParenDeclarator(Declarator &D) {
 ///           dynamic-exception-specification
 ///           noexcept-specification
 ///
+/// For Checked C, after the parameter-list, it also parses the optional return
+/// bounds expression for the function declarator:
+/// [Checked C] ':' bounds-expression
+////
 void Parser::ParseFunctionDeclarator(Declarator &D,
                                      ParsedAttributes &FirstArgAttrs,
                                      BalancedDelimiterTracker &Tracker,
@@ -6208,6 +6520,8 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
   SourceLocation LParenLoc, RParenLoc;
   LParenLoc = Tracker.getOpenLocation();
   StartLoc = LParenLoc;
+  SourceLocation BoundsColonLoc;
+  BoundsAnnotations ReturnAnnots;
 
   if (isFunctionDeclaratorIdentifierList()) {
     if (RequiresArg)
@@ -6363,6 +6677,40 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     }
   }
 
+  // Parse optional Checked C bounds annotations (bounds expression or interop
+  // type annotations).
+  //
+  // The optional return bounds expression combined with C11 generic selection
+  // expressions means making a parsing decision only on the presence of the
+  // ":" is ambiguous.  Generic selection expressions allow code of the form
+  // "typename : expr".   Typename could be a function type with an optional
+  // return bounds expression.  Look ahead to the next token to disambiguate.
+  //
+  // Return bounds expressions are delay parsed because they can refer to _Return_value,
+  // which uses the return type.  The return type is still unknown at this point.
+  std::unique_ptr<CachedTokens> DeferredBoundsToks = nullptr;
+  if (getLangOpts().CheckedC && Tok.is(tok::colon)) {
+    const Token &NextTok = GetLookAheadToken(1);
+    if (StartsBoundsExpression(NextTok) ||
+      StartsInteropTypeAnnotation(NextTok)) {
+      BoundsColonLoc = Tok.getLocation();
+      ConsumeToken();
+      Actions.SetDeferredBoundsCallBack(this, ParseBoundsCallback);
+      std::unique_ptr<CachedTokens> AllocToks { new CachedTokens };
+      DeferredBoundsToks = std::move(AllocToks);
+      if (ParseBoundsAnnotations(D, BoundsColonLoc, ReturnAnnots, &DeferredBoundsToks, /*IsReturn=*/true)) {
+        // We don't have enough context to try to do syntactic error recovery
+        // here.  It is done instead in Parser::ParseDeclGroup, which recognizes
+        // function declarations and function bodies. This allows us to handle
+        // the simple case where there's something wrong syntactically with a
+        // return bounds expression that is followed immediately by a function
+        // body.  Function declarators can also be nested within other
+        //declarators.  We don't have special-case code for recovering
+        // syntactically for that case.
+      }
+    }
+  }
+
   // Remember that we parsed a function type, and remember the attributes.
   D.AddTypeInfo(DeclaratorChunk::getFunction(
                     HasProto, IsAmbiguous, LParenLoc, ParamInfo.data(),
@@ -6373,7 +6721,11 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
                     DynamicExceptionRanges.data(), DynamicExceptions.size(),
                     NoexceptExpr.isUsable() ? NoexceptExpr.get() : nullptr,
                     ExceptionSpecTokens, DeclsInPrototype, StartLoc,
-                    LocalEndLoc, D, TrailingReturnType, &DS),
+                    LocalEndLoc,
+                    BoundsColonLoc,
+                    ReturnAnnots.getInteropTypeExpr(),
+                    std::move(DeferredBoundsToks), D,
+                    TrailingReturnType, &DS),
                 std::move(FnAttrs), EndLoc);
 }
 
@@ -6496,21 +6848,31 @@ void Parser::ParseFunctionDeclaratorIdentifierList(
 ///         parameter-list ',' parameter-declaration
 ///
 ///       parameter-declaration: [C99 6.7.5]
-///         declaration-specifiers declarator
-/// [C++]   declaration-specifiers declarator '=' assignment-expression
-/// [C++11]                                       initializer-clause
-/// [GNU]   declaration-specifiers declarator attributes
-///         declaration-specifiers abstract-declarator[opt]
-/// [C++]   declaration-specifiers abstract-declarator[opt]
-///           '=' assignment-expression
-/// [GNU]   declaration-specifiers abstract-declarator[opt] attributes
-/// [C++11] attribute-specifier-seq parameter-declaration
+///             declaration-specifiers declarator
+/// [Checked C] declaration-specifiers declarator ':' bounds-expression
+/// [C++]       declaration-specifiers declarator '=' assignment-expression
+/// [C++11]                                           initializer-clause
+/// [GNU]       declaration-specifiers declarator attributes
+///             declaration-specifiers abstract-declarator[opt]
+/// [C++]       declaration-specifiers abstract-declarator[opt]
+///               '=' assignment-expression
+/// [GNU]       declaration-specifiers abstract-declarator[opt] attributes
+/// [C++11]     attribute-specifier-seq parameter-declaration
 ///
 void Parser::ParseParameterDeclarationClause(
        Declarator &D,
        ParsedAttributes &FirstArgAttrs,
        SmallVectorImpl<DeclaratorChunk::ParamInfo> &ParamInfo,
        SourceLocation &EllipsisLoc) {
+  // Delay parsing/semantic checking of bounds expressions until after the
+  // parameter list is parsed. For each variable with a bounds declaration,
+  // keep a list of tokens for the bounds expression.   Parsing/checking
+  // bounds expressions for parameters is done in a scope that includes all
+  // the parameters in the parameter list.
+  typedef std::pair<ParmVarDecl *, std::unique_ptr<CachedTokens>> BoundsExprInfo;
+  // We are guessing that most functions take 4 or fewer parameters with
+  // bounds expressions on them.
+  SmallVector<BoundsExprInfo, 4> deferredBoundsExpressions;
   do {
     // FIXME: Issue a diagnostic if we parsed an attribute-specifier-seq
     // before deciding this was a parameter-declaration-clause.
@@ -6538,6 +6900,8 @@ void Parser::ParseParameterDeclarationClause(
 
     ParseDeclarationSpecifiers(DS);
 
+    // Checked C - mark the current scope as checked or unchecked if necessary.
+    Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
 
     // Parse the declarator.  This is "PrototypeContext" or
     // "LambdaExprParameterContext", because we must accept either
@@ -6547,6 +6911,11 @@ void Parser::ParseParameterDeclarationClause(
                 ? DeclaratorContext::LambdaExprParameterContext
                 : DeclaratorContext::PrototypeContext);
     ParseDeclarator(ParmDeclarator);
+
+    // Checked C: exit _Forany or _Itype_forany scope.  This is intentionally done here
+    // because the bounds / interface type for the parameter shouldn't reference
+    // any bound type variable.
+    ExitQuantifiedTypeScope(DS);
 
     // Parse GNU attributes, if present.
     MaybeParseGNUAttributes(ParmDeclarator);
@@ -6579,7 +6948,41 @@ void Parser::ParseParameterDeclarationClause(
 
       // Inform the actions module about the parameter declarator, so it gets
       // added to the current scope.
-      Decl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
+      ParmVarDecl *Param = Actions.ActOnParamDeclarator(getCurScope(), ParmDeclarator);
+      // Handle Checked C bounds expression or bounds-safe interface type annotation.
+      if (getLangOpts().CheckedC) {
+        if (!Tok.is(tok::colon))
+          // There is no bounds expression or type annotation.  Set the default
+          // bounds expression, if any.
+          Actions.ActOnEmptyBoundsDecl(Param);
+        else {
+          SourceLocation BoundsColonLoc = Tok.getLocation();
+          ConsumeToken();
+          BoundsAnnotations Annots;
+          // Bounds expressions are delay parsed because they can refer to
+          // parameters declared after this one.
+          std::unique_ptr<CachedTokens> DeferredBoundsToks { new CachedTokens };
+          if (ParseBoundsAnnotations(ParmDeclarator, BoundsColonLoc, Annots, &DeferredBoundsToks)) {
+            SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+            Param->setInvalidDecl();
+          }
+          else {
+            if (!DeferredBoundsToks->empty()) {
+              deferredBoundsExpressions.emplace_back(Param, std::move(DeferredBoundsToks));
+              // If an interop type expression doesn't exist, try synthesizing
+              // one implied by the presence of a bounds expression.
+              if (!Annots.getInteropTypeExpr()) {
+                InteropTypeExpr *IT = Actions.SynthesizeInteropTypeExpr(Param->getType(), true);
+                Annots.setInteropTypeExpr(IT);
+              }
+            }
+            // Set the interop type bounds expression, if one exists.
+            if (Annots.getInteropTypeExpr())
+              Actions.ActOnBoundsDecl(Param, Annots);
+          }
+        }
+      }
+
       // Parse the default argument, if any. We parse the default
       // arguments in all dialects; the semantic analysis in
       // ActOnParamDefaultArgument will reject the default argument in
@@ -6669,6 +7072,17 @@ void Parser::ParseParameterDeclarationClause(
 
     // If the next token is a comma, consume it and keep reading arguments.
   } while (TryConsumeToken(tok::comma));
+
+  // Now parse the deferred bounds expressions
+  for (auto &Pair : deferredBoundsExpressions) {
+    ParmVarDecl *Param = Pair.first;
+    std::unique_ptr<CachedTokens> Tokens = std::move(Pair.second);
+    BoundsAnnotations Annots;
+    if (DeferredParseBoundsExpression(std::move(Tokens), Annots, D))
+      Actions.ActOnInvalidBoundsDecl(Param);
+    else
+      Actions.ActOnBoundsDecl(Param, Annots, true);
+  }
 }
 
 /// [C90]   direct-declarator '[' constant-expression[opt] ']'
@@ -6678,9 +7092,31 @@ void Parser::ParseParameterDeclarationClause(
 /// [C99]   direct-declarator '[' type-qual-list[opt] '*' ']'
 /// [C++11] direct-declarator '[' constant-expression[opt] ']'
 ///                           attribute-specifier-seq[opt]
+/// [Checked C] The '[' in any of the above may be prefixed by the keyword
+/// checked to indicate a checked array.
 void Parser::ParseBracketDeclarator(Declarator &D) {
+  SourceLocation startLocation = Tok.getLocation();
+  CheckedArrayKind kind = CheckedArrayKind::Unchecked;
+  if (Tok.is(tok::kw__Checked)) {
+    kind = CheckedArrayKind::Checked;
+    ConsumeToken();
+    if (!Tok.is(tok::l_square)) {
+      Diag(Tok.getLocation(), diag::err_expected_lbracket_after) << "_Checked";
+      return;
+    }
+  }
+
+  if (Tok.is(tok::kw__Nt_checked)) {
+    kind = CheckedArrayKind::NtChecked;
+    ConsumeToken();
+    if (!Tok.is(tok::l_square)) {
+      Diag(Tok.getLocation(), diag::err_expected_lbracket_after) << "_Nt_checked";
+      return;
+    }
+  }
+
   if (CheckProhibitedCXX11Attribute())
-    return;
+      return;
 
   BalancedDelimiterTracker T(*this, tok::l_square);
   T.consumeOpen();
@@ -6693,8 +7129,8 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(attrs);
 
     // Remember that we parsed the empty array type.
-    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, nullptr,
-                                            T.getOpenLocation(),
+    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, kind,
+                                            nullptr, startLocation,
                                             T.getCloseLocation()),
                   std::move(attrs), T.getCloseLocation());
     return;
@@ -6709,7 +7145,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
     MaybeParseCXX11Attributes(attrs);
 
     // Remember that we parsed a array type, and remember its features.
-    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, ExprRes.get(),
+    D.AddTypeInfo(DeclaratorChunk::getArray(0, false, false, kind, ExprRes.get(),
                                             T.getOpenLocation(),
                                             T.getCloseLocation()),
                   std::move(attrs), T.getCloseLocation());
@@ -6787,8 +7223,8 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
   // Remember that we parsed a array type, and remember its features.
   D.AddTypeInfo(
       DeclaratorChunk::getArray(DS.getTypeQualifiers(), StaticLoc.isValid(),
-                                isStar, NumElements.get(), T.getOpenLocation(),
-                                T.getCloseLocation()),
+                                isStar, kind, NumElements.get(), 
+                                T.getOpenLocation(), T.getCloseLocation()),
       std::move(DS.getAttributes()), T.getCloseLocation());
 }
 
@@ -6981,6 +7417,164 @@ void Parser::ParseAtomicSpecifier(DeclSpec &DS) {
                          DiagID, Result.get(),
                          Actions.getASTContext().getPrintingPolicy()))
     Diag(StartLoc, DiagID) << PrevSpec;
+}
+
+/// [Checked C]  new pointer types:
+///           _Ptr &lt type name &gt
+///           _Array_ptr &lt type name &gt
+///           _Nt_array_ptr &lt type name & gt
+void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
+    assert((Tok.is(tok::kw__Ptr) || Tok.is(tok::kw__Array_ptr) ||
+            Tok.is(tok::kw__Nt_array_ptr)) &&
+           "Not a checked pointer specifier");
+    tok::TokenKind Kind = Tok.getKind();
+    SourceLocation StartLoc = ConsumeToken();
+    if (ExpectAndConsume(tok::less)) {
+        return;
+    }
+
+    TypeResult Result = ParseTypeName();
+    if (Result.isInvalid()) {
+        SkipUntil(tok::greater, StopAtSemi);
+        return;
+    }
+
+     // The starting location of the last token in the type
+    SourceLocation EndLoc = Tok.getLocation();
+
+    // Match the '>'
+    if (Tok.getKind() == tok::greater) {
+       ConsumeToken();
+    }
+    else if (Tok.getKind() == tok::greatergreater) {
+        Tok.setKind(tok::greater);
+        Tok.setLocation(Tok.getLocation().getLocWithOffset(1));    
+    }
+    else if (Tok.getKind() == tok::greatergreaterequal) {
+        Tok.setKind(tok::greaterequal);
+        Tok.setLocation(Tok.getLocation().getLocWithOffset(1));
+    }
+    else {
+        // we know this will fail and generate a diagnostic
+        ExpectAndConsume(tok::greater);
+        return;      
+    }
+
+    DS.SetRangeEnd(EndLoc);
+
+    const char *PrevSpec = nullptr;
+    unsigned DiagID;
+    TypeSpecifierType pointerKind = TST_plainPtr;
+    if (Kind == tok::kw__Ptr)
+      pointerKind = TST_plainPtr;
+    else if (Kind == tok::kw__Array_ptr)
+      pointerKind = TST_arrayPtr;
+    else if (Kind == tok::kw__Nt_array_ptr)
+      pointerKind = TST_ntarrayPtr;
+
+    if (DS.SetTypeSpecType(pointerKind, StartLoc, PrevSpec,
+        DiagID, Result.get(),
+        Actions.getASTContext().getPrintingPolicy()))
+        Diag(StartLoc, DiagID) << PrevSpec;
+}
+
+void Parser::ParseItypeforanySpecifier(DeclSpec &DS) {
+  if(!ParseGenericFunctionSpecifierHelper(DS, Scope::ItypeforanyScope)) {
+    DS.setItypeGenericFunction(true);
+  }
+}
+
+void Parser::ParseForanySpecifier(DeclSpec &DS) {
+  if(!ParseGenericFunctionSpecifierHelper(DS, Scope::ForanyScope)) {
+    DS.setGenericFunction(true);
+  }
+}
+
+/// Parses type variables that are part of function specifiers "_For_any" and "_Itype_for_any"
+/// Parameter "S" can either be "ForanyScope" or "ItypeforanyScope"
+/// Parameter "Ident" is the identifier string(_For_any or _Itype_for_any) that will be used within the parsing error messages
+bool Parser::ParseGenericFunctionSpecifierHelper(DeclSpec &DS,
+                                                  Scope::ScopeFlags S) {
+  assert((S == Scope::ForanyScope) || (S == Scope::ItypeforanyScope));  
+
+
+  EnterScope(Scope::DeclScope | S);
+  SourceLocation Loc = ConsumeToken();
+  StringRef Key = (S == Scope::ForanyScope) ? "_For_any" : "Itype_for_any";
+  if (ExpectAndConsume(tok::l_paren, diag::err_generic_specifier_unexpected_token, Key)) {
+    ExitScope();
+    return true;
+  }
+  tok::TokenKind prevToken = tok::l_paren;
+
+  SmallVector<TypedefDecl*, 16> typevars;
+  unsigned int typeVariableIndex = 0;
+
+  // Calculate the depth of "for any"/"itype for any" scope for our generic types
+  unsigned int Depth = 0;
+  Scope *tempScope = getCurScope()->getParent();
+  while (tempScope) {
+    if (tempScope->isForanyScope() || tempScope->isItypeforanyScope())
+      Depth++;
+    tempScope = tempScope->getParent();
+  }
+
+  // Obtain list of type variables bound to for any.
+  while (true) {
+    // The tokens should be one of the three. tok::identifier, tok::comma, 
+    // tok::r_paren. Anything else will be an error.
+    if (Tok.getKind() == tok::identifier) {
+      // We'd expect the previous token to not be an identifier.
+      if (prevToken == tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_generic_specifier_comma_or_parenthesis_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        return true;
+      }
+
+      // Introduce typedef name that will be bound to type variable. Create a 
+      // DeclSpec of typedef, in order to use clang code for checking whether 
+      // the type name already exists. The underlying type of typedef is
+      // TypeVariableType.
+      QualType R = Actions.Context.getTypeVariableType(Depth, typeVariableIndex, S == Scope::ItypeforanyScope);
+      TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(R);
+      TypedefDecl *NewTD = TypedefDecl::Create(Actions.Context, Actions.CurContext,
+        Loc,
+        Tok.getLocation(),
+        Tok.getIdentifierInfo(),
+        TInfo);
+      Actions.PushOnScopeChains(NewTD, getCurScope(), true);
+      typevars.push_back(NewTD);
+
+      typeVariableIndex++;
+      prevToken = tok::identifier;
+      ConsumeToken();
+    } else if (Tok.getKind() == tok::comma) {
+      // We'd expect the previous token to be an identifier
+      if (prevToken != tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        return true;
+      }
+      prevToken = tok::comma;
+      ConsumeToken();
+    } else if (Tok.getKind() == tok::r_paren) {
+      // We'd expect the previous token to be an identifier
+      if (prevToken != tok::identifier) {
+        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
+        SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+        return true;
+      }
+      // Add parsed type variables to Decl Spec.
+      DS.setTypeVars(Actions.getASTContext(), typevars, typeVariableIndex);
+      ConsumeParen();
+      //End of parsing type variables
+      return false;
+    } else {
+      Diag(Tok.getLocation(), diag::err_generic_specifier_unexpected_token) << "_For_any";
+      SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
+      return true;
+    }
+  }
 }
 
 /// TryAltiVecVectorTokenOutOfLine - Out of line body that should only be called

@@ -102,6 +102,16 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
           isNullPointerConstant(S.Context, Expr::NPC_ValueDependentIsNotNull))
         return false;
 
+      // Do not suggest dereferencing a checked pointer to an integer. For unchecked
+      // pointers, clang allows implicit conversions from unchecked pointers to
+      // integers and generates warnings. If the code is converted to use 
+      // checked pointers, clang does not allow these implicit conversions. It
+      // instead ends up going down the fixit path. It would be incorrect
+      // advice to suggest dereferencing the pointer in this situation. It is 
+      // better to stay silent and not give misleading advice.
+      if (FromPtrTy->isChecked() && FromPtrTy->getPointeeType()->isIntegerType())
+        return false;
+
       if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(Expr)) {
         if (UO->getOpcode() == UO_AddrOf) {
           FixKind = OFIK_RemoveTakeAddress;
@@ -124,7 +134,7 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
 
   // Check if the pointer to the argument needs to be passed:
   //   (type -> type *) or (type & -> type *).
-  if (isa<PointerType>(ToQTy)) {
+  if (const PointerType *ToPtrTy = dyn_cast<PointerType>(ToQTy)) {
     bool CanConvert = false;
     OverloadFixItKind FixKind = OFIK_TakeAddress;
 
@@ -135,6 +145,16 @@ bool ConversionFixItGenerator::tryToFixConversion(const Expr *FullExpr,
     CanConvert = CompareTypes(S.Context.getPointerType(FromQTy), ToQTy,
                               S, Begin, VK_RValue);
     if (CanConvert) {
+      // Do not suggest taking the address of an integer variable to produce
+      // a checked pointer to an integer.  clang allows implicit conversions
+      // from integers to unchecked pointers and generates warnings. If the
+      // code is converted to use checked pointers, clang does not allow these
+      // implicit conversions. It instead ends up going down the fixit path.
+      // It would be incorrect advice to suggest taking the address of the
+      // pointer in this situation. It is better to stay silent and not give
+      // misleading advice.
+      if (ToPtrTy->isChecked() && ToPtrTy->getPointeeType()->isIntegerType())
+        return false;
 
       if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(Expr)) {
         if (UO->getOpcode() == UO_Deref) {

@@ -289,9 +289,12 @@ int64_t Stmt::getID(const ASTContext &Context) const {
   return Context.getAllocator().identifyKnownAlignedObject<Stmt>(this);
 }
 
-CompoundStmt::CompoundStmt(ArrayRef<Stmt *> Stmts, SourceLocation LB,
-                           SourceLocation RB)
-    : Stmt(CompoundStmtClass), RBraceLoc(RB) {
+CompoundStmt::CompoundStmt(ArrayRef<Stmt*> Stmts, SourceLocation LB,
+                           SourceLocation RB, CheckedScopeSpecifier WrittenCSS,
+                           CheckedScopeSpecifier CSS, SourceLocation CSSLoc,
+                           SourceLocation CSMLoc)
+  : Stmt(CompoundStmtClass), RBraceLoc(RB),
+    WrittenCSS(WrittenCSS), CSS(CSS), CSSLoc(CSSLoc), CSMLoc(CSMLoc) {
   CompoundStmtBits.NumStmts = Stmts.size();
   setStmts(Stmts);
   CompoundStmtBits.LBraceLoc = LB;
@@ -305,10 +308,14 @@ void CompoundStmt::setStmts(ArrayRef<Stmt *> Stmts) {
 }
 
 CompoundStmt *CompoundStmt::Create(const ASTContext &C, ArrayRef<Stmt *> Stmts,
-                                   SourceLocation LB, SourceLocation RB) {
+                                   SourceLocation LB, SourceLocation RB,
+                                   CheckedScopeSpecifier WrittenCSS,
+                                   CheckedScopeSpecifier CSS,
+                                   SourceLocation CSSLoc,
+                                   SourceLocation CSMLoc) {
   void *Mem =
       C.Allocate(totalSizeToAlloc<Stmt *>(Stmts.size()), alignof(CompoundStmt));
-  return new (Mem) CompoundStmt(Stmts, LB, RB);
+  return new (Mem) CompoundStmt(Stmts, LB, RB, WrittenCSS, CSS, CSSLoc, CSMLoc);
 }
 
 CompoundStmt *CompoundStmt::CreateEmpty(const ASTContext &C,

@@ -597,6 +597,11 @@ public:
 
   std::unique_ptr<sema::FunctionScopeInfo> CachedFunctionScope;
 
+  /// True if the current expression is a member bounds expression
+  /// for a structure.  Member bounds expressions can only reference
+  /// members and cannot reference variables.
+  bool IsMemberBoundsExpr;
+
   /// Stack containing information about each of the nested
   /// function, block, and method scopes that are currently active.
   SmallVector<sema::FunctionScopeInfo *, 4> FunctionScopes;
@@ -1482,13 +1487,14 @@ public:
                               const DeclSpec *DS = nullptr);
   QualType BuildQualifiedType(QualType T, SourceLocation Loc, unsigned CVRA,
                               const DeclSpec *DS = nullptr);
-  QualType BuildPointerType(QualType T,
+  QualType BuildPointerType(QualType T, CheckedPointerKind kind,
                             SourceLocation Loc, DeclarationName Entity);
   QualType BuildReferenceType(QualType T, bool LValueRef,
                               SourceLocation Loc, DeclarationName Entity);
   QualType BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
                           Expr *ArraySize, unsigned Quals,
-                          SourceRange Brackets, DeclarationName Entity);
+                          CheckedArrayKind Kind, SourceRange Brackets, 
+                          DeclarationName Entity);
   QualType BuildVectorType(QualType T, Expr *VecSize, SourceLocation AttrLoc);
   QualType BuildExtVectorType(QualType T, Expr *ArraySize,
                               SourceLocation AttrLoc);
@@ -2096,7 +2102,8 @@ public:
   Attr *getImplicitCodeSegOrSectionAttrForFunction(const FunctionDecl *FD,
                                                    bool IsDefinition);
   void CheckFunctionOrTemplateParamDeclarator(Scope *S, Declarator &D);
-  Decl *ActOnParamDeclarator(Scope *S, Declarator &D);
+  ParmVarDecl *ActOnParamDeclarator(Scope *S, Declarator &D);
+
   ParmVarDecl *BuildParmVarDeclForTypedef(DeclContext *DC,
                                           SourceLocation Loc,
                                           QualType T);
@@ -2156,9 +2163,11 @@ public:
                              NonTrivialCUnionContext UseContext,
                              unsigned NonTrivialKind);
 
-  void AddInitializerToDecl(Decl *dcl, Expr *init, bool DirectInit);
+  void AddInitializerToDecl(Decl *dcl, Expr *init, bool DirectInit, 
+                            SourceLocation EqualLoc = SourceLocation());
   void ActOnUninitializedDecl(Decl *dcl);
   void ActOnInitializerError(Decl *Dcl);
+  bool ValidateNTCheckedType(ASTContext &C, QualType VDeclType, Expr *Init);
 
   void ActOnPureSpecifier(Decl *D, SourceLocation PureSpecLoc);
   void ActOnCXXForRangeDecl(Decl *D);
@@ -2420,8 +2429,8 @@ public:
   void ActOnDefs(Scope *S, Decl *TagD, SourceLocation DeclStart,
                  IdentifierInfo *ClassName,
                  SmallVectorImpl<Decl *> &Decls);
-  Decl *ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
-                   Declarator &D, Expr *BitfieldWidth);
+  FieldDecl *ActOnField(Scope *S, Decl *TagD, SourceLocation DeclStart,
+                        Declarator &D, Expr *BitfieldWidth);
 
   FieldDecl *HandleField(Scope *S, RecordDecl *TagD, SourceLocation DeclStart,
                          Declarator &D, Expr *BitfieldWidth,
@@ -2552,6 +2561,9 @@ public:
   /// Push the parameters of D, which must be a function, into scope.
   void ActOnReenterFunctionContext(Scope* S, Decl* D);
   void ActOnExitFunctionContext();
+
+  /// Push the parameters listed in Params into scope.
+  void ActOnSetupParametersAgain(Scope* S, ArrayRef<ParmVarDecl *> Params);
 
   DeclContext *getFunctionLevelDeclContext();
 
@@ -2697,6 +2709,37 @@ public:
   bool checkVarDeclRedefinition(VarDecl *OldDefn, VarDecl *NewDefn);
   void notePreviousDefinition(const NamedDecl *Old, SourceLocation New);
   bool MergeCXXFunctionDecl(FunctionDecl *New, FunctionDecl *Old, Scope *S);
+
+  // Checked C specific methods for merging function declarations.
+  bool CheckedCFunctionDeclCompatibility(FunctionDecl *New, FunctionDecl *Old);
+  bool CheckedCMergeFunctionDecls(FunctionDecl *New, FunctionDecl *Old);
+
+  bool DiagnoseCheckedCFunctionCompatibility(FunctionDecl *New,
+                                             FunctionDecl *Old);
+
+  // used for %select in diagnostics for errors involving checked types.
+  enum class CheckedTypeClassification {
+    CCT_Any,
+    CCT_Struct,
+    CCT_Union
+  };
+
+  // used for %select in diagnostics for errors involving redeclarations
+  // with bounds
+  enum class CheckedCBoundsError {
+    CCBE_Parameter,
+    CCBE_Return,
+    CCBE_Variable
+  };
+
+ // used for %select in diagnostics for errors involving redeclarations
+ // with bounds annotations.
+  enum class BoundsAnnotationKind {
+    Bounds,
+    IType
+  };
+
+  CheckedTypeClassification classifyForCheckedTypeDiagnostic(QualType qt);
 
   // AssignmentAction - This is used by all the assignment diagnostic functions
   // to represent what is actually causing the operation
@@ -3880,12 +3923,80 @@ public:
   void ActOnStartOfCompoundStmt(bool IsStmtExpr);
   void ActOnFinishOfCompoundStmt();
   StmtResult ActOnCompoundStmt(SourceLocation L, SourceLocation R,
-                               ArrayRef<Stmt *> Elts, bool isStmtExpr);
+                               ArrayRef<Stmt *> Elts, bool isStmtExpr,
+                               CheckedScopeSpecifier WrittenCSS = CSS_None,
+                               SourceLocation CSSLoc = SourceLocation(),
+                               SourceLocation CSMLoc = SourceLocation());
+
+private:
+  CheckedScopeSpecifier CheckingKind;
+
+  // Keep a stack of saved checked scope information.
+  class SavedCheckedScope {
+  public:
+    SavedCheckedScope(CheckedScopeSpecifier S, SourceLocation L) :
+      Loc(L), Saved(S) {}
+    SourceLocation Loc;
+    CheckedScopeSpecifier Saved;
+  };
+  SmallVector<SavedCheckedScope, 8> CheckingKindStack; // can be empty
+
+public:
+  CheckedScopeSpecifier GetCheckedScopeInfo() {
+    return CheckingKind;
+  }
+
+  void SetCheckedScopeInfo(CheckedScopeSpecifier CSS) {
+    CheckingKind = CSS;
+  }
+
+  void PushCheckedScopeInfo(SourceLocation Loc) {
+    CheckingKindStack.push_back(SavedCheckedScope(CheckingKind, Loc));
+  }
+
+  bool PopCheckedScopeInfo() {
+    if (CheckingKindStack.size() > 0) {
+      CheckingKind = CheckingKindStack.back().Saved;
+      CheckingKindStack.pop_back();
+      return false;
+   }
+   else
+     return true;
+  }
+
+  void DiagnoseUnterminatedCheckedScope();
+
+  bool IsCheckedScope() {
+    return CheckingKind != CSS_Unchecked;
+  }
+
+  class CheckedScopeRAII {
+    Sema &SemaRef;
+    CheckedScopeSpecifier PrevCheckingKind;
+
+  public:
+    CheckedScopeRAII(Sema &SemaRef, CheckedScopeSpecifier CSS)
+        : SemaRef(SemaRef),
+          PrevCheckingKind(SemaRef.CheckingKind) {
+      if (CSS != CSS_None)
+        SemaRef.CheckingKind = CSS;
+    }
+
+    CheckedScopeRAII(Sema &S, DeclSpec &DS) :
+      CheckedScopeRAII(S, DS.getCheckedScopeSpecifier()) {
+    }
+
+    ~CheckedScopeRAII() {
+      SemaRef.CheckingKind = PrevCheckingKind;
+    }
+  };
 
   /// A RAII object to enter scope of a compound statement.
   class CompoundScopeRAII {
   public:
-    CompoundScopeRAII(Sema &S, bool IsStmtExpr = false) : S(S) {
+    CompoundScopeRAII(Sema &S, bool IsStmtExpr = false, 
+                      CheckedScopeSpecifier CSS = CSS_None):
+       S(S), CheckedProperties(S, CSS) {
       S.ActOnStartOfCompoundStmt(IsStmtExpr);
     }
 
@@ -3895,6 +4006,7 @@ public:
 
   private:
     Sema &S;
+    CheckedScopeRAII CheckedProperties;
   };
 
   /// An RAII helper that pops function a function scope on exit.
@@ -4146,6 +4258,44 @@ public:
   /// Warn if a value is moved to itself.
   void DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
                         SourceLocation OpLoc);
+
+  enum CheckedScopeTypeLocation {
+    CSTL_TopLevel,
+    CSTL_Nested,
+    CSTL_BoundsSafeInterface
+  };
+
+  /// Returns true if Ty is allowed in a checked scope:
+  /// - If Ty is a pointer or array type, it must be a checked pointer or
+  ///   array type or an unchecked pointer or array type with a bounds-safe
+  ///   interface.
+  /// - This rule applies recursively to any types nested within Ty.
+  /// - All other types are allowed in checked scopes.
+  /// Return false if Ty is not allowed.
+  bool AllowedInCheckedScope(QualType Ty,
+                             const InteropTypeExpr *InteropType,
+                             bool IsParam, CheckedScopeTypeLocation Loc,
+                             CheckedScopeTypeLocation &ProblemLoc,
+                             QualType &ProblemTy);
+
+  // Enum for diagnostic message that describes the type of declaration
+  // being checked.
+  enum CheckedDeclKind {
+    CDK_Parameter,
+    CDK_FunctionReturn,
+    CDK_LocalVariable,
+    CDK_GlobalVariable,
+    CDK_Member
+  };
+
+  /// \param D - target declaration
+  /// \param UseLoc - default invalid location at declaration
+  /// it is valid only if it is regarded as use of variable
+  /// \returns true if target declaration is valid checked decl
+  bool DiagnoseCheckedDecl(const ValueDecl *D,
+                           SourceLocation UseLoc = SourceLocation());
+
+  bool DiagnoseTypeInCheckedScope(QualType Ty, SourceLocation Start, SourceLocation End);
 
   /// Warn if we're implicitly casting from a _Nullable pointer type to a
   /// _Nonnull one.
@@ -4622,7 +4772,8 @@ public:
   ExprResult BuildCStyleCastExpr(SourceLocation LParenLoc,
                                  TypeSourceInfo *Ty,
                                  SourceLocation RParenLoc,
-                                 Expr *Op);
+                                 Expr *Op,
+                                 bool isCheckedScope = false);
   CastKind PrepareScalarCast(ExprResult &src, QualType destType);
 
   /// Build an altivec or OpenCL literal.
@@ -4784,6 +4935,377 @@ public:
   /// literal was successfully completed.  ^(int x){...}
   ExprResult ActOnBlockStmtExpr(SourceLocation CaretLoc, Stmt *Body,
                                 Scope *CurScope);
+
+  //===---------------------------- Checked C Extension ----------------------===//
+
+private:
+  QualType ValidateBoundsExprArgument(Expr *Arg);
+
+public:
+  ExprResult ActOnNullaryBoundsExpr(SourceLocation BoundKWLoc,
+                                    BoundsExpr::Kind Kind,
+                                    SourceLocation RParenLoc);
+  ExprResult ActOnCountBoundsExpr(SourceLocation BoundsKWLoc,
+                                  BoundsExpr::Kind Kind, Expr *CountExpr,
+                                  SourceLocation RParenLoc);
+  ExprResult ActOnRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
+                                  Expr *UpperBound, SourceLocation RParenLoc);
+
+  ExprResult CreateRangeBoundsExpr(SourceLocation BoundsKWLoc, Expr *LowerBound,
+                                   Expr *UpperBound,
+                                   RelativeBoundsClause *Relative,
+                                   SourceLocation RParenLoc);
+
+  ExprResult ActOnBoundsInteropType(SourceLocation TypeKWLoc, ParsedType Ty,
+                                    SourceLocation RParenLoc);
+  ExprResult CreateBoundsInteropTypeExpr(SourceLocation TypeKWLoc,
+                                        TypeSourceInfo *TInfo,
+                                        SourceLocation RParenLoc);
+
+
+  ExprResult CreatePositionalParameterExpr(unsigned Index, QualType QT);
+
+  RelativeBoundsClause* ActOnRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                                     ParsedType Ty,
+                                                     SourceLocation RParenLoc);
+
+  RelativeBoundsClause *
+  CreateRelativeTypeBoundsClause(SourceLocation BoundsKWLoc,
+                                 TypeSourceInfo *TyInfo,
+                                 SourceLocation RParenLoc);
+
+  RelativeBoundsClause* ActOnRelativeConstExprClause(Expr *ConstExpr,
+                                                    SourceLocation BoundsKWLoc,
+                                                    SourceLocation RParenLoc);
+
+  bool CheckBoundsCastBaseType(Expr *E1);
+
+  ExprResult
+  ActOnBoundsCastExprBounds(Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+                            SourceLocation LAnagleBracketLoc, ParsedType D,
+                            SourceLocation RAngleBracketLoc,
+                            SourceLocation LParenLoc, SourceLocation RParenLoc,
+                            Expr *E1, BoundsExpr *ParsedBounds);
+
+  ExprResult ActOnBoundsCastExprSingle(
+      Scope *S, SourceLocation OpLoc, tok::TokenKind Kind,
+      SourceLocation LAnagleBracketLoc, ParsedType D,
+      SourceLocation RAngleBracketLoc,
+      SourceLocation LParenLoc, SourceLocation RParenLoc, Expr *E1);
+
+  ExprResult BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
+                                 TypeSourceInfo *CastTypeInfo,
+                                 SourceRange AngleBrackets,
+                                 SourceRange Paren, Expr *E1,
+                                 BoundsExpr *bounds);
+
+  bool DiagnoseBoundsDeclType(QualType Ty, DeclaratorDecl *D,
+                              BoundsAnnotations &BA, bool IsReturnAnnots);
+
+  /// \\brief Update information in ASTContext tracking for a member what
+  /// bounds declarations depend upon it.  FD is the member whose
+  /// bounds are given by Bounds.
+  void TrackMemberBoundsDependences(FieldDecl *FD, BoundsExpr *Bounds);
+  void ActOnBoundsDecl(DeclaratorDecl *D, BoundsAnnotations Annots,
+                       bool MergeDeferredBounds = false);
+
+  void ActOnEmptyBoundsDecl(DeclaratorDecl *D);
+  void ActOnInvalidBoundsDecl(DeclaratorDecl *D);
+  /// \brief Add default bounds/interop type expressions to Annots, if appropriate.
+  void InferBoundsAnnots(QualType Ty, BoundsAnnotations &Annots, bool IsParam);
+
+  // \#pragma CHECKED_SCOPE.
+  enum PragmaCheckedScopeKind {
+    PCSK_On,
+    PCSK_Off,
+    PCSK_BoundsOnly,
+    PCSK_Push,
+    PCSK_Pop
+  };
+  void ActOnPragmaCheckedScope(PragmaCheckedScopeKind Kind, SourceLocation Loc);
+  void DiagnoseUnterminatedPragmaCheckedScopePush();
+
+  BoundsExpr *CreateInvalidBoundsExpr();
+  /// /brief Synthesize the interop type expression implied by the presence
+  /// of a bounds expression.  Ty is the original unchecked type.  Returns null
+  /// if none exists.
+  InteropTypeExpr *SynthesizeInteropTypeExpr(QualType Ty, bool IsParam);
+  BoundsExpr *CreateCountForArrayType(QualType QT);
+
+  // _Return_value in Checked C bounds expressions.
+  ExprResult ActOnReturnValueExpr(SourceLocation Loc);
+
+  /// \brief When non-NULL, the type of the '_Return_value' expression.
+  QualType BoundsExprReturnValue;
+
+  /// \brief RAII object used to temporarily set the the type of _Return_value
+  class CheckedCReturnValueRAII {
+    Sema &S;
+    QualType OldReturnValue;
+  public:
+    CheckedCReturnValueRAII(Sema &S, QualType ReturnVal) : S(S) {
+      OldReturnValue = S.BoundsExprReturnValue;
+      S.BoundsExprReturnValue = ReturnVal;
+    }
+
+    ~CheckedCReturnValueRAII() {
+      S.BoundsExprReturnValue = OldReturnValue;
+    }
+  };
+
+  typedef bool
+  (*ParseDeferredBoundsCallBackFn)(void *P,
+                                   std::unique_ptr<CachedTokens> Toks,
+                                   ArrayRef<ParmVarDecl *> Params,
+                                   BoundsAnnotations &Result,
+                                   const Declarator &D);
+  void SetDeferredBoundsCallBack(void *OpaqueData, ParseDeferredBoundsCallBackFn p);
+
+  ParseDeferredBoundsCallBackFn DeferredBoundsParser;
+  void *DeferredBoundsParserData;
+
+  // Represents the context where an expression must be non-modifying.
+  enum NonModifyingContext {
+    NMC_Unknown,
+    NMC_Dynamic_Check,
+    NMC_Count,                   // Bounds count expression.
+    NMC_Byte_Count,              // Bounds byte count expression.
+    NMC_Range,                   // Bounds range expression.
+    NMC_Function_Return,         // Argument for parameter used in function
+                                 // return bounds.
+    NMC_Function_Parameter       // Argument for parameter used in function
+                                 // parameter bounds.
+  };
+
+  /// /brief Checks whether an expression is non-modifying
+  /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
+  /// false otherwise.
+  enum NonModifyingMessage {
+    NMM_None,
+    NMM_Error,
+    NMM_Note
+  };
+
+  /// \brief Checks whether an expression is non-modifying
+  /// (see Checked C Spec, 3.6.1).  Returns true if the expression is non-modifying,
+  /// false otherwise.
+  bool CheckIsNonModifying(Expr *E, NonModifyingContext Req =
+                               NonModifyingContext::NMC_Unknown,
+                            NonModifyingMessage = NMM_Error);
+
+  BoundsExpr *CheckNonModifyingBounds(BoundsExpr *Bounds, Expr *E);
+
+  ExprResult ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
+                     ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> Args);
+
+  QualType SubstituteTypeArgs(QualType QT,
+                ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs);
+
+  bool AbstractForFunctionType(BoundsAnnotations &BA,
+                               ArrayRef<DeclaratorChunk::ParamInfo> Params);
+  /// \brief Take a bounds expression with positional parameters from a function
+  /// type and substitute DeclRefs to the corresonding parameters in Params.
+  BoundsExpr *ConcretizeFromFunctionType(BoundsExpr *Expr,
+                                         ArrayRef<ParmVarDecl *> Params);
+  /// \brief Take a member bounds expression with member references and
+  /// replace the member references with member access expressions using
+  /// MemberBase as the base.  Returns a nullptr if there is an error.
+  BoundsExpr *MakeMemberBoundsConcrete(Expr *MemberBase, bool IsArrow,
+                                       BoundsExpr *Bounds);
+  BoundsExpr *ConcretizeFromFunctionTypeWithArgs(BoundsExpr *Bounds, ArrayRef<Expr *> Args,
+                                                 NonModifyingContext ErrorKind);
+
+  /// ConvertToFullyCheckedType: convert an expression E to a fully checked type. This
+  /// is used to retype declrefs and member exprs in checked scopes with bounds-safe
+  /// interfaces. The Checked C spec that says that such uses in checked scopes shall be 
+  /// treated as having "checked type".
+  ExprResult ConvertToFullyCheckedType(Expr *E,  InteropTypeExpr *BA, bool IsParamUse,
+                                       ExprValueKind VK);
+
+  /// GetArrayPtrDereference - determine if an lvalue expression is a
+  /// dereference of an _Array_ptr or _Nt_array_ptr (via '*" or an array
+  /// subscript operator).  If it is, return the actual dereference expression
+  /// and set Result to the pointer type being dereferenced.  Otherwise, return
+  /// null.
+  Expr *GetArrayPtrDereference(Expr *E, QualType &Result);
+
+  /// InferLValueBounds - infer a bounds expression for an lvalue.
+  /// The bounds determine whether the lvalue to which an
+  /// expression evaluates in in range.
+  BoundsExpr *InferLValueBounds(Expr *E);
+
+  /// CreateTypeBasedBounds: the bounds that can be inferred from
+  /// the type alone.
+  /// * E is the base expression for which we are inferring bounds
+  /// * Ty is the target type.  It may differ from E's tu[e because it is
+  ///   an interoperation type.
+  /// * IsParam indicates wheteher E is a parameter variable.
+  /// * IsBoundsSafeInterface indicates whether Ty is a bounds-safe
+  BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
+                                    bool IsBoundsSafeInterface);
+
+  /// ReplaceAssignmentImplicitCast: E has had assignment conversion rules
+  /// applied to it. If an implicit cast has been introduced because of the
+  /// assignment conversion rules, replace it with an explicit cast.
+  /// This allows us to substitute E into other operator expressions without worrying
+  /// about the different implicit conversion rules between assignments and
+  //// other operators.   Sema tree rewriting assumes that semantic
+  /// analysis will recreate implicit casts.  That doesn't happen properly if
+  /// E is taken from an assignment expression and used in another operator expression.
+  Expr *MakeAssignmentImplicitCastExplicit(Expr *E);
+
+  /// InferLValueTargetBounds - infer the bounds for the
+  /// target of an lvalue.
+  BoundsExpr *InferLValueTargetBounds(Expr *E);
+
+  /// InferRValueBounds - infer a bounds expression for an rvalue.
+  /// The bounds determine whether the rvalue to which an
+  /// expression evaluates is in range.
+  ///
+  /// IncludeNullTerminator controls whether a null terminator
+  /// for an nt_array is included in the bounds (it gives
+  /// us physical bounds, not logical bounds).
+  BoundsExpr *InferRValueBounds(Expr *E,
+                                bool IncludeNullTerminator = false);
+
+  BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B);
+  BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B);
+
+  enum BoundsDeclarationCheck {
+      BDC_Assignment,
+      BDC_Initialization
+  };
+
+  /// \brief Check that address=of operation is not taking the
+  /// address of members used in bounds.
+  void CheckAddressTakenMembers(UnaryOperator *AddrOf);
+
+  /// \brief Check whether E contains a return value expression.
+  bool ContainsReturnValueExpr(Expr *E);
+
+  /// \brief Wrap a call expression in a Checked C temporay binding
+  /// expression, if a temporary is needed to describe the bounds
+  /// of the result of the call expression.
+  ExprResult CreateTemporaryForCallIfNeeded(ExprResult R);
+
+  /// CheckFunctionBodyBoundsDecls - check bounds declarations within a function
+  /// body.
+  void CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body);
+
+  /// CheckTopLevelBoundsDecls - check bounds declarations for variable declarations
+  /// not within a function body.
+  void CheckTopLevelBoundsDecls(VarDecl *VD);
+
+  // WarnDynamicCheckAlwaysFails - Adds a warning if an explicit dynamic check
+  // will always fail.
+  void WarnDynamicCheckAlwaysFails(const Expr *Condition);
+
+  //
+  // Track variables that in-scope bounds declarations depend upon.
+  // TODO: generalize this to other lvalue expressions.
+  class BoundsDependencyTracker {
+  public:
+     typedef SmallVector<VarDecl *, 2> VarBoundsDecls;
+     typedef VarBoundsDecls::iterator VarBoundsIterator;
+     typedef llvm::iterator_range<VarBoundsIterator> VarBoundsIteratorRange;
+     // mapping from variables to bounds that depend upon the variables.
+     typedef std::map<VarDecl *, VarBoundsDecls> DependentMap;
+  private:
+     // Map variables to the bounds declarations that are
+     // in scope and depend upon them.
+     DependentMap Map;
+
+     // Track the bounds that are in scope so that we can remove them from the
+     // dependent map when the scope is exited.
+     std::vector<VarDecl *> BoundsInScope;
+  public:
+     BoundsDependencyTracker() {}
+
+     // Call these when entering/exiting scopes so that we can track when
+     // variables go out of scope.  EnterScope returns an integer
+     // that should be passed to the corresponding ExitScope call.
+     unsigned EnterScope();
+     void ExitScope(unsigned scopeBegin);
+
+     // If D has a bounds declaration, add its dependencies to the existing
+     // scope.
+     void Add(VarDecl *D);
+
+    VarBoundsIteratorRange DependentBoundsDecls(VarDecl *D) {
+      auto Iter = Map.find(D);
+      if (Iter == Map.end())
+        return VarBoundsIteratorRange(nullptr, nullptr);
+      return VarBoundsIteratorRange(Iter->second.begin(),Iter->second.end());
+    }
+
+     void Dump(raw_ostream &OS);
+  };
+
+  BoundsDependencyTracker BoundsDependencies;
+
+  // Map expressions that modify lvalues (assignments and pre/post
+  // increment/decrement operations) to bounds that may depend on the modified
+  // lvalues.  We check the validity of bounds declarations after
+  // expression statements using data flow analysis.   During the analysis,
+  // we need to know whether an expression modifies an lvalue involved in a
+  // bounds invariant.  The AST traversal order for determining this is lexical
+  // and conflicts with preferred orderings for dataflow analysis, so we
+  // precompute this information before analyzing a function body.
+  class ModifiedBoundsDependencies {
+  public:
+    // A C lvalue expression with bounds on values stored in the lvalue.
+    // It is either a variable or a member expression.
+    struct LValueWithBounds {
+      LValueWithBounds(llvm::PointerUnion<VarDecl *, MemberExpr *> Target,
+                       BoundsExpr *Bounds) : Target(Target), Bounds(Bounds) {}
+
+      llvm::PointerUnion<VarDecl *, MemberExpr *> Target;
+      BoundsExpr *Bounds;  // Bounds for target.
+    };
+   typedef SmallVector<LValueWithBounds,2> LValuesWithBounds;
+   // Map assignments or pre/post increment/decrement expressions to bounds
+   // that depend upon the lvalue modified by the expressions.
+   typedef std::map<Expr *, LValuesWithBounds> DependentBounds;
+
+   void Add(Expr *E,  llvm::PointerUnion<VarDecl *, MemberExpr *> LValue,
+            BoundsExpr *Bounds);
+   void Dump(raw_ostream &OS);
+
+   ModifiedBoundsDependencies() {}
+   DependentBounds Tracker;
+  };
+
+  /// \brief Compute a mapping from statements that modify lvalues to
+  /// in-scope bounds declarations that depend on those lvalues.
+  /// FD is the function being declared and Body is the body of the
+  /// function.   They are passed in separately because Body hasn't
+  /// been attached to FD yet.
+  void ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
+                                 FunctionDecl *FD, Stmt *Body);
+
+  /// \brief RAII class used to indicate that we are substituting an expression
+  /// into another expression during bounds checking.  We need to suppress 
+  /// diagnostics emission during this.  We are doing type-preserving
+  /// substitutions, so we don't expect semantic errors during substitution.
+  /// There could be warnings, which would confuse users.  The warnings could
+  /// could also be escalated to errors, which would cause compilation failures.
+  class ExprSubstitutionScope {
+    Sema &SemaRef;
+    bool PrevDisableSubstitionDiagnostics;
+  public:
+    explicit ExprSubstitutionScope(Sema &SemaRef)
+        : SemaRef(SemaRef),
+          PrevDisableSubstitionDiagnostics(
+            SemaRef.DisableSubstitionDiagnostics) {
+      SemaRef.DisableSubstitionDiagnostics = true;
+    }
+    ~ExprSubstitutionScope() {
+      SemaRef.DisableSubstitionDiagnostics =
+        PrevDisableSubstitionDiagnostics;
+    }
+  };
+
+  bool DisableSubstitionDiagnostics;
 
   //===---------------------------- Clang Extensions ----------------------===//
 
@@ -9763,7 +10285,8 @@ public:
                                ExprValueKind VK = VK_RValue,
                                const CXXCastPath *BasePath = nullptr,
                                CheckedConversionKind CCK
-                                  = CCK_ImplicitConversion);
+                                  = CCK_ImplicitConversion,
+                               bool isBoundsSafeInterfaceCast = false);
 
   /// ScalarTypeToBooleanCastKind - Returns the cast kind corresponding
   /// to the conversion from scalar type ScalarTy to the Boolean type.
@@ -9937,6 +10460,11 @@ public:
     /// object with __weak qualifier.
     IncompatibleObjCWeakRef,
 
+    /// IncompatibleCheckedCVoid - Assignments to/from void pointers to pointers
+    /// to data containing checked pointers is not allowed in regular checked
+    /// scopes. It is allowed only in unchecked and checked bounds_only scopes.
+    IncompatibleCheckedCVoid,
+
     /// Incompatible - We reject this conversion outright, it is invalid to
     /// represent it in the AST.
     Incompatible
@@ -9993,7 +10521,30 @@ public:
   ///        \p Diagnose must also be \c false.
   AssignConvertType CheckSingleAssignmentConstraints(
       QualType LHSType, ExprResult &RHS, bool Diagnose = true,
-      bool DiagnoseCFAudited = false, bool ConvertRHS = true);
+      bool DiagnoseCFAudited = false, bool ConvertRHS = true,
+      QualType LHSInteropType = QualType());
+
+public:
+  /// \brief: Given a value with type Ty that has a bounds declaration,
+  /// compute the bounds-safe interface type.  Returns a null QualType
+  /// if nnoe exists.
+  QualType SynthesizeInteropType(QualType Ty, bool isParam);
+
+  /// Rewrite function types with bounds-safe interfaces on unchecked
+  /// types to use the checked types specified by the interfaces.  Recursively
+  /// apply the rewrite to function types nested within the type.
+  QualType RewriteBoundsSafeInterfaceTypes(QualType Ty);
+
+  /// \brief Get the bounds-safe interface type for LHS.
+  /// Returns a null QualType if there isn't one.
+  QualType GetCheckedCInteropType(ExprResult LHS);
+
+  /// \brief If T is an array type, create a checked array type version of T.
+  /// This includes propagating the checked property to nested array types. If
+  /// a valid checked array type cannot be constructed and Diagnose is true,
+  /// print a diagnostic message for the problem.
+  QualType MakeCheckedArrayType(QualType T, bool Diagnose = false,
+                                SourceLocation Loc = SourceLocation());
 
   // If the lhs type is a transparent union, check whether we
   // can initialize the transparent union with the given expression.
@@ -11300,6 +11851,24 @@ public:
   ~EnterExpressionEvaluationContext() {
     if (Entered)
       Actions.PopExpressionEvaluationContext();
+  }
+};
+
+/// \brief RAII object that handles state changes for processing a member
+// bounds expressions.
+class EnterMemberBoundsExprRAII {
+  Sema &S;
+  bool SavedMemberBounds;
+
+public:
+  EnterMemberBoundsExprRAII(Sema &S)
+    : S(S), SavedMemberBounds(S.IsMemberBoundsExpr)
+  {
+    S.IsMemberBoundsExpr = true;
+  }
+
+  ~EnterMemberBoundsExprRAII() {
+    S.IsMemberBoundsExpr = SavedMemberBounds;
   }
 };
 

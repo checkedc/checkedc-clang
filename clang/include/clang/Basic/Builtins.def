@@ -1530,6 +1530,9 @@ LANGBUILTIN(__builtin_load_halff, "fhC*", "nc", ALL_OCLC_LANGUAGES)
 BUILTIN(__builtin_os_log_format_buffer_size, "zcC*.", "p:0:nut")
 BUILTIN(__builtin_os_log_format, "v*v*cC*.", "p:0:nt")
 
+// Checked C Builtins
+BUILTIN(_Dynamic_check, "vi", "n")
+
 // OpenMP 4.0
 LANGBUILTIN(omp_is_initial_device, "i", "nc", OMP_LANG)
 

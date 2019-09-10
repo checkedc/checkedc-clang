@@ -304,6 +304,9 @@ public:
   static const TST TST_auto_type = clang::TST_auto_type;
   static const TST TST_unknown_anytype = clang::TST_unknown_anytype;
   static const TST TST_atomic = clang::TST_atomic;
+  static const TST TST_plainPtr = clang::TST_plainPtr;
+  static const TST TST_arrayPtr = clang::TST_arrayPtr;
+  static const TST TST_nt_arrayPtr = clang::TST_ntarrayPtr;
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   static const TST TST_##ImgType##_t = clang::TST_##ImgType##_t;
 #include "clang/Basic/OpenCLImageTypes.def"
@@ -332,6 +335,13 @@ public:
     // FIXME: Attributes should be included here.
   };
 
+  typedef CheckedScopeSpecifier CSS;
+  static const CSS CSS_None = clang::CSS_None;
+  static const CSS CSS_Unchecked = clang::CSS_Unchecked;
+  static const CSS CSS_Bounds = clang::CSS_Bounds;
+  static const CSS CSS_Memory = clang::CSS_Memory;
+
+
 private:
   // storage-class-specifier
   /*SCS*/unsigned StorageClassSpec : 3;
@@ -358,6 +368,12 @@ private:
   unsigned FS_forceinline_specified: 1;
   unsigned FS_virtual_specified : 1;
   unsigned FS_noreturn_specified : 1;
+  // Checked C - checked/unchecked function type
+  unsigned FS_checked_specified : 2;
+  // Checked C - For-any function specifier
+  unsigned FS_forany_specified : 1;
+  // Checked C - _Itype_for_any function specifier
+  unsigned FS_itypeforany_specified : 1;
 
   // friend-specifier
   unsigned Friend_specified : 1;
@@ -376,6 +392,12 @@ private:
 
   // attributes.
   ParsedAttributes Attrs;
+
+  TypedefDecl **TypeVarInfo;
+  unsigned NumTypeVars : 15;
+  bool GenericFunction : 1;
+  bool ItypeGenericFunction : 1;
+
 
   // Scope specifier for the type spec, if applicable.
   CXXScopeSpec TypeScope;
@@ -398,6 +420,8 @@ private:
   SourceLocation FS_inlineLoc, FS_virtualLoc, FS_explicitLoc, FS_noreturnLoc;
   SourceLocation FS_explicitCloseParenLoc;
   SourceLocation FS_forceinlineLoc;
+  // Checked C - checked keyword location
+  SourceLocation FS_checkedLoc, FS_foranyLoc, FS_itypeforanyloc;
   SourceLocation FriendLoc, ModulePrivateLoc, ConstexprLoc;
   SourceLocation TQ_pipeLoc;
 
@@ -408,7 +432,9 @@ private:
 
   static bool isTypeRep(TST T) {
     return (T == TST_typename || T == TST_typeofType ||
-            T == TST_underlyingType || T == TST_atomic);
+            T == TST_underlyingType || T == TST_atomic ||
+            T == TST_plainPtr || T == TST_arrayPtr ||
+            T == TST_nt_arrayPtr);
   }
   static bool isExprRep(TST T) {
     return (T == TST_typeofExpr || T == TST_decltype);
@@ -433,8 +459,19 @@ public:
         TypeSpecPipe(false), TypeSpecSat(false), TypeQualifiers(TQ_unspecified),
         FS_inline_specified(false), FS_forceinline_specified(false),
         FS_virtual_specified(false), FS_noreturn_specified(false),
+
+        // Checked C - checked function.
+        FS_checked_specified(CSS_None), FS_forany_specified(false),
+        FS_itypeforany_specified(false),
+
         Friend_specified(false), ConstexprSpecifier(CSK_unspecified),
-        FS_explicit_specifier(), Attrs(attrFactory), writtenBS(),
+        FS_explicit_specifier(), Attrs(attrFactory),
+
+        // Checked C specific.
+        TypeVarInfo(nullptr), NumTypeVars(0), GenericFunction(false),
+        ItypeGenericFunction(false),
+
+        writtenBS(),
         ObjCQualifiers(nullptr) {}
 
   // storage-class-specifier
@@ -582,6 +619,30 @@ public:
   bool isNoreturnSpecified() const { return FS_noreturn_specified; }
   SourceLocation getNoreturnSpecLoc() const { return FS_noreturnLoc; }
 
+  CheckedScopeSpecifier getCheckedScopeSpecifier() const {
+    return (CheckedScopeSpecifier) FS_checked_specified;
+  }
+  SourceLocation getCheckedSpecLoc() const { return FS_checkedLoc; }
+
+  bool isForanySpecified() const { return FS_forany_specified; }
+  bool isItypeforanySpecified() const { return FS_itypeforany_specified; }
+  SourceLocation getForanySpecLoc() const { return FS_foranyLoc; }
+
+  void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars);
+  void setGenericFunction(bool IsGeneric) { GenericFunction = IsGeneric; }
+  void setItypeGenericFunction(bool IsItypeGeneric) { ItypeGenericFunction = IsItypeGeneric; }
+  void setNumTypeVars(unsigned NewNumTypeVars) { NumTypeVars = NewNumTypeVars; }
+  unsigned getNumTypeVars(void) const { return NumTypeVars; }
+  bool isGenericFunction(void) const { return GenericFunction; }
+  bool isItypeGenericFunction(void) const { return ItypeGenericFunction; }
+
+  ArrayRef<TypedefDecl *> typeVariables() const {
+    return { TypeVarInfo, getNumTypeVars() };
+  }
+  MutableArrayRef<TypedefDecl *> typeVariables() {
+    return { TypeVarInfo, getNumTypeVars() };
+  }
+
   void ClearFunctionSpecs() {
     FS_inline_specified = false;
     FS_inlineLoc = SourceLocation();
@@ -594,6 +655,12 @@ public:
     FS_explicitCloseParenLoc = SourceLocation();
     FS_noreturn_specified = false;
     FS_noreturnLoc = SourceLocation();
+    FS_checked_specified = CSS_None;
+    FS_checkedLoc = SourceLocation();
+    FS_forany_specified = false;
+    FS_foranyLoc = SourceLocation();
+    FS_itypeforany_specified = false;
+    FS_itypeforanyloc= SourceLocation();
   }
 
   /// This method calls the passed in handler on each CVRU qual being
@@ -714,7 +781,14 @@ public:
                                SourceLocation CloseParenLoc);
   bool setFunctionSpecNoreturn(SourceLocation Loc, const char *&PrevSpec,
                                unsigned &DiagID);
-
+  bool setFunctionSpecChecked(SourceLocation Loc, CheckedScopeSpecifier CSS,
+                              const char *&PrevSpec, unsigned &DiagID);
+  bool setFunctionSpecUnchecked(SourceLocation Loc, const char *&PrevSpec,
+                                unsigned &DiagID);
+  bool setFunctionSpecForany(SourceLocation Loc, const char *&PrevSpec,
+                                unsigned &DiagID);
+  bool setFunctionSpecItypeforany(SourceLocation Loc, const char *&PrevSpec,
+                                    unsigned &DiagID);
   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                      unsigned &DiagID);
   bool setModulePrivateSpec(SourceLocation Loc, const char *&PrevSpec,
@@ -1216,6 +1290,9 @@ struct DeclaratorChunk {
     /// True if this dimension was [*].  In this case, NumElts is null.
     unsigned isStar : 1;
 
+    // Checked C - the kind of checked array
+    unsigned kind: 2;
+
     /// This is the size of the array, or null if [] or [*] was specified.
     /// Since the parser is multi-purpose, and we don't want to impose a root
     /// expression class on all clients, NumElts is untyped.
@@ -1317,6 +1394,9 @@ struct DeclaratorChunk {
     /// The end location of the exception specification, if any.
     unsigned ExceptionSpecLocEnd;
 
+    /// The location of the ':' for the return bounds annotations in the source
+    unsigned ReturnAnnotsColonLoc;
+
     /// Params - This is a pointer to a new[]'d array of ParamInfo objects that
     /// describe the parameters specified by this function declarator.  null if
     /// there are no parameters specified.
@@ -1327,6 +1407,14 @@ struct DeclaratorChunk {
 
     /// AtttibuteFactory for the MethodQualifiers.
     AttributeFactory *QualAttrFactory;
+
+    /// The annotations for the value returned by the function.  We store them
+    // as individual fields because the return bounds are deferred-parsed.
+    // Note: ReturnBounds is actually a unique_ptr. However unique_ptr requires
+    // a constructor and this struct can't have one, so we cast it to a
+    // a regular pointer type.
+    CachedTokens *ReturnBounds;
+    InteropTypeExpr *ReturnInteropType;
 
     union {
       /// Pointer to a new[]'d array of TypeAndRange objects that
@@ -1408,6 +1496,10 @@ struct DeclaratorChunk {
 
     SourceLocation getRParenLoc() const {
       return SourceLocation::getFromRawEncoding(RParenLoc);
+    }
+
+    SourceLocation getReturnAnnotsColonLoc() const {
+      return SourceLocation::getFromRawEncoding(ReturnAnnotsColonLoc);
     }
 
     SourceLocation getExceptionSpecLocBeg() const {
@@ -1583,7 +1675,8 @@ struct DeclaratorChunk {
 
   /// Return a DeclaratorChunk for an array.
   static DeclaratorChunk getArray(unsigned TypeQuals,
-                                  bool isStatic, bool isStar, Expr *NumElts,
+                                  bool isStatic, bool isStar,
+                                  CheckedArrayKind kind, Expr *NumElts,
                                   SourceLocation LBLoc, SourceLocation RBLoc) {
     DeclaratorChunk I;
     I.Kind          = Array;
@@ -1592,6 +1685,7 @@ struct DeclaratorChunk {
     I.Arr.TypeQuals = TypeQuals;
     I.Arr.hasStatic = isStatic;
     I.Arr.isStar    = isStar;
+    I.Arr.kind = (unsigned) kind;
     I.Arr.NumElts   = NumElts;
     return I;
   }
@@ -1617,6 +1711,9 @@ struct DeclaratorChunk {
                                      ArrayRef<NamedDecl *> DeclsInPrototype,
                                      SourceLocation LocalRangeBegin,
                                      SourceLocation LocalRangeEnd,
+                                     SourceLocation ReturnAnnotsColonLoc,
+                                     InteropTypeExpr *ReturnInteorpTypeExpr,
+                                     std::unique_ptr<CachedTokens> ReturnBounds,
                                      Declarator &TheDeclarator,
                                      TypeResult TrailingReturnType =
                                                     TypeResult(),
@@ -1825,6 +1922,8 @@ private:
   /// The asm label, if specified.
   Expr *AsmLabel;
 
+  /// \brief The return bounds for a function declarator.
+  BoundsExpr *ReturnBounds;
 #ifndef _MSC_VER
   union {
 #endif
@@ -1854,7 +1953,8 @@ public:
         GroupingParens(false), FunctionDefinition(FDK_Declaration),
         Redeclaration(false), Extension(false), ObjCIvar(false),
         ObjCWeakProperty(false), InlineStorageUsed(false),
-        Attrs(ds.getAttributePool().getFactory()), AsmLabel(nullptr) {}
+        Attrs(ds.getAttributePool().getFactory()), AsmLabel(nullptr),
+        ReturnBounds(nullptr) {}
 
   ~Declarator() {
     clear();
@@ -2440,6 +2540,9 @@ public:
   void setAsmLabel(Expr *E) { AsmLabel = E; }
   Expr *getAsmLabel() const { return AsmLabel; }
 
+  void setReturnBounds(BoundsExpr *E) { ReturnBounds = E; }
+  BoundsExpr *getReturnBounds() const { return ReturnBounds; }
+
   void setExtension(bool Val = true) { Extension = Val; }
   bool getExtension() const { return Extension; }
 
@@ -2496,13 +2599,21 @@ public:
 };
 
 /// This little struct is used to capture information about
-/// structure field declarators, which is basically just a bitfield size.
+/// structure field declarators. This is just a bitfield size, except
+/// for Checked C.  
+///
+/// For Checked C, it could be a bounds expression to be parsed later
+// or an interop type bounds annotation.
 struct FieldDeclarator {
   Declarator D;
   Expr *BitfieldSize;
+  std::unique_ptr<CachedTokens> BoundsExprTokens;
+  InteropTypeExpr *InteropType;
+
   explicit FieldDeclarator(const DeclSpec &DS)
       : D(DS, DeclaratorContext::MemberContext),
-        BitfieldSize(nullptr) {}
+        BitfieldSize(nullptr), BoundsExprTokens(nullptr), InteropType(nullptr)
+        {}
 };
 
 /// Represents a C++11 virt-specifier-seq.
