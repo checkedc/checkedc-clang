@@ -63,4 +63,19 @@ endif()
 
   set_target_properties(check-checkedc PROPERTIES FOLDER "Checked C tests")
 
+# Add a lit target to run the checkedc tests for ARM.
+if (CHECKEDC_ARM_SYSROOT AND CHECKEDC_ARM_RUNUNDER)
+  set(CHECKEDC_TEST_EXTRA_ARGS "-DCHECKEDC_TARGET=ARM")
+
+  add_lit_testsuite(check-checkedc-arm "Running the Checked C regression tests for ARM"
+    ${CMAKE_CURRENT_BINARY_DIR}
+    #LIT ${LLVM_LIT}
+    PARAMS ${CHECKEDC_TEST_PARAMS}
+    DEPENDS ${CHECKEDC_TEST_DEPS}
+    ARGS ${CHECKEDC_TEST_EXTRA_ARGS}
+    )
+
+  set_target_properties(check-checkedc-arm PROPERTIES FOLDER "Checked C tests for ARM")
+endif()
+
 endif()
