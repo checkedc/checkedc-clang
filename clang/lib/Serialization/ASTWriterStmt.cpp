@@ -84,6 +84,8 @@ void ASTStmtWriter::VisitCompoundStmt(CompoundStmt *S) {
     Record.AddStmt(CS);
   Record.AddSourceLocation(S->getLBracLoc());
   Record.AddSourceLocation(S->getRBracLoc());
+  Record.AddSourceLocation(S->getCheckedSpecifierLoc());
+  Record.AddSourceLocation(S->getSpecifierModifierLoc());
   Code = serialization::STMT_COMPOUND;
 }
 
