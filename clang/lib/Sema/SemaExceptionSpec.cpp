@@ -1156,6 +1156,9 @@ CanThrowResult Sema::canThrow(const Expr *E) {
     return mergeCanThrow(CT, canSubExprsThrow(*this, E));
   }
 
+  case Expr::CHKCBindTemporaryExprClass:
+    return canThrow(cast<CHKCBindTemporaryExpr>(E)->getSubExpr());
+
     // ObjC message sends are like function calls, but never have exception
     // specs.
   case Expr::ObjCMessageExprClass:
@@ -1203,6 +1206,7 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::DependentCoawaitExprClass:
   case Expr::CompoundAssignOperatorClass:
   case Expr::CStyleCastExprClass:
+  case Expr::BoundsCastExprClass:    
   case Expr::CXXStaticCastExprClass:
   case Expr::CXXFunctionalCastExprClass:
   case Expr::ImplicitCastExprClass:
@@ -1296,6 +1300,14 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::MSPropertyRefExprClass:
   case Expr::MSPropertySubscriptExprClass:
     llvm_unreachable("Invalid class for expression");
+
+  case Expr::PositionalParameterExprClass:
+  case Expr::CountBoundsExprClass:
+  case Expr::InteropTypeExprClass:
+  case Expr::NullaryBoundsExprClass:
+  case Expr::RangeBoundsExprClass:
+  case Expr::BoundsValueExprClass:
+    llvm_unreachable("do not expect bounds expressions");
 
 #define STMT(CLASS, PARENT) case Expr::CLASS##Class:
 #define STMT_RANGE(Base, First, Last)

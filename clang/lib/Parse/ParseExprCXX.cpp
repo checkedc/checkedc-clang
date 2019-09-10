@@ -1212,7 +1212,11 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                       DynamicExceptionRanges.data(), DynamicExceptions.size(),
                       NoexceptExpr.isUsable() ? NoexceptExpr.get() : nullptr,
                       /*ExceptionSpecTokens*/ nullptr,
-                      /*DeclsInPrototype=*/None, LParenLoc, FunLocalRangeEnd, D,
+                      /*DeclsInPrototype=*/None, LParenLoc, FunLocalRangeEnd,
+                      /*ReturnBoundsColonLoc=*/NoLoc,
+                      /*ReturnInteropTypeExpr=*/nullptr,
+                       /*ReturnBounds=*/nullptr,
+                      D,
                       TrailingReturnType),
                   std::move(Attr), DeclEndLoc);
   } else if (Tok.isOneOf(tok::kw_mutable, tok::arrow, tok::kw___attribute,
@@ -1277,7 +1281,11 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
                       /*NumExceptions=*/0,
                       /*NoexceptExpr=*/nullptr,
                       /*ExceptionSpecTokens=*/nullptr,
-                      /*DeclsInPrototype=*/None, DeclLoc, DeclEndLoc, D,
+                      /*DeclsInPrototype=*/None, DeclLoc, DeclEndLoc,
+                      /*ReturnBoundsColonLoc=*/NoLoc,
+                      /*ReturnInteropTypeExpr=*/nullptr,
+                      /*ReturnBounds=*/nullptr,
+                      D,
                       TrailingReturnType),
                   std::move(Attr), DeclEndLoc);
   }
@@ -1349,6 +1357,7 @@ ExprResult Parser::ParseCXXCasts() {
   // Parse the abstract-declarator, if present.
   Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
 
   SourceLocation RAngleBracketLoc = Tok.getLocation();
 
@@ -1824,6 +1833,7 @@ Sema::ConditionResult Parser::ParseCXXCondition(StmtResult *InitStmt,
   // declarator
   Declarator DeclaratorInfo(DS, DeclaratorContext::ConditionContext);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
 
   // simple-asm-expr[opt]
   if (Tok.is(tok::kw_asm)) {
@@ -2432,8 +2442,10 @@ bool Parser::ParseUnqualifiedIdOperator(CXXScopeSpec &SS, bool EnteringContext,
 
   // Parse the type-specifier-seq.
   DeclSpec DS(AttrFactory);
-  if (ParseCXXTypeSpecifierSeq(DS)) // FIXME: ObjectType?
+  if (ParseCXXTypeSpecifierSeq(DS)) { // FIXME: ObjectType?
+     ExitQuantifiedTypeScope(DS);
     return true;
+  }
 
   // Parse the conversion-declarator, which is merely a sequence of
   // ptr-operators.
@@ -2796,16 +2808,19 @@ Parser::ParseCXXNewExpression(bool UseGlobal, SourceLocation Start) {
         ParseSpecifierQualifierList(DS);
         DeclaratorInfo.SetSourceRange(DS.getSourceRange());
         ParseDeclarator(DeclaratorInfo);
+        ExitQuantifiedTypeScope(DS);
         T.consumeClose();
         TypeIdParens = T.getRange();
       } else {
         MaybeParseGNUAttributes(DeclaratorInfo);
-        if (ParseCXXTypeSpecifierSeq(DS))
+        if (ParseCXXTypeSpecifierSeq(DS)) {
           DeclaratorInfo.setInvalidType(true);
-        else {
+          ExitQuantifiedTypeScope(DS);
+        } else {
           DeclaratorInfo.SetSourceRange(DS.getSourceRange());
           ParseDeclaratorInternal(DeclaratorInfo,
                                   &Parser::ParseDirectNewDeclarator);
+          ExitQuantifiedTypeScope(DS);
         }
       }
     }
@@ -2820,6 +2835,7 @@ Parser::ParseCXXNewExpression(bool UseGlobal, SourceLocation Start) {
       ParseDeclaratorInternal(DeclaratorInfo,
                               &Parser::ParseDirectNewDeclarator);
     }
+    ExitQuantifiedTypeScope(DS);
   }
   if (DeclaratorInfo.isInvalidType()) {
     SkipUntil(tok::semi, StopAtSemi | StopBeforeMatch);
@@ -2914,6 +2930,7 @@ void Parser::ParseDirectNewDeclarator(Declarator &D) {
 
     D.AddTypeInfo(DeclaratorChunk::getArray(0,
                                             /*static=*/false, /*star=*/false,
+                                            CheckedArrayKind::Unchecked,
                                             Size.get(), T.getOpenLocation(),
                                             T.getCloseLocation()),
                   std::move(Attrs), T.getCloseLocation());
@@ -2941,6 +2958,7 @@ bool Parser::ParseExpressionListOrTypeId(
     ParseSpecifierQualifierList(D.getMutableDeclSpec());
     D.SetSourceRange(D.getDeclSpec().getSourceRange());
     ParseDeclarator(D);
+    ExitQuantifiedTypeScope(D.getMutableDeclSpec());
     return D.isInvalidType();
   }
 
@@ -3254,6 +3272,7 @@ Parser::ParseCXXAmbiguousParenExpression(ParenParseOption &ExprType,
       ColonProtectionRAIIObject InnerColonProtection(*this);
       ParseSpecifierQualifierList(DS);
       ParseDeclarator(DeclaratorInfo);
+      ExitQuantifiedTypeScope(DS);
     }
 
     // Match the ')'.

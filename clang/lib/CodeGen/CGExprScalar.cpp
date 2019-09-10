@@ -801,6 +801,25 @@ public:
   }
   Value *VisitAsTypeExpr(AsTypeExpr *CE);
   Value *VisitAtomicExpr(AtomicExpr *AE);
+
+  Value *VisitBoundsValueExpr(BoundsValueExpr *E) {
+    Value *Result = nullptr;
+    if (E->getKind() == BoundsValueExpr::Kind::Temporary) {
+      CHKCBindTemporaryExpr *Temp = E->getTemporaryBinding();
+      assert(!Temp->getSubExpr()->isLValue());
+      Result = CGF.getBoundsTemporaryLValueMapping(Temp).getPointer();
+    } else
+       llvm_unreachable("unexpected bounds value expr");
+    assert(Result);
+    return Result;
+  }
+
+  Value *VisitCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
+    assert(!E->getSubExpr()->isLValue());
+    Value *Result = Visit(E->getSubExpr());
+    CGF.setBoundsTemporaryRValueMapping(E, RValue::get(Result));
+    return Result;
+  }
 };
 }  // end anonymous namespace.
 
@@ -2079,6 +2098,10 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
     const CXXDynamicCastExpr *DCE = cast<CXXDynamicCastExpr>(CE);
     return CGF.EmitDynamicCast(V, DCE);
   }
+
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
+    return CGF.EmitBoundsCast(CE);
 
   case CK_ArrayToPointerDecay:
     return CGF.EmitArrayToPointerDecay(E).getPointer();
@@ -3780,6 +3803,13 @@ Value *ScalarExprEmitter::VisitBinAssign(const BinaryOperator *E) {
     // this should improve codegen just a little.
     RHS = Visit(E->getRHS());
     LHS = EmitCheckedLValue(E->getLHS(), CodeGenFunction::TCK_Store);
+    if (E->getOpcode() == BO_Assign) {
+      BoundsExpr *BoundsCheck = CGF.GetNullTermBoundsCheck(E->getLHS());
+      if (BoundsCheck)
+        CGF.EmitDynamicBoundsCheck(LHS.getAddress(), BoundsCheck,
+                                   BoundsCheckKind::BCK_NullTermWriteAssign,
+                                   RHS);
+    }
 
     // Store the value into the LHS.  Bit-fields are handled specially
     // because the result is altered by the store, i.e., [C99 6.5.16p1]

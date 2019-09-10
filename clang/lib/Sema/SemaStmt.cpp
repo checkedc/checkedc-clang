@@ -352,7 +352,10 @@ bool Sema::isCurCompoundStmtAStmtExpr() const {
 }
 
 StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
-                                   ArrayRef<Stmt *> Elts, bool isStmtExpr) {
+                                   ArrayRef<Stmt *> Elts, bool isStmtExpr,
+                                   CheckedScopeSpecifier WrittenCSS,
+                                   SourceLocation CSSLoc,
+                                   SourceLocation CSMLoc) {
   const unsigned NumElts = Elts.size();
 
   // If we're in C89 mode, check that we don't have any decls after stmts.  If
@@ -383,7 +386,8 @@ StmtResult Sema::ActOnCompoundStmt(SourceLocation L, SourceLocation R,
       DiagnoseEmptyLoopBody(Elts[i], Elts[i + 1]);
   }
 
-  return CompoundStmt::Create(Context, Elts, L, R);
+  return CompoundStmt::Create(Context, Elts, L, R, WrittenCSS,
+                              GetCheckedScopeInfo(), CSSLoc, CSMLoc);
 }
 
 ExprResult
@@ -3522,16 +3526,22 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
   if (RetValExp && DiagnoseUnexpandedParameterPack(RetValExp))
     return StmtError();
 
-  if (isa<CapturingScopeInfo>(getCurFunction()))
+  if (isa<CapturingScopeInfo>(getCurFunction())) {
+    // In Checked C, there is no way to write the return bounds for clang
+    // extensions to C that capture variables such as __Block, so it is OK
+    // to call this.  There is nothing to check.
     return ActOnCapScopeReturnStmt(ReturnLoc, RetValExp);
+  }
 
   QualType FnRetType;
+  BoundsAnnotations FnRetBounds;
   QualType RelatedRetType;
   const AttrVec *Attrs = nullptr;
   bool isObjCMethod = false;
 
   if (const FunctionDecl *FD = getCurFunctionDecl()) {
     FnRetType = FD->getReturnType();
+    FnRetBounds = FD->getBoundsAnnotations();;
     if (FD->hasAttrs())
       Attrs = &FD->getAttrs();
     if (FD->isNoReturn())
@@ -3613,6 +3623,9 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       } else if (!RetValExp->isTypeDependent()) {
         // C99 6.8.6.4p1 (ext_ since GCC warns)
         unsigned D = diag::ext_return_has_expr;
+        if (IsCheckedScope())
+          D = diag::err_return_has_expr;
+
         if (RetValExp->getType()->isVoidType()) {
           NamedDecl *CurDecl = getCurFunctionOrMethodDecl();
           if (isa<CXXConstructorDecl>(CurDecl) ||
@@ -3683,6 +3696,17 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       DiagID = diag::warn_return_missing_expr;
     }
 
+    // In Checked C, it is an error if a return expression is
+    // missing in a checked scope or when there are return bounds.
+    if (getLangOpts().CheckedC) {
+      if (FnRetType->isCheckedPointerType())
+        DiagID = diag::err_return_missing_expr_for_checked_pointer;
+      else if (!FnRetBounds.IsEmpty())
+        DiagID = diag::err_return_missing_expr_for_bounds;
+      else if (IsCheckedScope())
+        DiagID = diag::err_return_missing_expr;
+    }
+
     if (FD)
       Diag(ReturnLoc, DiagID) << FD->getIdentifier() << 0/*fn*/;
     else
@@ -3708,7 +3732,8 @@ StmtResult Sema::BuildReturnStmt(SourceLocation ReturnLoc, Expr *RetValExp) {
       // we have a non-void function with an expression, continue checking
       InitializedEntity Entity = InitializedEntity::InitializeResult(ReturnLoc,
                                                                      RetType,
-                                                      NRVOCandidate != nullptr);
+                                                      NRVOCandidate != nullptr,
+                                                                     FnRetBounds);
       ExprResult Res = PerformMoveOrCopyInitialization(Entity, NRVOCandidate,
                                                        RetType, RetValExp);
       if (Res.isInvalid()) {
