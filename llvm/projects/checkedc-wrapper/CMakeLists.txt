@@ -23,8 +23,8 @@ if(CHECKEDC_IN_TREE)
   string(REPLACE ${CMAKE_CFG_INTDIR} ${LLVM_BUILD_MODE} CLANG_TOOLS_DIR ${LLVM_RUNTIME_OUTPUT_INTDIR})
 
   configure_lit_site_cfg(
-    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
-    ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
     )
 
   list(APPEND CHECKEDC_TEST_DEPS
@@ -38,7 +38,7 @@ if(CHECKEDC_IN_TREE)
   endif()
 
   set(CHECKEDC_TEST_PARAMS
-    checkedc_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg
+    checkedc_site_config=${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
     )
 
 if( NOT CLANG_BUILT_STANDALONE )
