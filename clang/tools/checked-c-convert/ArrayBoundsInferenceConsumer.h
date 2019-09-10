@@ -44,12 +44,6 @@ public:
 
 private:
 
-  // check if expression is a simple local variable
-  // i.e., ptr = .
-  // if yes, return the referenced local variable as the return
-  // value of the argument.
-  bool isExpressionSimpleLocalVar(Expr *toCheck, VarDecl **targetDecl);
-
   ASTContext *Context;
   ProgramInfo &Info;
 };

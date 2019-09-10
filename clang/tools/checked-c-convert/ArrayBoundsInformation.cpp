@@ -143,32 +143,44 @@ ArrayBoundsInformation::BOUNDSINFOTYPE ArrayBoundsInformation::getExprBoundsInfo
   } else if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(expr)) {
     if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(DRE->getDecl())) {
       if (FieldDecl *FD = dyn_cast<FieldDecl>(DD)) {
-        if (srcField != nullptr && FD->getParent() == srcField->getParent()) {
+        if (srcField != nullptr && FD->getParent() == srcField->getParent())
           return std::make_pair(ArrayBoundsInformation::BoundsKind::LocalFieldBound, FD->getNameAsString());
-        }
-        FD->dump();
-        DD->dump();
+
         return invalidBoundRet;
       }
       if (ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DD)) {
-        if (srcField == nullptr) {
+        if (srcField == nullptr)
           return std::make_pair(ArrayBoundsInformation::BoundsKind::LocalParamBound, PVD->getNameAsString());
-        }
+
         return invalidBoundRet;
       } else if (VarDecl *VD = dyn_cast<VarDecl>(DD)) {
-        if (VD->hasGlobalStorage()) {
+        if (VD->hasGlobalStorage())
           return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, VD->getNameAsString());
-        }
-        if (!VD->hasGlobalStorage() && srcField == nullptr) {
+
+        if (!VD->hasGlobalStorage() && srcField == nullptr)
           return std::make_pair(ArrayBoundsInformation::BoundsKind::LocalVarBound, VD->getNameAsString());
-        }
+
         return invalidBoundRet;
       }
     }
   } else if (IntegerLiteral *IL = dyn_cast<IntegerLiteral>(expr)) {
     std::string boundsInfo = "" + std::to_string(IL->getValue().getZExtValue());
     return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, boundsInfo);
-  }
+  } else if (MemberExpr *DRE = dyn_cast<MemberExpr>(expr)) {
+    if (FieldDecl *FD = dyn_cast<FieldDecl>(DRE->getMemberDecl())) {
+      if (srcField != nullptr && FD->getParent() == srcField->getParent())
+        return std::make_pair(ArrayBoundsInformation::BoundsKind::LocalFieldBound, FD->getNameAsString());
 
+      return invalidBoundRet;
+    }
+  } else if(UnaryExprOrTypeTraitExpr *UETE = dyn_cast<UnaryExprOrTypeTraitExpr>(expr)) {
+    if (UETE->getKind() == UETT_SizeOf) {
+      std::string tmpString;
+      llvm::raw_string_ostream rawStr(tmpString);
+      UETE->printPretty(rawStr, nullptr, PrintingPolicy(LangOptions()));
+      return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, rawStr.str());
+    }
+  }
+  expr->dump();
   assert(false && "Unable to handle expression type");
 }

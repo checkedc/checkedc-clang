@@ -120,7 +120,8 @@ static bool isAllocatorCall(Expr *E) {
   return false;
 }
 
-static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E, ASTContext *C, ProgramInfo &Info) {
+static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E, ASTContext *C,
+                                                                   ProgramInfo &Info, FieldDecl *isField = nullptr) {
   assert(isAllocatorCall(E) && "The provided expression should be a call to "
                                 "to a known allocator function.");
   auto &arrBoundsInfo = Info.getArrayBoundsInformation();
@@ -131,15 +132,41 @@ static ArrayBoundsInformation::BOUNDSINFOTYPE getAllocatedSizeExpr(Expr *E, ASTC
   bool isFirstExpr = true;
   for (auto parmIdx : AllocatorSizeAssoc[funcName]) {
     Expr *e = CE->getArg(parmIdx);
-    auto currBoundsInfo = arrBoundsInfo.getExprBoundsInfo(nullptr, e);
+    auto currBoundsInfo = arrBoundsInfo.getExprBoundsInfo(isField, e);
     if (!isFirstExpr) {
-      currBoundsInfo = arrBoundsInfo.combineBoundsInfo(nullptr, previousBoundsInfo, currBoundsInfo, "*");
+      currBoundsInfo = arrBoundsInfo.combineBoundsInfo(isField, previousBoundsInfo, currBoundsInfo, "*");
       isFirstExpr = false;
     }
     previousBoundsInfo = currBoundsInfo;
   }
   return previousBoundsInfo;
 
+}
+
+// check if expression is a simple local variable
+// i.e., ptr = .
+// if yes, return the referenced local variable as the return
+// value of the argument.
+bool isExpressionSimpleLocalVar(Expr *toCheck, VarDecl **targetDecl) {
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck))
+    if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(DRE->getDecl()))
+      if (!dyn_cast<FieldDecl>(FD) && !dyn_cast<ParmVarDecl>(FD))
+        if (VarDecl *VD = dyn_cast<VarDecl>(FD))
+          if (!VD->hasGlobalStorage()) {
+            *targetDecl = VD;
+            return true;
+          }
+  return false;
+}
+
+bool isExpressionStructField(Expr *toCheck, FieldDecl **targetDecl) {
+  if (MemberExpr *DRE = dyn_cast<MemberExpr>(toCheck)) {
+    if (FieldDecl *FD = dyn_cast<FieldDecl>(DRE->getMemberDecl())) {
+      *targetDecl = FD;
+      return true;
+    }
+  }
+  return false;
 }
 
 // This visitor handles the bounds of function local array variables.
@@ -288,14 +315,17 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
     // if this is an allocator function then sizeExpression contains the
     // argument used for size argument
 
-    // if LHS is just a variable? i.e., ptr = .., get the AST node of the
+    // if LHS is just a variable or struct field i.e., ptr = .., get the AST node of the
     // target variable
-    VarDecl *targetVar;
+    VarDecl *targetVar = nullptr;
+    FieldDecl *structField = nullptr;
     if (isExpressionSimpleLocalVar(LHS, &targetVar) && needArrayBounds(targetVar, Info, Context)) {
       arrBoundsInfo.addBoundsInformation(targetVar, getAllocatedSizeExpr(RHS, Context, Info));
+    } else if (isExpressionStructField(LHS, &structField) && needArrayBounds(structField, Info, Context)) {
+      if (!arrBoundsInfo.hasBoundsInformation(structField))
+        arrBoundsInfo.addBoundsInformation(structField, getAllocatedSizeExpr(RHS, Context, Info, structField));
     }
   }
-
   return true;
 }
 
@@ -311,22 +341,6 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
     }
 
   return true;
-}
-
-// check if expression is a simple local variable
-// i.e., ptr = .
-// if yes, return the referenced local variable as the return
-// value of the argument.
-bool LocalVarABVisitor::isExpressionSimpleLocalVar(Expr *toCheck, VarDecl **targetDecl) {
-  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(toCheck))
-    if (DeclaratorDecl *FD = dyn_cast<DeclaratorDecl>(DRE->getDecl()))
-      if (!dyn_cast<FieldDecl>(FD) && !dyn_cast<ParmVarDecl>(FD))
-        if (VarDecl *VD = dyn_cast<VarDecl>(FD))
-          if (!VD->hasGlobalStorage()) {
-            *targetDecl = VD;
-            return true;
-          }
-  return false;
 }
 
 void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
@@ -359,8 +373,11 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   // Run array bounds
   GlobalABVisitor GlobABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
+  // first visit all the structure members.
   for (const auto &D : TUD->decls()) {
     GlobABV.TraverseDecl(D);
+  }
+  for (const auto &D : TUD->decls()) {
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       if (FD->hasBody() && FD->isThisDeclarationADefinition()) {
         Stmt *Body = FD->getBody();
