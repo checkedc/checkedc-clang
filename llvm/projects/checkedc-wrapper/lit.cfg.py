@@ -67,8 +67,7 @@ llvm_config.with_system_environment(
 tool_dirs = [config.clang_tools_dir, config.llvm_tools_dir]
 
 tools = [
-    'c-index-test', 'clang-check', 'clang-diff', 'clang-format', 'clang-tblgen',
-    'opt',
+    'clang-tblgen', 'opt',
     ToolSubst('%clang_extdef_map', command=FindTool(
         'clang-extdef-mapping'), unresolved='ignore'),
 ]
