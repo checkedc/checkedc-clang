@@ -35,6 +35,27 @@ config.enable_backtrace = @ENABLE_BACKTRACES@
 config.host_arch = "@HOST_ARCH@"
 config.python_executable = "@PYTHON_EXECUTABLE@"
 config.use_z3_solver = lit_config.params.get('USE_Z3_SOLVER', "@USE_Z3_SOLVER@")
+config.checkedc_arm_sysroot = "@CHECKEDC_ARM_SYSROOT@"
+config.checkedc_arm_rununder = "@CHECKEDC_ARM_RUNUNDER@"
+config.checkedc_target_flags = ""
+config.checkedc_rununder = ""
+
+# Various targets can be enabled in lit by setting the lit flag
+# -DCHECKEDC_TARGET=<target>.
+checkedc_target = lit_config.params.get("CHECKEDC_TARGET")
+
+# Set the target-specific flags and run device for ARM.
+if checkedc_target == "ARM":
+  if not config.checkedc_arm_sysroot:
+    lit_config.fatal("ARM sysroot not set. Set it using llvm configure option CHECKEDC_ARM_SYSROOT")
+  if not config.checkedc_arm_rununder:
+    lit_config.fatal("ARM run device not set. Set it using llvm configure option CHECKEDC_ARM_RUNUNDER")
+
+  config.checkedc_target_flags = \
+    "-target arm-linux-gnueabihf -march=armv7-a -static \
+     --sysroot={0}/arm-linux-gnueabihf/libc \
+     --gcc-toolchain={0}".format(config.checkedc_arm_sysroot)
+  config.checkedc_rununder = config.checkedc_arm_rununder
 
 # Support substitution of the tools and libs dirs with user parameters. This is
 # used when we can't determine the tool dir at configuration time.

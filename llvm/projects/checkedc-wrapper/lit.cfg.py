@@ -198,3 +198,21 @@ if macOSSDKVersion is not None:
 if os.path.exists('/etc/gentoo-release'):
     config.available_features.add('gentoo')
 
+# These variables are needed to enable running lit tests on non-native targets
+# like ARM, etc.
+# checkedc_arm_sysroot is the path to the top of the ARM sysroot. This is
+# specified by the user with the CMake flag CHECKEDC_ARM_SYSROOT.
+config.substitutions.append(
+    ('%checkedc_arm_sysroot', config.checkedc_arm_sysroot))
+# checkedc_arm_rununder is the device on which ARM lit tests would be run. This
+# is specified by the user with the CMake flag CHECKEDC_ARM_RUNUNDER.
+config.substitutions.append(
+    ('%checkedc_arm_rununder', config.checkedc_arm_rununder))
+# checkedc_target_flags are the target-specific flags appended to each
+# compilation RUN line of lit.
+config.substitutions.append(
+    ('%checkedc_target_flags', config.checkedc_target_flags))
+# checkedc_rununder is the target-specific device prepended to each execution
+# RUN line of lit.
+config.substitutions.append(
+    ('%checkedc_rununder', config.checkedc_rununder))
