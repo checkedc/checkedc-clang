@@ -377,6 +377,7 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   for (const auto &D : TUD->decls()) {
     GlobABV.TraverseDecl(D);
   }
+  // next try to guess the bounds information for function locals.
   for (const auto &D : TUD->decls()) {
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       if (FD->hasBody() && FD->isThisDeclarationADefinition()) {
