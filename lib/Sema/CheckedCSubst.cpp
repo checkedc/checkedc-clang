@@ -639,7 +639,15 @@ public:
     // We need to renumber `TypeVar`, so we add the mapping `TypeVar -> NewDepth` to the substitutions.
     // The index is 0 because existentials only bound one type variable.
     // IsBoundsInterfaceType is false because an existential isn't a bounds interface.
-    Substs.insert(std::make_pair(TypeVar, Context.getTypeVariableType(NewDepth, 0 /* Index */, false /* IsBoundsInterfaceType */)));
+    // We use the `[]` operator instead of `insert`, because the key might already be in the map,
+    // in which case we want to replace the associated value.
+    // Example:
+    //   Suppose we're canonicalizing `_Exists(1, _Exists(2, struct Foo<0>))`, where 0 is free
+    //   First, we canonicalize the inner type: _Exists(2, struct Foo<0>) => _Exists(1, struct Foo<0>)
+    //   Then we handle the outer existential by calling TransformExistentialType(_Exists(1, struct Foo<0>)) where Substs = map(1 => 1)
+    //   At this point, we encounter a new bound variable (1), and need to send 1 => 2. But 1 is already a key in
+    //   the substitution map, so we need to replace the binding 1 => 1 by 1 => 2.
+    Substs[TypeVar] = Context.getTypeVariableType(NewDepth, 0 /* Index */, false /* IsBoundsInterfaceType */);
     // Increment NewDepth so that there are no future collisions.
     NewDepth += 1;
     // Now the default recursion on both components so that the substitution can happen.
@@ -651,6 +659,8 @@ public:
 const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Type *TypeVar, QualType InnerType) {
   auto *Cached = Context.getCachedExistentialType(TypeVar, InnerType);
   if (Cached) return Cached;
+  // TODO: explain why we compute the canonical type here
+  auto CanonInnerType = InnerType.getCanonicalType();
   // The type we need to generate isn't already cached, so we need to cache it.
   // Before caching it we need to generate an underlying canonical type.
   //
@@ -673,7 +683,7 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   // we moved from using the user-visible names for type variables (e.g. 'X', 'Y', and 'Z') to
   // the low-level representation with depth levels.
   FreeVariablesFinder FreeVarsFinder(*this);
-  auto FreeVars = FreeVarsFinder.find(InnerType);
+  auto FreeVars = FreeVarsFinder.find(CanonInnerType);
   // `TypeVar` could be a TypedefType, so we need to get its underlying type.
   auto *TypeVarRaw = Context.getCanonicalType(TypeVar)->getAs<TypeVariableType>();
   if (!TypeVarRaw) llvm_unreachable("Expected a TypeVariableType as the canonical type");
@@ -702,7 +712,7 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   auto NewTypeVar = Context.getTypeVariableType(NewDepth, 0 /* position */, false /* isBoundsInterfaceType */);
   Substs.insert(std::make_pair(TypeVarRaw, NewTypeVar));
   AlphaRenamer Renamer(*this);
-  auto NewInnerType = Renamer.Rename(InnerType, NewDepth + 1 /* NewDepth is already used */, Substs);
+  auto NewInnerType = Renamer.Rename(CanonInnerType, NewDepth + 1 /* NewDepth is already used */, Substs);
   // We can finally get the canonical type with components (NewTypeVar, NewInnerType).
   auto *CanonType = Context.getCachedExistentialType(NewTypeVar.getTypePtr(), NewInnerType);
   if (!CanonType) {
@@ -717,7 +727,5 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
     ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
     Context.addCachedExistentialType(TypeVar, InnerType, ExistTpe);
   }
-  ExistTpe->dump();
-  CanonType->dump();
   return ExistTpe;
 }
