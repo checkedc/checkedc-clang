@@ -57,6 +57,7 @@ void callPolymorphicTypes(void) {
   arrayPtrGenericTest<int>(a, 5);
 
   // Check the type of DeclRefExpr is correctly instantiated.
+  // CHECK-AST: CallExpr {{0x[0-9a-f]+}} <line:{{[0-9]+}}:{{[0-9]+}}, col:{{[0-9]+}}> 'void'
   // CHECK-AST-NEXT: ImplicitCastExpr {{0x[0-9a-f]+}} <col:{{[0-9]+}}> 'void (*)(_Array_ptr<int>, int)' <FunctionToPointerDecay>
   // CHECK-AST-NEXT: DeclRefExpr {{0x[0-9a-f]+}} <col:{{[0-9]+}}> 'void (_Array_ptr<int>, int)' instantiated Function {{0x[0-9a-f]+}} 'arrayPtrGenericTest' '_For_any(1) void (_Array_ptr<T>, int)'
 
