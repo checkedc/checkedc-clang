@@ -18,7 +18,7 @@ extern int ga3 _Checked[3];
 extern int gma _Checked[3][3];
 
 // CHECK-AST: FunctionDecl {{.*}} f1
-// CHECK-IR: define {{.*}} void @f1
+// CHECK-IR: define {{.*}}void @f1
 void f1(void) {
   //
   // Global Array_Ptrs
@@ -201,7 +201,7 @@ void f1(void) {
 }
 
 // CHECK-AST: FunctionDecl {{.*}} f2
-// CHECK-IR: define {{.*}} void @f2
+// CHECK-IR: define {{.*}}void @f2
 void f2(_Array_ptr<int> lp1 : count(1),
         _Array_ptr<int> lp3 : count(3)) {
   //
@@ -388,7 +388,7 @@ void f2(_Array_ptr<int> lp1 : count(1),
 }
 
 // CHECK-AST: FunctionDecl {{.*}} f3
-// CHECK-IR: define {{.*}} void @f3
+// CHECK-IR: define {{.*}}void @f3
 void f3(void) {
   //
   // Global Checked Arrays
@@ -559,7 +559,7 @@ void f3(void) {
 }
 
 // CHECK-AST: FunctionDecl {{.*}} f4
-// CHECK-IR: define {{.*}} void @f4
+// CHECK-IR: define {{.*}}void @f4
 void f4(int la1 _Checked[1],
         int la3 _Checked[3]) {
   //
@@ -743,7 +743,7 @@ void f4(int la1 _Checked[1],
 
 
 // CHECK-AST: FunctionDecl {{.*}} f5
-// CHECK-IR: define {{.*}} void @f5
+// CHECK-IR: define {{.*}}void @f5
 void f5() {
   //
   // Global Multidimensional Checked Arrays
@@ -966,7 +966,7 @@ void f5() {
 }
 
 // CHECK-AST: FunctionDecl {{.*}} f6
-// CHECK-IR: define {{.*}} void @f6
+// CHECK-IR: define {{.*}}void @f6
 void f6(int lma _Checked[3][3]) {
 
   lma[0][0] += 1;
