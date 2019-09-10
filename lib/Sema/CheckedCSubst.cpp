@@ -717,5 +717,7 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
     ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
     Context.addCachedExistentialType(TypeVar, InnerType, ExistTpe);
   }
+  ExistTpe->dump();
+  CanonType->dump();
   return ExistTpe;
 }

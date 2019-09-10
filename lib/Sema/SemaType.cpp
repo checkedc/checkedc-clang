@@ -1566,8 +1566,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       break;
   }
   case DeclSpec::TST_exists: {
-    // Use the canonical type for the inner type, so we can cache properly.
-    auto InnerType = S.GetTypeFromParser(DS.getRepAsType()).getCanonicalType();
+    auto InnerType = S.GetTypeFromParser(DS.getRepAsType());
     assert(DS.typeVariables().size() == 1 && "Expected exactly one type variable for an existential");
     auto TypeVar = Context.getTypeDeclType(DS.typeVariables()[0]);
     assert(TypeVar->getAs<TypedefType>() && "Expected the type to be a TypedefType");
