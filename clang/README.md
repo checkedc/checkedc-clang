@@ -6,6 +6,11 @@ extends C with checking to detect or prevent common programming  errors such as
 out-of-bounds memory accesses.  The Checked C specification is available  at the 
 [Checked C repo](https://github.com/Microsoft/checkedc).
 
+## Compiler source code update
+
+On January 25, 2019, we updated to LLVM/clang sources from January 16, 2019.  If you are building the Checked C clang compiler 
+from source code, we suggest you do a clean build by deleting your cmake object directory.
+
 ## We are hiring.
 
 We have a position available for a 
