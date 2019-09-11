@@ -10,6 +10,7 @@
 #define _UTILS_H
 #include <set>
 #include "llvm/Support/CommandLine.h"
+
 #include "PersistentSourceLoc.h"
 
 class ConstraintVariable;
@@ -30,4 +31,8 @@ const clang::Type *getNextTy(const clang::Type *Ty);
 ConstraintVariable *getHighest(std::set<ConstraintVariable*> Vs, ProgramInfo &Info);
 
 clang::FunctionDecl *getDeclaration(clang::FunctionDecl *FD);
+
+clang::FunctionDecl *getDefinition(clang::FunctionDecl *FD);
+
+clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 #endif
