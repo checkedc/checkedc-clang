@@ -15,7 +15,8 @@
 #include "Utils.h"
 #include "ArrayBoundsInformation.h"
 
-static std::set<std::string> possibleLengthVarNames = {"len", "count", "size", "num"};
+static std::set<std::string> possibleLengthVarNamesPrefixes = {"len", "count", "size", "num"};
+static std::set<std::string> possibleLengthVarNamesSubstring = {"length"};
 #define PREFIXLENRATIO 1
 
 // Name based heuristics
@@ -50,8 +51,13 @@ static bool fieldNameMatch(std::string lenFieldName) {
   // convert the field name to lower case
   std::transform(lenFieldName.begin(), lenFieldName.end(), lenFieldName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
-  for (auto &potentialName : possibleLengthVarNames) {
+  for (auto &potentialName : possibleLengthVarNamesPrefixes) {
     if (lenFieldName.rfind(potentialName, 0) == 0)
+      return true;
+  }
+
+  for (auto &potentialName : possibleLengthVarNamesSubstring) {
+    if (lenFieldName.find(potentialName) != std::string::npos)
       return true;
   }
   return false;
@@ -61,7 +67,10 @@ static bool hasLengthKeyword(std::string varName) {
   // convert the field name to lower case
   std::transform(varName.begin(), varName.end(), varName.begin(),
                  [](unsigned char c){ return std::tolower(c); });
-  for (auto &potentialName : possibleLengthVarNames) {
+
+  std::set<std::string> allLengthKeywords(possibleLengthVarNamesPrefixes);
+  allLengthKeywords.insert(possibleLengthVarNamesSubstring.begin(), possibleLengthVarNamesSubstring.end());
+  for (auto &potentialName : allLengthKeywords) {
     if (varName.find(potentialName) != std::string::npos)
       return true;
   }
