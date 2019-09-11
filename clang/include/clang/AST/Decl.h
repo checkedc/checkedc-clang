@@ -3770,14 +3770,29 @@ public:
   };
 
 protected:
-  RecordDecl(Kind DK, TagKind TK, const ASTContext &C, DeclContext *DC,
-             SourceLocation StartLoc, SourceLocation IdLoc,
-             IdentifierInfo *Id, RecordDecl *PrevDecl);
+  RecordDecl(Kind DK,
+             TagKind TK,
+             const ASTContext &C,
+             DeclContext *DC,
+             SourceLocation StartLoc,
+             SourceLocation IdLoc,
+             IdentifierInfo *Id,
+             RecordDecl *PrevDecl,
+             ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
+             RecordDecl *GenericBaseDecl = nullptr,
+             ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
 
 public:
-  static RecordDecl *Create(const ASTContext &C, TagKind TK, DeclContext *DC,
-                            SourceLocation StartLoc, SourceLocation IdLoc,
-                            IdentifierInfo *Id, RecordDecl* PrevDecl = nullptr);
+  static RecordDecl *Create(const ASTContext &C,
+                            TagKind TK,
+                            DeclContext *DC,
+                            SourceLocation StartLoc,
+                            SourceLocation IdLoc,
+                            IdentifierInfo *Id,
+                            RecordDecl *PrevDecl = nullptr,
+                            ArrayRef<TypedefDecl*> TypeParams = ArrayRef<TypedefDecl*>(nullptr, static_cast<size_t>(0)),
+                            RecordDecl *GenericBaseDecl = nullptr,
+                            ArrayRef<TypeArgument> TypeArgs = ArrayRef<TypeArgument>(nullptr, static_cast<size_t>(0)));
   static RecordDecl *CreateDeserialized(const ASTContext &C, unsigned ID);
 
   RecordDecl *getPreviousDecl() {
@@ -3966,9 +3981,53 @@ public:
   /// nullptr is returned if no named data member exists.
   const FieldDecl *findFirstNamedDataMember() const;
 
+  // Checked C
+
+  /// Whether the record is generic.
+  bool isGeneric() const;
+  /// Returns the record's type parameters.
+  /// If there are no type parameters, then the array will be empty.
+  ArrayRef<TypedefDecl *> typeParams() const;
+
+  /// Whether the record is a (fully) instantiated generic.
+  bool isInstantiated() const;
+  /// If this is an instantiated RecordDecl, return the underlying generic RecordDecl.
+  RecordDecl *genericBaseDecl() const;
+  /// Returns the record's type arguments.
+  /// If there are no type arguments, then the array will be empty.
+  ArrayRef<TypeArgument> typeArgs() const;
+
+  /// Whether this record represents a delayed type application.
+  /// If so, then 'isInstantiated()' will return 'true', and the type arguments will be populated.
+  /// However, the record's fields won't be set yet.
+  bool isDelayedTypeApp() const;
+  /// Indicate whether this record is currently a delayed type application.
+  void setDelayedTypeApp(bool IsDelayed);
+
 private:
   /// Deserialize just the fields.
   void LoadFieldsFromExternalStorage() const;
+
+  // Checked C
+  // There are two sets of fields we add below to support generic structs:
+  //   - 'isGeneric' and type-params-related fields are set for _definitions_ of generic structs:
+  //      e.g. 'struct List _For_any(T) { /* generic list definition */ }; '
+  //   - 'isInstantiated' and type-args-related fields are set for _instantiations_ of generic structs:
+  //      e.g. 'struct List<int> li;'
+  // In particular, it doesn't make sense to set _both_ 'isGeneric' and 'isInstantiated', since a struct
+  // is either generic or instantiated (we don't support partial instantiations).
+
+  /// Type parameters for this record. Empty iff this isn't a generic record.
+  std::vector<TypedefDecl *> TypeParams;
+
+  /// The underlying generic RecordDecl that was instantiated.
+  RecordDecl *GenericBaseDecl;
+  /// Type parameters for this record. Empty iff this isn't a type application.
+  std::vector<TypeArgument> TypeArgs;
+
+  /// Whether this record represents a delayed type application.
+  /// A delayed type application won't contain any fields, until it is completed via 'Sema::CompleteTypeAppFields'.
+  bool IsDelayed = false;
 };
 
 class FileScopeAsmDecl : public Decl {

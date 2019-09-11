@@ -1866,7 +1866,7 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         return LHS;
       }
 
-      LHS = ParseGenericTypeArgumentList(LHS, Loc);
+      LHS = ParseGenericFunctionApplication(LHS, Loc);
       if (LHS.isInvalid())
         LHS = ExprError();
 
@@ -3255,19 +3255,15 @@ ExprResult Parser::ParseBoundsExpression() {
   return Result;
 }
 
-// Parse a generic type argument list.  The suffix of postfix expression can
-// have the form '<' type name 1, ... type name n '>', in which case it is a
-// generic type argument list.
-//
-// For now, handle only the case where Res is a generic DeclRef.
-//
-// TODO: We need to handle the case where Res is an expression with
-// generic type.  However, we don't have the AST support for this yet.
-//
-// Returns false if parsing succeeded and true if an error occurred.
-ExprResult Parser::ParseGenericTypeArgumentList(ExprResult Res, SourceLocation Loc) {
-  SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
-  bool firstTypeArgument = true;
+// Parse a generic type argument list of the form type_name_1, ..., type_name_n '>'.
+// Notice the initial '<' must have already been parsed.
+// This is re-used for both generic functions and generic structs.
+// Return false if parsing succeeds, in which case the 'typeArgs' is also populated.
+// Return true if parsing fails.
+std::pair<bool, Parser::TypeArgVector> Parser::ParseGenericTypeArgumentList(SourceLocation Loc) {
+  Parser::TypeArgVector typeArgumentInfos;
+  auto err = std::make_pair<>(true, Parser::TypeArgVector());
+  auto firstTypeArgument = true;
   // Expect to see a list of type names, followed by a '>'.
   while (Tok.getKind() != tok::greater) {
     if (!firstTypeArgument) {
@@ -3276,19 +3272,19 @@ ExprResult Parser::ParseGenericTypeArgumentList(ExprResult Res, SourceLocation L
         // We want to consume greater, but not consume semi
         SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
         if (Tok.getKind() == tok::greater) ConsumeToken();
-        return ExprError();
+        return err;
       }
     } else
       firstTypeArgument = false;
 
     // Expect to see type name.
-    TypeResult Ty = ParseTypeName();
+    TypeResult Ty = ParseTypeName(nullptr /*Range*/, DeclaratorContext::TypeNameContext, AS_none, nullptr /*OwnedType*/, nullptr /*Attrs*/);
     if (Ty.isInvalid()) {
       // We do not need to write an error message since ParseTypeName does.
       // We want to consume greater, but not consume semi
       SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
       if (Tok.getKind() == tok::greater) ConsumeToken();
-      return ExprError();
+      return err;
     }
 
     TypeSourceInfo *TInfo;
@@ -3297,8 +3293,18 @@ ExprResult Parser::ParseGenericTypeArgumentList(ExprResult Res, SourceLocation L
   }
   ConsumeToken(); // consume '>' token
 
-  auto TypeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>(typeArgumentInfos);
-  return Actions.ActOnTypeApplication(Res, Loc, TypeArgs);
+  return std::make_pair(false, typeArgumentInfos);
+}
+
+// Parse a generic type argument list for a function application.  The suffix of postfix expression can
+// have the form type_name_1, ... type_name_n '>' (notice the initial '<' must have already been parsed),
+// in which case it is a generic type argument list.
+//
+// Returns false if parsing succeeded and true if an error occurred.
+ExprResult Parser::ParseGenericFunctionApplication(ExprResult Res, SourceLocation Loc) {
+  auto ArgRes = ParseGenericTypeArgumentList(Loc);
+  if (ArgRes.first) return ExprError();
+  return Actions.ActOnFunctionTypeApplication(Res, Loc, ArrayRef<TypeArgument>(ArgRes.second));
 }
 
 bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {

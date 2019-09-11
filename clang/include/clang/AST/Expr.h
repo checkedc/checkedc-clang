@@ -1061,13 +1061,6 @@ public:
   /// \brief Information for an instantiation of generic function. Stores type
   /// name list and location required to instantiate generic function.
   class GenericInstInfo {
-  public:
-    struct TypeArgument {
-      QualType typeName;
-      TypeSourceInfo *sourceInfo;
-    };
-
-  private :
     /// \brief references to generic functions in code must always be
     /// instantiated (applied to type arguments). Type arguments are stored in
     /// DeclRefExpr.
@@ -1204,7 +1197,7 @@ public:
   }
 
   void SetGenericInstInfo(ASTContext &C,
-       ArrayRef<GenericInstInfo::TypeArgument> NewTypeVariableNames) {
+       ArrayRef<TypeArgument> NewTypeVariableNames) {
     TypeArgumentInfo = GenericInstInfo::Create(C, NewTypeVariableNames);
   }
 

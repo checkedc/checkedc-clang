@@ -4152,11 +4152,21 @@ unsigned EnumDecl::getODRHash() {
 //===----------------------------------------------------------------------===//
 
 RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
-                       DeclContext *DC, SourceLocation StartLoc,
-                       SourceLocation IdLoc, IdentifierInfo *Id,
-                       RecordDecl *PrevDecl)
-    : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc) {
+                       DeclContext *DC,
+                       SourceLocation StartLoc,
+                       SourceLocation IdLoc,
+                       IdentifierInfo *Id,
+                       RecordDecl *PrevDecl,
+                       ArrayRef<TypedefDecl*> TypeParams,
+                       RecordDecl *GenericBaseDecl,
+                       ArrayRef<TypeArgument> TypeArgs)
+    : TagDecl(DK, TK, C, DC, IdLoc, Id, PrevDecl, StartLoc),
+      TypeParams(TypeParams.begin(), TypeParams.end()),
+      GenericBaseDecl(GenericBaseDecl),
+      TypeArgs(TypeArgs.begin(), TypeArgs.end()) {
   assert(classof(static_cast<Decl *>(this)) && "Invalid Kind!");
+  assert(!(isGeneric() && isInstantiated()) && "Record can't be both generic and instantiated");
+  assert(!(isInstantiated() ^ static_cast<bool>(GenericBaseDecl)) && "Must provide both base decl and type arguments, or neither");
   setHasFlexibleArrayMember(false);
   setAnonymousStructOrUnion(false);
   setHasObjectMember(false);
@@ -4169,11 +4179,18 @@ RecordDecl::RecordDecl(Kind DK, TagKind TK, const ASTContext &C,
   setArgPassingRestrictions(APK_CanPassInRegs);
 }
 
-RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
-                               SourceLocation StartLoc, SourceLocation IdLoc,
-                               IdentifierInfo *Id, RecordDecl* PrevDecl) {
+RecordDecl *RecordDecl::Create(const ASTContext &C,
+                               TagKind TK,
+                               DeclContext *DC,
+                               SourceLocation StartLoc,
+                               SourceLocation IdLoc,
+                               IdentifierInfo *Id,
+                               RecordDecl *PrevDecl,
+                               ArrayRef<TypedefDecl*> TypeParams,
+                               RecordDecl *GenericBaseDecl,
+                               ArrayRef<TypeArgument> TypeArgs) {
   RecordDecl *R = new (C, DC) RecordDecl(Record, TK, C, DC,
-                                         StartLoc, IdLoc, Id, PrevDecl);
+                                         StartLoc, IdLoc, Id, PrevDecl, TypeParams, GenericBaseDecl, TypeArgs);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
 
   C.getTypeDeclType(R, PrevDecl);
@@ -4182,8 +4199,7 @@ RecordDecl *RecordDecl::Create(const ASTContext &C, TagKind TK, DeclContext *DC,
 
 RecordDecl *RecordDecl::CreateDeserialized(const ASTContext &C, unsigned ID) {
   RecordDecl *R =
-      new (C, ID) RecordDecl(Record, TTK_Struct, C, nullptr, SourceLocation(),
-                             SourceLocation(), nullptr, nullptr);
+      new (C, ID) RecordDecl(Record, TTK_Struct, C, nullptr, SourceLocation(), SourceLocation(), nullptr /* Id */, nullptr /* PrevDecl */);
   R->setMayHaveOutOfDateDef(C.getLangOpts().Modules);
   return R;
 }
@@ -4312,6 +4328,40 @@ const FieldDecl *RecordDecl::findFirstNamedDataMember() const {
 
   // We didn't find a named data member.
   return nullptr;
+}
+
+// Checked C
+
+// Type Parameters
+
+bool RecordDecl::isGeneric() const {
+  return !TypeParams.empty();
+}
+
+ArrayRef<TypedefDecl *> RecordDecl::typeParams() const {
+  return TypeParams;
+}
+
+// Type Arguments
+
+bool RecordDecl::isInstantiated() const {
+  return !TypeArgs.empty();
+}
+
+RecordDecl *RecordDecl::genericBaseDecl() const {
+  return GenericBaseDecl;
+}
+
+ArrayRef<TypeArgument> RecordDecl::typeArgs() const {
+  return TypeArgs;
+}
+
+bool RecordDecl::isDelayedTypeApp() const {
+  return IsDelayed;
+}
+
+void RecordDecl::setDelayedTypeApp(bool IsDelayed) {
+  this->IsDelayed = IsDelayed;
 }
 
 //===----------------------------------------------------------------------===//

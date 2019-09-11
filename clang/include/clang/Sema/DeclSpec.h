@@ -393,8 +393,8 @@ private:
 
   TypedefDecl **TypeVarInfo;
   unsigned NumTypeVars : 15;
-  bool GenericFunction : 1;
-  bool ItypeGenericFunction : 1;
+  bool GenericFunctionOrStruct : 1;
+  bool ItypeGenericFunctionOrStruct : 1;
 
 
   // Scope specifier for the type spec, if applicable.
@@ -475,8 +475,8 @@ public:
       Attrs(attrFactory),
       TypeVarInfo(nullptr),
       NumTypeVars(0),
-      GenericFunction(false),
-      ItypeGenericFunction(false),
+      GenericFunctionOrStruct(false),
+      ItypeGenericFunctionOrStruct(false),
       writtenBS(),
       ObjCQualifiers(nullptr) {
   }
@@ -624,12 +624,12 @@ public:
   SourceLocation getForanySpecLoc() const { return FS_foranyLoc; }
 
   void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars);
-  void setGenericFunction(bool IsGeneric) { GenericFunction = IsGeneric; }
-  void setItypeGenericFunction(bool IsItypeGeneric) { ItypeGenericFunction = IsItypeGeneric; }
+  void setGenericFunctionOrStruct(bool IsGeneric) { GenericFunctionOrStruct = IsGeneric; }
+  void setItypeGenericFunctionOrStruct(bool IsItypeGeneric) { ItypeGenericFunctionOrStruct = IsItypeGeneric; }
   void setNumTypeVars(unsigned NewNumTypeVars) { NumTypeVars = NewNumTypeVars; }
   unsigned getNumTypeVars(void) const { return NumTypeVars; }
-  bool isGenericFunction(void) const { return GenericFunction; }
-  bool isItypeGenericFunction(void) const { return ItypeGenericFunction; }
+  bool isGenericFunctionOrStruct(void) const { return GenericFunctionOrStruct; }
+  bool isItypeGenericFunctionOrStruct(void) const { return ItypeGenericFunctionOrStruct; }
 
   ArrayRef<TypedefDecl *> typeVariables() const {
     return { TypeVarInfo, getNumTypeVars() };
@@ -778,9 +778,9 @@ public:
                               const char *&PrevSpec, unsigned &DiagID);
   bool setFunctionSpecUnchecked(SourceLocation Loc, const char *&PrevSpec,
                                 unsigned &DiagID);
-  bool setFunctionSpecForany(SourceLocation Loc, const char *&PrevSpec,
+  bool setSpecForany(SourceLocation Loc, const char *&PrevSpec,
                                 unsigned &DiagID);
-  bool setFunctionSpecItypeforany(SourceLocation Loc, const char *&PrevSpec,
+  bool setSpecItypeforany(SourceLocation Loc, const char *&PrevSpec,
                                     unsigned &DiagID);
   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                      unsigned &DiagID);

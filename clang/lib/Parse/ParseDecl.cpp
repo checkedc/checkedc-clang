@@ -2494,12 +2494,11 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
 ///          type-qualifier specifier-qualifier-list[opt]
 /// [GNU]    attributes     specifier-qualifier-list[opt]
 ///
-void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS,
-                                         DeclSpecContext DSC) {
+void Parser::ParseSpecifierQualifierList(DeclSpec &DS, AccessSpecifier AS, DeclSpecContext DSC) {
   /// specifier-qualifier-list is a subset of declaration-specifiers.  Just
   /// parse declaration-specifiers and complain about extra stuff.
   /// TODO: diagnose attribute-specifiers and alignment-specifiers.
-  ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC);
+  ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC, nullptr /* LateAttrs */);
 
   // Validate declspec for type-name.
   unsigned Specs = DS.getParsedSpecifiers();
@@ -3012,8 +3011,8 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 /// [GNU]   attributes declaration-specifiers[opt]
 /// [Clang] '__module_private__' declaration-specifiers[opt]
 /// [ObjC1] '__kindof' declaration-specifiers[opt]
-///
-///       storage-class-specifier: [C99 6.7.1]
+/// [CheckedC] for-any-specifier declaration-specifier[opt]
+///    storage-class-specifier: [C99 6.7.1]
 ///         'typedef'
 ///         'extern'
 ///         'static'
@@ -3028,11 +3027,12 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 /// [C++]   'virtual'
 /// [C++]   'explicit'
 /// [OpenCL] '__kernel'
+///       'friend': [C++ dcl.friend]
+///       'constexpr': [C++0x dcl.constexpr]
+///       for-any-specifier: [CheckedC]
 /// [CheckedC] '_For_any'
 /// [CheckedC] '_Itype_for_any'
 /// [CheckedC] '_Itype_for_any' and '_For_any' are mutually exclusive
-///       'friend': [C++ dcl.friend]
-///       'constexpr': [C++0x dcl.constexpr]
 void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                         const ParsedTemplateInfo &TemplateInfo,
                                         AccessSpecifier AS,
@@ -3142,13 +3142,13 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw__Nt_checked:
       goto DoneWithDeclSpec;
     case tok::kw__For_any:
-      isInvalid = DS.setFunctionSpecForany(Loc, PrevSpec, DiagID);
+      isInvalid = DS.setSpecForany(Loc, PrevSpec, DiagID);
       if (isInvalid)
           goto DoneWithDeclSpec;
       ParseForanySpecifier(DS);
       continue;
     case tok::kw__Itype_for_any:
-      isInvalid = DS.setFunctionSpecItypeforany(Loc, PrevSpec, DiagID);
+      isInvalid = DS.setSpecItypeforany(Loc, PrevSpec, DiagID);
       if (isInvalid)
         goto DoneWithDeclSpec;
       ParseItypeforanySpecifier(DS);
@@ -4077,7 +4077,7 @@ void Parser::ParseStructDeclaration(
   DS.takeAttributesFrom(Attrs);
 
   // Parse the common specifier-qualifiers-list piece.
-  ParseSpecifierQualifierList(DS);
+  ParseSpecifierQualifierList(DS, AS_none, DeclSpecContext::DSC_normal);
 
   // Checked C - mark the current scope as checked or unchecked if necessary.
   Sema::CheckedScopeRAII CheckedScopeTracker(Actions, DS);
@@ -4353,6 +4353,35 @@ void Parser::ParseStructUnionBody(SourceLocation RecordLoc,
         FD->setInvalidDecl();
     }
   }
+
+  // Checked C: complete delayed generic type applications.
+  auto RecDecl = llvm::dyn_cast<RecordDecl>(TagDecl);
+  if (RecDecl && RecDecl->isGeneric()) {
+    auto Base = llvm::dyn_cast<RecordDecl>(RecDecl->getCanonicalDecl());
+    if (!Actions.DiagnoseExpandingCycles(Base, RecordLoc)) {
+      // Complete all delayed type applications corresponding to this definition.
+      // These need to be completed *after* all of the record's fields have been parsed.
+      // Otherwise, consider the following recursive struct:
+      //   struct List _For_any(T) {
+      //     T *head;
+      //     struct List<T> *tail1;
+      //     struct List<T> *tail2;
+      //   }
+      //
+      // If all type applications are done immediately after the corresponding field
+      // is processed, then when we encounter 'List<T>' corresponding to 'tail1', we need
+      // to instantiate a 'List' record for which we don't know the set of fields
+      // (specifically, we don't know that it contains a second 'tail2' field).
+      //
+      // The solution is to initially create a "dummy" RecordDecl to represent 'List<T>'
+      // and give the 'tail1' and 'tail2' fields that type.
+      // After *all* fields have been parsed, then we can fill in the fields of the dummy RecordDecls.
+      auto Delayed = Actions.getASTContext().getDelayedTypeApps(Base);
+      for (auto TypeApp : Delayed) Actions.CompleteTypeAppFields(TypeApp);
+      Actions.getASTContext().removeDelayedTypeApps(Base);
+    }
+  }
+
   StructScope.Exit();
   Actions.ActOnTagFinishDefinition(getCurScope(), TagDecl, T.getRange());
 }
@@ -7344,21 +7373,21 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
 }
 
 void Parser::ParseItypeforanySpecifier(DeclSpec &DS) {
-  if(!ParseGenericFunctionSpecifierHelper(DS, Scope::ItypeforanyScope)) {
-    DS.setItypeGenericFunction(true);
+  if(!ParseForanySpecifierHelper(DS, Scope::ItypeforanyScope)) {
+    DS.setItypeGenericFunctionOrStruct(true);
   }
 }
 
 void Parser::ParseForanySpecifier(DeclSpec &DS) {
-  if(!ParseGenericFunctionSpecifierHelper(DS, Scope::ForanyScope)) {
-    DS.setGenericFunction(true);
+  if(!ParseForanySpecifierHelper(DS, Scope::ForanyScope)) {
+    DS.setGenericFunctionOrStruct(true);
   }
 }
 
-/// Parses type variables that are part of function specifiers "_For_any" and "_Itype_for_any"
+/// Parses type variables that are part of function or struct specifiers "_For_any" and "_Itype_for_any"
 /// Parameter "S" can either be "ForanyScope" or "ItypeforanyScope"
 /// Parameter "Ident" is the identifier string(_For_any or _Itype_for_any) that will be used within the parsing error messages
-bool Parser::ParseGenericFunctionSpecifierHelper(DeclSpec &DS,
+bool Parser::ParseForanySpecifierHelper(DeclSpec &DS,
                                                   Scope::ScopeFlags S) {
   assert((S == Scope::ForanyScope) || (S == Scope::ItypeforanyScope));  
 

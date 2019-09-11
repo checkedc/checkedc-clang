@@ -2249,7 +2249,8 @@ public:
                  bool &IsDependent, SourceLocation ScopedEnumKWLoc,
                  bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
                  bool IsTypeSpecifier, bool IsTemplateParamOrArg,
-                 SkipBodyInfo *SkipBody = nullptr);
+                 SkipBodyInfo *SkipBody = nullptr,
+                 ArrayRef<TypedefDecl *> TypeParams = ArrayRef<TypedefDecl *> {nullptr, 0} );
 
   Decl *ActOnTemplatedFriendTag(Scope *S, SourceLocation FriendLoc,
                                 unsigned TagSpec, SourceLocation TagLoc,
@@ -4872,11 +4873,49 @@ public:
 
   BoundsExpr *CheckNonModifyingBounds(BoundsExpr *Bounds, Expr *E);
 
-  ExprResult ActOnTypeApplication(ExprResult TypeFunc, SourceLocation Loc,
-                     ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> Args);
+  ExprResult ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocation Loc, ArrayRef<TypeArgument> Args);
 
-  QualType SubstituteTypeArgs(QualType QT,
-                ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument> TypeArgs);
+  RecordDecl *ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs);
+
+  /// Complete a delayed type application by populating the record's fields with the right types.
+  /// Should only be called once per delayed 'RecordDecl'.
+  void CompleteTypeAppFields(RecordDecl *Incomplete);
+
+  // Determine whether the given 'RecordDecl' is part of an 'expanding cycle'.
+  // Generic records that form part of an expanding cycle can't be instantiated because they
+  // produce an infinite number of type applications (because we construct the transitive closure
+  // of type applications eagerly).
+  //
+  // Consider the graph of type parameter dependencies as defined below. An expanding cycle
+  // is a cycle in the graph that contains at least one expanding edge.
+  //
+  // We show how the graph is built via an example. Suppose we have three generic structs A<T>, B<U>, C<V>:
+  //
+  //   struct A _For_any(T) { struct A<T>* a; struct B<T> *b; }
+  //   struct B _For_any(U) { struct C<struct C<U> > *c; }
+  //   struct C _For_any(V) { struct A<V>* a; }
+  //
+  // The vertices of the graph are T, U, and V (the type parameter, alpha re-named if needed).
+  // There is an edge between nodes N1 and N2 if N2 is used in a field anywhere in the position of N1.
+  // If N2 appears at the "top-level" replacing N1, then the resulting edge is "non-expanding".
+  // Otheriwse, if N2 appears nested within the argument that replaces N1, then the edge is "expanding".
+  //
+  // In our example the edges are:
+  //
+  //   non-expanding: T -> T, T -> U, V -> T, U -> V
+  //   expanding: U => V
+  //
+  // T -> U, U => V, V -> T is an expanding cycle because it contains the expanding edge U => V
+  //
+  // The cycle will be detected when C is processed (because C is defined last). If we tried to instantiate C, we would
+  // end up performing the following type applications:
+  //   A<V>, B<V>, C<C<V>>, A<C<V>>, B<C<V>>, C<C<C<V>>>, ...
+  //
+  // The definition of expanding cycle is adapted from the 'ECMA 335 Common Language Infrastructure (CLI) Partitions I to VI' standard.
+  // Specifically, Partition II, section II.9.2 'Generics and recursive inheritance graphs'.
+  bool DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc);
+
+  QualType SubstituteTypeArgs(QualType QT, ArrayRef<TypeArgument> TypeArgs);
 
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);

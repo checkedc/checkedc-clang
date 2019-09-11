@@ -279,6 +279,22 @@ private:
   llvm::DenseMap<const MaterializeTemporaryExpr *, APValue *>
     MaterializedTemporaryValues;
 
+  /// Mapping from (generic record decl, type arguments) pairs to instantiated record decls.
+  /// e.g. (List, int) -> List<int>
+  /// This keeps tracks of all type applications both so we can preserve the uniqueness invariant
+  /// for decls and types, and also so we can typecheck complex recursive applications.
+  llvm::DenseMap<std::pair<const RecordDecl *, ArrayRef<const Type *> >, RecordDecl *>
+    CachedTypeApps;
+
+  /// Mapping from RecordDecls to list of delayed type applications.
+  /// The key is a declaration or definition of the generic RecordDecl, and the
+  /// corresponding values all have the given RecordDecl as base.
+  /// e.g. List<T> -> [List<int>, List<List<char>>, List<char>, ...]
+  ///      Foo<T>  -> [Foo<Foo<int>>, Foo<char>, ...]
+  /// A delayed type application is represented as a RecordDecl for which RecordDecl::isInstantiated()
+  /// returns 'true'. The parameters in a type application can be retrieved via RecordDecl::typeParams().
+  llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4> > DelayedTypeApps;
+
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
   class CanonicalTemplateTemplateParm : public llvm::FoldingSetNode {
@@ -3074,6 +3090,34 @@ public:
   };
 
   llvm::StringMap<SectionInfo> SectionInfos;
+
+public:
+  //===--------------------------------------------------------------------===//
+  //                     Checked C: type applications
+  //===--------------------------------------------------------------------===//
+
+  /// Get the result of the type application 'Base<TypeArgs>', if it's been already cached.
+  /// If it's not cached, return 'nullptr'.
+  RecordDecl *getCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs);
+
+  /// Return all type applications that have the given generic decl as base.
+  /// This is currently slow since it iterates over all cached type applications.
+  /// TODO: improve its efficiency. See issues/644.
+  std::vector<const RecordDecl *> getTypeAppsWithBase(const RecordDecl *Base);
+
+  /// Add the instantiated record type 'Inst' as the result of the type application 'Base<TypeArgs>'.
+  /// Cached applications shouldn't be overwritten, so this should be called at most once per key.
+  void addCachedTypeApp(const RecordDecl *Base, ArrayRef<const Type *> TypeArgs, RecordDecl *Inst);
+
+  /// Get the list of type applications that have 'Base' as their base RecordDecl.
+  ArrayRef<RecordDecl *> getDelayedTypeApps(RecordDecl *Base);
+
+  /// Add TypeApp to the cache using TypeApp's base field as the key.
+  void addDelayedTypeApp(RecordDecl *TypeApp);
+
+  /// Remove all type applications that have 'Base' as their base RecordDecl.
+  /// Return 'true' if the removed key was in the cache, and 'false' otherwise.
+  bool removeDelayedTypeApps(RecordDecl *Base);
 };
 
 /// Utility function for constructing a nullary selector.
