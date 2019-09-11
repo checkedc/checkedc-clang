@@ -9867,6 +9867,10 @@ def err_bounds_type_annotation_lost_checking : Error<
   def err_checked_scope_no_assume_bounds_casting : Error<
     "_Assume_bounds_cast not allowed in a checked scope or function">;
 
+  def err_checked_scope_no_cast_to_nt_array_ptr : Error<
+    "%0 cannot be cast to %1 in a checked scope because "
+    "%0 might not point to a null-terminated array">;
+
   def err_checked_on_non_function : Error<
   "%select{'_Unchecked'|'_Checked _Bounds_only|'_Checked'}0 "
   "can only appear on functions">;
