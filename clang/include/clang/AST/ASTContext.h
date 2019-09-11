@@ -2648,6 +2648,26 @@ public:
   //          Predicates and methods for Checked C checked types and bounds
   //===--------------------------------------------------------------------===//
 
+  /// Given record types T1 and T2, if T2 is the "raw" type of a field,
+  /// determine whether T1 is a valid itype for the same field. In this case,
+  /// we say T2 matches T1.
+  ///
+  /// A record type T2 matches T1 if at least one of the following holds:
+  ///   1) T2 == T1 OR
+  ///   2) T1 and T2 are both type applications, T2.genericBaseDecl() == T1.genericBaseDecl(),
+  ///      and T2's type arguments are all 'void'.
+  ///
+  /// Rule 2.2) exists so that we can "refine" type applications where the arguments aren't specified
+  /// (such as those coming from C code).
+  ///
+  /// Example:
+  /// struct List _Itype_forany(T) { struct List *next : itype(struct List<T>); };
+  ///
+  /// The type of 'next' is 'struct List<void>' (the type argument gets added automatically).
+  /// 'struct List<T>' matches 'struct List<void>', so 'recordTypesMatch(List<void>, List<T>)'
+  /// returns 'true'.
+  bool recordTypesMatch(const RecordType *T1, const RecordType *T2) const;
+
   /// \brief Determine whether a pointer, array, or function type T1 provides
   /// at least as much checking as the other type T2.  Return true if it does
   /// or false if it does not or the types differ in some other way than

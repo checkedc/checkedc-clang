@@ -78,7 +78,7 @@ ExprResult Sema::ActOnFunctionTypeApplication(ExprResult TypeFunc, SourceLocatio
 
 // Type Instantiation
 RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs) {
-  assert(Base->isGeneric() && "Base decl must be generic in a type application");
+  assert(Base->isGenericOrItypeGeneric() && "Base decl must be generic in a type application");
   assert(Base->getCanonicalDecl() == Base && "Base must be canonical decl");
  
   auto &ctx = Base->getASTContext();
@@ -98,7 +98,7 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
 
   // Notice we pass dummy location arguments, since the type application doesn't exist in user code.
   RecordDecl *Inst = RecordDecl::Create(ctx, Base->getTagKind(), Base->getDeclContext(), SourceLocation(), SourceLocation(),
-    Base->getIdentifier(), Base->getPreviousDecl(), ArrayRef<TypedefDecl *>(nullptr, static_cast<size_t>(0)) /* TypeParams */, Base, TypeArgs);
+    Base->getIdentifier(), Base->getPreviousDecl(), RecordDecl::NonGeneric, ArrayRef<TypedefDecl *>(nullptr, static_cast<size_t>(0)) /* TypeParams */, Base, TypeArgs);
 
   // Add the new instance to the base's context, so that the instance is discoverable
   // by AST traversal operations: e.g. the AST dumper.
@@ -140,6 +140,24 @@ void Sema::CompleteTypeAppFields(RecordDecl *Incomplete) {
     // TODO: are TypeSouceInfo and InstType in sync?
     FieldDecl *NewField = FieldDecl::Create(Field->getASTContext(), Incomplete, SourceLocation(), SourceLocation(),
       Field->getIdentifier(), InstType, Field->getTypeSourceInfo(), Field->getBitWidth(), Field->isMutable(), Field->getInClassInitStyle());
+
+    // Substitute in the bounds-safe interface type (itype).
+    if (auto IType = Field->getInteropTypeExpr()) {
+      auto InstType = SubstituteTypeArgs(IType->getType(), Incomplete->typeArgs());
+      InteropTypeExpr *NewIType = new (Context) InteropTypeExpr(InstType, SourceLocation(), SourceLocation(), IType->getTypeInfoAsWritten());
+      NewField->setInteropTypeExpr(Context, NewIType);
+    }
+    // TODO: substitute type arguments in bounds expressions as well.
+    //
+    // Incomplete solution for now: leave free variables in bounds expressions.
+    // Type variables can appear in the bounds expression, but the only relevant information they provide
+    // is their size. However, since type variables represent incomplete types, they will only
+    // appear in the bounds expression as pointers, whose size is known (equivalent to 'void *').
+    // This allows us to not do any replacements in bounds expressions.
+    // e.g. `_Array_ptr<int> a : count(sizeof(T*))` will be erased to `sizeof(void*)`,
+    // which is correct because 'sizeof(T *) = sizeof(void *)' for all 'T'.
+    NewField->setBoundsExpr(Context, Field->getBoundsExpr());
+
     Incomplete->addDecl(NewField);
   }
 
@@ -270,7 +288,7 @@ namespace {
 }
 
 bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
-  assert(Base->isGeneric() && "Can only check expanding cycles for generic structs");
+  assert(Base->isGenericOrItypeGeneric() && "Can only check expanding cycles for generic structs");
   assert(Base == Base->getCanonicalDecl() && "Expected canonical base decl");
   llvm::DenseSet<Node> Visited;
   std::stack<Node> Worklist;
@@ -294,14 +312,18 @@ bool Sema::DiagnoseExpandingCycles(RecordDecl *Base, SourceLocation Loc) {
       Diag(Loc, diag::err_expanding_cycle);
       return true;
     }
+    // 'EdgesVisitor' mutates the worklist by adding new nodes to it.
     ExpandingEdgesVisitor EdgesVisitor(Worklist, TVar, ExpandingSoFar);
     auto Defn = RDecl->getDefinition();
     // There might not be an underlying definition, because 'RDecl' might refer
     // to a forward-declared struct.
     if (!Defn) continue;
     for (auto Field : Defn->fields()) {
-      // 'EdgesVisitor' mutates the worklist by adding new nodes to it.
+      // Visit the field's type.
       EdgesVisitor.AddEdges(Field->getType());
+      // Visit the field's interop type, if one exists.
+      auto Itype = Field->getInteropType();
+      if (!Itype.isNull()) EdgesVisitor.AddEdges(Itype);
     }
   }
 

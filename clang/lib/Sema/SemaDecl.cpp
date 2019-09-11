@@ -15272,7 +15272,9 @@ Decl *Sema::ActOnTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
                      bool ScopedEnumUsesClassTag, TypeResult UnderlyingType,
                      bool IsTypeSpecifier, bool IsTemplateParamOrArg,
                      SkipBodyInfo *SkipBody,
+                     RecordDecl::Genericity GenericKind,
                      ArrayRef<TypedefDecl *> TypeParams) {
+
   // If this is not a definition, it must have a name.
   IdentifierInfo *OrigName = Name;
   assert((Name != nullptr || TUK == TUK_Definition) &&
@@ -16029,7 +16031,7 @@ CreateNewDecl:
         StdBadAlloc = cast<CXXRecordDecl>(New);
     } else
       New = RecordDecl::Create(Context, Kind, SearchDC, KWLoc, Loc, Name,
-                               cast_or_null<RecordDecl>(PrevDecl), TypeParams);
+                               cast_or_null<RecordDecl>(PrevDecl), GenericKind, TypeParams);
   }
 
   // C++11 [dcl.type]p3:

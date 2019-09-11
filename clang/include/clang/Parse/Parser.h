@@ -1916,7 +1916,7 @@ private:
 
   ExprResult ParseReturnValueExpression();
 
-  DeclResult ParseRecordTypeApplication(RecordDecl *Base);
+  DeclResult ParseRecordTypeApplication(RecordDecl *Base, bool IsItypeGeneric);
 
   //===--------------------------------------------------------------------===//
   // clang Expressions
