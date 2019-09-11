@@ -595,14 +595,14 @@ void a_f_14(void) {
   long i;
   _Array_ptr<long> v21 : count(i + 1) = simulate_malloc<long>((i + 1) * (i + 1) * sizeof(long)); // expected-warning {{cannot prove declared bounds for 'v21' are valid after initialization}} \
                                                                                                  // expected-note {{(expanded) declared bounds are 'bounds(v21, v21 + i + 1)'}} \
-                                                                                                 // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc((i + 1) * (i + 1) * sizeof(long)), (_Array_ptr<char>)value of simulate_malloc((i + 1) * (i + 1) * sizeof(long)) + (i + 1) * (i + 1) * sizeof(long))'}}
+                                                                                                 // expected-note {{(expanded) inferred bounds}}
 }
 
 void a_f_15(void) {
   long i, j;
   _Array_ptr<long> v : count(j + 1) = simulate_malloc<long>((i + 1) * sizeof(long)); // expected-warning {{cannot prove declared bounds for 'v' are valid after initialization}} \
                                                                                      // expected-note {{(expanded) declared bounds are 'bounds(v, v + j + 1)'}} \
-                                                                                     // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<char>)value of simulate_malloc((i + 1) * sizeof(long)), (_Array_ptr<char>)value of simulate_malloc((i + 1) * sizeof(long)) + (i + 1) * sizeof(long))'}}
+                                                                                     // expected-note {{(expanded) inferred bounds}}
 }
 
 static _Array_ptr<char> v23 : count(32768);
