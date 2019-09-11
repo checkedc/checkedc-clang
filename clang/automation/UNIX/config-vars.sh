@@ -131,6 +131,10 @@ if [ -z "$BUILD_CPU_COUNT" ]; then
   export BUILD_CPU_COUNT=$(($NPROC*3/4))
 fi
 
+if [ -z "$RUN_LOCAL" ]; then
+  export RUN_LOCAL="no"
+fi
+
 # LLVM Nightly Tests are enabled when LNT is a non-empty
 # string.
 if [ -z "$LNT" ]; then
@@ -141,7 +145,7 @@ if [ -z "$LNT" ]; then
   export LNT_SCRIPT=""
 else
   export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${BUILDOS}"
-  if [ -z "$RUN_LOCAL" ]; then
+  if [ "$RUN_LOCAL" = "no" ]; then
     # We assume that lnt is installed in /lnt-install on test machines.
     export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
   fi
@@ -158,6 +162,7 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " SKIP_CHECKEDC_TESTS: $SKIP_CHECKEDC_TESTS"
   echo " LNT: $LNT"
   echo " LNT_SCRIPT: $LNT_SCRIPT"
+  echo " RUN_LOCAL: $RUN_LOCAL"
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"
