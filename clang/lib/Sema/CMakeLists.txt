@@ -13,6 +13,7 @@ endif()
 
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
+  AvailableFactsAnalysis.cpp
   CheckedCAlias.cpp
   CheckedCInterop.cpp
   CheckedCSubst.cpp
