@@ -795,7 +795,7 @@ ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionCo
 
   // if this a function declaration
   // set in context to false.
-  if (dyn_cast<FunctionDecl>(D))
+  if (isa<FunctionDecl>(D))
     inFunctionContext = false;
 
   return getVariableOnDemand(D, C, inFunctionContext);
@@ -811,16 +811,16 @@ ProgramInfo::getVariableOnDemand(Decl *D, ASTContext *C, bool inFunctionContext)
     // variable, or return value then we should see if we're looking this
     // up in the context of a function or not. If we are not, then we
     // should find a declaration
-    ParmVarDecl *PD = nullptr;
     FunctionDecl *funcDefinition = nullptr;
     FunctionDecl *funcDeclaration = nullptr;
     // get the function declaration and definition
-    if (D != nullptr && dyn_cast<FunctionDecl>(D)) {
-      funcDeclaration = getDeclaration(dyn_cast<FunctionDecl>(D));
-      funcDefinition = getDefinition(dyn_cast<FunctionDecl>(D));
+    if (D != nullptr && isa<FunctionDecl>(D)) {
+      auto *FDecl = cast<FunctionDecl>(D);
+      funcDeclaration = getDeclaration(FDecl);
+      funcDefinition = getDefinition(FDecl);
     }
     int parameterIndex = -1;
-    if (PD = dyn_cast<ParmVarDecl>(D)) {
+    if (auto *PD = dyn_cast<ParmVarDecl>(D)) {
       // okay, we got a request for a parameter
       DeclContext *DC = PD->getParentFunctionOrMethod();
       assert(DC != nullptr);

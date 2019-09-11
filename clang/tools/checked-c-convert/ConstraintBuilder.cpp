@@ -451,7 +451,7 @@ public:
 
         i++;
       }
-    } else if (DeclaratorDecl *DD = dyn_cast<DeclaratorDecl>(D))
+    } else if (isa<DeclaratorDecl>(D))
       handleFunctionPointerCall(E);
     else
       // Constrain all arguments to wild.
