@@ -2415,6 +2415,7 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
           auto *SourceInfo = Actions.Context.getTrivialTypeSourceInfo(TVar, TpeVars[0]->getLocation());
           auto TypeArg = TypeArgument { TVar, SourceInfo };
           auto *InitExpr = Init.get();
+          // TODO: typing the lhs might fail: need to handle gracefully.
           auto InitType = cast<ExistentialType>(InitExpr->getType().getTypePtr())->innerType();
           auto NewType = Actions.SubstituteTypeArgs(InitType, TypeArg);
           InitExpr->setType(NewType);
