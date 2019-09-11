@@ -386,8 +386,12 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   const Type *Ty = T.getTypePtr();
 
   // RecordTypes are cached and processed specially.
-  if (const RecordType *RT = dyn_cast<RecordType>(Ty))
-    return ConvertRecordDeclType(RT->getDecl());
+  if (const RecordType *RT = dyn_cast<RecordType>(Ty)) {
+    auto *RecDecl = RT->getDecl();
+    // TODO: explain this step
+    if (RecDecl->isInstantiated()) RecDecl = RecDecl->genericBaseDecl();
+    return ConvertRecordDeclType(RecDecl);
+  }
 
   // See if type is already cached.
   llvm::DenseMap<const Type *, llvm::Type *>::iterator TCI = TypeCache.find(Ty);
