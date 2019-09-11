@@ -848,7 +848,7 @@ namespace {
       case Expr::CHKCBindTemporaryExprClass: {
         CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
         Expr *SE = Binding->getSubExpr()->IgnoreParens();
-        if  (CompoundLiteralExpr *CL = dyn_cast<CompoundLiteralExpr>(SE)) {
+        if (isa<CompoundLiteralExpr>(SE)) {
           BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
           QualType PtrType = Context.getDecayedType(E->getType());
           Expr *ArrLValue = CreateTemporaryUse(Binding);
