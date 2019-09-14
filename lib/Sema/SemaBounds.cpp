@@ -759,6 +759,36 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
+    // Infer bounds for string literals.
+    BoundsExpr *InferBoundsForStringLiteral(Expr *E, StringLiteral *SL,
+                                            CHKCBindTemporaryExpr *Binding) {
+      // Use the number of characters in the string (excluding the null
+      // terminator) to calcaulte size.  Don't use the array type of the
+      // literal.  In unchecked scopes, the array type is unchecked and its
+      // size includes the null terminator.  It converts to an ArrayPtr that
+      // could be used to overwrite the null terminator.  We need to prevent
+      // this because literal strings may be shared and writeable, depending on
+      // the C implementation.
+      auto *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
+      auto *CBE =
+        new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                      Size, SourceLocation(),
+                                      SourceLocation());
+
+      auto PtrType = Context.getDecayedType(E->getType());
+
+      // For a string literal expression, we always bind the result of the
+      // expression to a temporary. We then use this temporary in the bounds
+      // expression for the string literal expression. Otherwise, a runtime
+      // bounds check based on accessing the predefined expression could be
+      // incorrect: the base value could be different for the lower and upper
+      // bounds.
+      auto *ArrLValue = CreateTemporaryUse(Binding);
+      auto *Base = CreateImplicitCast(PtrType,
+                                      CastKind::CK_ArrayToPointerDecay,
+                                      ArrLValue);
+      return ExpandToRange(Base, CBE);
+    }
 
     // Infer bounds for an lvalue.  The bounds determine whether
     // it is valid to access memory using the lvalue.  The bounds
@@ -879,6 +909,7 @@ namespace {
       case Expr::CHKCBindTemporaryExprClass: {
         CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
         Expr *SE = Binding->getSubExpr()->IgnoreParens();
+
         if (isa<CompoundLiteralExpr>(SE)) {
           BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
           QualType PtrType = Context.getDecayedType(E->getType());
@@ -887,27 +918,15 @@ namespace {
                                           CastKind::CK_ArrayToPointerDecay,
                                           ArrLValue);
           return ExpandToRange(Base, BE);
-        } else if (StringLiteral *SL = dyn_cast<StringLiteral>(SE)) {
-          // Use the number of characters in the string (excluding the
-          // null terminator) to calcaulte size.  Don't use the
-          // array type of the literal.  In unchecked scopes, the array type is
-          // unchecked and its size includes the null terminator.  It converts
-          // to an ArrayPtr that could be used to overwrite the null terminator.
-          // We need to prevent this because literal strings may be shared and
-          // writeable, depending on the C implementation.
-          IntegerLiteral *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
-          CountBoundsExpr *CBE =
-             new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
-                                           Size, SourceLocation(),
-                                           SourceLocation());
-          QualType PtrType = Context.getDecayedType(E->getType());
-          Expr *ArrLValue = CreateTemporaryUse(Binding);
-          Expr *Base = CreateImplicitCast(PtrType,
-                                          CastKind::CK_ArrayToPointerDecay,
-                                          ArrLValue);
-          return ExpandToRange(Base, CBE);
-        } else
-          return CreateBoundsAlwaysUnknown();
+        }
+
+        if (auto *SL = dyn_cast<StringLiteral>(SE))
+          return InferBoundsForStringLiteral(E, SL, Binding);
+
+        if (auto *PE = dyn_cast<PredefinedExpr>(SE)) {
+          auto *SL = PE->getFunctionName();
+          return InferBoundsForStringLiteral(E, SL, Binding);
+        }
       }
       default:
         return CreateBoundsAlwaysUnknown();
