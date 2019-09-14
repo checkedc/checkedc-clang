@@ -157,7 +157,7 @@ generate a build system for Visual Studio 2019.
 ### Visual Studio with CMake 3.14 or higher
 
 If you are using CMake 3.14 or higher, you use the -G option to specify
-the geneerator (the target build system) and the -A option to specify
+the generator (the target build system) and the -A option to specify
 the architecture.  The clang tests will build and run for that architecture
 and the architecture will be the default target architecture for clang (these options
 are explained [here](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2016%202019.html)).
@@ -189,7 +189,7 @@ To target Visual Studio 2017, substitute "Visual Studio 15 2017" for "Visual Stu
    by default produce a build system for x86.  This means that the clang tests
    will run in 32-bit compatiblity mode, even on a 64-bit version of Windows.
    To build and run tests on x64, specify a different generator using the `-G`
-   option.  For    Visual Studio 2017, you can use:
+   option.  For Visual Studio 2017, you can use:
 ```
     cmake -T "host=x64" -G "Visual Studio 15 2017 Win64" {llvm-path}
 ```
