@@ -685,6 +685,8 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     return T;
   } else if (ImplicitCastExpr *IE = dyn_cast<ImplicitCastExpr>(E)) {
     return getVariableHelper(IE->getSubExpr(), V, C, ifc);
+  } else if (ExplicitCastExpr *ECE = dyn_cast<ExplicitCastExpr>(E)) {
+    return getVariableHelper(ECE->getSubExpr(), V, C, ifc);
   } else if (ParenExpr *PE = dyn_cast<ParenExpr>(E)) {
     return getVariableHelper(PE->getSubExpr(), V, C, ifc);
   } else if (CHKCBindTemporaryExpr *CBE = dyn_cast<CHKCBindTemporaryExpr>(E)) {
