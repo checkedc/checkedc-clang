@@ -3143,7 +3143,7 @@ public:
 /// Used like so '_Exists(T, struct Foo<T>) foo = _Pack(fooImpl, _Exists(T, struct Foo<T>), int)'.
 /// A pack expression is a triple (expr, exist_typ, subst), indicating that we type
 /// 'expr' with the existential type 'exist_typ', using the substitution 'T -> subst', where
-/// 'T' is the type variable introduced by the existential.
+/// 'T' is the type variable bound by the existential type.
 /// e.g. in the example above, 'fooImpl' must have type 'struct Foo<int>', which we obtain by
 /// substituting 'int' for 'T' in 'struct Foo<T>'.
 class PackExpr : public Expr {
