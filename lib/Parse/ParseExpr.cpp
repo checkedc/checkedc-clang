@@ -3599,10 +3599,13 @@ ExprResult Parser::ParsePackExpression() {
   if (Tok.isNot(tok::r_paren)) return ExprError();
   SourceLocation EndLoc = ConsumeParen();
 
-  // TODO: figure out what to do with the TypeSourceInfo for the existential.
   TypeSourceInfo *ExistTInfo = nullptr;
   auto UnwrappedExist = Actions.GetTypeFromParser(ExistType.get(), &ExistTInfo);
-  // TODO: check that this is an existential type.
+  if (!ExistentialType::classof(UnwrappedExist.getCanonicalType().getTypePtr())) {
+    Diag(ExistTInfo->getTypeLoc().getBeginLoc(), diag::err_pack_expr_returns_existential_type) << UnwrappedExist;
+    return ExprError();
+  }
+
   TypeSourceInfo *SubstTInfo = nullptr;
   auto UnwrappedSubst = Actions.GetTypeFromParser(SubstTpe.get(), &SubstTInfo);
   auto SubstArg = TypeArgument { UnwrappedSubst, SubstTInfo };

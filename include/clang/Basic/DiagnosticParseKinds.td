@@ -1312,6 +1312,9 @@ def err_expected_type_argument_list_for_generic_instance : Error<
 def err_expected_type_argument_list_for_itype_generic_instance : Error<
   "expected a type argument list for a struct with a bounds-safe interface in a checked scope">;
 
+def err_pack_expr_returns_existential_type : Error <
+  "the return type of a pack expression must be an existential type, but got %0 instead">;
+
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<
   "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
