@@ -3167,7 +3167,7 @@ private:
 public:
   PackExpr(Expr *PackedExpr, QualType ExistType, QualType Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
    Expr(PackExprClass, ExistType, VK_RValue, OK_Ordinary, false, false, false, false),
-    PackedExpr(PackedExpr), ExistType(ExistType), Subst(Subst), StartLoc(StartLoc), EndLoc(EndLoc) {
+   PackedExpr(PackedExpr), ExistType(ExistType), Subst(Subst), StartLoc(StartLoc), EndLoc(EndLoc) {
     if(!ExistentialType::classof(ExistType.getTypePtr())) {
       llvm_unreachable("_Pack expression expects an existential type");
     }
@@ -3180,7 +3180,7 @@ public:
   QualType getExistentialType() const { return ExistType; }
 
   /// Return the "substitution" type that is used to verify that
-  /// the underlying expr can be packed with the existential type.
+  /// the underlying expr can be packed into the existential type.
   QualType getSubst() const { return Subst; }
 
   SourceLocation getBeginLoc() const LLVM_READONLY { return StartLoc; }
