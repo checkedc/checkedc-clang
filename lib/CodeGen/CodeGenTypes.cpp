@@ -388,7 +388,12 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   // RecordTypes are cached and processed specially.
   if (const RecordType *RT = dyn_cast<RecordType>(Ty)) {
     auto *RecDecl = RT->getDecl();
-    // TODO: explain this step
+    // To codegen types for type applications, simply codegen the underlying
+    // record declaration. That is, codegen type applications by erasing the type
+    // arguments.
+    // Example: suppose 'R1' is the RecordDecl corresponding to the declaration of
+    // 'struct List _For_any(T)', and 'R2' is the RecordDecl for the type application
+    // 'struct List<int>'. Then codegen 'struct List<int>' as we would codegen 'struct List'.
     if (RecDecl->isInstantiated()) RecDecl = RecDecl->genericBaseDecl();
     return ConvertRecordDeclType(RecDecl);
   }
