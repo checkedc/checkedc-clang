@@ -2088,7 +2088,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     break;
 
   case Type::Existential:
-    // '_Exists(T, struct Foo<T>)' gets erased to struct 'Foo<T>', so calculate
+    // '_Exists(T, struct Foo<T>)' is represented at runtime as 'struct Foo', so to calculate
     // the type info just punt to the inner type.
     return getTypeInfo(cast<ExistentialType>(T)->innerType().getTypePtr());
 
