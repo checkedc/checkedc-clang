@@ -1135,7 +1135,7 @@ void StmtProfiler::VisitCastExpr(const CastExpr *S) {
 }
 
 void StmtProfiler::VisitPackExpr(const PackExpr *S) {
-  // TODO: implement
+  // TODO: implement (checkedc issue #661)
   llvm_unreachable("unimplemented");
 }
 

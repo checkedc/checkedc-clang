@@ -1693,7 +1693,7 @@ void StmtPrinter::VisitInteropTypeExpr(
 }
 
 void StmtPrinter::VisitPackExpr(PackExpr *Node) {
-  // TODO: print the rest of the components
+  // TODO: print the rest of the components (checked issue #661)
   OS << "_Pack(";
   Visit(Node->getPackedExpr());
   OS << ")";
