@@ -5820,12 +5820,12 @@ QualType TreeTransform<Derived>::TransformExistentialType(TypeLocBuilder &TLB,
                                                           ExistentialTypeLoc TL) {
   // TODO: be smarter about rebuilding these.
   // TODO: the proper way to do the rebuilding is to have a RebuildExistentialType method. Add one?
-  auto *ExistTpe = TL.getTypePtr();
+  auto *ExistType = TL.getTypePtr();
   auto Quals = TL.getType().getQualifiers().getAsOpaqueValue();
-  auto TypeVar = QualType(ExistTpe->typeVar(), 0 /* Quals */);
+  auto TypeVar = QualType(ExistType->typeVar(), 0 /* Quals */);
   QualType NewTypeVar = getDerived().TransformType(TypeVar);
   if (NewTypeVar.isNull()) return QualType();
-  QualType NewInnerType = getDerived().TransformType(ExistTpe->innerType());
+  QualType NewInnerType = getDerived().TransformType(ExistType->innerType());
   if (NewInnerType.isNull()) return QualType();
   auto RawRes = SemaRef.ActOnExistentialType(SemaRef.Context, NewTypeVar.getTypePtr(), NewInnerType);
   if (!RawRes) llvm_unreachable("Could not build existential type");

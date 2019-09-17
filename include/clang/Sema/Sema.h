@@ -5127,7 +5127,7 @@ public:
   bool DisableSubstitionDiagnostics;
 
   ExprResult ActOnPackExpression(Expr *PackedExpr,
-                                 QualType ExistTpe,
+                                 QualType ExistType,
                                  TypeArgument SubstArg,
                                  SourceLocation StartLoc,
                                  SourceLocation EndLoc);

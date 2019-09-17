@@ -3579,8 +3579,8 @@ ExprResult Parser::ParsePackExpression() {
     return ExprError();
   }
 
-  auto ExistTpe = ParseTypeName();
-  if (ExistTpe.isInvalid()) {
+  auto ExistType = ParseTypeName();
+  if (ExistType.isInvalid()) {
     SkipUntil(tok::r_paren, StopAtSemi);
     return ExprError();
   }
@@ -3601,7 +3601,7 @@ ExprResult Parser::ParsePackExpression() {
 
   // TODO: figure out what to do with the TypeSourceInfo for the existential.
   TypeSourceInfo *ExistTInfo = nullptr;
-  auto UnwrappedExist = Actions.GetTypeFromParser(ExistTpe.get(), &ExistTInfo);
+  auto UnwrappedExist = Actions.GetTypeFromParser(ExistType.get(), &ExistTInfo);
   // TODO: check that this is an existential type.
   TypeSourceInfo *SubstTInfo = nullptr;
   auto UnwrappedSubst = Actions.GetTypeFromParser(SubstTpe.get(), &SubstTInfo);

@@ -536,11 +536,11 @@ public:
     // We go about it carefully: we can't call 'TL.getType().getCanonical()' because
     // canonical types for existentials aren't compositional.
     // Instead, we get the "raw" type.
-    auto *ExistTpe = TL.getTypePtr();
+    auto *ExistType = TL.getTypePtr();
     // We call '.getCanonical()' because the type in the variable position
     // in an existential could be either a `TypedefType` or a `TypeVariableType`.
     // In the former case, we want to make sure we get the raw type variable.
-    auto *TypeVar = Context.getCanonicalType(ExistTpe->typeVar())->getAs<TypeVariableType>();
+    auto *TypeVar = Context.getCanonicalType(ExistType->typeVar())->getAs<TypeVariableType>();
     if (!TypeVar) llvm_unreachable("expected a TypeVariableType");
     BoundVars.insert(TypeVar);
     return BaseTransform::TransformExistentialType(TLB, TL);
@@ -630,11 +630,11 @@ public:
   }
 
   QualType TransformExistentialType(TypeLocBuilder &TLB, ExistentialTypeLoc TL) {
-    auto *ExistTpe = TL.getTypePtr();
+    auto *ExistType = TL.getTypePtr();
     // We call '.getCanonical()' because the type in the variable position
     // in an existential could be either a `TypedefType` or a `TypeVariableType`.
     // In the former case, we want to make sure we get the raw type variable.
-    auto *TypeVar = Context.getCanonicalType(ExistTpe->typeVar())->getAs<TypeVariableType>();
+    auto *TypeVar = Context.getCanonicalType(ExistType->typeVar())->getAs<TypeVariableType>();
     if (!TypeVar) llvm_unreachable("expected a TypeVariableType");
     // We need to renumber `TypeVar`, so we add the mapping `TypeVar -> NewDepth` to the substitutions.
     // The index is 0 because existentials only bound one type variable.
@@ -722,10 +722,10 @@ const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Typ
   // An then we create the existential the user requested.
   // We have to query the cache again, because if the original and canonical types are equal
   // then the type we're looking for might have been added while creating the canonical type.
-  auto *ExistTpe = Context.getCachedExistentialType(TypeVar, InnerType);
-  if (!ExistTpe) {
-    ExistTpe = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
-    Context.addCachedExistentialType(TypeVar, InnerType, ExistTpe);
+  auto *ExistType = Context.getCachedExistentialType(TypeVar, InnerType);
+  if (!ExistType) {
+    ExistType = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
+    Context.addCachedExistentialType(TypeVar, InnerType, ExistType);
   }
-  return ExistTpe;
+  return ExistType;
 }

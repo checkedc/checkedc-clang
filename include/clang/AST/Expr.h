@@ -3155,7 +3155,7 @@ private:
   Expr *PackedExpr = nullptr;
 
   /// The result type of the pack operation.
-  QualType ExistTpe;
+  QualType ExistType;
   /// The type that will be substituted for the variable in the existential.
   /// We can combine the existential and this type to check type of the expression
   /// being packed.
@@ -3164,10 +3164,10 @@ private:
   QualType Subst;
 
 public:
-  PackExpr(Expr *PackedExpr, QualType ExistTpe, QualType Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
-   Expr(PackExprClass, ExistTpe, VK_RValue, OK_Ordinary, false, false, false, false),
-    PackedExpr(PackedExpr), ExistTpe(ExistTpe), Subst(Subst), StartLoc(StartLoc), EndLoc(EndLoc) {
-    if(!ExistentialType::classof(ExistTpe.getTypePtr())) {
+  PackExpr(Expr *PackedExpr, QualType ExistType, QualType Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
+   Expr(PackExprClass, ExistType, VK_RValue, OK_Ordinary, false, false, false, false),
+    PackedExpr(PackedExpr), ExistType(ExistType), Subst(Subst), StartLoc(StartLoc), EndLoc(EndLoc) {
+    if(!ExistentialType::classof(ExistType.getTypePtr())) {
       llvm_unreachable("_Pack expression expects an existential type");
     }
   }
@@ -3176,7 +3176,7 @@ public:
   Expr *getPackedExpr() const { return PackedExpr; }
 
   /// Return the type of the pack expression, which must be an existential (after unwrapping).
-  QualType getExistentialType() const { return ExistTpe; }
+  QualType getExistentialType() const { return ExistType; }
 
   /// Return the "substitution" type that is used to verify that
   /// the underlying expr can be packed with the existential type.

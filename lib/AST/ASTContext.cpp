@@ -11307,7 +11307,7 @@ const ExistentialType *ASTContext::getCachedExistentialType(const Type *TypeVar,
   return nullptr;
 }
 
-void ASTContext::addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistTpe) {
+void ASTContext::addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistType) {
   if (getCachedExistentialType(TypeVar, InnerType)) llvm_unreachable("Cannot re-add existential type to the cache");
-  CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistTpe));
+  CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistType));
 }

@@ -3161,7 +3161,7 @@ public:
   /// Add the mapping `(type-var, inner-type) -> exist-type` to the cache of
   /// existential types. This should only be called once per key (i.e. cache elements
   /// should not be re-written).
-  void addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistTpe);
+  void addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistType);
 };
 
 /// Utility function for constructing a nullary selector.
