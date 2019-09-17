@@ -6631,7 +6631,7 @@ void TypeLocReader::VisitTypeVariableTypeLoc(TypeVariableTypeLoc TL) {
 }
 
 void TypeLocReader::VisitExistentialTypeLoc(ExistentialTypeLoc TL) {
-  // TODO: implement
+  // TODO: implement (checkedc issue #661)
   assert(false && "currently unimplemented");
 }
 

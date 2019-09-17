@@ -365,7 +365,7 @@ void ASTTypeWriter::VisitTypeVariableType(const TypeVariableType *T) {
 }
 
 void ASTTypeWriter::VisitExistentialType(const ExistentialType *TL) {
-  // TODO: implement
+  // TODO: implement (checkedc issue #661)
   assert(false && "currently unimplemented");
 }
 
