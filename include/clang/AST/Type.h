@@ -4414,9 +4414,6 @@ public:
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
-
-  // TODO: document
-  static const int ExistentialVariableDepthStart = 10000;
 };
 
 class TypedefType : public Type {
