@@ -7508,8 +7508,8 @@ void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
   if (ExpectAndConsume(tok::l_paren)) return;
 
   if (Tok.getKind() != tok::identifier) {
-    // TODO: add proper error message
-    printf("expected a type variable name\n");
+    Diag(Tok.getLocation(), diag::err_type_variable_identifier_expected);
+    SkipUntil(tok::r_paren, StopAtSemi);
     return;
   }
 
@@ -7541,7 +7541,10 @@ void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
 
   ConsumeToken(); // eat the type variable
 
-  if (ExpectAndConsume(tok::comma)) return;
+  if (ExpectAndConsume(tok::comma)) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return;
+  }
 
   TypeResult InnerType = ParseTypeName();
   if (InnerType.isInvalid()) {
@@ -7551,7 +7554,6 @@ void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
 
   if (ExpectAndConsume(tok::r_paren)) return;
 
-  // TODO: do we need to adjust the end location?
   SourceLocation EndLoc = Tok.getLocation();
   DS.SetRangeEnd(EndLoc);
 
@@ -7646,7 +7648,7 @@ bool Parser::ParseForanySpecifierHelper(DeclSpec &DS,
     } else if (Tok.getKind() == tok::comma) {
       // We'd expect the previous token to be an identifier
       if (prevToken != tok::identifier) {
-        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
+        Diag(Tok.getLocation(), diag::err_type_variable_identifier_expected);
         SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
         return true;
       }
@@ -7655,7 +7657,7 @@ bool Parser::ParseForanySpecifierHelper(DeclSpec &DS,
     } else if (Tok.getKind() == tok::r_paren) {
       // We'd expect the previous token to be an identifier
       if (prevToken != tok::identifier) {
-        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
+        Diag(Tok.getLocation(), diag::err_type_variable_identifier_expected);
         SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
         return true;
       }

@@ -1288,7 +1288,7 @@ def err_single_itype_expr_allowed : Error<
 def err_forany_type_variable_declaration_expected : Error<
   "expected list of type variables">;
 
-def err_forany_type_variable_identifier_expected : Error<
+def err_type_variable_identifier_expected : Error<
   "expected type variable identifier">;
 
 def err_generic_specifier_unexpected_token : Error<
