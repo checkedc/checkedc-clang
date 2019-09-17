@@ -3154,7 +3154,8 @@ private:
   /// The expression that is being packed.
   Expr *PackedExpr = nullptr;
 
-  /// The result type of the pack operation.
+  /// The result type of the pack operation. This is always an existential type
+  /// after unwrapping the QualType.
   QualType ExistType;
   /// The type that will be substituted for the variable in the existential.
   /// We can combine the existential and this type to check type of the expression
