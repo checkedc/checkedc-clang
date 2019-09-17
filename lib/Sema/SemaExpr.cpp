@@ -14378,7 +14378,7 @@ ExprResult Sema::ActOnPackExpression(Expr *PackedExpr,
   // Calculate the witness type by substituting the subst argument into the inner type of the existential.
   // Example: suppose the existential is '_Exists(T, struct Foo<T>)'. Then the witness should have
   // type 'struct Foo<int>'.
-  auto *Exist = dyn_cast<ExistentialType>(ExistType.getTypePtr());
+  auto *Exist = dyn_cast<ExistentialType>(ExistType.getCanonicalType().getTypePtr());
   assert(Exist && "Expected existential type in pack expression");
   // Substitute in the inner type, not in the entire existential.
   auto WitnessType = SubstituteTypeArgs(Exist->innerType(), SubstArg);
