@@ -4476,7 +4476,7 @@ public:
   bool isSugared(void) const { return false; }
   QualType desugar(void) const { return QualType(this, 0); }
 
-  // TODO: can't implement 'Profile' because TypedefType doesn't have a 'Profile' method.
+  // TODO: can't implement 'Profile' because TypedefType doesn't have a 'Profile' method (checkedc issue #661).
   /*
   void Profile(llvm::FoldingSetNodeID &ID) {
     Profile(ID, TypeVar, InnerType);
