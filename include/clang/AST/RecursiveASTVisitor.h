@@ -1268,7 +1268,7 @@ DEF_TRAVERSE_TYPELOC(FunctionProtoType, {
 DEF_TRAVERSE_TYPELOC(UnresolvedUsingType, {})
 DEF_TRAVERSE_TYPELOC(TypedefType, {})
 DEF_TRAVERSE_TYPELOC(TypeVariableType, {})
-DEF_TRAVERSE_TYPELOC(ExistentialType, {}) // TODO: is this correct?
+DEF_TRAVERSE_TYPELOC(ExistentialType, {}) // TODO: is this correct? (checkedc issue #661)
 
 DEF_TRAVERSE_TYPELOC(TypeOfExprType,
                      { TRY_TO(TraverseStmt(TL.getUnderlyingExpr())); })
