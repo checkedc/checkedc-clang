@@ -1313,7 +1313,10 @@ def err_expected_type_argument_list_for_itype_generic_instance : Error<
   "expected a type argument list for a struct with a bounds-safe interface in a checked scope">;
 
 def err_pack_expr_returns_existential_type : Error <
-  "the return type of a pack expression must be an existential type, but got %0 instead">;
+  "return type of a pack expression must be an existential type, but got %0 instead">;
+
+def err_unpack_expected_one_type_variable : Error<
+  "unpack specifier expects exactly one type variable, but got %0 instead">;
 
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<

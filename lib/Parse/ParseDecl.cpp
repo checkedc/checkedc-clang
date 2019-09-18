@@ -2407,20 +2407,22 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
         SkipUntil(StopTokens, StopAtSemi | StopBeforeMatch);
         Actions.ActOnInitializerError(ThisDecl);
       } else {
+        auto *InitExpr = Init.get(); // This won't fail, since isInvalid() was checked above.
         if (D.getDeclSpec().isUnpackSpecified()) {
-          // TODO: make more robust, add asserts, etc.
-          auto TpeVars = D.getDeclSpec().typeVariables();
-          assert(TpeVars.size() == 1 && "Expected exactly one type variable in _Unpack specifier");
-          auto TVar = Actions.getASTContext().getTypedefType(TpeVars[0], QualType());
-          auto *SourceInfo = Actions.Context.getTrivialTypeSourceInfo(TVar, TpeVars[0]->getLocation());
+          auto TypeVars = D.getDeclSpec().typeVariables();
+          if (TypeVars.size() != 1) {
+            Diag(D.getBeginLoc(), diag::err_unpack_expected_one_type_variable) << static_cast<unsigned int>(TypeVars.size());
+            return nullptr;
+          }
+          auto TVar = Actions.getASTContext().getTypedefType(TypeVars[0], QualType());
+          auto *SourceInfo = Actions.Context.getTrivialTypeSourceInfo(TVar, TypeVars[0]->getLocation());
           auto TypeArg = TypeArgument { TVar, SourceInfo };
-          auto *InitExpr = Init.get();
           // TODO: typing the lhs might fail: need to handle gracefully.
           auto InitType = cast<ExistentialType>(InitExpr->getType().getTypePtr())->innerType();
           auto NewType = Actions.SubstituteTypeArgs(InitType, TypeArg);
           InitExpr->setType(NewType);
         }
-        Actions.AddInitializerToDecl(ThisDecl, Init.get(),
+        Actions.AddInitializerToDecl(ThisDecl, InitExpr,
                                      /*DirectInit=*/false,
                                      EqualLoc);
       }
@@ -7484,7 +7486,6 @@ void Parser::ParseUnpackSpecifier(DeclSpec &DS) {
   ConsumeToken(); // eat the type variable
   if (ExpectAndConsume(tok::r_paren)) return;
 
-  // TODO: do we need to adjust the end location?
   SourceLocation EndLoc = Tok.getLocation();
   DS.SetRangeEnd(EndLoc);
 
