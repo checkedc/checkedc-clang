@@ -446,6 +446,7 @@ static Cl::Kinds ClassifyInternal(ASTContext &Ctx, const Expr *E) {
   case Expr::RangeBoundsExprClass:
     llvm_unreachable("should not classify bounds expressions");
   case Expr::PackExprClass:
+    // Pack expressions are always r-values.
     return Cl::CL_PRValue;
   }
   llvm_unreachable("unhandled expression kind in classification");
