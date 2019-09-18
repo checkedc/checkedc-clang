@@ -3721,8 +3721,7 @@ LinkageInfo LinkageComputer::computeTypeLinkageInfo(const Type *T) {
   case Type::TypeVariable:
     return LinkageInfo::external();
   case Type::Existential:
-    // TODO: is this correct?
-    return LinkageInfo::external();
+    return computeTypeLinkageInfo(cast<ExistentialType>(T)->innerType());
   }
 
   llvm_unreachable("unhandled type class");
