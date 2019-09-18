@@ -634,16 +634,20 @@ public:
   bool isUnpackSpecified() const { return Unpack_specified; }
   SourceLocation getUnpackSpecLoc() const { return UnpackLoc; }
 
-  // TODO: add comment about how this method is also used for generics (the comment for existentials is below).
   // TODO: does this method really need to take both an 'ArrayRef' and the number of type variables (the 'ArrayRef' already contains)
   // a count.
-  /// Add the type variable of an existential type to its declaration specifier.
-  /// The type variable is added via a typedef, so we can remember its name in case
-  /// we need it for diagnostics.
-  /// Example: the type '_Exists(T, struct Foo<T>)' is stored in a 'DeclSpec' by
-  /// setting (in the 'DeclSpec') the inner type 'struct Foo<T>' in the constructor,
-  /// and, additionally, calling 'setExistentialTypeVar' with the bound variable
-  /// represented by the typedef 'typedef T TypeVariableType(depth, offset)'.
+  /// This method is used both for existentials and generic declarations:
+  ///   - Existentials: we add the type variable of an existential type to its declaration specifier.
+  ///     The type variable is added via a typedef, so we can remember its name in case
+  ///     we need it for diagnostics.
+  ///     Example: the type '_Exists(T, struct Foo<T>)' is stored in a 'DeclSpec' by
+  ///     setting (in the 'DeclSpec') the inner type 'struct Foo<T>' in the constructor,
+  ///     and, additionally, calling 'setExistentialTypeVar' with the bound variable
+  ///    represented by the typedef 'typedef T TypeVariableType(depth, offset)'.
+  ///
+  ///   - Generics: generics use this method to populate the list of type parameters in a a RecordDecl.
+  ///     e.g. when we first parse 'struct Foo _For_any(T)', the '_For_any(T)' is parsed as DeclSpec, to
+  ///     which we need to attach the list of type parameters.
   void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars);
   void setGenericFunctionOrStruct(bool IsGeneric) { GenericFunctionOrStruct = IsGeneric; }
   void setItypeGenericFunctionOrStruct(bool IsItypeGeneric) { ItypeGenericFunctionOrStruct = IsItypeGeneric; }
