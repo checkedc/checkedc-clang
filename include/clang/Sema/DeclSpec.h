@@ -635,7 +635,7 @@ public:
   SourceLocation getUnpackSpecLoc() const { return UnpackLoc; }
 
   // TODO: does this method really need to take both an 'ArrayRef' and the number of type variables (the 'ArrayRef' already contains)
-  // a count.
+  // a count. (checkedc issue #661)
   /// This method is used both for existentials and generic declarations:
   ///   - Existentials: we add the type variable of an existential type to its declaration specifier.
   ///     The type variable is added via a typedef, so we can remember its name in case
