@@ -7418,10 +7418,8 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
 /// [Checked C] Parse a specifier for an existential type.
 /// exist-spec:
 ///   _Exists '(' type-var , type ')'
-/// TODO: use the proper names for the non-terminals above.
 void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
   assert(Tok.is(tok::kw__Exists) && "Expected an '_Exists' token");
-  // TODO: do we need a try-finally to handle the scopes?
   EnterScope(Scope::DeclScope | Scope::ExistentialTypeScope);
   ParseExistentialTypeSpecifierHelper(DS);
   ExitScope();
@@ -7430,7 +7428,6 @@ void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
 /// [Checked C] Parse an unpack type specifier.
 /// unpack-spec:
 ///   '_Unpack' '(' type-var ')'
-/// TODO: use the proper names for the non-terminals above.
 void Parser::ParseUnpackSpecifier(DeclSpec &DS) {
   assert(Tok.is(tok::kw__Unpack) && "Expected an '_Unpack' token");
   auto StartLoc = ConsumeToken(); // eat '_Unpack'
@@ -7439,8 +7436,8 @@ void Parser::ParseUnpackSpecifier(DeclSpec &DS) {
   if (ExpectAndConsume(tok::l_paren)) return;
 
   if (Tok.getKind() != tok::identifier) {
-    // TODO: add proper error message
-    printf("expected a type variable name\n");
+    Diag(Tok.getLocation(), diag::err_type_variable_identifier_expected);
+    SkipUntil(tok::r_paren, StopAtSemi);
     return;
   }
 
