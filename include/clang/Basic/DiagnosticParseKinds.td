@@ -1318,6 +1318,9 @@ def err_pack_expr_returns_existential_type : Error <
 def err_unpack_expected_one_type_variable : Error<
   "unpack specifier expects exactly one type variable, but got %0 instead">;
 
+def err_unpack_expected_existential_initializer : Error<
+  "unpack specifer expects an initializer that has an existential type">;
+
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<
   "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
