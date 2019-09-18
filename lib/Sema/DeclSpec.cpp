@@ -1054,7 +1054,6 @@ bool DeclSpec::setSpecItypeforany(SourceLocation Loc, const char *&PrevSpec, uns
 }
 
 bool DeclSpec::setUnpackSpec(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID) {
-  // TODO: add error handling
   Unpack_specified = true;
   UnpackLoc = Loc;
   return false;
