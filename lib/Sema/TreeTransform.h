@@ -5828,7 +5828,7 @@ QualType TreeTransform<Derived>::TransformExistentialType(TypeLocBuilder &TLB,
   QualType NewInnerType = getDerived().TransformType(ExistType->innerType());
   if (NewInnerType.isNull()) return QualType();
   auto RawRes = SemaRef.ActOnExistentialType(SemaRef.Context, NewTypeVar.getTypePtr(), NewInnerType);
-  if (!RawRes) llvm_unreachable("Could not build existential type");
+  if (!RawRes) return QualType();
   auto Result = QualType(RawRes, Quals);
   ExistentialTypeLoc NewT = TLB.push<ExistentialTypeLoc>(Result);
   NewT.setNameLoc(TL.getNameLoc());
