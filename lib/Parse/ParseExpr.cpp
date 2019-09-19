@@ -3590,8 +3590,8 @@ ExprResult Parser::ParsePackExpression() {
     return ExprError();
   }
 
-  auto SubstTpe = ParseTypeName();
-  if (SubstTpe.isInvalid()) {
+  auto SubstType = ParseTypeName();
+  if (SubstType.isInvalid()) {
     SkipUntil(tok::r_paren, StopAtSemi);
     return ExprError();
   }
@@ -3607,7 +3607,7 @@ ExprResult Parser::ParsePackExpression() {
   }
 
   TypeSourceInfo *SubstTInfo = nullptr;
-  auto UnwrappedSubst = Actions.GetTypeFromParser(SubstTpe.get(), &SubstTInfo);
+  auto UnwrappedSubst = Actions.GetTypeFromParser(SubstType.get(), &SubstTInfo);
   auto SubstArg = TypeArgument { UnwrappedSubst, SubstTInfo };
 
   return Actions.ActOnPackExpression(PackedExpr.get(), UnwrappedExist, SubstArg, StartLoc, EndLoc);
