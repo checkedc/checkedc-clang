@@ -3632,8 +3632,8 @@ static CachedProperties computeCachedProperties(const Type *T) {
   case Type::TypeVariable:
     return CachedProperties(ExternalLinkage, false);
   case Type::Existential:
-    // TODO: is this correct?
-    return CachedProperties(ExternalLinkage, false);
+    // TODO: add test for this case (checkedc issue #661)
+    return Cache::get(cast<ExistentialType>(T)->innerType());
   }
 
   llvm_unreachable("unhandled type class");
