@@ -2063,6 +2063,7 @@ public:
   bool isNtCheckedArrayType() const;
   bool isUncheckedArrayType() const;
   bool isRecordType() const;
+  bool isExistentialType() const; // Checked C existential type
   bool isClassType() const;
   bool isStructureType() const;
   bool isObjCBoxableRecordType() const;
@@ -6761,6 +6762,10 @@ inline bool Type::isBuiltinType() const {
 
 inline bool Type::isRecordType() const {
   return isa<RecordType>(CanonicalType);
+}
+
+inline bool Type::isExistentialType() const {
+  return isa<ExistentialType>(CanonicalType);
 }
 
 inline bool Type::isEnumeralType() const {
