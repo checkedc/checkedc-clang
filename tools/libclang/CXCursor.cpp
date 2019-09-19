@@ -722,6 +722,7 @@ CXCursor cxcursor::MakeCXCursor(const Stmt *S, const Decl *Parent,
   case Stmt::BoundsCastExprClass:
   case Stmt::BoundsValueExprClass:
   case Stmt::CHKCBindTemporaryExprClass:
+  case Stmt::PackExprClass:
     K = CXCursor_UnexposedExpr;
     break;
   }
