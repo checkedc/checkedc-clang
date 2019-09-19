@@ -3168,7 +3168,7 @@ public:
   PackExpr(Expr *PackedExpr, QualType ExistType, QualType Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
    Expr(PackExprClass, ExistType, VK_RValue, OK_Ordinary, false, false, false, false),
    StartLoc(StartLoc), EndLoc(EndLoc), PackedExpr(PackedExpr), ExistType(ExistType), Subst(Subst) {
-    if(!ExistentialType::classof(ExistType.getTypePtr())) {
+    if(!ExistType->isExistentialType()) {
       llvm_unreachable("_Pack expression expects an existential type");
     }
   }

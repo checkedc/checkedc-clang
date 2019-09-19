@@ -2419,16 +2419,15 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
           auto TypeArg = TypeArgument { TVar, SourceInfo };
           // The initializer must have an existential type.
           // e.g. _Unpack (T) struct Foo<T> fooAbs = expr // expr must have type '_Exists(A, struct Foo<A>)'
-          auto InitExprType = InitExpr->getType().getCanonicalType().getTypePtr();
-          if (!ExistentialType::classof(InitExprType)) {
+          auto InitExprType = InitExpr->getType()->getAs<ExistentialType>();
+          if (!InitExprType) {
             Diag(InitExpr->getBeginLoc(), diag::err_unpack_expected_existential_initializer);
             return nullptr;
           }
           // If the initializer is an existential, then we need to substitute the new type variable for the bound
           // variable in the body of the existential.
           // In the example above, 'fooAbs' has type 'struct Foo<A> [A -> T]', because the _Unpack introduces 'T'.
-          auto InnerType = cast<ExistentialType>(InitExprType)->innerType();
-          auto NewType = Actions.SubstituteTypeArgs(InnerType, TypeArg);
+          auto NewType = Actions.SubstituteTypeArgs(InitExprType->innerType(), TypeArg);
           InitExpr->setType(NewType);
         }
         Actions.AddInitializerToDecl(ThisDecl, InitExpr,
