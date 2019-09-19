@@ -14,9 +14,11 @@ fi
 
 (cd "$LLVM_OBJ_DIR";
  cmake -G "Unix Makefiles" \
-   ${CMAKE_ADDITIONAL_OPTIONS} -DCMAKE_BUILD_TYPE="$BUILDCONFIGURATION" \
+   ${CMAKE_ADDITIONAL_OPTIONS} \
+  -DLLVM_ENABLE_PROJECTS=clang \
+  -DCMAKE_BUILD_TYPE="$BUILDCONFIGURATION" \
   -DLLVM_LIT_ARGS="-sv --no-progress-bar" \
-  "$BUILD_SOURCESDIRECTORY/llvm")
+  "$BUILD_SOURCESDIRECTORY/checkedc-clang/llvm")
 
 set +ue
 set +o pipefail

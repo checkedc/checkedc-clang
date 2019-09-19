@@ -93,10 +93,6 @@ elif [ "$SKIP_CHECKEDC_TESTS" != "Yes" -a "$SKIP_CHECKEDC_TESTS" != "No" ]; then
 fi
 
 # set up branch names
-if [ -z "$LLVM_BRANCH" ]; then
-  export LLVM_BRANCH="master"
-fi
-
 if [ -z "$CHECKEDC_BRANCH" ]; then
   export CHECKEDC_BRANCH="master"
 fi
@@ -110,10 +106,6 @@ if [ -z "$LLVM_TEST_SUITE_BRANCH" ]; then
 fi
 
 # set up source versions (Git commit number)
-if [ -z "$LLVM_COMMIT" ]; then
-  export LLVM_COMMIT="HEAD"
-fi
-
 if [ -z "$CHECKEDC_COMMIT" ]; then
  export CHECKEDC_COMMIT="HEAD"
 fi
@@ -173,8 +165,6 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " Branch and commit information:"
   echo "  CLANG_BRANCH: $CLANG_BRANCH"
   echo "  CLANG_COMMIT: $CLANG_COMMIT"
-  echo "  LLVM_BRANCH: $LLVM_BRANCH"
-  echo "  LLVM_COMMIT: $LLVM_COMMIT"
   echo "  CHECKEDC BRANCH: $CHECKEDC_BRANCH"
   echo "  CHECKEDC_COMMIT: $CHECKEDC_COMMIT"
   echo "  LLVM_TEST_SUITE_BRANCH: $LLVM_TEST_SUITE_BRANCH"

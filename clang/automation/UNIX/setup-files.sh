@@ -35,14 +35,11 @@ if [ -n "$LNT" ]; then
 fi
 cd "$BUILD_SOURCESDIRECTORY"
 
-# Check out LLVM
-clone_or_update llvm https://github.com/Microsoft/checkedc-llvm "$LLVM_BRANCH" "$LLVM_COMMIT"
-
 # Check out Clang
-clone_or_update llvm/tools/clang https://github.com/Microsoft/checkedc-clang "$CLANG_BRANCH" "$CLANG_COMMIT"
+clone_or_update checkedc-clang https://github.com/Microsoft/checkedc-clang "$CLANG_BRANCH" "$CLANG_COMMIT"
 
 # Check out Checked C Tests
-clone_or_update llvm/projects/checkedc-wrapper/checkedc https://github.com/Microsoft/checkedc "$CHECKEDC_BRANCH" "$CHECKEDC_COMMIT"
+clone_or_update checkedc-clang/llvm/projects/checkedc-wrapper/checkedc https://github.com/Microsoft/checkedc "$CHECKEDC_BRANCH" "$CHECKEDC_COMMIT"
 
 # Check out LLVM test suite
 if [ -n "$LNT" ]; then
