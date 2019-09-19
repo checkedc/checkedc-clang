@@ -33,8 +33,6 @@
 @rem
 @rem  CHECKEDC_BRANCH: defaults to master
 @rem  CHECKEDC_COMMIT: defaults to HEAD
-@rem  LLVM_BRANCH: defaults to master
-@rem  LLVM_COMMIT: defaults to HEAD
 @rem  CLANG_BRANCH: If not set, uses BUILD_SOURCEBRANCHNAME if defined.
 @rem                If BUILD_SOURCEBRANCHNAME is not defined, defaults
 @rem                 to master

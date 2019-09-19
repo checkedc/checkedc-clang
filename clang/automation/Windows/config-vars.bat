@@ -145,12 +145,6 @@ if NOT DEFINED SKIP_CHECKEDC_TESTS (
 )
 
 rem set up branch names
-if not defined LLVM_BRANCH (
-  set LLVM_BRANCH=master
-) else if "%LLVM_BRANCH%"=="" (
-  set LLVM_BRANCH=master
-)
-
 if not defined CHECKEDC_BRANCH (
   set CHECKEDC_BRANCH=master
 ) else if "%CHECKEDC_BRANCH%"=="" (
@@ -174,10 +168,6 @@ if not defined SIGN_BRANCH (
 )
 
 rem set up source versions (Git commit number)
-if not defined LLVM_COMMIT (
-  set LLVM_COMMIT=HEAD
-)
-
 if not defined CHECKEDC_COMMIT (
   set CHECKEDC_COMMIT=HEAD
 )
@@ -223,8 +213,6 @@ echo.
 echo.  Branch and commit information:
 echo.    CLANG_BRANCH: %CLANG_BRANCH%
 echo.    CLANG_COMMIT: %CLANG_COMMIT%
-echo.    LLVM_BRANCH: %LLVM_BRANCH%
-echo.    LLVM_COMMIT: %LLVM_COMMIT%
 echo.    CHECKEDC BRANCH: %CHECKEDC_BRANCH%
 echo.    CHECKEDC_COMMIT: %CHECKEDC_COMMIT%
 echo.    SIGN_BRANCH: %SIGN_BRANCH%

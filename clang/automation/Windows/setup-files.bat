@@ -3,8 +3,8 @@ rem Create directories and sync files
 set OLD_DIR=%CD%
 
 if "%BUILD_CHECKEDC_CLEAN%"=="Yes" (
-  if exist %BUILD_SOURCESDIRECTORY%\llvm (
-    rmdir /s /q %BUILD_SOURCESDIRECTORY%\llvm
+  if exist %BUILD_SOURCESDIRECTORY%\.git (
+    rmdir /s /q %BUILD_SOURCESDIRECTORY%\*
     if ERRORLEVEL 1 (goto cmdfailed)
   )
   if exist %LLVM_OBJ_DIR% (
@@ -13,13 +13,8 @@ if "%BUILD_CHECKEDC_CLEAN%"=="Yes" (
   )
 )
  
-if not exist %BUILD_SOURCESDIRECTORY%\llvm\.git (
-  git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-llvm %BUILD_SOURCESDIRECTORY%\llvm
-  if ERRORLEVEL 1 (goto cmdfailed)
-)
-
-if not exist %BUILD_SOURCESDIRECTORY%\llvm\tools\clang\.git (
-  git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang %BUILD_SOURCESDIRECTORY%\llvm\tools\clang
+if not exist %BUILD_SOURCESDIRECTORY%\.git (
+  git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang %BUILD_SOURCESDIRECTORY%
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
@@ -38,34 +33,8 @@ if "%SIGN_INSTALLER%" NEQ "No" (
   )
 )
 
-rem set up LLVM sources
-cd %BUILD_SOURCESDIRECTORY%\llvm
-if ERRORLEVEL 1 (goto cmdfailed)
-git fetch origin
-if ERRORLEVEL 1 (goto cmdfailed)
-git checkout -f %LLVM_BRANCH%
-if ERRORLEVEL 1 (goto cmdfailed)
-git pull -f origin %LLVM_BRANCH%
-if ERRORLEVEL 1 (goto cmdfailed)
-
-git checkout %LLVM_COMMIT%
-if ERRORLEVEL 1 (goto cmdfailed)
-
-rem set up Checked C sources
-cd %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc
-if ERRORLEVEL 1 (goto cmdfailed)
-git fetch origin
-if ERRORLEVEL 1 (goto cmdfailed)
-git checkout -f %CHECKEDC_BRANCH%
-if ERRORLEVEL 1 (goto cmdfailed)
-git pull -f origin %CHECKEDC_BRANCH%
-if ERRORLEVEL 1 (goto cmdfailed)
-
-git checkout %CHECKEDC_COMMIT%
-if ERRORLEVEL 1 (goto cmdfailed)
-
 rem Set up clang sources
-cd %BUILD_SOURCESDIRECTORY%\llvm\tools\clang
+cd %BUILD_SOURCESDIRECTORY%
 if ERRORLEVEL 1 (goto cmdfailed)
 git fetch origin
 if ERRORLEVEL 1 (goto cmdfailed)
@@ -81,6 +50,19 @@ if not exist %LLVM_OBJ_DIR% (
   mkdir %LLVM_OBJ_DIR%
   if ERRORLEVEL 1 (goto cmdfailed)
 )
+
+rem set up Checked C sources
+cd %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc
+if ERRORLEVEL 1 (goto cmdfailed)
+git fetch origin
+if ERRORLEVEL 1 (goto cmdfailed)
+git checkout -f %CHECKEDC_BRANCH%
+if ERRORLEVEL 1 (goto cmdfailed)
+git pull -f origin %CHECKEDC_BRANCH%
+if ERRORLEVEL 1 (goto cmdfailed)
+
+git checkout %CHECKEDC_COMMIT%
+if ERRORLEVEL 1 (goto cmdfailed)
 
 rem Set up sources for scripts for signing installer
 if "%SIGN_INSTALLER%" NEQ "No" (
