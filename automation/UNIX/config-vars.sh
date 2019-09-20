@@ -135,6 +135,18 @@ if [ -z "$RUN_LOCAL" ]; then
   export RUN_LOCAL="no"
 fi
 
+if [[ -z "$BENCHMARK" ]]; then
+  BMARK=no
+else
+  LNT_DB_DIR=/usr/local/checkedc/lnt-setup/llvm.lnt.db
+  if [ ! -d ${LNT_DB_DIR} ]; then
+    echo "No LNT DB found at $LNT_DB_DIR"
+    exit 1
+  fi
+fi
+export BMARK
+export LNT_DB_DIR
+
 # LLVM Nightly Tests are enabled when LNT is a non-empty
 # string.
 if [ -z "$LNT" ]; then
