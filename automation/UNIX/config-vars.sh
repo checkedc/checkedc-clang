@@ -136,16 +136,39 @@ if [ -z "$RUN_LOCAL" ]; then
 fi
 
 if [[ -z "$BENCHMARK" ]]; then
-  BMARK=no
+  export BMARK=no
+
 else
   LNT_DB_DIR=/usr/local/checkedc/lnt-setup/llvm.lnt.db
   if [ ! -d ${LNT_DB_DIR} ]; then
     echo "No LNT DB found at $LNT_DB_DIR"
     exit 1
   fi
+  export BMARK=yes
+  export LNT_DB_DIR
+
+  EXTRA_LNT_ARGS=
+  for OPT in $METRICS; do
+    case "$OPT" in
+      PERF)
+        EXTRA_LNT_ARGS+="--threads=1 "
+        ;;
+      COMPILETIME)
+        EXTRA_LNT_ARGS+="--build-threads=1 "
+        ;;
+    esac
+  done
+  export EXTRA_LNT_ARGS
+
+  if [[ -z "$ONLY_TEST" ]]; then
+    ONLY_TEST=""
+  fi
+  export ONLY_TEST
+
+  if [[ -z "$SAMPLES" ]]; then
+    export SAMPLES=3
+  fi
 fi
-export BMARK
-export LNT_DB_DIR
 
 # LLVM Nightly Tests are enabled when LNT is a non-empty
 # string.
@@ -175,6 +198,8 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " LNT: $LNT"
   echo " LNT_SCRIPT: $LNT_SCRIPT"
   echo " RUN_LOCAL: $RUN_LOCAL"
+  echo " BENCHMARK: $BMARK"
+  echo " LNT_DB_DIR: $LNT_DB_DIR"
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"
