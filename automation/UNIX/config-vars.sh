@@ -166,8 +166,9 @@ else
   export ONLY_TEST
 
   if [[ -z "$SAMPLES" ]]; then
-    export SAMPLES=3
+    SAMPLES=3
   fi
+  export SAMPLES
 fi
 
 # LLVM Nightly Tests are enabled when LNT is a non-empty
