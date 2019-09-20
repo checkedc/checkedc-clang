@@ -4103,6 +4103,8 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
     case Type::Pipe:
     case Type::TypeVariable:
       llvm_unreachable("type class is never variably-modified!");
+    case Type::Existential:
+      llvm_unreachable("existential type is never variably-modified!");
     case Type::Adjusted:
       T = cast<AdjustedType>(Ty)->getOriginalType();
       break;
@@ -14369,6 +14371,27 @@ ExprResult Sema::ActOnReturnValueExpr(SourceLocation Loc) {
 void Sema::SetDeferredBoundsCallBack(void *OpaqueData, ParseDeferredBoundsCallBackFn F) {
   DeferredBoundsParserData = OpaqueData;
   DeferredBoundsParser = F;
+}
+
+ExprResult Sema::ActOnPackExpression(Expr *PackedExpr,
+                                     QualType ExistType,
+                                     TypeArgument SubstArg,
+                                     SourceLocation StartLoc,
+                                     SourceLocation EndLoc) {
+
+  // Calculate the witness type by substituting the subst argument into the inner type of the existential.
+  // Example: suppose the existential is '_Exists(T, struct Foo<T>)'. Then the witness should have
+  // type 'struct Foo<int>'.
+  auto *Exist = dyn_cast<ExistentialType>(ExistType.getCanonicalType().getTypePtr());
+  assert(Exist && "Expected existential type in pack expression");
+  // Substitute in the inner type, not in the entire existential.
+  auto WitnessType = SubstituteTypeArgs(Exist->innerType(), SubstArg);
+  if (PackedExpr->getType().getCanonicalType() != WitnessType.getCanonicalType()) {
+    // TODO: improve error message by showing both the witness and expected types.
+    Diag(StartLoc, diag::err_typecheck_existential_type_witness_mismatch);
+    return ExprError();
+  }
+  return new (Context) PackExpr(PackedExpr, ExistType, SubstArg.typeName, StartLoc, EndLoc);
 }
 
 //===----------------------------------------------------------------------===//

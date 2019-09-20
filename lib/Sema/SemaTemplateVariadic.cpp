@@ -823,7 +823,8 @@ bool Sema::containsUnexpandedParameterPacks(Declarator &D) {
   case TST_atomic:
   case TST_plainPtr:
   case TST_arrayPtr:
-  case TST_ntarrayPtr: {
+  case TST_ntarrayPtr:
+  case TST_exists: {
     QualType T = DS.getRepAsType().get();
     if (!T.isNull() && T->containsUnexpandedParameterPack())
       return true;

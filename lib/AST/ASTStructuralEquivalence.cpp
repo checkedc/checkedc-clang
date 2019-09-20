@@ -819,6 +819,13 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     break;
   }
 
+  case Type::Existential: {
+    const ExistentialType *Exist1 = cast<ExistentialType>(T1);
+    const ExistentialType *Exist2 = cast<ExistentialType>(T2);
+    // TODO: rename bounds variables according to depth. 
+    return IsStructurallyEquivalent(Context, Exist1->innerType(), Exist2->innerType());
+  }
+
   } // end switch
 
   return true;

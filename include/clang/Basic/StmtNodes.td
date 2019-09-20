@@ -190,6 +190,7 @@ def PositionalParameterExpr : DStmt<Expr>;
 def BoundsCastExpr : DStmt<ExplicitCastExpr>;
 def CHKCBindTemporaryExpr : DStmt<Expr>;
 def BoundsValueExpr : DStmt<Expr>;
+def PackExpr : DStmt<Expr>;
 
 // CUDA Expressions.
 def CUDAKernelCallExpr : DStmt<CallExpr>;

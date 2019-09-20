@@ -1288,7 +1288,7 @@ def err_single_itype_expr_allowed : Error<
 def err_forany_type_variable_declaration_expected : Error<
   "expected list of type variables">;
 
-def err_forany_type_variable_identifier_expected : Error<
+def err_type_variable_identifier_expected : Error<
   "expected type variable identifier">;
 
 def err_generic_specifier_unexpected_token : Error<
@@ -1311,6 +1311,15 @@ def err_expected_type_argument_list_for_generic_instance : Error<
 
 def err_expected_type_argument_list_for_itype_generic_instance : Error<
   "expected a type argument list for a struct with a bounds-safe interface in a checked scope">;
+
+def err_pack_expr_returns_existential_type : Error <
+  "return type of a pack expression must be an existential type, but got %0 instead">;
+
+def err_unpack_expected_one_type_variable : Error<
+  "unpack specifier expects exactly one type variable, but got %0 instead">;
+
+def err_unpack_expected_existential_initializer : Error<
+  "unpack specifer expects an initializer that has an existential type">;
 
  // Checked C pragmas
 def err_pragma_checked_scope_invalid_argument : Error<

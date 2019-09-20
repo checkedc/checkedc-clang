@@ -3139,6 +3139,65 @@ public:
   }
 };
 
+/// \brief Represents a Checked C pack expression.
+/// Used like so '_Exists(T, struct Foo<T>) foo = _Pack(fooImpl, _Exists(T, struct Foo<T>), int)'.
+/// A pack expression is a triple (expr, exist_typ, subst), indicating that we type
+/// 'expr' with the existential type 'exist_typ', using the substitution 'T -> subst', where
+/// 'T' is the type variable bound by the existential type.
+/// e.g. in the example above, 'fooImpl' must have type 'struct Foo<int>', which we obtain by
+/// substituting 'int' for 'T' in 'struct Foo<T>'.
+class PackExpr : public Expr {
+private:
+  /// Start and end location for the pack expression.
+  SourceLocation StartLoc, EndLoc;
+
+  /// The expression that is being packed.
+  Expr *PackedExpr = nullptr;
+
+  /// The result type of the pack operation. This is always an existential type
+  /// after unwrapping the QualType.
+  QualType ExistType;
+  /// The type that will be substituted for the variable in the existential.
+  /// We can combine the existential and this type to check type of the expression
+  /// being packed.
+  /// e.g. if we do '_Pack(foo, _Exists(T, struct Foo<T, U, T>), int)', then
+  /// 'foo' must have type 'struct Foo<int, U, int>'.
+  QualType Subst;
+
+public:
+  PackExpr(Expr *PackedExpr, QualType ExistType, QualType Subst, SourceLocation StartLoc, SourceLocation EndLoc) :
+   Expr(PackExprClass, ExistType, VK_RValue, OK_Ordinary, false, false, false, false),
+   StartLoc(StartLoc), EndLoc(EndLoc), PackedExpr(PackedExpr), ExistType(ExistType), Subst(Subst) {
+    if(!ExistType->isExistentialType()) {
+      llvm_unreachable("_Pack expression expects an existential type");
+    }
+  }
+
+  /// Return the expression packed by this pack expression.
+  Expr *getPackedExpr() const { return PackedExpr; }
+
+  /// Return the type of the pack expression, which must be an existential (after unwrapping).
+  QualType getExistentialType() const { return ExistType; }
+
+  /// Return the "substitution" type that is used to verify that
+  /// the underlying expr can be packed into the existential type.
+  QualType getSubst() const { return Subst; }
+
+  SourceLocation getBeginLoc() const LLVM_READONLY { return StartLoc; }
+  SourceLocation getEndLoc() const LLVM_READONLY { return EndLoc; }
+
+  child_range children() {
+    // Pretend the children are stored in a one-element array.
+    Stmt *Child = PackedExpr;
+    return child_range(&Child, &Child + 1);
+  }
+  const_child_range children() const {
+    // Pretend the children are stored in a one-element array.
+    Stmt *Child = PackedExpr;
+    return const_child_range(&Child, &Child + 1);
+  }
+};
+
 /// \brief Represents a Checked C bounds expression.
 class BoundsExpr : public Expr {
 private:

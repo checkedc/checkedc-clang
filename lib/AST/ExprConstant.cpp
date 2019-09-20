@@ -7757,6 +7757,9 @@ EvaluateBuiltinClassifyType(QualType T, const LangOptions &LangOpts) {
 
   case Type::TypeVariable:
     return GCCTypeClass::Void;
+  case Type::Existential:
+    // Classify _Exists(T, InnerType) the same as InnerType.
+    return EvaluateBuiltinClassifyType(CanTy->castAs<ExistentialType>()->innerType(), LangOpts);
 
   case Type::BlockPointer:
   case Type::Vector:
@@ -11250,6 +11253,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::BoundsValueExprClass:
     // These are parameter variables and are never constants,
   case Expr::RangeBoundsExprClass:
+  case Expr::PackExprClass:
     return ICEDiag(IK_NotICE, E->getBeginLoc());
 
   case Expr::InitListExprClass: {

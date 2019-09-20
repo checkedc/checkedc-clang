@@ -3631,6 +3631,9 @@ static CachedProperties computeCachedProperties(const Type *T) {
     return Cache::get(cast<PipeType>(T)->getElementType());
   case Type::TypeVariable:
     return CachedProperties(ExternalLinkage, false);
+  case Type::Existential:
+    // TODO: add test for this case (checkedc issue #661)
+    return Cache::get(cast<ExistentialType>(T)->innerType());
   }
 
   llvm_unreachable("unhandled type class");
@@ -3717,6 +3720,8 @@ LinkageInfo LinkageComputer::computeTypeLinkageInfo(const Type *T) {
     return computeTypeLinkageInfo(cast<PipeType>(T)->getElementType());
   case Type::TypeVariable:
     return LinkageInfo::external();
+  case Type::Existential:
+    return computeTypeLinkageInfo(cast<ExistentialType>(T)->innerType());
   }
 
   llvm_unreachable("unhandled type class");
@@ -3868,6 +3873,7 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::Atomic:
   case Type::Pipe:
   case Type::TypeVariable:
+  case Type::Existential:
     return false;
   }
   llvm_unreachable("bad type kind!");

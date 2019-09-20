@@ -307,6 +307,7 @@ public:
   static const TST TST_plainPtr = clang::TST_plainPtr;
   static const TST TST_arrayPtr = clang::TST_arrayPtr;
   static const TST TST_nt_arrayPtr = clang::TST_ntarrayPtr;
+  static const TST TST_exists = clang::TST_exists;
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   static const TST TST_##ImgType##_t = clang::TST_##ImgType##_t;
 #include "clang/Basic/OpenCLImageTypes.def"
@@ -376,6 +377,9 @@ private:
   // Checked C - _Itype_for_any function specifier
   unsigned FS_itypeforany_specified : 1;
 
+  // Checked C - '_Unpack (T)' specifier
+  unsigned Unpack_specified : 1;
+
   // friend-specifier
   unsigned Friend_specified : 1;
 
@@ -419,6 +423,8 @@ private:
   SourceLocation FS_forceinlineLoc;
   // Checked C - checked keyword location
   SourceLocation FS_checkedLoc, FS_foranyLoc, FS_itypeforanyloc;
+  // Checked C - _Unpack keyword location
+  SourceLocation UnpackLoc;
   SourceLocation FriendLoc, ModulePrivateLoc, ConstexprLoc;
   SourceLocation TQ_pipeLoc;
 
@@ -431,7 +437,7 @@ private:
     return (T == TST_typename || T == TST_typeofType ||
             T == TST_underlyingType || T == TST_atomic ||
             T == TST_plainPtr || T == TST_arrayPtr ||
-            T == TST_nt_arrayPtr);
+            T == TST_nt_arrayPtr || T == TST_exists);
   }
   static bool isExprRep(TST T) {
     return (T == TST_typeofExpr || T == TST_decltype);
@@ -443,7 +449,7 @@ public:
   static bool isDeclRep(TST T) {
     return (T == TST_enum || T == TST_struct ||
             T == TST_interface || T == TST_union ||
-            T == TST_class);
+            T == TST_class || T == TST_exists);
   }
 
   DeclSpec(AttributeFactory &attrFactory)
@@ -470,6 +476,8 @@ public:
       FS_checked_specified(CSS_None),
       FS_forany_specified(false),
       FS_itypeforany_specified(false),
+      // Checked C - _Unpack specifier
+      Unpack_specified(false),
       Friend_specified(false),
       Constexpr_specified(false),
       Attrs(attrFactory),
@@ -623,6 +631,23 @@ public:
   bool isItypeforanySpecified() const { return FS_itypeforany_specified; }
   SourceLocation getForanySpecLoc() const { return FS_foranyLoc; }
 
+  bool isUnpackSpecified() const { return Unpack_specified; }
+  SourceLocation getUnpackSpecLoc() const { return UnpackLoc; }
+
+  // TODO: does this method really need to take both an 'ArrayRef' and the number of type variables (the 'ArrayRef' already contains)
+  // a count. (checkedc issue #661)
+  /// This method is used both for existentials and generic declarations:
+  ///   - Existentials: we add the type variable of an existential type to its declaration specifier.
+  ///     The type variable is added via a typedef, so we can remember its name in case
+  ///     we need it for diagnostics.
+  ///     Example: the type '_Exists(T, struct Foo<T>)' is stored in a 'DeclSpec' by
+  ///     setting (in the 'DeclSpec') the inner type 'struct Foo<T>' in the constructor,
+  ///     and, additionally, calling 'setExistentialTypeVar' with the bound variable
+  ///    represented by the typedef 'typedef T TypeVariableType(depth, offset)'.
+  ///
+  ///   - Generics: generics use this method to populate the list of type parameters in a a RecordDecl.
+  ///     e.g. when we first parse 'struct Foo _For_any(T)', the '_For_any(T)' is parsed as DeclSpec, to
+  ///     which we need to attach the list of type parameters.
   void setTypeVars(ASTContext &C, ArrayRef<TypedefDecl *> NewTypeVarInfo, unsigned NewNumTypeVars);
   void setGenericFunctionOrStruct(bool IsGeneric) { GenericFunctionOrStruct = IsGeneric; }
   void setItypeGenericFunctionOrStruct(bool IsItypeGeneric) { ItypeGenericFunctionOrStruct = IsItypeGeneric; }
@@ -782,6 +807,7 @@ public:
                                 unsigned &DiagID);
   bool setSpecItypeforany(SourceLocation Loc, const char *&PrevSpec,
                                     unsigned &DiagID);
+  bool setUnpackSpec(SourceLocation Loc, const char *&PrevSpec, unsigned &DiagID);
   bool SetFriendSpec(SourceLocation Loc, const char *&PrevSpec,
                      unsigned &DiagID);
   bool setModulePrivateSpec(SourceLocation Loc, const char *&PrevSpec,

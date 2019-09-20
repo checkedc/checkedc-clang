@@ -5816,6 +5816,26 @@ QualType TreeTransform<Derived>::TransformTypeVariableType(TypeLocBuilder &TLB,
 }
 
 template<typename Derived>
+QualType TreeTransform<Derived>::TransformExistentialType(TypeLocBuilder &TLB,
+                                                          ExistentialTypeLoc TL) {
+  // TODO: be smarter about rebuilding these.
+  // TODO: the proper way to do the rebuilding is to have a RebuildExistentialType method. Add one?
+  auto *ExistType = TL.getTypePtr();
+  auto Quals = TL.getType().getQualifiers().getAsOpaqueValue();
+  auto TypeVar = QualType(ExistType->typeVar(), 0 /* Quals */);
+  QualType NewTypeVar = getDerived().TransformType(TypeVar);
+  if (NewTypeVar.isNull()) return QualType();
+  QualType NewInnerType = getDerived().TransformType(ExistType->innerType());
+  if (NewInnerType.isNull()) return QualType();
+  auto RawRes = SemaRef.ActOnExistentialType(SemaRef.Context, NewTypeVar.getTypePtr(), NewInnerType);
+  if (!RawRes) return QualType();
+  auto Result = QualType(RawRes, Quals);
+  ExistentialTypeLoc NewT = TLB.push<ExistentialTypeLoc>(Result);
+  NewT.setNameLoc(TL.getNameLoc());
+  return Result;
+}
+
+template<typename Derived>
 QualType TreeTransform<Derived>::TransformTypeOfType(TypeLocBuilder &TLB,
                                                      TypeOfTypeLoc TL) {
   TypeSourceInfo* Old_Under_TI = TL.getUnderlyingTInfo();
@@ -12665,6 +12685,12 @@ TreeTransform<Derived>::TransformRangeBoundsExpr(RangeBoundsExpr *E) {
                                              UpperExpr.get(),
                                              Relative,
                                              E->getRParenLoc());
+}
+
+template<typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformPackExpr(PackExpr *E) {
+   return E;
 }
 
 template<typename Derived>

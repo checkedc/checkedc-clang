@@ -3268,6 +3268,11 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
     // These never have a side-effect.
     return false;
 
+  case PackExprClass:
+    // The pack operation itself doesn't have any side effects, but
+    // the underlying operation might.
+    return cast<PackExpr>(this)->getPackedExpr()->HasSideEffects(Ctx, IncludePossibleEffects);
+
   case ConstantExprClass:
     // FIXME: Move this into the "return false;" block above.
     return cast<ConstantExpr>(this)->getSubExpr()->HasSideEffects(

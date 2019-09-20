@@ -168,6 +168,8 @@ ExprResult Parser::ParseAssignmentExpression(TypeCastState isTypeCast) {
     return ParseThrowExpression();
   if (Tok.is(tok::kw_co_yield))
     return ParseCoyieldExpression();
+  if (Tok.is(tok::kw__Pack))
+    return ParsePackExpression();
 
   ExprResult LHS = ParseCastExpression(/*isUnaryExpression=*/false,
                                        /*isAddressOfOperand=*/false,
@@ -3555,6 +3557,60 @@ ExprResult Parser::ParseReturnValueExpression() {
          "Not bounds value expression");
   SourceLocation Loc = ConsumeToken();
   return Actions.ActOnReturnValueExpr(Loc);
+}
+
+/// [Checked C] pack-expression:
+///   _Pack '(' expression ',' type-name ',' type-name ')'
+ExprResult Parser::ParsePackExpression() {
+  assert(Tok.is(tok::kw__Pack) && "Not a pack expression");
+  SourceLocation StartLoc = ConsumeToken();
+
+  if (Tok.isNot(tok::l_paren)) return ExprError();
+  ConsumeParen();
+
+  auto PackedExpr = ParseExpression();
+  if (PackedExpr.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (ExpectAndConsume(tok::comma)) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  auto ExistType = ParseTypeName();
+  if (ExistType.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (ExpectAndConsume(tok::comma)) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  auto SubstType = ParseTypeName();
+  if (SubstType.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return ExprError();
+  }
+
+  if (Tok.isNot(tok::r_paren)) return ExprError();
+  SourceLocation EndLoc = ConsumeParen();
+
+  TypeSourceInfo *ExistTInfo = nullptr;
+  auto UnwrappedExist = Actions.GetTypeFromParser(ExistType.get(), &ExistTInfo);
+  if (!ExistentialType::classof(UnwrappedExist.getCanonicalType().getTypePtr())) {
+    Diag(ExistTInfo->getTypeLoc().getBeginLoc(), diag::err_pack_expr_returns_existential_type) << UnwrappedExist;
+    return ExprError();
+  }
+
+  TypeSourceInfo *SubstTInfo = nullptr;
+  auto UnwrappedSubst = Actions.GetTypeFromParser(SubstType.get(), &SubstTInfo);
+  auto SubstArg = TypeArgument { UnwrappedSubst, SubstTInfo };
+
+  return Actions.ActOnPackExpression(PackedExpr.get(), UnwrappedExist, SubstArg, StartLoc, EndLoc);
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks
