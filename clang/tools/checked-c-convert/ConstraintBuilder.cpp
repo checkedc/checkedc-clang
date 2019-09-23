@@ -639,9 +639,15 @@ private:
     // currently we only handle NT arrays.
     if (ptrKind == CheckedPointerKind::NtArray) {
       isHandled = true;
-      // assign the corresponding checked type to
-      // all teh constraint vars.
-      assignType(Vars, getCheckedPointerConstraint(ptrKind));
+      Constraints &CS = Info.getConstraints();
+      // assign the corresponding checked type only to the
+      // top level constraint var
+      for (auto cVar:Vars) {
+        if (PVConstraint *PV = dyn_cast<PVConstraint>(cVar))
+          if (!PV->getCvars().empty())
+            CS.addConstraint(CS.createEq(CS.getOrCreateVar(*PV->getCvars().begin()),
+                        getCheckedPointerConstraint(ptrKind)));
+      }
     }
     // is this handled or propagation through itype
     // has been disabled. In which case, all itypes

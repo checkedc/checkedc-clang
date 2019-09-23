@@ -134,6 +134,8 @@ public:
     return *ArrBoundsInfo;
   }
 private:
+  // apply function sub-typing relation from srcCVar to dstCVar
+  bool applySubtypingRelation(ConstraintVariable *srcCVar, ConstraintVariable *dstCVar);
   // check if the given set has the corresponding constraint variable type
   template <typename T>
   bool hasConstraintType(std::set<ConstraintVariable*> &S);

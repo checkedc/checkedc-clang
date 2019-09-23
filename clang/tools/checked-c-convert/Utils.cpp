@@ -133,9 +133,9 @@ static std::string storageClassToString(StorageClass SC) {
     case StorageClass::SC_Static: return "static ";
     case StorageClass::SC_Extern: return "extern ";
     case StorageClass::SC_Register: return "register ";
-    // no default class, we do not care.
+    // for all other cases, we do not care.
+    default: return "";
   }
-  return "";
 }
 
 // this method gets the storage qualifier for the

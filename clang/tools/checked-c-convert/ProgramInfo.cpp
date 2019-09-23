@@ -992,6 +992,55 @@ std::set<ConstraintVariable*> *ProgramInfo::getFuncDeclConstraintSet(std::string
   return declCVarsPtr;
 }
 
+bool ProgramInfo::applySubtypingRelation(ConstraintVariable *srcCVar, ConstraintVariable *dstCVar) {
+  bool retVal = false;
+  PVConstraint *pvSrc = dyn_cast<PVConstraint>(srcCVar);
+  PVConstraint *pvDst = dyn_cast<PVConstraint>(dstCVar);
+
+  if (!pvSrc->getCvars().empty() && !pvDst->getCvars().empty()) {
+    auto &envMap = CS.getVariables();
+
+    CVars srcCVars(pvSrc->getCvars());
+    CVars dstCVars(pvDst->getCvars());
+
+    // function subtyping only applies for the top level pointer.
+    ConstAtom *outerMostSrcVal = envMap[CS.getOrCreateVar(*srcCVars.begin())];
+    ConstAtom *outputMostDstVal = envMap[CS.getOrCreateVar(*dstCVars.begin())];
+
+    if (*outputMostDstVal < *outerMostSrcVal) {
+      CS.addConstraint(CS.createEq(CS.getVar(*dstCVars.begin()), outerMostSrcVal));
+      retVal = true;
+    }
+
+    // for all the other pointer types they should be exactly same.
+    // more details refer: https://github.com/microsoft/checkedc-clang/issues/676
+    srcCVars.erase(srcCVars.begin());
+    dstCVars.erase(dstCVars.begin());
+
+    if (srcCVars.size() == dstCVars.size()) {
+      CVars::iterator SB = srcCVars.begin();
+      CVars::iterator DB = dstCVars.begin();
+
+      while (SB != srcCVars.end()) {
+        ConstAtom *sVal = envMap[CS.getVar(*SB)];
+        ConstAtom *dVal = envMap[CS.getVar(*DB)];
+        // if these are not equal.
+        if (*sVal < *dVal || *dVal < *sVal) {
+          // get the highest type.
+          ConstAtom *finalVal = *sVal < *dVal ? dVal : sVal;
+          // get the lowest constraint variable to change.
+          VarAtom *toChange = *sVal < *dVal ? CS.getVar(*SB) : CS.getVar(*DB);
+          CS.addConstraint(CS.createEq(toChange, finalVal));
+          retVal = true;
+        }
+        SB++;
+        DB++;
+      }
+    }
+  }
+  return retVal;
+}
+
 bool ProgramInfo::handleFunctionSubtyping() {
   // The subtyping rule for functions is:
   // T2 <: S2
@@ -1022,14 +1071,14 @@ bool ProgramInfo::handleFunctionSubtyping() {
       auto defRetType = getHighest(defCVar->getReturnVars(), *this);
       auto declRetType = getHighest(declCVar->getReturnVars(), *this);
 
-      PVConstraint *toChangeVar = nullptr;
-      ConstAtom *targetConstAtom = nullptr;
-
       if (defRetType->hasWild(envMap)) {
         // the function is returning WILD with in the body.
         // make the declaration type also WILD.
-        targetConstAtom = CS.getWild();
-        toChangeVar = dyn_cast<PVConstraint>(declRetType);
+        PVConstraint *toChangeVar = dyn_cast<PVConstraint>(declRetType);
+        for (const auto &B : toChangeVar->getCvars())
+          CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+
+        retVal = true;
       } else {
         ConstraintVariable *highestNonWildCvar = declRetType;
         // if the declaration return type is WILD ?
@@ -1049,19 +1098,8 @@ bool ProgramInfo::handleFunctionSubtyping() {
           //  here PTR is not a subtype of ARR
           // Oh, definition is more restrictive than declaration.
           // promote the type of definition to higher type.
-          toChangeVar = dyn_cast<PVConstraint>(defRetType);
-          targetConstAtom = highestNonWildCvar->getHighestType(envMap);
+          retVal = applySubtypingRelation(highestNonWildCvar, defRetType) || retVal;
         }
-      }
-
-      // should we change the type of the declaration return?
-      if(targetConstAtom != nullptr && toChangeVar != nullptr) {
-        if (PVConstraint *PVC = dyn_cast<PVConstraint>(toChangeVar)){
-          for (const auto &B : PVC->getCvars()) {
-            CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), targetConstAtom));
-          }
-        }
-        retVal = true;
       }
 
       // handle the parameter types.
@@ -1092,20 +1130,12 @@ bool ProgramInfo::handleFunctionSubtyping() {
             // here we should apply the sub-typing relation
             // for all the toChageVars
             for (auto currToChangeVar: toChangeCVars) {
-              if (currToChangeVar->isLt(*defParam, *this)) {
-                // i.e., declaration is not a subtype of definition.
-                // e.g., decl = PTR and defn = ARR,
-                //  here PTR is not a subtype of ARR
-                // Oh, declaration is more restrictive than definition.
-                // promote the type of declaration to higher type.
-                ConstAtom *defType = defParam->getHighestType(envMap);
-                if (PVConstraint *PVC = dyn_cast<PVConstraint>(currToChangeVar)) {
-                  for (const auto &B : PVC->getCvars()) {
-                    CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), defType));
-                  }
-                }
-                retVal = true;
-              }
+              // i.e., declaration is not a subtype of definition.
+              // e.g., decl = PTR and defn = ARR,
+              //  here PTR is not a subtype of ARR
+              // Oh, declaration is more restrictive than definition.
+              // promote the type of declaration to higher type.
+              retVal = applySubtypingRelation(defParam, currToChangeVar) || retVal;
             }
           }
         }
