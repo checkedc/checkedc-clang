@@ -728,7 +728,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     return R;
   } else if (StringLiteral *exr = dyn_cast<StringLiteral>(E)) {
     // if this is a string literal. i.e., "foo"
-    // we create a new constraint variable and constraint it to an Nt_array
+    // we create a new constraint variable and constrain it to be an Nt_array
     std::set<ConstraintVariable *> T;
     CVars V;
     V.insert(freeKey);
@@ -736,7 +736,7 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     freeKey++;
     ConstraintVariable *newC = new PointerVariableConstraint(V, "const char*", exr->getBytes(),
                                                              nullptr, false, false, "");
-    // constraint the newly created variable to NTArray.
+    // constrain the newly created variable to be NTArray.
     newC->constrainTo(CS, CS.getNTArr());
     T.insert(newC);
     return T;

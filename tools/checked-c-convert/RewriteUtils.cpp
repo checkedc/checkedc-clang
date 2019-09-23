@@ -9,10 +9,12 @@
 //===----------------------------------------------------------------------===//
 #include "llvm/Support/raw_ostream.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/Type.h"
+
 #include <algorithm>
 #include <map>
 #include <sstream>
-#include "clang/AST/Type.h"
+
 #include "RewriteUtils.h"
 #include "MappingVisitor.h"
 #include "Utils.h"

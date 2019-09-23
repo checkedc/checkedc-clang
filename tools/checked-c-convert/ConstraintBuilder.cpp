@@ -268,12 +268,12 @@ public:
             // to a NamedDecl?
             FunctionDecl *calleeDecl =
               dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-            if (calleeDecl && isFunctionAllocator(calleeDecl->getName())) {
+            if (calleeDecl) {
               // this is an allocator, should we treat it as safe?
-              if (!considerAllocUnsafe) {
+              if (!considerAllocUnsafe && isFunctionAllocator(calleeDecl->getName()))
                 rulesFired = true;
-              } else {
-                // It's a call to allocator. What about the parameter to the call?
+              else if (calleeDecl->getName().equals("malloc")) {
+                // It's a call to malloc. What about the parameter to the call?
                 if (CA->getNumArgs() > 0) {
                   UnaryExprOrTypeTraitExpr *arg =
                     dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
