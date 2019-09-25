@@ -719,10 +719,11 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
     if (checkSkip || dyn_cast<WildAtom>(A)) {
       if (ConstrainedVars.find(V) != ConstrainedVars.end())
         doAdd = false;
-      // if this is a static array, it cannot be WILD.
-      if (arrSizes.find(V) != arrSizes.end())
-        doAdd = false;
     }
+    // See, if we can constrain the current constraint var to the provided
+    // ConstAtom
+    if (!CS.getOrCreateVar(V)->canAssign(A))
+      doAdd = false;
 
     if (doAdd) {
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
