@@ -157,12 +157,15 @@ private:
   // get the qualifier string (e.g., const, etc) for the provided constraint var (targetCvar)
   // into the provided string stream (ss)
   void getQualString(ConstraintKey targetCVar, std::ostringstream &ss);
+  // flag to indicate that this constraint is a part of function prototype
+  // e.g., Parameters or Return
+  bool partOFFuncPrototype;
 public:
   // Constructor for when we know a CVars and a type string.
   PointerVariableConstraint(CVars V, std::string T, std::string Name,
                             FunctionVariableConstraint *F, bool isArr, bool isItype, std::string is) :
           ConstraintVariable(PointerVariable, T, Name)
-          ,vars(V),FV(F),arrPresent(isArr), itypeStr(is) {}
+          ,vars(V),FV(F),arrPresent(isArr), itypeStr(is), partOFFuncPrototype(false) {}
 
   bool getArrPresent() { return arrPresent; }
 
@@ -179,7 +182,9 @@ public:
   // Constructor for when we only have a Type. Needs a string name
   // N for the name of the variable that this represents.
   PointerVariableConstraint(const clang::QualType &QT, ConstraintKey &K,
-                            clang::DeclaratorDecl *D, std::string N, Constraints &CS, const clang::ASTContext &C);
+                            clang::DeclaratorDecl *D, std::string N,
+                            Constraints &CS,
+                            const clang::ASTContext &C, bool partOfFunc = false);
 
   const CVars &getCvars() const { return vars; }
 
@@ -200,6 +205,8 @@ public:
   bool hasArr(Constraints::EnvironmentMap &E);
   // get the highest type assigned to the cvars of this constraint variable
   ConstAtom *getHighestType(Constraints::EnvironmentMap &E);
+
+  bool isPartOfFunctionPrototype() const  { return partOFFuncPrototype; }
 
   bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
   bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;

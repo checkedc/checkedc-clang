@@ -220,10 +220,7 @@ bool ProgramInfo::checkStructuralEquality(QualType D, QualType S) {
   if (D == S)
     return true;
 
-  if (D->isPointerType() == S->isPointerType())
-    return true;
-
-  return false;
+  return D->isPointerType() == S->isPointerType();
 }
 
 bool ProgramInfo::isExternOkay(std::string ext) {
@@ -729,6 +726,21 @@ ProgramInfo::getVariableHelper( Expr                            *E,
     T = getVariableHelper(CO->getRHS(), V, C, ifc);
     R.insert(T.begin(), T.end());
     return R;
+  } else if (StringLiteral *exr = dyn_cast<StringLiteral>(E)) {
+    // if this is a string literal. i.e., "foo"
+    // we create a new constraint variable and constrain it to be an Nt_array
+    std::set<ConstraintVariable *> T;
+    CVars V;
+    V.insert(freeKey);
+    CS.getOrCreateVar(freeKey);
+    freeKey++;
+    ConstraintVariable *newC = new PointerVariableConstraint(V, "const char*", exr->getBytes(),
+                                                             nullptr, false, false, "");
+    // constrain the newly created variable to be NTArray.
+    newC->constrainTo(CS, CS.getNTArr());
+    T.insert(newC);
+    return T;
+
   } else {
     return std::set<ConstraintVariable*>();
   }

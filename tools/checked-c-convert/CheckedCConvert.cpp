@@ -78,6 +78,11 @@ cl::opt<bool> enablePropThruIType( "enable-itypeprop",
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
 
+cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
+                                   cl::desc("Consider the allocators (i.e., malloc/calloc) as unsafe."),
+                                   cl::init(false),
+                                   cl::cat(ConvertCategory));
+
 static cl::opt<std::string>
 BaseDir("base-dir",
   cl::desc("Base directory for the code we're translating"),

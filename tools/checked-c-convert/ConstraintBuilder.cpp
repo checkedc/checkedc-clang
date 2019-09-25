@@ -268,27 +268,32 @@ public:
             // to a NamedDecl?
             FunctionDecl *calleeDecl =
               dyn_cast<FunctionDecl>(CA->getCalleeDecl());
-            if (calleeDecl && calleeDecl->getName() == "malloc") {
-              // It's a call to malloc. What about the parameter to the call?
-              if (CA->getNumArgs() > 0) {
-                UnaryExprOrTypeTraitExpr *arg =
-                  dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
-                if (arg && arg->isArgumentType()) {
-                  // Check that the argument is a sizeof.
-                  if (arg->getKind() == UETT_SizeOf) {
-                    QualType argTy = arg->getArgumentType();
-                    // argTy should be made a pointer, then compared for
-                    // equality to lhsType and rhsTy.
-                    QualType argPTy = Context->getPointerType(argTy);
+            if (calleeDecl) {
+              // this is an allocator, should we treat it as safe?
+              if (!considerAllocUnsafe && isFunctionAllocator(calleeDecl->getName()))
+                rulesFired = true;
+              else if (calleeDecl->getName().equals("malloc")) {
+                // It's a call to malloc. What about the parameter to the call?
+                if (CA->getNumArgs() > 0) {
+                  UnaryExprOrTypeTraitExpr *arg =
+                    dyn_cast<UnaryExprOrTypeTraitExpr>(CA->getArg(0));
+                  if (arg && arg->isArgumentType()) {
+                    // Check that the argument is a sizeof.
+                    if (arg->getKind() == UETT_SizeOf) {
+                      QualType argTy = arg->getArgumentType();
+                      // argTy should be made a pointer, then compared for
+                      // equality to lhsType and rhsTy.
+                      QualType argPTy = Context->getPointerType(argTy);
 
-                    if (Info.checkStructuralEquality(V, RHSConstraints, argPTy, lhsType) &&
-                        Info.checkStructuralEquality(V, RHSConstraints, argPTy, rhsTy)) {
-                      rulesFired = true;
-                      // At present, I don't think we need to add an
-                      // implication based constraint since this rule only
-                      // fires if there is a cast from a call to malloc.
-                      // Since malloc is an external, there's no point in
-                      // adding constraints to it.
+                      if (Info.checkStructuralEquality(V, RHSConstraints, argPTy, lhsType) &&
+                          Info.checkStructuralEquality(V, RHSConstraints, argPTy, rhsTy)) {
+                        rulesFired = true;
+                        // At present, I don't think we need to add an
+                        // implication based constraint since this rule
+                        // only fires if there is a cast from a call to malloc.
+                        // Since malloc is an external, there's no point in
+                        // adding constraints to it.
+                      }
                     }
                   }
                 }

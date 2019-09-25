@@ -153,3 +153,34 @@ bool getAbsoluteFilePath(std::string fileName, std::string &absoluteFP) {
   absoluteFP = AbsoluteFilePathCache[fileName];
   return true;
 }
+
+bool functionHasVarArgs(clang::FunctionDecl *FD) {
+  if (FD && FD->getFunctionType()->isFunctionProtoType()) {
+    const FunctionProtoType *srcType = dyn_cast<FunctionProtoType>(FD->getFunctionType());
+    return srcType->isVariadic();
+  }
+  return false;
+}
+
+bool isFunctionAllocator(std::string funcName) {
+  return llvm::StringSwitch<bool>(funcName)
+    .Cases("malloc", "calloc", "realloc", true)
+    .Default(false);
+}
+
+float getTimeSpentInSeconds(clock_t startTime) {
+  return float(clock() - startTime)/CLOCKS_PER_SEC;
+}
+
+bool isPointerType(clang::VarDecl *VD) {
+  return VD->getType().getTypePtr()->isPointerType();
+}
+
+bool isStructOrUnionType(clang::VarDecl *VD) {
+  return VD->getType().getTypePtr()->isStructureType() || VD->getType().getTypePtr()->isUnionType();
+}
+
+std::string tyToStr(const Type *T) {
+  QualType QT(T, 0);
+  return QT.getAsString();
+}
