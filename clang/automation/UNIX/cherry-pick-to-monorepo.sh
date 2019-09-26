@@ -5,7 +5,13 @@
 # 2. Checkout the new monorepo (say <somedir>/src. Call this TGTDIR.
 # 3. cd $SRCDIR
 # 4. git log --pretty=oneline --format=%H > patchlist
-# 5. for i in `cat patchlist`; do git diff ${i}~1 ${i} > ${i}.patch; done
+# 5. Remove from patchlist the commit ids you do not want to cherry-pick.
+# 6. for i in `cat patchlist`; do git diff ${i}~1 ${i} > ${i}.patch; done
+
+# Note : Currently you need to run this script for each patch in the patchlist.
+# We have followed a conservative approach and do not apply all patches at
+# once. This is done so that the user has control over each patch. You can
+# easily modify this script to iterate over all patches in the patchlist.
 
 SRCDIR=<>
 TGTDIR=<>
