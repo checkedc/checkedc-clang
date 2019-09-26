@@ -3152,7 +3152,7 @@ private:
   SourceLocation StartLoc, EndLoc;
 
   /// The expression that is being packed.
-  Expr *PackedExpr = nullptr;
+  Stmt *PackedExpr = nullptr;
 
   /// The result type of the pack operation. This is always an existential type
   /// after unwrapping the QualType.
@@ -3174,7 +3174,7 @@ public:
   }
 
   /// Return the expression packed by this pack expression.
-  Expr *getPackedExpr() const { return PackedExpr; }
+  Expr *getPackedExpr() const { return cast<Expr>(PackedExpr); }
 
   /// Return the type of the pack expression, which must be an existential (after unwrapping).
   QualType getExistentialType() const { return ExistType; }
@@ -3188,13 +3188,15 @@ public:
 
   child_range children() {
     // Pretend the children are stored in a one-element array.
-    Stmt *Child = PackedExpr;
-    return child_range(&Child, &Child + 1);
+    return child_range(&PackedExpr, &PackedExpr + 1);
   }
   const_child_range children() const {
     // Pretend the children are stored in a one-element array.
-    Stmt *Child = PackedExpr;
-    return const_child_range(&Child, &Child + 1);
+    return const_child_range(&PackedExpr, &PackedExpr + 1);
+  }
+
+  static bool classof(const Stmt* T) {
+	return T->getStmtClass() == PackExprClass;
   }
 };
 
