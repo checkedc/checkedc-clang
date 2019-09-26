@@ -338,13 +338,25 @@ bool ProgramInfo::link() {
       const std::set<FVConstraint*> &Gs = (*I).second;
 
       for (const auto &G : Gs) {
-        for(const auto &U : G->getReturnVars()) {
+        for (const auto &U : G->getReturnVars()) {
           U->constrainTo(CS, CS.getWild(), true);
         }
 
-        for(unsigned i = 0; i < G->numParams(); i++) 
-          for(const auto &U : G->getParamVar(i)) 
-            U->constrainTo(CS, CS.getWild(), true);
+        for (unsigned i = 0; i < G->numParams(); i++)
+          for (const auto &PVar : G->getParamVar(i)) {
+            if (PVConstraint *PVC = dyn_cast<PVConstraint>(PVar)) {
+              // remove the first constraint var and make all the internal
+              // constraint vars WILD. For more details, refer Section 5.3 of
+              // http://www.cs.umd.edu/~mwh/papers/checkedc-incr.pdf
+              CVars C = PVC->getCvars();
+              if (!C.empty())
+                C.erase(C.begin());
+              for (auto cVar: C)
+                CS.addConstraint(CS.createEq(CS.getVar(cVar), CS.getWild()));
+            } else {
+              PVar->constrainTo(CS, CS.getWild(), true);
+            }
+          }
       }
     }
   }
