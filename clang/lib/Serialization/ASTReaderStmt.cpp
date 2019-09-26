@@ -885,6 +885,11 @@ void ASTStmtReader::VisitBoundsCastExpr(BoundsCastExpr *E) {
   E->setBoundsExpr(dyn_cast<BoundsExpr>(Record.readSubExpr()));
 }
 
+void ASTStmtReader::VisitPackExpr(PackExpr *E) {
+  // TODO: implement
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtReader::VisitCompoundLiteralExpr(CompoundLiteralExpr *E) {
   VisitExpr(E);
   E->setLParenLoc(ReadSourceLocation());

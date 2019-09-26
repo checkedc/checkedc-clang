@@ -2087,6 +2087,11 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     Align = 8;
     break;
 
+  case Type::Existential:
+    // '_Exists(T, struct Foo<T>)' is represented at runtime as 'struct Foo', so to calculate
+    // the type info just punt to the inner type.
+    return getTypeInfo(cast<ExistentialType>(T)->innerType().getTypePtr());
+
   case Type::Elaborated:
     return getTypeInfo(cast<ElaboratedType>(T)->getNamedType().getTypePtr());
 
@@ -3182,6 +3187,7 @@ QualType ASTContext::getVariableArrayDecayedType(QualType type) const {
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
   case Type::PackExpansion:
+  case Type::Existential:
     llvm_unreachable("type should never be variably-modified");
 
   // These types can be variably-modified but should never need to
@@ -7050,6 +7056,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string& S,
   case Type::Auto:
   case Type::DeducedTemplateSpecialization:
   case Type::TypeVariable:
+  case Type::Existential:
     return;
 
   case Type::Pipe:
@@ -9263,6 +9270,9 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
     assert(LHS != RHS &&
            "Equivalent type variable types should have already been handled!");
     return {};
+  case Type::Existential:
+    // TODO: is this correct?
+    return {};
   }
 
   llvm_unreachable("Invalid Type::Class!");
@@ -11289,4 +11299,15 @@ bool ASTContext::removeDelayedTypeApps(RecordDecl *Base) {
   assert(Base->isGenericOrItypeGeneric() && "Base RecordDecl should be generic");
   assert(Base->getCanonicalDecl() == Base && "Key should be a canonical decl");
   return DelayedTypeApps.erase(Base);
+}
+
+const ExistentialType *ASTContext::getCachedExistentialType(const Type *TypeVar, QualType InnerType) {
+  auto Iter = CachedExistTypes.find(std::make_pair(TypeVar, InnerType));
+  if (Iter != CachedExistTypes.end()) return Iter->second;
+  return nullptr;
+}
+
+void ASTContext::addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistType) {
+  if (getCachedExistentialType(TypeVar, InnerType)) llvm_unreachable("Cannot re-add existential type to the cache");
+  CachedExistTypes.insert(std::make_pair(std::make_pair(TypeVar, InnerType), ExistType));
 }

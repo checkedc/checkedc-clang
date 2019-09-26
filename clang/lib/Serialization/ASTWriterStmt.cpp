@@ -850,6 +850,11 @@ void ASTStmtWriter::VisitBoundsCastExpr(BoundsCastExpr *E) {
   Code = serialization::EXPR_BOUNDS_CAST;
 }
 
+void ASTStmtWriter::VisitPackExpr(PackExpr *E) {
+  // TODO: implement
+  llvm_unreachable("unimplemented");
+}
+
 void ASTStmtWriter::VisitCompoundLiteralExpr(CompoundLiteralExpr *E) {
   VisitExpr(E);
   Record.AddSourceLocation(E->getLParenLoc());

@@ -15,6 +15,8 @@
 
 #include "TreeTransform.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/Sema/Sema.h"
+#include "llvm/ADT/DenseSet.h"
 
 using namespace clang;
 using namespace sema;
@@ -86,7 +88,14 @@ RecordDecl* Sema::ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgu
   // Unwrap the type arguments from a 'TypeArgument' to the underlying 'Type *'.
   llvm::SmallVector<const Type *, 4> RawArgs;
   for (auto TArg : TypeArgs) {
-    RawArgs.push_back(TArg.typeName.getTypePtr());
+    // Use the canonical type of the argument when caching. Otherwise, the types of
+    // s1 and s2 below are considered different, when they shouldn't.
+    //   typedef int1 int;
+    //   typedef int2 int;
+    //   struct Foo<int1> s1;
+    //   struct Foo<int2> s2;
+    //   s1 = s2;
+    RawArgs.push_back(TArg.typeName.getCanonicalType().getTypePtr());
   }
 
   // If possible, just retrieve the application from the cache.
@@ -477,4 +486,246 @@ QualType Sema::SubstituteTypeArgs(QualType QT, ArrayRef<TypeArgument> TypeArgs) 
    }
 
    return TransformedQT;
+}
+
+namespace {
+/// A `TreeTransform` that computes the list of free `TypeVariableTypes` in a type.
+/// A variable is free if isn't bound.
+/// Example:
+///   FreeVariablesFinder().find(_Exists(3, _Exists(4, struct Foo<1, 3, struct Foo<4, 0>>)))
+///   ==> [1, 0] (3 and 4 are bound)
+/// TODO: add list of variable binders
+class FreeVariablesFinder : public TreeTransform<FreeVariablesFinder> {
+
+private:
+  typedef TreeTransform<FreeVariablesFinder> BaseTransform;
+
+  /// The set of current bound variables
+  llvm::DenseSet<const TypeVariableType *> BoundVars;
+  /// The set of free variables found so far
+  llvm::DenseSet<const TypeVariableType *> FreeVars;
+  ASTContext &Context;
+
+public:
+  FreeVariablesFinder(Sema &SemaRef) : BaseTransform(SemaRef), Context(SemaRef.Context) {}
+
+  /// Returns the list of free type variables referenced in the given type.
+  std::vector<const TypeVariableType *> find(QualType Tpe) {
+    getDerived().TransformType(Tpe); // Populates `FreeVars` as a side effect.
+    return std::vector<const TypeVariableType *>(FreeVars.begin(), FreeVars.end());
+  }
+
+  // The TransformType* static overrides are below.
+  // For each one, we just want to compute bound and free variables. We're not
+  // really interested in transforming the type, so we always ultimately return
+  // whatever the base class returns.
+
+  /// For a type variable, add it to the list of free variables if it isn't bound.
+  QualType TransformTypeVariableType(TypeLocBuilder &TLB, TypeVariableTypeLoc TL) {
+    // We don't need to call `.getCanonical()` here because type variables
+    // are their own canonical types.
+    auto *TypeVar = TL.getTypePtr()->getAs<TypeVariableType>();
+    if (BoundVars.find(TypeVar) == BoundVars.end()) FreeVars.insert(TypeVar);
+    return BaseTransform::TransformTypeVariableType(TLB, TL);
+  }
+
+  /// For an existential type, add the introduced variable to the set of bound variables
+  /// and recurse on the inner type.
+  QualType TransformExistentialType(TypeLocBuilder &TLB, ExistentialTypeLoc TL) {
+    // What we want is to extract the new bound type variable.
+    // We go about it carefully: we can't call 'TL.getType().getCanonical()' because
+    // canonical types for existentials aren't compositional.
+    // Instead, we get the "raw" type.
+    auto *ExistType = TL.getTypePtr();
+    // We call '.getCanonical()' because the type in the variable position
+    // in an existential could be either a `TypedefType` or a `TypeVariableType`.
+    // In the former case, we want to make sure we get the raw type variable.
+    auto *TypeVar = Context.getCanonicalType(ExistType->typeVar())->getAs<TypeVariableType>();
+    if (!TypeVar) llvm_unreachable("expected a TypeVariableType");
+    BoundVars.insert(TypeVar);
+    return BaseTransform::TransformExistentialType(TLB, TL);
+  }
+
+  /// For a `TypedefType`, just visit the underlying type.
+  QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
+    // TODO: doing two recursive calls is potentially slow. Figure out a way to do this
+    // with just one call.
+    QualType TransformedType = TransformType(TL.getTypePtr()->desugar());
+    return BaseTransform::TransformTypedefType(TLB, TL);
+  }
+
+  /// For a `RecordDecl` corresponding to a type application, recursively explore the type arguments.
+  /// TODO: replace this case once we have a dedicated type for type applications.
+  Decl *TransformDecl(SourceLocation Loc, Decl *D) {
+    RecordDecl *RDecl;
+    if ((RDecl = dyn_cast<RecordDecl>(D)) && RDecl->isInstantiated()) {
+      for (auto TArg : RDecl->typeArgs()) getDerived().TransformType(TArg.typeName);
+    }
+    return BaseTransform::TransformDecl(Loc, D);
+  }
+};
+
+class AlphaRenamer : public TreeTransform<AlphaRenamer> {
+
+public:
+  using SubstMap = llvm::DenseMap<const TypeVariableType *, QualType>;
+
+private:
+  typedef TreeTransform<AlphaRenamer> BaseTransform;
+
+  ASTContext &Context;
+  /// Maps olds bound variables to new variables so we can renumber them.
+  SubstMap Substs;
+  /// The depth to use for renumbering if we encounter a new bound variable.
+  int NewDepth = 0;
+
+public:
+  AlphaRenamer(Sema &SemaRef) : BaseTransform(SemaRef), Context(SemaRef.Context) {}
+
+  QualType Rename(QualType Tpe, int NewDepth, SubstMap Substs) {
+    this->NewDepth = NewDepth;
+    this->Substs = Substs;
+    return getDerived().TransformType(Tpe);
+  }
+
+  QualType TransformTypeVariableType(TypeLocBuilder &TLB, TypeVariableTypeLoc TL) {
+    auto *TypeVar = TL.getTypePtr();
+    auto Iter = Substs.find(TypeVar);
+    if (Iter == Substs.end()) return BaseTransform::TransformTypeVariableType(TLB, TL);
+    // We need to renumber the variable.
+    auto NewT = TLB.push<TypeVariableTypeLoc>(Iter->second);
+    NewT.setNameLoc(TL.getNameLoc());
+    return NewT.getType();
+  }
+
+  QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
+    auto UnderlyingType = QualType(Context.getCanonicalType(TL.getTypePtr()), 0 /* Quals */);
+    // Something changed, so we need to delete the typedef type from the AST and
+    // and use the underlying transformed type.
+    // Synthesize some dummy type source information.
+    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(UnderlyingType, getDerived().getBaseLocation());
+    // Use that to get dummy location information.
+    TypeLoc NewTL = DI->getTypeLoc();
+    TLB.reserve(NewTL.getFullDataSize());
+    // Re-run the type transformation with the dummy location information so
+    // that the type location class pushed on to the TypeBuilder is the matching
+    // class for the underlying type.
+    return getDerived().TransformType(TLB, NewTL);
+  }
+
+  Decl *TransformDecl(SourceLocation Loc, Decl *D) {
+    RecordDecl *RDecl;
+    if ((RDecl = dyn_cast<RecordDecl>(D)) && RDecl->isInstantiated()) {
+      llvm::SmallVector<TypeArgument, 4> NewArgs;
+      for (auto TArg : RDecl->typeArgs()) {
+        auto NewType = getDerived().TransformType(TArg.typeName);
+        auto *SourceInfo = getSema().Context.getTrivialTypeSourceInfo(NewType, getDerived().getBaseLocation());
+        NewArgs.push_back(TypeArgument { NewType, SourceInfo });
+      }
+      auto *Res = SemaRef.ActOnRecordTypeApplication(RDecl->genericBaseDecl(), ArrayRef<TypeArgument>(NewArgs));
+      return Res;
+    } else {
+      return BaseTransform::TransformDecl(Loc, D);
+    }
+  }
+
+  QualType TransformExistentialType(TypeLocBuilder &TLB, ExistentialTypeLoc TL) {
+    auto *ExistType = TL.getTypePtr();
+    // We call '.getCanonical()' because the type in the variable position
+    // in an existential could be either a `TypedefType` or a `TypeVariableType`.
+    // In the former case, we want to make sure we get the raw type variable.
+    auto *TypeVar = Context.getCanonicalType(ExistType->typeVar())->getAs<TypeVariableType>();
+    if (!TypeVar) llvm_unreachable("expected a TypeVariableType");
+    // We need to renumber `TypeVar`, so we add the mapping `TypeVar -> NewDepth` to the substitutions.
+    // The index is 0 because existentials only bound one type variable.
+    // IsBoundsInterfaceType is false because an existential isn't a bounds interface.
+    // We use the `[]` operator instead of `insert`, because the key might already be in the map,
+    // in which case we want to replace the associated value.
+    // Example:
+    //   Suppose we're canonicalizing `_Exists(1, _Exists(2, struct Foo<0>))`, where 0 is free
+    //   First, we canonicalize the inner type: _Exists(2, struct Foo<0>) => _Exists(1, struct Foo<0>)
+    //   Then we handle the outer existential by calling TransformExistentialType(_Exists(1, struct Foo<0>)) where Substs = map(1 => 1)
+    //   At this point, we encounter a new bound variable (1), and need to send 1 => 2. But 1 is already a key in
+    //   the substitution map, so we need to replace the binding 1 => 1 by 1 => 2.
+    Substs[TypeVar] = Context.getTypeVariableType(NewDepth, 0 /* Index */, false /* IsBoundsInterfaceType */);
+    // Increment NewDepth so that there are no future collisions.
+    NewDepth += 1;
+    // Now the default recursion on both components so that the substitution can happen.
+    return BaseTransform::TransformExistentialType(TLB, TL);
+  }
+};
+}
+
+const ExistentialType *Sema::ActOnExistentialType(ASTContext &Context, const Type *TypeVar, QualType InnerType) {
+  auto *Cached = Context.getCachedExistentialType(TypeVar, InnerType);
+  if (Cached) return Cached;
+  // TODO: explain why we compute the canonical type here
+  auto CanonInnerType = InnerType.getCanonicalType();
+  // The type we need to generate isn't already cached, so we need to cache it.
+  // Before caching it we need to generate an underlying canonical type.
+  //
+  // Generating the canonical type is a multi-step process:
+  //   1) First we generate the set of free variables in `InnerType`.
+  //   2) Then we compute `NewDepth` = max free variable + 1.
+  //   3) We shift every bound variable in `InnerType` so they're numbered starting at `NewDepth`.
+  // The result of step 3) yields a canonical type.
+  //
+  // Example:
+  //   _Exists(X, _Exists(Y, struct Foo<X, Y, Z>))
+  //   Suppose the underlying type really is
+  //   _Exists(3, _Exists(4, struct Foo<3, 4, 0>))
+  //   Free variables = {0}, so NewDepth = 1
+  //   Shift all bound variables so they start at `NewDepth`:
+  //   _Exists(1, Exists(2, struct Foo<1, 2, 0>)) // this is the canonical type
+  //
+  // Once we have the canonical type, we can insert the new existential in the cache while
+  // making it point to the canonical type. Also notice that in computing the canonical type
+  // we moved from using the user-visible names for type variables (e.g. 'X', 'Y', and 'Z') to
+  // the low-level representation with depth levels.
+  FreeVariablesFinder FreeVarsFinder(*this);
+  auto FreeVars = FreeVarsFinder.find(CanonInnerType);
+  // `TypeVar` could be a TypedefType, so we need to get its underlying type.
+  auto *TypeVarRaw = Context.getCanonicalType(TypeVar)->getAs<TypeVariableType>();
+  if (!TypeVarRaw) llvm_unreachable("Expected a TypeVariableType as the canonical type");
+  // Now compute the new depth to which the bound variables should be moved in the canonical type.
+  // This is just the max depth of any free variables, plus 1.
+  // Example 1: if there are no free variables, then we start at 0.
+  // Example 2: if the free variables are [0, 3, 4], we start at 5.
+  unsigned int NewDepth = 0;
+  for (auto *FreeVar : FreeVars) {
+    // We want the largest free variable, but we want to ignore `TypeVarRaw` because
+    // it's not really free. Example:
+    //   TypeVarRaw = 0, InnerType = struct Foo<0>
+    //   FreeVars(struct Foo<0>) = [0], but we want to ignore it, because
+    //   in the resulting type _Exists(0, struct Foo<0>), 0 isn't free.
+    if (FreeVar != TypeVarRaw && FreeVar->GetDepth() >= NewDepth) NewDepth = FreeVar->GetDepth() + 1;
+  }
+  // We can now alpha-rename `InnerType` so that bound variables start at `NewDepth`.
+  // Example: E(3, E(4, struct Foo<3, 4, 1>)) -> E(2, E(3, struct Foo<2, 3, 1>))
+  AlphaRenamer::SubstMap Substs;
+  // We first insert the mapping OuterMostTypeVar -> NewDepth, because the outermost existential
+  // isn't built yet (we're building it right now).
+  // Example:
+  // To canonicalze E(1, struct Foo<1>), we're given the two components separately (1, struct Foo<1>).
+  // We need to alpha-rename 'struct Foo<1>', but we're missing the outermost binder and its correponding mapping
+  // 1 -> 0. We need to inject this mapping into the substitution map before we alpha-rename the body.
+  auto NewTypeVar = Context.getTypeVariableType(NewDepth, 0 /* position */, false /* isBoundsInterfaceType */);
+  Substs.insert(std::make_pair(TypeVarRaw, NewTypeVar));
+  AlphaRenamer Renamer(*this);
+  auto NewInnerType = Renamer.Rename(CanonInnerType, NewDepth + 1 /* NewDepth is already used */, Substs);
+  // We can finally get the canonical type with components (NewTypeVar, NewInnerType).
+  auto *CanonType = Context.getCachedExistentialType(NewTypeVar.getTypePtr(), NewInnerType);
+  if (!CanonType) {
+    CanonType = new (Context, TypeAlignment) ExistentialType(NewTypeVar.getTypePtr(), NewInnerType, QualType());
+    Context.addCachedExistentialType(NewTypeVar.getTypePtr(), NewInnerType, CanonType);
+  }
+  // An then we create the existential the user requested.
+  // We have to query the cache again, because if the original and canonical types are equal
+  // then the type we're looking for might have been added while creating the canonical type.
+  auto *ExistType = Context.getCachedExistentialType(TypeVar, InnerType);
+  if (!ExistType) {
+    ExistType = new (Context, TypeAlignment) ExistentialType(TypeVar, InnerType, QualType(CanonType, 0 /* Quals */));
+    Context.addCachedExistentialType(TypeVar, InnerType, ExistType);
+  }
+  return ExistType;
 }

@@ -666,6 +666,11 @@ class TypeVariableTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
 
 };
 
+class ExistentialTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,
+                                                            ExistentialTypeLoc,
+                                                            ExistentialType> {
+};
+
 /// Wrapper for source info for typedefs.
 
 class TypedefTypeLoc : public InheritingConcreteTypeLoc<TypeSpecTypeLoc,

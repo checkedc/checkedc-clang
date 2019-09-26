@@ -1309,6 +1309,9 @@ CanThrowResult Sema::canThrow(const Expr *E) {
   case Expr::BoundsValueExprClass:
     llvm_unreachable("do not expect bounds expressions");
 
+  case Expr::PackExprClass:
+    return canThrow(cast<PackExpr>(E)->getPackedExpr());
+
 #define STMT(CLASS, PARENT) case Expr::CLASS##Class:
 #define STMT_RANGE(Base, First, Last)
 #define LAST_STMT_RANGE(BASE, FIRST, LAST)

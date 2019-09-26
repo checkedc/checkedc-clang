@@ -2063,6 +2063,7 @@ public:
   bool isNtCheckedArrayType() const;
   bool isUncheckedArrayType() const;
   bool isRecordType() const;
+  bool isExistentialType() const; // Checked C existential type
   bool isClassType() const;
   bool isStructureType() const;
   bool isObjCBoxableRecordType() const;
@@ -4403,7 +4404,7 @@ public:
     return isBoundsInterfaceType;
   }
 
-  void Profile(llvm::FoldingSetNodeID &ID) {
+  void Profile(llvm::FoldingSetNodeID &ID) const {
     Profile(ID, depth, index, isBoundsInterfaceType);
   }
   static void Profile(llvm::FoldingSetNodeID &ID, unsigned int inDepth, unsigned int inIndex,
@@ -4415,7 +4416,6 @@ public:
 
   static bool classof(const Type *T) { return T->getTypeClass() == TypeVariable; }
 };
-
 
 class TypedefType : public Type {
   TypedefNameDecl *Decl;
@@ -4439,6 +4439,57 @@ public:
   QualType desugar() const;
 
   static bool classof(const Type *T) { return T->getTypeClass() == Typedef; }
+};
+
+/// (Checked C extension)
+/// Represents the type '_Exists(T, InnerType)', where 'T' is a type variable and
+/// 'InnerType' is some type that potentially uses 'T'.
+/// There are some restrictions on what 'InnerType' can be. These restrictions are enforced
+/// via checks in the 'pack' and 'unpack' operations, but they amount to requiring that
+/// 'InnerType' is one of:
+///   1) another existential type: e.g. '_Exists(T, _Exists(U, struct Foo<T, U>))'
+///   2) a type application 'C<T>', where 'C' is a generic struct: e.g. '_Exists(T, struct List<T>)'
+///   3) a pointer that satisfies one of 1) - 3)
+class ExistentialType : public Type, public llvm::FoldingSetNode {
+  /// The type variable that is bound by the existential.
+  /// This is of type 'Type' to allow for some polymorphism:
+  /// non-canonical existential types will contain a 'TypedefType' here,
+  /// while canonical ones will contain the underlying 'TypeVariableType'.
+  /// This isn't a 'QualType' because the variable bound by an existential cannot be
+  /// qualified.
+  const Type *TypeVar = nullptr;
+  /// The type wrapped by the existential that potentially uses the bound type variable.
+  QualType InnerType;
+
+public:
+  ExistentialType(const Type *TypeVar, QualType InnerType, QualType Canon) :
+    Type(Existential, Canon, false /* Dependent */ , false /* InstantiationDependent */,
+      false /* VariablyModified */, false /* ContainsUnexpandedParameterPack */),
+    TypeVar(TypeVar), InnerType(InnerType) {
+    if (!TypedefType::classof(TypeVar) && !TypeVariableType::classof(TypeVar)) {
+      llvm_unreachable("Type variable should be a 'TypedefType' or 'TypeVariableType'");
+    }
+  }
+
+  const Type *typeVar() const { return TypeVar; }
+  QualType innerType() const { return InnerType; }
+
+  bool isSugared(void) const { return false; }
+  QualType desugar(void) const { return QualType(this, 0); }
+
+  // TODO: can't implement 'Profile' because TypedefType doesn't have a 'Profile' method (checkedc issue #661).
+  /*
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, TypeVar, InnerType);
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, const Type *TypeVar, QualType InnerType) {
+    if (const auto *TV = TypeVar->getAs<TypedefType>()) TV->Profile(ID);
+    else if (const auto *TV = TypeVar->getAs<TypeVariableType>()) TV->Profile(ID);
+    InnerType.Profile(ID);
+  }
+  */
+
+  static bool classof(const Type *T) { return T->getTypeClass() == Existential; }
 };
 
 /// Represents a `typeof` (or __typeof__) expression (a GCC extension).
@@ -6711,6 +6762,10 @@ inline bool Type::isBuiltinType() const {
 
 inline bool Type::isRecordType() const {
   return isa<RecordType>(CanonicalType);
+}
+
+inline bool Type::isExistentialType() const {
+  return isa<ExistentialType>(CanonicalType);
 }
 
 inline bool Type::isEnumeralType() const {

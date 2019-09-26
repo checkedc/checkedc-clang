@@ -2644,6 +2644,9 @@ addAssociatedClassesAndNamespaces(AssociatedLookup &Result, QualType Ty) {
     // TypeVariable is not associated with namespace or classes.
     case Type::TypeVariable:
       break;
+    // ExistentialType is not associated with namespace or classes.
+    case Type::Existential:
+      break;
 
     //     -- If T is a class type (including unions), its associated
     //        classes are: the class itself; the class of which it is a

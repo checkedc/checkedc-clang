@@ -248,6 +248,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::Atomic:
     case Type::Pipe:
     case Type::TypeVariable:
+    case Type::Existential:
       CanPrefixQualifiers = true;
       break;
 
@@ -1059,6 +1060,16 @@ void TypePrinter::printTypeVariableBefore(const TypeVariableType *T,
 }
 
 void TypePrinter::printTypeVariableAfter(const TypeVariableType *T, raw_ostream &OS) { }
+
+void TypePrinter::printExistentialBefore(const ExistentialType *T, raw_ostream &OS) {
+  OS << "Exists(";
+  print(QualType(T->typeVar(), 0 /* Quals */), OS, "");
+  OS << ", ";
+  print(T->innerType(), OS, "");
+  OS << ")";
+}
+
+void TypePrinter::printExistentialAfter(const ExistentialType *T, raw_ostream &OS) { }
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
   printTypeSpec(T->getDecl(), OS);

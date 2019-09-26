@@ -2406,10 +2406,34 @@ Decl *Parser::ParseDeclarationAfterDeclaratorAndAttributes(
           StopTokens.push_back(tok::r_paren);
         SkipUntil(StopTokens, StopAtSemi | StopBeforeMatch);
         Actions.ActOnInitializerError(ThisDecl);
-      } else
-        Actions.AddInitializerToDecl(ThisDecl, Init.get(),
+      } else {
+        auto *InitExpr = Init.get(); // This won't fail, since isInvalid() was checked above.
+        if (D.getDeclSpec().isUnpackSpecified()) {
+          auto TypeVars = D.getDeclSpec().typeVariables();
+          if (TypeVars.size() != 1) {
+            Diag(D.getBeginLoc(), diag::err_unpack_expected_one_type_variable) << static_cast<unsigned int>(TypeVars.size());
+            return nullptr;
+          }
+          auto TVar = Actions.getASTContext().getTypedefType(TypeVars[0], QualType());
+          auto *SourceInfo = Actions.Context.getTrivialTypeSourceInfo(TVar, TypeVars[0]->getLocation());
+          auto TypeArg = TypeArgument { TVar, SourceInfo };
+          // The initializer must have an existential type.
+          // e.g. _Unpack (T) struct Foo<T> fooAbs = expr // expr must have type '_Exists(A, struct Foo<A>)'
+          auto InitExprType = InitExpr->getType()->getAs<ExistentialType>();
+          if (!InitExprType) {
+            Diag(InitExpr->getBeginLoc(), diag::err_unpack_expected_existential_initializer);
+            return nullptr;
+          }
+          // If the initializer is an existential, then we need to substitute the new type variable for the bound
+          // variable in the body of the existential.
+          // In the example above, 'fooAbs' has type 'struct Foo<A> [A -> T]', because the _Unpack introduces 'T'.
+          auto NewType = Actions.SubstituteTypeArgs(InitExprType->innerType(), TypeArg);
+          InitExpr->setType(NewType);
+        }
+        Actions.AddInitializerToDecl(ThisDecl, InitExpr,
                                      /*DirectInit=*/false,
                                      EqualLoc);
+      }
     }
   } else if (Tok.is(tok::l_paren)) {
     // Parse C++ direct initializer: '(' expression-list ')'
@@ -3032,7 +3056,10 @@ static void SetupFixedPointError(const LangOptions &LangOpts,
 ///       for-any-specifier: [CheckedC]
 /// [CheckedC] '_For_any'
 /// [CheckedC] '_Itype_for_any'
-/// [CheckedC] '_Itype_for_any' and '_For_any' are mutually exclusive
+///            '_Itype_for_any' and '_For_any' are mutually exclusive
+/// [CheckedC] '_Unpack' '(' type-variables ')'
+///            Where type-variables stands for one or more comma-separated
+///            type variables.
 void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
                                         const ParsedTemplateInfo &TemplateInfo,
                                         AccessSpecifier AS,
@@ -3153,7 +3180,6 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         goto DoneWithDeclSpec;
       ParseItypeforanySpecifier(DS);
       continue;
-
     case tok::code_completion: {
       Sema::ParserCompletionContext CCC = Sema::PCC_Namespace;
       if (DS.hasTypeSpecifier()) {
@@ -3862,6 +3888,15 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       ParseCheckedPointerSpecifiers(DS);
       // continue to keep the current token from being consumed.
       continue; 
+    }
+    case tok::kw__Exists: {
+      ParseExistentialTypeSpecifier(DS);
+      // Continue to keep the current token from being consumed.
+      continue;
+    }
+    case tok::kw__Unpack: {
+      ParseUnpackSpecifier(DS);
+      continue;
     }
     // class-specifier:
     case tok::kw_class:
@@ -4971,6 +5006,10 @@ bool Parser::isKnownToBeTypeSpecifier(const Token &Tok) const {
   case tok::kw__Nt_array_ptr:
   case tok::kw__Ptr:
 
+  // Checked C existential types
+  case tok::kw__Exists:
+  case tok::kw__Unpack:
+
     return true;
   }
 }
@@ -5255,6 +5294,9 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   // Checked C scope keywords for functions/structs
   case tok::kw__Checked:
   case tok::kw__Unchecked:
+  // Checked C existential types
+  case tok::kw__Exists:
+  case tok::kw__Unpack:
     return true;
 
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
@@ -7372,6 +7414,173 @@ void Parser::ParseCheckedPointerSpecifiers(DeclSpec &DS) {
         Diag(StartLoc, DiagID) << PrevSpec;
 }
 
+/// [Checked C] Parse a specifier for an existential type.
+/// exist-spec:
+///   _Exists '(' type-var , type ')'
+void Parser::ParseExistentialTypeSpecifier(DeclSpec &DS) {
+  assert(Tok.is(tok::kw__Exists) && "Expected an '_Exists' token");
+  EnterScope(Scope::DeclScope | Scope::ExistentialTypeScope);
+  ParseExistentialTypeSpecifierHelper(DS);
+  ExitScope();
+}
+
+/// [Checked C] Parse an unpack type specifier.
+/// unpack-spec:
+///   '_Unpack' '(' type-var ')'
+void Parser::ParseUnpackSpecifier(DeclSpec &DS) {
+  assert(Tok.is(tok::kw__Unpack) && "Expected an '_Unpack' token");
+  auto StartLoc = ConsumeToken(); // eat '_Unpack'
+  DS.SetRangeStart(StartLoc);
+
+  if (ExpectAndConsume(tok::l_paren)) return;
+
+  if (Tok.getKind() != tok::identifier) {
+    Diag(Tok.getLocation(), diag::err_type_variable_identifier_expected);
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return;
+  }
+
+  // TODO: abstract into a function so this logic can re-used here and when parsing
+  // for_any specifiers.
+  // Calculate the depth of the type variable introduced by the existential.
+  auto Depth = 0;
+  auto *scope = getCurScope()->getParent();
+  while (scope) {
+    // TODO: count prior '_Unpacks'
+    if (scope->isForanyScope() || scope->isItypeforanyScope() || scope->isExistentialTypeScope()) Depth++; 
+    scope = scope->getParent();
+  }
+
+  // Calculate the "position" component of the type variable by
+  // iterating over the current scope and counting how many previous
+  // _Unpacks have been desugared.
+  // TODO: is this robust enough?
+  auto Pos = 0;
+  for (auto *Decl : getCurScope()->decls()) {
+    auto *TdefDecl = dyn_cast<TypedefDecl>(Decl);
+    if (!TdefDecl) continue;
+    auto TypeVarTpe = dyn_cast<TypeVariableType>(TdefDecl->getUnderlyingType().getTypePtr());
+    if (!TypeVarTpe) continue;
+    assert(TypeVarTpe->GetIndex() == Pos && "TypeVariable index doesn't match expected value in previous declaration");
+    Pos += 1;
+  }
+
+  // The effect of an '_Unpack (T)' specifier is to introduce
+  // into the _current_ scope a new incomplete type 'T' represented
+  // by a TypeVariableType. As usual, we do this with a typedef.
+  QualType TypeVar = Actions.Context.getTypeVariableType(Depth, Pos, false /* isBoundsInterfaceType */);
+  TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(TypeVar);
+  // TODO: find out why decl doesn't show up in AST dump.
+  TypedefDecl *TypeDef = TypedefDecl::Create(
+    Actions.Context,
+    Actions.CurContext,
+    SourceLocation(), // TODO: fill in proper location
+    Tok.getLocation(),
+    Tok.getIdentifierInfo(),
+    TInfo);
+
+  // Notice that we didn't create a new scope for the new typedef (unlike, say, in the
+  // '_Exists' case). This is because the scope the new variable such be _current_ scope.
+  // e.g.
+  //    {
+  //      _Unpack (T) struct Foo<T> = packedFoo;
+  //      T *t = Foo.field' <--- T should be accessible here
+  //    } <--- T should _NOT_ be accessible past this point
+  Actions.PushOnScopeChains(TypeDef, getCurScope(), true);
+
+  ConsumeToken(); // eat the type variable
+  if (ExpectAndConsume(tok::r_paren)) return;
+
+  SourceLocation EndLoc = Tok.getLocation();
+  DS.SetRangeEnd(EndLoc);
+
+  // The following are mutated by SetTypeSpecType and used for
+  // error reporting.
+  const char *PrevSpec = nullptr;
+  unsigned DiagID;
+
+  // TODO: check return value of setUnpackSpec for errors.
+  DS.setUnpackSpec(StartLoc, PrevSpec, DiagID);
+  DS.setTypeVars(Actions.getASTContext(), ArrayRef<TypedefDecl *>(TypeDef), 1 /* NewNumTypeVars */);
+}
+
+/// This helper is split from the main method so we can guarantee that we always
+/// maintain the right nesting of scopes.
+void Parser::ParseExistentialTypeSpecifierHelper(DeclSpec &DS) {
+  assert(getCurScope()->isExistentialTypeScope() && "Current scope should correspond to an existential type");
+  auto StartLoc = ConsumeToken(); // eat '_Exists'
+  DS.SetRangeStart(StartLoc);
+
+  if (ExpectAndConsume(tok::l_paren)) return;
+
+  if (Tok.getKind() != tok::identifier) {
+    Diag(Tok.getLocation(), diag::err_type_variable_identifier_expected);
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return;
+  }
+
+  // TODO: abstract into a function so this logic can re-used here and when parsing
+  // for_any specifiers.
+  // Calculate the depth of the type variable introduced by the existential.
+  auto Depth = 0;
+  auto *scope = getCurScope()->getParent();
+  while (scope) {
+    if (scope->isForanyScope() || scope->isItypeforanyScope() || scope->isExistentialTypeScope()) Depth++;
+    scope = scope->getParent();
+  }
+
+  // An '_Exists(T, InnerType)' type is desugared into
+  //   1) typedef T TypeVariableType(depth, offset)
+  //   2) InnerType (which has access to T)
+  QualType TypeVar = Actions.Context.getTypeVariableType(Depth, 0 /* position */, false /* isBoundsInterfaceType */);
+  TypeSourceInfo *TInfo = Actions.Context.CreateTypeSourceInfo(TypeVar);
+  // TODO: find out why decl doesn't show up in AST dump.
+  TypedefDecl *TypeDef = TypedefDecl::Create(
+    Actions.Context,
+    Actions.CurContext,
+    SourceLocation(), // TODO: fill in proper location
+    Tok.getLocation(),
+    Tok.getIdentifierInfo(),
+    TInfo);
+
+  Actions.PushOnScopeChains(TypeDef, getCurScope(), true);
+
+  ConsumeToken(); // eat the type variable
+
+  if (ExpectAndConsume(tok::comma)) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return;
+  }
+
+  TypeResult InnerType = ParseTypeName();
+  if (InnerType.isInvalid()) {
+    SkipUntil(tok::r_paren, StopAtSemi);
+    return;
+  }
+
+  if (ExpectAndConsume(tok::r_paren)) return;
+
+  SourceLocation EndLoc = Tok.getLocation();
+  DS.SetRangeEnd(EndLoc);
+
+  // The following are mutated by SetTypeSpecType and used for
+  // error reporting.
+  const char *PrevSpec = nullptr;
+  unsigned DiagID;
+
+  DS.setTypeVars(Actions.getASTContext(), ArrayRef<TypedefDecl *>(TypeDef), 1 /* NewNumTypeVars */);
+
+  auto Err = DS.SetTypeSpecType(
+    TST_exists,
+    StartLoc,
+    PrevSpec,
+    DiagID,
+    InnerType.get(),
+    Actions.getASTContext().getPrintingPolicy());
+
+  if (Err) Diag(StartLoc, DiagID) << PrevSpec;
+}
+
 void Parser::ParseItypeforanySpecifier(DeclSpec &DS) {
   if(!ParseForanySpecifierHelper(DS, Scope::ItypeforanyScope)) {
     DS.setItypeGenericFunctionOrStruct(true);
@@ -7445,7 +7654,7 @@ bool Parser::ParseForanySpecifierHelper(DeclSpec &DS,
     } else if (Tok.getKind() == tok::comma) {
       // We'd expect the previous token to be an identifier
       if (prevToken != tok::identifier) {
-        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
+        Diag(Tok.getLocation(), diag::err_type_variable_identifier_expected);
         SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
         return true;
       }
@@ -7454,7 +7663,7 @@ bool Parser::ParseForanySpecifierHelper(DeclSpec &DS,
     } else if (Tok.getKind() == tok::r_paren) {
       // We'd expect the previous token to be an identifier
       if (prevToken != tok::identifier) {
-        Diag(Tok.getLocation(), diag::err_forany_type_variable_identifier_expected);
+        Diag(Tok.getLocation(), diag::err_type_variable_identifier_expected);
         SkipUntil(tok::r_paren, SkipUntilFlags::StopAtSemi);
         return true;
       }

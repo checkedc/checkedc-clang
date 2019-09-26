@@ -32,6 +32,7 @@
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Basic/AttrKinds.h"
 #include "clang/Basic/IdentifierTable.h"
@@ -294,6 +295,18 @@ private:
   /// A delayed type application is represented as a RecordDecl for which RecordDecl::isInstantiated()
   /// returns 'true'. The parameters in a type application can be retrieved via RecordDecl::typeParams().
   llvm::DenseMap<const RecordDecl *, llvm::SmallVector<RecordDecl *, 4> > DelayedTypeApps;
+
+  /// Mapping from a (type-variable, inner-type) pair to the corresponding existential type.
+  /// e.g. if we've previously created a type E = '_Exists(T, struct Foo<T>)',
+  /// then, this map links '(T, struct Foo<T>) -> E'.
+  /// This map alone is not enough to guarantee unique existential types.
+  /// e.g. consider two types '_Exists(T, struct Foo<T>)' and '_Exists(U, struct Foo<U>)',
+  /// where 'T = TypeVariableType(0, 0)' and 'U = TypeVariableType(1, 0)' (say, because
+  /// U shows up at a higher nestedness level). Then the two types will look different
+  /// when compared with pointer equality, but they should be considered the same type.
+  /// Another way to say this is to say that this map contains entries that are (functional)
+  /// duplicates.
+  llvm::DenseMap<std::pair<const Type *, QualType>, const ExistentialType *> CachedExistTypes;
 
   /// Representation of a "canonical" template template parameter that
   /// is used in canonical template names.
@@ -3138,6 +3151,17 @@ public:
   /// Remove all type applications that have 'Base' as their base RecordDecl.
   /// Return 'true' if the removed key was in the cache, and 'false' otherwise.
   bool removeDelayedTypeApps(RecordDecl *Base);
+
+  // Checked C: Existential Types
+
+  /// Get the existential type corresponding to the pair (type-var, inner-type).
+  /// If there is no cached existential, return `nullptr`.
+  const ExistentialType *getCachedExistentialType(const Type *TypeVar, QualType InnerType);
+
+  /// Add the mapping `(type-var, inner-type) -> exist-type` to the cache of
+  /// existential types. This should only be called once per key (i.e. cache elements
+  /// should not be re-written).
+  void addCachedExistentialType(const Type *TypeVar, QualType InnerType, const ExistentialType *ExistType);
 };
 
 /// Utility function for constructing a nullary selector.

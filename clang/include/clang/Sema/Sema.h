@@ -4878,6 +4878,8 @@ public:
 
   RecordDecl *ActOnRecordTypeApplication(RecordDecl *Base, ArrayRef<TypeArgument> TypeArgs);
 
+  const ExistentialType *ActOnExistentialType(ASTContext &Context, const Type *TypeVar, QualType InnerType);
+
   /// Complete a delayed type application by populating the record's fields with the right types.
   /// Should only be called once per delayed 'RecordDecl'.
   void CompleteTypeAppFields(RecordDecl *Incomplete);
@@ -5123,6 +5125,12 @@ public:
   };
 
   bool DisableSubstitionDiagnostics;
+
+  ExprResult ActOnPackExpression(Expr *PackedExpr,
+                                 QualType ExistType,
+                                 TypeArgument SubstArg,
+                                 SourceLocation StartLoc,
+                                 SourceLocation EndLoc);
 
   //===---------------------------- Clang Extensions ----------------------===//
 
