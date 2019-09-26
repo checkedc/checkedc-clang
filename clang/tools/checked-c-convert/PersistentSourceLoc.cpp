@@ -26,7 +26,7 @@ PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
     SL = C.getSourceManager().getSpellingLoc(PV->getLocation());
   else if (const VarDecl *V = dyn_cast<VarDecl>(D))
     SL = C.getSourceManager().getExpansionLoc(V->getLocation());
-  
+
   return mkPSL(D->getSourceRange(), SL, C);
 }
 
@@ -34,13 +34,17 @@ PersistentSourceLoc::mkPSL(const Decl *D, ASTContext &C) {
 // Create a PersistentSourceLoc for a Stmt.
 PersistentSourceLoc
 PersistentSourceLoc::mkPSL(const Stmt *S, ASTContext &Context) {
-  return mkPSL(S->getSourceRange(), S->getBeginLoc(), Context);
+  return mkPSL(S->getSourceRange(),
+               S->getBeginLoc(),
+               Context);
 }
 
 // Use the PresumedLoc infrastructure to get the absolute file name, expansion
 // line and column number for a SourceLocation and corresponding SourceRange
-PersistentSourceLoc 
-PersistentSourceLoc::mkPSL(clang::SourceRange SR, SourceLocation SL, ASTContext &Context) {
+PersistentSourceLoc
+PersistentSourceLoc::mkPSL(clang::SourceRange SR,
+                           SourceLocation SL,
+                           ASTContext &Context) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc PL = SM.getPresumedLoc(SL);
 

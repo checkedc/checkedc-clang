@@ -16,23 +16,15 @@
 
 using namespace clang;
 
-// Helper method to print a Type in a way that can be represented in the source.
-static
-std::string
-tyToStr(const Type *T) {
-  QualType QT(T, 0);
-
-  return QT.getAsString();
-}
-
 PointerVariableConstraint::PointerVariableConstraint(DeclaratorDecl *D,
                                                      ConstraintKey &K, Constraints &CS, const ASTContext &C) :
         PointerVariableConstraint(D->getType(), K, D, D->getName(), CS, C) { }
 
 PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, ConstraintKey &K,
-                                                     DeclaratorDecl *D, std::string N, Constraints &CS, const ASTContext &C) :
+                                                     DeclaratorDecl *D, std::string N, Constraints &CS,
+                                                     const ASTContext &C, bool partOfFunc) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
-                           tyToStr(QT.getTypePtr()),N),FV(nullptr)
+                           tyToStr(QT.getTypePtr()),N), partOFFuncPrototype(partOfFunc), FV(nullptr)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
@@ -490,7 +482,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
       }
 
       std::set<ConstraintVariable*> C;
-      C.insert(new PVConstraint(QT, K, tmpD, paramName, CS, Ctx));
+      C.insert(new PVConstraint(QT, K, tmpD, paramName, CS, Ctx, true));
       paramVars.push_back(C);
     }
 
@@ -513,7 +505,7 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // as a type, then we will need the types for all the parameters and the
   // return values
 
-  returnVars.insert(new PVConstraint(returnType, K, D, "", CS, Ctx));
+  returnVars.insert(new PVConstraint(returnType, K, D, "", CS, Ctx, true));
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
       if (PVC->getFV())
