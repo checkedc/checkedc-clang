@@ -24,7 +24,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
                                                      DeclaratorDecl *D, std::string N, Constraints &CS,
                                                      const ASTContext &C, bool partOfFunc) :
         ConstraintVariable(ConstraintVariable::PointerVariable,
-                           tyToStr(QT.getTypePtr()),N), partOFFuncPrototype(partOfFunc), FV(nullptr)
+                           tyToStr(QT.getTypePtr()),N), FV(nullptr), partOFFuncPrototype(partOfFunc)
 {
   QualType QTy = QT;
   const Type *Ty = QTy.getTypePtr();
