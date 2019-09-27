@@ -550,7 +550,7 @@ public:
   QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
     // TODO: doing two recursive calls is potentially slow. Figure out a way to do this
     // with just one call.
-    QualType TransformedType = TransformType(TL.getTypePtr()->desugar());
+    TransformType(TL.getTypePtr()->desugar());
     return BaseTransform::TransformTypedefType(TLB, TL);
   }
 
