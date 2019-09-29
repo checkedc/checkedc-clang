@@ -60,6 +60,10 @@ public:
                                 clang::QualType UTy);
   bool checkStructuralEquality(clang::QualType, clang::QualType);
 
+  // check if casting from srcType to dstType is fine.
+  bool isExplicitCastSafe(clang::QualType dstType,
+                          clang::QualType srcType);
+
   // Called when we are done adding constraints and visiting ASTs. 
   // Links information about global symbols together and adds 
   // constraints where appropriate.

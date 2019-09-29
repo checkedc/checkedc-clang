@@ -337,23 +337,30 @@ public:
         // If none of the above rules for cast behavior fired, then
         // we need to fall back to doing something conservative.
         if (rulesFired == false) {
-          // Constrain everything in both to top.
-          // Remove the casts from RHS and try again to get a variable
-          // from it. We want to constrain that side to wild as well.
-          RHSConstraints = Info.getVariable(SE, Context, true);
-          for (const auto &A : RHSConstraints) {
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-              for (const auto &B : PVC->getCvars())
-                CS.addConstraint(
-                  CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
-          }
+          // Is the explicit cast safe?
+          if (!Info.isExplicitCastSafe(lhsType, SE->getType())) {
+            // Constrain everything in both to top.
+            // Remove the casts from RHS and try again to get a variable
+            // from it. We want to constrain that side to wild as well.
+            RHSConstraints = Info.getVariable(SE, Context, true);
+            for (const auto &A : RHSConstraints) {
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+                for (const auto &B : PVC->getCvars())
+                  CS.addConstraint(
+                      CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+            }
 
-          for (const auto &A : V) {
-            if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
-              for (const auto &B : PVC->getCvars())
-                CS.addConstraint(
-                  CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+            for (const auto &A : V) {
+              if (PVConstraint *PVC = dyn_cast<PVConstraint>(A))
+                for (const auto &B : PVC->getCvars())
+                  CS.addConstraint(
+                      CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+            }
           }
+        } else {
+          // the cast if safe, just equate the constraints.
+          RHSConstraints = Info.getVariable(RHS, Context, true);
+          constrainEq(V, RHSConstraints, Info);
         }
       } else {
         // get the constraint variables of the

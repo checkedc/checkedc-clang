@@ -249,6 +249,34 @@ bool ProgramInfo::checkStructuralEquality(QualType D, QualType S) {
   return D->isPointerType() == S->isPointerType();
 }
 
+bool ProgramInfo::isExplicitCastSafe(clang::QualType dstType,
+                                     clang::QualType srcType) {
+
+  // check if both types are same.
+  if (srcType == dstType)
+    return true;
+
+  const clang::Type *srcTypePtr = srcType.getTypePtr();
+  const clang::Type *dstTypePtr = dstType.getTypePtr();
+
+  const clang::PointerType *srcPtrTypePtr = dyn_cast<PointerType>(srcTypePtr);
+  const clang::PointerType *dstPtrTypePtr = dyn_cast<PointerType>(dstTypePtr);
+  // both are pointers? check their pointee
+  if (srcPtrTypePtr && dstPtrTypePtr)
+    return isExplicitCastSafe(dstPtrTypePtr->getPointeeType(), srcPtrTypePtr->getPointeeType());
+  // only one of them is pointer?
+  if (srcPtrTypePtr || dstPtrTypePtr)
+    return false;
+
+  // check if both types are compatible.
+  unsigned bothNotChar = srcTypePtr->isCharType() ^ dstTypePtr->isCharType();
+  unsigned bothNotInt = srcTypePtr->isIntegerType() ^ dstTypePtr->isIntegerType();
+  unsigned bothNotFloat = srcTypePtr->isFloatingType() ^ dstTypePtr->isFloatingType();
+
+
+  return !(bothNotChar || bothNotInt || bothNotFloat);
+}
+
 bool ProgramInfo::isExternOkay(std::string ext) {
   return llvm::StringSwitch<bool>(ext)
     .Cases("malloc", "free", true)
