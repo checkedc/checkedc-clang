@@ -10,10 +10,10 @@ C specification is available  at the
 
 Earlier this year, the LLVM community
 [transitioned](https://forums.swift.org/t/llvm-monorepo-transition/25689) to
-"monorepo". To align with upstream, we are now planning to transition CheckedC
+"monorepo". To align with upstream, we are now planning to transition Checked C
 to a monorepo.
 
-Starting first week of Oct 2019, the checkedc-clang project will transition to
+Starting the first week of Oct 2019, the checkedc-clang project will transition to
 monorepo. This would result in the following changes:
 
 1. [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) and
