@@ -6,6 +6,38 @@ extends C with checking to detect or prevent common programming  errors such as
 out-of-bounds memory accesses.  The Checked C specification is available  at the 
 [Checked C repo](https://github.com/Microsoft/checkedc).
 
+## Announcement
+
+Earlier this year, the LLVM community
+[transitioned](https://forums.swift.org/t/llvm-monorepo-transition/25689) to
+"monorepo". To align with upstream, we are now planning to transition Checked C
+to a monorepo.
+
+Starting the first week of Oct 2019, the checkedc-clang project will transition to
+monorepo. This would result in the following changes:
+
+1. [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) and
+[checkedc-clang](https://github.com/Microsoft/checkedc-clang) (as well as other
+LLVM subprojects) would be tracked via a single git repo.
+
+2. The [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) repo would
+no longer be maintained. The
+[checkedc-clang](https://github.com/Microsoft/checkedc-clang) repo would be the
+new monorepo.
+
+3. There would be no changes to the
+[checkedc](https://github.com/Microsoft/checkedc) repo. It would continue to be
+a separate git repo.
+
+4. All future patches should be based off this new monorepo.
+
+5. You can use
+[this](https://github.com/microsoft/checkedc-clang/blob/monorepo/clang/automation/UNIX/cherry-pick-to-monorepo.sh)
+script to cherry-pick your existing patches to the new monorepo.
+
+6. Make sure to set the following CMake flag to enable clang in your builds:
+  `-DLLVM_ENABLE_PROJECTS=clang`
+
 ## Compiler source code update
 
 On January 25, 2019, we updated to LLVM/clang sources from January 16, 2019.  If you are building the Checked C clang compiler 
