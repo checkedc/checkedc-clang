@@ -1308,9 +1308,12 @@ void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
     case RelativeBoundsClause::Kind::Const:
       VisitExpr(cast<RelativeConstExprBoundsClause>(R)->getConstExpr());
       break;
+    default: {
+	}
     }
+  } else {
+	ID.AddPointer(nullptr);
   }
-
 }
 
 void StmtProfiler::VisitInteropTypeExpr(
