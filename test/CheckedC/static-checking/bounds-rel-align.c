@@ -1,7 +1,7 @@
 // Tests for checking that function declarations involving range bounds
 // account for relative alignment information.
 //
-// RUN: %clang -cc1 -fcheckedc-extension -Wcheck-bounds-decls -verify %s
+// RUN: %clang -cc1 -Wcheck-bounds-decls -verify %s
 
 //
 // Test declaration and definition of functions with a range bounds parameter with a rel_align clause.
