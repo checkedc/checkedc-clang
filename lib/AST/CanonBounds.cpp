@@ -36,8 +36,6 @@ namespace {
       case CK_ArrayToPointerDecay:
       case CK_FunctionToPointerDecay:
       case CK_NullToPointer:
-      case CK_AssumePtrBounds:
-      case CK_DynamicPtrBounds:
         return true;
       default:
         return false;
@@ -446,7 +444,9 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
        // - Pointer arithmetic where the pointer referent types are the same
        //   size, checkedness is the same, and the integer types are the
        //    same size/signedness.
-       Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(),
+
+	   if (!isa<BoundsExpr>(E1ChildExpr))
+		  Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(),
                                           E2ChildExpr->getType());
        if (Cmp != Result::Equal)
          return CheckEquivExprs(Cmp, E1, E2);
