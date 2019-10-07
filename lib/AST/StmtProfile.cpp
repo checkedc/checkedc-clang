@@ -1308,6 +1308,7 @@ void StmtProfiler::VisitInteropTypeExpr(
 
 void StmtProfiler::VisitBoundsCastExpr(const BoundsCastExpr *S) {
   VisitExplicitCastExpr(S);
+  ID.AddInteger(S->getCastKind());
 }
 
 void StmtProfiler::VisitPositionalParameterExpr(

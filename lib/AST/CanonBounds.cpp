@@ -754,9 +754,14 @@ Lexicographic::CompareImpl(const PositionalParameterExpr *E1,
 Result
 Lexicographic::CompareImpl(const BoundsCastExpr *E1,
                            const BoundsCastExpr *E2) {
-  Result Cmp = CompareExpr(E1->getBoundsExpr(), E2->getBoundsExpr());
+  Result Cmp = CompareInteger(E1->getCastKind(), E2->getCastKind());
   if (Cmp != Result::Equal)
     return Cmp;
+
+  Cmp = CompareExpr(E1->getBoundsExpr(), E2->getBoundsExpr());
+  if (Cmp != Result::Equal)
+    return Cmp;
+
   return CompareType(E1->getType(), E2->getType());
 }
 
