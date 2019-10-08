@@ -1302,13 +1302,12 @@ void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
   if (S->hasRelativeBoundsClause()) {
     RelativeBoundsClause *R = S->getRelativeBoundsClause();
 	RelativeBoundsClause::Kind CK = R->getClauseKind();
-	if (CK == RelativeBoundsClause::Kind::Type) {
+	if (CK == RelativeBoundsClause::Kind::Type)
 	  VisitType(cast<RelativeTypeBoundsClause>(R)->getType());
-	} else if (CK == RelativeBoundsClause::Kind::Const) {
+	else if (CK == RelativeBoundsClause::Kind::Const)
 	  VisitExpr(cast<RelativeConstExprBoundsClause>(R)->getConstExpr());
-	} else {
+	else
 	  llvm_unreachable("unexpected kind field of relative bounds clause");
-	}
   } else {
 	ID.AddPointer(nullptr);
   }
