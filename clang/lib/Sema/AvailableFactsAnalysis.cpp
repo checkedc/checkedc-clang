@@ -293,7 +293,7 @@ bool AvailableFactsAnalysis::ContainsPointerAssignment(const Expr *E) {
     if (UO->isIncrementDecrementOp())
       if (IsPointerDerefLValue(UO->getSubExpr()))
         return true;
-  if (const CallExpr *CE = dyn_cast<CallExpr>(E))
+  if (isa<CallExpr>(E))
     return true;
   for (auto Child : E->children())
     if (const Expr *EChild = dyn_cast<Expr>(Child))
@@ -319,7 +319,7 @@ bool AvailableFactsAnalysis::IsPointerDerefLValue(const Expr *E) {
     else
       return IsPointerDerefLValue(ME->getBase());
   }
-  if (const ArraySubscriptExpr *AE = dyn_cast<ArraySubscriptExpr>(E))
+  if (isa<ArraySubscriptExpr>(E))
     return true;
   if (const ParenExpr *PE = dyn_cast<ParenExpr>(E))
     return IsPointerDerefLValue(PE->getSubExpr());
