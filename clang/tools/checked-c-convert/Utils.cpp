@@ -120,12 +120,11 @@ bool isDeclarationParam(clang::Decl *param) {
 
 static std::string storageClassToString(StorageClass SC) {
   switch (SC) {
+    default: return "";
     case StorageClass::SC_Static: return "static ";
     case StorageClass::SC_Extern: return "extern ";
     case StorageClass::SC_Register: return "register ";
-    // no default class, we do not care.
   }
-  return "";
 }
 
 // this method gets the storage qualifier for the provided declaration
