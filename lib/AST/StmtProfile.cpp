@@ -1298,6 +1298,19 @@ void StmtProfiler::VisitNullaryBoundsExpr(const NullaryBoundsExpr *S) {
 void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
   VisitExpr(S);
   ID.AddInteger(S->getKind());
+
+  if (S->hasRelativeBoundsClause()) {
+    RelativeBoundsClause *R = S->getRelativeBoundsClause();
+	RelativeBoundsClause::Kind CK = R->getClauseKind();
+	if (CK == RelativeBoundsClause::Kind::Type)
+	  VisitType(cast<RelativeTypeBoundsClause>(R)->getType());
+	else if (CK == RelativeBoundsClause::Kind::Const)
+	  VisitExpr(cast<RelativeConstExprBoundsClause>(R)->getConstExpr());
+	else
+	  llvm_unreachable("unexpected kind field of relative bounds clause");
+  } else {
+	ID.AddPointer(nullptr);
+  }
 }
 
 void StmtProfiler::VisitInteropTypeExpr(

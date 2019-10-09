@@ -3671,8 +3671,6 @@ class BoundsCastExpr final
   SourceLocation RParenLoc;
   SourceRange AngleBrackets;
 public:
-  enum SyntaxType { Bounds = 0, Single = 1, Count = 2, Range = 3 };
-
   BoundsCastExpr(QualType exprTy, ExprValueKind vk, CastKind kind, Expr *op,
                  unsigned PathSize, TypeSourceInfo *writtenTy, SourceLocation l,
                  SourceLocation RParenLoc, SourceRange AngleBrackets,
