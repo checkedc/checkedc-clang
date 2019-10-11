@@ -457,6 +457,7 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
        //   size, checkedness is the same, and the integer types are the
        //    same size/signedness.
        
+       // Bounds expressions don't have types.
        if (!isa<BoundsExpr>(E1ChildExpr))
          Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(), E2ChildExpr->getType());
 
