@@ -435,32 +435,6 @@ namespace {
 }
 #endif
 
-// Convert all temporary bindings in an expression to uses of the values
-// produced by a binding.   This should be done for bounds expressions that
-// are used in runtime checks.  That way we don't try to recompute a
-// temporary multiple times in an expression.
-namespace {
-  class PruneTemporaryHelper : public TreeTransform<PruneTemporaryHelper> {
-    typedef TreeTransform<PruneTemporaryHelper> BaseTransform;
-
-
-  public:
-    PruneTemporaryHelper(Sema &SemaRef) :
-      BaseTransform(SemaRef) { }
-
-    ExprResult TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {
-      return new (SemaRef.Context) BoundsValueExpr(SourceLocation(), E);
-    }
-  };
-
-  Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E) {
-    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics
-    ExprResult R = PruneTemporaryHelper(SemaRef).TransformExpr(E);
-    assert(!R.isInvalid());
-    return R.get();
-  }
-}
-
 namespace {
   // Class for inferring bounds expressions for C expressions.
 
