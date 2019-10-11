@@ -2222,7 +2222,18 @@ namespace {
     }
 
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
-      Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(E1, E2);
+	  // It is assumed that E1 and E2 have been successfully evaluated, so that dynamic and assume bounds casts can be treated as value preserving here.
+	  Expr* Expr1 = E1;
+	  if (BoundsCastExpr* BC1 = dyn_cast<BoundsCastExpr>(E1)) {
+		Expr1 = BC1->getSubExpr();
+	  }
+
+	  Expr *Expr2 = E2;
+	  if (BoundsCastExpr *BC2 = dyn_cast<BoundsCastExpr>(E2)) {
+		Expr2 = BC2->getSubExpr();
+	  }
+
+      Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(Expr1, Expr2);
       return R == Lexicographic::Result::Equal;
     }
 
