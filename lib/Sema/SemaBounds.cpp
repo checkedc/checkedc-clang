@@ -1109,8 +1109,6 @@ namespace {
     BoundsExpr *RValueCastBounds(CastKind CK, Expr *E) {
       switch (CK) {
         case CastKind::CK_BitCast:
-        case CastKind::CK_DynamicPtrBounds:
-        case CastKind::CK_AssumePtrBounds:
         case CastKind::CK_NoOp:
         case CastKind::CK_NullToPointer:
         // Truncation or widening of a value does not affect its bounds.
@@ -1124,6 +1122,9 @@ namespace {
           return LValueTargetBounds(E);
         case CastKind::CK_ArrayToPointerDecay:
           return LValueBounds(E);
+		case CastKind::CK_DynamicPtrBounds:
+        case CastKind::CK_AssumePtrBounds:
+		  llvm_unreachable("unexpected rvalue bounds cast");
         default:
           return CreateBoundsAlwaysUnknown();
       }
@@ -1149,12 +1150,21 @@ namespace {
       switch (E->getStmtClass()) {
         case Expr::BoundsCastExprClass: {
           CastExpr *CE = cast<CastExpr>(E);
-          Expr *subExpr = CE->getSubExpr();
-          Expr *subExprAtNewType = CreateExplicitCast(E->getType(),
+          Expr *SubExpr = CE->getSubExpr();
+
+		  CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
+		  assert(TempExpr);
+
+		  // These bounds will be computed and tested at runtime.  Don't
+		  // recompute any expressions computed to temporaries already.
+		  Expr *TempUse = CreateTemporaryUse(TempExpr);
+
+		  Expr *SubExprAtNewType = CreateExplicitCast(E->getType(),
                                                       CastKind::CK_BitCast,
-                                                      subExpr, true);
-          BoundsExpr *Bounds = CE->getBoundsExpr();
-          Bounds = ExpandToRange(subExprAtNewType, Bounds);
+                                                      TempUse, true);
+
+		  BoundsExpr *Bounds = CE->getBoundsExpr();
+		  Bounds = ExpandToRange(SubExprAtNewType, Bounds);
           return Bounds;
         }
         case Expr::ImplicitCastExprClass:
@@ -1322,6 +1332,10 @@ namespace {
         case Expr::BinaryConditionalOperatorClass:
           // TODO: infer correct bounds for conditional operators
           return CreateBoundsAllowedButNotComputed();
+		case Expr::BoundsValueExprClass: {
+		  BoundsValueExpr *BVE = cast<BoundsValueExpr>(E);
+		  return RValueBounds(BVE->getTemporaryBinding());
+		}
         default:
           // All other cases are unknowable
           return CreateBoundsAlwaysUnknown();
@@ -3107,26 +3121,28 @@ namespace {
       // during code generation.
       if (CK == CK_DynamicPtrBounds) {
         Expr *SubExpr = E->getSubExpr();
-        Expr *SubExprAtNewType =
-          BoundsInference(S).CreateExplicitCast(E->getType(),
+
+		CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
+		assert(TempExpr);
+
+		// These bounds will be computed and tested at runtime.  Don't
+        // recompute any expressions computed to temporaries already.
+		Expr *TempUse = BoundsInference(S).CreateTemporaryUse(TempExpr);
+
+		Expr *SubExprAtNewType = BoundsInference(S).CreateExplicitCast(E->getType(),
                                                 CastKind::CK_BitCast,
-                                                SubExpr, true);
+                                                TempUse, true);
         BoundsExpr *DeclaredBounds = E->getBoundsExpr();
-        BoundsExpr *NormalizedBounds = S.ExpandToRange(SubExprAtNewType,
+
+		BoundsExpr *NormalizedBounds = S.ExpandToRange(SubExprAtNewType,
                                                        DeclaredBounds);
-        BoundsExpr *SubExprBounds = S.InferRValueBounds(SubExpr);
+		BoundsExpr *SubExprBounds = S.InferRValueBounds(TempUse);
+
         if (SubExprBounds->isUnknown()) {
           S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
         }
 
         assert(NormalizedBounds);
-
-        // These bounds will be computed and tested at runtime.  Don't
-        // recompute any expressions computed to temporaries already.
-        NormalizedBounds =
-          cast<BoundsExpr>(PruneTemporaryBindings(S, NormalizedBounds));
-        SubExprBounds =
-          cast<BoundsExpr>(PruneTemporaryBindings(S, SubExprBounds));
 
         E->setNormalizedBoundsExpr(NormalizedBounds);
         E->setSubExprBoundsExpr(SubExprBounds);
