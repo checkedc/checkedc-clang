@@ -321,13 +321,31 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
 
   // The use of an expression temporary is equal to the
   // value of the binding expression.
-  if (BoundsValueExpr *BV1 = dyn_cast<BoundsValueExpr>(E1))
-    if (BV1->getTemporaryBinding() == E2)
+  if (BoundsValueExpr *BV1 = dyn_cast<BoundsValueExpr>(E1)) {
+	CHKCBindTemporaryExpr *Binding = BV1->getTemporaryBinding();
+    if (Binding == E2) {
       return Result::Equal;
+	}
+	if (Binding) {
+	  Expr *SubExpr = Binding->getSubExpr();
+	  if (CompareExpr(SubExpr, E2) == Result::Equal) {
+	    return Result::Equal;
+	  }
+	}
+  }
 
-  if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2))
-    if (BV2->getTemporaryBinding() == E1)
+  if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2)) {
+	CHKCBindTemporaryExpr *Binding = BV2->getTemporaryBinding();
+    if (Binding == E1) {
       return Result::Equal;
+	}
+	if (Binding) {
+	  Expr *SubExpr = Binding->getSubExpr();
+	  if (CompareExpr(SubExpr, E1) == Result::Equal) {
+	    return Result::Equal;
+	  }
+	}
+  }
 
    // Compare expressions structurally, recursively invoking
    // comparison for subcomponents.  If that fails, consult
