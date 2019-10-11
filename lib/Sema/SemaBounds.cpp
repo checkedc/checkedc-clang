@@ -1126,19 +1126,19 @@ namespace {
           CastExpr *CE = cast<CastExpr>(E);
           Expr *SubExpr = CE->getSubExpr();
 
-		  CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
-		  assert(TempExpr);
+		      CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
+		      assert(TempExpr);
 
-		  // These bounds will be computed and tested at runtime.  Don't
-		  // recompute any expressions computed to temporaries already.
-		  Expr *TempUse = CreateTemporaryUse(TempExpr);
+		      // These bounds will be computed and tested at runtime.  Don't
+		      // recompute any expressions computed to temporaries already.
+		      Expr *TempUse = CreateTemporaryUse(TempExpr);
 
-		  Expr *SubExprAtNewType = CreateExplicitCast(E->getType(),
+		      Expr *SubExprAtNewType = CreateExplicitCast(E->getType(),
                                                       CastKind::CK_BitCast,
                                                       TempUse, true);
 
-		  BoundsExpr *Bounds = CE->getBoundsExpr();
-		  Bounds = ExpandToRange(SubExprAtNewType, Bounds);
+		      BoundsExpr *Bounds = CE->getBoundsExpr();
+		      Bounds = ExpandToRange(SubExprAtNewType, Bounds);
           return Bounds;
         }
         case Expr::ImplicitCastExprClass:
@@ -1306,10 +1306,10 @@ namespace {
         case Expr::BinaryConditionalOperatorClass:
           // TODO: infer correct bounds for conditional operators
           return CreateBoundsAllowedButNotComputed();
-		case Expr::BoundsValueExprClass: {
-		  BoundsValueExpr *BVE = cast<BoundsValueExpr>(E);
-		  return RValueBounds(BVE->getTemporaryBinding());
-		}
+		    case Expr::BoundsValueExprClass: {
+		      BoundsValueExpr *BVE = cast<BoundsValueExpr>(E);
+		      return RValueBounds(BVE->getTemporaryBinding());
+		    }
         default:
           // All other cases are unknowable
           return CreateBoundsAlwaysUnknown();
@@ -2222,16 +2222,16 @@ namespace {
     }
 
     static bool EqualValue(ASTContext &Ctx, Expr *E1, Expr *E2, EquivExprSets *EquivExprs) {
-	  // It is assumed that E1 and E2 have been successfully evaluated, so that dynamic and assume bounds casts can be treated as value preserving here.
-	  Expr* Expr1 = E1;
-	  if (BoundsCastExpr* BC1 = dyn_cast<BoundsCastExpr>(E1)) {
-		Expr1 = BC1->getSubExpr();
-	  }
+	    // It is assumed that E1 and E2 have been successfully evaluated, so that dynamic and assume bounds casts can be treated as value preserving here.
+	    Expr* Expr1 = E1;
+	    if (BoundsCastExpr* BC1 = dyn_cast<BoundsCastExpr>(E1)) {
+		    Expr1 = BC1->getSubExpr();
+	    }
 
-	  Expr *Expr2 = E2;
-	  if (BoundsCastExpr *BC2 = dyn_cast<BoundsCastExpr>(E2)) {
-		Expr2 = BC2->getSubExpr();
-	  }
+	    Expr *Expr2 = E2;
+	    if (BoundsCastExpr *BC2 = dyn_cast<BoundsCastExpr>(E2)) {
+		    Expr2 = BC2->getSubExpr();
+	    }
 
       Lexicographic::Result R = Lexicographic(Ctx, EquivExprs).CompareExpr(Expr1, Expr2);
       return R == Lexicographic::Result::Equal;
@@ -2470,11 +2470,11 @@ namespace {
     }
 
     CHKCBindTemporaryExpr *GetTempBinding(Expr *E) {
-	  // Bounds casts should always have a temporary binding.
-	  if (BoundsCastExpr *BCE = dyn_cast<BoundsCastExpr>(E)) {
-		CHKCBindTemporaryExpr *Result = dyn_cast<CHKCBindTemporaryExpr>(BCE->getSubExpr());
-		return Result;
-	  }
+	    // Bounds casts should always have a temporary binding.
+	    if (BoundsCastExpr *BCE = dyn_cast<BoundsCastExpr>(E)) {
+		    CHKCBindTemporaryExpr *Result = dyn_cast<CHKCBindTemporaryExpr>(BCE->getSubExpr());
+		    return Result;
+	    }
 	  
       CHKCBindTemporaryExpr *Result =
         dyn_cast<CHKCBindTemporaryExpr>(E->IgnoreParenNoopCasts(S.getASTContext()));
@@ -3113,22 +3113,20 @@ namespace {
       if (CK == CK_DynamicPtrBounds) {
         Expr *SubExpr = E->getSubExpr();
 
-		CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
-		assert(TempExpr);
+		    CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
+		    assert(TempExpr);
 
-		// These bounds will be computed and tested at runtime.  Don't
+		    // These bounds will be computed and tested at runtime.  Don't
         // recompute any expressions computed to temporaries already.
-		Expr *TempUse = BoundsInference(S).CreateTemporaryUse(TempExpr);
+		    Expr *TempUse = BoundsInference(S).CreateTemporaryUse(TempExpr);
 
-		Expr *SubExprAtNewType = BoundsInference(S).CreateExplicitCast(E->getType(),
+		    Expr *SubExprAtNewType = BoundsInference(S).CreateExplicitCast(E->getType(),
                                                 CastKind::CK_BitCast,
                                                 TempUse, true);
         BoundsExpr *DeclaredBounds = E->getBoundsExpr();
-
-		BoundsExpr *NormalizedBounds = S.ExpandToRange(SubExprAtNewType,
+		    BoundsExpr *NormalizedBounds = S.ExpandToRange(SubExprAtNewType,
                                                        DeclaredBounds);
-		BoundsExpr *SubExprBounds = S.InferRValueBounds(TempUse);
-
+		    BoundsExpr *SubExprBounds = S.InferRValueBounds(TempUse);
         if (SubExprBounds->isUnknown()) {
           S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
         }
