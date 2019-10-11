@@ -2459,6 +2459,12 @@ namespace {
     }
 
     CHKCBindTemporaryExpr *GetTempBinding(Expr *E) {
+	  // Bounds casts should always have a temporary binding.
+	  if (BoundsCastExpr *BCE = dyn_cast<BoundsCastExpr>(E)) {
+		CHKCBindTemporaryExpr *Result = dyn_cast<CHKCBindTemporaryExpr>(BCE->getSubExpr());
+		return Result;
+	  }
+	  
       CHKCBindTemporaryExpr *Result =
         dyn_cast<CHKCBindTemporaryExpr>(E->IgnoreParenNoopCasts(S.getASTContext()));
       return Result;
