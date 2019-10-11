@@ -322,27 +322,23 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
   // The use of an expression temporary is equal to the
   // value of the binding expression.
   if (BoundsValueExpr *BV1 = dyn_cast<BoundsValueExpr>(E1)) {
-	  CHKCBindTemporaryExpr *Binding = BV1->getTemporaryBinding();
+    CHKCBindTemporaryExpr *Binding = BV1->getTemporaryBinding();
     if (Binding == E2)
       return Result::Equal;
-	  if (Binding) {
-	    Expr *SubExpr = Binding->getSubExpr();
-	    if (CompareExpr(SubExpr, E2) == Result::Equal) {
-	      return Result::Equal;
-	    }
-	  }
-  }
 
+    if (Binding)
+      if (CompareExpr(Binding->getSubExpr(), E2) == Result::Equal)
+        return Result::Equal;
+  }
+  
   if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2)) {
-	  CHKCBindTemporaryExpr *Binding = BV2->getTemporaryBinding();
+    CHKCBindTemporaryExpr *Binding = BV2->getTemporaryBinding();
     if (Binding == E1)
       return Result::Equal;
-	  if (Binding) {
-	    Expr *SubExpr = Binding->getSubExpr();
-	    if (CompareExpr(SubExpr, E1) == Result::Equal) {
-	      return Result::Equal;
-	    }
-	  }
+
+    if (Binding)
+      if (CompareExpr(Binding->getSubExpr(), E1) == Result::Equal)
+        return Result::Equal;
   }
 
    // Compare expressions structurally, recursively invoking
@@ -460,9 +456,9 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
        // - Pointer arithmetic where the pointer referent types are the same
        //   size, checkedness is the same, and the integer types are the
        //    same size/signedness.
-
-	     if (!isa<BoundsExpr>(E1ChildExpr))
-		     Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(), E2ChildExpr->getType());
+       
+       if (!isa<BoundsExpr>(E1ChildExpr))
+         Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(), E2ChildExpr->getType());
 
        if (Cmp != Result::Equal)
          return CheckEquivExprs(Cmp, E1, E2);
