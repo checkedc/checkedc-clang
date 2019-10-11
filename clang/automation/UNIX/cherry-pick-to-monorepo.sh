@@ -6,7 +6,6 @@
 # 3. cd $SRCDIR
 # 4. git log --pretty=oneline --format=%H > patchlist
 # 5. Remove from patchlist the commit ids you do not want to cherry-pick.
-# 6. for i in `cat patchlist`; do git diff ${i}~1 ${i} > ${i}.patch; done
 
 # Note : Currently you need to run this script for each patch in the patchlist.
 # We have followed a conservative approach and do not apply all patches at
@@ -23,13 +22,10 @@ if [[ ! -f $PATCHLIST ]]; then
   exit 1
 fi
 
-SHA=`tail -n1 $PATCHLIST`
-if [[ ! -f "${SRCDIR}/${SHA}.patch" ]]; then
-  echo "error: ${SHA}.patch not found."
-  exit 1
-fi
-
 cd $SRCDIR
+SHA=`tail -n1 $PATCHLIST`
+git diff ${SHA}~1 ${SHA} > ${SHA}.patch
+
 COMMIT_TITLE="`git log -n 1 --pretty=oneline --format=%s $SHA`"
 COMMIT_MSG="`git log -n 1 --pretty=full $SHA`"
 
