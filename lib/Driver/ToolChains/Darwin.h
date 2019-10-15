@@ -11,8 +11,10 @@
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_DARWIN_H
 
 #include "Cuda.h"
+#include "clang/Driver/DarwinSDKInfo.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
+#include "clang/Driver/XRayArgs.h"
 
 namespace clang {
 namespace driver {
@@ -189,9 +191,9 @@ public:
 
   /// Add a runtime library to the list of items to link.
   void AddLinkRuntimeLib(const llvm::opt::ArgList &Args,
-                         llvm::opt::ArgStringList &CmdArgs,
-                         StringRef DarwinLibName,
-                         RuntimeLinkOptions Opts = RuntimeLinkOptions()) const;
+                         llvm::opt::ArgStringList &CmdArgs, StringRef Component,
+                         RuntimeLinkOptions Opts = RuntimeLinkOptions(),
+                         bool IsShared = false) const;
 
   /// Add any profiling runtime libraries that are needed. This is essentially a
   /// MachO specific version of addProfileRT in Tools.cpp.
@@ -245,12 +247,15 @@ public:
 
   bool SupportsProfiling() const override;
 
-  bool SupportsObjCGC() const override { return false; }
-
   bool UseDwarfDebugFlags() const override;
 
-  bool UseSjLjExceptions(const llvm::opt::ArgList &Args) const override {
-    return false;
+  llvm::ExceptionHandling
+  GetExceptionModel(const llvm::opt::ArgList &Args) const override {
+    return llvm::ExceptionHandling::None;
+  }
+
+  virtual StringRef getOSLibraryNameSuffix(bool IgnoreSim = false) const {
+    return "";
   }
 
   /// }
@@ -269,17 +274,23 @@ public:
   enum DarwinPlatformKind {
     MacOS,
     IPhoneOS,
-    IPhoneOSSimulator,
     TvOS,
-    TvOSSimulator,
     WatchOS,
-    WatchOSSimulator
+    LastDarwinPlatform = WatchOS
+  };
+  enum DarwinEnvironmentKind {
+    NativeEnvironment,
+    Simulator,
   };
 
   mutable DarwinPlatformKind TargetPlatform;
+  mutable DarwinEnvironmentKind TargetEnvironment;
 
   /// The OS version we are targeting.
   mutable VersionTuple TargetVersion;
+
+  /// The information about the darwin SDK that was used.
+  mutable Optional<DarwinSDKInfo> SDKInfo;
 
   CudaInstallationDetector CudaInstallation;
 
@@ -318,29 +329,34 @@ protected:
 
   // FIXME: Eliminate these ...Target functions and derive separate tool chains
   // for these targets and put version in constructor.
-  void setTarget(DarwinPlatformKind Platform, unsigned Major, unsigned Minor,
-                 unsigned Micro) const {
+  void setTarget(DarwinPlatformKind Platform, DarwinEnvironmentKind Environment,
+                 unsigned Major, unsigned Minor, unsigned Micro) const {
     // FIXME: For now, allow reinitialization as long as values don't
     // change. This will go away when we move away from argument translation.
     if (TargetInitialized && TargetPlatform == Platform &&
+        TargetEnvironment == Environment &&
         TargetVersion == VersionTuple(Major, Minor, Micro))
       return;
 
     assert(!TargetInitialized && "Target already initialized!");
     TargetInitialized = true;
     TargetPlatform = Platform;
+    TargetEnvironment = Environment;
     TargetVersion = VersionTuple(Major, Minor, Micro);
+    if (Environment == Simulator)
+      const_cast<Darwin *>(this)->setTripleEnvironment(llvm::Triple::Simulator);
   }
 
   bool isTargetIPhoneOS() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetPlatform == IPhoneOS || TargetPlatform == TvOS;
+    return (TargetPlatform == IPhoneOS || TargetPlatform == TvOS) &&
+           TargetEnvironment == NativeEnvironment;
   }
 
   bool isTargetIOSSimulator() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetPlatform == IPhoneOSSimulator ||
-           TargetPlatform == TvOSSimulator;
+    return (TargetPlatform == IPhoneOS || TargetPlatform == TvOS) &&
+           TargetEnvironment == Simulator;
   }
 
   bool isTargetIOSBased() const {
@@ -350,32 +366,32 @@ protected:
 
   bool isTargetTvOS() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetPlatform == TvOS;
+    return TargetPlatform == TvOS && TargetEnvironment == NativeEnvironment;
   }
 
   bool isTargetTvOSSimulator() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetPlatform == TvOSSimulator;
+    return TargetPlatform == TvOS && TargetEnvironment == Simulator;
   }
 
   bool isTargetTvOSBased() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetPlatform == TvOS || TargetPlatform == TvOSSimulator;
+    return TargetPlatform == TvOS;
   }
 
   bool isTargetWatchOS() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetPlatform == WatchOS;
+    return TargetPlatform == WatchOS && TargetEnvironment == NativeEnvironment;
   }
 
   bool isTargetWatchOSSimulator() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetPlatform == WatchOSSimulator;
+    return TargetPlatform == WatchOS && TargetEnvironment == Simulator;
   }
 
   bool isTargetWatchOSBased() const {
     assert(TargetInitialized && "Target not initialized!");
-    return TargetPlatform == WatchOS || TargetPlatform == WatchOSSimulator;
+    return TargetPlatform == WatchOS;
   }
 
   bool isTargetMacOS() const {
@@ -411,10 +427,11 @@ protected:
                              Action::OffloadKind DeviceOffloadKind) const override;
 
   StringRef getPlatformFamily() const;
-  static StringRef getSDKName(StringRef isysroot);
-  StringRef getOSLibraryNameSuffix() const;
+  StringRef getOSLibraryNameSuffix(bool IgnoreSim = false) const override;
 
 public:
+  static StringRef getSDKName(StringRef isysroot);
+
   /// }
   /// @name ToolChain Implementation
   /// {
@@ -455,11 +472,10 @@ public:
     return 0;
   }
 
-  bool SupportsObjCGC() const override;
-
   void CheckObjCARC() const override;
 
-  bool UseSjLjExceptions(const llvm::opt::ArgList &Args) const override;
+  llvm::ExceptionHandling GetExceptionModel(
+      const llvm::opt::ArgList &Args) const override;
 
   bool SupportsEmbeddedBitcode() const override;
 
@@ -481,6 +497,10 @@ public:
 
   void AddLinkRuntimeLibArgs(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs) const override;
+
+  void AddClangCXXStdlibIncludeArgs(
+      const llvm::opt::ArgList &DriverArgs,
+      llvm::opt::ArgStringList &CC1Args) const override;
 
   void AddCXXStdlibLibArgs(const llvm::opt::ArgList &Args,
                            llvm::opt::ArgStringList &CmdArgs) const override;

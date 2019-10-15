@@ -30,9 +30,11 @@ static ArgumentsAdjuster getDefaultArgumentsAdjusters() {
 StandaloneToolExecutor::StandaloneToolExecutor(
     const CompilationDatabase &Compilations,
     llvm::ArrayRef<std::string> SourcePaths,
+    IntrusiveRefCntPtr<llvm::vfs::FileSystem> BaseFS,
     std::shared_ptr<PCHContainerOperations> PCHContainerOps)
-    : Tool(Compilations, SourcePaths), Context(&Results),
-      ArgsAdjuster(getDefaultArgumentsAdjusters()) {
+    : Tool(Compilations, SourcePaths, std::move(PCHContainerOps),
+           std::move(BaseFS)),
+      Context(&Results), ArgsAdjuster(getDefaultArgumentsAdjusters()) {
   // Use self-defined default argument adjusters instead of the default
   // adjusters that come with the old `ClangTool`.
   Tool.clearArgumentsAdjusters();
@@ -43,7 +45,7 @@ StandaloneToolExecutor::StandaloneToolExecutor(
     std::shared_ptr<PCHContainerOperations> PCHContainerOps)
     : OptionsParser(std::move(Options)),
       Tool(OptionsParser->getCompilations(), OptionsParser->getSourcePathList(),
-           PCHContainerOps),
+           std::move(PCHContainerOps)),
       Context(&Results), ArgsAdjuster(getDefaultArgumentsAdjusters()) {
   Tool.clearArgumentsAdjusters();
 }
@@ -79,13 +81,13 @@ public:
   }
 };
 
-// This anchor is used to force the linker to link in the generated object file
-// and thus register the plugin.
-volatile int ToolExecutorPluginAnchorSource = 0;
-
 static ToolExecutorPluginRegistry::Add<StandaloneToolExecutorPlugin>
     X("standalone", "Runs FrontendActions on a set of files provided "
                     "via positional arguments.");
+
+// This anchor is used to force the linker to link in the generated object file
+// and thus register the plugin.
+volatile int StandaloneToolExecutorAnchorSource = 0;
 
 } // end namespace tooling
 } // end namespace clang

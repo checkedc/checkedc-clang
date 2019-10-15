@@ -239,6 +239,15 @@ enum ENUM2 {
 	ENUM2_c = 0x100000000 // expected-warning {{enumerator value is not representable in the underlying type 'int'}}
 };
 
+namespace NsEnumForwardDecl {
+  enum E *p; // expected-warning {{forward references to 'enum' types are a Microsoft extension}}
+  extern E e;
+}
+// Clang used to complain that NsEnumForwardDecl::E was undeclared below.
+NsEnumForwardDecl::E NsEnumForwardDecl_e;
+namespace NsEnumForwardDecl {
+  extern E e;
+}
 
 namespace PR11791 {
   template<class _Ty>
@@ -293,3 +302,23 @@ void function_to_voidptr_conv() {
   void *a2 = &function_prototype; // expected-warning {{implicit conversion between pointer-to-function and pointer-to-object is a Microsoft extension}}
   void *a3 = function_ptr;        // expected-warning {{implicit conversion between pointer-to-function and pointer-to-object is a Microsoft extension}}
 }
+
+namespace member_lookup {
+
+template<typename T>
+struct ConfuseLookup {
+  T* m_val;
+  struct m_val {
+    static size_t ms_test;
+  };
+};
+
+// Microsoft mode allows explicit constructor calls
+// This could confuse name lookup in cases such as this
+template<typename T>
+size_t ConfuseLookup<T>::m_val::ms_test
+  = size_t(&(char&)(reinterpret_cast<ConfuseLookup<T>*>(0)->m_val));
+
+void instantiate() { ConfuseLookup<int>::m_val::ms_test = 1; }
+}
+

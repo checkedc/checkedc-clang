@@ -47,21 +47,21 @@
 // CXX11:#define __cplusplus 201103L
 // CXX11:#define __private_extern__ extern
 //
-// 
+//
 // RUN: %clang_cc1 -x c++ -std=c++98 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix CXX98 %s
-// 
+//
 // CXX98:#define __GNUG__ {{.*}}
 // CXX98:#define __GXX_RTTI 1
 // CXX98:#define __GXX_WEAK__ 1
 // CXX98:#define __cplusplus 199711L
 // CXX98:#define __private_extern__ extern
 //
-// 
+//
 // RUN: %clang_cc1 -fdeprecated-macro -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix DEPRECATED %s
 //
 // DEPRECATED:#define __DEPRECATED 1
 //
-// 
+//
 // RUN: %clang_cc1 -std=c99 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix C99 %s
 //
 // C99:#define __STDC_VERSION__ 199901L
@@ -71,7 +71,7 @@
 // C99-NOT: __GXX_WEAK__
 // C99-NOT: __cplusplus
 //
-// 
+//
 // RUN: %clang_cc1 -std=c11 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix C11 %s
 // RUN: %clang_cc1 -std=c1x -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix C11 %s
 // RUN: %clang_cc1 -std=iso9899:2011 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix C11 %s
@@ -86,7 +86,7 @@
 // C11-NOT: __GXX_WEAK__
 // C11-NOT: __cplusplus
 //
-// 
+//
 // RUN: %clang_cc1 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix COMMON %s
 //
 // COMMON:#define __CONSTANT_CFSTRINGS__ 1
@@ -113,7 +113,7 @@
 // RUN: %clang_cc1 -E -dM -triple=x86_64-pc-linux-gnu < /dev/null | FileCheck -match-full-lines -check-prefix C-DEFAULT %s
 // RUN: %clang_cc1 -E -dM -triple=x86_64-apple-darwin < /dev/null | FileCheck -match-full-lines -check-prefix C-DEFAULT %s
 // RUN: %clang_cc1 -E -dM -triple=armv7a-apple-darwin < /dev/null | FileCheck -match-full-lines -check-prefix C-DEFAULT %s
-// 
+//
 // C-DEFAULT:#define __STDC_VERSION__ 201112L
 //
 // RUN: %clang_cc1 -ffreestanding -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix FREESTANDING %s
@@ -158,12 +158,12 @@
 // GXX98:#define __cplusplus 199711L
 // GXX98:#define __private_extern__ extern
 //
-// 
+//
 // RUN: %clang_cc1 -std=iso9899:199409 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix C94 %s
 //
 // C94:#define __STDC_VERSION__ 199409L
 //
-// 
+//
 // RUN: %clang_cc1 -fms-extensions -triple i686-pc-win32 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix MSEXT %s
 //
 // MSEXT-NOT:#define __STDC__
@@ -185,7 +185,7 @@
 // MSEXT-CXX-NOWCHAR-NOT:#define _WCHAR_T_DEFINED 1
 // MSEXT-CXX-NOWCHAR:#define __BOOL_DEFINED 1
 //
-// 
+//
 // RUN: %clang_cc1 -x objective-c -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix OBJC %s
 //
 // OBJC:#define OBJC_NEW_PROPERTIES 1
@@ -197,7 +197,7 @@
 //
 // OBJCGC:#define __OBJC_GC__ 1
 //
-// 
+//
 // RUN: %clang_cc1 -x objective-c -fobjc-exceptions -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix NONFRAGILE %s
 //
 // NONFRAGILE:#define OBJC_ZEROCOST_EXCEPTIONS 1
@@ -246,9 +246,9 @@
 //
 // PASCAL:#define __PASCAL_STRINGS__ 1
 //
-// 
+//
 // RUN: %clang_cc1 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix SCHAR %s
-// 
+//
 // SCHAR:#define __STDC__ 1
 // SCHAR-NOT:#define __UNSIGNED_CHAR__
 // SCHAR:#define __clang__ 1
@@ -724,21 +724,21 @@
 // AARCH64-NETBSD:#define __INT32_FMTi__ "i"
 // AARCH64-NETBSD:#define __INT32_MAX__ 2147483647
 // AARCH64-NETBSD:#define __INT32_TYPE__ int
-// AARCH64-NETBSD:#define __INT64_C_SUFFIX__ LL
-// AARCH64-NETBSD:#define __INT64_FMTd__ "lld"
-// AARCH64-NETBSD:#define __INT64_FMTi__ "lli"
-// AARCH64-NETBSD:#define __INT64_MAX__ 9223372036854775807LL
-// AARCH64-NETBSD:#define __INT64_TYPE__ long long int
+// AARCH64-NETBSD:#define __INT64_C_SUFFIX__ L
+// AARCH64-NETBSD:#define __INT64_FMTd__ "ld"
+// AARCH64-NETBSD:#define __INT64_FMTi__ "li"
+// AARCH64-NETBSD:#define __INT64_MAX__ 9223372036854775807L
+// AARCH64-NETBSD:#define __INT64_TYPE__ long int
 // AARCH64-NETBSD:#define __INT8_C_SUFFIX__
 // AARCH64-NETBSD:#define __INT8_FMTd__ "hhd"
 // AARCH64-NETBSD:#define __INT8_FMTi__ "hhi"
 // AARCH64-NETBSD:#define __INT8_MAX__ 127
 // AARCH64-NETBSD:#define __INT8_TYPE__ signed char
-// AARCH64-NETBSD:#define __INTMAX_C_SUFFIX__ LL
-// AARCH64-NETBSD:#define __INTMAX_FMTd__ "lld"
-// AARCH64-NETBSD:#define __INTMAX_FMTi__ "lli"
-// AARCH64-NETBSD:#define __INTMAX_MAX__ 9223372036854775807LL
-// AARCH64-NETBSD:#define __INTMAX_TYPE__ long long int
+// AARCH64-NETBSD:#define __INTMAX_C_SUFFIX__ L
+// AARCH64-NETBSD:#define __INTMAX_FMTd__ "ld"
+// AARCH64-NETBSD:#define __INTMAX_FMTi__ "li"
+// AARCH64-NETBSD:#define __INTMAX_MAX__ 9223372036854775807L
+// AARCH64-NETBSD:#define __INTMAX_TYPE__ long int
 // AARCH64-NETBSD:#define __INTMAX_WIDTH__ 64
 // AARCH64-NETBSD:#define __INTPTR_FMTd__ "ld"
 // AARCH64-NETBSD:#define __INTPTR_FMTi__ "li"
@@ -824,15 +824,15 @@
 // AARCH64-NETBSD:#define __UINT32_C_SUFFIX__ U
 // AARCH64-NETBSD:#define __UINT32_MAX__ 4294967295U
 // AARCH64-NETBSD:#define __UINT32_TYPE__ unsigned int
-// AARCH64-NETBSD:#define __UINT64_C_SUFFIX__ ULL
-// AARCH64-NETBSD:#define __UINT64_MAX__ 18446744073709551615ULL
-// AARCH64-NETBSD:#define __UINT64_TYPE__ long long unsigned int
+// AARCH64-NETBSD:#define __UINT64_C_SUFFIX__ UL
+// AARCH64-NETBSD:#define __UINT64_MAX__ 18446744073709551615UL
+// AARCH64-NETBSD:#define __UINT64_TYPE__ long unsigned int
 // AARCH64-NETBSD:#define __UINT8_C_SUFFIX__
 // AARCH64-NETBSD:#define __UINT8_MAX__ 255
 // AARCH64-NETBSD:#define __UINT8_TYPE__ unsigned char
-// AARCH64-NETBSD:#define __UINTMAX_C_SUFFIX__ ULL
-// AARCH64-NETBSD:#define __UINTMAX_MAX__ 18446744073709551615ULL
-// AARCH64-NETBSD:#define __UINTMAX_TYPE__ long long unsigned int
+// AARCH64-NETBSD:#define __UINTMAX_C_SUFFIX__ UL
+// AARCH64-NETBSD:#define __UINTMAX_MAX__ 18446744073709551615UL
+// AARCH64-NETBSD:#define __UINTMAX_TYPE__ long unsigned int
 // AARCH64-NETBSD:#define __UINTMAX_WIDTH__ 64
 // AARCH64-NETBSD:#define __UINTPTR_MAX__ 18446744073709551615UL
 // AARCH64-NETBSD:#define __UINTPTR_TYPE__ long unsigned int
@@ -1243,6 +1243,7 @@
 // AARCH64-FREEBSD:#define __WCHAR_TYPE__ unsigned int
 // AARCH64-FREEBSD:#define __WCHAR_UNSIGNED__ 1
 // AARCH64-FREEBSD:#define __WCHAR_WIDTH__ 32
+// AARCH64-FREEBSD:#define __WINT_MAX__ 2147483647
 // AARCH64-FREEBSD:#define __WINT_TYPE__ int
 // AARCH64-FREEBSD:#define __WINT_WIDTH__ 32
 // AARCH64-FREEBSD:#define __aarch64__ 1
@@ -1330,10 +1331,10 @@
 // AARCH64-DARWIN: #define __INT_FAST32_FMTi__ "i"
 // AARCH64-DARWIN: #define __INT_FAST32_MAX__ 2147483647
 // AARCH64-DARWIN: #define __INT_FAST32_TYPE__ int
-// AARCH64-DARWIN: #define __INT_FAST64_FMTd__ "ld"
-// AARCH64-DARWIN: #define __INT_FAST64_FMTi__ "li"
-// AARCH64-DARWIN: #define __INT_FAST64_MAX__ 9223372036854775807L
-// AARCH64-DARWIN: #define __INT_FAST64_TYPE__ long int
+// AARCH64-DARWIN: #define __INT_FAST64_FMTd__ "lld"
+// AARCH64-DARWIN: #define __INT_FAST64_FMTi__ "lli"
+// AARCH64-DARWIN: #define __INT_FAST64_MAX__ 9223372036854775807LL
+// AARCH64-DARWIN: #define __INT_FAST64_TYPE__ long long int
 // AARCH64-DARWIN: #define __INT_FAST8_FMTd__ "hhd"
 // AARCH64-DARWIN: #define __INT_FAST8_FMTi__ "hhi"
 // AARCH64-DARWIN: #define __INT_FAST8_MAX__ 127
@@ -1346,10 +1347,10 @@
 // AARCH64-DARWIN: #define __INT_LEAST32_FMTi__ "i"
 // AARCH64-DARWIN: #define __INT_LEAST32_MAX__ 2147483647
 // AARCH64-DARWIN: #define __INT_LEAST32_TYPE__ int
-// AARCH64-DARWIN: #define __INT_LEAST64_FMTd__ "ld"
-// AARCH64-DARWIN: #define __INT_LEAST64_FMTi__ "li"
-// AARCH64-DARWIN: #define __INT_LEAST64_MAX__ 9223372036854775807L
-// AARCH64-DARWIN: #define __INT_LEAST64_TYPE__ long int
+// AARCH64-DARWIN: #define __INT_LEAST64_FMTd__ "lld"
+// AARCH64-DARWIN: #define __INT_LEAST64_FMTi__ "lli"
+// AARCH64-DARWIN: #define __INT_LEAST64_MAX__ 9223372036854775807LL
+// AARCH64-DARWIN: #define __INT_LEAST64_TYPE__ long long int
 // AARCH64-DARWIN: #define __INT_LEAST8_FMTd__ "hhd"
 // AARCH64-DARWIN: #define __INT_LEAST8_FMTi__ "hhi"
 // AARCH64-DARWIN: #define __INT_LEAST8_MAX__ 127
@@ -1417,16 +1418,16 @@
 // AARCH64-DARWIN: #define __UINT_FAST16_TYPE__ unsigned short
 // AARCH64-DARWIN: #define __UINT_FAST32_MAX__ 4294967295U
 // AARCH64-DARWIN: #define __UINT_FAST32_TYPE__ unsigned int
-// AARCH64-DARWIN: #define __UINT_FAST64_MAX__ 18446744073709551615UL
-// AARCH64-DARWIN: #define __UINT_FAST64_TYPE__ long unsigned int
+// AARCH64-DARWIN: #define __UINT_FAST64_MAX__ 18446744073709551615ULL
+// AARCH64-DARWIN: #define __UINT_FAST64_TYPE__ long long unsigned int
 // AARCH64-DARWIN: #define __UINT_FAST8_MAX__ 255
 // AARCH64-DARWIN: #define __UINT_FAST8_TYPE__ unsigned char
 // AARCH64-DARWIN: #define __UINT_LEAST16_MAX__ 65535
 // AARCH64-DARWIN: #define __UINT_LEAST16_TYPE__ unsigned short
 // AARCH64-DARWIN: #define __UINT_LEAST32_MAX__ 4294967295U
 // AARCH64-DARWIN: #define __UINT_LEAST32_TYPE__ unsigned int
-// AARCH64-DARWIN: #define __UINT_LEAST64_MAX__ 18446744073709551615UL
-// AARCH64-DARWIN: #define __UINT_LEAST64_TYPE__ long unsigned int
+// AARCH64-DARWIN: #define __UINT_LEAST64_MAX__ 18446744073709551615ULL
+// AARCH64-DARWIN: #define __UINT_LEAST64_TYPE__ long long unsigned int
 // AARCH64-DARWIN: #define __UINT_LEAST8_MAX__ 255
 // AARCH64-DARWIN: #define __UINT_LEAST8_TYPE__ unsigned char
 // AARCH64-DARWIN: #define __USER_LABEL_PREFIX__ _
@@ -1437,6 +1438,12 @@
 // AARCH64-DARWIN: #define __WINT_TYPE__ int
 // AARCH64-DARWIN: #define __WINT_WIDTH__ 32
 // AARCH64-DARWIN: #define __aarch64__ 1
+
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=thumbv7-windows-msvc < /dev/null | FileCheck -match-full-lines -check-prefix ARM-MSVC %s
+//
+// ARM-MSVC: #define _M_ARM_NT 1
+// ARM-MSVC: #define _WIN32 1
+// ARM-MSVC-NOT:#define __ARM_DWARF_EH__ 1
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=aarch64-windows-msvc < /dev/null | FileCheck -match-full-lines -check-prefix AARCH64-MSVC %s
 //
@@ -1546,7 +1553,7 @@
 // AARCH64-MSVC: #define __SIZEOF_SHORT__ 2
 // AARCH64-MSVC: #define __SIZEOF_SIZE_T__ 8
 // AARCH64-MSVC: #define __SIZEOF_WCHAR_T__ 2
-// AARCH64-MSVC: #define __SIZEOF_WINT_T__ 4
+// AARCH64-MSVC: #define __SIZEOF_WINT_T__ 2
 // AARCH64-MSVC: #define __SIZE_MAX__ 18446744073709551615ULL
 // AARCH64-MSVC: #define __SIZE_TYPE__ long long unsigned int
 // AARCH64-MSVC: #define __SIZE_WIDTH__ 64
@@ -1595,8 +1602,8 @@
 // AARCH64-MSVC: #define __WCHAR_TYPE__ unsigned short
 // AARCH64-MSVC: #define __WCHAR_UNSIGNED__ 1
 // AARCH64-MSVC: #define __WCHAR_WIDTH__ 16
-// AARCH64-MSVC: #define __WINT_TYPE__ int
-// AARCH64-MSVC: #define __WINT_WIDTH__ 32
+// AARCH64-MSVC: #define __WINT_TYPE__ unsigned short
+// AARCH64-MSVC: #define __WINT_WIDTH__ 16
 // AARCH64-MSVC: #define __aarch64__ 1
 
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=arm-none-none < /dev/null | FileCheck -match-full-lines -check-prefix ARM %s
@@ -2583,6 +2590,7 @@
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=arm-none-eabihf < /dev/null | FileCheck -match-full-lines -check-prefix ARM-NONE-EABI %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=aarch64-none-eabi < /dev/null | FileCheck -match-full-lines -check-prefix ARM-NONE-EABI %s
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=aarch64-none-eabihf < /dev/null | FileCheck -match-full-lines -check-prefix ARM-NONE-EABI %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=aarch64-none-elf < /dev/null | FileCheck -match-full-lines -check-prefix ARM-NONE-EABI %s
 // ARM-NONE-EABI: #define __ELF__ 1
 
 // No MachO targets use the full EABI, even if AAPCS is used.
@@ -2644,6 +2652,10 @@
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=thumbebv7 < /dev/null | FileCheck -match-full-lines -check-prefix Thumbebv7 %s
 // Thumbebv7: #define __THUMB_INTERWORK__ 1
 // Thumbebv7: #define __thumb2__ 1
+
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=thumbv7-pc-windows-gnu -fdwarf-exceptions %s -o - | FileCheck -match-full-lines -check-prefix THUMB-MINGW %s
+
+// THUMB-MINGW:#define __ARM_DWARF_EH__ 1
 
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=i386-none-none < /dev/null | FileCheck -match-full-lines -check-prefix I386 %s
@@ -3431,7 +3443,7 @@
 // MIPS32BE:#define __mips 32
 // MIPS32BE:#define __mips__ 1
 // MIPS32BE:#define __mips_abicalls 1
-// MIPS32BE:#define __mips_fpr 32
+// MIPS32BE:#define __mips_fpr 0
 // MIPS32BE:#define __mips_hard_float 1
 // MIPS32BE:#define __mips_o32 1
 // MIPS32BE:#define _mips 1
@@ -3638,7 +3650,7 @@
 // MIPS32EL:#define __mips 32
 // MIPS32EL:#define __mips__ 1
 // MIPS32EL:#define __mips_abicalls 1
-// MIPS32EL:#define __mips_fpr 32
+// MIPS32EL:#define __mips_fpr 0
 // MIPS32EL:#define __mips_hard_float 1
 // MIPS32EL:#define __mips_o32 1
 // MIPS32EL:#define _mips 1
@@ -4889,6 +4901,41 @@
 // RUN:   | FileCheck -match-full-lines -check-prefix NOMIPS-ABS2008 %s
 // NOMIPS-ABS2008-NOT:#define __mips_abs2008 1
 //
+// RUN: %clang_cc1  \
+// RUN:   -E -dM -triple=mips-none-none < /dev/null \
+// RUN:   | FileCheck -match-full-lines -check-prefix MIPS32-NOFP %s
+// MIPS32-NOFP:#define __mips_fpr 0
+//
+// RUN: %clang_cc1 -target-feature +fpxx \
+// RUN:   -E -dM -triple=mips-none-none < /dev/null \
+// RUN:   | FileCheck -match-full-lines -check-prefix MIPS32-MFPXX %s
+// MIPS32-MFPXX:#define __mips_fpr 0
+//
+// RUN: %clang_cc1 -target-cpu mips32r6 -target-feature +fpxx \
+// RUN:   -E -dM -triple=mips-none-none < /dev/null \
+// RUN:   | FileCheck -match-full-lines -check-prefix MIPS32R6-MFPXX %s
+// MIPS32R6-MFPXX:#define __mips_fpr 0
+//
+// RUN: %clang_cc1  \
+// RUN:   -E -dM -triple=mips64-none-none < /dev/null \
+// RUN:   | FileCheck -match-full-lines -check-prefix MIPS64-NOFP %s
+// MIPS64-NOFP:#define __mips_fpr 64
+//
+// RUN: not %clang_cc1 -target-feature -fp64 \
+// RUN:   -E -dM -triple=mips64-none-none < /dev/null 2>&1 \
+// RUN:   | FileCheck -match-full-lines -check-prefix MIPS64-MFP32 %s
+// MIPS64-MFP32:error: option '-mfpxx' cannot be specified with 'mips64r2'
+//
+// RUN: not %clang_cc1 -target-feature +fpxx \
+// RUN:   -E -dM -triple=mips64-none-none < /dev/null 2>&1 \
+// RUN:   | FileCheck -match-full-lines -check-prefix MIPS64-MFPXX %s
+// MIPS64-MFPXX:error: '-mfpxx' can only be used with the 'o32' ABI
+//
+// RUN: not %clang_cc1 -target-cpu mips64r6 -target-feature +fpxx \
+// RUN:   -E -dM -triple=mips64-none-none < /dev/null 2>&1 \
+// RUN:   | FileCheck -match-full-lines -check-prefix MIPS64R6-MFPXX %s
+// MIPS64R6-MFPXX:error: '-mfpxx' can only be used with the 'o32' ABI
+//
 // RUN: %clang_cc1 -target-feature -fp64 \
 // RUN:   -E -dM -triple=mips-none-none < /dev/null \
 // RUN:   | FileCheck -match-full-lines -check-prefix MIPS32-MFP32 %s
@@ -4905,7 +4952,7 @@
 // RUN:   -E -dM -triple=mips-none-none < /dev/null \
 // RUN:   | FileCheck -match-full-lines -check-prefix MIPS32-MFP32SF %s
 // MIPS32-MFP32SF:#define _MIPS_FPSET 32
-// MIPS32-MFP32SF:#define __mips_fpr 32
+// MIPS32-MFP32SF:#define __mips_fpr 0
 //
 // RUN: %clang_cc1 -target-feature +fp64 \
 // RUN:   -E -dM -triple=mips64-none-none < /dev/null \
@@ -6359,7 +6406,7 @@
 // PPCPOWER9:#define _ARCH_PWR7 1
 // PPCPOWER9:#define _ARCH_PWR9 1
 //
-// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +float128 -target-cpu power8 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-FLOAT128 %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-none-none -target-feature +float128 -target-cpu power9 -fno-signed-char < /dev/null | FileCheck -check-prefix PPC-FLOAT128 %s
 // PPC-FLOAT128:#define __FLOAT128__ 1
 //
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=powerpc64-unknown-linux-gnu -fno-signed-char < /dev/null | FileCheck -match-full-lines -check-prefix PPC64-LINUX %s
@@ -7932,6 +7979,7 @@
 // X86_64:#define __WINT_WIDTH__ 32
 // X86_64:#define __amd64 1
 // X86_64:#define __amd64__ 1
+// X86_64:#define __code_model_small_ 1
 // X86_64:#define __x86_64 1
 // X86_64:#define __x86_64__ 1
 //
@@ -7941,7 +7989,10 @@
 // X86_64H:#define __x86_64__ 1
 // X86_64H:#define __x86_64h 1
 // X86_64H:#define __x86_64h__ 1
-
+//
+// RUN: %clang -xc - -E -dM -mcmodel=medium --target=i386-unknown-linux < /dev/null | FileCheck -match-full-lines -check-prefix X86_MEDIUM %s
+// X86_MEDIUM:#define __code_model_medium_ 1
+//
 // RUN: %clang_cc1 -E -dM -ffreestanding -triple=x86_64-none-none-gnux32 < /dev/null | FileCheck -match-full-lines -check-prefix X32 %s
 // RUN: %clang_cc1 -x c++ -E -dM -ffreestanding -triple=x86_64-none-none-gnux32 < /dev/null | FileCheck -match-full-lines -check-prefix X32 -check-prefix X32-CXX %s
 //
@@ -8430,6 +8481,7 @@
 // X86_64-CLOUDABI:#define __WCHAR_MAX__ 2147483647
 // X86_64-CLOUDABI:#define __WCHAR_TYPE__ int
 // X86_64-CLOUDABI:#define __WCHAR_WIDTH__ 32
+// X86_64-CLOUDABI:#define __WINT_MAX__ 2147483647
 // X86_64-CLOUDABI:#define __WINT_TYPE__ int
 // X86_64-CLOUDABI:#define __WINT_WIDTH__ 32
 // X86_64-CLOUDABI:#define __amd64 1
@@ -8953,6 +9005,9 @@
 // PS4:#define __x86_64__ 1
 // PS4:#define unix 1
 //
+// RUN: %clang_cc1 -x c++ -E -dM -ffreestanding -triple=x86_64-scei-ps4 < /dev/null | FileCheck -match-full-lines -check-prefix PS4-CXX %s
+// PS4-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 32UL
+//
 // RUN: %clang_cc1 -E -dM -triple=x86_64-pc-mingw32 < /dev/null | FileCheck -match-full-lines -check-prefix X86-64-DECLSPEC %s
 // RUN: %clang_cc1 -E -dM -fms-extensions -triple=x86_64-unknown-mingw32 < /dev/null | FileCheck -match-full-lines -check-prefix X86-64-DECLSPEC %s
 // X86-64-DECLSPEC: #define __declspec{{.*}}
@@ -8987,6 +9042,13 @@
 // RUN: %clang_cc1 -x c++ -triple sparc-rtems-elf -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix GNUSOURCE %s
 // GNUSOURCE:#define _GNU_SOURCE 1
 //
+// Check that the GNUstep Objective-C ABI defines exist and are clamped at the
+// highest supported version.
+// RUN: %clang_cc1 -x objective-c -triple i386-unknown-freebsd -fobjc-runtime=gnustep-1.9 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix GNUSTEP1 %s
+// GNUSTEP1:#define __OBJC_GNUSTEP_RUNTIME_ABI__ 18
+// RUN: %clang_cc1 -x objective-c -triple i386-unknown-freebsd -fobjc-runtime=gnustep-2.5 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix GNUSTEP2 %s
+// GNUSTEP2:#define __OBJC_GNUSTEP_RUNTIME_ABI__ 20
+//
 // RUN: %clang_cc1 -x c++ -std=c++98 -fno-rtti -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix NORTTI %s
 // NORTTI: #define __GXX_ABI_VERSION {{.*}}
 // NORTTI-NOT:#define __GXX_RTTI
@@ -8995,9 +9057,10 @@
 // RUN: %clang_cc1 -triple arm-linux-androideabi -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix ANDROID %s
 // ANDROID-NOT:#define __ANDROID_API__
 // ANDROID:#define __ANDROID__ 1
+// ANDROID-NOT:#define __gnu_linux__
 //
 // RUN: %clang_cc1 -x c++ -triple i686-linux-android -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix I386-ANDROID-CXX %s
-// I386-ANDROID-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 4U
+// I386-ANDROID-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 8U
 //
 // RUN: %clang_cc1 -x c++ -triple x86_64-linux-android -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix X86_64-ANDROID-CXX %s
 // X86_64-ANDROID-CXX:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 16UL
@@ -9005,6 +9068,7 @@
 // RUN: %clang_cc1 -triple arm-linux-androideabi20 -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix ANDROID20 %s
 // ANDROID20:#define __ANDROID_API__ 20
 // ANDROID20:#define __ANDROID__ 1
+// ANDROID-NOT:#define __gnu_linux__
 //
 // RUN: %clang_cc1 -triple lanai-unknown-unknown -E -dM < /dev/null | FileCheck -match-full-lines -check-prefix LANAI %s
 // LANAI: #define __lanai__ 1
@@ -9149,10 +9213,10 @@
 // WEBASSEMBLY32-NEXT:#define __INTMAX_MAX__ 9223372036854775807LL
 // WEBASSEMBLY32-NEXT:#define __INTMAX_TYPE__ long long int
 // WEBASSEMBLY32-NEXT:#define __INTMAX_WIDTH__ 64
-// WEBASSEMBLY32-NEXT:#define __INTPTR_FMTd__ "d"
-// WEBASSEMBLY32-NEXT:#define __INTPTR_FMTi__ "i"
-// WEBASSEMBLY32-NEXT:#define __INTPTR_MAX__ 2147483647
-// WEBASSEMBLY32-NEXT:#define __INTPTR_TYPE__ int
+// WEBASSEMBLY32-NEXT:#define __INTPTR_FMTd__ "ld"
+// WEBASSEMBLY32-NEXT:#define __INTPTR_FMTi__ "li"
+// WEBASSEMBLY32-NEXT:#define __INTPTR_MAX__ 2147483647L
+// WEBASSEMBLY32-NEXT:#define __INTPTR_TYPE__ long int
 // WEBASSEMBLY32-NEXT:#define __INTPTR_WIDTH__ 32
 // WEBASSEMBLY32-NEXT:#define __INT_FAST16_FMTd__ "hd"
 // WEBASSEMBLY32-NEXT:#define __INT_FAST16_FMTi__ "hi"
@@ -9217,10 +9281,10 @@
 // WEBASSEMBLY32-NEXT:#define __ORDER_PDP_ENDIAN__ 3412
 // WEBASSEMBLY32-NEXT:#define __POINTER_WIDTH__ 32
 // WEBASSEMBLY32-NEXT:#define __PRAGMA_REDEFINE_EXTNAME 1
-// WEBASSEMBLY32-NEXT:#define __PTRDIFF_FMTd__ "d"
-// WEBASSEMBLY32-NEXT:#define __PTRDIFF_FMTi__ "i"
-// WEBASSEMBLY32-NEXT:#define __PTRDIFF_MAX__ 2147483647
-// WEBASSEMBLY32-NEXT:#define __PTRDIFF_TYPE__ int
+// WEBASSEMBLY32-NEXT:#define __PTRDIFF_FMTd__ "ld"
+// WEBASSEMBLY32-NEXT:#define __PTRDIFF_FMTi__ "li"
+// WEBASSEMBLY32-NEXT:#define __PTRDIFF_MAX__ 2147483647L
+// WEBASSEMBLY32-NEXT:#define __PTRDIFF_TYPE__ long int
 // WEBASSEMBLY32-NEXT:#define __PTRDIFF_WIDTH__ 32
 // WEBASSEMBLY32-NOT:#define __REGISTER_PREFIX__
 // WEBASSEMBLY32-NEXT:#define __SCHAR_MAX__ 127
@@ -9240,12 +9304,12 @@
 // WEBASSEMBLY32-NEXT:#define __SIZEOF_SIZE_T__ 4
 // WEBASSEMBLY32-NEXT:#define __SIZEOF_WCHAR_T__ 4
 // WEBASSEMBLY32-NEXT:#define __SIZEOF_WINT_T__ 4
-// WEBASSEMBLY32-NEXT:#define __SIZE_FMTX__ "X"
-// WEBASSEMBLY32-NEXT:#define __SIZE_FMTo__ "o"
-// WEBASSEMBLY32-NEXT:#define __SIZE_FMTu__ "u"
-// WEBASSEMBLY32-NEXT:#define __SIZE_FMTx__ "x"
-// WEBASSEMBLY32-NEXT:#define __SIZE_MAX__ 4294967295U
-// WEBASSEMBLY32-NEXT:#define __SIZE_TYPE__ unsigned int
+// WEBASSEMBLY32-NEXT:#define __SIZE_FMTX__ "lX"
+// WEBASSEMBLY32-NEXT:#define __SIZE_FMTo__ "lo"
+// WEBASSEMBLY32-NEXT:#define __SIZE_FMTu__ "lu"
+// WEBASSEMBLY32-NEXT:#define __SIZE_FMTx__ "lx"
+// WEBASSEMBLY32-NEXT:#define __SIZE_MAX__ 4294967295UL
+// WEBASSEMBLY32-NEXT:#define __SIZE_TYPE__ long unsigned int
 // WEBASSEMBLY32-NEXT:#define __SIZE_WIDTH__ 32
 // WEBASSEMBLY32-NEXT:#define __STDC_HOSTED__ 0
 // WEBASSEMBLY32-NOT:#define __STDC_MB_MIGHT_NEQ_WC__
@@ -9293,12 +9357,12 @@
 // WEBASSEMBLY32-NEXT:#define __UINTMAX_MAX__ 18446744073709551615ULL
 // WEBASSEMBLY32-NEXT:#define __UINTMAX_TYPE__ long long unsigned int
 // WEBASSEMBLY32-NEXT:#define __UINTMAX_WIDTH__ 64
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTX__ "X"
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTo__ "o"
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTu__ "u"
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTx__ "x"
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_MAX__ 4294967295U
-// WEBASSEMBLY32-NEXT:#define __UINTPTR_TYPE__ unsigned int
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTX__ "lX"
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTo__ "lo"
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTu__ "lu"
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_FMTx__ "lx"
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_MAX__ 4294967295UL
+// WEBASSEMBLY32-NEXT:#define __UINTPTR_TYPE__ long unsigned int
 // WEBASSEMBLY32-NEXT:#define __UINTPTR_WIDTH__ 32
 // WEBASSEMBLY32-NEXT:#define __UINT_FAST16_FMTX__ "hX"
 // WEBASSEMBLY32-NEXT:#define __UINT_FAST16_FMTo__ "ho"
@@ -9354,6 +9418,7 @@
 // WEBASSEMBLY32-NEXT:#define __WCHAR_TYPE__ int
 // WEBASSEMBLY32-NOT:#define __WCHAR_UNSIGNED__
 // WEBASSEMBLY32-NEXT:#define __WCHAR_WIDTH__ 32
+// WEBASSEMBLY32-NEXT:#define __WINT_MAX__ 2147483647
 // WEBASSEMBLY32-NEXT:#define __WINT_TYPE__ int
 // WEBASSEMBLY32-NOT:#define __WINT_UNSIGNED__
 // WEBASSEMBLY32-NEXT:#define __WINT_WIDTH__ 32
@@ -9685,6 +9750,7 @@
 // WEBASSEMBLY64-NEXT:#define __WCHAR_TYPE__ int
 // WEBASSEMBLY64-NOT:#define __WCHAR_UNSIGNED__
 // WEBASSEMBLY64-NEXT:#define __WCHAR_WIDTH__ 32
+// WEBASSEMBLY64-NEXT:#define __WINT_MAX__ 2147483647
 // WEBASSEMBLY64-NEXT:#define __WINT_TYPE__ int
 // WEBASSEMBLY64-NOT:#define __WINT_UNSIGNED__
 // WEBASSEMBLY64-NEXT:#define __WINT_WIDTH__ 32
@@ -9771,7 +9837,7 @@
 // AVR:#define __GCC_ATOMIC_TEST_AND_SET_TRUEVAL 1
 // AVR:#define __GCC_ATOMIC_WCHAR_T_LOCK_FREE 1
 // AVR:#define __GXX_ABI_VERSION 1002
-// AVR:#define __INT16_C_SUFFIX__ 
+// AVR:#define __INT16_C_SUFFIX__
 // AVR:#define __INT16_MAX__ 32767
 // AVR:#define __INT16_TYPE__ short
 // AVR:#define __INT32_C_SUFFIX__ L
@@ -9780,7 +9846,7 @@
 // AVR:#define __INT64_C_SUFFIX__ LL
 // AVR:#define __INT64_MAX__ 9223372036854775807LL
 // AVR:#define __INT64_TYPE__ long long int
-// AVR:#define __INT8_C_SUFFIX__ 
+// AVR:#define __INT8_C_SUFFIX__
 // AVR:#define __INT8_MAX__ 127
 // AVR:#define __INT8_TYPE__ signed char
 // AVR:#define __INTMAX_C_SUFFIX__ LL
@@ -9855,7 +9921,7 @@
 // AVR:#define __UINT64_C_SUFFIX__ ULL
 // AVR:#define __UINT64_MAX__ 18446744073709551615ULL
 // AVR:#define __UINT64_TYPE__ long long unsigned int
-// AVR:#define __UINT8_C_SUFFIX__ 
+// AVR:#define __UINT8_C_SUFFIX__
 // AVR:#define __UINT8_MAX__ 255
 // AVR:#define __UINT8_TYPE__ unsigned char
 // AVR:#define __UINTMAX_C_SUFFIX__ ULL
@@ -9879,18 +9945,18 @@
 // AVR:#define __UINT_LEAST64_TYPE__ long long unsigned int
 // AVR:#define __UINT_LEAST8_MAX__ 255
 // AVR:#define __UINT_LEAST8_TYPE__ unsigned char
-// AVR:#define __USER_LABEL_PREFIX__ 
+// AVR:#define __USER_LABEL_PREFIX__
 // AVR:#define __WCHAR_MAX__ 32767
 // AVR:#define __WCHAR_TYPE__ int
 // AVR:#define __WINT_TYPE__ int
 
 
 // RUN: %clang_cc1 -E -dM -ffreestanding \
-// RUN:    -triple i686-windows-msvc -fms-compatibility < /dev/null \
+// RUN:    -triple i686-windows-msvc -fms-compatibility -x c++ < /dev/null \
 // RUN:  | FileCheck -match-full-lines -check-prefix MSVC-X32 %s
 
 // RUN: %clang_cc1 -E -dM -ffreestanding \
-// RUN:    -triple x86_64-windows-msvc -fms-compatibility < /dev/null \
+// RUN:    -triple x86_64-windows-msvc -fms-compatibility -x c++ < /dev/null \
 // RUN:  | FileCheck -match-full-lines -check-prefix MSVC-X64 %s
 
 // MSVC-X32:#define __CLANG_ATOMIC_BOOL_LOCK_FREE 2
@@ -9904,6 +9970,7 @@
 // MSVC-X32-NEXT:#define __CLANG_ATOMIC_SHORT_LOCK_FREE 2
 // MSVC-X32-NEXT:#define __CLANG_ATOMIC_WCHAR_T_LOCK_FREE 2
 // MSVC-X32-NOT:#define __GCC_ATOMIC{{.*}}
+// MSVC-X32:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 8U
 
 // MSVC-X64:#define __CLANG_ATOMIC_BOOL_LOCK_FREE 2
 // MSVC-X64-NEXT:#define __CLANG_ATOMIC_CHAR16_T_LOCK_FREE 2
@@ -9915,7 +9982,8 @@
 // MSVC-X64-NEXT:#define __CLANG_ATOMIC_POINTER_LOCK_FREE 2
 // MSVC-X64-NEXT:#define __CLANG_ATOMIC_SHORT_LOCK_FREE 2
 // MSVC-X64-NEXT:#define __CLANG_ATOMIC_WCHAR_T_LOCK_FREE 2
-// MSVC-X86-NOT:#define __GCC_ATOMIC{{.*}}
+// MSVC-X64-NOT:#define __GCC_ATOMIC{{.*}}
+// MSVC-X64:#define __STDCPP_DEFAULT_NEW_ALIGNMENT__ 16ULL
 
 // RUN: %clang_cc1 -E -dM -ffreestanding                \
 // RUN:   -triple=aarch64-apple-ios9 < /dev/null        \
@@ -9987,3 +10055,420 @@
 // ARM-DARWIN-BAREMETAL-64: #define __PTRDIFF_TYPE__ long int
 // ARM-DARWIN-BAREMETAL-64: #define __SIZE_TYPE__ long unsigned int
 
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=riscv32 < /dev/null \
+// RUN:   | FileCheck -match-full-lines -check-prefix=RISCV32 %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=riscv32-unknown-linux < /dev/null \
+// RUN:   | FileCheck -match-full-lines -check-prefixes=RISCV32,RISCV32-LINUX %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=riscv32 \
+// RUN: -fforce-enable-int128 < /dev/null | FileCheck -match-full-lines \
+// RUN: -check-prefixes=RISCV32,RISCV32-INT128 %s
+// RISCV32: #define _ILP32 1
+// RISCV32: #define __ATOMIC_ACQUIRE 2
+// RISCV32: #define __ATOMIC_ACQ_REL 4
+// RISCV32: #define __ATOMIC_CONSUME 1
+// RISCV32: #define __ATOMIC_RELAXED 0
+// RISCV32: #define __ATOMIC_RELEASE 3
+// RISCV32: #define __ATOMIC_SEQ_CST 5
+// RISCV32: #define __BIGGEST_ALIGNMENT__ 16
+// RISCV32: #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
+// RISCV32: #define __CHAR16_TYPE__ unsigned short
+// RISCV32: #define __CHAR32_TYPE__ unsigned int
+// RISCV32: #define __CHAR_BIT__ 8
+// RISCV32: #define __DBL_DECIMAL_DIG__ 17
+// RISCV32: #define __DBL_DENORM_MIN__ 4.9406564584124654e-324
+// RISCV32: #define __DBL_DIG__ 15
+// RISCV32: #define __DBL_EPSILON__ 2.2204460492503131e-16
+// RISCV32: #define __DBL_HAS_DENORM__ 1
+// RISCV32: #define __DBL_HAS_INFINITY__ 1
+// RISCV32: #define __DBL_HAS_QUIET_NAN__ 1
+// RISCV32: #define __DBL_MANT_DIG__ 53
+// RISCV32: #define __DBL_MAX_10_EXP__ 308
+// RISCV32: #define __DBL_MAX_EXP__ 1024
+// RISCV32: #define __DBL_MAX__ 1.7976931348623157e+308
+// RISCV32: #define __DBL_MIN_10_EXP__ (-307)
+// RISCV32: #define __DBL_MIN_EXP__ (-1021)
+// RISCV32: #define __DBL_MIN__ 2.2250738585072014e-308
+// RISCV32: #define __DECIMAL_DIG__ __LDBL_DECIMAL_DIG__
+// RISCV32: #define __ELF__ 1
+// RISCV32: #define __FINITE_MATH_ONLY__ 0
+// RISCV32: #define __FLT_DECIMAL_DIG__ 9
+// RISCV32: #define __FLT_DENORM_MIN__ 1.40129846e-45F
+// RISCV32: #define __FLT_DIG__ 6
+// RISCV32: #define __FLT_EPSILON__ 1.19209290e-7F
+// RISCV32: #define __FLT_EVAL_METHOD__ 0
+// RISCV32: #define __FLT_HAS_DENORM__ 1
+// RISCV32: #define __FLT_HAS_INFINITY__ 1
+// RISCV32: #define __FLT_HAS_QUIET_NAN__ 1
+// RISCV32: #define __FLT_MANT_DIG__ 24
+// RISCV32: #define __FLT_MAX_10_EXP__ 38
+// RISCV32: #define __FLT_MAX_EXP__ 128
+// RISCV32: #define __FLT_MAX__ 3.40282347e+38F
+// RISCV32: #define __FLT_MIN_10_EXP__ (-37)
+// RISCV32: #define __FLT_MIN_EXP__ (-125)
+// RISCV32: #define __FLT_MIN__ 1.17549435e-38F
+// RISCV32: #define __FLT_RADIX__ 2
+// RISCV32: #define __GCC_ATOMIC_BOOL_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_CHAR16_T_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_CHAR32_T_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_CHAR_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_INT_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_LLONG_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_LONG_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_POINTER_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_SHORT_LOCK_FREE 1
+// RISCV32: #define __GCC_ATOMIC_TEST_AND_SET_TRUEVAL 1
+// RISCV32: #define __GCC_ATOMIC_WCHAR_T_LOCK_FREE 1
+// RISCV32: #define __GNUC_MINOR__ {{.*}}
+// RISCV32: #define __GNUC_PATCHLEVEL__ {{.*}}
+// RISCV32: #define __GNUC_STDC_INLINE__ 1
+// RISCV32: #define __GNUC__ {{.*}}
+// RISCV32: #define __GXX_ABI_VERSION {{.*}}
+// RISCV32: #define __ILP32__ 1
+// RISCV32: #define __INT16_C_SUFFIX__
+// RISCV32: #define __INT16_MAX__ 32767
+// RISCV32: #define __INT16_TYPE__ short
+// RISCV32: #define __INT32_C_SUFFIX__
+// RISCV32: #define __INT32_MAX__ 2147483647
+// RISCV32: #define __INT32_TYPE__ int
+// RISCV32: #define __INT64_C_SUFFIX__ LL
+// RISCV32: #define __INT64_MAX__ 9223372036854775807LL
+// RISCV32: #define __INT64_TYPE__ long long int
+// RISCV32: #define __INT8_C_SUFFIX__
+// RISCV32: #define __INT8_MAX__ 127
+// RISCV32: #define __INT8_TYPE__ signed char
+// RISCV32: #define __INTMAX_C_SUFFIX__ LL
+// RISCV32: #define __INTMAX_MAX__ 9223372036854775807LL
+// RISCV32: #define __INTMAX_TYPE__ long long int
+// RISCV32: #define __INTMAX_WIDTH__ 64
+// RISCV32: #define __INTPTR_MAX__ 2147483647
+// RISCV32: #define __INTPTR_TYPE__ int
+// RISCV32: #define __INTPTR_WIDTH__ 32
+// TODO: RISC-V GCC defines INT_FAST16 as int
+// RISCV32: #define __INT_FAST16_MAX__ 32767
+// RISCV32: #define __INT_FAST16_TYPE__ short
+// RISCV32: #define __INT_FAST32_MAX__ 2147483647
+// RISCV32: #define __INT_FAST32_TYPE__ int
+// RISCV32: #define __INT_FAST64_MAX__ 9223372036854775807LL
+// RISCV32: #define __INT_FAST64_TYPE__ long long int
+// TODO: RISC-V GCC defines INT_FAST8 as int
+// RISCV32: #define __INT_FAST8_MAX__ 127
+// RISCV32: #define __INT_FAST8_TYPE__ signed char
+// RISCV32: #define __INT_LEAST16_MAX__ 32767
+// RISCV32: #define __INT_LEAST16_TYPE__ short
+// RISCV32: #define __INT_LEAST32_MAX__ 2147483647
+// RISCV32: #define __INT_LEAST32_TYPE__ int
+// RISCV32: #define __INT_LEAST64_MAX__ 9223372036854775807LL
+// RISCV32: #define __INT_LEAST64_TYPE__ long long int
+// RISCV32: #define __INT_LEAST8_MAX__ 127
+// RISCV32: #define __INT_LEAST8_TYPE__ signed char
+// RISCV32: #define __INT_MAX__ 2147483647
+// RISCV32: #define __LDBL_DECIMAL_DIG__ 36
+// RISCV32: #define __LDBL_DENORM_MIN__ 6.47517511943802511092443895822764655e-4966L
+// RISCV32: #define __LDBL_DIG__ 33
+// RISCV32: #define __LDBL_EPSILON__ 1.92592994438723585305597794258492732e-34L
+// RISCV32: #define __LDBL_HAS_DENORM__ 1
+// RISCV32: #define __LDBL_HAS_INFINITY__ 1
+// RISCV32: #define __LDBL_HAS_QUIET_NAN__ 1
+// RISCV32: #define __LDBL_MANT_DIG__ 113
+// RISCV32: #define __LDBL_MAX_10_EXP__ 4932
+// RISCV32: #define __LDBL_MAX_EXP__ 16384
+// RISCV32: #define __LDBL_MAX__ 1.18973149535723176508575932662800702e+4932L
+// RISCV32: #define __LDBL_MIN_10_EXP__ (-4931)
+// RISCV32: #define __LDBL_MIN_EXP__ (-16381)
+// RISCV32: #define __LDBL_MIN__ 3.36210314311209350626267781732175260e-4932L
+// RISCV32: #define __LITTLE_ENDIAN__ 1
+// RISCV32: #define __LONG_LONG_MAX__ 9223372036854775807LL
+// RISCV32: #define __LONG_MAX__ 2147483647L
+// RISCV32: #define __NO_INLINE__ 1
+// RISCV32: #define __POINTER_WIDTH__ 32
+// RISCV32: #define __PRAGMA_REDEFINE_EXTNAME 1
+// RISCV32: #define __PTRDIFF_MAX__ 2147483647
+// RISCV32: #define __PTRDIFF_TYPE__ int
+// RISCV32: #define __PTRDIFF_WIDTH__ 32
+// RISCV32: #define __SCHAR_MAX__ 127
+// RISCV32: #define __SHRT_MAX__ 32767
+// RISCV32: #define __SIG_ATOMIC_MAX__ 2147483647
+// RISCV32: #define __SIG_ATOMIC_WIDTH__ 32
+// RISCV32: #define __SIZEOF_DOUBLE__ 8
+// RISCV32: #define __SIZEOF_FLOAT__ 4
+// RISCV32-INT128: #define __SIZEOF_INT128__ 16
+// RISCV32: #define __SIZEOF_INT__ 4
+// RISCV32: #define __SIZEOF_LONG_DOUBLE__ 16
+// RISCV32: #define __SIZEOF_LONG_LONG__ 8
+// RISCV32: #define __SIZEOF_LONG__ 4
+// RISCV32: #define __SIZEOF_POINTER__ 4
+// RISCV32: #define __SIZEOF_PTRDIFF_T__ 4
+// RISCV32: #define __SIZEOF_SHORT__ 2
+// RISCV32: #define __SIZEOF_SIZE_T__ 4
+// RISCV32: #define __SIZEOF_WCHAR_T__ 4
+// RISCV32: #define __SIZEOF_WINT_T__ 4
+// RISCV32: #define __SIZE_MAX__ 4294967295U
+// RISCV32: #define __SIZE_TYPE__ unsigned int
+// RISCV32: #define __SIZE_WIDTH__ 32
+// RISCV32: #define __STDC_HOSTED__ 0
+// RISCV32: #define __STDC_UTF_16__ 1
+// RISCV32: #define __STDC_UTF_32__ 1
+// RISCV32: #define __STDC_VERSION__ 201112L
+// RISCV32: #define __STDC__ 1
+// RISCV32: #define __UINT16_C_SUFFIX__
+// RISCV32: #define __UINT16_MAX__ 65535
+// RISCV32: #define __UINT16_TYPE__ unsigned short
+// RISCV32: #define __UINT32_C_SUFFIX__ U
+// RISCV32: #define __UINT32_MAX__ 4294967295U
+// RISCV32: #define __UINT32_TYPE__ unsigned int
+// RISCV32: #define __UINT64_C_SUFFIX__ ULL
+// RISCV32: #define __UINT64_MAX__ 18446744073709551615ULL
+// RISCV32: #define __UINT64_TYPE__ long long unsigned int
+// RISCV32: #define __UINT8_C_SUFFIX__
+// RISCV32: #define __UINT8_MAX__ 255
+// RISCV32: #define __UINT8_TYPE__ unsigned char
+// RISCV32: #define __UINTMAX_C_SUFFIX__ ULL
+// RISCV32: #define __UINTMAX_MAX__ 18446744073709551615ULL
+// RISCV32: #define __UINTMAX_TYPE__ long long unsigned int
+// RISCV32: #define __UINTMAX_WIDTH__ 64
+// RISCV32: #define __UINTPTR_MAX__ 4294967295U
+// RISCV32: #define __UINTPTR_TYPE__ unsigned int
+// RISCV32: #define __UINTPTR_WIDTH__ 32
+// TODO: RISC-V GCC defines UINT_FAST16 to be unsigned int
+// RISCV32: #define __UINT_FAST16_MAX__ 65535
+// RISCV32: #define __UINT_FAST16_TYPE__ unsigned short
+// RISCV32: #define __UINT_FAST32_MAX__ 4294967295U
+// RISCV32: #define __UINT_FAST32_TYPE__ unsigned int
+// RISCV32: #define __UINT_FAST64_MAX__ 18446744073709551615ULL
+// RISCV32: #define __UINT_FAST64_TYPE__ long long unsigned int
+// TODO: RISC-V GCC defines UINT_FAST8 to be unsigned int
+// RISCV32: #define __UINT_FAST8_MAX__ 255
+// RISCV32: #define __UINT_FAST8_TYPE__ unsigned char
+// RISCV32: #define __UINT_LEAST16_MAX__ 65535
+// RISCV32: #define __UINT_LEAST16_TYPE__ unsigned short
+// RISCV32: #define __UINT_LEAST32_MAX__ 4294967295U
+// RISCV32: #define __UINT_LEAST32_TYPE__ unsigned int
+// RISCV32: #define __UINT_LEAST64_MAX__ 18446744073709551615ULL
+// RISCV32: #define __UINT_LEAST64_TYPE__ long long unsigned int
+// RISCV32: #define __UINT_LEAST8_MAX__ 255
+// RISCV32: #define __UINT_LEAST8_TYPE__ unsigned char
+// RISCV32: #define __USER_LABEL_PREFIX__
+// RISCV32: #define __WCHAR_MAX__ 2147483647
+// RISCV32: #define __WCHAR_TYPE__ int
+// RISCV32: #define __WCHAR_WIDTH__ 32
+// RISCV32: #define __WINT_TYPE__ unsigned int
+// RISCV32: #define __WINT_UNSIGNED__ 1
+// RISCV32: #define __WINT_WIDTH__ 32
+// RISCV32-LINUX: #define __gnu_linux__ 1
+// RISCV32-LINUX: #define __linux 1
+// RISCV32-LINUX: #define __linux__ 1
+// RISCV32: #define __riscv 1
+// RISCV32: #define __riscv_cmodel_medlow 1
+// RISCV32: #define __riscv_float_abi_soft 1
+// RISCV32: #define __riscv_xlen 32
+// RISCV32-LINUX: #define __unix 1
+// RISCV32-LINUX: #define __unix__ 1
+// RISCV32-LINUX: #define linux 1
+// RISCV32-LINUX: #define unix 1
+
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=riscv64 < /dev/null \
+// RUN:   | FileCheck -match-full-lines -check-prefix=RISCV64 %s
+// RUN: %clang_cc1 -E -dM -ffreestanding -triple=riscv64-unknown-linux < /dev/null \
+// RUN:   | FileCheck -match-full-lines -check-prefixes=RISCV64,RISCV64-LINUX %s
+// RISCV64: #define _LP64 1
+// RISCV64: #define __ATOMIC_ACQUIRE 2
+// RISCV64: #define __ATOMIC_ACQ_REL 4
+// RISCV64: #define __ATOMIC_CONSUME 1
+// RISCV64: #define __ATOMIC_RELAXED 0
+// RISCV64: #define __ATOMIC_RELEASE 3
+// RISCV64: #define __ATOMIC_SEQ_CST 5
+// RISCV64: #define __BIGGEST_ALIGNMENT__ 16
+// RISCV64: #define __BYTE_ORDER__ __ORDER_LITTLE_ENDIAN__
+// RISCV64: #define __CHAR16_TYPE__ unsigned short
+// RISCV64: #define __CHAR32_TYPE__ unsigned int
+// RISCV64: #define __CHAR_BIT__ 8
+// RISCV64: #define __DBL_DECIMAL_DIG__ 17
+// RISCV64: #define __DBL_DENORM_MIN__ 4.9406564584124654e-324
+// RISCV64: #define __DBL_DIG__ 15
+// RISCV64: #define __DBL_EPSILON__ 2.2204460492503131e-16
+// RISCV64: #define __DBL_HAS_DENORM__ 1
+// RISCV64: #define __DBL_HAS_INFINITY__ 1
+// RISCV64: #define __DBL_HAS_QUIET_NAN__ 1
+// RISCV64: #define __DBL_MANT_DIG__ 53
+// RISCV64: #define __DBL_MAX_10_EXP__ 308
+// RISCV64: #define __DBL_MAX_EXP__ 1024
+// RISCV64: #define __DBL_MAX__ 1.7976931348623157e+308
+// RISCV64: #define __DBL_MIN_10_EXP__ (-307)
+// RISCV64: #define __DBL_MIN_EXP__ (-1021)
+// RISCV64: #define __DBL_MIN__ 2.2250738585072014e-308
+// RISCV64: #define __DECIMAL_DIG__ __LDBL_DECIMAL_DIG__
+// RISCV64: #define __ELF__ 1
+// RISCV64: #define __FINITE_MATH_ONLY__ 0
+// RISCV64: #define __FLT_DECIMAL_DIG__ 9
+// RISCV64: #define __FLT_DENORM_MIN__ 1.40129846e-45F
+// RISCV64: #define __FLT_DIG__ 6
+// RISCV64: #define __FLT_EPSILON__ 1.19209290e-7F
+// RISCV64: #define __FLT_EVAL_METHOD__ 0
+// RISCV64: #define __FLT_HAS_DENORM__ 1
+// RISCV64: #define __FLT_HAS_INFINITY__ 1
+// RISCV64: #define __FLT_HAS_QUIET_NAN__ 1
+// RISCV64: #define __FLT_MANT_DIG__ 24
+// RISCV64: #define __FLT_MAX_10_EXP__ 38
+// RISCV64: #define __FLT_MAX_EXP__ 128
+// RISCV64: #define __FLT_MAX__ 3.40282347e+38F
+// RISCV64: #define __FLT_MIN_10_EXP__ (-37)
+// RISCV64: #define __FLT_MIN_EXP__ (-125)
+// RISCV64: #define __FLT_MIN__ 1.17549435e-38F
+// RISCV64: #define __FLT_RADIX__ 2
+// RISCV64: #define __GCC_ATOMIC_BOOL_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_CHAR16_T_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_CHAR32_T_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_CHAR_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_INT_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_LLONG_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_LONG_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_POINTER_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_SHORT_LOCK_FREE 1
+// RISCV64: #define __GCC_ATOMIC_TEST_AND_SET_TRUEVAL 1
+// RISCV64: #define __GCC_ATOMIC_WCHAR_T_LOCK_FREE 1
+// RISCV64: #define __GNUC_MINOR__ {{.*}}
+// RISCV64: #define __GNUC_PATCHLEVEL__ {{.*}}
+// RISCV64: #define __GNUC_STDC_INLINE__ 1
+// RISCV64: #define __GNUC__ {{.*}}
+// RISCV64: #define __GXX_ABI_VERSION {{.*}}
+// RISCV64: #define __INT16_C_SUFFIX__
+// RISCV64: #define __INT16_MAX__ 32767
+// RISCV64: #define __INT16_TYPE__ short
+// RISCV64: #define __INT32_C_SUFFIX__
+// RISCV64: #define __INT32_MAX__ 2147483647
+// RISCV64: #define __INT32_TYPE__ int
+// RISCV64: #define __INT64_C_SUFFIX__ L
+// RISCV64: #define __INT64_MAX__ 9223372036854775807L
+// RISCV64: #define __INT64_TYPE__ long int
+// RISCV64: #define __INT8_C_SUFFIX__
+// RISCV64: #define __INT8_MAX__ 127
+// RISCV64: #define __INT8_TYPE__ signed char
+// RISCV64: #define __INTMAX_C_SUFFIX__ L
+// RISCV64: #define __INTMAX_MAX__ 9223372036854775807L
+// RISCV64: #define __INTMAX_TYPE__ long int
+// RISCV64: #define __INTMAX_WIDTH__ 64
+// RISCV64: #define __INTPTR_MAX__ 9223372036854775807L
+// RISCV64: #define __INTPTR_TYPE__ long int
+// RISCV64: #define __INTPTR_WIDTH__ 64
+// TODO: RISC-V GCC defines INT_FAST16 as int
+// RISCV64: #define __INT_FAST16_MAX__ 32767
+// RISCV64: #define __INT_FAST16_TYPE__ short
+// RISCV64: #define __INT_FAST32_MAX__ 2147483647
+// RISCV64: #define __INT_FAST32_TYPE__ int
+// RISCV64: #define __INT_FAST64_MAX__ 9223372036854775807L
+// RISCV64: #define __INT_FAST64_TYPE__ long int
+// TODO: RISC-V GCC defines INT_FAST8 as int
+// RISCV64: #define __INT_FAST8_MAX__ 127
+// RISCV64: #define __INT_FAST8_TYPE__ signed char
+// RISCV64: #define __INT_LEAST16_MAX__ 32767
+// RISCV64: #define __INT_LEAST16_TYPE__ short
+// RISCV64: #define __INT_LEAST32_MAX__ 2147483647
+// RISCV64: #define __INT_LEAST32_TYPE__ int
+// RISCV64: #define __INT_LEAST64_MAX__ 9223372036854775807L
+// RISCV64: #define __INT_LEAST64_TYPE__ long int
+// RISCV64: #define __INT_LEAST8_MAX__ 127
+// RISCV64: #define __INT_LEAST8_TYPE__ signed char
+// RISCV64: #define __INT_MAX__ 2147483647
+// RISCV64: #define __LDBL_DECIMAL_DIG__ 36
+// RISCV64: #define __LDBL_DENORM_MIN__ 6.47517511943802511092443895822764655e-4966L
+// RISCV64: #define __LDBL_DIG__ 33
+// RISCV64: #define __LDBL_EPSILON__ 1.92592994438723585305597794258492732e-34L
+// RISCV64: #define __LDBL_HAS_DENORM__ 1
+// RISCV64: #define __LDBL_HAS_INFINITY__ 1
+// RISCV64: #define __LDBL_HAS_QUIET_NAN__ 1
+// RISCV64: #define __LDBL_MANT_DIG__ 113
+// RISCV64: #define __LDBL_MAX_10_EXP__ 4932
+// RISCV64: #define __LDBL_MAX_EXP__ 16384
+// RISCV64: #define __LDBL_MAX__ 1.18973149535723176508575932662800702e+4932L
+// RISCV64: #define __LDBL_MIN_10_EXP__ (-4931)
+// RISCV64: #define __LDBL_MIN_EXP__ (-16381)
+// RISCV64: #define __LDBL_MIN__ 3.36210314311209350626267781732175260e-4932L
+// RISCV64: #define __LITTLE_ENDIAN__ 1
+// RISCV64: #define __LONG_LONG_MAX__ 9223372036854775807LL
+// RISCV64: #define __LONG_MAX__ 9223372036854775807L
+// RISCV64: #define __LP64__ 1
+// RISCV64: #define __NO_INLINE__ 1
+// RISCV64: #define __POINTER_WIDTH__ 64
+// RISCV64: #define __PRAGMA_REDEFINE_EXTNAME 1
+// RISCV64: #define __PTRDIFF_MAX__ 9223372036854775807L
+// RISCV64: #define __PTRDIFF_TYPE__ long int
+// RISCV64: #define __PTRDIFF_WIDTH__ 64
+// RISCV64: #define __SCHAR_MAX__ 127
+// RISCV64: #define __SHRT_MAX__ 32767
+// RISCV64: #define __SIG_ATOMIC_MAX__ 2147483647
+// RISCV64: #define __SIG_ATOMIC_WIDTH__ 32
+// RISCV64: #define __SIZEOF_DOUBLE__ 8
+// RISCV64: #define __SIZEOF_FLOAT__ 4
+// RISCV64: #define __SIZEOF_INT__ 4
+// RISCV64: #define __SIZEOF_LONG_DOUBLE__ 16
+// RISCV64: #define __SIZEOF_LONG_LONG__ 8
+// RISCV64: #define __SIZEOF_LONG__ 8
+// RISCV64: #define __SIZEOF_POINTER__ 8
+// RISCV64: #define __SIZEOF_PTRDIFF_T__ 8
+// RISCV64: #define __SIZEOF_SHORT__ 2
+// RISCV64: #define __SIZEOF_SIZE_T__ 8
+// RISCV64: #define __SIZEOF_WCHAR_T__ 4
+// RISCV64: #define __SIZEOF_WINT_T__ 4
+// RISCV64: #define __SIZE_MAX__ 18446744073709551615UL
+// RISCV64: #define __SIZE_TYPE__ long unsigned int
+// RISCV64: #define __SIZE_WIDTH__ 64
+// RISCV64: #define __STDC_HOSTED__ 0
+// RISCV64: #define __STDC_UTF_16__ 1
+// RISCV64: #define __STDC_UTF_32__ 1
+// RISCV64: #define __STDC_VERSION__ 201112L
+// RISCV64: #define __STDC__ 1
+// RISCV64: #define __UINT16_C_SUFFIX__
+// RISCV64: #define __UINT16_MAX__ 65535
+// RISCV64: #define __UINT16_TYPE__ unsigned short
+// RISCV64: #define __UINT32_C_SUFFIX__ U
+// RISCV64: #define __UINT32_MAX__ 4294967295U
+// RISCV64: #define __UINT32_TYPE__ unsigned int
+// RISCV64: #define __UINT64_C_SUFFIX__ UL
+// RISCV64: #define __UINT64_MAX__ 18446744073709551615UL
+// RISCV64: #define __UINT64_TYPE__ long unsigned int
+// RISCV64: #define __UINT8_C_SUFFIX__
+// RISCV64: #define __UINT8_MAX__ 255
+// RISCV64: #define __UINT8_TYPE__ unsigned char
+// RISCV64: #define __UINTMAX_C_SUFFIX__ UL
+// RISCV64: #define __UINTMAX_MAX__ 18446744073709551615UL
+// RISCV64: #define __UINTMAX_TYPE__ long unsigned int
+// RISCV64: #define __UINTMAX_WIDTH__ 64
+// RISCV64: #define __UINTPTR_MAX__ 18446744073709551615UL
+// RISCV64: #define __UINTPTR_TYPE__ long unsigned int
+// RISCV64: #define __UINTPTR_WIDTH__ 64
+// TODO: RISC-V GCC defines UINT_FAST16 to be unsigned int
+// RISCV64: #define __UINT_FAST16_MAX__ 65535
+// RISCV64: #define __UINT_FAST16_TYPE__ unsigned short
+// RISCV64: #define __UINT_FAST32_MAX__ 4294967295U
+// RISCV64: #define __UINT_FAST32_TYPE__ unsigned int
+// RISCV64: #define __UINT_FAST64_MAX__ 18446744073709551615UL
+// RISCV64: #define __UINT_FAST64_TYPE__ long unsigned int
+// TODO: RISC-V GCC defines UINT_FAST8 to be unsigned int
+// RISCV64: #define __UINT_FAST8_MAX__ 255
+// RISCV64: #define __UINT_FAST8_TYPE__ unsigned char
+// RISCV64: #define __UINT_LEAST16_MAX__ 65535
+// RISCV64: #define __UINT_LEAST16_TYPE__ unsigned short
+// RISCV64: #define __UINT_LEAST32_MAX__ 4294967295U
+// RISCV64: #define __UINT_LEAST32_TYPE__ unsigned int
+// RISCV64: #define __UINT_LEAST64_MAX__ 18446744073709551615UL
+// RISCV64: #define __UINT_LEAST64_TYPE__ long unsigned int
+// RISCV64: #define __UINT_LEAST8_MAX__ 255
+// RISCV64: #define __UINT_LEAST8_TYPE__ unsigned char
+// RISCV64: #define __USER_LABEL_PREFIX__
+// RISCV64: #define __WCHAR_MAX__ 2147483647
+// RISCV64: #define __WCHAR_TYPE__ int
+// RISCV64: #define __WCHAR_WIDTH__ 32
+// RISCV64: #define __WINT_TYPE__ unsigned int
+// RISCV64: #define __WINT_UNSIGNED__ 1
+// RISCV64: #define __WINT_WIDTH__ 32
+// RISCV64-LINUX: #define __gnu_linux__ 1
+// RISCV64-LINUX: #define __linux 1
+// RISCV64-LINUX: #define __linux__ 1
+// RISCV64: #define __riscv 1
+// RISCV64: #define __riscv_cmodel_medlow 1
+// RISCV64: #define __riscv_float_abi_soft 1
+// RISCV64: #define __riscv_xlen 64
+// RISCV64-LINUX: #define __unix 1
+// RISCV64-LINUX: #define __unix__ 1
+// RISCV64-LINUX: #define linux 1
+// RISCV64-LINUX: #define unix 1

@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief Declares datatypes and routines that are used by test-specific code
+/// Declares datatypes and routines that are used by test-specific code
 /// in clang-refactor.
 ///
 //===----------------------------------------------------------------------===//
@@ -58,9 +58,6 @@ struct TestSelectionRangesInFile {
     SmallVector<TestSelectionRange, 8> Ranges;
   };
   std::vector<RangeGroup> GroupedRanges;
-
-  TestSelectionRangesInFile(TestSelectionRangesInFile &&) = default;
-  TestSelectionRangesInFile &operator=(TestSelectionRangesInFile &&) = default;
 
   bool foreachRange(const SourceManager &SM,
                     llvm::function_ref<void(SourceRange)> Callback) const;

@@ -22,6 +22,14 @@
 #endif //cl_khr_3d_image_writes
 #endif //__OPENCL_C_VERSION__ < CL_VERSION_2_0
 
+#if __OPENCL_C_VERSION__ >= CL_VERSION_1_2
+#ifndef cl_intel_planar_yuv
+#define cl_intel_planar_yuv
+#endif // cl_intel_planar_yuv
+#pragma OPENCL EXTENSION cl_intel_planar_yuv : begin
+#pragma OPENCL EXTENSION cl_intel_planar_yuv : end
+#endif // __OPENCL_C_VERSION__ >= CL_VERSION_1_2
+
 #define __ovld __attribute__((overloadable))
 #define __conv __attribute__((convergent))
 
@@ -11540,7 +11548,7 @@ half16 __ovld __cnfn select(half16 a, half16 b, ushort16 c);
  *
  * vstoren write sizeof (gentypen) bytes given by data to address (p + (offset * n)).
  *
- * The address computed as (p + (offset * n)) must be 
+ * The address computed as (p + (offset * n)) must be
  * 8-bit aligned if gentype is char, uchar;
  * 16-bit aligned if gentype is short, ushort, half;
  * 32-bit aligned if gentype is int, uint, float;
@@ -12862,7 +12870,7 @@ void __ovld mem_fence(cl_mem_fence_flags flags);
  * Read memory barrier that orders only
  * loads.
  * The flags argument specifies the memory
- * address space and can be set to to a
+ * address space and can be set to a
  * combination of the following literal
  * values:
  * CLK_LOCAL_MEM_FENCE
@@ -12874,7 +12882,7 @@ void __ovld read_mem_fence(cl_mem_fence_flags flags);
  * Write memory barrier that orders only
  * stores.
  * The flags argument specifies the memory
- * address space and can be set to to a
+ * address space and can be set to a
  * combination of the following literal
  * values:
  * CLK_LOCAL_MEM_FENCE
@@ -12888,7 +12896,7 @@ void __ovld write_mem_fence(cl_mem_fence_flags flags);
 cl_mem_fence_flags __ovld get_fence(const void *ptr);
 cl_mem_fence_flags __ovld get_fence(void *ptr);
 
-/** 
+/**
  * Builtin functions to_global, to_local, and to_private need to be declared as Clang builtin functions
  * and checked in Sema since they should be declared as
  *   addr gentype* to_addr (gentype*);
@@ -13773,7 +13781,7 @@ ulong __ovld atomic_fetch_max_explicit(volatile atomic_ulong *object, long opera
 // add/sub: atomic type argument can be uintptr_t/intptr_t, value type argument can be ptrdiff_t.
 // or/xor/and/min/max: atomic type argument can be intptr_t/uintptr_t, value type argument can be intptr_t/uintptr_t.
 
-#if defined(cl_khr_int64_base_atomics) && defined(cl_khr_int64_extended_atomics) 
+#if defined(cl_khr_int64_base_atomics) && defined(cl_khr_int64_extended_atomics)
 uintptr_t __ovld atomic_fetch_add(volatile atomic_uintptr_t *object, ptrdiff_t operand);
 uintptr_t __ovld atomic_fetch_add_explicit(volatile atomic_uintptr_t *object, ptrdiff_t operand, memory_order order);
 uintptr_t __ovld atomic_fetch_add_explicit(volatile atomic_uintptr_t *object, ptrdiff_t operand, memory_order order, memory_scope scope);
@@ -14462,7 +14470,7 @@ half16 __ovld __cnfn shuffle2(half16 x, half16 y, ushort16 mask);
 #if __OPENCL_C_VERSION__ >= CL_VERSION_1_2
 // OpenCL v1.2 s6.12.13, v2.0 s6.13.13 - printf
 
-int printf(__constant const char* st, ...);
+int printf(__constant const char* st, ...) __attribute__((format(printf, 1, 2)));
 #endif
 
 // OpenCL v1.1 s6.11.3, v1.2 s6.12.14, v2.0 s6.13.14 - Image Read and Write Functions
@@ -14571,7 +14579,7 @@ int printf(__constant const char* st, ...);
  * only. The filter_mode specified in sampler
  * must be set to CLK_FILTER_NEAREST; otherwise
  * the values returned are undefined.
- 
+
  * The read_image{f|i|ui} calls that take
  * integer coordinates must use a sampler with
  * normalized coordinates set to
@@ -14602,6 +14610,7 @@ int4 __purefn __ovld read_imagei(read_only image3d_t image, sampler_t sampler, f
 uint4 __purefn __ovld read_imageui(read_only image3d_t image, sampler_t sampler, int4 coord);
 uint4 __purefn __ovld read_imageui(read_only image3d_t image, sampler_t sampler, float4 coord);
 
+#if __OPENCL_C_VERSION__ >= CL_VERSION_1_2
 float4 __purefn __ovld read_imagef(read_only image2d_array_t image_array, sampler_t sampler, int4 coord);
 float4 __purefn __ovld read_imagef(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
 
@@ -14609,6 +14618,7 @@ int4 __purefn __ovld read_imagei(read_only image2d_array_t image_array, sampler_
 int4 __purefn __ovld read_imagei(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
 uint4 __purefn __ovld read_imageui(read_only image2d_array_t image_array, sampler_t sampler, int4 coord);
 uint4 __purefn __ovld read_imageui(read_only image2d_array_t image_array, sampler_t sampler, float4 coord);
+#endif // __OPENCL_C_VERSION__ >= CL_VERSION_1_2
 
 float4 __purefn __ovld read_imagef(read_only image1d_t image, sampler_t sampler, int coord);
 float4 __purefn __ovld read_imagef(read_only image1d_t image, sampler_t sampler, float coord);
@@ -14618,6 +14628,7 @@ int4 __purefn __ovld read_imagei(read_only image1d_t image, sampler_t sampler, f
 uint4 __purefn __ovld read_imageui(read_only image1d_t image, sampler_t sampler, int coord);
 uint4 __purefn __ovld read_imageui(read_only image1d_t image, sampler_t sampler, float coord);
 
+#if __OPENCL_C_VERSION__ >= CL_VERSION_1_2
 float4 __purefn __ovld read_imagef(read_only image1d_array_t image_array, sampler_t sampler, int2 coord);
 float4 __purefn __ovld read_imagef(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
 
@@ -14625,6 +14636,7 @@ int4 __purefn __ovld read_imagei(read_only image1d_array_t image_array, sampler_
 int4 __purefn __ovld read_imagei(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
 uint4 __purefn __ovld read_imageui(read_only image1d_array_t image_array, sampler_t sampler, int2 coord);
 uint4 __purefn __ovld read_imageui(read_only image1d_array_t image_array, sampler_t sampler, float2 coord);
+#endif // __OPENCL_C_VERSION__ >= CL_VERSION_1_2
 
 #ifdef cl_khr_depth_images
 float __purefn __ovld read_imagef(read_only image2d_depth_t image, sampler_t sampler, float2 coord);
@@ -14727,6 +14739,8 @@ uint4 __purefn __ovld read_imageui(read_only image3d_t image, sampler_t sampler,
 #endif //cl_khr_mipmap_image
 #endif //__OPENCL_C_VERSION__ >= CL_VERSION_2_0
 
+#if __OPENCL_C_VERSION__ >= CL_VERSION_1_2
+
 /**
 * Sampler-less Image Access
 */
@@ -14760,24 +14774,31 @@ float4 __purefn __ovld read_imagef(read_only image3d_t image, int4 coord);
 int4 __purefn __ovld read_imagei(read_only image3d_t image, int4 coord);
 uint4 __purefn __ovld read_imageui(read_only image3d_t image, int4 coord);
 
+#endif // __OPENCL_C_VERSION__ >= CL_VERSION_1_2
+
 // Image read functions returning half4 type
 #ifdef cl_khr_fp16
 half4 __purefn __ovld read_imageh(read_only image1d_t image, sampler_t sampler, int coord);
 half4 __purefn __ovld read_imageh(read_only image1d_t image, sampler_t sampler, float coord);
-half4 __purefn __ovld read_imageh(read_only image1d_array_t image, sampler_t sampler, int2 coord);
-half4 __purefn __ovld read_imageh(read_only image1d_array_t image, sampler_t sampler, float2 coord);
 half4 __purefn __ovld read_imageh(read_only image2d_t image, sampler_t sampler, int2 coord);
 half4 __purefn __ovld read_imageh(read_only image2d_t image, sampler_t sampler, float2 coord);
 half4 __purefn __ovld read_imageh(read_only image3d_t image, sampler_t sampler, int4 coord);
 half4 __purefn __ovld read_imageh(read_only image3d_t image, sampler_t sampler, float4 coord);
+#if __OPENCL_C_VERSION__ >= CL_VERSION_1_2
+half4 __purefn __ovld read_imageh(read_only image1d_array_t image, sampler_t sampler, int2 coord);
+half4 __purefn __ovld read_imageh(read_only image1d_array_t image, sampler_t sampler, float2 coord);
 half4 __purefn __ovld read_imageh(read_only image2d_array_t image, sampler_t sampler, int4 coord);
 half4 __purefn __ovld read_imageh(read_only image2d_array_t image, sampler_t sampler, float4 coord);
+/**
+ * Sampler-less Image Access
+ */
 half4 __purefn __ovld read_imageh(read_only image1d_t image, int coord);
 half4 __purefn __ovld read_imageh(read_only image2d_t image, int2 coord);
 half4 __purefn __ovld read_imageh(read_only image3d_t image, int4 coord);
 half4 __purefn __ovld read_imageh(read_only image1d_array_t image, int2 coord);
 half4 __purefn __ovld read_imageh(read_only image2d_array_t image, int4 coord);
 half4 __purefn __ovld read_imageh(read_only image1d_buffer_t image, int coord);
+#endif // __OPENCL_C_VERSION__ >= CL_VERSION_1_2
 #endif //cl_khr_fp16
 
 // Image read functions for read_write images
@@ -15421,8 +15442,8 @@ int __ovld __cnfn get_image_channel_data_type(read_write image2d_array_msaa_dept
 #define CLK_DEPTH_STENCIL     0x10BE
 #if __OPENCL_C_VERSION__ >= CL_VERSION_2_0
 #define CLK_sRGB              0x10BF
-#define CLK_sRGBA             0x10C1
 #define CLK_sRGBx             0x10C0
+#define CLK_sRGBA             0x10C1
 #define CLK_sBGRA             0x10C2
 #define CLK_ABGR              0x10C3
 #endif //__OPENCL_C_VERSION__ >= CL_VERSION_2_0
@@ -15707,7 +15728,6 @@ double __ovld __conv work_group_scan_inclusive_max(double x);
 
 // OpenCL v2.0 s6.13.16 - Pipe Functions
 #if __OPENCL_C_VERSION__ >= CL_VERSION_2_0
-#define PIPE_RESERVE_ID_VALID_BIT (1U << 30)
 #define CLK_NULL_RESERVE_ID (__builtin_astype(((void*)(__SIZE_MAX__)), reserve_id_t))
 bool __ovld is_valid_reserve_id(reserve_id_t reserve_id);
 #endif //__OPENCL_C_VERSION__ >= CL_VERSION_2_0
@@ -15885,6 +15905,944 @@ double  __ovld __conv sub_group_scan_inclusive_max(double x);
 #endif //cl_khr_fp64
 
 #endif //cl_khr_subgroups cl_intel_subgroups
+
+#if defined(cl_intel_subgroups)
+// Intel-Specific Sub Group Functions
+float   __ovld __conv intel_sub_group_shuffle( float  x, uint c );
+float2  __ovld __conv intel_sub_group_shuffle( float2 x, uint c );
+float3  __ovld __conv intel_sub_group_shuffle( float3 x, uint c );
+float4  __ovld __conv intel_sub_group_shuffle( float4 x, uint c );
+float8  __ovld __conv intel_sub_group_shuffle( float8 x, uint c );
+float16 __ovld __conv intel_sub_group_shuffle( float16 x, uint c );
+
+int     __ovld __conv intel_sub_group_shuffle( int  x, uint c );
+int2    __ovld __conv intel_sub_group_shuffle( int2 x, uint c );
+int3    __ovld __conv intel_sub_group_shuffle( int3 x, uint c );
+int4    __ovld __conv intel_sub_group_shuffle( int4 x, uint c );
+int8    __ovld __conv intel_sub_group_shuffle( int8 x, uint c );
+int16   __ovld __conv intel_sub_group_shuffle( int16 x, uint c );
+
+uint    __ovld __conv intel_sub_group_shuffle( uint  x, uint c );
+uint2   __ovld __conv intel_sub_group_shuffle( uint2 x, uint c );
+uint3   __ovld __conv intel_sub_group_shuffle( uint3 x, uint c );
+uint4   __ovld __conv intel_sub_group_shuffle( uint4 x, uint c );
+uint8   __ovld __conv intel_sub_group_shuffle( uint8 x, uint c );
+uint16  __ovld __conv intel_sub_group_shuffle( uint16 x, uint c );
+
+long    __ovld __conv intel_sub_group_shuffle( long x, uint c );
+ulong   __ovld __conv intel_sub_group_shuffle( ulong x, uint c );
+
+float   __ovld __conv intel_sub_group_shuffle_down( float  cur, float  next, uint c );
+float2  __ovld __conv intel_sub_group_shuffle_down( float2 cur, float2 next, uint c );
+float3  __ovld __conv intel_sub_group_shuffle_down( float3 cur, float3 next, uint c );
+float4  __ovld __conv intel_sub_group_shuffle_down( float4 cur, float4 next, uint c );
+float8  __ovld __conv intel_sub_group_shuffle_down( float8 cur, float8 next, uint c );
+float16 __ovld __conv intel_sub_group_shuffle_down( float16 cur, float16 next, uint c );
+
+int     __ovld __conv intel_sub_group_shuffle_down( int  cur, int  next, uint c );
+int2    __ovld __conv intel_sub_group_shuffle_down( int2 cur, int2 next, uint c );
+int3    __ovld __conv intel_sub_group_shuffle_down( int3 cur, int3 next, uint c );
+int4    __ovld __conv intel_sub_group_shuffle_down( int4 cur, int4 next, uint c );
+int8    __ovld __conv intel_sub_group_shuffle_down( int8 cur, int8 next, uint c );
+int16   __ovld __conv intel_sub_group_shuffle_down( int16 cur, int16 next, uint c );
+
+uint    __ovld __conv intel_sub_group_shuffle_down( uint  cur, uint  next, uint c );
+uint2   __ovld __conv intel_sub_group_shuffle_down( uint2 cur, uint2 next, uint c );
+uint3   __ovld __conv intel_sub_group_shuffle_down( uint3 cur, uint3 next, uint c );
+uint4   __ovld __conv intel_sub_group_shuffle_down( uint4 cur, uint4 next, uint c );
+uint8   __ovld __conv intel_sub_group_shuffle_down( uint8 cur, uint8 next, uint c );
+uint16  __ovld __conv intel_sub_group_shuffle_down( uint16 cur, uint16 next, uint c );
+
+long    __ovld __conv intel_sub_group_shuffle_down( long prev, long cur, uint c );
+ulong   __ovld __conv intel_sub_group_shuffle_down( ulong prev, ulong cur, uint c );
+
+float   __ovld __conv intel_sub_group_shuffle_up( float  prev, float  cur, uint c );
+float2  __ovld __conv intel_sub_group_shuffle_up( float2 prev, float2 cur, uint c );
+float3  __ovld __conv intel_sub_group_shuffle_up( float3 prev, float3 cur, uint c );
+float4  __ovld __conv intel_sub_group_shuffle_up( float4 prev, float4 cur, uint c );
+float8  __ovld __conv intel_sub_group_shuffle_up( float8 prev, float8 cur, uint c );
+float16 __ovld __conv intel_sub_group_shuffle_up( float16 prev, float16 cur, uint c );
+
+int     __ovld __conv intel_sub_group_shuffle_up( int  prev, int  cur, uint c );
+int2    __ovld __conv intel_sub_group_shuffle_up( int2 prev, int2 cur, uint c );
+int3    __ovld __conv intel_sub_group_shuffle_up( int3 prev, int3 cur, uint c );
+int4    __ovld __conv intel_sub_group_shuffle_up( int4 prev, int4 cur, uint c );
+int8    __ovld __conv intel_sub_group_shuffle_up( int8 prev, int8 cur, uint c );
+int16   __ovld __conv intel_sub_group_shuffle_up( int16 prev, int16 cur, uint c );
+
+uint    __ovld __conv intel_sub_group_shuffle_up( uint  prev, uint  cur, uint c );
+uint2   __ovld __conv intel_sub_group_shuffle_up( uint2 prev, uint2 cur, uint c );
+uint3   __ovld __conv intel_sub_group_shuffle_up( uint3 prev, uint3 cur, uint c );
+uint4   __ovld __conv intel_sub_group_shuffle_up( uint4 prev, uint4 cur, uint c );
+uint8   __ovld __conv intel_sub_group_shuffle_up( uint8 prev, uint8 cur, uint c );
+uint16  __ovld __conv intel_sub_group_shuffle_up( uint16 prev, uint16 cur, uint c );
+
+long    __ovld __conv intel_sub_group_shuffle_up( long prev, long cur, uint c );
+ulong   __ovld __conv intel_sub_group_shuffle_up( ulong prev, ulong cur, uint c );
+
+float   __ovld __conv intel_sub_group_shuffle_xor( float  x, uint c );
+float2  __ovld __conv intel_sub_group_shuffle_xor( float2 x, uint c );
+float3  __ovld __conv intel_sub_group_shuffle_xor( float3 x, uint c );
+float4  __ovld __conv intel_sub_group_shuffle_xor( float4 x, uint c );
+float8  __ovld __conv intel_sub_group_shuffle_xor( float8 x, uint c );
+float16 __ovld __conv intel_sub_group_shuffle_xor( float16 x, uint c );
+
+int     __ovld __conv intel_sub_group_shuffle_xor( int  x, uint c );
+int2    __ovld __conv intel_sub_group_shuffle_xor( int2 x, uint c );
+int3    __ovld __conv intel_sub_group_shuffle_xor( int3 x, uint c );
+int4    __ovld __conv intel_sub_group_shuffle_xor( int4 x, uint c );
+int8    __ovld __conv intel_sub_group_shuffle_xor( int8 x, uint c );
+int16   __ovld __conv intel_sub_group_shuffle_xor( int16 x, uint c );
+
+uint    __ovld __conv intel_sub_group_shuffle_xor( uint  x, uint c );
+uint2   __ovld __conv intel_sub_group_shuffle_xor( uint2 x, uint c );
+uint3   __ovld __conv intel_sub_group_shuffle_xor( uint3 x, uint c );
+uint4   __ovld __conv intel_sub_group_shuffle_xor( uint4 x, uint c );
+uint8   __ovld __conv intel_sub_group_shuffle_xor( uint8 x, uint c );
+uint16  __ovld __conv intel_sub_group_shuffle_xor( uint16 x, uint c );
+
+long    __ovld __conv intel_sub_group_shuffle_xor( long x, uint c );
+ulong   __ovld __conv intel_sub_group_shuffle_xor( ulong x, uint c );
+
+uint    __ovld __conv intel_sub_group_block_read( read_only image2d_t image, int2 coord );
+uint2   __ovld __conv intel_sub_group_block_read2( read_only image2d_t image, int2 coord );
+uint4   __ovld __conv intel_sub_group_block_read4( read_only image2d_t image, int2 coord );
+uint8   __ovld __conv intel_sub_group_block_read8( read_only image2d_t image, int2 coord );
+
+#if (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+uint    __ovld __conv intel_sub_group_block_read(read_write image2d_t image, int2 coord);
+uint2   __ovld __conv intel_sub_group_block_read2(read_write image2d_t image, int2 coord);
+uint4   __ovld __conv intel_sub_group_block_read4(read_write image2d_t image, int2 coord);
+uint8   __ovld __conv intel_sub_group_block_read8(read_write image2d_t image, int2 coord);
+#endif // (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+
+uint    __ovld __conv intel_sub_group_block_read( const __global uint* p );
+uint2   __ovld __conv intel_sub_group_block_read2( const __global uint* p );
+uint4   __ovld __conv intel_sub_group_block_read4( const __global uint* p );
+uint8   __ovld __conv intel_sub_group_block_read8( const __global uint* p );
+
+void    __ovld __conv intel_sub_group_block_write(write_only image2d_t image, int2 coord, uint data);
+void    __ovld __conv intel_sub_group_block_write2(write_only image2d_t image, int2 coord, uint2 data);
+void    __ovld __conv intel_sub_group_block_write4(write_only image2d_t image, int2 coord, uint4 data);
+void    __ovld __conv intel_sub_group_block_write8(write_only image2d_t image, int2 coord, uint8 data);
+
+#if (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+void    __ovld __conv intel_sub_group_block_write(read_write image2d_t image, int2 coord, uint data);
+void    __ovld __conv intel_sub_group_block_write2(read_write image2d_t image, int2 coord, uint2 data);
+void    __ovld __conv intel_sub_group_block_write4(read_write image2d_t image, int2 coord, uint4 data);
+void    __ovld __conv intel_sub_group_block_write8(read_write image2d_t image, int2 coord, uint8 data);
+#endif // (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+
+void    __ovld __conv intel_sub_group_block_write( __global uint* p, uint data );
+void    __ovld __conv intel_sub_group_block_write2( __global uint* p, uint2 data );
+void    __ovld __conv intel_sub_group_block_write4( __global uint* p, uint4 data );
+void    __ovld __conv intel_sub_group_block_write8( __global uint* p, uint8 data );
+
+#ifdef cl_khr_fp16
+half    __ovld __conv intel_sub_group_shuffle( half x, uint c );
+half    __ovld __conv intel_sub_group_shuffle_down( half prev, half cur, uint c );
+half    __ovld __conv intel_sub_group_shuffle_up( half prev, half cur, uint c );
+half    __ovld __conv intel_sub_group_shuffle_xor( half x, uint c );
+#endif
+
+#if defined(cl_khr_fp64)
+double  __ovld __conv intel_sub_group_shuffle( double x, uint c );
+double  __ovld __conv intel_sub_group_shuffle_down( double prev, double cur, uint c );
+double  __ovld __conv intel_sub_group_shuffle_up( double prev, double cur, uint c );
+double  __ovld __conv intel_sub_group_shuffle_xor( double x, uint c );
+#endif
+
+#endif //cl_intel_subgroups
+
+#if defined(cl_intel_subgroups_short)
+short       __ovld __conv intel_sub_group_broadcast( short  x, uint sub_group_local_id );
+short2      __ovld __conv intel_sub_group_broadcast( short2 x, uint sub_group_local_id );
+short3      __ovld __conv intel_sub_group_broadcast( short3 x, uint sub_group_local_id );
+short4      __ovld __conv intel_sub_group_broadcast( short4 x, uint sub_group_local_id );
+short8      __ovld __conv intel_sub_group_broadcast( short8 x, uint sub_group_local_id );
+
+ushort      __ovld __conv intel_sub_group_broadcast( ushort  x, uint sub_group_local_id );
+ushort2     __ovld __conv intel_sub_group_broadcast( ushort2 x, uint sub_group_local_id );
+ushort3     __ovld __conv intel_sub_group_broadcast( ushort3 x, uint sub_group_local_id );
+ushort4     __ovld __conv intel_sub_group_broadcast( ushort4 x, uint sub_group_local_id );
+ushort8     __ovld __conv intel_sub_group_broadcast( ushort8 x, uint sub_group_local_id );
+
+short       __ovld __conv intel_sub_group_shuffle( short   x, uint c );
+short2      __ovld __conv intel_sub_group_shuffle( short2  x, uint c );
+short3      __ovld __conv intel_sub_group_shuffle( short3  x, uint c );
+short4      __ovld __conv intel_sub_group_shuffle( short4  x, uint c );
+short8      __ovld __conv intel_sub_group_shuffle( short8  x, uint c );
+short16     __ovld __conv intel_sub_group_shuffle( short16 x, uint c);
+
+ushort      __ovld __conv intel_sub_group_shuffle( ushort   x, uint c );
+ushort2     __ovld __conv intel_sub_group_shuffle( ushort2  x, uint c );
+ushort3     __ovld __conv intel_sub_group_shuffle( ushort3  x, uint c );
+ushort4     __ovld __conv intel_sub_group_shuffle( ushort4  x, uint c );
+ushort8     __ovld __conv intel_sub_group_shuffle( ushort8  x, uint c );
+ushort16    __ovld __conv intel_sub_group_shuffle( ushort16 x, uint c );
+
+short       __ovld __conv intel_sub_group_shuffle_down( short   cur, short   next, uint c );
+short2      __ovld __conv intel_sub_group_shuffle_down( short2  cur, short2  next, uint c );
+short3      __ovld __conv intel_sub_group_shuffle_down( short3  cur, short3  next, uint c );
+short4      __ovld __conv intel_sub_group_shuffle_down( short4  cur, short4  next, uint c );
+short8      __ovld __conv intel_sub_group_shuffle_down( short8  cur, short8  next, uint c );
+short16     __ovld __conv intel_sub_group_shuffle_down( short16 cur, short16 next, uint c );
+
+ushort      __ovld __conv intel_sub_group_shuffle_down( ushort   cur, ushort   next, uint c );
+ushort2     __ovld __conv intel_sub_group_shuffle_down( ushort2  cur, ushort2  next, uint c );
+ushort3     __ovld __conv intel_sub_group_shuffle_down( ushort3  cur, ushort3  next, uint c );
+ushort4     __ovld __conv intel_sub_group_shuffle_down( ushort4  cur, ushort4  next, uint c );
+ushort8     __ovld __conv intel_sub_group_shuffle_down( ushort8  cur, ushort8  next, uint c );
+ushort16    __ovld __conv intel_sub_group_shuffle_down( ushort16 cur, ushort16 next, uint c );
+
+short       __ovld __conv intel_sub_group_shuffle_up( short   cur, short   next, uint c );
+short2      __ovld __conv intel_sub_group_shuffle_up( short2  cur, short2  next, uint c );
+short3      __ovld __conv intel_sub_group_shuffle_up( short3  cur, short3  next, uint c );
+short4      __ovld __conv intel_sub_group_shuffle_up( short4  cur, short4  next, uint c );
+short8      __ovld __conv intel_sub_group_shuffle_up( short8  cur, short8  next, uint c );
+short16     __ovld __conv intel_sub_group_shuffle_up( short16 cur, short16 next, uint c );
+
+ushort      __ovld __conv intel_sub_group_shuffle_up( ushort   cur, ushort   next, uint c );
+ushort2     __ovld __conv intel_sub_group_shuffle_up( ushort2  cur, ushort2  next, uint c );
+ushort3     __ovld __conv intel_sub_group_shuffle_up( ushort3  cur, ushort3  next, uint c );
+ushort4     __ovld __conv intel_sub_group_shuffle_up( ushort4  cur, ushort4  next, uint c );
+ushort8     __ovld __conv intel_sub_group_shuffle_up( ushort8  cur, ushort8  next, uint c );
+ushort16    __ovld __conv intel_sub_group_shuffle_up( ushort16 cur, ushort16 next, uint c );
+
+short       __ovld __conv intel_sub_group_shuffle_xor( short   x, uint c );
+short2      __ovld __conv intel_sub_group_shuffle_xor( short2  x, uint c );
+short3      __ovld __conv intel_sub_group_shuffle_xor( short3  x, uint c );
+short4      __ovld __conv intel_sub_group_shuffle_xor( short4  x, uint c );
+short8      __ovld __conv intel_sub_group_shuffle_xor( short8  x, uint c );
+short16     __ovld __conv intel_sub_group_shuffle_xor( short16 x, uint c );
+
+ushort      __ovld __conv intel_sub_group_shuffle_xor( ushort   x, uint c );
+ushort2     __ovld __conv intel_sub_group_shuffle_xor( ushort2  x, uint c );
+ushort3     __ovld __conv intel_sub_group_shuffle_xor( ushort3  x, uint c );
+ushort4     __ovld __conv intel_sub_group_shuffle_xor( ushort4  x, uint c );
+ushort8     __ovld __conv intel_sub_group_shuffle_xor( ushort8  x, uint c );
+ushort16    __ovld __conv intel_sub_group_shuffle_xor( ushort16 x, uint c );
+
+short       __ovld __conv intel_sub_group_reduce_add( short   x );
+ushort      __ovld __conv intel_sub_group_reduce_add( ushort  x );
+short       __ovld __conv intel_sub_group_reduce_min( short   x );
+ushort      __ovld __conv intel_sub_group_reduce_min( ushort  x );
+short       __ovld __conv intel_sub_group_reduce_max( short   x );
+ushort      __ovld __conv intel_sub_group_reduce_max( ushort  x );
+
+short       __ovld __conv intel_sub_group_scan_exclusive_add( short   x );
+ushort      __ovld __conv intel_sub_group_scan_exclusive_add( ushort  x );
+short       __ovld __conv intel_sub_group_scan_exclusive_min( short   x );
+ushort      __ovld __conv intel_sub_group_scan_exclusive_min( ushort  x );
+short       __ovld __conv intel_sub_group_scan_exclusive_max( short   x );
+ushort      __ovld __conv intel_sub_group_scan_exclusive_max( ushort  x );
+
+short       __ovld __conv intel_sub_group_scan_inclusive_add( short   x );
+ushort      __ovld __conv intel_sub_group_scan_inclusive_add( ushort  x );
+short       __ovld __conv intel_sub_group_scan_inclusive_min( short   x );
+ushort      __ovld __conv intel_sub_group_scan_inclusive_min( ushort  x );
+short       __ovld __conv intel_sub_group_scan_inclusive_max( short   x );
+ushort      __ovld __conv intel_sub_group_scan_inclusive_max( ushort  x );
+
+uint       __ovld __conv intel_sub_group_block_read_ui( read_only image2d_t image, int2 byte_coord );
+uint2      __ovld __conv intel_sub_group_block_read_ui2( read_only image2d_t image, int2 byte_coord );
+uint4      __ovld __conv intel_sub_group_block_read_ui4( read_only image2d_t image, int2 byte_coord );
+uint8      __ovld __conv intel_sub_group_block_read_ui8( read_only image2d_t image, int2 byte_coord );
+
+#if (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+uint       __ovld __conv intel_sub_group_block_read_ui( read_write image2d_t image, int2 byte_coord );
+uint2      __ovld __conv intel_sub_group_block_read_ui2( read_write image2d_t image, int2 byte_coord );
+uint4      __ovld __conv intel_sub_group_block_read_ui4( read_write image2d_t image, int2 byte_coord );
+uint8      __ovld __conv intel_sub_group_block_read_ui8( read_write image2d_t image, int2 byte_coord );
+#endif // (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+
+uint       __ovld __conv intel_sub_group_block_read_ui( const __global uint* p );
+uint2      __ovld __conv intel_sub_group_block_read_ui2( const __global uint* p );
+uint4      __ovld __conv intel_sub_group_block_read_ui4( const __global uint* p );
+uint8      __ovld __conv intel_sub_group_block_read_ui8( const __global uint* p );
+
+void       __ovld __conv intel_sub_group_block_write_ui( read_only image2d_t image, int2 byte_coord, uint data );
+void       __ovld __conv intel_sub_group_block_write_ui2( read_only image2d_t image, int2 byte_coord, uint2 data );
+void       __ovld __conv intel_sub_group_block_write_ui4( read_only image2d_t image, int2 byte_coord, uint4 data );
+void       __ovld __conv intel_sub_group_block_write_ui8( read_only image2d_t image, int2 byte_coord, uint8 data );
+
+#if (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+void       __ovld __conv intel_sub_group_block_write_ui( read_write image2d_t image, int2 byte_coord, uint data );
+void       __ovld __conv intel_sub_group_block_write_ui2( read_write image2d_t image, int2 byte_coord, uint2 data );
+void       __ovld __conv intel_sub_group_block_write_ui4( read_write image2d_t image, int2 byte_coord, uint4 data );
+void       __ovld __conv intel_sub_group_block_write_ui8( read_write image2d_t image, int2 byte_coord, uint8 data );
+#endif // (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+
+void       __ovld __conv intel_sub_group_block_write_ui( __global uint* p, uint data );
+void       __ovld __conv intel_sub_group_block_write_ui2( __global uint* p, uint2 data );
+void       __ovld __conv intel_sub_group_block_write_ui4( __global uint* p, uint4 data );
+void       __ovld __conv intel_sub_group_block_write_ui8( __global uint* p, uint8 data );
+
+ushort      __ovld __conv intel_sub_group_block_read_us( read_only image2d_t image, int2 coord );
+ushort2     __ovld __conv intel_sub_group_block_read_us2( read_only image2d_t image, int2 coord );
+ushort4     __ovld __conv intel_sub_group_block_read_us4( read_only image2d_t image, int2 coord );
+ushort8     __ovld __conv intel_sub_group_block_read_us8( read_only image2d_t image, int2 coord );
+
+#if (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+ushort      __ovld __conv intel_sub_group_block_read_us(read_write image2d_t image, int2 coord);
+ushort2     __ovld __conv intel_sub_group_block_read_us2(read_write image2d_t image, int2 coord);
+ushort4     __ovld __conv intel_sub_group_block_read_us4(read_write image2d_t image, int2 coord);
+ushort8     __ovld __conv intel_sub_group_block_read_us8(read_write image2d_t image, int2 coord);
+#endif // (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+
+ushort      __ovld __conv intel_sub_group_block_read_us(  const __global ushort* p );
+ushort2     __ovld __conv intel_sub_group_block_read_us2( const __global ushort* p );
+ushort4     __ovld __conv intel_sub_group_block_read_us4( const __global ushort* p );
+ushort8     __ovld __conv intel_sub_group_block_read_us8( const __global ushort* p );
+
+void        __ovld __conv intel_sub_group_block_write_us(write_only image2d_t image, int2 coord, ushort  data);
+void        __ovld __conv intel_sub_group_block_write_us2(write_only image2d_t image, int2 coord, ushort2 data);
+void        __ovld __conv intel_sub_group_block_write_us4(write_only image2d_t image, int2 coord, ushort4 data);
+void        __ovld __conv intel_sub_group_block_write_us8(write_only image2d_t image, int2 coord, ushort8 data);
+
+#if (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+void        __ovld __conv intel_sub_group_block_write_us(read_write image2d_t image, int2 coord, ushort  data);
+void        __ovld __conv intel_sub_group_block_write_us2(read_write image2d_t image, int2 coord, ushort2 data);
+void        __ovld __conv intel_sub_group_block_write_us4(read_write image2d_t image, int2 coord, ushort4 data);
+void        __ovld __conv intel_sub_group_block_write_us8(read_write image2d_t image, int2 coord, ushort8 data);
+#endif // (__OPENCL_C_VERSION__ >= CL_VERSION_2_0)
+
+void        __ovld __conv intel_sub_group_block_write_us(  __global ushort* p, ushort  data );
+void        __ovld __conv intel_sub_group_block_write_us2( __global ushort* p, ushort2 data );
+void        __ovld __conv intel_sub_group_block_write_us4( __global ushort* p, ushort4 data );
+void        __ovld __conv intel_sub_group_block_write_us8( __global ushort* p, ushort8 data );
+#endif // cl_intel_subgroups_short
+
+#ifdef cl_intel_device_side_avc_motion_estimation
+#pragma OPENCL EXTENSION cl_intel_device_side_avc_motion_estimation : begin
+
+#define CLK_AVC_ME_MAJOR_16x16_INTEL 0x0
+#define CLK_AVC_ME_MAJOR_16x8_INTEL 0x1
+#define CLK_AVC_ME_MAJOR_8x16_INTEL 0x2
+#define CLK_AVC_ME_MAJOR_8x8_INTEL 0x3
+
+#define CLK_AVC_ME_MINOR_8x8_INTEL 0x0
+#define CLK_AVC_ME_MINOR_8x4_INTEL 0x1
+#define CLK_AVC_ME_MINOR_4x8_INTEL 0x2
+#define CLK_AVC_ME_MINOR_4x4_INTEL 0x3
+
+#define CLK_AVC_ME_MAJOR_FORWARD_INTEL 0x0
+#define CLK_AVC_ME_MAJOR_BACKWARD_INTEL 0x1
+#define CLK_AVC_ME_MAJOR_BIDIRECTIONAL_INTEL 0x2
+
+#define CLK_AVC_ME_PARTITION_MASK_ALL_INTEL 0x0
+#define CLK_AVC_ME_PARTITION_MASK_16x16_INTEL 0x7E
+#define CLK_AVC_ME_PARTITION_MASK_16x8_INTEL 0x7D
+#define CLK_AVC_ME_PARTITION_MASK_8x16_INTEL 0x7B
+#define CLK_AVC_ME_PARTITION_MASK_8x8_INTEL 0x77
+#define CLK_AVC_ME_PARTITION_MASK_8x4_INTEL 0x6F
+#define CLK_AVC_ME_PARTITION_MASK_4x8_INTEL 0x5F
+#define CLK_AVC_ME_PARTITION_MASK_4x4_INTEL 0x3F
+
+#define CLK_AVC_ME_SLICE_TYPE_PRED_INTEL 0x0
+#define CLK_AVC_ME_SLICE_TYPE_BPRED_INTEL 0x1
+#define CLK_AVC_ME_SLICE_TYPE_INTRA_INTEL 0x2
+
+#define CLK_AVC_ME_SEARCH_WINDOW_EXHAUSTIVE_INTEL 0x0
+#define CLK_AVC_ME_SEARCH_WINDOW_SMALL_INTEL 0x1
+#define CLK_AVC_ME_SEARCH_WINDOW_TINY_INTEL 0x2
+#define CLK_AVC_ME_SEARCH_WINDOW_EXTRA_TINY_INTEL 0x3
+#define CLK_AVC_ME_SEARCH_WINDOW_DIAMOND_INTEL 0x4
+#define CLK_AVC_ME_SEARCH_WINDOW_LARGE_DIAMOND_INTEL 0x5
+#define CLK_AVC_ME_SEARCH_WINDOW_RESERVED0_INTEL 0x6
+#define CLK_AVC_ME_SEARCH_WINDOW_RESERVED1_INTEL 0x7
+#define CLK_AVC_ME_SEARCH_WINDOW_CUSTOM_INTEL 0x8
+
+#define CLK_AVC_ME_SAD_ADJUST_MODE_NONE_INTEL 0x0
+#define CLK_AVC_ME_SAD_ADJUST_MODE_HAAR_INTEL 0x2
+
+#define CLK_AVC_ME_SUBPIXEL_MODE_INTEGER_INTEL 0x0
+#define CLK_AVC_ME_SUBPIXEL_MODE_HPEL_INTEL 0x1
+#define CLK_AVC_ME_SUBPIXEL_MODE_QPEL_INTEL 0x3
+
+#define CLK_AVC_ME_COST_PRECISION_QPEL_INTEL 0x0
+#define CLK_AVC_ME_COST_PRECISION_HPEL_INTEL 0x1
+#define CLK_AVC_ME_COST_PRECISION_PEL_INTEL 0x2
+#define CLK_AVC_ME_COST_PRECISION_DPEL_INTEL 0x3
+
+#define CLK_AVC_ME_BIDIR_WEIGHT_QUARTER_INTEL 0x10
+#define CLK_AVC_ME_BIDIR_WEIGHT_THIRD_INTEL 0x15
+#define CLK_AVC_ME_BIDIR_WEIGHT_HALF_INTEL 0x20
+#define CLK_AVC_ME_BIDIR_WEIGHT_TWO_THIRD_INTEL 0x2B
+#define CLK_AVC_ME_BIDIR_WEIGHT_THREE_QUARTER_INTEL 0x30
+
+#define CLK_AVC_ME_BORDER_REACHED_LEFT_INTEL 0x0
+#define CLK_AVC_ME_BORDER_REACHED_RIGHT_INTEL 0x2
+#define CLK_AVC_ME_BORDER_REACHED_TOP_INTEL 0x4
+#define CLK_AVC_ME_BORDER_REACHED_BOTTOM_INTEL 0x8
+
+#define CLK_AVC_ME_INTRA_16x16_INTEL 0x0
+#define CLK_AVC_ME_INTRA_8x8_INTEL 0x1
+#define CLK_AVC_ME_INTRA_4x4_INTEL 0x2
+
+#define CLK_AVC_ME_SKIP_BLOCK_PARTITION_16x16_INTEL 0x0
+#define CLK_AVC_ME_SKIP_BLOCK_PARTITION_8x8_INTEL 0x4000
+
+#define CLK_AVC_ME_SKIP_BLOCK_16x16_FORWARD_ENABLE_INTEL (0x1 << 24)
+#define CLK_AVC_ME_SKIP_BLOCK_16x16_BACKWARD_ENABLE_INTEL (0x2 << 24)
+#define CLK_AVC_ME_SKIP_BLOCK_16x16_DUAL_ENABLE_INTEL (0x3 << 24)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_FORWARD_ENABLE_INTEL (0x55 << 24)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_BACKWARD_ENABLE_INTEL (0xAA << 24)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_DUAL_ENABLE_INTEL (0xFF << 24)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_0_FORWARD_ENABLE_INTEL (0x1 << 24)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_0_BACKWARD_ENABLE_INTEL (0x2 << 24)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_1_FORWARD_ENABLE_INTEL (0x1 << 26)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_1_BACKWARD_ENABLE_INTEL (0x2 << 26)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_2_FORWARD_ENABLE_INTEL (0x1 << 28)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_2_BACKWARD_ENABLE_INTEL (0x2 << 28)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_3_FORWARD_ENABLE_INTEL (0x1 << 30)
+#define CLK_AVC_ME_SKIP_BLOCK_8x8_3_BACKWARD_ENABLE_INTEL (0x2 << 30)
+
+#define CLK_AVC_ME_BLOCK_BASED_SKIP_4x4_INTEL 0x00
+#define CLK_AVC_ME_BLOCK_BASED_SKIP_8x8_INTEL 0x80
+
+#define CLK_AVC_ME_INTRA_LUMA_PARTITION_MASK_ALL_INTEL 0x0
+#define CLK_AVC_ME_INTRA_LUMA_PARTITION_MASK_16x16_INTEL 0x6
+#define CLK_AVC_ME_INTRA_LUMA_PARTITION_MASK_8x8_INTEL 0x5
+#define CLK_AVC_ME_INTRA_LUMA_PARTITION_MASK_4x4_INTEL 0x3
+
+#define CLK_AVC_ME_INTRA_NEIGHBOR_LEFT_MASK_ENABLE_INTEL 0x60
+#define CLK_AVC_ME_INTRA_NEIGHBOR_UPPER_MASK_ENABLE_INTEL 0x10
+#define CLK_AVC_ME_INTRA_NEIGHBOR_UPPER_RIGHT_MASK_ENABLE_INTEL 0x8
+#define CLK_AVC_ME_INTRA_NEIGHBOR_UPPER_LEFT_MASK_ENABLE_INTEL 0x4
+
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_VERTICAL_INTEL 0x0
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_HORIZONTAL_INTEL 0x1
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_DC_INTEL 0x2
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_DIAGONAL_DOWN_LEFT_INTEL 0x3
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_DIAGONAL_DOWN_RIGHT_INTEL 0x4
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_PLANE_INTEL 0x4
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_VERTICAL_RIGHT_INTEL 0x5
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_HORIZONTAL_DOWN_INTEL 0x6
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_VERTICAL_LEFT_INTEL 0x7
+#define CLK_AVC_ME_LUMA_PREDICTOR_MODE_HORIZONTAL_UP_INTEL 0x8
+#define CLK_AVC_ME_CHROMA_PREDICTOR_MODE_DC_INTEL 0x0
+#define CLK_AVC_ME_CHROMA_PREDICTOR_MODE_HORIZONTAL_INTEL 0x1
+#define CLK_AVC_ME_CHROMA_PREDICTOR_MODE_VERTICAL_INTEL 0x2
+#define CLK_AVC_ME_CHROMA_PREDICTOR_MODE_PLANE_INTEL 0x3
+
+#define CLK_AVC_ME_FRAME_FORWARD_INTEL 0x1
+#define CLK_AVC_ME_FRAME_BACKWARD_INTEL 0x2
+#define CLK_AVC_ME_FRAME_DUAL_INTEL 0x3
+
+#define CLK_AVC_ME_INTERLACED_SCAN_TOP_FIELD_INTEL 0x0
+#define CLK_AVC_ME_INTERLACED_SCAN_BOTTOM_FIELD_INTEL 0x1
+
+#define CLK_AVC_ME_INITIALIZE_INTEL 0x0
+
+#define CLK_AVC_IME_PAYLOAD_INITIALIZE_INTEL 0x0
+#define CLK_AVC_REF_PAYLOAD_INITIALIZE_INTEL 0x0
+#define CLK_AVC_SIC_PAYLOAD_INITIALIZE_INTEL 0x0
+
+#define CLK_AVC_IME_RESULT_INITIALIZE_INTEL 0x0
+#define CLK_AVC_REF_RESULT_INITIALIZE_INTEL 0x0
+#define CLK_AVC_SIC_RESULT_INITIALIZE_INTEL 0x0
+
+#define CLK_AVC_IME_RESULT_SINGLE_REFERENCE_STREAMOUT_INITIALIZE_INTEL 0x0
+#define CLK_AVC_IME_RESULT_SINGLE_REFERENCE_STREAMIN_INITIALIZE_INTEL 0x0
+#define CLK_AVC_IME_RESULT_DUAL_REFERENCE_STREAMOUT_INITIALIZE_INTEL 0x0
+#define CLK_AVC_IME_RESULT_DUAL_REFERENCE_STREAMIN_INITIALIZE_INTEL 0x0
+
+// MCE built-in functions
+uchar __ovld
+intel_sub_group_avc_mce_get_default_inter_base_multi_reference_penalty(
+    uchar slice_type, uchar qp);
+ulong __ovld intel_sub_group_avc_mce_get_default_inter_shape_penalty(
+    uchar slice_type, uchar qp);
+uchar __ovld intel_sub_group_avc_mce_get_default_inter_direction_penalty(
+    uchar slice_type, uchar qp);
+uint __ovld intel_sub_group_avc_mce_get_default_intra_luma_shape_penalty(
+    uchar slice_type, uchar qp);
+uint2 __ovld
+intel_sub_group_avc_mce_get_default_inter_motion_vector_cost_table(
+    uchar slice_type, uchar qp);
+uchar __ovld intel_sub_group_avc_mce_get_default_intra_luma_mode_penalty(
+    uchar slice_type, uchar qp);
+
+uint2 __ovld intel_sub_group_avc_mce_get_default_high_penalty_cost_table();
+uint2 __ovld intel_sub_group_avc_mce_get_default_medium_penalty_cost_table();
+uint2 __ovld intel_sub_group_avc_mce_get_default_low_penalty_cost_table();
+uint __ovld intel_sub_group_avc_mce_get_default_non_dc_luma_intra_penalty();
+uchar __ovld
+intel_sub_group_avc_mce_get_default_intra_chroma_mode_base_penalty();
+
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_mce_set_inter_base_multi_reference_penalty(
+    uchar reference_base_penalty, intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_mce_set_inter_shape_penalty(
+    ulong packed_shape_penalty, intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_mce_set_inter_direction_penalty(
+    uchar direction_cost, intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_mce_set_motion_vector_cost_function(
+    ulong packed_cost_center_delta, uint2 packed_cost_table,
+    uchar cost_precision, intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_mce_set_ac_only_haar(
+    intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_mce_set_source_interlaced_field_polarity(
+    uchar src_field_polarity, intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_mce_set_single_reference_interlaced_field_polarity(
+    uchar ref_field_polarity, intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_mce_set_dual_reference_interlaced_field_polarities(
+    uchar fwd_ref_field_polarity, uchar bwd_ref_field_polarity,
+    intel_sub_group_avc_mce_payload_t payload);
+
+ulong __ovld intel_sub_group_avc_mce_get_motion_vectors(
+    intel_sub_group_avc_mce_result_t result);
+ushort __ovld intel_sub_group_avc_mce_get_inter_distortions(
+    intel_sub_group_avc_mce_result_t result);
+ushort __ovld intel_sub_group_avc_mce_get_best_inter_distortion(
+    intel_sub_group_avc_mce_result_t result);
+uchar __ovld intel_sub_group_avc_mce_get_inter_major_shape(
+    intel_sub_group_avc_mce_result_t result);
+uchar __ovld intel_sub_group_avc_mce_get_inter_minor_shapes(
+    intel_sub_group_avc_mce_result_t result);
+uchar __ovld intel_sub_group_avc_mce_get_inter_directions(
+    intel_sub_group_avc_mce_result_t result);
+uchar __ovld intel_sub_group_avc_mce_get_inter_motion_vector_count(
+    intel_sub_group_avc_mce_result_t result);
+uint __ovld intel_sub_group_avc_mce_get_inter_reference_ids(
+    intel_sub_group_avc_mce_result_t result);
+uchar __ovld
+intel_sub_group_avc_mce_get_inter_reference_interlaced_field_polarities(
+    uint packed_reference_ids, uint packed_reference_parameter_field_polarities,
+    intel_sub_group_avc_mce_result_t result);
+
+// IME built-in functions
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_initialize(
+    ushort2 src_coord, uchar partition_mask, uchar sad_adjustment);
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_single_reference(
+    short2 ref_offset, uchar search_window_config,
+    intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_dual_reference(
+    short2 fwd_ref_offset, short2 bwd_ref_offset, uchar search_window_config,
+    intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_max_motion_vector_count(
+    uchar max_motion_vector_count, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_unidirectional_mix_disable(
+    intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_early_search_termination_threshold(
+    uchar threshold, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_weighted_sad(
+    uint packed_sad_weights, intel_sub_group_avc_ime_payload_t payload);
+
+__attribute__((deprecated("If you use the latest Intel driver, please use "
+                          "intel_sub_group_avc_ime_ref_window_size instead",
+                          "intel_sub_group_avc_ime_ref_window_size")))
+ushort2 __ovld
+intel_sub_group_ime_ref_window_size(uchar search_window_config, char dual_ref);
+ushort2 __ovld intel_sub_group_avc_ime_ref_window_size(
+    uchar search_window_config, char dual_ref);
+short2 __ovld intel_sub_group_avc_ime_adjust_ref_offset(
+    short2 ref_offset, ushort2 src_coord, ushort2 ref_window_size,
+    ushort2 image_size);
+
+intel_sub_group_avc_ime_result_t __ovld
+intel_sub_group_avc_ime_evaluate_with_single_reference(
+    read_only image2d_t src_image, read_only image2d_t ref_image,
+    sampler_t vme_media_sampler, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_result_t __ovld
+intel_sub_group_avc_ime_evaluate_with_dual_reference(
+    read_only image2d_t src_image, read_only image2d_t fwd_ref_image,
+    read_only image2d_t bwd_ref_image, sampler_t vme_media_sampler,
+    intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_result_single_reference_streamout_t __ovld
+intel_sub_group_avc_ime_evaluate_with_single_reference_streamout(
+    read_only image2d_t src_image, read_only image2d_t ref_image,
+    sampler_t vme_media_sampler, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_result_dual_reference_streamout_t __ovld
+intel_sub_group_avc_ime_evaluate_with_dual_reference_streamout(
+    read_only image2d_t src_image, read_only image2d_t fwd_ref_image,
+    read_only image2d_t bwd_ref_image, sampler_t vme_media_sampler,
+    intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_result_t __ovld
+intel_sub_group_avc_ime_evaluate_with_single_reference_streamin(
+    read_only image2d_t src_image, read_only image2d_t ref_image,
+    sampler_t vme_media_sampler, intel_sub_group_avc_ime_payload_t payload,
+    intel_sub_group_avc_ime_single_reference_streamin_t streamin_components);
+intel_sub_group_avc_ime_result_t __ovld
+intel_sub_group_avc_ime_evaluate_with_dual_reference_streamin(
+    read_only image2d_t src_image, read_only image2d_t fwd_ref_image,
+    read_only image2d_t bwd_ref_image, sampler_t vme_media_sampler,
+    intel_sub_group_avc_ime_payload_t payload,
+    intel_sub_group_avc_ime_dual_reference_streamin_t streamin_components);
+intel_sub_group_avc_ime_result_single_reference_streamout_t __ovld
+intel_sub_group_avc_ime_evaluate_with_single_reference_streaminout(
+    read_only image2d_t src_image, read_only image2d_t ref_image,
+    sampler_t vme_media_sampler, intel_sub_group_avc_ime_payload_t payload,
+    intel_sub_group_avc_ime_single_reference_streamin_t streamin_components);
+intel_sub_group_avc_ime_result_dual_reference_streamout_t __ovld
+intel_sub_group_avc_ime_evaluate_with_dual_reference_streaminout(
+    read_only image2d_t src_image, read_only image2d_t fwd_ref_image,
+    read_only image2d_t bwd_ref_image, sampler_t vme_media_sampler,
+    intel_sub_group_avc_ime_payload_t payload,
+    intel_sub_group_avc_ime_dual_reference_streamin_t streamin_components);
+
+intel_sub_group_avc_ime_single_reference_streamin_t __ovld
+intel_sub_group_avc_ime_get_single_reference_streamin(
+    intel_sub_group_avc_ime_result_single_reference_streamout_t result);
+intel_sub_group_avc_ime_dual_reference_streamin_t __ovld
+intel_sub_group_avc_ime_get_dual_reference_streamin(
+    intel_sub_group_avc_ime_result_dual_reference_streamout_t result);
+intel_sub_group_avc_ime_result_t __ovld
+intel_sub_group_avc_ime_strip_single_reference_streamout(
+    intel_sub_group_avc_ime_result_single_reference_streamout_t result);
+intel_sub_group_avc_ime_result_t __ovld
+intel_sub_group_avc_ime_strip_dual_reference_streamout(
+    intel_sub_group_avc_ime_result_dual_reference_streamout_t result);
+
+uint __ovld intel_sub_group_avc_ime_get_streamout_major_shape_motion_vectors(
+    intel_sub_group_avc_ime_result_single_reference_streamout_t result,
+    uchar major_shape);
+ushort __ovld intel_sub_group_avc_ime_get_streamout_major_shape_distortions(
+    intel_sub_group_avc_ime_result_single_reference_streamout_t result,
+    uchar major_shape);
+uchar __ovld intel_sub_group_avc_ime_get_streamout_major_shape_reference_ids(
+    intel_sub_group_avc_ime_result_single_reference_streamout_t result,
+    uchar major_shape);
+uint __ovld intel_sub_group_avc_ime_get_streamout_major_shape_motion_vectors(
+    intel_sub_group_avc_ime_result_dual_reference_streamout_t result,
+    uchar major_shape, uchar direction);
+ushort __ovld intel_sub_group_avc_ime_get_streamout_major_shape_distortions(
+    intel_sub_group_avc_ime_result_dual_reference_streamout_t result,
+    uchar major_shape, uchar direction);
+uchar __ovld intel_sub_group_avc_ime_get_streamout_major_shape_reference_ids(
+    intel_sub_group_avc_ime_result_dual_reference_streamout_t result,
+    uchar major_shape, uchar direction);
+
+uchar __ovld intel_sub_group_avc_ime_get_border_reached(
+    uchar image_select, intel_sub_group_avc_ime_result_t result);
+uchar __ovld intel_sub_group_avc_ime_get_truncated_search_indication(
+    intel_sub_group_avc_ime_result_t result);
+uchar __ovld
+intel_sub_group_avc_ime_get_unidirectional_early_search_termination(
+    intel_sub_group_avc_ime_result_t result);
+uint __ovld intel_sub_group_avc_ime_get_weighting_pattern_minimum_motion_vector(
+    intel_sub_group_avc_ime_result_t result);
+ushort __ovld intel_sub_group_avc_ime_get_weighting_pattern_minimum_distortion(
+    intel_sub_group_avc_ime_result_t result);
+
+// REF built-in functions
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_fme_initialize(
+    ushort2 src_coord, ulong motion_vectors, uchar major_shapes,
+    uchar minor_shapes, uchar directions, uchar pixel_resolution,
+    uchar sad_adjustment);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_bme_initialize(
+    ushort2 src_coord, ulong motion_vectors, uchar major_shapes,
+    uchar minor_shapes, uchar directions, uchar pixel_resolution,
+    uchar bidirectional_weight, uchar sad_adjustment);
+
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_bidirectional_mix_disable(
+    intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_bilinear_filter_enable(
+    intel_sub_group_avc_ref_payload_t payload);
+
+intel_sub_group_avc_ref_result_t __ovld
+intel_sub_group_avc_ref_evaluate_with_single_reference(
+    read_only image2d_t src_image, read_only image2d_t ref_image,
+    sampler_t vme_media_sampler, intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_ref_result_t __ovld
+intel_sub_group_avc_ref_evaluate_with_dual_reference(
+    read_only image2d_t src_image, read_only image2d_t fwd_ref_image,
+    read_only image2d_t bwd_ref_image, sampler_t vme_media_sampler,
+    intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_ref_result_t __ovld
+intel_sub_group_avc_ref_evaluate_with_multi_reference(
+    read_only image2d_t src_image, uint packed_reference_ids,
+    sampler_t vme_media_sampler, intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_ref_result_t __ovld
+intel_sub_group_avc_ref_evaluate_with_multi_reference(
+    read_only image2d_t src_image, uint packed_reference_ids,
+    uchar packed_reference_field_polarities, sampler_t vme_media_sampler,
+    intel_sub_group_avc_ref_payload_t payload);
+
+// SIC built-in functions
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_initialize(
+    ushort2 src_coord);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_configure_skc(
+    uint skip_block_partition_type, uint skip_motion_vector_mask,
+    ulong motion_vectors, uchar bidirectional_weight, uchar skip_sad_adjustment,
+    intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_configure_ipe(
+    uchar luma_intra_partition_mask, uchar intra_neighbour_availabilty,
+    uchar left_edge_luma_pixels, uchar upper_left_corner_luma_pixel,
+    uchar upper_edge_luma_pixels, uchar upper_right_edge_luma_pixels,
+    uchar intra_sad_adjustment, intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_configure_ipe(
+    uchar luma_intra_partition_mask, uchar intra_neighbour_availabilty,
+    uchar left_edge_luma_pixels, uchar upper_left_corner_luma_pixel,
+    uchar upper_edge_luma_pixels, uchar upper_right_edge_luma_pixels,
+    ushort left_edge_chroma_pixels, ushort upper_left_corner_chroma_pixel,
+    ushort upper_edge_chroma_pixels, uchar intra_sad_adjustment,
+    intel_sub_group_avc_sic_payload_t payload);
+uint __ovld
+intel_sub_group_avc_sic_get_motion_vector_mask(
+    uint skip_block_partition_type, uchar direction);
+
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_intra_luma_shape_penalty(
+    uint packed_shape_cost, intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_intra_luma_mode_cost_function(
+    uchar luma_mode_penalty, uint luma_packed_neighbor_modes,
+    uint luma_packed_non_dc_penalty, intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_intra_chroma_mode_cost_function(
+    uchar chroma_mode_penalty, intel_sub_group_avc_sic_payload_t payload);
+
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_skc_bilinear_filter_enable(
+    intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_skc_forward_transform_enable(
+    ulong packed_sad_coefficients, intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_block_based_raw_skip_sad(
+    uchar block_based_skip_type,
+    intel_sub_group_avc_sic_payload_t payload);
+
+intel_sub_group_avc_sic_result_t __ovld
+intel_sub_group_avc_sic_evaluate_ipe(
+    read_only image2d_t src_image, sampler_t vme_media_sampler,
+    intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_result_t __ovld
+intel_sub_group_avc_sic_evaluate_with_single_reference(
+    read_only image2d_t src_image, read_only image2d_t ref_image,
+    sampler_t vme_media_sampler, intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_result_t __ovld
+intel_sub_group_avc_sic_evaluate_with_dual_reference(
+    read_only image2d_t src_image, read_only image2d_t fwd_ref_image,
+    read_only image2d_t bwd_ref_image, sampler_t vme_media_sampler,
+    intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_result_t __ovld
+intel_sub_group_avc_sic_evaluate_with_multi_reference(
+    read_only image2d_t src_image, uint packed_reference_ids,
+    sampler_t vme_media_sampler, intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_result_t __ovld
+intel_sub_group_avc_sic_evaluate_with_multi_reference(
+    read_only image2d_t src_image, uint packed_reference_ids,
+    uchar packed_reference_field_polarities, sampler_t vme_media_sampler,
+    intel_sub_group_avc_sic_payload_t payload);
+
+uchar __ovld intel_sub_group_avc_sic_get_ipe_luma_shape(
+    intel_sub_group_avc_sic_result_t result);
+ushort __ovld intel_sub_group_avc_sic_get_best_ipe_luma_distortion(
+    intel_sub_group_avc_sic_result_t result);
+ushort __ovld intel_sub_group_avc_sic_get_best_ipe_chroma_distortion(
+    intel_sub_group_avc_sic_result_t result);
+ulong __ovld intel_sub_group_avc_sic_get_packed_ipe_luma_modes(
+    intel_sub_group_avc_sic_result_t result);
+uchar __ovld intel_sub_group_avc_sic_get_ipe_chroma_mode(
+    intel_sub_group_avc_sic_result_t result);
+uint __ovld intel_sub_group_avc_sic_get_packed_skc_luma_count_threshold(
+    intel_sub_group_avc_sic_result_t result);
+ulong __ovld intel_sub_group_avc_sic_get_packed_skc_luma_sum_threshold(
+    intel_sub_group_avc_sic_result_t result);
+ushort __ovld intel_sub_group_avc_sic_get_inter_raw_sads(
+    intel_sub_group_avc_sic_result_t result);
+
+// Wrappers
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_inter_base_multi_reference_penalty(
+    uchar reference_base_penalty, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_inter_base_multi_reference_penalty(
+    uchar reference_base_penalty, intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_inter_base_multi_reference_penalty(
+    uchar reference_base_penalty, intel_sub_group_avc_sic_payload_t payload);
+
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_inter_shape_penalty(
+    ulong packed_shape_cost, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_inter_shape_penalty(
+    ulong packed_shape_cost, intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_inter_shape_penalty(
+    ulong packed_shape_cost, intel_sub_group_avc_sic_payload_t payload);
+
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_inter_direction_penalty(
+    uchar direction_cost, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_inter_direction_penalty(
+    uchar direction_cost, intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_inter_direction_penalty(
+    uchar direction_cost, intel_sub_group_avc_sic_payload_t payload);
+
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_motion_vector_cost_function(
+    ulong packed_cost_center_delta, uint2 packed_cost_table,
+    uchar cost_precision, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_motion_vector_cost_function(
+    ulong packed_cost_center_delta, uint2 packed_cost_table,
+    uchar cost_precision, intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_motion_vector_cost_function(
+    ulong packed_cost_center_delta, uint2 packed_cost_table,
+    uchar cost_precision, intel_sub_group_avc_sic_payload_t payload);
+
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_source_interlaced_field_polarity(
+    uchar src_field_polarity, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_source_interlaced_field_polarity(
+    uchar src_field_polarity, intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_source_interlaced_field_polarity(
+    uchar src_field_polarity, intel_sub_group_avc_sic_payload_t payload);
+
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_single_reference_interlaced_field_polarity(
+    uchar ref_field_polarity, intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_single_reference_interlaced_field_polarity(
+    uchar ref_field_polarity, intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_single_reference_interlaced_field_polarity(
+    uchar ref_field_polarity, intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_dual_reference_interlaced_field_polarities(
+    uchar fwd_ref_field_polarity, uchar bwd_ref_field_polarity,
+    intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_dual_reference_interlaced_field_polarities(
+    uchar fwd_ref_field_polarity, uchar bwd_ref_field_polarity,
+    intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_dual_reference_interlaced_field_polarities(
+    uchar fwd_ref_field_polarity, uchar bwd_ref_field_polarity,
+    intel_sub_group_avc_sic_payload_t payload);
+
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_ime_set_ac_only_haar(
+    intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_ref_set_ac_only_haar(
+    intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_sic_set_ac_only_haar(
+    intel_sub_group_avc_sic_payload_t payload);
+
+ulong __ovld intel_sub_group_avc_ime_get_motion_vectors(
+    intel_sub_group_avc_ime_result_t result);
+ulong __ovld intel_sub_group_avc_ref_get_motion_vectors(
+    intel_sub_group_avc_ref_result_t result);
+
+ushort __ovld intel_sub_group_avc_ime_get_inter_distortions(
+    intel_sub_group_avc_ime_result_t result);
+ushort __ovld intel_sub_group_avc_ref_get_inter_distortions(
+    intel_sub_group_avc_ref_result_t result);
+ushort __ovld intel_sub_group_avc_sic_get_inter_distortions(
+    intel_sub_group_avc_sic_result_t result);
+
+ushort __ovld intel_sub_group_avc_ime_get_best_inter_distortion(
+    intel_sub_group_avc_ime_result_t result);
+ushort __ovld intel_sub_group_avc_ref_get_best_inter_distortion(
+    intel_sub_group_avc_ref_result_t result);
+
+uchar __ovld intel_sub_group_avc_ime_get_inter_major_shape(
+    intel_sub_group_avc_ime_result_t result);
+uchar __ovld intel_sub_group_avc_ref_get_inter_major_shape(
+    intel_sub_group_avc_ref_result_t result);
+uchar __ovld intel_sub_group_avc_ime_get_inter_minor_shapes(
+    intel_sub_group_avc_ime_result_t result);
+uchar __ovld intel_sub_group_avc_ref_get_inter_minor_shapes(
+    intel_sub_group_avc_ref_result_t result);
+
+uchar __ovld intel_sub_group_avc_ime_get_inter_directions(
+    intel_sub_group_avc_ime_result_t result);
+uchar __ovld intel_sub_group_avc_ref_get_inter_directions(
+    intel_sub_group_avc_ref_result_t result);
+
+uchar __ovld intel_sub_group_avc_ime_get_inter_motion_vector_count(
+    intel_sub_group_avc_ime_result_t result);
+uchar __ovld intel_sub_group_avc_ref_get_inter_motion_vector_count(
+    intel_sub_group_avc_ref_result_t result);
+
+uint __ovld intel_sub_group_avc_ime_get_inter_reference_ids(
+    intel_sub_group_avc_ime_result_t result);
+uint __ovld intel_sub_group_avc_ref_get_inter_reference_ids(
+    intel_sub_group_avc_ref_result_t result);
+
+uchar __ovld
+intel_sub_group_avc_ime_get_inter_reference_interlaced_field_polarities(
+    uint packed_reference_ids, uint packed_reference_parameter_field_polarities,
+    intel_sub_group_avc_ime_result_t result);
+uchar __ovld
+intel_sub_group_avc_ref_get_inter_reference_interlaced_field_polarities(
+    uint packed_reference_ids, uint packed_reference_parameter_field_polarities,
+    intel_sub_group_avc_ref_result_t result);
+
+// Type conversion functions
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_ime_convert_to_mce_payload(
+    intel_sub_group_avc_ime_payload_t payload);
+intel_sub_group_avc_ime_payload_t __ovld
+intel_sub_group_avc_mce_convert_to_ime_payload(
+    intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_ref_convert_to_mce_payload(
+    intel_sub_group_avc_ref_payload_t payload);
+intel_sub_group_avc_ref_payload_t __ovld
+intel_sub_group_avc_mce_convert_to_ref_payload(
+    intel_sub_group_avc_mce_payload_t payload);
+intel_sub_group_avc_mce_payload_t __ovld
+intel_sub_group_avc_sic_convert_to_mce_payload(
+    intel_sub_group_avc_sic_payload_t payload);
+intel_sub_group_avc_sic_payload_t __ovld
+intel_sub_group_avc_mce_convert_to_sic_payload(
+    intel_sub_group_avc_mce_payload_t payload);
+
+intel_sub_group_avc_mce_result_t __ovld
+intel_sub_group_avc_ime_convert_to_mce_result(
+    intel_sub_group_avc_ime_result_t result);
+intel_sub_group_avc_ime_result_t __ovld
+intel_sub_group_avc_mce_convert_to_ime_result(
+    intel_sub_group_avc_mce_result_t result);
+intel_sub_group_avc_mce_result_t __ovld
+intel_sub_group_avc_ref_convert_to_mce_result(
+    intel_sub_group_avc_ref_result_t result);
+intel_sub_group_avc_ref_result_t __ovld
+intel_sub_group_avc_mce_convert_to_ref_result(
+    intel_sub_group_avc_mce_result_t result);
+intel_sub_group_avc_mce_result_t __ovld
+intel_sub_group_avc_sic_convert_to_mce_result(
+    intel_sub_group_avc_sic_result_t result);
+intel_sub_group_avc_sic_result_t __ovld
+intel_sub_group_avc_mce_convert_to_sic_result(
+    intel_sub_group_avc_mce_result_t result);
+#pragma OPENCL EXTENSION cl_intel_device_side_avc_motion_estimation : end
+#endif // cl_intel_device_side_avc_motion_estimation
 
 #ifdef cl_amd_media_ops
 uint __ovld amd_bitalign(uint a, uint b, uint c);

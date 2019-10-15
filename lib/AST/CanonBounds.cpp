@@ -535,7 +535,7 @@ Lexicographic::CompareTypeIgnoreCheckedness(QualType QT1, QualType QT2) const {
 
 Result
 Lexicographic::CompareImpl(const PredefinedExpr *E1, const PredefinedExpr *E2) {
-  return CompareInteger(E1->getIdentType(), E2->getIdentType());
+  return CompareInteger(E1->getIdentKind(), E2->getIdentKind());
 }
 
 Result
@@ -768,8 +768,8 @@ Lexicographic::CompareImpl(const CHKCBindTemporaryExpr *E1,
   if (!ordered) {
     // Order binding expressions by the source location of
     // the source-level expression.
-    if (E1->getSubExpr()->getLocStart() <
-        E2->getSubExpr()->getLocStart())
+    if (E1->getSubExpr()->getBeginLoc() <
+        E2->getSubExpr()->getBeginLoc())
       Cmp = Result::LessThan;
     else
       Cmp = Result::GreaterThan;

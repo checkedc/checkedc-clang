@@ -19,6 +19,7 @@
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
@@ -31,12 +32,12 @@
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/MultiplexExternalSemaSource.h"
 #include "clang/Sema/ObjCMethodList.h"
-#include "clang/Sema/PrettyDeclStackTrace.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaConsumer.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/TemplateDeduction.h"
+#include "clang/Sema/TemplateInstCallback.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallSet.h"
 using namespace clang;
@@ -51,8 +52,8 @@ ModuleLoader &Sema::getModuleLoader() const { return PP.getModuleLoader(); }
 PrintingPolicy Sema::getPrintingPolicy(const ASTContext &Context,
                                        const Preprocessor &PP) {
   PrintingPolicy Policy = Context.getPrintingPolicy();
-  // Our printing policy is copied over the ASTContext printing policy whenever
-  // a diagnostic is emitted, so recompute it.
+  // In diagnostics, we print _Bool as bool if the latter is defined as the
+  // former.
   Policy.Bool = Context.getLangOpts().Bool;
   if (!Policy.Bool) {
     if (const MacroInfo *BoolMacro = PP.getMacroInfo(Context.getBoolName())) {
@@ -131,19 +132,22 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
       LateTemplateParser(nullptr),
       LateTemplateParserCleanup(nullptr), OpaqueParser(nullptr), IdResolver(pp),
       StdExperimentalNamespaceCache(nullptr), StdInitializerList(nullptr),
-      CXXTypeInfoDecl(nullptr), MSVCGuidDecl(nullptr), NSNumberDecl(nullptr),
-      NSValueDecl(nullptr), NSStringDecl(nullptr),
-      StringWithUTF8StringMethod(nullptr),
+      StdCoroutineTraitsCache(nullptr), CXXTypeInfoDecl(nullptr),
+      MSVCGuidDecl(nullptr), NSNumberDecl(nullptr), NSValueDecl(nullptr),
+      NSStringDecl(nullptr), StringWithUTF8StringMethod(nullptr),
       ValueWithBytesObjCTypeMethod(nullptr), NSArrayDecl(nullptr),
       ArrayWithObjectsMethod(nullptr), NSDictionaryDecl(nullptr),
       DictionaryWithObjectsMethod(nullptr), GlobalNewDeleteDeclared(false),
       TUKind(TUKind), NumSFINAEErrors(0), CheckingKind(CSS_Unchecked),
       BoundsExprReturnValue(QualType()),
       DeferredBoundsParser(nullptr), DeferredBoundsParserData(nullptr),
-      DisableSubstitionDiagnostics(false), AccessCheckingSFINAE(false),
-      InNonInstantiationSFINAEContext(false), NonInstantiationEntries(0),
-      ArgumentPackSubstitutionIndex(-1), CurrentInstantiationScope(nullptr),
-      DisableTypoCorrection(false), TyposCorrected(0), AnalysisWarnings(*this),
+      DisableSubstitionDiagnostics(false),
+      FullyCheckedComparisonCategories(
+          static_cast<unsigned>(ComparisonCategoryType::Last) + 1),
+      AccessCheckingSFINAE(false), InNonInstantiationSFINAEContext(false),
+      NonInstantiationEntries(0), ArgumentPackSubstitutionIndex(-1),
+      CurrentInstantiationScope(nullptr), DisableTypoCorrection(false),
+      TyposCorrected(0), AnalysisWarnings(*this),
       ThreadSafetyDeclCache(nullptr), VarDataSharingAttributesStack(nullptr),
       CurScope(nullptr), Ident_super(nullptr), Ident___float128(nullptr) {
   TUScope = nullptr;
@@ -152,7 +156,7 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
   for (unsigned I = 0; I != NSAPI::NumNSNumberLiteralMethods; ++I)
     NSNumberLiteralMethods[I] = nullptr;
 
-  if (getLangOpts().ObjC1)
+  if (getLangOpts().ObjC)
     NSAPIObj.reset(new NSAPI(Context));
 
   if (getLangOpts().CPlusPlus)
@@ -163,11 +167,11 @@ Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
 
   ExprEvalContexts.emplace_back(
       ExpressionEvaluationContext::PotentiallyEvaluated, 0, CleanupInfo{},
-      nullptr, false);
+      nullptr, ExpressionEvaluationContextRecord::EK_Other);
 
-  FunctionScopes.push_back(new FunctionScopeInfo(Diags));
+  PreallocatedFunctionScope.reset(new FunctionScopeInfo(Diags));
 
-  // Initilization of data sharing attributes stack for OpenMP
+  // Initialization of data sharing attributes stack for OpenMP
   InitDataSharingAttributesStack();
 
   std::unique_ptr<sema::SemaPPCallbacks> Callbacks =
@@ -214,7 +218,7 @@ void Sema::Initialize() {
 
 
   // Initialize predefined Objective-C types:
-  if (getLangOpts().ObjC1) {
+  if (getLangOpts().ObjC) {
     // If 'SEL' does not yet refer to any declarations, make it refer to the
     // predefined 'SEL'.
     DeclarationName SEL = &Context.Idents.get("SEL");
@@ -320,6 +324,10 @@ void Sema::Initialize() {
 #define GENERIC_IMAGE_TYPE_EXT(Type, Id, Ext) \
     setOpenCLExtensionForType(Context.Id, Ext);
 #include "clang/Basic/OpenCLImageTypes.def"
+#define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
+    addImplicitTypedef(#ExtType, Context.Id##Ty); \
+    setOpenCLExtensionForType(Context.Id##Ty, #Ext);
+#include "clang/Basic/OpenCLExtensionTypes.def"
     };
 
   if (Context.getTargetInfo().hasBuiltinMSVaList()) {
@@ -335,11 +343,11 @@ void Sema::Initialize() {
 
 Sema::~Sema() {
   if (VisContext) FreeVisContext();
+
   // Kill all the active scopes.
-  for (unsigned I = 1, E = FunctionScopes.size(); I != E; ++I)
-    delete FunctionScopes[I];
-  if (FunctionScopes.size() == 1)
-    delete FunctionScopes[0];
+  for (sema::FunctionScopeInfo *FSI : FunctionScopes)
+    if (FSI != PreallocatedFunctionScope.get())
+      delete FSI;
 
   // Tell the SemaConsumer to forget about us; we're going out of scope.
   if (SemaConsumer *SC = dyn_cast<SemaConsumer>(&Consumer))
@@ -395,7 +403,7 @@ ASTMutationListener *Sema::getASTMutationListener() const {
   return getASTConsumer().GetASTMutationListener();
 }
 
-///\brief Registers an external source. If an external source already exists,
+///Registers an external source. If an external source already exists,
 /// creates a multiplex external source and appends to it.
 ///
 ///\param[in] E - A non-null external sema source.
@@ -416,7 +424,7 @@ void Sema::addExternalSource(ExternalSemaSource *E) {
   }
 }
 
-/// \brief Print out statistics about the semantic analysis.
+/// Print out statistics about the semantic analysis.
 void Sema::PrintStats() const {
   llvm::errs() << "\n*** Semantic Analysis Stats:\n";
   llvm::errs() << NumSFINAEErrors << " SFINAE diagnostics trapped.\n";
@@ -441,7 +449,7 @@ void Sema::diagnoseNullableToNonnullConversion(QualType DstType,
 
 void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr* E) {
   if (Diags.isIgnored(diag::warn_zero_as_null_pointer_constant,
-                      E->getLocStart()))
+                      E->getBeginLoc()))
     return;
   // nullptr only exists from C++11 on, so don't warn on its absence earlier.
   if (!getLangOpts().CPlusPlus11)
@@ -454,13 +462,13 @@ void Sema::diagnoseZeroToNullptrConversion(CastKind Kind, const Expr* E) {
 
   // If it is a macro from system header, and if the macro name is not "NULL",
   // do not warn.
-  SourceLocation MaybeMacroLoc = E->getLocStart();
+  SourceLocation MaybeMacroLoc = E->getBeginLoc();
   if (Diags.getSuppressSystemWarnings() &&
       SourceMgr.isInSystemMacro(MaybeMacroLoc) &&
       !findMacroSpelling(MaybeMacroLoc, "NULL"))
     return;
 
-  Diag(E->getLocStart(), diag::warn_zero_as_null_pointer_constant)
+  Diag(E->getBeginLoc(), diag::warn_zero_as_null_pointer_constant)
       << FixItHint::CreateReplacement(E->getSourceRange(), "nullptr");
 }
 
@@ -482,13 +490,14 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
     case CK_ArrayToPointerDecay:
     case CK_FunctionToPointerDecay:
     case CK_ToVoid:
+    case CK_NonAtomicToAtomic:
       break;
     }
   }
   assert((VK == VK_RValue || !E->isRValue()) && "can't cast rvalue to lvalue");
 #endif
 
-  diagnoseNullableToNonnullConversion(Ty, E->getType(), E->getLocStart());
+  diagnoseNullableToNonnullConversion(Ty, E->getType(), E->getBeginLoc());
   diagnoseZeroToNullptrConversion(Kind, E);
 
   QualType ExprTy = Context.getCanonicalType(E->getType());
@@ -509,11 +518,12 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
     E = Materialized.get();
   }
 
-  // For Checked C, create a temporary for string literal or compound literals
-  // for use during bounds checking.
+  // For Checked C, create a temporary for string literal, compound literals or
+  // predefined literals for use during bounds checking.
   if (Kind == CK_ArrayToPointerDecay && getLangOpts().CheckedC) {
     Expr *S = E->IgnoreParens();
-    if (isa<StringLiteral>(S) || isa<CompoundLiteralExpr>(S))
+    if (isa<StringLiteral>(S) || isa<CompoundLiteralExpr>(S) ||
+        isa<PredefinedExpr>(S))
       E = new (Context) CHKCBindTemporaryExpr(E);
   }
 
@@ -545,11 +555,12 @@ CastKind Sema::ScalarTypeToBooleanCastKind(QualType ScalarTy) {
   case Type::STK_Floating: return CK_FloatingToBoolean;
   case Type::STK_IntegralComplex: return CK_IntegralComplexToBoolean;
   case Type::STK_FloatingComplex: return CK_FloatingComplexToBoolean;
+  case Type::STK_FixedPoint: return CK_FixedPointToBoolean;
   }
-  return CK_Invalid;
+  llvm_unreachable("unknown scalar type kind");
 }
 
-/// \brief Used to prune the decls of Sema's UnusedFileScopedDecls vector.
+/// Used to prune the decls of Sema's UnusedFileScopedDecls vector.
 static bool ShouldRemoveFromUnused(Sema *SemaRef, const DeclaratorDecl *D) {
   if (D->getMostRecentDecl()->isUsed())
     return true;
@@ -656,7 +667,10 @@ void Sema::getUndefinedButUsed(
         continue;
       if (FD->isExternallyVisible() &&
           !isExternalWithNoLinkageType(FD) &&
-          !FD->getMostRecentDecl()->isInlined())
+          !FD->getMostRecentDecl()->isInlined() &&
+          !FD->hasAttr<ExcludeFromExplicitInstantiationAttr>())
+        continue;
+      if (FD->getBuiltinID())
         continue;
     } else {
       auto *VD = cast<VarDecl>(ND);
@@ -664,7 +678,13 @@ void Sema::getUndefinedButUsed(
         continue;
       if (VD->isExternallyVisible() &&
           !isExternalWithNoLinkageType(VD) &&
-          !VD->getMostRecentDecl()->isInline())
+          !VD->getMostRecentDecl()->isInline() &&
+          !VD->hasAttr<ExcludeFromExplicitInstantiationAttr>())
+        continue;
+
+      // Skip VarDecls that lack formal definitions but which we know are in
+      // fact defined somewhere.
+      if (VD->isKnownToBeDefined())
         continue;
     }
 
@@ -737,7 +757,7 @@ void Sema::LoadExternalWeakUndeclaredIdentifiers() {
 
 typedef llvm::DenseMap<const CXXRecordDecl*, bool> RecordCompleteMap;
 
-/// \brief Returns true, if all methods and nested classes of the given
+/// Returns true, if all methods and nested classes of the given
 /// CXXRecordDecl are defined in this translation unit.
 ///
 /// Should only be called from ActOnEndOfTranslationUnit so that all
@@ -777,7 +797,7 @@ static bool MethodsAndNestedClassesComplete(const CXXRecordDecl *RD,
   return Complete;
 }
 
-/// \brief Returns true, if the given CXXRecordDecl is fully defined in this
+/// Returns true, if the given CXXRecordDecl is fully defined in this
 /// translation unit, i.e. all methods are defined or pure virtual and all
 /// friends, friend functions and nested classes are fully defined in this
 /// translation unit.
@@ -832,7 +852,9 @@ void Sema::emitAndClearUnusedLocalTypedefWarnings() {
 /// is parsed. Note that the ASTContext may have already injected some
 /// declarations.
 void Sema::ActOnStartOfTranslationUnit() {
-  if (getLangOpts().ModulesTS) {
+  if (getLangOpts().ModulesTS &&
+      (getLangOpts().getCompilingModule() == LangOptions::CMK_ModuleInterface ||
+       getLangOpts().getCompilingModule() == LangOptions::CMK_None)) {
     SourceLocation StartOfTU =
         SourceMgr.getLocForStartOfFile(SourceMgr.getMainFileID());
 
@@ -866,6 +888,20 @@ void Sema::ActOnEndOfTranslationUnit() {
   if (PP.isCodeCompletionEnabled())
     return;
 
+  // Transfer late parsed template instantiations over to the pending template
+  // instantiation list. During normal compliation, the late template parser
+  // will be installed and instantiating these templates will succeed.
+  //
+  // If we are building a TU prefix for serialization, it is also safe to
+  // transfer these over, even though they are not parsed. The end of the TU
+  // should be outside of any eager template instantiation scope, so when this
+  // AST is deserialized, these templates will not be parsed until the end of
+  // the combined TU.
+  PendingInstantiations.insert(PendingInstantiations.end(),
+                               LateParsedInstantiations.begin(),
+                               LateParsedInstantiations.end());
+  LateParsedInstantiations.clear();
+
   // Complete translation units and modules define vtables and perform implicit
   // instantiations. PCH files do not.
   if (TUKind != TU_Prefix) {
@@ -895,7 +931,12 @@ void Sema::ActOnEndOfTranslationUnit() {
       PendingInstantiations.insert(PendingInstantiations.begin(),
                                    Pending.begin(), Pending.end());
     }
+
     PerformPendingInstantiations();
+
+    assert(LateParsedInstantiations.empty() &&
+           "end of TU template instantiation should not create more "
+           "late-parsed templates");
 
     if (LateTemplateParserCleanup)
       LateTemplateParserCleanup(OpaqueParser);
@@ -909,10 +950,9 @@ void Sema::ActOnEndOfTranslationUnit() {
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.
-  // FIXME: This is wrong for TUKind == TU_Prefix. In that case, we need to
-  // write out the lists to the AST file (if any).
+  assert(DelayedOverridingExceptionSpecChecks.empty());
+  assert(DelayedEquivalentExceptionSpecChecks.empty());
   assert(DelayedDefaultedMemberExceptionSpecs.empty());
-  assert(DelayedExceptionSpecChecks.empty());
 
   // All dllexport classes should have been processed already.
   assert(DelayedDllExportClasses.empty());
@@ -965,7 +1005,8 @@ void Sema::ActOnEndOfTranslationUnit() {
     // module declaration by now.
     if (getLangOpts().getCompilingModule() ==
             LangOptions::CMK_ModuleInterface &&
-        ModuleScopes.back().Module->Kind != Module::ModuleInterfaceUnit) {
+        (ModuleScopes.empty() ||
+         ModuleScopes.back().Module->Kind != Module::ModuleInterfaceUnit)) {
       // FIXME: Make a better guess as to where to put the module declaration.
       Diag(getSourceManager().getLocForStartOfFile(
                getSourceManager().getMainFileID()),
@@ -998,11 +1039,6 @@ void Sema::ActOnEndOfTranslationUnit() {
     // Warnings emitted in ActOnEndOfTranslationUnit() should be emitted for
     // modules when they are built, not every time they are used.
     emitAndClearUnusedLocalTypedefWarnings();
-
-    // Modules don't need any of the checking below.
-    if (!PP.isIncrementalProcessingEnabled())
-      TUScope = nullptr;
-    return;
   }
 
   // C99 6.9.2p2:
@@ -1020,8 +1056,7 @@ void Sema::ActOnEndOfTranslationUnit() {
   for (TentativeDefinitionsType::iterator
             T = TentativeDefinitions.begin(ExternalSource),
          TEnd = TentativeDefinitions.end();
-       T != TEnd; ++T)
-  {
+       T != TEnd; ++T) {
     VarDecl *VD = (*T)->getActingDefinition();
 
     // If the tentative definition was completed, getActingDefinition() returns
@@ -1049,12 +1084,13 @@ void Sema::ActOnEndOfTranslationUnit() {
     // Notify the consumer that we've completed a tentative definition.
     if (!VD->isInvalidDecl())
       Consumer.CompleteTentativeDefinition(VD);
-
   }
 
   // If there were errors, disable 'unused' warnings since they will mostly be
-  // noise.
-  if (!Diags.hasErrorOccurred()) {
+  // noise. Don't warn for a use from a module: either we should warn on all
+  // file-scope declarations in modules or not at all, but whether the
+  // declaration is used is immaterial.
+  if (!Diags.hasErrorOccurred() && TUKind != TU_Module) {
     // Output warning for unused file scoped decls.
     for (UnusedFileScopedDeclsType::iterator
            I = UnusedFileScopedDecls.begin(ExternalSource),
@@ -1122,6 +1158,8 @@ void Sema::ActOnEndOfTranslationUnit() {
   }
 
   if (!Diags.isIgnored(diag::warn_unused_private_field, SourceLocation())) {
+    // FIXME: Load additional unused private field candidates from the external
+    // source.
     RecordCompleteMap RecordsComplete;
     RecordCompleteMap MNCComplete;
     for (NamedDeclSetType::iterator I = UnusedPrivateFields.begin(),
@@ -1289,7 +1327,8 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
      return;
   }
 
-  // Set up the context's printing policy based on our current state.
+  // Copy the diagnostic printing policy over the ASTContext printing policy.
+  // TODO: Stop doing that.  See: https://reviews.llvm.org/D45093#1090292
   Context.setPrintingPolicy(getPrintingPolicy());
 
   // Emit the diagnostic.
@@ -1312,7 +1351,7 @@ Sema::Diag(SourceLocation Loc, const PartialDiagnostic& PD) {
   return Builder;
 }
 
-/// \brief Looks through the macro-expansion chain for the given
+/// Looks through the macro-expansion chain for the given
 /// location, looking for a macro expansion with the given name.
 /// If one is found, returns true and sets the location to that
 /// expansion loc.
@@ -1333,7 +1372,7 @@ bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {
   return false;
 }
 
-/// \brief Determines the active Scope associated with the given declaration
+/// Determines the active Scope associated with the given declaration
 /// context.
 ///
 /// This routine maps a declaration context to the active Scope object that
@@ -1362,19 +1401,15 @@ Scope *Sema::getScopeForContext(DeclContext *Ctx) {
   return nullptr;
 }
 
-/// \brief Enter a new function scope
+/// Enter a new function scope
 void Sema::PushFunctionScope() {
-  if (FunctionScopes.size() == 1) {
-    // Use the "top" function scope rather than having to allocate
-    // memory for a new scope.
-    FunctionScopes.back()->Clear();
-    FunctionScopes.push_back(FunctionScopes.back());
-    if (LangOpts.OpenMP)
-      pushOpenMPFunctionRegion();
-    return;
+  if (FunctionScopes.empty()) {
+    // Use PreallocatedFunctionScope to avoid allocating memory when possible.
+    PreallocatedFunctionScope->Clear();
+    FunctionScopes.push_back(PreallocatedFunctionScope.get());
+  } else {
+    FunctionScopes.push_back(new FunctionScopeInfo(getDiagnostics()));
   }
-
-  FunctionScopes.push_back(new FunctionScopeInfo(getDiagnostics()));
   if (LangOpts.OpenMP)
     pushOpenMPFunctionRegion();
 }
@@ -1394,15 +1429,75 @@ void Sema::RecordParsingTemplateParameterDepth(unsigned Depth) {
   if (LambdaScopeInfo *const LSI = getCurLambda()) {
     LSI->AutoTemplateParameterDepth = Depth;
     return;
-  } 
-  llvm_unreachable( 
+  }
+  llvm_unreachable(
       "Remove assertion if intentionally called in a non-lambda context.");
+}
+
+// Check that the type of the VarDecl has an accessible copy constructor and
+// resolve its destructor's exception spefication.
+static void checkEscapingByref(VarDecl *VD, Sema &S) {
+  QualType T = VD->getType();
+  EnterExpressionEvaluationContext scope(
+      S, Sema::ExpressionEvaluationContext::PotentiallyEvaluated);
+  SourceLocation Loc = VD->getLocation();
+  Expr *VarRef =
+      new (S.Context) DeclRefExpr(S.Context, VD, false, T, VK_LValue, Loc);
+  ExprResult Result = S.PerformMoveOrCopyInitialization(
+      InitializedEntity::InitializeBlock(Loc, T, false), VD, VD->getType(),
+      VarRef, /*AllowNRVO=*/true);
+  if (!Result.isInvalid()) {
+    Result = S.MaybeCreateExprWithCleanups(Result);
+    Expr *Init = Result.getAs<Expr>();
+    S.Context.setBlockVarCopyInit(VD, Init, S.canThrow(Init));
+  }
+
+  // The destructor's exception spefication is needed when IRGen generates
+  // block copy/destroy functions. Resolve it here.
+  if (const CXXRecordDecl *RD = T->getAsCXXRecordDecl())
+    if (CXXDestructorDecl *DD = RD->getDestructor()) {
+      auto *FPT = DD->getType()->getAs<FunctionProtoType>();
+      S.ResolveExceptionSpec(Loc, FPT);
+    }
+}
+
+static void markEscapingByrefs(const FunctionScopeInfo &FSI, Sema &S) {
+  // Set the EscapingByref flag of __block variables captured by
+  // escaping blocks.
+  for (const BlockDecl *BD : FSI.Blocks) {
+    if (BD->doesNotEscape())
+      continue;
+    for (const BlockDecl::Capture &BC : BD->captures()) {
+      VarDecl *VD = BC.getVariable();
+      if (VD->hasAttr<BlocksAttr>())
+        VD->setEscapingByref();
+    }
+  }
+
+  for (VarDecl *VD : FSI.ByrefBlockVars) {
+    // __block variables might require us to capture a copy-initializer.
+    if (!VD->isEscapingByref())
+      continue;
+    // It's currently invalid to ever have a __block variable with an
+    // array type; should we diagnose that here?
+    // Regardless, we don't want to ignore array nesting when
+    // constructing this copy.
+    if (VD->getType()->isStructureOrClassType())
+      checkEscapingByref(VD, S);
+  }
 }
 
 void Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
                                 const Decl *D, const BlockExpr *blkExpr) {
-  FunctionScopeInfo *Scope = FunctionScopes.pop_back_val();
   assert(!FunctionScopes.empty() && "mismatched push/pop!");
+
+  // This function shouldn't be called after popping the current function scope.
+  // markEscapingByrefs calls PerformMoveOrCopyInitialization, which can call
+  // PushFunctionScope, which can cause clearing out PreallocatedFunctionScope
+  // when FunctionScopes is empty.
+  markEscapingByrefs(*FunctionScopes.back(), *this);
+
+  FunctionScopeInfo *Scope = FunctionScopes.pop_back_val();
 
   if (LangOpts.OpenMP)
     popOpenMPFunctionRegion(Scope);
@@ -1414,12 +1509,13 @@ void Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
     for (const auto &PUD : Scope->PossiblyUnreachableDiags)
       Diag(PUD.Loc, PUD.PD);
 
-  if (FunctionScopes.back() != Scope)
+  // Delete the scope unless its our preallocated scope.
+  if (Scope != PreallocatedFunctionScope.get())
     delete Scope;
 }
 
-void Sema::PushCompoundScope() {
-  getCurFunction()->CompoundScopes.push_back(CompoundScopeInfo());
+void Sema::PushCompoundScope(bool IsStmtExpr) {
+  getCurFunction()->CompoundScopes.push_back(CompoundScopeInfo(IsStmtExpr));
 }
 
 void Sema::PopCompoundScope() {
@@ -1429,10 +1525,25 @@ void Sema::PopCompoundScope() {
   CurFunction->CompoundScopes.pop_back();
 }
 
-/// \brief Determine whether any errors occurred within this function/method/
+/// Determine whether any errors occurred within this function/method/
 /// block.
 bool Sema::hasAnyUnrecoverableErrorsInThisFunction() const {
   return getCurFunction()->ErrorTrap.hasUnrecoverableErrorOccurred();
+}
+
+void Sema::setFunctionHasBranchIntoScope() {
+  if (!FunctionScopes.empty())
+    FunctionScopes.back()->setHasBranchIntoScope();
+}
+
+void Sema::setFunctionHasBranchProtectedScope() {
+  if (!FunctionScopes.empty())
+    FunctionScopes.back()->setHasBranchProtectedScope();
+}
+
+void Sema::setFunctionHasIndirectGoto() {
+  if (!FunctionScopes.empty())
+    FunctionScopes.back()->setHasIndirectGoto();
 }
 
 BlockScopeInfo *Sema::getCurBlock() {
@@ -1448,6 +1559,18 @@ BlockScopeInfo *Sema::getCurBlock() {
   }
 
   return CurBSI;
+}
+
+FunctionScopeInfo *Sema::getEnclosingFunction() const {
+  if (FunctionScopes.empty())
+    return nullptr;
+
+  for (int e = FunctionScopes.size() - 1; e >= 0; --e) {
+    if (isa<sema::BlockScopeInfo>(FunctionScopes[e]))
+      continue;
+    return FunctionScopes[e];
+  }
+  return nullptr;
 }
 
 LambdaScopeInfo *Sema::getCurLambda(bool IgnoreNonLambdaCapturingScope) {
@@ -1472,7 +1595,7 @@ LambdaScopeInfo *Sema::getCurLambda(bool IgnoreNonLambdaCapturingScope) {
 
   return CurLSI;
 }
-// We have a generic lambda if we parsed auto parameters, or we have 
+// We have a generic lambda if we parsed auto parameters, or we have
 // an associated template parameter list.
 LambdaScopeInfo *Sema::getCurGenericLambda() {
   if (LambdaScopeInfo *LSI =  getCurLambda()) {
@@ -1487,8 +1610,7 @@ void Sema::ActOnComment(SourceRange Comment) {
   if (!LangOpts.RetainCommentsFromSystemHeaders &&
       SourceMgr.isInSystemHeader(Comment.getBegin()))
     return;
-  RawComment RC(SourceMgr, Comment, false,
-                LangOpts.CommentOpts.ParseAllComments);
+  RawComment RC(SourceMgr, Comment, LangOpts.CommentOpts, false);
   if (RC.isAlmostTrailingComment()) {
     SourceRange MagicMarkerRange(Comment.getBegin(),
                                  Comment.getBegin().getLocWithOffset(3));
@@ -1526,25 +1648,7 @@ void ExternalSemaSource::ReadUndefinedButUsed(
 void ExternalSemaSource::ReadMismatchingDeleteExpressions(llvm::MapVector<
     FieldDecl *, llvm::SmallVector<std::pair<SourceLocation, bool>, 4>> &) {}
 
-void PrettyDeclStackTraceEntry::print(raw_ostream &OS) const {
-  SourceLocation Loc = this->Loc;
-  if (!Loc.isValid() && TheDecl) Loc = TheDecl->getLocation();
-  if (Loc.isValid()) {
-    Loc.print(OS, S.getSourceManager());
-    OS << ": ";
-  }
-  OS << Message;
-
-  if (auto *ND = dyn_cast_or_null<NamedDecl>(TheDecl)) {
-    OS << " '";
-    ND->getNameForDiagnostic(OS, ND->getASTContext().getPrintingPolicy(), true);
-    OS << "'";
-  }
-
-  OS << '\n';
-}
-
-/// \brief Figure out if an expression could be turned into a call.
+/// Figure out if an expression could be turned into a call.
 ///
 /// Use this when trying to recover from an error where the programmer may have
 /// written just the name of a function instead of actually calling it.
@@ -1576,6 +1680,7 @@ bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
   }
 
   bool Ambiguous = false;
+  bool IsMV = false;
 
   if (Overloads) {
     for (OverloadExpr::decls_iterator it = Overloads->decls_begin(),
@@ -1589,11 +1694,16 @@ bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
       if (const FunctionDecl *OverloadDecl
             = dyn_cast<FunctionDecl>((*it)->getUnderlyingDecl())) {
         if (OverloadDecl->getMinRequiredArguments() == 0) {
-          if (!ZeroArgCallReturnTy.isNull() && !Ambiguous) {
+          if (!ZeroArgCallReturnTy.isNull() && !Ambiguous &&
+              (!IsMV || !(OverloadDecl->isCPUDispatchMultiVersion() ||
+                          OverloadDecl->isCPUSpecificMultiVersion()))) {
             ZeroArgCallReturnTy = QualType();
             Ambiguous = true;
-          } else
+          } else {
             ZeroArgCallReturnTy = OverloadDecl->getReturnType();
+            IsMV = OverloadDecl->isCPUDispatchMultiVersion() ||
+                   OverloadDecl->isCPUSpecificMultiVersion();
+          }
         }
       }
     }
@@ -1646,7 +1756,7 @@ bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
   return false;
 }
 
-/// \brief Give notes for a set of overloads.
+/// Give notes for a set of overloads.
 ///
 /// A companion to tryExprAsCall. In cases when the name that the programmer
 /// wrote was an overloaded function, we may be able to make some guesses about
@@ -1672,6 +1782,12 @@ static void noteOverloads(Sema &S, const UnresolvedSetImpl &Overloads,
     }
 
     NamedDecl *Fn = (*It)->getUnderlyingDecl();
+    // Don't print overloads for non-default multiversioned functions.
+    if (const auto *FD = Fn->getAsFunction()) {
+      if (FD->isMultiVersion() && FD->hasAttr<TargetAttr>() &&
+          !FD->getAttr<TargetAttr>()->isDefaultVersion())
+        continue;
+    }
     S.Diag(Fn->getLocation(), diag::note_possible_target_of_call);
     ++ShownOverloads;
   }
@@ -1710,6 +1826,21 @@ static bool IsCallableWithAppend(Expr *E) {
           !isa<CXXOperatorCallExpr>(E));
 }
 
+static bool IsCPUDispatchCPUSpecificMultiVersion(const Expr *E) {
+  if (const auto *UO = dyn_cast<UnaryOperator>(E))
+    E = UO->getSubExpr();
+
+  if (const auto *ULE = dyn_cast<UnresolvedLookupExpr>(E)) {
+    if (ULE->getNumDecls() == 0)
+      return false;
+
+    const NamedDecl *ND = *ULE->decls_begin();
+    if (const auto *FD = dyn_cast<FunctionDecl>(ND))
+      return FD->isCPUDispatchMultiVersion() || FD->isCPUSpecificMultiVersion();
+  }
+  return false;
+}
+
 bool Sema::tryToRecoverWithCall(ExprResult &E, const PartialDiagnostic &PD,
                                 bool ForceComplain,
                                 bool (*IsPlausibleResult)(QualType)) {
@@ -1726,12 +1857,13 @@ bool Sema::tryToRecoverWithCall(ExprResult &E, const PartialDiagnostic &PD,
     // so we can emit a fixit and carry on pretending that E was
     // actually a CallExpr.
     SourceLocation ParenInsertionLoc = getLocForEndOfToken(Range.getEnd());
-    Diag(Loc, PD)
-      << /*zero-arg*/ 1 << Range
-      << (IsCallableWithAppend(E.get())
-          ? FixItHint::CreateInsertion(ParenInsertionLoc, "()")
-          : FixItHint());
-    notePlausibleOverloads(*this, Loc, Overloads, IsPlausibleResult);
+    bool IsMV = IsCPUDispatchCPUSpecificMultiVersion(E.get());
+    Diag(Loc, PD) << /*zero-arg*/ 1 << IsMV << Range
+                  << (IsCallableWithAppend(E.get())
+                          ? FixItHint::CreateInsertion(ParenInsertionLoc, "()")
+                          : FixItHint());
+    if (!IsMV)
+      notePlausibleOverloads(*this, Loc, Overloads, IsPlausibleResult);
 
     // FIXME: Try this before emitting the fixit, and suppress diagnostics
     // while doing so.
@@ -1742,8 +1874,10 @@ bool Sema::tryToRecoverWithCall(ExprResult &E, const PartialDiagnostic &PD,
 
   if (!ForceComplain) return false;
 
-  Diag(Loc, PD) << /*not zero-arg*/ 0 << Range;
-  notePlausibleOverloads(*this, Loc, Overloads, IsPlausibleResult);
+  bool IsMV = IsCPUDispatchCPUSpecificMultiVersion(E.get());
+  Diag(Loc, PD) << /*not zero-arg*/ 0 << IsMV << Range;
+  if (!IsMV)
+    notePlausibleOverloads(*this, Loc, Overloads, IsPlausibleResult);
   E = ExprError();
   return true;
 }
@@ -1812,6 +1946,34 @@ void Sema::setCurrentOpenCLExtensionForDecl(Decl *D) {
   setOpenCLExtensionForDecl(D, CurrOpenCLExtension);
 }
 
+std::string Sema::getOpenCLExtensionsFromDeclExtMap(FunctionDecl *FD) {
+  if (!OpenCLDeclExtMap.empty())
+    return getOpenCLExtensionsFromExtMap(FD, OpenCLDeclExtMap);
+
+  return "";
+}
+
+std::string Sema::getOpenCLExtensionsFromTypeExtMap(FunctionType *FT) {
+  if (!OpenCLTypeExtMap.empty())
+    return getOpenCLExtensionsFromExtMap(FT, OpenCLTypeExtMap);
+
+  return "";
+}
+
+template <typename T, typename MapT>
+std::string Sema::getOpenCLExtensionsFromExtMap(T *FDT, MapT &Map) {
+  std::string ExtensionNames = "";
+  auto Loc = Map.find(FDT);
+
+  for (auto const& I : Loc->second) {
+    ExtensionNames += I;
+    ExtensionNames += " ";
+  }
+  ExtensionNames.pop_back();
+
+  return ExtensionNames;
+}
+
 bool Sema::isOpenCLDisabledDecl(Decl *FD) {
   auto Loc = OpenCLDeclExtMap.find(FD);
   if (Loc == OpenCLDeclExtMap.end())
@@ -1850,6 +2012,14 @@ bool Sema::checkOpenCLDisabledTypeDeclSpec(const DeclSpec &DS, QualType QT) {
   if (auto TagT = dyn_cast<TagType>(QT.getCanonicalType().getTypePtr()))
     Decl = TagT->getDecl();
   auto Loc = DS.getTypeSpecTypeLoc();
+
+  // Check extensions for vector types.
+  // e.g. double4 is not allowed when cl_khr_fp64 is absent.
+  if (QT->isExtVectorType()) {
+    auto TypePtr = QT->castAs<ExtVectorType>()->getElementType().getTypePtr();
+    return checkOpenCLDisabledTypeOrDecl(TypePtr, Loc, QT, OpenCLTypeExtMap);
+  }
+
   if (checkOpenCLDisabledTypeOrDecl(Decl, Loc, QT, OpenCLDeclExtMap))
     return true;
 
@@ -1860,6 +2030,6 @@ bool Sema::checkOpenCLDisabledTypeDeclSpec(const DeclSpec &DS, QualType QT) {
 
 bool Sema::checkOpenCLDisabledDecl(const NamedDecl &D, const Expr &E) {
   IdentifierInfo *FnName = D.getIdentifier();
-  return checkOpenCLDisabledTypeOrDecl(&D, E.getLocStart(), FnName,
+  return checkOpenCLDisabledTypeOrDecl(&D, E.getBeginLoc(), FnName,
                                        OpenCLDeclExtMap, 1, D.getSourceRange());
 }

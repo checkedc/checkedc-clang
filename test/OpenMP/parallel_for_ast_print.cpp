@@ -1,6 +1,10 @@
 // RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -ast-print %s | FileCheck %s
 // RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -x c++ -std=c++11 -emit-pch -o %t %s
 // RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck %s
+
+// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=45 -ast-print %s | FileCheck %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -x c++ -std=c++11 -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -std=c++11 -include-pch %t -fsyntax-only -verify %s -ast-print | FileCheck %s
 // expected-no-diagnostics
 
 #ifndef HEADER
@@ -35,7 +39,7 @@ public:
   }
 };
 
-// CHECK: #pragma omp parallel for private(this->a) private(this->a) private(T::a)
+// CHECK: #pragma omp parallel for private(this->a) private(this->a) private(T::a){{$}}
 // CHECK: #pragma omp parallel for private(this->a) private(this->a)
 // CHECK: #pragma omp parallel for private(this->a) private(this->a) private(this->S::a)
 
@@ -98,6 +102,29 @@ T tmain(T argc) {
   // CHECK-NEXT: foo();
   return T();
 }
+
+int increment () {
+  #pragma omp for
+  for (int i = 5 ; i != 0; ++i)
+    ;
+  // CHECK:      int increment() {
+  // CHECK-NEXT:   #pragma omp for
+  // CHECK-NEXT:     for (int i = 5; i != 0; ++i)
+  // CHECK-NEXT:       ;
+  return 0;
+}
+
+int decrement_nowait () {
+  #pragma omp for nowait
+  for (int j = 5 ; j != 0; --j)
+    ;
+  // CHECK:      int decrement_nowait() {
+  // CHECK-NEXT:   #pragma omp for nowait
+  // CHECK-NEXT:     for (int j = 5; j != 0; --j)
+  // CHECK-NEXT:       ;
+  return 0;
+}
+
 
 int main(int argc, char **argv) {
   int b = argc, c, d, e, f, h;

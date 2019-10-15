@@ -576,7 +576,7 @@ char f50(void) _Checked {
 
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} 'char' <LValueToRValue>
 // CHECK-NEXT: `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'char' lvalue
-// CHECK-NEXT:   |-BoundsBoundsCheckKind Null-terminated read
+// CHECK-NEXT:   |-Bounds Null-terminated read
 // CHECK-NEXT:   | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
 // CHECK-NEXT:   |   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Nt_array_ptr<char>':'_Nt_array_ptr<char>' <ArrayToPointerDecay>
 // CHECK-NEXT:   |   | `-BoundsValueExpr {{0x[0-9a-f]+}} 'char _Nt_checked[7]' lvalue _BoundTemporary  [[TEMP2:0x[0-9a-f]+]]

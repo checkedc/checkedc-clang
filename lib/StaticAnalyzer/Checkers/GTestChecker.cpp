@@ -13,7 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangSACheckers.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/AST/Expr.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
@@ -161,7 +161,7 @@ void GTestChecker::modelAssertionResultCopyConstructor(
     const CXXConstructorCall *Call, CheckerContext &C) const {
   assert(Call->getNumArgs() == 1);
 
-  // The first parameter of the the copy constructor must be the other
+  // The first parameter of the copy constructor must be the other
   // instance to initialize this instances fields from.
   SVal OtherVal = Call->getArgSVal(0);
   SVal ThisVal = Call->getCXXThisVal();

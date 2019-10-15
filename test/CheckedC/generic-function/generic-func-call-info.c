@@ -18,21 +18,21 @@ _For_any(T) _Ptr<T> ptrGenericTest(_Ptr<T> test, int num) {
 }
 
 // Check the LLVM IR types of the paramters are correct.
-// CHECK-IR: define i8* @ptrGenericTest(i8* %test, i32 %num) #0 {
+// CHECK-IR: define {{.*}}i8* @ptrGenericTest(i8* %test, i32 %num) #0 {
 
 _For_any(T) void arrayPtrGenericTest(_Array_ptr<T> test, int num) {
   return;
 }
 
 // Check the LLVM IR types of the paramters are correct.
-// CHECK-IR: define void @arrayPtrGenericTest(i8* %test, i32 %num) #0 {
+// CHECK-IR: define {{.*}}void @arrayPtrGenericTest(i8* %test, i32 %num) #0 {
 
 _For_any(T) int funcPtrGenericTest(_Ptr<T> a, _Ptr<T> b, int (*comparator)(_Ptr<T>, _Ptr<T>)) {
   return 0;
 }
 
 // Check the LLVM IR types of the paramters are correct.
-// CHECK-IR: define i32 @funcPtrGenericTest(i8* %a, i8* %b, i32 (i8*, i8*)* %comparator) #0 {
+// CHECK-IR: define {{.*}}i32 @funcPtrGenericTest(i8* %a, i8* %b, i32 (i8*, i8*)* %comparator) #0 {
 
 int compareFunction(_Ptr<int> a, _Ptr<int> b) {
   return 0;
@@ -47,7 +47,8 @@ void callPolymorphicTypes(void) {
   ptrGenericTest<int>(pt, t);
 
   // Check the type of DeclRefExpr is correctly instantiated.
-  // CHECK-AST: CallExpr {{0x[0-9a-f]+}} <line:{{[0-9]+}}:{{[0-9]+}}, col:{{[0-9]+}}> '_Ptr<int>'
+  // CHECK-AST: CHKCBindTemporaryExpr {{0x[0-9a-f]+}} <line:{{[0-9]+}}:{{[0-9]+}}, col:{{[0-9]+}}> '_Ptr<int>'
+  // CHECK-AST-NEXT: CallExpr {{0x[0-9a-f]+}} {{.*}} '_Ptr<int>'
   // CHECK-AST-NEXT: ImplicitCastExpr {{0x[0-9a-f]+}} <col:{{[0-9]+}}> '_Ptr<int> (*)(_Ptr<int>, int)' <FunctionToPointerDecay>
   // CHECK-AST-NEXT: -DeclRefExpr {{0x[0-9a-f]+}} <col:{{[0-9]+}}> '_Ptr<int> (_Ptr<int>, int)' instantiated Function {{0x[0-9a-f]+}}  'ptrGenericTest' '_For_any(1) _Ptr<T> (_Ptr<T>, int)'
   // CHECK-AST-NEXT: -BuiltinType {{0x[0-9a-f]+}} 'int'

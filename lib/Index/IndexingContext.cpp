@@ -8,6 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "IndexingContext.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Index/IndexDataConsumer.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclTemplate.h"
@@ -34,6 +35,10 @@ const LangOptions &IndexingContext::getLangOpts() const {
 
 bool IndexingContext::shouldIndexFunctionLocalSymbols() const {
   return IndexOpts.IndexFunctionLocals;
+}
+
+bool IndexingContext::shouldIndexImplicitInstantiation() const {
+  return IndexOpts.IndexImplicitInstantiation;
 }
 
 bool IndexingContext::handleDecl(const Decl *D,
@@ -70,26 +75,37 @@ bool IndexingContext::handleReference(const NamedDecl *D, SourceLocation Loc,
 
   if (isa<NonTypeTemplateParmDecl>(D) || isa<TemplateTypeParmDecl>(D))
     return true;
-    
+
   return handleDeclOccurrence(D, Loc, /*IsRef=*/true, Parent, Roles, Relations,
                               RefE, RefD, DC);
 }
 
+static void reportModuleReferences(const Module *Mod,
+                                   ArrayRef<SourceLocation> IdLocs,
+                                   const ImportDecl *ImportD,
+                                   IndexDataConsumer &DataConsumer) {
+  if (!Mod)
+    return;
+  reportModuleReferences(Mod->Parent, IdLocs.drop_back(), ImportD,
+                         DataConsumer);
+  DataConsumer.handleModuleOccurence(ImportD, Mod,
+                                     (SymbolRoleSet)SymbolRole::Reference,
+                                     IdLocs.back());
+}
+
 bool IndexingContext::importedModule(const ImportDecl *ImportD) {
+  if (ImportD->isInvalidDecl())
+    return true;
+
   SourceLocation Loc;
   auto IdLocs = ImportD->getIdentifierLocs();
   if (!IdLocs.empty())
-    Loc = IdLocs.front();
+    Loc = IdLocs.back();
   else
     Loc = ImportD->getLocation();
-  SourceManager &SM = Ctx->getSourceManager();
-  Loc = SM.getFileLoc(Loc);
-  if (Loc.isInvalid())
-    return true;
 
-  FileID FID;
-  unsigned Offset;
-  std::tie(FID, Offset) = SM.getDecomposedLoc(Loc);
+  SourceManager &SM = Ctx->getSourceManager();
+  FileID FID = SM.getFileID(SM.getFileLoc(Loc));
   if (FID.isInvalid())
     return true;
 
@@ -108,11 +124,17 @@ bool IndexingContext::importedModule(const ImportDecl *ImportD) {
     }
   }
 
+  const Module *Mod = ImportD->getImportedModule();
+  if (!ImportD->isImplicit() && Mod->Parent && !IdLocs.empty()) {
+    reportModuleReferences(Mod->Parent, IdLocs.drop_back(), ImportD,
+                           DataConsumer);
+  }
+
   SymbolRoleSet Roles = (unsigned)SymbolRole::Declaration;
   if (ImportD->isImplicit())
     Roles |= (unsigned)SymbolRole::Implicit;
 
-  return DataConsumer.handleModuleOccurence(ImportD, Roles, FID, Offset);
+  return DataConsumer.handleModuleOccurence(ImportD, Mod, Roles, Loc);
 }
 
 bool IndexingContext::isTemplateImplicitInstantiation(const Decl *D) {
@@ -295,6 +317,7 @@ static bool shouldReportOccurrenceForSystemDeclOnlyMode(
       case SymbolRole::Dynamic:
       case SymbolRole::AddressOf:
       case SymbolRole::Implicit:
+      case SymbolRole::Undefinition:
       case SymbolRole::RelationReceivedBy:
       case SymbolRole::RelationCalledBy:
       case SymbolRole::RelationContainedBy:
@@ -327,13 +350,7 @@ bool IndexingContext::handleDeclOccurrence(const Decl *D, SourceLocation Loc,
     return true;
 
   SourceManager &SM = Ctx->getSourceManager();
-  Loc = SM.getFileLoc(Loc);
-  if (Loc.isInvalid())
-    return true;
-
-  FileID FID;
-  unsigned Offset;
-  std::tie(FID, Offset) = SM.getDecomposedLoc(Loc);
+  FileID FID = SM.getFileID(SM.getFileLoc(Loc));
   if (FID.isInvalid())
     return true;
 
@@ -355,6 +372,9 @@ bool IndexingContext::handleDeclOccurrence(const Decl *D, SourceLocation Loc,
     }
   }
 
+  if (!OrigD)
+    OrigD = D;
+
   if (isTemplateImplicitInstantiation(D)) {
     if (!IsRef)
       return true;
@@ -363,9 +383,6 @@ bool IndexingContext::handleDeclOccurrence(const Decl *D, SourceLocation Loc,
       return true;
     assert(!isTemplateImplicitInstantiation(D));
   }
-
-  if (!OrigD)
-    OrigD = D;
 
   if (IsRef)
     Roles |= (unsigned)SymbolRole::Reference;
@@ -414,7 +431,27 @@ bool IndexingContext::handleDeclOccurrence(const Decl *D, SourceLocation Loc,
                                Rel.RelatedSymbol->getCanonicalDecl()));
   }
 
-  IndexDataConsumer::ASTNodeInfo Node{ OrigE, OrigD, Parent, ContainerDC };
-  return DataConsumer.handleDeclOccurence(D, Roles, FinalRelations, FID, Offset,
-                                          Node);
+  IndexDataConsumer::ASTNodeInfo Node{OrigE, OrigD, Parent, ContainerDC};
+  return DataConsumer.handleDeclOccurence(D, Roles, FinalRelations, Loc, Node);
+}
+
+void IndexingContext::handleMacroDefined(const IdentifierInfo &Name,
+                                         SourceLocation Loc,
+                                         const MacroInfo &MI) {
+  SymbolRoleSet Roles = (unsigned)SymbolRole::Definition;
+  DataConsumer.handleMacroOccurence(&Name, &MI, Roles, Loc);
+}
+
+void IndexingContext::handleMacroUndefined(const IdentifierInfo &Name,
+                                           SourceLocation Loc,
+                                           const MacroInfo &MI) {
+  SymbolRoleSet Roles = (unsigned)SymbolRole::Undefinition;
+  DataConsumer.handleMacroOccurence(&Name, &MI, Roles, Loc);
+}
+
+void IndexingContext::handleMacroReference(const IdentifierInfo &Name,
+                                           SourceLocation Loc,
+                                           const MacroInfo &MI) {
+  SymbolRoleSet Roles = (unsigned)SymbolRole::Reference;
+  DataConsumer.handleMacroOccurence(&Name, &MI, Roles, Loc);
 }

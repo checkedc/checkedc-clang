@@ -9,7 +9,7 @@
 //
 /// \file
 ///
-/// \brief Defines a utility class for use of clang-format in libclang
+/// Defines a utility class for use of clang-format in libclang
 //
 //===----------------------------------------------------------------------===//
 
@@ -29,19 +29,17 @@
 namespace clang {
 namespace index {
 
-/// \brief A small class to be used by libclang clients to format
+/// A small class to be used by libclang clients to format
 /// a declaration string in memory. This object is instantiated once
 /// and used each time a formatting is needed.
 class SimpleFormatContext {
 public:
   SimpleFormatContext(LangOptions Options)
       : DiagOpts(new DiagnosticOptions()),
-        Diagnostics(new DiagnosticsEngine(new DiagnosticIDs,
-                                          DiagOpts.get())),
-        InMemoryFileSystem(new vfs::InMemoryFileSystem),
+        Diagnostics(new DiagnosticsEngine(new DiagnosticIDs, DiagOpts.get())),
+        InMemoryFileSystem(new llvm::vfs::InMemoryFileSystem),
         Files(FileSystemOptions(), InMemoryFileSystem),
-        Sources(*Diagnostics, Files),
-        Rewrite(Sources, Options) {
+        Sources(*Diagnostics, Files), Rewrite(Sources, Options) {
     Diagnostics->setClient(new IgnoringDiagConsumer, true);
   }
 
@@ -63,7 +61,7 @@ public:
 
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts;
   IntrusiveRefCntPtr<DiagnosticsEngine> Diagnostics;
-  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> InMemoryFileSystem;
+  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem;
   FileManager Files;
   SourceManager Sources;
   Rewriter Rewrite;

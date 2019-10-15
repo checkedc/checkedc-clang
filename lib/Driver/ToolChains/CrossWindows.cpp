@@ -20,6 +20,7 @@ using namespace clang::driver;
 using namespace clang::driver::toolchains;
 
 using llvm::opt::ArgList;
+using llvm::opt::ArgStringList;
 
 void tools::CrossWindows::Assembler::ConstructJob(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
@@ -127,7 +128,8 @@ void tools::CrossWindows::Linker::ConstructJob(
     }
 
     CmdArgs.push_back("-shared");
-    CmdArgs.push_back("-Bdynamic");
+    CmdArgs.push_back(Args.hasArg(options::OPT_static) ? "-Bstatic"
+                                                       : "-Bdynamic");
 
     CmdArgs.push_back("--enable-auto-image-base");
 

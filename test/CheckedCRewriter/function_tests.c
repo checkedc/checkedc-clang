@@ -2,8 +2,8 @@
 //
 // Checks properties of functions.
 //
-// RUN: checked-c-convert %s -- | FileCheck -match-full-lines %s
-// RUN: checked-c-convert %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
+// RUN: checked-c-convert -handle-varargs %s -- | FileCheck -match-full-lines %s
+// RUN: checked-c-convert -handle-varargs %s -- | %clang_cc1 -verify -fcheckedc-extension -x c -
 // expected-no-diagnostics
 
 // Have something so that we always get some output.
@@ -166,7 +166,7 @@ int *ok_mut_clone(int *a, int b) {
   *a = b;
   return a;
 }
-//CHECK: int* ok_mut_clone(int *a, int b) {
+//CHECK: int *ok_mut_clone(int *a : itype(_Ptr<int>), int b) : itype(_Ptr<int>) {
 
 ok_mut_t get_mut_2(void) {
   return &ok_mut_clone;

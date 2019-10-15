@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangSACheckers.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
@@ -112,7 +112,7 @@ PointerArithChecker::getPointedRegion(const MemRegion *Region,
 }
 
 /// Checks whether a region is the part of an array.
-/// In case there is a dericed to base cast above the array element, the
+/// In case there is a derived to base cast above the array element, the
 /// Polymorphic output value is set to true. AKind output value is set to the
 /// allocation kind of the inspected region.
 const MemRegion *PointerArithChecker::getArrayRegion(const MemRegion *Region,
@@ -154,8 +154,7 @@ void PointerArithChecker::reportPointerArithMisuse(const Expr *E,
     return;
 
   ProgramStateRef State = C.getState();
-  const MemRegion *Region =
-      State->getSVal(E, C.getLocationContext()).getAsRegion();
+  const MemRegion *Region = C.getSVal(E).getAsRegion();
   if (!Region)
     return;
   if (PointedNeeded)
@@ -227,7 +226,7 @@ void PointerArithChecker::checkPostStmt(const CallExpr *CE,
   if (AllocFunctions.count(FunI) == 0)
     return;
 
-  SVal SV = State->getSVal(CE, C.getLocationContext());
+  SVal SV = C.getSVal(CE);
   const MemRegion *Region = SV.getAsRegion();
   if (!Region)
     return;
@@ -248,7 +247,7 @@ void PointerArithChecker::checkPostStmt(const CXXNewExpr *NE,
   AllocKind Kind = getKindOfNewOp(NE, FD);
 
   ProgramStateRef State = C.getState();
-  SVal AllocedVal = State->getSVal(NE, C.getLocationContext());
+  SVal AllocedVal = C.getSVal(NE);
   const MemRegion *Region = AllocedVal.getAsRegion();
   if (!Region)
     return;
@@ -263,7 +262,7 @@ void PointerArithChecker::checkPostStmt(const CastExpr *CE,
 
   const Expr *CastedExpr = CE->getSubExpr();
   ProgramStateRef State = C.getState();
-  SVal CastedVal = State->getSVal(CastedExpr, C.getLocationContext());
+  SVal CastedVal = C.getSVal(CastedExpr);
 
   const MemRegion *Region = CastedVal.getAsRegion();
   if (!Region)
@@ -281,7 +280,7 @@ void PointerArithChecker::checkPreStmt(const CastExpr *CE,
 
   const Expr *CastedExpr = CE->getSubExpr();
   ProgramStateRef State = C.getState();
-  SVal CastedVal = State->getSVal(CastedExpr, C.getLocationContext());
+  SVal CastedVal = C.getSVal(CastedExpr);
 
   const MemRegion *Region = CastedVal.getAsRegion();
   if (!Region)
@@ -304,11 +303,14 @@ void PointerArithChecker::checkPreStmt(const UnaryOperator *UOp,
 
 void PointerArithChecker::checkPreStmt(const ArraySubscriptExpr *SubsExpr,
                                        CheckerContext &C) const {
-  ProgramStateRef State = C.getState();
-  SVal Idx = State->getSVal(SubsExpr->getIdx(), C.getLocationContext());
+  SVal Idx = C.getSVal(SubsExpr->getIdx());
 
   // Indexing with 0 is OK.
   if (Idx.isZeroConstant())
+    return;
+
+  // Indexing vector-type expressions is also OK.
+  if (SubsExpr->getBase()->getType()->isVectorType())
     return;
   reportPointerArithMisuse(SubsExpr->getBase(), C);
 }
@@ -324,14 +326,14 @@ void PointerArithChecker::checkPreStmt(const BinaryOperator *BOp,
   ProgramStateRef State = C.getState();
 
   if (Rhs->getType()->isIntegerType() && Lhs->getType()->isPointerType()) {
-    SVal RHSVal = State->getSVal(Rhs, C.getLocationContext());
+    SVal RHSVal = C.getSVal(Rhs);
     if (State->isNull(RHSVal).isConstrainedTrue())
       return;
     reportPointerArithMisuse(Lhs, C, !BOp->isAdditiveOp());
   }
   // The int += ptr; case is not valid C++.
   if (Lhs->getType()->isIntegerType() && Rhs->getType()->isPointerType()) {
-    SVal LHSVal = State->getSVal(Lhs, C.getLocationContext());
+    SVal LHSVal = C.getSVal(Lhs);
     if (State->isNull(LHSVal).isConstrainedTrue())
       return;
     reportPointerArithMisuse(Rhs, C);

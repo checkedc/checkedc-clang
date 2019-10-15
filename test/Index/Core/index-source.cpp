@@ -1,4 +1,5 @@
 // RUN: c-index-test core -print-source-symbols -- %s -std=c++1z -target x86_64-apple-macosx10.7 | FileCheck %s
+// RUN: c-index-test core -print-source-symbols -include-locals -- %s -std=c++1z -target x86_64-apple-macosx10.7 | FileCheck -check-prefix=LOCAL %s
 
 // CHECK: [[@LINE+1]]:7 | class/C++ | Cls | [[Cls_USR:.*]] | <no-cgname> | Def | rel: 0
 class Cls { public:
@@ -201,8 +202,8 @@ class PseudoOverridesInSpecializations<double, int> {
 
   template<typename U>
   class InnerClass;
-// CHECK: [[@LINE-1]]:9 | class(Gen)/C++ | InnerClass | c:@S@PseudoOverridesInSpecializations>#d#I@ST>1#T@InnerClass | <no-cgname> | Ref,RelCont,RelSpecialization | rel: 2
-// CHECK-NEXT: RelCont
+// CHECK: [[@LINE-1]]:9 | class(Gen)/C++ | InnerClass | c:@S@PseudoOverridesInSpecializations>#d#I@ST>1#T@InnerClass | <no-cgname> | Decl,RelChild,RelSpecialization | rel: 2
+// CHECK-NEXT: RelChild
 // CHECK-NEXT: RelSpecialization | InnerClass | c:@ST>2#T#T@PseudoOverridesInSpecializations@ST>1#T@InnerClass
 };
 
@@ -274,7 +275,7 @@ void ContainsSpecializedMemberFunction::memberSpecialization<int>() {
 
 template<typename T>
 class SpecializationDecl;
-// CHECK: [[@LINE-1]]:7 | class(Gen)/C++ | SpecializationDecl | c:@ST>1#T@SpecializationDecl | <no-cgname> | Ref | rel: 0
+// CHECK: [[@LINE-1]]:7 | class(Gen)/C++ | SpecializationDecl | c:@ST>1#T@SpecializationDecl | <no-cgname> | Decl | rel: 0
 
 template<typename T>
 class SpecializationDecl { };
@@ -493,6 +494,7 @@ void localStructuredBindingAndRef() {
 // CHECK: [[@LINE-1]]:69 | variable/C++ | structuredBinding2 | c:@N@cpp17structuredBinding@structuredBinding2 | <no-cgname> | Ref,Read,RelCont | rel: 1
 // CHECK-NEXT: RelCont | localStructuredBindingAndRef | c:@N@cpp17structuredBinding@F@localStructuredBindingAndRef#
 // CHECK-NOT: localBinding
+// LOCAL: [[@LINE-4]]:9 | variable(local)/C++ | localBinding1 | c:index-source.cpp@25382@N@cpp17structuredBinding@F@localStructuredBindingAndRef#@localBinding1
 }
 
 }
@@ -525,3 +527,36 @@ struct rd33122110::Outer::Nested<int>;
 // CHECK-NEXT: RelCont | Nested | c:@N@rd33122110@S@Outer@S@Nested>#I
 // CHECK: [[@LINE-3]]:20 | struct/C++ | Outer | c:@N@rd33122110@S@Outer | <no-cgname> | Ref,RelCont | rel: 1
 // CHECK-NEXT: RelCont | Nested | c:@N@rd33122110@S@Outer@S@Nested>#I
+
+namespace index_offsetof {
+
+struct Struct {
+  int field;
+};
+
+struct Struct2 {
+  Struct array[4][2];
+};
+
+void foo() {
+  __builtin_offsetof(Struct, field);
+// CHECK: [[@LINE-1]]:30 | field/C | field | c:@N@index_offsetof@S@Struct@FI@field | <no-cgname> | Ref,RelCont | rel: 1
+// CHECK-NEXT: RelCont | foo | c:@N@index_offsetof@F@foo#
+  __builtin_offsetof(Struct2, array[1][0].field);
+// CHECK: [[@LINE-1]]:31 | field/C | array | c:@N@index_offsetof@S@Struct2@FI@array | <no-cgname> | Ref,RelCont | rel: 1
+// CHECK-NEXT: RelCont | foo | c:@N@index_offsetof@F@foo#
+// CHECK: [[@LINE-3]]:43 | field/C | field | c:@N@index_offsetof@S@Struct@FI@field | <no-cgname> | Ref,RelCont | rel: 1
+// CHECK-NEXT: RelCont | foo | c:@N@index_offsetof@F@foo#
+}
+
+#define OFFSET_OF_(X, Y) __builtin_offsetof(X, Y)
+
+class SubclassOffsetof : public Struct {
+  void foo() {
+    OFFSET_OF_(SubclassOffsetof, field);
+// CHECK: [[@LINE-1]]:34 | field/C | field | c:@N@index_offsetof@S@Struct@FI@field | <no-cgname> | Ref,RelCont | rel: 1
+// CHECK-NEXT: RelCont | foo | c:@N@index_offsetof@S@SubclassOffsetof@F@foo#
+  }
+};
+
+}

@@ -1,4 +1,4 @@
-//===------ CheckedCInterop - Support Methods for Checked C Interop  -----===//
+//===------ CheckedCInterop - Support Methods for Checked C Interop  ------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -20,8 +20,7 @@ using namespace sema;
 /// \brief Create the corresponding Checked C interop type for Ty, given a
 /// a bounds expression Bounds.  Returns the empty type if no interop
 /// type exists.
-QualType Sema::SynthesizeInteropType(QualType Ty,
-                                         bool isParam) {
+QualType Sema::SynthesizeInteropType(QualType Ty, bool isParam) {
   // Nothing to do.
   if (Ty.isNull() || Ty->isCheckedArrayType() ||
     Ty->isCheckedPointerType())
@@ -103,15 +102,16 @@ public:
 
     const FunctionProtoType *T = TL.getTypePtr();
 
-  // Assert on trailing returning type for now, instead of handling them.
-  // That's a C++ feature that we cannot test right now.
+    // Assert on trailing returning type for now, instead of handling them.
+    // That's a C++ feature that we cannot test right now.
     if (T->hasTrailingReturn()) {
       assert(false && "Unexpected trailing return type for Checked C");
       return QualType();
     }
 
     // Update the parameters and return types to be their interop types. Also
-    // update the extend prototype inofmration to remove interop type annotations.
+    // update the extend prototype inofmration to remove interop type
+    // annotations.
     SmallVector<QualType, 4> CurrentParamTypes;
     SmallVector<BoundsAnnotations, 4> CurrentParamAnnots;
     TypeLoc ResultLoc = TL.getReturnLoc();
@@ -140,8 +140,9 @@ public:
           llvm::outs() << "\nresult type = ";
           ResultLoc.getType().dump(llvm::outs());
 #endif
-          // Construct new annotations that do not have the bounds-safe interface type.
-          if (Bounds) {
+	  // Construct new annotations that do not have the bounds-safe
+	  // interface type.
+	  if (Bounds) {
             EPI.ReturnAnnots = BoundsAnnotations(Bounds, nullptr);
           } else
             EPI.ReturnAnnots = BoundsAnnotations();
@@ -150,11 +151,12 @@ public:
       }
     }
 
-    // Update the parameter types and annotations. The EPI parameter array is still used
-    // by the original type, so a create and update a copy in CurrentParamAnnots.
+    // Update the parameter types and annotations. The EPI parameter array is
+    // still used by the original type, so a create and update a copy in
+    // CurrentParamAnnots.
     if (EPI.ParamAnnots) {
-      // Track whether there are parameter annotations left after removing interop
-      // annotations.
+      // Track whether there are parameter annotations left after removing
+      // interop annotations.
       bool hasParamAnnots = false;
       for (unsigned int i = 0; i < CurrentParamTypes.size(); i++) {
         BoundsAnnotations IndividualAnnots =  EPI.ParamAnnots[i];
@@ -213,9 +215,9 @@ public:
     SmallVector<QualType, 4> ParamTypes;
     SmallVector<ParmVarDecl*, 4> ParamDecls;
     Sema::ExtParameterInfoBuilder ExtParamInfos;
-    // ParamAnnotsStorage is pre-allocated storage that is used when updating EPI
-    // in TransformExtendedParameterInfo.  Its lifetime must last until the end of
-    // the lifetime of EPI.
+    // ParamAnnotsStorage is pre-allocated storage that is used when updating
+    // EPI in TransformExtendedParameterInfo.  Its lifetime must last until the
+    // end of the lifetime of EPI.
     SmallVector<BoundsAnnotations, 4> ParamAnnotsStorage;
 
     QualType ResultType = getDerived().TransformType(TLB, ResultLoc);
@@ -240,7 +242,8 @@ public:
     QualType Result = TL.getType();
     if (getDerived().AlwaysRebuild() || ResultType != T->getReturnType() ||
         T->getParamTypes() != llvm::makeArrayRef(ParamTypes) || EPIChanged) {
-      Result = getDerived().RebuildFunctionProtoType(ResultType, ParamTypes, EPI);
+      Result =
+        getDerived().RebuildFunctionProtoType(ResultType, ParamTypes, EPI);
       if (Result.isNull()) {
 #if TRACE_INTEROP
         llvm::outs() << "Rebuild function prototype failed";
@@ -265,8 +268,8 @@ public:
   }
 
   QualType TransformTypedefType(TypeLocBuilder &TLB, TypedefTypeLoc TL) {
-    // Preserve typedef information, unless the underlying type has a function type
-    // embedded in it with a bounds-safe interface.
+    // Preserve typedef information, unless the underlying type has a function
+    // type embedded in it with a bounds-safe interface.
     const TypedefType *T = TL.getTypePtr();
     // See if the underlying type changes.
     QualType UnderlyingType = T->desugar();
@@ -282,14 +285,14 @@ public:
     // and use the underlying transformed type.
 
     // Synthesize some dummy type source information.
-    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(TransformedType,
-                                                getDerived().getBaseLocation());
+    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(
+                           TransformedType, getDerived().getBaseLocation());
     // Use that to get dummy location information.
     TypeLoc NewTL = DI->getTypeLoc();
     TLB.reserve(NewTL.getFullDataSize());
     // Re-run the type transformation with the dummy location information so
-    // that the type location class pushed on to the TypeBuilder is the matching
-    // class for the underlying type.
+    // that the type location class pushed on to the TypeBuilder is the
+    // matching class for the underlying type.
     QualType Result = getDerived().TransformType(TLB, NewTL);
     assert(Result == TransformedType);
     return Result;

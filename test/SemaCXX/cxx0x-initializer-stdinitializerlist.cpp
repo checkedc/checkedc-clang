@@ -148,18 +148,19 @@ void auto_deduction() {
 }
 
 void dangle() {
-  new auto{1, 2, 3}; // expected-error {{cannot use list-initialization}}
+  new auto{1, 2, 3}; // expected-error {{new expression for type 'auto' contains multiple constructor arguments}}
   new std::initializer_list<int>{1, 2, 3}; // expected-warning {{at the end of the full-expression}}
 }
 
 struct haslist1 {
-  std::initializer_list<int> il = {1, 2, 3}; // expected-warning{{at the end of the constructor}}
-  std::initializer_list<int> jl{1, 2, 3}; // expected-warning{{at the end of the constructor}}
+  std::initializer_list<int> il // expected-note {{declared here}}
+    = {1, 2, 3}; // ok, unused
+  std::initializer_list<int> jl{1, 2, 3}; // expected-note {{default member init}}
   haslist1();
 };
 
-haslist1::haslist1()
-: il{1, 2, 3} // expected-warning{{at the end of the constructor}}
+haslist1::haslist1() // expected-error {{backing array for 'std::initializer_list' member 'jl' is a temporary object}}
+: il{1, 2, 3} // expected-error {{backing array for 'std::initializer_list' member 'il' is a temporary object}}
 {}
 
 namespace PR12119 {

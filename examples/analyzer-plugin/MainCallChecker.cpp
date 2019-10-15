@@ -1,6 +1,6 @@
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
-#include "clang/StaticAnalyzer/Core/CheckerRegistry.h"
+#include "clang/StaticAnalyzer/Frontend/CheckerRegistry.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
 
 using namespace clang;
@@ -16,10 +16,8 @@ public:
 } // end anonymous namespace
 
 void MainCallChecker::checkPreStmt(const CallExpr *CE, CheckerContext &C) const {
-  const ProgramStateRef state = C.getState();
-  const LocationContext *LC = C.getLocationContext();
   const Expr *Callee = CE->getCallee();
-  const FunctionDecl *FD = state->getSVal(Callee, LC).getAsFunctionDecl();
+  const FunctionDecl *FD = C.getSVal(Callee).getAsFunctionDecl();
 
   if (!FD)
     return;
@@ -47,7 +45,9 @@ void MainCallChecker::checkPreStmt(const CallExpr *CE, CheckerContext &C) const 
 // Register plugin!
 extern "C"
 void clang_registerCheckers (CheckerRegistry &registry) {
-  registry.addChecker<MainCallChecker>("example.MainCallChecker", "Disallows calls to functions called main");
+  registry.addChecker<MainCallChecker>(
+      "example.MainCallChecker", "Disallows calls to functions called main",
+      "");
 }
 
 extern "C"

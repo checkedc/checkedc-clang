@@ -4,22 +4,8 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-// This class is used to collect information for the program being analyzed.
-// The class allocates constraint variables and maps program locations 
-// (specified by PersistentSourceLocs) to constraint variables.
-//
-// The allocation of constraint variables is a little nuanced. For a given
-// variable, there might be multiple constraint variables. For example, some
-// declaration of the form:
-//
-//  int **p = ... ;
-//
-// would be given two constraint variables, visualized like this:
-//
-//  int * q_(i+1) * q_i p = ... ; 
-//
-// The constraint variable at the "highest" or outer-most level of the type 
-// is the lowest numbered constraint variable for a given declaration.
+// This class represents all the information about a source file
+// collected by the converter.
 //===----------------------------------------------------------------------===//
 #ifndef _PROGRAM_INFO_H
 #define _PROGRAM_INFO_H
@@ -29,252 +15,19 @@
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Tooling/Tooling.h"
 
-#include "Constraints.h"
-#include "utils.h"
+#include "ConstraintVariables.h"
+#include "Utils.h"
 #include "PersistentSourceLoc.h"
 
 class ProgramInfo;
 
-// Holds integers representing constraint variables, with semantics as 
-// defined in the comment at the top of the file.
-typedef std::set<uint32_t> CVars;
-
-// Base class for ConstraintVariables. A ConstraintVariable can either be a 
-// PointerVariableConstraint or a FunctionVariableConstraint. The difference
-// is that FunctionVariableConstraints have constraints on the return value
-// and on each parameter.
-class ConstraintVariable {
-public:
-  enum ConstraintVariableKind {
-    PointerVariable,
-    FunctionVariable
-  };
-
-  ConstraintVariableKind getKind() const { return Kind; }
-
-private:
-  ConstraintVariableKind Kind;
-protected:
-  std::string BaseType;
-  // Underlying name of the C variable this ConstraintVariable represents.
-  std::string Name;
-  // Set of constraint variables that have been constrained due to a 
-  // bounds-safe interface. They are remembered as being constrained
-  // so that later on we do not introduce a spurious constraint 
-  // making those variables WILD. 
-  std::set<uint32_t> ConstrainedVars;
-
-public:
-  ConstraintVariable(ConstraintVariableKind K, std::string T, std::string N) : 
-    Kind(K),BaseType(T),Name(N) {}
-
-  // Create a "for-rewriting" representation of this ConstraintVariable.
-  // The 'emitName' parameter is true when the generated string should include
-  // the name of the variable, false for just the type.
-  virtual std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true) = 0;
-
-  // Debug printing of the constraint variable.
-  virtual void print(llvm::raw_ostream &O) const = 0;
-  virtual void dump() const = 0;
-
-  // Constrain everything 'within' this ConstraintVariable to be equal to C.
-  // Set checkSkip to true if you would like constrainTo to consider the 
-  // ConstrainedVars when applying constraints. This should be set when
-  // applying constraints due to external symbols, during linking. 
-  virtual void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false) = 0;
-
-  // Returns true if any of the constraint variables 'within' this instance
-  // have a binding in E other than top. E should be the EnvironmentMap that
-  // results from running unification on the set of constraints and the 
-  // environment.
-  virtual bool anyChanges(Constraints::EnvironmentMap &E) = 0;
-
-  std::string getTy() { return BaseType; }
-  std::string getName() { return Name; }
-
-  virtual ~ConstraintVariable() {};
-
-  // Constraint atoms may be either constants or variables. The constants are
-  // trivial to compare, but the variables can only really be compared under
-  // a specific valuation. That valuation is stored in the ProgramInfo data 
-  // structure, so these functions (isLt, isEq) compare two ConstraintVariables
-  // with a specific assignment to the variables in mind. 
-  virtual bool isLt(const ConstraintVariable &other, ProgramInfo &I) const = 0;
-  virtual bool isEq(const ConstraintVariable &other, ProgramInfo &I) const = 0;
-  // Sometimes, constraint variables can be produced that are empty. This 
-  // tests for the existence of those constraint variables. 
-  virtual bool isEmpty(void) const = 0;
-
-  // A helper function for isLt and isEq where the last parameter is a lambda 
-  // for the specific comparison operation to perform. 
-  virtual bool liftedOnCVars(const ConstraintVariable &O, 
-      ProgramInfo &Info,
-      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const = 0;
- 
-};
-
-class PointerVariableConstraint;
-class FunctionVariableConstraint;
-
-// Represents an individual constraint on a pointer variable. 
-// This could contain a reference to a FunctionVariableConstraint
-// in the case of a function pointer declaration.
-class PointerVariableConstraint : public ConstraintVariable {
-public:
-	enum Qualification {
-    ConstQualification,
-    StaticQualification
-  };
-private:
-  CVars vars;
-  FunctionVariableConstraint *FV;
-  std::map<uint32_t, Qualification> QualMap;
-  enum OriginalArrType {
-    O_Pointer,
-    O_SizedArray,
-    O_UnSizedArray
-  };
-  // Map from constraint variable to original type and size. 
-  // If the original variable U was:
-  //  * A pointer, then U -> (a,b) , a = O_Pointer, b has no meaning.
-  //  * A sized array, then U -> (a,b) , a = O_SizedArray, b is static size.
-  //  * An unsized array, then U -(a,b) , a = O_UnSizedArray, b has no meaning.
-  std::map<uint32_t,std::pair<OriginalArrType,uint64_t>> arrSizes;
-  // If for all U in arrSizes, any U -> (a,b) where a = O_SizedArray or 
-  // O_UnSizedArray, arrPresent is true.
-  bool arrPresent;
-  // Is there an itype associated with this constraint? If there is, how was it
-  // originally stored in the program? 
-  std::string itypeStr;
-public:
-  // Constructor for when we know a CVars and a type string.
-  PointerVariableConstraint(CVars V, std::string T, std::string Name, 
-    FunctionVariableConstraint *F, bool isArr, bool isItype, std::string is) : 
-    ConstraintVariable(PointerVariable, T, Name)
-    ,vars(V),FV(F),arrPresent(isArr), itypeStr(is) {}
-
-  bool getArrPresent() { return arrPresent; }
-
-  // Is an itype present for this constraint? If yes, what is the text of that itype?
-  bool getItypePresent() { return itypeStr.size() > 0; }
-  std::string getItype() { return itypeStr; }
-
-  // Constructor for when we have a Decl. K is the current free
-  // constraint variable index. We don't need to explicitly pass
-  // the name because it's available in 'D'.
-  PointerVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
-    Constraints &CS, const clang::ASTContext &C);
-
-  // Constructor for when we only have a Type. Needs a string name
-  // N for the name of the variable that this represents.
-  PointerVariableConstraint(const clang::QualType &QT, uint32_t &K,
-	  clang::DeclaratorDecl *D, std::string N, Constraints &CS, const clang::ASTContext &C);
-
-  const CVars &getCvars() const { return vars; }
-
-  static bool classof(const ConstraintVariable *S) {
-    return S->getKind() == PointerVariable;
-  }
-
-  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true);
-
-  FunctionVariableConstraint *getFV() { return FV; }
-
-  void print(llvm::raw_ostream &O) const ;
-  void dump() const { print(llvm::errs()); }
-  void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
-  bool anyChanges(Constraints::EnvironmentMap &E);
-
-  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
-  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
-  bool isEmpty(void) const { return vars.size() == 0; }
-
-  bool liftedOnCVars(const ConstraintVariable &O, 
-      ProgramInfo &Info,
-      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
-
-  virtual ~PointerVariableConstraint() {};
-};
-
-typedef PointerVariableConstraint PVConstraint;
-
-// Constraints on a function type. Also contains a 'name' parameter for 
-// when a re-write of a function pointer is needed.
-class FunctionVariableConstraint : public ConstraintVariable {
-private:
-  // N constraints on the return value of the function.
-  std::set<ConstraintVariable*> returnVars;
-  // A vector of K sets of N constraints on the parameter values, for 
-  // K parameters accepted by the function.
-  std::vector<std::set<ConstraintVariable*>> paramVars;
-  // Name of the function or function variable. Used by mkString.
-  std::string name;
-  bool hasproto;
-  bool hasbody;
-public:
-  FunctionVariableConstraint() : 
-    ConstraintVariable(FunctionVariable, "", ""),name(""),hasproto(false),hasbody(false) { }
-
-  FunctionVariableConstraint(clang::DeclaratorDecl *D, uint32_t &K,
-    Constraints &CS, const clang::ASTContext &C);
-  FunctionVariableConstraint(const clang::Type *Ty, uint32_t &K,
-    clang::DeclaratorDecl *D, std::string N, Constraints &CS, const clang::ASTContext &C);
-
-  std::set<ConstraintVariable*> &
-  getReturnVars() { return returnVars; }
-
-  size_t numParams() { return paramVars.size(); }
-  std::string getName() { return name; }
-
-  bool hasProtoType() { return hasproto; }
-  bool hasBody() { return hasbody; }
-
-  static bool classof(const ConstraintVariable *S) {
-    return S->getKind() == FunctionVariable;
-  }
-
-  std::set<ConstraintVariable*> &
-  getParamVar(unsigned i) {
-    assert(i < paramVars.size());
-    return paramVars.at(i);
-  }
-
-  std::string mkString(Constraints::EnvironmentMap &E, bool emitName=true);
-  void print(llvm::raw_ostream &O) const;
-  void dump() const { print(llvm::errs()); }
-  void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
-  bool anyChanges(Constraints::EnvironmentMap &E);
-
-  bool isLt(const ConstraintVariable &other, ProgramInfo &P) const;
-  bool isEq(const ConstraintVariable &other, ProgramInfo &P) const;
-  // An FVConstraint is empty if every constraint associated is empty. 
-  bool isEmpty(void) const { 
-    
-    if (returnVars.size() > 0)
-      return false;
-    
-    for (const auto &u : paramVars) 
-      for (const auto &v : u)
-        if (!v->isEmpty())
-          return false;
-
-    return true;    
-  }
-
-  bool liftedOnCVars(const ConstraintVariable &O, 
-      ProgramInfo &Info,
-      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
- 
-  virtual ~FunctionVariableConstraint() {};
-};
-
-typedef FunctionVariableConstraint FVConstraint;
 
 class ProgramInfo {
 public:
-  ProgramInfo() : freeKey(0), persisted(true) {}
+  ProgramInfo();
   void print(llvm::raw_ostream &O) const;
   void dump() const { print(llvm::errs()); }
+  void dump_json(llvm::raw_ostream &O) const;
   void dump_stats(std::set<std::string> &F) { print_stats(F, llvm::errs()); }
   void print_stats(std::set<std::string> &F, llvm::raw_ostream &O);
 
@@ -345,14 +98,66 @@ public:
   std::set<ConstraintVariable*>
     getVariable(clang::Expr *E, clang::ASTContext *C, bool inFunctionContext = false);
   std::set<ConstraintVariable*>
+    getVariableOnDemand(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
+  std::set<ConstraintVariable*>
     getVariable(clang::Decl *D, clang::ASTContext *C, bool inFunctionContext = false);
+  // get constraint variable for the provided function or its parameter
+  std::set<ConstraintVariable*>
+    getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex=-1);
 
-  VariableMap &getVarMap() { return Variables;  }
+  VariableMap &getVarMap();
+
+  std::set<Decl *> &getIdentifiedArrayVars() {
+#ifdef ARRDEBUG
+    for (auto currD: IdentifiedArrayDecls)
+      currD->dump();
+#endif
+    return IdentifiedArrayDecls;
+  }
+
+  // add the size expression used in allocation routine
+  // through which the variable was initialized.
+  bool addAllocationBasedSizeExpr(Decl *targetVar, Expr *sizeExpr);
+
+  bool isIdentifiedArrayVar(Decl *toCheckVar);
+
+  bool insertPotentialArrayVar(Decl *var);
+
+  void printArrayVarsAndSizes(llvm::raw_ostream &O);
+
+  // get on demand function declaration constraint. This is needed for functions
+  // that do not have corresponding declaration.
+  // for all functions that do not have corresponding declaration,
+  // we create an on demand FunctionVariableConstraint.
+  std::set<ConstraintVariable*>&
+  getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C);
+
+  // get a unique key for a given function declaration node.
+  std::string getUniqueFuncKey(FunctionDecl *funcDecl, ASTContext *C);
+
+  // get a unique string representing the declaration object.
+  std::string getUniqueDeclKey(Decl *decl, ASTContext *C);
+
+  std::map<std::string, std::set<ConstraintVariable*>>& getOnDemandFuncDeclConstraintMap();
+
+  // handle assigning constraints based on function subtyping.
+  bool handleFunctionSubtyping();
 
 private:
+  // check if the given set has the corresponding constraint variable type
+  template <typename T>
+  bool hasConstraintType(std::set<ConstraintVariable*> &S);
   // Function to check if an external symbol is okay to leave 
   // constrained. 
   bool isExternOkay(std::string ext);
+
+  // Map that contains function name and corresponding
+  // set of function variable constraints.
+  // We only create on demand variables for non-declared functions.
+  // we store the constraints based on function name
+  // as the information needs to be stored across multiple
+  // instances of the program AST
+  std::map<std::string, std::set<ConstraintVariable*>> OnDemandFuncDeclConstraint;
 
   std::list<clang::RecordDecl*> Records;
   // Next available integer to assign to a variable.
@@ -379,6 +184,12 @@ private:
   // seen before.
   std::map<std::string, bool> ExternFunctions;
   std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
+
+  // these are the array declarations identified by the converter.
+  std::set<Decl *> IdentifiedArrayDecls;
+  // this is the map of variables that are potential arrays
+  // and their tentative size expression.
+  std::map<Decl *, std::set<Expr*>> AllocationBasedSizeExprs;
 };
 
 #endif

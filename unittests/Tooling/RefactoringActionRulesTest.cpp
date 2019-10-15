@@ -97,7 +97,7 @@ TEST_F(RefactoringActionRulesTest, MyFirstRefactoringRule) {
   auto Rule =
       createRefactoringActionRule<ReplaceAWithB>(SelectionRequirement());
 
-  // When the requirements are satisifed, the rule's function must be invoked.
+  // When the requirements are satisfied, the rule's function must be invoked.
   {
     RefactoringRuleContext RefContext(Context.Sources);
     SourceLocation Cursor =
@@ -117,8 +117,8 @@ TEST_F(RefactoringActionRulesTest, MyFirstRefactoringRule) {
                  "Key:             'input.cpp:30'\n"
                  "FilePath:        input.cpp\n"
                  "Error:           ''\n"
-                 "InsertedHeaders: \n"
-                 "RemovedHeaders:  \n"
+                 "InsertedHeaders: []\n"
+                 "RemovedHeaders:  []\n"
                  "Replacements:    \n" // Extra whitespace here!
                  "  - FilePath:        input.cpp\n"
                  "    Offset:          30\n"

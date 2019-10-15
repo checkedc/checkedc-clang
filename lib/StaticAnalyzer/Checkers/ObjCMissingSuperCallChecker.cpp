@@ -13,7 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangSACheckers.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprObjC.h"
@@ -81,7 +81,7 @@ private:
 
 }
 
-/// \brief Determine whether the given class has a superclass that we want
+/// Determine whether the given class has a superclass that we want
 /// to check. The name of the found superclass is stored in SuperclassName.
 ///
 /// \param D The declaration to check for superclasses.

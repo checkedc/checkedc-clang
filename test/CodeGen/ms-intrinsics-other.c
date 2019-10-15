@@ -149,13 +149,50 @@ LONG test_InterlockedDecrement(LONG volatile *Addend) {
 // CHECK: ret i32 [[RESULT]]
 // CHECK: }
 
-unsigned char test_interlockedbittestandset(volatile LONG *ptr, LONG bit) {
-  return _interlockedbittestandset(ptr, bit);
+unsigned short test__lzcnt16(unsigned short x) {
+  return __lzcnt16(x);
 }
-// CHECK-LABEL: define{{.*}} i8 @test_interlockedbittestandset
-// CHECK: [[MASKBIT:%[0-9]+]] = shl i32 1, %bit
-// CHECK: [[OLD:%[0-9]+]] = atomicrmw or i32* %ptr, i32 [[MASKBIT]] seq_cst
-// CHECK: [[SHIFT:%[0-9]+]] = lshr i32 [[OLD]], %bit
-// CHECK: [[TRUNC:%[0-9]+]] = trunc i32 [[SHIFT]] to i8
-// CHECK: [[AND:%[0-9]+]] = and i8 [[TRUNC]], 1
-// CHECK: ret i8 [[AND]]
+// CHECK: i16 @test__lzcnt16
+// CHECK:  [[RESULT:%[0-9]+]] = tail call i16 @llvm.ctlz.i16(i16 %x, i1 false)
+// CHECK: ret i16 [[RESULT]]
+// CHECK: }
+
+unsigned int test__lzcnt(unsigned int x) {
+  return __lzcnt(x);
+}
+// CHECK: i32 @test__lzcnt
+// CHECK:  [[RESULT:%[0-9]+]] = tail call i32 @llvm.ctlz.i32(i32 %x, i1 false)
+// CHECK: ret i32 [[RESULT]]
+// CHECK: }
+
+unsigned __int64 test__lzcnt64(unsigned __int64 x) {
+  return __lzcnt64(x);
+}
+// CHECK: i64 @test__lzcnt64
+// CHECK:  [[RESULT:%[0-9]+]] = tail call i64 @llvm.ctlz.i64(i64 %x, i1 false)
+// CHECK: ret i64 [[RESULT]]
+// CHECK: }
+
+unsigned short test__popcnt16(unsigned short x) {
+  return __popcnt16(x);
+}
+// CHECK: i16 @test__popcnt16
+// CHECK:  [[RESULT:%[0-9]+]] = tail call i16 @llvm.ctpop.i16(i16 %x)
+// CHECK: ret i16 [[RESULT]]
+// CHECK: }
+
+unsigned int test__popcnt(unsigned int x) {
+  return __popcnt(x);
+}
+// CHECK: i32 @test__popcnt
+// CHECK:  [[RESULT:%[0-9]+]] = tail call i32 @llvm.ctpop.i32(i32 %x)
+// CHECK: ret i32 [[RESULT]]
+// CHECK: }
+
+unsigned __int64 test__popcnt64(unsigned __int64 x) {
+  return __popcnt64(x);
+}
+// CHECK: i64 @test__popcnt64
+// CHECK:  [[RESULT:%[0-9]+]] = tail call i64 @llvm.ctpop.i64(i64 %x)
+// CHECK: ret i64 [[RESULT]]
+// CHECK: }

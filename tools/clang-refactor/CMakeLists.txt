@@ -9,15 +9,15 @@ add_clang_tool(clang-refactor
   )
 
 target_link_libraries(clang-refactor
+  PRIVATE
   clangAST
   clangBasic
   clangFormat
   clangFrontend
   clangLex
   clangRewrite
+  clangSerialization
   clangTooling
   clangToolingCore
   clangToolingRefactor
   )
-
-install(TARGETS clang-refactor RUNTIME DESTINATION bin)

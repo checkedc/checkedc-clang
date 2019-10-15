@@ -1,4 +1,4 @@
-// RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.Malloc,debug.ExprInspection %s -verify
+// RUN: %clang_analyze_cc1 -analyzer-checker=core,unix.Malloc,debug.ExprInspection %s -analyzer-config eagerly-assume=false -verify
 
 extern void clang_analyzer_eval(bool);
 extern "C" char *strdup(const char *s);
@@ -79,8 +79,7 @@ namespace PR17596 {
     IntOrString vv;
     vv.i = 5;
     uu = vv;
-    // FIXME: Should be true.
-    clang_analyzer_eval(uu.i == 5); // expected-warning{{UNKNOWN}}
+    clang_analyzer_eval(uu.i == 5); // expected-warning{{TRUE}}
   }
 
   void testInvalidation() {
@@ -91,9 +90,8 @@ namespace PR17596 {
     char str[] = "abc";
     vv.s = str;
 
-    // FIXME: This is a leak of uu.s.
     uu = vv;
-  }
+  } // expected-warning{{leak}}
 
   void testIndirectInvalidation() {
     IntOrString uu;
@@ -106,3 +104,20 @@ namespace PR17596 {
     clang_analyzer_eval(uu.s[0] == 'a'); // expected-warning{{UNKNOWN}}
   }
 }
+
+namespace assume_union_contents {
+union U {
+  int x;
+};
+
+U get();
+
+void test() {
+  U u = get();
+  int y = 0;
+  if (u.x)
+    y = 1;
+  if (u.x)
+    y = 1 / y; // no-warning
+}
+} // end namespace assume_union_contents

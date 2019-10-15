@@ -7,6 +7,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
   target_link_libraries(PartitionRefinementTests
+  PRIVATE
   clangAnalysis
   clangAST
   clangBasic

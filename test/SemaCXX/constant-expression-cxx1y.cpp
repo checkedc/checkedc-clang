@@ -356,6 +356,14 @@ namespace compound_assign {
     if (a != 13) return false;
     a &= 14;
     if (a != 12) return false;
+    a += -1.2;
+    if (a != 10) return false;
+    a -= 3.1;
+    if (a != 6) return false;
+    a *= 2.2;
+    if (a != 13) return false;
+    if (&(a /= 1.5) != &a) return false;
+    if (a != 8) return false;
     return true;
   }
   static_assert(test_int(), "");
@@ -373,6 +381,30 @@ namespace compound_assign {
     return true;
   }
   static_assert(test_float(), "");
+
+  constexpr bool test_bool() {
+    bool b = false;
+    b |= 2;
+    if (b != true) return false;
+    b <<= 1;
+    if (b != true) return false;
+    b *= 2;
+    if (b != true) return false;
+    b -= 1;
+    if (b != false) return false;
+    b -= 1;
+    if (b != true) return false;
+    b += -1;
+    if (b != false) return false;
+    b += 1;
+    if (b != true) return false;
+    b += 1;
+    if (b != true) return false;
+    b ^= b;
+    if (b != false) return false;
+    return true;
+  }
+  static_assert(test_bool(), "");
 
   constexpr bool test_ptr() {
     int arr[123] = {};
@@ -420,7 +452,7 @@ namespace compound_assign {
   static_assert(test_bounds("foo", 0)[0] == 'f', "");
   static_assert(test_bounds("foo", 3)[0] == 0, "");
   static_assert(test_bounds("foo", 4)[-3] == 'o', "");
-  static_assert(test_bounds("foo" + 4, -4)[0] == 'f', "");
+  static_assert(test_bounds(&"foo"[4], -4)[0] == 'f', "");
   static_assert(test_bounds("foo", 5) != 0, ""); // expected-error {{constant}} expected-note {{call}}
   static_assert(test_bounds("foo", -1) != 0, ""); // expected-error {{constant}} expected-note {{call}}
   static_assert(test_bounds("foo", 1000) != 0, ""); // expected-error {{constant}} expected-note {{call}}
@@ -852,7 +884,6 @@ namespace Lifetime {
   static_assert(h(2) == 0, ""); // expected-error {{constant expression}} expected-note {{in call}}
   static_assert(h(3) == 0, ""); // expected-error {{constant expression}} expected-note {{in call}}
 
-  // FIXME: This function should be treated as non-constant.
   constexpr void lifetime_versus_loops() {
     int *p = 0;
     for (int i = 0; i != 2; ++i) {
@@ -862,10 +893,10 @@ namespace Lifetime {
       if (i)
         // This modifies the 'n' from the previous iteration of the loop outside
         // its lifetime.
-        ++*q;
+        ++*q; // expected-note {{increment of object outside its lifetime}}
     }
   }
-  static_assert((lifetime_versus_loops(), true), "");
+  static_assert((lifetime_versus_loops(), true), ""); // expected-error {{constant expression}} expected-note {{in call}}
 }
 
 namespace Bitfields {
@@ -880,7 +911,7 @@ namespace Bitfields {
     --a.n;
     --a.u;
     a.n = -a.n * 3;
-    return a.b == false && a.n == 3 && a.u == 31;
+    return a.b == true && a.n == 3 && a.u == 31;
   }
   static_assert(test(), "");
 }
@@ -1021,3 +1052,86 @@ constexpr bool evalNested() {
 }
 static_assert(evalNested(), "");
 } // namespace PR19741
+
+namespace Mutable {
+  struct A { mutable int n; }; // expected-note 2{{here}}
+  constexpr int k = A{123}.n; // ok
+  static_assert(k == 123, "");
+
+  struct Q { A &&a; int b = a.n; };
+  constexpr Q q = { A{456} }; // expected-note {{temporary}}
+  static_assert(q.b == 456, "");
+  static_assert(q.a.n == 456, ""); // expected-error {{constant expression}} expected-note {{outside the expression that created the temporary}}
+
+  constexpr A a = {123};
+  constexpr int m = a.n; // expected-error {{constant expression}} expected-note {{mutable}}
+
+  constexpr Q r = { static_cast<A&&>(const_cast<A&>(a)) }; // expected-error {{constant expression}} expected-note@-8 {{mutable}}
+
+  struct B {
+    mutable int n; // expected-note {{here}}
+    int m;
+    constexpr B() : n(1), m(n) {} // ok
+  };
+  constexpr B b;
+  constexpr int p = b.n; // expected-error {{constant expression}} expected-note {{mutable}}
+}
+
+namespace IndirectFields {
+
+// Reference indirect field.
+struct A {
+  struct {
+    union {
+      int x = x = 3; // expected-note {{outside its lifetime}}
+    };
+  };
+  constexpr A() {}
+};
+static_assert(A().x == 3, ""); // expected-error{{not an integral constant expression}} expected-note{{in call to 'A()'}}
+
+// Reference another indirect field, with different 'this'.
+struct B {
+  struct {
+    union {
+      int x = 3;
+    };
+    int y = x;
+  };
+  constexpr B() {}
+};
+static_assert(B().y == 3, "");
+
+// Nested evaluation of indirect field initializers.
+struct C {
+  union {
+    int x = 1;
+  };
+};
+struct D {
+  struct {
+    C c;
+    int y = c.x + 1;
+  };
+};
+static_assert(D().y == 2, "");
+
+// Explicit 'this'.
+struct E {
+  int n = 0;
+  struct {
+    void *x = this;
+  };
+  void *y = this;
+};
+constexpr E e1 = E();
+static_assert(e1.x != e1.y, "");
+constexpr E e2 = E{0};
+static_assert(e2.x != e2.y, "");
+
+} // namespace IndirectFields
+
+constexpr bool indirect_builtin_constant_p(const char *__s) {
+  return __builtin_constant_p(*__s);
+}
+constexpr bool n = indirect_builtin_constant_p("a");

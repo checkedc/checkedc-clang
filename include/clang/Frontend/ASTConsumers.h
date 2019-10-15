@@ -34,9 +34,10 @@ class TargetOptions;
 std::unique_ptr<ASTConsumer> CreateASTPrinter(std::unique_ptr<raw_ostream> OS,
                                               StringRef FilterString);
 
-// AST dumper: dumps the raw AST in human-readable form to stderr; this is
-// intended for debugging.
-std::unique_ptr<ASTConsumer> CreateASTDumper(StringRef FilterString,
+// AST dumper: dumps the raw AST in human-readable form to the given output
+// stream, or stdout if OS is nullptr.
+std::unique_ptr<ASTConsumer> CreateASTDumper(std::unique_ptr<raw_ostream> OS,
+                                             StringRef FilterString,
                                              bool DumpDecls, bool Deserialize,
                                              bool DumpLookups);
 
@@ -48,10 +49,6 @@ std::unique_ptr<ASTConsumer> CreateASTDeclNodeLister();
 // the AST and displays it with the graph viewer "dotty".  Also outputs
 // function declarations to stderr.
 std::unique_ptr<ASTConsumer> CreateASTViewer();
-
-// DeclContext printer: prints out the DeclContext tree in human-readable form
-// to stderr; this is intended for debugging.
-std::unique_ptr<ASTConsumer> CreateDeclContextPrinter();
 
 } // end clang namespace
 

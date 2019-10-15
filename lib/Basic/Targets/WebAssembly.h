@@ -28,11 +28,17 @@ class LLVM_LIBRARY_VISIBILITY WebAssemblyTargetInfo : public TargetInfo {
   enum SIMDEnum {
     NoSIMD,
     SIMD128,
-  } SIMDLevel;
+    UnimplementedSIMD128,
+  } SIMDLevel = NoSIMD;
+
+  bool HasNontrappingFPToInt;
+  bool HasSignExt;
+  bool HasExceptionHandling;
 
 public:
   explicit WebAssemblyTargetInfo(const llvm::Triple &T, const TargetOptions &)
-      : TargetInfo(T), SIMDLevel(NoSIMD) {
+      : TargetInfo(T), SIMDLevel(NoSIMD), HasNontrappingFPToInt(false),
+        HasSignExt(false), HasExceptionHandling(false) {
     NoAsmVariants = true;
     SuitableAlign = 128;
     LargeArrayMinWidth = 128;
@@ -41,9 +47,12 @@ public:
     SigAtomicType = SignedLong;
     LongDoubleWidth = LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::IEEEquad();
-    SizeType = UnsignedInt;
-    PtrDiffType = SignedInt;
-    IntPtrType = SignedInt;
+    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
+    // size_t being unsigned long for both wasm32 and wasm64 makes mangled names
+    // more consistent between the two.
+    SizeType = UnsignedLong;
+    PtrDiffType = SignedLong;
+    IntPtrType = SignedLong;
   }
 
 protected:
@@ -51,21 +60,19 @@ protected:
                         MacroBuilder &Builder) const override;
 
 private:
+  static void setSIMDLevel(llvm::StringMap<bool> &Features, SIMDEnum Level);
+
   bool
   initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
                  StringRef CPU,
-                 const std::vector<std::string> &FeaturesVec) const override {
-    if (CPU == "bleeding-edge")
-      Features["simd128"] = true;
-    return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
-  }
-
+                 const std::vector<std::string> &FeaturesVec) const override;
   bool hasFeature(StringRef Feature) const final;
 
   bool handleTargetFeatures(std::vector<std::string> &Features,
                             DiagnosticsEngine &Diags) final;
 
   bool isValidCPUName(StringRef Name) const final;
+  void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const final;
 
   bool setCPU(const std::string &Name) final { return isValidCPUName(Name); }
 
@@ -111,7 +118,6 @@ public:
   explicit WebAssembly32TargetInfo(const llvm::Triple &T,
                                    const TargetOptions &Opts)
       : WebAssemblyTargetInfo(T, Opts) {
-    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
     resetDataLayout("e-m:e-p:32:32-i64:64-n32:64-S128");
   }
 
@@ -128,7 +134,6 @@ public:
       : WebAssemblyTargetInfo(T, Opts) {
     LongAlign = LongWidth = 64;
     PointerAlign = PointerWidth = 64;
-    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
     SizeType = UnsignedLong;
     PtrDiffType = SignedLong;
     IntPtrType = SignedLong;

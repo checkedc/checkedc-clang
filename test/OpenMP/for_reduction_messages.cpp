@@ -2,6 +2,10 @@
 // RUN: %clang_cc1 -verify -fopenmp -std=c++98 -ferror-limit 150 -o - %s
 // RUN: %clang_cc1 -verify -fopenmp -std=c++11 -ferror-limit 150 -o - %s
 
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 150 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++98 -ferror-limit 150 -o - %s
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -ferror-limit 150 -o - %s
+
 void foo() {
 }
 
@@ -142,11 +146,11 @@ T tmain(T argc) {
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 3 {{const-qualified list item cannot be reduction}} expected-error 2 {{'operator+' is a private member of 'S2'}}
+#pragma omp for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 3 {{const-qualified variable cannot be reduction}} expected-error 2 {{'operator+' is a private member of 'S2'}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 4 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 3 {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 4 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 3 {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
@@ -154,15 +158,15 @@ T tmain(T argc) {
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(+ : ba) // expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(+ : ba) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(* : ca) // expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(* : ca) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(- : da) // expected-error {{const-qualified list item cannot be reduction}} expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(- : da) // expected-error {{const-qualified variable cannot be reduction}} expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
@@ -174,7 +178,7 @@ T tmain(T argc) {
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(&& : S2::S2sc) // expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(&& : S2::S2sc) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
@@ -198,7 +202,7 @@ T tmain(T argc) {
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(+ : r) // expected-error 2 {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(+ : r) // expected-error 2 {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel shared(i)
@@ -210,12 +214,12 @@ T tmain(T argc) {
 #pragma omp for reduction(+ : fl) // expected-error 2 {{reduction variable must be shared}}
   for (int i = 0; i < 10; ++i)
     foo();
-#pragma omp parallel private(qa)  // expected-note 2 {{defined as private}}
-#pragma omp for reduction(+ : qa[1], get()[0]) // expected-error 2 {{reduction variable must be shared}} expected-error {{expected variable name as a base of the array subscript}}
+#pragma omp parallel private(qa)
+#pragma omp for reduction(+ : qa[1], get()[0]) // expected-error {{expected variable name as a base of the array subscript}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel shared(qa)
-#pragma omp for reduction(+ : qa[1], qa[0]) // expected-error 2 {{variable can appear only once in OpenMP 'reduction' clause}} expected-note 2 {{previously referenced here}}
+#pragma omp for reduction(+ : qa[1], qa[0])
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel reduction(* : fl) // expected-note 2 {{defined as reduction}}
@@ -299,11 +303,11 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified list item cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}}
+#pragma omp for reduction(+ : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{const-qualified variable cannot be reduction}} expected-error {{'operator+' is a private member of 'S2'}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(min : a, b, c, d, f) // expected-error {{a reduction list item with incomplete type 'S1'}} expected-error 2 {{arguments of OpenMP clause 'reduction' for 'min' or 'max' must be of arithmetic type}} expected-error 2 {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
@@ -311,15 +315,15 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(+ : ba) // expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(+ : ba) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(* : ca) // expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(* : ca) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(- : da) // expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(- : da) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
@@ -331,7 +335,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(&& : S2::S2sc) // expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(&& : S2::S2sc) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
@@ -363,7 +367,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel
-#pragma omp for reduction(+ : r) // expected-error {{const-qualified list item cannot be reduction}}
+#pragma omp for reduction(+ : r) // expected-error {{const-qualified variable cannot be reduction}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel shared(i)
@@ -375,12 +379,12 @@ int main(int argc, char **argv) {
 #pragma omp for reduction(+ : fl) // expected-error {{reduction variable must be shared}}
   for (int i = 0; i < 10; ++i)
     foo();
-#pragma omp parallel private(argv)  // expected-note {{defined as private}}
-#pragma omp for reduction(+ : argv[1], get()[0]) // expected-error {{reduction variable must be shared}} expected-error {{expected variable name as a base of the array subscript}}
+#pragma omp parallel private(argv)
+#pragma omp for reduction(+ : argv[1], get()[0]) // expected-error {{expected variable name as a base of the array subscript}} expected-error {{invalid operands to binary expression ('char *' and 'char *')}}
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel shared(qa)
-#pragma omp for reduction(+ : qa[1], qa[0]) // expected-error {{variable can appear only once in OpenMP 'reduction' clause}} expected-note {{previously referenced here}}
+#pragma omp for reduction(+ : qa[1], qa[0])
   for (int i = 0; i < 10; ++i)
     foo();
 #pragma omp parallel reduction(* : fl) // expected-note {{defined as reduction}}

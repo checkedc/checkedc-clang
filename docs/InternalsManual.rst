@@ -19,7 +19,7 @@ LLVM Support Library
 ====================
 
 The LLVM ``libSupport`` library provides many underlying libraries and
-`data-structures <http://llvm.org/docs/ProgrammersManual.html>`_, including
+`data-structures <https://llvm.org/docs/ProgrammersManual.html>`_, including
 command line option processing, various containers and a system abstraction
 layer, which is used for file system access.
 
@@ -54,7 +54,7 @@ number of source ranges that related to the diagnostic.
 
 In this section, we'll be giving examples produced by the Clang command line
 driver, but diagnostics can be :ref:`rendered in many different ways
-<DiagnosticClient>` depending on how the ``DiagnosticClient`` interface is
+<DiagnosticConsumer>` depending on how the ``DiagnosticConsumer`` interface is
 implemented.  A representative example of a diagnostic is:
 
 .. code-block:: text
@@ -188,7 +188,7 @@ Formatting a Diagnostic Argument
 Arguments to diagnostics are fully typed internally, and come from a couple
 different classes: integers, types, names, and random strings.  Depending on
 the class of the argument, it can be optionally formatted in different ways.
-This gives the ``DiagnosticClient`` information about what the argument means
+This gives the ``DiagnosticConsumer`` information about what the argument means
 without requiring it to use a specific presentation (consider this MVC for
 Clang :).
 
@@ -319,6 +319,32 @@ they should be discussed before they are added.  If you are creating a lot of
 repetitive diagnostics and/or have an idea for a useful formatter, please bring
 it up on the cfe-dev mailing list.
 
+**"sub" format**
+
+Example:
+  Given the following record definition of type ``TextSubstitution``:
+
+  .. code-block:: text
+
+    def select_ovl_candidate : TextSubstitution<
+      "%select{function|constructor}0%select{| template| %2}1">;
+
+  which can be used as
+
+  .. code-block:: text
+
+    def note_ovl_candidate : Note<
+      "candidate %sub{select_ovl_candidate}3,2,1 not viable">;
+
+  and will act as if it was written
+  ``"candidate %select{function|constructor}3%select{| template| %1}2 not viable"``.
+Description:
+  This format specifier is used to avoid repeating strings verbatim in multiple
+  diagnostics. The argument to ``%sub`` must name a ``TextSubstitution`` tblgen
+  record. The substitution must specify all arguments used by the substitution,
+  and the modifier indexes in the substitution are re-numbered accordingly. The
+  substituted text must itself be a valid format string before substitution.
+
 .. _internals-producing-diag:
 
 Producing the Diagnostic
@@ -387,7 +413,7 @@ exactly where those parentheses would be inserted into the source code.  The
 fix-it hints themselves describe what changes to make to the source code in an
 abstract manner, which the text diagnostic printer renders as a line of
 "insertions" below the caret line.  :ref:`Other diagnostic clients
-<DiagnosticClient>` might choose to render the code differently (e.g., as
+<DiagnosticConsumer>` might choose to render the code differently (e.g., as
 markup inline) or even give the user the ability to automatically fix the
 problem.
 
@@ -420,26 +446,26 @@ Fix-it hints can be created with one of three constructors:
     Specifies that the code in the given source ``Range`` should be removed,
     and replaced with the given ``Code`` string.
 
-.. _DiagnosticClient:
+.. _DiagnosticConsumer:
 
-The ``DiagnosticClient`` Interface
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The ``DiagnosticConsumer`` Interface
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Once code generates a diagnostic with all of the arguments and the rest of the
 relevant information, Clang needs to know what to do with it.  As previously
 mentioned, the diagnostic machinery goes through some filtering to map a
 severity onto a diagnostic level, then (assuming the diagnostic is not mapped
-to "``Ignore``") it invokes an object that implements the ``DiagnosticClient``
+to "``Ignore``") it invokes an object that implements the ``DiagnosticConsumer``
 interface with the information.
 
 It is possible to implement this interface in many different ways.  For
-example, the normal Clang ``DiagnosticClient`` (named
+example, the normal Clang ``DiagnosticConsumer`` (named
 ``TextDiagnosticPrinter``) turns the arguments into strings (according to the
 various formatting rules), prints out the file/line/column information and the
 string, then prints out the line of code, the source ranges, and the caret.
 However, this behavior isn't required.
 
-Another implementation of the ``DiagnosticClient`` interface is the
+Another implementation of the ``DiagnosticConsumer`` interface is the
 ``TextDiagnosticBuffer`` class, which is used when Clang is in ``-verify``
 mode.  Instead of formatting and printing out the diagnostics, this
 implementation just captures and remembers the diagnostics as they fly by.
@@ -533,13 +559,9 @@ The clang Driver and library are documented :doc:`here <DriverInternals>`.
 Precompiled Headers
 ===================
 
-Clang supports two implementations of precompiled headers.  The default
-implementation, precompiled headers (:doc:`PCH <PCHInternals>`) uses a
+Clang supports precompiled headers (:doc:`PCH <PCHInternals>`), which  uses a
 serialized representation of Clang's internal data structures, encoded with the
-`LLVM bitstream format <http://llvm.org/docs/BitCodeFormat.html>`_.
-Pretokenized headers (:doc:`PTH <PTHInternals>`), on the other hand, contain a
-serialized representation of the tokens encountered when preprocessing a header
-(and anything that header includes).
+`LLVM bitstream format <https://llvm.org/docs/BitCodeFormat.html>`_.
 
 The Frontend Library
 ====================
@@ -1638,15 +1660,15 @@ and then the semantic handling of the attribute.
 Parsing of the attribute is determined by the various syntactic forms attributes
 can take, such as GNU, C++11, and Microsoft style attributes, as well as other
 information provided by the table definition of the attribute. Ultimately, the
-parsed representation of an attribute object is an ``AttributeList`` object.
+parsed representation of an attribute object is an ``ParsedAttr`` object.
 These parsed attributes chain together as a list of parsed attributes attached
 to a declarator or declaration specifier. The parsing of attributes is handled
 automatically by Clang, except for attributes spelled as keywords. When
 implementing a keyword attribute, the parsing of the keyword and creation of the
-``AttributeList`` object must be done manually.
+``ParsedAttr`` object must be done manually.
 
 Eventually, ``Sema::ProcessDeclAttributeList()`` is called with a ``Decl`` and
-an ``AttributeList``, at which point the parsed attribute can be transformed
+an ``ParsedAttr``, at which point the parsed attribute can be transformed
 into a semantic attribute. The process by which a parsed attribute is converted
 into a semantic attribute depends on the attribute definition and semantic
 requirements of the attribute. The end result, however, is that the semantic
@@ -1664,7 +1686,7 @@ semantic checking for some attributes, etc.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 The first step to adding a new attribute to Clang is to add its definition to
 `include/clang/Basic/Attr.td
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Basic/Attr.td?view=markup>`_.
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Basic/Attr.td?view=markup>`_.
 This tablegen definition must derive from the ``Attr`` (tablegen, not
 semantic) type, or one of its derivatives. Most attributes will derive from the
 ``InheritableAttr`` type, which specifies that the attribute can be inherited by
@@ -1725,11 +1747,11 @@ subjects in the list, but a custom diagnostic parameter can also be specified in
 the ``SubjectList``. The diagnostics generated for subject list violations are
 either ``diag::warn_attribute_wrong_decl_type`` or
 ``diag::err_attribute_wrong_decl_type``, and the parameter enumeration is found
-in `include/clang/Sema/AttributeList.h
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Sema/AttributeList.h?view=markup>`_
+in `include/clang/Sema/ParsedAttr.h
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Sema/ParsedAttr.h?view=markup>`_
 If a previously unused Decl node is added to the ``SubjectList``, the logic used
 to automatically determine the diagnostic parameter in `utils/TableGen/ClangAttrEmitter.cpp
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/utils/TableGen/ClangAttrEmitter.cpp?view=markup>`_
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/utils/TableGen/ClangAttrEmitter.cpp?view=markup>`_
 may need to be updated.
 
 By default, all subjects in the SubjectList must either be a Decl node defined
@@ -1751,7 +1773,7 @@ All attributes must have some form of documentation associated with them.
 Documentation is table generated on the public web server by a server-side
 process that runs daily. Generally, the documentation for an attribute is a
 stand-alone definition in `include/clang/Basic/AttrDocs.td 
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Basic/AttdDocs.td?view=markup>`_
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Basic/AttdDocs.td?view=markup>`_
 that is named after the attribute being documented.
 
 If the attribute is not for public consumption, or is an implicitly-created
@@ -1802,7 +1824,7 @@ All arguments have a name and a flag that specifies whether the argument is
 optional. The associated C++ type of the argument is determined by the argument
 definition type. If the existing argument types are insufficient, new types can
 be created, but it requires modifying `utils/TableGen/ClangAttrEmitter.cpp
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/utils/TableGen/ClangAttrEmitter.cpp?view=markup>`_
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/utils/TableGen/ClangAttrEmitter.cpp?view=markup>`_
 to properly support the type.
 
 Other Properties
@@ -1814,7 +1836,7 @@ document, however a few deserve mention.
 If the parsed form of the attribute is more complex, or differs from the
 semantic form, the ``HasCustomParsing`` bit can be set to ``1`` for the class,
 and the parsing code in `Parser::ParseGNUAttributeArgs()
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/lib/Parse/ParseDecl.cpp?view=markup>`_
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/lib/Parse/ParseDecl.cpp?view=markup>`_
 can be updated for the special case. Note that this only applies to arguments
 with a GNU spelling -- attributes with a __declspec spelling currently ignore
 this flag and are handled by ``Parser::ParseMicrosoftDeclSpec``.
@@ -1823,7 +1845,7 @@ Note that setting this member to 1 will opt out of common attribute semantic
 handling, requiring extra implementation efforts to ensure the attribute
 appertains to the appropriate subject, etc.
 
-If the attribute should not be propagated from from a template declaration to an
+If the attribute should not be propagated from a template declaration to an
 instantiation of the template, set the ``Clone`` member to 0. By default, all
 attributes will be cloned to template instantiations.
 
@@ -1861,14 +1883,9 @@ requirements. To support this feature, an attribute inheriting from
 should be the same value between all arguments sharing a spelling, and
 corresponds to the parsed attribute's ``Kind`` enumerator. This allows
 attributes to share a parsed attribute kind, but have distinct semantic
-attribute classes. For instance, ``AttributeList::AT_Interrupt`` is the shared
+attribute classes. For instance, ``ParsedAttr`` is the shared
 parsed attribute kind, but ARMInterruptAttr and MSP430InterruptAttr are the
 semantic attributes generated.
-
-By default, when declarations are merging attributes, an attribute will not be
-duplicated. However, if an attribute can be duplicated during this merging
-stage, set ``DuplicatesAllowedWhileMerging`` to ``1``, and the attribute will
-be merged.
 
 By default, attribute arguments are parsed in an evaluated context. If the
 arguments for an attribute should be parsed in an unevaluated context (akin to
@@ -1882,7 +1899,7 @@ semantic attribute class object, with ``public`` access.
 Boilerplate
 ^^^^^^^^^^^
 All semantic processing of declaration attributes happens in `lib/Sema/SemaDeclAttr.cpp
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/lib/Sema/SemaDeclAttr.cpp?view=markup>`_,
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/lib/Sema/SemaDeclAttr.cpp?view=markup>`_,
 and generally starts in the ``ProcessDeclAttribute()`` function. If the
 attribute is a "simple" attribute -- meaning that it requires no custom semantic
 processing aside from what is automatically  provided, add a call to
@@ -1898,11 +1915,11 @@ correct minimum number of arguments are passed, etc.
 
 If the attribute adds additional warnings, define a ``DiagGroup`` in
 `include/clang/Basic/DiagnosticGroups.td
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Basic/DiagnosticGroups.td?view=markup>`_
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Basic/DiagnosticGroups.td?view=markup>`_
 named after the attribute's ``Spelling`` with "_"s replaced by "-"s. If there
 is only a single diagnostic, it is permissible to use ``InGroup<DiagGroup<"your-attribute">>``
 directly in `DiagnosticSemaKinds.td
-<http://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Basic/DiagnosticSemaKinds.td?view=markup>`_
+<https://llvm.org/viewvc/llvm-project/cfe/trunk/include/clang/Basic/DiagnosticSemaKinds.td?view=markup>`_
 
 All semantic diagnostics generated for your attribute, including automatically-
 generated ones (such as subjects and argument counts), should have a
@@ -2054,7 +2071,7 @@ are similar.
      exception-handling directly.
    * Testing is extremely important in IR generation.  Use ``clang -cc1
      -emit-llvm`` and `FileCheck
-     <http://llvm.org/docs/CommandGuide/FileCheck.html>`_ to verify that you're
+     <https://llvm.org/docs/CommandGuide/FileCheck.html>`_ to verify that you're
      generating the right IR.
 
 #. Teach template instantiation how to cope with your AST node, which requires

@@ -38,6 +38,9 @@ private:
   /// Whether the constant-emission failed.
   bool Failed = false;
 
+  /// Whether we're in a constant context.
+  bool InConstantContext = false;
+
   /// The AST address space where this (non-abstract) initializer is going.
   /// Used for generating appropriate placeholders.
   LangAS DestAddressSpace;
@@ -50,7 +53,7 @@ public:
     : CGM(CGM), CGF(CGF) {}
 
   /// Initialize this emission in the context of the given function.
-  /// Use this if the expression might contain contextaul references like
+  /// Use this if the expression might contain contextual references like
   /// block addresses or PredefinedExprs.
   ConstantEmitter(CodeGenFunction &CGF)
     : CGM(CGF.CGM), CGF(&CGF) {}

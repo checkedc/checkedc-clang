@@ -131,6 +131,15 @@
 #endif
 #pragma OPENCL EXTENSION cl_khr_d3d10_sharing: enable
 
+#if (__OPENCL_C_VERSION__ >= 110)
+#ifndef cles_khr_int64
+#error "Missing cles_khr_int64 define"
+#endif
+#else
+// expected-warning@+2{{unsupported OpenCL extension 'cles_khr_int64' - ignoring}}
+#endif
+#pragma OPENCL EXTENSION cles_khr_int64: enable
+
 #if (__OPENCL_C_VERSION__ >= 120)
 #ifndef cl_khr_context_abort
 #error "Missing cl_context_abort define"
@@ -272,4 +281,43 @@
 #error "Missing cl_amd_media_ops2 define"
 #endif
 #pragma OPENCL EXTENSION cl_amd_media_ops2: enable
+
+#if (__OPENCL_C_VERSION__ >= 120)
+#ifndef cl_khr_depth_images
+#error "Missing cl_khr_depth_images define"
+#endif
+#else
+#ifdef cl_khr_depth_images
+#error "Incorrect cl_khr_depth_images define"
+#endif
+// expected-warning@+2{{unsupported OpenCL extension 'cl_khr_depth_images' - ignoring}}
+#endif
+#pragma OPENCL EXTENSION cl_khr_depth_images: enable
+
+#if (__OPENCL_C_VERSION__ >= 120)
+#ifndef cl_intel_subgroups
+#error "Missing cl_intel_subgroups define"
+#endif
+#else
+// expected-warning@+2{{unsupported OpenCL extension 'cl_intel_subgroups' - ignoring}}
+#endif
+#pragma OPENCL EXTENSION cl_intel_subgroups : enable
+
+#if (__OPENCL_C_VERSION__ >= 120)
+#ifndef cl_intel_subgroups_short
+#error "Missing cl_intel_subgroups_short define"
+#endif
+#else
+// expected-warning@+2{{unsupported OpenCL extension 'cl_intel_subgroups_short' - ignoring}}
+#endif
+#pragma OPENCL EXTENSION cl_intel_subgroups_short : enable
+
+#if (__OPENCL_C_VERSION__ >= 120)
+#ifndef cl_intel_device_side_avc_motion_estimation
+#error "Missing cl_intel_device_side_avc_motion_estimation define"
+#endif
+#else
+// expected-warning@+2{{unsupported OpenCL extension 'cl_intel_device_side_avc_motion_estimation' - ignoring}}
+#endif
+#pragma OPENCL EXTENSION cl_intel_device_side_avc_motion_estimation : enable
 

@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangSACheckers.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
@@ -62,9 +62,7 @@ private:
 REGISTER_SET_WITH_PROGRAMSTATE(CalledSuperDealloc, SymbolRef)
 
 namespace {
-class SuperDeallocBRVisitor final
-    : public BugReporterVisitorImpl<SuperDeallocBRVisitor> {
-
+class SuperDeallocBRVisitor final : public BugReporterVisitor {
   SymbolRef ReceiverSymbol;
   bool Satisfied;
 
@@ -74,7 +72,6 @@ public:
         Satisfied(false) {}
 
   std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *Succ,
-                                                 const ExplodedNode *Pred,
                                                  BugReporterContext &BRC,
                                                  BugReport &BR) override;
 
@@ -107,8 +104,6 @@ void ObjCSuperDeallocChecker::checkPreObjCMessage(const ObjCMethodCall &M,
   }
 
   reportUseAfterDealloc(ReceiverSymbol, Desc, M.getOriginExpr(), C);
-
-  return;
 }
 
 void ObjCSuperDeallocChecker::checkPreCall(const CallEvent &Call,
@@ -251,8 +246,7 @@ ObjCSuperDeallocChecker::isSuperDeallocMessage(const ObjCMethodCall &M) const {
 
 std::shared_ptr<PathDiagnosticPiece>
 SuperDeallocBRVisitor::VisitNode(const ExplodedNode *Succ,
-                                 const ExplodedNode *Pred,
-                                 BugReporterContext &BRC, BugReport &BR) {
+                                 BugReporterContext &BRC, BugReport &) {
   if (Satisfied)
     return nullptr;
 
@@ -261,7 +255,8 @@ SuperDeallocBRVisitor::VisitNode(const ExplodedNode *Succ,
   bool CalledNow =
       Succ->getState()->contains<CalledSuperDealloc>(ReceiverSymbol);
   bool CalledBefore =
-      Pred->getState()->contains<CalledSuperDealloc>(ReceiverSymbol);
+      Succ->getFirstPred()->getState()->contains<CalledSuperDealloc>(
+          ReceiverSymbol);
 
   // Is Succ the node on which the analyzer noted that [super dealloc] was
   // called on ReceiverSymbol?

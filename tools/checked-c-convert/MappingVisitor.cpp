@@ -6,8 +6,9 @@
 //===----------------------------------------------------------------------===//
 // Implementations of the MappingVisitor functions for VisitStmt and VisitDecl.
 //===----------------------------------------------------------------------===//
-#include "MappingVisitor.h"
 #include "llvm/Support/Path.h"
+
+#include "MappingVisitor.h"
 
 using namespace clang;
 
@@ -38,7 +39,7 @@ bool MappingVisitor::VisitDeclStmt(DeclStmt *S) {
         llvm::errs() << "\n";
       }
 
-      if(So == NULL)
+      if (So == NULL)
         PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
 
@@ -75,7 +76,7 @@ bool MappingVisitor::VisitDecl(Decl *D) {
         llvm::errs() << " the same location";
       }
       
-      if(Do == NULL)
+      if (Do == NULL)
         PSLtoSDT[PSL] = StmtDeclOrType(S, D, T);
     }
   }

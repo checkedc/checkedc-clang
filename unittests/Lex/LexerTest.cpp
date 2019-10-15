@@ -37,7 +37,7 @@ protected:
       DiagID(new DiagnosticIDs()),
       Diags(DiagID, new DiagnosticOptions, new IgnoringDiagConsumer()),
       SourceMgr(Diags, FileMgr),
-      TargetOpts(new TargetOptions) 
+      TargetOpts(new TargetOptions)
   {
     TargetOpts->Triple = "x86_64-apple-darwin11.1.0";
     Target = TargetInfo::CreateTargetInfo(Diags, TargetOpts);
@@ -286,9 +286,7 @@ TEST_F(LexerTest, LexAPI) {
   SourceLocation lsqrLoc = toks[0].getLocation();
   SourceLocation idLoc = toks[1].getLocation();
   SourceLocation rsqrLoc = toks[2].getLocation();
-  std::pair<SourceLocation,SourceLocation>
-    macroPair = SourceMgr.getExpansionRange(lsqrLoc);
-  SourceRange macroRange = SourceRange(macroPair.first, macroPair.second);
+  CharSourceRange macroRange = SourceMgr.getExpansionRange(lsqrLoc);
 
   SourceLocation Loc;
   EXPECT_TRUE(Lexer::isAtStartOfMacroExpansion(lsqrLoc, SourceMgr, LangOpts, &Loc));
@@ -297,6 +295,7 @@ TEST_F(LexerTest, LexAPI) {
   EXPECT_FALSE(Lexer::isAtEndOfMacroExpansion(idLoc, SourceMgr, LangOpts));
   EXPECT_TRUE(Lexer::isAtEndOfMacroExpansion(rsqrLoc, SourceMgr, LangOpts, &Loc));
   EXPECT_EQ(Loc, macroRange.getEnd());
+  EXPECT_TRUE(macroRange.isTokenRange());
 
   CharSourceRange range = Lexer::makeFileCharRange(
            CharSourceRange::getTokenRange(lsqrLoc, idLoc), SourceMgr, LangOpts);
@@ -334,11 +333,11 @@ TEST_F(LexerTest, LexAPI) {
   EXPECT_EQ(SourceRange(fileIdLoc, fileRsqrLoc.getLocWithOffset(1)),
             range.getAsRange());
 
-  macroPair = SourceMgr.getExpansionRange(macroLsqrLoc);
+  macroRange = SourceMgr.getExpansionRange(macroLsqrLoc);
   range = Lexer::makeFileCharRange(
                      CharSourceRange::getTokenRange(macroLsqrLoc, macroRsqrLoc),
                      SourceMgr, LangOpts);
-  EXPECT_EQ(SourceRange(macroPair.first, macroPair.second.getLocWithOffset(1)),
+  EXPECT_EQ(SourceRange(macroRange.getBegin(), macroRange.getEnd().getLocWithOffset(1)),
             range.getAsRange());
 
   text = Lexer::getSourceText(
@@ -474,8 +473,47 @@ TEST_F(LexerTest, GetBeginningOfTokenWithEscapedNewLine) {
 }
 
 TEST_F(LexerTest, AvoidPastEndOfStringDereference) {
-  std::vector<Token> LexedTokens = Lex("  //  \\\n");
-  EXPECT_TRUE(LexedTokens.empty());
+  EXPECT_TRUE(Lex("  //  \\\n").empty());
+  EXPECT_TRUE(Lex("#include <\\\\").empty());
+  EXPECT_TRUE(Lex("#include <\\\\\n").empty());
+}
+
+TEST_F(LexerTest, StringizingRasString) {
+  // For "std::string Lexer::Stringify(StringRef Str, bool Charify)".
+  std::string String1 = R"(foo
+    {"bar":[]}
+    baz)";
+  // For "void Lexer::Stringify(SmallVectorImpl<char> &Str)".
+  SmallString<128> String2;
+  String2 += String1.c_str();
+
+  // Corner cases.
+  std::string String3 = R"(\
+    \n
+    \\n
+    \\)";
+  SmallString<128> String4;
+  String4 += String3.c_str();
+  std::string String5 = R"(a\
+
+
+    \\b)";
+  SmallString<128> String6;
+  String6 += String5.c_str();
+
+  String1 = Lexer::Stringify(StringRef(String1));
+  Lexer::Stringify(String2);
+  String3 = Lexer::Stringify(StringRef(String3));
+  Lexer::Stringify(String4);
+  String5 = Lexer::Stringify(StringRef(String5));
+  Lexer::Stringify(String6);
+
+  EXPECT_EQ(String1, R"(foo\n    {\"bar\":[]}\n    baz)");
+  EXPECT_EQ(String2, R"(foo\n    {\"bar\":[]}\n    baz)");
+  EXPECT_EQ(String3, R"(\\\n    \\n\n    \\\\n\n    \\\\)");
+  EXPECT_EQ(String4, R"(\\\n    \\n\n    \\\\n\n    \\\\)");
+  EXPECT_EQ(String5, R"(a\\\n\n\n    \\\\b)");
+  EXPECT_EQ(String6, R"(a\\\n\n\n    \\\\b)");
 }
 
 } // anonymous namespace

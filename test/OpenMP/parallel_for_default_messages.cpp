@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 -o - %s
 
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 -o - %s
+
 void foo();
 
 int main(int argc, char **argv) {
@@ -29,7 +31,7 @@ int main(int argc, char **argv) {
 
 #pragma omp parallel default(none)
 #pragma omp parallel for default(shared)
-  for (i = 0; i < argc; ++i)
+  for (i = 0; i < argc; ++i) // expected-error {{variable 'argc' must have explicitly specified data sharing attributes}}
     foo();
 
   return 0;

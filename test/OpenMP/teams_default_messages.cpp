@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -verify -fopenmp -o - %s
 
+// RUN: %clang_cc1 -verify -fopenmp-simd -o - %s
+
 void foo();
 
 int main(int argc, char **argv) {
@@ -29,6 +31,6 @@ int main(int argc, char **argv) {
   #pragma omp target
   #pragma omp teams default(none)
   #pragma omp parallel default(shared)
-  ++argc;
+  ++argc; // expected-error {{variable 'argc' must have explicitly specified data sharing attributes}}
   return 0;
 }

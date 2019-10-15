@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief This file declares Format APIs to be used internally by the
+/// This file declares Format APIs to be used internally by the
 /// formatting library implementation.
 ///
 //===----------------------------------------------------------------------===//
@@ -16,11 +16,15 @@
 #ifndef LLVM_CLANG_LIB_FORMAT_FORMATINTERNAL_H
 #define LLVM_CLANG_LIB_FORMAT_FORMATINTERNAL_H
 
+#include "BreakableToken.h"
+#include "clang/Tooling/Core/Lookup.h"
+#include <utility>
+
 namespace clang {
 namespace format {
 namespace internal {
 
-/// \brief Reformats the given \p Ranges in the code fragment \p Code.
+/// Reformats the given \p Ranges in the code fragment \p Code.
 ///
 /// A fragment of code could conceptually be surrounded by other code that might
 /// constrain how that fragment is laid out.

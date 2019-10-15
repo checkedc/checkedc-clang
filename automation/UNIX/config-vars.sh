@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # 
-# Validate and set configuration variables.   Other scripts should only 
+# Validate and set configuration variables. Other scripts should only
 # depend on variables printed at the end of this script.
 #
-# This script is run as part of automated build and test validation.  
+# This script is run as part of automated build and test validation.
 # It has extra checking so that it can be run manually as well. It validates
-# that environment variables set by the system have been are present. When
-# running it manually, the variables must be set by the user.
+# that environment variables set by the system are present. When running it
+# manually, the variables must be set by the user.
 
 # This script has to be run in the context of the parent bash environment
-# to export envioronment variables, so set a status result instead of exiting 
+# to export environment variables, so set a status result instead of exiting
 # if something goes wrong.
 
 CHECKEDC_CONFIG_STATUS="passed"
@@ -43,15 +43,6 @@ elif [ "$BUILDOS" != "Linux" -a "$BUILDOS" != "WSL" ]; then
   CHECKEDC_CONFIG_STATUS="error" 
 fi
 
-# Validate or set target architecture for testing.
-
-if [ -z "$TEST_TARGET_ARCH" ]; then
-  export TEST_TARGET_ARCH="X86"
-elif [ "$TEST_TARGET_ARCH" != "X86" -a "$TEST_TARGET_ARCH" != "AMD64" ]; then
-  echo "Unknown TEST_TARGET_ARCH value $TEST_TARGET_ARCH: must be X86 or AMD64"
-  CHECKEDC_CONFIG_STATUS="error" 
-fi
-
 if [ -z $BUILD_BINARIESDIRECTORY ]; then
   echo "BUILD_BINARIESDIRECTORY not set.  Set it to the directory that will contain the object directory."
   CHECKEDC_CONFIG_STATUS="error" 
@@ -62,7 +53,22 @@ if [ -z $BUILD_SOURCESDIRECTORY ]; then
   CHECKEDC_CONFIG_STATUS="error" 
 fi
 
-export LLVM_OBJ_DIR="${BUILD_BINARIESDIRECTORY}/LLVM-${BUILDCONFIGURATION}-${TEST_TARGET_ARCH}-${BUILDOS}.obj"
+# Validate that TEST_TARGET_ARCH contains the valid list of targets.
+if [ -z "$TEST_TARGET_ARCH" ]; then
+  echo "TEST_TARGET_ARCH not set"
+  CHECKEDC_CONFIG_STATUS="error"
+fi
+
+# First replace ";" with " " to make parsing easier.
+TEST_TARGET_ARCH=`echo $TEST_TARGET_ARCH | tr ";" " "`
+for TEST_TARGET in $TEST_TARGET_ARCH; do
+  if [ "$TEST_TARGET" != "X86_64" -a "$TEST_TARGET" != "ARM" ]; then
+    echo "Unknown value $TEST_TARGET in TEST_TARGET_ARCH: must be one of X86_64 or ARM."
+    CHECKEDC_CONFIG_STATUS="error"
+  fi
+done
+
+export LLVM_OBJ_DIR="${BUILD_BINARIESDIRECTORY}/LLVM-${BUILDCONFIGURATION}-${BUILDOS}.obj"
 
 # Validate Test Suite configuration
 
@@ -125,6 +131,46 @@ if [ -z "$BUILD_CPU_COUNT" ]; then
   export BUILD_CPU_COUNT=$(($NPROC*3/4))
 fi
 
+if [ -z "$RUN_LOCAL" ]; then
+  export RUN_LOCAL="no"
+fi
+
+if [[ -z "$BENCHMARK" ]]; then
+  export BMARK=no
+
+else
+  LNT_DB_DIR=/usr/local/checkedc/lnt-setup/llvm.lnt.db
+  if [ ! -d ${LNT_DB_DIR} ]; then
+    echo "No LNT DB found at $LNT_DB_DIR"
+    exit 1
+  fi
+  export BMARK=yes
+  export LNT_DB_DIR
+
+  EXTRA_LNT_ARGS=
+  for OPT in $METRICS; do
+    case "$OPT" in
+      PERF)
+        EXTRA_LNT_ARGS+="--threads=1 "
+        ;;
+      COMPILETIME)
+        EXTRA_LNT_ARGS+="--build-threads=1 "
+        ;;
+    esac
+  done
+  export EXTRA_LNT_ARGS
+
+  if [[ -z "$ONLY_TEST" ]]; then
+    ONLY_TEST=""
+  fi
+  export ONLY_TEST
+
+  if [[ -z "$SAMPLES" ]]; then
+    SAMPLES=3
+  fi
+  export SAMPLES
+fi
+
 # LLVM Nightly Tests are enabled when LNT is a non-empty
 # string.
 if [ -z "$LNT" ]; then
@@ -132,11 +178,13 @@ if [ -z "$LNT" ]; then
   # to be defined do not break.
   export LNT=""
   export LNT_RESULTS_DIR=""
-  export LN_SCRIPT=""
+  export LNT_SCRIPT=""
 else
-  export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${TEST_TARGET_ARCH}-${BUILDOS}"
-  # We assume that lnt is installed in /lnt-install on test machines.
-  export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
+  export LNT_RESULTS_DIR="${BUILD_BINARIESDIRECTORY}/LNT-Results-${BUILDCONFIGURATION}-${BUILDOS}"
+  if [ "$RUN_LOCAL" = "no" ]; then
+    # We assume that lnt is installed in /lnt-install on test machines.
+    export LNT_SCRIPT=/lnt-install/sandbox/bin/lnt
+  fi
 fi
  
 if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
@@ -150,6 +198,9 @@ if [ "$CHECKEDC_CONFIG_STATUS" == "passed" ]; then
   echo " SKIP_CHECKEDC_TESTS: $SKIP_CHECKEDC_TESTS"
   echo " LNT: $LNT"
   echo " LNT_SCRIPT: $LNT_SCRIPT"
+  echo " RUN_LOCAL: $RUN_LOCAL"
+  echo " BENCHMARK: $BMARK"
+  echo " LNT_DB_DIR: $LNT_DB_DIR"
   echo
   echo " Directories:"
   echo "  BUILD_SOURCESDIRECTORY: $BUILD_SOURCESDIRECTORY"

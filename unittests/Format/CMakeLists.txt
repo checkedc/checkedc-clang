@@ -12,14 +12,17 @@ add_clang_unittest(FormatTests
   FormatTestProto.cpp
   FormatTestRawStrings.cpp
   FormatTestSelective.cpp
+  FormatTestTableGen.cpp
   FormatTestTextProto.cpp
   NamespaceEndCommentsFixerTest.cpp
   SortImportsTestJS.cpp
+  SortImportsTestJava.cpp
   SortIncludesTest.cpp
   UsingDeclarationsSorterTest.cpp
   )
 
 target_link_libraries(FormatTests
+  PRIVATE
   clangBasic
   clangFormat
   clangFrontend

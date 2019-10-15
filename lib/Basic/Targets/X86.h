@@ -48,7 +48,10 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   enum XOPEnum { NoXOP, SSE4A, FMA4, XOP } XOPLevel = NoXOP;
 
   bool HasAES = false;
+  bool HasVAES = false;
   bool HasPCLMUL = false;
+  bool HasVPCLMULQDQ = false;
+  bool HasGFNI = false;
   bool HasLZCNT = false;
   bool HasRDRND = false;
   bool HasFSGSBASE = false;
@@ -65,15 +68,19 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasF16C = false;
   bool HasAVX512CD = false;
   bool HasAVX512VPOPCNTDQ = false;
+  bool HasAVX512VNNI = false;
   bool HasAVX512ER = false;
   bool HasAVX512PF = false;
   bool HasAVX512DQ = false;
+  bool HasAVX512BITALG = false;
   bool HasAVX512BW = false;
   bool HasAVX512VL = false;
   bool HasAVX512VBMI = false;
+  bool HasAVX512VBMI2 = false;
   bool HasAVX512IFMA = false;
   bool HasSHA = false;
   bool HasMPX = false;
+  bool HasSHSTK = false;
   bool HasSGX = false;
   bool HasCX16 = false;
   bool HasFXSR = false;
@@ -83,195 +90,39 @@ class LLVM_LIBRARY_VISIBILITY X86TargetInfo : public TargetInfo {
   bool HasXSAVES = false;
   bool HasMWAITX = false;
   bool HasCLZERO = false;
+  bool HasCLDEMOTE = false;
+  bool HasPCONFIG = false;
   bool HasPKU = false;
   bool HasCLFLUSHOPT = false;
   bool HasCLWB = false;
   bool HasMOVBE = false;
   bool HasPREFETCHWT1 = false;
+  bool HasRDPID = false;
+  bool HasRetpolineExternalThunk = false;
+  bool HasLAHFSAHF = false;
+  bool HasWBNOINVD = false;
+  bool HasWAITPKG = false;
+  bool HasMOVDIRI = false;
+  bool HasMOVDIR64B = false;
+  bool HasPTWRITE = false;
+  bool HasINVPCID = false;
 
-  /// \brief Enumeration of all of the X86 CPUs supported by Clang.
+protected:
+  /// Enumeration of all of the X86 CPUs supported by Clang.
   ///
   /// Each enumeration represents a particular CPU supported by Clang. These
   /// loosely correspond to the options passed to '-march' or '-mtune' flags.
   enum CPUKind {
     CK_Generic,
-
-    /// \name i386
-    /// i386-generation processors.
-    //@{
-    CK_i386,
-    //@}
-
-    /// \name i486
-    /// i486-generation processors.
-    //@{
-    CK_i486,
-    CK_WinChipC6,
-    CK_WinChip2,
-    CK_C3,
-    //@}
-
-    /// \name i586
-    /// i586-generation processors, P5 microarchitecture based.
-    //@{
-    CK_i586,
-    CK_Pentium,
-    CK_PentiumMMX,
-    //@}
-
-    /// \name i686
-    /// i686-generation processors, P6 / Pentium M microarchitecture based.
-    //@{
-    CK_PentiumPro,
-    CK_Pentium2,
-    CK_Pentium3,
-    CK_PentiumM,
-    CK_C3_2,
-
-    /// This enumerator is a bit odd, as GCC no longer accepts -march=yonah.
-    /// Clang however has some logic to support this.
-    // FIXME: Warn, deprecate, and potentially remove this.
-    CK_Yonah,
-    //@}
-
-    /// \name Netburst
-    /// Netburst microarchitecture based processors.
-    //@{
-    CK_Pentium4,
-    CK_Prescott,
-    CK_Nocona,
-    //@}
-
-    /// \name Core
-    /// Core microarchitecture based processors.
-    //@{
-    CK_Core2,
-
-    /// This enumerator, like \see CK_Yonah, is a bit odd. It is another
-    /// codename which GCC no longer accepts as an option to -march, but Clang
-    /// has some logic for recognizing it.
-    // FIXME: Warn, deprecate, and potentially remove this.
-    CK_Penryn,
-    //@}
-
-    /// \name Atom
-    /// Atom processors
-    //@{
-    CK_Bonnell,
-    CK_Silvermont,
-    CK_Goldmont,
-    //@}
-
-    /// \name Nehalem
-    /// Nehalem microarchitecture based processors.
-    CK_Nehalem,
-
-    /// \name Westmere
-    /// Westmere microarchitecture based processors.
-    CK_Westmere,
-
-    /// \name Sandy Bridge
-    /// Sandy Bridge microarchitecture based processors.
-    CK_SandyBridge,
-
-    /// \name Ivy Bridge
-    /// Ivy Bridge microarchitecture based processors.
-    CK_IvyBridge,
-
-    /// \name Haswell
-    /// Haswell microarchitecture based processors.
-    CK_Haswell,
-
-    /// \name Broadwell
-    /// Broadwell microarchitecture based processors.
-    CK_Broadwell,
-
-    /// \name Skylake Client
-    /// Skylake client microarchitecture based processors.
-    CK_SkylakeClient,
-
-    /// \name Skylake Server
-    /// Skylake server microarchitecture based processors.
-    CK_SkylakeServer,
-
-    /// \name Cannonlake Client
-    /// Cannonlake client microarchitecture based processors.
-    CK_Cannonlake,
-
-    /// \name Knights Landing
-    /// Knights Landing processor.
-    CK_KNL,
-
-    /// \name Knights Mill
-    /// Knights Mill processor.
-    CK_KNM,
-
-    /// \name Lakemont
-    /// Lakemont microarchitecture based processors.
-    CK_Lakemont,
-
-    /// \name K6
-    /// K6 architecture processors.
-    //@{
-    CK_K6,
-    CK_K6_2,
-    CK_K6_3,
-    //@}
-
-    /// \name K7
-    /// K7 architecture processors.
-    //@{
-    CK_Athlon,
-    CK_AthlonXP,
-    //@}
-
-    /// \name K8
-    /// K8 architecture processors.
-    //@{
-    CK_K8,
-    CK_K8SSE3,
-    CK_AMDFAM10,
-    //@}
-
-    /// \name Bobcat
-    /// Bobcat architecture processors.
-    //@{
-    CK_BTVER1,
-    CK_BTVER2,
-    //@}
-
-    /// \name Bulldozer
-    /// Bulldozer architecture processors.
-    //@{
-    CK_BDVER1,
-    CK_BDVER2,
-    CK_BDVER3,
-    CK_BDVER4,
-    //@}
-
-    /// \name zen
-    /// Zen architecture processors.
-    //@{
-    CK_ZNVER1,
-    //@}
-
-    /// This specification is deprecated and will be removed in the future.
-    /// Users should prefer \see CK_K8.
-    // FIXME: Warn on this when the CPU is set to it.
-    //@{
-    CK_x86_64,
-    //@}
-
-    /// \name Geode
-    /// Geode processors.
-    //@{
-    CK_Geode
-    //@}
+#define PROC(ENUM, STRING, IS64BIT) CK_##ENUM,
+#include "clang/Basic/X86Target.def"
   } CPU = CK_Generic;
 
   bool checkCPUKind(CPUKind Kind) const;
 
   CPUKind getCPUKind(StringRef CPU) const;
+
+  std::string getCPUKindCanonicalName(CPUKind Kind) const;
 
   enum FPMathKind { FP_Default, FP_SSE, FP_387 } FPMath = FP_Default;
 
@@ -280,7 +131,7 @@ public:
       : TargetInfo(Triple) {
     LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
   }
-  
+
   unsigned getFloatEvalMethod() const override {
     // X87 evaluates with 80 bits "long double" precision.
     return SSELevel == NoSSE ? 2 : 0;
@@ -297,6 +148,14 @@ public:
   bool validateCpuSupports(StringRef Name) const override;
 
   bool validateCpuIs(StringRef Name) const override;
+
+  bool validateCPUSpecificCPUDispatch(StringRef Name) const override;
+
+  char CPUSpecificManglingCharacter(StringRef Name) const override;
+
+  void getCPUSpecificCPUDispatchFeatures(
+      StringRef Name,
+      llvm::SmallVectorImpl<StringRef> &Features) const override;
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &info) const override;
@@ -318,6 +177,17 @@ public:
 
   bool validateInputSize(StringRef Constraint, unsigned Size) const override;
 
+  virtual bool
+  checkCFProtectionReturnSupported(DiagnosticsEngine &Diags) const override {
+    return true;
+  };
+
+  virtual bool
+  checkCFProtectionBranchSupported(DiagnosticsEngine &Diags) const override {
+    return true;
+  };
+
+
   virtual bool validateOperandSize(StringRef Constraint, unsigned Size) const;
 
   std::string convertConstraint(const char *&Constraint) const override;
@@ -325,8 +195,8 @@ public:
     return "~{dirflag},~{fpsr},~{flags}";
   }
 
-  StringRef getConstraintRegister(const StringRef &Constraint,
-                                  const StringRef &Expression) const override {
+  StringRef getConstraintRegister(StringRef Constraint,
+                                  StringRef Expression) const override {
     StringRef::iterator I, E;
     for (I = Constraint.begin(), E = Constraint.end(); I != E; ++I) {
       if (isalpha(*I))
@@ -355,15 +225,20 @@ public:
     case 'Y':
       if ((++I != E) && ((*I == '0') || (*I == 'z')))
         return "xmm0";
+      break;
     default:
       break;
     }
     return "";
   }
 
+  bool useFP16ConversionIntrinsics() const override {
+    return false;
+  }
+
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;
-  
+
   static void setSSELevel(llvm::StringMap<bool> &Features, X86SSEEnum Level,
                           bool Enabled);
 
@@ -410,9 +285,13 @@ public:
     return checkCPUKind(getCPUKind(Name));
   }
 
+  void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
+
   bool setCPU(const std::string &Name) override {
     return checkCPUKind(CPU = getCPUKind(Name));
   }
+
+  unsigned multiVersionSortPriority(StringRef Name) const override;
 
   bool setFPMath(StringRef Name) override;
 
@@ -425,6 +304,7 @@ public:
     case CC_X86VectorCall:
     case CC_X86RegCall:
     case CC_C:
+    case CC_PreserveMost:
     case CC_Swift:
     case CC_X86Pascal:
     case CC_IntelOclBicc:
@@ -580,11 +460,6 @@ public:
                         ? "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32"
                         : "e-m:e-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32");
   }
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsTargetInfo<X86_32TargetInfo>::getTargetDefines(Opts, Builder);
-  }
 };
 
 // x86-32 Windows Visual Studio target
@@ -621,10 +496,7 @@ public:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
     WindowsX86_32TargetInfo::getTargetDefines(Opts, Builder);
-    DefineStd(Builder, "WIN32", Opts);
-    DefineStd(Builder, "WINNT", Opts);
     Builder.defineMacro("_X86_");
-    addMinGWDefines(Opts, Builder);
   }
 };
 
@@ -700,7 +572,7 @@ public:
     IntPtrType = SignedLong;
     PtrDiffType = SignedLong;
   }
-  
+
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
     X86_32TargetInfo::getTargetDefines(Opts, Builder);
@@ -787,7 +659,7 @@ public:
   bool hasInt128Type() const override { return true; }
 
   unsigned getUnwindWordWidth() const override { return 64; }
-  
+
   unsigned getRegisterWidth() const override { return 64; }
 
   bool validateGlobalRegisterVariable(StringRef RegName, unsigned RegSize,
@@ -826,12 +698,6 @@ public:
     SizeType = UnsignedLongLong;
     PtrDiffType = SignedLongLong;
     IntPtrType = SignedLongLong;
-  }
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsTargetInfo<X86_64TargetInfo>::getTargetDefines(Opts, Builder);
-    Builder.defineMacro("_WIN64");
   }
 
   BuiltinVaListKind getBuiltinVaListKind() const override {
@@ -878,6 +744,11 @@ public:
     Builder.defineMacro("_M_X64", "100");
     Builder.defineMacro("_M_AMD64", "100");
   }
+
+  TargetInfo::CallingConvKind
+  getCallingConvKind(bool ClangABICompat4) const override {
+    return CCK_MicrosoftWin64;
+  }
 };
 
 // x86-64 MinGW target
@@ -891,18 +762,6 @@ public:
     LongDoubleWidth = LongDoubleAlign = 128;
     LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
     HasFloat128 = true;
-  }
-
-  void getTargetDefines(const LangOptions &Opts,
-                        MacroBuilder &Builder) const override {
-    WindowsX86_64TargetInfo::getTargetDefines(Opts, Builder);
-    DefineStd(Builder, "WIN64", Opts);
-    Builder.defineMacro("__MINGW64__");
-    addMinGWDefines(Opts, Builder);
-
-    // GCC defines this macro when it is using __gxx_personality_seh0.
-    if (!Opts.SjLjExceptions)
-      Builder.defineMacro("__SEH__");
   }
 };
 
@@ -925,10 +784,6 @@ public:
     DefineStd(Builder, "unix", Opts);
     if (Opts.CPlusPlus)
       Builder.defineMacro("_GNU_SOURCE");
-
-    // GCC defines this macro when it is using __gxx_personality_seh0.
-    if (!Opts.SjLjExceptions)
-      Builder.defineMacro("__SEH__");
   }
 };
 

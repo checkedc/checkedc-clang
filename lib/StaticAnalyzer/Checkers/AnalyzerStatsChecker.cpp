@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 // This file reports various statistics about analyzer visitation.
 //===----------------------------------------------------------------------===//
-#include "ClangSACheckers.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
@@ -122,6 +122,8 @@ void AnalyzerStatsChecker::checkEndAnalysis(ExplodedGraph &G,
       E = CE.blocks_exhausted_end(); I != E; ++I) {
     const BlockEdge &BE =  I->first;
     const CFGBlock *Exit = BE.getDst();
+    if (Exit->empty())
+      continue;
     const CFGElement &CE = Exit->front();
     if (Optional<CFGStmt> CS = CE.getAs<CFGStmt>()) {
       SmallString<128> bufI;

@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 ///
 /// \file
-/// \brief This file implements a clang-format tool that automatically formats
+/// This file implements a clang-format tool that automatically formats
 /// (fragments of) C++ code.
 ///
 //===----------------------------------------------------------------------===//
@@ -22,7 +22,8 @@
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Signals.h"
+#include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/Process.h"
 
 using namespace llvm;
 using clang::tooling::Replacements;
@@ -59,17 +60,18 @@ LineRanges("lines", cl::desc("<start line>:<end line> - format a range of\n"
                              "Can only be used with one input file."),
            cl::cat(ClangFormatCategory));
 static cl::opt<std::string>
-    Style("style",
-          cl::desc(clang::format::StyleOptionHelpDescription),
-          cl::init("file"), cl::cat(ClangFormatCategory));
+    Style("style", cl::desc(clang::format::StyleOptionHelpDescription),
+          cl::init(clang::format::DefaultFormatStyle),
+          cl::cat(ClangFormatCategory));
 static cl::opt<std::string>
-FallbackStyle("fallback-style",
-              cl::desc("The name of the predefined style used as a\n"
-                       "fallback in case clang-format is invoked with\n"
-                       "-style=file, but can not find the .clang-format\n"
-                       "file to use.\n"
-                       "Use -fallback-style=none to skip formatting."),
-              cl::init("LLVM"), cl::cat(ClangFormatCategory));
+    FallbackStyle("fallback-style",
+                  cl::desc("The name of the predefined style used as a\n"
+                           "fallback in case clang-format is invoked with\n"
+                           "-style=file, but can not find the .clang-format\n"
+                           "file to use.\n"
+                           "Use -fallback-style=none to skip formatting."),
+                  cl::init(clang::format::DefaultFallbackStyle),
+                  cl::cat(ClangFormatCategory));
 
 static cl::opt<std::string>
 AssumeFileName("assume-filename",
@@ -114,7 +116,7 @@ namespace format {
 
 static FileID createInMemoryFile(StringRef FileName, MemoryBuffer *Source,
                                  SourceManager &Sources, FileManager &Files,
-                                 vfs::InMemoryFileSystem *MemFS) {
+                                 llvm::vfs::InMemoryFileSystem *MemFS) {
   MemFS->addFileNoOwn(FileName, 0, Source);
   return Sources.createFileID(Files.getFile(FileName), SourceLocation(),
                               SrcMgr::C_User);
@@ -131,8 +133,8 @@ static bool parseLineRange(StringRef Input, unsigned &FromLine,
 
 static bool fillRanges(MemoryBuffer *Code,
                        std::vector<tooling::Range> &Ranges) {
-  IntrusiveRefCntPtr<vfs::InMemoryFileSystem> InMemoryFileSystem(
-      new vfs::InMemoryFileSystem);
+  IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+      new llvm::vfs::InMemoryFileSystem);
   FileManager Files(FileSystemOptions(), InMemoryFileSystem);
   DiagnosticsEngine Diagnostics(
       IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs),
@@ -289,7 +291,7 @@ static bool format(StringRef FileName) {
               "xml:space='preserve' incomplete_format='"
            << (Status.FormatComplete ? "false" : "true") << "'";
     if (!Status.FormatComplete)
-      outs() << " line=" << Status.Line;
+      outs() << " line='" << Status.Line << "'";
     outs() << ">\n";
     if (Cursor.getNumOccurrences() != 0)
       outs() << "<cursor>"
@@ -299,8 +301,8 @@ static bool format(StringRef FileName) {
     outputReplacementsXML(Replaces);
     outs() << "</replacements>\n";
   } else {
-    IntrusiveRefCntPtr<vfs::InMemoryFileSystem> InMemoryFileSystem(
-        new vfs::InMemoryFileSystem);
+    IntrusiveRefCntPtr<llvm::vfs::InMemoryFileSystem> InMemoryFileSystem(
+        new llvm::vfs::InMemoryFileSystem);
     FileManager Files(FileSystemOptions(), InMemoryFileSystem);
     DiagnosticsEngine Diagnostics(
         IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs),
@@ -337,7 +339,7 @@ static void PrintVersion(raw_ostream &OS) {
 }
 
 int main(int argc, const char **argv) {
-  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
+  llvm::InitLLVM X(argc, argv);
 
   cl::HideUnrelatedOptions(ClangFormatCategory);
 
@@ -357,10 +359,27 @@ int main(int argc, const char **argv) {
   }
 
   if (DumpConfig) {
+    StringRef FileName;
+    std::unique_ptr<llvm::MemoryBuffer> Code;
+    if (FileNames.empty()) {
+      // We can't read the code to detect the language if there's no
+      // file name, so leave Code empty here.
+      FileName = AssumeFileName;
+    } else {
+      // Read in the code in case the filename alone isn't enough to
+      // detect the language.
+      ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
+          MemoryBuffer::getFileOrSTDIN(FileNames[0]);
+      if (std::error_code EC = CodeOrErr.getError()) {
+        llvm::errs() << EC.message() << "\n";
+        return 1;
+      }
+      FileName = (FileNames[0] == "-") ? AssumeFileName : FileNames[0];
+      Code = std::move(CodeOrErr.get());
+    }
     llvm::Expected<clang::format::FormatStyle> FormatStyle =
-        clang::format::getStyle(
-            Style, FileNames.empty() ? AssumeFileName : FileNames[0],
-            FallbackStyle);
+        clang::format::getStyle(Style, FileName, FallbackStyle,
+                                Code ? Code->getBuffer() : "");
     if (!FormatStyle) {
       llvm::errs() << llvm::toString(FormatStyle.takeError()) << "\n";
       return 1;

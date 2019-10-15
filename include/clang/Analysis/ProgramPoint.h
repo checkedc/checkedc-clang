@@ -33,7 +33,7 @@ namespace clang {
 class AnalysisDeclContext;
 class FunctionDecl;
 class LocationContext;
-  
+
 /// ProgramPoints can be "tagged" as representing points specific to a given
 /// analysis entity.  Tags are abstract annotations, with an associated
 /// description and potentially other information.
@@ -41,12 +41,12 @@ class ProgramPointTag {
 public:
   ProgramPointTag(void *tagKind = nullptr) : TagKind(tagKind) {}
   virtual ~ProgramPointTag();
-  virtual StringRef getTagDescription() const = 0;    
+  virtual StringRef getTagDescription() const = 0;
 
 protected:
   /// Used to implement 'isKind' in subclasses.
   const void *getTagKind() { return TagKind; }
-  
+
 private:
   const void *TagKind;
 };
@@ -73,12 +73,14 @@ public:
               PostStoreKind,
               PostConditionKind,
               PostLValueKind,
+              PostAllocatorCallKind,
               MinPostStmtKind = PostStmtKind,
-              MaxPostStmtKind = PostLValueKind,
+              MaxPostStmtKind = PostAllocatorCallKind,
               PostInitializerKind,
               CallEnterKind,
               CallExitBeginKind,
               CallExitEndKind,
+              FunctionExitKind,
               PreImplicitCallKind,
               PostImplicitCallKind,
               MinImplicitCallKind = PreImplicitCallKind,
@@ -97,7 +99,7 @@ private:
   llvm::PointerIntPair<const ProgramPointTag *, 2, unsigned> Tag;
 
 protected:
-  ProgramPoint() {}
+  ProgramPoint() = default;
   ProgramPoint(const void *P,
                Kind k,
                const LocationContext *l,
@@ -110,7 +112,7 @@ protected:
         assert(getLocationContext() == l);
         assert(getData1() == P);
       }
-        
+
   ProgramPoint(const void *P1,
                const void *P2,
                Kind k,
@@ -134,7 +136,7 @@ public:
                         getLocationContext(), tag);
   }
 
-  /// \brief Convert to the specified ProgramPoint type, asserting that this
+  /// Convert to the specified ProgramPoint type, asserting that this
   /// ProgramPoint is of the desired type.
   template<typename T>
   T castAs() const {
@@ -145,7 +147,7 @@ public:
     return t;
   }
 
-  /// \brief Convert to the specified ProgramPoint type, returning None if this
+  /// Convert to the specified ProgramPoint type, returning None if this
   /// ProgramPoint is not of the desired type.
   template<typename T>
   Optional<T> getAs() const {
@@ -166,7 +168,7 @@ public:
     return (Kind) x;
   }
 
-  /// \brief Is this a program point corresponding to purge/removal of dead
+  /// Is this a program point corresponding to purge/removal of dead
   /// symbols and bindings.
   bool isPurgeKind() {
     Kind K = getKind();
@@ -178,6 +180,10 @@ public:
 
   const LocationContext *getLocationContext() const {
     return L.getPointer();
+  }
+
+  const StackFrameContext *getStackFrame() const {
+    return getLocationContext()->getStackFrame();
   }
 
   // For use with DenseMap.  This hash is probably slow.
@@ -209,6 +215,10 @@ public:
     ID.AddPointer(getTag());
   }
 
+  void print(StringRef CR, llvm::raw_ostream &Out) const;
+
+  LLVM_DUMP_METHOD void dump() const;
+
   static ProgramPoint getProgramPoint(const Stmt *S, ProgramPoint::Kind K,
                                       const LocationContext *LC,
                                       const ProgramPointTag *tag);
@@ -218,7 +228,7 @@ class BlockEntrance : public ProgramPoint {
 public:
   BlockEntrance(const CFGBlock *B, const LocationContext *L,
                 const ProgramPointTag *tag = nullptr)
-    : ProgramPoint(B, BlockEntranceKind, L, tag) {    
+    : ProgramPoint(B, BlockEntranceKind, L, tag) {
     assert(B && "BlockEntrance requires non-null block");
   }
 
@@ -230,10 +240,10 @@ public:
     const CFGBlock *B = getBlock();
     return B->empty() ? Optional<CFGElement>() : B->front();
   }
-  
+
 private:
   friend class ProgramPoint;
-  BlockEntrance() {}
+  BlockEntrance() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == BlockEntranceKind;
   }
@@ -254,7 +264,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  BlockExit() {}
+  BlockExit() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == BlockExitKind;
   }
@@ -274,7 +284,7 @@ public:
   const T* getStmtAs() const { return dyn_cast<T>(getStmt()); }
 
 protected:
-  StmtPoint() {}
+  StmtPoint() = default;
 private:
   friend class ProgramPoint;
   static bool isKind(const ProgramPoint &Location) {
@@ -294,7 +304,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  PreStmt() {}
+  PreStmt() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PreStmtKind;
   }
@@ -302,7 +312,7 @@ private:
 
 class PostStmt : public StmtPoint {
 protected:
-  PostStmt() {}
+  PostStmt() = default;
   PostStmt(const Stmt *S, const void *data, Kind k, const LocationContext *L,
            const ProgramPointTag *tag = nullptr)
     : StmtPoint(S, data, k, L, tag) {}
@@ -324,6 +334,29 @@ private:
   }
 };
 
+class FunctionExitPoint : public ProgramPoint {
+public:
+  explicit FunctionExitPoint(const ReturnStmt *S,
+                             const LocationContext *LC,
+                             const ProgramPointTag *tag = nullptr)
+      : ProgramPoint(S, FunctionExitKind, LC, tag) {}
+
+  const CFGBlock *getBlock() const {
+    return &getLocationContext()->getCFG()->getExit();
+  }
+
+  const ReturnStmt *getStmt() const {
+    return reinterpret_cast<const ReturnStmt *>(getData1());
+  }
+
+private:
+  friend class ProgramPoint;
+  FunctionExitPoint() = default;
+  static bool isKind(const ProgramPoint &Location) {
+    return Location.getKind() == FunctionExitKind;
+  }
+};
+
 // PostCondition represents the post program point of a branch condition.
 class PostCondition : public PostStmt {
 public:
@@ -333,7 +366,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  PostCondition() {}
+  PostCondition() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PostConditionKind;
   }
@@ -341,11 +374,11 @@ private:
 
 class LocationCheck : public StmtPoint {
 protected:
-  LocationCheck() {}
+  LocationCheck() = default;
   LocationCheck(const Stmt *S, const LocationContext *L,
                 ProgramPoint::Kind K, const ProgramPointTag *tag)
     : StmtPoint(S, nullptr, K, L, tag) {}
-    
+
 private:
   friend class ProgramPoint;
   static bool isKind(const ProgramPoint &location) {
@@ -353,16 +386,16 @@ private:
     return k == PreLoadKind || k == PreStoreKind;
   }
 };
-  
+
 class PreLoad : public LocationCheck {
 public:
   PreLoad(const Stmt *S, const LocationContext *L,
           const ProgramPointTag *tag = nullptr)
     : LocationCheck(S, L, PreLoadKind, tag) {}
-  
+
 private:
   friend class ProgramPoint;
-  PreLoad() {}
+  PreLoad() = default;
   static bool isKind(const ProgramPoint &location) {
     return location.getKind() == PreLoadKind;
   }
@@ -373,10 +406,10 @@ public:
   PreStore(const Stmt *S, const LocationContext *L,
            const ProgramPointTag *tag = nullptr)
   : LocationCheck(S, L, PreStoreKind, tag) {}
-  
+
 private:
   friend class ProgramPoint;
-  PreStore() {}
+  PreStore() = default;
   static bool isKind(const ProgramPoint &location) {
     return location.getKind() == PreStoreKind;
   }
@@ -390,17 +423,17 @@ public:
 
 private:
   friend class ProgramPoint;
-  PostLoad() {}
+  PostLoad() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PostLoadKind;
   }
 };
 
-/// \brief Represents a program point after a store evaluation.
+/// Represents a program point after a store evaluation.
 class PostStore : public PostStmt {
 public:
   /// Construct the post store point.
-  /// \param Loc can be used to store the information about the location 
+  /// \param Loc can be used to store the information about the location
   /// used in the form it was uttered in the code.
   PostStore(const Stmt *S, const LocationContext *L, const void *Loc,
             const ProgramPointTag *tag = nullptr)
@@ -409,7 +442,7 @@ public:
     setData2(Loc);
   }
 
-  /// \brief Returns the information about the location used in the store,
+  /// Returns the information about the location used in the store,
   /// how it was uttered in the code.
   const void *getLocationValue() const {
     return getData2();
@@ -417,7 +450,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  PostStore() {}
+  PostStore() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PostStoreKind;
   }
@@ -431,7 +464,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  PostLValue() {}
+  PostLValue() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PostLValueKind;
   }
@@ -447,7 +480,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  PreStmtPurgeDeadSymbols() {}
+  PreStmtPurgeDeadSymbols() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PreStmtPurgeDeadSymbolsKind;
   }
@@ -463,7 +496,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  PostStmtPurgeDeadSymbols() {}
+  PostStmtPurgeDeadSymbols() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PostStmtPurgeDeadSymbolsKind;
   }
@@ -474,7 +507,7 @@ public:
   BlockEdge(const CFGBlock *B1, const CFGBlock *B2, const LocationContext *L)
     : ProgramPoint(B1, B2, BlockEdgeKind, L) {
     assert(B1 && "BlockEdge: source block must be non-null");
-    assert(B2 && "BlockEdge: destination block must be non-null");    
+    assert(B2 && "BlockEdge: destination block must be non-null");
   }
 
   const CFGBlock *getSrc() const {
@@ -487,7 +520,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  BlockEdge() {}
+  BlockEdge() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == BlockEdgeKind;
   }
@@ -495,7 +528,7 @@ private:
 
 class PostInitializer : public ProgramPoint {
 public:
-  /// \brief Construct a PostInitializer point that represents a location after
+  /// Construct a PostInitializer point that represents a location after
   ///   CXXCtorInitializer expression evaluation.
   ///
   /// \param I The initializer.
@@ -509,14 +542,14 @@ public:
     return static_cast<const CXXCtorInitializer *>(getData1());
   }
 
-  /// \brief Returns the location of the field.
+  /// Returns the location of the field.
   const void *getLocationValue() const {
     return getData2();
   }
 
 private:
   friend class ProgramPoint;
-  PostInitializer() {}
+  PostInitializer() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PostInitializerKind;
   }
@@ -537,7 +570,7 @@ public:
   }
 
 protected:
-  ImplicitCallPoint() {}
+  ImplicitCallPoint() = default;
 private:
   friend class ProgramPoint;
   static bool isKind(const ProgramPoint &Location) {
@@ -557,7 +590,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  PreImplicitCall() {}
+  PreImplicitCall() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PreImplicitCallKind;
   }
@@ -574,9 +607,23 @@ public:
 
 private:
   friend class ProgramPoint;
-  PostImplicitCall() {}
+  PostImplicitCall() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == PostImplicitCallKind;
+  }
+};
+
+class PostAllocatorCall : public StmtPoint {
+public:
+  PostAllocatorCall(const Stmt *S, const LocationContext *L,
+                    const ProgramPointTag *Tag = nullptr)
+      : StmtPoint(S, nullptr, PostAllocatorCallKind, L, Tag) {}
+
+private:
+  friend class ProgramPoint;
+  PostAllocatorCall() = default;
+  static bool isKind(const ProgramPoint &Location) {
+    return Location.getKind() == PostAllocatorCallKind;
   }
 };
 
@@ -584,7 +631,7 @@ private:
 /// CallEnter uses the caller's location context.
 class CallEnter : public ProgramPoint {
 public:
-  CallEnter(const Stmt *stmt, const StackFrameContext *calleeCtx, 
+  CallEnter(const Stmt *stmt, const StackFrameContext *calleeCtx,
             const LocationContext *callerCtx)
     : ProgramPoint(stmt, calleeCtx, CallEnterKind, callerCtx, nullptr) {}
 
@@ -605,7 +652,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  CallEnter() {}
+  CallEnter() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == CallEnterKind;
   }
@@ -626,9 +673,13 @@ public:
   CallExitBegin(const StackFrameContext *L, const ReturnStmt *RS)
     : ProgramPoint(RS, CallExitBeginKind, L, nullptr) { }
 
+  const ReturnStmt *getReturnStmt() const {
+    return static_cast<const ReturnStmt *>(getData1());
+  }
+
 private:
   friend class ProgramPoint;
-  CallExitBegin() {}
+  CallExitBegin() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == CallExitBeginKind;
   }
@@ -649,7 +700,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  CallExitEnd() {}
+  CallExitEnd() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == CallExitEndKind;
   }
@@ -672,7 +723,7 @@ public:
 
 private:
     friend class ProgramPoint;
-    LoopExit() {}
+    LoopExit() = default;
     static bool isKind(const ProgramPoint &Location) {
       return Location.getKind() == LoopExitKind;
     }
@@ -691,7 +742,7 @@ public:
 
 private:
   friend class ProgramPoint;
-  EpsilonPoint() {}
+  EpsilonPoint() = default;
   static bool isKind(const ProgramPoint &Location) {
     return Location.getKind() == EpsilonKind;
   }
@@ -726,7 +777,7 @@ static bool isEqual(const clang::ProgramPoint &L,
 }
 
 };
-  
+
 template <>
 struct isPodLike<clang::ProgramPoint> { static const bool value = true; };
 

@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangSACheckers.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
@@ -242,22 +242,19 @@ void StreamChecker::Fclose(CheckerContext &C, const CallExpr *CE) const {
 
 void StreamChecker::Fread(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(3), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(3)), state, C))
     return;
 }
 
 void StreamChecker::Fwrite(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(3), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(3)), state, C))
     return;
 }
 
 void StreamChecker::Fseek(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!(state = CheckNullStream(state->getSVal(CE->getArg(0),
-                                               C.getLocationContext()), state, C)))
+  if (!(state = CheckNullStream(C.getSVal(CE->getArg(0)), state, C)))
     return;
   // Check the legality of the 'whence' argument of 'fseek'.
   SVal Whence = state->getSVal(CE->getArg(2), C.getLocationContext());
@@ -283,57 +280,49 @@ void StreamChecker::Fseek(CheckerContext &C, const CallExpr *CE) const {
 
 void StreamChecker::Ftell(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(0), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(0)), state, C))
     return;
 }
 
 void StreamChecker::Rewind(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(0), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(0)), state, C))
     return;
 }
 
 void StreamChecker::Fgetpos(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(0), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(0)), state, C))
     return;
 }
 
 void StreamChecker::Fsetpos(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(0), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(0)), state, C))
     return;
 }
 
 void StreamChecker::Clearerr(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(0), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(0)), state, C))
     return;
 }
 
 void StreamChecker::Feof(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(0), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(0)), state, C))
     return;
 }
 
 void StreamChecker::Ferror(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(0), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(0)), state, C))
     return;
 }
 
 void StreamChecker::Fileno(CheckerContext &C, const CallExpr *CE) const {
   ProgramStateRef state = C.getState();
-  if (!CheckNullStream(state->getSVal(CE->getArg(0), C.getLocationContext()),
-                       state, C))
+  if (!CheckNullStream(C.getSVal(CE->getArg(0)), state, C))
     return;
 }
 
@@ -363,8 +352,7 @@ ProgramStateRef StreamChecker::CheckNullStream(SVal SV, ProgramStateRef state,
 ProgramStateRef StreamChecker::CheckDoubleClose(const CallExpr *CE,
                                                ProgramStateRef state,
                                                CheckerContext &C) const {
-  SymbolRef Sym =
-    state->getSVal(CE->getArg(0), C.getLocationContext()).getAsSymbol();
+  SymbolRef Sym = C.getSVal(CE->getArg(0)).getAsSymbol();
   if (!Sym)
     return state;
 
@@ -395,26 +383,26 @@ ProgramStateRef StreamChecker::CheckDoubleClose(const CallExpr *CE,
 
 void StreamChecker::checkDeadSymbols(SymbolReaper &SymReaper,
                                      CheckerContext &C) const {
+  ProgramStateRef state = C.getState();
+
   // TODO: Clean up the state.
-  for (SymbolReaper::dead_iterator I = SymReaper.dead_begin(),
-         E = SymReaper.dead_end(); I != E; ++I) {
-    SymbolRef Sym = *I;
-    ProgramStateRef state = C.getState();
-    const StreamState *SS = state->get<StreamMap>(Sym);
-    if (!SS)
+  const StreamMapTy &Map = state->get<StreamMap>();
+  for (const auto &I: Map) {
+    SymbolRef Sym = I.first;
+    const StreamState &SS = I.second;
+    if (!SymReaper.isDead(Sym) || !SS.isOpened())
       continue;
 
-    if (SS->isOpened()) {
-      ExplodedNode *N = C.generateErrorNode();
-      if (N) {
-        if (!BT_ResourceLeak)
-          BT_ResourceLeak.reset(new BuiltinBug(
-              this, "Resource Leak",
-              "Opened File never closed. Potential Resource leak."));
-        C.emitReport(llvm::make_unique<BugReport>(
-            *BT_ResourceLeak, BT_ResourceLeak->getDescription(), N));
-      }
-    }
+    ExplodedNode *N = C.generateErrorNode();
+    if (!N)
+      return;
+
+    if (!BT_ResourceLeak)
+      BT_ResourceLeak.reset(
+          new BuiltinBug(this, "Resource Leak",
+                         "Opened File never closed. Potential Resource leak."));
+    C.emitReport(llvm::make_unique<BugReport>(
+        *BT_ResourceLeak, BT_ResourceLeak->getDescription(), N));
   }
 }
 

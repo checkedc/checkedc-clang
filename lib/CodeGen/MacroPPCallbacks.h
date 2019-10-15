@@ -11,6 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#ifndef LLVM_CLANG_LIB_CODEGEN_MACROPPCALLBACKS_H
+#define LLVM_CLANG_LIB_CODEGEN_MACROPPCALLBACKS_H
+
 #include "clang/Lex/PPCallbacks.h"
 
 namespace llvm {
@@ -101,7 +104,8 @@ public:
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, const FileEntry *File,
                           StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported) override;
+                          const Module *Imported,
+                          SrcMgr::CharacteristicKind FileType) override;
 
   /// Hook called whenever a macro definition is seen.
   void MacroDefined(const Token &MacroNameTok,
@@ -115,3 +119,5 @@ public:
 };
 
 } // end namespace clang
+
+#endif

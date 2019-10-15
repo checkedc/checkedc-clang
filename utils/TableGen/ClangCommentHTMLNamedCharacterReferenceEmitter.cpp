@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This tablegen backend emits an fficient function to translate HTML named
+// This tablegen backend emits an efficient function to translate HTML named
 // character references to UTF-8 sequences.
 //
 //===----------------------------------------------------------------------===//
@@ -22,7 +22,7 @@
 
 using namespace llvm;
 
-/// \brief Convert a code point to the corresponding UTF-8 sequence represented
+/// Convert a code point to the corresponding UTF-8 sequence represented
 /// as a C string literal.
 ///
 /// \returns true on success.

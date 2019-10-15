@@ -8,9 +8,11 @@ add_clang_unittest(CrossTUTests
   )
 
 target_link_libraries(CrossTUTests
+  PRIVATE
   clangAST
   clangBasic
   clangCrossTU
   clangFrontend
+  clangSerialization
   clangTooling
   )

@@ -103,7 +103,7 @@ public:
   }
 };
 
-/// \brief Subclasses \c clang::FixItRewriter to not count fixed errors/warnings
+/// Subclasses \c clang::FixItRewriter to not count fixed errors/warnings
 /// in the final error counts.
 ///
 /// This has the side-effect that clang-check -fixit exits with code 0 on
@@ -120,9 +120,9 @@ public:
   bool IncludeInDiagnosticCounts() const override { return false; }
 };
 
-/// \brief Subclasses \c clang::FixItAction so that we can install the custom
+/// Subclasses \c clang::FixItAction so that we can install the custom
 /// \c FixItRewriter.
-class FixItAction : public clang::FixItAction {
+class ClangCheckFixItAction : public clang::FixItAction {
 public:
   bool BeginSourceFileAction(clang::CompilerInstance& CI) override {
     FixItOpts.reset(new FixItOptions);
@@ -138,7 +138,9 @@ public:
     if (ASTList)
       return clang::CreateASTDeclNodeLister();
     if (ASTDump)
-      return clang::CreateASTDumper(ASTDumpFilter, /*DumpDecls=*/true,
+      return clang::CreateASTDumper(nullptr /*Dump to stdout.*/,
+                                    ASTDumpFilter,
+                                    /*DumpDecls=*/true,
                                     /*Deserialize=*/false,
                                     /*DumpLookups=*/false);
     if (ASTPrint)
@@ -165,6 +167,7 @@ int main(int argc, const char **argv) {
   // Clear adjusters because -fsyntax-only is inserted by the default chain.
   Tool.clearArgumentsAdjusters();
   Tool.appendArgumentsAdjuster(getClangStripOutputAdjuster());
+  Tool.appendArgumentsAdjuster(getClangStripDependencyFileAdjuster());
 
   // Running the analyzer requires --analyze. Other modes can work with the
   // -fsyntax-only option.
@@ -178,7 +181,7 @@ int main(int argc, const char **argv) {
   if (Analyze)
     FrontendFactory = newFrontendActionFactory<clang::ento::AnalysisAction>();
   else if (Fixit)
-    FrontendFactory = newFrontendActionFactory<FixItAction>();
+    FrontendFactory = newFrontendActionFactory<ClangCheckFixItAction>();
   else
     FrontendFactory = newFrontendActionFactory(&CheckFactory);
 

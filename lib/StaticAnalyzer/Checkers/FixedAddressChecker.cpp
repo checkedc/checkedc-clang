@@ -13,7 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangSACheckers.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
@@ -44,8 +44,7 @@ void FixedAddressChecker::checkPreStmt(const BinaryOperator *B,
   if (!T->isPointerType())
     return;
 
-  ProgramStateRef state = C.getState();
-  SVal RV = state->getSVal(B->getRHS(), C.getLocationContext());
+  SVal RV = C.getSVal(B->getRHS());
 
   if (!RV.isConstant() || RV.isZeroConstant())
     return;

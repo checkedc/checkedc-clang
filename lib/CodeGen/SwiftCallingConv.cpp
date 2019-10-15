@@ -163,7 +163,7 @@ void SwiftAggLowering::addTypedData(const RecordDecl *record, CharUnits begin,
     //   - virtual bases
     for (auto &vbaseSpecifier : cxxRecord->vbases()) {
       auto baseRecord = vbaseSpecifier.getType()->getAsCXXRecordDecl();
-      addTypedData(baseRecord, begin + layout.getVBaseClassOffset(baseRecord));      
+      addTypedData(baseRecord, begin + layout.getVBaseClassOffset(baseRecord));
     }
   }
 }
@@ -415,6 +415,40 @@ static bool areBytesInSameUnit(CharUnits first, CharUnits second,
       == getOffsetAtStartOfUnit(second, chunkSize);
 }
 
+static bool isMergeableEntryType(llvm::Type *type) {
+  // Opaquely-typed memory is always mergeable.
+  if (type == nullptr) return true;
+
+  // Pointers and integers are always mergeable.  In theory we should not
+  // merge pointers, but (1) it doesn't currently matter in practice because
+  // the chunk size is never greater than the size of a pointer and (2)
+  // Swift IRGen uses integer types for a lot of things that are "really"
+  // just storing pointers (like Optional<SomePointer>).  If we ever have a
+  // target that would otherwise combine pointers, we should put some effort
+  // into fixing those cases in Swift IRGen and then call out pointer types
+  // here.
+
+  // Floating-point and vector types should never be merged.
+  // Most such types are too large and highly-aligned to ever trigger merging
+  // in practice, but it's important for the rule to cover at least 'half'
+  // and 'float', as well as things like small vectors of 'i1' or 'i8'.
+  return (!type->isFloatingPointTy() && !type->isVectorTy());
+}
+
+bool SwiftAggLowering::shouldMergeEntries(const StorageEntry &first,
+                                          const StorageEntry &second,
+                                          CharUnits chunkSize) {
+  // Only merge entries that overlap the same chunk.  We test this first
+  // despite being a bit more expensive because this is the condition that
+  // tends to prevent merging.
+  if (!areBytesInSameUnit(first.End - CharUnits::One(), second.Begin,
+                          chunkSize))
+    return false;
+
+  return (isMergeableEntryType(first.Type) &&
+          isMergeableEntryType(second.Type));
+}
+
 void SwiftAggLowering::finish() {
   if (Entries.empty()) {
     Finished = true;
@@ -425,12 +459,12 @@ void SwiftAggLowering::finish() {
   // which is generally the size of a pointer.
   const CharUnits chunkSize = getMaximumVoluntaryIntegerSize(CGM);
 
-  // First pass: if two entries share a chunk, make them both opaque
+  // First pass: if two entries should be merged, make them both opaque
   // and stretch one to meet the next.
+  // Also, remember if there are any opaque entries.
   bool hasOpaqueEntries = (Entries[0].Type == nullptr);
   for (size_t i = 1, e = Entries.size(); i != e; ++i) {
-    if (areBytesInSameUnit(Entries[i - 1].End - CharUnits::One(),
-                           Entries[i].Begin, chunkSize)) {
+    if (shouldMergeEntries(Entries[i - 1], Entries[i], chunkSize)) {
       Entries[i - 1].Type = nullptr;
       Entries[i].Type = nullptr;
       Entries[i - 1].End = Entries[i].Begin;
@@ -579,13 +613,11 @@ bool SwiftAggLowering::shouldPassIndirectly(bool asReturnValue) const {
   // Empty types don't need to be passed indirectly.
   if (Entries.empty()) return false;
 
-  CharUnits totalSize = Entries.back().End;
-
   // Avoid copying the array of types when there's just a single element.
   if (Entries.size() == 1) {
-    return getSwiftABIInfo(CGM).shouldPassIndirectlyForSwift(totalSize,
+    return getSwiftABIInfo(CGM).shouldPassIndirectlyForSwift(
                                                            Entries.back().Type,
-                                                             asReturnValue);    
+                                                             asReturnValue);
   }
 
   SmallVector<llvm::Type*, 8> componentTys;
@@ -593,8 +625,14 @@ bool SwiftAggLowering::shouldPassIndirectly(bool asReturnValue) const {
   for (auto &entry : Entries) {
     componentTys.push_back(entry.Type);
   }
-  return getSwiftABIInfo(CGM).shouldPassIndirectlyForSwift(totalSize,
-                                                           componentTys,
+  return getSwiftABIInfo(CGM).shouldPassIndirectlyForSwift(componentTys,
+                                                           asReturnValue);
+}
+
+bool swiftcall::shouldPassIndirectly(CodeGenModule &CGM,
+                                     ArrayRef<llvm::Type*> componentTys,
+                                     bool asReturnValue) {
+  return getSwiftABIInfo(CGM).shouldPassIndirectlyForSwift(componentTys,
                                                            asReturnValue);
 }
 
@@ -736,24 +774,12 @@ void swiftcall::legalizeVectorType(CodeGenModule &CGM, CharUnits origVectorSize,
   components.append(numElts, eltTy);
 }
 
-bool swiftcall::shouldPassCXXRecordIndirectly(CodeGenModule &CGM,
-                                              const CXXRecordDecl *record) {
-  // Following a recommendation from Richard Smith, pass a C++ type
-  // indirectly only if the destructor is non-trivial or *all* of the
-  // copy/move constructors are deleted or non-trivial.
-
-  if (record->hasNonTrivialDestructor())
-    return true;
-
-  // It would be nice if this were summarized on the CXXRecordDecl.
-  for (auto ctor : record->ctors()) {
-    if (ctor->isCopyOrMoveConstructor() && !ctor->isDeleted() &&
-        ctor->isTrivial()) {
-      return false;
-    }
-  }
-
-  return true;
+bool swiftcall::mustPassRecordIndirectly(CodeGenModule &CGM,
+                                         const RecordDecl *record) {
+  // FIXME: should we not rely on the standard computation in Sema, just in
+  // case we want to diverge from the platform ABI (e.g. on targets where
+  // that uses the MSVC rule)?
+  return !record->canPassInRegisters();
 }
 
 static ABIArgInfo classifyExpandedType(SwiftAggLowering &lowering,
@@ -775,10 +801,8 @@ static ABIArgInfo classifyType(CodeGenModule &CGM, CanQualType type,
     auto record = recordType->getDecl();
     auto &layout = CGM.getContext().getASTRecordLayout(record);
 
-    if (auto cxxRecord = dyn_cast<CXXRecordDecl>(record)) {
-      if (shouldPassCXXRecordIndirectly(CGM, cxxRecord))
-        return ABIArgInfo::getIndirect(layout.getAlignment(), /*byval*/ false);
-    }
+    if (mustPassRecordIndirectly(CGM, record))
+      return ABIArgInfo::getIndirect(layout.getAlignment(), /*byval*/ false);
 
     SwiftAggLowering lowering(CGM);
     lowering.addTypedData(recordType->getDecl(), CharUnits::Zero(), layout);

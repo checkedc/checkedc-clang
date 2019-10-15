@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -verify -fopenmp -ferror-limit 100 %s
 
+// RUN: %clang_cc1 -verify -fopenmp-simd -ferror-limit 100 %s
+
 
 struct S1; // expected-note 2 {{declared here}}
 extern S1 a;
@@ -115,7 +117,7 @@ T tmain(T argc, S **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared (a, b, c, d, f)
+#pragma omp distribute parallel for simd shared (a, b, c, d, f) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Non-trivial type 'const S2' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'const S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -129,14 +131,14 @@ T tmain(T argc, S **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(ba)
+#pragma omp distribute parallel for simd shared(ba) // expected-warning {{Non-trivial type 'const S2 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(ca)
+#pragma omp distribute parallel for simd shared(ca) // expected-warning {{Non-trivial type 'const S3 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -150,7 +152,7 @@ T tmain(T argc, S **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(e, g)
+#pragma omp distribute parallel for simd shared(e, g) // expected-warning {{Non-trivial type 'S4' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -289,7 +291,7 @@ int main(int argc, char **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared (a, b, c, d, f)
+#pragma omp distribute parallel for simd shared (a, b, c, d, f) // expected-error {{incomplete type 'S1' where a complete type is required}} expected-warning {{Non-trivial type 'const S2' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'const S3' is mapped, only trivial types are guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -303,14 +305,14 @@ int main(int argc, char **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(ba)
+#pragma omp distribute parallel for simd shared(ba) // expected-warning {{Non-trivial type 'const S2 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(ca)
+#pragma omp distribute parallel for simd shared(ca) // expected-warning {{Non-trivial type 'const S3 [5]' is mapped, only trivial types are guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }
@@ -324,7 +326,7 @@ int main(int argc, char **argv) {
 
 #pragma omp target
 #pragma omp teams
-#pragma omp distribute parallel for simd shared(e, g)
+#pragma omp distribute parallel for simd shared(e, g) // expected-warning {{Non-trivial type 'S4' is mapped, only trivial types are guaranteed to be mapped correctly}} expected-warning {{Non-trivial type 'S5' is mapped, only trivial types are guaranteed to be mapped correctly}}
   for(int k = 0 ; k < n ; k++) {
     acc++;
   }

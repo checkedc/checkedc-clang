@@ -16,6 +16,7 @@
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Serialization/ASTReader.h"
 #include "llvm/ADT/iterator_range.h"
+#include "llvm/Config/llvm-config.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
@@ -49,7 +50,8 @@ struct ModuleDependencyPPCallbacks : public PPCallbacks {
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, const FileEntry *File,
                           StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported) override {
+                          const Module *Imported,
+                          SrcMgr::CharacteristicKind FileType) override {
     if (!File)
       return;
     Collector.addFile(File->getName());
@@ -135,7 +137,7 @@ static bool isCaseSensitivePath(StringRef Path) {
 
   // Change path to all upper case and ask for its real path, if the latter
   // exists and is equal to Path, it's not case sensitive. Default to case
-  // sensitive in the absense of realpath, since this is what the VFSWriter
+  // sensitive in the absence of realpath, since this is what the VFSWriter
   // already expects when sensitivity isn't setup.
   for (auto &C : Path)
     UpperDest.push_back(toUppercase(C));
@@ -153,10 +155,6 @@ void ModuleDependencyCollector::writeFileMap() {
   // Default to use relative overlay directories in the VFS yaml file. This
   // allows crash reproducer scripts to work across machines.
   VFSWriter.setOverlayDir(VFSDir);
-
-  // Do not ignore non existent contents otherwise we might skip something
-  // that should have been collected here.
-  VFSWriter.setIgnoreNonExistentContents(false);
 
   // Explicitly set case sensitivity for the YAML writer. For that, find out
   // the sensitivity at the path where the headers all collected to.

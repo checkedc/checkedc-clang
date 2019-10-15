@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_AST_MANGLE_H
 #define LLVM_CLANG_AST_MANGLE_H
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/ABI.h"
 #include "llvm/ADT/DenseMap.h"
@@ -30,6 +31,7 @@ namespace clang {
   class CXXDestructorDecl;
   class CXXMethodDecl;
   class FunctionDecl;
+  struct MethodVFTableLocation;
   class NamedDecl;
   class ObjCMethodDecl;
   class StringLiteral;
@@ -72,7 +74,7 @@ public:
   DiagnosticsEngine &getDiags() const { return Diags; }
 
   virtual void startNewFunction() { LocalBlockIds.clear(); }
-  
+
   unsigned getBlockId(const BlockDecl *BD, bool Local) {
     llvm::DenseMap<const BlockDecl *, unsigned> &BlockIds
       = Local? LocalBlockIds : GlobalBlockIds;
@@ -182,14 +184,14 @@ public:
   explicit MicrosoftMangleContext(ASTContext &C, DiagnosticsEngine &D)
       : MangleContext(C, D, MK_Microsoft) {}
 
-  /// \brief Mangle vftable symbols.  Only a subset of the bases along the path
+  /// Mangle vftable symbols.  Only a subset of the bases along the path
   /// to the vftable are included in the name.  It's up to the caller to pick
   /// them correctly.
   virtual void mangleCXXVFTable(const CXXRecordDecl *Derived,
                                 ArrayRef<const CXXRecordDecl *> BasePath,
                                 raw_ostream &Out) = 0;
 
-  /// \brief Mangle vbtable symbols.  Only a subset of the bases along the path
+  /// Mangle vbtable symbols.  Only a subset of the bases along the path
   /// to the vbtable are included in the name.  It's up to the caller to pick
   /// them correctly.
   virtual void mangleCXXVBTable(const CXXRecordDecl *Derived,
@@ -201,7 +203,8 @@ public:
                                                    raw_ostream &Out) = 0;
 
   virtual void mangleVirtualMemPtrThunk(const CXXMethodDecl *MD,
-                                        raw_ostream &) = 0;
+                                        const MethodVFTableLocation &ML,
+                                        raw_ostream &Out) = 0;
 
   virtual void mangleCXXVirtualDisplacementMap(const CXXRecordDecl *SrcRD,
                                                const CXXRecordDecl *DstRD,

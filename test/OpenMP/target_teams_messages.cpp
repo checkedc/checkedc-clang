@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -verify -fopenmp -std=c++11 -o - %s
 
+// RUN: %clang_cc1 -verify -fopenmp-simd -std=c++11 -o - %s
+
 void foo() {
 }
 
@@ -47,6 +49,16 @@ int main(int argc, char **argv) {
   }
 #pragma omp target teams default(none)
   ++argc; // expected-error {{variable 'argc' must have explicitly specified data sharing attributes}}
+
+#pragma omp target teams default(none)
+#pragma omp parallel num_threads(argc) // expected-error {{variable 'argc' must have explicitly specified data sharing attributes}}
+  ;
+
+#pragma omp target teams default(none)
+  {
+#pragma omp parallel num_threads(argc) // expected-error {{variable 'argc' must have explicitly specified data sharing attributes}}
+    ;
+  }
 
   goto L2; // expected-error {{use of undeclared label 'L2'}}
 #pragma omp target teams

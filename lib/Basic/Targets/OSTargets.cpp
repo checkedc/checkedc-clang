@@ -33,7 +33,7 @@ void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
     Builder.defineMacro("_FORTIFY_SOURCE", "0");
 
   // Darwin defines __weak, __strong, and __unsafe_unretained even in C mode.
-  if (!Opts.ObjC1) {
+  if (!Opts.ObjC) {
     // __weak is always defined, for use in blocks and with objc pointers.
     Builder.defineMacro("__weak", "__attribute__((objc_gc(weak)))");
     Builder.defineMacro("__strong", "");
@@ -132,10 +132,6 @@ void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
   // Tell users about the kernel if there is one.
   if (Triple.isOSDarwin())
     Builder.defineMacro("__MACH__");
-
-  // The Watch ABI uses Dwarf EH.
-  if (Triple.isWatchABI())
-    Builder.defineMacro("__ARM_DWARF_EH__");
 
   PlatformMinVersion = VersionTuple(Maj, Min, Rev);
 }

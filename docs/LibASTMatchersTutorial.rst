@@ -19,16 +19,16 @@ As Clang is part of the LLVM project, you'll need to download LLVM's
 source code first. Both Clang and LLVM are maintained as Subversion
 repositories, but we'll be accessing them through the git mirror. For
 further information, see the `getting started
-guide <http://llvm.org/docs/GettingStarted.html>`_.
+guide <https://llvm.org/docs/GettingStarted.html>`_.
 
 .. code-block:: console
 
       mkdir ~/clang-llvm && cd ~/clang-llvm
-      git clone http://llvm.org/git/llvm.git
+      git clone https://llvm.org/git/llvm.git
       cd llvm/tools
-      git clone http://llvm.org/git/clang.git
+      git clone https://llvm.org/git/clang.git
       cd clang/tools
-      git clone http://llvm.org/git/clang-tools-extra.git extra
+      git clone https://llvm.org/git/clang-tools-extra.git extra
 
 Next you need to obtain the CMake build system and Ninja build tool. You
 may already have CMake installed, but current binary versions of CMake
@@ -113,6 +113,7 @@ CMakeLists.txt should have the following contents:
         LoopConvert.cpp
         )
       target_link_libraries(loop-convert
+        PRIVATE
         clangTooling
         clangBasic
         clangASTMatchers
@@ -146,7 +147,7 @@ documentation <LibTooling.html>`_.
       static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 
       // A help message for this specific tool can be added afterwards.
-      static cl::extrahelp MoreHelp("\nMore help text...");
+      static cl::extrahelp MoreHelp("\nMore help text...\n");
 
       int main(int argc, const char **argv) {
         CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);

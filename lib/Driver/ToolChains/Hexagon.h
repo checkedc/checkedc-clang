@@ -81,6 +81,9 @@ public:
   void addLibStdCxxIncludePaths(
       const llvm::opt::ArgList &DriverArgs,
       llvm::opt::ArgStringList &CC1Args) const override;
+
+  const char *getDefaultLinker() const override { return "hexagon-link"; }
+
   CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
 
   StringRef GetGCCLibAndIncVersion() const { return GCCLibAndIncVersion.Text; }
@@ -94,6 +97,7 @@ public:
   void getHexagonLibraryPaths(const llvm::opt::ArgList &Args,
       ToolChain::path_list &LibPaths) const;
 
+  static bool isAutoHVXEnabled(const llvm::opt::ArgList &Args);
   static const StringRef GetDefaultCPU();
   static const StringRef GetTargetCPUVersion(const llvm::opt::ArgList &Args);
 

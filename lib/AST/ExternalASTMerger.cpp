@@ -16,6 +16,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/ExternalASTMerger.h"
 
 using namespace clang;
@@ -143,17 +144,17 @@ public:
     }
     if (auto *ToTag = dyn_cast<TagDecl>(To)) {
       ToTag->setHasExternalLexicalStorage();
-      ToTag->setMustBuildLookupTable();
+      ToTag->getPrimaryContext()->setMustBuildLookupTable();
       assert(Parent.CanComplete(ToTag));
     } else if (auto *ToNamespace = dyn_cast<NamespaceDecl>(To)) {
       ToNamespace->setHasExternalVisibleStorage();
       assert(Parent.CanComplete(ToNamespace));
     } else if (auto *ToContainer = dyn_cast<ObjCContainerDecl>(To)) {
       ToContainer->setHasExternalLexicalStorage();
-      ToContainer->setMustBuildLookupTable();
+      ToContainer->getPrimaryContext()->setMustBuildLookupTable();
       assert(Parent.CanComplete(ToContainer));
     }
-    return ASTImporter::Imported(From, To);
+    return To;
   }
   ASTImporter &GetReverse() { return Reverse; }
 };
@@ -228,8 +229,9 @@ void ExternalASTMerger::CompleteType(TagDecl *Tag) {
       SourceTag->getASTContext().getExternalSource()->CompleteType(SourceTag);
     if (!SourceTag->getDefinition())
       return false;
-    Forward.Imported(SourceTag, Tag);
-    Forward.ImportDefinition(SourceTag);
+    Forward.MapImported(SourceTag, Tag);
+    if (llvm::Error Err = Forward.ImportDefinition_New(SourceTag))
+      llvm::consumeError(std::move(Err));
     Tag->setCompleteDefinition(SourceTag->isCompleteDefinition());
     return true;
   });
@@ -247,8 +249,9 @@ void ExternalASTMerger::CompleteType(ObjCInterfaceDecl *Interface) {
               SourceInterface);
         if (!SourceInterface->getDefinition())
           return false;
-        Forward.Imported(SourceInterface, Interface);
-        Forward.ImportDefinition(SourceInterface);
+        Forward.MapImported(SourceInterface, Interface);
+        if (llvm::Error Err = Forward.ImportDefinition_New(SourceInterface))
+          llvm::consumeError(std::move(Err));
         return true;
       });
 }
@@ -303,7 +306,7 @@ void ExternalASTMerger::ForceRecordOrigin(const DeclContext *ToDC,
 void ExternalASTMerger::RecordOriginImpl(const DeclContext *ToDC, DCOrigin Origin,
                                          ASTImporter &Importer) {
   Origins[ToDC] = Origin;
-  Importer.ASTImporter::Imported(cast<Decl>(Origin.DC), const_cast<Decl*>(cast<Decl>(ToDC)));
+  Importer.ASTImporter::MapImported(cast<Decl>(Origin.DC), const_cast<Decl*>(cast<Decl>(ToDC)));
 }
 
 ExternalASTMerger::ExternalASTMerger(const ImporterTarget &Target,
@@ -351,6 +354,27 @@ void ExternalASTMerger::RemoveSources(llvm::ArrayRef<ImporterSource> Sources) {
   }
 }
 
+template <typename DeclTy>
+static bool importSpecializations(DeclTy *D, ASTImporter *Importer) {
+  for (auto *Spec : D->specializations())
+    if (!Importer->Import(Spec))
+      return true;
+  return false;
+}
+
+/// Imports specializations from template declarations that can be specialized.
+static bool importSpecializationsIfNeeded(Decl *D, ASTImporter *Importer) {
+  if (!isa<TemplateDecl>(D))
+    return false;
+  if (auto *FunctionTD = dyn_cast<FunctionTemplateDecl>(D))
+    return importSpecializations(FunctionTD, Importer);
+  else if (auto *ClassTD = dyn_cast<ClassTemplateDecl>(D))
+    return importSpecializations(ClassTD, Importer);
+  else if (auto *VarTD = dyn_cast<VarTemplateDecl>(D))
+    return importSpecializations(VarTD, Importer);
+  return false;
+}
+
 bool ExternalASTMerger::FindExternalVisibleDeclsByName(const DeclContext *DC,
                                                        DeclarationName Name) {
   llvm::SmallVector<NamedDecl *, 1> Decls;
@@ -376,9 +400,18 @@ bool ExternalASTMerger::FindExternalVisibleDeclsByName(const DeclContext *DC,
 
   Decls.reserve(Candidates.size());
   for (const Candidate &C : Candidates) {
-    NamedDecl *d = cast<NamedDecl>(C.second->Import(C.first.get()));
-    assert(d);
-    Decls.push_back(d);
+    Decl *LookupRes = C.first.get();
+    ASTImporter *Importer = C.second;
+    NamedDecl *ND = cast_or_null<NamedDecl>(Importer->Import(LookupRes));
+    assert(ND);
+    // If we don't import specialization, they are not available via lookup
+    // because the lookup result is imported TemplateDecl and it does not
+    // reference its specializations until they are imported explicitly.
+    bool IsSpecImportFailed =
+        importSpecializationsIfNeeded(LookupRes, Importer);
+    assert(!IsSpecImportFailed);
+    (void)IsSpecImportFailed;
+    Decls.push_back(ND);
   }
   SetExternalVisibleDeclsForName(DC, Name, Decls);
   return true;

@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -verify -fopenmp %s
 
+// RUN: %clang_cc1 -verify -fopenmp-simd %s
+
 namespace X {
 int x;
 };
@@ -144,7 +146,7 @@ int foomain(I argc, C **argv) {
   for (int k = 0; k < argc; ++k)
     ++k;
 // expected-error@+2 {{linear variable with incomplete type 'S1'}}
-// expected-error@+1 {{const-qualified variable cannot be linear}}
+// expected-error@+1 {{argument of a linear clause should be of integral or pointer type, not 'S2'}}
 #pragma omp target parallel for simd linear(a, b : B::ib)
   for (int k = 0; k < argc; ++k)
     ++k;
@@ -229,7 +231,7 @@ int main(int argc, char **argv) {
   for (int k = 0; k < argc; ++k)
     ++k;
 // expected-error@+2 {{linear variable with incomplete type 'S1'}}
-// expected-error@+1 {{const-qualified variable cannot be linear}}
+// expected-error@+1 {{argument of a linear clause should be of integral or pointer type, not 'S2'}}
 #pragma omp target parallel for simd linear(a, b)
   for (int k = 0; k < argc; ++k)
     ++k;

@@ -14,12 +14,14 @@ add_clang_unittest(ClangRenameTests
   )
 
 target_link_libraries(ClangRenameTests
+  PRIVATE
   clangAST
   clangASTMatchers
   clangBasic
   clangFormat
   clangFrontend
   clangRewrite
+  clangSerialization
   clangTooling
   clangToolingCore
   clangToolingRefactor

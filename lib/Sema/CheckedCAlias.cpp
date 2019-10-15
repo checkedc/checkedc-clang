@@ -7,8 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-//  This file implements analyses for semantic checking of the Checked C language
-// extension.
+//  This file implements analyses for semantic checking of the Checked C
+//  language extension.
 // - Alias restrictions required by the Checked C language extension.
 // - Computing what bounds expressions use variables modified by an assignment
 //   or increment/decrement expression.
@@ -124,11 +124,12 @@ using namespace sema;
 //    struct A tmpA = Var.myBa.myA;
 //    &tmpa.len
 //
-// One correctness concern is what happens when a computation of a path cuts off
-// because of an indirection.   In that case, the lvalue produced by the indirection
-// can't be (or have sub-objects) subject to member bounds invariants.  If it were,
-// the program must have taken the address of an intermediate object.  That's also
-// not allowed (casts that create such pointers will be dealt with elsewhere.)
+// One correctness concern is what happens when a computation of a path cuts
+// off because of an indirection.   In that case, the lvalue produced by the
+// indirection can't be (or have sub-objects) subject to member bounds
+// invariants.  If it were, the program must have taken the address of an
+// intermediate object.  That's also not allowed (casts that create such
+// pointers will be dealt with elsewhere.)
 
 namespace {
 class Helper {
@@ -204,10 +205,11 @@ public:
 };
 }
 
-// When member bounds are declared for a member, collect the dependencies on member
-// paths (step 1).
+// When member bounds are declared for a member, collect the dependencies on
+// member paths (step 1).
 namespace {
-class CollectBoundsMemberUses : public RecursiveASTVisitor<CollectBoundsMemberUses> {
+class CollectBoundsMemberUses :
+  public RecursiveASTVisitor<CollectBoundsMemberUses> {
 private:
   FieldDecl *MemberWithBounds;
   ASTContext &Context;
@@ -253,11 +255,11 @@ private:
     if (E->getType()->isCheckedPointerType())
       if (VarDecl *D = Helper::ComputeVar(E)) {
         if (D->hasBoundsExpr()) {
-          SemaRef.Diag(E->getLocStart(),
+          SemaRef.Diag(E->getBeginLoc(),
                        diag::err_address_of_var_with_bounds) <<
             D <<
             E->getSourceRange();
-          SemaRef.Diag(D->getBoundsExpr()->getLocStart(),
+          SemaRef.Diag(D->getBoundsExpr()->getBeginLoc(),
                        diag::note_var_bounds) <<
             D->getBoundsExpr()->getSourceRange();
           return;
@@ -280,9 +282,9 @@ private:
     const FieldDecl *Field = Path[0];
     if (Field->getBoundsExpr() && !Field->getType()->isArrayType() &&
         (IsCheckedScope || !Field->hasBoundsSafeInterface(Context))) {
-      SemaRef.Diag(E->getLocStart(), diag::err_address_of_member_with_bounds) <<
+      SemaRef.Diag(E->getBeginLoc(), diag::err_address_of_member_with_bounds) <<
         E->getSourceRange();
-      SemaRef.Diag(Field->getBoundsExpr()->getLocStart(),
+      SemaRef.Diag(Field->getBoundsExpr()->getBeginLoc(),
                    diag::note_member_bounds) <<
         Field->getBoundsExpr()->getSourceRange();
     }
@@ -298,8 +300,8 @@ private:
       // Taking the address of a member used in a bounds expression is not
       // allowed.
 
-      ASTContext::member_bounds_iterator start = Context.using_member_bounds_begin(SuffixPath);
-      ASTContext::member_bounds_iterator end = Context.using_member_bounds_end(SuffixPath);
+      auto start = Context.using_member_bounds_begin(SuffixPath);
+      auto end = Context.using_member_bounds_end(SuffixPath);
       bool EmittedErrorMessage = false;
       for ( ; start != end; ++start) {
         const FieldDecl *MemberWithBounds = *start;
@@ -308,10 +310,13 @@ private:
         // diagnose bounds-safe interfaces.
         if (IsCheckedScope || MemberWithBounds->hasBoundsDeclaration(Context)) {
           if (!EmittedErrorMessage) {
-            SemaRef.Diag(E->getLocStart(), diag::err_address_of_member_in_bounds) << E->getSourceRange();
+            SemaRef.Diag(E->getBeginLoc(),
+                         diag::err_address_of_member_in_bounds) <<
+              E->getSourceRange();
             EmittedErrorMessage = true;
           }
-          SemaRef.Diag(MemberWithBounds->getLocStart(), diag::note_member_bounds) <<
+          SemaRef.Diag(MemberWithBounds->getBeginLoc(),
+                       diag::note_member_bounds) <<
             MemberWithBounds->getBoundsExpr()->getSourceRange();
         }
       }
@@ -475,7 +480,8 @@ void Sema::ModifiedBoundsDependencies::Dump(raw_ostream &OS) {
     OS << "Expression:\n";
     Iter->first->dump(OS);
     OS << "Modified:\n";
-    for (auto VarIter = Iter->second.begin(); VarIter != Iter->second.end(); ++VarIter) {
+    for (auto VarIter = Iter->second.begin(); VarIter != Iter->second.end();
+         ++VarIter) {
       OS << "LValue expression:\n";
       if (VarIter->Target.is<VarDecl *>())
         VarIter->Target.get<VarDecl *>()->dump(OS);
@@ -497,7 +503,8 @@ namespace {
    Sema::ModifiedBoundsDependencies &Tracker;
 
  public:
- ModifyingExprDependencies(Sema &SemaRef, Sema::ModifiedBoundsDependencies &Tracker) :
+ ModifyingExprDependencies(Sema &SemaRef,
+                           Sema::ModifiedBoundsDependencies &Tracker) :
    SemaRef(SemaRef), Tracker(Tracker) {}
 
  // Statement to traverse.  This iterates recursively over a statement
@@ -606,7 +613,9 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
     return;
 
 #if DEBUG_DEPENDENCES
-  llvm::outs() << "Computing bounds dependencies for " << FD->getName() << ".\n";
+  llvm::outs() << "Computing bounds dependencies for "
+               << FD->getName()
+               << ".\n";
 #endif
 
   // Track parameter bounds declarations in function parameter scope.
@@ -633,3 +642,37 @@ void Sema::ComputeBoundsDependencies(ModifiedBoundsDependencies &Tracker,
 #endif
 }
 
+// Check whether an expression contains an occurrence of the _Return_value
+// expression.
+namespace {
+  class CheckForReturnValue : public RecursiveASTVisitor<CheckForReturnValue> {
+  private:
+    Sema &SemaRef;
+    bool FoundReturnValue;
+
+  public:
+    CheckForReturnValue(Sema &SemaRef) :
+      SemaRef(SemaRef), FoundReturnValue(false) {}
+
+    bool ContainsReturnValueExpr() {
+      return FoundReturnValue;
+    }
+
+    bool VisitBoundsValueExpr(BoundsValueExpr *BVE) {
+      if (BVE->getKind() == BoundsValueExpr::Kind::Return) {
+        FoundReturnValue = true;
+        return false; // Stop the AST traversal early.
+      }
+      return true;
+    }
+  };
+}
+
+bool Sema::ContainsReturnValueExpr(Expr *E) {
+  if (!E)
+    return false;
+
+  CheckForReturnValue Checker(*this);
+  Checker.TraverseStmt(E);
+  return Checker.ContainsReturnValueExpr();
+}

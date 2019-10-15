@@ -11,7 +11,7 @@ Standalone Tool
 ===============
 
 :program:`clang-format` is located in `clang/tools/clang-format` and can be used
-to format C/C++/Obj-C code.
+to format C/C++/Java/JavaScript/Objective-C/Protobuf code.
 
 .. code-block:: console
 
@@ -169,7 +169,7 @@ Visual Studio Integration
 =========================
 
 Download the latest Visual Studio extension from the `alpha build site
-<http://llvm.org/builds/>`_. The default key-binding is Ctrl-R,Ctrl-F.
+<https://llvm.org/builds/>`_. The default key-binding is Ctrl-R,Ctrl-F.
 
 
 Script for patch reformatting
@@ -199,6 +199,12 @@ So to reformat all the lines in the latest :program:`git` commit, just do:
 .. code-block:: console
 
   git diff -U0 --no-color HEAD^ | clang-format-diff.py -i -p1
+
+With Mercurial/:program:`hg`:
+
+.. code-block:: console
+
+  hg diff -U0 --color=never | clang-format-diff.py -i -p1
 
 In an SVN client, you can do:
 

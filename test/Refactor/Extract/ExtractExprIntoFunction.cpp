@@ -1,4 +1,4 @@
-// RUN: clang-refactor extract -selection=test:%s %s -- -std=c++11 2>&1 | grep -v CHECK | FileCheck %s
+// RUN: clang-refactor extract -selection=test:%s %s -- -std=c++14 2>&1 | grep -v CHECK | FileCheck %s
 
 
 void simpleExtractNoCaptures() {
@@ -20,10 +20,10 @@ void simpleExtractStmtNoCaptures() {
 // CHECK: 1 'astatement' results:
 // CHECK:      static void extracted() {
 // CHECK-NEXT: int a = 1;
-// CHECK-NEXT: int b = 2;;{{$}}
+// CHECK-NEXT: int b = 2;{{$}}
 // CHECK-NEXT: }{{[[:space:]].*}}
 // CHECK-NEXT: void simpleExtractStmtNoCaptures() {
-// CHECK-NEXT:   /*range astatement=->+1:13*/extracted(){{$}}
+// CHECK-NEXT:   /*range astatement=->+1:13*/extracted();{{$}}
 // CHECK-NEXT: }
 
 
@@ -42,7 +42,21 @@ struct OutOfBodyStuff {
   void foo(int x =/*range out_of_body_expr=->+0:58*/1 + 2);
 };
 
-// CHECK: 3 'out_of_body_expr' results:
+auto inFunctionOutOfBody() -> decltype(/*range out_of_body_expr=->+0:79*/1 + 2) {
+  struct OutOfBodyStuff {
+    int FieldInit = /*range out_of_body_expr=->+0:60*/1 + 2;
+
+    void foo(int x =/*range out_of_body_expr=->+0:60*/1 + 2);
+  };
+  enum E {
+    X = /*range out_of_body_expr=->+0:48*/1 + 2
+  };
+  int x = 0;
+  using T = decltype(/*range out_of_body_expr=->+0:61*/x + 3);
+  return x;
+}
+
+// CHECK: 8 'out_of_body_expr' results:
 // CHECK: the selected code is not a part of a function's / method's body
 
 void simpleExpressionNoExtraction() {

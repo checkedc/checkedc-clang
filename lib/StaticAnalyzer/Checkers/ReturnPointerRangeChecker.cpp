@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ClangSACheckers.h"
+#include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
@@ -40,7 +40,7 @@ void ReturnPointerRangeChecker::checkPreStmt(const ReturnStmt *RS,
   if (!RetE)
     return;
 
-  SVal V = state->getSVal(RetE, C.getLocationContext());
+  SVal V = C.getSVal(RetE);
   const MemRegion *R = V.getAsRegion();
 
   const ElementRegion *ER = dyn_cast_or_null<ElementRegion>(R);
