@@ -77,12 +77,12 @@ void f1(struct S1 *a1, struct S2 *b2) {
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 5
 // CHECK: Initializer Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
+// CHECK: |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <ArrayToPointerDecay>
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int _Checked[5]' lvalue ->arr {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'struct S2 *' <LValueToRValue>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S2 *' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct S2 *'
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' '+'
-// CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>':'_Array_ptr<int>' <ArrayToPointerDecay>
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
+// CHECK:   |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<int>' <ArrayToPointerDecay>
 // CHECK:   | `-MemberExpr {{0x[0-9a-f]+}} 'int _Checked[5]' lvalue ->arr {{0x[0-9a-f]+}}
 // CHECK:   |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'struct S2 *' <LValueToRValue>
 // CHECK:   |     `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S2 *' lvalue ParmVar {{0x[0-9a-f]+}} 'b2' 'struct S2 *'
@@ -182,12 +182,12 @@ void f3(struct S3 *c1) {
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 // CHECK: Initializer Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'struct S3 *' <LValueToRValue>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S3 *' lvalue ParmVar {{0x[0-9a-f]+}} 'c1' 'struct S3 *'
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK:   |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK:   |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK:   | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK:   |   `-ImplicitCastExpr {{0x[0-9a-f]+}} 'struct S3 *' <LValueToRValue>
 // CHECK:   |     `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S3 *' lvalue ParmVar {{0x[0-9a-f]+}} 'c1' 'struct S3 *'

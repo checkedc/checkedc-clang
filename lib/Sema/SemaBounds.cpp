@@ -435,6 +435,36 @@ namespace {
 }
 #endif
 
+// Convert all temporary bindings in an expression to uses of the values	
+// produced by a binding.   This should be done for bounds expressions that	
+// are used in runtime checks.  That way we don't try to recompute a	
+// temporary multiple times in an expression.	
+namespace {	
+  class PruneTemporaryHelper : public TreeTransform<PruneTemporaryHelper> {	
+    typedef TreeTransform<PruneTemporaryHelper> BaseTransform;	
+
+
+  public:	
+    PruneTemporaryHelper(Sema &SemaRef) :	
+      BaseTransform(SemaRef) { }	
+
+    ExprResult TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {	
+      return new (SemaRef.Context) BoundsValueExpr(SourceLocation(), E);	
+    }	
+
+    bool AlwaysRebuild() {
+      return false;
+    }
+  };	
+
+  Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E) {	
+    Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics	
+    ExprResult R = PruneTemporaryHelper(SemaRef).TransformExpr(E);	
+    assert(!R.isInvalid());	
+    return R.get();	
+  }	
+}
+
 namespace {
   // Class for inferring bounds expressions for C expressions.
 
@@ -846,15 +876,15 @@ namespace {
               Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                               CastKind::CK_ArrayToPointerDecay,
                                               E);
-              return ExpandToRange(Base, B);
+              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ExpandToRange(Base, B)));
             } else
-              return B;
+              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B));
           }
 
           // If B is an interop type annotation, the type must be identical
           // to the declared type, modulo checkedness.  So it is OK to
           // compute the array bounds based on the original type.
-          return ArrayExprBounds(ME);
+          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ArrayExprBounds(ME)));
         }
 
         // It is an error for a member to have function type
@@ -868,7 +898,8 @@ namespace {
         }
 
         Expr *AddrOf = CreateAddressOfOperator(ME);
-        return CreateSingleElementBounds(AddrOf);
+        BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
+        return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, Bounds));
       }
       case Expr::ImplicitCastExprClass: {
         ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
@@ -1042,10 +1073,13 @@ namespace {
             return CreateBoundsAlwaysUnknown();
 
           Expr *MemberBaseExpr = M->getBase();
-          if (!B && IT)
-            return CreateTypeBasedBounds(M, IT->getType(),
+          if (!B && IT) {
+            B = CreateTypeBasedBounds(M, IT->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
+            return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B));
+          }
+            
           if (!B)
             return CreateBoundsAlwaysUnknown();
 
@@ -1064,9 +1098,10 @@ namespace {
                                                 E);
             else
               MemberRValue = M;
-            return ExpandToRange(MemberRValue, B);
+            B = ExpandToRange(MemberRValue, B);
           }
-          return B;
+
+          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B));
         }
         case Expr::ImplicitCastExprClass: {
           ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);

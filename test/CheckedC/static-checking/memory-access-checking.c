@@ -65,7 +65,10 @@ void f4(void) {
 struct S { int i;  int j; };
 struct S global_arr2 _Checked[10];
 void f5(_Array_ptr<struct S> param_arr : count(10)) {
-  _Ptr<int> p = &(global_arr2[11].i); // expected-warning {{out-of-bounds memory access}} expected-warning {{array index 11 is past the end of the array}}
+  _Ptr<int> p = &(global_arr2[11].i); // expected-warning {{out-of-bounds memory access}} \
+                                      // expected-warning {{array index 11 is past the end of the array}} \
+                                      // expected-warning {{array index 11 is past the end of the array}}
+                                      // TODO: GitHub issue #696: this warning should not be issued twice.
                                       // TODO: generate better error message for this situation
   p = &((global_arr2 + 11)->i); // expected-warning {{out-of-bounds base value}}
   p = &(param_arr[11].i); // expected-warning {{out-of-bounds memory access}}  
