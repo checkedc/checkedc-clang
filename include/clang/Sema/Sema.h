@@ -4951,7 +4951,7 @@ public:
   /// InferLValueBounds - infer a bounds expression for an lvalue.
   /// The bounds determine whether the lvalue to which an
   /// expression evaluates in in range.
-  BoundsExpr *InferLValueBounds(Expr *E);
+  BoundsExpr *InferLValueBounds(Expr *E, bool InCheckedScope);
 
   /// CreateTypeBasedBounds: the bounds that can be inferred from
   /// the type alone.
@@ -4975,7 +4975,7 @@ public:
 
   /// InferLValueTargetBounds - infer the bounds for the
   /// target of an lvalue.
-  BoundsExpr *InferLValueTargetBounds(Expr *E);
+  BoundsExpr *InferLValueTargetBounds(Expr *E, bool InCheckedScope);
 
   /// InferRValueBounds - infer a bounds expression for an rvalue.
   /// The bounds determine whether the rvalue to which an
@@ -4985,6 +4985,7 @@ public:
   /// for an nt_array is included in the bounds (it gives
   /// us physical bounds, not logical bounds).
   BoundsExpr *InferRValueBounds(Expr *E,
+                                bool InCheckedScope,
                                 bool IncludeNullTerminator = false);
 
   BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B);

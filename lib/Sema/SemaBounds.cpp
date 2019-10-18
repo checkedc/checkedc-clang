@@ -451,13 +451,18 @@ namespace {
     ExprResult TransformCHKCBindTemporaryExpr(CHKCBindTemporaryExpr *E) {	
       return new (SemaRef.Context) BoundsValueExpr(SourceLocation(), E);	
     }	
-
-    bool AlwaysRebuild() {
-      return false;
-    }
   };	
 
-  Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E) {	
+  Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E, bool InCheckedScope) {	
+    // Account for checked scope information when transforming the expression.
+    // Assume a bounds-only checked scope for InCheckedScope=true 
+    // since it is less restrictive than memory checked scopes.
+    // TODO: GitHub issue #698: this method should take a CheckedScopeSpecifier rather than a boolean.
+    CheckedScopeSpecifier CSS = InCheckedScope ? 
+      CheckedScopeSpecifier::CSS_Bounds : 
+      CheckedScopeSpecifier::CSS_Unchecked;
+    Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
+
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics	
     ExprResult R = PruneTemporaryHelper(SemaRef).TransformExpr(E);	
     assert(!R.isInvalid());	
@@ -802,7 +807,7 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
-    BoundsExpr *LValueBounds(Expr *E) {
+    BoundsExpr *LValueBounds(Expr *E, bool InCheckedScope) {
       // E may not be an lvalue if there is a typechecking error when struct 
       // accesses member array incorrectly.
       if (!E->isLValue()) return CreateBoundsInferenceError();
@@ -841,7 +846,7 @@ namespace {
       case Expr::UnaryOperatorClass: {
         UnaryOperator *UO = cast<UnaryOperator>(E);
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
-          return RValueBounds(UO->getSubExpr());
+          return RValueBounds(UO->getSubExpr(), InCheckedScope);
         else {
           llvm_unreachable("unexpected lvalue unary operator");
           return CreateBoundsInferenceError();
@@ -853,7 +858,7 @@ namespace {
         // of whichever subexpression has pointer type.
         ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
         // getBase returns the pointer-typed expression.
-        return RValueBounds(AS->getBase());
+        return RValueBounds(AS->getBase(), InCheckedScope);
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = cast<MemberExpr>(E);
@@ -876,15 +881,15 @@ namespace {
               Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                               CastKind::CK_ArrayToPointerDecay,
                                               E);
-              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ExpandToRange(Base, B)));
+              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ExpandToRange(Base, B), InCheckedScope));
             } else
-              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B));
+              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, InCheckedScope));
           }
 
           // If B is an interop type annotation, the type must be identical
           // to the declared type, modulo checkedness.  So it is OK to
           // compute the array bounds based on the original type.
-          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ArrayExprBounds(ME)));
+          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ArrayExprBounds(ME), InCheckedScope));
         }
 
         // It is an error for a member to have function type
@@ -899,7 +904,7 @@ namespace {
 
         Expr *AddrOf = CreateAddressOfOperator(ME);
         BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
-        return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, Bounds));
+        return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, Bounds, InCheckedScope));
       }
       case Expr::ImplicitCastExprClass: {
         ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
@@ -908,7 +913,7 @@ namespace {
         // TODO: when we add relative alignment support, we may need
         // to adjust the relative alignment of the bounds.
         if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-          return LValueBounds(ICE->getSubExpr());
+          return LValueBounds(ICE->getSubExpr(), InCheckedScope);
          return CreateBoundsAlwaysUnknown();
       }
       case Expr::CHKCBindTemporaryExprClass: {
@@ -999,7 +1004,7 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
-    BoundsExpr *LValueTargetBounds(Expr *E) {
+    BoundsExpr *LValueTargetBounds(Expr *E, bool InCheckedScope) {
       if (!E->isLValue()) return CreateBoundsInferenceError();
       E = E->IgnoreParens();
       QualType QT = E->getType();
@@ -1077,7 +1082,7 @@ namespace {
             B = CreateTypeBasedBounds(M, IT->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
-            return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B));
+            return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, InCheckedScope));
           }
             
           if (!B)
@@ -1101,12 +1106,12 @@ namespace {
             B = ExpandToRange(MemberRValue, B);
           }
 
-          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B));
+          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, InCheckedScope));
         }
         case Expr::ImplicitCastExprClass: {
           ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
           if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-            return LValueTargetBounds(ICE->getSubExpr());
+            return LValueTargetBounds(ICE->getSubExpr(), InCheckedScope);
           return CreateBoundsAlwaysUnknown();
         }
         default:
@@ -1115,7 +1120,7 @@ namespace {
     }
 
     // Compute the bounds of a cast operation that produces an rvalue.
-    BoundsExpr *RValueCastBounds(CastKind CK, Expr *E) {
+    BoundsExpr *RValueCastBounds(CastKind CK, Expr *E, bool InCheckedScope) {
       switch (CK) {
         case CastKind::CK_BitCast:
         case CastKind::CK_NoOp:
@@ -1126,11 +1131,11 @@ namespace {
         case CastKind::CK_IntegralCast:
         case CastKind::CK_IntegralToBoolean:
         case CastKind::CK_BooleanToSignedIntegral:
-          return RValueBounds(E);
+          return RValueBounds(E, InCheckedScope);
         case CastKind::CK_LValueToRValue:
-          return LValueTargetBounds(E);
+          return LValueTargetBounds(E, InCheckedScope);
         case CastKind::CK_ArrayToPointerDecay:
-          return LValueBounds(E);
+          return LValueBounds(E, InCheckedScope);
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds:
           llvm_unreachable("unexpected rvalue bounds cast");
@@ -1144,7 +1149,7 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
-    BoundsExpr *RValueBounds(Expr *E) {
+    BoundsExpr *RValueBounds(Expr *E, bool InCheckedScope) {
       if (!E->isRValue()) return CreateBoundsInferenceError();
 
       E = E->IgnoreParens();
@@ -1183,7 +1188,7 @@ namespace {
           // _Ptr is invalid, that will be diagnosed separately.
           if (E->getType()->isCheckedPointerPtrType())
             return CreateTypeBasedBounds(E, E->getType(), false, false);
-          return RValueCastBounds(CE->getCastKind(), CE->getSubExpr());
+          return RValueCastBounds(CE->getCastKind(), CE->getSubExpr(), InCheckedScope);
         }
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = cast<UnaryOperator>(E);
@@ -1209,19 +1214,19 @@ namespace {
             if (SubExpr->getType()->isFunctionType())
               return CreateBoundsEmpty();
 
-            return LValueBounds(SubExpr);
+            return LValueBounds(SubExpr, InCheckedScope);
           }
 
           // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
           // `e` is an LValue, so its bounds are its lvalue target bounds.
           if (UnaryOperator::isIncrementDecrementOp(Op))
-            return LValueTargetBounds(SubExpr);
+            return LValueTargetBounds(SubExpr, InCheckedScope);
 
           // `+e`, `-e`, `~e` all have bounds of `e`. `e` is an RValue.
           if (Op == UnaryOperatorKind::UO_Plus ||
               Op == UnaryOperatorKind::UO_Minus ||
               Op == UnaryOperatorKind::UO_Not)
-            return RValueBounds(SubExpr);
+            return RValueBounds(SubExpr, InCheckedScope);
 
           // We cannot infer the bounds of other unary operators
           return CreateBoundsAlwaysUnknown();
@@ -1239,12 +1244,12 @@ namespace {
 
           // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
           if (Op == BinaryOperatorKind::BO_Assign)
-            return RValueBounds(RHS);
+            return RValueBounds(RHS, InCheckedScope);
 
           // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
           // are RValues.
           if (Op == BinaryOperatorKind::BO_Comma)
-            return RValueBounds(RHS);
+            return RValueBounds(RHS, InCheckedScope);
 
           // Compound Assignments function like assignments mostly,
           // except the LHS is an L-Value, so we'll use its lvalue target bounds
@@ -1263,14 +1268,14 @@ namespace {
               RHS->getType()->isIntegerType() &&
               BinaryOperator::isAdditiveOp(Op)) {
             return IsCompoundAssignment ?
-              LValueTargetBounds(LHS) : RValueBounds(LHS);
+              LValueTargetBounds(LHS, InCheckedScope) : RValueBounds(LHS, InCheckedScope);
           }
           // `i + p` has the bounds of `p`. `p` is an RValue.
           // `i += p` has the bounds of `p`. `p` is an RValue.
           if (LHS->getType()->isIntegerType() &&
               RHS->getType()->isPointerType() &&
               Op == BinaryOperatorKind::BO_Add) {
-            return RValueBounds(RHS);
+            return RValueBounds(RHS, InCheckedScope);
           }
           // `e - p` has empty bounds, regardless of the bounds of p.
           // `e -= p` has empty bounds, regardless of the bounds of p.
@@ -1298,8 +1303,8 @@ namespace {
                BinaryOperator::isBitwiseOp(Op) ||
                BinaryOperator::isShiftOp(Op))) {
             BoundsExpr *LHSBounds = IsCompoundAssignment ?
-              LValueTargetBounds(LHS) : RValueBounds(LHS);
-            BoundsExpr *RHSBounds = RValueBounds(RHS);
+              LValueTargetBounds(LHS, InCheckedScope) : RValueBounds(LHS, InCheckedScope);
+            BoundsExpr *RHSBounds = RValueBounds(RHS, InCheckedScope);
             if (LHSBounds->isUnknown() && !RHSBounds->isUnknown())
               return RHSBounds;
             if (!LHSBounds->isUnknown() && RHSBounds->isUnknown())
@@ -1335,7 +1340,7 @@ namespace {
           if (const CallExpr *CE = dyn_cast<CallExpr>(Child))
             return CallExprBounds(CE, Binding);
           else
-            return RValueBounds(Child);
+            return RValueBounds(Child, InCheckedScope);
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
@@ -1343,7 +1348,7 @@ namespace {
           return CreateBoundsAllowedButNotComputed();
         case Expr::BoundsValueExprClass: {
           BoundsValueExpr *BVE = cast<BoundsValueExpr>(E);
-          return RValueBounds(BVE->getTemporaryBinding());
+          return RValueBounds(BVE->getTemporaryBinding(), InCheckedScope);
         }
         default:
           // All other cases are unknowable
@@ -1480,8 +1485,8 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
     return B;
 }
 
-BoundsExpr *Sema::InferLValueBounds(Expr *E) {
-  BoundsExpr *Bounds = BoundsInference(*this).LValueBounds(E);
+BoundsExpr *Sema::InferLValueBounds(Expr *E, bool InCheckedScope) {
+  BoundsExpr *Bounds = BoundsInference(*this).LValueBounds(E, InCheckedScope);
   return CheckNonModifyingBounds(Bounds, E);
 }
 
@@ -1491,14 +1496,14 @@ BoundsExpr *Sema::CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
                                                       IsBoundsSafeInterface);
 }
 
-BoundsExpr *Sema::InferLValueTargetBounds(Expr *E) {
-  BoundsExpr *Bounds = BoundsInference(*this).LValueTargetBounds(E);
+BoundsExpr *Sema::InferLValueTargetBounds(Expr *E, bool InCheckedScope) {
+  BoundsExpr *Bounds = BoundsInference(*this).LValueTargetBounds(E, InCheckedScope);
   return CheckNonModifyingBounds(Bounds, E);
 }
 
-BoundsExpr *Sema::InferRValueBounds(Expr *E, bool IncludeNullTerminator) {
+BoundsExpr *Sema::InferRValueBounds(Expr *E, bool InCheckedScope, bool IncludeNullTerminator) {
   BoundsExpr *Bounds =
-    BoundsInference(*this, IncludeNullTerminator).RValueBounds(E);
+    BoundsInference(*this, IncludeNullTerminator).RValueBounds(E, InCheckedScope);
   return CheckNonModifyingBounds(Bounds, E);
 }
 
@@ -1666,7 +1671,7 @@ namespace {
       QualType PtrType;
       if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
         NeedsBoundsCheck = true;
-        BoundsExpr *LValueBounds = S.InferLValueBounds(E);
+        BoundsExpr *LValueBounds = S.InferLValueBounds(E, InCheckedScope);
         BoundsCheckKind Kind = BCK_Normal;
         // Null-terminated array pointers have special semantics for
         // bounds checks.
@@ -1714,7 +1719,7 @@ namespace {
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()) {
-        BoundsExpr *Bounds = S.InferRValueBounds(Base);
+        BoundsExpr *Bounds = S.InferRValueBounds(Base, InCheckedScope);
         if (Bounds->isUnknown()) {
           S.Diag(Base->getBeginLoc(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
@@ -2967,12 +2972,12 @@ namespace {
                IsBoundsSafeInterfaceAssignment(LHSType, RHS)) {
         // Check that the value being assigned has bounds if the
         // target of the LHS lvalue has bounds.
-        LHSTargetBounds = S.InferLValueTargetBounds(LHS);
+        LHSTargetBounds = S.InferLValueTargetBounds(LHS, InCheckedScope);
         if (!LHSTargetBounds->isUnknown()) {
           if (E->isCompoundAssignmentOp())
-            RHSBounds = S.InferRValueBounds(E);
+            RHSBounds = S.InferRValueBounds(E, InCheckedScope);
           else
-            RHSBounds = S.InferRValueBounds(RHS);
+            RHSBounds = S.InferRValueBounds(RHS, InCheckedScope);
 
           if (RHSBounds->isUnknown()) {
              S.Diag(RHS->getBeginLoc(),
@@ -3055,7 +3060,7 @@ namespace {
           continue;
 
         Expr *Arg = CE->getArg(i);
-        BoundsExpr *ArgBounds = S.InferRValueBounds(Arg);
+        BoundsExpr *ArgBounds = S.InferRValueBounds(Arg, InCheckedScope);
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getBeginLoc(),
                  diag::err_expected_bounds_for_argument) << (i + 1) <<
@@ -3150,7 +3155,7 @@ namespace {
         BoundsExpr *DeclaredBounds = E->getBoundsExpr();
         BoundsExpr *NormalizedBounds = S.ExpandToRange(SubExprAtNewType,
                                                        DeclaredBounds);
-        BoundsExpr *SubExprBounds = S.InferRValueBounds(TempUse);
+        BoundsExpr *SubExprBounds = S.InferRValueBounds(TempUse, InCheckedScope);
         if (SubExprBounds->isUnknown()) {
           S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
         }
@@ -3171,7 +3176,7 @@ namespace {
         bool IncludeNullTerminator =
           E->getType()->getPointeeOrArrayElementType()->isNtCheckedArrayType();
         BoundsExpr *SubExprBounds =
-          S.InferRValueBounds(E->getSubExpr(), IncludeNullTerminator);
+          S.InferRValueBounds(E->getSubExpr(), InCheckedScope, IncludeNullTerminator);
         if (SubExprBounds->isUnknown()) {
           S.Diag(E->getSubExpr()->getBeginLoc(),
                  diag::err_expected_bounds_for_ptr_cast)
@@ -3247,7 +3252,7 @@ namespace {
      Expr *Init = D->getInit();
      if (Init && D->getType()->isScalarType()) {
        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-       BoundsExpr *InitBounds = S.InferRValueBounds(Init);
+       BoundsExpr *InitBounds = S.InferRValueBounds(Init, InCheckedScope);
        if (InitBounds->isUnknown()) {
          // TODO: need some place to record the initializer bounds
          S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
