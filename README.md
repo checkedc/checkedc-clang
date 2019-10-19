@@ -13,8 +13,8 @@ Earlier this year, the LLVM community
 "monorepo". To align with upstream, we are now planning to transition Checked C
 to a monorepo.
 
-Starting the first week of Oct 2019, the checkedc-clang project will transition to
-monorepo. This would result in the following changes:
+Starting the last week of October 2019, the checkedc-clang project will transition to
+a monorepo. This would result in the following changes:
 
 1. [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) and
 [checkedc-clang](https://github.com/Microsoft/checkedc-clang) (as well as other
@@ -38,20 +38,16 @@ script to cherry-pick your existing patches to the new monorepo.
 6. Make sure to set the following CMake flag to enable clang in your builds:
   `-DLLVM_ENABLE_PROJECTS=clang`
 
-## Compiler source code update
-
-On January 25, 2019, we updated to LLVM/clang sources from January 16, 2019.  If you are building the Checked C clang compiler 
-from source code, we suggest you do a clean build by deleting your cmake object directory.
-
 ## We are hiring.
 
-We have a position available for a 
-[Principal Software Engineer](https://careers.microsoft.com/us/en/job/559081/Principal-Software-Engineer) or a
-[Senior Software Engineer](https://careers.microsoft.com/us/en/job/570339/Senior-Software-Engineer). We are looking for someone wih compiler and programming language implementation experience who is passionate about making software more secure and reliable.
+We have positions available for a
+[Principal Software Engineer](https://careers.microsoft.com/us/en/job/725522/Principal-Software-Engineer) and a
+[Senior Software Engineer](https://careers.microsoft.com/us/en/job/725509/Senior-Software-Engineer).
+We are looking for an engineer who has production compiler development experience and who values shipping software.
 
 ## Trying out Checked C
 
-Programmers are welcome to ``kick the tires'' on Checked C as it is being implemented.
+Programmers are welcome to use Checked C as it is being implemented.
 We have pre-built compiler installers for Windows available for download on the
 [release page](https://github.com/Microsoft/checkedc-clang/releases).
 For other platforms, you will have to build your own copy of the compiler.  For directions on how to do this, see
