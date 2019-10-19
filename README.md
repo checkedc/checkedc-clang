@@ -40,8 +40,8 @@ script to cherry-pick your existing patches to the new monorepo.
 
 ## We are hiring.
 
-We have a position available for a 
-[Principal Software Engineer](https://careers.microsoft.com/us/en/job/725522/Principal-Software-Engineer) or a
+We have positions available for a
+[Principal Software Engineer](https://careers.microsoft.com/us/en/job/725522/Principal-Software-Engineer) and a
 [Senior Software Engineer](https://careers.microsoft.com/us/en/job/725509/Senior-Software-Engineer).
 We are looking for an engineer who has production compiler development experience and who values shipping software.
 
