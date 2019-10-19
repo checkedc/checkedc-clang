@@ -166,12 +166,12 @@ void f3(_Array_ptr<struct S> a : bounds(a, a + 7)) {
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 // CHECK: RHS Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<struct S>'
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<struct S>'
@@ -212,14 +212,14 @@ void f3(_Array_ptr<struct S> a : bounds(a, a + 7)) {
 // CHECK: `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 // CHECK: RHS Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |     | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'a' '_Array_ptr<struct S>'
 // CHECK: |     `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <LValueToRValue>
@@ -359,12 +359,12 @@ int f10a(void) {
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 // CHECK: RHS Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'struct S _Checked[6]'
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'struct S _Checked[6]'
@@ -405,14 +405,14 @@ int f10a(void) {
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 // CHECK: RHS Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
 // CHECK: |     | `-DeclRefExpr {{0x[0-9a-f]+}} 'struct S _Checked[6]' lvalue Var {{0x[0-9a-f]+}} 'arr' 'struct S _Checked[6]'
 // CHECK: |     `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
@@ -591,12 +591,12 @@ void f22(struct S b _Checked[9]) {
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 // CHECK: RHS Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<struct S>':'_Array_ptr<struct S>'
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue ->f {{0x[0-9a-f]+}}
 // CHECK: |   `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |     `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<struct S>':'_Array_ptr<struct S>'
@@ -637,14 +637,14 @@ void f22(struct S b _Checked[9]) {
 // CHECK:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 // CHECK: RHS Bounds:
 // CHECK:  RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |     | `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<struct S>':'_Array_ptr<struct S>'
 // CHECK: |     `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 3
-// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK: |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' <LValueToRValue>
