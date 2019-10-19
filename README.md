@@ -38,11 +38,6 @@ script to cherry-pick your existing patches to the new monorepo.
 6. Make sure to set the following CMake flag to enable clang in your builds:
   `-DLLVM_ENABLE_PROJECTS=clang`
 
-## Compiler source code update
-
-On January 25, 2019, we updated to LLVM/clang sources from January 16, 2019.  If you are building the Checked C clang compiler 
-from source code, we suggest you do a clean build by deleting your cmake object directory.
-
 ## We are hiring.
 
 We have a position available for a 
