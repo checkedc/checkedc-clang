@@ -2856,9 +2856,9 @@ namespace {
              // a checked scope, look at the original decl statement.
              Statement = Cfg->getSourceDeclStmt(DS);
            if (MemoryCheckedStmts.find(Statement) != MemoryCheckedStmts.end())
-               CSS = CheckedScopeSpecifier::CSS_Memory;
+             CSS = CheckedScopeSpecifier::CSS_Memory;
            else if (BoundsCheckedStmts.find(Statement) != BoundsCheckedStmts.end())
-               CSS = CheckedScopeSpecifier::CSS_Bounds;
+             CSS = CheckedScopeSpecifier::CSS_Bounds;
 
 #if TRACE_CFG
             llvm::outs() << "Visiting ";
