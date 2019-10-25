@@ -453,14 +453,8 @@ namespace {
     }	
   };	
 
-  Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E, bool InCheckedScope) {	
+  Expr *PruneTemporaryBindings(Sema &SemaRef, Expr *E, CheckedScopeSpecifier CSS) {	
     // Account for checked scope information when transforming the expression.
-    // Assume a bounds-only checked scope for InCheckedScope=true 
-    // since it is less restrictive than memory checked scopes.
-    // TODO: GitHub issue #698: this method should take a CheckedScopeSpecifier rather than a boolean.
-    CheckedScopeSpecifier CSS = InCheckedScope ? 
-      CheckedScopeSpecifier::CSS_Bounds : 
-      CheckedScopeSpecifier::CSS_Unchecked;
     Sema::CheckedScopeRAII CheckedScope(SemaRef, CSS);
 
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics	
@@ -807,7 +801,7 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
-    BoundsExpr *LValueBounds(Expr *E, bool InCheckedScope) {
+    BoundsExpr *LValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
       // E may not be an lvalue if there is a typechecking error when struct 
       // accesses member array incorrectly.
       if (!E->isLValue()) return CreateBoundsInferenceError();
@@ -846,7 +840,7 @@ namespace {
       case Expr::UnaryOperatorClass: {
         UnaryOperator *UO = cast<UnaryOperator>(E);
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
-          return RValueBounds(UO->getSubExpr(), InCheckedScope);
+          return RValueBounds(UO->getSubExpr(), CSS);
         else {
           llvm_unreachable("unexpected lvalue unary operator");
           return CreateBoundsInferenceError();
@@ -858,7 +852,7 @@ namespace {
         // of whichever subexpression has pointer type.
         ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
         // getBase returns the pointer-typed expression.
-        return RValueBounds(AS->getBase(), InCheckedScope);
+        return RValueBounds(AS->getBase(), CSS);
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = cast<MemberExpr>(E);
@@ -881,15 +875,15 @@ namespace {
               Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                               CastKind::CK_ArrayToPointerDecay,
                                               E);
-              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ExpandToRange(Base, B), InCheckedScope));
+              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ExpandToRange(Base, B), CSS));
             } else
-              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, InCheckedScope));
+              return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, CSS));
           }
 
           // If B is an interop type annotation, the type must be identical
           // to the declared type, modulo checkedness.  So it is OK to
           // compute the array bounds based on the original type.
-          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ArrayExprBounds(ME), InCheckedScope));
+          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, ArrayExprBounds(ME), CSS));
         }
 
         // It is an error for a member to have function type
@@ -904,7 +898,7 @@ namespace {
 
         Expr *AddrOf = CreateAddressOfOperator(ME);
         BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
-        return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, Bounds, InCheckedScope));
+        return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, Bounds, CSS));
       }
       case Expr::ImplicitCastExprClass: {
         ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
@@ -913,7 +907,7 @@ namespace {
         // TODO: when we add relative alignment support, we may need
         // to adjust the relative alignment of the bounds.
         if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-          return LValueBounds(ICE->getSubExpr(), InCheckedScope);
+          return LValueBounds(ICE->getSubExpr(), CSS);
          return CreateBoundsAlwaysUnknown();
       }
       case Expr::CHKCBindTemporaryExprClass: {
@@ -1004,7 +998,7 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
-    BoundsExpr *LValueTargetBounds(Expr *E, bool InCheckedScope) {
+    BoundsExpr *LValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
       if (!E->isLValue()) return CreateBoundsInferenceError();
       E = E->IgnoreParens();
       QualType QT = E->getType();
@@ -1082,7 +1076,7 @@ namespace {
             B = CreateTypeBasedBounds(M, IT->getType(),
                                          /*IsParam=*/false,
                                          /*IsInteropTypeAnnotation=*/true);
-            return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, InCheckedScope));
+            return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, CSS));
           }
             
           if (!B)
@@ -1106,12 +1100,12 @@ namespace {
             B = ExpandToRange(MemberRValue, B);
           }
 
-          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, InCheckedScope));
+          return cast<BoundsExpr>(PruneTemporaryBindings(SemaRef, B, CSS));
         }
         case Expr::ImplicitCastExprClass: {
           ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
           if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-            return LValueTargetBounds(ICE->getSubExpr(), InCheckedScope);
+            return LValueTargetBounds(ICE->getSubExpr(), CSS);
           return CreateBoundsAlwaysUnknown();
         }
         default:
@@ -1120,7 +1114,7 @@ namespace {
     }
 
     // Compute the bounds of a cast operation that produces an rvalue.
-    BoundsExpr *RValueCastBounds(CastKind CK, Expr *E, bool InCheckedScope) {
+    BoundsExpr *RValueCastBounds(CastKind CK, Expr *E, CheckedScopeSpecifier CSS) {
       switch (CK) {
         case CastKind::CK_BitCast:
         case CastKind::CK_NoOp:
@@ -1131,11 +1125,11 @@ namespace {
         case CastKind::CK_IntegralCast:
         case CastKind::CK_IntegralToBoolean:
         case CastKind::CK_BooleanToSignedIntegral:
-          return RValueBounds(E, InCheckedScope);
+          return RValueBounds(E, CSS);
         case CastKind::CK_LValueToRValue:
-          return LValueTargetBounds(E, InCheckedScope);
+          return LValueTargetBounds(E, CSS);
         case CastKind::CK_ArrayToPointerDecay:
-          return LValueBounds(E, InCheckedScope);
+          return LValueBounds(E, CSS);
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds:
           llvm_unreachable("unexpected rvalue bounds cast");
@@ -1149,7 +1143,7 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
-    BoundsExpr *RValueBounds(Expr *E, bool InCheckedScope) {
+    BoundsExpr *RValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
       if (!E->isRValue()) return CreateBoundsInferenceError();
 
       E = E->IgnoreParens();
@@ -1188,7 +1182,7 @@ namespace {
           // _Ptr is invalid, that will be diagnosed separately.
           if (E->getType()->isCheckedPointerPtrType())
             return CreateTypeBasedBounds(E, E->getType(), false, false);
-          return RValueCastBounds(CE->getCastKind(), CE->getSubExpr(), InCheckedScope);
+          return RValueCastBounds(CE->getCastKind(), CE->getSubExpr(), CSS);
         }
         case Expr::UnaryOperatorClass: {
           UnaryOperator *UO = cast<UnaryOperator>(E);
@@ -1214,19 +1208,19 @@ namespace {
             if (SubExpr->getType()->isFunctionType())
               return CreateBoundsEmpty();
 
-            return LValueBounds(SubExpr, InCheckedScope);
+            return LValueBounds(SubExpr, CSS);
           }
 
           // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
           // `e` is an LValue, so its bounds are its lvalue target bounds.
           if (UnaryOperator::isIncrementDecrementOp(Op))
-            return LValueTargetBounds(SubExpr, InCheckedScope);
+            return LValueTargetBounds(SubExpr, CSS);
 
           // `+e`, `-e`, `~e` all have bounds of `e`. `e` is an RValue.
           if (Op == UnaryOperatorKind::UO_Plus ||
               Op == UnaryOperatorKind::UO_Minus ||
               Op == UnaryOperatorKind::UO_Not)
-            return RValueBounds(SubExpr, InCheckedScope);
+            return RValueBounds(SubExpr, CSS);
 
           // We cannot infer the bounds of other unary operators
           return CreateBoundsAlwaysUnknown();
@@ -1244,12 +1238,12 @@ namespace {
 
           // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
           if (Op == BinaryOperatorKind::BO_Assign)
-            return RValueBounds(RHS, InCheckedScope);
+            return RValueBounds(RHS, CSS);
 
           // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
           // are RValues.
           if (Op == BinaryOperatorKind::BO_Comma)
-            return RValueBounds(RHS, InCheckedScope);
+            return RValueBounds(RHS, CSS);
 
           // Compound Assignments function like assignments mostly,
           // except the LHS is an L-Value, so we'll use its lvalue target bounds
@@ -1268,14 +1262,14 @@ namespace {
               RHS->getType()->isIntegerType() &&
               BinaryOperator::isAdditiveOp(Op)) {
             return IsCompoundAssignment ?
-              LValueTargetBounds(LHS, InCheckedScope) : RValueBounds(LHS, InCheckedScope);
+              LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS);
           }
           // `i + p` has the bounds of `p`. `p` is an RValue.
           // `i += p` has the bounds of `p`. `p` is an RValue.
           if (LHS->getType()->isIntegerType() &&
               RHS->getType()->isPointerType() &&
               Op == BinaryOperatorKind::BO_Add) {
-            return RValueBounds(RHS, InCheckedScope);
+            return RValueBounds(RHS, CSS);
           }
           // `e - p` has empty bounds, regardless of the bounds of p.
           // `e -= p` has empty bounds, regardless of the bounds of p.
@@ -1303,8 +1297,8 @@ namespace {
                BinaryOperator::isBitwiseOp(Op) ||
                BinaryOperator::isShiftOp(Op))) {
             BoundsExpr *LHSBounds = IsCompoundAssignment ?
-              LValueTargetBounds(LHS, InCheckedScope) : RValueBounds(LHS, InCheckedScope);
-            BoundsExpr *RHSBounds = RValueBounds(RHS, InCheckedScope);
+              LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS);
+            BoundsExpr *RHSBounds = RValueBounds(RHS, CSS);
             if (LHSBounds->isUnknown() && !RHSBounds->isUnknown())
               return RHSBounds;
             if (!LHSBounds->isUnknown() && RHSBounds->isUnknown())
@@ -1340,7 +1334,7 @@ namespace {
           if (const CallExpr *CE = dyn_cast<CallExpr>(Child))
             return CallExprBounds(CE, Binding);
           else
-            return RValueBounds(Child, InCheckedScope);
+            return RValueBounds(Child, CSS);
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
@@ -1348,7 +1342,7 @@ namespace {
           return CreateBoundsAllowedButNotComputed();
         case Expr::BoundsValueExprClass: {
           BoundsValueExpr *BVE = cast<BoundsValueExpr>(E);
-          return RValueBounds(BVE->getTemporaryBinding(), InCheckedScope);
+          return RValueBounds(BVE->getTemporaryBinding(), CSS);
         }
         default:
           // All other cases are unknowable
@@ -1485,8 +1479,8 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
     return B;
 }
 
-BoundsExpr *Sema::InferLValueBounds(Expr *E, bool InCheckedScope) {
-  BoundsExpr *Bounds = BoundsInference(*this).LValueBounds(E, InCheckedScope);
+BoundsExpr *Sema::InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
+  BoundsExpr *Bounds = BoundsInference(*this).LValueBounds(E, CSS);
   return CheckNonModifyingBounds(Bounds, E);
 }
 
@@ -1496,14 +1490,14 @@ BoundsExpr *Sema::CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
                                                       IsBoundsSafeInterface);
 }
 
-BoundsExpr *Sema::InferLValueTargetBounds(Expr *E, bool InCheckedScope) {
-  BoundsExpr *Bounds = BoundsInference(*this).LValueTargetBounds(E, InCheckedScope);
+BoundsExpr *Sema::InferLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
+  BoundsExpr *Bounds = BoundsInference(*this).LValueTargetBounds(E, CSS);
   return CheckNonModifyingBounds(Bounds, E);
 }
 
-BoundsExpr *Sema::InferRValueBounds(Expr *E, bool InCheckedScope, bool IncludeNullTerminator) {
+BoundsExpr *Sema::InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS, bool IncludeNullTerminator) {
   BoundsExpr *Bounds =
-    BoundsInference(*this, IncludeNullTerminator).RValueBounds(E, InCheckedScope);
+    BoundsInference(*this, IncludeNullTerminator).RValueBounds(E, CSS);
   return CheckNonModifyingBounds(Bounds, E);
 }
 
@@ -1665,13 +1659,13 @@ namespace {
       Other   // reads and writes memory, struct base check
     };
 
-    bool AddBoundsCheck(Expr *E, OperationKind OpKind, bool InCheckedScope) {
+    bool AddBoundsCheck(Expr *E, OperationKind OpKind, CheckedScopeSpecifier CSS) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
       QualType PtrType;
       if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
         NeedsBoundsCheck = true;
-        BoundsExpr *LValueBounds = S.InferLValueBounds(E, InCheckedScope);
+        BoundsExpr *LValueBounds = S.InferLValueBounds(E, CSS);
         BoundsCheckKind Kind = BCK_Normal;
         // Null-terminated array pointers have special semantics for
         // bounds checks.
@@ -1686,7 +1680,7 @@ namespace {
           S.Diag(E->getBeginLoc(), diag::err_expected_bounds) << E->getSourceRange();
           LValueBounds = S.CreateInvalidBoundsExpr();
         } else {
-          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind, InCheckedScope);
+          CheckBoundsAtMemoryAccess(Deref, LValueBounds, Kind, CSS);
         }
         if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
           assert(!UO->hasBoundsExpr());
@@ -1707,24 +1701,24 @@ namespace {
     // base expression is an Array_ptr dereference.  Such base expressions
     // always need bounds checks, even though their lvalues are only used for an
     // address computation.
-    bool AddMemberBaseBoundsCheck(MemberExpr *E, bool InCheckedScope) {
+    bool AddMemberBaseBoundsCheck(MemberExpr *E, CheckedScopeSpecifier CSS) {
       Expr *Base = E->getBase();
       // E.F
       if (!E->isArrow()) {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
-          return AddBoundsCheck(Base, OperationKind::Other, InCheckedScope);
+          return AddBoundsCheck(Base, OperationKind::Other, CSS);
         return false;
       }
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()) {
-        BoundsExpr *Bounds = S.InferRValueBounds(Base, InCheckedScope);
+        BoundsExpr *Bounds = S.InferRValueBounds(Base, CSS);
         if (Bounds->isUnknown()) {
           S.Diag(Base->getBeginLoc(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
         } else {
-          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal, InCheckedScope);
+          CheckBoundsAtMemoryAccess(E, Bounds, BCK_Normal, CSS);
         }
         E->setBoundsExpr(Bounds);
         return true;
@@ -2516,7 +2510,7 @@ namespace {
     void CheckBoundsDeclAtAssignment(SourceLocation ExprLoc, Expr *Target,
                                      BoundsExpr *DeclaredBounds, Expr *Src,
                                      BoundsExpr *SrcBounds,
-                                     bool InCheckedScope,
+                                     CheckedScopeSpecifier CSS,
                                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
       // Record expression equality implied by assignment.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
@@ -2548,7 +2542,7 @@ namespace {
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
-          (InCheckedScope ?
+          (CSS != CheckedScopeSpecifier::CSS_Unchecked?
            diag::warn_checked_scope_bounds_declaration_invalid :
            diag::warn_bounds_declaration_invalid);
         S.Diag(ExprLoc, DiagId)
@@ -2570,7 +2564,7 @@ namespace {
     void CheckBoundsDeclAtCallArg(unsigned ParamNum,
                                   BoundsExpr *ExpectedArgBounds, Expr *Arg,
                                   BoundsExpr *ArgBounds,
-                                  bool InCheckedScope,
+                                  CheckedScopeSpecifier CSS,
                                   SmallVector<SmallVector <Expr *, 4> *, 4> *EquivExprs,
                                   std::pair<ComparisonSet, ComparisonSet>& Facts) {
       SourceLocation ArgLoc = Arg->getBeginLoc();
@@ -2580,7 +2574,7 @@ namespace {
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
-          (InCheckedScope ?
+          (CSS != CheckedScopeSpecifier::CSS_Unchecked ?
            diag::warn_checked_scope_argument_bounds_invalid :
            diag::warn_argument_bounds_invalid);
         S.Diag(ArgLoc, DiagId) << (ParamNum + 1) << Arg->getSourceRange();
@@ -2598,7 +2592,7 @@ namespace {
     void CheckBoundsDeclAtInitializer(SourceLocation ExprLoc, VarDecl *D,
                                       BoundsExpr *DeclaredBounds, Expr *Src,
                                       BoundsExpr *SrcBounds,
-                                      bool InCheckedScope,
+                                      CheckedScopeSpecifier CSS,
                                       std::pair<ComparisonSet, ComparisonSet>& Facts) {
       // Record expression equality implied by initialization.
       SmallVector<SmallVector <Expr *, 4> *, 4> EquivExprs;
@@ -2645,7 +2639,7 @@ namespace {
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
-          (InCheckedScope ?
+          (CSS != CheckedScopeSpecifier::CSS_Unchecked ?
            diag::warn_checked_scope_bounds_declaration_invalid :
            diag::warn_bounds_declaration_invalid);
         S.Diag(ExprLoc, DiagId)
@@ -2669,7 +2663,7 @@ namespace {
                                         BoundsExpr *TargetBounds,
                                         Expr *Src,
                                         BoundsExpr *SrcBounds,
-                                        bool InCheckedScope,
+                                        CheckedScopeSpecifier CSS,
                                         std::pair<ComparisonSet, ComparisonSet>& Facts) {
       ProofFailure Cause;
       bool IsStaticPtrCast = (Src->getType()->isCheckedPointerPtrType() &&
@@ -2681,7 +2675,7 @@ namespace {
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
-          (InCheckedScope ?
+          (CSS != CheckedScopeSpecifier::CSS_Unchecked ?
            diag::warn_checked_scopestatic_cast_bounds_invalid :
            diag::warn_static_cast_bounds_invalid);
         SourceLocation ExprLoc = Cast->getExprLoc();
@@ -2696,7 +2690,7 @@ namespace {
 
     void CheckBoundsAtMemoryAccess(Expr *Deref, BoundsExpr *ValidRange,
                                    BoundsCheckKind CheckKind,
-                                   bool InCheckedScope) {
+                                   CheckedScopeSpecifier CSS) {
       ProofFailure Cause;
       ProofResult Result;
       ProofStmtKind ProofKind;
@@ -2736,21 +2730,25 @@ namespace {
 
     typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
 
-    void IdentifyChecked(Stmt *S, StmtSet &CheckedStmts, bool InCheckedScope) {
+    void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
       if (!S)
         return;
 
-      if (InCheckedScope)
+      if (CSS == CheckedScopeSpecifier::CSS_Memory)
         if (isa<Expr>(S) || isa<DeclStmt>(S) || isa<ReturnStmt>(S))
-          CheckedStmts.insert(S);
+          MemoryCheckedStmts.insert(S);
+
+      if (CSS == CheckedScopeSpecifier::CSS_Bounds)
+        if (isa<Expr>(S) || isa<DeclStmt>(S) || isa<ReturnStmt>(S))
+          BoundsCheckedStmts.insert(S);
 
       if (const CompoundStmt *CS = dyn_cast<CompoundStmt>(S))
-        InCheckedScope = CS->isCheckedScope();
+        CSS = CS->getCheckedSpecifier();
 
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I)
-        IdentifyChecked(*I, CheckedStmts, InCheckedScope);
-   }
+        IdentifyChecked(*I, MemoryCheckedStmts, BoundsCheckedStmts, CSS);
+    }
 
     // Add any subexpressions of S that occur in TopLevelElems to NestedExprs.
     void MarkNested(const Stmt *S, StmtSet &NestedExprs, StmtSet &TopLevelElems) {
@@ -2831,8 +2829,9 @@ namespace {
 #endif
      StmtSet NestedElements;
      FindNestedElements(NestedElements);
-     StmtSet CheckedStmts;
-     IdentifyChecked(Body, CheckedStmts, false);
+     StmtSet MemoryCheckedStmts;
+     StmtSet BoundsCheckedStmts;
+     IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
      std::pair<ComparisonSet, ComparisonSet> Facts;
      for (const CFGBlock *Block : POView) {
@@ -2849,22 +2848,24 @@ namespace {
            if (NestedElements.find(S) != NestedElements.end())
              continue;
 
-           bool IsChecked = false;
-           if (DeclStmt *DS = dyn_cast<DeclStmt>(S)) {
+           CheckedScopeSpecifier CSS = CheckedScopeSpecifier::CSS_Unchecked;
+           const Stmt *Statement = S;
+           if (DeclStmt *DS = dyn_cast<DeclStmt>(S))
              // CFG construction will synthesize decl statements so that
              // each declarator is a separate CFGElem.  To see if we are in
              // a checked scope, look at the original decl statement.
-             const DeclStmt *Orig = Cfg->getSourceDeclStmt(DS);
-             IsChecked = (CheckedStmts.find(Orig) != CheckedStmts.end());
-           } else
-             IsChecked = (CheckedStmts.find(S) != CheckedStmts.end());
+             Statement = Cfg->getSourceDeclStmt(DS);
+           if (MemoryCheckedStmts.find(Statement) != MemoryCheckedStmts.end())
+             CSS = CheckedScopeSpecifier::CSS_Memory;
+           else if (BoundsCheckedStmts.find(Statement) != BoundsCheckedStmts.end())
+             CSS = CheckedScopeSpecifier::CSS_Bounds;
 
 #if TRACE_CFG
             llvm::outs() << "Visiting ";
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            TraverseStmt(S, IsChecked, Facts);
+            TraverseStmt(S, CSS, Facts);
          }
        }
        AFA.Next();
@@ -2876,33 +2877,33 @@ namespace {
     //
     // Visit methods do work on individual nodes, such as checking bounds
     // declarations or inserting bounds checks.
-    void TraverseStmt(Stmt *S, bool InCheckedScope,
+    void TraverseStmt(Stmt *S, CheckedScopeSpecifier CSS,
                       std::pair<ComparisonSet, ComparisonSet>& Facts) {
       if (!S)
         return;
 
       switch (S->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          VisitUnaryOperator(cast<UnaryOperator>(S), InCheckedScope);
+          VisitUnaryOperator(cast<UnaryOperator>(S), CSS);
           break;
         case Expr::CallExprClass:
-          VisitCallExpr(cast<CallExpr>(S), InCheckedScope, Facts);
+          VisitCallExpr(cast<CallExpr>(S), CSS, Facts);
           break;
         case Expr::MemberExprClass:
-          VisitMemberExpr(cast<MemberExpr>(S), InCheckedScope);
+          VisitMemberExpr(cast<MemberExpr>(S), CSS);
           break;
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          VisitCastExpr(cast<CastExpr>(S), InCheckedScope, Facts);
+          VisitCastExpr(cast<CastExpr>(S), CSS, Facts);
           break;
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
-          VisitBinaryOperator(cast<BinaryOperator>(S), InCheckedScope, Facts);
+          VisitBinaryOperator(cast<BinaryOperator>(S), CSS, Facts);
           break;
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
-          InCheckedScope = CS->isCheckedScope();
+          CSS = CS->getCheckedSpecifier();
           break;
         }
         case Stmt::DeclStmtClass: {
@@ -2913,30 +2914,30 @@ namespace {
             // If an initializer expression is present, it is visited
             // during the traversal of children nodes.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
-              VisitVarDecl(VD, InCheckedScope, Facts);
+              VisitVarDecl(VD, CSS, Facts);
           }
           break;
         }
         case Stmt::ReturnStmtClass: {
           ReturnStmt *RS = cast<ReturnStmt>(S);
-          VisitReturnStmt(RS, InCheckedScope);
+          VisitReturnStmt(RS, CSS);
         }
         default: 
           break;
       }
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
-        TraverseStmt(*I, InCheckedScope, Facts);
+        TraverseStmt(*I, CSS, Facts);
       }
     }
 
     // Traverse a top-level variable declaration.  If there is an
     // initializer, it has to be traversed explicitly.
-    void TraverseTopLevelVarDecl(VarDecl *VD, bool InCheckedScope,
+    void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS,
                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      VisitVarDecl(VD, InCheckedScope, Facts);
+      VisitVarDecl(VD, CSS, Facts);
       if (Expr *Init = VD->getInit())
-        TraverseStmt(Init, InCheckedScope, Facts);
+        TraverseStmt(Init, CSS, Facts);
     }
 
     bool IsBoundsSafeInterfaceAssignment(QualType DestTy, Expr *E) {
@@ -2949,7 +2950,7 @@ namespace {
       return false;
     }
 
-    void VisitBinaryOperator(BinaryOperator *E, bool InCheckedScope,
+    void VisitBinaryOperator(BinaryOperator *E, CheckedScopeSpecifier CSS,
                              std::pair<ComparisonSet, ComparisonSet>& Facts) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
@@ -2972,12 +2973,12 @@ namespace {
                IsBoundsSafeInterfaceAssignment(LHSType, RHS)) {
         // Check that the value being assigned has bounds if the
         // target of the LHS lvalue has bounds.
-        LHSTargetBounds = S.InferLValueTargetBounds(LHS, InCheckedScope);
+        LHSTargetBounds = S.InferLValueTargetBounds(LHS, CSS);
         if (!LHSTargetBounds->isUnknown()) {
           if (E->isCompoundAssignmentOp())
-            RHSBounds = S.InferRValueBounds(E, InCheckedScope);
+            RHSBounds = S.InferRValueBounds(E, CSS);
           else
-            RHSBounds = S.InferRValueBounds(RHS, InCheckedScope);
+            RHSBounds = S.InferRValueBounds(RHS, CSS);
 
           if (RHSBounds->isUnknown()) {
              S.Diag(RHS->getBeginLoc(),
@@ -2987,7 +2988,7 @@ namespace {
           }
 
           CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                      RHS, RHSBounds, InCheckedScope, Facts);
+                                      RHS, RHSBounds, CSS, Facts);
         }
       }
 
@@ -2996,14 +2997,14 @@ namespace {
       bool LHSNeedsBoundsCheck = false;
       OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
         OperationKind::Assign : OperationKind::Other;
-      LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, InCheckedScope);
+      LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS);
       if (DumpBounds && (LHSNeedsBoundsCheck ||
                          (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
         DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RHSBounds);
       return;
     }
 
-    void VisitCallExpr(CallExpr *CE, bool InCheckedScope,
+    void VisitCallExpr(CallExpr *CE, CheckedScopeSpecifier CSS,
                        std::pair<ComparisonSet, ComparisonSet>& Facts) {
       QualType CalleeType = CE->getCallee()->getType();
       // Extract the pointee type.  The caller type could be a regular pointer
@@ -3060,7 +3061,7 @@ namespace {
           continue;
 
         Expr *Arg = CE->getArg(i);
-        BoundsExpr *ArgBounds = S.InferRValueBounds(Arg, InCheckedScope);
+        BoundsExpr *ArgBounds = S.InferRValueBounds(Arg, CSS);
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getBeginLoc(),
                  diag::err_expected_bounds_for_argument) << (i + 1) <<
@@ -3112,19 +3113,19 @@ namespace {
         }
 
         CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds,
-                                 InCheckedScope, nullptr, Facts);
+                                 CSS, nullptr, Facts);
       }
       return;
    }
 
     // This includes both ImplicitCastExprs and CStyleCastExprs
-    void VisitCastExpr(CastExpr *E, bool InCheckedScope,
+    void VisitCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
                        std::pair<ComparisonSet, ComparisonSet>& Facts) {
       CheckDisallowedFunctionPtrCasts(E);
 
       CastKind CK = E->getCastKind();
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), OperationKind::Read, InCheckedScope);
+        bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), OperationKind::Read, CSS);
         if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
 
@@ -3155,7 +3156,7 @@ namespace {
         BoundsExpr *DeclaredBounds = E->getBoundsExpr();
         BoundsExpr *NormalizedBounds = S.ExpandToRange(SubExprAtNewType,
                                                        DeclaredBounds);
-        BoundsExpr *SubExprBounds = S.InferRValueBounds(TempUse, InCheckedScope);
+        BoundsExpr *SubExprBounds = S.InferRValueBounds(TempUse, CSS);
         if (SubExprBounds->isUnknown()) {
           S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
         }
@@ -3176,7 +3177,7 @@ namespace {
         bool IncludeNullTerminator =
           E->getType()->getPointeeOrArrayElementType()->isNtCheckedArrayType();
         BoundsExpr *SubExprBounds =
-          S.InferRValueBounds(E->getSubExpr(), InCheckedScope, IncludeNullTerminator);
+          S.InferRValueBounds(E->getSubExpr(), CSS, IncludeNullTerminator);
         if (SubExprBounds->isUnknown()) {
           S.Diag(E->getSubExpr()->getBeginLoc(),
                  diag::err_expected_bounds_for_ptr_cast)
@@ -3186,7 +3187,7 @@ namespace {
           BoundsExpr *TargetBounds =
             S.CreateTypeBasedBounds(E, E->getType(), false, false);
           CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, E->getSubExpr(),
-                                         SubExprBounds, InCheckedScope, Facts);
+                                         SubExprBounds, CSS, Facts);
         }
         assert(SubExprBounds);
         assert(!E->getSubExprBoundsExpr());
@@ -3205,26 +3206,26 @@ namespace {
     // member points to a valid range of memory given by
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
-    void VisitMemberExpr(MemberExpr *E, bool InCheckedScope) {
-      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, InCheckedScope);
+    void VisitMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS) {
+      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS);
       if (NeedsBoundsCheck && DumpBounds)
         DumpExpression(llvm::outs(), E);
     }
 
-    void VisitUnaryOperator(UnaryOperator *E, bool InCheckedScope) {
+    void VisitUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS) {
       if (E->getOpcode() == UO_AddrOf)
         S.CheckAddressTakenMembers(E);
 
       if (!E->isIncrementDecrementOp())
         return;
 
-      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), OperationKind::Other, InCheckedScope);
+      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), OperationKind::Other, CSS);
       if (NeedsBoundsCheck && DumpBounds)
           DumpExpression(llvm::outs(), E);
       return;
     }
 
-    void VisitVarDecl(VarDecl *D, bool InCheckedScope,
+    void VisitVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
                       std::pair<ComparisonSet, ComparisonSet>& Facts) {
       if (D->isInvalidDecl())
         return;
@@ -3252,7 +3253,7 @@ namespace {
      Expr *Init = D->getInit();
      if (Init && D->getType()->isScalarType()) {
        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-       BoundsExpr *InitBounds = S.InferRValueBounds(Init, InCheckedScope);
+       BoundsExpr *InitBounds = S.InferRValueBounds(Init, CSS);
        if (InitBounds->isUnknown()) {
          // TODO: need some place to record the initializer bounds
          S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
@@ -3261,7 +3262,7 @@ namespace {
        } else {
          BoundsExpr *NormalizedDeclaredBounds = S.ExpandToRange(D, DeclaredBounds);
          CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
-           Init, InitBounds, InCheckedScope, Facts);
+           Init, InitBounds, CSS, Facts);
        }
        if (DumpBounds)
          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
@@ -3270,7 +3271,7 @@ namespace {
       return;
     }
 
-    void VisitReturnStmt(ReturnStmt *RS, bool InCheckedScope) {
+    void VisitReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS) {
       if (!ReturnBounds)
         return;
       Expr *RetValue = RS->getRetValue();
@@ -3535,10 +3536,10 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   else {
     // A CFG couldn't be constructed.  CFG construction doesn't support
     // __finally or may encounter a malformed AST.  Fall back on to non-flow 
-    // based analysis.  The IsChecked parameter is ignored because the checked
+    // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
     std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-    Checker.TraverseStmt(Body, false, EmptyFacts);
+    Checker.TraverseStmt(Body, CheckedScopeSpecifier::CSS_Unchecked, EmptyFacts);
   }
 
 
@@ -3551,7 +3552,7 @@ void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
     CheckBoundsDeclarations Checker(*this, nullptr, nullptr, nullptr);
     std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
-    Checker.TraverseTopLevelVarDecl(D, IsCheckedScope(), EmptyFacts);
+    Checker.TraverseTopLevelVarDecl(D, GetCheckedScopeInfo(), EmptyFacts);
   }
 }
 
