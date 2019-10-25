@@ -3,18 +3,6 @@
 //
 // RUN: %clang -cc1 -fcheckedc-extension -Wcheck-bounds-decls -verify -verify-ignore-unexpected=note %s
 
-// A function call on the rhs that returns a value with bounds.
-
-extern _Array_ptr<int> h4(void) : count(3) {
-  _Array_ptr<int> p : bounds(p, p + 3) = 0;
-  return p;
-}
-
-extern void f7(void *p) {
-  _Array_ptr<int> r : count(3) = 0;
-  r = _Assume_bounds_cast<_Array_ptr<int>>(h4(), count(3));  // expected-error {{contain a modifying expression}}
-}
-
 // Deferencing an array of nt_checked arrays.
 extern void check_assign(int val, int p[10], int q[], int r _Checked[10], int s _Checked[],
                          int s2d _Checked[10][10], int v _Nt_checked[10], int w _Nt_checked[],

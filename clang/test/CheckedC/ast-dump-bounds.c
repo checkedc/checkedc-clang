@@ -687,3 +687,76 @@ typedef _Array_ptr<float> fn_vector_add(_Array_ptr<float> vec : count(len),
  // CHECK-NEXT: PositionalParameterExpr
  // CHECK: 'int'
  // CHECK: #1
+
+//===================================================================
+// Dumps of bounds expressions for dynamic and assume bounds casts
+//===================================================================
+
+//
+// Check that all bounds cast expressions introduce a temporary binding expression.
+//
+
+void bounds_casts1(_Array_ptr<char> buf : count(len), int len) {
+  // CHECK: FunctionDecl {{.*}} bounds_casts1
+
+  _Array_ptr<int> r : count(6) = _Dynamic_bounds_cast<_Array_ptr<int>>(buf, bounds(r, r + 6));
+  // CHECK: VarDecl {{.*}} r
+  // CHECK: BoundsCastExpr {{.*}} '_Array_ptr<int>' <DynamicPtrBounds>
+  // CHECK: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'buf'
+
+  _Array_ptr<double> s : count(2) = 0;
+  s = _Assume_bounds_cast<_Array_ptr<double>>(r, count(2));
+  // CHECK: BinaryOperator {{.*}} '='
+  // CHECK-NEXT: DeclRefExpr {{.*}} 's'
+  // CHECK-NEXT: BoundsCastExpr {{.*}} <AssumePtrBounds>
+  // CHECK: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'r'
+}
+
+_Array_ptr<char> ga : count(2) = "ab";
+
+void bounds_casts2(_Array_ptr<char> a
+           : bounds(_Dynamic_bounds_cast<_Array_ptr<int>>(a, count(1)), _Dynamic_bounds_cast<_Array_ptr<int>>(ga, count(2)) + 3)) {
+  // CHECK: FunctionDecl {{.*}} bounds_casts2
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK: BoundsCastExpr {{.*}} '_Array_ptr<int>' <DynamicPtrBounds>
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
+  // CHECK: BinaryOperator {{.*}} '+'
+  // CHECK: BoundsCastExpr {{.*}} '_Array_ptr<int>' <DynamicPtrBounds>
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'ga'
+}
+
+void bounds_casts3(_Array_ptr<char> a
+           : bounds(_Assume_bounds_cast<_Array_ptr<int>>(a, count(1)), _Assume_bounds_cast<_Array_ptr<int>>(ga, count(2)) + 3)) {
+  // CHECK: FunctionDecl {{.*}} bounds_casts3
+  // CHECK-NEXT: ParmVarDecl {{.*}} a
+  // CHECK-NEXT: RangeBoundsExpr
+  // CHECK-NEXT: BoundsCastExpr {{.*}} '_Array_ptr<int>' <AssumePtrBounds>
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'a'
+  // CHECK: BinaryOperator {{.*}} '+'
+  // CHECK-NEXT: BoundsCastExpr {{.*}} '_Array_ptr<int>' <AssumePtrBounds>
+  // CHECK-NEXT: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<char>'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'ga'
+}
+
+void bounds_casts4() {
+  // CHECK: FunctionDecl {{.*}} bounds_casts4
+
+  _Array_ptr<int> r : count(3) = 0;
+  *(_Dynamic_bounds_cast<_Array_ptr<int>>(r, count(3)) + 2) = 4;
+  // CHECK: BoundsCastExpr {{.*}} '_Array_ptr<int>' <DynamicPtrBounds>
+  // CHECK: CHKCBindTemporaryExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT: ImplicitCastExpr {{.*}} '_Array_ptr<int>'
+  // CHECK-NEXT: DeclRefExpr {{.*}} 'r'
+}

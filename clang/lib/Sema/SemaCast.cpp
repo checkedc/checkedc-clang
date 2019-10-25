@@ -2831,9 +2831,11 @@ ExprResult Sema::BuildBoundsCastExpr(SourceLocation OpLoc, tok::TokenKind Kind,
   if (Op.SrcExpr.isInvalid())
     return ExprError();
 
+  Expr *TempExpr = new (Context) CHKCBindTemporaryExpr(Op.SrcExpr.get());
+
   return Op.complete(
       BoundsCastExpr::Create(Context, Op.ResultType, Op.ValueKind, Op.Kind,
-                             Op.SrcExpr.get(), &Op.BasePath, CastTypeInfo,
+                             TempExpr, &Op.BasePath, CastTypeInfo,
                              OpLoc, Paren.getEnd(), AngleBrackets, bounds));
 }
 

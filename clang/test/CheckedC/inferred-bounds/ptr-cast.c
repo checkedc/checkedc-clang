@@ -119,14 +119,14 @@ void f4(struct S b _Checked[9]) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>
 // CHECK: |-Inferred SubExpr Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |   |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |   |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: |   | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   |   `-ParenExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |   |     `-UnaryOperator {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue prefix '*'
 // CHECK: |   |       `-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' <LValueToRValue>
 // CHECK: |   |         `-DeclRefExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>':'_Array_ptr<struct S>' lvalue ParmVar {{0x[0-9a-f]+}} 'b' '_Array_ptr<struct S>':'_Array_ptr<struct S>'
-// CHECK: |   `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: |     |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |   `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK: |     |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: |     | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |     |   `-ParenExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |     `-UnaryOperator {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue prefix '*'
@@ -153,7 +153,7 @@ void f5(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
 // CHECK: ImplicitCastExpr {{0x[0-9a-f]+}} '_Ptr<int>' <BitCast>
 // CHECK: |-Inferred SubExpr Bounds
 // CHECK: | `-RangeBoundsExpr {{0x[0-9a-f]+}} 'NULL TYPE'
-// CHECK: |   |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |   |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: |   | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |   |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |   |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>
@@ -164,8 +164,8 @@ void f5(struct S arr _Checked[][12] : count(len), int i, int j, int len) {
 // CHECK: |   |     |     `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'i' 'int'
 // CHECK: |   |     `-ImplicitCastExpr {{0x[0-9a-f]+}} 'int' <LValueToRValue>
 // CHECK: |   |       `-DeclRefExpr {{0x[0-9a-f]+}} 'int' lvalue ParmVar {{0x[0-9a-f]+}} 'j' 'int'
-// CHECK: |   `-BinaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' '+'
-// CHECK: |     |-UnaryOperator {{0x[0-9a-f]+}} '_Array_ptr<int>' prefix '&'
+// CHECK: |   `-BinaryOperator {{0x[0-9a-f]+}} 'int *' '+'
+// CHECK: |     |-UnaryOperator {{0x[0-9a-f]+}} 'int *' prefix '&'
 // CHECK: |     | `-MemberExpr {{0x[0-9a-f]+}} 'int' lvalue .f {{0x[0-9a-f]+}}
 // CHECK: |     |   `-ArraySubscriptExpr {{0x[0-9a-f]+}} 'struct S':'struct S' lvalue
 // CHECK: |     |     |-ImplicitCastExpr {{0x[0-9a-f]+}} '_Array_ptr<struct S>' <ArrayToPointerDecay>

@@ -36,8 +36,6 @@ namespace {
       case CK_ArrayToPointerDecay:
       case CK_FunctionToPointerDecay:
       case CK_NullToPointer:
-      case CK_AssumePtrBounds:
-      case CK_DynamicPtrBounds:
         return true;
       default:
         return false;
@@ -323,13 +321,25 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
 
   // The use of an expression temporary is equal to the
   // value of the binding expression.
-  if (BoundsValueExpr *BV1 = dyn_cast<BoundsValueExpr>(E1))
-    if (BV1->getTemporaryBinding() == E2)
+  if (BoundsValueExpr *BV1 = dyn_cast<BoundsValueExpr>(E1)) {
+    CHKCBindTemporaryExpr *Binding = BV1->getTemporaryBinding();
+    if (Binding == E2)
       return Result::Equal;
 
-  if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2))
-    if (BV2->getTemporaryBinding() == E1)
+    if (Binding)
+      if (CompareExpr(Binding->getSubExpr(), E2) == Result::Equal)
+        return Result::Equal;
+  }
+  
+  if (BoundsValueExpr *BV2 = dyn_cast<BoundsValueExpr>(E2)) {
+    CHKCBindTemporaryExpr *Binding = BV2->getTemporaryBinding();
+    if (Binding == E1)
       return Result::Equal;
+
+    if (Binding)
+      if (CompareExpr(Binding->getSubExpr(), E1) == Result::Equal)
+        return Result::Equal;
+  }
 
    // Compare expressions structurally, recursively invoking
    // comparison for subcomponents.  If that fails, consult
@@ -446,8 +456,11 @@ Result Lexicographic::CompareExpr(const Expr *Arg1, const Expr *Arg2) {
        // - Pointer arithmetic where the pointer referent types are the same
        //   size, checkedness is the same, and the integer types are the
        //    same size/signedness.
-       Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(),
-                                          E2ChildExpr->getType());
+       
+       // Bounds expressions don't have types.
+       if (!isa<BoundsExpr>(E1ChildExpr))
+         Cmp = CompareTypeIgnoreCheckedness(E1ChildExpr->getType(), E2ChildExpr->getType());
+
        if (Cmp != Result::Equal)
          return CheckEquivExprs(Cmp, E1, E2);
      } else
@@ -754,9 +767,14 @@ Lexicographic::CompareImpl(const PositionalParameterExpr *E1,
 Result
 Lexicographic::CompareImpl(const BoundsCastExpr *E1,
                            const BoundsCastExpr *E2) {
-  Result Cmp = CompareExpr(E1->getBoundsExpr(), E2->getBoundsExpr());
+  Result Cmp = CompareInteger(E1->getCastKind(), E2->getCastKind());
   if (Cmp != Result::Equal)
     return Cmp;
+
+  Cmp = CompareExpr(E1->getBoundsExpr(), E2->getBoundsExpr());
+  if (Cmp != Result::Equal)
+    return Cmp;
+
   return CompareType(E1->getType(), E2->getType());
 }
 

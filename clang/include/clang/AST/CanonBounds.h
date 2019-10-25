@@ -62,7 +62,6 @@ namespace clang {
       const T *E1 = dyn_cast<T>(Raw1);
       const T *E2 = dyn_cast<T>(Raw2);
       if (!E1 || !E2) {
-        llvm_unreachable("dyn_cast failed");
         return Result::LessThan;
       }
       return Lexicographic::CompareImpl(E1, E2);
