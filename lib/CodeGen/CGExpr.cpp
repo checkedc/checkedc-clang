@@ -3829,6 +3829,10 @@ LValue CodeGenFunction::EmitMemberExpr(const MemberExpr *E) {
     // A second reason for always checking the BaseLV is that it is the same for
     // all the fields in the struct, so more of the checks should optimize away.
     EmitDynamicBoundsCheck(Addr, E->getBoundsExpr(), BCK_Normal, nullptr);
+
+    // Checked C
+    // Before dereferencing, do a _MMSafe_ptr validity check.
+    EmitDynamicStructIDCheck(BaseExpr);
   } else
     BaseLV = EmitCheckedLValue(BaseExpr, TCK_MemberAccess);
 
