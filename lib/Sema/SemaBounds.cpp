@@ -1833,7 +1833,7 @@ namespace {
         // range_dest == {} always passes this test, however we are disallowing empty ranges
         // for _Array_ptr (upperBound <= lowerBound). With the exception that
         // upperBound == lowerBound is allowed for _Nt_array_ptr.
-        if ( R.IsEmpty() ) {
+        if (R.IsEmpty()) {
           Cause = CombineFailures(Cause, ProofFailure::DstEmpty);
           return ProofResult::False;
         }
@@ -1950,7 +1950,7 @@ namespace {
       // However, this should be generalized in the future.
       bool IsEmpty() {
         if (IsConstantSizedRange()) {
-          if ( Base->IgnoreParenCasts()->getType()->isCheckedPointerNtArrayType() )
+          if (Base->IgnoreParenCasts()->getType()->isCheckedPointerNtArrayType())
             return UpperOffsetConstant < LowerOffsetConstant;
 
           return UpperOffsetConstant <= LowerOffsetConstant;
