@@ -52,7 +52,7 @@ Otherwise, Visual Studio will save the file with carriage return/line feed line 
 
 ## Source organization
 LLVM uses Git for distributed source code control.   It is mirrored by a Git repository on Github:
-[llvm project](https://github.com/llvm/llvm-project.git)
+[llvm project](https://github.com/llvm/llvm-project)
 
 The code for the Checked C version of LLVM/Clang lives in the following repository:
 [Checked C clang repo](https://github.com/Microsoft/checkedc-clang)
