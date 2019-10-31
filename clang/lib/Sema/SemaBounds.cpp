@@ -1755,9 +1755,10 @@ namespace {
       None = 0x0,
       LowerBound = 0x1,     // The destination lower bound is below the source lower bound.
       UpperBound = 0x2,     // The destination upper bound is above the source upper bound.
-      Empty = 0x4,          // The source bounds are empty.
-      Width = 0x8,          // The source bounds are narrower than the destination bounds.
-      PartialOverlap = 0x16 // There was only partial overlap of the destination bounds with
+      SrcEmpty = 0x4,       // The source bounds are empty.
+      DstEmpty = 0x8,       // The destination bounds are empty.
+      Width = 0x10,          // The source bounds are narrower than the destination bounds.
+      PartialOverlap = 0x20 // There was only partial overlap of the destination bounds with
                             // the source bounds.
     };
 
@@ -1827,6 +1828,16 @@ namespace {
       // Is R a subrange of this range?
       ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet>& Facts) {
+
+        // In assignments dest <-- src, this relation should hold: range_dest \subseteq range_src
+        // range_dest == {} always passes this test, however we are disallowing empty ranges
+        // for _Array_ptr (upperBound <= lowerBound). With the exception that
+        // upperBound == lowerBound is allowed for _Nt_array_ptr.
+        if (R.IsEmpty()) {
+          Cause = CombineFailures(Cause, ProofFailure::DstEmpty);
+          return ProofResult::False;
+        }
+
         if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
           ProofResult LowerBoundsResult = CompareLowerOffsets(R, Cause, EquivExprs, Facts);
           ProofResult UpperBoundsResult = CompareUpperOffsets(R, Cause, EquivExprs, Facts);
@@ -1932,12 +1943,18 @@ namespace {
       }
 
       // This function returns true if, when the range is ConstantSized,
-      // `UpperOffsetConstant <= LowerOffsetConstant`.
+      // `UpperOffsetConstant <= LowerOffsetConstant`,
+      // except for _Nt_Array_ptr types
+      // that `UpperOffsetConstant == LowerOffsetConstant` is allowed.
       // Currently, it returns false when the range is not ConstantSized.
       // However, this should be generalized in the future.
       bool IsEmpty() {
-        if (IsConstantSizedRange())
+        if (IsConstantSizedRange()) {
+          if (Base->IgnoreParenCasts()->getType()->isCheckedPointerNtArrayType())
+            return UpperOffsetConstant < LowerOffsetConstant;
+
           return UpperOffsetConstant <= LowerOffsetConstant;
+        }
         // TODO: can we generalize IsEmpty to non-constant ranges?
         return false;
       }
@@ -2363,7 +2380,7 @@ namespace {
           return R;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
           if (SrcRange.IsEmpty())
-            Cause = CombineFailures(Cause, ProofFailure::Empty);
+            Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
           if (DeclaredRange.IsConstantSizedRange() && SrcRange.IsConstantSizedRange()) {
             if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
               Cause = CombineFailures(Cause, ProofFailure::Width);
@@ -2459,7 +2476,7 @@ namespace {
             ValidRange.PartialOverlap(MemoryAccessRange) == ProofResult::True)
           Cause = CombineFailures(Cause, ProofFailure::PartialOverlap);
         if (ValidRange.IsEmpty())
-          Cause = CombineFailures(Cause, ProofFailure::Empty);
+          Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
         if (MemoryAccessRange.GetWidth() > ValidRange.GetWidth()) {
           Cause = CombineFailures(Cause, ProofFailure::Width);
           R = ProofResult::False;
@@ -2473,8 +2490,10 @@ namespace {
     void ExplainProofFailure(SourceLocation Loc, ProofFailure Cause,
                              ProofStmtKind Kind) {
       // Prefer diagnosis of empty bounds over bounds being too narrow.
-      if (TestFailure(Cause, ProofFailure::Empty))
+      if (TestFailure(Cause, ProofFailure::SrcEmpty))
         S.Diag(Loc, diag::note_source_bounds_empty);
+      else if (TestFailure(Cause, ProofFailure::DstEmpty))
+        S.Diag(Loc, diag::note_destination_bounds_empty);
       else if (Kind != ProofStmtKind::StaticBoundsCast &&
                TestFailure(Cause, ProofFailure::Width))
         S.Diag(Loc, diag::note_bounds_too_narrow) << (unsigned)Kind;
