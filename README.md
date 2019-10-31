@@ -10,8 +10,9 @@ C specification is available  at the
 
 Earlier this year, the LLVM community
 [transitioned](https://forums.swift.org/t/llvm-monorepo-transition/25689) to
-"monorepo". To align with upstream, we have transitioned Checked C to a
-monorepo starting Oct 30, 2019.
+"monorepo".
+
+We transitioned Checked C to a monorepo starting Oct 30, 2019.
 
 This has resulted in the following changes:
 
@@ -24,7 +25,7 @@ no longer be maintained. The
 [checkedc-clang](https://github.com/Microsoft/checkedc-clang) repo will be the
 new monorepo.
 
-3. There are be no changes to the
+3. There will be no changes to the
 [checkedc](https://github.com/Microsoft/checkedc) repo. It will continue to be
 a separate git repo.
 
