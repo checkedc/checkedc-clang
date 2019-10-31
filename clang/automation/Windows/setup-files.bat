@@ -14,7 +14,7 @@ if "%BUILD_CHECKEDC_CLEAN%"=="Yes" (
 )
  
 if not exist %BUILD_SOURCESDIRECTORY%\.git (
-  git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang %BUILD_SOURCESDIRECTORY%/checkedc-clang
+  git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang %BUILD_SOURCESDIRECTORY%\checkedc-clang
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
