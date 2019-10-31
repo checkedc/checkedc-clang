@@ -55,10 +55,10 @@ LLVM uses Git for distributed source code control.   It is mirrored by a Git rep
 [llvm project](https://github.com/llvm/llvm-project.git)
 
 The code for the Checked C version of LLVM/Clang lives in the following repository:
-[Checked C clang_repo](https://github.com/Microsoft/checkedc-clang)
+[Checked C clang repo](https://github.com/Microsoft/checkedc-clang)
 It is licensed under the [University of Illinois/NCSA
 license](https://opensource.org/licenses/NCSA).  See the file LICENSE.TXT in
-the repo for complete details of licensing.
+for complete details of licensing.
 
 The LLVM/Clang repo has two branches:
 
