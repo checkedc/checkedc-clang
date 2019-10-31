@@ -235,7 +235,7 @@ by selecting the Build->Configuration Manager menu item and choosing a different
 
 Follow the earlier instructions to set up the build system.  From the build directory, use the following comamnd to build clang only:
 
-	msbuild clang\tools\driver\clang.vcxproj /p:CL_MPCount=3 /m
+	msbuild tools\clang\tools\driver\clang.vcxproj /p:CL_MPCount=3 /m
 
 To build everything:
 
@@ -249,7 +249,7 @@ By default, the build type is a Debug build.   You can specify the build type by
 to the `msbuild` command line, where `nnn` is one of `Debug`, `Release`, or `RelWithDebInfo`.  For example, 
 for a Release build, use:
 
-    msbuild clang\tools\driver\clang.vcxproj /p:Configuration=Release /p:CL_MPCount=3 /m
+    msbuild tools\clang\tools\driver\clang.vcxproj /p:Configuration=Release /p:CL_MPCount=3 /m
 
 ## Testing
 

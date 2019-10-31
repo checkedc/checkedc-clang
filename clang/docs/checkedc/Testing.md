@@ -1,6 +1,6 @@
-# Testing the Checked C version of LLVM/clang
+# Testing the Checked C version of LLVM/Clang
 
-LLVM/clang have two kinds of tests: developer regression tests and extended
+LLVM/Clang have two kinds of tests: developer regression tests and extended
 tests. Developer regression tests are meant to be run by developers before any
 check-in and are quick to run. Extended tests are run as part of continuous
 integration testing or for changes that require extensive testing.
@@ -9,8 +9,8 @@ integration testing or for changes that require extensive testing.
 
 We have created a new set of developer regression tests for the Checked C
 extension. We have added a new target to the build system for running the test
-suite: check-checkedc. The Checked C version of clang/LLVM should pass the
-existing clang and LLVM regression tests and the Checked C-specific regression
+suite: check-checkedc. The Checked C version of LLVM/Clang should pass the
+existing Clang and LLVM regression tests and the Checked C-specific regression
 tests.  There should be no unexpected test failures. A developer should confirm
 this before committing a change.
 
@@ -104,18 +104,18 @@ NOTE: LIT testing for ARM is only supported for tests under the directory
 ### Unexpected test failures and line endings
 
 If you see unexpected test failures when working on Windows using unchanged
-versions of the Checked C LLVM/clang repos, you should first check that you
+versions of the Checked C LLVM/Clang repo, you should first check that you
 have set your line end handling for Git properly, particularly if you see a
 lot of failures. LLVM and clang have some tests that depend on line endings.
 Those tests assume that all lines end with line feeds (the Unix line ending
 convention).
 
-The LLVM/clang project uses Subversion for source code control, which does not
+The LLVM/Clang project uses Subversion for source code control, which does not
 alter line endings. We are using Git for source code control, which may alter
 line endings on Windows, depending on how you have configured Git. Git may
 alter text line endings to be carriage return/line feed (the Windows line
 ending convention). It is important to ensure that Git does not do this for
-your LLVM/clang repositories.
+your LLVM/Clang repository.
 
 The configuration setting `core.autocrlf` should to be set to `false`. If you
 followed the recommended [steps](Setup-and-Build.md) for cloning your Git repos,
@@ -123,7 +123,7 @@ it will be set to `false`.
 
 ## Extended testing
 
-The extended testing for LLVM/clang is somewhat complicated to set up. It is
+The extended testing for LLVM/Clang is somewhat complicated to set up. It is
 oriented toward automated testing using servers and has the set-up complexity
 that comes with that. For the Checked C implementation, there are two kinds of
 extended testing that we do: testing that benchmarks that have been converted
