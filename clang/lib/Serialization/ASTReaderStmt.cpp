@@ -161,6 +161,8 @@ void ASTStmtReader::VisitCompoundStmt(CompoundStmt *S) {
   VisitStmt(S);
   SmallVector<Stmt *, 16> Stmts;
   unsigned NumStmts = Record.readInt();
+  S->setCheckedSpecifiers((CheckedScopeSpecifier)Record.readInt());
+  S->setWrittenCheckedSpecifiers((CheckedScopeSpecifier)Record.readInt());
   while (NumStmts--)
     Stmts.push_back(Record.readSubStmt());
   S->setStmts(Stmts);
