@@ -620,7 +620,16 @@ struct CodeActionParams {
   /// Context carrying additional information.
   CodeActionContext context;
 };
+
 bool fromJSON(const llvm::json::Value &, CodeActionParams &);
+
+struct CodeLensParams {
+  /// The document in which the command was invoked.
+  TextDocumentIdentifier textDocument;
+};
+
+bool fromJSON(const llvm::json::Value &, CodeLensParams &);
+
 
 struct WorkspaceEdit {
   /// Holds changes to existing resources.
@@ -681,7 +690,34 @@ struct CodeAction {
   /// and a command, first the edit is executed and then the command.
   llvm::Optional<Command> command;
 };
+
 llvm::json::Value toJSON(const CodeAction &);
+
+//
+// A code lens represents a command that should be shown along with
+// source text, like the number of references, a way to run tests, etc.
+//
+//  A code lens is _unresolved_ when no command is associated to it. For performance
+//  reasons the creation of a code lens and resolving should be done in two stages.
+//
+struct CodeLens {
+  /// The range in which this code lens is valid, should only span a single line.
+  Range range;
+
+  /**
+   * The command this code lens represents.
+  */
+  llvm::Optional<Command> command;
+
+  /**
+   * A data entry field that is preserved on a code lens item between
+   * a code lens and a code lens resolve request.
+   */
+  //data?: any
+};
+
+llvm::json::Value toJSON(const CodeLens &);
+bool fromJSON(const llvm::json::Value &, CodeLens &);
 
 /// Represents programming constructs like variables, classes, interfaces etc.
 /// that appear in a document. Document symbols can be hierarchical and they

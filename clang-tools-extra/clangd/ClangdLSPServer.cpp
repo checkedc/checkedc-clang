@@ -12,6 +12,7 @@
 #include "SourceCode.h"
 #include "Trace.h"
 #include "URI.h"
+#include "Protocol.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -318,6 +319,8 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
                  {"moreTriggerCharacter", {}},
              }},
             {"codeActionProvider", true},
+            {"codeLensProvider", llvm::json::Object{
+                {"resolveProvider", true}}},
             {"completionProvider",
              llvm::json::Object{
                  {"resolveProvider", false},
@@ -338,7 +341,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
             {"referencesProvider", true},
             {"executeCommandProvider",
              llvm::json::Object{
-                 {"commands", {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND}},
+                 {"commands", {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND, "Dummy"}},
              }},
         }}}});
 }
@@ -420,6 +423,8 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
 
     Reply("Fix applied.");
     ApplyEdit(*Params.workspaceEdit);
+  } else if(Params.command == "Dummy") {
+    Reply("All Done.");
   } else {
     // We should not get here because ExecuteCommandParams would not have
     // parsed in the first place and this handler should not be called. But if
@@ -625,6 +630,31 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
   }
 }
 
+void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
+                                 Callback<llvm::json::Value> Reply) {
+  std::vector<CodeLens> allCodeLens;
+  CodeLens dummyGuy;
+  dummyGuy.range.start.line = 66;
+  dummyGuy.range.end.line = 66;
+  dummyGuy.range.start.character = 18;
+  dummyGuy.range.end.character = 20;
+  Command newCmd;
+  newCmd.command = "Dummy";
+  newCmd.title = "DummyTitle";
+  dummyGuy.command = newCmd;
+  allCodeLens.clear();
+  allCodeLens.push_back(dummyGuy);
+  Reply(llvm::json::Array(allCodeLens));
+}
+
+void ClangdLSPServer::onCodeLensResolve(const CodeLens &Params,
+                                        Callback<llvm::json::Value> Reply) {
+  CodeLens dummyGuy;
+  dummyGuy.range = Params.range;
+  Reply(clang::clangd::toJSON(dummyGuy));
+}
+
+
 void ClangdLSPServer::onCompletion(const CompletionParams &Params,
                                    Callback<CompletionList> Reply) {
   if (!shouldRunCompletion(Params))
@@ -738,6 +768,8 @@ ClangdLSPServer::ClangdLSPServer(class Transport &Transp,
   MsgHandler->bind("textDocument/onTypeFormatting", &ClangdLSPServer::onDocumentOnTypeFormatting);
   MsgHandler->bind("textDocument/formatting", &ClangdLSPServer::onDocumentFormatting);
   MsgHandler->bind("textDocument/codeAction", &ClangdLSPServer::onCodeAction);
+  MsgHandler->bind("textDocument/codeLens", &ClangdLSPServer::onCodeLens);
+  MsgHandler->bind("codeLens/resolve", &ClangdLSPServer::onCodeLensResolve);
   MsgHandler->bind("textDocument/completion", &ClangdLSPServer::onCompletion);
   MsgHandler->bind("textDocument/signatureHelp", &ClangdLSPServer::onSignatureHelp);
   MsgHandler->bind("textDocument/definition", &ClangdLSPServer::onGoToDefinition);

@@ -74,6 +74,12 @@ private:
   void onDocumentSymbol(const DocumentSymbolParams &,
                         Callback<llvm::json::Value>);
   void onCodeAction(const CodeActionParams &, Callback<llvm::json::Value>);
+
+  // code lens : This is where checkedc-interaction happens
+  void onCodeLens(const CodeLensParams &, Callback<llvm::json::Value>);
+  void onCodeLensResolve(const CodeLens &Params,
+                         Callback<llvm::json::Value> Reply);
+  // checkedc-interaction ends
   void onCompletion(const CompletionParams &, Callback<CompletionList>);
   void onSignatureHelp(const TextDocumentPositionParams &,
                        Callback<SignatureHelp>);

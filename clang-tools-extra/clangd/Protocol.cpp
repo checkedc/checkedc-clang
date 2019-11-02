@@ -415,6 +415,11 @@ bool fromJSON(const llvm::json::Value &Params, CodeActionParams &R) {
          O.map("range", R.range) && O.map("context", R.context);
 }
 
+bool fromJSON(const llvm::json::Value &Params, CodeLensParams &L) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("textDocument", L.textDocument);
+}
+
 bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R) {
   llvm::json::ObjectMapper O(Params);
   return O && O.map("changes", R.changes);
@@ -431,6 +436,10 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   if (R.command == ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND) {
     return Args && Args->size() == 1 &&
            fromJSON(Args->front(), R.workspaceEdit);
+  }
+
+  if (R.command == "Dummy") {
+    return true;
   }
   return false; // Unrecognized command.
 }
@@ -494,6 +503,11 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceSymbolParams &R) {
   return O && O.map("query", R.query);
 }
 
+bool fromJSON(const llvm::json::Value &Params, CodeLens &CL) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("range", CL.range) && O.map("command", CL.command);
+}
+
 llvm::json::Value toJSON(const Command &C) {
   auto Cmd = llvm::json::Object{{"title", C.title}, {"command", C.command}};
   if (C.workspaceEdit)
@@ -514,6 +528,13 @@ llvm::json::Value toJSON(const CodeAction &CA) {
   if (CA.command)
     CodeAction["command"] = *CA.command;
   return std::move(CodeAction);
+}
+
+llvm::json::Value toJSON(const CodeLens &CL) {
+  auto CodeLens = llvm::json::Object{{"range", CL.range}};
+  if (CL.command)
+    CodeLens["command"] = *CL.command;
+  return std::move(CodeLens);
 }
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &O, const DocumentSymbol &S) {
