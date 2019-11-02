@@ -25,10 +25,10 @@ if not exist %BUILD_SOURCESDIRECTORY%\checkedc-clang\llvm\projects\checkedc-wrap
 
 
 if "%SIGN_INSTALLER%" NEQ "No" (
-  if not exist %BUILD_SOURCESDIRECTORY%\automation\Windows\sign\.git (
+  if not exist %BUILD_SOURCESDIRECTORY%\clang\automation\Windows\sign\.git (
     rem VSO automation runs scripts from a top-level clang repo that its cloned.
     rem Place the signing scripts there, not within the cloned compiler repos.
-    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\automation\Windows\sign
+    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\clang\automation\Windows\sign
     if ERRORLEVEL 1 (goto cmdfailed)
   )
 )
