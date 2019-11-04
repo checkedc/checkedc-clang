@@ -113,6 +113,7 @@ configuration, you can follow the Unix/Linux directions.
 Otherwise, follow these directions:
 ```
 git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang src
+```
 
 The Checked C language tests live in a folder within `llvm\project`.  Change to the `src\llvm\projects\checkedc-wrapper` directory
 and clone the Checked C repo:

@@ -13,28 +13,28 @@ if "%BUILD_CHECKEDC_CLEAN%"=="Yes" (
   )
 )
  
-if not exist %BUILD_SOURCESDIRECTORY%\.git (
-  git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang %BUILD_SOURCESDIRECTORY%
+if not exist %BUILD_SOURCESDIRECTORY%\checkedc-clang\.git (
+  git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang %BUILD_SOURCESDIRECTORY%\checkedc-clang
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
-if not exist %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc\.git (
-  git clone https://github.com/Microsoft/checkedc %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc
+if not exist %BUILD_SOURCESDIRECTORY%\checkedc-clang\llvm\projects\checkedc-wrapper\checkedc\.git (
+  git clone https://github.com/Microsoft/checkedc %BUILD_SOURCESDIRECTORY%\checkedc-clang\llvm\projects\checkedc-wrapper\checkedc
   if ERRORLEVEL 1 (goto cmdfailed)
 )
 
 
 if "%SIGN_INSTALLER%" NEQ "No" (
-  if not exist %BUILD_SOURCESDIRECTORY%\automation\Windows\sign\.git (
+  if not exist %BUILD_SOURCESDIRECTORY%\clang\automation\Windows\sign\.git (
     rem VSO automation runs scripts from a top-level clang repo that its cloned.
     rem Place the signing scripts there, not within the cloned compiler repos.
-    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\automation\Windows\sign
+    git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" clone https://msresearch.visualstudio.com/DefaultCollection/CheckedC/_git/checkedc-sign %BUILD_SOURCESDIRECTORY%\clang\automation\Windows\sign
     if ERRORLEVEL 1 (goto cmdfailed)
   )
 )
 
 rem Set up clang sources
-cd %BUILD_SOURCESDIRECTORY%
+cd %BUILD_SOURCESDIRECTORY%\checkedc-clang
 if ERRORLEVEL 1 (goto cmdfailed)
 git fetch origin
 if ERRORLEVEL 1 (goto cmdfailed)
@@ -52,7 +52,7 @@ if not exist %LLVM_OBJ_DIR% (
 )
 
 rem set up Checked C sources
-cd %BUILD_SOURCESDIRECTORY%\llvm\projects\checkedc-wrapper\checkedc
+cd %BUILD_SOURCESDIRECTORY%\checkedc-clang\llvm\projects\checkedc-wrapper\checkedc
 if ERRORLEVEL 1 (goto cmdfailed)
 git fetch origin
 if ERRORLEVEL 1 (goto cmdfailed)
