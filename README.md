@@ -10,23 +10,23 @@ C specification is available  at the
 
 Earlier this year, the LLVM community
 [transitioned](https://forums.swift.org/t/llvm-monorepo-transition/25689) to
-"monorepo". To align with upstream, we are now planning to transition Checked C
-to a monorepo.
+"monorepo".
 
-Starting the last week of Oct 2019, the checkedc-clang project will transition
-to monorepo. This would result in the following changes:
+We transitioned Checked C to a monorepo starting Oct 30, 2019.
+
+This has resulted in the following changes:
 
 1. [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) and
 [checkedc-clang](https://github.com/Microsoft/checkedc-clang) (as well as other
-LLVM subprojects) would be tracked via a single git repo.
+LLVM subprojects) are now tracked via a single git repo.
 
-2. The [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) repo would
+2. The [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) repo will
 no longer be maintained. The
-[checkedc-clang](https://github.com/Microsoft/checkedc-clang) repo would be the
+[checkedc-clang](https://github.com/Microsoft/checkedc-clang) repo will be the
 new monorepo.
 
-3. There would be no changes to the
-[checkedc](https://github.com/Microsoft/checkedc) repo. It would continue to be
+3. There will be no changes to the
+[checkedc](https://github.com/Microsoft/checkedc) repo. It will continue to be
 a separate git repo.
 
 4. All future patches should be based off this new monorepo.
