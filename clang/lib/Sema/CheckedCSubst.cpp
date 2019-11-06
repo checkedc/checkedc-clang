@@ -512,15 +512,15 @@ public:
   FreeVariablesFinder(Sema &SemaRef) : BaseTransform(SemaRef), Context(SemaRef.Context) {}
 
   /// Returns the list of free type variables referenced in the given type.
-  std::vector<const TypeVariableType *> find(QualType Tpe) {
-    getDerived().TransformType(Tpe); // Populates `FreeVars` as a side effect.
+  std::vector<const TypeVariableType *> find(QualType Ty) {
+    getDerived().TransformType(Ty); // Populates `FreeVars` as a side effect.
     return std::vector<const TypeVariableType *>(FreeVars.begin(), FreeVars.end());
   }
 
   /// Returns the list of free typedef declarations referenced in the given type.
   /// Typedef declarations enable more readable diagnostics than type variable types.
-  std::vector<const TypedefNameDecl *> findTypedefDecls(QualType Tpe) {
-    getDerived().TransformType(Tpe); // Populates `FreeTypedefDecls` as a side effect.
+  std::vector<const TypedefNameDecl *> findTypedefDecls(QualType Ty) {
+    getDerived().TransformType(Ty); // Populates `FreeTypedefDecls` as a side effect.
     return std::vector<const TypedefNameDecl *>(FreeTypedefDecls.begin(), FreeTypedefDecls.end());
   }
 
