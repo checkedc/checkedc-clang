@@ -245,6 +245,9 @@ def err_invalid_vector_long_double_decl_spec : Error<
 def warn_vector_long_decl_spec_combination : Warning<
   "Use of 'long' with '__vector' is deprecated">, InGroup<Deprecated>;
 
+def err_static_decl_uses_free_type_variable : Error<
+  "illegal use of free type variable '%0' in declaration of static variable '%1'">;
+def note_free_type_variable_declared : Note<"free type variable '%0' declared here">;
 def err_redeclaration_different_type : Error<
   "redeclaration of %0 with a different type%diff{: $ vs $|}1,2">;
 def err_bad_variable_name : Error<
