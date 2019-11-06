@@ -32,7 +32,7 @@ a separate git repo.
 4. All future patches should be based off this new monorepo.
 
 5. You can use
-[this](https://github.com/microsoft/checkedc-clang/blob/monorepo/clang/automation/UNIX/cherry-pick-to-monorepo.sh)
+[this](https://github.com/microsoft/checkedc-clang/blob/master/clang/automation/UNIX/cherry-pick-to-monorepo.sh)
 script to cherry-pick your existing patches to the new monorepo.
 
 6. Make sure to set the following CMake flag to enable clang in your builds:
