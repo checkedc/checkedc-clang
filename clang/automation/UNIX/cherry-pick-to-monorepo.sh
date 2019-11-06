@@ -30,7 +30,7 @@
 # 7. After successfully applying a patch this script will remove the patch from
 # the patchlist. Repeat step 6 for each patch remaining in the patchlist.
 
-# 8. After all the patches have the cherry-picked push your branch to GitHub:
+# 8. After all the patches have been cherry-picked, push your branch to GitHub:
 #    git push origin NEW_BRANCH
 
 SRCDIR=$1
