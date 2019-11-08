@@ -15,9 +15,10 @@
 #include "Utils.h"
 #include "ArrayBoundsInformation.h"
 
-static std::set<std::string> possibleLengthVarNamesPrefixes = {"len", "count", "size", "num"};
+static std::set<std::string> possibleLengthVarNamesPrefixes = {"len", "count", "size", "num", "siz"};
 static std::set<std::string> possibleLengthVarNamesSubstring = {"length"};
-#define PREFIXLENRATIO 1
+#define PREFIXPERCMATCH 50.0
+#define COMMONSUBSEQUENCEPERCMATCH 80.0
 
 // Name based heuristics
 static bool hasNameMatch(std::string ptrName, std::string lenFieldName) {
@@ -41,10 +42,29 @@ std::string commonPrefixUtil(std::string str1, std::string str2) {
 
 static bool prefixNameMatch(std::string ptrName, std::string lenFieldName) {
     std::string commonPrefix = commonPrefixUtil(ptrName, lenFieldName);
-    if (commonPrefix.length() > 0)
-      return (ptrName.length() / commonPrefix.length()) <= PREFIXLENRATIO;
+
+    if (commonPrefix.length() > 0) {
+      return ((commonPrefix.length() * 100.0) / (ptrName.length() * 1.0)) > PREFIXPERCMATCH;
+    }
 
     return false;
+}
+
+static bool nameSubStringMatch(std::string ptrName, std::string lenFieldName) {
+  // convert the names to lower case
+  std::transform(ptrName.begin(), ptrName.end(), ptrName.begin(),
+                 [](unsigned char c){ return std::tolower(c); });
+  std::transform(lenFieldName.begin(), lenFieldName.end(), lenFieldName.begin(),
+                 [](unsigned char c){ return std::tolower(c); });
+  unsigned commonSubSeqLen = longestCommonSubsequence(ptrName.c_str(), lenFieldName.c_str(),
+                                                      ptrName.length(), lenFieldName.length());
+  if (commonSubSeqLen > 0) {
+    // check if we get 80% match on the common subsequence matching on the
+    // variable name of length and the name of array.
+    return ((commonSubSeqLen * 100.0) / (ptrName.length() * 1.0)) >= COMMONSUBSEQUENCEPERCMATCH;
+  }
+  return false;
+
 }
 
 static bool fieldNameMatch(std::string lenFieldName) {
@@ -80,6 +100,16 @@ static bool hasLengthKeyword(std::string varName) {
 // check if the provided constraint variable is an array and it needs bounds.
 static bool needArrayBounds(ConstraintVariable *CV, Constraints::EnvironmentMap &envMap) {
   if (CV->hasArr(envMap)) {
+    PVConstraint *PV = dyn_cast<PVConstraint>(CV);
+    if (PV && PV->getArrPresent())
+      return false;
+    return true;
+  }
+  return false;
+}
+
+static bool needNTArrayBounds(ConstraintVariable *CV, Constraints::EnvironmentMap &envMap) {
+  if (CV->hasNtArr(envMap)) {
     PVConstraint *PV = dyn_cast<PVConstraint>(CV);
     if (PV && PV->getArrPresent())
       return false;
@@ -180,6 +210,17 @@ bool isExpressionStructField(Expr *toCheck, FieldDecl **targetDecl) {
 
 // This visitor handles the bounds of function local array variables.
 
+void GlobalABVisitor::SetParamHeuristicInfo(LocalVarABVisitor *LAB) {
+  this->ParamInfo = LAB;
+}
+
+bool GlobalABVisitor::IsPotentialLengthVar(ParmVarDecl* PVD) {
+  if (PVD->getType().getTypePtr()->isIntegerType()) {
+    return ParamInfo == nullptr || !ParamInfo->isNonLengthParameter(PVD);
+  }
+  return false;
+}
+
 // This handles the length based heuristics for structure fields.
 bool GlobalABVisitor::VisitRecordDecl(RecordDecl *RD) {
   // for each of the struct or union types.
@@ -246,6 +287,7 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
     if (FT != nullptr) {
       std::map<ParmVarDecl *, std::set<ParmVarDecl *>> arrayVarLenCorrespondence;
       std::map<unsigned , ParmVarDecl *> identifiedParamArrays;
+      std::map<unsigned, ParmVarDecl *> identifiedParamNtArrays;
       std::map<unsigned , ParmVarDecl *> potentialLengthParams;
 
       for (unsigned i = 0; i < FT->getNumParams(); i++) {
@@ -257,10 +299,13 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
             // is this an array?
             if (needArrayBounds(currCVar, envMap))
               identifiedParamArrays[i] = PVD;
+            // is this an NTArray?
+            if (needNTArrayBounds(currCVar, envMap))
+              identifiedParamNtArrays[i] = PVD;
           }
         }
         // if this is a length field?
-        if (PVD->getType().getTypePtr()->isIntegerType())
+        if (IsPotentialLengthVar(PVD))
           potentialLengthParams[i] = PVD;
       }
       if (!identifiedParamArrays.empty() && !potentialLengthParams.empty()) {
@@ -289,14 +334,27 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
             if (hasNameMatch(currArrParamPair.second->getNameAsString(),
                              currLenParamPair.second->getNameAsString())) {
               foundLen = true;
+              arrBoundsInfo.removeBoundsInformation(currArrParamPair.second);
               arrBoundsInfo.addBoundsInformation(currArrParamPair.second, currLenParamPair.second);
               break;
             }
-            // check if the length parameter name matches our heuristics.
-            if (fieldNameMatch(currLenParamPair.second->getNameAsString())) {
+
+            if (nameSubStringMatch(currArrParamPair.second->getNameAsString(),
+                                   currLenParamPair.second->getNameAsString())) {
               foundLen = true;
+              arrBoundsInfo.removeBoundsInformation(currArrParamPair.second);
               arrBoundsInfo.addBoundsInformation(currArrParamPair.second, currLenParamPair.second);
               continue;
+            }
+          }
+
+          if (!foundLen) {
+            for (auto &currLenParamPair: potentialLengthParams) {
+              // check if the length parameter name matches our heuristics.
+              if (fieldNameMatch(currLenParamPair.second->getNameAsString())) {
+                foundLen = true;
+                arrBoundsInfo.addBoundsInformation(currArrParamPair.second, currLenParamPair.second);
+              }
             }
           }
 
@@ -306,6 +364,18 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           }
 
         }
+
+
+        for (auto &currNTArr: identifiedParamNtArrays) {
+          unsigned paramIdx = currNTArr.first;
+          if (potentialLengthParams.find(paramIdx+1) != potentialLengthParams.end()) {
+            if (fieldNameMatch(potentialLengthParams[paramIdx+1]->getNameAsString())) {
+              arrBoundsInfo.addBoundsInformation(currNTArr.second, potentialLengthParams[paramIdx+1]);
+              continue;
+            }
+          }
+        }
+
       }
     }
   }
@@ -335,9 +405,31 @@ bool LocalVarABVisitor::VisitBinAssign(BinaryOperator *O) {
         arrBoundsInfo.addBoundsInformation(structField, getAllocatedSizeExpr(RHS, Context, Info, structField));
     }
   }
+
+  // any parameter directly used as a condition in ternary expression
+  // cannot be length
+  if (ConditionalOperator *CO = dyn_cast<ConditionalOperator>(RHS))
+    addUsedParmVarDecl(CO->getCond());
+
   return true;
 }
 
+void LocalVarABVisitor::addUsedParmVarDecl(Expr *CE) {
+  if (DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(CE->IgnoreParenImpCasts()))
+    if (ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl()))
+      NonLengthParameters.insert(PVD);
+}
+
+bool LocalVarABVisitor::VisitIfStmt(IfStmt *IFS) {
+  if (BinaryOperator *BO = dyn_cast<BinaryOperator>(IFS->getCond())) {
+    BinaryOperator::Opcode bOpcode = BO->getOpcode();
+    if (bOpcode == BinaryOperator::Opcode::BO_EQ ||
+        bOpcode == BinaryOperator::Opcode::BO_NE) {
+      addUsedParmVarDecl(BO->getLHS());
+      addUsedParmVarDecl(BO->getRHS());
+    }
+  }
+}
 bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
   // Build rules based on initializers.
   auto &arrBoundsInfo = Info.getArrayBoundsInformation();
@@ -350,6 +442,22 @@ bool LocalVarABVisitor::VisitDeclStmt(DeclStmt *S) {
     }
 
   return true;
+}
+
+bool LocalVarABVisitor::VisitSwitchStmt(SwitchStmt *S) {
+  VarDecl *condVar = S->getConditionVariable();
+
+  // if this is a parameter declaration? Then this parameter cannot be length.
+  if (condVar != nullptr)
+    if (ParmVarDecl *PD = dyn_cast<ParmVarDecl>(condVar))
+      NonLengthParameters.insert(PD);
+}
+
+// check if the provided parameter cannot be a length of an array.
+bool LocalVarABVisitor::isNonLengthParameter(ParmVarDecl* PVD) {
+  if (PVD->getType().getTypePtr()->isEnumeralType())
+    return true;
+  return NonLengthParameters.find(PVD) != NonLengthParameters.end();
 }
 
 void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
@@ -382,18 +490,25 @@ void HandleArrayVariablesBoundsDetection(ASTContext *C, ProgramInfo &I) {
   // Run array bounds
   GlobalABVisitor GlobABV(C, I);
   TranslationUnitDecl *TUD = C->getTranslationUnitDecl();
+  bool globalTraversed;
   // first visit all the structure members.
   for (const auto &D : TUD->decls()) {
-    GlobABV.TraverseDecl(D);
-  }
-  // next try to guess the bounds information for function locals.
-  for (const auto &D : TUD->decls()) {
+    globalTraversed = false;
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
       if (FD->hasBody() && FD->isThisDeclarationADefinition()) {
+        // try to guess the bounds information for function locals.
         Stmt *Body = FD->getBody();
         LocalVarABVisitor LFV = LocalVarABVisitor(C, I);
         LFV.TraverseStmt(Body);
+        // set information collected after analyzing the function body.
+        GlobABV.SetParamHeuristicInfo(&LFV);
+        GlobABV.TraverseDecl(D);
+        globalTraversed = true;
       }
     }
+    // if this is not already traversed?
+    if (!globalTraversed)
+      GlobABV.TraverseDecl(D);
+    GlobABV.SetParamHeuristicInfo(nullptr);
   }
 }

@@ -72,4 +72,7 @@ clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::
 
 clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);
 
+// find the longest common subsequence
+unsigned longestCommonSubsequence(const char* str1, const char* str2, unsigned str1Len, unsigned str2Len);
+
 #endif

@@ -211,3 +211,12 @@ Expr* removeAuxillaryCasts(Expr *srcExpr) {
   srcExpr = srcExpr->IgnoreParenImpCasts();
   return srcExpr;
 }
+
+unsigned longestCommonSubsequence(const char* str1, const char* str2, unsigned str1Len, unsigned str2Len) {
+  if (str1Len == 0 || str2Len == 0)
+    return 0;
+  if (str1[str1Len - 1] == str2[str2Len - 1])
+    return 1 + longestCommonSubsequence(str1, str2, str1Len - 1, str2Len - 1);
+  else
+    return std::max(longestCommonSubsequence(str1, str2, str1Len, str2Len - 1), longestCommonSubsequence(str1, str2, str1Len - 1, str2Len));
+}

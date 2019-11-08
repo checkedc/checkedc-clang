@@ -15,19 +15,24 @@
 
 #include "ProgramInfo.h"
 
+class LocalVarABVisitor;
+
 // This class handles determining bounds of global array variables.
 // i.e., function parameters, structure fields and global variables.
 class GlobalABVisitor: public clang::RecursiveASTVisitor<GlobalABVisitor> {
 public:
   explicit GlobalABVisitor(ASTContext *C, ProgramInfo &I)
-          : Context(C), Info(I) {}
+          : Context(C), Info(I), ParamInfo(nullptr) {}
 
   bool VisitRecordDecl(RecordDecl *RD);
 
   bool VisitFunctionDecl(FunctionDecl *FD);
 
-private:
+  void SetParamHeuristicInfo(LocalVarABVisitor *LAB);
 
+private:
+  bool IsPotentialLengthVar(ParmVarDecl* PVD);
+  LocalVarABVisitor *ParamInfo;
   ASTContext *Context;
   ProgramInfo &Info;
 };
@@ -41,9 +46,13 @@ public:
 
   bool VisitBinAssign(BinaryOperator *O);
   bool VisitDeclStmt(DeclStmt *S);
+  bool VisitSwitchStmt(SwitchStmt *S);
+  bool VisitIfStmt(IfStmt *IFS);
+  bool isNonLengthParameter(ParmVarDecl* PVD);
 
 private:
-
+  void addUsedParmVarDecl(Expr *CE);
+  std::set<ParmVarDecl*> NonLengthParameters;
   ASTContext *Context;
   ProgramInfo &Info;
 };
