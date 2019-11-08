@@ -364,18 +364,16 @@ bool GlobalABVisitor::VisitFunctionDecl(FunctionDecl *FD) {
           }
 
         }
+      }
 
-
-        for (auto &currNTArr: identifiedParamNtArrays) {
-          unsigned paramIdx = currNTArr.first;
-          if (potentialLengthParams.find(paramIdx+1) != potentialLengthParams.end()) {
-            if (fieldNameMatch(potentialLengthParams[paramIdx+1]->getNameAsString())) {
-              arrBoundsInfo.addBoundsInformation(currNTArr.second, potentialLengthParams[paramIdx+1]);
-              continue;
-            }
+      for (auto &currNTArr: identifiedParamNtArrays) {
+        unsigned paramIdx = currNTArr.first;
+        if (potentialLengthParams.find(paramIdx+1) != potentialLengthParams.end()) {
+          if (fieldNameMatch(potentialLengthParams[paramIdx+1]->getNameAsString())) {
+            arrBoundsInfo.addBoundsInformation(currNTArr.second, potentialLengthParams[paramIdx+1]);
+            continue;
           }
         }
-
       }
     }
   }
