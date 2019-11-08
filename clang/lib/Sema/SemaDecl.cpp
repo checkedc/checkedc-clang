@@ -7763,7 +7763,7 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
       for (auto it = FreeVarDecls.begin(); it != FreeVarDecls.end(); ++it) {
         const TypedefNameDecl *FreeVar = *it;
         Diag(NewVD->getTypeSpecStartLoc(), diag::err_static_decl_uses_free_type_variable) 
-          << T.getAsString() << NewVD->getName() << FreeVar->getName();
+          << NewVD->getName() << T.getAsString() << FreeVar->getName();
         Diag(FreeVar->getLocation(), diag::note_free_type_variable_declared) << FreeVar->getName();
       }
       NewVD->setInvalidDecl();
