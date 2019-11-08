@@ -4920,6 +4920,8 @@ public:
 
   QualType SubstituteTypeArgs(QualType QT, ArrayRef<TypeArgument> TypeArgs);
 
+  std::vector<const TypedefNameDecl *> FindFreeVariableDecls(QualType T);
+
   bool AbstractForFunctionType(BoundsAnnotations &BA,
                                ArrayRef<DeclaratorChunk::ParamInfo> Params);
   /// \brief Take a bounds expression with positional parameters from a function
