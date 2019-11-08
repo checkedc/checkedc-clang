@@ -12,9 +12,7 @@ Earlier this year, the LLVM community
 [transitioned](https://forums.swift.org/t/llvm-monorepo-transition/25689) to
 "monorepo".
 
-We transitioned Checked C to a monorepo starting Oct 30, 2019.
-
-This has resulted in the following changes:
+We moved Checked C to a monorepo on Oct 30, 2019.  This has resulted in the following changes:
 
 1. [checkedc-llvm](https://github.com/Microsoft/checkedc-llvm) and
 [checkedc-clang](https://github.com/Microsoft/checkedc-clang) (as well as other
@@ -43,7 +41,7 @@ script to cherry-pick your existing patches to the new monorepo.
 We have positions available for a [Principal Software
 Engineer](https://careers.microsoft.com/us/en/job/725522/Principal-Software-Engineer)
 and a [Senior Software
-Engineer](https://careers.microsoft.com/us/en/job/725509/Senior-Software-Engineer).
+Engineer](https://careers.microsoft.com/us/en/job/731826/Senior-Software-Engineer).
 We are looking for an engineer who has production compiler development
 experience and who values shipping software.
 

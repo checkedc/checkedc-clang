@@ -7754,6 +7754,22 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
   // Defer checking an 'auto' type until its initializer is attached.
   if (T->isUndeducedType())
     return;
+  
+  // Emit an error for each use of a free type variable (type variable
+  // bound by an enclosing scope) in the type of a static variable.
+  if (NewVD->getStorageClass() == StorageClass::SC_Static) {
+    std::vector<const TypedefNameDecl *> FreeVarDecls = FindFreeVariableDecls(T);
+    if (FreeVarDecls.size() > 0) {
+      for (auto it = FreeVarDecls.begin(); it != FreeVarDecls.end(); ++it) {
+        const TypedefNameDecl *FreeVar = *it;
+        Diag(NewVD->getLocation(), diag::err_static_decl_uses_free_type_variable) 
+          << NewVD->getName() << T.getAsString() << FreeVar->getName();
+        Diag(FreeVar->getLocation(), diag::note_free_type_variable_declared) << FreeVar->getName();
+      }
+      NewVD->setInvalidDecl();
+      return;
+    }
+  }
 
   if (NewVD->hasAttrs())
     CheckAlignasUnderalignment(NewVD);
