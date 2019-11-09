@@ -2425,6 +2425,10 @@ namespace {
       if (SplitIntoBaseAndOffset(PtrBase, AccessBase, AccessStartOffset, DummyOffset) != BaseRange::Kind::ConstantSized)
         return ProofResult::Maybe;
 
+      // The access base for bounds_cast(e) should be a temporary binding of e.
+      if (isa<BoundsCastExpr>(AccessBase))
+        AccessBase = GetTempBinding(AccessBase);
+
       if (Offset) {
         llvm::APSInt IntVal;
         if (!Offset->isIntegerConstantExpr(IntVal, S.Context))
