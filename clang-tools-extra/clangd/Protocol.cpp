@@ -365,6 +365,8 @@ llvm::json::Value toJSON(const Diagnostic &D) {
       {"range", D.range},
       {"severity", D.severity},
       {"message", D.message},
+      {"code", D.code},
+      {"source", D.source},
   };
   if (D.category)
     Diag["category"] = *D.category;
@@ -379,6 +381,14 @@ bool fromJSON(const llvm::json::Value &Params, Diagnostic &R) {
     return false;
   O.map("severity", R.severity);
   O.map("category", R.category);
+  auto cArg = Params.getAsObject()->getInteger("code");
+  if (cArg && cArg.hasValue()) {
+    O.map("code", R.code);
+  }
+  auto sArg = Params.getAsObject()->getString("source");
+  if (sArg && sArg.hasValue()) {
+    O.map("source", R.source);
+  }
   return true;
 }
 
@@ -425,8 +435,18 @@ bool fromJSON(const llvm::json::Value &Params, WorkspaceEdit &R) {
   return O && O.map("changes", R.changes);
 }
 
+bool fromJSON(const llvm::json::Value &Params, CConvertManualFix &CCM) {
+  llvm::json::ObjectMapper O(Params);
+  CCM.ptrID = (*Params.getAsObject()->getInteger("ptrID"));
+  return O;
+}
+
 const llvm::StringLiteral ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND =
     "clangd.applyFix";
+const llvm::StringLiteral ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS =
+    "cconv.onlyThisPtr";
+const llvm::StringLiteral ExecuteCommandParams::CCONV_APPLY_FOR_ALL =
+    "cconv.applyAllPtr";
 bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   llvm::json::ObjectMapper O(Params);
   if (!O || !O.map("command", R.command))
@@ -436,6 +456,12 @@ bool fromJSON(const llvm::json::Value &Params, ExecuteCommandParams &R) {
   if (R.command == ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND) {
     return Args && Args->size() == 1 &&
            fromJSON(Args->front(), R.workspaceEdit);
+  }
+
+  if (R.command == ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS ||
+      R.command == ExecuteCommandParams::CCONV_APPLY_FOR_ALL) {
+    return Args && Args->size() == 1 &&
+        fromJSON(Args->front(), R.ccConvertManualFix);
   }
 
   if (R.command == "Dummy") {
@@ -512,6 +538,8 @@ llvm::json::Value toJSON(const Command &C) {
   auto Cmd = llvm::json::Object{{"title", C.title}, {"command", C.command}};
   if (C.workspaceEdit)
     Cmd["arguments"] = {*C.workspaceEdit};
+  if (C.ccConvertManualFix)
+    Cmd["arguments"] = {*C.ccConvertManualFix};
   return std::move(Cmd);
 }
 
@@ -564,6 +592,10 @@ llvm::json::Value toJSON(const WorkspaceEdit &WE) {
   for (auto &Change : *WE.changes)
     FileChanges[Change.first] = llvm::json::Array(Change.second);
   return llvm::json::Object{{"changes", std::move(FileChanges)}};
+}
+
+llvm::json::Value toJSON(const CConvertManualFix &WE) {
+  return llvm::json::Object{{"ptrID", std::move(WE.ptrID)}};
 }
 
 llvm::json::Value toJSON(const ApplyWorkspaceEditParams &Params) {

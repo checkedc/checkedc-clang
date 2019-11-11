@@ -31,6 +31,7 @@
 #include <string>
 #include <type_traits>
 #include <utility>
+#include "CConvertDiagnostics.h"
 
 namespace clang {
 class PCHContainerOperations;
@@ -45,6 +46,8 @@ public:
   /// Called by ClangdServer when \p Diagnostics for \p File are ready.
   virtual void onDiagnosticsReady(PathRef File,
                                   std::vector<Diag> Diagnostics) = 0;
+
+  virtual void onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) = 0;
   /// Called whenever the file status is updated.
   virtual void onFileUpdated(PathRef File, const TUStatus &Status){};
 };
@@ -231,6 +234,15 @@ public:
   // Returns false if the timeout expires.
   LLVM_NODISCARD bool
   blockUntilIdleForTest(llvm::Optional<double> TimeoutSeconds = 10);
+
+
+  // ccconv specific commands
+  // collect and build initial set of constraints on the source
+  // files.
+  void cconvCollectAndBuildInitialConstraints();
+
+  CConvertDiagnostics CConvDiagInfo;
+
 
 private:
   /// FIXME: This stats several files to find a .clang-format file. I/O can be

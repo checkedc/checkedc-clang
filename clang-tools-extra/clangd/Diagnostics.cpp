@@ -246,6 +246,8 @@ void toLSPDiags(
     clangd::Diagnostic Res;
     Res.range = D.Range;
     Res.severity = getSeverity(D.Severity);
+    Res.source = D.source;
+    Res.code = D.code;
     return Res;
   };
 

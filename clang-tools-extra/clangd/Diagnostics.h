@@ -43,6 +43,8 @@ struct DiagBase {
   std::string File;
   clangd::Range Range;
   DiagnosticsEngine::Level Severity = DiagnosticsEngine::Note;
+  int code = 0;
+  std::string source = "default";
   std::string Category;
   // Since File is only descriptive, we store a separate flag to distinguish
   // diags from the main file.

@@ -52,6 +52,8 @@ public:
 private:
   // Implement DiagnosticsConsumer.
   void onDiagnosticsReady(PathRef File, std::vector<Diag> Diagnostics) override;
+  void onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) override;
+
   void onFileUpdated(PathRef File, const TUStatus &Status) override;
 
   // LSP methods. Notifications have signature void(const Params&).

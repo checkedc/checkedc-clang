@@ -108,6 +108,8 @@ public:
   /// Called whenever the diagnostics for \p File are produced.
   virtual void onDiagnostics(PathRef File, std::vector<Diag> Diags) {}
 
+  virtual void onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) { }
+
   /// Called whenever the TU status is updated.
   virtual void onFileUpdated(PathRef File, const TUStatus &Status) {}
 };
@@ -192,7 +194,8 @@ public:
   /// Mostly useful for synchronizing tests.
   bool blockUntilIdle(Deadline D) const;
 
-private:
+  bool isFileAlreadyAnalyzed(PathRef File);
+
   /// This class stores per-file data in the Files map.
   struct FileData;
 
@@ -208,12 +211,14 @@ public:
   // integration.
   static llvm::Optional<llvm::StringRef> getFileBeingProcessedInContext();
 
+  llvm::StringMap<std::unique_ptr<FileData>> Files;
+  std::unique_ptr<ParsingCallbacks> Callbacks; // not nullptr
+
 private:
   const bool StorePreamblesInMemory;
   const std::shared_ptr<PCHContainerOperations> PCHOps;
-  std::unique_ptr<ParsingCallbacks> Callbacks; // not nullptr
+
   Semaphore Barrier;
-  llvm::StringMap<std::unique_ptr<FileData>> Files;
   std::unique_ptr<ASTCache> IdleASTs;
   // None when running tasks synchronously and non-None when running tasks
   // asynchronously.

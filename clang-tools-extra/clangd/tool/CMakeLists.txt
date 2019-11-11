@@ -6,12 +6,14 @@ add_clang_tool(clangd
 
 set(LLVM_LINK_COMPONENTS
   support
+  Option
   )
 
 target_link_libraries(clangd
   PRIVATE
   clangBasic
   clangDaemon
+  CConvert
   clangFormat
   clangFrontend
   clangSema

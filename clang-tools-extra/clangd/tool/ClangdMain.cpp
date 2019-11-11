@@ -19,30 +19,41 @@
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/TargetSelect.h"
+#include "clang/Tooling/CommonOptionsParser.h"
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
+#include "cconvert/CConvInteractive.h"
 
 namespace clang {
 namespace clangd {
 // FIXME: remove this option when Dex is cheap enough.
+
+static llvm::cl::OptionCategory ClangDCategory("clangd", "clangd is a language server that provides IDE-like features to editors. "
+                                                         "\n\nIt should be used via an editor plugin rather than invoked "
+                                                         "directly. "
+                                                         "For more information, see:"
+                                                         "\n\thttps://clang.llvm.org/extra/clangd.html"
+                                                         "\n\thttps://microsoft.github.io/language-server-protocol/");
+
 static llvm::cl::opt<bool>
     UseDex("use-dex-index",
            llvm::cl::desc("Use experimental Dex dynamic index."),
-           llvm::cl::init(false), llvm::cl::Hidden);
+           llvm::cl::init(false), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<Path> CompileCommandsDir(
     "compile-commands-dir",
     llvm::cl::desc("Specify a path to look for compile_commands.json. If path "
                    "is invalid, clangd will look in the current directory and "
-                   "parent paths of each source file."));
+                   "parent paths of each source file."), llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<unsigned>
     WorkerThreadsCount("j",
                        llvm::cl::desc("Number of async workers used by clangd"),
-                       llvm::cl::init(getDefaultAsyncThreadsCount()));
+                       llvm::cl::init(getDefaultAsyncThreadsCount()), llvm::cl::cat(ClangDCategory));
 
 // FIXME: also support "plain" style where signatures are always omitted.
 enum CompletionStyleFlag { Detailed, Bundled };
@@ -56,7 +67,7 @@ static llvm::cl::opt<CompletionStyleFlag> CompletionStyle(
         clEnumValN(Bundled, "bundled",
                    "Similar completion items (e.g. function overloads) are "
                    "combined. Type information shown where possible.")),
-    llvm::cl::init(Detailed));
+    llvm::cl::init(Detailed), llvm::cl::cat(ClangDCategory));
 
 // FIXME: Flags are the wrong mechanism for user preferences.
 // We should probably read a dotfile or similar.
@@ -65,7 +76,7 @@ static llvm::cl::opt<bool> IncludeIneligibleResults(
     llvm::cl::desc(
         "Include ineligible completion results (e.g. private members)"),
     llvm::cl::init(CodeCompleteOptions().IncludeIneligibleResults),
-    llvm::cl::Hidden);
+    llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<JSONStreamStyle> InputStyle(
     "input-style", llvm::cl::desc("Input JSON stream encoding"),
@@ -73,11 +84,11 @@ static llvm::cl::opt<JSONStreamStyle> InputStyle(
         clEnumValN(JSONStreamStyle::Standard, "standard", "usual LSP protocol"),
         clEnumValN(JSONStreamStyle::Delimited, "delimited",
                    "messages delimited by --- lines, with # comment support")),
-    llvm::cl::init(JSONStreamStyle::Standard));
+    llvm::cl::init(JSONStreamStyle::Standard), llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool>
     PrettyPrint("pretty", llvm::cl::desc("Pretty-print JSON output"),
-                llvm::cl::init(false));
+                llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<Logger::Level> LogLevel(
     "log", llvm::cl::desc("Verbosity of log messages written to stderr"),
@@ -85,19 +96,19 @@ static llvm::cl::opt<Logger::Level> LogLevel(
                      clEnumValN(Logger::Info, "info",
                                 "High level execution tracing"),
                      clEnumValN(Logger::Debug, "verbose", "Low level details")),
-    llvm::cl::init(Logger::Info));
+    llvm::cl::init(Logger::Info), llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool>
     Test("lit-test",
          llvm::cl::desc("Abbreviation for -input-style=delimited -pretty "
                         "-run-synchronously -enable-test-scheme. "
                         "Intended to simplify lit tests."),
-         llvm::cl::init(false), llvm::cl::Hidden);
+         llvm::cl::init(false), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool> EnableTestScheme(
     "enable-test-uri-scheme",
     llvm::cl::desc("Enable 'test:' URI scheme. Only use in lit tests."),
-    llvm::cl::init(false), llvm::cl::Hidden);
+    llvm::cl::init(false), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 enum PCHStorageFlag { Disk, Memory };
 static llvm::cl::opt<PCHStorageFlag> PCHStorage(
@@ -107,29 +118,29 @@ static llvm::cl::opt<PCHStorageFlag> PCHStorage(
     llvm::cl::values(
         clEnumValN(PCHStorageFlag::Disk, "disk", "store PCHs on disk"),
         clEnumValN(PCHStorageFlag::Memory, "memory", "store PCHs in memory")),
-    llvm::cl::init(PCHStorageFlag::Disk));
+    llvm::cl::init(PCHStorageFlag::Disk), llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<int> LimitResults(
     "limit-results",
     llvm::cl::desc("Limit the number of results returned by clangd. "
                    "0 means no limit."),
-    llvm::cl::init(100));
+    llvm::cl::init(100), llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool> RunSynchronously(
     "run-synchronously",
     llvm::cl::desc("Parse on main thread. If set, -j is ignored"),
-    llvm::cl::init(false), llvm::cl::Hidden);
+    llvm::cl::init(false), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<Path>
     ResourceDir("resource-dir",
                 llvm::cl::desc("Directory for system clang headers"),
-                llvm::cl::init(""), llvm::cl::Hidden);
+                llvm::cl::init(""), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<Path> InputMirrorFile(
     "input-mirror-file",
     llvm::cl::desc(
         "Mirror all LSP input to the specified file. Useful for debugging."),
-    llvm::cl::init(""), llvm::cl::Hidden);
+    llvm::cl::init(""), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool> EnableIndex(
     "index",
@@ -137,7 +148,7 @@ static llvm::cl::opt<bool> EnableIndex(
         "Enable index-based features. By default, clangd maintains an index "
         "built from symbols in opened files. Global index support needs to "
         "enabled separatedly."),
-    llvm::cl::init(true), llvm::cl::Hidden);
+    llvm::cl::init(true), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool> AllScopesCompletion(
     "all-scopes-completion",
@@ -146,18 +157,18 @@ static llvm::cl::opt<bool> AllScopesCompletion(
         "not defined in the scopes (e.g. "
         "namespaces) visible from the code completion point. Such completions "
         "can insert scope qualifiers."),
-    llvm::cl::init(true));
+    llvm::cl::init(true), llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool> ShowOrigins(
     "debug-origin", llvm::cl::desc("Show origins of completion items"),
-    llvm::cl::init(CodeCompleteOptions().ShowOrigins), llvm::cl::Hidden);
+    llvm::cl::init(CodeCompleteOptions().ShowOrigins), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool> HeaderInsertionDecorators(
     "header-insertion-decorators",
     llvm::cl::desc("Prepend a circular dot or space before the completion "
                    "label, depending on whether "
                    "an include line will be inserted or not."),
-    llvm::cl::init(true));
+    llvm::cl::init(true), llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<Path> IndexFile(
     "index-file",
@@ -166,14 +177,14 @@ static llvm::cl::opt<Path> IndexFile(
         "by a compatible clangd-index.\n"
         "WARNING: This option is experimental only, and will be removed "
         "eventually. Don't rely on it."),
-    llvm::cl::init(""), llvm::cl::Hidden);
+    llvm::cl::init(""), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool> EnableBackgroundIndex(
     "background-index",
     llvm::cl::desc(
         "Index project code in the background and persist index on disk. "
         "Experimental"),
-    llvm::cl::init(false), llvm::cl::Hidden);
+    llvm::cl::init(false), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<int> BackgroundIndexRebuildPeriod(
     "background-index-rebuild-period",
@@ -181,7 +192,7 @@ static llvm::cl::opt<int> BackgroundIndexRebuildPeriod(
         "If set to non-zero, the background index rebuilds the symbol index "
         "periodically every X milliseconds; otherwise, the "
         "symbol index will be updated for each indexed file."),
-    llvm::cl::init(5000), llvm::cl::Hidden);
+    llvm::cl::init(5000), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 enum CompileArgsFrom { LSPCompileArgs, FilesystemCompileArgs };
 static llvm::cl::opt<CompileArgsFrom> CompileArgsFrom(
@@ -192,14 +203,60 @@ static llvm::cl::opt<CompileArgsFrom> CompileArgsFrom(
                      clEnumValN(FilesystemCompileArgs, "filesystem",
                                 "All compile commands come from the "
                                 "'compile_commands.json' files")),
-    llvm::cl::init(FilesystemCompileArgs), llvm::cl::Hidden);
+    llvm::cl::init(FilesystemCompileArgs), llvm::cl::Hidden, llvm::cl::cat(ClangDCategory));
 
 static llvm::cl::opt<bool> EnableFunctionArgSnippets(
     "function-arg-placeholders",
     llvm::cl::desc("When disabled, completions contain only parentheses for "
                    "function calls. When enabled, completions also contain "
                    "placeholders for method parameters."),
-    llvm::cl::init(CodeCompleteOptions().EnableFunctionArgSnippets));
+    llvm::cl::init(CodeCompleteOptions().EnableFunctionArgSnippets), llvm::cl::cat(ClangDCategory));
+
+
+// checked-c-convert commands.
+
+llvm::cl::opt<bool> DumpIntermediate( "dump-intermediate",
+                                      llvm::cl::desc("Dump intermediate information"),
+                                      llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<bool> Verbose("verbose",
+                      llvm::cl::desc("Print verbose information"),
+                      llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<bool> mergeMultipleFuncDecls("mergefds",
+                                     llvm::cl::desc("Merge multiple declarations of functions."),
+                                     llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<std::string>
+    OutputPostfix("output-postfix",
+                  llvm::cl::desc("Postfix to add to the names of rewritten files, if "
+                           "not supplied writes to STDOUT"),
+                  llvm::cl::init("-"), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<std::string>
+    ConstraintOutputJson("constraint-output",
+                         llvm::cl::desc("Path to the file where all the analysis information will be dumped as json"),
+                         llvm::cl::init("constraint_output.json"), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<bool> DumpStats( "dump-stats",
+                                llvm::cl::desc("Dump statistics"),
+                                llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<bool> handleVARARGS( "handle-varargs",
+                             llvm::cl::desc("Enable handling of varargs in a sound manner"),
+                             llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<bool> enablePropThruIType( "enable-itypeprop",
+                                   llvm::cl::desc("Enable propagation of constraints through ityped parameters/returns."),
+                                   llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
+                                   llvm::cl::desc("Consider the allocators (i.e., malloc/calloc) as unsafe."),
+                                   llvm::cl::init(false), llvm::cl::cat(ClangDCategory));
+
+llvm::cl::opt<std::string> BaseDir("base-dir",
+            llvm::cl::desc("Base directory for the code we're translating"),
+            llvm::cl::init(""), llvm::cl::cat(ClangDCategory));
 
 namespace {
 
@@ -263,14 +320,34 @@ int main(int argc, char *argv[]) {
   llvm::cl::SetVersionPrinter([](llvm::raw_ostream &OS) {
     OS << clang::getClangToolFullVersion("clangd") << "\n";
   });
-  llvm::cl::ParseCommandLineOptions(
+
+  tooling::CommonOptionsParser OptionsParser(argc, (const char**)(argv), ClangDCategory);
+  /*llvm::cl::ParseCommandLineOptions(
       argc, argv,
       "clangd is a language server that provides IDE-like features to editors. "
       "\n\nIt should be used via an editor plugin rather than invoked "
       "directly. "
       "For more information, see:"
       "\n\thttps://clang.llvm.org/extra/clangd.html"
-      "\n\thttps://microsoft.github.io/language-server-protocol/");
+      "\n\thttps://microsoft.github.io/language-server-protocol/");*/
+
+  struct CConvertOptions ccOptions;
+  ccOptions.BaseDir = BaseDir.getValue();
+  ccOptions.considerAllocUnsafe = considerAllocUnsafe;
+  ccOptions.enablePropThruIType = enablePropThruIType;
+  ccOptions.handleVARARGS = handleVARARGS;
+  ccOptions.DumpStats = DumpStats;
+  ccOptions.OutputPostfix = OutputPostfix.getValue();
+  ccOptions.Verbose = Verbose;
+  ccOptions.DumpIntermediate = DumpIntermediate;
+  ccOptions.ConstraintOutputJson = ConstraintOutputJson.getValue();
+  ccOptions.mergeMultipleFuncDecls = mergeMultipleFuncDecls;
+  if (initializeCConvert(OptionsParser, ccOptions)) {
+    log("Initialized CConvert successfully\n");
+  } else {
+    log("Failed to initialize CConvert successfully\n");
+    return 1;
+  }
   if (Test) {
     RunSynchronously = true;
     InputStyle = JSONStreamStyle::Delimited;

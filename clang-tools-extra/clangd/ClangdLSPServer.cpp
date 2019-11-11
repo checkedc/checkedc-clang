@@ -18,6 +18,8 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/ScopedPrinter.h"
+#include "CConvertDiagnostics.h"
+#include "CConvertCommands.h"
 
 namespace clang {
 namespace clangd {
@@ -307,6 +309,8 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
   SupportsHierarchicalDocumentSymbol =
       Params.capabilities.HierarchicalDocumentSymbol;
   SupportFileStatus = Params.initializationOptions.FileStatus;
+  // initialize our constraint building system.
+  Server->cconvCollectAndBuildInitialConstraints();
   Reply(llvm::json::Object{
       {{"capabilities",
         llvm::json::Object{
@@ -341,7 +345,9 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
             {"referencesProvider", true},
             {"executeCommandProvider",
              llvm::json::Object{
-                 {"commands", {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND, "Dummy"}},
+                 {"commands", {ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND,
+                               ExecuteCommandParams::CCONV_APPLY_ONLY_FOR_THIS,
+                               ExecuteCommandParams::CCONV_APPLY_FOR_ALL}},
              }},
         }}}});
 }
@@ -410,6 +416,7 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
     // would reply success/failure to the original RPC.
     call("workspace/applyEdit", Edit);
   };
+  std::string replyMessage = "";
   if (Params.command == ExecuteCommandParams::CLANGD_APPLY_FIX_COMMAND &&
       Params.workspaceEdit) {
     // The flow for "apply-fix" :
@@ -425,6 +432,8 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
     ApplyEdit(*Params.workspaceEdit);
   } else if(Params.command == "Dummy") {
     Reply("All Done.");
+  } else if(applyCCCommand(Params, replyMessage)) {
+    Reply(replyMessage);
   } else {
     // We should not get here because ExecuteCommandParams would not have
     // parsed in the first place and this handler should not be called. But if
@@ -599,6 +608,7 @@ static llvm::Optional<Command> asCommand(const CodeAction &Action) {
     return None;
   }
   Cmd.title = Action.title;
+  Cmd.title = Action.title;
   if (Action.kind && *Action.kind == CodeAction::QUICKFIX_KIND)
     Cmd.title = "Apply fix: " + Cmd.title;
   return Cmd;
@@ -612,13 +622,24 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
         "onCodeAction called for non-added file", ErrorCode::InvalidParams));
   // We provide a code action for Fixes on the specified diagnostics.
   std::vector<CodeAction> Actions;
+  std::vector<Command> CCommands;
   for (const Diagnostic &D : Params.context.diagnostics) {
     for (auto &F : getFixes(Params.textDocument.uri.file(), D)) {
       Actions.push_back(toCodeAction(F, Params.textDocument.uri));
       Actions.back().diagnostics = {D};
     }
+
+    if (auto cmd1 = asCCCommand(D))
+      CCommands.push_back(std::move(*cmd1));
+
+    if (auto cmd1 = asCCCommand(D, true))
+      CCommands.push_back(std::move(*cmd1));
+
   }
 
+  Reply(llvm::json::Array(CCommands));
+
+  /*
   if (SupportsCodeAction)
     Reply(llvm::json::Array(Actions));
   else {
@@ -627,7 +648,7 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
       if (auto Command = asCommand(Action))
         Commands.push_back(std::move(*Command));
     Reply(llvm::json::Array(Commands));
-  }
+  }*/
 }
 
 void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
@@ -860,6 +881,14 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File,
   auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
   std::vector<Diagnostic> LSPDiagnostics;
   DiagnosticToReplacementMap LocalFixIts; // Temporary storage
+
+  // cconv diagnostics.
+  if (Server->CConvDiagInfo.AllFileDiagnostics.find(File) != Server->CConvDiagInfo.AllFileDiagnostics.end()) {
+    Diagnostics.insert(Diagnostics.begin(),
+                       Server->CConvDiagInfo.AllFileDiagnostics[File].begin(),
+                       Server->CConvDiagInfo.AllFileDiagnostics[File].end());
+  }
+
   for (auto &Diag : Diagnostics) {
     toLSPDiags(Diag, URI, DiagOpts,
                [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
@@ -874,6 +903,25 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File,
     // FIXME(ibiryukov): should be deleted when documents are removed
     std::lock_guard<std::mutex> Lock(FixItsMutex);
     FixItsMap[File] = LocalFixIts;
+  }
+
+  // Publish diagnostics.
+  notify("textDocument/publishDiagnostics",
+         llvm::json::Object{
+             {"uri", URI},
+             {"diagnostics", std::move(LSPDiagnostics)},
+         });
+}
+
+void ClangdLSPServer::onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) {
+  auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
+  std::vector<Diagnostic> LSPDiagnostics;
+  DiagnosticToReplacementMap LocalFixIts; // Temporary storage
+  for (auto &Diag : Diags) {
+    toLSPDiags(Diag, URI, DiagOpts,
+               [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
+                 LSPDiagnostics.push_back(std::move(Diag));
+               });
   }
 
   // Publish diagnostics.

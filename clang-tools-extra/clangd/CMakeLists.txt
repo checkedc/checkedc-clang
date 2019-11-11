@@ -43,6 +43,9 @@ add_clang_library(clangDaemon
   TUScheduler.cpp
   URI.cpp
   XRefs.cpp
+  CConvertDiagnostics.cpp
+  CConvertCommands.cpp
+  CCConstraintResolver.cpp
 
   index/Background.cpp
   index/BackgroundIndexStorage.cpp
@@ -102,6 +105,7 @@ add_clang_library(clangDaemon
 if( LLVM_LIB_FUZZING_ENGINE OR LLVM_USE_SANITIZE_COVERAGE )
   add_subdirectory(fuzzer)
 endif()
+add_subdirectory(cconvert)
 add_subdirectory(tool)
 add_subdirectory(indexer)
 add_subdirectory(index/dex/dexp)

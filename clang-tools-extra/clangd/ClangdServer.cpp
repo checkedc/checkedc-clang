@@ -33,6 +33,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <future>
 #include <mutex>
+#include "cconvert/CConvInteractive.h"
 
 namespace clang {
 namespace clangd {
@@ -82,6 +83,10 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
   }
 
   void onDiagnostics(PathRef File, std::vector<Diag> Diags) override {
+    DiagConsumer.onDiagnosticsReady(File, std::move(Diags));
+  }
+
+  void onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) override {
     DiagConsumer.onDiagnosticsReady(File, std::move(Diags));
   }
 
@@ -156,6 +161,24 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
                        ParseInputs{getCompileCommand(File),
                                    FSProvider.getFileSystem(), Contents.str()},
                        WantDiags);
+}
+
+void ClangdServer::cconvCollectAndBuildInitialConstraints() {
+  auto Task = [=]() {
+    CConvDiagInfo.clearAllDiags();
+    buildInitialConstraints();
+    log("CConv: Built initial constraints sucessfully.\n");
+    CConvDiagInfo.populateDiagsFromDisjointSet(getWILDPtrsInfo());
+    log("CConv: Updated the diag information.\n");
+
+    for (auto &fileW : CConvDiagInfo.AllFileDiagnostics) {
+      PathRef currF(fileW.first);
+      if (WorkScheduler.isFileAlreadyAnalyzed(currF)) {
+        WorkScheduler.Callbacks->onCConvDiagnostics(currF, fileW.second);
+      }
+    }
+  };
+  WorkScheduler.run("CConv: Running Initial Constraints", Task);
 }
 
 void ClangdServer::removeDocument(PathRef File) { WorkScheduler.remove(File); }

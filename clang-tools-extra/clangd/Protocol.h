@@ -568,12 +568,12 @@ struct Diagnostic {
 
   /// The diagnostic's code. Can be omitted.
   /// Note: Not currently used by clangd
-  // std::string code;
+  int code = 0;
 
   /// A human-readable string describing the source of this
   /// diagnostic, e.g. 'typescript' or 'super lint'.
   /// Note: Not currently used by clangd
-  // std::string source;
+  std::string source = "default";
 
   /// The diagnostic's message.
   std::string message;
@@ -641,6 +641,13 @@ struct WorkspaceEdit {
 bool fromJSON(const llvm::json::Value &, WorkspaceEdit &);
 llvm::json::Value toJSON(const WorkspaceEdit &WE);
 
+struct CConvertManualFix {
+  int ptrID;
+};
+
+bool fromJSON(const llvm::json::Value &, CConvertManualFix &);
+llvm::json::Value toJSON(const CConvertManualFix &WE);
+
 /// Exact commands are not specified in the protocol so we define the
 /// ones supported by Clangd here. The protocol specifies the command arguments
 /// to be "any[]" but to make this safer and more manageable, each command we
@@ -652,12 +659,16 @@ llvm::json::Value toJSON(const WorkspaceEdit &WE);
 struct ExecuteCommandParams {
   // Command to apply fix-its. Uses WorkspaceEdit as argument.
   const static llvm::StringLiteral CLANGD_APPLY_FIX_COMMAND;
+  const static llvm::StringLiteral CCONV_APPLY_ONLY_FOR_THIS;
+  const static llvm::StringLiteral CCONV_APPLY_FOR_ALL;
 
   /// The command identifier, e.g. CLANGD_APPLY_FIX_COMMAND
   std::string command;
 
   // Arguments
   llvm::Optional<WorkspaceEdit> workspaceEdit;
+
+  llvm::Optional<CConvertManualFix> ccConvertManualFix;
 };
 bool fromJSON(const llvm::json::Value &, ExecuteCommandParams &);
 
