@@ -2570,6 +2570,12 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
   if (Args.hasArg(OPT_fdump_inferred_bounds))
     Opts.DumpInferredBounds = true;
 
+  if (Args.hasArg(OPT_finject_verifier_calls))
+    Opts.InjectVerifierCalls = true;
+
+  if (Args.hasArg(OPT_funchecked_pointers_dynamic_check))
+    Opts.UncheckedPointersDynamicCheck = true;
+
   if (Args.hasArg(OPT_fdump_extracted_comparison_facts))
     Opts.DumpExtractedComparisonFacts = true;
 

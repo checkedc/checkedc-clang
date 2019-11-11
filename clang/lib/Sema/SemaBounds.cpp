@@ -1447,7 +1447,8 @@ Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
       //  the "checkedness" of the outermost array.
 
       // getBase returns the pointer-typed expression.
-      if (AS->getBase()->getType()->isCheckedPointerArrayType()) {
+      if (getLangOpts().UncheckedPointersDynamicCheck ||
+          AS->getBase()->getType()->isCheckedPointerArrayType()) {
         Result = AS->getBase()->getType();
         return E;
       }

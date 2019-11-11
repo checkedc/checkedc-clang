@@ -380,6 +380,17 @@ BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
   // Add a "failed block", which will be inserted at the end of CurFn
   BasicBlock *FailBlock = createBasicBlock("_Dynamic_check.failed", CurFn);
   Builder.SetInsertPoint(FailBlock);
+  if (getLangOpts().InjectVerifierCalls) {
+    llvm::Module& module = CGM.getModule();
+    static llvm::Function* verr = llvm::Function::Create(
+        llvm::FunctionType::get(Builder.getVoidTy(), false),
+        llvm::Function::ExternalLinkage,
+        "__VERIFIER_error",
+        &module);
+    CallInst *VerifierError = Builder.CreateCall(verr);
+    VerifierError->setDoesNotReturn();
+    VerifierError->setDoesNotThrow();
+  }
   CallInst *TrapCall = Builder.CreateCall(CGM.getIntrinsic(Intrinsic::trap));
   TrapCall->setDoesNotReturn();
   TrapCall->setDoesNotThrow();
