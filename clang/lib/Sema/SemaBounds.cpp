@@ -46,6 +46,57 @@
 using namespace clang;
 using namespace sema;
 
+// Common helper functions used by various classes in this file.
+namespace {
+  // Determine if the mathematical value of I (an unsigned integer) fits within
+  // the range of Ty, a signed integer type.  APInt requires that bitsizes
+  // match exactly, so if I does fit, return an APInt via Result with exactly
+  // the bitsize of Ty.
+  static bool Fits(clang::ASTContext &Ctx, QualType Ty,
+                   const llvm::APInt &I, llvm::APInt &Result) {
+    assert(Ty->isSignedIntegerType());
+
+    unsigned bitSize = Ctx.getTypeSize(Ty);
+    if (bitSize < I.getBitWidth()) {
+      if (bitSize < I.getActiveBits())
+       // Number of bits in use exceeds bitsize.
+       return false;
+      else Result = I.trunc(bitSize);
+    } else if (bitSize > I.getBitWidth())
+      Result = I.zext(bitSize);
+    else
+      Result = I;
+    return Result.isNonNegative();
+  }
+
+  // Create an integer literal from I.  I is interpreted as an
+  // unsigned integer.
+  static IntegerLiteral *CreateIntegerLiteral(clang::ASTContext &Ctx,
+                                              const llvm::APInt &I) {
+    // Choose the type of an integer constant following the rules in
+    // Section 6.4.4 of the C11 specification: the smallest integer
+    // type chosen from int, long int, long long int, unsigned long long
+    // in which the integer fits.
+    QualType Ty;
+    llvm::APInt ResultVal;
+
+    if (Fits(Ctx, Ctx.IntTy, I, ResultVal))
+      Ty = Ctx.IntTy;
+    else if (Fits(Ctx, Ctx.LongTy, I, ResultVal))
+      Ty = Ctx.LongTy;
+    else if (Fits(Ctx, Ctx.LongLongTy, I, ResultVal))
+      Ty = Ctx.LongLongTy;
+    else {
+      assert(I.getBitWidth() <=
+             Ctx.getIntWidth(Ctx.UnsignedLongLongTy));
+      ResultVal = I;
+      Ty = Ctx.UnsignedLongLongTy;
+    }
+    return IntegerLiteral::Create(Ctx, ResultVal, Ty,
+                                  SourceLocation());
+  }
+}
+
 namespace {
 class BoundsUtil {
 public:
@@ -604,51 +655,6 @@ namespace {
                                          SourceLocation(), false);
     }
 
-    // Determine if the mathemtical value of I (an unsigned integer) fits within
-    // the range of Ty, a signed integer type.  APInt requires that bitsizes
-    // match exactly, so if I does fit, return an APInt via Result with
-    // exactly the bitsize of Ty.
-    bool Fits(QualType Ty, const llvm::APInt &I, llvm::APInt &Result) {
-      assert(Ty->isSignedIntegerType());
-      unsigned bitSize = Context.getTypeSize(Ty);
-      if (bitSize < I.getBitWidth()) {
-        if (bitSize < I.getActiveBits())
-         // Number of bits in use exceeds bitsize
-         return false;
-        else Result = I.trunc(bitSize);
-      } else if (bitSize > I.getBitWidth())
-        Result = I.zext(bitSize);
-      else
-        Result = I;
-      return Result.isNonNegative();
-    }
-
-    // Create an integer literal from I.  I is interpreted as an
-    // unsigned integer.
-    IntegerLiteral *CreateIntegerLiteral(const llvm::APInt &I) {
-      QualType Ty;
-      // Choose the type of an integer constant following the rules in
-      // Section 6.4.4 of the C11 specification: the smallest integer
-      // type chosen from int, long int, long long int, unsigned long long
-      // in which the integer fits.
-      llvm::APInt ResultVal;
-      if (Fits(Context.IntTy, I, ResultVal))
-        Ty = Context.IntTy;
-      else if (Fits(Context.LongTy, I, ResultVal))
-        Ty = Context.LongTy;
-      else if (Fits(Context.LongLongTy, I, ResultVal))
-        Ty = Context.LongLongTy;
-      else {
-        assert(I.getBitWidth() <=
-               Context.getIntWidth(Context.UnsignedLongLongTy));
-        ResultVal = I;
-        Ty = Context.UnsignedLongLongTy;
-      }
-      IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal, Ty,
-                                                   SourceLocation());
-      return Lit;
-    }
-
   public:
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
@@ -672,7 +678,7 @@ namespace {
         assert(size.uge(1) && "must have at least one element");
         size = size - 1;
       }
-      IntegerLiteral *Size = CreateIntegerLiteral(size);
+      IntegerLiteral *Size = CreateIntegerLiteral(Context, size);
       CountBoundsExpr *CBE =
          new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                        Size, SourceLocation(),
@@ -772,7 +778,8 @@ namespace {
       // could be used to overwrite the null terminator.  We need to prevent
       // this because literal strings may be shared and writeable, depending on
       // the C implementation.
-      auto *Size = CreateIntegerLiteral(llvm::APInt(64, SL->getLength()));
+      auto *Size = CreateIntegerLiteral(Context,
+                                        llvm::APInt(64, SL->getLength()));
       auto *CBE =
         new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
                                       Size, SourceLocation(),
@@ -3260,9 +3267,40 @@ namespace {
              << Init->getSourceRange();
          InitBounds = S.CreateInvalidBoundsExpr();
        } else {
-         BoundsExpr *NormalizedDeclaredBounds = S.ExpandToRange(D, DeclaredBounds);
-         CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
-           Init, InitBounds, CSS, Facts);
+         BoundsExpr *NormalizedDeclaredBounds =
+           S.ExpandToRange(D, DeclaredBounds);
+         CheckBoundsDeclAtInitializer(D->getLocation(), D,
+                                      NormalizedDeclaredBounds,
+                                      Init, InitBounds, CSS, Facts);
+
+         // For _Nt_array_ptr's, set the bounds as those inferred from the
+         // initialization.
+         // e.g.: _Nt_array_ptr<char> p = "abc";
+         // Here, DeclaredBounds(p) = [0, 0] and InferredBounds(p) = [0, 3).
+         // So, bounds(p) = [0, 3).
+         if (D->getType()->isCheckedPointerNtArrayType()) {
+           if (auto *RBE = dyn_cast<RangeBoundsExpr>(InitBounds)) {
+             Expr *Upper = RBE->getUpperExpr();
+             Expr *UpperBase;
+
+             llvm::APSInt UpperOffsetConstant(1, true);
+             Expr *UpperOffsetVariable = nullptr;
+
+             BaseRange::Kind Kind = SplitIntoBaseAndOffset(Upper, UpperBase,
+                                    UpperOffsetConstant, UpperOffsetVariable);
+
+             if (Kind == BaseRange::Kind::ConstantSized) {
+               auto &Context = S.getASTContext();
+               IntegerLiteral *Size =
+                 CreateIntegerLiteral(Context, UpperOffsetConstant);
+               CountBoundsExpr *CBE =
+                 new (Context) CountBoundsExpr(BoundsExpr::Kind::ElementCount,
+                                               Size, SourceLocation(),
+                                               SourceLocation());
+               D->setBoundsExpr(Context, CBE);
+             }
+           }
+         }
        }
        if (DumpBounds)
          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
