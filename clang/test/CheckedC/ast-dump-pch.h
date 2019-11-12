@@ -13,4 +13,10 @@ void f3(void) _Checked _Bounds_only {}
 
 void f4(void) _Unchecked {}
 
-// TODO: GitHub issue #704: add function declarations with checked scope specifiers
+_Checked void f5(void) {}
+
+_Checked _Bounds_only void f6(void) {}
+
+_Unchecked void f7(void) {}
+
+_Checked void f8(void) _Checked _Bounds_only {}

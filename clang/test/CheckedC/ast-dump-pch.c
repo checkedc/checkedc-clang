@@ -34,4 +34,26 @@
 // CHECK: _Unchecked
 // CHECK-NOT {{checking-state}}
 
-// TODO: GitHub issue #704: add function declarations with checked scope specifiers
+// CHECK-NEXT: FunctionDecl
+// CHECK: f5
+// CHECK: checked
+// CHECK-NEXT: CompoundStmt
+// CHECK: checking-state bounds-and-types
+
+// CHECK-NEXT: FunctionDecl
+// CHECK: f6
+// CHECK: checked bounds_only
+// CHECK-NEXT: CompoundStmt
+// CHECK: checking-state bounds
+
+// CHECK-NEXT: FunctionDecl
+// CHECK: f7
+// CHECK: unchecked
+// CHECK-NEXT: CompoundStmt
+// CHECK-NOT: {{_Checked|_Unchecked|checking-state}}
+
+// CHECK-NEXT: FunctionDecl
+// CHECK: f8
+// CHECK: checked
+// CHECK-NEXT: CompoundStmt
+// CHECK: checking-state bounds

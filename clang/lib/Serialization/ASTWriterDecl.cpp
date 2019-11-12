@@ -538,6 +538,8 @@ void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
   // FunctionDecl's body is handled last at ASTWriterDecl::Visit,
   // after everything else is written.
   Record.push_back(static_cast<int>(D->getStorageClass())); // FIXME: stable encoding
+  Record.push_back(D->getCheckedSpecifier());
+  Record.push_back(D->getWrittenCheckedSpecifier());
   Record.push_back(D->isInlineSpecified());
   Record.push_back(D->isInlined());
   Record.push_back(D->isExplicitSpecified());
@@ -2130,6 +2132,8 @@ void ASTWriter::WriteDeclAbbrevs() {
   // FunctionDecl
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 11)); // IDNS
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 3)); // StorageClass
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2)); // CheckedScopeSpecifier
+  Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 2)); // WrittenCheckedScopeSpecifier
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // Inline
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // InlineSpecified
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); // ExplicitSpecified
