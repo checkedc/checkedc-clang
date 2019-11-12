@@ -43,7 +43,7 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
     if (CCRes.PtrSourceMap.find(wReason.first) != CCRes.PtrSourceMap.end()) {
       auto *psInfo = CCRes.PtrSourceMap[wReason.first];
       std::string filePath = psInfo->getFileName();
-      int line = psInfo->getLineNo();
+      int line = psInfo->getLineNo()-1;
       int colNo = psInfo->getColNo();
       Diag newDiag;
       newDiag.code = wReason.first;

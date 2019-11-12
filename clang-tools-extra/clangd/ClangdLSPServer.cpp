@@ -407,6 +407,11 @@ void ClangdLSPServer::onFileEvent(const DidChangeWatchedFilesParams &Params) {
   Server->onFileEvent(Params);
 }
 
+void ClangdLSPServer::ccConvResultsReady(std::string targetFileName) {
+  std::vector<Diag> dummyDiagnostics;
+  this->onDiagnosticsReady(targetFileName, dummyDiagnostics);
+}
+
 void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
                                 Callback<llvm::json::Value> Reply) {
   auto ApplyEdit = [&](WorkspaceEdit WE) {
@@ -432,8 +437,9 @@ void ClangdLSPServer::onCommand(const ExecuteCommandParams &Params,
     ApplyEdit(*Params.workspaceEdit);
   } else if(Params.command == "Dummy") {
     Reply("All Done.");
-  } else if(applyCCCommand(Params, replyMessage)) {
-    Reply(replyMessage);
+  } else if(isCConvCommand(Params)) {
+    Server->executeCConvCommand(Params, this);
+    Reply("Background work scheduled.");
   } else {
     // We should not get here because ExecuteCommandParams would not have
     // parsed in the first place and this handler should not be called. But if
@@ -654,17 +660,17 @@ void ClangdLSPServer::onCodeAction(const CodeActionParams &Params,
 void ClangdLSPServer::onCodeLens(const CodeLensParams &Params,
                                  Callback<llvm::json::Value> Reply) {
   std::vector<CodeLens> allCodeLens;
-  CodeLens dummyGuy;
-  dummyGuy.range.start.line = 66;
-  dummyGuy.range.end.line = 66;
-  dummyGuy.range.start.character = 18;
-  dummyGuy.range.end.character = 20;
+  /*CodeLens dummyGuy;
+  dummyGuy.range.start.line = 4;
+  dummyGuy.range.end.line = 4;
+  dummyGuy.range.start.character = 13;
+  dummyGuy.range.end.character = 17;
   Command newCmd;
   newCmd.command = "Dummy";
   newCmd.title = "DummyTitle";
   dummyGuy.command = newCmd;
   allCodeLens.clear();
-  allCodeLens.push_back(dummyGuy);
+  allCodeLens.push_back(dummyGuy);*/
   Reply(llvm::json::Array(allCodeLens));
 }
 
@@ -882,6 +888,14 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File,
   std::vector<Diagnostic> LSPDiagnostics;
   DiagnosticToReplacementMap LocalFixIts; // Temporary storage
 
+  //Diagnostics.clear();
+
+  log("Checking for file: {0}\n", File);
+  for (auto &s : Server->CConvDiagInfo.AllFileDiagnostics) {
+    log("File present: {0}\n", s.first);
+    log("Number of diags: {0}\n", s.second.size());
+  }
+  Diagnostics.clear();
   // cconv diagnostics.
   if (Server->CConvDiagInfo.AllFileDiagnostics.find(File) != Server->CConvDiagInfo.AllFileDiagnostics.end()) {
     Diagnostics.insert(Diagnostics.begin(),
@@ -903,25 +917,6 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File,
     // FIXME(ibiryukov): should be deleted when documents are removed
     std::lock_guard<std::mutex> Lock(FixItsMutex);
     FixItsMap[File] = LocalFixIts;
-  }
-
-  // Publish diagnostics.
-  notify("textDocument/publishDiagnostics",
-         llvm::json::Object{
-             {"uri", URI},
-             {"diagnostics", std::move(LSPDiagnostics)},
-         });
-}
-
-void ClangdLSPServer::onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) {
-  auto URI = URIForFile::canonicalize(File, /*TUPath=*/File);
-  std::vector<Diagnostic> LSPDiagnostics;
-  DiagnosticToReplacementMap LocalFixIts; // Temporary storage
-  for (auto &Diag : Diags) {
-    toLSPDiags(Diag, URI, DiagOpts,
-               [&](clangd::Diagnostic Diag, llvm::ArrayRef<Fix> Fixes) {
-                 LSPDiagnostics.push_back(std::move(Diag));
-               });
   }
 
   // Publish diagnostics.

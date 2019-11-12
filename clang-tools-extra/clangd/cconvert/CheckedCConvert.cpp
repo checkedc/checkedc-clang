@@ -148,7 +148,7 @@ std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTypin
 }
 
 bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
-                                     ClangTool &Tool, std::set<std::string> &inoutPaths) {
+                                     std::set<std::string> &inoutPaths) {
   bool fixedPointReached = false;
   unsigned long iterationNum = 1;
   unsigned long numberOfEdgesRemoved = 0;
@@ -166,17 +166,21 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
 
   while(!fixedPointReached) {
     clock_t startTime = clock();
-    errs() << "****Iteration " << iterationNum << " starts.****\n";
     if(Verbose) {
+      errs() << "****Iteration " << iterationNum << " starts.****\n";
       errs() << "Iterative Itype refinement, Round:" << iterationNum << "\n";
     }
 
     std::pair<Constraints::ConstraintSet, bool> R = solveConstraintsWithFunctionSubTyping(Info);
 
-    errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
+    if(Verbose) {
+      errs() << "Iteration:" << iterationNum << ", Constraint solve time:" << getTimeSpentInSeconds(startTime) << "\n";
+    }
 
     if(R.second) {
-      errs() << "Constraints solved for iteration:" << iterationNum << "\n";
+      if(Verbose) {
+        errs() << "Constraints solved for iteration:" << iterationNum << "\n";
+      }
     }
 
     if(DumpStats) {
@@ -190,25 +194,32 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
     // detect and update new found itype vars.
     numItypeVars = detectAndUpdateITypeVars(Info, modifiedFunctions);
 
-    errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:" << numItypeVars
-           << ", detection time:" << getTimeSpentInSeconds(startTime) << "\n";
+    if(Verbose) {
+      errs() << "Iteration:" << iterationNum << ", Number of detected itype vars:" << numItypeVars
+             << ", detection time:" << getTimeSpentInSeconds(startTime) << "\n";
+    }
 
     startTime = clock();
     // update the constraint graph by removing edges from/to iype parameters and returns.
     numberOfEdgesRemoved = resetWithitypeConstraints(CS);
 
-    errs() << "Iteration:" << iterationNum << ", Number of edges removed:" << numberOfEdgesRemoved << "\n";
+    if(Verbose) {
+      errs() << "Iteration:" << iterationNum << ", Number of edges removed:" << numberOfEdgesRemoved << "\n";
 
-    errs() << "Iteration:" << iterationNum << ", Refinement Time:" << getTimeSpentInSeconds(startTime) << "\n";
+      errs() << "Iteration:" << iterationNum << ", Refinement Time:" << getTimeSpentInSeconds(startTime) << "\n";
+    }
 
     // if we removed any edges, that means we did not reach fix point.
     // In other words, we reach fixed point when no edges are removed from the constraint graph.
     fixedPointReached = !(numberOfEdgesRemoved > 0);
-    errs() << "****Iteration " << iterationNum << " ends****\n";
+    if(Verbose) {
+      errs() << "****Iteration " << iterationNum << " ends****\n";
+    }
     iterationNum++;
   }
-
-  errs() << "Fixed point reached after " << (iterationNum-1) << " iterations.\n";
+  if(Verbose) {
+    errs() << "Fixed point reached after " << (iterationNum - 1) << " iterations.\n";
+  }
 
   return fixedPointReached;
 }
@@ -276,6 +287,7 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
 }
 
 bool buildInitialConstraints() {
+
   ClangTool Tool(*CurrCompDB, sourceFiles);
 
   // 1. Gather constraints.
@@ -299,14 +311,15 @@ bool buildInitialConstraints() {
   Constraints &CS = Info.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS, Info, Tool, inoutPaths);
+  bool fPointReached = performIterativeItypeRefinement(CS, Info, inoutPaths);
 
   assert(fPointReached);
   if (Verbose)
     outs() << "Constraints solved\n";
+
+  Info.computePointerDisjointSet();
   if (DumpIntermediate) {
-    Info.dump();
-    Info.computePointerDisjointSet();
+    //Info.dump();
     outs() << "Writing json output to:" << ConstraintOutputJson << "\n";
     std::error_code ec;
     llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
@@ -333,27 +346,33 @@ static void resetAllPointerConstraints() {
 
 bool makeSinglePtrNonWild(ConstraintKey targetPtr) {
 
-  std::vector<ConstraintKey> removePtrs;
+  CVars removePtrs;
   removePtrs.clear();
   CVars oldWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
 
   resetAllPointerConstraints();
 
+  errs() << "After resetting\n";
+
   VarAtom *VA = Info.getConstraints().getOrCreateVar(targetPtr);
-  Constraints::EnvironmentMap toRemoveVAtoms;
-  toRemoveVAtoms[VA] = Info.getConstraints().getWild();
 
-  VA->replaceEqConstraints(toRemoveVAtoms, Info.getConstraints());
+  Eq newE(VA, Info.getConstraints().getWild());
 
-  ClangTool Tool(*CurrCompDB, sourceFiles);
-  performIterativeItypeRefinement(Info.getConstraints(), Info, Tool, inoutPaths);
+  Info.getConstraints().getConstraints().erase(&newE);
+  VA->getAllConstraints().erase(&newE);
+
+  Info.getConstraints().resetConstraints();
+
+  performIterativeItypeRefinement(Info.getConstraints(), Info, inoutPaths);
   Info.computePointerDisjointSet();
 
   CVars &newWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
 
   std::set_difference(oldWILDPtrs.begin(), oldWILDPtrs.end(),
                       newWILDPtrs.begin(),
-                      newWILDPtrs.end(), removePtrs.begin());
+                      newWILDPtrs.end(),
+                      std::inserter(removePtrs, removePtrs.begin()));
+  errs() << "Returning\n";
 
   return !removePtrs.empty();
 }
@@ -361,28 +380,35 @@ bool makeSinglePtrNonWild(ConstraintKey targetPtr) {
 
 bool invalidateWildReasonGlobally(ConstraintKey targetPtr) {
 
-  std::vector<ConstraintKey> removePtrs;
+  CVars removePtrs;
   removePtrs.clear();
   CVars oldWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
 
   resetAllPointerConstraints();
 
+  errs() << "After resetting\n";
+
   VarAtom *VA = Info.getConstraints().getOrCreateVar(targetPtr);
-  Constraints::EnvironmentMap toRemoveVAtoms;
-  toRemoveVAtoms[VA] = Info.getConstraints().getWild();
 
-  VA->replaceEqConstraints(toRemoveVAtoms, Info.getConstraints());
+  Eq newE(VA, Info.getConstraints().getWild());
 
-  ClangTool Tool(*CurrCompDB, sourceFiles);
-  performIterativeItypeRefinement(Info.getConstraints(), Info, Tool, inoutPaths);
+  Info.getConstraints().getConstraints().erase(&newE);
+  VA->getAllConstraints().erase(&newE);
+
+  Info.getConstraints().resetConstraints();
+
+  performIterativeItypeRefinement(Info.getConstraints(), Info, inoutPaths);
   Info.computePointerDisjointSet();
 
   CVars &newWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
 
   std::set_difference(oldWILDPtrs.begin(), oldWILDPtrs.end(),
                       newWILDPtrs.begin(),
-                      newWILDPtrs.end(), removePtrs.begin());
+                      newWILDPtrs.end(),
+                      std::inserter(removePtrs, removePtrs.begin()));
 
+  errs() << "Returning\n";
+  
   return !removePtrs.empty();
 }
 
@@ -446,7 +472,7 @@ int originalmain(int argc, const char **argv) {
   Constraints &CS = Info.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS, Info, Tool, inoutPaths);
+  bool fPointReached = performIterativeItypeRefinement(CS, Info, inoutPaths);
 
   assert(fPointReached == true);
   if (Verbose)

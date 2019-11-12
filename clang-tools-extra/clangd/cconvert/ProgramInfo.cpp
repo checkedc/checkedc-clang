@@ -340,8 +340,9 @@ bool ProgramInfo::link() {
             // which case we don't need to constrain anything.
             if (P1->hasProtoType() && P2->hasProtoType()) {
               // Nope, we have no choice. Constrain everything to wild.
-              P1->constrainTo(CS, CS.getWild(), true);
-              P2->constrainTo(CS, CS.getWild(), true);
+              std::string rsn = "Return value of function:" + P1->getName();
+              P1->constrainTo(CS, CS.getWild(), rsn, true);
+              P2->constrainTo(CS, CS.getWild(), rsn, true);
             }
           }
         }
@@ -1199,7 +1200,8 @@ bool ProgramInfo::computePointerDisjointSet() {
         allWILDPtrs.insert(VLhs->getLoc());
       } else {
         VarAtom *Vrhs = dyn_cast<VarAtom>(EC->getRHS());
-        ConstraintDisjointSet.addElements(VLhs->getLoc(), Vrhs->getLoc());
+        if (Vrhs != nullptr)
+          ConstraintDisjointSet.addElements(VLhs->getLoc(), Vrhs->getLoc());
       }
     }
   }
@@ -1218,11 +1220,11 @@ bool ProgramInfo::computePointerDisjointSet() {
 
 
   // compute all the WILD pointers.
-  std::vector<ConstraintKey> WildCkeys;
+  CVars WildCkeys;
   for (auto &gm : ConstraintDisjointSet.groups) {
     WildCkeys.clear();
-    std::set_intersection(gm.second.begin(), gm.second.end(), allWILDPtrs.begin(),
-                          allWILDPtrs.end(), WildCkeys.begin());
+    std::set_intersection(gm.second.begin(), gm.second.end(), allWILDPtrs.begin(), allWILDPtrs.end(),
+                          std::inserter(WildCkeys, WildCkeys.begin()));
 
     if (!WildCkeys.empty()) {
       ConstraintDisjointSet.allWildPtrs.insert(WildCkeys.begin(), WildCkeys.end());

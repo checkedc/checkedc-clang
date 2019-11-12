@@ -10,6 +10,7 @@
 namespace clang {
 namespace clangd {
   llvm::Optional<Command> asCCCommand(const Diagnostic &D, bool onlyThisPtr = false);
+  bool isCConvCommand(const ExecuteCommandParams &Params);
   bool applyCCCommand(const ExecuteCommandParams &Params, std::string &replyMessage);
 }
 }

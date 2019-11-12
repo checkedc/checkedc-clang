@@ -14,7 +14,7 @@ llvm::Optional<Command> asCCCommand(const Diagnostic &D, bool onlyThisPtr) {
     CConvertManualFix ptrFix;
     ptrFix.ptrID = ptrID;
     Cmd.command = Command::CCONV_APPLY_FOR_ALL;
-    Cmd.title = "This is non-WILD and this is applicable to the entire project";
+    Cmd.title = "Make this pointer non-WILD and apply the same observation to all the pointers.";
     if (onlyThisPtr) {
       Cmd.command = Command::CCONV_APPLY_ONLY_FOR_THIS;
       Cmd.title = "Make this pointer non-WILD ";
@@ -25,12 +25,21 @@ llvm::Optional<Command> asCCCommand(const Diagnostic &D, bool onlyThisPtr) {
   return None;
 }
 
+bool isCConvCommand(const ExecuteCommandParams &Params) {
+    return (Params.command.rfind(Command::CCONV_APPLY_ONLY_FOR_THIS, 0) == 0) ||
+           (Params.command.rfind(Command::CCONV_APPLY_FOR_ALL, 0) == 0);
+}
+
 bool applyCCCommand(const ExecuteCommandParams &Params, std::string &replyMessage) {
   replyMessage = "Checked C Pointer Modified.";
   if (Params.command.rfind(Command::CCONV_APPLY_ONLY_FOR_THIS, 0) == 0) {
+    int ptrID = Params.ccConvertManualFix->ptrID;
+    makeSinglePtrNonWild(ptrID);
     return true;
   }
   if (Params.command.rfind(Command::CCONV_APPLY_FOR_ALL, 0) == 0) {
+    int ptrID = Params.ccConvertManualFix->ptrID;
+    invalidateWildReasonGlobally(ptrID);
     return true;
   }
   return false;

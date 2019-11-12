@@ -34,6 +34,7 @@
 #include <future>
 #include <mutex>
 #include "cconvert/CConvInteractive.h"
+#include "CConvertCommands.h"
 
 namespace clang {
 namespace clangd {
@@ -83,10 +84,6 @@ struct UpdateIndexCallbacks : public ParsingCallbacks {
   }
 
   void onDiagnostics(PathRef File, std::vector<Diag> Diags) override {
-    DiagConsumer.onDiagnosticsReady(File, std::move(Diags));
-  }
-
-  void onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) override {
     DiagConsumer.onDiagnosticsReady(File, std::move(Diags));
   }
 
@@ -170,15 +167,23 @@ void ClangdServer::cconvCollectAndBuildInitialConstraints() {
     log("CConv: Built initial constraints sucessfully.\n");
     CConvDiagInfo.populateDiagsFromDisjointSet(getWILDPtrsInfo());
     log("CConv: Updated the diag information.\n");
-
-    for (auto &fileW : CConvDiagInfo.AllFileDiagnostics) {
-      PathRef currF(fileW.first);
-      if (WorkScheduler.isFileAlreadyAnalyzed(currF)) {
-        WorkScheduler.Callbacks->onCConvDiagnostics(currF, fileW.second);
-      }
-    }
   };
   WorkScheduler.run("CConv: Running Initial Constraints", Task);
+}
+
+void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
+                                       CConvLSPCallBack *ConvCB) {
+  auto Task = [this, Params, ConvCB]() {
+      std::string replyMessage;
+      std::string ptrFileName = getWILDPtrsInfo().PtrSourceMap[Params.ccConvertManualFix->ptrID]->getFileName();
+      log("CConv: File of the pointer {0}\n", ptrFileName);
+      applyCCCommand(Params, replyMessage);
+      this->CConvDiagInfo.clearAllDiags();
+      this->CConvDiagInfo.populateDiagsFromDisjointSet(getWILDPtrsInfo());
+      log("CConv calling call-back\n");
+      ConvCB->ccConvResultsReady(ptrFileName);
+  };
+  WorkScheduler.run("Applying on demand ptr modifications", Task);
 }
 
 void ClangdServer::removeDocument(PathRef File) { WorkScheduler.remove(File); }

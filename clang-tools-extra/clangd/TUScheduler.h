@@ -108,8 +108,6 @@ public:
   /// Called whenever the diagnostics for \p File are produced.
   virtual void onDiagnostics(PathRef File, std::vector<Diag> Diags) {}
 
-  virtual void onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) { }
-
   /// Called whenever the TU status is updated.
   virtual void onFileUpdated(PathRef File, const TUStatus &Status) {}
 };

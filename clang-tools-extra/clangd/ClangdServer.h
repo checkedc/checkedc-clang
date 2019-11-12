@@ -46,10 +46,13 @@ public:
   /// Called by ClangdServer when \p Diagnostics for \p File are ready.
   virtual void onDiagnosticsReady(PathRef File,
                                   std::vector<Diag> Diagnostics) = 0;
-
-  virtual void onCConvDiagnostics(PathRef File, std::vector<Diag> &Diags) = 0;
   /// Called whenever the file status is updated.
   virtual void onFileUpdated(PathRef File, const TUStatus &Status){};
+};
+
+class CConvLSPCallBack {
+public:
+    virtual void ccConvResultsReady(std::string targetFileName) = 0;
 };
 
 /// Manages a collection of source files and derived data (ASTs, indexes),
@@ -239,6 +242,9 @@ public:
   // ccconv specific commands
   // collect and build initial set of constraints on the source
   // files.
+
+  void executeCConvCommand(ExecuteCommandParams Params,
+                           CConvLSPCallBack *ConvCB);
   void cconvCollectAndBuildInitialConstraints();
 
   CConvertDiagnostics CConvDiagInfo;

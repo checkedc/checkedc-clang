@@ -40,8 +40,8 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
   }
 }
 
-void constrainEq(std::set<ConstraintVariable*> &RHS,
-  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);
+/*void constrainEq(std::set<ConstraintVariable*> &RHS,
+  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info);*/
 // Given two ConstraintVariables, do the right thing to assign 
 // constraints. 
 // If they are both PVConstraint, then do an element-wise constraint
@@ -51,7 +51,7 @@ void constrainEq(std::set<ConstraintVariable*> &RHS,
 // If they are of an unequal parameter type, constrain everything in both
 // to wild.
 void constrainEq(ConstraintVariable *LHS,
-  ConstraintVariable *RHS, ProgramInfo &Info) {
+  ConstraintVariable *RHS, ProgramInfo &Info, bool isFuncCall) {
   ConstraintVariable *CRHS = RHS;
   ConstraintVariable *CLHS = LHS;
   Constraints &CS = Info.getConstraints();
@@ -75,8 +75,9 @@ void constrainEq(ConstraintVariable *LHS,
           }
         } else {
           // Constrain both to be top.
-          CRHS->constrainTo(CS, CS.getWild());
-          CLHS->constrainTo(CS, CS.getWild());
+          std::string rsn = "Assigning from:" + FCRHS->getName() + " to " + FCLHS->getName();
+          CRHS->constrainTo(CS, CS.getWild(), rsn);
+          CLHS->constrainTo(CS, CS.getWild(), rsn);
         }
       } else {
         llvm_unreachable("impossible");
@@ -122,25 +123,32 @@ void constrainEq(ConstraintVariable *LHS,
     FVConstraint *FCRHS = dyn_cast<FVConstraint>(CRHS);
     if (PCLHS && FCRHS) {
       if (FVConstraint *FCLHS = PCLHS->getFV()) {
-        constrainEq(FCLHS, FCRHS, Info);
+        constrainEq(FCLHS, FCRHS, Info, isFuncCall);
       } else {
-        CLHS->constrainTo(CS, CS.getWild());
-        CRHS->constrainTo(CS, CS.getWild());
+        if (isFuncCall) {
+            for (auto &J : FCRHS->getReturnVars())
+              constrainEq(PCLHS, J, Info, isFuncCall);
+        } else {
+          std::string rsn = "Function:" + FCRHS->getName() + " assigned to non-function pointer.";
+          CLHS->constrainTo(CS, CS.getWild(), rsn);
+          CRHS->constrainTo(CS, CS.getWild(), rsn);
+        }
       }
     } else {
       // Constrain everything in both to wild.
-      CLHS->constrainTo(CS, CS.getWild());
-      CRHS->constrainTo(CS, CS.getWild());
+      std::string rsn = "Assignment to functions from variables";
+      CLHS->constrainTo(CS, CS.getWild(), rsn);
+      CRHS->constrainTo(CS, CS.getWild(), rsn);
     }
   }
 }
 
 // Given an RHS and a LHS, constrain them to be equal. 
 void constrainEq(std::set<ConstraintVariable*> &RHS,
-  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info) {
+  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info, bool isFuncCall) {
   for (const auto &I : RHS)
     for (const auto &J : LHS)
-      constrainEq(I, J, Info);
+      constrainEq(I, J, Info, isFuncCall);
 }
 
 // This class visits functions and adds constraints to the
@@ -253,7 +261,7 @@ public:
         // to the declaration.
         RHSConstraints = Info.getVariable(RHS, Context, false);
         if (RHSConstraints.size() > 0) {
-          constrainEq(V, RHSConstraints, Info);
+          constrainEq(V, RHSConstraints, Info, true);
         }
       }
     } else {
