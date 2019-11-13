@@ -1215,6 +1215,15 @@ bool ProgramInfo::computePointerDisjointSet() {
           ConstraintDisjointSet.PtrSourceMap[ck] = (PersistentSourceLoc*)(&(I.first));
         }
       }
+      if (FVConstraint *FV = dyn_cast<FVConstraint>(CV)) {
+        for (auto PV: FV->getReturnVars()) {
+          if (PVConstraint *RPV = dyn_cast<PVConstraint>(PV)) {
+            for (auto ck: RPV->getCvars()) {
+              ConstraintDisjointSet.PtrSourceMap[ck] = (PersistentSourceLoc*)(&(I.first));
+            }
+          }
+        }
+      }
     }
   }
 

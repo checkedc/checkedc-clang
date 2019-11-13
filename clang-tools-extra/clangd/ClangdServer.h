@@ -249,6 +249,8 @@ public:
 
   CConvertDiagnostics CConvDiagInfo;
 
+  void cconvCloseDocument(std::string file);
+
 
 private:
   /// FIXME: This stats several files to find a .clang-format file. I/O can be

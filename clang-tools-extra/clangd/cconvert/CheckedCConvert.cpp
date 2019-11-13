@@ -320,7 +320,7 @@ bool buildInitialConstraints() {
   Info.computePointerDisjointSet();
   if (DumpIntermediate) {
     //Info.dump();
-    outs() << "Writing json output to:" << ConstraintOutputJson << "\n";
+    errs() << "Writing json output to:" << ConstraintOutputJson << "\n";
     std::error_code ec;
     llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
     if (!output_json.has_error()) {
@@ -408,8 +408,27 @@ bool invalidateWildReasonGlobally(ConstraintKey targetPtr) {
                       std::inserter(removePtrs, removePtrs.begin()));
 
   errs() << "Returning\n";
-  
+
   return !removePtrs.empty();
+}
+
+bool writeConvertedFileToDisk(std::string filePath) {
+    if (std::find(sourceFiles.begin(), sourceFiles.end(), filePath) != sourceFiles.end()) {
+        std::vector<std::string> currSourceFiles;
+        currSourceFiles.clear();
+        currSourceFiles.push_back(filePath);
+        ClangTool Tool(*CurrCompDB, currSourceFiles);
+        std::unique_ptr<ToolAction> RewriteTool =
+                newFrontendActionFactoryB
+                        <RewriteAction<RewriteConsumer, ProgramInfo, std::set<std::string>>>(
+                        Info, inoutPaths);
+
+        if (RewriteTool)
+            Tool.run(RewriteTool.get());
+        return true;
+    }
+    return false;
+
 }
 
 int originalmain(int argc, const char **argv) {

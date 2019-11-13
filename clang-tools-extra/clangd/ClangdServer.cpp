@@ -186,7 +186,21 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
   WorkScheduler.run("Applying on demand ptr modifications", Task);
 }
 
-void ClangdServer::removeDocument(PathRef File) { WorkScheduler.remove(File); }
+void ClangdServer::removeDocument(PathRef File) {
+    WorkScheduler.remove(File);
+}
+
+void ClangdServer::cconvCloseDocument(std::string file) {
+   auto Task = [=]() {
+      log("CConv: Trying to write back file: {0}\n", file);
+      if (writeConvertedFileToDisk(file)) {
+        log("CConv: Finished writing back file: {0}\n", file);
+      } else {
+        log("CConv: File not included during constraint solving phase. Rewriting failed: {0}\n", file);
+      }
+  };
+  WorkScheduler.run("CConv: Writing back file.", Task);
+}
 
 void ClangdServer::codeComplete(PathRef File, Position Pos,
                                 const clangd::CodeCompleteOptions &Opts,

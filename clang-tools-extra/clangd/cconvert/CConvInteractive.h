@@ -67,5 +67,7 @@ bool initializeCConvert(clang::tooling::CommonOptionsParser &OptionsParser,
                         struct CConvertOptions &options);
 bool buildInitialConstraints();
 
+bool writeConvertedFileToDisk(std::string filePath);
+
 
 #endif //CLANG_TOOLS_EXTRA_CLANGD_CCONVERT_CCONVINTERACTIVE_H

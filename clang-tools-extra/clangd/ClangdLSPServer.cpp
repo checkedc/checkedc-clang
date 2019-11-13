@@ -500,6 +500,7 @@ void ClangdLSPServer::onRename(const RenameParams &Params,
 void ClangdLSPServer::onDocumentDidClose(
     const DidCloseTextDocumentParams &Params) {
   PathRef File = Params.textDocument.uri.file();
+  Server->cconvCloseDocument(File.str());
   DraftMgr.removeDraft(File);
   Server->removeDocument(File);
 }
