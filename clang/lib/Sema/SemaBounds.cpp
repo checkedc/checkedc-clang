@@ -1829,11 +1829,10 @@ namespace {
       ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet>& Facts) {
 
-        // In assignments dest <-- src, this relation should hold: range_dest \subseteq range_src
-        // range_dest == {} always passes this test, however we are disallowing empty ranges
-        // for _Array_ptr (upperBound <= lowerBound). With the exception that
-        // upperBound == lowerBound is allowed for _Nt_array_ptr.
-        if (R.IsEmpty()) {
+        // We disallow invalid ranges (upperBound < lowerBound), both at declaration and memory access.
+        // We allow for empty ranges (upperBound == lowerBound) at declaration, but disallow empty ranges
+        // at memory access. Therefore the case of empty ranges is handled by the caller of this function.
+        if (R.IsConstantSizedRange() && R.UpperOffsetConstant < R.LowerOffsetConstant) {
           Cause = CombineFailures(Cause, ProofFailure::DstEmpty);
           return ProofResult::False;
         }
@@ -1943,18 +1942,12 @@ namespace {
       }
 
       // This function returns true if, when the range is ConstantSized,
-      // `UpperOffsetConstant <= LowerOffsetConstant`,
-      // except for _Nt_Array_ptr types
-      // that `UpperOffsetConstant == LowerOffsetConstant` is allowed.
+      // `UpperOffsetConstant <= LowerOffsetConstant`.
       // Currently, it returns false when the range is not ConstantSized.
       // However, this should be generalized in the future.
       bool IsEmpty() {
-        if (IsConstantSizedRange()) {
-          if (Base->IgnoreParenCasts()->getType()->isCheckedPointerNtArrayType())
-            return UpperOffsetConstant < LowerOffsetConstant;
-
+        if (IsConstantSizedRange())
           return UpperOffsetConstant <= LowerOffsetConstant;
-        }
         // TODO: can we generalize IsEmpty to non-constant ranges?
         return false;
       }
@@ -2467,6 +2460,10 @@ namespace {
       llvm::outs() << "Valid range:\n";
       ValidRange.Dump(llvm::outs());
 #endif
+      if (MemoryAccessRange.IsEmpty()) {
+        Cause = CombineFailures(Cause, ProofFailure::DstEmpty);
+        return ProofResult::False;
+      }
       std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
       ProofResult R = ValidRange.InRange(MemoryAccessRange, Cause, nullptr, EmptyFacts);
       if (R == ProofResult::True)
@@ -2731,6 +2728,8 @@ namespace {
 
       if (Result == ProofResult::False) {
         unsigned DiagId = diag::warn_out_of_bounds_access;
+        if (TestFailure(Cause, ProofFailure::DstEmpty) || TestFailure(Cause, ProofFailure::SrcEmpty))
+          DiagId = diag::error_out_of_bounds_access;
         SourceLocation ExprLoc = Deref->getExprLoc();
         S.Diag(ExprLoc, DiagId) << (unsigned) ProofKind << Deref->getSourceRange();
         ExplainProofFailure(ExprLoc, Cause, ProofKind);
