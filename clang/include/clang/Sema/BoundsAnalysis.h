@@ -26,10 +26,8 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallPtrSet.h"
 
-using namespace llvm;
-
 namespace clang {
-  using BoundsSet = SmallPtrSet<const Expr *, 4>;
+  using BoundsSet = llvm::SmallPtrSet<const Expr *, 4>;
 
   class BoundsAnalysis {
   private:
@@ -50,6 +48,7 @@ namespace clang {
     void Analyze();
 
   private:
+//    RangeBoundsExpr *getBounds(const Expr *E);
     bool IsPointerDerefLValue(const Expr *E);
     bool ContainsPointerDeref(const Expr *E);
   };

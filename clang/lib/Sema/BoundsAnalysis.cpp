@@ -1,4 +1,4 @@
-//===-------- BoundsAnalysis.cpp - collect comparison facts -------===//
+//===--------- BoundsAnalysis.cpp - Bounds Widening Analysis --------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -13,10 +13,13 @@
 
 #include "clang/Sema/BoundsAnalysis.h"
 
+using namespace llvm;
+
 namespace clang {
 class Sema;
 
 void BoundsAnalysis::Analyze() {
+  llvm::dbgs() << "### Debug bounds analysis\n";
   assert(Cfg && "expected CFG to exist");
 
   SetVector<ElevatedCFGBlock *> Worklist;
@@ -28,7 +31,10 @@ void BoundsAnalysis::Analyze() {
     BlockMap[B] = EB;    
   }
 
-  // Compute Gen and Kill sets.
+  // Compute Gen set.
+  // Let bounds(p) = [l, u).
+  // If branch_condition(B) is of the form "if (*p)", then
+  // Gen(B) = { bounds(p) = [l, u + 1) }
   for (auto B : Worklist) {
     if (const Stmt *Term = B->Block->getTerminator()) {
       if (const auto *IS = dyn_cast<IfStmt>(Term)) {
@@ -36,9 +42,6 @@ void BoundsAnalysis::Analyze() {
         // If the if condition derefences a pointer.
         if (ContainsPointerDeref(E)) {
           B->Gen.insert(E);
-
-          if (B->In.count(E))
-            B->Kill.insert(E);
         }
       }
     }
@@ -50,6 +53,7 @@ void BoundsAnalysis::Analyze() {
     Worklist.pop_back();
 
     // Update In set.
+    // In(B) = { intersection of Out(B') } where B' belongs to preds(B).
     BoundsSet Intersections;
     bool FirstIteration = true;
     for (const auto B : CurrentBlock->Block->preds()) {
@@ -63,6 +67,7 @@ void BoundsAnalysis::Analyze() {
     CurrentBlock->In = Intersections;
 
     // Update Out set.
+    // Out(B) = { (In(B) - Kill(B)) union Gen(B) }.
     auto OldOut = CurrentBlock->Out;
     CurrentBlock->Out = set_difference(CurrentBlock->In, CurrentBlock->Kill);
     set_union(CurrentBlock->Out, CurrentBlock->Gen);
@@ -71,6 +76,8 @@ void BoundsAnalysis::Analyze() {
     set_intersect(OldOut, CurrentBlock->Out);
     if (OldOut.size() != CurrentBlock->Out.size())
       for (const auto B : CurrentBlock->Block->succs())
+        // Worklist is a SetVector. So it will only insert a key if it does not
+        // already exist.
         Worklist.insert(BlockMap[B]);
   }
 }
