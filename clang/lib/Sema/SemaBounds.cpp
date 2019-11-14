@@ -42,6 +42,7 @@
 #include "clang/AST/CanonBounds.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/AvailableFactsAnalysis.h"
+#include "clang/Sema/BoundsAnalysis.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
@@ -3675,6 +3676,10 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     Checker.TraverseStmt(Body, CheckedScopeSpecifier::CSS_Unchecked, EmptyFacts);
   }
 
+  if (Cfg != nullptr) {
+    BoundsAnalysis Collector(*this, Cfg.get());
+    Collector.Analyze();
+  }
 
 #if TRACE_CFG
   llvm::outs() << "Done " << FD->getName() << "\n";
