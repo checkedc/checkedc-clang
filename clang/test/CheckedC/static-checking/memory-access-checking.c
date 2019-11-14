@@ -38,9 +38,9 @@ void f2(_Array_ptr<int> p : count(10)) {
 
 void f3(_Nt_array_ptr<int> p) {
   int i = *p;  
-  *p = i;        // expected-warning {{out-of-bounds memory access}}
-  i = *(p + 1);  // expected-warning {{out-of-bounds memory access}}
-  *(p + 1) = i;  // expected-warning {{out-of-bounds memory access}}
+  *p = i;        // expected-error {{out-of-bounds memory access}}
+  i = *(p + 1);  // expected-error {{out-of-bounds memory access}}
+  *(p + 1) = i;  // expected-error {{out-of-bounds memory access}}
 }
 
 int global_arr1 _Checked[10];
@@ -79,6 +79,6 @@ void f5(_Array_ptr<struct S> param_arr : count(10)) {
 }
 
 void f6(_Array_ptr<int> p : count(0)) {
-  int i = *p;  // expected-warning {{out-of-bounds memory access}}  
-  *p = i;  // expected-warning {{out-of-bounds memory access}}  
+  int i = *p;  // expected-error {{out-of-bounds memory access}}  
+  *p = i;  // expected-error {{out-of-bounds memory access}}  
 }

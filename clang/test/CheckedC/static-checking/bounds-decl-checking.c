@@ -306,10 +306,7 @@ _Array_ptr<struct S> f37_i(unsigned num) : count(num) {
 
 _Array_ptr<int> f37(unsigned num) : count(num) {
   _Array_ptr<int> q : count(num) = 0;
-  _Array_ptr<int> p : count(0) = q; // expected-error {{declared bounds for 'p' are invalid after initialization}} \
-                                    // expected-note {{destination bounds are an empty range}} \
-                                    // expected-note {{(expanded) declared bounds are 'bounds(p, p + 0)'}} \
-                                    // expected-note {{(expanded) inferred bounds are 'bounds(q, q + num)'}}
+  _Array_ptr<int> p : count(0) = q;
   return p;
 }
 
@@ -395,8 +392,7 @@ _Array_ptr<int> test_f70(int c) : byte_count(c);
 _Nt_array_ptr<int> test_f70_n(int c) : byte_count(c);
 
 _Array_ptr<int> f70(int num){
-  _Array_ptr<int> p : byte_count(0) = test_f70(num); // expected-error {{declared bounds for 'p' are invalid after initialization}} \
-                                                     // expected-note {{destination bounds are an empty range}} \
+  _Array_ptr<int> p : byte_count(0) = test_f70(num); // expected-warning {{cannot prove declared bounds for 'p' are valid after initialization}} \
                                                      // expected-note {{declared bounds are 'bounds((_Array_ptr<char>)p, (_Array_ptr<char>)p + 0)'}} \
                                                      // expected-note {{inferred bounds are 'bounds((_Array_ptr<char>)value of test_f70(num), (_Array_ptr<char>)value of test_f70(num) + num)'}}
   return p;
@@ -431,10 +427,7 @@ _Array_ptr<int> f58(unsigned num) {
 }
 
 _Array_ptr<int> f59(unsigned num) {
-  _Array_ptr<int> p : count(0) = test_f56(num);    // expected-error {{declared bounds for 'p' are invalid after initialization}} \
-                                                   // expected-note {{destination bounds are an empty range}} \
-                                                   // expected-note {{(expanded) declared bounds are 'bounds(p, p + 0)'}} \
-                                                   // expected-note {{(expanded) inferred bounds are 'bounds((_Array_ptr<int>)value of test_f56(num), (_Array_ptr<int>)value of test_f56(num) + 1)'}}
+  _Array_ptr<int> p : count(0) = test_f56(num);
   return p;
 }
 
