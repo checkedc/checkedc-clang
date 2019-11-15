@@ -31,26 +31,25 @@ void BoundsAnalysis::Analyze() {
     BlockMap[B] = EB;    
   }
 
-  // Compute Gen set.
-  // Let bounds(p) = [l, u).
-  // If branch_condition(B) is of the form "if (*p)", then
-  // Gen(B) = { bounds(p) = [l, u + 1) }
-  for (auto B : Worklist) {
-    if (const Stmt *Term = B->Block->getTerminator()) {
-      if (const auto *IS = dyn_cast<IfStmt>(Term)) {
-        auto *E = IS->getCond();
-        // If the if condition derefences a pointer.
-        if (ContainsPointerDeref(E)) {
-          B->Gen.insert(E);
-        }
-      }
-    }
-  }
-
-  // Iterative worklist algorithm.
+  // Dataflow analysis for bounds widening.
   while (!Worklist.empty()) {
     auto *CurrentBlock = Worklist.back();
     Worklist.pop_back();
+
+    auto BlockValid = IsBlockValidForAnalysis(CurrentBlock);
+    if (!BlockValid.first)
+      continue;
+
+    const Expr *E = BlockValid.second;
+    auto *D = getVarDecl(E);
+    if (!D || !D->getType()->isCheckedPointerNtArrayType())
+      continue;
+
+    auto *BE = S.ExpandToRange(D, D->getBoundsExpr());
+    if (!isa<RangeBoundsExpr>(BE))
+      continue;
+
+    // Compute Gen set.
 
     // Update In set.
     // In(B) = { intersection of Out(B') } where B' belongs to preds(B).
@@ -82,13 +81,29 @@ void BoundsAnalysis::Analyze() {
   }
 }
 
-bool BoundsAnalysis::IsPointerDerefLValue(const Expr *E) {
+std::pair<bool, const Expr *>
+BoundsAnalysis::IsBlockValidForAnalysis(ElevatedCFGBlock *B) const {
+  if (const Stmt *S = B->Block->getTerminator())
+    if (const auto *IfS = dyn_cast<IfStmt>(S))
+      return std::make_pair(true, IfS->getCond());
+  return std::make_pair(false, nullptr);
+}
+
+VarDecl *BoundsAnalysis::getVarDecl(const Expr *E) const {
+  if (const auto *CE = dyn_cast<CastExpr>(E))
+    if (const auto *UO = dyn_cast<UnaryOperator>(CE->getSubExpr()))
+      if (auto *D = dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreImplicit()))
+        return dyn_cast<VarDecl>(D->getDecl());
+  return nullptr;
+}
+
+bool BoundsAnalysis::IsPointerDerefLValue(const Expr *E) const {
   if (const auto *UO = dyn_cast<UnaryOperator>(E))
     return UO->getOpcode() == UO_Deref;
   return false;
 }
 
-bool BoundsAnalysis::ContainsPointerDeref(const Expr *E) {
+bool BoundsAnalysis::ContainsPointerDeref(const Expr *E) const {
   if (const auto *CE = dyn_cast<CastExpr>(E)) {
     if (CE->getCastKind() != CastKind::CK_LValueToRValue)
       return false;
