@@ -1,16 +1,16 @@
-//===---------- BoundsAnalysis.h - collect comparison facts ---------------===//
+//===---------- BoundsAnalysis.h - Dataflow for bounds widening-----------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
 // This file is distributed under the University of Illinois Open Source
 // License. See LICENSE.TXT for details.
 //
-//===----------------------------------------------------------------------===//
+//===---------------------------------------------------------------------===//
 //
 //  This file defines the interface for a dataflow analysis for bounds
 //  widening.
 //
-//===----------------------------------------------------------------------===//
+//===---------------------------------------------------------------------===//
 
 #ifndef LLVM_CLANG_BOUNDS_ANALYSIS_H
 #define LLVM_CLANG_BOUNDS_ANALYSIS_H
@@ -33,6 +33,7 @@ namespace clang {
   private:
     Sema &S;
     CFG *Cfg;
+    ASTContext &Ctx;
 
     class ElevatedCFGBlock {
     public:
@@ -43,14 +44,16 @@ namespace clang {
     };
 
   public:
-    BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg) {}
+    BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), Ctx(S.Context) {}
 
     void Analyze();
 
   private:
-//    RangeBoundsExpr *getBounds(const Expr *E);
-    bool IsPointerDerefLValue(const Expr *E);
-    bool ContainsPointerDeref(const Expr *E);
+    std::pair<bool, const Expr *>
+      IsBlockValidForAnalysis(ElevatedCFGBlock *B) const;
+    VarDecl *getVarDecl(const Expr *E) const;
+    bool IsPointerDerefLValue(const Expr *E) const;
+    bool ContainsPointerDeref(const Expr *E) const;
   };
 }
 
