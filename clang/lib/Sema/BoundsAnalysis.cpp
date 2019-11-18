@@ -16,7 +16,6 @@
 using namespace llvm;
 
 namespace clang {
-class Sema;
 
 void BoundsAnalysis::WidenBounds() {
   llvm::dbgs() << "### Debug bounds analysis\n";
