@@ -24,36 +24,48 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/ADT/SmallPtrSet.h"
 
 namespace clang {
-  using BoundsSet = llvm::SmallPtrSet<const Expr *, 4>;
+  using BoundsMap = llvm::DenseMap<const Decl *, unsigned>;
+  using WidenedBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMap>;
 
   class BoundsAnalysis {
   private:
     Sema &S;
     CFG *Cfg;
     ASTContext &Ctx;
+    WidenedBoundsTy WidenedBounds;
 
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
-      BoundsSet In, Out, Gen, Kill;
+      BoundsMap In, Out, Gen, Kill;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
 
+    using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
+    using WorkListTy = llvm::SetVector<ElevatedCFGBlock *>;
+
   public:
     BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), Ctx(S.Context) {}
 
-    void Analyze();
+    void WidenBounds();
+    BoundsMap GetWidenedBounds(const CFGBlock *B);
 
   private:
-    std::pair<bool, const Expr *>
-      IsBlockValidForAnalysis(ElevatedCFGBlock *B) const;
-    VarDecl *getVarDecl(const Expr *E) const;
+    void UpdateGenMap(ElevatedCFGBlock *EB, bool Init = false);
+    void UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
+    BoundsMap UpdateOutMap(ElevatedCFGBlock *EB);
+
+    const Expr *GetTerminatorCondition(const CFGBlock *B) const;
+    VarDecl *GetVarDecl(const Expr *E) const;
     bool IsPointerDerefLValue(const Expr *E) const;
     bool ContainsPointerDeref(const Expr *E) const;
+
+    BoundsMap Intersect(BoundsMap &A, BoundsMap &B);
+    BoundsMap Union(BoundsMap &A, BoundsMap &B);
+    bool Differ(BoundsMap &A, BoundsMap &B);
   };
 }
 
