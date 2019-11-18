@@ -18,7 +18,6 @@ using namespace llvm;
 namespace clang {
 
 void BoundsAnalysis::WidenBounds() {
-  llvm::dbgs() << "### Debug bounds analysis\n";
   assert(Cfg && "expected CFG to exist");
 
   WorkListTy Worklist;
@@ -42,7 +41,8 @@ void BoundsAnalysis::WidenBounds() {
     UpdateInMap(EB, BlockMap);
     auto OldOut = UpdateOutMap(EB);
 
-    // Add the changed blocks to the worklist.
+    // Add the successors of the changed blocks to the worklist, if they do not
+    // already exist in the worklist.
     if (Differ(OldOut, EB->Out)) {
       for (const CFGBlock *succ : EB->Block->succs())
         // Worklist is a SetVector. So it will only insert a key if it does not
@@ -65,6 +65,8 @@ BoundsMap BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
 
 void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, bool Init) {
   for (const CFGBlock *pred : EB->Block->preds()) {
+    // TODO: Currently we only handle Expr's like, "if (*p)". Need to handle
+    // more Expr's like "e1 op e2".
     const Expr *E = GetTerminatorCondition(pred);
     if (!E)
       continue;
@@ -84,6 +86,11 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   BoundsMap Intersections;
   bool ItersectionEmpty = true;
 
+  // In(B) is the intersection of the Out's of all preds of B. For the
+  // intersection, we pick the Decl with the smaller upper bound. For example,
+  // if X and Y are the preds of B and Out(X)= {p:1, q:2, r:0} and Out(Y) =
+  // {p:0, q:3, s:2} then In(B) = {p:0,
+  // q:2}.
   for (const CFGBlock *pred : EB->Block->preds()) {
     auto PredEB = BlockMap[pred];
     if (ItersectionEmpty) {
@@ -96,12 +103,17 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 }
 
 BoundsMap BoundsAnalysis::UpdateOutMap(ElevatedCFGBlock *EB) {
+  // Out(B) is the union of In(B) and Gen(B). If both In and Gen have the same
+  // Decl then for the union we pick the one with the smaller upper bound. For
+  // example, if In(B) = {p:2, q:2} and Gen(B) = {p:1}, then Out(B) = {p:0,
+  // q:2}.
   auto OldOut = EB->Out;
   EB->Out = Union(EB->In, EB->Gen);
   return OldOut;
 }
 
 const Expr * BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
+  // TODO: Handle other Stmt types, like while loops, etc.
   if (const Stmt *S = B->getTerminator())
     if (const auto *IfS = dyn_cast<IfStmt>(S))
       return IfS->getCond();
@@ -147,8 +159,12 @@ BoundsMap BoundsAnalysis::Intersect(BoundsMap &A, BoundsMap &B) {
 }
 
 BoundsMap BoundsAnalysis::Union(BoundsMap &A, BoundsMap &B) {
-  for (auto item : B)
-    A[item.first] = item.second;
+  for (auto item : B) {
+    if (!A.count(item.first))
+      A[item.first] = item.second;
+    else
+      A[item.first] = std::min(A[item.first], item.second);
+  }
   return A;
 }
 
