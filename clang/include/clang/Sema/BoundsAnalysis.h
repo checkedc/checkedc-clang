@@ -16,14 +16,7 @@
 #define LLVM_CLANG_BOUNDS_ANALYSIS_H
 
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
-#include "clang/Analysis/CFG.h"
-#include "clang/AST/Expr.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Sema/Sema.h"
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SetOperations.h"
-#include "llvm/ADT/SmallSet.h"
 
 namespace clang {
   using BoundsMap = llvm::DenseMap<const Decl *, unsigned>;
