@@ -88,9 +88,8 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 
   // In(B) is the intersection of the Out's of all preds of B. For the
   // intersection, we pick the Decl with the smaller upper bound. For example,
-  // if X and Y are the preds of B and Out(X)= {p:1, q:2, r:0} and Out(Y) =
-  // {p:0, q:3, s:2} then In(B) = {p:0,
-  // q:2}.
+  // if preds(B) = {X, Y} and Out(X)= {p:1, q:2, r:0} and Out(Y) = {p:0, q:3,
+  // s:2} then In(B) = {p:0, q:2}.
   for (const CFGBlock *pred : EB->Block->preds()) {
     auto PredEB = BlockMap[pred];
     if (ItersectionEmpty) {
