@@ -71,7 +71,7 @@ void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, bool Init) {
     if (!E)
       continue;
 
-    auto *D = GetVarDecl(E);
+    const VarDecl *D = GetVarDecl(E);
     if (!D || !D->getType()->isCheckedPointerNtArrayType())
       continue;
 
@@ -119,7 +119,7 @@ const Expr * BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   return nullptr;
 }
 
-VarDecl *BoundsAnalysis::GetVarDecl(const Expr *E) const {
+const VarDecl *BoundsAnalysis::GetVarDecl(const Expr *E) const {
   if (const auto *CE = dyn_cast<CastExpr>(E))
     if (const auto *UO = dyn_cast<UnaryOperator>(CE->getSubExpr()))
       if (auto *D = dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreImplicit()))
@@ -172,7 +172,7 @@ bool BoundsAnalysis::Differ(BoundsMap &A, BoundsMap &B) {
     return true;
   auto OldA = A;
   A = Intersect(A, B);
-  return A.size() == OldA.size();
+  return A.size() != OldA.size();
 }
 
 } // end namespace clang

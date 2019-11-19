@@ -19,7 +19,7 @@
 #include "clang/Sema/Sema.h"
 
 namespace clang {
-  using BoundsMap = llvm::DenseMap<const Decl *, unsigned>;
+  using BoundsMap = llvm::DenseMap<const VarDecl *, unsigned>;
   using WidenedBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMap>;
 
   class BoundsAnalysis {
@@ -52,7 +52,7 @@ namespace clang {
     BoundsMap UpdateOutMap(ElevatedCFGBlock *EB);
 
     const Expr *GetTerminatorCondition(const CFGBlock *B) const;
-    VarDecl *GetVarDecl(const Expr *E) const;
+    const VarDecl *GetVarDecl(const Expr *E) const;
     bool IsPointerDerefLValue(const Expr *E) const;
     bool ContainsPointerDeref(const Expr *E) const;
 
