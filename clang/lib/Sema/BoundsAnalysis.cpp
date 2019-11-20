@@ -16,6 +16,10 @@
 using namespace llvm;
 
 namespace clang {
+// Legend:
+// n ==> intersection.
+// E ==> belongs.
+// u ==> union.
 
 void BoundsAnalysis::WidenBounds() {
   assert(Cfg && "expected CFG to exist");
@@ -23,21 +27,24 @@ void BoundsAnalysis::WidenBounds() {
   WorkListTy Worklist;
   BlockMapTy BlockMap;
 
-  // Visit each block and initialize Gen maps.
-  for (const auto *B : PostOrderCFGView(Cfg)) {
+  // Add each block to Worklist and create a mapping from Block to
+  // ElevatedCFGBlock.
+  auto POView = PostOrderCFGView(Cfg);
+  for (const auto *B : POView) {
     auto EB = new ElevatedCFGBlock(B);
     Worklist.insert(EB);
     BlockMap[B] = EB;
-
-    UpdateGenMap(EB, /* Init */ true);
   }
+
+  // Compute Gen map for each ElevatedCFGBlock.
+  for (const auto *B : POView)
+    UpdateGenMap(BlockMap[B], BlockMap);
 
   // Dataflow analysis for bounds widening.
   while (!Worklist.empty()) {
     auto *EB = Worklist.back();
     Worklist.pop_back();
 
-    UpdateGenMap(EB);
     UpdateInMap(EB, BlockMap);
     auto OldOut = UpdateOutMap(EB);
 
@@ -51,45 +58,67 @@ void BoundsAnalysis::WidenBounds() {
     }
   }
 
-  // Collect the widened bounds.
-  for (auto item : BlockMap) {
-    const auto *B = item.first;
-    auto *EB = item.second;
-    WidenedBounds[B] = EB->In;
-  }
+  CollectWidenedBounds(BlockMap);
 }
 
-BoundsMap BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
-  return WidenedBounds[B];
-}
+void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
+  // Gen(B) = n Gen(B'), where B' E preds(B)
+  //          + 1, if all B' branch to B on a condition of the form "if *p".
+  //            0, otherwise.
+  BoundsMap Intersections;
+  bool ItersectionEmpty = true;
 
-void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, bool Init) {
+  // DeclMap stores the number of preds of EB which branch to EB on a condition
+  // like "if *p". If all the preds of EB do this then we can increment the
+  // EB->Gen[D] by 1.
+  using DeclMapTy = llvm::DenseMap<const VarDecl *, unsigned>;
+  DeclMapTy DeclMap;
+
   for (const CFGBlock *pred : EB->Block->preds()) {
-    // TODO: Currently we only handle Expr's like, "if (*p)". Need to handle
-    // more Expr's like "e1 op e2".
-    const Expr *E = GetTerminatorCondition(pred);
-    if (!E)
-      continue;
+    auto PredEB = BlockMap[pred];
+    if (ItersectionEmpty) {
+      Intersections = PredEB->Gen;
+      ItersectionEmpty = false;
+    } else
+      Intersections = Intersect(Intersections, PredEB->Gen);
 
-    const VarDecl *D = GetVarDecl(E);
-    if (!D || !D->getType()->isCheckedPointerNtArrayType())
-      continue;
+    // Fill DeclMap.
+    if (const Expr *E = GetTerminatorCondition(pred)) {
+      const VarDecl *D = GetVarDecl(E);
+      if (D && D->getType()->isCheckedPointerNtArrayType()) {
+        if (!DeclMap.count(D))
+          DeclMap[D] = 1;
+        else
+          DeclMap[D]++;
+      }
+    }
+  }
 
-    if (Init)
-      EB->Gen[D] = 0;
-    else
-      EB->Gen[D]++;
+  EB->Gen = Intersections;
+
+  // Now update EB->Gen.
+  for (auto item : DeclMap) {
+    unsigned count = item.second;
+    if (count == EB->Block->pred_size()) {
+      const auto *D = item.first;
+      if (!EB->Gen.count(D))
+        EB->Gen[D] = 1;
+      else
+        EB->Gen[D]++;
+    }
   }
 }
 
 void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
-  BoundsMap Intersections;
-  bool ItersectionEmpty = true;
+  // In(B) = min(n Out(B')), where B E preds(B).
 
   // In(B) is the intersection of the Out's of all preds of B. For the
   // intersection, we pick the Decl with the smaller upper bound. For example,
   // if preds(B) = {X, Y} and Out(X)= {p:1, q:2, r:0} and Out(Y) = {p:0, q:3,
   // s:2} then In(B) = {p:0, q:2}.
+  BoundsMap Intersections;
+  bool ItersectionEmpty = true;
+
   for (const CFGBlock *pred : EB->Block->preds()) {
     auto PredEB = BlockMap[pred];
     if (ItersectionEmpty) {
@@ -102,13 +131,27 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 }
 
 BoundsMap BoundsAnalysis::UpdateOutMap(ElevatedCFGBlock *EB) {
+  // Out(B) = max(Gen(B) u In(B)).
+
   // Out(B) is the union of In(B) and Gen(B). If both In and Gen have the same
-  // Decl then for the union we pick the one with the smaller upper bound. For
-  // example, if In(B) = {p:2, q:2} and Gen(B) = {p:1}, then Out(B) = {p:0,
+  // Decl then for the union we pick the one with the larger upper bound. For
+  // example, if In(B) = {p:1, q:2} and Gen(B) = {p:2}, then Out(B) = {p:2,
   // q:2}.
   auto OldOut = EB->Out;
   EB->Out = Union(EB->In, EB->Gen);
   return OldOut;
+}
+
+void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
+  for (auto item : BlockMap) {
+    const auto *B = item.first;
+    auto *EB = item.second;
+    WidenedBounds[B] = EB->Out;
+  }
+}
+
+BoundsMap BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
+  return WidenedBounds[B];
 }
 
 const Expr * BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
@@ -162,7 +205,7 @@ BoundsMap BoundsAnalysis::Union(BoundsMap &A, BoundsMap &B) {
     if (!A.count(item.first))
       A[item.first] = item.second;
     else
-      A[item.first] = std::min(A[item.first], item.second);
+      A[item.first] = std::max(A[item.first], item.second);
   }
   return A;
 }
