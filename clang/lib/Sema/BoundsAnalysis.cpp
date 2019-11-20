@@ -69,7 +69,7 @@ void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   bool ItersectionEmpty = true;
 
   // DeclMap stores the number of preds of EB which branch to EB on a condition
-  // like "if *p". If all the preds of EB do this then we can increment the
+  // like "if *p". If all the preds of EB do this then we can increment
   // EB->Gen[D] by 1.
   using DeclMapTy = llvm::DenseMap<const VarDecl *, unsigned>;
   DeclMapTy DeclMap;
@@ -93,11 +93,10 @@ void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
       }
     }
   }
-
   EB->Gen = Intersections;
 
   // Now update EB->Gen.
-  for (auto item : DeclMap) {
+  for (const auto item : DeclMap) {
     unsigned count = item.second;
     if (count == EB->Block->pred_size()) {
       const auto *D = item.first;
@@ -154,7 +153,7 @@ BoundsMap BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
   return WidenedBounds[B];
 }
 
-const Expr * BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
+const Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   // TODO: Handle other Stmt types, like while loops, etc.
   if (const Stmt *S = B->getTerminator())
     if (const auto *IfS = dyn_cast<IfStmt>(S))
@@ -186,12 +185,12 @@ bool BoundsAnalysis::ContainsPointerDeref(const Expr *E) const {
 }
 
 BoundsMap BoundsAnalysis::Intersect(BoundsMap &A, BoundsMap &B) {
-  if (B.size() == 0) {
+  if (!B.size()) {
     A.clear();
     return A;
   }
 
-  for (auto item : A) {
+  for (const auto item : A) {
     if (!B.count(item.first))
       A.erase(item.first);
     else
@@ -201,7 +200,7 @@ BoundsMap BoundsAnalysis::Intersect(BoundsMap &A, BoundsMap &B) {
 }
 
 BoundsMap BoundsAnalysis::Union(BoundsMap &A, BoundsMap &B) {
-  for (auto item : B) {
+  for (const auto item : B) {
     if (!A.count(item.first))
       A[item.first] = item.second;
     else
