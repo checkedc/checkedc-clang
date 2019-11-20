@@ -47,10 +47,11 @@ namespace clang {
     BoundsMap GetWidenedBounds(const CFGBlock *B);
 
   private:
-    void UpdateGenMap(ElevatedCFGBlock *EB, bool Init = false);
+    void UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
     void UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
     BoundsMap UpdateOutMap(ElevatedCFGBlock *EB);
 
+    void CollectWidenedBounds(BlockMapTy BlockMap);
     const Expr *GetTerminatorCondition(const CFGBlock *B) const;
     const VarDecl *GetVarDecl(const Expr *E) const;
     bool IsPointerDerefLValue(const Expr *E) const;
