@@ -42,6 +42,7 @@
 #include <queue>
 
 // #define TRACE_CFG 1
+//#define DEBUG_BOUNDS 1
 
 using namespace clang;
 using namespace sema;
@@ -1780,6 +1781,19 @@ namespace {
               static_cast<unsigned>(Test));
     }
 
+#ifdef DEBUG_BOUNDS
+    static void DumpFailure(raw_ostream &OS, ProofFailure A) {
+      OS << "[ ";
+      if (TestFailure(A, ProofFailure::LowerBound)) OS << "LowerBound ";
+      if (TestFailure(A, ProofFailure::UpperBound)) OS << "UpperBound ";
+      if (TestFailure(A, ProofFailure::SrcEmpty)) OS << "SrcEmpty ";
+      if (TestFailure(A, ProofFailure::DstEmpty)) OS << "DstEmpty ";
+      if (TestFailure(A, ProofFailure::Width)) OS << "Width ";
+      if (TestFailure(A, ProofFailure::PartialOverlap)) OS << "PartialOverlap ";
+      OS << "]";
+    }
+#endif
+
     // Representation and operations on ranges.
     // A range has the form (e1 + e2, e1 + e3) where e1 is an expression.
     // A range can be either Constant- or Variable-sized.
@@ -1829,12 +1843,11 @@ namespace {
       ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet>& Facts) {
 
-        // We disallow invalid ranges (upperBound < lowerBound), both at declaration and memory access.
-        // We allow for empty ranges (upperBound == lowerBound) at declaration, but disallow empty ranges
-        // at memory access. Therefore the case of empty ranges is handled by the caller of this function.
+        // We will warn on declaration of invalid ranges (upperBound < lowerBound) and empty ranges (upperBound == lowerBound).
+        // We disallow memory accesses on these ranges
         if (R.IsConstantSizedRange() && R.UpperOffsetConstant < R.LowerOffsetConstant) {
           Cause = CombineFailures(Cause, ProofFailure::DstEmpty);
-          return ProofResult::False;
+          return ProofResult::Maybe;
         }
 
         if (EqualValue(S.Context, Base, R.Base, EquivExprs)) {
@@ -2030,6 +2043,17 @@ namespace {
           UpperOffsetVariable->dump(OS);
         }
       }
+
+      #ifdef DEBUG_BOUNDS
+      void DumpRange(raw_ostream &OS) {
+        if (IsConstantSizedRange()) {
+          SmallString<12> StrL, StrU;
+          LowerOffsetConstant.toString(StrL);
+          UpperOffsetConstant.toString(StrU);
+          OS << "[" << StrL << ", " << StrU << ")\n";
+        }
+      }
+      #endif
     };
 
 
@@ -2421,7 +2445,7 @@ namespace {
       llvm::APSInt ElementSize;
       if (!BoundsUtil::getReferentSizeInChars(S.Context, PtrBase->getType(), ElementSize))
           return ProofResult::Maybe;
-      if (Kind == BoundsCheckKind::BCK_NullTermRead) {
+      if (Kind == BoundsCheckKind::BCK_NullTermRead || Kind == BoundsCheckKind::BCK_NullTermWriteAssign) {
         Overflow = ValidRange.AddToUpper(ElementSize);
         if (Overflow)
           return ProofResult::Maybe;
@@ -2459,6 +2483,12 @@ namespace {
       MemoryAccessRange.Dump(llvm::outs());
       llvm::outs() << "Valid range:\n";
       ValidRange.Dump(llvm::outs());
+#endif
+#ifdef DEBUG_BOUNDS
+      llvm::outs() << "DBG:ProveMemAccess:ValidRange: ";
+      ValidRange.DumpRange(llvm::outs());
+      llvm::outs() << "DBG:ProveMemAccess:MemAccessRange: ";
+      MemoryAccessRange.DumpRange(llvm::outs());
 #endif
       if (MemoryAccessRange.IsEmpty()) {
         Cause = CombineFailures(Cause, ProofFailure::DstEmpty);
@@ -2710,6 +2740,11 @@ namespace {
       ProofFailure Cause;
       ProofResult Result;
       ProofStmtKind ProofKind;
+      #ifdef DEBUG_BOUNDS
+      llvm::outs() << "DBG:CheckBoundsMemAccess: Deref Expr: ";
+      Deref->dumpPretty(S.Context);
+      llvm::outs() << "\n";
+      #endif
       if (UnaryOperator *UO = dyn_cast<UnaryOperator>(Deref)) {
         ProofKind = ProofStmtKind::MemoryAccess;
         Result = ProveMemoryAccessInRange(UO->getSubExpr(), nullptr, ValidRange,
@@ -2727,9 +2762,12 @@ namespace {
       }
 
       if (Result == ProofResult::False) {
-        unsigned DiagId = diag::warn_out_of_bounds_access;
-        if (TestFailure(Cause, ProofFailure::DstEmpty) || TestFailure(Cause, ProofFailure::SrcEmpty))
-          DiagId = diag::error_out_of_bounds_access;
+        #ifdef DEBUG_BOUNDS
+        llvm::outs() << "DBG: Memaccess Failure Cause:";
+        DumpFailure(llvm::outs(), Cause);
+        llvm::outs() << "\n";
+        #endif
+        unsigned DiagId = diag::error_out_of_bounds_access;
         SourceLocation ExprLoc = Deref->getExprLoc();
         S.Diag(ExprLoc, DiagId) << (unsigned) ProofKind << Deref->getSourceRange();
         ExplainProofFailure(ExprLoc, Cause, ProofKind);
