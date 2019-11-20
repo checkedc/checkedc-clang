@@ -4084,6 +4084,46 @@ bool Sema::CheckedCMergeFunctionDecls(FunctionDecl *New, FunctionDecl *Old) {
       if (DiagnoseCheckedCFunctionCompatibility(New, Previous))
         return true;
 
+  // A function declaration with a parameter that (1) has an unchecked pointer
+  // type and that (2) omits bounds annotations is compatible with a prior
+  // function declaration where the parameter does have bounds annotations.
+  // Return values follow similar rules.
+  //
+  // The merged type for the function declaration will have the bounds
+  // annotations for the parameter (or return value).  The parameter
+  // declaration and the return value in the function declaration will
+  // not have the bounds annotations.
+  //
+  // Add the missing bounds annotations to parameter declarations or return
+  // values.
+  if (New->hasPrototype()) {
+    const FunctionProtoType *NewType =
+      New->getFunctionType()->getAs<FunctionProtoType>();
+    unsigned ParamCount = NewType->getNumParams();
+    if (ParamCount > New->getNumParams())
+      ParamCount = New->getNumParams();
+
+    ArrayRef<ParmVarDecl *> Params = New->parameters();
+    for (unsigned i = 0; i < ParamCount; i++) {
+      QualType ParamType = NewType->getParamType(i);
+      const BoundsAnnotations ParamAnnots = NewType->getParamAnnots(i);
+      if (ParamType->isUncheckedPointerType() ||
+          ParamType->isUncheckedArrayType()) {
+        ParmVarDecl *ParamDecl = New->getParamDecl(i);
+        BoundsExpr *ParamBounds = ParamAnnots.getBoundsExpr();
+        if (!ParamDecl->hasBoundsExpr() && ParamBounds) {
+          BoundsExpr *B = ConcretizeFromFunctionType(ParamBounds, Params);
+          ParamDecl->setBoundsExpr(getASTContext(), B);
+        }
+
+        InteropTypeExpr *ParamInteropType = ParamAnnots.getInteropTypeExpr();
+        if (!ParamDecl->hasInteropTypeExpr() && ParamInteropType)
+          ParamDecl->setInteropTypeExpr(getASTContext(),ParamInteropType);
+      }
+    }
+    // TODO: Handle return bounds expression and interop type.
+  }
+
   return false;
 }
 
