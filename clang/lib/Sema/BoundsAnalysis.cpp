@@ -130,11 +130,11 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 }
 
 BoundsMap BoundsAnalysis::UpdateOutMap(ElevatedCFGBlock *EB) {
-  // Out(B) = max(Gen(B) u In(B)).
+  // Out(B) = min(Gen(B) u In(B)).
 
   // Out(B) is the union of In(B) and Gen(B). If both In and Gen have the same
-  // Decl then for the union we pick the one with the larger upper bound. For
-  // example, if In(B) = {p:1, q:2} and Gen(B) = {p:2}, then Out(B) = {p:2,
+  // Decl then for the union we pick the one with the smaller upper bound. For
+  // example, if In(B) = {p:2, q:2} and Gen(B) = {p:1}, then Out(B) = {p:1,
   // q:2}.
   auto OldOut = EB->Out;
   EB->Out = Union(EB->In, EB->Gen);
@@ -204,7 +204,7 @@ BoundsMap BoundsAnalysis::Union(BoundsMap &A, BoundsMap &B) {
     if (!A.count(item.first))
       A[item.first] = item.second;
     else
-      A[item.first] = std::max(A[item.first], item.second);
+      A[item.first] = std::min(A[item.first], item.second);
   }
   return A;
 }
