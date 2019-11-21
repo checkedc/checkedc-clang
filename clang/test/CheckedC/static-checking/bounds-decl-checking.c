@@ -310,6 +310,7 @@ _Array_ptr<int> f37(unsigned num) : count(num) {
   return p;
 }
 
+
 _Nt_array_ptr<int> f37_n(unsigned num) : count(num) {
   _Nt_array_ptr<int> q : count(num) = 0;
   _Nt_array_ptr<int> p : count(0) = q;
