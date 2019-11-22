@@ -28,6 +28,13 @@
 //  * Concretizing bounds expressions from function types.  This undoes the
 //    abstraction by substituting parameter varaibles for the positional index
 //    numbers.
+//
+//  Debugging pre-processor flags:
+//    - TRACE_CFG:
+//      Dumps AST and CFG of the visited nodes when traversing the CFG.
+//    - TRACE_RANGE:
+//      Dumps the valid bounds ranges, memory access ranges and memory
+//      access expressions.
 //===----------------------------------------------------------------------===//
 
 #include "clang/Analysis/CFG.h"
@@ -42,7 +49,7 @@
 #include <queue>
 
 // #define TRACE_CFG 1
-// #define DEBUG_BOUNDS 1
+// #define TRACE_RANGE 1
 
 using namespace clang;
 using namespace sema;
@@ -1756,10 +1763,12 @@ namespace {
       None = 0x0,
       LowerBound = 0x1,     // The destination lower bound is below the source lower bound.
       UpperBound = 0x2,     // The destination upper bound is above the source upper bound.
-      SrcEmpty = 0x4,       // The source bounds are empty.
-      DstEmpty = 0x8,       // The destination bounds are empty.
-      Width = 0x10,          // The source bounds are narrower than the destination bounds.
-      PartialOverlap = 0x20 // There was only partial overlap of the destination bounds with
+      SrcEmpty = 0x4,       // The source bounds are empty (LB == UB)
+      SrcInvalid = 0x8,     // The source bounds are invalid (LB > UB).
+      DstEmpty = 0x10,      // The destination bounds are empty (LB == UB).
+      DstInvalid = 0x20,    // The destination bounds are invalid (LB > UB).
+      Width = 0x40,         // The source bounds are narrower than the destination bounds.
+      PartialOverlap = 0x80 // There was only partial overlap of the destination bounds with
                             // the source bounds.
     };
 
@@ -1781,18 +1790,18 @@ namespace {
               static_cast<unsigned>(Test));
     }
 
-#ifdef DEBUG_BOUNDS
     static void DumpFailure(raw_ostream &OS, ProofFailure A) {
       OS << "[ ";
       if (TestFailure(A, ProofFailure::LowerBound)) OS << "LowerBound ";
       if (TestFailure(A, ProofFailure::UpperBound)) OS << "UpperBound ";
       if (TestFailure(A, ProofFailure::SrcEmpty)) OS << "SrcEmpty ";
+      if (TestFailure(A, ProofFailure::SrcInvalid)) OS << "SrcInvalid ";
       if (TestFailure(A, ProofFailure::DstEmpty)) OS << "DstEmpty ";
+      if (TestFailure(A, ProofFailure::DstInvalid)) OS << "DstInvalid ";
       if (TestFailure(A, ProofFailure::Width)) OS << "Width ";
       if (TestFailure(A, ProofFailure::PartialOverlap)) OS << "PartialOverlap ";
       OS << "]";
     }
-#endif
 
     // Representation and operations on ranges.
     // A range has the form (e1 + e2, e1 + e3) where e1 is an expression.
@@ -1843,10 +1852,12 @@ namespace {
       ProofResult InRange(BaseRange &R, ProofFailure &Cause, EquivExprSets *EquivExprs,
                           std::pair<ComparisonSet, ComparisonSet>& Facts) {
 
-        // We will warn on declaration of invalid ranges (upperBound < lowerBound) and empty ranges (upperBound == lowerBound).
-        // We disallow memory accesses on these ranges
-        if (R.IsConstantSizedRange() && R.UpperOffsetConstant < R.LowerOffsetConstant) {
-          Cause = CombineFailures(Cause, ProofFailure::DstEmpty);
+        // We will warn on declaration of Invalid ranges (upperBound < lowerBound).
+        // The following cases are handled by the callers of this function:
+        // - Warning on declaration of Empty ranges (upperBound == lowerBound).
+        // - Error on memory access to Invalid and Empty ranges
+        if (R.IsInvalid()) {
+          Cause = CombineFailures(Cause, ProofFailure::DstInvalid);
           return ProofResult::Maybe;
         }
 
@@ -1960,8 +1971,19 @@ namespace {
       // However, this should be generalized in the future.
       bool IsEmpty() {
         if (IsConstantSizedRange())
-          return UpperOffsetConstant <= LowerOffsetConstant;
+          return UpperOffsetConstant == LowerOffsetConstant;
         // TODO: can we generalize IsEmpty to non-constant ranges?
+        return false;
+      }
+
+      // This function returns true if, when the range is ConstantSized,
+      // `UpperOffsetConstant <= LowerOffsetConstant`.
+      // Currently, it returns false when the range is not ConstantSized.
+      // However, this should be generalized in the future.
+      bool IsInvalid() {
+        if (IsConstantSizedRange())
+          return UpperOffsetConstant < LowerOffsetConstant;
+        // TODO: can we generalize IsInavlid to non-constant ranges?
         return false;
       }
 
@@ -1971,7 +1993,7 @@ namespace {
             Lexicographic::Result::Equal) {
           // TODO: can we generalize this function to non-constant ranges?
           if (IsConstantSizedRange() && R.IsConstantSizedRange()) {
-            if (!IsEmpty() && !R.IsEmpty()) {
+            if (!IsEmpty() && !R.IsEmpty() && !IsInvalid() && !R.IsInvalid()) {
               // R.LowerOffset is within this range, but R.UpperOffset is above the range
               if (LowerOffsetConstant <= R.LowerOffsetConstant && R.LowerOffsetConstant < UpperOffsetConstant &&
                   UpperOffsetConstant < R.UpperOffsetConstant)
@@ -2043,17 +2065,6 @@ namespace {
           UpperOffsetVariable->dump(OS);
         }
       }
-
-      #ifdef DEBUG_BOUNDS
-      void DumpRange(raw_ostream &OS) {
-        if (IsConstantSizedRange()) {
-          SmallString<12> StrL, StrU;
-          LowerOffsetConstant.toString(StrL);
-          UpperOffsetConstant.toString(StrU);
-          OS << "[" << StrL << ", " << StrU << ")\n";
-        }
-      }
-      #endif
     };
 
 
@@ -2398,6 +2409,8 @@ namespace {
         if (R == ProofResult::False || R == ProofResult::Maybe) {
           if (SrcRange.IsEmpty())
             Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
+          if (SrcRange.IsInvalid())
+            Cause = CombineFailures(Cause, ProofFailure::SrcInvalid);
           if (DeclaredRange.IsConstantSizedRange() && SrcRange.IsConstantSizedRange()) {
             if (DeclaredRange.GetWidth() > SrcRange.GetWidth()) {
               Cause = CombineFailures(Cause, ProofFailure::Width);
@@ -2484,14 +2497,12 @@ namespace {
       llvm::outs() << "Valid range:\n";
       ValidRange.Dump(llvm::outs());
 #endif
-#ifdef DEBUG_BOUNDS
-      llvm::outs() << "DBG:ProveMemAccess:ValidRange: ";
-      ValidRange.DumpRange(llvm::outs());
-      llvm::outs() << "DBG:ProveMemAccess:MemAccessRange: ";
-      MemoryAccessRange.DumpRange(llvm::outs());
-#endif
       if (MemoryAccessRange.IsEmpty()) {
         Cause = CombineFailures(Cause, ProofFailure::DstEmpty);
+        return ProofResult::False;
+      }
+      else if (MemoryAccessRange.IsInvalid()) {
+        Cause = CombineFailures(Cause, ProofFailure::DstInvalid);
         return ProofResult::False;
       }
       std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
@@ -2502,8 +2513,14 @@ namespace {
         if (R == ProofResult::False &&
             ValidRange.PartialOverlap(MemoryAccessRange) == ProofResult::True)
           Cause = CombineFailures(Cause, ProofFailure::PartialOverlap);
-        if (ValidRange.IsEmpty())
+        if (ValidRange.IsEmpty()) {
           Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
+          R = ProofResult::False;
+        }
+        if (ValidRange.IsInvalid()) {
+          Cause = CombineFailures(Cause, ProofFailure::SrcInvalid);
+          R = ProofResult::False;
+        }
         if (MemoryAccessRange.GetWidth() > ValidRange.GetWidth()) {
           Cause = CombineFailures(Cause, ProofFailure::Width);
           R = ProofResult::False;
@@ -2521,6 +2538,10 @@ namespace {
         S.Diag(Loc, diag::note_source_bounds_empty);
       else if (TestFailure(Cause, ProofFailure::DstEmpty))
         S.Diag(Loc, diag::note_destination_bounds_empty);
+      else if (TestFailure(Cause, ProofFailure::SrcInvalid))
+        S.Diag(Loc, diag::note_source_bounds_invalid);
+      else if (TestFailure(Cause, ProofFailure::DstInvalid))
+        S.Diag(Loc, diag::note_destination_bounds_invalid);
       else if (Kind != ProofStmtKind::StaticBoundsCast &&
                TestFailure(Cause, ProofFailure::Width))
         S.Diag(Loc, diag::note_bounds_too_narrow) << (unsigned)Kind;
@@ -2740,8 +2761,8 @@ namespace {
       ProofFailure Cause;
       ProofResult Result;
       ProofStmtKind ProofKind;
-      #ifdef DEBUG_BOUNDS
-      llvm::outs() << "DBG:CheckBoundsMemAccess: Deref Expr: ";
+      #ifdef TRACE_RANGE
+      llvm::outs() << "CheckBoundsMemAccess: Deref Expr: ";
       Deref->dumpPretty(S.Context);
       llvm::outs() << "\n";
       #endif
@@ -2762,8 +2783,8 @@ namespace {
       }
 
       if (Result == ProofResult::False) {
-        #ifdef DEBUG_BOUNDS
-        llvm::outs() << "DBG: Memaccess Failure Cause:";
+        #ifdef TRACE_RANGE
+        llvm::outs() << "Memory access Failure Causes:";
         DumpFailure(llvm::outs(), Cause);
         llvm::outs() << "\n";
         #endif
