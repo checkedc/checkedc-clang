@@ -84,6 +84,31 @@ void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 
     // Fill DeclMap.
     if (const Expr *E = GetTerminatorCondition(pred)) {
+      if (!ContainsPointerDeref(E))
+        continue;
+
+      // We can update EB->Gen only if EB is the then block of the condition
+      // "if *p". For example:
+
+      // B1: if (*p)
+      // B2:   foo();
+      // B3: else bar();
+
+      //      B1
+      //     /  \
+      //    B2   B3
+
+      // B1: preds[], succs[B2, B3]
+      // B2: preds[B1], succs[]
+      // B3: preds[B1], succs[]
+
+      // This means for an if condition, the then block is always the first
+      // block in the list of succs. We use this fact to check if EB is the
+      // then block of the if condition.
+      if (const auto *I = pred->succs().begin())
+        if (*I != EB->Block)
+          continue;
+
       const VarDecl *D = GetVarDecl(E);
       if (D && D->getType()->isCheckedPointerNtArrayType()) {
         if (!DeclMap.count(D))
@@ -133,8 +158,8 @@ BoundsMap BoundsAnalysis::UpdateOutMap(ElevatedCFGBlock *EB) {
   // Out(B) = min(Gen(B) u In(B)).
 
   // Out(B) is the union of In(B) and Gen(B). If both In and Gen have the same
-  // Decl then for the union we pick the one with the smaller upper bound. For
-  // example, if In(B) = {p:2, q:2} and Gen(B) = {p:1}, then Out(B) = {p:1,
+  // Decl then for the union we pick the one with the larger upper bound. For
+  // example, if In(B) = {p:1, q:2} and Gen(B) = {p:2}, then Out(B) = {p:2,
   // q:2}.
   auto OldOut = EB->Out;
   EB->Out = Union(EB->In, EB->Gen);
@@ -184,17 +209,20 @@ bool BoundsAnalysis::ContainsPointerDeref(const Expr *E) const {
   return false;
 }
 
+// Note: Intersect, Union and Differ mutate theiirr first argument.
 BoundsMap BoundsAnalysis::Intersect(BoundsMap &A, BoundsMap &B) {
   if (!B.size()) {
     A.clear();
     return A;
   }
 
-  for (const auto item : A) {
-    if (!B.count(item.first))
-      A.erase(item.first);
-    else
-      A[item.first] = std::min(A[item.first], B[item.first]);
+  for (auto I = A.begin(), E = A.end(); I != E; ++I) {
+    if (!B.count(I->first)) {
+      auto Next = std::next(I);
+      A.erase(I);
+      I = Next;
+    } else
+      A[I->first] = std::min(A[I->first], B[I->first]);
   }
   return A;
 }
@@ -204,7 +232,7 @@ BoundsMap BoundsAnalysis::Union(BoundsMap &A, BoundsMap &B) {
     if (!A.count(item.first))
       A[item.first] = item.second;
     else
-      A[item.first] = std::min(A[item.first], item.second);
+      A[item.first] = std::max(A[item.first], item.second);
   }
   return A;
 }
