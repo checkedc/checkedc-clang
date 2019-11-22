@@ -18,7 +18,7 @@
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Sema/Sema.h"
 
-#define WIDEN_BOUNDS
+// #define WIDEN_BOUNDS
 
 namespace clang {
   using BoundsMap = llvm::DenseMap<const VarDecl *, unsigned>;
