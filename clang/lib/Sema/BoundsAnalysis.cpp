@@ -13,8 +13,6 @@
 
 #include "clang/Sema/BoundsAnalysis.h"
 
-using namespace llvm;
-
 namespace clang {
 // Legend:
 // n ==> intersection.
@@ -28,17 +26,14 @@ void BoundsAnalysis::WidenBounds() {
   BlockMapTy BlockMap;
 
   // Add each block to Worklist and create a mapping from Block to
-  // ElevatedCFGBlock.
-  auto POView = PostOrderCFGView(Cfg);
-  for (const auto *B : POView) {
+  // ElevatedCFGBlock. Also update the Gen map for each block.
+  for (const auto *B : PostOrderCFGView(Cfg)) {
     auto EB = new ElevatedCFGBlock(B);
     Worklist.insert(EB);
     BlockMap[B] = EB;
-  }
 
-  // Compute Gen map for each ElevatedCFGBlock.
-  for (const auto *B : POView)
     UpdateGenMap(BlockMap[B], BlockMap);
+  }
 
   // Dataflow analysis for bounds widening.
   while (!Worklist.empty()) {
@@ -48,7 +43,7 @@ void BoundsAnalysis::WidenBounds() {
     UpdateInMap(EB, BlockMap);
     auto OldOut = UpdateOutMap(EB);
 
-    // Add the successors of the changed blocks to the worklist, if they do not
+    // Add the successors of the changed blocks to Worklist, if they do not
     // already exist in the worklist.
     if (Differ(OldOut, EB->Out)) {
       for (const CFGBlock *succ : EB->Block->succs())
@@ -177,6 +172,10 @@ void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
     const auto *B = item.first;
     auto *EB = item.second;
     WidenedBounds[B] = EB->Out;
+#ifdef WIDEN_BOUNDS
+    DumpWidenedBounds(EB);
+#endif
+    delete EB;
   }
 }
 
@@ -215,20 +214,25 @@ bool BoundsAnalysis::ContainsPointerDeref(const Expr *E) const {
   return false;
 }
 
-// Note: Intersect, Union and Differ mutate theiirr first argument.
+// Note: Intersect, Union and Differ mutate their first argument.
 BoundsMap BoundsAnalysis::Intersect(BoundsMap &A, BoundsMap &B) {
+  if (!A.size())
+    return A;
+
   if (!B.size()) {
     A.clear();
     return A;
   }
 
-  for (auto I = A.begin(), E = A.end(); I != E; ++I) {
+  for (auto I = A.begin(), E = A.end(); I != E;) {
     if (!B.count(I->first)) {
       auto Next = std::next(I);
       A.erase(I);
       I = Next;
-    } else
+    } else {
       A[I->first] = std::min(A[I->first], B[I->first]);
+      ++I;
+    }
   }
   return A;
 }
@@ -250,5 +254,17 @@ bool BoundsAnalysis::Differ(BoundsMap &A, BoundsMap &B) {
   A = Intersect(A, B);
   return A.size() != OldA.size();
 }
+
+#ifdef WIDEN_BOUNDS
+void BoundsAnalysis::DumpWidenedBounds(ElevatedCFGBlock *EB) {
+  llvm::outs() << "--------------------------------------\n";
+  llvm::outs() << "Block:";
+  EB->Block->dump();
+  for (auto item : EB->Out) {
+    llvm::outs() << "Bounds(" << item.first->getNameAsString() << ") :";
+    llvm::outs() << " [0, " << item.second << ")\n";
+  }
+}
+#endif
 
 } // end namespace clang
