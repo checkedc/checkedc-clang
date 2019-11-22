@@ -75,7 +75,10 @@ void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   DeclMapTy DeclMap;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
+    if (!BlockMap.count(pred))
+      continue;
     auto PredEB = BlockMap[pred];
+
     if (ItersectionEmpty) {
       Intersections = PredEB->Gen;
       ItersectionEmpty = false;
@@ -144,7 +147,10 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   bool ItersectionEmpty = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
+    if (!BlockMap.count(pred))
+      continue;
     auto PredEB = BlockMap[pred];
+
     if (ItersectionEmpty) {
       Intersections = PredEB->Out;
       ItersectionEmpty = false;
