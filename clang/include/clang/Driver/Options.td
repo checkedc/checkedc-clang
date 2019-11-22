@@ -789,6 +789,8 @@ def fno_checkedc_extension : Flag<["-"], "fno-checkedc-extension">, Group<f_Grou
   HelpText<"Do ont accept Checked C extension">;
 def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-facts">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump extracted comparison facts">;
+def fdump_widened_bounds : Flag<["-"], "fdump-widened-bounds">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Dump widened bounds">;
 def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump inferred Checked C bounds for assignments and declarations">;
 def fcaret_diagnostics : Flag<["-"], "fcaret-diagnostics">, Group<f_Group>;

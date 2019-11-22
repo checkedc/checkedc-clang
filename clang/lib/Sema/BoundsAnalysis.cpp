@@ -172,9 +172,6 @@ void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
     const auto *B = item.first;
     auto *EB = item.second;
     WidenedBounds[B] = EB->Out;
-#ifdef WIDEN_BOUNDS
-    DumpWidenedBounds(EB);
-#endif
     delete EB;
   }
 }
@@ -255,16 +252,17 @@ bool BoundsAnalysis::Differ(BoundsMap &A, BoundsMap &B) {
   return A.size() != OldA.size();
 }
 
-#ifdef WIDEN_BOUNDS
-void BoundsAnalysis::DumpWidenedBounds(ElevatedCFGBlock *EB) {
-  llvm::outs() << "--------------------------------------\n";
-  llvm::outs() << "Block:";
-  EB->Block->dump();
-  for (auto item : EB->Out) {
-    llvm::outs() << "Bounds(" << item.first->getNameAsString() << ") :";
-    llvm::outs() << " [0, " << item.second << ")\n";
+void BoundsAnalysis::DumpWidenedBounds() {
+  for (auto W : WidenedBounds) {
+    llvm::outs() << "--------------------------------------\n";
+    llvm::outs() << "Block:";
+    W.first->dump();
+
+    for (auto item : W.second) {
+      llvm::outs() << "Bounds(" << item.first->getNameAsString() << ") :";
+      llvm::outs() << " [0, " << item.second << ")\n";
+    }
   }
 }
-#endif
 
 } // end namespace clang
