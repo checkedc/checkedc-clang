@@ -18,6 +18,8 @@
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Sema/Sema.h"
 
+#define WIDEN_BOUNDS
+
 namespace clang {
   using BoundsMap = llvm::DenseMap<const VarDecl *, unsigned>;
   using WidenedBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMap>;
@@ -60,6 +62,10 @@ namespace clang {
     BoundsMap Intersect(BoundsMap &A, BoundsMap &B);
     BoundsMap Union(BoundsMap &A, BoundsMap &B);
     bool Differ(BoundsMap &A, BoundsMap &B);
+
+#ifdef WIDEN_BOUNDS
+    void DumpWidenedBounds(ElevatedCFGBlock *EB);
+#endif
   };
 }
 
