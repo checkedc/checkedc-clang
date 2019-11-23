@@ -19,8 +19,8 @@
 #include "clang/Sema/Sema.h"
 
 namespace clang {
-  using BoundsMap = llvm::MapVector<const VarDecl *, unsigned>;
-  using WidenedBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMap>;
+  using BoundsMapTy = llvm::MapVector<const VarDecl *, unsigned>;
+  using WidenedBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
   class BoundsAnalysis {
@@ -33,7 +33,7 @@ namespace clang {
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
-      BoundsMap In, Out, Gen, Kill;
+      BoundsMapTy In, Out, Gen, Kill;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
@@ -45,13 +45,13 @@ namespace clang {
     BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), Ctx(S.Context) {}
 
     void WidenBounds();
-    BoundsMap GetWidenedBounds(const CFGBlock *B);
+    BoundsMapTy GetWidenedBounds(const CFGBlock *B);
     void DumpWidenedBounds(FunctionDecl *FD);
 
   private:
     void UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
     void UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
-    BoundsMap UpdateOutMap(ElevatedCFGBlock *EB);
+    BoundsMapTy UpdateOutMap(ElevatedCFGBlock *EB);
 
     void CollectWidenedBounds(BlockMapTy BlockMap);
     const Expr *GetTerminatorCondition(const CFGBlock *B) const;
@@ -60,9 +60,9 @@ namespace clang {
     bool ContainsPointerDeref(const Expr *E) const;
     OrderedBlocksTy GetOrderedBlocks();
 
-    BoundsMap Intersect(BoundsMap &A, BoundsMap &B);
-    BoundsMap Union(BoundsMap &A, BoundsMap &B);
-    bool Differ(BoundsMap &A, BoundsMap &B);
+    BoundsMapTy Intersect(BoundsMapTy &A, BoundsMapTy &B);
+    BoundsMapTy Union(BoundsMapTy &A, BoundsMapTy &B);
+    bool Differ(BoundsMapTy &A, BoundsMapTy &B);
   };
 }
 
