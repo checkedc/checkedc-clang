@@ -60,7 +60,7 @@ void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   // Gen(B) = n Gen(B'), where B' E preds(B)
   //          + 1, if all B' branch to B on a condition of the form "if *p".
   //            0, otherwise.
-  BoundsMap Intersections;
+  BoundsMapTy Intersections;
   bool ItersectionEmpty = true;
 
   // DeclMap stores the number of preds of EB which branch to EB on a condition
@@ -138,7 +138,7 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   // intersection, we pick the Decl with the smaller upper bound. For example,
   // if preds(B) = {X, Y} and Out(X)= {p:1, q:2, r:0} and Out(Y) = {p:0, q:3,
   // s:2} then In(B) = {p:0, q:2}.
-  BoundsMap Intersections;
+  BoundsMapTy Intersections;
   bool ItersectionEmpty = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
@@ -155,7 +155,7 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   EB->In = Intersections;
 }
 
-BoundsMap BoundsAnalysis::UpdateOutMap(ElevatedCFGBlock *EB) {
+BoundsMapTy BoundsAnalysis::UpdateOutMap(ElevatedCFGBlock *EB) {
   // Out(B) = max(Gen(B) u In(B)).
 
   // Out(B) is the union of In(B) and Gen(B). If both In and Gen have the same
@@ -176,7 +176,7 @@ void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
   }
 }
 
-BoundsMap BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
+BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
   return WidenedBounds[B];
 }
 
@@ -212,7 +212,7 @@ bool BoundsAnalysis::ContainsPointerDeref(const Expr *E) const {
 }
 
 // Note: Intersect, Union and Differ mutate their first argument.
-BoundsMap BoundsAnalysis::Intersect(BoundsMap &A, BoundsMap &B) {
+BoundsMapTy BoundsAnalysis::Intersect(BoundsMapTy &A, BoundsMapTy &B) {
   if (!A.size())
     return A;
 
@@ -234,7 +234,7 @@ BoundsMap BoundsAnalysis::Intersect(BoundsMap &A, BoundsMap &B) {
   return A;
 }
 
-BoundsMap BoundsAnalysis::Union(BoundsMap &A, BoundsMap &B) {
+BoundsMapTy BoundsAnalysis::Union(BoundsMapTy &A, BoundsMapTy &B) {
   for (const auto item : B) {
     if (!A.count(item.first))
       A[item.first] = item.second;
@@ -244,7 +244,7 @@ BoundsMap BoundsAnalysis::Union(BoundsMap &A, BoundsMap &B) {
   return A;
 }
 
-bool BoundsAnalysis::Differ(BoundsMap &A, BoundsMap &B) {
+bool BoundsAnalysis::Differ(BoundsMapTy &A, BoundsMapTy &B) {
   if (A.size() != B.size())
     return true;
   auto OldA = A;
