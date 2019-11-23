@@ -74,6 +74,8 @@ namespace {
 
         SVal replaceSVal(ProgramStateRef state, SVal V, SVal from, SVal to) const;
 
+        SymExpr* getSymExpr(ProgramStateRef state, BoundsExpr* bounds) const;
+
         void reportOutofBoundsAccess(ProgramStateRef outBound, const Stmt* LoadS, CheckerContext& C) const;
 
 
@@ -170,7 +172,7 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
         llvm::errs() << "FD in checkLoc is NULL!\n";
         return;
     }
-    FD = FD->getCanonicalDecl();
+    //FD = FD->getCanonicalDecl();
 
     SymbolRef symBE;
 
@@ -181,6 +183,7 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
     SymbolRef BER = BESymVal.getAsSymbol();
 
     const ParmVarDecl* arg1 = FD->getParamDecl(1);
+    arg1->dumpColor();
     //SVal arg1SVal = state->getSVal(state->getLValue(arg1, LCtx));
     SVal arg1SVal = state->getSVal(state->getRegion(arg1, LCtx), arg1->getType());
 
@@ -225,21 +228,21 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
     llvm::errs() << "END symbol iteration on Idx\n";
 #endif
 
-    if ( fromIsSet ) {
-        SVal newIdx = replaceSVal(state, Idx, from, arg1SVal);
-        if (newIdx.getAsSymbol()) {
-#if DEBUG_DUMP
-            llvm::errs() << "newIdx: ";
-            newIdx.getAsSymbol()->dump(); llvm::errs() << "\n";
-#endif
-            symIdx = newIdx.getAsSymbol();
-        }
-        else llvm::errs() << "empty newIdx!\n";
+//     if ( fromIsSet ) {
+//         SVal newIdx = replaceSVal(state, Idx, from, arg1SVal);
+//         if (newIdx.getAsSymbol()) {
+// #if DEBUG_DUMP
+//             llvm::errs() << "newIdx: ";
+//             newIdx.getAsSymbol()->dump(); llvm::errs() << "\n";
+// #endif
+//             symIdx = newIdx.getAsSymbol();
+//         }
+//         else llvm::errs() << "empty newIdx!\n";
 
-    }
-    else {
-        llvm::errs() << "'from' is not set!\n";
-    }
+//     }
+//     else {
+//         llvm::errs() << "'from' is not set!\n";
+//     }
     
 
 
@@ -441,6 +444,46 @@ void SimpleBoundsChecker::checkBeginFunction(CheckerContext& C) const {
 #endif
 }
 
+SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, BoundsExpr* BE) const {
+    class Generator { //: public RecursiveASTVisitor<Generator> {
+        ProgramStateRef state;
+
+        public:
+            Generator(ProgramStateRef _state)
+            : state(_state)
+            {
+                llvm::outs() << "Generator class ctor!\n";
+            }
+
+            SymExpr* VisitBoundsExpr(BoundsExpr* BE) {
+                llvm::outs() << "DBG: visitBoundsExpr: \n";
+                BE->dump();
+                if (CountBoundsExpr* CBE = dyn_cast<CountBoundsExpr>(BE)) {
+                    return VisitExpr(CBE->getCountExpr());
+                }
+                return nullptr;
+            }
+
+            SymExpr* VisitExpr(Expr* E) {
+                llvm::outs() << "DBG: visitExpr: \n";
+                E->dump();
+                E = E->IgnoreCasts();
+                if (const BinaryOperator* BO = dyn_cast<BinaryOperator>(E)) {
+                    BinaryOperator::Opcode op = BO->getOpcode();
+
+                    SymExpr* left = VisitExpr(BO->getLHS());
+                    SymExpr* right = VisitExpr(BO->getRHS());
+                    return new SymSymExpr(left, op, right, BO->getType());
+                }
+
+                // if (const DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(E)) {
+
+                // }
+            }
+    };
+
+    return Generator(state).VisitBoundsExpr(BE);
+}
 
 SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef state, SVal V, SVal from, SVal to) const {
 
