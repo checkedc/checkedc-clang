@@ -19,8 +19,9 @@
 #include "clang/Sema/Sema.h"
 
 namespace clang {
-  using BoundsMap = llvm::DenseMap<const VarDecl *, unsigned>;
+  using BoundsMap = llvm::MapVector<const VarDecl *, unsigned>;
   using WidenedBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMap>;
+  using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
   class BoundsAnalysis {
   private:
@@ -45,7 +46,7 @@ namespace clang {
 
     void WidenBounds();
     BoundsMap GetWidenedBounds(const CFGBlock *B);
-    void DumpWidenedBounds();
+    void DumpWidenedBounds(FunctionDecl *FD);
 
   private:
     void UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
@@ -57,6 +58,7 @@ namespace clang {
     const VarDecl *GetVarDecl(const Expr *E) const;
     bool IsPointerDerefLValue(const Expr *E) const;
     bool ContainsPointerDeref(const Expr *E) const;
+    OrderedBlocksTy GetOrderedBlocks();
 
     BoundsMap Intersect(BoundsMap &A, BoundsMap &B);
     BoundsMap Union(BoundsMap &A, BoundsMap &B);

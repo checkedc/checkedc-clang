@@ -3680,7 +3680,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     BoundsAnalysis Collector(*this, Cfg.get());
     Collector.WidenBounds();
     if (getLangOpts().DumpWidenedBounds)
-      Collector.DumpWidenedBounds();
+      Collector.DumpWidenedBounds(FD);
   }
 
 #if TRACE_CFG

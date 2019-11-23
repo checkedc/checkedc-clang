@@ -156,7 +156,7 @@ void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 }
 
 BoundsMap BoundsAnalysis::UpdateOutMap(ElevatedCFGBlock *EB) {
-  // Out(B) = min(Gen(B) u In(B)).
+  // Out(B) = max(Gen(B) u In(B)).
 
   // Out(B) is the union of In(B) and Gen(B). If both In and Gen have the same
   // Decl then for the union we pick the one with the larger upper bound. For
@@ -252,16 +252,36 @@ bool BoundsAnalysis::Differ(BoundsMap &A, BoundsMap &B) {
   return A.size() != OldA.size();
 }
 
-void BoundsAnalysis::DumpWidenedBounds() {
-  for (auto W : WidenedBounds) {
-    llvm::outs() << "--------------------------------------\n";
-    llvm::outs() << "Block:";
-    W.first->dump();
+OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
+  // WidenedBounds is a DenseMap and hence is not suitable for iteration as its
+  // iteration order is non-deterministic. So we first need to order the
+  // blocks. The block IDs decrease from entry to exit. So we sort in the
+  // reverse order.
+  OrderedBlocksTy OrderedBlocks;
+  for (auto item : WidenedBounds)
+    OrderedBlocks.push_back(item.first);
 
-    for (auto item : W.second) {
-      llvm::outs() << "Bounds(" << item.first->getNameAsString() << ") :";
-      llvm::outs() << " [0, " << item.second << ")\n";
-    }
+  llvm::sort(OrderedBlocks.begin(), OrderedBlocks.end(),
+             [] (const CFGBlock * A, const CFGBlock *B) {
+               return A->getBlockID() > B->getBlockID();
+             });
+  return OrderedBlocks;
+}
+
+void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
+  llvm::outs() << "--------------------------------------\n";
+  llvm::outs() << "In function: " << FD->getName() << "\n";
+
+  for (const auto *B : GetOrderedBlocks()) {
+    llvm::outs() << "--------------------------------------";
+    B->print(llvm::outs(), Cfg, S.getLangOpts(), /* ShowColors */ true);
+
+    // WidenedBounds[B] is a MapVector whose iteration order is the same as the
+    // insertion order. So we can deterministically iterate the VarDecls.
+    for (auto item : WidenedBounds[B])
+      llvm::outs() << "upper_bound("
+                   << item.first->getNameAsString() << ") = "
+                   << item.second << "\n";
   }
 }
 
