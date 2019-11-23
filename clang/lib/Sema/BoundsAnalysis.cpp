@@ -60,14 +60,15 @@ void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   // Gen(B) = n Gen(B'), where B' E preds(B)
   //          + 1, if all B' branch to B on a condition of the form "if *p".
   //            0, otherwise.
-  BoundsMapTy Intersections;
-  bool ItersectionEmpty = true;
 
   // DeclMap stores the number of preds of EB which branch to EB on a condition
   // like "if *p". If all the preds of EB do this then we can increment
   // EB->Gen[D] by 1.
   using DeclMapTy = llvm::DenseMap<const VarDecl *, unsigned>;
   DeclMapTy DeclMap;
+
+  BoundsMapTy Intersections;
+  bool ItersectionEmpty = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
     if (!BlockMap.count(pred))
@@ -262,7 +263,7 @@ OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
     OrderedBlocks.push_back(item.first);
 
   llvm::sort(OrderedBlocks.begin(), OrderedBlocks.end(),
-             [] (const CFGBlock * A, const CFGBlock *B) {
+             [] (const CFGBlock *A, const CFGBlock *B) {
                return A->getBlockID() > B->getBlockID();
              });
   return OrderedBlocks;
