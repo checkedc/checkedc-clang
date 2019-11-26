@@ -42,7 +42,7 @@ You should also to go to  _Debug->Options->Projects and Solutions->Build and Run
 set the maximum number of parallel project builds to be 3/4 of the actual number of CPU cores on
 your machine.  
 
-LLVM/clang have some tests that depend on using UNIX line ending conventions
+LLVM/Clang have some tests that depend on using UNIX line ending conventions
 (line feeds only).  This means that the sources you will be working with
 need to end with line feeds. Visual Studio preserves line endings for files, so
 this should work fine most of the time.  If you are creating a file, you will
@@ -51,17 +51,16 @@ need to save it using line feeds only
 Otherwise, Visual Studio will save the file with carriage return/line feed line endings.
 
 ## Source organization
-LLVM uses subversion for distributed source code control.   It is mirrored by Git repositories on Github: the
-[LLVM mirror](https://github.com/llvm-mirror/llvm) and
-[clang mirror](https://github.com/llvm-mirror/clang).
+LLVM uses Git for distributed source code control.   It is mirrored by a Git repository on Github:
+[llvm project](https://github.com/llvm/llvm-project)
 
-The code for the Checked C version of LLVM/clang lives in two repositories: the
+The code for the Checked C version of LLVM/Clang lives in the following repository:
 [Checked C clang repo](https://github.com/Microsoft/checkedc-clang)
-and the [Checked C LLVM repo](https://github.com/Microsoft/checkedc-llvm).  Each repo is licensed 
-under the [University of Illinois/NCSA license](https://opensource.org/licenses/NCSA).
-See the file LICENSE.TXT in either of the repos for complete details of licensing.  
+It is licensed under the [University of Illinois/NCSA
+license](https://opensource.org/licenses/NCSA).  See the file LICENSE.TXT in
+for complete details of licensing.
 
-The clang and LLVM repos have two branches:
+The LLVM/Clang repo has two branches:
 
 - master: the main development branch  for Checked C.   All changes committed here have been code reviewed and passed testing.
 - baseline: these are pristine copies of the Github mirrors.   Do not commit changes for Checked C to the baseline branches.
@@ -89,45 +88,34 @@ For developers who need to install it, information is
 You will need to choose a drive that has at least 50 Gbytes free.  You may need lots of space for the sources and the build.
 You can store the sources in any directory that you want.  You should avoid spaces in parent directory names because this can confuse some tools.
 
-checkedc-llvm contains two other repos as submodules: checkedc and checkedc-clang. Both are required to build successfully. We do not recommend using ```git clone```'s `recursive` option; this may give you stale versions of checkedc and checkedc-clang repos. Instead use git clone on each repository as specified below.
-
-You will need to clone each repo.
-The cloning process for LLVM and clang depends on whether you are developing on
-Unix/Linux or Windows.  LLVM and clang have some tests that depend on using
+The cloning process for LLVM/Clang depends on whether you are developing on
+Unix/Linux or Windows.  LLVM/Clang have some tests that depend on using
 UNIX line endings.  On Windows, Git can alter line endings to match the
 Windows line ending convention.  It is important to
 prevent Git from altering the line endings.
 
-### Cloning LLVM/clang on Unix/Linux
+### Cloning LLVM/Clang on Unix/Linux
 
-First clone LLVM to your desired location on your machine:
+Clone the following repo to your desired location on your machine:
 ```
-git clone https://github.com/Microsoft/checkedc-llvm llvm
+git clone https://github.com/Microsoft/checkedc-clang src
 ```
-Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the
-`llvm\tools` directory and clone the clang repo:
-```
-git clone https://github.com/Microsoft/checkedc-clang clang
-```
-The Checked C language tests live in a folder within `\project`.  Change to the `llvm\projects\checkedc-wrapper` directory
+The Checked C language tests live in a folder within `llvm/project`.  Change to the `src/llvm/projects/checkedc-wrapper` directory
 and clone the Checked C repo:
 ```
 git clone https://github.com/Microsoft/checkedc
 ```
 
-### Cloning LLVM/clang on Windows
+### Cloning LLVM/Clang on Windows
 
 If you already have `core.autocrlf=false` set for your global Git
 configuration, you can follow the Unix/Linux directions.
 Otherwise, follow these directions:
 ```
-git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-llvm llvm
+git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang src
 ```
-Clang  needs to be placed in the tools subdirectory of LLVM.  Change to the `llvm\tools` directory and clone the clang repo:
-```
-git clone -c core.autocrlf=false https://github.com/Microsoft/checkedc-clang clang
-```
-The Checked C language tests live in a folder within `\project`.  Change to the `llvm\projects\checkedc-wrapper` directory
+
+The Checked C language tests live in a folder within `llvm\project`.  Change to the `src\llvm\projects\checkedc-wrapper` directory
 and clone the Checked C repo:
 ```
 git clone https://github.com/Microsoft/checkedc
@@ -135,13 +123,14 @@ git clone https://github.com/Microsoft/checkedc
 
 ## Setting up a build directory
 
-1. LLVM and clang use CMake, which is a meta-build system generator. It generates build systems for a specific platform.
-2. Create a build directory that is a sibling of your llvm source tree.  For example, if llvm is in MyDir\llvm, create MyDir\llvm.obj.      
+1. LLVM and Clang use CMake, which is a meta-build system generator. It generates build systems for a specific platform.
+2. Create a build directory that is a sibling of your llvm source tree.  For example, if your sources are in MyDir\src, create MyDir\build.      
 3. Be sure to exclude the build directory from anti-virus scanning.   On Windows 10, go to Settings->Update & Security->Windows Defender->Add an exclusion.
-3. Cmake will produce a build system by default that builds code generators for all LLVM-supported architectures.
+4. CMake will produce a build system by default that builds code generators for all LLVM-supported architectures.
    This can increase build and link times.  You might want to build the code generator for a specific target, such as x86.  To
    do that,  add `-DLLVM_TARGETS_TO_BUILD="X86"` to the command-line below.
-4. Make sure that you are using whatever shell you normally do compiles in.
+4. Make sure to set the following CMake flag to enable clang in your builds: -DLLVM_ENABLE_PROJECTS=clang
+5. Make sure that you are using whatever shell you normally do compiles in.
 
 On Linux, cd your build directory and invoke CMake
    with:
@@ -282,11 +271,11 @@ On UNIX, run
 
 where `nnn` is replaced by the number of CPU cores that your computer has.
 
-## Updating sources to the latest sources for clang/LLVM
+## Updating sources to the latest sources for LLVM/Clang
 
 Most developers can ignore this section. We periodically update the Checked C source code
-to newer versions of the source code for clang/LLVM.  The directions for the process of updating the
-baseline and master branches to newer versions of LLVM/clang are
+to newer versions of the source code for LLVM/Clang.  The directions for the process of updating the
+baseline and master branches to newer versions of LLVM/Clang are
 [here](Update-to-latest-LLVM-sources.md).
 
 ## Tips for a faster build on Linux/Mac OS X
