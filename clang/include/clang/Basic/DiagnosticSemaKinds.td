@@ -9953,10 +9953,6 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_out_of_bounds_access : Error<
     "out-of-bounds %select{||memory access|base value}0">;
 
-  def warn_out_of_bounds_access : Warning<
-    "out-of-bounds %select{||memory access|base value}0">,
-    InGroup<CheckMemoryAccesses>;
-
   def note_source_bounds_empty : Note<"source bounds are an empty range">;
 
   def note_source_bounds_invalid : Note<"source bounds are an inavlid range">;

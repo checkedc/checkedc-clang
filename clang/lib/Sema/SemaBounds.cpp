@@ -1854,7 +1854,6 @@ namespace {
 
         // We will warn on declaration of Invalid ranges (upperBound < lowerBound).
         // The following cases are handled by the callers of this function:
-        // - Warning on declaration of Empty ranges (upperBound == lowerBound).
         // - Error on memory access to Invalid and Empty ranges
         if (R.IsInvalid()) {
           Cause = CombineFailures(Cause, ProofFailure::DstInvalid);
@@ -1966,7 +1965,7 @@ namespace {
       }
 
       // This function returns true if, when the range is ConstantSized,
-      // `UpperOffsetConstant <= LowerOffsetConstant`.
+      // `UpperOffsetConstant == LowerOffsetConstant`.
       // Currently, it returns false when the range is not ConstantSized.
       // However, this should be generalized in the future.
       bool IsEmpty() {
@@ -1977,13 +1976,13 @@ namespace {
       }
 
       // This function returns true if, when the range is ConstantSized,
-      // `UpperOffsetConstant <= LowerOffsetConstant`.
+      // `UpperOffsetConstant < LowerOffsetConstant`.
       // Currently, it returns false when the range is not ConstantSized.
       // However, this should be generalized in the future.
       bool IsInvalid() {
         if (IsConstantSizedRange())
           return UpperOffsetConstant < LowerOffsetConstant;
-        // TODO: can we generalize IsInavlid to non-constant ranges?
+        // TODO: can we generalize IsInvalid to non-constant ranges?
         return false;
       }
 
@@ -2407,7 +2406,7 @@ namespace {
         if (R == ProofResult::True)
           return R;
         if (R == ProofResult::False || R == ProofResult::Maybe) {
-          if (SrcRange.IsEmpty())
+          if (R == ProofResult::False && SrcRange.IsEmpty())
             Cause = CombineFailures(Cause, ProofFailure::SrcEmpty);
           if (SrcRange.IsInvalid())
             Cause = CombineFailures(Cause, ProofFailure::SrcInvalid);
