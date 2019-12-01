@@ -22,157 +22,124 @@ namespace clang {
 void BoundsAnalysis::WidenBounds() {
   assert(Cfg && "expected CFG to exist");
 
-  WorkListTy Worklist;
+  WorkListTy WorkList;
   BlockMapTy BlockMap;
 
-  // Add each block to Worklist and create a mapping from Block to
-  // ElevatedCFGBlock. Also update the Gen map for each block.
+  // Add each block to WorkList and create a mapping from Block to
+  // ElevatedCFGBlock.
   for (const auto *B : PostOrderCFGView(Cfg)) {
     auto EB = new ElevatedCFGBlock(B);
-    Worklist.insert(EB);
+    WorkList.insert(EB);
     BlockMap[B] = EB;
-
-    UpdateGenMap(BlockMap[B], BlockMap);
   }
 
-  // Dataflow analysis for bounds widening.
-  while (!Worklist.empty()) {
-    auto *EB = Worklist.back();
-    Worklist.pop_back();
+  // Compute Gen and Kill sets.
+  ComputeGenSets(BlockMap);
+  ComputeKillSets(BlockMap);
 
-    UpdateInMap(EB, BlockMap);
-    auto OldOut = UpdateOutMap(EB);
+  // Compute In and Out sets.
+  while (!WorkList.empty()) {
+    auto *EB = WorkList.back();
+    WorkList.pop_back();
 
-    // Add the successors of the changed blocks to Worklist, if they do not
-    // already exist in the worklist.
-    if (Differ(OldOut, EB->Out)) {
-      for (const CFGBlock *succ : EB->Block->succs())
-        // Worklist is a SetVector. So it will only insert a key if it does not
-        // already exist.
-        Worklist.insert(BlockMap[succ]);
-    }
+    ComputeInSets(EB, BlockMap);
+    ComputeOutSets(EB,BlockMap, WorkList);
   }
 
   CollectWidenedBounds(BlockMap);
 }
 
-void BoundsAnalysis::UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
-  // Gen(B) = n Gen(B'), where B' E preds(B)
-  //          + 1, if all B' branch to B on a condition of the form "if *p".
-  //            0, otherwise.
+void BoundsAnalysis::CollectDefinedVars(const Stmt *S, DeclSetTy &DefinedVars) {
+  if (!S)
+    return;
 
-  // DeclMap stores the number of preds of EB which branch to EB on a condition
-  // like "if *p". If all the preds of EB do this then we can increment
-  // EB->Gen[D] by 1.
-  using DeclMapTy = llvm::DenseMap<const VarDecl *, unsigned>;
-  DeclMapTy DeclMap;
-
-  BoundsMapTy Intersections;
-  bool ItersectionEmpty = true;
-
-  for (const CFGBlock *pred : EB->Block->preds()) {
-    if (!BlockMap.count(pred))
-      continue;
-    auto PredEB = BlockMap[pred];
-
-    if (ItersectionEmpty) {
-      Intersections = PredEB->Gen;
-      ItersectionEmpty = false;
-    } else
-      Intersections = Intersect(Intersections, PredEB->Gen);
-
-    // Fill DeclMap.
-    if (const Expr *E = GetTerminatorCondition(pred)) {
-      if (!ContainsPointerDeref(E))
-        continue;
-
-      // We can update EB->Gen only if EB is the then block of the condition
-      // "if *p". For example:
-
-      // B1: if (*p)
-      // B2:   foo();
-      // B3: else bar();
-
-      //      B1
-      //     /  \
-      //    B2   B3
-
-      // B1: preds[], succs[B2, B3]
-      // B2: preds[B1], succs[]
-      // B3: preds[B1], succs[]
-
-      // This means for an if condition, the then block is always the first
-      // block in the list of succs. We use this fact to check if EB is the
-      // then block of the if condition.
-      if (const auto *I = pred->succs().begin())
-        if (*I != EB->Block)
-          continue;
-
-      const VarDecl *D = GetVarDecl(E);
-      if (D && D->getType()->isCheckedPointerNtArrayType()) {
-        if (!DeclMap.count(D))
-          DeclMap[D] = 1;
-        else
-          DeclMap[D]++;
-      }
-    }
+  Expr *E = nullptr;
+  if (const auto *UO = dyn_cast<const UnaryOperator>(S)) {
+    if (UO->isIncrementDecrementOp())
+      E = IgnoreCasts(UO->getSubExpr());
+  } else if (const auto *BO = dyn_cast<const BinaryOperator>(S)) {
+    if (BO->isAssignmentOp())
+      E = IgnoreCasts(BO->getLHS());
   }
-  EB->Gen = Intersections;
 
-  // Now update EB->Gen.
-  for (const auto item : DeclMap) {
-    unsigned count = item.second;
-    if (count == EB->Block->pred_size()) {
-      const auto *D = item.first;
-      if (!EB->Gen.count(D))
-        EB->Gen[D] = 1;
-      else
-        EB->Gen[D]++;
+  if (E) {
+    if (const auto *D = dyn_cast<DeclRefExpr>(E))
+      if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
+        if (V->getType()->isCheckedPointerNtArrayType())
+          DefinedVars.insert(V);
+  }
+
+  for (const auto I : S->children())
+    CollectDefinedVars(I, DefinedVars);
+}
+
+void BoundsAnalysis::ComputeKillSets(BlockMapTy BlockMap) {
+  for (const auto B : BlockMap) {
+    auto EB = B.second;
+    DeclSetTy DefinedVars;
+
+    for (auto Elem : *(EB->Block))
+      if (Elem.getKind() == CFGElement::Statement)
+        CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
+
+    for (const auto V : DefinedVars)
+      EB->Kill.insert(V);
+  }
+}
+
+void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
+  for (const auto B : BlockMap) {
+    auto EB = B.second;
+    for (const CFGBlock *pred : EB->Block->preds()) {
+      if (Expr *E = GetTerminatorCondition(pred)) {
+        if (!ContainsPointerDeref(E))
+          continue;
+  
+        if (const auto *I = pred->succs().begin())
+          if (*I != EB->Block)
+            continue;
+
+        FillGenSet(E, BlockMap[pred], EB->Block);
+      }
     }
   }
 }
 
-void BoundsAnalysis::UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
-  // In(B) = min(n Out(B')), where B E preds(B).
-
-  // In(B) is the intersection of the Out's of all preds of B. For the
-  // intersection, we pick the Decl with the smaller upper bound. For example,
-  // if preds(B) = {X, Y} and Out(X)= {p:1, q:2, r:0} and Out(Y) = {p:0, q:3,
-  // s:2} then In(B) = {p:0, q:2}.
+void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   BoundsMapTy Intersections;
   bool ItersectionEmpty = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
-    if (!BlockMap.count(pred))
-      continue;
     auto PredEB = BlockMap[pred];
 
     if (ItersectionEmpty) {
-      Intersections = PredEB->Out;
+      Intersections = PredEB->Out[EB->Block];
       ItersectionEmpty = false;
     } else
-      Intersections = Intersect(Intersections, PredEB->Out);
+      Intersections = Intersect(Intersections, PredEB->Out[EB->Block]);
   }
   EB->In = Intersections;
 }
 
-BoundsMapTy BoundsAnalysis::UpdateOutMap(ElevatedCFGBlock *EB) {
-  // Out(B) = max(Gen(B) u In(B)).
+void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
+                                    BlockMapTy BlockMap,
+                                    WorkListTy &WorkList) {
+  auto Diff = Difference(EB->In, EB->Kill);
 
-  // Out(B) is the union of In(B) and Gen(B). If both In and Gen have the same
-  // Decl then for the union we pick the one with the larger upper bound. For
-  // example, if In(B) = {p:1, q:2} and Gen(B) = {p:2}, then Out(B) = {p:2,
-  // q:2}.
-  auto OldOut = EB->Out;
-  EB->Out = Union(EB->In, EB->Gen);
-  return OldOut;
+  for (const CFGBlock *succ : EB->Block->succs()) {
+    auto OldOut = EB->Out[succ];
+    EB->Out[succ] = Union(Diff, EB->Gen[succ]);
+
+    if (Differ(OldOut, EB->Out[succ]))
+      WorkList.insert(BlockMap[succ]);
+  }
 }
 
 void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
   for (auto item : BlockMap) {
     const auto *B = item.first;
     auto *EB = item.second;
-    WidenedBounds[B] = EB->Out;
+    WidenedBounds[B] = EB->In;
     delete EB;
   }
 }
@@ -181,30 +148,82 @@ BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
   return WidenedBounds[B];
 }
 
-const Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
+Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   // TODO: Handle other Stmt types, like while loops, etc.
   if (const Stmt *S = B->getTerminator())
     if (const auto *IfS = dyn_cast<IfStmt>(S))
-      return IfS->getCond();
+      return const_cast<Expr *>(IfS->getCond());
   return nullptr;
 }
 
-const VarDecl *BoundsAnalysis::GetVarDecl(const Expr *E) const {
-  if (const auto *CE = dyn_cast<CastExpr>(E))
-    if (const auto *UO = dyn_cast<UnaryOperator>(CE->getSubExpr()))
-      if (auto *D = dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreImplicit()))
-        return dyn_cast<VarDecl>(D->getDecl());
-  return nullptr;
+Expr *BoundsAnalysis::IgnoreCasts(Expr *E) {
+  while (E) {
+    E = E->IgnoreParens();
+
+    if (isa<ParenExpr>(E)) {
+      E = E->IgnoreParenCasts();
+      continue;
+    }
+
+    if (isa<ImplicitCastExpr>(E)) {
+      E = E->IgnoreImplicit();
+      continue;
+    }
+
+    if (auto *CE = dyn_cast<CastExpr>(E)) {
+      E = CE->getSubExpr();
+      continue;
+    }
+
+    return E;
+  }
+  return E;
 }
 
-bool BoundsAnalysis::IsPointerDerefLValue(const Expr *E) const {
+void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
+                                const CFGBlock *succ) {
+  E = IgnoreCasts(E);
+
+  if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+    const auto *Exp = IgnoreCasts(UO->getSubExpr());
+    if (!Exp)
+      return;
+ 
+    // if (*p)
+    if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
+      if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
+        if (V->getType()->isCheckedPointerNtArrayType())
+          EB->Gen[succ].insert(std::make_pair(V, 1));
+      return;
+    }
+ 
+    // if (*(p + i))
+    if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
+      if (BO->getOpcode() != BO_Add)
+        return;
+ 
+      const auto *D =
+        dyn_cast<DeclRefExpr>(IgnoreCasts(BO->getLHS()));
+      const auto *Lit = dyn_cast<IntegerLiteral>(IgnoreCasts(BO->getRHS()));
+      if (!D || !Lit)
+        return;
+ 
+      if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
+        if (V->getType()->isCheckedPointerNtArrayType())
+          EB->Gen[succ].insert(
+            std::make_pair(V, 1 + Lit->getValue().getLimitedValue()));
+    }
+  }
+}
+
+bool BoundsAnalysis::IsPointerDerefLValue(Expr *E) const {
   if (const auto *UO = dyn_cast<UnaryOperator>(E))
     return UO->getOpcode() == UO_Deref;
   return false;
 }
 
-bool BoundsAnalysis::ContainsPointerDeref(const Expr *E) const {
-  if (const auto *CE = dyn_cast<CastExpr>(E)) {
+bool BoundsAnalysis::ContainsPointerDeref(Expr *E) const {
+  if (auto *CE = dyn_cast<CastExpr>(E)) {
     if (CE->getCastKind() != CastKind::CK_LValueToRValue)
       return false;
     return IsPointerDerefLValue(CE->getSubExpr());
@@ -213,7 +232,8 @@ bool BoundsAnalysis::ContainsPointerDeref(const Expr *E) const {
 }
 
 // Note: Intersect, Union and Differ mutate their first argument.
-BoundsMapTy BoundsAnalysis::Intersect(BoundsMapTy &A, BoundsMapTy &B) {
+template<class T>
+T BoundsAnalysis::Intersect(T &A, T &B) {
   if (!A.size())
     return A;
 
@@ -235,7 +255,8 @@ BoundsMapTy BoundsAnalysis::Intersect(BoundsMapTy &A, BoundsMapTy &B) {
   return A;
 }
 
-BoundsMapTy BoundsAnalysis::Union(BoundsMapTy &A, BoundsMapTy &B) {
+template<class T>
+T BoundsAnalysis::Union(T &A, T &B) {
   for (const auto item : B) {
     if (!A.count(item.first))
       A[item.first] = item.second;
@@ -245,7 +266,23 @@ BoundsMapTy BoundsAnalysis::Union(BoundsMapTy &A, BoundsMapTy &B) {
   return A;
 }
 
-bool BoundsAnalysis::Differ(BoundsMapTy &A, BoundsMapTy &B) {
+template<class T, class U>
+T BoundsAnalysis::Difference(T &A, U &B) {
+  if (!A.size() || !B.size())
+    return A;
+
+  for (auto I = A.begin(), E = A.end(); I != E;) {
+    if (B.count(I->first)) {
+      auto Next = std::next(I);
+      A.erase(I);
+      I = Next;
+    } else ++I;
+  }
+  return A;
+}
+
+template<class T>
+bool BoundsAnalysis::Differ(T &A, T &B) {
   if (A.size() != B.size())
     return true;
   auto OldA = A;

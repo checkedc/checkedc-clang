@@ -19,8 +19,9 @@
 #include "clang/Sema/Sema.h"
 
 namespace clang {
+  using DeclSetTy = llvm::DenseSet<const VarDecl *>;
   using BoundsMapTy = llvm::MapVector<const VarDecl *, unsigned>;
-  using WidenedBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
+  using BlockBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
   class BoundsAnalysis {
@@ -28,12 +29,14 @@ namespace clang {
     Sema &S;
     CFG *Cfg;
     ASTContext &Ctx;
-    WidenedBoundsTy WidenedBounds;
+    BlockBoundsTy WidenedBounds;
 
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
-      BoundsMapTy In, Out, Gen, Kill;
+      BoundsMapTy In;
+      BlockBoundsTy Gen, Out;
+      DeclSetTy Kill;
 
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
@@ -49,20 +52,25 @@ namespace clang {
     void DumpWidenedBounds(FunctionDecl *FD);
 
   private:
-    void UpdateGenMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
-    void UpdateInMap(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
-    BoundsMapTy UpdateOutMap(ElevatedCFGBlock *EB);
+    void ComputeGenSets(BlockMapTy BlockMap);
+    void ComputeKillSets(BlockMapTy BlockMap);
+    void ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
+    void ComputeOutSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap,
+                        WorkListTy &Worklist);
+    void FillGenSet(Expr *E, ElevatedCFGBlock *EB, const CFGBlock *succ);
 
     void CollectWidenedBounds(BlockMapTy BlockMap);
-    const Expr *GetTerminatorCondition(const CFGBlock *B) const;
-    const VarDecl *GetVarDecl(const Expr *E) const;
-    bool IsPointerDerefLValue(const Expr *E) const;
-    bool ContainsPointerDeref(const Expr *E) const;
+    Expr *GetTerminatorCondition(const CFGBlock *B) const;
+    bool IsPointerDerefLValue(Expr *E) const;
+    bool ContainsPointerDeref(Expr *E) const;
     OrderedBlocksTy GetOrderedBlocks();
+    void CollectDefinedVars(const Stmt *S, DeclSetTy &DefinedVars);
+    Expr *IgnoreCasts(Expr *E);
 
-    BoundsMapTy Intersect(BoundsMapTy &A, BoundsMapTy &B);
-    BoundsMapTy Union(BoundsMapTy &A, BoundsMapTy &B);
-    bool Differ(BoundsMapTy &A, BoundsMapTy &B);
+    template<class T> T Intersect(T &A, T &B);
+    template<class T> T Union(T &A, T &B);
+    template<class T, class U> T Difference(T &A, U &B);
+    template<class T> bool Differ(T &A, T &B);
   };
 }
 
