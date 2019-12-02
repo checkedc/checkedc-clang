@@ -86,8 +86,8 @@ char f6() {
 // CHECK-NEXT:   | `-CHKCBindTemporaryExpr {{0x[0-9a-f]+}} 'const char _Nt_checked[3]' lvalue
 // CHECK-NEXT:   |   `-PredefinedExpr {{0x[0-9a-f]+}} 'const char _Nt_checked[3]' lvalue __func__
 // CHECK-NEXT:   |     `-StringLiteral {{0x[0-9a-f]+}} 'const char _Nt_checked[3]' lvalue "f6"
-// CHECK-NEXT:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 100
+// CHECK-NEXT:   `-IntegerLiteral {{0x[0-9a-f]+}} 'int' 1
 #pragma CHECKED_SCOPE ON
-  return __func__[100];
+  return __func__[1];
 #pragma CHECKED_SCOPE OFF
 }

@@ -9950,11 +9950,16 @@ def err_bounds_type_annotation_lost_checking : Error<
   def error_static_cast_bounds_invalid : Error<
     "cast source bounds are too narrow for %0">;
 
-  def warn_out_of_bounds_access : Warning<
-    "out-of-bounds %select{||memory access|base value}0">,
-    InGroup<CheckMemoryAccesses>;
+  def error_out_of_bounds_access : Error<
+    "out-of-bounds %select{||memory access|base value}0">;
 
   def note_source_bounds_empty : Note<"source bounds are an empty range">;
+
+  def note_source_bounds_invalid : Note<"source bounds are an invalid range">;
+
+  def note_destination_bounds_empty : Note<"destination bounds are an empty range">;
+
+  def note_destination_bounds_invalid : Note<"destination bounds are an invalid range">;
 
   def note_bounds_too_narrow : Note<
     "%select{destination bounds are|target bounds are|memory accessed is|"
