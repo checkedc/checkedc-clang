@@ -9955,7 +9955,7 @@ def err_bounds_type_annotation_lost_checking : Error<
 
   def note_source_bounds_empty : Note<"source bounds are an empty range">;
 
-  def note_source_bounds_invalid : Note<"source bounds are an inavlid range">;
+  def note_source_bounds_invalid : Note<"source bounds are an invalid range">;
 
   def note_destination_bounds_empty : Note<"destination bounds are an empty range">;
 
