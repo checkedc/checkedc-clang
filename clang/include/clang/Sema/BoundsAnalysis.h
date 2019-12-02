@@ -20,9 +20,19 @@
 #include <queue>
 
 namespace clang {
-  using DeclSetTy = llvm::DenseSet<const VarDecl *>;
+  // BoundsMapTy denotes the widened bounds of a variable. Given VarDecl v with
+  // declared bounds (low, high), the bounds of v have been widened to (low,
+  // high + the unsigned integer).
   using BoundsMapTy = llvm::MapVector<const VarDecl *, unsigned>;
+  // For each block B, BlockBoundsTy denotes the Gen and Out sets. For each
+  // successor B' of B, BlockBoundsTy stores the bounds for generated on the
+  // edge B->B'.
   using BlockBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
+  // For each block B, DeclSetTy denotes the Kill set. A VarDecl v is killed if
+  // it is assiged to in the block.
+  using DeclSetTy = llvm::DenseSet<const VarDecl *>;
+  // OrderedBlocksTy denotes blocks ordered by block numbers. This is useful
+  // for deterministic print order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
   class BoundsAnalysis {
@@ -42,33 +52,39 @@ namespace clang {
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
 
-    class WorkListTy {
+    // WorkListContainer is a queue backed by a set. The queue is useful for
+    // processing the CFG blocks in a Topological sort order which means that
+    // if A is a predecessor of B then A is processed before B. The set is
+    // useful for ensuring only unique blocks are added to the queue.
+    template <class T>
+    class WorkListContainer {
     public:
-      std::queue<ElevatedCFGBlock *> Q;
-      llvm::DenseSet<ElevatedCFGBlock *> S;
+      std::queue<T *> Q;
+      llvm::DenseSet<T *> S;
 
-      ElevatedCFGBlock *front() {
+      T *front() const {
         return Q.front();
       }
 
-      void pop(ElevatedCFGBlock *B) {
+      void pop(T *B) {
         Q.pop();
         S.erase(B);
       }
 
-      void push(ElevatedCFGBlock *B) {
+      void push(T *B) {
         if (!S.count(B)) {
           Q.push(B);
           S.insert(B);
         }
       }
 
-      bool empty() {
+      bool empty() const {
         return Q.empty();
       }
     };
 
     using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
+    using WorkListTy = WorkListContainer<ElevatedCFGBlock>;
 
   public:
     BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), Ctx(S.Context) {}
