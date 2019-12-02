@@ -205,3 +205,44 @@ void f7() {
 // CHECK:   1: a = 2
 }
 
+void f8() {
+  if (*p && *q)
+    a = 1;
+
+// CHECK: In function: f8
+// CHECK:  [B1]
+// CHECK:    1: a = 1
+// CHECK: upper_bound(p) = 1
+// CHECK: upper_bound(q) = 1
+}
+
+void f9() {
+  if (*p && *(p + 1) && *(p + 2))
+    a = 1;
+
+// check: in function: f9
+// check:  [b1]
+// check:    1: a = 1
+// check: upper_bound(p) = 3
+}
+
+void f10() {
+  if (*(p + 2) && *(p + 1) && *p)
+    a = 1;
+
+// CHECK: In function: f10
+// CHECK:  [B1]
+// CHECK:    1: a = 1
+// CHECK: upper_bound(p) = 3
+}
+
+void f11() {
+  if (*p && *(q + 10) && *(p + 5) && *(q + 3))
+    a = 1;
+
+// CHECK: In function: f11
+// CHECK:  [B1]
+// CHECK:    1: a = 1
+// CHECK: upper_bound(p) = 6
+// CHECK: upper_bound(q) = 11
+}
