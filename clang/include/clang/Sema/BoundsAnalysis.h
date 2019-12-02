@@ -24,15 +24,13 @@ namespace clang {
   // declared bounds (low, high), the bounds of v have been widened to (low,
   // high + the unsigned integer).
   using BoundsMapTy = llvm::MapVector<const VarDecl *, unsigned>;
-  // For each block B, BlockBoundsTy denotes the Gen and Out sets. For each
-  // successor B' of B, BlockBoundsTy stores the bounds for generated on the
-  // edge B->B'.
+  // For each edge B1->B2, BlockBoundsTy denotes the Gen and Out sets.
   using BlockBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
   // For each block B, DeclSetTy denotes the Kill set. A VarDecl v is killed if
-  // it is assiged to in the block.
+  // it is assigned to in the block.
   using DeclSetTy = llvm::DenseSet<const VarDecl *>;
   // OrderedBlocksTy denotes blocks ordered by block numbers. This is useful
-  // for deterministic print order.
+  // for printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
   class BoundsAnalysis {
@@ -54,7 +52,7 @@ namespace clang {
 
     // WorkListContainer is a queue backed by a set. The queue is useful for
     // processing the CFG blocks in a Topological sort order which means that
-    // if A is a predecessor of B then A is processed before B. The set is
+    // if B1 is a predecessor of B2 then B1 is processed before B2. The set is
     // useful for ensuring only unique blocks are added to the queue.
     template <class T>
     class WorkListContainer {
