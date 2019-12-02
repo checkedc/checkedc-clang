@@ -94,10 +94,10 @@ namespace clang {
     Expr *IgnoreCasts(Expr *E);
     bool SkipBlock(const CFGBlock *B) const;
 
-    template<class T> T Intersect(T &A, T &B);
-    template<class T> T Union(T &A, T &B);
-    template<class T, class U> T Difference(T &A, U &B);
-    template<class T> bool Differ(T &A, T &B);
+    template<class T> T Intersect(T &A, T &B) const;
+    template<class T> T Union(T &A, T &B) const;
+    template<class T, class U> T Difference(T &A, U &B) const;
+    template<class T> bool Differ(T &A, T &B) const;
   };
 }
 
