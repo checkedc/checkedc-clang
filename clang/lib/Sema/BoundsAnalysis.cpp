@@ -242,63 +242,67 @@ bool BoundsAnalysis::ContainsPointerDeref(Expr *E) const {
   return false;
 }
 
-// Note: Intersect, Union, Difference and Differ mutate their first argument.
 template<class T>
-T BoundsAnalysis::Intersect(T &A, T &B) {
+T BoundsAnalysis::Intersect(T &A, T &B) const {
   if (!A.size())
     return A;
 
+  auto Ret = A;
   if (!B.size()) {
-    A.clear();
-    return A;
+    Ret.clear();
+    return Ret;
   }
 
-  for (auto I = A.begin(), E = A.end(); I != E;) {
+  for (auto I = Ret.begin(), E = Ret.end(); I != E;) {
     if (!B.count(I->first)) {
       auto Next = std::next(I);
-      A.erase(I);
+      Ret.erase(I);
       I = Next;
     } else {
-      A[I->first] = std::min(A[I->first], B[I->first]);
+      Ret[I->first] = std::min(Ret[I->first], B[I->first]);
       ++I;
     }
   }
-  return A;
+  return Ret;
 }
 
 template<class T>
-T BoundsAnalysis::Union(T &A, T &B) {
+T BoundsAnalysis::Union(T &A, T &B) const {
+  if (!A.size())
+    return B;
+
+  auto Ret = A;
   for (const auto item : B) {
-    if (!A.count(item.first))
-      A[item.first] = item.second;
+    if (!Ret.count(item.first))
+      Ret[item.first] = item.second;
     else
-      A[item.first] = std::max(A[item.first], item.second);
+      Ret[item.first] = std::max(Ret[item.first], item.second);
   }
-  return A;
+  return Ret;
 }
 
 template<class T, class U>
-T BoundsAnalysis::Difference(T &A, U &B) {
+T BoundsAnalysis::Difference(T &A, U &B) const {
   if (!A.size() || !B.size())
     return A;
 
-  for (auto I = A.begin(), E = A.end(); I != E;) {
+  auto Ret = A;
+  for (auto I = Ret.begin(), E = Ret.end(); I != E;) {
     if (B.count(I->first)) {
       auto Next = std::next(I);
-      A.erase(I);
+      Ret.erase(I);
       I = Next;
     } else ++I;
   }
-  return A;
+  return Ret;
 }
 
 template<class T>
-bool BoundsAnalysis::Differ(T &A, T &B) {
+bool BoundsAnalysis::Differ(T &A, T &B) const {
   if (A.size() != B.size())
     return true;
-  auto OldA = A;
-  A = Intersect(A, B);
-  return A.size() != OldA.size();
+  auto Ret = Intersect(A, B);
+  return Ret.size() != A.size();
 }
 
 OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {

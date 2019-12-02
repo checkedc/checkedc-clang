@@ -17,9 +17,9 @@ void f2() {
   int a;
   if (*p) {
     a = 1;
-    if (*p) {
+    if (*(p + 1)) {
       a = 2;
-      if (*p) {
+      if (*(p + 2)) {
         a = 3;
       }
     }
@@ -45,9 +45,9 @@ void f3() {
     a = 1;
     if (*q) {
       a = 2;
-      if (*p) {
+      if (*(p + 1)) {
         a = 3;
-        if (*q) {
+        if (*(q + 1)) {
           a = 4;
         }
       }
@@ -83,7 +83,7 @@ void f4() {
       a = 2;
       if (a) {
         a = 3;
-        if (*p) {
+        if (*(p + 1)) {
           a = 4;
         }
       }
@@ -112,11 +112,11 @@ void f5() {
   int a;
   if (*p) {
     a = 1;
-    if (*p)
+    if (*(p + 1))
       a = 2;
     else if (a == 3) {
       a = 4;
-      if (*p)
+      if (*(p + 2))
         a = 5;
       else if (a == 6)
         a = 7;
@@ -142,7 +142,7 @@ void f5() {
 
 // CHECK: [B3]
 // CHECK:   1: a = 5
-// CHECK:upper_bound(p) = 2
+// CHECK:upper_bound(p) = 3
 
 // CHECK: [B2]
 // CHECK:   1: a == 6
