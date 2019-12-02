@@ -73,10 +73,10 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
         // B2:   foo();
         // B3: else bar();
 
-	// Here we have the edges (B1->B2) and (B1->B3). We can add "p:i+1" only
-	// on the true edge. Which means we will add the following entry to
-	// Gen[B1]: {B2, p:i+1}
-	if (const auto *I = pred->succs().begin())
+        // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i+1" only
+        // on the true edge. Which means we will add the following entry to
+        // Gen[B1]: {B2, p:i+1}
+        if (const auto *I = pred->succs().begin())
           if (*I != EB->Block)
             continue;
 
