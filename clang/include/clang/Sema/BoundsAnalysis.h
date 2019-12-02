@@ -56,20 +56,21 @@ namespace clang {
     // useful for ensuring only unique blocks are added to the queue.
     template <class T>
     class WorkListContainer {
-    public:
+    private:
       std::queue<T *> Q;
       llvm::DenseSet<T *> S;
 
-      T *front() const {
+    public:
+      T *next() const {
         return Q.front();
       }
 
-      void pop(T *B) {
+      void remove(T *B) {
         Q.pop();
         S.erase(B);
       }
 
-      void push(T *B) {
+      void append(T *B) {
         if (!S.count(B)) {
           Q.push(B);
           S.insert(B);

@@ -32,7 +32,7 @@ void BoundsAnalysis::WidenBounds() {
     if (SkipBlock(B))
       continue;
     auto EB = new ElevatedCFGBlock(B);
-    WorkList.push(EB);
+    WorkList.append(EB);
     BlockMap[B] = EB;
   }
 
@@ -42,8 +42,8 @@ void BoundsAnalysis::WidenBounds() {
 
   // Compute In and Out sets.
   while (!WorkList.empty()) {
-    auto *EB = WorkList.front();
-    WorkList.pop(EB);
+    auto *EB = WorkList.next();
+    WorkList.remove(EB);
 
     ComputeInSets(EB, BlockMap);
     ComputeOutSets(EB, BlockMap, WorkList);
@@ -96,8 +96,8 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
       return;
 
     // Note: When we have if conditions of the form
-    // "if (*p && *(p+1) && *(p+2))" the effective bounds for p would be the
-    // max of the computed bounds of all three expressions.
+    // "if (*(p + i) && *(p + j) && *(p + k))" the effective bounds for p would
+    // be (1 + max{i, j, k}).
 
     // For conditions of the form "if (*p)".
     if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
@@ -221,7 +221,7 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
     EB->Out[succ] = Union(Diff, EB->Gen[succ]);
 
     if (Differ(OldOut, EB->Out[succ]))
-      WorkList.push(BlockMap[succ]);
+      WorkList.append(BlockMap[succ]);
   }
 }
 
