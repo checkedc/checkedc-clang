@@ -80,8 +80,7 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
           if (*I != EB->Block)
             continue;
 
-        FillGenSet(E, /* From Block */ BlockMap[pred],
-                      /* To Block */ EB->Block);
+        FillGenSet(E, BlockMap[pred], EB->Block);
       }
     }
   }
@@ -96,16 +95,25 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
     if (!Exp)
       return;
 
+    // Note: When we have if conditions of the form
+    // "if (*p && *(p+1) && *(p+2))" the effective bounds for p would be the
+    // max of the computed bounds of all three expressions.
+
     // For conditions of the form "if (*p)".
     if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-        if (V->getType()->isCheckedPointerNtArrayType())
-          EB->Gen[succ].insert(std::make_pair(V, 1));
-      return;
-    }
+        if (V->getType()->isCheckedPointerNtArrayType()) {
+          unsigned NewBounds = 1;
+          if (!EB->Gen[succ].count(V))
+            EB->Gen[succ].insert(std::make_pair(V, NewBounds));
+          else {
+            NewBounds = std::max(NewBounds, EB->Gen[succ][V]);
+            EB->Gen[succ][V] = NewBounds;
+          }
+        }
 
-    // For conditions of the form "if (* (p + i))"
-    if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
+    // For conditions of the form "if (*(p + i))"
+    } else if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
       if (BO->getOpcode() != BO_Add)
         return;
 
@@ -115,11 +123,25 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
       if (!D || !Lit)
         return;
 
-      if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-        if (V->getType()->isCheckedPointerNtArrayType())
-          EB->Gen[succ].insert(
-            std::make_pair(V, 1 + Lit->getValue().getLimitedValue()));
+      if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+        if (V->getType()->isCheckedPointerNtArrayType()) {
+          unsigned NewBounds = 1 + Lit->getValue().getLimitedValue();
+          if (!EB->Gen[succ].count(V))
+            EB->Gen[succ].insert(std::make_pair(V, NewBounds));
+          else {
+            NewBounds = std::max(NewBounds, EB->Gen[succ][V]);
+            EB->Gen[succ][V] = NewBounds;
+          }
+        }
+      }
     }
+
+  // Handle if conditions of the form "if (*e1 && *e2)".
+  } else if (const auto *BO = dyn_cast<const BinaryOperator>(E)) {
+      if (ContainsPointerDeref(BO->getLHS()))
+        FillGenSet(BO->getLHS(), EB, succ);
+      if (ContainsPointerDeref(BO->getRHS()))
+        FillGenSet(BO->getRHS(), EB, succ);
   }
 }
 
@@ -256,10 +278,16 @@ bool BoundsAnalysis::IsPointerDerefLValue(Expr *E) const {
 
 bool BoundsAnalysis::ContainsPointerDeref(Expr *E) const {
   if (auto *CE = dyn_cast<CastExpr>(E)) {
-    if (CE->getCastKind() != CastKind::CK_LValueToRValue)
-      return false;
-    return IsPointerDerefLValue(CE->getSubExpr());
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      return IsPointerDerefLValue(CE->getSubExpr());
+    return ContainsPointerDeref(CE->getSubExpr());
   }
+
+  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+    return ContainsPointerDeref(BO->getLHS()) ||
+           ContainsPointerDeref(BO->getRHS());
+  }
+
   return false;
 }
 
