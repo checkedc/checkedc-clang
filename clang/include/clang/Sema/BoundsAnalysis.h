@@ -17,6 +17,7 @@
 
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Sema/Sema.h"
+#include <queue>
 
 namespace clang {
   using DeclSetTy = llvm::DenseSet<const VarDecl *>;
@@ -41,8 +42,33 @@ namespace clang {
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
 
+    class WorkListTy {
+    public:
+      std::queue<ElevatedCFGBlock *> Q;
+      llvm::DenseSet<ElevatedCFGBlock *> S;
+
+      ElevatedCFGBlock *front() {
+        return Q.front();
+      }
+
+      void pop(ElevatedCFGBlock *B) {
+        Q.pop();
+        S.erase(B);
+      }
+
+      void push(ElevatedCFGBlock *B) {
+        if (!S.count(B)) {
+          Q.push(B);
+          S.insert(B);
+        }
+      }
+
+      bool empty() {
+        return Q.empty();
+      }
+    };
+
     using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
-    using WorkListTy = llvm::SetVector<ElevatedCFGBlock *>;
 
   public:
     BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), Ctx(S.Context) {}
@@ -66,6 +92,7 @@ namespace clang {
     OrderedBlocksTy GetOrderedBlocks();
     void CollectDefinedVars(const Stmt *S, DeclSetTy &DefinedVars);
     Expr *IgnoreCasts(Expr *E);
+    bool SkipBlock(const CFGBlock *B) const;
 
     template<class T> T Intersect(T &A, T &B);
     template<class T> T Union(T &A, T &B);

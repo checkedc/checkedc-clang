@@ -28,8 +28,10 @@ void BoundsAnalysis::WidenBounds() {
   // Add each block to WorkList and create a mapping from Block to
   // ElevatedCFGBlock.
   for (const auto *B : PostOrderCFGView(Cfg)) {
+    if (SkipBlock(B))
+      continue;
     auto EB = new ElevatedCFGBlock(B);
-    WorkList.insert(EB);
+    WorkList.push(EB);
     BlockMap[B] = EB;
   }
 
@@ -39,11 +41,11 @@ void BoundsAnalysis::WidenBounds() {
 
   // Compute In and Out sets.
   while (!WorkList.empty()) {
-    auto *EB = WorkList.back();
-    WorkList.pop_back();
+    auto *EB = WorkList.front();
+    WorkList.pop(EB);
 
     ComputeInSets(EB, BlockMap);
-    ComputeOutSets(EB,BlockMap, WorkList);
+    ComputeOutSets(EB, BlockMap, WorkList);
   }
 
   CollectWidenedBounds(BlockMap);
@@ -91,10 +93,13 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
   for (const auto B : BlockMap) {
     auto EB = B.second;
     for (const CFGBlock *pred : EB->Block->preds()) {
+      if (SkipBlock(pred))
+        continue;
+
       if (Expr *E = GetTerminatorCondition(pred)) {
         if (!ContainsPointerDeref(E))
           continue;
-  
+
         if (const auto *I = pred->succs().begin())
           if (*I != EB->Block)
             continue;
@@ -110,6 +115,9 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   bool ItersectionEmpty = true;
 
   for (const CFGBlock *pred : EB->Block->preds()) {
+    if (SkipBlock(pred))
+      continue;
+
     auto PredEB = BlockMap[pred];
 
     if (ItersectionEmpty) {
@@ -127,11 +135,14 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
   auto Diff = Difference(EB->In, EB->Kill);
 
   for (const CFGBlock *succ : EB->Block->succs()) {
+    if (SkipBlock(succ))
+      continue;
+
     auto OldOut = EB->Out[succ];
     EB->Out[succ] = Union(Diff, EB->Gen[succ]);
 
     if (Differ(OldOut, EB->Out[succ]))
-      WorkList.insert(BlockMap[succ]);
+      WorkList.push(BlockMap[succ]);
   }
 }
 
@@ -188,7 +199,7 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
     const auto *Exp = IgnoreCasts(UO->getSubExpr());
     if (!Exp)
       return;
- 
+
     // if (*p)
     if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
@@ -196,18 +207,18 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
           EB->Gen[succ].insert(std::make_pair(V, 1));
       return;
     }
- 
+
     // if (*(p + i))
     if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
       if (BO->getOpcode() != BO_Add)
         return;
- 
+
       const auto *D =
         dyn_cast<DeclRefExpr>(IgnoreCasts(BO->getLHS()));
       const auto *Lit = dyn_cast<IntegerLiteral>(IgnoreCasts(BO->getRHS()));
       if (!D || !Lit)
         return;
- 
+
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
         if (V->getType()->isCheckedPointerNtArrayType())
           EB->Gen[succ].insert(
@@ -231,7 +242,7 @@ bool BoundsAnalysis::ContainsPointerDeref(Expr *E) const {
   return false;
 }
 
-// Note: Intersect, Union and Differ mutate their first argument.
+// Note: Intersect, Union, Difference and Differ mutate their first argument.
 template<class T>
 T BoundsAnalysis::Intersect(T &A, T &B) {
   if (!A.size())
@@ -304,6 +315,10 @@ OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
                return A->getBlockID() > B->getBlockID();
              });
   return OrderedBlocks;
+}
+
+bool BoundsAnalysis::SkipBlock(const CFGBlock *B) const {
+  return B == &Cfg->getEntry() || B == &Cfg->getExit();
 }
 
 void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
