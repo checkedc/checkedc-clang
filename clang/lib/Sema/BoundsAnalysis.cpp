@@ -58,36 +58,44 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
 
   for (const auto B : BlockMap) {
     auto EB = B.second;
+
     for (const CFGBlock *pred : EB->Block->preds()) {
       if (SkipBlock(pred))
         continue;
 
-      // Check if the edge condition is of the form "if (*(p + i))".
-      if (Expr *E = GetTerminatorCondition(pred)) {
-        if (!ContainsPointerDeref(E))
+      // We can add "p:i+1" only on the true edge.
+      // For example,
+      // B1: if (*(p+ i))
+      // B2:   foo();
+      // B3: else bar();
+
+      // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i+1" only
+      // on the true edge. Which means we will add the following entry to
+      // Gen[B1]: {B2, p:i+1}
+      if (const auto *I = pred->succs().begin())
+        if (*I != EB->Block)
           continue;
 
-        // We can add "p:i+1" only on the true edge.
-        // For example,
-        // B1: if (*(p+ i))
-        // B2:   foo();
-        // B3: else bar();
-
-        // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i+1" only
-        // on the true edge. Which means we will add the following entry to
-        // Gen[B1]: {B2, p:i+1}
-        if (const auto *I = pred->succs().begin())
-          if (*I != EB->Block)
-            continue;
-
+      // Get the edge condition and fill the Gen set.
+      if (Expr *E = GetTerminatorCondition(pred))
         FillGenSet(E, BlockMap[pred], EB->Block);
-      }
     }
   }
 }
 
 void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
                                 const CFGBlock *succ) {
+
+  // Handle if conditions of the form "if (*e1 && *e2)".
+  if (const auto *BO = dyn_cast<const BinaryOperator>(E)) {
+    FillGenSet(BO->getLHS(), EB, succ);
+    FillGenSet(BO->getRHS(), EB, succ);
+  }
+
+  // Check if the edge condition contains a pointer deref.
+  if (!ContainsPointerDeref(E))
+    return;
+
   E = IgnoreCasts(E);
 
   if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
@@ -135,13 +143,6 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
         }
       }
     }
-
-  // Handle if conditions of the form "if (*e1 && *e2)".
-  } else if (const auto *BO = dyn_cast<const BinaryOperator>(E)) {
-      if (ContainsPointerDeref(BO->getLHS()))
-        FillGenSet(BO->getLHS(), EB, succ);
-      if (ContainsPointerDeref(BO->getRHS()))
-        FillGenSet(BO->getRHS(), EB, succ);
   }
 }
 
@@ -263,7 +264,6 @@ Expr *BoundsAnalysis::IgnoreCasts(Expr *E) {
       E = CE->getSubExpr();
       continue;
     }
-
     return E;
   }
   return E;
@@ -282,12 +282,6 @@ bool BoundsAnalysis::ContainsPointerDeref(Expr *E) const {
       return IsPointerDerefLValue(CE->getSubExpr());
     return ContainsPointerDeref(CE->getSubExpr());
   }
-
-  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    return ContainsPointerDeref(BO->getLHS()) ||
-           ContainsPointerDeref(BO->getRHS());
-  }
-
   return false;
 }
 
