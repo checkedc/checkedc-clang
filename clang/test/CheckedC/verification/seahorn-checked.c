@@ -15,7 +15,7 @@ int foo(_Array_ptr<int> p : count(n), int n)
   _Array_ptr<int> a : count(n) = p;
 
   a[n / 2] = 1;
-  // CHECK: _Dynamic_check.failed
+  // CHECK: _Dynamic_check.failed{{.*}}:
   // CHECK-NEXT: call void @__VERIFIER_error()
   // CHECK-NEXT: call void @llvm.trap()
   // CHECK-NEXT: unreachable
@@ -23,7 +23,7 @@ int foo(_Array_ptr<int> p : count(n), int n)
   int i = 0, s = 0;
   for(i=0; i<n; i++)
     s += a[i];
-  // CHECK: _Dynamic_check.failed
+  // CHECK: _Dynamic_check.failed{{.*}}:
   // CHECK-NEXT: call void @__VERIFIER_error()
   // CHECK-NEXT: call void @llvm.trap()
   // CHECK-NEXT: unreachable
