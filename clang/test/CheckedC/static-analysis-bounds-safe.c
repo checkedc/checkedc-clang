@@ -11,11 +11,11 @@ int foo(int *a, int n)
   int k = n + n;
   int t = (k & 1) | ((k & 1) ^ 1); // t will always evaluate to '1'
 
-  a[t - 1] = 1; // no-warning
-  a[n / 2] = 1; // no-warning
+  a[t - 1] = 1;
+  a[n / 2] = 1;
 
 #ifdef CLANG_CHECKERS
-  *(a + k) = 1; // no-warning
+  *(a + k) = 1; // expected-no-diagnostics
 #else
   *(a + k) = 1; // expected-warning {{Access out-of-bound array element (buffer overflow)}}
 #endif
