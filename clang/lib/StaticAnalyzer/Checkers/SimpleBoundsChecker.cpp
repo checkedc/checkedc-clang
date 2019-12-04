@@ -48,24 +48,22 @@ namespace {
   class SimpleBoundsChecker : public Checker<check::Location> {
     mutable std::unique_ptr<BuiltinBug> BT;
 
-    void checkBoundsInfo(const DeclaratorDecl* decl, std::string label, ASTContext& Ctx) const;
-
     // Replaces the symbol 'from' with the symbol 'to' in the symbolic expression 'E'
     SVal replaceSVal(ProgramStateRef state, SVal E, SVal from, SVal to) const;
 
     // Generates a symbolic expression out of the given bounds expression.
     //  The terms (variables) should have symbolic values already
-    const SymExpr* getSymExpr(ProgramStateRef state, const BoundsExpr* bounds, const LocationContext* LCtx, SValBuilder& SVB) const;
+    const SymExpr* getSymExpr(ProgramStateRef state, const BoundsExpr *bounds, const LocationContext *LCtx, SValBuilder &SVB) const;
 
-    void reportOutofBoundsAccess(ProgramStateRef outBound, const Stmt* LoadS, CheckerContext& C) const;
+    void reportOutofBoundsAccess(ProgramStateRef outBound, const Stmt *LoadS, CheckerContext &C) const;
 
 
     public:
-    void checkLocation(SVal l, bool isLoad, const Stmt* S, CheckerContext &C) const;
+    void checkLocation(SVal l, bool isLoad, const Stmt *S, CheckerContext &C) const;
   };
 }
 
-void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
+void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
     CheckerContext &C) const {
 
   const MemRegion *R = l.getAsRegion();
@@ -131,9 +129,9 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
   }
 
   // Match the deref base pointer to the corresponding function argument
-  const BoundsExpr* BE = nullptr;
+  const BoundsExpr *BE = nullptr;
   for(unsigned int i=0; i<FD->getNumParams(); i++) {
-    const ParmVarDecl* arg = FD->getParamDecl(i);
+    const ParmVarDecl *arg = FD->getParamDecl(i);
     if (!arg->hasBoundsDeclaration(Ctx) && !arg->hasBoundsSafeInterface(Ctx))
       continue;
     if (state->getSVal(state->getRegion(arg, LCtx)).getAsRegion() == ER->getBaseRegion()) {
@@ -163,7 +161,7 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
   llvm::errs() << "\n";
 #endif
 
-  const SymExpr* symIdx = Idx.getAsSymbol();
+  const SymExpr *symIdx = Idx.getAsSymbol();
   if (!symIdx) {
     // symIdx is NULL: Index might be concrete, fall back to normal check!
     if (StOutBound && !StInBound) {
@@ -233,7 +231,7 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
   C.addTransition(StInBound);
 }
 
-void SimpleBoundsChecker::reportOutofBoundsAccess(ProgramStateRef outBound, const Stmt* LoadS, CheckerContext& C) const {
+void SimpleBoundsChecker::reportOutofBoundsAccess(ProgramStateRef outBound, const Stmt *LoadS, CheckerContext &C) const {
   ExplodedNode *N = C.generateErrorNode(outBound);
   if (!N)
     return;
@@ -252,14 +250,14 @@ void SimpleBoundsChecker::reportOutofBoundsAccess(ProgramStateRef outBound, cons
 }
 
 
-const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const BoundsExpr* BE, const LocationContext* LCtx, SValBuilder& SVB) const {
+const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const BoundsExpr *BE, const LocationContext *LCtx, SValBuilder &SVB) const {
   class Generator { //: public RecursiveASTVisitor<Generator> {
     ProgramStateRef state;
-    const LocationContext* LCtx;
+    const LocationContext *LCtx;
     SValBuilder &SVB;
 
     public:
-    Generator(ProgramStateRef _state, const LocationContext* _LCtx, SValBuilder& _SVB)
+    Generator(ProgramStateRef _state, const LocationContext *_LCtx, SValBuilder &_SVB)
       : state(_state), LCtx(_LCtx), SVB(_SVB)
     {
 #if DEBUG_VISITORS
@@ -267,35 +265,35 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
 #endif
     }
 
-    const SymExpr* VisitBoundsExpr(const BoundsExpr* BE) {
+    const SymExpr* VisitBoundsExpr(const BoundsExpr *BE) {
 #if DEBUG_VISITORS
       llvm::errs() << "Generator: visitBoundsExpr: \n";
       BE->dump();
 #endif
-      if (const CountBoundsExpr* CBE = dyn_cast<CountBoundsExpr>(BE)) {
+      if (const CountBoundsExpr *CBE = dyn_cast<CountBoundsExpr>(BE)) {
         return VisitExpr(CBE->getCountExpr());
       }
       return nullptr;
     }
 
-    const SymExpr* VisitExpr(Expr* E) {
+    const SymExpr* VisitExpr(Expr *E) {
 #if DEBUG_VISITORS
       llvm::errs() << "DBG: visitExpr: \n";
       E->dump();
 #endif
       E = E->IgnoreCasts();
 
-      if (const BinaryOperator* BO = dyn_cast<BinaryOperator>(E)) {
+      if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
         BinaryOperator::Opcode op = BO->getOpcode();
-        Expr* leftExpr = BO->getLHS();
-        Expr* rightExpr = BO->getRHS();
+        Expr *leftExpr = BO->getLHS();
+        Expr *rightExpr = BO->getRHS();
 
-        const IntegerLiteral* leftIL = dyn_cast<IntegerLiteral>(leftExpr);
-        const IntegerLiteral* rightIL = dyn_cast<IntegerLiteral>(rightExpr);
+        const IntegerLiteral *leftIL = dyn_cast<IntegerLiteral>(leftExpr);
+        const IntegerLiteral *rightIL = dyn_cast<IntegerLiteral>(rightExpr);
 
         if (!leftIL && !rightIL) {
-          const SymExpr* left = VisitExpr(leftExpr);
-          const SymExpr* right = VisitExpr(rightExpr);
+          const SymExpr *left = VisitExpr(leftExpr);
+          const SymExpr *right = VisitExpr(rightExpr);
 
 #if DEBUG_VISITORS
           llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
@@ -308,9 +306,9 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
         }
 
         if (!leftIL) {
-          const SymExpr* left = VisitExpr(leftExpr);
+          const SymExpr *left = VisitExpr(leftExpr);
           llvm::APInt value = rightIL->getValue();
-          llvm::APSInt* right = new llvm::APSInt(value);
+          llvm::APSInt *right = new llvm::APSInt(value);
 
 #if DEBUG_VISITORS
           llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
@@ -323,9 +321,9 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
         }
 
         if (!rightIL) {
-          const SymExpr* right = VisitExpr(rightExpr);
+          const SymExpr *right = VisitExpr(rightExpr);
           llvm::APInt value = leftIL->getValue();
-          llvm::APSInt* left = new llvm::APSInt(value);
+          llvm::APSInt *left = new llvm::APSInt(value);
 
 #if DEBUG_VISITORS
           llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
@@ -342,28 +340,22 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
         return nullptr;
       }
 
-      if (const DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(E)) {
-        const VarDecl* VD = dyn_cast<VarDecl>(DRE->getDecl());
+      if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
+        const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl());
         if (!VD) {
 #if DEBUG_VISITORS
           llvm::errs() << "Unexpected (SymExpr Generator): The given Expr contains non-variable DeclRefs\n";
 #endif
           return nullptr;
         }
-        // const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(VD);
-        // if (!PVD) {
-        //   llvm::errs() << "PVD from DRE is NULL\n";
-        //   return nullptr;
-        // }
-        const MemRegion* PVDregion = state->getRegion(VD, LCtx);
-        //Loc argLoc = SVB.makeLoc(PVDregion);
-        SVal SymVal = state->getSVal(PVDregion);
+        const MemRegion *VDregion = state->getRegion(VD, LCtx);
+        SVal SymVal = state->getSVal(VDregion);
         return SymVal.getAsSymExpr();
       }
 
-      if (const IntegerLiteral* IL = dyn_cast<IntegerLiteral>(E)) {
+      if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(E)) {
         llvm::APInt value = IL->getValue();
-        llvm::APSInt* svalue = new llvm::APSInt(value);
+        llvm::APSInt *svalue = new llvm::APSInt(value);
         SVal SymVal = nonloc::ConcreteInt(*svalue);
 #if DEBUG_VISITORS
         llvm::errs() << "DBG: VisitExpr: Generated Symval for the IntergerLiteral: ";
@@ -403,7 +395,7 @@ SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef state, SVal E, SVal from, 
 #if DEBUG_VISITORS
       llvm::errs() << "Visitor::SymExpr:: "; S->dump(); llvm::errs() << "\n";
 #endif
-      if ( const BinarySymExpr* BSE = dyn_cast<BinarySymExpr>(S) ) {
+      if ( const BinarySymExpr *BSE = dyn_cast<BinarySymExpr>(S) ) {
         BinaryOperator::Opcode op = BSE->getOpcode();
 
         if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(BSE)) {
