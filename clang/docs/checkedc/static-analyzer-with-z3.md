@@ -67,7 +67,6 @@ int foo(int *a, int n)
     return 0;
 }
 ```
-This file can be found in `test/CheckedC/smt-bounds/sca-simplebounds-bounds-safe.c`.
 
 All of indices referenced in the code above do not start from a concrete value and rather they are based on the input argument `n`. In these cases, the symbolic engine of clang static analyzer, cannot handle the expressions and will pass over them. `t` is the result of a bitwise expression that always evaluate to 1, and therefore `a[t - 1]` is always in bounds. The same is true for `a[n / 2]`, where `n / 2` is always less than `n + 2` for all positive values of `n`. However, there exists values of `n` where the index `k = n + n` is larger than `n + 2` (the bounds for `a`). This out-of-bounds access is not caught by `ArrayBound` or `ArrayBoundV2` checkers.
 
@@ -75,8 +74,10 @@ Commonly, the bounds on the arguments are defined based on other arguments of th
 
 For analyzing the code above you can run the following command:
 ```
-clang -cc1 -analyze -analyzer-checker alpha.Security.SimpleBounds -analyzer-config 'crosscheck-with-z3=true' sca-simplebounds-bounds-safe.c
+clang -cc1 -analyze -analyzer-checker alpha.Security.SimpleBounds main.c
 ```
+
+A similar test code can be found in `test/CheckedC/static-analysis-bounds-safe.c`.
 
 ## Limitations
 
