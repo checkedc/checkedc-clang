@@ -5,9 +5,11 @@
 // RUN: %clang_cc1 -analyze -analyzer-checker alpha.security.ArrayBoundV2 -DCLANG_CHECKERS %s -verify
 // 
 
-int foo(int *a : count(n), int n);
-int foo(int *a, int n)
+int foo(int *p : count(n), int n);
+int foo(int *p, int n)
 {
+  int *a = p;
+
   int k = n + n;
   int t = (k & 1) | ((k & 1) ^ 1); // t will always evaluate to '1'
 
@@ -21,6 +23,16 @@ int foo(int *a, int n)
 #endif
 
   return 0;
+}
+
+int bar(int *p : count(n + m), int n, int m);
+int bar(int *p : count(n + m), int n, int m)
+{
+#ifdef CLANG_CHECKERS
+  return p[n * m]; // expected-no-diagnostics
+#else
+  return p[n * m]; // expected-warning {{Access out-of-bound array element (buffer overflow}}
+#endif
 }
 
 
