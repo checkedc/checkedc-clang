@@ -381,8 +381,8 @@ BasicBlock *CodeGenFunction::EmitDynamicCheckFailedBlock() {
   BasicBlock *FailBlock = createBasicBlock("_Dynamic_check.failed", CurFn);
   Builder.SetInsertPoint(FailBlock);
   if (getLangOpts().InjectVerifierCalls) {
-    llvm::Module& module = CGM.getModule();
-    static llvm::Function* verr = llvm::Function::Create(
+    llvm::Module &module = CGM.getModule();
+    static llvm::Function *verr = llvm::Function::Create(
         llvm::FunctionType::get(Builder.getVoidTy(), false),
         llvm::Function::ExternalLinkage,
         "__VERIFIER_error",
