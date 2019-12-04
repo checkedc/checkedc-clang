@@ -42,30 +42,6 @@ using namespace ento;
 
 
 namespace {
-#if TEST_PROGRAM_STATE
-    struct BoundsState
-    {
-        private:
-        int K;
-        BoundsState(int k) : K(k) {}
-
-        public:
-        bool isZero() const { return K == 0; }
-        bool isOne() const {return K == 1;}
-
-        static BoundsState mkZeroBoundsState() { return BoundsState(0); }
-        static BoundsState mkOneBoundsState() { return BoundsState(1); }
-
-        bool operator==(const BoundsState &X) const {
-            return K == X.K;
-        }
-
-        void Profile(llvm::FoldingSetNodeID &ID) const {
-            ID.AddInteger(K);
-        }
-    };
-#endif
-
     class SimpleBoundsChecker : public Checker<check::Location,
                                                check::BeginFunction> {
         mutable std::unique_ptr<BuiltinBug> BT;
@@ -102,6 +78,7 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
     if (!ER)
         return;
 
+    llvm::errs() << "------------------------------------------------\n";
     // Only load statements of array subscript type should reach this point.
 
 #if DEBUG_DUMP
@@ -110,11 +87,13 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
     const ArraySubscriptExpr* ASE = dyn_cast<ArraySubscriptExpr>(LoadS->IgnoreImplicit());
     if (!ASE){
         llvm::errs() << "Load statement is not an array subscript expression!\n";
-        return;
+//        return;
     }
-    const Expr* arrayBase = ASE->getBase();
-    llvm::errs() << "\nArray base:\n";
-    arrayBase->dumpColor();
+    else {
+        const Expr* arrayBase = ASE->getBase();
+        llvm::errs() << "\nArray base:\n";
+        arrayBase->dumpColor();
+    }
 #endif
 
 
@@ -172,40 +151,70 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
         llvm::errs() << "FD in checkLoc is NULL!\n";
         return;
     }
-    //FD = FD->getCanonicalDecl();
+
+    //llvm::errs() << "ER super region: "; ER->getSuperRegion()->dump(); llvm::errs() << "\n";
+    //llvm::errs() << "ER base region: "; ER->getBaseRegion()->dump(); llvm::errs() << "\n";
+    //llvm::errs() << "ER super SVal: "; state->getSVal(ER->getSuperRegion()).dump(); llvm::errs() << "\n";
+
+    const BoundsExpr* BE = NULL;
+
+    for(unsigned int i=0; i<FD->getNumParams(); i++) {
+        const ParmVarDecl* arg = FD->getParamDecl(i);
+        //llvm::errs() << "Arg " << i << " Base region: "; state->getRegion(arg, LCtx)->getBaseRegion()->dump(); llvm::errs() << "\n";
+        //llvm::errs() << "Arg " << i << " region: "; state->getRegion(arg, LCtx)->dump(); llvm::errs() << "\n";
+        //llvm::errs() << "Arg " << i << " SVal: "; state->getSVal(state->getRegion(arg, LCtx)).dump(); llvm::errs() << "\n";
+        //llvm::errs() << "Arg " << i << " symbolic base: "; if(state->getRegion(arg, LCtx)->getSymbolicBase())state->getRegion(arg, LCtx)->getSymbolicBase()->dump(); llvm::errs() << "\n";
+        //llvm::errs() << "equality: " << (state->getSVal(state->getRegion(arg, LCtx)).getAsRegion() == ER->getBaseRegion()) << "\n";
+        //if (!arg->hasBoundsDeclaration(Ctx)) continue;
+        //llvm::errs() << "Arg " << i << " Sym Val: "; SymVal.dump(); llvm::errs() << "\n";
+        //arg->hasBoundsSafeInterface(Ctx);
+        if (state->getSVal(state->getRegion(arg, LCtx)).getAsRegion() == ER->getBaseRegion()) {
+            BE = arg->getBoundsExpr();
+            break;
+        }
+    }
+
+    if (!BE) {
+        llvm::errs() << "BE is not set: the deref is not coming from function arguments !\n";
+        return;
+    }
 
     SymbolRef symBE;
 
-    const ParmVarDecl* arg0 = FD->getParamDecl(0);
-    const BoundsExpr* BE = arg0->getBoundsExpr();
-    if ( BE ) BE->dumpColor(); else {llvm::errs() << "BoundsExpr of first arg is NULL!\n"; return;}
-    SVal BESymVal = state->getSVal(BE, LCtx); // <-- This is the normal way one should read the symbolic values associated with expression in the 'environment'
-    SymbolRef BER = BESymVal.getAsSymbol();
+    //const ParmVarDecl* arg0 = FD->getParamDecl(0);
+    //const BoundsExpr* BE = arg0->getBoundsExpr();
+    //if ( BE ) BE->dumpColor(); else {llvm::errs() << "BoundsExpr of first arg is NULL!\n"; return;}
+    //SVal BESymVal = state->getSVal(BE, LCtx); // <-- This is the normal way one should read the symbolic values associated with expression in the 'environment'
+    //SymbolRef BER = BESymVal.getAsSymbol();
 
-    const ParmVarDecl* arg1 = FD->getParamDecl(1);
-    arg1->dumpColor();
+//    const ParmVarDecl* arg1 = FD->getParamDecl(1);
+//    arg1->dumpColor();
     //SVal arg1SVal = state->getSVal(state->getLValue(arg1, LCtx));
-    SVal arg1SVal = state->getSVal(state->getRegion(arg1, LCtx), arg1->getType());
+//    SVal arg1SVal = state->getSVal(state->getRegion(arg1, LCtx), arg1->getType());
 
-    if (!BER) {
-        llvm::errs() << "BER is NULL (BoundsExpr SymbolRef is not in the ENV)!\n"; // <-- This means that this expression is not processed by the symbolic engine
+//    if (!BER) {
+       // llvm::errs() << "BER is NULL (BoundsExpr SymbolRef is not in the ENV)!\n"; // <-- This means that this expression is not processed by the symbolic engine
 
-        symBE = arg1SVal.getAsSymbol();
-    }
-    else {
-        symBE = BER;
-    }
+//        symBE = arg1SVal.getAsSymbol();
+//    }
+//    else {
+//        symBE = BER;
+//    }
 
     const SymExpr* genBESymExpr = getSymExpr(state, BE, LCtx, svalBuilder);
     if (!genBESymExpr) {
         llvm::errs() << "The generated symExpr for BE is NULL!\n";
     }
     else {
-        llvm::errs() << "Generated symExpr: ";
-        genBESymExpr->dump();
-        llvm::errs() << "\n";
-        //symBE = genBESymExpr;
+        //llvm::errs() << "Generated symExpr: ";
+        //genBESymExpr->dump();
+        //llvm::errs() << "\n";
+        symBE = genBESymExpr;
     }
+
+    if (!symBE)
+        return;
+
 #if DEBUG_DUMP
     llvm::errs() << "symBE: ";
     symBE->dump(); llvm::errs() << "\n";
@@ -259,19 +268,19 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
 
 #endif // !USE_PROGRAM_STATE
 
-#define FACT_COLLECTION 0
-#if FACT_COLLECTION
+// #define FACT_COLLECTION 0
+// #if FACT_COLLECTION
 
-    Sema *SemaRef; // TODO how do I get this??!
-    std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, FD->getBody(), Ctx, CFG::BuildOptions());
-    if ( Cfg != nullptr ) {
-        //CheckBoundsDeclarations Checker(SemaRef, FD->getBody(), Cfg.get(), FD->getBoundsExpr());
-        AvailableFactsAnalysis Collector(SemaRef, Cfg.get());
-        Collector.Analyze();
-        Collector.DumpComparisonFacts(llvm::errs(), FD->getNameInfo().getName().getAsString());
-        //Checker.TraverseCFG(Collector);
-    }
-#endif
+//     Sema *SemaRef; // TODO how do I get this??!
+//     std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, FD->getBody(), Ctx, CFG::BuildOptions());
+//     if ( Cfg != nullptr ) {
+//         //CheckBoundsDeclarations Checker(SemaRef, FD->getBody(), Cfg.get(), FD->getBoundsExpr());
+//         AvailableFactsAnalysis Collector(SemaRef, Cfg.get());
+//         Collector.Analyze();
+//         Collector.DumpComparisonFacts(llvm::errs(), FD->getNameInfo().getName().getAsString());
+//         //Checker.TraverseCFG(Collector);
+//     }
+// #endif
 
 
     // 3. Encode the expression as a SMT formula
@@ -288,13 +297,13 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt* LoadS,
     // SMT expression for (idx < LowerBound)
     SMTExprRef underLB = solver->mkBVSlt(smtIdx, solver->mkBitvector(llvm::APSInt(32), 32)); //underLB->print(llvm::errs()); llvm::errs()<<"\n";
 
-    // Forcing the 'n' in the bounds expression be >= 0
-    SMTExprRef positiveBE = solver->mkBVSge(smtBE, solver->mkBitvector(llvm::APSInt(32), 32));
-
     SMTExprRef smtOOBounds = solver->mkOr(underLB, overUB);
+
+    // Forcing the expression in the 'count' bounds to be non-negative '>= 0'
+    SMTExprRef positiveBE = solver->mkBVSge(smtBE, solver->mkBitvector(llvm::APSInt(32), 32));
     
     // the final SMT expression
-    SMTExprRef constraint = solver->mkAnd(positiveBE, smtOOBounds); constraint->print(llvm::errs()); llvm::errs() << "\n";
+    SMTExprRef constraint = solver->mkAnd(positiveBE, smtOOBounds); //constraint->print(llvm::errs()); llvm::errs() << "\n";
 
     
     solver->addConstraint(constraint);
@@ -465,12 +474,12 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
     Generator(ProgramStateRef _state, const LocationContext* _LCtx, SValBuilder& _SVB)
       : state(_state), LCtx(_LCtx), SVB(_SVB)
     {
-      llvm::errs() << "Generator class ctor!\n";
+//      llvm::errs() << "Generator class ctor!\n";
     }
 
     const SymExpr* VisitBoundsExpr(const BoundsExpr* BE) {
-      llvm::errs() << "DBG: visitBoundsExpr: \n";
-      BE->dump();
+//      llvm::errs() << "DBG: visitBoundsExpr: \n";
+//      BE->dump();
       if (const CountBoundsExpr* CBE = dyn_cast<CountBoundsExpr>(BE)) {
         return VisitExpr(CBE->getCountExpr());
       }
@@ -478,12 +487,12 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
     }
 
     const SymExpr* VisitExpr(Expr* E) {
-      llvm::errs() << "DBG: visitExpr: \n";
-      E->dump();
+//      llvm::errs() << "DBG: visitExpr: \n";
+//      E->dump();
       E = E->IgnoreCasts();
 
       if (const BinaryOperator* BO = dyn_cast<BinaryOperator>(E)) {
-        llvm::errs() << "entered BinaryOperator:\n";
+//        llvm::errs() << "entered BinaryOperator:\n";
         BinaryOperator::Opcode op = BO->getOpcode();
         Expr* leftExpr = BO->getLHS();
         Expr* rightExpr = BO->getRHS();
@@ -495,38 +504,38 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
             const SymExpr* left = VisitExpr(leftExpr);
             const SymExpr* right = VisitExpr(rightExpr);
 
-            llvm::errs() << "symexpr of left:\n";
-            if (left) left->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
-            llvm::errs() << "symexpr of right:\n";
-            if (right) right->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
+//            llvm::errs() << "symexpr of left: ";
+//            if (left) left->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
+//            llvm::errs() << "symexpr of right: ";
+//            if (right) right->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
 
-            return new SymSymExpr(left, op, right, BO->getType());
+            return SVB.getSymbolManager().getSymSymExpr(left, op, right, BO->getType());
         }
         
         if (!leftIL) {
             const SymExpr* left = VisitExpr(leftExpr);
             llvm::APInt value = rightIL->getValue();
-            llvm::APSInt right(value);
+            llvm::APSInt* right = new llvm::APSInt(value);
 
-            llvm::errs() << "symexpr of left:\n";
-            if (left) left->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
-            llvm::errs() << "symexpr of right:\n";
-            right.dump(); llvm::errs() << "\n";
+//            llvm::errs() << "symexpr of left: ";
+//            if (left) left->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
+//            llvm::errs() << "symexpr of right: ";
+//            right->dump(); llvm::errs() << "\n";
 
-            return new SymIntExpr(left, op, right, BO->getType());
+            return SVB.getSymbolManager().getSymIntExpr(left, op, *right, BO->getType());
         }
 
         if (!rightIL) {
             const SymExpr* right = VisitExpr(rightExpr);
             llvm::APInt value = leftIL->getValue();
-            llvm::APSInt left(value);
+            llvm::APSInt* left = new llvm::APSInt(value);
 
-            llvm::errs() << "symexpr of left:\n";
-            left.dump(); llvm::errs() << "\n";
-            llvm::errs() << "symexpr of right:\n";
-            if (right) right->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
+//            llvm::errs() << "symexpr of left: ";
+//            left->dump(); llvm::errs() << "\n";
+//            llvm::errs() << "symexpr of right: ";
+ //           if (right) right->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
 
-            return new IntSymExpr(left, op, right, BO->getType());
+            return SVB.getSymbolManager().getIntSymExpr(*left, op, right, BO->getType());
         }
 
 
@@ -535,7 +544,7 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
       }
 
       if (const DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(E)) {
-        llvm::errs() << "entered DeclRefExpr:\n";
+//        llvm::errs() << "entered DeclRefExpr\n";
         const ValueDecl* VD = DRE->getDecl();
         const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(VD);
         if (!PVD) {
@@ -543,87 +552,31 @@ const SymExpr* SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
           return nullptr;
         }
         const MemRegion* PVDregion = state->getRegion(PVD, LCtx);
-        Loc argLoc = SVB.makeLoc(PVDregion);
-        SVal SymVal = state->getSVal(argLoc);
-        llvm::errs() << "DeclRef to SymExpr:\n---\n";
-        PVD->dump(); llvm::errs() << "\n---\n";
-        SymVal.dump(); llvm::errs() << "\n";
+        //Loc argLoc = SVB.makeLoc(PVDregion);
+        SVal SymVal = state->getSVal(PVDregion);//argLoc);
+//        llvm::errs() << "DeclRef to SymExpr:\n---\n";
+//        PVD->dump(); llvm::errs() << "\n---\n";
+//        SymVal.dump(); llvm::errs() << "\n";
         return SymVal.getAsSymExpr();
       }
 
       if (const IntegerLiteral* IL = dyn_cast<IntegerLiteral>(E)) {
-        llvm::errs() << "entered IntegerLiteral:\n";
+//        llvm::errs() << "entered IntegerLiteral:\n";
         llvm::APInt value = IL->getValue();
-        llvm::errs() << "APInt value:";
-        value.dump(); llvm::errs() << "\n";
+//        llvm::errs() << "APInt value:";
+//        value.dump(); llvm::errs() << "\n";
         llvm::APSInt svalue(value);
         SVal SymVal = nonloc::ConcreteInt(svalue);
-        llvm::errs() << "Generated Symval value:";
-        SymVal.dump(); llvm::errs() << "\n";
+//        llvm::errs() << "Generated Symval value:";
+//        SymVal.dump(); llvm::errs() << "\n";
         return SymVal.getAsSymExpr();
       }
 
-      llvm::errs() << "returning null\n";
+//      llvm::errs() << "returning null\n";
 
 
       return nullptr;
     }
-
-//    const SymExpr* VisitExpr(Expr* E) {
-//      llvm::errs() << "DBG: visitExpr: \n";
-//      E->dump();
-//      E = E->IgnoreCasts();
-//
-//      if (const BinaryOperator* BO = dyn_cast<BinaryOperator>(E)) {
-//        llvm::errs() << "entered BinaryOperator:\n";
-//        BinaryOperator::Opcode op = BO->getOpcode();
-//
-//        const SymExpr* left = VisitExpr(BO->getLHS());
-//        const SymExpr* right = VisitExpr(BO->getRHS());
-//        llvm::errs() << "symexpr of left:\n";
-//        if (left) left->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
-//        llvm::errs() << "symexpr of right:\n";
-//        if (right) right->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
-//        if (left && right)
-//          return new SymSymExpr(left, op, right, BO->getType());
-//        llvm::errs() << "returning null from BinaryOperator\n";
-//        return nullptr;
-//      }
-//
-//      if (const DeclRefExpr* DRE = dyn_cast<DeclRefExpr>(E)) {
-//        llvm::errs() << "entered DeclRefExpr:\n";
-//        const ValueDecl* VD = DRE->getDecl();
-//        const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(VD);
-//        if (!PVD) {
-//          llvm::errs() << "PVD from DRE is NULL\n";
-//          return nullptr;
-//        }
-//        const MemRegion* PVDregion = state->getRegion(PVD, LCtx);
-//        Loc argLoc = SVB.makeLoc(PVDregion);
-//        SVal SymVal = state->getSVal(argLoc);
-//        llvm::errs() << "DeclRef to SymExpr:\n---\n";
-//        PVD->dump(); llvm::errs() << "\n---\n";
-//        SymVal.dump(); llvm::errs() << "\n";
-//        return SymVal.getAsSymExpr();
-//      }
-//
-//      if (const IntegerLiteral* IL = dyn_cast<IntegerLiteral>(E)) {
-//        llvm::errs() << "entered IntegerLiteral:\n";
-//        llvm::APInt value = IL->getValue();
-//        llvm::errs() << "APInt value:";
-//        value.dump(); llvm::errs() << "\n";
-//        llvm::APSInt svalue(value);
-//        SVal SymVal = nonloc::ConcreteInt(svalue);
-//        llvm::errs() << "Generated Symval value:";
-//        SymVal.dump(); llvm::errs() << "\n";
-//        return SymVal.getAsSymExpr();
-//      }
-//
-//      llvm::errs() << "returning null\n";
-//
-//
-//      return nullptr;
-//    }
   };
 
   return Generator(state, LCtx, SVB).VisitBoundsExpr(BE);
