@@ -1,6 +1,8 @@
 // Test case for SimpleBounds checker when there is bounds-safe
 // information available for the bounds checking.
 //
+// REQUIRES: z3
+//
 // RUN: %clang_cc1 -analyze -analyzer-checker alpha.security.SimpleBounds %s -verify
 // RUN: %clang_cc1 -analyze -analyzer-checker alpha.security.ArrayBoundV2 -DCLANG_CHECKERS %s -verify
 // 
