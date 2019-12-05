@@ -1487,86 +1487,8 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
     return B;
 }
 
-BoundsExpr *Sema::InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
-  BoundsExpr *Bounds = BoundsInference(*this).LValueBounds(E, CSS);
-  return CheckNonModifyingBounds(Bounds, E);
-}
-
-BoundsExpr *Sema::CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
-                                        bool IsBoundsSafeInterface) {
-  return BoundsInference(*this).CreateTypeBasedBounds(E, Ty, IsParam,
-                                                      IsBoundsSafeInterface);
-}
-
-BoundsExpr *Sema::InferLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
-  BoundsExpr *Bounds = BoundsInference(*this).LValueTargetBounds(E, CSS);
-  return CheckNonModifyingBounds(Bounds, E);
-}
-
-BoundsExpr *Sema::InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS, bool IncludeNullTerminator) {
-  BoundsExpr *Bounds =
-    BoundsInference(*this, IncludeNullTerminator).RValueBounds(E, CSS);
-  return CheckNonModifyingBounds(Bounds, E);
-}
-
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
   return BoundsInference(*this).CreateBoundsForArrayType(QT);
-}
-
-BoundsExpr *Sema::ExpandToRange(Expr *Base, BoundsExpr *B) {
-  return BoundsInference(*this).ExpandToRange(Base, B);
-}
-
-BoundsExpr *Sema::ExpandToRange(VarDecl *D, BoundsExpr *B) {
-  QualType QT = D->getType();
-  ExprResult ER = BuildDeclRefExpr(D, QT,
-                                   clang::ExprValueKind::VK_LValue, SourceLocation());
-  if (ER.isInvalid())
-    return nullptr;
-  Expr *Base = ER.get();
-  BoundsInference BI(*this);
-  if (!QT->isArrayType())
-    Base = BI.CreateImplicitCast(QT, CastKind::CK_LValueToRValue, Base);
-  return BI.ExpandToRange(Base, B);
-}
-
-Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
-  if (!E->isRValue())
-    return E;
-
-  ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
-  if (!ICE)
-    return E;
-
-  bool isUsualUnaryConversion = false;
-  CastKind CK = ICE->getCastKind();
-  Expr *SE = ICE->getSubExpr();
-  QualType TargetTy = ICE->getType();
-  if (CK == CK_FunctionToPointerDecay || CK == CK_ArrayToPointerDecay ||
-      CK == CK_LValueToRValue)
-    isUsualUnaryConversion = true;
-  else if (CK == CK_IntegralCast) {
-    QualType Ty = SE->getType();
-    // Half FP have to be promoted to float unless it is natively supported
-    if (CK == CK_FloatingCast && TargetTy == Context.FloatTy &&
-        Ty->isHalfType() && !getLangOpts().NativeHalfType)
-      isUsualUnaryConversion = true;
-    else if (CK == CK_IntegralCast &&
-             Ty->isIntegralOrUnscopedEnumerationType()) {
-      QualType PTy = Context.isPromotableBitField(SE);
-      if (!PTy.isNull() && TargetTy == PTy)
-        isUsualUnaryConversion = true;
-      else if (Ty->isPromotableIntegerType() &&
-              TargetTy == Context.getPromotedIntegerType(Ty))
-        isUsualUnaryConversion = true;
-    }
-  }
-
-  if (isUsualUnaryConversion)
-    return E;
-
-  return BoundsInference(*this).CreateExplicitCast(TargetTy, CK, SE,
-                                                   ICE->isBoundsSafeInterface());
 }
 
 namespace {
