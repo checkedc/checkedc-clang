@@ -1678,7 +1678,7 @@ namespace {
       QualType PtrType;
       if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
         NeedsBoundsCheck = true;
-        BoundsExpr *LValueBounds = S.InferLValueBounds(E, CSS);
+        BoundsExpr *LValueBounds = InferLValueBounds(E, CSS);
         BoundsCheckKind Kind = BCK_Normal;
         // Null-terminated array pointers have special semantics for
         // bounds checks.
@@ -1726,7 +1726,7 @@ namespace {
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()) {
-        BoundsExpr *Bounds = S.InferRValueBounds(Base, CSS);
+        BoundsExpr *Bounds = InferRValueBounds(Base, CSS);
         if (Bounds->isUnknown()) {
           S.Diag(Base->getBeginLoc(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
@@ -3060,12 +3060,12 @@ namespace {
                IsBoundsSafeInterfaceAssignment(LHSType, RHS)) {
         // Check that the value being assigned has bounds if the
         // target of the LHS lvalue has bounds.
-        LHSTargetBounds = S.InferLValueTargetBounds(LHS, CSS);
+        LHSTargetBounds = InferLValueTargetBounds(LHS, CSS);
         if (!LHSTargetBounds->isUnknown()) {
           if (E->isCompoundAssignmentOp())
-            RHSBounds = S.InferRValueBounds(E, CSS);
+            RHSBounds = InferRValueBounds(E, CSS);
           else
-            RHSBounds = S.InferRValueBounds(RHS, CSS);
+            RHSBounds = InferRValueBounds(RHS, CSS);
 
           if (RHSBounds->isUnknown()) {
              S.Diag(RHS->getBeginLoc(),
@@ -3137,7 +3137,7 @@ namespace {
 
         bool UsedIType = false;
         if (!ParamBounds && ParamIType) {
-          ParamBounds = S.CreateTypeBasedBounds(nullptr, ParamIType->getType(),
+          ParamBounds = CreateTypeBasedBounds(nullptr, ParamIType->getType(),
                                                 true, true);
           UsedIType = true;
         }
@@ -3148,7 +3148,7 @@ namespace {
           continue;
 
         Expr *Arg = CE->getArg(i);
-        BoundsExpr *ArgBounds = S.InferRValueBounds(Arg, CSS);
+        BoundsExpr *ArgBounds = InferRValueBounds(Arg, CSS);
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getBeginLoc(),
                  diag::err_expected_bounds_for_argument) << (i + 1) <<
@@ -3187,7 +3187,7 @@ namespace {
               TypedArg = BoundsInference(S).CreateExplicitCast(
                 ParamIType->getType(), CK_BitCast, Arg, true);
             }
-            SubstParamBounds = S.ExpandToRange(TypedArg,
+            SubstParamBounds = ExpandToRange(TypedArg,
                                     const_cast<BoundsExpr *>(SubstParamBounds));
            } else
              continue;
@@ -3241,9 +3241,9 @@ namespace {
                                                 CastKind::CK_BitCast,
                                                 TempUse, true);
         BoundsExpr *DeclaredBounds = E->getBoundsExpr();
-        BoundsExpr *NormalizedBounds = S.ExpandToRange(SubExprAtNewType,
+        BoundsExpr *NormalizedBounds = ExpandToRange(SubExprAtNewType,
                                                        DeclaredBounds);
-        BoundsExpr *SubExprBounds = S.InferRValueBounds(TempUse, CSS);
+        BoundsExpr *SubExprBounds = InferRValueBounds(TempUse, CSS);
         if (SubExprBounds->isUnknown()) {
           S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
         }
@@ -3261,10 +3261,10 @@ namespace {
       if ((CK == CK_BitCast || CK == CK_IntegralToPointer) &&
           E->getType()->isCheckedPointerPtrType() &&
           !E->getType()->isFunctionPointerType()) {
-        bool IncludeNullTerminator =
+        bool IncludeNullTerm =
           E->getType()->getPointeeOrArrayElementType()->isNtCheckedArrayType();
         BoundsExpr *SubExprBounds =
-          S.InferRValueBounds(E->getSubExpr(), CSS, IncludeNullTerminator);
+          InferRValueBounds(E->getSubExpr(), CSS, IncludeNullTerm);
         if (SubExprBounds->isUnknown()) {
           S.Diag(E->getSubExpr()->getBeginLoc(),
                  diag::err_expected_bounds_for_ptr_cast)
@@ -3272,7 +3272,7 @@ namespace {
           SubExprBounds = S.CreateInvalidBoundsExpr();
         } else {
           BoundsExpr *TargetBounds =
-            S.CreateTypeBasedBounds(E, E->getType(), false, false);
+            CreateTypeBasedBounds(E, E->getType(), false, false);
           CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, E->getSubExpr(),
                                          SubExprBounds, CSS, Facts);
         }
@@ -3340,14 +3340,14 @@ namespace {
      Expr *Init = D->getInit();
      if (Init && D->getType()->isScalarType()) {
        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-       BoundsExpr *InitBounds = S.InferRValueBounds(Init, CSS);
+       BoundsExpr *InitBounds = InferRValueBounds(Init, CSS);
        if (InitBounds->isUnknown()) {
          // TODO: need some place to record the initializer bounds
          S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
              << Init->getSourceRange();
          InitBounds = S.CreateInvalidBoundsExpr();
        } else {
-         BoundsExpr *NormalizedDeclaredBounds = S.ExpandToRange(D, DeclaredBounds);
+         BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
          CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
            Init, InitBounds, CSS, Facts);
        }
