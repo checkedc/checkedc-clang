@@ -659,6 +659,11 @@ void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool
       U->constrainTo(CS, A, checkSkip);
 }
 
+
+void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, std::string &rsn, bool checkSkip) {
+  this->constrainTo(CS, A, checkSkip);
+}
+
 bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
   bool f = false;
 
@@ -734,6 +739,32 @@ void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool 
     FV->constrainTo(CS, A, checkSkip);
 }
 
+void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, std::string &rsn, bool checkSkip) {
+  for (const auto &V : vars) {
+    // Check and see if we've already constrained this variable. This is currently
+    // only done when the bounds-safe interface has refined a type for an external
+    // function, and we don't want the linking phase to un-refine it by introducing
+    // a conflicting constraint.
+    bool doAdd = true;
+    // this will ensure that we do not make an itype constraint
+    // variable to be WILD (which should be impossible)!!
+    if (checkSkip || dyn_cast<WildAtom>(A)) {
+      if (ConstrainedVars.find(V) != ConstrainedVars.end())
+        doAdd = false;
+    }
+    // See, if we can constrain the current constraint var to the provided
+    // ConstAtom
+    if (!CS.getOrCreateVar(V)->canAssign(A))
+      doAdd = false;
+
+    if (doAdd) {
+      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A, rsn));
+    }
+  }
+
+  if (FV)
+    FV->constrainTo(CS, A, rsn, checkSkip);
+}
 bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
   bool f = false;
 

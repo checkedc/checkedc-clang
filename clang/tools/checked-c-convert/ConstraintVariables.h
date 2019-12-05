@@ -91,6 +91,7 @@ public:
   // ConstrainedVars when applying constraints. This should be set when
   // applying constraints due to external symbols, during linking.
   virtual void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false) = 0;
+  virtual void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false) = 0;
 
   // Returns true if any of the constraint variables 'within' this instance
   // have a binding in E other than top. E should be the EnvironmentMap that
@@ -217,6 +218,7 @@ public:
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
+  void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
@@ -289,6 +291,7 @@ public:
   void dump() const { print(llvm::errs()); }
   void dump_json(llvm::raw_ostream &O) const;
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
+  void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);

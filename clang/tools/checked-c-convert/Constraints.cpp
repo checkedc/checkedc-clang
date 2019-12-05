@@ -452,6 +452,10 @@ Eq *Constraints::createEq(Atom *lhs, Atom *rhs) {
   return new Eq(lhs, rhs);
 }
 
+Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn) {
+  return new Eq(lhs, rhs, rsn);
+}
+
 Not *Constraints::createNot(Constraint *body) {
   return new Not(body);
 }

@@ -9,6 +9,7 @@
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "ConstraintBuilder.h"
+#include "ConstraintVariables.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "clang/Lex/Lexer.h"
 #include <sstream>
@@ -340,8 +341,9 @@ bool ProgramInfo::link() {
             // which case we don't need to constrain anything.
             if (P1->hasProtoType() && P2->hasProtoType()) {
               // Nope, we have no choice. Constrain everything to wild.
-              P1->constrainTo(CS, CS.getWild(), true);
-              P2->constrainTo(CS, CS.getWild(), true);
+              std::string rsn = "Return value of function:" + P1->getName();
+              P1->constrainTo(CS, CS.getWild(), rsn, true);
+              P2->constrainTo(CS, CS.getWild(), rsn, true);
             }
           }
         }
@@ -367,7 +369,8 @@ bool ProgramInfo::link() {
 
       for (const auto &G : Gs) {
         for (const auto &U : G->getReturnVars()) {
-          U->constrainTo(CS, CS.getWild(), true);
+          std::string rsn = "Return value of function:" + (*I).first;
+          U->constrainTo(CS, CS.getWild(), rsn, true);
         }
 
         for (unsigned i = 0; i < G->numParams(); i++)

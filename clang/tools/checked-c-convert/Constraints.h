@@ -362,7 +362,11 @@ public:
 private:
   const ConstraintKind Kind;
 public:
-  Constraint(ConstraintKind K) : Kind(K) {}
+  std::string REASON = "DEFAULT";
+  Constraint(ConstraintKind K) : Kind(K) { }
+  Constraint(ConstraintKind K, std::string &rsn) : Kind(K) {
+    REASON = rsn;
+  }
   virtual ~Constraint() {}
 
   ConstraintKind getKind() const { return Kind; }
@@ -373,6 +377,9 @@ public:
   virtual bool operator==(const Constraint &other) const = 0;
   virtual bool operator!=(const Constraint &other) const = 0;
   virtual bool operator<(const Constraint &other) const = 0;
+  virtual std::string getReason() {
+    return REASON;
+  }
   // check if the provided constraint contains the
   // provided VarAtom
   virtual bool containsConstraint(VarAtom *toFind) = 0;
@@ -385,6 +392,9 @@ public:
 
   Eq(Atom *lhs, Atom *rhs)
     : Constraint(C_Eq), lhs(lhs), rhs(rhs) {}
+
+  Eq(Atom *lhs, Atom *rhs, std::string &rsn)
+      : Constraint(C_Eq, rsn), lhs(lhs), rhs(rhs) {}
 
   static bool classof(const Constraint *C) {
     return C->getKind() == C_Eq;
@@ -619,6 +629,7 @@ public:
   void dump_json(llvm::raw_ostream &) const;
 
   Eq *createEq(Atom *lhs, Atom *rhs);
+  Eq *createEq(Atom *lhs, Atom *rhs, std::string &rsn);
   Not *createNot(Constraint *body);
   Implies *createImplies(Constraint *premise, Constraint *conclusion);
 
