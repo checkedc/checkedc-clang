@@ -3454,6 +3454,35 @@ namespace {
   // Otherwise an expression denotes an rvalue.
 
   private:
+    /// Infer a bounds expression for an lvalue.
+    /// The bounds determine whether the lvalue to which an
+    /// expression evaluates in in range.
+    BoundsExpr *InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
+      BoundsExpr *Bounds = LValueBounds(E, CSS);
+      return S.CheckNonModifyingBounds(Bounds, E);
+    }
+
+    /// Infer the bounds for the target of an lvalue.
+    BoundsExpr *InferLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
+      BoundsExpr *Bounds = LValueTargetBounds(E, CSS);
+      return S.CheckNonModifyingBounds(Bounds, E);
+    }
+
+    /// Infer a bounds expression for an rvalue.
+    /// The bounds determine whether the rvalue to which an
+    /// expression evaluates is in range.
+    ///
+    /// IncludeNullTerm controls whether a null terminator
+    /// for an nt_array is included in the bounds (it gives
+    /// us physical bounds, not logical bounds).
+    BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS, bool IncludeNullTerm = false) {
+      bool PrevIncludeNullTerminator = IncludeNullTerminator;
+      IncludeNullTerminator = IncludeNullTerm;
+      BoundsExpr *Bounds = RValueBounds(E, CSS);
+      IncludeNullTerminator = PrevIncludeNullTerminator;
+      return S.CheckNonModifyingBounds(Bounds, E);
+    }
+
     BoundsExpr *CreateBoundsUnknown() {
       return Context.getPrebuiltBoundsUnknown();
     }
