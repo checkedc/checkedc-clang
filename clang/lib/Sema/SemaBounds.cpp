@@ -2456,11 +2456,10 @@ namespace {
                                  Sema::NonModifyingMessage::NMM_None);
          if (Temp || SrcIsNonModifying) {
            Expr *TargetExpr =
-             BoundsInference(S).CreateImplicitCast(Target->getType(),
-                                                   CK_LValueToRValue, Target);
+             CreateImplicitCast(Target->getType(), CK_LValueToRValue, Target);
            EqualExpr.push_back(TargetExpr);
            if (Temp)
-             EqualExpr.push_back(BoundsInference(S).CreateTemporaryUse(Temp));
+             EqualExpr.push_back(CreateTemporaryUse(Temp));
            else
              EqualExpr.push_back(Src);
            EquivExprs.push_back(&EqualExpr);
@@ -2551,10 +2550,10 @@ namespace {
           Kind = CK_LValueToRValue;
           TargetTy = D->getType();
         }
-        Expr *TargetExpr = BoundsInference(S).CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
+        Expr *TargetExpr = CreateImplicitCast(TargetTy, Kind, TargetDeclRef);
         EqualExpr.push_back(TargetExpr);
         if (Temp)
-          EqualExpr.push_back(BoundsInference(S).CreateTemporaryUse(Temp));
+          EqualExpr.push_back(CreateTemporaryUse(Temp));
         else
           EqualExpr.push_back(Src);
         EquivExprs.push_back(&EqualExpr);
@@ -3049,8 +3048,8 @@ namespace {
             // The bounds expression is for an interface type. Retype the
             // argument to the interface type.
             if (UsedIType) {
-              TypedArg = BoundsInference(S).CreateExplicitCast(
-                ParamIType->getType(), CK_BitCast, Arg, true);
+              TypedArg = CreateExplicitCast(ParamIType->getType(), 
+                              CK_BitCast, Arg, true);
             }
             SubstParamBounds = ExpandToRange(TypedArg,
                                     const_cast<BoundsExpr *>(SubstParamBounds));
@@ -3100,11 +3099,10 @@ namespace {
 
         // These bounds will be computed and tested at runtime.  Don't
         // recompute any expressions computed to temporaries already.
-        Expr *TempUse = BoundsInference(S).CreateTemporaryUse(TempExpr);
+        Expr *TempUse = CreateTemporaryUse(TempExpr);
 
-        Expr *SubExprAtNewType = BoundsInference(S).CreateExplicitCast(E->getType(),
-                                                CastKind::CK_BitCast,
-                                                TempUse, true);
+        Expr *SubExprAtNewType = CreateExplicitCast(E->getType(), CastKind::CK_BitCast, 
+                                                    TempUse, true);
         BoundsExpr *DeclaredBounds = E->getBoundsExpr();
         BoundsExpr *NormalizedBounds = ExpandToRange(SubExprAtNewType,
                                                        DeclaredBounds);
