@@ -1,6 +1,6 @@
 # Verification of Unchecked codes with Seahorn
 
-Our goal is to verify whether unchecked functions violate their bounds-safe interface or not. We use [Seahorn](https://seahorn.github.io) tool as a backend verifier. Seahorn is a software verification framework. It can verify user-supplied assumption and assertions, as well as a number of built-in safety properties. We replace Seahorn's front-end with Checked-c clang to be able to process the bounds information and automatically insert necessary assertions to generate proper verification conditions.
+Our goal is to verify whether unchecked functions violate their bounds-safe interface or not. We use [Seahorn](https://seahorn.github.io) tool as a backend verifier. Seahorn is a software verification framework. It can verify user-supplied assumptions and assertions, as well as a number of built-in safety properties. We replace Seahorn's front-end with Checked C clang to be able to process the bounds information and automatically insert necessary assertions to generate proper verification conditions.
 
 To verify whether the unchecked functions violate their bounds-safe interface we follow these two steps:
 1. Add bounds to unchecked pointers to have dynamic checks at pointer dereferences
@@ -10,14 +10,14 @@ We generate the LLVM bit code of the function that we are analyzing with the inj
 * For each argument:
     1. The function is not called with a non-NULL value for the pointers
     2. The bounds lengths on argument pointers are non-negative
-* Function calls within the unckecked body:
+* Function calls within the unchecked body:
     1. Functions that are being called have bounds-safe interface as well
 
 For example, for this bounds information: `int *a : count(n)`, we will have: `assume(a != NULL); assume(n >= 0);`. The assumption on function calls having bounds-safe interface is needed to be able to have enough bounds information to propagate over the pointer assignments.
 
 ## Installing Seahorn
 
-The following steps are quick listing for installing seahorn. For more detailed instructions please refer to Seahorn [github page](https://github.com/seahorn/seahorn).
+The following steps are quick listing for installing Seahorn. For more detailed instructions please refer to Seahorn [github page](https://github.com/seahorn/seahorn).
 
 1. `git clone https://github.com/seahorn/seahorn.git`
 2. `cd seahorn; mkdir build; cd build`
@@ -31,7 +31,7 @@ The executables and scripts will be in `seahorn/build/run/bin`.
 
 ## Running Seahorn
 
-The main script to launch seahorn and configuring its pipelines is `sea`. You can see the available command by `sea -h`. The main verification pipeline can be run with `sea pf file.c`. This is a shortcut for running the _Front End_ and _Solving Horn constraints_ (`fe | horn --solve`). The output will be either `sat` or `unsat`. `unsat` means that starting from the safe assumptions, there is no way for the program to get to bad states, defined by assertions (assertions will not fail). In other words, the program is safe. For example, for the code below, that is annotated with the assumptions and assertions, running `sea pf file.c` will return `unsat`.
+The main script to launch Seahorn and configuring its pipelines is `sea`. You can see the available command by `sea -h`. The main verification pipeline can be run with `sea pf file.c`. This is a shortcut for running the _Front End_ and _Solving Horn constraints_ (`fe | horn --solve`). The output will be either `sat` or `unsat`. `unsat` means that starting from the safe assumptions, there is no way for the program to get to bad states, defined by assertions (assertions will not fail). In other words, the program is safe. For example, for the code below, that is annotated with the assumptions and assertions, running `sea pf file.c` will return `unsat`.
 ```c
 #include "seahorn/seahorn.h"
 extern int non_deterministic_value();
@@ -52,9 +52,9 @@ int main() {
 ```
 
 
-## Checked C and Seahorn
+## The Checked C clang compiler and Seahorn
 
-As mentioned above, we replace the front-end of Seahorn with Checked C, to use the bounds information and inject necessary assertion for the verification. The `sea fe` (Front End) is a shortcut for _clang_, _Pre processing_, _Mixed Semantics_ and _Compiler Optimization_ (`clang | pp | ms | opt`).
+As mentioned above, we replace the front-end of Seahorn with Checked C, to use the bounds information and inject necessary assertions for the verification. The `sea fe` (Front End) is a shortcut for _clang_, _Pre processing_, _Mixed Semantics_ and _Compiler Optimization_ (`clang | pp | ms | opt`).
 
 Checked C will inject calls to verifier functions when `-finject-verifier-calls` is given. Note that this flag will generate a bitcode that does not link, because the calls do not have definitions. To enable adding bounds and consequently dynamic checks for unchecked pointers, `-funchecked-pointers-dynamic-check` flag should be given.
 
@@ -68,7 +68,9 @@ sea opt file.ms -o file.opt
 sea horn --solve file.opt
 ```
 
-The following code is a simple exmaple of an unchecked function with bounds-safe interface that we can verify with CheckedC+Seahorn.
+To simplify the process, one can point `clang {args}` to be an alias that runs `clang -finject-verifier-calls -funchecked-pointers-dynamic-check {args}`. Then the pipeline above simply becomes: `sea pf file.c`. Note that this alias should only be used for verification runs, as the given flags should not be used in normal compilation of a Checked C code.
+
+The following code is a simple example of an unchecked function with bounds-safe interface that we can verify with Checked C+Seahorn.
 
 ```c
 #include <stdio.h>
