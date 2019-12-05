@@ -1425,68 +1425,6 @@ namespace {
   };
 }
 
-Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
-  assert(E->isLValue());
-  E = E->IgnoreParens();
-  switch (E->getStmtClass()) {
-    case Expr::DeclRefExprClass:
-    case Expr::MemberExprClass:
-    case Expr::CompoundLiteralExprClass:
-    case Expr::ExtVectorElementExprClass:
-      return nullptr;
-    case Expr::UnaryOperatorClass: {
-      UnaryOperator *UO = cast<UnaryOperator>(E);
-      if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
-          UO->getSubExpr()->getType()->isCheckedPointerArrayType()) {
-        Result = UO->getSubExpr()->getType();
-        return E;
-      }
-
-      return nullptr;
-    }
-
-    case Expr::ArraySubscriptExprClass: {
-      // e1[e2] is a synonym for *(e1 + e2).
-      ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
-      // An important invariant for array types in Checked C is that all
-      // dimensions of a multi-dimensional array are either checked or
-      // unchecked.  This ensures that the intermediate values for
-      // multi-dimensional array accesses have checked type and preserve
-      //  the "checkedness" of the outermost array.
-
-      // getBase returns the pointer-typed expression.
-      if (AS->getBase()->getType()->isCheckedPointerArrayType()) {
-        Result = AS->getBase()->getType();
-        return E;
-      }
-
-      return nullptr;
-    }
-    case Expr::ImplicitCastExprClass: {
-      ImplicitCastExpr *IC = cast<ImplicitCastExpr>(E);
-      if (IC->getCastKind() == CK_LValueBitCast)
-        return GetArrayPtrDereference(IC->getSubExpr(), Result);
-      return nullptr;
-    }
-    default: {
-      llvm_unreachable("unexpected lvalue expression");
-      return nullptr;
-    }
-  }
-}
-
-BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
-  if (!CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
-                              Sema::NonModifyingMessage::NMM_None)) {
-    Diag(E->getBeginLoc(), diag::err_inferred_modifying_bounds) <<
-        B << E->getSourceRange();
-    CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
-                          Sema::NonModifyingMessage::NMM_Note);
-    return CreateInvalidBoundsExpr();
-  } else
-    return B;
-}
-
 namespace {
   class CheckBoundsDeclarations {
   private:
@@ -4495,6 +4433,68 @@ namespace {
       }
     }
   };
+}
+
+Expr *Sema::GetArrayPtrDereference(Expr *E, QualType &Result) {
+  assert(E->isLValue());
+  E = E->IgnoreParens();
+  switch (E->getStmtClass()) {
+    case Expr::DeclRefExprClass:
+    case Expr::MemberExprClass:
+    case Expr::CompoundLiteralExprClass:
+    case Expr::ExtVectorElementExprClass:
+      return nullptr;
+    case Expr::UnaryOperatorClass: {
+      UnaryOperator *UO = cast<UnaryOperator>(E);
+      if (UO->getOpcode() == UnaryOperatorKind::UO_Deref &&
+          UO->getSubExpr()->getType()->isCheckedPointerArrayType()) {
+        Result = UO->getSubExpr()->getType();
+        return E;
+      }
+
+      return nullptr;
+    }
+
+    case Expr::ArraySubscriptExprClass: {
+      // e1[e2] is a synonym for *(e1 + e2).
+      ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
+      // An important invariant for array types in Checked C is that all
+      // dimensions of a multi-dimensional array are either checked or
+      // unchecked.  This ensures that the intermediate values for
+      // multi-dimensional array accesses have checked type and preserve
+      //  the "checkedness" of the outermost array.
+
+      // getBase returns the pointer-typed expression.
+      if (AS->getBase()->getType()->isCheckedPointerArrayType()) {
+        Result = AS->getBase()->getType();
+        return E;
+      }
+
+      return nullptr;
+    }
+    case Expr::ImplicitCastExprClass: {
+      ImplicitCastExpr *IC = cast<ImplicitCastExpr>(E);
+      if (IC->getCastKind() == CK_LValueBitCast)
+        return GetArrayPtrDereference(IC->getSubExpr(), Result);
+      return nullptr;
+    }
+    default: {
+      llvm_unreachable("unexpected lvalue expression");
+      return nullptr;
+    }
+  }
+}
+
+BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
+  if (!CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
+                              Sema::NonModifyingMessage::NMM_None)) {
+    Diag(E->getBeginLoc(), diag::err_inferred_modifying_bounds) <<
+        B << E->getSourceRange();
+    CheckIsNonModifying(B, Sema::NonModifyingContext::NMC_Unknown,
+                          Sema::NonModifyingMessage::NMM_Note);
+    return CreateInvalidBoundsExpr();
+  } else
+    return B;
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
