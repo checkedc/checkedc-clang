@@ -1487,10 +1487,6 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
     return B;
 }
 
-BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
-  return BoundsInference(*this).CreateBoundsForArrayType(QT);
-}
-
 namespace {
   class CheckBoundsDeclarations {
   private:
@@ -2734,6 +2730,15 @@ namespace {
       Body(Body),
       Cfg(Cfg),
       ReturnBounds(ReturnBounds),
+      Context(SemaRef.Context),
+      IncludeNullTerminator(false) {}
+
+    CheckBoundsDeclarations(Sema &SemaRef) : S(SemaRef),
+      DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
+      PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
+      Body(nullptr),
+      Cfg(nullptr),
+      ReturnBounds(nullptr),
       Context(SemaRef.Context),
       IncludeNullTerminator(false) {}
 
@@ -4490,6 +4495,49 @@ namespace {
       }
     }
   };
+}
+
+BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
+  return CheckBoundsDeclarations(*this).CreateBoundsForArrayType(QT);
+}
+
+Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
+  if (!E->isRValue())
+    return E;
+
+  ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(E);
+  if (!ICE)
+    return E;
+
+  bool isUsualUnaryConversion = false;
+  CastKind CK = ICE->getCastKind();
+  Expr *SE = ICE->getSubExpr();
+  QualType TargetTy = ICE->getType();
+  if (CK == CK_FunctionToPointerDecay || CK == CK_ArrayToPointerDecay ||
+      CK == CK_LValueToRValue)
+    isUsualUnaryConversion = true;
+  else if (CK == CK_IntegralCast) {
+    QualType Ty = SE->getType();
+    // Half FP have to be promoted to float unless it is natively supported
+    if (CK == CK_FloatingCast && TargetTy == Context.FloatTy &&
+        Ty->isHalfType() && !getLangOpts().NativeHalfType)
+      isUsualUnaryConversion = true;
+    else if (CK == CK_IntegralCast &&
+             Ty->isIntegralOrUnscopedEnumerationType()) {
+      QualType PTy = Context.isPromotableBitField(SE);
+      if (!PTy.isNull() && TargetTy == PTy)
+        isUsualUnaryConversion = true;
+      else if (Ty->isPromotableIntegerType() &&
+              TargetTy == Context.getPromotedIntegerType(Ty))
+        isUsualUnaryConversion = true;
+    }
+  }
+
+  if (isUsualUnaryConversion)
+    return E;
+
+  return CheckBoundsDeclarations(*this).CreateExplicitCast(TargetTy, CK, SE,
+                                                   ICE->isBoundsSafeInterface());
 }
 
 void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
