@@ -49,7 +49,65 @@ void BoundsAnalysis::WidenBounds() {
     ComputeOutSets(EB, BlockMap, WorkList);
   }
 
+  GatherRealBounds(BlockMap);
   CollectWidenedBounds(BlockMap);
+}
+
+void BoundsAnalysis::GatherRealBounds(BlockMapTy BlockMap) {
+  for (const auto *B : PostOrderCFGView(Cfg)) {
+    if (SkipBlock(B))
+      continue;
+
+    auto EB = BlockMap[B];
+    for (auto item : EB->In) {
+      const auto *V = item.first;
+
+      ElevatedCFGBlock *PredEB = nullptr;
+      // Check if an entry for this variable exists in any pred block.
+      for (const CFGBlock *pred : B->preds()) {
+        if (SkipBlock(pred))
+          continue;
+
+        auto PredBlock = BlockMap[pred];
+        if (PredBlock->In.count(V)) {
+	  // Update the pred block if this is the first pred we found the
+	  // variable in, or if this pred has a lesser calculated bound than
+	  // the one we already found in another pred.
+	  if (!PredEB ||
+               PredBlock->In[V] < PredEB->In[V])
+            PredEB = PredBlock;
+        }
+      }
+
+      // If an entry for this variable does not exist in any pred block then it
+      // means that this is the first time this variable is encountered. So its
+      // bounds should be 1.
+
+      // Example:
+      // B1: if (*(p + 10))     // bounds(p) = 1
+      if (!PredEB)
+        EB->RealIn.insert(std::make_pair(V, 1));
+
+      else {
+	// Else check if the calculated bounds on this variable are greater in
+	// the current block than those in the pred block. If yes, then we can
+        // widen the real bounds by 1.
+        // Example 1:
+        // B1: if (*(p + 10))   // calc_bounds(p) = 10, real_bounds(p) = 1
+        // B2:   if (*(p + 20)) // calc_bounds(p) = 20, real_bounds(p) = 2
+
+        // Example 2:
+        // B1: if (*(p + 10))   // calc_bounds(p) = 10, real_bounds(p) = 1
+        // B2:   if (*(p + 5))  // calc_bounds(p) = 5,  real_bounds(p) = 1
+
+	auto RealBounds = PredEB->RealIn[V];
+        if (EB->In[V] > PredEB->In[V])
+          ++RealBounds;
+
+        EB->RealIn.insert(std::make_pair(V, RealBounds));
+      }
+    }
+  }
 }
 
 void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
@@ -111,7 +169,7 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
     if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
         if (V->getType()->isCheckedPointerNtArrayType()) {
-          unsigned NewBounds = 1;
+          unsigned NewBounds = 0;
           if (!EB->Gen[succ].count(V))
             EB->Gen[succ].insert(std::make_pair(V, NewBounds));
           else {
@@ -133,7 +191,7 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
 
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
         if (V->getType()->isCheckedPointerNtArrayType()) {
-          unsigned NewBounds = 1 + Lit->getValue().getLimitedValue();
+          unsigned NewBounds = Lit->getValue().getLimitedValue();
           if (!EB->Gen[succ].count(V))
             EB->Gen[succ].insert(std::make_pair(V, NewBounds));
           else {
@@ -204,6 +262,7 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
     } else
       Intersections = Intersect(Intersections, PredEB->Out[EB->Block]);
   }
+
   EB->In = Intersections;
 }
 
@@ -230,7 +289,7 @@ void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
   for (auto item : BlockMap) {
     const auto *B = item.first;
     auto *EB = item.second;
-    WidenedBounds[B] = EB->In;
+    WidenedBounds[B] = EB->RealIn;
     delete EB;
   }
 }
