@@ -791,6 +791,10 @@ def fdump_extracted_comparison_facts : Flag<["-"], "fdump-extracted-comparison-f
   HelpText<"Dump extracted comparison facts">;
 def fdump_inferred_bounds : Flag<["-"], "fdump-inferred-bounds">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Dump inferred Checked C bounds for assignments and declarations">;
+def finject_verifier_calls : Flag<["-"], "finject-verifier-calls">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Injects calls to VERIFIER_assume and VERIFIER_error in the bitcode">;
+def funchecked_pointers_dynamic_check : Flag<["-"], "funchecked-pointers-dynamic-check">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Adds dynamic checks for unchecked pointers">;
 def fcaret_diagnostics : Flag<["-"], "fcaret-diagnostics">, Group<f_Group>;
 def fclang_abi_compat_EQ : Joined<["-"], "fclang-abi-compat=">, Group<f_clang_Group>,
   Flags<[CC1Option]>, MetaVarName<"<version>">, Values<"<major>.<minor>,latest">,

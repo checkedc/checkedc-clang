@@ -99,6 +99,13 @@ if config.clang_staticanalyzer:
     if config.clang_staticanalyzer_z3 == '1':
         config.available_features.add('z3')
 
+def is_there(name):
+    from distutils.spawn import find_executable
+    return find_executable(name) is not None
+
+if is_there("seahorn"):
+    config.available_features.add('seahorn')
+
 # As of 2011.08, crash-recovery tests still do not pass on FreeBSD.
 if platform.system() not in ['FreeBSD']:
     config.available_features.add('crash-recovery')
@@ -193,3 +200,12 @@ if macOSSDKVersion is not None:
 
 if os.path.exists('/etc/gentoo-release'):
     config.available_features.add('gentoo')
+
+# Substitutions for Seahorn verifier
+# some of the arguments clashed with buitin substitutions
+# so we define these new substitutions
+config.substitutions.append(('%sea_pp', config.sea_pp))
+config.substitutions.append(('%sea_ms', config.sea_ms))
+config.substitutions.append(('%sea_opt', config.sea_opt))
+config.substitutions.append(('%sea_horn', config.sea_horn))
+
