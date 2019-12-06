@@ -11,10 +11,15 @@
 // which looks for an out-of-bound accesses.
 // 
 // The two main differences compared to other bounds checkers are:
-// 1. This checker is Checked-C Bounds aware. It reads bounds-safe information
+// 1. This checker is Checked C Bounds aware. It reads bounds-safe information
 //    on the function declaration and check the index against the bounds
 // 2. It uses Z3 for handling complex non-concrete bounds constraint. Clang
 //    should be compiled with the Z3 solver enabled.
+//
+// Assumptions:
+// - The bounds are valid (LB < UB). In other words, the function is not called
+//   with values that constitute empty or invalid ranges for any of the
+//   pointers
 //
 // Debug Preprocessor Flags:
 // - DEBUG_DUMP: dumps memory regions, bounds and index expressions,
@@ -48,23 +53,29 @@ namespace {
   class SimpleBoundsChecker : public Checker<check::Location> {
     mutable std::unique_ptr<BuiltinBug> BT;
 
-    // Replaces the symbol 'from' with the symbol 'to' in the symbolic expression 'E'
-    SVal replaceSVal(ProgramStateRef state, SVal E, SVal from, SVal to) const;
+    // Replaces the symbol 'from' with the symbol 'to'
+    // in the symbolic expression 'E'
+    SVal replaceSVal(ProgramStateRef State, SVal E, SVal From, SVal To) const;
 
     // Generates a symbolic expression out of the given bounds expression.
     //  The terms (variables) should have symbolic values already
-    const SymExpr* getSymExpr(ProgramStateRef state, const BoundsExpr *bounds, const LocationContext *LCtx, SValBuilder &SVB) const;
+    const SymExpr *getSymExpr(ProgramStateRef State,
+                              const BoundsExpr *Bounds,
+                              const LocationContext *LCtx,
+                              SValBuilder &SVB) const;
 
-    void reportOutofBoundsAccess(ProgramStateRef outBound, const Stmt *LoadS, CheckerContext &C) const;
+    void reportOutofBoundsAccess(ProgramStateRef OutBound, const Stmt *LoadS,
+                                 CheckerContext &C) const;
 
 
     public:
-    void checkLocation(SVal l, bool isLoad, const Stmt *S, CheckerContext &C) const;
+    void checkLocation(SVal l, bool isLoad, const Stmt *S,
+                       CheckerContext &C) const;
   };
 }
 
 void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
-    CheckerContext &C) const {
+                                        CheckerContext &C) const {
 
   const MemRegion *R = l.getAsRegion();
   if (!R)
@@ -84,26 +95,26 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
 #endif
 
   // Getting pointers to manager objects
-  ProgramStateRef state = C.getState();
-  ProgramStateManager &SM = state->getStateManager();
-  SValBuilder &svalBuilder = SM.getSValBuilder();
-  ASTContext &Ctx = svalBuilder.getContext();
+  ProgramStateRef State = C.getState();
+  ProgramStateManager &SM = State->getStateManager();
+  SValBuilder &SvalBuilder = SM.getSValBuilder();
+  ASTContext &Ctx = SvalBuilder.getContext();
 
   // Get the index of the accessed element.
   DefinedOrUnknownSVal Idx = ER->getIndex().castAs<DefinedOrUnknownSVal>();
 
-  if (Idx.isZeroConstant())
-    return;
-
   // Get the size of the array.
-  DefinedOrUnknownSVal NumElements = C.getStoreManager().getSizeInElements(state, ER->getSuperRegion(), ER->getValueType());
+  DefinedOrUnknownSVal NumElements =
+      C.getStoreManager().getSizeInElements(State,
+                                            ER->getSuperRegion(),
+                                            ER->getValueType());
 
-  ProgramStateRef StInBound = state->assumeInBound(Idx, NumElements, true);
-  ProgramStateRef StOutBound = state->assumeInBound(Idx, NumElements, false);
+  ProgramStateRef StInBound = State->assumeInBound(Idx, NumElements, true);
+  ProgramStateRef StOutBound = State->assumeInBound(Idx, NumElements, false);
 
-  bool bugFound = (!StInBound && StOutBound);
+  bool BugFound = (!StInBound && StOutBound);
 
-  if ( bugFound ){
+  if (BugFound) {
     // We already know there is an out-of-bounds access
     // report and exit
     reportOutofBoundsAccess(StOutBound, LoadS, C);
@@ -114,7 +125,7 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
   // For handling complex expressions over indices:
 
   // 1. Create a Z3 instance
-  SMTSolverRef solver = CreateZ3Solver();
+  SMTSolverRef Solver = CreateZ3Solver();
 
   // 2. Get the Symbolic Expr of the index and bounds expressions
   //
@@ -122,47 +133,53 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
   const LocationContext *LCtx = C.getLocationContext();
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(LCtx->getDecl());
   if (!FD) {
-#ifdef DEBUG_DUMP
-    llvm::errs() << "ERR: checkLocation: Cannot get the FunctionDecl to read the bounds!\n";
+#if DEBUG_DUMP
+    llvm::errs() <<
+      "ERR: checkLocation: Cannot get the FunctionDecl to read the bounds!\n";
 #endif
     return;
   }
 
   // Match the deref base pointer to the corresponding function argument
   const BoundsExpr *BE = nullptr;
-  for(unsigned int i=0; i<FD->getNumParams(); i++) {
-    const ParmVarDecl *arg = FD->getParamDecl(i);
-    if (!arg->hasBoundsDeclaration(Ctx) && !arg->hasBoundsSafeInterface(Ctx))
+  for(unsigned int i=0; i<FD->getNumParams(); ++i) {
+    const ParmVarDecl *Arg = FD->getParamDecl(i);
+    if (!Arg->hasBoundsDeclaration(Ctx) && !Arg->hasBoundsSafeInterface(Ctx))
       continue;
-    if (state->getSVal(state->getRegion(arg, LCtx)).getAsRegion() == ER->getBaseRegion()) {
-      BE = arg->getBoundsExpr();
+    if (State->getSVal(State->getRegion(Arg, LCtx)).getAsRegion()
+        == ER->getBaseRegion()) {
+      BE = Arg->getBoundsExpr();
       break;
     }
   }
 
   if (!BE) {
 #if DEBUG_DUMP
-    llvm::errs() << "ERR: No Bounds Expression has been found on the pointer that is being derefed\n";
+    llvm::errs() <<
+      "ERR: No Bounds Expression has been found "
+      "on the pointer that is being derefed\n";
 #endif
     return;
   }
 
-  SymbolRef symBE = getSymExpr(state, BE, LCtx, svalBuilder);
-  if (!symBE) {
+  SymbolRef SymBE = getSymExpr(State, BE, LCtx, SvalBuilder);
+  if (!SymBE) {
 #if DEBUG_DUMP
-    llvm::errs() << "ERR: Failed to generate a Symbolic Expression out of the Bounds Expression.\n";
+    llvm::errs() <<
+      "ERR: Failed to generate a Symbolic Expression "
+      "out of the Bounds Expression.\n";
 #endif
     return;
   }
 
 #if DEBUG_DUMP
   llvm::errs() << "Symbolic Bounds Expression: ";
-  symBE->dump();
+  SymBE->dump();
   llvm::errs() << "\n";
 #endif
 
-  const SymExpr *symIdx = Idx.getAsSymbol();
-  if (!symIdx) {
+  const SymExpr *SymIdx = Idx.getAsSymbol();
+  if (!SymIdx) {
     // symIdx is NULL: Index might be concrete, fall back to normal check!
     if (StOutBound && !StInBound) {
       reportOutofBoundsAccess(StOutBound, LoadS, C);
@@ -172,48 +189,53 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
 
 #if DEBUG_DUMP
   llvm::errs() << "Symbolic Index Expression: ";
-  symIdx->dump();
+  SymIdx->dump();
   llvm::errs() << "\n";
 #endif
 
   // 3. Encode the expression as a SMT formula
   //    it should be of the form: (idx < lower_bound) v (idx >= upper_bound)
   //
-  // TODO: currently only expressions of count(n) is handled; generalize for bounds(LB, UB)
+  // TODO: currently only expressions of count(n) is handled;
+  //       generalize for bounds(LB, UB)
   //
   // SMT expression of the bounds expression
-  SMTExprRef smtBE = SMTConv::getExpr(solver, Ctx, symBE);
+  SMTExprRef SmtBE = SMTConv::getExpr(Solver, Ctx, SymBE);
   // SMT expression of the index
-  SMTExprRef smtIdx = SMTConv::getExpr(solver, Ctx, symIdx);
+  SMTExprRef SmtIdx = SMTConv::getExpr(Solver, Ctx, SymIdx);
   // SMT expression for (idx >= UpperBound)
-  SMTExprRef overUB = solver->mkBVSge(smtIdx, smtBE);
+  SMTExprRef OverUB = Solver->mkBVSge(SmtIdx, SmtBE);
   // SMT expression for (idx < LowerBound)
-  SMTExprRef underLB = solver->mkBVSlt(smtIdx, solver->mkBitvector(llvm::APSInt(32), 32));
+  SMTExprRef UnderLB =
+    Solver->mkBVSlt(SmtIdx, Solver->mkBitvector(llvm::APSInt(32), 32));
 
-  SMTExprRef smtOOBounds = solver->mkOr(underLB, overUB);
+  SMTExprRef SmtOOBounds = Solver->mkOr(UnderLB, OverUB);
 
-  // Forcing the expression in the 'count' bounds to be non-negative '> 0'
-  SMTExprRef positiveBE = solver->mkBVSgt(smtBE, solver->mkBitvector(llvm::APSInt(32), 32));
+  // Forcing the expression in the 'count' bounds to be positive '> 0'
+  SMTExprRef PositiveBE =
+    Solver->mkBVSgt(SmtBE, Solver->mkBitvector(llvm::APSInt(32), 32));
 
   // the final SMT expression
-  SMTExprRef constraint = solver->mkAnd(positiveBE, smtOOBounds);
+  SMTExprRef Constraint = Solver->mkAnd(PositiveBE, SmtOOBounds);
 
 #if DEBUG_DUMP
   llvm::errs() << "SMT constraints for (LB <= Idx < UB) expression:\n";
-  constraint->print(llvm::errs());
+  Constraint->print(llvm::errs());
   llvm::errs() << "\n";
 #endif
 
-  solver->addConstraint(constraint);
+  Solver->addConstraint(Constraint);
 
 
   // 4. Solve the SMT formula for a bad input using Z3
-  Optional<bool> isSat = solver->check();
-  if ( isSat.hasValue() ) {
-    if ( !isSat.getValue() ) // If the formula is UNSAT, there is no input value that makes the index go out-of-bounds
+  Optional<bool> IsSat = Solver->check();
+  if (IsSat.hasValue()) {
+    if (!IsSat.getValue())
       return;
+      // If the formula is UNSAT, there is no input value
+      // that makes the index go out-of-bounds
 
-    bugFound = true;
+    BugFound = true;
   }
   // 5. [Optional] TODO: Read the model. The model represents a possible input
   //               value that makes the index go out of bounds.
@@ -221,7 +243,7 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
   // ----
 
 
-  if ( bugFound ) {
+  if (BugFound) {
     reportOutofBoundsAccess(StOutBound, LoadS, C);
     return;
   }
@@ -231,8 +253,10 @@ void SimpleBoundsChecker::checkLocation(SVal l, bool isLoad, const Stmt *LoadS,
   C.addTransition(StInBound);
 }
 
-void SimpleBoundsChecker::reportOutofBoundsAccess(ProgramStateRef outBound, const Stmt *LoadS, CheckerContext &C) const {
-  ExplodedNode *N = C.generateErrorNode(outBound);
+void SimpleBoundsChecker::reportOutofBoundsAccess(ProgramStateRef OutBound,
+                                                  const Stmt *LoadS,
+                                                  CheckerContext &C) const {
+  ExplodedNode *N = C.generateErrorNode(OutBound);
   if (!N)
     return;
 
@@ -242,30 +266,35 @@ void SimpleBoundsChecker::reportOutofBoundsAccess(ProgramStateRef outBound, cons
           "Access out-of-bound array element (buffer overflow)"));
 
   // Generate a report for this bug.
-  auto report = llvm::make_unique<BugReport>(*BT, BT->getDescription(), N);
+  auto Report = llvm::make_unique<BugReport>(*BT, BT->getDescription(), N);
 
-  report->addRange(LoadS->getSourceRange());
-  C.emitReport(std::move(report));
+  Report->addRange(LoadS->getSourceRange());
+  C.emitReport(std::move(Report));
   return;
 }
 
 
-const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const BoundsExpr *BE, const LocationContext *LCtx, SValBuilder &SVB) const {
-  class Generator { //: public RecursiveASTVisitor<Generator> {
-    ProgramStateRef state;
+const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
+                                               const BoundsExpr *BE,
+                                               const LocationContext *LCtx,
+                                               SValBuilder &SVB) const {
+  class Generator {
+    ProgramStateRef State;
     const LocationContext *LCtx;
     SValBuilder &SVB;
 
     public:
-    Generator(ProgramStateRef _state, const LocationContext *_LCtx, SValBuilder &_SVB)
-      : state(_state), LCtx(_LCtx), SVB(_SVB)
+    Generator(ProgramStateRef _State,
+              const LocationContext *_LCtx,
+              SValBuilder &_SVB)
+      : State(_State), LCtx(_LCtx), SVB(_SVB)
     {
 #if DEBUG_VISITORS
       llvm::errs() << "Generator class ctor!\n";
 #endif
     }
 
-    const SymExpr* VisitBoundsExpr(const BoundsExpr *BE) {
+    const SymExpr *VisitBoundsExpr(const BoundsExpr *BE) {
 #if DEBUG_VISITORS
       llvm::errs() << "Generator: visitBoundsExpr: \n";
       BE->dump();
@@ -276,7 +305,7 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
       return nullptr;
     }
 
-    const SymExpr* VisitExpr(Expr *E) {
+    const SymExpr *VisitExpr(Expr *E) {
 #if DEBUG_VISITORS
       llvm::errs() << "DBG: visitExpr: \n";
       E->dump();
@@ -285,57 +314,70 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
 
       if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
         BinaryOperator::Opcode op = BO->getOpcode();
-        Expr *leftExpr = BO->getLHS();
-        Expr *rightExpr = BO->getRHS();
+        Expr *LeftExpr = BO->getLHS();
+        Expr *RightExpr = BO->getRHS();
 
-        const IntegerLiteral *leftIL = dyn_cast<IntegerLiteral>(leftExpr);
-        const IntegerLiteral *rightIL = dyn_cast<IntegerLiteral>(rightExpr);
+        const IntegerLiteral *LeftIL = dyn_cast<IntegerLiteral>(LeftExpr);
+        const IntegerLiteral *RightIL = dyn_cast<IntegerLiteral>(RightExpr);
 
-        if (!leftIL && !rightIL) {
-          const SymExpr *left = VisitExpr(leftExpr);
-          const SymExpr *right = VisitExpr(rightExpr);
-
-#if DEBUG_VISITORS
-          llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
-          if (left) left->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
-          llvm::errs() << "DBG: VisitExpr: SymExpr of right: ";
-          if (right) right->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
-#endif
-
-          return SVB.getSymbolManager().getSymSymExpr(left, op, right, BO->getType());
-        }
-
-        if (!leftIL) {
-          const SymExpr *left = VisitExpr(leftExpr);
-          llvm::APInt value = rightIL->getValue();
-          llvm::APSInt *right = new llvm::APSInt(value);
+        if (!LeftIL && !RightIL) {
+          const SymExpr *Left = VisitExpr(LeftExpr);
+          const SymExpr *Right = VisitExpr(RightExpr);
 
 #if DEBUG_VISITORS
           llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
-          if (left) left->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
+          if (Left) Left->dump(); else llvm::errs() << "NULL";
+          llvm::errs() << "\n";
           llvm::errs() << "DBG: VisitExpr: SymExpr of right: ";
-          right->dump(); llvm::errs() << "\n";
+          if (Right) Right->dump(); else llvm::errs() << "NULL";
+          llvm::errs() << "\n";
 #endif
 
-          return SVB.getSymbolManager().getSymIntExpr(left, op, *right, BO->getType());
+          return SVB.getSymbolManager().getSymSymExpr(Left,
+                                                      op,
+                                                      Right, BO->getType());
         }
 
-        if (!rightIL) {
-          const SymExpr *right = VisitExpr(rightExpr);
-          llvm::APInt value = leftIL->getValue();
-          llvm::APSInt *left = new llvm::APSInt(value);
+        if (!LeftIL) {
+          const SymExpr *Left = VisitExpr(LeftExpr);
+          llvm::APInt Value = RightIL->getValue();
+          llvm::APSInt *Right = new llvm::APSInt(Value);
 
 #if DEBUG_VISITORS
           llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
-          left->dump(); llvm::errs() << "\n";
+          if (Left) Left->dump(); else llvm::errs() << "NULL";
+          llvm::errs() << "\n";
           llvm::errs() << "DBG: VisitExpr: SymExpr of right: ";
-          if (right) right->dump(); else llvm::errs() << "NULL"; llvm::errs() << "\n";
+          Right->dump();
+          llvm::errs() << "\n";
 #endif
-          return SVB.getSymbolManager().getIntSymExpr(*left, op, right, BO->getType());
+
+          return SVB.getSymbolManager().getSymIntExpr(Left,
+                                                      op,
+                                                      *Right, BO->getType());
+        }
+
+        if (!RightIL) {
+          const SymExpr *Right = VisitExpr(RightExpr);
+          llvm::APInt Value = LeftIL->getValue();
+          llvm::APSInt *Left = new llvm::APSInt(Value);
+
+#if DEBUG_VISITORS
+          llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
+          Left->dump();
+          llvm::errs() << "\n";
+          llvm::errs() << "DBG: VisitExpr: SymExpr of right: ";
+          if (Right) Right->dump(); else llvm::errs() << "NULL";
+          llvm::errs() << "\n";
+#endif
+          return SVB.getSymbolManager().getIntSymExpr(*Left,
+                                                      op,
+                                                      Right, BO->getType());
         }
 
 #if DEBUG_VISITORS
-        llvm::errs() << "DBG: VisitExpr: Returning null from BinaryOperator\n";
+        llvm::errs() <<
+          "DBG: VisitExpr: Returning null from BinaryOperator\n";
 #endif
         return nullptr;
       }
@@ -344,22 +386,26 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
         const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl());
         if (!VD) {
 #if DEBUG_VISITORS
-          llvm::errs() << "Unexpected (SymExpr Generator): The given Expr contains non-variable DeclRefs\n";
+          llvm::errs() <<
+            "Unexpected (SymExpr Generator): "
+            "The given Expr contains non-variable DeclRefs\n";
 #endif
           return nullptr;
         }
-        const MemRegion *VDregion = state->getRegion(VD, LCtx);
-        SVal SymVal = state->getSVal(VDregion);
+        const MemRegion *VDregion = State->getRegion(VD, LCtx);
+        SVal SymVal = State->getSVal(VDregion);
         return SymVal.getAsSymExpr();
       }
 
       if (const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(E)) {
-        llvm::APInt value = IL->getValue();
-        llvm::APSInt *svalue = new llvm::APSInt(value);
-        SVal SymVal = nonloc::ConcreteInt(*svalue);
+        llvm::APInt Value = IL->getValue();
+        llvm::APSInt *SValue = new llvm::APSInt(Value);
+        SVal SymVal = nonloc::ConcreteInt(*SValue);
 #if DEBUG_VISITORS
-        llvm::errs() << "DBG: VisitExpr: Generated Symval for the IntergerLiteral: ";
-        SymVal.dump(); llvm::errs() << "\n";
+        llvm::errs() <<
+          "DBG: VisitExpr: Generated Symval for the IntergerLiteral: ";
+        SymVal.dump();
+        llvm::errs() << "\n";
 #endif
         return SymVal.getAsSymExpr();
       }
@@ -368,23 +414,24 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef state, const Boun
     }
   };
 
-  return Generator(state, LCtx, SVB).VisitBoundsExpr(BE);
+  return Generator(State, LCtx, SVB).VisitBoundsExpr(BE);
 }
 
-SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef state, SVal E, SVal from, SVal to) const {
+SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef State,
+                                      SVal E, SVal From, SVal To) const {
 
   class Replacer : public FullSValVisitor<Replacer, SVal> {
-    ProgramStateRef state;
-    SVal from;
-    SVal to;
+    ProgramStateRef State;
+    SVal From;
+    SVal To;
 
     static bool isUnchanged(SymbolRef Sym, SVal Val) {
       return Sym == Val.getAsSymbol();
     }
 
     public:
-    Replacer(ProgramStateRef _state, SVal _from, SVal _to)
-      : state(_state), from(_from), to(_to)
+    Replacer(ProgramStateRef _State, SVal _From, SVal _To)
+      : State(_State), From(_From), To(_To)
     {
 #if DEBUG_VISITORS
       llvm::errs() << "replacer is created!\n";
@@ -393,25 +440,36 @@ SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef state, SVal E, SVal from, 
 
     SVal VisitSymExpr(SymbolRef S) {
 #if DEBUG_VISITORS
-      llvm::errs() << "Visitor::SymExpr:: "; S->dump(); llvm::errs() << "\n";
+      llvm::errs() << "Visitor::SymExpr:: ";
+      S->dump();
+      llvm::errs() << "\n";
 #endif
       if ( const BinarySymExpr *BSE = dyn_cast<BinarySymExpr>(S) ) {
         BinaryOperator::Opcode op = BSE->getOpcode();
 
         if (const SymIntExpr *SIE = dyn_cast<SymIntExpr>(BSE)) {
-          SVal left = Visit(SIE->getLHS());
-          return nonloc::SymbolVal(new SymIntExpr(left.getAsSymExpr(), op, SIE->getRHS(), SIE->getType()));
+          SVal Left = Visit(SIE->getLHS());
+          return nonloc::SymbolVal(new SymIntExpr(Left.getAsSymExpr(),
+                                                  op,
+                                                  SIE->getRHS(),
+                                                  SIE->getType()));
         }
 
         if (const IntSymExpr *ISE = dyn_cast<IntSymExpr>(BSE)) {
-          SVal right = Visit(ISE->getRHS());
-          return nonloc::SymbolVal(new IntSymExpr(ISE->getLHS(), op, right.getAsSymExpr(), ISE->getType()));
+          SVal Right = Visit(ISE->getRHS());
+          return nonloc::SymbolVal(new IntSymExpr(ISE->getLHS(),
+                                                  op,
+                                                  Right.getAsSymExpr(),
+                                                  ISE->getType()));
         }
 
         if (const SymSymExpr *SSE = dyn_cast<SymSymExpr>(BSE)) {
-          SVal left = Visit(SSE->getLHS());
-          SVal right = Visit(SSE->getRHS());
-          return nonloc::SymbolVal(new SymSymExpr(left.getAsSymExpr(), op, right.getAsSymExpr(), SSE->getType()));
+          SVal Left = Visit(SSE->getLHS());
+          SVal Right = Visit(SSE->getRHS());
+          return nonloc::SymbolVal(new SymSymExpr(Left.getAsSymExpr(),
+                                                  op,
+                                                  Right.getAsSymExpr(),
+                                                  SSE->getType()));
         }
       }
       return nonloc::SymbolVal(S);
@@ -419,32 +477,38 @@ SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef state, SVal E, SVal from, 
 
     SVal VisitMemRegion(const MemRegion *R) {
 #if DEBUG_VISITORS
-      llvm::errs() << "Visitor::MemRegion:: "; R->dump(); llvm::errs() << "\n";
+      llvm::errs() << "Visitor::MemRegion:: ";
+      R->dump();
+      llvm::errs() << "\n";
 #endif
       return loc::MemRegionVal(R);
     }
 
     SVal VisitSVal(SVal V) {
 #if DEBUG_VISITORS
-      llvm::errs() << "Visitor::SVal:: "; V.dump(); llvm::errs() << "\n";
+      llvm::errs() << "Visitor::SVal:: ";
+      V.dump();
+      llvm::errs() << "\n";
 #endif
       return Visit(V.getAsSymExpr());
     }
 
     SVal VisitSymbolData(const SymbolData *S) {
 #if DEBUG_VISITORS
-      llvm::errs() << "Visitor::SymbolData:: "; S->dump(); llvm::errs() << "\n";
+      llvm::errs() << "Visitor::SymbolData:: ";
+      S->dump();
+      llvm::errs() << "\n";
 #endif
       const SymExpr *P = (const SymExpr*)S;
-      if ( P && P == from.getAsSymbol() )
-        return to;
+      if ( P && P == From.getAsSymbol() )
+        return To;
       return nonloc::SymbolVal(S);
     }
 
   };
 
-  SVal newE = Replacer(state, from, to).Visit(E);
-  return newE;
+  SVal NewE = Replacer(State, From, To).Visit(E);
+  return NewE;
 }
 
 

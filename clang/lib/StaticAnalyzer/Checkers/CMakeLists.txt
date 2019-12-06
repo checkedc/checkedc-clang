@@ -80,8 +80,8 @@ add_clang_library(clangStaticAnalyzerCheckers
   ReturnPointerRangeChecker.cpp
   ReturnUndefChecker.cpp
   RunLoopAutoreleaseLeakChecker.cpp
-  SimpleStreamChecker.cpp
   SimpleBoundsChecker.cpp
+  SimpleStreamChecker.cpp
   StackAddrEscapeChecker.cpp
   StdLibraryFunctionsChecker.cpp
   StreamChecker.cpp
