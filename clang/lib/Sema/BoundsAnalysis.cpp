@@ -54,72 +54,9 @@ void BoundsAnalysis::WidenBounds() {
   CollectWidenedBounds(BlockMap);
 }
 
-void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
-  for (const auto *B : PostOrderCFGView(Cfg)) {
-    if (SkipBlock(B))
-      continue;
-
-    auto EB = BlockMap[B];
-    for (auto item : EB->In) {
-      const auto *V = item.first;
-      ElevatedCFGBlock *PredEB = nullptr;
-
-      // Check if an entry for the variable V exists in any pred block.
-      for (const CFGBlock *pred : B->preds()) {
-        if (SkipBlock(pred))
-          continue;
-
-        auto PredBlock = BlockMap[pred];
-
-        // Skip a block which kills V.
-        if (PredBlock->Kill.count(V))
-          continue;
-
-        // Skip a block which does not contain V.
-        if (!PredBlock->In.count(V))
-          continue;
-
-        // Update the pred block if this is the first pred we found V in, or if
-        // this pred has a lesser calculated bound than the one we already
-        // found in another pred.
-        if (!PredEB || PredBlock->In[V] < PredEB->In[V])
-          PredEB = PredBlock;
-      }
-
-      // If an entry for V does not exist in any pred block then it means that
-      // this is the first time this variable is encountered. So its bounds
-      // should be 1.
-
-      // Example:
-      // B1: if (*(p + 10))     // calc_bounds(p) = 10, widened_bounds(p) = 1
-      if (!PredEB)
-        EB->WidenedBounds.insert(std::make_pair(V, 1));
-
-      else {
-	// Else check if the calculated bounds on this variable are greater in
-	// the current block than those in the pred block. If yes, then we can
-        // widen the bounds by 1.
-        // Example 1:
-        // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
-        // B2:   if (*(p + 20)) // calc_bounds(p) = 20, widened_bounds(p) = 2
-
-        // Example 2:
-        // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
-        // B2:   if (*(p + 5))  // calc_bounds(p) = 5,  widened_bounds(p) = 1
-
-	auto WidenedBounds = PredEB->WidenedBounds[V];
-        if (EB->In[V] > PredEB->In[V])
-          ++WidenedBounds;
-
-        EB->WidenedBounds.insert(std::make_pair(V, WidenedBounds));
-      }
-    }
-  }
-}
-
 void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
   // If there is an edge B1->B2 and the edge condition is of the form
-  // "if (*(p + i))" then Gen[B1] = {B2, p:i+1} .
+  // "if (*(p + i))" then Gen[B1] = {B2, p:i} .
 
   for (const auto B : BlockMap) {
     auto EB = B.second;
@@ -128,15 +65,15 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
       if (SkipBlock(pred))
         continue;
 
-      // We can add "p:i+1" only on the true edge.
+      // We can add "p:i" only on the true edge.
       // For example,
-      // B1: if (*(p+ i))
+      // B1: if (*(p + i))
       // B2:   foo();
       // B3: else bar();
 
-      // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i+1" only
+      // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i" only
       // on the true edge. Which means we will add the following entry to
-      // Gen[B1]: {B2, p:i+1}
+      // Gen[B1]: {B2, p:i}
       if (const auto *I = pred->succs().begin())
         if (*I != EB->Block)
           continue;
@@ -169,8 +106,7 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
       return;
 
     // Note: When we have if conditions of the form
-    // "if (*(p + i) && *(p + j) && *(p + k))" the effective bounds for p would
-    // be (1 + max{i, j, k}).
+    // "if (*(p + i) && *(p + j) && *(p + k))" we take the max{i, j, k}.
 
     // For conditions of the form "if (*p)".
     if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
@@ -276,7 +212,9 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
                                     BlockMapTy BlockMap,
                                     WorkListTy &WorkList) {
-  // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
+  // Out[B1->B2] = In[B1] u Gen[B1->B2].
+  // Note: We need to remove all killed variables from In. We do this in
+  // ComputeWidenedBounds.
 
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
@@ -287,6 +225,72 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
 
     if (Differ(OldOut, EB->Out[succ]))
       WorkList.append(BlockMap[succ]);
+  }
+}
+
+void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
+  for (const auto *B : PostOrderCFGView(Cfg)) {
+    if (SkipBlock(B))
+      continue;
+
+    auto EB = BlockMap[B];
+    // For every block, walk over In set and try to widen the bounds if
+    // possible.
+    for (auto item : EB->In) {
+      const auto *V = item.first;
+      ElevatedCFGBlock *PredEB = nullptr;
+
+      // Check if an entry for the variable V exists in pred blocks. We try to
+      // find the pred with the smallest calculated bounds for V.
+      for (const CFGBlock *pred : B->preds()) {
+        if (SkipBlock(pred))
+          continue;
+
+        auto PredBlock = BlockMap[pred];
+
+        // Skip a block which kills V.
+        if (PredBlock->Kill.count(V))
+          continue;
+
+        // Skip a block which does not contain V.
+        if (!PredBlock->In.count(V))
+          continue;
+
+        // Update the pred block if this is the first pred we found V in, or if
+        // this pred has a lesser calculated bound than the one we already
+        // found in another pred.
+        if (!PredEB || PredBlock->In[V] < PredEB->In[V])
+          PredEB = PredBlock;
+      }
+
+      // If an entry for V does not exist in any pred block then it means that
+      // this is the first time this variable is encountered. So its bounds
+      // should be 1.
+
+      // Example:
+      // B1: if (*(p + 10))     // calc_bounds(p) = 10, widened_bounds(p) = 1
+      if (!PredEB)
+        EB->WidenedBounds.insert(std::make_pair(V, 1));
+
+      else {
+	// Else check if the calculated bounds on this variable are greater in
+	// the current block than those in the pred block. If yes, then we can
+        // widen the bounds by 1.
+        // Example 1:
+        // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
+        // B2:   if (*(p + 20)) // calc_bounds(p) = 20, widened_bounds(p) = 2
+
+        // Example 2:
+        // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
+        // B2:   if (*(p + 5))  // calc_bounds(p) = 5,  widened_bounds(p) = 1
+
+	auto WidenedBounds = PredEB->WidenedBounds[V];
+        if (EB->In[V] > PredEB->In[V])
+          ++WidenedBounds;
+
+        EB->WidenedBounds.insert(std::make_pair(V, WidenedBounds));
+      }
+    }
   }
 }
 
