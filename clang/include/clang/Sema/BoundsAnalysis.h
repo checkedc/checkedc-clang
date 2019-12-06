@@ -29,8 +29,8 @@ namespace clang {
   // For each block B, DeclSetTy denotes the Kill set. A VarDecl v is killed if
   // it is assigned to in the block.
   using DeclSetTy = llvm::DenseSet<const VarDecl *>;
-  // OrderedBlocksTy denotes blocks ordered by block numbers. This is useful
-  // for printing the blocks in a deterministic order.
+  // OrderedBlocksTy denotes blocks ordered by block numbers. This is useful for
+  // printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
   class BoundsAnalysis {
@@ -43,7 +43,7 @@ namespace clang {
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
-      BoundsMapTy In;
+      BoundsMapTy In, RealIn;
       BlockBoundsTy Gen, Out;
       DeclSetTy Kill;
 
@@ -101,6 +101,7 @@ namespace clang {
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, const CFGBlock *succ);
 
     void CollectWidenedBounds(BlockMapTy BlockMap);
+    void GatherRealBounds(BlockMapTy BlockMap);
     Expr *GetTerminatorCondition(const CFGBlock *B) const;
     bool IsPointerDerefLValue(Expr *E) const;
     bool ContainsPointerDeref(Expr *E) const;
