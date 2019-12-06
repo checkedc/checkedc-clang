@@ -4950,21 +4950,6 @@ public:
   /// null.
   Expr *GetArrayPtrDereference(Expr *E, QualType &Result);
 
-  /// InferLValueBounds - infer a bounds expression for an lvalue.
-  /// The bounds determine whether the lvalue to which an
-  /// expression evaluates in in range.
-  BoundsExpr *InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS);
-
-  /// CreateTypeBasedBounds: the bounds that can be inferred from
-  /// the type alone.
-  /// * E is the base expression for which we are inferring bounds
-  /// * Ty is the target type.  It may differ from E's tu[e because it is
-  ///   an interoperation type.
-  /// * IsParam indicates wheteher E is a parameter variable.
-  /// * IsBoundsSafeInterface indicates whether Ty is a bounds-safe
-  BoundsExpr *CreateTypeBasedBounds(Expr *E, QualType Ty, bool IsParam,
-                                    bool IsBoundsSafeInterface);
-
   /// ReplaceAssignmentImplicitCast: E has had assignment conversion rules
   /// applied to it. If an implicit cast has been introduced because of the
   /// assignment conversion rules, replace it with an explicit cast.
@@ -4974,24 +4959,6 @@ public:
   /// analysis will recreate implicit casts.  That doesn't happen properly if
   /// E is taken from an assignment expression and used in another operator expression.
   Expr *MakeAssignmentImplicitCastExplicit(Expr *E);
-
-  /// InferLValueTargetBounds - infer the bounds for the
-  /// target of an lvalue.
-  BoundsExpr *InferLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS);
-
-  /// InferRValueBounds - infer a bounds expression for an rvalue.
-  /// The bounds determine whether the rvalue to which an
-  /// expression evaluates is in range.
-  ///
-  /// IncludeNullTerminator controls whether a null terminator
-  /// for an nt_array is included in the bounds (it gives
-  /// us physical bounds, not logical bounds).
-  BoundsExpr *InferRValueBounds(Expr *E,
-                                CheckedScopeSpecifier CSS,
-                                bool IncludeNullTerminator = false);
-
-  BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B);
-  BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B);
 
   enum BoundsDeclarationCheck {
       BDC_Assignment,
