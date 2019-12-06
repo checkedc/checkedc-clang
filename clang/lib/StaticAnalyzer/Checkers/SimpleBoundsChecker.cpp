@@ -24,8 +24,6 @@
 // Debug Preprocessor Flags:
 // - DEBUG_DUMP: dumps memory regions, bounds and index expressions,
 //               generated SMT formulas, and some return on failure causes
-// - DEBUG_VISITORS: dumps visited nodes when traversing expressions
-//                   and SVals in replaceSVal and getSymExpr
 //===----------------------------------------------------------------------===//
 
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
@@ -44,7 +42,6 @@
 #include <string>
 
 #define DEBUG_DUMP 0
-#define DEBUG_VISITORS 0
 
 using namespace clang;
 using namespace ento;
@@ -289,16 +286,9 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
               SValBuilder &_SVB)
       : State(_State), LCtx(_LCtx), SVB(_SVB)
     {
-#if DEBUG_VISITORS
-      llvm::errs() << "Generator class ctor!\n";
-#endif
     }
 
     const SymExpr *VisitBoundsExpr(const BoundsExpr *BE) {
-#if DEBUG_VISITORS
-      llvm::errs() << "Generator: visitBoundsExpr: \n";
-      BE->dump();
-#endif
       if (const CountBoundsExpr *CBE = dyn_cast<CountBoundsExpr>(BE)) {
         return VisitExpr(CBE->getCountExpr());
       }
@@ -306,10 +296,6 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
     }
 
     const SymExpr *VisitExpr(Expr *E) {
-#if DEBUG_VISITORS
-      llvm::errs() << "DBG: visitExpr: \n";
-      E->dump();
-#endif
       E = E->IgnoreCasts();
 
       if (const BinaryOperator *BO = dyn_cast<BinaryOperator>(E)) {
@@ -324,15 +310,6 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
           const SymExpr *Left = VisitExpr(LeftExpr);
           const SymExpr *Right = VisitExpr(RightExpr);
 
-#if DEBUG_VISITORS
-          llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
-          if (Left) Left->dump(); else llvm::errs() << "NULL";
-          llvm::errs() << "\n";
-          llvm::errs() << "DBG: VisitExpr: SymExpr of right: ";
-          if (Right) Right->dump(); else llvm::errs() << "NULL";
-          llvm::errs() << "\n";
-#endif
-
           return SVB.getSymbolManager().getSymSymExpr(Left,
                                                       op,
                                                       Right, BO->getType());
@@ -342,15 +319,6 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
           const SymExpr *Left = VisitExpr(LeftExpr);
           llvm::APInt Value = RightIL->getValue();
           llvm::APSInt *Right = new llvm::APSInt(Value);
-
-#if DEBUG_VISITORS
-          llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
-          if (Left) Left->dump(); else llvm::errs() << "NULL";
-          llvm::errs() << "\n";
-          llvm::errs() << "DBG: VisitExpr: SymExpr of right: ";
-          Right->dump();
-          llvm::errs() << "\n";
-#endif
 
           return SVB.getSymbolManager().getSymIntExpr(Left,
                                                       op,
@@ -362,38 +330,22 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
           llvm::APInt Value = LeftIL->getValue();
           llvm::APSInt *Left = new llvm::APSInt(Value);
 
-#if DEBUG_VISITORS
-          llvm::errs() << "DBG: VisitExpr: SymExpr of left: ";
-          Left->dump();
-          llvm::errs() << "\n";
-          llvm::errs() << "DBG: VisitExpr: SymExpr of right: ";
-          if (Right) Right->dump(); else llvm::errs() << "NULL";
-          llvm::errs() << "\n";
-#endif
           return SVB.getSymbolManager().getIntSymExpr(*Left,
                                                       op,
                                                       Right, BO->getType());
         }
 
-#if DEBUG_VISITORS
-        llvm::errs() <<
-          "DBG: VisitExpr: Returning null from BinaryOperator\n";
-#endif
         return nullptr;
       }
 
       if (const DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(E)) {
         const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl());
         if (!VD) {
-#if DEBUG_VISITORS
-          llvm::errs() <<
-            "Unexpected (SymExpr Generator): "
-            "The given Expr contains non-variable DeclRefs\n";
-#endif
           return nullptr;
         }
         const MemRegion *VDregion = State->getRegion(VD, LCtx);
         SVal SymVal = State->getSVal(VDregion);
+
         return SymVal.getAsSymExpr();
       }
 
@@ -401,12 +353,7 @@ const SymExpr *SimpleBoundsChecker::getSymExpr(ProgramStateRef State,
         llvm::APInt Value = IL->getValue();
         llvm::APSInt *SValue = new llvm::APSInt(Value);
         SVal SymVal = nonloc::ConcreteInt(*SValue);
-#if DEBUG_VISITORS
-        llvm::errs() <<
-          "DBG: VisitExpr: Generated Symval for the IntergerLiteral: ";
-        SymVal.dump();
-        llvm::errs() << "\n";
-#endif
+
         return SymVal.getAsSymExpr();
       }
 
@@ -433,17 +380,9 @@ SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef State,
     Replacer(ProgramStateRef _State, SVal _From, SVal _To)
       : State(_State), From(_From), To(_To)
     {
-#if DEBUG_VISITORS
-      llvm::errs() << "replacer is created!\n";
-#endif
     }
 
     SVal VisitSymExpr(SymbolRef S) {
-#if DEBUG_VISITORS
-      llvm::errs() << "Visitor::SymExpr:: ";
-      S->dump();
-      llvm::errs() << "\n";
-#endif
       if ( const BinarySymExpr *BSE = dyn_cast<BinarySymExpr>(S) ) {
         BinaryOperator::Opcode op = BSE->getOpcode();
 
@@ -476,29 +415,14 @@ SVal SimpleBoundsChecker::replaceSVal(ProgramStateRef State,
     }
 
     SVal VisitMemRegion(const MemRegion *R) {
-#if DEBUG_VISITORS
-      llvm::errs() << "Visitor::MemRegion:: ";
-      R->dump();
-      llvm::errs() << "\n";
-#endif
       return loc::MemRegionVal(R);
     }
 
     SVal VisitSVal(SVal V) {
-#if DEBUG_VISITORS
-      llvm::errs() << "Visitor::SVal:: ";
-      V.dump();
-      llvm::errs() << "\n";
-#endif
       return Visit(V.getAsSymExpr());
     }
 
     SVal VisitSymbolData(const SymbolData *S) {
-#if DEBUG_VISITORS
-      llvm::errs() << "Visitor::SymbolData:: ";
-      S->dump();
-      llvm::errs() << "\n";
-#endif
       const SymExpr *P = (const SymExpr*)S;
       if ( P && P == From.getAsSymbol() )
         return To;
