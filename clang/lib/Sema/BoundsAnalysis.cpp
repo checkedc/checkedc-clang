@@ -49,11 +49,11 @@ void BoundsAnalysis::WidenBounds() {
     ComputeOutSets(EB, BlockMap, WorkList);
   }
 
-  GatherRealBounds(BlockMap);
+  ComputeWidenedBounds(BlockMap);
   CollectWidenedBounds(BlockMap);
 }
 
-void BoundsAnalysis::GatherRealBounds(BlockMapTy BlockMap) {
+void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
   for (const auto *B : PostOrderCFGView(Cfg)) {
     if (SkipBlock(B))
       continue;
@@ -84,27 +84,27 @@ void BoundsAnalysis::GatherRealBounds(BlockMapTy BlockMap) {
       // bounds should be 1.
 
       // Example:
-      // B1: if (*(p + 10))     // bounds(p) = 1
+      // B1: if (*(p + 10))     // calc_bounds(p) = 10, widened_bounds(p) = 1
       if (!PredEB)
-        EB->RealIn.insert(std::make_pair(V, 1));
+        EB->WidenedBounds.insert(std::make_pair(V, 1));
 
       else {
 	// Else check if the calculated bounds on this variable are greater in
 	// the current block than those in the pred block. If yes, then we can
-        // widen the real bounds by 1.
+        // widen the bounds by 1.
         // Example 1:
-        // B1: if (*(p + 10))   // calc_bounds(p) = 10, real_bounds(p) = 1
-        // B2:   if (*(p + 20)) // calc_bounds(p) = 20, real_bounds(p) = 2
+        // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
+        // B2:   if (*(p + 20)) // calc_bounds(p) = 20, widened_bounds(p) = 2
 
         // Example 2:
-        // B1: if (*(p + 10))   // calc_bounds(p) = 10, real_bounds(p) = 1
-        // B2:   if (*(p + 5))  // calc_bounds(p) = 5,  real_bounds(p) = 1
+        // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
+        // B2:   if (*(p + 5))  // calc_bounds(p) = 5,  widened_bounds(p) = 1
 
-	auto RealBounds = PredEB->RealIn[V];
+	auto WidenedBounds = PredEB->WidenedBounds[V];
         if (EB->In[V] > PredEB->In[V])
-          ++RealBounds;
+          ++WidenedBounds;
 
-        EB->RealIn.insert(std::make_pair(V, RealBounds));
+        EB->WidenedBounds.insert(std::make_pair(V, WidenedBounds));
       }
     }
   }
@@ -289,7 +289,7 @@ void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
   for (auto item : BlockMap) {
     const auto *B = item.first;
     auto *EB = item.second;
-    WidenedBounds[B] = EB->RealIn;
+    WidenedBounds[B] = EB->WidenedBounds;
     delete EB;
   }
 }
