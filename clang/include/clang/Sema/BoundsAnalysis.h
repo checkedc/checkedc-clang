@@ -112,7 +112,6 @@ namespace clang {
 
     template<class T> T Intersect(T &A, T &B) const;
     template<class T> T Union(T &A, T &B) const;
-    template<class T, class U> T Difference(T &A, U &B) const;
     template<class T> bool Differ(T &A, T &B) const;
   };
 }

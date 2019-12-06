@@ -31,6 +31,7 @@ void BoundsAnalysis::WidenBounds() {
     // We do not want to process entry and exit blocks.
     if (SkipBlock(B))
       continue;
+
     auto EB = new ElevatedCFGBlock(B);
     WorkList.append(EB);
     BlockMap[B] = EB;
@@ -61,27 +62,33 @@ void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
     auto EB = BlockMap[B];
     for (auto item : EB->In) {
       const auto *V = item.first;
-
       ElevatedCFGBlock *PredEB = nullptr;
-      // Check if an entry for this variable exists in any pred block.
+
+      // Check if an entry for the variable V exists in any pred block.
       for (const CFGBlock *pred : B->preds()) {
         if (SkipBlock(pred))
           continue;
 
         auto PredBlock = BlockMap[pred];
-        if (PredBlock->In.count(V)) {
-	  // Update the pred block if this is the first pred we found the
-	  // variable in, or if this pred has a lesser calculated bound than
-	  // the one we already found in another pred.
-	  if (!PredEB ||
-               PredBlock->In[V] < PredEB->In[V])
-            PredEB = PredBlock;
-        }
+
+        // Skip a block which kills V.
+        if (PredBlock->Kill.count(V))
+          continue;
+
+        // Skip a block which does not contain V.
+        if (!PredBlock->In.count(V))
+          continue;
+
+        // Update the pred block if this is the first pred we found V in, or if
+        // this pred has a lesser calculated bound than the one we already
+        // found in another pred.
+        if (!PredEB || PredBlock->In[V] < PredEB->In[V])
+          PredEB = PredBlock;
       }
 
-      // If an entry for this variable does not exist in any pred block then it
-      // means that this is the first time this variable is encountered. So its
-      // bounds should be 1.
+      // If an entry for V does not exist in any pred block then it means that
+      // this is the first time this variable is encountered. So its bounds
+      // should be 1.
 
       // Example:
       // B1: if (*(p + 10))     // calc_bounds(p) = 10, widened_bounds(p) = 1
@@ -271,14 +278,12 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
                                     WorkListTy &WorkList) {
   // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
 
-  auto Diff = Difference(EB->In, EB->Kill);
-
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
 
     auto OldOut = EB->Out[succ];
-    EB->Out[succ] = Union(Diff, EB->Gen[succ]);
+    EB->Out[succ] = Union(EB->In, EB->Gen[succ]);
 
     if (Differ(OldOut, EB->Out[succ]))
       WorkList.append(BlockMap[succ]);
@@ -383,22 +388,6 @@ T BoundsAnalysis::Union(T &A, T &B) const {
   return Ret;
 }
 
-template<class T, class U>
-T BoundsAnalysis::Difference(T &A, U &B) const {
-  if (!A.size() || !B.size())
-    return A;
-
-  auto Ret = A;
-  for (auto I = Ret.begin(), E = Ret.end(); I != E;) {
-    if (B.count(I->first)) {
-      auto Next = std::next(I);
-      Ret.erase(I);
-      I = Next;
-    } else ++I;
-  }
-  return Ret;
-}
-
 template<class T>
 bool BoundsAnalysis::Differ(T &A, T &B) const {
   if (A.size() != B.size())
@@ -424,7 +413,7 @@ OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
 }
 
 bool BoundsAnalysis::SkipBlock(const CFGBlock *B) const {
-  return B == &Cfg->getEntry() || B == &Cfg->getExit();
+  return !B || B == &Cfg->getEntry() || B == &Cfg->getExit();
 }
 
 void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
