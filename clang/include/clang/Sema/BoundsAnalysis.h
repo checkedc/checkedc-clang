@@ -43,7 +43,7 @@ namespace clang {
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
-      BoundsMapTy In, RealIn;
+      BoundsMapTy In, WidenedBounds;
       BlockBoundsTy Gen, Out;
       DeclSetTy Kill;
 
@@ -100,8 +100,8 @@ namespace clang {
                         WorkListTy &Worklist);
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, const CFGBlock *succ);
 
+    void ComputeWidenedBounds(BlockMapTy BlockMap);
     void CollectWidenedBounds(BlockMapTy BlockMap);
-    void GatherRealBounds(BlockMapTy BlockMap);
     Expr *GetTerminatorCondition(const CFGBlock *B) const;
     bool IsPointerDerefLValue(Expr *E) const;
     bool ContainsPointerDeref(Expr *E) const;
