@@ -1891,7 +1891,7 @@ namespace {
 
       switch (S->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          VisitUnaryOperator(cast<UnaryOperator>(S), CSS);
+          CheckUnaryOperator(cast<UnaryOperator>(S), CSS, SideEffects::Enabled);
           break;
         case Expr::CallExprClass:
           VisitCallExpr(cast<CallExpr>(S), CSS, Facts);
@@ -2218,17 +2218,67 @@ namespace {
         DumpExpression(llvm::outs(), E);
     }
 
-    void VisitUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS) {
-      if (E->getOpcode() == UO_AddrOf)
-        S.CheckAddressTakenMembers(E);
+    BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS, SideEffects SE) {
+      UnaryOperatorKind Op = E->getOpcode();
+      Expr *SubExpr = E->getSubExpr();
 
-      if (!E->isIncrementDecrementOp())
-        return;
+      // Recursively compute rvalue bounds for the subexpression,
+      // without performing bounds checking.  Since TraverseStmt still checks
+      // all substatements, enabling bounds checking here could cause
+      // duplicate side effects for an expression.  In future refactoring
+      // stages, this call to RValueBounds will be replaced with a call to
+      // TraverseStmt with side effects enabled (once TraverseStmt no longer
+      // always checks substatements).
+      BoundsExpr *SubExprBounds = RValueBounds(SubExpr, CSS, 
+                                               SideEffects::Disabled);
 
-      bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(), OperationKind::Other, CSS);
-      if (NeedsBoundsCheck && DumpBounds)
-          DumpExpression(llvm::outs(), E);
-      return;
+      // Perform checking with side effects, if enabled.
+      if (SE == SideEffects::Enabled) {
+        if (Op == UO_AddrOf)
+          S.CheckAddressTakenMembers(E);
+
+        if (E->isIncrementDecrementOp()) {
+          bool NeedsBoundsCheck = AddBoundsCheck(SubExpr, 
+                                                 OperationKind::Other, CSS);
+          if (NeedsBoundsCheck && DumpBounds)
+            DumpExpression(llvm::outs(), E);
+        }
+      }
+
+      // `*e` is not an rvalue.
+      // TraverseStmt (and CheckUnaryOperator) may be called on non-rvalues,
+      // so this is not unexpected behavior.
+      if (Op == UnaryOperatorKind::UO_Deref)
+        return CreateBoundsInferenceError();
+
+      // `!e` has empty bounds.
+      if (Op == UnaryOperatorKind::UO_LNot)
+        return CreateBoundsEmpty();
+
+      // `&e` has the bounds of `e`.
+      // `e` is an lvalue, so its bounds are its lvalue bounds.
+      if (Op == UnaryOperatorKind::UO_AddrOf) {
+
+        // Functions have bounds corresponding to the empty range.
+        if (SubExpr->getType()->isFunctionType())
+          return CreateBoundsEmpty();
+
+        return LValueBounds(SubExpr, CSS);
+      }
+
+      // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
+      // `e` is an lvalue, so its bounds are its lvalue target bounds.
+      if (UnaryOperator::isIncrementDecrementOp(Op))
+        return LValueTargetBounds(SubExpr, CSS);
+
+      // `+e`, `-e`, `~e` all have bounds of `e`. `e` is an rvalue.
+      if (Op == UnaryOperatorKind::UO_Plus ||
+          Op == UnaryOperatorKind::UO_Minus ||
+          Op == UnaryOperatorKind::UO_Not)
+        return SubExprBounds;
+
+      // We cannot infer the bounds of other unary operators.
+      return CreateBoundsAlwaysUnknown();
     }
 
     void VisitVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
