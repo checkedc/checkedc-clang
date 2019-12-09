@@ -3081,47 +3081,8 @@ namespace {
             return CreateTypeBasedBounds(E, E->getType(), false, false);
           return RValueCastBounds(CE->getCastKind(), CE->getSubExpr(), CSS);
         }
-        case Expr::UnaryOperatorClass: {
-          UnaryOperator *UO = cast<UnaryOperator>(E);
-          UnaryOperatorKind Op = UO->getOpcode();
-
-          // `*e` is not an r-value.
-          if (Op == UnaryOperatorKind::UO_Deref) {
-            llvm_unreachable("unexpected dereference expression in RValue Bounds inference");
-            return CreateBoundsInferenceError();
-          }
-
-          // `!e` has empty bounds
-          if (Op == UnaryOperatorKind::UO_LNot)
-            return CreateBoundsEmpty();
-
-          Expr *SubExpr = UO->getSubExpr();
-
-          // `&e` has the bounds of `e`.
-          // `e` is an lvalue, so its bounds are its lvalue bounds.
-          if (Op == UnaryOperatorKind::UO_AddrOf) {
-
-            // Functions have bounds corresponding to the empty range
-            if (SubExpr->getType()->isFunctionType())
-              return CreateBoundsEmpty();
-
-            return LValueBounds(SubExpr, CSS);
-          }
-
-          // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
-          // `e` is an LValue, so its bounds are its lvalue target bounds.
-          if (UnaryOperator::isIncrementDecrementOp(Op))
-            return LValueTargetBounds(SubExpr, CSS);
-
-          // `+e`, `-e`, `~e` all have bounds of `e`. `e` is an RValue.
-          if (Op == UnaryOperatorKind::UO_Plus ||
-              Op == UnaryOperatorKind::UO_Minus ||
-              Op == UnaryOperatorKind::UO_Not)
-            return RValueBounds(SubExpr, CSS);
-
-          // We cannot infer the bounds of other unary operators
-          return CreateBoundsAlwaysUnknown();
-        }
+        case Expr::UnaryOperatorClass:
+          return CheckUnaryOperator(cast<UnaryOperator>(E), CSS, SE);
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass: {
           BinaryOperator *BO = cast<BinaryOperator>(E);
