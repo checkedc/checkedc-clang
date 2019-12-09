@@ -14177,8 +14177,14 @@ QualType Sema::ValidateBoundsExprArgument(Expr *Arg) {
   // we do see them.
   Qualifiers ArgTypeQuals = ArgTypePointee.getQualifiers();
   ArgTypeQuals.removeCVRQualifiers();
-  assert(!ArgTypeQuals.hasQualifiers() &&
+
+  if (ArgTypeQuals.hasQualifiers()) {
+    if (!DisableSubstitionDiagnostics)
+      assert(!ArgTypeQuals.hasQualifiers() &&
          "unexpected non-CVR qualifiers on type");
+    else
+      return ArgTypePointee;
+  }
 
   if (!ArgTypePointee->isIncompleteOrObjectType()) {
     Diag(Arg->getBeginLoc(), diag::err_typecheck_bounds_expr) << ArgType;
