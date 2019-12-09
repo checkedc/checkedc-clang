@@ -488,6 +488,15 @@ namespace {
     // physical sizes during casts to pointers to null-terminated arrays.
     bool IncludeNullTerminator;
 
+    // Used to control whether side effects resulting from bounds checking
+    // are performed during combined bounds inference and checking methods.
+    // Side effects can include inserting bounds checks,
+    // setting bounds expressions, and emitting errors or warnings.
+    enum class SideEffects {
+      Disabled = 0,
+      Enabled
+    };
+
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
                               BoundsExpr *LValueTargetBounds,
                               BoundsExpr *RHSBounds) {
@@ -2388,7 +2397,7 @@ namespace {
     BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS, bool IncludeNullTerm = false) {
       bool PrevIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
-      BoundsExpr *Bounds = RValueBounds(E, CSS);
+      BoundsExpr *Bounds = RValueBounds(E, CSS, SideEffects::Disabled);
       IncludeNullTerminator = PrevIncludeNullTerminator;
       return S.CheckNonModifyingBounds(Bounds, E);
     }
@@ -2680,11 +2689,9 @@ namespace {
       case Expr::UnaryOperatorClass: {
         UnaryOperator *UO = cast<UnaryOperator>(E);
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
-          return RValueBounds(UO->getSubExpr(), CSS);
-        else {
-          llvm_unreachable("unexpected lvalue unary operator");
+          return RValueBounds(UO->getSubExpr(), CSS, SideEffects::Disabled);
+        else
           return CreateBoundsInferenceError();
-        }
       }
       case Expr::ArraySubscriptExprClass: {
         //  e1[e2] is a synonym for *(e1 + e2).  The bounds are
@@ -2692,7 +2699,7 @@ namespace {
         // of whichever subexpression has pointer type.
         ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
         // getBase returns the pointer-typed expression.
-        return RValueBounds(AS->getBase(), CSS);
+        return RValueBounds(AS->getBase(), CSS, SideEffects::Disabled);
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = cast<MemberExpr>(E);
@@ -2965,7 +2972,7 @@ namespace {
         case CastKind::CK_IntegralCast:
         case CastKind::CK_IntegralToBoolean:
         case CastKind::CK_BooleanToSignedIntegral:
-          return RValueBounds(E, CSS);
+          return RValueBounds(E, CSS, SideEffects::Disabled);
         case CastKind::CK_LValueToRValue:
           return LValueTargetBounds(E, CSS);
         case CastKind::CK_ArrayToPointerDecay:
@@ -2983,7 +2990,7 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
-    BoundsExpr *RValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
+    BoundsExpr *RValueBounds(Expr *E, CheckedScopeSpecifier CSS, SideEffects SE) {
       if (!E->isRValue()) return CreateBoundsInferenceError();
 
       E = E->IgnoreParens();
@@ -3078,12 +3085,12 @@ namespace {
 
           // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
           if (Op == BinaryOperatorKind::BO_Assign)
-            return RValueBounds(RHS, CSS);
+            return RValueBounds(RHS, CSS, SE);
 
           // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
           // are RValues.
           if (Op == BinaryOperatorKind::BO_Comma)
-            return RValueBounds(RHS, CSS);
+            return RValueBounds(RHS, CSS, SE);
 
           // Compound Assignments function like assignments mostly,
           // except the LHS is an L-Value, so we'll use its lvalue target bounds
@@ -3102,14 +3109,14 @@ namespace {
               RHS->getType()->isIntegerType() &&
               BinaryOperator::isAdditiveOp(Op)) {
             return IsCompoundAssignment ?
-              LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS);
+              LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS, SE);
           }
           // `i + p` has the bounds of `p`. `p` is an RValue.
           // `i += p` has the bounds of `p`. `p` is an RValue.
           if (LHS->getType()->isIntegerType() &&
               RHS->getType()->isPointerType() &&
               Op == BinaryOperatorKind::BO_Add) {
-            return RValueBounds(RHS, CSS);
+            return RValueBounds(RHS, CSS, SE);
           }
           // `e - p` has empty bounds, regardless of the bounds of p.
           // `e -= p` has empty bounds, regardless of the bounds of p.
@@ -3137,8 +3144,8 @@ namespace {
                BinaryOperator::isBitwiseOp(Op) ||
                BinaryOperator::isShiftOp(Op))) {
             BoundsExpr *LHSBounds = IsCompoundAssignment ?
-              LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS);
-            BoundsExpr *RHSBounds = RValueBounds(RHS, CSS);
+              LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS, SE);
+            BoundsExpr *RHSBounds = RValueBounds(RHS, CSS, SE);
             if (LHSBounds->isUnknown() && !RHSBounds->isUnknown())
               return RHSBounds;
             if (!LHSBounds->isUnknown() && RHSBounds->isUnknown())
@@ -3174,7 +3181,7 @@ namespace {
           if (const CallExpr *CE = dyn_cast<CallExpr>(Child))
             return CallExprBounds(CE, Binding);
           else
-            return RValueBounds(Child, CSS);
+            return RValueBounds(Child, CSS, SE);
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
@@ -3182,7 +3189,7 @@ namespace {
           return CreateBoundsAllowedButNotComputed();
         case Expr::BoundsValueExprClass: {
           BoundsValueExpr *BVE = cast<BoundsValueExpr>(E);
-          return RValueBounds(BVE->getTemporaryBinding(), CSS);
+          return RValueBounds(BVE->getTemporaryBinding(), CSS, SE);
         }
         default:
           // All other cases are unknowable
