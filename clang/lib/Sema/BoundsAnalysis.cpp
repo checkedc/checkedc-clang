@@ -28,7 +28,10 @@ void BoundsAnalysis::WidenBounds() {
   // Add each block to WorkList and create a mapping from Block to
   // ElevatedCFGBlock.
   for (const auto *B : PostOrderCFGView(Cfg)) {
-    // We do not want to process entry and exit blocks.
+    // We do not want to process entry and exit blocks. PostOrderCFGView does
+    // not contain any unreachable blocks. So BlockMap only contains reachable
+    // blocks. We use this fact to later on exclude unreachable blocks from the
+    // lists of preds and succs of a block.
     if (SkipBlock(B))
       continue;
 
@@ -63,6 +66,8 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
 
     for (const CFGBlock *pred : EB->Block->preds()) {
       if (SkipBlock(pred))
+        continue;
+      if (!BlockMap.count(pred))
         continue;
 
       // We can add "p:i" only on the true edge.
@@ -198,6 +203,8 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   for (const CFGBlock *pred : EB->Block->preds()) {
     if (SkipBlock(pred))
       continue;
+    if (!BlockMap.count(pred))
+      continue;
 
     auto PredEB = BlockMap[pred];
 
@@ -221,6 +228,8 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
+    if (!BlockMap.count(succ))
+      continue;
 
     auto OldOut = EB->Out[succ];
     EB->Out[succ] = Union(EB->In, EB->Gen[succ]);
@@ -234,6 +243,8 @@ void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
   for (const auto *B : PostOrderCFGView(Cfg)) {
     if (SkipBlock(B))
       continue;
+    if (!BlockMap.count(B))
+      continue;
 
     auto EB = BlockMap[B];
     // For every block, walk over In set and try to widen the bounds if
@@ -246,6 +257,8 @@ void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
       // find the pred with the smallest calculated bounds for V.
       for (const CFGBlock *pred : B->preds()) {
         if (SkipBlock(pred))
+          continue;
+        if (!BlockMap.count(pred))
           continue;
 
         auto PredBlock = BlockMap[pred];
