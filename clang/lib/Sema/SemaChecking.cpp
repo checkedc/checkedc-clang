@@ -13945,7 +13945,8 @@ void Sema::CheckArgumentWithTypeTag(const ArgumentWithTypeTagAttr *Attr,
 
 void Sema::AddPotentialMisalignedMembers(Expr *E, RecordDecl *RD, ValueDecl *MD,
                                          CharUnits Alignment) {
-  MisalignedMembers.emplace_back(E, RD, MD, Alignment);
+  if (!DisableSubstitionDiagnostics)
+    MisalignedMembers.emplace_back(E, RD, MD, Alignment);
 }
 
 void Sema::DiagnoseMisalignedMembers() {
