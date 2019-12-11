@@ -2333,6 +2333,9 @@ namespace {
         DumpExpression(llvm::outs(), E);
     }
 
+    // If e is an rvalue, CheckUnaryOperator returns the bounds for
+    // the value produced by e.
+    // If e is an lvalue, it returns unknown bounds.
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
                                    std::pair<ComparisonSet, ComparisonSet>& Facts,
                                    SideEffects SE) {
@@ -2366,6 +2369,9 @@ namespace {
       // `*e` is not an rvalue.
       // TraverseStmt (and CheckUnaryOperator) may be called on non-rvalues,
       // so this is not unexpected behavior.
+      // CheckUnaryOperator is not intended to be used to get
+      // the bounds for an lvalue expression, but it may be called on an
+      // lvalue expression in order to perform bounds checking.
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
