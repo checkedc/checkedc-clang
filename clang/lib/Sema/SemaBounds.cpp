@@ -3256,10 +3256,12 @@ namespace {
       }
       else {
         // Get the function prototype, where the abstract function return
-        // bounds are kept. The callee is always a function pointer.
+        // bounds are kept.  The callee (if it exists) 
+        // is always a function pointer.
         const PointerType *PtrTy =
           CE->getCallee()->getType()->getAs<PointerType>();
-        assert(PtrTy != nullptr);
+        if (PtrTy == nullptr)
+          return CreateBoundsInferenceError();
         const FunctionProtoType *CalleeTy =
           PtrTy->getPointeeType()->getAs<FunctionProtoType>();
         if (!CalleeTy)
