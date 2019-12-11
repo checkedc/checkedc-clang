@@ -90,8 +90,10 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
 
   // Handle if conditions of the form "if (*e1 && *e2)".
   if (const auto *BO = dyn_cast<const BinaryOperator>(E)) {
-    FillGenSet(BO->getLHS(), EB, succ);
-    FillGenSet(BO->getRHS(), EB, succ);
+    if (BO->getOpcode() == BO_LAnd) {
+      FillGenSet(BO->getLHS(), EB, succ);
+      FillGenSet(BO->getRHS(), EB, succ);
+    }
   }
 
   // Check if the edge condition contains a pointer deref.
@@ -273,8 +275,8 @@ void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
         EB->WidenedBounds.insert(std::make_pair(V, 1));
 
       else {
-	// Else check if the calculated bounds on this variable are greater in
-	// the current block than those in the pred block. If yes, then we can
+        // Else check if the calculated bounds on this variable are greater in
+        // the current block than those in the pred block. If yes, then we can
         // widen the bounds by 1.
         // Example 1:
         // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
@@ -284,7 +286,7 @@ void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
         // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
         // B2:   if (*(p + 5))  // calc_bounds(p) = 5,  widened_bounds(p) = 1
 
-	auto WidenedBounds = PredEB->WidenedBounds[V];
+        auto WidenedBounds = PredEB->WidenedBounds[V];
         if (EB->In[V] > PredEB->In[V])
           ++WidenedBounds;
 
@@ -308,9 +310,10 @@ BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
 }
 
 Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
-  if (const Stmt *S = B->getTerminator())
+  if (const Stmt *S = B->getTerminator()) {
     if (const auto *IfS = dyn_cast<IfStmt>(S))
       return const_cast<Expr *>(IfS->getCond());
+  }
   return nullptr;
 }
 
