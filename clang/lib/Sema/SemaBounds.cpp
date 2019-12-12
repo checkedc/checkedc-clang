@@ -1897,7 +1897,7 @@ namespace {
           VisitCallExpr(cast<CallExpr>(S), CSS, Facts);
           break;
         case Expr::MemberExprClass:
-          VisitMemberExpr(cast<MemberExpr>(S), CSS);
+          CheckMemberExpr(cast<MemberExpr>(S), CSS, SideEffects::Enabled);
           break;
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
@@ -2212,10 +2212,16 @@ namespace {
     // member points to a valid range of memory given by
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
-    void VisitMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS) {
+    // CheckMemberExpr returns null bounds.  e is an lvalue.
+    BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
+                                SideEffects SE) {
+      if (SE == SideEffects::Disabled)
+        return nullptr;
+
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS);
       if (NeedsBoundsCheck && DumpBounds)
         DumpExpression(llvm::outs(), E);
+      return nullptr;
     }
 
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS, SideEffects SE) {
