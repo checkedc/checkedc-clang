@@ -1927,7 +1927,7 @@ namespace {
         }
         case Stmt::ReturnStmtClass: {
           ReturnStmt *RS = cast<ReturnStmt>(S);
-          VisitReturnStmt(RS, CSS);
+          CheckReturnStmt(RS, CSS, SideEffects::Enabled);
         }
         default: 
           break;
@@ -2333,17 +2333,21 @@ namespace {
       return;
     }
 
-    void VisitReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS) {
+    BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
+                                SideEffects SE) {
+      if (SE == SideEffects::Disabled)
+        return nullptr;
       if (!ReturnBounds)
-        return;
+        return nullptr;
       Expr *RetValue = RS->getRetValue();
       if (!RetValue)
         // We already issued an error message for this case.
-        return;
+        return nullptr;
       // TODO: Actually check that the return expression bounds imply the 
       // return bounds.
       // TODO: Also check that any parameters used in the return bounds are
       // unmodified.
+      return nullptr;
     }
 
     // Given an array type with constant dimension size, produce a count
