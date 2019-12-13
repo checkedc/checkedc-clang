@@ -2005,7 +2005,7 @@ namespace {
               if (E->isCompoundAssignmentOp())
                 RightBounds = InferRValueBounds(E, CSS, Facts);
               else
-                RightBounds = InferRValueBounds(RHS, CSS, Facts);
+                RightBounds = S.CheckNonModifyingBounds(RHSBounds, RHS);
 
               if (RightBounds->isUnknown()) {
                  S.Diag(RHS->getBeginLoc(),
