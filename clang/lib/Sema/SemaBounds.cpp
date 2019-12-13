@@ -2002,8 +2002,13 @@ namespace {
             // target of the LHS lvalue has bounds.
             LHSTargetBounds = InferLValueTargetBounds(LHS, CSS);
             if (!LHSTargetBounds->isUnknown()) {
-              if (E->isCompoundAssignmentOp())
-                RightBounds = InferRValueBounds(E, CSS, Facts);
+              if (E->isCompoundAssignmentOp()) {
+                // Disabling side effects in this call prevents it from
+                // causing an infinite loop, since this call is only made
+                // when side effects are enabled.
+                BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
+                RightBounds = S.CheckNonModifyingBounds(Bounds, E);
+              }
               else
                 RightBounds = S.CheckNonModifyingBounds(RHSBounds, RHS);
 
