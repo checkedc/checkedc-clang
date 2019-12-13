@@ -2346,8 +2346,8 @@ namespace {
       // all substatements, enabling bounds checking here could cause
       // duplicate side effects for an expression.  In future refactoring
       // stages, this call to RValueBounds will be replaced with a call to
-      // TraverseStmt with side effects enabled (once TraverseStmt no longer
-      // always checks substatements).
+      // TraverseStmt with side effects potentially enabled
+      // (once TraverseStmt no longer always checks substatements).
       BoundsExpr *SubExprBounds = RValueBounds(SubExpr, CSS, Facts,
                                                SideEffects::Disabled);
 
