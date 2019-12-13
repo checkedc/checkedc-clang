@@ -1974,12 +1974,100 @@ namespace {
       // all substatements, enabling bounds checking here could cause
       // duplicate side effects for an expression.  In future refactoring
       // stages, these calls to RValueBounds will be replaced with calls to
-      // TraverseStmt with side effects enabled (once TraverseStmt no longer
-      // always checks substatements).
+      // TraverseStmt with side effects potentially enabled
+      // (once TraverseStmt no longer always checks substatements).
       BoundsExpr *LHSBounds = RValueBounds(LHS, CSS, Facts,
                                            SideEffects::Disabled);
       BoundsExpr *RHSBounds = RValueBounds(RHS, CSS, Facts,
                                            SideEffects::Disabled);
+
+      // Bounds of the binary operator.
+      BoundsExpr *ResultBounds = CreateBoundsEmpty();
+
+      // To avoid duplicate calls to RValueBounds,
+      // infer the result bounds before performing bounds checking,
+      // since bounds checking may use the result bounds.
+
+      // Floating point expressions have empty bounds.
+      if (E->getType()->isFloatingType())
+        ResultBounds = CreateBoundsEmpty();
+
+      // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
+      else if (Op == BinaryOperatorKind::BO_Assign)
+        ResultBounds = RHSBounds;
+
+      // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
+      // are RValues.
+      else if (Op == BinaryOperatorKind::BO_Comma)
+        ResultBounds = RHSBounds;
+      
+      else {
+        // Compound Assignments function like assignments mostly,
+        // except the LHS is an L-Value, so we'll use its lvalue target bounds
+        bool IsCompoundAssignment = false;
+        if (BinaryOperator::isCompoundAssignmentOp(Op)) {
+          Op = BinaryOperator::getOpForCompoundAssignment(Op);
+          IsCompoundAssignment = true;
+        }
+
+        // Pointer arithmetic.
+        //
+        // `p + i` has the bounds of `p`. `p` is an RValue.
+        // `p += i` has the lvalue target bounds of `p`. `p` is an LValue. `p += i` is an RValue
+        // same applies for `-` and `-=` respectively
+        if (LHS->getType()->isPointerType() &&
+            RHS->getType()->isIntegerType() &&
+            BinaryOperator::isAdditiveOp(Op)) {
+          ResultBounds = IsCompoundAssignment ?
+            LValueTargetBounds(LHS, CSS) : LHSBounds;
+        }
+        // `i + p` has the bounds of `p`. `p` is an RValue.
+        // `i += p` has the bounds of `p`. `p` is an RValue.
+        else if (LHS->getType()->isIntegerType() &&
+            RHS->getType()->isPointerType() &&
+            Op == BinaryOperatorKind::BO_Add) {
+          ResultBounds = RHSBounds;
+        }
+        // `e - p` has empty bounds, regardless of the bounds of p.
+        // `e -= p` has empty bounds, regardless of the bounds of p.
+        else if (RHS->getType()->isPointerType() &&
+            Op == BinaryOperatorKind::BO_Sub) {
+          ResultBounds = CreateBoundsEmpty();
+        }
+
+        // Arithmetic on integers with bounds.
+        //
+        // `e1 @ e2` has the bounds of whichever of `e1` or `e2` has bounds.
+        // if both `e1` and `e2` have bounds, then they must be equal.
+        // Both `e1` and `e2` are RValues
+        //
+        // `e1 @= e2` has the bounds of whichever of `e1` or `e2` has bounds.
+        // if both `e1` and `e2` have bounds, then they must be equal.
+        // `e1` is an LValue, its bounds are the lvalue target bounds.
+        // `e2` is an RValue
+        //
+        // @ can stand for: +, -, *, /, %, &, |, ^, >>, <<
+        else if (LHS->getType()->isIntegerType() &&
+            RHS->getType()->isIntegerType() &&
+            (BinaryOperator::isAdditiveOp(Op) ||
+              BinaryOperator::isMultiplicativeOp(Op) ||
+              BinaryOperator::isBitwiseOp(Op) ||
+              BinaryOperator::isShiftOp(Op))) {
+          BoundsExpr *LeftBounds = IsCompoundAssignment ?
+            LValueTargetBounds(LHS, CSS) : LHSBounds;
+          if (LeftBounds->isUnknown() && !RHSBounds->isUnknown())
+            ResultBounds = RHSBounds;
+          else if (!LeftBounds->isUnknown() && RHSBounds->isUnknown())
+            ResultBounds = LeftBounds;
+          else if (!LeftBounds->isUnknown() && !RHSBounds->isUnknown()) {
+            // TODO: Check if LHSBounds and RHSBounds are equal.
+            // if so, return one of them. If not, return bounds(unknown)
+            ResultBounds = CreateBoundsAlwaysUnknown();
+          }
+          else if (LeftBounds->isUnknown() && RHSBounds->isUnknown())
+            ResultBounds = CreateBoundsEmpty();
+        }
+      }
 
       // Perform checking with side effects, if enabled.
       if (SE == SideEffects::Enabled) {
@@ -1993,7 +2081,7 @@ namespace {
           if (!E->isCompoundAssignmentOp() &&
               LHSType->isCheckedPointerPtrType() &&
               RHS->getType()->isCheckedPointerPtrType()) {
-            // ptr<T> to ptr<T> assignment, no obligation to infer any bounds for either side
+            // ptr<T> to ptr<T> assignment, no obligation to check assignment bounds
           }
           else if (LHSType->isCheckedPointerType() ||
                    LHSType->isIntegerType() ||
@@ -2002,13 +2090,8 @@ namespace {
             // target of the LHS lvalue has bounds.
             LHSTargetBounds = InferLValueTargetBounds(LHS, CSS);
             if (!LHSTargetBounds->isUnknown()) {
-              if (E->isCompoundAssignmentOp()) {
-                // Disabling side effects in this call prevents it from
-                // causing an infinite loop, since this call is only made
-                // when side effects are enabled.
-                BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
-                RightBounds = S.CheckNonModifyingBounds(Bounds, E);
-              }
+              if (E->isCompoundAssignmentOp())
+                RightBounds = S.CheckNonModifyingBounds(ResultBounds, E);
               else
                 RightBounds = S.CheckNonModifyingBounds(RHSBounds, RHS);
 
@@ -2036,96 +2119,7 @@ namespace {
         }
       }
 
-      // Floating point expressions have empty bounds.
-      if (E->getType()->isFloatingType())
-        return CreateBoundsEmpty();
-
-      // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
-      if (Op == BinaryOperatorKind::BO_Assign)
-        return RHSBounds;
-
-      // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
-      // are RValues.
-      if (Op == BinaryOperatorKind::BO_Comma)
-        return RHSBounds;
-
-      // Compound Assignments function like assignments mostly,
-      // except the LHS is an L-Value, so we'll use its lvalue target bounds
-      bool IsCompoundAssignment = false;
-      if (BinaryOperator::isCompoundAssignmentOp(Op)) {
-        Op = BinaryOperator::getOpForCompoundAssignment(Op);
-        IsCompoundAssignment = true;
-      }
-
-      // Pointer arithmetic.
-      //
-      // `p + i` has the bounds of `p`. `p` is an RValue.
-      // `p += i` has the lvalue target bounds of `p`. `p` is an LValue. `p += i` is an RValue
-      // same applies for `-` and `-=` respectively
-      if (LHS->getType()->isPointerType() &&
-          RHS->getType()->isIntegerType() &&
-          BinaryOperator::isAdditiveOp(Op)) {
-        return IsCompoundAssignment ?
-          LValueTargetBounds(LHS, CSS) : LHSBounds;
-      }
-      // `i + p` has the bounds of `p`. `p` is an RValue.
-      // `i += p` has the bounds of `p`. `p` is an RValue.
-      if (LHS->getType()->isIntegerType() &&
-          RHS->getType()->isPointerType() &&
-          Op == BinaryOperatorKind::BO_Add) {
-        return RHSBounds;
-      }
-      // `e - p` has empty bounds, regardless of the bounds of p.
-      // `e -= p` has empty bounds, regardless of the bounds of p.
-      if (RHS->getType()->isPointerType() &&
-          Op == BinaryOperatorKind::BO_Sub) {
-        return CreateBoundsEmpty();
-      }
-
-      // Arithmetic on integers with bounds.
-      //
-      // `e1 @ e2` has the bounds of whichever of `e1` or `e2` has bounds.
-      // if both `e1` and `e2` have bounds, then they must be equal.
-      // Both `e1` and `e2` are RValues
-      //
-      // `e1 @= e2` has the bounds of whichever of `e1` or `e2` has bounds.
-      // if both `e1` and `e2` have bounds, then they must be equal.
-      // `e1` is an LValue, its bounds are the lvalue target bounds.
-      // `e2` is an RValue
-      //
-      // @ can stand for: +, -, *, /, %, &, |, ^, >>, <<
-      if (LHS->getType()->isIntegerType() &&
-          RHS->getType()->isIntegerType() &&
-          (BinaryOperator::isAdditiveOp(Op) ||
-            BinaryOperator::isMultiplicativeOp(Op) ||
-            BinaryOperator::isBitwiseOp(Op) ||
-            BinaryOperator::isShiftOp(Op))) {
-        BoundsExpr *LeftBounds = IsCompoundAssignment ?
-          LValueTargetBounds(LHS, CSS) : LHSBounds;
-        if (LeftBounds->isUnknown() && !RHSBounds->isUnknown())
-          return RHSBounds;
-        if (!LeftBounds->isUnknown() && RHSBounds->isUnknown())
-          return LeftBounds;
-        if (!LeftBounds->isUnknown() && !RHSBounds->isUnknown()) {
-          // TODO: Check if LHSBounds and RHSBounds are equal.
-          // if so, return one of them. If not, return bounds(unknown)
-          return CreateBoundsAlwaysUnknown();
-        }
-        if (LeftBounds->isUnknown() && RHSBounds->isUnknown())
-          return CreateBoundsEmpty();
-      }
-
-      // Comparisons and Logical Ops
-      //
-      // `e1 @ e2` have empty bounds if @ is:
-      // ==, !=, <=, <, >=, >, &&, ||
-      if (BinaryOperator::isComparisonOp(Op) ||
-          BinaryOperator::isLogicalOp(Op)) {
-        return CreateBoundsEmpty();
-      }
-
-      // All Other Binary Operators we don't know how to deal with.
-      return CreateBoundsEmpty();
+      return ResultBounds;
     }
 
     void VisitCallExpr(CallExpr *CE, CheckedScopeSpecifier CSS,
