@@ -43,7 +43,7 @@ namespace clang {
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
-      BoundsMapTy In, WidenedBounds;
+      BoundsMapTy In;
       BlockBoundsTy Gen, Out;
       DeclSetTy Kill;
 
@@ -143,6 +143,8 @@ namespace clang {
     // Compute the union of sets A and B.
     template<class T> T Union(T &A, T &B) const;
     // Compute the set difference of sets A and B.
+    template<class T, class U> T Difference(T &A, U &B) const;
+    // Check whether the sets A and B differ.
     template<class T> bool Differ(T &A, T &B) const;
   };
 }

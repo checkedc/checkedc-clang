@@ -28,16 +28,26 @@ void BoundsAnalysis::WidenBounds() {
   // Add each block to WorkList and create a mapping from Block to
   // ElevatedCFGBlock.
   for (const auto *B : PostOrderCFGView(Cfg)) {
-    // We do not want to process entry and exit blocks. PostOrderCFGView does
-    // not contain any unreachable blocks. So BlockMap only contains reachable
-    // blocks. We use this fact to later on exclude unreachable blocks from the
-    // lists of preds and succs of a block.
+    // SkipBlock will skip all null, entry and exit blocks. PostOrderCFGView
+    // does not contain any unreachable blocks. So at the end of this loop
+    // BlockMap only contains reachable blocks.
     if (SkipBlock(B))
       continue;
 
     auto EB = new ElevatedCFGBlock(B);
     WorkList.append(EB);
     BlockMap[B] = EB;
+  }
+
+  // At this time, BlockMap only contains reachable blocks. We iterate through
+  // all blocks in the CFG and append all unreachable blocks to the WorkList.
+  for (auto I = Cfg->begin(), E = Cfg->end(); I != E; ++I) {
+    const auto *B = *I;
+    if (!SkipBlock(B) && !BlockMap.count(B)) {
+      auto EB = new ElevatedCFGBlock(B);
+      WorkList.append(EB);
+      BlockMap[B] = EB;
+    }
   }
 
   // Compute Gen and Kill sets.
@@ -53,7 +63,6 @@ void BoundsAnalysis::WidenBounds() {
     ComputeOutSets(EB, BlockMap, WorkList);
   }
 
-  ComputeWidenedBounds(BlockMap);
   CollectWidenedBounds(BlockMap);
 }
 
@@ -66,8 +75,6 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
 
     for (const CFGBlock *pred : EB->Block->preds()) {
       if (SkipBlock(pred))
-        continue;
-      if (!BlockMap.count(pred))
         continue;
 
       // We can add "p:i" only on the true edge.
@@ -112,42 +119,47 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
     if (!Exp)
       return;
 
-    // Note: When we have if conditions of the form
-    // "if (*(p + i) && *(p + j) && *(p + k))" we take the max{i, j, k}.
+    // Note: Currently we do not handle accesses of the form:
+    // "if (*(p + i) && *(p + j) && *(p + k))"
 
     // For conditions of the form "if (*p)".
     if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-        if (V->getType()->isCheckedPointerNtArrayType()) {
-          unsigned NewBounds = 0;
-          if (!EB->Gen[succ].count(V))
-            EB->Gen[succ].insert(std::make_pair(V, NewBounds));
-          else {
-            NewBounds = std::max(NewBounds, EB->Gen[succ][V]);
-            EB->Gen[succ][V] = NewBounds;
-          }
-        }
+        if (V->getType()->isCheckedPointerNtArrayType())
+          EB->Gen[succ].insert(std::make_pair(V, 0));
 
     // For conditions of the form "if (*(p + i))"
     } else if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
+      // Currently we only handle additive offsets.
       if (BO->getOpcode() != BO_Add)
         return;
 
-      const auto *D =
-        dyn_cast<DeclRefExpr>(IgnoreCasts(BO->getLHS()));
-      const auto *Lit = dyn_cast<IntegerLiteral>(IgnoreCasts(BO->getRHS()));
+      Expr *LHS = IgnoreCasts(BO->getLHS());
+      Expr *RHS = IgnoreCasts(BO->getRHS());
+      DeclRefExpr *D = nullptr;
+      IntegerLiteral *Lit = nullptr;
+
+      // Handle *(p + i).
+      if (isa<DeclRefExpr>(LHS) && isa<IntegerLiteral>(RHS)) {
+        D = dyn_cast<DeclRefExpr>(LHS);
+        Lit = dyn_cast<IntegerLiteral>(RHS);
+
+      // Handle *(i + p).
+      } else if (isa<DeclRefExpr>(RHS) && isa<IntegerLiteral>(LHS)) {
+        D = dyn_cast<DeclRefExpr>(RHS);
+        Lit = dyn_cast<IntegerLiteral>(LHS);
+      }
+
       if (!D || !Lit)
         return;
 
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
         if (V->getType()->isCheckedPointerNtArrayType()) {
           unsigned NewBounds = Lit->getValue().getLimitedValue();
+          // We update the bounds of p on the edge EB-->succ only if this is
+          // the first time we encounter "if (*(p + i)" on that edge.
           if (!EB->Gen[succ].count(V))
-            EB->Gen[succ].insert(std::make_pair(V, NewBounds));
-          else {
-            NewBounds = std::max(NewBounds, EB->Gen[succ][V]);
             EB->Gen[succ][V] = NewBounds;
-          }
         }
       }
     }
@@ -203,8 +215,6 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
   for (const CFGBlock *pred : EB->Block->preds()) {
     if (SkipBlock(pred))
       continue;
-    if (!BlockMap.count(pred))
-      continue;
 
     auto PredEB = BlockMap[pred];
 
@@ -221,91 +231,18 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
                                     BlockMapTy BlockMap,
                                     WorkListTy &WorkList) {
-  // Out[B1->B2] = In[B1] u Gen[B1->B2].
-  // Note: We need to remove all killed variables from In. We do this in
-  // ComputeWidenedBounds.
+  // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
 
+  auto Diff = Difference(EB->In, EB->Kill);
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
-    if (!BlockMap.count(succ))
-      continue;
 
     auto OldOut = EB->Out[succ];
-    EB->Out[succ] = Union(EB->In, EB->Gen[succ]);
+    EB->Out[succ] = Union(Diff, EB->Gen[succ]);
 
     if (Differ(OldOut, EB->Out[succ]))
       WorkList.append(BlockMap[succ]);
-  }
-}
-
-void BoundsAnalysis::ComputeWidenedBounds(BlockMapTy BlockMap) {
-  for (const auto *B : PostOrderCFGView(Cfg)) {
-    if (SkipBlock(B))
-      continue;
-    if (!BlockMap.count(B))
-      continue;
-
-    auto EB = BlockMap[B];
-    // For every block, walk over In set and try to widen the bounds if
-    // possible.
-    for (auto item : EB->In) {
-      const auto *V = item.first;
-      ElevatedCFGBlock *PredEB = nullptr;
-
-      // Check if an entry for the variable V exists in pred blocks. We try to
-      // find the pred with the smallest calculated bounds for V.
-      for (const CFGBlock *pred : B->preds()) {
-        if (SkipBlock(pred))
-          continue;
-        if (!BlockMap.count(pred))
-          continue;
-
-        auto PredBlock = BlockMap[pred];
-
-        // Skip a block which kills V.
-        if (PredBlock->Kill.count(V))
-          continue;
-
-        // Skip a block which does not contain V.
-        if (!PredBlock->In.count(V))
-          continue;
-
-        // Update the pred block if this is the first pred we found V in, or if
-        // this pred has a lesser calculated bound than the one we already
-        // found in another pred.
-        if (!PredEB || PredBlock->In[V] < PredEB->In[V])
-          PredEB = PredBlock;
-      }
-
-      // If an entry for V does not exist in any pred block then it means that
-      // this is the first time this variable is encountered. So its bounds
-      // should be 1.
-
-      // Example:
-      // B1: if (*(p + 10))     // calc_bounds(p) = 10, widened_bounds(p) = 1
-      if (!PredEB)
-        EB->WidenedBounds.insert(std::make_pair(V, 1));
-
-      else {
-        // Else check if the calculated bounds on this variable are greater in
-        // the current block than those in the pred block. If yes, then we can
-        // widen the bounds by 1.
-        // Example 1:
-        // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
-        // B2:   if (*(p + 20)) // calc_bounds(p) = 20, widened_bounds(p) = 2
-
-        // Example 2:
-        // B1: if (*(p + 10))   // calc_bounds(p) = 10, widened_bounds(p) = 1
-        // B2:   if (*(p + 5))  // calc_bounds(p) = 5,  widened_bounds(p) = 1
-
-        auto WidenedBounds = PredEB->WidenedBounds[V];
-        if (EB->In[V] > PredEB->In[V])
-          ++WidenedBounds;
-
-        EB->WidenedBounds.insert(std::make_pair(V, WidenedBounds));
-      }
-    }
   }
 }
 
@@ -313,7 +250,7 @@ void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
   for (auto item : BlockMap) {
     const auto *B = item.first;
     auto *EB = item.second;
-    WidenedBounds[B] = EB->WidenedBounds;
+    WidenedBounds[B] = EB->In;
     delete EB;
   }
 }
@@ -381,12 +318,14 @@ T BoundsAnalysis::Intersect(T &A, T &B) const {
   }
 
   for (auto I = Ret.begin(), E = Ret.end(); I != E;) {
-    if (!B.count(I->first)) {
+    const auto *V = I->first;
+
+    if (!B.count(V)) {
       auto Next = std::next(I);
       Ret.erase(I);
       I = Next;
     } else {
-      Ret[I->first] = std::min(Ret[I->first], B[I->first]);
+      Ret[V] = std::min(Ret[V], B[V]);
       ++I;
     }
   }
@@ -395,15 +334,33 @@ T BoundsAnalysis::Intersect(T &A, T &B) const {
 
 template<class T>
 T BoundsAnalysis::Union(T &A, T &B) const {
-  if (!A.size())
-    return B;
-
   auto Ret = A;
   for (const auto item : B) {
-    if (!Ret.count(item.first))
-      Ret[item.first] = item.second;
-    else
-      Ret[item.first] = std::max(Ret[item.first], item.second);
+    const auto *V = item.first;
+    auto I = item.second;
+
+    if (!Ret.count(V)) {
+      if (I == 0)
+        Ret[V] = 1;
+    } else if (I == Ret[V])
+      Ret[V] = I + 1;
+  }
+  return Ret;
+}
+
+template<class T, class U>
+T BoundsAnalysis::Difference(T &A, U &B) const {
+  if (!A.size() || !B.size())
+    return A;
+
+  auto Ret = A;
+  for (auto I = Ret.begin(), E = Ret.end(); I != E; ) {
+    const auto *V = I->first;
+    if (B.count(V)) {
+      auto Next = std::next(I);
+      Ret.erase(I);
+      I = Next;
+    } else ++I;
   }
   return Ret;
 }
