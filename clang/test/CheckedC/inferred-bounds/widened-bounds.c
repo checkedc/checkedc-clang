@@ -174,38 +174,10 @@ void f5() {
 }
 
 void f9() {
-  if (*p) {
-    if (*q) {
-      p = "a";
-      if (*(p + 1)) {
-        q = "b";
-        if (*(q + 1)) {}
-      }
-    }
-  }
-
-// CHECK: In function: f9
-// CHECK:  [B5]
-// CHECK:    1: *p
-// CHECK:  [B4]
-// CHECK:    1: *q
-// CHECK: upper_bound(p) = 1
-// CHECK:  [B3]
-// CHECK:    1: p = "a"
-// CHECK:    2: *(p + 1)
-// CHECK: upper_bound(p) = 1
-// CHECK: upper_bound(q) = 1
-// CHECK:  [B2]
-// CHECK:    1: q = "b"
-// CHECK:    2: *(q + 1)
-// CHECK:  [B1]
-}
-
-void f10() {
   if (!*p)
     if (*p) {}
 
-// CHECK: In function: f10
+// CHECK: In function: f9
 // CHECK:  [B3]
 // CHECK:    1: !*p
 // CHECK:  [B2]
@@ -214,11 +186,11 @@ void f10() {
 // CHECK: upper_bound(p) = 1
 }
 
-void f11() {
+void f10() {
   if (*p)
     if (*(1 + p)) {}
 
-// CHECK: In function: f11
+// CHECK: In function: f10
 // CHECK:  [B3]
 // CHECK:   1: *p
 // CHECK:  [B2]
@@ -226,4 +198,52 @@ void f11() {
 // CHECK: upper_bound(p) = 1
 // CHECK:  [B1]
 // CHECK: upper_bound(p) = 2
+}
+
+void f11(int i, int j) {
+// CHECK: In function: f11
+
+  _Nt_array_ptr<char> p : bounds(p + i, p + j) = "ab";
+
+  if (*p) {
+    p = "xy";
+    if (*(p + 1))
+      a = 1;
+  }
+
+// CHECK: [B8]
+// CHECK:   1: p = "xy"
+// CHECK:   2: *(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK: [B7]
+// CHECK:   1: a = 1
+// CHECK-NOT: upper_bound(p) = 2
+
+  if (*p) {
+    i = 10;
+    if (*(p + 1))
+      a = 2;
+  }
+
+// CHECK: [B5]
+// CHECK:   1: i = 10
+// CHECK:   2: *(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK: [B4]
+// CHECK:   1: a = 2
+// CHECK-NOT: upper_bound(p) = 2
+
+  if (*p) {
+    j = 10;
+    if (*(p + 1))
+      a = 3;
+  }
+
+// CHECK: [B2]
+// CHECK:   1: j = 10
+// CHECK:   2: *(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK: [B1]
+// CHECK:   1: a = 3
+// CHECK-NOT: upper_bound(p) = 2
 }
