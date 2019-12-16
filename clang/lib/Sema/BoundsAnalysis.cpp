@@ -14,10 +14,6 @@
 #include "clang/Sema/BoundsAnalysis.h"
 
 namespace clang {
-// Legend:
-// n ==> intersection.
-// E ==> belongs.
-// u ==> union.
 
 void BoundsAnalysis::WidenBounds() {
   assert(Cfg && "expected CFG to exist");
@@ -27,6 +23,8 @@ void BoundsAnalysis::WidenBounds() {
 
   // Add each block to WorkList and create a mapping from Block to
   // ElevatedCFGBlock.
+  // Note: By default, PostOrderCFGView iterates in reverse order. So we always
+  // get a reverse post order when we iterate PostOrderCFGView.
   for (const auto *B : PostOrderCFGView(Cfg)) {
     // SkipBlock will skip all null, entry and exit blocks. PostOrderCFGView
     // does not contain any unreachable blocks. So at the end of this loop
@@ -35,6 +33,8 @@ void BoundsAnalysis::WidenBounds() {
       continue;
 
     auto EB = new ElevatedCFGBlock(B);
+    // Note: WorkList is a queue. So we maintain the reverse post order when we
+    // iterate WorkList.
     WorkList.append(EB);
     BlockMap[B] = EB;
   }
@@ -92,19 +92,49 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
 
       // Get the edge condition and fill the Gen set.
       if (Expr *E = GetTerminatorCondition(pred))
-        FillGenSet(E, BlockMap[pred], EB->Block);
+        FillGenSet(E, BlockMap[pred], EB);
     }
   }
 }
 
-void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
-                                const CFGBlock *succ) {
+void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
+  if (!E)
+    return;
+
+  E = IgnoreCasts(const_cast<Expr *>(E));
+
+  // Collect bounds vars for the lower and upper bounds exprs.
+  // Example:
+  // _Nt_array_ptr<char> p : bounds(p + i, p + j);
+  // LowerExpr: p + i.
+  // UpperExpr: p + j.
+  if (const auto *RBE = dyn_cast<RangeBoundsExpr>(E)) {
+    CollectBoundsVars(RBE->getLowerExpr(), BoundsVars);
+    CollectBoundsVars(RBE->getUpperExpr(), BoundsVars);
+  }
+
+  // Collect bounds vars for the LHS and RHS of bounds exprs.
+  // Example: In p + i, LHS = p and RHS = i
+  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+    CollectBoundsVars(BO->getLHS(), BoundsVars);
+    CollectBoundsVars(BO->getRHS(), BoundsVars);
+  }
+
+  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
+      BoundsVars.insert(V);
+  }
+}
+
+void BoundsAnalysis::FillGenSet(Expr *E,
+                                ElevatedCFGBlock *EB,
+                                ElevatedCFGBlock *SuccEB) {
 
   // Handle if conditions of the form "if (*e1 && *e2)".
   if (const auto *BO = dyn_cast<const BinaryOperator>(E)) {
     if (BO->getOpcode() == BO_LAnd) {
-      FillGenSet(BO->getLHS(), EB, succ);
-      FillGenSet(BO->getRHS(), EB, succ);
+      FillGenSet(BO->getLHS(), EB, SuccEB);
+      FillGenSet(BO->getRHS(), EB, SuccEB);
     }
   }
 
@@ -119,14 +149,21 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
     if (!Exp)
       return;
 
-    // Note: Currently we do not handle accesses of the form:
+    // TODO: Handle accesses of the form:
     // "if (*(p + i) && *(p + j) && *(p + k))"
 
     // For conditions of the form "if (*p)".
     if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
-      if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-        if (V->getType()->isCheckedPointerNtArrayType())
-          EB->Gen[succ].insert(std::make_pair(V, 0));
+      if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+        if (V->getType()->isCheckedPointerNtArrayType()) {
+          EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
+          if (!SuccEB->BoundsVars.count(V)) {
+            DeclSetTy BoundsVars;
+            CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+            SuccEB->BoundsVars[V] = BoundsVars;
+          }
+        }
+      }
 
     // For conditions of the form "if (*(p + i))"
     } else if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
@@ -155,11 +192,16 @@ void BoundsAnalysis::FillGenSet(Expr *E, ElevatedCFGBlock *EB,
 
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
         if (V->getType()->isCheckedPointerNtArrayType()) {
-          unsigned NewBounds = Lit->getValue().getLimitedValue();
-          // We update the bounds of p on the edge EB-->succ only if this is
+          // We update the bounds of p on the edge EB->SuccEB only if this is
           // the first time we encounter "if (*(p + i)" on that edge.
-          if (!EB->Gen[succ].count(V))
-            EB->Gen[succ][V] = NewBounds;
+          if (!EB->Gen[SuccEB->Block].count(V)) {
+            EB->Gen[SuccEB->Block][V] = Lit->getValue().getLimitedValue();
+            if (!SuccEB->BoundsVars.count(V)) {
+              DeclSetTy BoundsVars;
+              CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+              SuccEB->BoundsVars[V] = BoundsVars;
+            }
+          }
         }
       }
     }
@@ -175,14 +217,15 @@ void BoundsAnalysis::ComputeKillSets(BlockMapTy BlockMap) {
 
     for (auto Elem : *(EB->Block))
       if (Elem.getKind() == CFGElement::Statement)
-        CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), DefinedVars);
+        CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), EB, DefinedVars);
 
     for (const auto V : DefinedVars)
       EB->Kill.insert(V);
   }
 }
 
-void BoundsAnalysis::CollectDefinedVars(const Stmt *S, DeclSetTy &DefinedVars) {
+void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
+                                        DeclSetTy &DefinedVars) {
   if (!S)
     return;
 
@@ -196,14 +239,31 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, DeclSetTy &DefinedVars) {
   }
 
   if (E) {
-    if (const auto *D = dyn_cast<DeclRefExpr>(E))
-      if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
+    if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
+      if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
         if (V->getType()->isCheckedPointerNtArrayType())
           DefinedVars.insert(V);
+        else {
+
+          // BoundsVars is a mapping from _Nt_array_ptrs to all the variables
+          // used in their bounds exprs. For example:
+
+          // _Nt_array_ptr<char> p : bounds(p + i, i + p + j + 10); 
+          // _Nt_array_ptr<char> q : bounds(i + q, i + p + q + m);
+
+          // EB->BoundsVars: {p: {p, i, j}, q: {i, q, p, m}}
+  
+          for (auto item : EB->BoundsVars) {
+            if (item.second.count(V))
+              DefinedVars.insert(item.first);
+          }
+        }
+      }
+    }
   }
 
   for (const auto I : S->children())
-    CollectDefinedVars(I, DefinedVars);
+    CollectDefinedVars(I, EB, DefinedVars);
 }
 
 void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
@@ -239,6 +299,24 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
       continue;
 
     auto OldOut = EB->Out[succ];
+
+    // Here's how we compute (In - Kill) u Gen:
+
+    // 1. If variable p does not exist in (In - Kill), then
+    // (Gen[p] == 0) ==> Out[B1->B2] = {p:1}.
+    // In other words, if p does not exist in (In - Kill) it means that p is
+    // dereferenced for the first time on the incoming edge to this block, like
+    // "if (*p)". So we can initialize the bounds of p to 1. But we may also
+    // run into cases like "if (*(p + 100))". In this case, we cannot
+    // initialize the bounds of p. So additionally we check if Gen[p] == 0.
+
+    // 2. Else if the bounds of p in (In - Kill) == Gen[V] then widen the
+    // bounds of p by 1.
+    // Consider this example:
+    // B1: if (*p) { // In[B1] = {}, Gen[Entry->B1] = {} ==> bounds(p) = 1.
+    // B2:   if (*(p + 1)) { // In[B2] = {p:1}, Gen[B1->B2] = {p:1} ==> bounds(p) = 2.
+    // B3:     if (*(p + 2)) { // In[B2] = {p:2}, Gen[B1->B2] = {p:2} ==> bounds(p) = 3.
+
     EB->Out[succ] = Union(Diff, EB->Gen[succ]);
 
     if (Differ(OldOut, EB->Out[succ]))
