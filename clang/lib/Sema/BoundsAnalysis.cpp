@@ -113,8 +113,7 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
     CollectBoundsVars(RBE->getUpperExpr(), BoundsVars);
   }
 
-  // Collect bounds vars for the LHS and RHS of bounds exprs.
-  // Example: In p + i, LHS = p and RHS = i
+  // Collect bounds vars for the LHS and RHS of binary expressions.
   if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
     CollectBoundsVars(BO->getLHS(), BoundsVars);
     CollectBoundsVars(BO->getRHS(), BoundsVars);

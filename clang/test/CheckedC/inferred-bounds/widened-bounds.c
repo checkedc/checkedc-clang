@@ -2,8 +2,8 @@
 //
 // RUN: %clang_cc1 -fdump-widened-bounds %s 2>1 | FileCheck %s
 
-_Nt_array_ptr<char> p : count(0);
-_Nt_array_ptr<char> q : count(0);
+_Nt_array_ptr<char> p : count(10);
+_Nt_array_ptr<char> q : count(10);
 int a;
 
 void f1() {
