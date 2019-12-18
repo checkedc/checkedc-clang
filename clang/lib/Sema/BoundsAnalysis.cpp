@@ -139,10 +139,9 @@ bool BoundsAnalysis::AreDeclaredBoundsZero(const Expr *E, const Expr *V) {
       auto *RHS = IgnoreCasts(BO->getRHS());
       if (const auto *Lit = dyn_cast<IntegerLiteral>(RHS)) {
         auto *LHS = IgnoreCasts(BO->getLHS());
-        return
-          Lit->getValue().getLimitedValue() == 0 &&
-          Lexicographic(Ctx, nullptr).CompareExpr(LHS, V) ==
-          Lexicographic::Result::Equal;
+        return Lit->getValue().getLimitedValue() == 0 &&
+               Lexicographic(Ctx, nullptr).CompareExpr(LHS, V) ==
+               Lexicographic::Result::Equal;
       }
     }
   }
