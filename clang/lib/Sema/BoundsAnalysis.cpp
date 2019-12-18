@@ -125,6 +125,30 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
   }
 }
 
+bool BoundsAnalysis::AreDeclaredBoundsZero(const Expr *E, const Expr *V) {
+  if (!E)
+    return !V;
+
+  E = IgnoreCasts(const_cast<Expr *>(E));
+
+  // Check if the upper bound of V is equal to V.
+  // To do this, we check that the LHS of the bounds expr is V and the RHS is
+  // 0.
+  if (const auto *RBE = dyn_cast<RangeBoundsExpr>(E)) {
+    if (const auto *BO = dyn_cast<BinaryOperator>(RBE->getUpperExpr())) {
+      auto *RHS = IgnoreCasts(BO->getRHS());
+      if (const auto *Lit = dyn_cast<IntegerLiteral>(RHS)) {
+        auto *LHS = IgnoreCasts(BO->getLHS());
+        return
+          Lit->getValue().getLimitedValue() == 0 &&
+          Lexicographic(Ctx, nullptr).CompareExpr(LHS, V) ==
+          Lexicographic::Result::Equal;
+      }
+    }
+  }
+  return false;
+}
+
 void BoundsAnalysis::FillGenSet(Expr *E,
                                 ElevatedCFGBlock *EB,
                                 ElevatedCFGBlock *SuccEB) {
@@ -153,6 +177,14 @@ void BoundsAnalysis::FillGenSet(Expr *E,
 
     // For conditions of the form "if (*p)".
     if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
+      // TODO: Remove this check. Currently, for the first version of this
+      // algorithm, we are enabling bounds widening only when the declared
+      // bounds are bounds(p, p) or count(0). We need to generalize this to
+      // widen bounds for dereferences involving constant offsets from the
+      // declared upper bound of a variable.
+      if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
+        return;
+
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
         if (V->getType()->isCheckedPointerNtArrayType()) {
           EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
@@ -187,6 +219,14 @@ void BoundsAnalysis::FillGenSet(Expr *E,
       }
 
       if (!D || !Lit)
+        return;
+
+      // TODO: Remove this check. Currently, for the first version of this
+      // algorithm, we are enabling bounds widening only when the declared
+      // bounds are bounds(p, p) or count(0). We need to generalize this to
+      // widen bounds for dereferences involving constant offsets from the
+      // declared upper bound of a variable.
+      if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
         return;
 
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {

@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_BOUNDS_ANALYSIS_H
 #define LLVM_CLANG_BOUNDS_ANALYSIS_H
 
+#include "clang/AST/CanonBounds.h"
 #include "clang/Analysis/Analyses/PostOrderCFGView.h"
 #include "clang/Sema/Sema.h"
 #include <queue>
@@ -218,6 +219,13 @@ namespace clang {
     // @param[in] E is the expression which must be stripped off of all casts.
     // @return Expr stripped off of all casts.
     Expr *IgnoreCasts(Expr *E);
+
+    // Check if the declared bounds of p are zero. ie: the upper bound of p is
+    // equal to p.
+    // @param[in] E is the bounds expression for V.
+    // @param[in] V is the ntptr.
+    // @return Whether the declared bounds of p are zero.
+    bool AreDeclaredBoundsZero(const Expr *E, const Expr *V);
 
     // We do not want to run dataflow analysis on null, entry or exit blocks.
     // So we skip them.
