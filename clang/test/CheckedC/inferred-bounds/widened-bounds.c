@@ -15,16 +15,20 @@ void f1() {
 }
 
 void f2() {
-  _Nt_array_ptr<char> p : count(1) = "a";
+  _Nt_array_ptr<char> p : count(2) = "ab";
 
   if (*p)
-    if (*(p + 1)) {}
+    if (*(p + 1))
+      if (*(p + 2)) {}
 
 // CHECK: In function: f2
-// CHECK: [B3]
+// CHECK: [B4]
 // CHECK:   2: *p
-// CHECK: [B2]
+// CHECK: [B3]
 // CHECK:   1: *(p + 1)
+// CHECK-NOT: upper_bound(p)
+// CHECK: [B2]
+// CHECK:   1: *(p + 2)
 // CHECK-NOT: upper_bound(p)
 // CHECK: [B1]
 // CHECK-NOT: upper_bound(p)
