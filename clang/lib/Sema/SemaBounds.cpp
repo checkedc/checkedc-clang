@@ -1969,18 +1969,6 @@ namespace {
       Expr *RHS = E->getRHS();
       BinaryOperatorKind Op = E->getOpcode();
 
-      // Recursively compute rvalue bounds for the subexpressions,
-      // without performing bounds checking.  Since TraverseStmt still checks
-      // all substatements, enabling bounds checking here could cause
-      // duplicate side effects for an expression.  In future refactoring
-      // stages, these calls to RValueBounds will be replaced with calls to
-      // TraverseStmt with side effects potentially enabled
-      // (once TraverseStmt no longer always checks substatements).
-      BoundsExpr *LHSBounds = RValueBounds(LHS, CSS, Facts,
-                                           SideEffects::Disabled);
-      BoundsExpr *RHSBounds = RValueBounds(RHS, CSS, Facts,
-                                           SideEffects::Disabled);
-
       // Bounds of the binary operator.
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -1994,12 +1982,12 @@ namespace {
 
       // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
       else if (Op == BinaryOperatorKind::BO_Assign)
-        ResultBounds = RHSBounds;
+        ResultBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
 
       // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
       // are RValues.
       else if (Op == BinaryOperatorKind::BO_Comma)
-        ResultBounds = RHSBounds;
+        ResultBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
       
       else {
         // Compound Assignments function like assignments mostly,
@@ -2019,14 +2007,14 @@ namespace {
             RHS->getType()->isIntegerType() &&
             BinaryOperator::isAdditiveOp(Op)) {
           ResultBounds = IsCompoundAssignment ?
-            LValueTargetBounds(LHS, CSS) : LHSBounds;
+            LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS, Facts, SideEffects::Disabled);
         }
         // `i + p` has the bounds of `p`. `p` is an RValue.
         // `i += p` has the bounds of `p`. `p` is an RValue.
         else if (LHS->getType()->isIntegerType() &&
-            RHS->getType()->isPointerType() &&
+  q          RHS->getType()->isPointerType() &&
             Op == BinaryOperatorKind::BO_Add) {
-          ResultBounds = RHSBounds;
+          ResultBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
         }
         // `e - p` has empty bounds, regardless of the bounds of p.
         // `e -= p` has empty bounds, regardless of the bounds of p.
@@ -2054,13 +2042,14 @@ namespace {
               BinaryOperator::isBitwiseOp(Op) ||
               BinaryOperator::isShiftOp(Op))) {
           BoundsExpr *LeftBounds = IsCompoundAssignment ?
-            LValueTargetBounds(LHS, CSS) : LHSBounds;
+            LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS, Facts, SideEffects::Disabled);
+          BoundsExpr *RHSBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
           if (LeftBounds->isUnknown() && !RHSBounds->isUnknown())
             ResultBounds = RHSBounds;
           else if (!LeftBounds->isUnknown() && RHSBounds->isUnknown())
             ResultBounds = LeftBounds;
           else if (!LeftBounds->isUnknown() && !RHSBounds->isUnknown()) {
-            // TODO: Check if LHSBounds and RHSBounds are equal.
+            // TODO: Check if LeftBounds and RHSBounds are equal.
             // if so, return one of them. If not, return bounds(unknown)
             ResultBounds = CreateBoundsAlwaysUnknown();
           }
@@ -2093,7 +2082,7 @@ namespace {
               if (E->isCompoundAssignmentOp())
                 RightBounds = S.CheckNonModifyingBounds(ResultBounds, E);
               else
-                RightBounds = S.CheckNonModifyingBounds(RHSBounds, RHS);
+                RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
 
               if (RightBounds->isUnknown()) {
                  S.Diag(RHS->getBeginLoc(),
