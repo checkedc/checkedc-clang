@@ -2012,7 +2012,7 @@ namespace {
         // `i + p` has the bounds of `p`. `p` is an RValue.
         // `i += p` has the bounds of `p`. `p` is an RValue.
         else if (LHS->getType()->isIntegerType() &&
-  q          RHS->getType()->isPointerType() &&
+            RHS->getType()->isPointerType() &&
             Op == BinaryOperatorKind::BO_Add) {
           ResultBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
         }
