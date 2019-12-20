@@ -387,6 +387,129 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   return std::make_pair(TmpBE, BinOpRHS);
 }
 
+void BoundsAnalysis::HandlePointerDeref(Expr *E,
+                                        ElevatedCFGBlock *EB,
+                                        ElevatedCFGBlock *SuccEB) {
+
+  const auto *UO = dyn_cast<UnaryOperator>(IgnoreCasts(E));
+  const auto *Exp = IgnoreCasts(UO->getSubExpr());
+
+  // TODO: Handle accesses of the form:
+  // "if (*(p + i) && *(p + j) && *(p + k))"
+
+  // For conditions of the form "if (*p)".
+  if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
+    // TODO: Remove this check. Currently, for the first version of this
+    // algorithm, we are enabling bounds widening only when the declared
+    // bounds are bounds(p, p) or count(0). We need to generalize this to
+    // widen bounds for dereferences involving constant offsets from the
+    // declared upper bound of a variable.
+    if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
+      return;
+
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+      if (V->getType()->isCheckedPointerNtArrayType()) {
+        EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
+        if (!SuccEB->BoundsVars.count(V)) {
+          DeclSetTy BoundsVars;
+          CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+          SuccEB->BoundsVars[V] = BoundsVars;
+        }
+      }
+    }
+
+  // For conditions of the form "if (*(p + i))"
+  } else if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
+    // Currently we only handle additive offsets.
+    if (BO->getOpcode() != BO_Add)
+      return;
+
+    Expr *LHS = IgnoreCasts(BO->getLHS());
+    Expr *RHS = IgnoreCasts(BO->getRHS());
+    DeclRefExpr *D = nullptr;
+    IntegerLiteral *Lit = nullptr;
+
+    // Handle *(p + i).
+    if (isa<DeclRefExpr>(LHS) && isa<IntegerLiteral>(RHS)) {
+      D = dyn_cast<DeclRefExpr>(LHS);
+      Lit = dyn_cast<IntegerLiteral>(RHS);
+
+    // Handle *(i + p).
+    } else if (isa<DeclRefExpr>(RHS) && isa<IntegerLiteral>(LHS)) {
+      D = dyn_cast<DeclRefExpr>(RHS);
+      Lit = dyn_cast<IntegerLiteral>(LHS);
+    }
+
+    if (!D || !Lit)
+      return;
+
+    // TODO: Remove this check. Currently, for the first version of this
+    // algorithm, we are enabling bounds widening only when the declared
+    // bounds are bounds(p, p) or count(0). We need to generalize this to
+    // widen bounds for dereferences involving constant offsets from the
+    // declared upper bound of a variable.
+    if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
+      return;
+
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+      if (V->getType()->isCheckedPointerNtArrayType()) {
+        // We update the bounds of p on the edge EB->SuccEB only if this is
+        // the first time we encounter "if (*(p + i)" on that edge.
+        if (!EB->Gen[SuccEB->Block].count(V)) {
+          EB->Gen[SuccEB->Block][V] = Lit->getValue().getLimitedValue();
+          if (!SuccEB->BoundsVars.count(V)) {
+            DeclSetTy BoundsVars;
+            CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+            SuccEB->BoundsVars[V] = BoundsVars;
+          }
+        }
+      }
+    }
+  }
+}
+
+void BoundsAnalysis::HandleArraySubscript(Expr *E,
+                                          ElevatedCFGBlock *EB,
+                                          ElevatedCFGBlock *SuccEB) {
+
+  auto *AS = dyn_cast<ArraySubscriptExpr>(IgnoreCasts(E));
+  // An array access can be written A[4] or 4[A] (both are equivalent).
+  // getBase() and getIdx() always present the normalized view: A[4].
+  // In this case getBase() returns "A" and getIdx() returns "4".
+  const auto *Base = IgnoreCasts(AS->getBase());
+  const auto *Index = IgnoreCasts(AS->getIdx());
+
+  if (const auto *D = dyn_cast<DeclRefExpr>(Base)) {
+    // TODO: Remove this check. Currently, for the first version of this
+    // algorithm, we are enabling bounds widening only when the declared
+    // bounds are bounds(p, p) or count(0). We need to generalize this to
+    // widen bounds for dereferences involving constant offsets from the
+    // declared upper bound of a variable.
+    if (!AreDeclaredBoundsZero(AS->getBoundsExpr(), D))
+      return;
+
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+      if (V->getType()->isCheckedPointerNtArrayType()) {
+        Expr::EvalResult Res;
+        if (!Index->EvaluateAsInt(Res, S.Context))
+          return;
+
+        llvm::APSInt Idx = Res.Val.getInt();
+        if (Idx.isNegative())
+          return;
+
+        EB->Gen[SuccEB->Block].insert(std::make_pair(V, Idx.getLimitedValue()));
+
+        if (!SuccEB->BoundsVars.count(V)) {
+          DeclSetTy BoundsVars;
+          CollectBoundsVars(AS->getBoundsExpr(), BoundsVars);
+          SuccEB->BoundsVars[V] = BoundsVars;
+        }
+      }
+    }
+  }
+}
+
 void BoundsAnalysis::FillGenSet(Expr *E,
                                 ElevatedCFGBlock *EB,
                                 ElevatedCFGBlock *SuccEB) {
@@ -399,32 +522,12 @@ void BoundsAnalysis::FillGenSet(Expr *E,
     }
   }
 
-  if (auto *CE = dyn_cast<CastExpr>(E))
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      E = CE->getSubExpr();
-
-  E = IgnoreCasts(E);
-
-  // Fill the Gen set based on whether the edge condition is an array subscript
-  // or a pointer deref.
-  if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
-    // An array access can be written A[4] or 4[A] (both are equivalent).
-    // getBase() and getIdx() always present the normalized view: A[4].
-    // In this case getBase() returns "A" and getIdx() returns "4".
-    const auto *BO =
-      new (Ctx) BinaryOperator(AE->getBase(), AE->getIdx(),
-                               BinaryOperatorKind::BO_Add, AE->getType(),
-                               AE->getValueKind(), AE->getObjectKind(),
-                               AE->getExprLoc(), FPOptions());
-
-    FillGenSetAndGetBoundsVars(BO, AE->getBoundsExpr(), EB, SuccEB);
-
-  } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
-    if (UO->getOpcode() == UO_Deref) {
-      const Expr *UE = IgnoreCasts(UO->getSubExpr());
-      FillGenSetAndGetBoundsVars(UE, UO->getBoundsExpr(), EB, SuccEB);
-    }
-  }
+  // Check if the edge condition contains a pointer deref or an array
+  // subscript.
+  if (ContainsPointerDeref(E))
+    HandlePointerDeref(E, EB, SuccEB);
+  else if (ContainsArraySubscript(E))
+    HandleArraySubscript(E, EB, SuccEB);
 }
 
 void BoundsAnalysis::ComputeKillSets(BlockMapTy BlockMap) {
@@ -571,6 +674,14 @@ Expr *BoundsAnalysis::IgnoreCasts(const Expr *E) {
 bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
   return V->getType()->isCheckedPointerNtArrayType() ||
          V->getType()->isNtCheckedArrayType();
+}
+
+bool BoundsAnalysis::ContainsArraySubscript(Expr *E) const {
+  if (auto *CE = dyn_cast<CastExpr>(E)) {
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      return isa<ArraySubscriptExpr>(CE->getSubExpr());
+  }
+  return false;
 }
 
 template<class T>
