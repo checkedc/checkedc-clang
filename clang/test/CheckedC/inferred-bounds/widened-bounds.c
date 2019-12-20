@@ -52,3 +52,21 @@ void f3() {
 // CHECK: [B1]
 // CHECK-NOT: upper_bound(p) = 1
 }
+
+void f4() {
+  _Nt_array_ptr<char> p : count(0) = "a";
+
+  if (p[0]) {}
+
+// CHECK: In function: f4
+// CHECK: [B4]
+// CHECK:   2: p[0]
+// CHECK: [B3]
+// CHECK:upper_bound(p) = 1
+
+  if (0[p]) {}
+// CHECK: [B2]
+// CHECK:   1: 0[p]
+// CHECK: [B1]
+// CHECK:upper_bound(p) = 1
+}
