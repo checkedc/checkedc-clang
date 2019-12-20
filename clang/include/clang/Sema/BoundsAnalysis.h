@@ -172,6 +172,12 @@ namespace clang {
     // @param[in] Dest block for the edge for which the Gen set is updated.
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
 
+    void HandlePointerDeref(Expr *E, ElevatedCFGBlock *EB,
+                            ElevatedCFGBlock *SuccEB);
+
+    void HandleArraySubscript(Expr *E, ElevatedCFGBlock *EB,
+                              ElevatedCFGBlock *SuccEB);
+
     // Collect all variables used in bounds expr E.
     // @param[in] E represents the bounds expr for an ntptr.
     // @param[out] BoundsVars is a set of all variables used in the bounds expr
@@ -207,6 +213,8 @@ namespace clang {
     // @param[in] E is the expression which possibly contains a pointer deref.
     // @return Whether E contains a pointer deref. 
     bool ContainsPointerDeref(Expr *E) const;
+
+    bool ContainsArraySubscript(Expr *E) const;
 
     // WidenedBounds is a DenseMap and hence is not suitable for iteration as
     // its iteration order is non-deterministic. So we first need to order the
