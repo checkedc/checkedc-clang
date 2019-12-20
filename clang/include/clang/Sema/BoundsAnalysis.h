@@ -179,9 +179,19 @@ namespace clang {
     // @param[in] Dest block for the edge for which the Gen set is updated.
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
 
+    // Fill Gen set for ntptr derefs.
+    // @param[in] E is the expr containing the deref of an ntptr. The Gen set
+    // for the edge EB->SuccEB is updated.
+    // @param[in] Source block for the edge for which the Gen set is updated.
+    // @param[in] Dest block for the edge for which the Gen set is updated.
     void HandlePointerDeref(Expr *E, ElevatedCFGBlock *EB,
                             ElevatedCFGBlock *SuccEB);
 
+    // Fill Gen set for ntptr subscripts.
+    // @param[in] E is the expr containing the ntptr subscript. The Gen set
+    // for the edge EB->SuccEB is updated.
+    // @param[in] Source block for the edge for which the Gen set is updated.
+    // @param[in] Dest block for the edge for which the Gen set is updated.
     void HandleArraySubscript(Expr *E, ElevatedCFGBlock *EB,
                               ElevatedCFGBlock *SuccEB);
 
@@ -211,11 +221,20 @@ namespace clang {
     // @return Expression for the terminating condition of block B.
     Expr *GetTerminatorCondition(const CFGBlock *B) const;
 
-    // Check if V is an _Nt_array_ptr or an _Nt_checked array.
-    // @param[in] V is the VarDecl.
-    // @return Whether V is an _Nt_array_ptr or an _Nt_checked array.
-    bool IsNtArrayType(const VarDecl *V) const;
+    // Check if E is a pointer dereference.
+    // @param[in] E is the expression for possibly a pointer deref.
+    // @return Whether E is a pointer deref.
+    bool IsPointerDerefLValue(Expr *E) const;
 
+    // Check if E contains a pointer dereference.
+    // @param[in] E is the expression which possibly contains a pointer deref.
+    // @return Whether E contains a pointer deref.
+    bool ContainsPointerDeref(Expr *E) const;
+
+    // Check if E contains an array subscript operation.
+    // @param[in] E is the expression which possibly contains an array
+    // subscript.
+    // @return Whether E contains an array subscript.
     bool ContainsArraySubscript(Expr *E) const;
 
     // WidenedBounds is a DenseMap and hence is not suitable for iteration as
