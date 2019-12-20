@@ -179,19 +179,9 @@ namespace clang {
     // @param[in] Dest block for the edge for which the Gen set is updated.
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
 
-    // Fill Gen set for ntptr derefs.
-    // @param[in] E is the expr containing the deref of an ntptr. The Gen set
-    // for the edge EB->SuccEB is updated.
-    // @param[in] Source block for the edge for which the Gen set is updated.
-    // @param[in] Dest block for the edge for which the Gen set is updated.
     void HandlePointerDeref(Expr *E, ElevatedCFGBlock *EB,
                             ElevatedCFGBlock *SuccEB);
 
-    // Fill Gen set for ntptr subscripts.
-    // @param[in] E is the expr containing the ntptr subscript. The Gen set
-    // for the edge EB->SuccEB is updated.
-    // @param[in] Source block for the edge for which the Gen set is updated.
-    // @param[in] Dest block for the edge for which the Gen set is updated.
     void HandleArraySubscript(Expr *E, ElevatedCFGBlock *EB,
                               ElevatedCFGBlock *SuccEB);
 
