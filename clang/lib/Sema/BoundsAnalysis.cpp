@@ -331,11 +331,11 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
           // BoundsVars is a mapping from _Nt_array_ptrs to all the variables
           // used in their bounds exprs. For example:
 
-          // _Nt_array_ptr<char> p : bounds(p + i, i + p + j + 10); 
+          // _Nt_array_ptr<char> p : bounds(p + i, i + p + j + 10);
           // _Nt_array_ptr<char> q : bounds(i + q, i + p + q + m);
 
           // EB->BoundsVars: {p: {p, i, j}, q: {i, q, p, m}}
-  
+
           for (auto item : EB->BoundsVars) {
             if (item.second.count(V))
               DefinedVars.insert(item.first);
