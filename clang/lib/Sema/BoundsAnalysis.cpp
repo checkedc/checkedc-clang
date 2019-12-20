@@ -148,7 +148,6 @@ bool BoundsAnalysis::AreDeclaredBoundsZero(const Expr *E, const Expr *V) {
 void BoundsAnalysis::HandlePointerDeref(Expr *E,
                                         ElevatedCFGBlock *EB,
                                         ElevatedCFGBlock *SuccEB) {
-
   const auto *UO = dyn_cast<UnaryOperator>(IgnoreCasts(E));
   const auto *Exp = IgnoreCasts(UO->getSubExpr());
 
@@ -166,7 +165,7 @@ void BoundsAnalysis::HandlePointerDeref(Expr *E,
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (IsNtArrayType(V)) {
+      if (V->getType()->isCheckedPointerNtArrayType()) {
         EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
         if (!SuccEB->BoundsVars.count(V)) {
           DeclSetTy BoundsVars;
