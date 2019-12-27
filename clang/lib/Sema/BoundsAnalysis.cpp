@@ -408,7 +408,7 @@ void BoundsAnalysis::HandlePointerDeref(Expr *E,
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (V->getType()->isCheckedPointerNtArrayType()) {
+      if (IsNtArrayType(V)) {
         EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
         if (!SuccEB->BoundsVars.count(V)) {
           DeclSetTy BoundsVars;
@@ -452,7 +452,7 @@ void BoundsAnalysis::HandlePointerDeref(Expr *E,
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (V->getType()->isCheckedPointerNtArrayType()) {
+      if (IsNtArrayType(V)) {
         // We update the bounds of p on the edge EB->SuccEB only if this is
         // the first time we encounter "if (*(p + i)" on that edge.
         if (!EB->Gen[SuccEB->Block].count(V)) {
@@ -489,7 +489,7 @@ void BoundsAnalysis::HandleArraySubscript(Expr *E,
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (V->getType()->isCheckedPointerNtArrayType()) {
+      if (IsNtArrayType(V)) {
         Expr::EvalResult Res;
         if (!Index->EvaluateAsInt(Res, S.Context))
           return;
@@ -682,6 +682,11 @@ bool BoundsAnalysis::ContainsArraySubscript(Expr *E) const {
       return isa<ArraySubscriptExpr>(CE->getSubExpr());
   }
   return false;
+}
+
+bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
+  return V->getType()->isCheckedPointerNtArrayType() ||
+         V->getType()->isNtCheckedArrayType();
 }
 
 template<class T>
