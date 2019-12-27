@@ -230,6 +230,11 @@ namespace clang {
     // @return Whether E contains an array subscript.
     bool ContainsArraySubscript(Expr *E) const;
 
+    // Check if V is an _Nt_array_ptr or an _Nt_checked array.
+    // @param[in] V is the VarDecl.
+    // @return Whether V is an _Nt_array_ptr or an _Nt_checked array.
+    bool IsNtArrayType(const VarDecl *V) const;
+
     // WidenedBounds is a DenseMap and hence is not suitable for iteration as
     // its iteration order is non-deterministic. So we first need to order the
     // blocks.
