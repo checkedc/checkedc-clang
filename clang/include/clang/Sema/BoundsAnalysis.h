@@ -183,7 +183,7 @@ namespace clang {
                             ElevatedCFGBlock *SuccEB);
 
     // Fill Gen set for ntptr subscripts.
-    // @param[in] E is the array subscrip expr.
+    // @param[in] AE is the array subscript expr.
     // @param[in] Source block for the edge for which the Gen set is updated.
     // @param[in] Dest block for the edge for which the Gen set is updated.
     void HandleArraySubscript(ArraySubscriptExpr *AE, ElevatedCFGBlock *EB,
