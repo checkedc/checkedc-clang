@@ -412,7 +412,7 @@ void BoundsAnalysis::HandlePointerDeref(Expr *E,
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (V->getType()->isCheckedPointerNtArrayType()) {
+      if (IsNtArrayType(V)) {
         EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
         if (!SuccEB->BoundsVars.count(V)) {
           DeclSetTy BoundsVars;
