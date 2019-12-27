@@ -136,12 +136,18 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
   return false;
 }
 
-const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(const Expr *E) {
-  if (IsDeclOperand(E)) {
-    DeclRefExpr *D = GetDeclOperand(E);
-    if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-      if (IsNtArrayType(V))
-        return V;
+  // Check if the upper bound of V is equal to V.
+  // To do this, we check that the LHS of the bounds expr is V and the RHS is
+  // 0.
+  if (const auto *RBE = dyn_cast<RangeBoundsExpr>(E)) {
+    if (const auto *BO = dyn_cast<BinaryOperator>(RBE->getUpperExpr())) {
+      Expr *RHS = IgnoreCasts(BO->getRHS());
+      if (const auto *Lit = dyn_cast<IntegerLiteral>(RHS)) {
+        Expr *LHS = IgnoreCasts(BO->getLHS());
+        return Lit->getValue().getLimitedValue() == 0 &&
+               Lex.CompareExpr(LHS, V) == Lexicographic::Result::Equal;
+      }
+    }
   }
 
   if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
@@ -387,12 +393,11 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   return std::make_pair(TmpBE, BinOpRHS);
 }
 
-void BoundsAnalysis::HandlePointerDeref(Expr *E,
+void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
                                         ElevatedCFGBlock *EB,
                                         ElevatedCFGBlock *SuccEB) {
 
-  const auto *UO = dyn_cast<UnaryOperator>(IgnoreCasts(E));
-  const auto *Exp = IgnoreCasts(UO->getSubExpr());
+  const Expr *Exp = IgnoreCasts(UO->getSubExpr());
 
   // TODO: Handle accesses of the form:
   // "if (*(p + i) && *(p + j) && *(p + k))"
@@ -468,16 +473,15 @@ void BoundsAnalysis::HandlePointerDeref(Expr *E,
   }
 }
 
-void BoundsAnalysis::HandleArraySubscript(Expr *E,
+void BoundsAnalysis::HandleArraySubscript(ArraySubscriptExpr *AE,
                                           ElevatedCFGBlock *EB,
                                           ElevatedCFGBlock *SuccEB) {
 
-  auto *AS = dyn_cast<ArraySubscriptExpr>(IgnoreCasts(E));
   // An array access can be written A[4] or 4[A] (both are equivalent).
   // getBase() and getIdx() always present the normalized view: A[4].
   // In this case getBase() returns "A" and getIdx() returns "4".
-  const auto *Base = IgnoreCasts(AS->getBase());
-  const auto *Index = IgnoreCasts(AS->getIdx());
+  const Expr *Base = IgnoreCasts(AE->getBase());
+  const Expr *Index = IgnoreCasts(AE->getIdx());
 
   if (const auto *D = dyn_cast<DeclRefExpr>(Base)) {
     // TODO: Remove this check. Currently, for the first version of this
@@ -485,7 +489,7 @@ void BoundsAnalysis::HandleArraySubscript(Expr *E,
     // bounds are bounds(p, p) or count(0). We need to generalize this to
     // widen bounds for dereferences involving constant offsets from the
     // declared upper bound of a variable.
-    if (!AreDeclaredBoundsZero(AS->getBoundsExpr(), D))
+    if (!AreDeclaredBoundsZero(AE->getBoundsExpr(), D))
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
@@ -502,7 +506,7 @@ void BoundsAnalysis::HandleArraySubscript(Expr *E,
 
         if (!SuccEB->BoundsVars.count(V)) {
           DeclSetTy BoundsVars;
-          CollectBoundsVars(AS->getBoundsExpr(), BoundsVars);
+          CollectBoundsVars(AE->getBoundsExpr(), BoundsVars);
           SuccEB->BoundsVars[V] = BoundsVars;
         }
       }
@@ -522,12 +526,16 @@ void BoundsAnalysis::FillGenSet(Expr *E,
     }
   }
 
-  // Check if the edge condition contains a pointer deref or an array
-  // subscript.
-  if (ContainsPointerDeref(E))
-    HandlePointerDeref(E, EB, SuccEB);
-  else if (ContainsArraySubscript(E))
-    HandleArraySubscript(E, EB, SuccEB);
+  E = IgnoreCasts(E);
+
+  // Fill the Gen set based on whether the edge condition an array subscript or
+  // a pointer deref.
+  if (auto *AS = dyn_cast<ArraySubscriptExpr>(E))
+    HandleArraySubscript(AS, EB, SuccEB);
+  else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref)
+      HandlePointerDeref(UO, EB, SuccEB);
+  }
 }
 
 void BoundsAnalysis::ComputeKillSets(BlockMapTy BlockMap) {
@@ -667,21 +675,11 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   return nullptr;
 }
 
-Expr *BoundsAnalysis::IgnoreCasts(const Expr *E) {
-  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
-}
-
-bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
-  return V->getType()->isCheckedPointerNtArrayType() ||
-         V->getType()->isNtCheckedArrayType();
-}
-
-bool BoundsAnalysis::ContainsArraySubscript(Expr *E) const {
-  if (auto *CE = dyn_cast<CastExpr>(E)) {
+Expr *BoundsAnalysis::IgnoreCasts(Expr *E) {
+  if (auto *CE = dyn_cast<CastExpr>(E))
     if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      return isa<ArraySubscriptExpr>(CE->getSubExpr());
-  }
-  return false;
+      return IgnoreCasts(CE->getSubExpr());
+  return Lex.IgnoreValuePreservingOperations(Ctx, E);
 }
 
 bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
