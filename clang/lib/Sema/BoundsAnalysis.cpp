@@ -25,7 +25,7 @@ void BoundsAnalysis::WidenBounds() {
   // ElevatedCFGBlock.
   // Note: By default, PostOrderCFGView iterates in reverse order. So we always
   // get a reverse post order when we iterate PostOrderCFGView.
-  for (const auto *B : PostOrderCFGView(Cfg)) {
+  for (const CFGBlock *B : PostOrderCFGView(Cfg)) {
     // SkipBlock will skip all null, entry and exit blocks. PostOrderCFGView
     // does not contain any unreachable blocks. So at the end of this loop
     // BlockMap only contains reachable blocks.
@@ -42,7 +42,7 @@ void BoundsAnalysis::WidenBounds() {
   // At this time, BlockMap only contains reachable blocks. We iterate through
   // all blocks in the CFG and append all unreachable blocks to the WorkList.
   for (auto I = Cfg->begin(), E = Cfg->end(); I != E; ++I) {
-    const auto *B = *I;
+    const CFGBlock *B = *I;
     if (!SkipBlock(B) && !BlockMap.count(B)) {
       auto EB = new ElevatedCFGBlock(B);
       WorkList.append(EB);
@@ -56,7 +56,7 @@ void BoundsAnalysis::WidenBounds() {
 
   // Compute In and Out sets.
   while (!WorkList.empty()) {
-    auto *EB = WorkList.next();
+    ElevatedCFGBlock *EB = WorkList.next();
     WorkList.remove(EB);
 
     ComputeInSets(EB, BlockMap);
@@ -70,8 +70,8 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
   // If there is an edge B1->B2 and the edge condition is of the form
   // "if (*(p + i))" then Gen[B1] = {B2, p:i} .
 
-  for (const auto B : BlockMap) {
-    auto EB = B.second;
+  for (const auto item : BlockMap) {
+    ElevatedCFGBlock *EB = item.second;
 
     for (const CFGBlock *pred : EB->Block->preds()) {
       if (SkipBlock(pred))
@@ -86,13 +86,10 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
       // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i" only
       // on the true edge. Which means we will add the following entry to
       // Gen[B1]: {B2, p:i}
-      if (const auto *I = pred->succs().begin())
-        if (*I != EB->Block)
-          continue;
-
-      // Get the edge condition and fill the Gen set.
-      if (Expr *E = GetTerminatorCondition(pred))
-        FillGenSet(E, BlockMap[pred], EB);
+      if (!pred->succ_empty() && *pred->succs().begin() == EB->Block)
+        // Get the edge condition and fill the Gen set.
+        if (Expr *E = GetTerminatorCondition(pred))
+          FillGenSet(E, BlockMap[pred], EB);
     }
   }
 }
@@ -169,7 +166,7 @@ void BoundsAnalysis::HandlePointerDeref(Expr *E,
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (V->getType()->isCheckedPointerNtArrayType()) {
+      if (IsNtArrayType(V)) {
         EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
         if (!SuccEB->BoundsVars.count(V)) {
           DeclSetTy BoundsVars;
@@ -213,7 +210,7 @@ void BoundsAnalysis::HandlePointerDeref(Expr *E,
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (V->getType()->isCheckedPointerNtArrayType()) {
+      if (IsNtArrayType(V)) {
         // We update the bounds of p on the edge EB->SuccEB only if this is
         // the first time we encounter "if (*(p + i)" on that edge.
         if (!EB->Gen[SuccEB->Block].count(V)) {
@@ -250,7 +247,7 @@ void BoundsAnalysis::HandleArraySubscript(Expr *E,
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (V->getType()->isCheckedPointerNtArrayType()) {
+      if (IsNtArrayType(V)) {
         Expr::EvalResult Res;
         if (!Index->EvaluateAsInt(Res, S.Context))
           return;
@@ -294,15 +291,15 @@ void BoundsAnalysis::FillGenSet(Expr *E,
 void BoundsAnalysis::ComputeKillSets(BlockMapTy BlockMap) {
   // For a block B, a variable v is added to Kill[B] if v is assigned to in B.
 
-  for (const auto B : BlockMap) {
-    auto EB = B.second;
+  for (const auto item : BlockMap) {
+    ElevatedCFGBlock *EB = item.second;
     DeclSetTy DefinedVars;
 
-    for (auto Elem : *(EB->Block))
+    for (CFGElement Elem : *(EB->Block))
       if (Elem.getKind() == CFGElement::Statement)
         CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), EB, DefinedVars);
 
-    for (const auto V : DefinedVars)
+    for (const VarDecl *V : DefinedVars)
       EB->Kill.insert(V);
   }
 }
@@ -324,7 +321,7 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
   if (E) {
     if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-        if (V->getType()->isCheckedPointerNtArrayType())
+        if (IsNtArrayType(V))
           DefinedVars.insert(V);
         else {
 
@@ -345,8 +342,8 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
     }
   }
 
-  for (const auto I : S->children())
-    CollectDefinedVars(I, EB, DefinedVars);
+  for (const Stmt *St : S->children())
+    CollectDefinedVars(St, EB, DefinedVars);
 }
 
 void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
@@ -359,7 +356,7 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
     if (SkipBlock(pred))
       continue;
 
-    auto PredEB = BlockMap[pred];
+    ElevatedCFGBlock *PredEB = BlockMap[pred];
 
     if (ItersectionEmpty) {
       Intersections = PredEB->Out[EB->Block];
@@ -376,12 +373,12 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
                                     WorkListTy &WorkList) {
   // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
 
-  auto Diff = Difference(EB->In, EB->Kill);
+  BoundsMapTy Diff = Difference(EB->In, EB->Kill);
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
 
-    auto OldOut = EB->Out[succ];
+    BoundsMapTy OldOut = EB->Out[succ];
 
     // Here's how we compute (In - Kill) u Gen:
 
@@ -409,8 +406,8 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
 
 void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
   for (auto item : BlockMap) {
-    const auto *B = item.first;
-    auto *EB = item.second;
+    const CFGBlock *B = item.first;
+    ElevatedCFGBlock *EB = item.second;
     WidenedBounds[B] = EB->In;
     delete EB;
   }
@@ -473,6 +470,11 @@ bool BoundsAnalysis::ContainsArraySubscript(Expr *E) const {
       return isa<ArraySubscriptExpr>(CE->getSubExpr());
   }
   return false;
+}
+
+bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
+  return V->getType()->isCheckedPointerNtArrayType() ||
+         V->getType()->isNtCheckedArrayType();
 }
 
 template<class T>
@@ -566,7 +568,7 @@ void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
   llvm::outs() << "--------------------------------------\n";
   llvm::outs() << "In function: " << FD->getName() << "\n";
 
-  for (const auto *B : GetOrderedBlocks()) {
+  for (const CFGBlock *B : GetOrderedBlocks()) {
     llvm::outs() << "--------------------------------------";
     B->print(llvm::outs(), Cfg, S.getLangOpts(), /* ShowColors */ true);
 
