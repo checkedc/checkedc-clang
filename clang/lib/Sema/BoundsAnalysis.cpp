@@ -402,7 +402,7 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
   // "if (*(p + i) && *(p + j) && *(p + k))"
 
   // For conditions of the form "if (*p)".
-  if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
+  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
     // TODO: Remove this check. Currently, for the first version of this
     // algorithm, we are enabling bounds widening only when the declared
     // bounds are bounds(p, p) or count(0). We need to generalize this to
@@ -423,7 +423,7 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
     }
 
   // For conditions of the form "if (*(p + i))"
-  } else if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
+  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
     // Currently we only handle additive offsets.
     if (BO->getOpcode() != BO_Add)
       return;
@@ -527,8 +527,8 @@ void BoundsAnalysis::FillGenSet(Expr *E,
 
   E = IgnoreCasts(E);
 
-  // Fill the Gen set based on whether the edge condition an array subscript or
-  // a pointer deref.
+  // Fill the Gen set based on whether the edge condition is an array subscript
+  // or a pointer deref.
   if (auto *AS = dyn_cast<ArraySubscriptExpr>(E))
     HandleArraySubscript(AS, EB, SuccEB);
   else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
