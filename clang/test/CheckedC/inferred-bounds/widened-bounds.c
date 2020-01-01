@@ -99,7 +99,7 @@ void f5() {
 }
 
 void f6(int i) {
-  char p _Nt_checked[] : bounds(p, p + i)  = "abc";
+  char p _Nt_checked[] : bounds(p + i, p)  = "abc";
 
   if (p[0]) {
     i = 0;

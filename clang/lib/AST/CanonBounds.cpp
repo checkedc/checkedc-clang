@@ -72,7 +72,8 @@ Result Lexicographic::CompareInteger(unsigned I1, unsigned I2) const {
     return Result::Equal;
 }
 
-static Result CompareAPInt(const llvm::APInt &I1, const llvm::APInt &I2) {
+Result Lexicographic::CompareAPInt(const llvm::APInt &I1,
+                                   const llvm::APInt &I2) const {
   if (I1.slt(I2))
     return Result::LessThan;
   else if (I1.eq(I2))

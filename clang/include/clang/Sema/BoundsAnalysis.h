@@ -85,6 +85,10 @@ namespace clang {
   // for printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
+  // ExprPairTy denotes a pair of expressions. This is used as a return type
+  // when an expression is split into a base and an offset.
+  using ExprPairTy = std::pair<const Expr *, const Expr *>;
+
   class BoundsAnalysis {
   private:
     Sema &S;
@@ -175,19 +179,15 @@ namespace clang {
     // @param[in] Dest block for the edge for which the Gen set is updated.
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
 
-    // Fill Gen set for ntptr derefs.
-    // @param[in] UO is the pointer deref expr.
+    // Uniformize the expr, fill Gen set and get variables used in bounds expr
+    // for the ntptr.
+    // @param[in] E is an ntptr dereference or array subscript expr.
+    // @param[in] BE is the bounds expr for the ntptr.
     // @param[in] Source block for the edge for which the Gen set is updated.
     // @param[in] Dest block for the edge for which the Gen set is updated.
-    void HandlePointerDeref(UnaryOperator *UO, ElevatedCFGBlock *EB,
-                            ElevatedCFGBlock *SuccEB);
-
-    // Fill Gen set for ntptr subscripts.
-    // @param[in] AE is the array subscript expr.
-    // @param[in] Source block for the edge for which the Gen set is updated.
-    // @param[in] Dest block for the edge for which the Gen set is updated.
-    void HandleArraySubscript(ArraySubscriptExpr *AE, ElevatedCFGBlock *EB,
-                              ElevatedCFGBlock *SuccEB);
+    void FillGenSetAndGetBoundsVars(const Expr *E, BoundsExpr *BE,
+                                    ElevatedCFGBlock *EB,
+                                    ElevatedCFGBlock *SuccEB);
 
     // Collect all variables used in bounds expr E.
     // @param[in] E represents the bounds expr for an ntptr.
@@ -252,6 +252,19 @@ namespace clang {
     // @return Whether E is an expression containing a reference to an array
     // subscript or a pointer dereference.
     bool IsDeclOperand(const Expr *E);
+
+    // Make an expression uniform by moving all DeclRefExpr to the LHS and all
+    // IntegerLiterals to the RHS.
+    // @param[in] E is the expression which should be made uniform.
+    // @return A pair of expressions. The first contains all DeclRefExprs of E
+    // and the second contains all IntegerLiterals of E.
+    ExprPairTy SplitIntoBaseOffset(const Expr *E);
+
+    // Get the VarDecl for the ntptr from E if E is the lower bounds expr for
+    // an ntptr.
+    // @param[in] E is the expressions for the lower bounds for an ntptr.
+    // @return The VarDecl for the ntptr.
+    const VarDecl *GetNtArrayVarDecl(const Expr *E);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
