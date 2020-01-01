@@ -136,6 +136,24 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
   return false;
 }
 
+const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(Expr *E) {
+  E = IgnoreCasts(E);
+
+  if (auto *D = dyn_cast<DeclRefExpr>(E)) {
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
+      if (IsNtArrayType(V))
+        return V;
+  }
+
+  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+    const auto *V = GetNtArrayVarDecl(BO->getLHS());
+    if (V)
+      return V;
+    return GetNtArrayVarDecl(BO->getRHS());
+  }
+  return nullptr;
+}
+
 void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
                                         ElevatedCFGBlock *EB,
                                         ElevatedCFGBlock *SuccEB) {
@@ -162,41 +180,42 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
 
   // For conditions of the form "if (*(p + i))"
   } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    // Currently we only handle additive offsets.
-    if (BO->getOpcode() != BO_Add)
+    std::pair<Expr *, Expr *> Res =
+      MakeUniform(const_cast<BinaryOperator *>(BO));
+
+    Expr *Base = Res.first;
+    Expr *Offset = Res.second;
+
+    const auto *RBE = dyn_cast<RangeBoundsExpr>(UO->getBoundsExpr());
+    if (!RBE)
       return;
 
-    Expr *LHS = IgnoreCasts(BO->getLHS());
-    Expr *RHS = IgnoreCasts(BO->getRHS());
-    DeclRefExpr *D = nullptr;
-    IntegerLiteral *Lit = nullptr;
+    bool BaseEqualsUpperBound = false;
+    if (const auto *Upper = dyn_cast<BinaryOperator>(RBE->getUpperExpr()))
+      BaseEqualsUpperBound = (Lex.CompareExpr(Base, Upper) ==
+                              Lexicographic::Result::Equal);
 
-    // Handle *(p + i).
-    if (IsDeclOperand(LHS) && isa<IntegerLiteral>(RHS)) {
-      D = GetDeclOperand(LHS);
-      Lit = dyn_cast<IntegerLiteral>(RHS);
-
-    // Handle *(i + p).
-    } else if (IsDeclOperand(RHS) && isa<IntegerLiteral>(LHS)) {
-      D = GetDeclOperand(RHS);
-      Lit = dyn_cast<IntegerLiteral>(LHS);
-    }
-
-    if (!D || !Lit)
+    if (!BaseEqualsUpperBound)
       return;
 
-    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (IsNtArrayType(V)) {
-        // We update the bounds of p on the edge EB->SuccEB only if this is
-        // the first time we encounter "if (*(p + i)" on that edge.
-        if (!EB->Gen[SuccEB->Block].count(V)) {
-          EB->Gen[SuccEB->Block][V] = Lit->getValue().getLimitedValue();
-          if (!SuccEB->BoundsVars.count(V)) {
-            DeclSetTy BoundsVars;
-            CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
-            SuccEB->BoundsVars[V] = BoundsVars;
-          }
-        }
+    const VarDecl *V = GetNtArrayVarDecl(RBE->getLowerExpr());
+    if (!V)
+      return;
+
+    // We update the bounds of p on the edge EB->SuccEB only if this is
+    // the first time we encounter "if (*(p + i)" on that edge.
+    if (!EB->Gen[SuccEB->Block].count(V)) {
+      if (!Offset)
+        EB->Gen[SuccEB->Block][V] = 0;
+      else {
+        auto *Lit = dyn_cast<IntegerLiteral>(Offset);
+        EB->Gen[SuccEB->Block][V] = Lit->getValue().getLimitedValue();
+      }
+
+      if (!SuccEB->BoundsVars.count(V)) {
+        DeclSetTy BoundsVars;
+        CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+        SuccEB->BoundsVars[V] = BoundsVars;
       }
     }
   }
@@ -235,6 +254,86 @@ void BoundsAnalysis::HandleArraySubscript(ArraySubscriptExpr *AE,
       }
     }
   }
+}
+
+std::pair<Expr *, Expr *>
+BoundsAnalysis::MakeUniform(BinaryOperator *BO) {
+  // In order to make an expression uniform, we want to keep all DeclRefExprs
+  // on the LHS and all IntegerLiterals on the RHS.
+
+  Expr *LHS = IgnoreCasts(BO->getLHS());
+  Expr *RHS = IgnoreCasts(BO->getRHS());
+
+  // Case 1: LHS is DeclRefExpr and RHS is IntegerLiteral. This expr is already
+  // uniform.
+  // p + i ==> return (p, i)
+  if (isa<DeclRefExpr>(LHS) && isa<IntegerLiteral>(RHS))
+    return std::make_pair(LHS, RHS);
+
+  // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
+  // swap LHS and RHS to make expr uniform.
+  // i + p ==> return (p, i)
+  if (isa<IntegerLiteral>(LHS) && isa<DeclRefExpr>(RHS))
+    return std::make_pair(RHS, LHS);
+
+  // Case 3: LHS and RHS are both DeclRefExpr's. This means there is no
+  // IntegerLiteral in the expr. In this case, we return the incoming
+  // BinaryOperator expr with a nullptr for the RHS.
+  // p + q ==> return (p + q, nullptr)
+  if (isa<DeclRefExpr>(LHS) && isa<DeclRefExpr>(RHS))
+    return std::make_pair(BO, nullptr);
+
+  assert(isa<BinaryOperator>(LHS) && "BinaryOperator expected on LHS");
+
+  // If we reach here, the expr is one of these:
+  // Case 4: (p + q) + i
+  // Case 5: (p + j) + i
+  // Case 6: (p + q) + r
+  // Case 7: (p + j) + r
+  auto *BE = dyn_cast<BinaryOperator>(LHS);
+  // Recursively, make the LHS uniform.
+  std::pair<Expr *, Expr *> Res = MakeUniform(BE);
+  auto *BinOpLHS = Res.first;
+  Expr *BinOpRHS = Res.second;
+
+  // Expr is either Case 4 or Case 5 from above. ie: LHS is BinaryOperator
+  // and RHS is IntegerLiteral.
+  // (p + q) + i OR (p + j) + i
+  if (isa<IntegerLiteral>(RHS)) {
+
+    // Expr is Case 4. ie: The BinaryOperator expr does not have an
+    // IntegerLiteral on the RHS.
+    // (p + q) + i ==> return (p + q, i)
+    if (!BinOpRHS)
+      return std::make_pair(BE, RHS);
+
+    // Expr is Case 5. ie: The BinaryOperator expr has an IntegerLiteral on
+    // the RHS.
+    // (p + i) + j ==> return (p, i + j)
+    Expr::EvalResult R1, R2;
+    RHS->EvaluateAsInt(R1, Ctx);
+    BinOpRHS->EvaluateAsInt(R2, Ctx);
+    auto *I = new (Ctx)
+                IntegerLiteral(Ctx, R1.Val.getInt() + R2.Val.getInt(),
+                               Ctx.IntTy, SourceLocation());
+    return std::make_pair(BinOpLHS, I);
+  }
+
+  // If we are here it means expr is either Case 6 or Case 7 from above. ie:
+  // LHS is BinaryOperator and RHS is a DeclRefExpr.
+  // (p + q) + r OR (p + i) + r
+
+  // Expr is Case 6. ie: The BinaryOperator expr does not have an
+  // IntegerLiteral on the RHS.
+  // (p + q) + r ==> return (p + q + r, nullptr)
+  if (!BinOpRHS)
+    return std::make_pair(BO, nullptr);
+
+  // Expr is Case 7. ie: The BinaryOperator expr has an IntegerLiteral on
+  // the RHS.
+  // (p + i) + r ==> return (p + r, i)
+  BE->setRHS(RHS);
+  return std::make_pair(BE, BinOpRHS);
 }
 
 void BoundsAnalysis::FillGenSet(Expr *E,
