@@ -300,6 +300,9 @@ namespace clang {
     // @param[in] B is a set.
     // @return Whether sets A and B differ.
     template<class T> bool Differ(T &A, T &B) const;
+
+    std::pair<Expr *, Expr *> MakeUniform(BinaryOperator *BO);
+    const VarDecl *GetNtArrayVarDecl(Expr *E);
   };
 }
 
