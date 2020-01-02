@@ -124,7 +124,6 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
 }
 
 bool BoundsAnalysis::AreDeclaredBoundsZero(const Expr *E, const Expr *V) {
-return true;
   if (!E)
     return !V;
 
@@ -414,73 +413,114 @@ const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(Expr *E) {
 void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
                                         ElevatedCFGBlock *EB,
                                         ElevatedCFGBlock *SuccEB) {
-
-  const Expr *E = IgnoreCasts(UO->getSubExpr());
-
   // TODO: Handle accesses of the form:
   // "if (*(p + i) && *(p + j) && *(p + k))"
 
-  // For conditions of the form "if (*p)".
-  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
-    // TODO: Remove this check. Currently, for the first version of this
-    // algorithm, we are enabling bounds widening only when the declared
-    // bounds are bounds(p, p) or count(0). We need to generalize this to
-    // widen bounds for dereferences involving constant offsets from the
-    // declared upper bound of a variable.
-    if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
-      return;
+  // Get the range bounds expr for ntptr involved in the deref.
+  const auto *RBE = dyn_cast<RangeBoundsExpr>(UO->getBoundsExpr());
+  if (!RBE)
+    return;
 
-    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (IsNtArrayType(V)) {
-        EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
-        if (!SuccEB->BoundsVars.count(V)) {
-          DeclSetTy BoundsVars;
-          CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
-          SuccEB->BoundsVars[V] = BoundsVars;
-        }
-      }
-    }
+  // Get the upper bounds expr for the ntptr.
+  const auto *UE = dyn_cast<BinaryOperator>(RBE->getUpperExpr());
+  if (!UE)
+    return;
 
-  // For conditions of the form "if (*(p + i))"
-  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    std::pair<Expr *, Expr *> Res =
-      MakeUniform(const_cast<BinaryOperator *>(BO));
+  const Expr *E = IgnoreCasts(UO->getSubExpr());
 
-    Expr *Base = Res.first;
-    Expr *Offset = Res.second;
+  ExprPairTy DerefExprPair;
 
-    const auto *RBE = dyn_cast<RangeBoundsExpr>(UO->getBoundsExpr());
-    if (!RBE)
-      return;
+  // The deref expr can be of 2 forms:
+  // 1. DeclRefExpr: if (*p)
+  // 2. BinaryOperator: if (*(p + e))
 
-    bool BaseEqualsUpperBound = false;
-    if (const auto *Upper = dyn_cast<BinaryOperator>(RBE->getUpperExpr()))
-      BaseEqualsUpperBound = (Lex.CompareExpr(Base, Upper) ==
-                              Lexicographic::Result::Equal);
+  // SplitIntoBaseOffset tries to make the expr uniform. It returns a "Base"
+  // and an "Offset". Base is an expr containing only DeclRefExprs and Offset
+  // is an expr containing only IntegerLiterals. Here are some examples:
+  // Note: p and q are DelRefExprs, i and j are IntegerLiterals.
 
-    if (!BaseEqualsUpperBound)
-      return;
+  // Expr ==> Return Value
+  // p ==> (p, nullptr)
+  // p + i ==> (p, i)
+  // i + p ==> (p, i)
+  // p + i + j ==> (p, i + j)
+  // i + p + j + q ==> (p + q, i + j)
 
-    const VarDecl *V = GetNtArrayVarDecl(RBE->getLowerExpr());
-    if (!V)
-      return;
+  if (const auto *D = dyn_cast<DeclRefExpr>(E))
+    DerefExprPair = SplitIntoBaseOffset(D);
+  else if (const auto *BO = dyn_cast<BinaryOperator>(E))
+    DerefExprPair = SplitIntoBaseOffset(BO);
+  else return;
 
-    // We update the bounds of p on the edge EB->SuccEB only if this is
-    // the first time we encounter "if (*(p + i)" on that edge.
-    if (!EB->Gen[SuccEB->Block].count(V)) {
-      if (!Offset)
-        EB->Gen[SuccEB->Block][V] = 0;
-      else {
-        auto *Lit = dyn_cast<IntegerLiteral>(Offset);
-        EB->Gen[SuccEB->Block][V] = Lit->getValue().getLimitedValue();
-      }
+  const Expr *DerefBase = DerefExprPair.first;
+  const Expr *DerefOffset = DerefExprPair.second;
+  if (!DerefBase)
+    return;
 
-      if (!SuccEB->BoundsVars.count(V)) {
-        DeclSetTy BoundsVars;
-        CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
-        SuccEB->BoundsVars[V] = BoundsVars;
-      }
-    }
+  // Also make the upper bounds expr uniform.
+  ExprPairTy UpperExprPair = SplitIntoBaseOffset(UE);
+  const Expr *UpperBase = UpperExprPair.first;
+  const Expr *UpperOffset = UpperExprPair.second;
+  if (!UpperBase)
+    return;
+
+  // For bounds widening, the bases of the deref expr and the upper bounds expr
+  // should be the same. For example:
+  // _Nt_array_ptr<T> p : bounds(p, p + i);
+
+  // if (*(p + i)) // widen by 1
+  //   if (*(p + i + 1)) // widen by 2
+  //     if (*(p + i + 2)) // widen by 3
+
+  // if (*(p + i)) // widen by 1
+  //   if (*(p + i + 2)) // no widening
+
+  // if (*p) // no widening
+  //   if (*(p + 1)) // no widening
+  //     if (*(p + i)) // widen by 1
+  if (Lex.CompareExpr(DerefBase, UpperBase) !=
+      Lexicographic::Result::Equal)
+    return;
+
+  // Extract the ntptr from the lower bounds expr.
+  const VarDecl *V = GetNtArrayVarDecl(RBE->getLowerExpr());
+  if (!V)
+    return;
+
+  // Update the bounds of p on the edge EB->SuccEB only if this is
+  // the first time we encounter "if (*(p + i)" on that edge.
+//  if (EB->Gen[SuccEB->Block].count(V))
+//    return;
+
+  const llvm::APInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
+
+  const llvm::APInt DerefOffsetVal = !DerefOffset ? Zero :
+    dyn_cast<IntegerLiteral>(DerefOffset)->getValue();
+
+  const llvm::APInt UpperOffsetVal = !UpperOffset ? Zero :
+    dyn_cast<IntegerLiteral>(UpperOffset)->getValue();
+
+  // We cannot widen the bounds if the offset in the deref expr is less than
+  // the offset in the upper bounds expr. For example:
+  // _Nt_array_ptr<T> p : bounds(p, p + i + 2); // Upper Bounds Offset (UBO) = 2.
+
+  // if (*(p + i)) // Offset = 0 < UBO ==> no widening
+  //   if (*(p + i + 1)) // Offset = 1 < UBO ==> no widening
+  //     if (*(p + i + 2)) // Offset = 2 == UBO ==> widen by 1
+  //       if (*(p + i + 3)) // Offset = 3 > UBO ==> widen by 2
+  if (Lex.CompareAPInt(DerefOffsetVal, UpperOffsetVal) ==
+      Lexicographic::Result::LessThan)
+    return;
+
+  EB->Gen[SuccEB->Block][V] =
+    (DerefOffsetVal - UpperOffsetVal).getLimitedValue();
+
+  // Any update to any variable involved in the bounds expr for the ntptr will
+  // kill the widenend bounds for the ntptr.
+  if (!SuccEB->BoundsVars.count(V)) {
+    DeclSetTy BoundsVars;
+    CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+    SuccEB->BoundsVars[V] = BoundsVars;
   }
 }
 
@@ -525,13 +565,21 @@ void BoundsAnalysis::HandleArraySubscript(ArraySubscriptExpr *AE,
   }
 }
 
-std::pair<Expr *, Expr *>
-BoundsAnalysis::MakeUniform(BinaryOperator *BO) {
+ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // In order to make an expression uniform, we want to keep all DeclRefExprs
   // on the LHS and all IntegerLiterals on the RHS.
 
+  if (const auto *D = dyn_cast<DeclRefExpr>(E))
+    return std::make_pair(D, nullptr);
+
+  if (!isa<BinaryOperator>(E))
+    return std::make_pair(nullptr, nullptr);
+
+  const BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
   Expr *LHS = IgnoreCasts(BO->getLHS());
   Expr *RHS = IgnoreCasts(BO->getRHS());
+
+  // Note: Assume p, q, r are DeclRefExprs and i, j are IntegerLiterals.
 
   // Case 1: LHS is DeclRefExpr and RHS is IntegerLiteral. This expr is already
   // uniform.
@@ -552,7 +600,8 @@ BoundsAnalysis::MakeUniform(BinaryOperator *BO) {
   if (isa<DeclRefExpr>(LHS) && isa<DeclRefExpr>(RHS))
     return std::make_pair(BO, nullptr);
 
-  assert(isa<BinaryOperator>(LHS) && "BinaryOperator expected on LHS");
+  if (!isa<BinaryOperator>(LHS))
+    return std::make_pair(nullptr, nullptr);
 
   // If we reach here, the expr is one of these:
   // Case 4: (p + q) + i
@@ -560,10 +609,11 @@ BoundsAnalysis::MakeUniform(BinaryOperator *BO) {
   // Case 6: (p + q) + r
   // Case 7: (p + j) + r
   auto *BE = dyn_cast<BinaryOperator>(LHS);
+
   // Recursively, make the LHS uniform.
-  std::pair<Expr *, Expr *> Res = MakeUniform(BE);
-  auto *BinOpLHS = Res.first;
-  Expr *BinOpRHS = Res.second;
+  ExprPairTy ExprPair = SplitIntoBaseOffset(BE);
+  const Expr *BinOpLHS = ExprPair.first;
+  const Expr *BinOpRHS = ExprPair.second;
 
   // Expr is either Case 4 or Case 5 from above. ie: LHS is BinaryOperator
   // and RHS is IntegerLiteral.
@@ -578,7 +628,7 @@ BoundsAnalysis::MakeUniform(BinaryOperator *BO) {
 
     // Expr is Case 5. ie: The BinaryOperator expr has an IntegerLiteral on
     // the RHS.
-    // (p + i) + j ==> return (p, i + j)
+    // (p + j) + i ==> return (p, j + i)
     Expr::EvalResult R1, R2;
     RHS->EvaluateAsInt(R1, Ctx);
     BinOpRHS->EvaluateAsInt(R2, Ctx);
@@ -590,7 +640,7 @@ BoundsAnalysis::MakeUniform(BinaryOperator *BO) {
 
   // If we are here it means expr is either Case 6 or Case 7 from above. ie:
   // LHS is BinaryOperator and RHS is a DeclRefExpr.
-  // (p + q) + r OR (p + i) + r
+  // (p + q) + r OR (p + j) + r
 
   // Expr is Case 6. ie: The BinaryOperator expr does not have an
   // IntegerLiteral on the RHS.
@@ -600,9 +650,23 @@ BoundsAnalysis::MakeUniform(BinaryOperator *BO) {
 
   // Expr is Case 7. ie: The BinaryOperator expr has an IntegerLiteral on
   // the RHS.
-  // (p + i) + r ==> return (p + r, i)
-  BE->setRHS(RHS);
-  return std::make_pair(BE, BinOpRHS);
+  // (p + j) + r ==> return (p + r, j) OR
+  // (j + p) + r ==> return (r + p, j)
+
+  // TmpBE is either (p + j) or (j + p) and RHS is r.
+  auto *TmpBE =
+    new (Ctx) BinaryOperator(BE->getLHS(), BE->getRHS(), BE->getOpcode(),
+                             BE->getType(), BE->getValueKind(),
+                             BE->getObjectKind(), BE->getExprLoc(),
+                             BE->getFPFeatures());
+
+  // TmpBE is (j + p) and RHS is r. So make the TmpBE as (r + p).
+  if (isa<IntegerLiteral>(TmpBE->getLHS()))
+    TmpBE->setLHS(RHS);
+  // TmpBE is (p + j) and RHS is r. So make the TmpBE as (p + r).
+  else
+    TmpBE->setRHS(RHS);
+  return std::make_pair(TmpBE, BinOpRHS);
 }
 
 void BoundsAnalysis::FillGenSet(Expr *E,

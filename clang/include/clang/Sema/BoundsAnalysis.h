@@ -250,20 +250,6 @@ namespace clang {
     // @return Whether B should be skipped.
     bool SkipBlock(const CFGBlock *B) const;
 
-    // Get the DeclRefExpr from an expression E.
-    // @param[in] An expression E which is known to be either an LValueToRValue
-    // cast or an ArrayToPointerDecay cast.
-    // @return The DeclRefExpr from the expression E.
-    DeclRefExpr *GetDeclOperand(const Expr *E);
-
-    // A DeclRefExpr can be a reference either to an array subscript (in which
-    // case it is wrapped around a ArrayToPointerDecay cast) or to a pointer
-    // dereference (in which case it is wrapped around an LValueToRValue cast).
-    // @param[in] An expression E.
-    // @return Whether E is an expression containing a reference to an array
-    // subscript or a pointer dereference.
-    bool IsDeclOperand(const Expr *E);
-
     // Make an expression uniform by moving all DeclRefExpr to the LHS and all
     // IntegerLiterals to the RHS.
     // @param[in] E is the expression which should be made uniform.
@@ -275,7 +261,7 @@ namespace clang {
     // an ntptr.
     // @param[in] E is the expressions for the lower bounds for an ntptr.
     // @return The VarDecl for the ntptr.
-    const VarDecl *GetNtArrayVarDecl(const Expr *E);
+    const VarDecl *GetNtArrayVarDecl(Expr *E);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
@@ -300,9 +286,6 @@ namespace clang {
     // @param[in] B is a set.
     // @return Whether sets A and B differ.
     template<class T> bool Differ(T &A, T &B) const;
-
-    std::pair<Expr *, Expr *> MakeUniform(BinaryOperator *BO);
-    const VarDecl *GetNtArrayVarDecl(Expr *E);
   };
 }
 
