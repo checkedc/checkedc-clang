@@ -209,12 +209,13 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
     BaseType = "const " + BaseType;
   }
 
+  std::string rsn = "Var arg list type.";
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
   if (BaseType == "struct __va_list_tag *" || BaseType == "va_list" ||
       BaseType == "struct __va_list_tag")
     for (const auto &V : vars)
-      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild()));
+      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), CS.getWild(), rsn));
 }
 
 bool PVConstraint::liftedOnCVars(const ConstraintVariable &O,
@@ -573,12 +574,13 @@ FunctionVariableConstraint::FunctionVariableConstraint(const Type *Ty,
   // return values
 
   returnVars.insert(new PVConstraint(returnType, K, D, "", CS, Ctx, true));
+  std::string rsn = "Function pointer return value.";
   for ( const auto &V : returnVars) {
     if (PVConstraint *PVC = dyn_cast<PVConstraint>(V)) {
       if (PVC->getFV())
-        PVC->constrainTo(CS, CS.getWild());
+        PVC->constrainTo(CS, CS.getWild(), rsn);
     } else if (FVConstraint *FVC = dyn_cast<FVConstraint>(V)) {
-      FVC->constrainTo(CS, CS.getWild());
+      FVC->constrainTo(CS, CS.getWild(), rsn);
     }
   }
 }

@@ -372,6 +372,7 @@ bool ProgramInfo::link() {
           U->constrainTo(CS, CS.getWild(), rsn, true);
         }
 
+        std::string rsn = "Inner pointer of a parameter to external function.";
         for (unsigned i = 0; i < G->numParams(); i++)
           for (const auto &PVar : G->getParamVar(i)) {
             if (PVConstraint *PVC = dyn_cast<PVConstraint>(PVar)) {
@@ -382,9 +383,9 @@ bool ProgramInfo::link() {
               if (!C.empty())
                 C.erase(C.begin());
               for (auto cVar: C)
-                CS.addConstraint(CS.createEq(CS.getVar(cVar), CS.getWild()));
+                CS.addConstraint(CS.createEq(CS.getVar(cVar), CS.getWild(), rsn));
             } else {
-              PVar->constrainTo(CS, CS.getWild(), true);
+              PVar->constrainTo(CS, CS.getWild(), rsn,true);
             }
           }
       }
@@ -621,10 +622,11 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
   // should check to see if what we just added was defined within a macro.
   // If it was, we should constrain it to top. This is sad. Hopefully, 
   // someday, the Rewriter will become less lame and let us re-write stuff
-  // in macros. 
+  // in macros.
+  std::string pointerInMacro = "Pointer in Macro declaration.";
   if (!Rewriter::isRewritable(D->getLocation())) 
     for (const auto &C : S)
-      C->constrainTo(CS, CS.getWild());
+      C->constrainTo(CS, CS.getWild(), pointerInMacro);
 
   return true;
 }
@@ -1117,8 +1119,9 @@ bool ProgramInfo::handleFunctionSubtyping() {
         // the function is returning WILD with in the body.
         // make the declaration type also WILD.
         PVConstraint *toChangeVar = dyn_cast<PVConstraint>(declRetType);
+        std::string wildReason = "Function Returning WILD within the body.";
         for (const auto &B : toChangeVar->getCvars())
-          CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), CS.getWild()));
+          CS.addConstraint(CS.createEq(CS.getOrCreateVar(B), CS.getWild(), wildReason));
 
         retVal = true;
       } else {
@@ -1205,6 +1208,30 @@ bool ProgramInfo::computePointerDisjointSet() {
       }
     }
   }
+
+  // perform adjustment of group leaders. So that, the real-WILD
+  // pointers are the leaders for each group.
+  for (auto &realCP: ConstraintDisjointSet.realWildPtrsWithReasons) {
+    auto &realCVar = realCP.first;
+    // check if the leader CVar is a real WILD Ptr
+    if (ConstraintDisjointSet.leaders.find(realCVar) != ConstraintDisjointSet.leaders.end()) {
+      auto oldGroupLeader = ConstraintDisjointSet.leaders[realCVar];
+      // if not?
+      if (ConstraintDisjointSet.realWildPtrsWithReasons.find(oldGroupLeader) ==
+          ConstraintDisjointSet.realWildPtrsWithReasons.end()) {
+        for (auto &leadersP: ConstraintDisjointSet.leaders) {
+          if (leadersP.second == oldGroupLeader) {
+            leadersP.second = realCVar;
+          }
+        }
+
+        auto &oldG = ConstraintDisjointSet.groups[oldGroupLeader];
+        ConstraintDisjointSet.groups[realCVar].insert(oldG.begin(), oldG.end());
+        ConstraintDisjointSet.groups.erase(oldGroupLeader);
+      }
+    }
+  }
+
 
   for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;

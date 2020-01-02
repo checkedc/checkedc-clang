@@ -32,11 +32,15 @@ void specialCaseVarIntros(ValueDecl *D, ProgramInfo &Info, ASTContext *C) {
   // Special-case for va_list, constrain to wild.
   if (D->getType().getAsString() == "va_list" ||
       D->getType()->isVoidType()) {
+    // set the reason for making this variable WILD.
+    std::string rsn = "Variable type void.";
+    if (!D->getType()->isVoidType())
+      rsn = "Variable type is va_list.";
     for (const auto &I : Info.getVariable(D, C))
       if (const PVConstraint *PVC = dyn_cast<PVConstraint>(I))
         for (const auto &J : PVC->getCvars())
           CS.addConstraint(
-            CS.createEq(CS.getOrCreateVar(J), CS.getWild()));
+            CS.createEq(CS.getOrCreateVar(J), CS.getWild(), rsn));
   }
 }
 
@@ -435,10 +439,12 @@ public:
       QualType    Dest = C->getType();
       Constraints &CS = Info.getConstraints();
 
+      std::string rsn = "Casted To a Different Type.";
+
       // If these aren't compatible, constrain the source to wild. 
       if (!Info.checkStructuralEquality(Dest, Source))
         for (auto &C : W)
-          C->constrainTo(CS, CS.getWild(), "Casted To Different Type.");
+          C->constrainTo(CS, CS.getWild(), rsn);
     }
 
     return true;
@@ -500,7 +506,8 @@ public:
           // Constrain this parameter to be wild.
           if(handleVARARGS) {
             Constraints &CS = Info.getConstraints();
-            assignType(ArgumentConstraints, CS.getWild());
+            std::string rsn = "Passing argument to a function accepting var args.";
+            assignType(ArgumentConstraints, CS.getWild(), rsn);
           } else {
             if(Verbose) {
               std::string funcName = FD->getName();
@@ -638,8 +645,9 @@ private:
               // what we do is, constraint all arguments to wild.
               constraintAllArgumentsToWild(E);
               Constraints &CS = Info.getConstraints();
-              // also constraint
-              C->constrainTo(CS, CS.getWild());
+              // also constraint parameter with-in the body to WILD.
+              std::string rsn = "Function pointer to/from non-function pointer cast.";
+              C->constrainTo(CS, CS.getWild(), rsn);
             }
           }
         } else {
