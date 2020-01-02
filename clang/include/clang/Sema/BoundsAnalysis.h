@@ -85,6 +85,10 @@ namespace clang {
   // for printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
+  // ExprPairTy denotes a pair of expressions. This is used as a return type
+  // when an expression is split into a base and an offset.
+  using ExprPairTy = std::pair<const Expr *, const Expr *>;
+
   class BoundsAnalysis {
   private:
     Sema &S;
@@ -253,6 +257,19 @@ namespace clang {
     // subscript or a pointer dereference.
     bool IsDeclOperand(const Expr *E);
 
+    // Make an expression uniform by moving all DeclRefExpr to the LHS and all
+    // IntegerLiterals to the RHS.
+    // @param[in] E is the expression which should be made uniform.
+    // @return A pair of expressions. The first contains all DeclRefExprs of E
+    // and the second contains all IntegerLiterals of E.
+    ExprPairTy SplitIntoBaseOffset(const Expr *E);
+
+    // Get the VarDecl for the ntptr from E if E is the lower bounds expr for
+    // an ntptr.
+    // @param[in] E is the expressions for the lower bounds for an ntptr.
+    // @return The VarDecl for the ntptr.
+    const VarDecl *GetNtArrayVarDecl(Expr *E);
+
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
     // @param[in] B is a set.
@@ -276,9 +293,6 @@ namespace clang {
     // @param[in] B is a set.
     // @return Whether sets A and B differ.
     template<class T> bool Differ(T &A, T &B) const;
-
-    std::pair<Expr *, Expr *> MakeUniform(BinaryOperator *BO);
-    const VarDecl *GetNtArrayVarDecl(Expr *E);
   };
 }
 
