@@ -116,280 +116,24 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
     CollectBoundsVars(BO->getRHS(), BoundsVars);
   }
 
-  if (IsDeclOperand(E)) {
-    const DeclRefExpr *D = GetDeclOperand(E);
+  if (IsPtrDerefOrArraySubscript(E)) {
+    const DeclRefExpr *D = GetDeclRefExpr(E);
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       BoundsVars.insert(V);
   }
 }
 
-bool BoundsAnalysis::AreDeclaredBoundsZero(const Expr *E, const Expr *V) {
-  if (!E)
-    return !V;
+DeclRefExpr *BoundsAnalysis::GetDeclRefExpr(const Expr *E) {
+  auto *CE = dyn_cast<CastExpr>(E);
+  return dyn_cast<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
+}
 
-bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
+bool BoundsAnalysis::IsPtrDerefOrArraySubscript(const Expr *E) {
   if (auto *CE = dyn_cast<CastExpr>(E))
     if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
         CE->getCastKind() == CastKind::CK_ArrayToPointerDecay)
       return isa<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
   return false;
-}
-
-  // Check if the upper bound of V is equal to V.
-  // To do this, we check that the LHS of the bounds expr is V and the RHS is
-  // 0.
-  if (const auto *RBE = dyn_cast<RangeBoundsExpr>(E)) {
-    if (const auto *BO = dyn_cast<BinaryOperator>(RBE->getUpperExpr())) {
-      Expr *RHS = IgnoreCasts(BO->getRHS());
-      if (const auto *Lit = dyn_cast<IntegerLiteral>(RHS)) {
-        Expr *LHS = IgnoreCasts(BO->getLHS());
-        return Lit->getValue().getLimitedValue() == 0 &&
-               Lex.CompareExpr(LHS, V) == Lexicographic::Result::Equal;
-      }
-    }
-  }
-
-  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    const VarDecl *V = GetNtArrayVarDecl(BO->getLHS());
-    if (V)
-      return V;
-    return GetNtArrayVarDecl(BO->getRHS());
-  }
-  return nullptr;
-}
-
-void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E, BoundsExpr *BE,
-                                                ElevatedCFGBlock *EB,
-                                                ElevatedCFGBlock *SuccEB) {
-
-  // TODO: Handle accesses of the form:
-  // "if (*(p + i) && *(p + j) && *(p + k))"
-
-  const auto *RBE = dyn_cast<RangeBoundsExpr>(BE);
-  if (!RBE)
-    return;
-
-  // The deref expr can be of 2 forms:
-  // 1. Ptr deref or array subscript: if (*p) or p[i]
-  // 2. BinaryOperator: if (*(p + e))
-
-  // SplitIntoBaseOffset tries to uniformize the expr. It returns a "Base" and
-  // an "Offset". Base is an expr containing only DeclRefExprs and Offset is an
-  // expr containing only IntegerLiterals. Here are some examples: Note: p and
-  // q are DelRefExprs, i and j are IntegerLiterals.
-
-  // Expr ==> Return Value
-  // p ==> (p, nullptr)
-  // p + i ==> (p, i)
-  // i + p ==> (p, i)
-  // p + i + j ==> (p, i + j)
-  // i + p + j + q ==> (p + q, i + j)
-
-  ExprPairTy DerefExprPair = SplitIntoBaseOffset(E);
-  const Expr *DerefBase = DerefExprPair.first;
-  const Expr *DerefOffset = DerefExprPair.second;
-  if (!DerefBase)
-    return;
-
-  // Also make the upper bounds expr uniform.
-  const Expr *UE = RBE->getUpperExpr();
-  if (!UE)
-    return;
-
-  ExprPairTy UpperExprPair = SplitIntoBaseOffset(UE);
-  const Expr *UpperBase = UpperExprPair.first;
-  const Expr *UpperOffset = UpperExprPair.second;
-  if (!UpperBase)
-    return;
-
-  // For bounds widening, the base of the deref expr and the upper bounds expr
-  // should be the same.
-
-  // For example:
-  // _Nt_array_ptr<T> p : bounds(p, p + i);
-
-  // if (*(p + i)) // widen by 1
-  //   if (*(p + i + 1)) // widen by 2
-  //     if (*(p + i + 2)) // widen by 3
-
-  // if (*(p + i)) // widen by 1
-  //   if (*(p + i + 2)) // no widening
-
-  // if (*p) // no widening
-  //   if (*(p + 1)) // no widening
-  //     if (*(p + i)) // widen by 1
-
-  // TODO: Currently, Lexicographic::CompareExpr does not understand
-  // commutativity of operations. Exprs like "p + e" and "e + p" are considered
-  // unequal.
-
-  if (Lex.CompareExpr(DerefBase, UpperBase) !=
-      Lexicographic::Result::Equal)
-    return;
-
-  // Extract the ntptr from the lower bounds expr.
-  const VarDecl *V = GetNtArrayVarDecl(RBE->getLowerExpr());
-  if (!V)
-    return;
-
-  // Update the bounds of p on the edge EB->SuccEB only if we haven't already
-  // updated them.
-  if (EB->Gen[SuccEB->Block].count(V))
-    return;
-
-  const llvm::APInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
-
-  const llvm::APInt DerefOffsetVal = !DerefOffset ? Zero :
-    dyn_cast<IntegerLiteral>(DerefOffset)->getValue();
-
-  const llvm::APInt UpperOffsetVal = !UpperOffset ? Zero :
-    dyn_cast<IntegerLiteral>(UpperOffset)->getValue();
-
-  // We cannot widen the bounds if the offset in the deref expr is less than
-  // the offset in the upper bounds expr. For example:
-  // _Nt_array_ptr<T> p : bounds(p, p + i + 2); // Upper Bounds Offset (UBO) = 2.
-
-  // if (*(p + i)) // Offset = 0 < UBO ==> no widening
-  //   if (*(p + i + 1)) // Offset = 1 < UBO ==> no widening
-  //     if (*(p + i + 2)) // Offset = 2 == UBO ==> widen by 1
-  //       if (*(p + i + 3)) // Offset = 3 > UBO ==> widen by 2
-  if (Lex.CompareAPInt(DerefOffsetVal, UpperOffsetVal) ==
-      Lexicographic::Result::LessThan)
-    return;
-
-  // (DerefOffset - UpperOffset) gives us the amount by which the ntptr should
-  // be widened.
-  // TODO: Check to see if that difference overflows/underflows.
-  llvm::APInt OffsetDiff = DerefOffsetVal - UpperOffsetVal;
-
-  EB->Gen[SuccEB->Block][V] = OffsetDiff.getLimitedValue();
-
-  // Collect all variables involved in the upper and lower bounds exprs for
-  // the ntptr. An assignment to any such variable would kill the widenend
-  // bounds for the ntptr.
-  if (!SuccEB->BoundsVars.count(V)) {
-    DeclSetTy BoundsVars;
-    CollectBoundsVars(BE, BoundsVars);
-    SuccEB->BoundsVars[V] = BoundsVars;
-  }
-}
-
-ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
-  // In order to make an expression uniform, we want to keep all DeclRefExprs
-  // on the LHS and all IntegerLiterals on the RHS.
-
-  if (IsDeclOperand(E))
-    return std::make_pair(GetDeclOperand(E), nullptr);
-
-  if (!isa<BinaryOperator>(E))
-    return std::make_pair(nullptr, nullptr);
-
-  const BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
-  // TODO: Currently we only handle exprs containing additive operations.
-  if (BO->getOpcode() != BO_Add)
-    return std::make_pair(nullptr, nullptr);
-
-  Expr *LHS = BO->getLHS()->IgnoreParens();
-  Expr *RHS = BO->getRHS()->IgnoreParens();
-
-  // Note: Assume p, q, r are DeclRefExprs and i, j are IntegerLiterals.
-
-  // Case 1: LHS is DeclRefExpr and RHS is IntegerLiteral. This expr is already
-  // uniform.
-  // p + i ==> return (p, i)
-  if (IsDeclOperand(LHS) && isa<IntegerLiteral>(RHS))
-    return std::make_pair(GetDeclOperand(LHS), RHS);
-
-  // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
-  // swap LHS and RHS to make expr uniform.
-  // i + p ==> return (p, i)
-  if (isa<IntegerLiteral>(LHS) && IsDeclOperand(RHS))
-    return std::make_pair(GetDeclOperand(RHS), LHS);
-
-  // Case 3: LHS and RHS are both DeclRefExprs. This means there is no
-  // IntegerLiteral in the expr. In this case, we return the incoming
-  // BinaryOperator expr with a nullptr for the RHS.
-  // p + q ==> return (p + q, nullptr)
-  if (IsDeclOperand(LHS) && IsDeclOperand(RHS))
-    return std::make_pair(BO, nullptr);
-
-  // To make parsing simpler, we always try to keep BinaryOperator on the LHS.
-  if (isa<BinaryOperator>(RHS))
-    std::swap(LHS, RHS);
-
-  // By this time the LHS should be a BinaryOperator; either because it already
-  // was a BinaryOperator, or because the RHS was a BinaryOperator and was
-  // swapped with the LHS.
-  if (!isa<BinaryOperator>(LHS))
-    return std::make_pair(nullptr, nullptr);
-
-  // If we reach here, the expr is one of these:
-  // Case 4: (p + q) + i
-  // Case 5: (p + j) + i
-  // Case 6: (p + q) + r
-  // Case 7: (p + j) + r
-  auto *BE = dyn_cast<BinaryOperator>(LHS);
-
-  // Recursively, make the LHS uniform.
-  ExprPairTy ExprPair = SplitIntoBaseOffset(BE);
-  const Expr *BinOpLHS = ExprPair.first;
-  const Expr *BinOpRHS = ExprPair.second;
-
-  // Expr is either Case 4 or Case 5 from above. ie: LHS is BinaryOperator
-  // and RHS is IntegerLiteral.
-  // (p + q) + i OR (p + j) + i
-  if (isa<IntegerLiteral>(RHS)) {
-
-    // Expr is Case 4. ie: The BinaryOperator expr does not have an
-    // IntegerLiteral on the RHS.
-    // (p + q) + i ==> return (p + q, i)
-    if (!BinOpRHS)
-      return std::make_pair(BE, RHS);
-
-    // Expr is Case 5. ie: The BinaryOperator expr has an IntegerLiteral on
-    // the RHS.
-    // (p + j) + i ==> return (p, j + i)
-    Expr::EvalResult R1, R2;
-    RHS->EvaluateAsInt(R1, Ctx);
-    BinOpRHS->EvaluateAsInt(R2, Ctx);
-
-    // TODO: Since we are reasociating integers here, check if the value
-    // overflows/underflows.
-    llvm::APInt Val = R1.Val.getInt() + R2.Val.getInt();
-
-    auto *I = new (Ctx) IntegerLiteral(Ctx, Val, Ctx.IntTy, SourceLocation());
-    return std::make_pair(BinOpLHS, I);
-  }
-
-  // If we are here it means expr is either Case 6 or Case 7 from above. ie:
-  // LHS is BinaryOperator and RHS is a DeclRefExpr.
-  // (p + q) + r OR (p + j) + r
-
-  // Expr is Case 6. ie: The BinaryOperator expr does not have an
-  // IntegerLiteral on the RHS.
-  // (p + q) + r ==> return (p + q + r, nullptr)
-  if (!BinOpRHS)
-    return std::make_pair(BO, nullptr);
-
-  // Expr is Case 7. ie: The BinaryOperator expr has an IntegerLiteral on
-  // the RHS.
-  // (p + j) + r ==> return (p + r, j) OR
-  // (j + p) + r ==> return (r + p, j)
-
-  // TmpBE is either (p + j) or (j + p) and RHS is r.
-  auto *TmpBE =
-    new (Ctx) BinaryOperator(BE->getLHS(), BE->getRHS(), BE->getOpcode(),
-                             BE->getType(), BE->getValueKind(),
-                             BE->getObjectKind(), BE->getExprLoc(),
-                             BE->getFPFeatures());
-
-  // TmpBE is (j + p) and RHS is r. So make the TmpBE as (r + p).
-  if (isa<IntegerLiteral>(TmpBE->getLHS()))
-    TmpBE->setLHS(RHS);
-  // TmpBE is (p + j) and RHS is r. So make the TmpBE as (p + r).
-  else
-    TmpBE->setRHS(RHS);
-  return std::make_pair(TmpBE, BinOpRHS);
 }
 
 void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
@@ -402,14 +146,8 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
   // "if (*(p + i) && *(p + j) && *(p + k))"
 
   // For conditions of the form "if (*p)".
-  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
-    // TODO: Remove this check. Currently, for the first version of this
-    // algorithm, we are enabling bounds widening only when the declared
-    // bounds are bounds(p, p) or count(0). We need to generalize this to
-    // widen bounds for dereferences involving constant offsets from the
-    // declared upper bound of a variable.
-    if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
-      return;
+  if (IsPtrDerefOrArraySubscript(E)) {
+    const DeclRefExpr *D = GetDeclRefExpr(E);
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
       if (IsNtArrayType(V)) {
@@ -434,25 +172,17 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
     IntegerLiteral *Lit = nullptr;
 
     // Handle *(p + i).
-    if (isa<DeclRefExpr>(LHS) && isa<IntegerLiteral>(RHS)) {
-      D = dyn_cast<DeclRefExpr>(LHS);
+    if (IsPtrDerefOrArraySubscript(LHS) && isa<IntegerLiteral>(RHS)) {
+      D = GetDeclRefExpr(LHS);
       Lit = dyn_cast<IntegerLiteral>(RHS);
 
     // Handle *(i + p).
-    } else if (isa<DeclRefExpr>(RHS) && isa<IntegerLiteral>(LHS)) {
-      D = dyn_cast<DeclRefExpr>(RHS);
+    } else if (IsPtrDerefOrArraySubscript(RHS) && isa<IntegerLiteral>(LHS)) {
+      D = GetDeclRefExpr(RHS);
       Lit = dyn_cast<IntegerLiteral>(LHS);
     }
 
     if (!D || !Lit)
-      return;
-
-    // TODO: Remove this check. Currently, for the first version of this
-    // algorithm, we are enabling bounds widening only when the declared
-    // bounds are bounds(p, p) or count(0). We need to generalize this to
-    // widen bounds for dereferences involving constant offsets from the
-    // declared upper bound of a variable.
-    if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
@@ -479,17 +209,11 @@ void BoundsAnalysis::HandleArraySubscript(ArraySubscriptExpr *AE,
   // An array access can be written A[4] or 4[A] (both are equivalent).
   // getBase() and getIdx() always present the normalized view: A[4].
   // In this case getBase() returns "A" and getIdx() returns "4".
-  const Expr *Base = IgnoreCasts(AE->getBase());
-  const Expr *Index = IgnoreCasts(AE->getIdx());
+  const Expr *Base = AE->getBase();
+  const Expr *Index = AE->getIdx();
 
-  if (const auto *D = dyn_cast<DeclRefExpr>(Base)) {
-    // TODO: Remove this check. Currently, for the first version of this
-    // algorithm, we are enabling bounds widening only when the declared
-    // bounds are bounds(p, p) or count(0). We need to generalize this to
-    // widen bounds for dereferences involving constant offsets from the
-    // declared upper bound of a variable.
-    if (!AreDeclaredBoundsZero(AE->getBoundsExpr(), D))
-      return;
+  if (IsPtrDerefOrArraySubscript(Base)) {
+    const DeclRefExpr *D = GetDeclRefExpr(Base);
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
       if (IsNtArrayType(V)) {
@@ -524,6 +248,10 @@ void BoundsAnalysis::FillGenSet(Expr *E,
       FillGenSet(BO->getRHS(), EB, SuccEB);
     }
   }
+
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      E = CE->getSubExpr();
 
   E = IgnoreCasts(E);
 
@@ -674,11 +402,8 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   return nullptr;
 }
 
-Expr *BoundsAnalysis::IgnoreCasts(Expr *E) {
-  if (auto *CE = dyn_cast<CastExpr>(E))
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      return IgnoreCasts(CE->getSubExpr());
-  return Lex.IgnoreValuePreservingOperations(Ctx, E);
+Expr *BoundsAnalysis::IgnoreCasts(const Expr *E) {
+  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
 }
 
 bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
