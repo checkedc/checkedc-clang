@@ -14,6 +14,12 @@
 #include "PersistentSourceLoc.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 
+struct WildPointerInferenceInfo {
+  std::string sourceFileName = "";
+  std::string wildPtrReason = "";
+  unsigned lineNo = 0;
+  unsigned colStart = 0;
+};
 
 class DisjointSet {
 public:
@@ -25,7 +31,7 @@ public:
 
   std::map<ConstraintKey, ConstraintKey> leaders;
   std::map<ConstraintKey, CVars> groups;
-  std::map<ConstraintKey, std::string> realWildPtrsWithReasons;
+  std::map<ConstraintKey, struct WildPointerInferenceInfo> realWildPtrsWithReasons;
   CVars allWildPtrs;
   std::map<ConstraintKey, PersistentSourceLoc*> PtrSourceMap;
 };

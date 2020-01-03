@@ -13,18 +13,6 @@ namespace clang {
 namespace clangd {
 #define CCONVSOURCE "CConv"
 #define DEFAULT_PTRSIZE 4
-void getCConvertDiagnostics(PathRef File, std::vector<Diag> &diagVector) {
-  Diag toInsert;
-  toInsert.Message = "CheckedCConvert first diag";
-  toInsert.Severity = DiagnosticsEngine::Level::Error;
-  toInsert.Range.start.character = 9;
-  toInsert.Range.end.character = 25;
-  toInsert.Range.start.line = 29;
-  toInsert.Range.end.line = 29;
-  toInsert.source = CCONVSOURCE;
-  toInsert.code = 123;
-  diagVector.push_back(toInsert);
-}
 
 bool getPtrIDFromDiagMessage(const Diagnostic &diagMsg, unsigned long &ptrID) {
   if (diagMsg.source.rfind(CCONVSOURCE, 0) == 0) {
@@ -53,7 +41,7 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
       newDiag.Range.end.line = line;
       newDiag.Range.start.character = colNo;
       newDiag.Range.end.character = colNo + DEFAULT_PTRSIZE;
-      newDiag.Message = "Pointer is wild because of:" + wReason.second;
+      newDiag.Message = "Pointer is wild because of:" + wReason.second.wildPtrReason;
       AllFileDiagnostics[filePath].push_back(newDiag);
     }
   }
