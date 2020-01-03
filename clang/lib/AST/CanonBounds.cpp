@@ -48,90 +48,6 @@ namespace {
     else
       return false;
   }
-  // Ignore operations that don't change runtime values: parens, some cast operations,
-  // array/function address-of and dereference operators, and address-of/dereference
-  // operators that cancel (&* and *&).
-  //
-  // The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
-  // do enough filtering (it'll ignore LValueToRValue casts for example).
-  // TODO: reconcile with CheckValuePreservingCast
-  static Expr *IgnoreValuePreservingOperations(ASTContext &Ctx, Expr *E) {
-    while (true) {
-      E = E->IgnoreParens();
-
-      if (CastExpr *P = dyn_cast<CastExpr>(E)) {
-        CastKind CK = P->getCastKind();
-        Expr *SE = P->getSubExpr();
-        if (IsValuePreserving(CK)) {
-          E = SE;
-          continue;
-        }
-
-        // Ignore integer <-> casts that are of the same width, ptr<->ptr
-        // and ptr<->int casts of the same width.
-        if (CK == CK_IntegralToPointer || CK == CK_PointerToIntegral ||
-            CK == CK_IntegralCast) {
-          if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
-            E = SE;
-            continue;
-          }
-
-          if ((E->getType()->isPointerType() ||
-                E->getType()->isIntegralType(Ctx)) &&
-                (SE->getType()->isPointerType() ||
-                SE->getType()->isIntegralType(Ctx)) &&
-              Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
-            E = SE;
-            continue;
-          }
-        }
-      } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
-        QualType ETy = UO->getType();
-        Expr *SE = UO->getSubExpr();
-        QualType SETy = SE->getType();
-
-        UnaryOperator::Opcode Op = UO->getOpcode();
-        if (Op == UO_Deref) {
-          // This may be more conservative than necessary.
-          bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
-          bool between_arrays = ETy->isArrayType() && isPointerToArrayType(SETy);
-          if (between_functions || between_arrays) {
-            E = SE;
-            continue;
-          }
-
-          // handle *&e, which reduces to e.
-          if (const UnaryOperator *Child =
-              dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
-            if (Child->getOpcode() == UO_AddrOf) {
-              E = Child->getSubExpr();
-              continue;
-            }
-          }
-
-        } else if (Op == UO_AddrOf) {
-          // This may be more conservative than necessary.
-          bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
-          bool between_arrays = isPointerToArrayType(ETy) && SETy->isArrayType();
-          if (between_functions || between_arrays) {
-            E = SE;
-            continue;
-          }
-
-          // handle &*e, which reduces to e.
-          if (const UnaryOperator *Child =
-              dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
-            if (Child->getOpcode() == UO_Deref) {
-              E = Child->getSubExpr();
-              continue;
-            }
-          }
-        }
-      }
-
-      return E;
-    }
-  }
 }
 
 Lexicographic::Lexicographic(ASTContext &Ctx, EquivExprSets *EquivExprs) :
@@ -814,4 +730,90 @@ Lexicographic::CompareImpl(const BoundsValueExpr *E1,
 Result
 Lexicographic::CompareImpl(const BlockExpr *E1, const BlockExpr *E2) {
   return Result::Equal;
+}
+
+// Ignore operations that don't change runtime values: parens, some cast operations,
+// array/function address-of and dereference operators, and address-of/dereference
+// operators that cancel (&* and *&).
+//
+// The code for casts is adapted from Expr::IgnoreNoopCasts, which seems like doesn't
+// do enough filtering (it'll ignore LValueToRValue casts for example).
+// TODO: reconcile with CheckValuePreservingCast
+Expr *Lexicographic::IgnoreValuePreservingOperations(ASTContext &Ctx,
+                                                     Expr *E) {
+  while (true) {
+    E = E->IgnoreParens();
+
+    if (CastExpr *P = dyn_cast<CastExpr>(E)) {
+      CastKind CK = P->getCastKind();
+      Expr *SE = P->getSubExpr();
+      if (IsValuePreserving(CK)) {
+        E = SE;
+        continue;
+      }
+
+      // Ignore integer <-> casts that are of the same width, ptr<->ptr
+      // and ptr<->int casts of the same width.
+      if (CK == CK_IntegralToPointer || CK == CK_PointerToIntegral ||
+          CK == CK_IntegralCast) {
+        if (Ctx.hasSameUnqualifiedType(E->getType(), SE->getType())) {
+          E = SE;
+          continue;
+        }
+
+        if ((E->getType()->isPointerType() ||
+              E->getType()->isIntegralType(Ctx)) &&
+              (SE->getType()->isPointerType() ||
+              SE->getType()->isIntegralType(Ctx)) &&
+            Ctx.getTypeSize(E->getType()) == Ctx.getTypeSize(SE->getType())) {
+          E = SE;
+          continue;
+        }
+      }
+    } else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(E)) {
+      QualType ETy = UO->getType();
+      Expr *SE = UO->getSubExpr();
+      QualType SETy = SE->getType();
+
+      UnaryOperator::Opcode Op = UO->getOpcode();
+      if (Op == UO_Deref) {
+        // This may be more conservative than necessary.
+        bool between_functions = ETy->isFunctionType() && SETy->isFunctionPointerType();
+        bool between_arrays = ETy->isArrayType() && isPointerToArrayType(SETy);
+        if (between_functions || between_arrays) {
+          E = SE;
+          continue;
+        }
+
+        // handle *&e, which reduces to e.
+        if (const UnaryOperator *Child =
+            dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
+          if (Child->getOpcode() == UO_AddrOf) {
+            E = Child->getSubExpr();
+            continue;
+          }
+        }
+
+      } else if (Op == UO_AddrOf) {
+        // This may be more conservative than necessary.
+        bool between_functions = ETy->isFunctionPointerType() && SETy->isFunctionType();
+        bool between_arrays = isPointerToArrayType(ETy) && SETy->isArrayType();
+        if (between_functions || between_arrays) {
+          E = SE;
+          continue;
+        }
+
+        // handle &*e, which reduces to e.
+        if (const UnaryOperator *Child =
+            dyn_cast<UnaryOperator>(SE->IgnoreParens())) {
+          if (Child->getOpcode() == UO_Deref) {
+            E = Child->getSubExpr();
+            continue;
+          }
+        }
+      }
+    }
+
+    return E;
+  }
 }
