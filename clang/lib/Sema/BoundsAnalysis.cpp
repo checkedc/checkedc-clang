@@ -98,7 +98,7 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
   if (!E)
     return;
 
-  E = IgnoreCasts(const_cast<Expr *>(E));
+  E = IgnoreCasts(E);
 
   // Collect bounds vars for the lower and upper bounds exprs.
   // Example:
@@ -116,31 +116,23 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
     CollectBoundsVars(BO->getRHS(), BoundsVars);
   }
 
-  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
+  if (IsPtrDerefOrArraySubscript(E)) {
+    const DeclRefExpr *D = GetDeclRefExpr(E);
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       BoundsVars.insert(V);
   }
 }
 
-bool BoundsAnalysis::AreDeclaredBoundsZero(const Expr *E, const Expr *V) {
-  if (!E)
-    return !V;
+DeclRefExpr *BoundsAnalysis::GetDeclRefExpr(const Expr *E) {
+  auto *CE = dyn_cast<CastExpr>(E);
+  return dyn_cast<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
+}
 
-  E = IgnoreCasts(const_cast<Expr *>(E));
-
-  // Check if the upper bound of V is equal to V.
-  // To do this, we check that the LHS of the bounds expr is V and the RHS is
-  // 0.
-  if (const auto *RBE = dyn_cast<RangeBoundsExpr>(E)) {
-    if (const auto *BO = dyn_cast<BinaryOperator>(RBE->getUpperExpr())) {
-      Expr *RHS = IgnoreCasts(BO->getRHS());
-      if (const auto *Lit = dyn_cast<IntegerLiteral>(RHS)) {
-        Expr *LHS = IgnoreCasts(BO->getLHS());
-        return Lit->getValue().getLimitedValue() == 0 &&
-               Lex.CompareExpr(LHS, V) == Lexicographic::Result::Equal;
-      }
-    }
-  }
+bool BoundsAnalysis::IsPtrDerefOrArraySubscript(const Expr *E) {
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
+        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay)
+      return isa<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
   return false;
 }
 
@@ -154,14 +146,8 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
   // "if (*(p + i) && *(p + j) && *(p + k))"
 
   // For conditions of the form "if (*p)".
-  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
-    // TODO: Remove this check. Currently, for the first version of this
-    // algorithm, we are enabling bounds widening only when the declared
-    // bounds are bounds(p, p) or count(0). We need to generalize this to
-    // widen bounds for dereferences involving constant offsets from the
-    // declared upper bound of a variable.
-    if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
-      return;
+  if (IsPtrDerefOrArraySubscript(E)) {
+    const DeclRefExpr *D = GetDeclRefExpr(E);
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
       if (IsNtArrayType(V)) {
@@ -186,25 +172,17 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
     IntegerLiteral *Lit = nullptr;
 
     // Handle *(p + i).
-    if (isa<DeclRefExpr>(LHS) && isa<IntegerLiteral>(RHS)) {
-      D = dyn_cast<DeclRefExpr>(LHS);
+    if (IsPtrDerefOrArraySubscript(LHS) && isa<IntegerLiteral>(RHS)) {
+      D = GetDeclRefExpr(LHS);
       Lit = dyn_cast<IntegerLiteral>(RHS);
 
     // Handle *(i + p).
-    } else if (isa<DeclRefExpr>(RHS) && isa<IntegerLiteral>(LHS)) {
-      D = dyn_cast<DeclRefExpr>(RHS);
+    } else if (IsPtrDerefOrArraySubscript(RHS) && isa<IntegerLiteral>(LHS)) {
+      D = GetDeclRefExpr(RHS);
       Lit = dyn_cast<IntegerLiteral>(LHS);
     }
 
     if (!D || !Lit)
-      return;
-
-    // TODO: Remove this check. Currently, for the first version of this
-    // algorithm, we are enabling bounds widening only when the declared
-    // bounds are bounds(p, p) or count(0). We need to generalize this to
-    // widen bounds for dereferences involving constant offsets from the
-    // declared upper bound of a variable.
-    if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
       return;
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
@@ -231,17 +209,11 @@ void BoundsAnalysis::HandleArraySubscript(ArraySubscriptExpr *AE,
   // An array access can be written A[4] or 4[A] (both are equivalent).
   // getBase() and getIdx() always present the normalized view: A[4].
   // In this case getBase() returns "A" and getIdx() returns "4".
-  const Expr *Base = IgnoreCasts(AE->getBase());
-  const Expr *Index = IgnoreCasts(AE->getIdx());
+  const Expr *Base = AE->getBase();
+  const Expr *Index = AE->getIdx();
 
-  if (const auto *D = dyn_cast<DeclRefExpr>(Base)) {
-    // TODO: Remove this check. Currently, for the first version of this
-    // algorithm, we are enabling bounds widening only when the declared
-    // bounds are bounds(p, p) or count(0). We need to generalize this to
-    // widen bounds for dereferences involving constant offsets from the
-    // declared upper bound of a variable.
-    if (!AreDeclaredBoundsZero(AE->getBoundsExpr(), D))
-      return;
+  if (IsPtrDerefOrArraySubscript(Base)) {
+    const DeclRefExpr *D = GetDeclRefExpr(Base);
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
       if (IsNtArrayType(V)) {
@@ -276,6 +248,10 @@ void BoundsAnalysis::FillGenSet(Expr *E,
       FillGenSet(BO->getRHS(), EB, SuccEB);
     }
   }
+
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      E = CE->getSubExpr();
 
   E = IgnoreCasts(E);
 
@@ -426,11 +402,8 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   return nullptr;
 }
 
-Expr *BoundsAnalysis::IgnoreCasts(Expr *E) {
-  if (auto *CE = dyn_cast<CastExpr>(E))
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      return IgnoreCasts(CE->getSubExpr());
-  return Lex.IgnoreValuePreservingOperations(Ctx, E);
+Expr *BoundsAnalysis::IgnoreCasts(const Expr *E) {
+  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
 }
 
 bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
