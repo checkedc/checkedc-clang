@@ -154,25 +154,16 @@ const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(Expr *E) {
   return nullptr;
 }
 
-void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
-                                        ElevatedCFGBlock *EB,
-                                        ElevatedCFGBlock *SuccEB) {
+void BoundsAnalysis::FillGenSet(const Expr *E, BoundsExpr *BE,
+                                ElevatedCFGBlock *EB,
+                                ElevatedCFGBlock *SuccEB) {
+
   // TODO: Handle accesses of the form:
   // "if (*(p + i) && *(p + j) && *(p + k))"
 
-  // Get the range bounds expr for ntptr involved in the deref.
-  const auto *RBE = dyn_cast<RangeBoundsExpr>(UO->getBoundsExpr());
+  const auto *RBE = dyn_cast<RangeBoundsExpr>(BE);
   if (!RBE)
     return;
-
-  // Get the upper bounds expr for the ntptr.
-  const auto *UE = dyn_cast<BinaryOperator>(RBE->getUpperExpr());
-  if (!UE)
-    return;
-
-  const Expr *E = IgnoreCasts(UO->getSubExpr());
-
-  ExprPairTy DerefExprPair;
 
   // The deref expr can be of 2 forms:
   // 1. DeclRefExpr: if (*p)
@@ -190,18 +181,17 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
   // p + i + j ==> (p, i + j)
   // i + p + j + q ==> (p + q, i + j)
 
-  if (const auto *D = dyn_cast<DeclRefExpr>(E))
-    DerefExprPair = SplitIntoBaseOffset(D);
-  else if (const auto *BO = dyn_cast<BinaryOperator>(E))
-    DerefExprPair = SplitIntoBaseOffset(BO);
-  else return;
-
+  ExprPairTy DerefExprPair = SplitIntoBaseOffset(E);
   const Expr *DerefBase = DerefExprPair.first;
   const Expr *DerefOffset = DerefExprPair.second;
   if (!DerefBase)
     return;
 
   // Also make the upper bounds expr uniform.
+  const Expr *UE = IgnoreCasts(RBE->getUpperExpr());
+  if (!UE)
+    return;
+
   ExprPairTy UpperExprPair = SplitIntoBaseOffset(UE);
   const Expr *UpperBase = UpperExprPair.first;
   const Expr *UpperOffset = UpperExprPair.second;
@@ -231,10 +221,10 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
   if (!V)
     return;
 
-  // Update the bounds of p on the edge EB->SuccEB only if this is
-  // the first time we encounter "if (*(p + i)" on that edge.
-//  if (EB->Gen[SuccEB->Block].count(V))
-//    return;
+  // Update the bounds of p on the edge EB->SuccEB only if we haven't already
+  // updated them.
+  if (EB->Gen[SuccEB->Block].count(V))
+    return;
 
   const llvm::APInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
 
@@ -263,43 +253,8 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
   // kill the widenend bounds for the ntptr.
   if (!SuccEB->BoundsVars.count(V)) {
     DeclSetTy BoundsVars;
-    CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+    CollectBoundsVars(BE, BoundsVars);
     SuccEB->BoundsVars[V] = BoundsVars;
-  }
-}
-
-void BoundsAnalysis::HandleArraySubscript(ArraySubscriptExpr *AE,
-                                          ElevatedCFGBlock *EB,
-                                          ElevatedCFGBlock *SuccEB) {
-
-  // An array access can be written A[4] or 4[A] (both are equivalent).
-  // getBase() and getIdx() always present the normalized view: A[4].
-  // In this case getBase() returns "A" and getIdx() returns "4".
-  const Expr *Base = AE->getBase();
-  const Expr *Index = AE->getIdx();
-
-  if (IsDeclOperand(Base)) {
-    const DeclRefExpr *D = GetDeclOperand(Base);
-
-    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-      if (IsNtArrayType(V)) {
-        Expr::EvalResult Res;
-        if (!Index->EvaluateAsInt(Res, S.Context))
-          return;
-
-        llvm::APSInt Idx = Res.Val.getInt();
-        if (Idx.isNegative())
-          return;
-
-        EB->Gen[SuccEB->Block].insert(std::make_pair(V, Idx.getLimitedValue()));
-
-        if (!SuccEB->BoundsVars.count(V)) {
-          DeclSetTy BoundsVars;
-          CollectBoundsVars(AE->getBoundsExpr(), BoundsVars);
-          SuccEB->BoundsVars[V] = BoundsVars;
-        }
-      }
-    }
   }
 }
 
@@ -427,11 +382,26 @@ void BoundsAnalysis::FillGenSet(Expr *E,
 
   // Fill the Gen set based on whether the edge condition is an array subscript
   // or a pointer deref.
-  if (auto *AS = dyn_cast<ArraySubscriptExpr>(E))
-    HandleArraySubscript(AS, EB, SuccEB);
-  else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
-    if (UO->getOpcode() == UO_Deref)
-      HandlePointerDeref(UO, EB, SuccEB);
+  if (auto *AE = dyn_cast<ArraySubscriptExpr>(E)) {
+    // An array access can be written A[4] or 4[A] (both are equivalent).
+    // getBase() and getIdx() always present the normalized view: A[4].
+    // In this case getBase() returns "A" and getIdx() returns "4".
+    Expr *Base = IgnoreCasts(AE->getBase());
+    Expr *Index = IgnoreCasts(AE->getIdx());
+
+    const auto *BO =
+      new (Ctx) BinaryOperator(Index, Base, BinaryOperatorKind::BO_Add,
+                               AE->getType(), AE->getValueKind(),
+                               AE->getObjectKind(), AE->getExprLoc(),
+                               FPOptions());
+
+    FillGenSet(BO, AE->getBoundsExpr(), EB, SuccEB);
+
+  } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref) {
+      const Expr *UE = IgnoreCasts(UO->getSubExpr());
+      FillGenSet(UE, UO->getBoundsExpr(), EB, SuccEB);
+    }
   }
 }
 
