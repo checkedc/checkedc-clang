@@ -1906,7 +1906,8 @@ namespace {
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          VisitCastExpr(cast<CastExpr>(S), CSS, Facts);
+          CheckCastExpr(cast<CastExpr>(S), CSS, Facts,
+                        SideEffects::Enabled);
           break;
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
@@ -3233,35 +3234,10 @@ namespace {
       }
 
       switch (E->getStmtClass()) {
-        case Expr::BoundsCastExprClass: {
-          CastExpr *CE = cast<CastExpr>(E);
-          Expr *SubExpr = CE->getSubExpr();
-          
-          CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
-          assert(TempExpr);
-          
-          // These bounds will be computed and tested at runtime.  Don't
-          // recompute any expressions computed to temporaries already.
-          Expr *TempUse = CreateTemporaryUse(TempExpr);
-          
-          Expr *SubExprAtNewType = CreateExplicitCast(E->getType(),
-                                                      CastKind::CK_BitCast,
-                                                      TempUse, true);
-          
-          BoundsExpr *Bounds = CE->getBoundsExpr();
-          Bounds = ExpandToRange(SubExprAtNewType, Bounds);
-          return Bounds;
-        }
+        case Expr::BoundsCastExprClass:
         case Expr::ImplicitCastExprClass:
-        case Expr::CStyleCastExprClass: {
-          CastExpr *CE = cast<CastExpr>(E);
-          // Casts to _Ptr narrow the bounds.  If the cast to
-          // _Ptr is invalid, that will be diagnosed separately.
-          if (E->getType()->isCheckedPointerPtrType())
-            return CreateTypeBasedBounds(E, E->getType(), false, false);
-          return RValueCastBounds(CE->getCastKind(), CE->getSubExpr(),
-                                  Facts, CSS);
-        }
+        case Expr::CStyleCastExprClass:
+          return CheckCastExpr(cast<CastExpr>(E), CSS, Facts, SE);
         case Expr::UnaryOperatorClass:
           return CheckUnaryOperator(cast<UnaryOperator>(E), CSS, Facts, SE);
         case Expr::BinaryOperatorClass:
