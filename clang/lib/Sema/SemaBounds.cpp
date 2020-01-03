@@ -2554,18 +2554,27 @@ namespace {
     /// Infer a bounds expression for an rvalue.
     /// The bounds determine whether the rvalue to which an
     /// expression evaluates is in range.
+    BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
+                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
+      BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
+      return S.CheckNonModifyingBounds(Bounds, E);
+    }
+
+    /// Infer a bounds expression for an rvalue.
+    /// The bounds determine whether the rvalue to which an
+    /// expression evaluates is in range.
     ///
     /// IncludeNullTerm controls whether a null terminator
     /// for an nt_array is included in the bounds (it gives
     /// us physical bounds, not logical bounds).
-    BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                  bool IncludeNullTerm = false) {
+    BoundsExpr *NullTermRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
+                                     std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                     SideEffects SE, bool IncludeNullTerm) {
       bool PrevIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
-      BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
+      BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SE);
       IncludeNullTerminator = PrevIncludeNullTerminator;
-      return S.CheckNonModifyingBounds(Bounds, E);
+      return Bounds;
     }
 
     BoundsExpr *CreateBoundsUnknown() {
