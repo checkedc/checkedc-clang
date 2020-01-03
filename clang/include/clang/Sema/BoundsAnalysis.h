@@ -228,16 +228,9 @@ namespace clang {
     OrderedBlocksTy GetOrderedBlocks();
 
     // Invoke IgnoreValuePreservingOperations to strip off casts.
-    // @param[in] E is the expression which must be stripped off of casts.
-    // @return Expr stripped off of casts.
-    Expr *IgnoreCasts(Expr *E);
-
-    // Check if the declared bounds of p are zero. ie: the upper bound of p is
-    // equal to p.
-    // @param[in] E is the bounds expression for V.
-    // @param[in] V is the ntptr.
-    // @return Whether the declared bounds of p are zero.
-    bool AreDeclaredBoundsZero(const Expr *E, const Expr *V);
+    // @param[in] E is the expression whose casts must be stripped.
+    // @return E with casts stripped off.
+    Expr *IgnoreCasts(const Expr *E);
 
     // We do not want to run dataflow analysis on null, entry or exit blocks.
     // So we skip them.
@@ -245,6 +238,18 @@ namespace clang {
     // analysis.
     // @return Whether B should be skipped.
     bool SkipBlock(const CFGBlock *B) const;
+
+    // Get the DeclRefExpr from an expression E.
+    // @param[in] An expression E which is known to be either an LValueToRValue
+    // cast or an ArrayToPointerDecay cast.
+    // @return The DeclRefExpr from the expression E.
+    DeclRefExpr *GetDeclRefExpr(const Expr *E);
+
+    // Check whether E is an LValueToRValue cast or an ArrayToPointerDecay cast
+    // wrapped around a DeclRefExpr.  @param[in] An expression E.
+    // @return Whether E is an LValueToRValue cast or an ArrayToPointerDecay
+    // cast wrapped around a DeclRefExpr.
+    bool IsPtrDerefOrArraySubscript(const Expr *E);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
