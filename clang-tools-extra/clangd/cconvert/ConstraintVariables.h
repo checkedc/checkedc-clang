@@ -92,6 +92,8 @@ public:
   // applying constraints due to external symbols, during linking.
   virtual void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false) = 0;
   virtual void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false) = 0;
+  virtual void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
+                           PersistentSourceLoc *psl, bool checkSkip=false) = 0;
 
   // Returns true if any of the constraint variables 'within' this instance
   // have a binding in E other than top. E should be the EnvironmentMap that
@@ -219,6 +221,8 @@ public:
   void dump_json(llvm::raw_ostream &O) const;
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false);
+  void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
+                   PersistentSourceLoc *psl, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);
@@ -241,6 +245,9 @@ public:
                      llvm::function_ref<bool (ConstAtom *, ConstAtom *)>) const;
 
   virtual ~PointerVariableConstraint() {};
+
+private:
+  bool canConstraintCKey(Constraints &CS, ConstraintKey ck, ConstAtom *CA, bool checkSkip);
 };
 
 typedef PointerVariableConstraint PVConstraint;
@@ -292,6 +299,8 @@ public:
   void dump_json(llvm::raw_ostream &O) const;
   void constrainTo(Constraints &CS, ConstAtom *C, bool checkSkip=false);
   void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn, bool checkSkip=false);
+  void constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
+                   PersistentSourceLoc *psl, bool checkSkip=false);
   bool anyChanges(Constraints::EnvironmentMap &E);
   bool hasWild(Constraints::EnvironmentMap &E);
   bool hasArr(Constraints::EnvironmentMap &E);

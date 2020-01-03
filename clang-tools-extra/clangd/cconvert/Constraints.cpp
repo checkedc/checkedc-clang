@@ -11,6 +11,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "Constraints.h"
+#include "PersistentSourceLoc.h"
 
 using namespace llvm;
 
@@ -81,6 +82,14 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
   }
 
   return removedConstraints;
+}
+
+Constraint::Constraint(ConstraintKind K, std::string &rsn, PersistentSourceLoc *psl): Constraint(K, rsn) {
+  if (psl != nullptr && psl->valid()) {
+    sourceFileName = psl->getFileName();
+    lineNo = psl->getLineNo();
+    colStart = psl->getColNo();
+  }
 }
 
 // Add a constraint to the set of constraints. If the constraint is already 
@@ -454,6 +463,10 @@ Eq *Constraints::createEq(Atom *lhs, Atom *rhs) {
 
 Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn) {
   return new Eq(lhs, rhs, rsn);
+}
+
+Eq *Constraints::createEq(Atom *lhs, Atom *rhs, std::string &rsn, PersistentSourceLoc *psl) {
+  return new Eq(lhs, rhs, rsn, psl);
 }
 
 Not *Constraints::createNot(Constraint *body) {

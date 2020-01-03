@@ -25,6 +25,7 @@
 class Constraint;
 class ConstraintVariable;
 class Constraints;
+class PersistentSourceLoc;
 
 template<typename T>
 struct PComp
@@ -363,10 +364,15 @@ private:
   const ConstraintKind Kind;
 public:
   std::string REASON = "DEFAULT";
+  std::string sourceFileName = "";
+  unsigned lineNo = 0;
+  unsigned colStart = 0;
   Constraint(ConstraintKind K) : Kind(K) { }
   Constraint(ConstraintKind K, std::string &rsn) : Kind(K) {
     REASON = rsn;
   }
+  Constraint(ConstraintKind K, std::string &rsn, PersistentSourceLoc *psl);
+
   virtual ~Constraint() {}
 
   ConstraintKind getKind() const { return Kind; }
@@ -395,6 +401,9 @@ public:
 
   Eq(Atom *lhs, Atom *rhs, std::string &rsn)
       : Constraint(C_Eq, rsn), lhs(lhs), rhs(rhs) {}
+
+  Eq(Atom *lhs, Atom *rhs, std::string &rsn, PersistentSourceLoc *psl)
+      : Constraint(C_Eq, rsn, psl), lhs(lhs), rhs(rhs) {}
 
   static bool classof(const Constraint *C) {
     return C->getKind() == C_Eq;
@@ -630,6 +639,7 @@ public:
 
   Eq *createEq(Atom *lhs, Atom *rhs);
   Eq *createEq(Atom *lhs, Atom *rhs, std::string &rsn);
+  Eq *createEq(Atom *lhs, Atom *rhs, std::string &rsn, PersistentSourceLoc *psl);
   Not *createNot(Constraint *body);
   Implies *createImplies(Constraint *premise, Constraint *conclusion);
 

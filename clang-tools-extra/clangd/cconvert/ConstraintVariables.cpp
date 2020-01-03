@@ -209,7 +209,7 @@ PointerVariableConstraint::PointerVariableConstraint(const QualType &QT, Constra
     BaseType = "const " + BaseType;
   }
 
-  std::string rsn = "Var arg list type.";
+  std::string rsn = "Default Var arg list type.";
   // TODO: Github issue #61: improve handling of types for
   // variable arguments.
   if (BaseType == "struct __va_list_tag *" || BaseType == "va_list" ||
@@ -663,7 +663,22 @@ void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool
 
 
 void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, std::string &rsn, bool checkSkip) {
-  this->constrainTo(CS, A, checkSkip);
+  for (const auto &V : returnVars)
+    V->constrainTo(CS, A, rsn, checkSkip);
+
+  for (const auto &V : paramVars)
+    for (const auto &U : V)
+      U->constrainTo(CS, A, rsn, checkSkip);
+}
+
+void FunctionVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
+                                             PersistentSourceLoc *psl, bool checkSkip) {
+  for (const auto &V : returnVars)
+    V->constrainTo(CS, C, rsn, psl, checkSkip);
+
+  for (const auto &V : paramVars)
+    for (const auto &U : V)
+      U->constrainTo(CS, C, rsn, psl, checkSkip);
 }
 
 bool FunctionVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
@@ -714,54 +729,51 @@ ConstAtom* FunctionVariableConstraint::getHighestType(Constraints::EnvironmentMa
   return toRet;
 }
 
+bool PointerVariableConstraint::canConstraintCKey(Constraints &CS, ConstraintKey ck, ConstAtom *CA, bool checkSkip) {
+  // Check and see if we've already constrained this variable. This is currently
+  // only done when the bounds-safe interface has refined a type for an external
+  // function, and we don't want the linking phase to un-refine it by introducing
+  // a conflicting constraint.
+  bool doAdd = true;
+  // this will ensure that we do not make an itype constraint
+  // variable to be WILD (which should be impossible)!!
+  if (checkSkip || dyn_cast<WildAtom>(CA)) {
+    if (ConstrainedVars.find(ck) != ConstrainedVars.end())
+      doAdd = false;
+  }
+  // See, if we can constrain the current constraint var to the provided
+  // ConstAtom
+  if (!CS.getOrCreateVar(ck)->canAssign(CA))
+    doAdd = false;
+
+  return doAdd;
+}
+
 void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, bool checkSkip) {
   for (const auto &V : vars) {
-    // Check and see if we've already constrained this variable. This is currently
-    // only done when the bounds-safe interface has refined a type for an external
-    // function, and we don't want the linking phase to un-refine it by introducing
-    // a conflicting constraint.
-    bool doAdd = true;
-    // this will ensure that we do not make an itype constraint
-    // variable to be WILD (which should be impossible)!!
-    if (checkSkip || dyn_cast<WildAtom>(A)) {
-      if (ConstrainedVars.find(V) != ConstrainedVars.end())
-        doAdd = false;
-    }
-    // See, if we can constrain the current constraint var to the provided
-    // ConstAtom
-    if (!CS.getOrCreateVar(V)->canAssign(A))
-      doAdd = false;
-
-    if (doAdd) {
+    if (canConstraintCKey(CS, V, A, checkSkip))
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A));
-    }
   }
 
   if (FV)
     FV->constrainTo(CS, A, checkSkip);
 }
 
+void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *C, std::string &rsn,
+                                            PersistentSourceLoc *psl, bool checkSkip) {
+  for (const auto &V : vars) {
+    if (canConstraintCKey(CS, V, C, checkSkip))
+      CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), C, rsn, psl));
+  }
+
+  if (FV)
+    FV->constrainTo(CS, C, rsn, psl, checkSkip);
+}
+
 void PointerVariableConstraint::constrainTo(Constraints &CS, ConstAtom *A, std::string &rsn, bool checkSkip) {
   for (const auto &V : vars) {
-    // Check and see if we've already constrained this variable. This is currently
-    // only done when the bounds-safe interface has refined a type for an external
-    // function, and we don't want the linking phase to un-refine it by introducing
-    // a conflicting constraint.
-    bool doAdd = true;
-    // this will ensure that we do not make an itype constraint
-    // variable to be WILD (which should be impossible)!!
-    if (checkSkip || dyn_cast<WildAtom>(A)) {
-      if (ConstrainedVars.find(V) != ConstrainedVars.end())
-        doAdd = false;
-    }
-    // See, if we can constrain the current constraint var to the provided
-    // ConstAtom
-    if (!CS.getOrCreateVar(V)->canAssign(A))
-      doAdd = false;
-
-    if (doAdd) {
+    if (canConstraintCKey(CS, V, A, checkSkip))
       CS.addConstraint(CS.createEq(CS.getOrCreateVar(V), A, rsn));
-    }
   }
 
   if (FV)

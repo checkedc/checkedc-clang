@@ -14,9 +14,13 @@
 
 void constrainEq(std::set<ConstraintVariable*> &RHS,
                  std::set<ConstraintVariable*> &LHS, ProgramInfo &Info,
+                 Stmt *targetSt,
+                 ASTContext *C,
                  bool isFuncCall = false);
 void constrainEq( ConstraintVariable *LHS, 
                   ConstraintVariable *RHS, ProgramInfo &Info,
+                  Stmt *targetSt,
+                  ASTContext *C,
                   bool isFuncCall = false);
 
 class ConstraintBuilderConsumer : public clang::ASTConsumer {

@@ -301,7 +301,7 @@ bool ProgramInfo::link() {
       ++J;
 
       while (J != C.end()) {
-        constrainEq(*I, *J, *this);
+        constrainEq(*I, *J, *this, nullptr, nullptr);
         ++I;
         ++J;
       }
@@ -323,7 +323,7 @@ bool ProgramInfo::link() {
 
         // Constrain the return values to be equal
         if (!P1->hasBody() && !P2->hasBody() && mergeMultipleFuncDecls) {
-          constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this);
+          constrainEq(P1->getReturnVars(), P2->getReturnVars(), *this, nullptr, nullptr);
 
           // Constrain the parameters to be equal, if the parameter arity is
           // the same. If it is not the same, constrain both to be wild.
@@ -332,7 +332,7 @@ bool ProgramInfo::link() {
                   i < P1->numParams();
                   i++)
             {
-              constrainEq(P1->getParamVar(i), P2->getParamVar(i), *this);
+              constrainEq(P1->getParamVar(i), P2->getParamVar(i), *this, nullptr, nullptr);
             } 
 
           } else {
