@@ -2604,19 +2604,24 @@ namespace {
       return S.CheckNonModifyingBounds(Bounds, E);
     }
 
-    /// Infer a bounds expression for an rvalue.
-    /// The bounds determine whether the rvalue to which an
-    /// expression evaluates is in range.
+    /// Infer the bounds of a cast operation that produces an rvalue.
     ///
     /// IncludeNullTerm controls whether a null terminator
     /// for an nt_array is included in the bounds (it gives
     /// us physical bounds, not logical bounds).
-    BoundsExpr *NullTermRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                     std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                     SideEffects SE, bool IncludeNullTerm) {
+    ///
+    /// OutRValueBounds saves the result of any call made to RValueBounds
+    /// to prevent unnecessary calls to RValueBounds for e.
+    BoundsExpr *InferRValueCastBounds(CastKind CK, Expr *E,
+                                      std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                      CheckedScopeSpecifier CSS,
+                                      bool IncludeNullTerm,
+                                      BoundsExpr *&OutRValueBounds) {
       bool PrevIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
-      BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SE);
+      BoundsExpr *Bounds = RValueCastBounds(CK, E, Facts, CSS,
+                                            SideEffects::Disabled,
+                                            OutRValueBounds);
       IncludeNullTerminator = PrevIncludeNullTerminator;
       return Bounds;
     }
