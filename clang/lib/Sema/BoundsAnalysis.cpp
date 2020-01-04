@@ -116,19 +116,19 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
     CollectBoundsVars(BO->getRHS(), BoundsVars);
   }
 
-  if (IsPtrDerefOrArraySubscript(E)) {
-    const DeclRefExpr *D = GetDeclRefExpr(E);
+  if (IsDeclOperand(E)) {
+    const DeclRefExpr *D = GetDeclOperand(E);
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       BoundsVars.insert(V);
   }
 }
 
-DeclRefExpr *BoundsAnalysis::GetDeclRefExpr(const Expr *E) {
+DeclRefExpr *BoundsAnalysis::GetDeclOperand(const Expr *E) {
   auto *CE = dyn_cast<CastExpr>(E);
   return dyn_cast<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
 }
 
-bool BoundsAnalysis::IsPtrDerefOrArraySubscript(const Expr *E) {
+bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
   if (auto *CE = dyn_cast<CastExpr>(E))
     if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
         CE->getCastKind() == CastKind::CK_ArrayToPointerDecay)
@@ -146,8 +146,8 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
   // "if (*(p + i) && *(p + j) && *(p + k))"
 
   // For conditions of the form "if (*p)".
-  if (IsPtrDerefOrArraySubscript(E)) {
-    const DeclRefExpr *D = GetDeclRefExpr(E);
+  if (IsDeclOperand(E)) {
+    const DeclRefExpr *D = GetDeclOperand(E);
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
       if (IsNtArrayType(V)) {
@@ -172,13 +172,13 @@ void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
     IntegerLiteral *Lit = nullptr;
 
     // Handle *(p + i).
-    if (IsPtrDerefOrArraySubscript(LHS) && isa<IntegerLiteral>(RHS)) {
-      D = GetDeclRefExpr(LHS);
+    if (IsDeclOperand(LHS) && isa<IntegerLiteral>(RHS)) {
+      D = GetDeclOperand(LHS);
       Lit = dyn_cast<IntegerLiteral>(RHS);
 
     // Handle *(i + p).
-    } else if (IsPtrDerefOrArraySubscript(RHS) && isa<IntegerLiteral>(LHS)) {
-      D = GetDeclRefExpr(RHS);
+    } else if (IsDeclOperand(RHS) && isa<IntegerLiteral>(LHS)) {
+      D = GetDeclOperand(RHS);
       Lit = dyn_cast<IntegerLiteral>(LHS);
     }
 
@@ -212,8 +212,8 @@ void BoundsAnalysis::HandleArraySubscript(ArraySubscriptExpr *AE,
   const Expr *Base = AE->getBase();
   const Expr *Index = AE->getIdx();
 
-  if (IsPtrDerefOrArraySubscript(Base)) {
-    const DeclRefExpr *D = GetDeclRefExpr(Base);
+  if (IsDeclOperand(Base)) {
+    const DeclRefExpr *D = GetDeclOperand(Base);
 
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
       if (IsNtArrayType(V)) {
