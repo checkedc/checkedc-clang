@@ -2598,9 +2598,22 @@ namespace {
     /// Infer a bounds expression for an rvalue.
     /// The bounds determine whether the rvalue to which an
     /// expression evaluates is in range.
+    ///
+    /// IncludeNullTerm controls whether a null terminator
+    /// for an nt_array is included in the bounds (it gives
+    /// us physical bounds, not logical bounds).
+    ///
+    /// ExistingBounds prevents duplicate calls to RValueBounds
+    /// in case the rvalue bounds have already been computed for e.
     BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
+                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                  bool IncludeNullTerm = false,
+                                  BoundsExpr *ExistingBounds = nullptr) {
+      bool PrevIncludeNullTerminator = IncludeNullTerminator;
+      IncludeNullTerminator = IncludeNullTerm;
+      BoundsExpr *Bounds = ExistingBounds ? ExistingBounds :
+                           RValueBounds(E, CSS, Facts, SideEffects::Disabled);
+      IncludeNullTerminator = PrevIncludeNullTerminator;
       return S.CheckNonModifyingBounds(Bounds, E);
     }
 
