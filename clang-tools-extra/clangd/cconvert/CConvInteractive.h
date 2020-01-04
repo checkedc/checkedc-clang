@@ -34,6 +34,7 @@ public:
   std::map<ConstraintKey, CVars> groups;
   std::map<ConstraintKey, struct WildPointerInferenceInfo> realWildPtrsWithReasons;
   CVars allWildPtrs;
+  CVars totalNonDirectWildPointers;
   std::map<ConstraintKey, PersistentSourceLoc*> PtrSourceMap;
 };
 

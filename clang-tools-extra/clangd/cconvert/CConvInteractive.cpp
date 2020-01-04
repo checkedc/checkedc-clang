@@ -10,6 +10,7 @@ void DisjointSet::clear() {
   realWildPtrsWithReasons.clear();
   PtrSourceMap.clear();
   allWildPtrs.clear();
+  totalNonDirectWildPointers.clear();
 }
 void DisjointSet::addElements(ConstraintKey a, ConstraintKey b) {
   if (leaders.find(a) != leaders.end()) {

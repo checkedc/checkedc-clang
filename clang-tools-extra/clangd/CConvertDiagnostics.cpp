@@ -11,7 +11,8 @@
 
 namespace clang {
 namespace clangd {
-#define CCONVSOURCE "CConv"
+#define CCONVSOURCE "CConv_RealWild"
+#define CCONVSECSOURCE "CConv_AffWild"
 #define DEFAULT_PTRSIZE 4
 
 bool getPtrIDFromDiagMessage(const Diagnostic &diagMsg, unsigned long &ptrID) {
@@ -27,6 +28,8 @@ void CConvertDiagnostics::clearAllDiags() {
 }
 
 bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
+  std::set<ConstraintKey> processedCKeys;
+  processedCKeys.clear();
   for (auto &wReason: CCRes.realWildPtrsWithReasons) {
     if (CCRes.PtrSourceMap.find(wReason.first) != CCRes.PtrSourceMap.end()) {
       auto *psInfo = CCRes.PtrSourceMap[wReason.first];
@@ -35,6 +38,7 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
       int colNo = psInfo->getColNo();
       Diag newDiag;
       newDiag.code = wReason.first;
+      processedCKeys.insert(newDiag.code);
       newDiag.source = CCONVSOURCE;
       newDiag.Severity = DiagnosticsEngine::Level::Error;
       newDiag.Range.start.line = line;
@@ -59,6 +63,68 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
       AllFileDiagnostics[filePath].push_back(newDiag);
     }
   }
+
+  // for non-direct wild pointers..update the reason and diag information.
+  for (auto nonWildCK: CCRes.totalNonDirectWildPointers) {
+    if (processedCKeys.find(nonWildCK) == processedCKeys.end()) {
+      if (CCRes.PtrSourceMap.find(nonWildCK) != CCRes.PtrSourceMap.end()) {
+        auto *psInfo = CCRes.PtrSourceMap[nonWildCK];
+        std::string filePath = psInfo->getFileName();
+        int line = psInfo->getLineNo() - 1;
+        int colNo = psInfo->getColNo();
+
+        Diag newDiag;
+        newDiag.code = nonWildCK;
+        processedCKeys.insert(newDiag.code);
+        newDiag.source = CCONVSECSOURCE;
+        newDiag.Severity = DiagnosticsEngine::Level::Warning;
+        newDiag.Range.start.line = line;
+        newDiag.Range.end.line = line;
+        newDiag.Range.start.character = colNo;
+        newDiag.Range.end.character = colNo + DEFAULT_PTRSIZE;
+        newDiag.Message = "Pointer is wild because it transitively depends on other pointer(s)";
+
+        // find the pointer group
+        auto directWildPtrKey = CCRes.leaders[nonWildCK];
+        auto &ptrGroup = CCRes.groups[directWildPtrKey];
+        CVars directWildPtrs;
+        directWildPtrs.clear();
+        std::set_intersection(ptrGroup.begin(), ptrGroup.end(),
+                              CCRes.allWildPtrs.begin(), CCRes.allWildPtrs.end(),
+                              std::inserter(directWildPtrs, directWildPtrs.begin()));
+
+        unsigned maxPtrReasons = 3;
+        for (auto tC : directWildPtrs) {
+          DiagnosticRelatedInformation diagRelInfo;
+
+          if (CCRes.PtrSourceMap.find(tC) != CCRes.PtrSourceMap.end()) {
+            psInfo = CCRes.PtrSourceMap[tC];
+            filePath = psInfo->getFileName();
+            line = psInfo->getLineNo() - 1;
+            colNo = psInfo->getColNo();
+
+            auto duri = URIForFile::fromURI(URI::createFile(filePath), "");
+            if (duri)
+              diagRelInfo.location.uri = std::move(*duri);
+            diagRelInfo.location.range.start.line = line;
+            diagRelInfo.location.range.start.character = colNo;
+            diagRelInfo.location.range.end.character = colNo + DEFAULT_PTRSIZE;
+            diagRelInfo.location.range.end.line = line;
+            maxPtrReasons--;
+            diagRelInfo.message = CCRes.realWildPtrsWithReasons[tC].wildPtrReason;
+            if (maxPtrReasons <= 1)
+              diagRelInfo.message += " (others)";
+            newDiag.DiagRelInfo.push_back(diagRelInfo);
+            if (maxPtrReasons <= 1)
+              break;
+          }
+        }
+        AllFileDiagnostics[filePath].push_back(newDiag);
+      }
+    }
+  }
+
+
   return true;
 }
 

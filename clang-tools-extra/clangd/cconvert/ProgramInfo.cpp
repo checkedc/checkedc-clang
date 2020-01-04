@@ -1233,11 +1233,32 @@ bool ProgramInfo::computePointerDisjointSet() {
 
         auto &oldG = ConstraintDisjointSet.groups[oldGroupLeader];
         ConstraintDisjointSet.groups[realCVar].insert(oldG.begin(), oldG.end());
+        ConstraintDisjointSet.groups[realCVar].insert(realCVar);
         ConstraintDisjointSet.groups.erase(oldGroupLeader);
       }
     }
   }
 
+  // compute non-direct WILD pointers.
+  for (auto &gm : ConstraintDisjointSet.groups) {
+    // is this group a WILD pointer group?
+    if (ConstraintDisjointSet.realWildPtrsWithReasons.find(gm.first) !=
+        ConstraintDisjointSet.realWildPtrsWithReasons.end()) {
+        ConstraintDisjointSet.totalNonDirectWildPointers.insert(gm.second.begin(), gm.second.end());
+    }
+  }
+
+  CVars tmpCKeys;
+  tmpCKeys.clear();
+  // remove direct WILD pointers from non-direct wild pointers.
+  std::set_difference(ConstraintDisjointSet.totalNonDirectWildPointers.begin(),
+                      ConstraintDisjointSet.totalNonDirectWildPointers.end(),
+                      allWILDPtrs.begin(), allWILDPtrs.end(),
+                      std::inserter(tmpCKeys, tmpCKeys.begin()));
+
+  // update the totalNonDirectWildPointers
+  ConstraintDisjointSet.totalNonDirectWildPointers.clear();
+  ConstraintDisjointSet.totalNonDirectWildPointers.insert(tmpCKeys.begin(), tmpCKeys.end());
 
   for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;
