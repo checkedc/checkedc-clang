@@ -121,6 +121,11 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Range &R) {
   return OS << R.start << '-' << R.end;
 }
 
+bool fromJSON(const llvm::json::Value &Params, Location &L) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("uri", L.uri) && O.map("range", L.range);
+}
+
 llvm::json::Value toJSON(const Location &P) {
   return llvm::json::Object{
       {"uri", P.uri},
@@ -360,6 +365,19 @@ bool fromJSON(const llvm::json::Value &Params, DocumentSymbolParams &R) {
   return O && O.map("textDocument", R.textDocument);
 }
 
+llvm::json::Value toJSON(const DiagnosticRelatedInformation &D) {
+  llvm::json::Object Drel{
+      {"location", D.location},
+      {"message", D.message},
+  };
+  return std::move(Drel);
+}
+
+bool fromJSON(const llvm::json::Value &Params, DiagnosticRelatedInformation &R) {
+  llvm::json::ObjectMapper O(Params);
+  return O && O.map("location", R.location) && O.map("message", R.message);
+}
+
 llvm::json::Value toJSON(const Diagnostic &D) {
   llvm::json::Object Diag{
       {"range", D.range},
@@ -371,7 +389,9 @@ llvm::json::Value toJSON(const Diagnostic &D) {
   if (D.category)
     Diag["category"] = *D.category;
   if (D.codeActions)
-    Diag["codeActions"] = D.codeActions;
+    Diag["codeActions"] = llvm::json::Array(*D.codeActions);
+  if (D.relatedInformation)
+    Diag["relatedInformation"] = llvm::json::Array(*D.relatedInformation);
   return std::move(Diag);
 }
 

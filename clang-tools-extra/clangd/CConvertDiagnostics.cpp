@@ -42,6 +42,20 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
       newDiag.Range.start.character = colNo;
       newDiag.Range.end.character = colNo + DEFAULT_PTRSIZE;
       newDiag.Message = "Pointer is wild because of:" + wReason.second.wildPtrReason;
+      if (wReason.second.isValid) {
+        DiagnosticRelatedInformation diagRelInfo;
+        auto duri = URIForFile::fromURI(URI::createFile(wReason.second.sourceFileName), "");
+        if (duri)
+          diagRelInfo.location.uri = std::move(*duri);
+        int rootCauseLineNum = wReason.second.lineNo - 1;
+        int rootCauseColNum = wReason.second.colStart;
+        diagRelInfo.location.range.start.line = rootCauseLineNum;
+        diagRelInfo.location.range.start.character = rootCauseColNum;
+        diagRelInfo.location.range.end.character = rootCauseColNum + DEFAULT_PTRSIZE;
+        diagRelInfo.location.range.end.line = rootCauseLineNum;
+        diagRelInfo.message = "Go here to know the root cause for this.";
+        newDiag.DiagRelInfo.push_back(diagRelInfo);
+      }
       AllFileDiagnostics[filePath].push_back(newDiag);
     }
   }

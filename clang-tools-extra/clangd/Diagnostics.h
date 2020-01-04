@@ -71,6 +71,8 @@ struct Diag : DiagBase {
   std::vector<Note> Notes;
   /// *Alternative* fixes for this diagnostic, one should be chosen.
   std::vector<Fix> Fixes;
+
+  std::vector<DiagnosticRelatedInformation> DiagRelInfo;
 };
 llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Diag &D);
 

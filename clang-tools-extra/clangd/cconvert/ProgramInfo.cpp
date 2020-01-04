@@ -1200,9 +1200,12 @@ bool ProgramInfo::computePointerDisjointSet() {
       VarAtom *VLhs = dyn_cast<VarAtom>(EC->getLHS());
       if (dyn_cast<WildAtom>(EC->getRHS())) {
         ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].wildPtrReason = EC->getReason();
-        ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].sourceFileName = EC->sourceFileName;
-        ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].lineNo = EC->lineNo;
-        ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].colStart = EC->colStart;
+        if (!EC->sourceFileName.empty() && EC->lineNo != 0) {
+          ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].isValid = true;
+          ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].sourceFileName = EC->sourceFileName;
+          ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].lineNo = EC->lineNo;
+          ConstraintDisjointSet.realWildPtrsWithReasons[VLhs->getLoc()].colStart = EC->colStart;
+        }
         allWILDPtrs.insert(VLhs->getLoc());
       } else {
         VarAtom *Vrhs = dyn_cast<VarAtom>(EC->getRHS());

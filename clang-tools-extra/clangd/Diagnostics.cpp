@@ -259,6 +259,11 @@ void toLSPDiags(
       for (const auto &Fix : D.Fixes)
         Main.codeActions->push_back(toCodeAction(Fix, File));
     }
+    if (!D.DiagRelInfo.empty()) {
+      Main.relatedInformation.emplace();
+      for (const auto &drel: D.DiagRelInfo)
+        Main.relatedInformation->push_back(drel);
+    }
     if (Opts.SendDiagnosticCategory && !D.Category.empty())
       Main.category = D.Category;
 

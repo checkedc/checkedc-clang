@@ -17,6 +17,7 @@
 struct WildPointerInferenceInfo {
   std::string sourceFileName = "";
   std::string wildPtrReason = "";
+  bool isValid = false;
   unsigned lineNo = 0;
   unsigned colStart = 0;
 };

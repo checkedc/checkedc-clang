@@ -194,6 +194,8 @@ struct Location {
     return std::tie(LHS.uri, LHS.range) < std::tie(RHS.uri, RHS.range);
   }
 };
+
+bool fromJSON(const llvm::json::Value &, Location &);
 llvm::json::Value toJSON(const Location &);
 llvm::raw_ostream &operator<<(llvm::raw_ostream &, const Location &);
 
@@ -558,6 +560,13 @@ struct DocumentSymbolParams {
 bool fromJSON(const llvm::json::Value &, DocumentSymbolParams &);
 
 struct CodeAction;
+struct DiagnosticRelatedInformation {
+  Location location;
+  std::string message;
+};
+llvm::json::Value toJSON(const DiagnosticRelatedInformation &);
+bool fromJSON(const llvm::json::Value &, DiagnosticRelatedInformation &);
+
 struct Diagnostic {
   /// The range at which the message applies.
   Range range;
@@ -588,6 +597,8 @@ struct Diagnostic {
   /// Only with capability textDocument.publishDiagnostics.codeActionsInline.
   /// (These actions can also be obtained using textDocument/codeAction).
   llvm::Optional<std::vector<CodeAction>> codeActions;
+
+  llvm::Optional<std::vector<DiagnosticRelatedInformation>> relatedInformation;
 };
 llvm::json::Value toJSON(const Diagnostic &);
 
