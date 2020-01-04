@@ -3182,14 +3182,14 @@ namespace {
     }
 
     // Compute the bounds of a cast operation that produces an rvalue.
-    // ExistingRValueBounds avoids unnecessary calls to RValueBounds
-    // in cases where the rvalue bounds for an expression have already
-    // been computed.
+    //
+    // OutRValueBounds saves the result of the call to RValueBounds (if any)
+    // to prevent unnecessary calls to RValueBounds for e.
     BoundsExpr *RValueCastBounds(CastKind CK, Expr *E,
                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
                                  CheckedScopeSpecifier CSS,
                                  SideEffects SE,
-                                 BoundsExpr *ExistingRValueBounds = nullptr) {
+                                 BoundsExpr *&OutRValueBounds) {
       switch (CK) {
         case CastKind::CK_BitCast:
         case CastKind::CK_NoOp:
@@ -3199,9 +3199,10 @@ namespace {
         case CastKind::CK_PointerToIntegral:
         case CastKind::CK_IntegralCast:
         case CastKind::CK_IntegralToBoolean:
-        case CastKind::CK_BooleanToSignedIntegral:
-          return ExistingRValueBounds != nullptr ?
-                  ExistingRValueBounds : RValueBounds(E, CSS, Facts, SE);
+        case CastKind::CK_BooleanToSignedIntegral: {
+          OutRValueBounds = RValueBounds(E, CSS, Facts, SE);
+          return OutRValueBounds;
+        }
         case CastKind::CK_LValueToRValue:
           return LValueTargetBounds(E, CSS);
         case CastKind::CK_ArrayToPointerDecay:
