@@ -1,6 +1,6 @@
 // Tests for datafow analysis for bounds widening of _Nt_array_ptr's.
 //
-// RUN: %clang_cc1 -fdump-widened-bounds %s 2>1 | FileCheck %s
+// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note %s 2>&1 | FileCheck %s
 
 void f1() {
   _Nt_array_ptr<char> p : count(0) = "a";
@@ -15,11 +15,12 @@ void f1() {
 }
 
 void f2() {
-  _Nt_array_ptr<char> p : count(2) = "ab";
+  _Nt_array_ptr<char> p : count(0) = "ab";
 
   if (*p)
-    if (*(p + 1))
-      if (*(p + 2)) {}
+    if (*(p + 1))   // expected-error {{out-of-bounds memory access}}
+      if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+  {}
 
 // CHECK: In function: f2
 // CHECK: [B4]
@@ -77,11 +78,12 @@ void f4(_Nt_array_ptr<char> p : count(0)) {
 }
 
 void f5() {
-  char p _Nt_checked[] : count(3) = "abc";
+  char p _Nt_checked[] : count(0) = "abc";
 
   if (p[0])
-    if (p[1])
-      if (p[2]) {}
+    if (p[1])   // expected-error {{out-of-bounds memory access}}
+      if (p[2]) // expected-error {{out-of-bounds memory access}}
+  {}
 
 // CHECK: In function: f5
 // CHECK: [B4]

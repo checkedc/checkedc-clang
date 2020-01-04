@@ -243,13 +243,15 @@ namespace clang {
     // @param[in] An expression E which is known to be either an LValueToRValue
     // cast or an ArrayToPointerDecay cast.
     // @return The DeclRefExpr from the expression E.
-    DeclRefExpr *GetDeclRefExpr(const Expr *E);
+    DeclRefExpr *GetDeclOperand(const Expr *E);
 
-    // Check whether E is an LValueToRValue cast or an ArrayToPointerDecay cast
-    // wrapped around a DeclRefExpr.  @param[in] An expression E.
-    // @return Whether E is an LValueToRValue cast or an ArrayToPointerDecay
-    // cast wrapped around a DeclRefExpr.
-    bool IsPtrDerefOrArraySubscript(const Expr *E);
+    // A DeclRefExpr can be a reference either to an array subscript (in which
+    // case it is wrapped around a ArrayToPointerDecay cast) or to a pointer
+    // dereference (in which case it is wrapped around an LValueToRValue cast).
+    // @param[in] An expression E.
+    // @return Whether E is an expression containing a reference to an array
+    // subscript or a pointer dereference.
+    bool IsDeclOperand(const Expr *E);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
