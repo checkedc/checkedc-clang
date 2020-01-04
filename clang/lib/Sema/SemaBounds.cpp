@@ -2237,24 +2237,23 @@ namespace {
       if (SE == SideEffects::Enabled)
         CheckDisallowedFunctionPtrCasts(E);
 
-      // If rvalue bounds for e cannot be determined,
+      // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
-      BoundsExpr *ResultBounds = CreateBoundsAlwaysUnknown();
+      BoundsExpr *ResultBounds = CreateBoundsUnknown();
 
-      // Recursively compute rvalue bounds for the subexpression,
-      // without performing bounds checking.  Since TraverseStmt still checks
-      // all substatements, enabling bounds checking here could cause
-      // duplicate side effects for an expression.  In future refactoring
-      // stages, this call to NullTermRValueBounds will be replaced with a
-      // call to TraverseStmt with side effects potentially enabled
-      // (once TraverseStmt no longer always checks substatements).
+      // Only compute the rvalue bounds for the subexpression if needed.
+      // In future refactoring stages, once TraverseStmt only computes
+      // rvalue bounds once per expression, CheckCastExpr should always
+      // infer and check the bounds for its subexpression.
+      // Before TraverseStmt is refactored, deferring the computation of the
+      // subexpression bounds prevents unacceptable asymptotic complexity.
+      BoundsExpr *SubExprBounds = nullptr;
+
       bool IncludeNullTerm =
           E->getType()->getPointeeOrArrayElementType()->isNtCheckedArrayType();
-      BoundsExpr *SubExprBounds = NullTermRValueBounds(E->getSubExpr(), CSS,
-                                                      Facts, SideEffects::Disabled,
-                                                      IncludeNullTerm);
 
       CastKind CK = E->getCastKind();
+      Expr *SubExpr = E->getSubExpr();
 
       // Casts to _Ptr narrow the bounds.  If the cast to
       // _Ptr is invalid, that will be diagnosed separately.
@@ -2263,13 +2262,16 @@ namespace {
         if (E->getType()->isCheckedPointerPtrType())
           ResultBounds = CreateTypeBasedBounds(E, E->getType(), false, false);
         else
-          ResultBounds = RValueCastBounds(CK, E->getSubExpr(), Facts, CSS,
-                                          SideEffects::Disabled, SubExprBounds);
+          // If InferRValueCastBounds computes the rvalue bounds for
+          // the subexpression, save them in SubExprBounds to avoid
+          // recomputing them later in this method.
+          ResultBounds = InferRValueCastBounds(CK, SubExpr, Facts, CSS,
+                                          IncludeNullTerm, SubExprBounds);
       }
 
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
         if (SE == SideEffects::Enabled) {
-          bool NeedsBoundsCheck = AddBoundsCheck(E->getSubExpr(),
+          bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
                                                 OperationKind::Read, CSS, Facts);
           if (NeedsBoundsCheck && DumpBounds)
             DumpExpression(llvm::outs(), E);
@@ -2286,8 +2288,6 @@ namespace {
       // (e2, e3),  a runtime check that lb <= e2 && e3 <= ub is inserted
       // during code generation.
       if (CK == CK_DynamicPtrBounds || CK == CK_AssumePtrBounds) {
-        Expr *SubExpr = E->getSubExpr();
-
         CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
         assert(TempExpr);
 
@@ -2307,7 +2307,10 @@ namespace {
           BoundsExpr *NormalizedBounds = ExpandToRange(SubExprAtNewType,
                                                         DeclaredBounds);
 
-          SubExprBounds = S.CheckNonModifyingBounds(SubExprBounds, E->getSubExpr());
+          // If the subexpression bounds were already saved in SubExprBounds,
+          // avoid recomputing them here.
+          SubExprBounds = InferRValueBounds(SubExpr, CSS, Facts,
+                                            IncludeNullTerm, SubExprBounds);
           if (SubExprBounds->isUnknown()) {
             S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
           }
@@ -2331,16 +2334,19 @@ namespace {
       if ((CK == CK_BitCast || CK == CK_IntegralToPointer) &&
           E->getType()->isCheckedPointerPtrType() &&
           !E->getType()->isFunctionPointerType()) {
-        SubExprBounds = S.CheckNonModifyingBounds(SubExprBounds, E->getSubExpr());
+        // If the subexpression bounds were already saved in SubExprBounds,
+        // avoid recomputing them here.
+        SubExprBounds = InferRValueBounds(SubExpr, CSS, Facts,
+                                          IncludeNullTerm, SubExprBounds);
         if (SubExprBounds->isUnknown()) {
-          S.Diag(E->getSubExpr()->getBeginLoc(),
+          S.Diag(SubExpr->getBeginLoc(),
                   diag::err_expected_bounds_for_ptr_cast)
-                  << E->getSubExpr()->getSourceRange();
+                  << SubExpr->getSourceRange();
           SubExprBounds = S.CreateInvalidBoundsExpr();
         } else {
           BoundsExpr *TargetBounds =
             CreateTypeBasedBounds(E, E->getType(), false, false);
-          CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, E->getSubExpr(),
+          CheckBoundsDeclAtStaticPtrCast(E, TargetBounds, SubExpr,
                                           SubExprBounds, CSS, Facts);
         }
         assert(SubExprBounds);
