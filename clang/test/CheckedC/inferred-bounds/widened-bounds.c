@@ -78,11 +78,12 @@ void f4(_Nt_array_ptr<char> p : count(0)) {
 }
 
 void f5() {
-  char p _Nt_checked[] : count(3) = "abc";
+  char p _Nt_checked[] : count(0) = "abc";
 
   if (p[0])
-    if (p[1])
-      if (p[2]) {}
+    if (p[1])   // expected-error {{out-of-bounds memory access}}
+      if (p[2]) // expected-error {{out-of-bounds memory access}}
+  {}
 
 // CHECK: In function: f5
 // CHECK: [B4]
