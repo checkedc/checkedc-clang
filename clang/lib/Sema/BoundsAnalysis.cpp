@@ -116,11 +116,8 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
     CollectBoundsVars(BO->getRHS(), BoundsVars);
   }
 
-  if (IsDeclOperand(E)) {
-    const DeclRefExpr *D = GetDeclOperand(E);
-    if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-      BoundsVars.insert(V);
-  }
+  if (const VarDecl *V = GetNtArrayVarDecl(E))
+    BoundsVars.insert(V);
 }
 
 DeclRefExpr *BoundsAnalysis::GetDeclOperand(const Expr *E) {
@@ -136,10 +133,11 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
   return false;
 }
 
-const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(Expr *E) {
+const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(const Expr *E) {
   E = IgnoreCasts(E);
 
-  if (auto *D = dyn_cast<DeclRefExpr>(E)) {
+  if (IsPtrDerefOrArraySubscript(E)) {
+    DeclRefExpr *D = GetDeclRefExpr(E);
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       if (IsNtArrayType(V))
         return V;
@@ -166,7 +164,7 @@ void BoundsAnalysis::FillGenSet(const Expr *E, BoundsExpr *BE,
     return;
 
   // The deref expr can be of 2 forms:
-  // 1. DeclRefExpr: if (*p)
+  // 1. Ptr deref or array subscript: if (*p) or p[i]
   // 2. BinaryOperator: if (*(p + e))
 
   // SplitIntoBaseOffset tries to make the expr uniform. It returns a "Base"
@@ -262,8 +260,8 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // In order to make an expression uniform, we want to keep all DeclRefExprs
   // on the LHS and all IntegerLiterals on the RHS.
 
-  if (const auto *D = dyn_cast<DeclRefExpr>(E))
-    return std::make_pair(D, nullptr);
+  if (IsPtrDerefOrArraySubscript(E))
+    return std::make_pair(GetDeclRefExpr(E), nullptr);
 
   if (!isa<BinaryOperator>(E))
     return std::make_pair(nullptr, nullptr);
@@ -277,20 +275,20 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // Case 1: LHS is DeclRefExpr and RHS is IntegerLiteral. This expr is already
   // uniform.
   // p + i ==> return (p, i)
-  if (isa<DeclRefExpr>(LHS) && isa<IntegerLiteral>(RHS))
-    return std::make_pair(LHS, RHS);
+  if (IsPtrDerefOrArraySubscript(LHS) && isa<IntegerLiteral>(RHS))
+    return std::make_pair(GetDeclRefExpr(LHS), RHS);
 
   // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
   // swap LHS and RHS to make expr uniform.
   // i + p ==> return (p, i)
-  if (isa<IntegerLiteral>(LHS) && isa<DeclRefExpr>(RHS))
-    return std::make_pair(RHS, LHS);
+  if (isa<IntegerLiteral>(LHS) && IsPtrDerefOrArraySubscript(RHS))
+    return std::make_pair(GetDeclRefExpr(RHS), LHS);
 
   // Case 3: LHS and RHS are both DeclRefExpr's. This means there is no
   // IntegerLiteral in the expr. In this case, we return the incoming
   // BinaryOperator expr with a nullptr for the RHS.
   // p + q ==> return (p + q, nullptr)
-  if (isa<DeclRefExpr>(LHS) && isa<DeclRefExpr>(RHS))
+  if (IsPtrDerefOrArraySubscript(LHS) && IsPtrDerefOrArraySubscript(RHS))
     return std::make_pair(BO, nullptr);
 
   if (!isa<BinaryOperator>(LHS))

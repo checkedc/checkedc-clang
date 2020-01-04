@@ -257,7 +257,7 @@ namespace clang {
     // an ntptr.
     // @param[in] E is the expressions for the lower bounds for an ntptr.
     // @return The VarDecl for the ntptr.
-    const VarDecl *GetNtArrayVarDecl(Expr *E);
+    const VarDecl *GetNtArrayVarDecl(const Expr *E);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
