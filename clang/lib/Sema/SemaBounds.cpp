@@ -2316,17 +2316,17 @@ namespace {
     // member points to a valid range of memory given by
     // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
     // where T is the type of the member.
-    // CheckMemberExpr returns null bounds.  e is an lvalue.
+    // CheckMemberExpr returns empty bounds.  e is an lvalue.
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
                                 std::pair<ComparisonSet, ComparisonSet>& Facts,
                                 SideEffects SE) {
       if (SE == SideEffects::Disabled)
-        return nullptr;
+        return CreateBoundsEmpty();
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts);
       if (NeedsBoundsCheck && DumpBounds)
         DumpExpression(llvm::outs(), E);
-      return nullptr;
+      return CreateBoundsEmpty();
     }
 
     // If e is an rvalue, CheckUnaryOperator returns the bounds for
@@ -2449,19 +2449,20 @@ namespace {
 
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
                                 SideEffects SE) {
+      BoundsExpr *ResultBounds = CreateBoundsEmpty();
       if (SE == SideEffects::Disabled)
-        return nullptr;
+        return ResultBounds;
       if (!ReturnBounds)
-        return nullptr;
+        return ResultBounds;
       Expr *RetValue = RS->getRetValue();
       if (!RetValue)
         // We already issued an error message for this case.
-        return nullptr;
+        return ResultBounds;
       // TODO: Actually check that the return expression bounds imply the 
       // return bounds.
       // TODO: Also check that any parameters used in the return bounds are
       // unmodified.
-      return nullptr;
+      return ResultBounds;
     }
 
     // Given an array type with constant dimension size, produce a count
