@@ -3327,7 +3327,8 @@ namespace {
 
       if (ReturnBounds->isElementCount() ||
           ReturnBounds->isByteCount()) {
-        assert(ResultName);
+        if (!ResultName)
+          return CreateBoundsInferenceError();
         ReturnBounds = ExpandToRange(CreateTemporaryUse(ResultName), ReturnBounds);
       }
       return ReturnBounds;
