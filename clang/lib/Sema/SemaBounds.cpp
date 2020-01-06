@@ -1967,6 +1967,9 @@ namespace {
     // e is an rvalue.
     BoundsExpr *CheckBinaryOperator(BinaryOperator *E, CheckedScopeSpecifier CSS,
               std::pair<ComparisonSet, ComparisonSet>& Facts, SideEffects SE) {
+      // Suppress diagnostics if side effects are disabled.
+      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
+
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
       BinaryOperatorKind Op = E->getOpcode();
@@ -2381,6 +2384,9 @@ namespace {
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
                                    std::pair<ComparisonSet, ComparisonSet>& Facts,
                                    SideEffects SE) {
+      // Suppress diagnostics if side effects are disabled.
+      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
+
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
