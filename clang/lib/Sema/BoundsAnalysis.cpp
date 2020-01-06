@@ -116,8 +116,11 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
     CollectBoundsVars(BO->getRHS(), BoundsVars);
   }
 
-  if (const VarDecl *V = GetNtArrayVarDecl(E))
-    BoundsVars.insert(V);
+  if (IsDeclOperand(E)) {
+    const auto *D = GetDeclOperand(E);
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
+      BoundsVars.insert(V);
+  }
 }
 
 DeclRefExpr *BoundsAnalysis::GetDeclOperand(const Expr *E) {
@@ -134,10 +137,8 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
 }
 
 const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(const Expr *E) {
-  E = IgnoreCasts(E);
-
-  if (IsPtrDerefOrArraySubscript(E)) {
-    DeclRefExpr *D = GetDeclRefExpr(E);
+  if (IsDeclOperand(E)) {
+    DeclRefExpr *D = GetDeclOperand(E);
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       if (IsNtArrayType(V))
         return V;
@@ -186,7 +187,7 @@ void BoundsAnalysis::FillGenSet(const Expr *E, BoundsExpr *BE,
     return;
 
   // Also make the upper bounds expr uniform.
-  const Expr *UE = IgnoreCasts(RBE->getUpperExpr());
+  const Expr *UE = RBE->getUpperExpr();
   if (!UE)
     return;
 
@@ -260,39 +261,49 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // In order to make an expression uniform, we want to keep all DeclRefExprs
   // on the LHS and all IntegerLiterals on the RHS.
 
-  if (IsPtrDerefOrArraySubscript(E))
-    return std::make_pair(GetDeclRefExpr(E), nullptr);
+  if (IsDeclOperand(E))
+    return std::make_pair(GetDeclOperand(E), nullptr);
 
   if (!isa<BinaryOperator>(E))
     return std::make_pair(nullptr, nullptr);
 
   const BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
-  Expr *LHS = IgnoreCasts(BO->getLHS());
-  Expr *RHS = IgnoreCasts(BO->getRHS());
+  Expr *LHS = BO->getLHS();
+  Expr *RHS = BO->getRHS();
+
+  if (isa<ParenExpr>(LHS))
+    LHS = IgnoreCasts(LHS);
+  if (isa<ParenExpr>(RHS))
+    RHS = IgnoreCasts(RHS);
 
   // Note: Assume p, q, r are DeclRefExprs and i, j are IntegerLiterals.
 
   // Case 1: LHS is DeclRefExpr and RHS is IntegerLiteral. This expr is already
   // uniform.
   // p + i ==> return (p, i)
-  if (IsPtrDerefOrArraySubscript(LHS) && isa<IntegerLiteral>(RHS))
-    return std::make_pair(GetDeclRefExpr(LHS), RHS);
+  if (IsDeclOperand(LHS) && isa<IntegerLiteral>(RHS))
+    return std::make_pair(GetDeclOperand(LHS), RHS);
 
   // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
   // swap LHS and RHS to make expr uniform.
   // i + p ==> return (p, i)
-  if (isa<IntegerLiteral>(LHS) && IsPtrDerefOrArraySubscript(RHS))
-    return std::make_pair(GetDeclRefExpr(RHS), LHS);
+  if (isa<IntegerLiteral>(LHS) && IsDeclOperand(RHS))
+    return std::make_pair(GetDeclOperand(RHS), LHS);
 
   // Case 3: LHS and RHS are both DeclRefExpr's. This means there is no
   // IntegerLiteral in the expr. In this case, we return the incoming
   // BinaryOperator expr with a nullptr for the RHS.
   // p + q ==> return (p + q, nullptr)
-  if (IsPtrDerefOrArraySubscript(LHS) && IsPtrDerefOrArraySubscript(RHS))
+  if (IsDeclOperand(LHS) && IsDeclOperand(RHS))
     return std::make_pair(BO, nullptr);
 
-  if (!isa<BinaryOperator>(LHS))
+  if (!isa<BinaryOperator>(LHS) &&
+      !isa<BinaryOperator>(RHS))
     return std::make_pair(nullptr, nullptr);
+
+  // To make parsing simpler, we always try to keep BinaryOperator on the LHS.
+  if (isa<BinaryOperator>(RHS))
+    std::swap(LHS, RHS);
 
   // If we reach here, the expr is one of these:
   // Case 4: (p + q) + i
@@ -384,14 +395,11 @@ void BoundsAnalysis::FillGenSet(Expr *E,
     // An array access can be written A[4] or 4[A] (both are equivalent).
     // getBase() and getIdx() always present the normalized view: A[4].
     // In this case getBase() returns "A" and getIdx() returns "4".
-    Expr *Base = IgnoreCasts(AE->getBase());
-    Expr *Index = IgnoreCasts(AE->getIdx());
-
     const auto *BO =
-      new (Ctx) BinaryOperator(Index, Base, BinaryOperatorKind::BO_Add,
-                               AE->getType(), AE->getValueKind(),
-                               AE->getObjectKind(), AE->getExprLoc(),
-                               FPOptions());
+      new (Ctx) BinaryOperator(AE->getBase(), AE->getIdx(),
+                               BinaryOperatorKind::BO_Add, AE->getType(),
+                               AE->getValueKind(), AE->getObjectKind(),
+                               AE->getExprLoc(), FPOptions());
 
     FillGenSet(BO, AE->getBoundsExpr(), EB, SuccEB);
 
