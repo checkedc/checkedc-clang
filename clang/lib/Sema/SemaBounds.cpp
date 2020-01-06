@@ -1927,7 +1927,7 @@ namespace {
             // If an initializer expression is present, it is visited
             // during the traversal of children nodes.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
-              VisitVarDecl(VD, CSS, Facts);
+              CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
           }
           break;
         }
@@ -1948,7 +1948,7 @@ namespace {
     // initializer, it has to be traversed explicitly.
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS,
                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      VisitVarDecl(VD, CSS, Facts);
+      CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
       if (Expr *Init = VD->getInit())
         TraverseStmt(Init, CSS, Facts);
     }
@@ -2401,50 +2401,57 @@ namespace {
       return CreateBoundsAlwaysUnknown();
     }
 
-    void VisitVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
-                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
+    // CheckVarDecl returns empty bounds.
+    BoundsExpr *CheckVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
+                             std::pair<ComparisonSet, ComparisonSet>& Facts,
+                             SideEffects SE) {
+      BoundsExpr *ResultBounds = CreateBoundsEmpty();
+
+      if (SE == SideEffects::Disabled)
+        return ResultBounds;
+
       if (D->isInvalidDecl())
-        return;
+        return ResultBounds;
 
       if (isa<ParmVarDecl>(D))
-        return;
+        return ResultBounds;
 
       VarDecl::DefinitionKind defKind = D->isThisDeclarationADefinition();
       if (defKind == VarDecl::DefinitionKind::DeclarationOnly)
-        return;
+        return ResultBounds;
 
-     // Handle variables with bounds declarations
-     BoundsExpr *DeclaredBounds = D->getBoundsExpr();
-     if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
-         DeclaredBounds->isUnknown())
-       return;
+      // Handle variables with bounds declarations
+      BoundsExpr *DeclaredBounds = D->getBoundsExpr();
+      if (!DeclaredBounds || DeclaredBounds->isInvalid() ||
+          DeclaredBounds->isUnknown())
+        return ResultBounds;
 
-     // TODO: for array types, check that any declared bounds at the point
-     // of initialization are true based on the array size.
+      // TODO: for array types, check that any declared bounds at the point
+      // of initialization are true based on the array size.
 
-     // If there is a scalar initializer, check that the initializer meets the bounds
-     // requirements for the variable.  For non-scalar types (arrays, structs, and
-     // unions), the amount of storage allocated depends on the type, so we don't
-     // to check the initializer bounds.
-     Expr *Init = D->getInit();
-     if (Init && D->getType()->isScalarType()) {
-       assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-       BoundsExpr *InitBounds = InferRValueBounds(Init, CSS, Facts);
-       if (InitBounds->isUnknown()) {
-         // TODO: need some place to record the initializer bounds
-         S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
-             << Init->getSourceRange();
-         InitBounds = S.CreateInvalidBoundsExpr();
-       } else {
-         BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
-         CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
-           Init, InitBounds, CSS, Facts);
-       }
-       if (DumpBounds)
-         DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
+      // If there is a scalar initializer, check that the initializer meets the bounds
+      // requirements for the variable.  For non-scalar types (arrays, structs, and
+      // unions), the amount of storage allocated depends on the type, so we don't
+      // to check the initializer bounds.
+      Expr *Init = D->getInit();
+      if (Init && D->getType()->isScalarType()) {
+        assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
+        BoundsExpr *InitBounds = InferRValueBounds(Init, CSS, Facts);
+        if (InitBounds->isUnknown()) {
+          // TODO: need some place to record the initializer bounds
+          S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
+              << Init->getSourceRange();
+          InitBounds = S.CreateInvalidBoundsExpr();
+        } else {
+          BoundsExpr *NormalizedDeclaredBounds = ExpandToRange(D, DeclaredBounds);
+          CheckBoundsDeclAtInitializer(D->getLocation(), D, NormalizedDeclaredBounds,
+            Init, InitBounds, CSS, Facts);
+        }
+        if (DumpBounds)
+          DumpInitializerBounds(llvm::outs(), D, DeclaredBounds, InitBounds);
       }
 
-      return;
+      return ResultBounds;
     }
 
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
