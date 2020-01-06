@@ -5082,11 +5082,12 @@ public:
     Sema &SemaRef;
     bool PrevDisableSubstitionDiagnostics;
   public:
-    explicit ExprSubstitutionScope(Sema &SemaRef)
+    explicit ExprSubstitutionScope(Sema &SemaRef,
+                                   bool DisableDiagnostics = true)
         : SemaRef(SemaRef),
           PrevDisableSubstitionDiagnostics(
             SemaRef.DisableSubstitionDiagnostics) {
-      SemaRef.DisableSubstitionDiagnostics = true;
+      SemaRef.DisableSubstitionDiagnostics = DisableDiagnostics;
     }
     ~ExprSubstitutionScope() {
       SemaRef.DisableSubstitionDiagnostics =

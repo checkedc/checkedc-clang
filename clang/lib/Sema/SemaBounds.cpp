@@ -2234,6 +2234,9 @@ namespace {
     BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
                               std::pair<ComparisonSet, ComparisonSet>& Facts,
                               SideEffects SE) {
+      // Suppress diagnostics if side effects are disabled.
+      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
+
       if (SE == SideEffects::Enabled)
         CheckDisallowedFunctionPtrCasts(E);
 

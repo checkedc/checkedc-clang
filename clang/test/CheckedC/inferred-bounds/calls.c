@@ -346,8 +346,7 @@ void f20(int* a, int* b) {
 
 void f21(int* a, int* b) {
     _Array_ptr<int> c : bounds(a, a+1) = f_boundsi(b++, a); // \
-    // TODO: this error should only be emitted once, when bounds inference is done once per expression. \
-    // expected-error2 {{expression not allowed in argument for parameter used in function return bounds}} \
+    // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
     // expected-error {{initializer expected to have bounds}}
 }
 
@@ -409,8 +408,7 @@ void f22(int i, int j) {
 
 void f23(int i, int j) {
     _Array_ptr<int> b : count(i) = f_counti(j++, i); // \
-    // TODO: this error should only be emitted once, when bounds inference is done once per expression. \
-    // expected-error2 {{expression not allowed in argument for parameter used in function return bounds}} \
+    // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
     // expected-error {{initializer expected to have bounds}}
 }
 
@@ -466,8 +464,7 @@ void f24(int i, int j) {
 
 void f25(int i, int j) {
     _Array_ptr<int> b : byte_count(i) = f_bytei(j++, i); // \
-    // TODO: this error should only be emitted once, when bounds inference is done once per expression. \
-    // expected-error2 {{expression not allowed in argument for parameter used in function return bounds}} \
+    // expected-error {{expression not allowed in argument for parameter used in function return bounds}} \
     // expected-error {{initializer expected to have bounds}}
 }
 
