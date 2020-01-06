@@ -90,6 +90,8 @@ namespace clang {
     Sema &S;
     CFG *Cfg;
     ASTContext &Ctx;
+    Lexicographic Lex;
+
     // The final widened bounds will reside here. This is a map keyed by
     // CFGBlock.
     EdgeBoundsTy WidenedBounds;
@@ -116,7 +118,8 @@ namespace clang {
     using WorkListTy = QueueSet<ElevatedCFGBlock>;
 
   public:
-    BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), Ctx(S.Context) {}
+    BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), Ctx(S.Context),
+      Lex(Lexicographic(Ctx, nullptr)) {}
 
     // Run the dataflow analysis to widen bounds for ntptr's.
     void WidenBounds();
@@ -172,6 +175,20 @@ namespace clang {
     // @param[in] Dest block for the edge for which the Gen set is updated.
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
 
+    // Fill Gen set for ntptr derefs.
+    // @param[in] UO is the pointer deref expr.
+    // @param[in] Source block for the edge for which the Gen set is updated.
+    // @param[in] Dest block for the edge for which the Gen set is updated.
+    void HandlePointerDeref(UnaryOperator *UO, ElevatedCFGBlock *EB,
+                            ElevatedCFGBlock *SuccEB);
+
+    // Fill Gen set for ntptr subscripts.
+    // @param[in] AE is the array subscript expr.
+    // @param[in] Source block for the edge for which the Gen set is updated.
+    // @param[in] Dest block for the edge for which the Gen set is updated.
+    void HandleArraySubscript(ArraySubscriptExpr *AE, ElevatedCFGBlock *EB,
+                              ElevatedCFGBlock *SuccEB);
+
     // Collect all variables used in bounds expr E.
     // @param[in] E represents the bounds expr for an ntptr.
     // @param[out] BoundsVars is a set of all variables used in the bounds expr
@@ -198,15 +215,10 @@ namespace clang {
     // @return Expression for the terminating condition of block B.
     Expr *GetTerminatorCondition(const CFGBlock *B) const;
 
-    // Check if E is a pointer dereference.
-    // @param[in] E is the expression for possibly a pointer deref.
-    // @return Whether E is a pointer deref. 
-    bool IsPointerDerefLValue(Expr *E) const;
-
-    // Check if E contains a pointer dereference.
-    // @param[in] E is the expression which possibly contains a pointer deref.
-    // @return Whether E contains a pointer deref. 
-    bool ContainsPointerDeref(Expr *E) const;
+    // Check if V is an _Nt_array_ptr or an _Nt_checked array.
+    // @param[in] V is the VarDecl.
+    // @return Whether V is an _Nt_array_ptr or an _Nt_checked array.
+    bool IsNtArrayType(const VarDecl *V) const;
 
     // WidenedBounds is a DenseMap and hence is not suitable for iteration as
     // its iteration order is non-deterministic. So we first need to order the
@@ -215,17 +227,10 @@ namespace clang {
     // numbers decrease from entry to exit.
     OrderedBlocksTy GetOrderedBlocks();
 
-    // Strip E of all casts.
-    // @param[in] E is the expression which must be stripped off of all casts.
-    // @return Expr stripped off of all casts.
-    Expr *IgnoreCasts(Expr *E);
-
-    // Check if the declared bounds of p are zero. ie: the upper bound of p is
-    // equal to p.
-    // @param[in] E is the bounds expression for V.
-    // @param[in] V is the ntptr.
-    // @return Whether the declared bounds of p are zero.
-    bool AreDeclaredBoundsZero(const Expr *E, const Expr *V);
+    // Invoke IgnoreValuePreservingOperations to strip off casts.
+    // @param[in] E is the expression whose casts must be stripped.
+    // @return E with casts stripped off.
+    Expr *IgnoreCasts(const Expr *E);
 
     // We do not want to run dataflow analysis on null, entry or exit blocks.
     // So we skip them.
@@ -233,6 +238,20 @@ namespace clang {
     // analysis.
     // @return Whether B should be skipped.
     bool SkipBlock(const CFGBlock *B) const;
+
+    // Get the DeclRefExpr from an expression E.
+    // @param[in] An expression E which is known to be either an LValueToRValue
+    // cast or an ArrayToPointerDecay cast.
+    // @return The DeclRefExpr from the expression E.
+    DeclRefExpr *GetDeclOperand(const Expr *E);
+
+    // A DeclRefExpr can be a reference either to an array subscript (in which
+    // case it is wrapped around a ArrayToPointerDecay cast) or to a pointer
+    // dereference (in which case it is wrapped around an LValueToRValue cast).
+    // @param[in] An expression E.
+    // @return Whether E is an expression containing a reference to an array
+    // subscript or a pointer dereference.
+    bool IsDeclOperand(const Expr *E);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.

@@ -1,6 +1,6 @@
 // Tests for datafow analysis for bounds widening of _Nt_array_ptr's.
 //
-// RUN: %clang_cc1 -fdump-widened-bounds %s 2>1 | FileCheck %s
+// RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note %s 2>&1 | FileCheck %s
 
 void f1() {
   _Nt_array_ptr<char> p : count(0) = "a";
@@ -15,23 +15,24 @@ void f1() {
 }
 
 void f2() {
-  _Nt_array_ptr<char> p : count(2) = "ab";
+  _Nt_array_ptr<char> p : count(0) = "ab";
 
   if (*p)
-    if (*(p + 1))
-      if (*(p + 2)) {}
+    if (*(p + 1))   // expected-error {{out-of-bounds memory access}}
+      if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
+  {}
 
 // CHECK: In function: f2
 // CHECK: [B4]
 // CHECK:   2: *p
 // CHECK: [B3]
 // CHECK:   1: *(p + 1)
-// CHECK-NOT: upper_bound(p)
+// CHECK: upper_bound(p) = 1
 // CHECK: [B2]
 // CHECK:   1: *(p + 2)
-// CHECK-NOT: upper_bound(p)
+// CHECK: upper_bound(p) = 2
 // CHECK: [B1]
-// CHECK-NOT: upper_bound(p)
+// CHECK: upper_bound(p) = 3
 }
 
 void f3() {
@@ -51,4 +52,90 @@ void f3() {
 // CHECK: upper_bound(p) = 1
 // CHECK: [B1]
 // CHECK-NOT: upper_bound(p) = 1
+}
+
+void f4(_Nt_array_ptr<char> p : count(0)) {
+  if (p[0]) {}
+
+// CHECK: In function: f4
+// CHECK: [B6]
+// CHECK:   1: p[0]
+// CHECK: [B5]
+// CHECK: upper_bound(p) = 1
+
+  _Nt_array_ptr<char> q : count(0) = "a";
+  if (0[q]) {}
+// CHECK: [B4]
+// CHECK:   2: 0[q]
+// CHECK: [B3]
+// CHECK: upper_bound(q) = 1
+
+  if ((((q[0])))) {}
+// CHECK: [B2]
+// CHECK:   1: (((q[0])))
+// CHECK: [B1]
+// CHECK: upper_bound(q) = 1
+}
+
+void f5() {
+  char p _Nt_checked[] : count(0) = "abc";
+
+  if (p[0])
+    if (p[1])   // expected-error {{out-of-bounds memory access}}
+      if (p[2]) // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK: In function: f5
+// CHECK: [B4]
+// CHECK:   2: p[0]
+// CHECK: [B3]
+// CHECK:   1: p[1]
+// CHECK: upper_bound(p) = 1
+// CHECK: [B2]
+// CHECK:   1: p[2]
+// CHECK: upper_bound(p) = 2
+// CHECK: [B1]
+// CHECK: upper_bound(p) = 3
+}
+
+void f6(int i) {
+  char p _Nt_checked[] : bounds(p, p + i)  = "abc";
+
+  if (p[0]) {
+    i = 0;
+    if (p[1]) {}
+  }
+
+// CHECK: In function: f6
+// CHECK: [B3]
+// CHECK:   2: p[0]
+// CHECK: [B2]
+// CHECK:   1: i = 0
+// CHECK:   2: p[1]
+// CHECK: upper_bound(p) = 1
+// CHECK: [B1]
+// CHECK-NOT: upper_bound(p)
+}
+
+void f7(char p _Nt_checked[] : count(0)) {
+  if (p[0]) {}
+
+// CHECK: In function: f7
+// CHECK: [B6]
+// CHECK:   1: p[0]
+// CHECK: [B5]
+// CHECK: upper_bound(p) = 1
+
+  char q _Nt_checked[] : count(0) = "a";
+  if (0[q]) {}
+// CHECK: [B4]
+// CHECK:   2: 0[q]
+// CHECK: [B3]
+// CHECK: upper_bound(q) = 1
+
+  if ((((q[0])))) {}
+// CHECK: [B2]
+// CHECK:   1: (((q[0])))
+// CHECK: [B1]
+// CHECK: upper_bound(q) = 1
 }

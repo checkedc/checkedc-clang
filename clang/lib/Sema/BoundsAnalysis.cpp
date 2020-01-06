@@ -25,7 +25,7 @@ void BoundsAnalysis::WidenBounds() {
   // ElevatedCFGBlock.
   // Note: By default, PostOrderCFGView iterates in reverse order. So we always
   // get a reverse post order when we iterate PostOrderCFGView.
-  for (const auto *B : PostOrderCFGView(Cfg)) {
+  for (const CFGBlock *B : PostOrderCFGView(Cfg)) {
     // SkipBlock will skip all null, entry and exit blocks. PostOrderCFGView
     // does not contain any unreachable blocks. So at the end of this loop
     // BlockMap only contains reachable blocks.
@@ -42,7 +42,7 @@ void BoundsAnalysis::WidenBounds() {
   // At this time, BlockMap only contains reachable blocks. We iterate through
   // all blocks in the CFG and append all unreachable blocks to the WorkList.
   for (auto I = Cfg->begin(), E = Cfg->end(); I != E; ++I) {
-    const auto *B = *I;
+    const CFGBlock *B = *I;
     if (!SkipBlock(B) && !BlockMap.count(B)) {
       auto EB = new ElevatedCFGBlock(B);
       WorkList.append(EB);
@@ -56,7 +56,7 @@ void BoundsAnalysis::WidenBounds() {
 
   // Compute In and Out sets.
   while (!WorkList.empty()) {
-    auto *EB = WorkList.next();
+    ElevatedCFGBlock *EB = WorkList.next();
     WorkList.remove(EB);
 
     ComputeInSets(EB, BlockMap);
@@ -70,8 +70,8 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
   // If there is an edge B1->B2 and the edge condition is of the form
   // "if (*(p + i))" then Gen[B1] = {B2, p:i} .
 
-  for (const auto B : BlockMap) {
-    auto EB = B.second;
+  for (const auto item : BlockMap) {
+    ElevatedCFGBlock *EB = item.second;
 
     for (const CFGBlock *pred : EB->Block->preds()) {
       if (SkipBlock(pred))
@@ -86,13 +86,10 @@ void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
       // Here we have the edges (B1->B2) and (B1->B3). We can add "p:i" only
       // on the true edge. Which means we will add the following entry to
       // Gen[B1]: {B2, p:i}
-      if (const auto *I = pred->succs().begin())
-        if (*I != EB->Block)
-          continue;
-
-      // Get the edge condition and fill the Gen set.
-      if (Expr *E = GetTerminatorCondition(pred))
-        FillGenSet(E, BlockMap[pred], EB);
+      if (!pred->succ_empty() && *pred->succs().begin() == EB->Block)
+        // Get the edge condition and fill the Gen set.
+        if (Expr *E = GetTerminatorCondition(pred))
+          FillGenSet(E, BlockMap[pred], EB);
     }
   }
 }
@@ -101,7 +98,7 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
   if (!E)
     return;
 
-  E = IgnoreCasts(const_cast<Expr *>(E));
+  E = IgnoreCasts(E);
 
   // Collect bounds vars for the lower and upper bounds exprs.
   // Example:
@@ -119,33 +116,125 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
     CollectBoundsVars(BO->getRHS(), BoundsVars);
   }
 
-  if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
+  if (IsDeclOperand(E)) {
+    const DeclRefExpr *D = GetDeclOperand(E);
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       BoundsVars.insert(V);
   }
 }
 
-bool BoundsAnalysis::AreDeclaredBoundsZero(const Expr *E, const Expr *V) {
-  if (!E)
-    return !V;
+DeclRefExpr *BoundsAnalysis::GetDeclOperand(const Expr *E) {
+  auto *CE = dyn_cast<CastExpr>(E);
+  return dyn_cast<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
+}
 
-  E = IgnoreCasts(const_cast<Expr *>(E));
+bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue ||
+        CE->getCastKind() == CastKind::CK_ArrayToPointerDecay)
+      return isa<DeclRefExpr>(IgnoreCasts(CE->getSubExpr()));
+  return false;
+}
 
-  // Check if the upper bound of V is equal to V.
-  // To do this, we check that the LHS of the bounds expr is V and the RHS is
-  // 0.
-  if (const auto *RBE = dyn_cast<RangeBoundsExpr>(E)) {
-    if (const auto *BO = dyn_cast<BinaryOperator>(RBE->getUpperExpr())) {
-      auto *RHS = IgnoreCasts(BO->getRHS());
-      if (const auto *Lit = dyn_cast<IntegerLiteral>(RHS)) {
-        auto *LHS = IgnoreCasts(BO->getLHS());
-        return Lit->getValue().getLimitedValue() == 0 &&
-               Lexicographic(Ctx, nullptr).CompareExpr(LHS, V) ==
-               Lexicographic::Result::Equal;
+void BoundsAnalysis::HandlePointerDeref(UnaryOperator *UO,
+                                        ElevatedCFGBlock *EB,
+                                        ElevatedCFGBlock *SuccEB) {
+
+  const Expr *E = IgnoreCasts(UO->getSubExpr());
+
+  // TODO: Handle accesses of the form:
+  // "if (*(p + i) && *(p + j) && *(p + k))"
+
+  // For conditions of the form "if (*p)".
+  if (IsDeclOperand(E)) {
+    const DeclRefExpr *D = GetDeclOperand(E);
+
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+      if (IsNtArrayType(V)) {
+        EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
+        if (!SuccEB->BoundsVars.count(V)) {
+          DeclSetTy BoundsVars;
+          CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+          SuccEB->BoundsVars[V] = BoundsVars;
+        }
+      }
+    }
+
+  // For conditions of the form "if (*(p + i))"
+  } else if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
+    // Currently we only handle additive offsets.
+    if (BO->getOpcode() != BO_Add)
+      return;
+
+    Expr *LHS = IgnoreCasts(BO->getLHS());
+    Expr *RHS = IgnoreCasts(BO->getRHS());
+    DeclRefExpr *D = nullptr;
+    IntegerLiteral *Lit = nullptr;
+
+    // Handle *(p + i).
+    if (IsDeclOperand(LHS) && isa<IntegerLiteral>(RHS)) {
+      D = GetDeclOperand(LHS);
+      Lit = dyn_cast<IntegerLiteral>(RHS);
+
+    // Handle *(i + p).
+    } else if (IsDeclOperand(RHS) && isa<IntegerLiteral>(LHS)) {
+      D = GetDeclOperand(RHS);
+      Lit = dyn_cast<IntegerLiteral>(LHS);
+    }
+
+    if (!D || !Lit)
+      return;
+
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+      if (IsNtArrayType(V)) {
+        // We update the bounds of p on the edge EB->SuccEB only if this is
+        // the first time we encounter "if (*(p + i)" on that edge.
+        if (!EB->Gen[SuccEB->Block].count(V)) {
+          EB->Gen[SuccEB->Block][V] = Lit->getValue().getLimitedValue();
+          if (!SuccEB->BoundsVars.count(V)) {
+            DeclSetTy BoundsVars;
+            CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
+            SuccEB->BoundsVars[V] = BoundsVars;
+          }
+        }
       }
     }
   }
-  return false;
+}
+
+void BoundsAnalysis::HandleArraySubscript(ArraySubscriptExpr *AE,
+                                          ElevatedCFGBlock *EB,
+                                          ElevatedCFGBlock *SuccEB) {
+
+  // An array access can be written A[4] or 4[A] (both are equivalent).
+  // getBase() and getIdx() always present the normalized view: A[4].
+  // In this case getBase() returns "A" and getIdx() returns "4".
+  const Expr *Base = AE->getBase();
+  const Expr *Index = AE->getIdx();
+
+  if (IsDeclOperand(Base)) {
+    const DeclRefExpr *D = GetDeclOperand(Base);
+
+    if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
+      if (IsNtArrayType(V)) {
+        Expr::EvalResult Res;
+        if (!Index->EvaluateAsInt(Res, S.Context))
+          return;
+
+        llvm::APSInt Idx = Res.Val.getInt();
+        if (Idx.isNegative())
+          return;
+
+        EB->Gen[SuccEB->Block].insert(std::make_pair(V, Idx.getLimitedValue()));
+
+        if (!SuccEB->BoundsVars.count(V)) {
+          DeclSetTy BoundsVars;
+          CollectBoundsVars(AE->getBoundsExpr(), BoundsVars);
+          SuccEB->BoundsVars[V] = BoundsVars;
+        }
+      }
+    }
+  }
 }
 
 void BoundsAnalysis::FillGenSet(Expr *E,
@@ -160,104 +249,34 @@ void BoundsAnalysis::FillGenSet(Expr *E,
     }
   }
 
-  // Check if the edge condition contains a pointer deref.
-  if (!ContainsPointerDeref(E))
-    return;
+  if (auto *CE = dyn_cast<CastExpr>(E))
+    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
+      E = CE->getSubExpr();
 
   E = IgnoreCasts(E);
 
-  if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
-    const auto *Exp = IgnoreCasts(UO->getSubExpr());
-    if (!Exp)
-      return;
-
-    // TODO: Handle accesses of the form:
-    // "if (*(p + i) && *(p + j) && *(p + k))"
-
-    // For conditions of the form "if (*p)".
-    if (const auto *D = dyn_cast<DeclRefExpr>(Exp)) {
-      // TODO: Remove this check. Currently, for the first version of this
-      // algorithm, we are enabling bounds widening only when the declared
-      // bounds are bounds(p, p) or count(0). We need to generalize this to
-      // widen bounds for dereferences involving constant offsets from the
-      // declared upper bound of a variable.
-      if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
-        return;
-
-      if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-        if (V->getType()->isCheckedPointerNtArrayType()) {
-          EB->Gen[SuccEB->Block].insert(std::make_pair(V, 0));
-          if (!SuccEB->BoundsVars.count(V)) {
-            DeclSetTy BoundsVars;
-            CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
-            SuccEB->BoundsVars[V] = BoundsVars;
-          }
-        }
-      }
-
-    // For conditions of the form "if (*(p + i))"
-    } else if (const auto *BO = dyn_cast<BinaryOperator>(Exp)) {
-      // Currently we only handle additive offsets.
-      if (BO->getOpcode() != BO_Add)
-        return;
-
-      Expr *LHS = IgnoreCasts(BO->getLHS());
-      Expr *RHS = IgnoreCasts(BO->getRHS());
-      DeclRefExpr *D = nullptr;
-      IntegerLiteral *Lit = nullptr;
-
-      // Handle *(p + i).
-      if (isa<DeclRefExpr>(LHS) && isa<IntegerLiteral>(RHS)) {
-        D = dyn_cast<DeclRefExpr>(LHS);
-        Lit = dyn_cast<IntegerLiteral>(RHS);
-
-      // Handle *(i + p).
-      } else if (isa<DeclRefExpr>(RHS) && isa<IntegerLiteral>(LHS)) {
-        D = dyn_cast<DeclRefExpr>(RHS);
-        Lit = dyn_cast<IntegerLiteral>(LHS);
-      }
-
-      if (!D || !Lit)
-        return;
-
-      // TODO: Remove this check. Currently, for the first version of this
-      // algorithm, we are enabling bounds widening only when the declared
-      // bounds are bounds(p, p) or count(0). We need to generalize this to
-      // widen bounds for dereferences involving constant offsets from the
-      // declared upper bound of a variable.
-      if (!AreDeclaredBoundsZero(UO->getBoundsExpr(), D))
-        return;
-
-      if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-        if (V->getType()->isCheckedPointerNtArrayType()) {
-          // We update the bounds of p on the edge EB->SuccEB only if this is
-          // the first time we encounter "if (*(p + i)" on that edge.
-          if (!EB->Gen[SuccEB->Block].count(V)) {
-            EB->Gen[SuccEB->Block][V] = Lit->getValue().getLimitedValue();
-            if (!SuccEB->BoundsVars.count(V)) {
-              DeclSetTy BoundsVars;
-              CollectBoundsVars(UO->getBoundsExpr(), BoundsVars);
-              SuccEB->BoundsVars[V] = BoundsVars;
-            }
-          }
-        }
-      }
-    }
+  // Fill the Gen set based on whether the edge condition is an array subscript
+  // or a pointer deref.
+  if (auto *AS = dyn_cast<ArraySubscriptExpr>(E))
+    HandleArraySubscript(AS, EB, SuccEB);
+  else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Deref)
+      HandlePointerDeref(UO, EB, SuccEB);
   }
 }
 
 void BoundsAnalysis::ComputeKillSets(BlockMapTy BlockMap) {
   // For a block B, a variable v is added to Kill[B] if v is assigned to in B.
 
-  for (const auto B : BlockMap) {
-    auto EB = B.second;
+  for (const auto item : BlockMap) {
+    ElevatedCFGBlock *EB = item.second;
     DeclSetTy DefinedVars;
 
-    for (auto Elem : *(EB->Block))
+    for (CFGElement Elem : *(EB->Block))
       if (Elem.getKind() == CFGElement::Statement)
         CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), EB, DefinedVars);
 
-    for (const auto V : DefinedVars)
+    for (const VarDecl *V : DefinedVars)
       EB->Kill.insert(V);
   }
 }
@@ -279,18 +298,18 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
   if (E) {
     if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-        if (V->getType()->isCheckedPointerNtArrayType())
+        if (IsNtArrayType(V))
           DefinedVars.insert(V);
         else {
 
           // BoundsVars is a mapping from _Nt_array_ptrs to all the variables
           // used in their bounds exprs. For example:
 
-          // _Nt_array_ptr<char> p : bounds(p + i, i + p + j + 10); 
+          // _Nt_array_ptr<char> p : bounds(p + i, i + p + j + 10);
           // _Nt_array_ptr<char> q : bounds(i + q, i + p + q + m);
 
           // EB->BoundsVars: {p: {p, i, j}, q: {i, q, p, m}}
-  
+
           for (auto item : EB->BoundsVars) {
             if (item.second.count(V))
               DefinedVars.insert(item.first);
@@ -300,8 +319,8 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
     }
   }
 
-  for (const auto I : S->children())
-    CollectDefinedVars(I, EB, DefinedVars);
+  for (const Stmt *St : S->children())
+    CollectDefinedVars(St, EB, DefinedVars);
 }
 
 void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
@@ -314,7 +333,7 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
     if (SkipBlock(pred))
       continue;
 
-    auto PredEB = BlockMap[pred];
+    ElevatedCFGBlock *PredEB = BlockMap[pred];
 
     if (ItersectionEmpty) {
       Intersections = PredEB->Out[EB->Block];
@@ -331,12 +350,12 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
                                     WorkListTy &WorkList) {
   // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
 
-  auto Diff = Difference(EB->In, EB->Kill);
+  BoundsMapTy Diff = Difference(EB->In, EB->Kill);
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
 
-    auto OldOut = EB->Out[succ];
+    BoundsMapTy OldOut = EB->Out[succ];
 
     // Here's how we compute (In - Kill) u Gen:
 
@@ -364,8 +383,8 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
 
 void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
   for (auto item : BlockMap) {
-    const auto *B = item.first;
-    auto *EB = item.second;
+    const CFGBlock *B = item.first;
+    ElevatedCFGBlock *EB = item.second;
     WidenedBounds[B] = EB->In;
     delete EB;
   }
@@ -383,43 +402,13 @@ Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
   return nullptr;
 }
 
-Expr *BoundsAnalysis::IgnoreCasts(Expr *E) {
-  while (E) {
-    E = E->IgnoreParens();
-
-    if (isa<ParenExpr>(E)) {
-      E = E->IgnoreParenCasts();
-      continue;
-    }
-
-    if (isa<ImplicitCastExpr>(E)) {
-      E = E->IgnoreImplicit();
-      continue;
-    }
-
-    if (auto *CE = dyn_cast<CastExpr>(E)) {
-      E = CE->getSubExpr();
-      continue;
-    }
-    return E;
-  }
-  return E;
+Expr *BoundsAnalysis::IgnoreCasts(const Expr *E) {
+  return Lex.IgnoreValuePreservingOperations(Ctx, const_cast<Expr *>(E));
 }
 
-
-bool BoundsAnalysis::IsPointerDerefLValue(Expr *E) const {
-  if (const auto *UO = dyn_cast<UnaryOperator>(E))
-    return UO->getOpcode() == UO_Deref;
-  return false;
-}
-
-bool BoundsAnalysis::ContainsPointerDeref(Expr *E) const {
-  if (auto *CE = dyn_cast<CastExpr>(E)) {
-    if (CE->getCastKind() == CastKind::CK_LValueToRValue)
-      return IsPointerDerefLValue(CE->getSubExpr());
-    return ContainsPointerDeref(CE->getSubExpr());
-  }
-  return false;
+bool BoundsAnalysis::IsNtArrayType(const VarDecl *V) const {
+  return V->getType()->isCheckedPointerNtArrayType() ||
+         V->getType()->isNtCheckedArrayType();
 }
 
 template<class T>
@@ -513,7 +502,7 @@ void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
   llvm::outs() << "--------------------------------------\n";
   llvm::outs() << "In function: " << FD->getName() << "\n";
 
-  for (const auto *B : GetOrderedBlocks()) {
+  for (const CFGBlock *B : GetOrderedBlocks()) {
     llvm::outs() << "--------------------------------------";
     B->print(llvm::outs(), Cfg, S.getLangOpts(), /* ShowColors */ true);
 
