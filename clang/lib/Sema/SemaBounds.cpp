@@ -2298,7 +2298,7 @@ namespace {
         CHKCBindTemporaryExpr *TempExpr = dyn_cast<CHKCBindTemporaryExpr>(SubExpr);
         assert(TempExpr);
 
-        // These bounds will be computed and tested at runtime.  Don't
+        // These bounds may be computed and tested at runtime.  Don't
         // recompute any expressions computed to temporaries already.
         Expr *TempUse = CreateTemporaryUse(TempExpr);
 
