@@ -2134,7 +2134,7 @@ namespace {
       if (SE == SideEffects::Disabled)
         return ResultBounds;
 
-      // Perform bounds checking, if enabled.
+      // Perform checking of bounds declarations, if enabled.
 
       QualType CalleeType = E->getCallee()->getType();
       // Extract the pointee type.  The caller type could be a regular pointer
