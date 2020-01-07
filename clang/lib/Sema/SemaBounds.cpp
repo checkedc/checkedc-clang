@@ -1898,7 +1898,8 @@ namespace {
                              SideEffects::Enabled);
           break;
         case Expr::CallExprClass:
-          VisitCallExpr(cast<CallExpr>(S), CSS, Facts);
+          CheckCallExpr(cast<CallExpr>(S), CSS, Facts,
+                        SideEffects::Enabled);
           break;
         case Expr::MemberExprClass:
           CheckMemberExpr(cast<MemberExpr>(S), CSS, Facts,
@@ -2117,39 +2118,59 @@ namespace {
       return ResultBounds;
     }
 
-    void VisitCallExpr(CallExpr *CE, CheckedScopeSpecifier CSS,
-                       std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      QualType CalleeType = CE->getCallee()->getType();
+    // CheckCallExpr returns the bounds for the value produced by e.
+    // e is an rvalue.
+    BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
+                              std::pair<ComparisonSet, ComparisonSet>& Facts,
+                              SideEffects SE) {
+
+      BoundsExpr *ResultBounds = nullptr;
+      {
+        // Suppress diagnostics that could be emitted in CallExprBounds.
+        // Since TraverseStmt still checks all subexpressions,
+        // bounds inference (including calls to CallExprBounds) may be
+        // performed multiple times on an expression.  Suppressing diagnostics
+        // here prevents duplicate diagnostic messages from being emitted.
+        Sema::ExprSubstitutionScope Scope(S);
+        ResultBounds = CallExprBounds(E, nullptr);
+      }
+
+      if (SE == SideEffects::Disabled)
+        return ResultBounds;
+
+      // Perform checking of bounds declarations, if enabled.
+
+      QualType CalleeType = E->getCallee()->getType();
       // Extract the pointee type.  The caller type could be a regular pointer
       // type or a block pointer type.
       QualType PointeeType;
       if (const PointerType *FuncPtrTy = CalleeType->getAs<PointerType>())
         PointeeType = FuncPtrTy->getPointeeType();
-      else if (const BlockPointerType *BlockPtrTy = 
-                 CalleeType->getAs<BlockPointerType>())
+      else if (const BlockPointerType *BlockPtrTy = CalleeType->getAs<BlockPointerType>())
         PointeeType = BlockPtrTy->getPointeeType();
       else {
         llvm_unreachable("Unexpected callee type");
-        return;
+        return CreateBoundsInferenceError();
       }
+
       const FunctionType *FuncTy = PointeeType->getAs<FunctionType>();
       assert(FuncTy);
       const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
       if (!FuncProtoTy)
-        return;
+        return ResultBounds;
       if (!FuncProtoTy->hasParamAnnots())
-        return;
+        return ResultBounds;
+
       unsigned NumParams = FuncProtoTy->getNumParams();
-      unsigned NumArgs = CE->getNumArgs();
+      unsigned NumArgs = E->getNumArgs();
       unsigned Count = (NumParams < NumArgs) ? NumParams : NumArgs;
-      ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(CE->getArgs()),
-                                                     CE->getNumArgs());
+      ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(E->getArgs()), E->getNumArgs());
+
       for (unsigned i = 0; i < Count; i++) {
         QualType ParamType = FuncProtoTy->getParamType(i);
         // Skip checking bounds for unchecked pointer parameters, unless
         // the argument was subject to a bounds-safe interface cast.
-        if (ParamType->isUncheckedPointerType() &&
-            !IsBoundsSafeInterfaceAssignment(ParamType, CE->getArg(i))) {
+        if (ParamType->isUncheckedPointerType() && !IsBoundsSafeInterfaceAssignment(ParamType, E->getArg(i))) {
           continue;
         }
         // We want to check the argument expression implies the desired parameter bounds.
@@ -2173,11 +2194,11 @@ namespace {
         if (ParamBounds->isUnknown())
           continue;
 
-        Expr *Arg = CE->getArg(i);
-        BoundsExpr *ArgBounds = InferRValueBounds(Arg, CSS, Facts);
+        Expr *Arg = E->getArg(i);
+        BoundsExpr *ArgBounds = InferRValueBounds(Arg, CSS, Facts); // Analogous to BoundsExpr *ArgBounds = S.InferRValueBounds(Arg, CSS) in VisitCallExpr
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getBeginLoc(),
-                 diag::err_expected_bounds_for_argument) << (i + 1) <<
+                  diag::err_expected_bounds_for_argument) << (i + 1) <<
             Arg->getSourceRange();
           ArgBounds = S.CreateInvalidBoundsExpr();
           continue;
@@ -2210,26 +2231,24 @@ namespace {
             // The bounds expression is for an interface type. Retype the
             // argument to the interface type.
             if (UsedIType) {
-              TypedArg = CreateExplicitCast(ParamIType->getType(), 
-                              CK_BitCast, Arg, true);
+              TypedArg = CreateExplicitCast(
+                ParamIType->getType(), CK_BitCast, Arg, true);
             }
             SubstParamBounds = ExpandToRange(TypedArg,
                                     const_cast<BoundsExpr *>(SubstParamBounds));
-           } else
-             continue;
+            } else
+              continue;
         }
 
         if (DumpBounds) {
-          DumpCallArgumentBounds(llvm::outs(),
-                                 FuncProtoTy->getParamAnnots(i).getBoundsExpr(),
-                                 Arg, SubstParamBounds, ArgBounds);
+          DumpCallArgumentBounds(llvm::outs(), FuncProtoTy->getParamAnnots(i).getBoundsExpr(), Arg, SubstParamBounds, ArgBounds);
         }
 
-        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds,
-                                 CSS, nullptr, Facts);
+        CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, CSS, nullptr, Facts);
       }
-      return;
-   }
+
+      return ResultBounds;
+    }
 
     // If e is an rvalue, CheckCastExpr returns the bounds for
     // the value produced by e.
@@ -3296,6 +3315,12 @@ namespace {
         case Expr::CompoundAssignOperatorClass:
           return CheckBinaryOperator(cast<BinaryOperator>(E), CSS, Facts, SE);
         case Expr::CallExprClass: {
+          // Do not call CheckCallExpr here.  Since CheckCallExpr suppresses
+          // diagnostics emitted as part of CallExprBounds (to reduce unwanted
+          // duplicate diagnostics), calling CheckCallExpr here can result in
+          // wanted diagnostics from CallExprBounds being suppressed.
+          // Once TraverseStmt is fully refactored, calls to RValueBounds can
+          // be replaced with calls to TraverseStmt.
           CallExpr *CE = cast<CallExpr>(E);
           return CallExprBounds(CE, nullptr);
         }
@@ -3382,7 +3407,8 @@ namespace {
 
       if (ReturnBounds->isElementCount() ||
           ReturnBounds->isByteCount()) {
-        assert(ResultName);
+        if (!ResultName)
+          return CreateBoundsInferenceError();
         ReturnBounds = ExpandToRange(CreateTemporaryUse(ResultName), ReturnBounds);
       }
       return ReturnBounds;
