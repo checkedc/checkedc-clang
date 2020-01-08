@@ -117,7 +117,7 @@ void BoundsAnalysis::CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars) {
   }
 
   if (IsDeclOperand(E)) {
-    const auto *D = GetDeclOperand(E);
+    const DeclRefExpr *D = GetDeclOperand(E);
     if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
       BoundsVars.insert(V);
   }
@@ -145,7 +145,7 @@ const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(const Expr *E) {
   }
 
   if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    const auto *V = GetNtArrayVarDecl(BO->getLHS());
+    const VarDecl *V = GetNtArrayVarDecl(BO->getLHS());
     if (V)
       return V;
     return GetNtArrayVarDecl(BO->getRHS());
@@ -153,9 +153,9 @@ const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(const Expr *E) {
   return nullptr;
 }
 
-void BoundsAnalysis::FillGenSet(const Expr *E, BoundsExpr *BE,
-                                ElevatedCFGBlock *EB,
-                                ElevatedCFGBlock *SuccEB) {
+void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E, BoundsExpr *BE,
+                                                ElevatedCFGBlock *EB,
+                                                ElevatedCFGBlock *SuccEB) {
 
   // TODO: Handle accesses of the form:
   // "if (*(p + i) && *(p + j) && *(p + k))"
@@ -168,10 +168,10 @@ void BoundsAnalysis::FillGenSet(const Expr *E, BoundsExpr *BE,
   // 1. Ptr deref or array subscript: if (*p) or p[i]
   // 2. BinaryOperator: if (*(p + e))
 
-  // SplitIntoBaseOffset tries to make the expr uniform. It returns a "Base"
-  // and an "Offset". Base is an expr containing only DeclRefExprs and Offset
-  // is an expr containing only IntegerLiterals. Here are some examples:
-  // Note: p and q are DelRefExprs, i and j are IntegerLiterals.
+  // SplitIntoBaseOffset tries to uniformize the expr. It returns a "Base" and
+  // an "Offset". Base is an expr containing only DeclRefExprs and Offset is an
+  // expr containing only IntegerLiterals. Here are some examples: Note: p and
+  // q are DelRefExprs, i and j are IntegerLiterals.
 
   // Expr ==> Return Value
   // p ==> (p, nullptr)
@@ -197,8 +197,10 @@ void BoundsAnalysis::FillGenSet(const Expr *E, BoundsExpr *BE,
   if (!UpperBase)
     return;
 
-  // For bounds widening, the bases of the deref expr and the upper bounds expr
-  // should be the same. For example:
+  // For bounds widening, the base of the deref expr and the upper bounds expr
+  // should be the same.
+
+  // For example:
   // _Nt_array_ptr<T> p : bounds(p, p + i);
 
   // if (*(p + i)) // widen by 1
@@ -211,6 +213,11 @@ void BoundsAnalysis::FillGenSet(const Expr *E, BoundsExpr *BE,
   // if (*p) // no widening
   //   if (*(p + 1)) // no widening
   //     if (*(p + i)) // widen by 1
+
+  // TODO: Currently, Lexicographic::CompareExpr does not understand
+  // commutativity of operations. Exprs like "p + e" and "e + p" are considered
+  // unequal.
+
   if (Lex.CompareExpr(DerefBase, UpperBase) !=
       Lexicographic::Result::Equal)
     return;
@@ -245,11 +252,16 @@ void BoundsAnalysis::FillGenSet(const Expr *E, BoundsExpr *BE,
       Lexicographic::Result::LessThan)
     return;
 
-  EB->Gen[SuccEB->Block][V] =
-    (DerefOffsetVal - UpperOffsetVal).getLimitedValue();
+  // (DerefOffset - UpperOffset) gives us the amount by which the ntptr should
+  // be widened.
+  // TODO: Check to see if that difference overflows/underflows.
+  llvm::APInt OffsetDiff = DerefOffsetVal - UpperOffsetVal;
 
-  // Any update to any variable involved in the bounds expr for the ntptr will
-  // kill the widenend bounds for the ntptr.
+  EB->Gen[SuccEB->Block][V] = OffsetDiff.getLimitedValue();
+
+  // Collect all variables involved in the upper and lower bounds exprs for
+  // the ntptr. An assignment to any such variable would kill the widenend
+  // bounds for the ntptr.
   if (!SuccEB->BoundsVars.count(V)) {
     DeclSetTy BoundsVars;
     CollectBoundsVars(BE, BoundsVars);
@@ -268,13 +280,12 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
     return std::make_pair(nullptr, nullptr);
 
   const BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
-  Expr *LHS = BO->getLHS();
-  Expr *RHS = BO->getRHS();
+  // TODO: Currently we only handle exprs containing additive operations.
+  if (BO->getOpcode() != BO_Add)
+    return std::make_pair(nullptr, nullptr);
 
-  if (isa<ParenExpr>(LHS))
-    LHS = IgnoreCasts(LHS);
-  if (isa<ParenExpr>(RHS))
-    RHS = IgnoreCasts(RHS);
+  Expr *LHS = BO->getLHS()->IgnoreParens();
+  Expr *RHS = BO->getRHS()->IgnoreParens();
 
   // Note: Assume p, q, r are DeclRefExprs and i, j are IntegerLiterals.
 
@@ -290,20 +301,22 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   if (isa<IntegerLiteral>(LHS) && IsDeclOperand(RHS))
     return std::make_pair(GetDeclOperand(RHS), LHS);
 
-  // Case 3: LHS and RHS are both DeclRefExpr's. This means there is no
+  // Case 3: LHS and RHS are both DeclRefExprs. This means there is no
   // IntegerLiteral in the expr. In this case, we return the incoming
   // BinaryOperator expr with a nullptr for the RHS.
   // p + q ==> return (p + q, nullptr)
   if (IsDeclOperand(LHS) && IsDeclOperand(RHS))
     return std::make_pair(BO, nullptr);
 
-  if (!isa<BinaryOperator>(LHS) &&
-      !isa<BinaryOperator>(RHS))
-    return std::make_pair(nullptr, nullptr);
-
   // To make parsing simpler, we always try to keep BinaryOperator on the LHS.
   if (isa<BinaryOperator>(RHS))
     std::swap(LHS, RHS);
+
+  // By this time the LHS should be a BinaryOperator; either because it already
+  // was a BinaryOperator, or because the RHS was a BinaryOperator and was
+  // swapped with the LHS.
+  if (!isa<BinaryOperator>(LHS))
+    return std::make_pair(nullptr, nullptr);
 
   // If we reach here, the expr is one of these:
   // Case 4: (p + q) + i
@@ -334,9 +347,12 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
     Expr::EvalResult R1, R2;
     RHS->EvaluateAsInt(R1, Ctx);
     BinOpRHS->EvaluateAsInt(R2, Ctx);
-    auto *I = new (Ctx)
-                IntegerLiteral(Ctx, R1.Val.getInt() + R2.Val.getInt(),
-                               Ctx.IntTy, SourceLocation());
+
+    // TODO: Since we are reasociating integers here, check if the value
+    // overflows/underflows.
+    llvm::APInt Val = R1.Val.getInt() + R2.Val.getInt();
+
+    auto *I = new (Ctx) IntegerLiteral(Ctx, Val, Ctx.IntTy, SourceLocation());
     return std::make_pair(BinOpLHS, I);
   }
 
@@ -401,12 +417,12 @@ void BoundsAnalysis::FillGenSet(Expr *E,
                                AE->getValueKind(), AE->getObjectKind(),
                                AE->getExprLoc(), FPOptions());
 
-    FillGenSet(BO, AE->getBoundsExpr(), EB, SuccEB);
+    FillGenSetAndGetBoundsVars(BO, AE->getBoundsExpr(), EB, SuccEB);
 
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     if (UO->getOpcode() == UO_Deref) {
       const Expr *UE = IgnoreCasts(UO->getSubExpr());
-      FillGenSet(UE, UO->getBoundsExpr(), EB, SuccEB);
+      FillGenSetAndGetBoundsVars(UE, UO->getBoundsExpr(), EB, SuccEB);
     }
   }
 }
