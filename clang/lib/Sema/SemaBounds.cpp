@@ -1978,26 +1978,13 @@ namespace {
         default: 
           break;
       }
-
-      if (Expr *E = dyn_cast<Expr>(S)) {
-        if (!E->isRValue())
-          ResultBounds = CreateBoundsInferenceError();
-
-        // Null Ptrs always have bounds(any).
-        // This is the correct way to detect all the different ways that
-        // C can make a null ptr.
-        else if (!isa<BoundsExpr>(E)) {
-          if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent))
-            ResultBounds = CreateBoundsAny();
-        }
-      }
       
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         TraverseStmt(*I, CSS, Facts, SE);
       }
 
-      return ResultBounds;
+      return AdjustRValueBounds(S, ResultBounds);
     }
 
     // Traverse a top-level variable declaration.  If there is an
@@ -2749,6 +2736,27 @@ namespace {
                                             SideEffects::Disabled,
                                             OutRValueBounds);
       IncludeNullTerminator = PrevIncludeNullTerminator;
+      return Bounds;
+    }
+
+    /// Get the rvalue bounds of a statement,
+    /// accounting for non-rvalue expressions and null ptrs.
+    BoundsExpr *AdjustRValueBounds(Stmt *S, BoundsExpr *Bounds) {
+      if (Expr *E = dyn_cast<Expr>(S)) {
+        if (!E->isRValue())
+          return CreateBoundsInferenceError();
+
+        // Bounds expressions are not null ptrs.
+        if (isa<BoundsExpr>(E))
+          return Bounds;
+
+        // Null Ptrs always have bounds(any).
+        // This is the correct way to detect all the different ways that
+        // C can make a null ptr.
+        if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent))
+          return CreateBoundsAny();
+      }
+
       return Bounds;
     }
 
