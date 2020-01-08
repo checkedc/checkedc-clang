@@ -309,7 +309,7 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
     return std::make_pair(BO, nullptr);
 
   // To make parsing simpler, we always try to keep BinaryOperator on the LHS.
-  if (isa<BinaryOperator>(RHS))
+  if (!isa<BinaryOperator>(LHS) && isa<BinaryOperator>(RHS))
     std::swap(LHS, RHS);
 
   // By this time the LHS should be a BinaryOperator; either because it already
@@ -323,6 +323,10 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // Case 5: (p + j) + i
   // Case 6: (p + q) + r
   // Case 7: (p + j) + r
+
+  // TODO: Currently we assume that the RHS cannot be a BinaryOperator. So we
+  // do not handle cases like: (p + q) + (i + j).
+
   auto *BE = dyn_cast<BinaryOperator>(LHS);
 
   // Recursively, make the LHS uniform.
