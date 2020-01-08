@@ -266,6 +266,16 @@ namespace clang {
     // @return The VarDecl for the ntptr.
     const VarDecl *GetNtArrayVarDecl(const Expr *E);
 
+    // An IntegerLiteral can either be int, +int or -int.
+    // @param[in] E is an expression.
+    // @return Whether E contains an IntegerLiteral.
+    bool IsIntegerOperand(const Expr *E) const;
+
+    // Get the APInt value from an expression representing an IntegerLiteral.
+    // @param[in] E represents an IntegerLiteral.
+    // @return Return the APInt value for E. Return APInt(0) if E is nullptr.
+    const llvm::APInt GetAPIntVal(const Expr *E) const;
+
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
     // @param[in] B is a set.

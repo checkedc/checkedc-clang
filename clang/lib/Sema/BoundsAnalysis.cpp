@@ -136,6 +136,30 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
   return false;
 }
 
+bool BoundsAnalysis::IsIntegerOperand(const Expr *E) const {
+  // An IntegerLiteral could either be int, +int or -int.
+  if (const auto *UO = dyn_cast<UnaryOperator>(E))
+    if (UO->getOpcode() == UO_Plus ||
+        UO->getOpcode() == UO_Minus)
+      return isa<IntegerLiteral>(UO->getSubExpr());
+  return isa<IntegerLiteral>(E);
+}
+
+const llvm::APInt BoundsAnalysis::GetAPIntVal(const Expr *E) const {
+  if (!E) {
+    const llvm::APInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
+    return Zero;
+  }
+
+  if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+    if (UO->getOpcode() == UO_Plus)
+      return dyn_cast<IntegerLiteral>(UO->getSubExpr())->getValue();
+    if (UO->getOpcode() == UO_Minus)
+      return - dyn_cast<IntegerLiteral>(UO->getSubExpr())->getValue();
+  }
+  return dyn_cast<IntegerLiteral>(E)->getValue();
+}
+
 const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(const Expr *E) {
   if (IsDeclOperand(E)) {
     DeclRefExpr *D = GetDeclOperand(E);
@@ -232,13 +256,8 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E, BoundsExpr *BE,
   if (EB->Gen[SuccEB->Block].count(V))
     return;
 
-  const llvm::APInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
-
-  const llvm::APInt DerefOffsetVal = !DerefOffset ? Zero :
-    dyn_cast<IntegerLiteral>(DerefOffset)->getValue();
-
-  const llvm::APInt UpperOffsetVal = !UpperOffset ? Zero :
-    dyn_cast<IntegerLiteral>(UpperOffset)->getValue();
+  const llvm::APInt DerefOffsetVal = GetAPIntVal(DerefOffset);
+  const llvm::APInt UpperOffsetVal = GetAPIntVal(UpperOffset);
 
   // We cannot widen the bounds if the offset in the deref expr is less than
   // the offset in the upper bounds expr. For example:
@@ -292,13 +311,13 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // Case 1: LHS is DeclRefExpr and RHS is IntegerLiteral. This expr is already
   // uniform.
   // p + i ==> return (p, i)
-  if (IsDeclOperand(LHS) && isa<IntegerLiteral>(RHS))
+  if (IsDeclOperand(LHS) && IsIntegerOperand(RHS))
     return std::make_pair(GetDeclOperand(LHS), RHS);
 
   // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
   // swap LHS and RHS to make expr uniform.
   // i + p ==> return (p, i)
-  if (isa<IntegerLiteral>(LHS) && IsDeclOperand(RHS))
+  if (IsIntegerOperand(LHS) && IsDeclOperand(RHS))
     return std::make_pair(GetDeclOperand(RHS), LHS);
 
   // Case 3: LHS and RHS are both DeclRefExprs. This means there is no
@@ -337,7 +356,7 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // Expr is either Case 4 or Case 5 from above. ie: LHS is BinaryOperator
   // and RHS is IntegerLiteral.
   // (p + q) + i OR (p + j) + i
-  if (isa<IntegerLiteral>(RHS)) {
+  if (IsIntegerOperand(RHS)) {
 
     // Expr is Case 4. ie: The BinaryOperator expr does not have an
     // IntegerLiteral on the RHS.
@@ -383,7 +402,7 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
                              BE->getFPFeatures());
 
   // TmpBE is (j + p) and RHS is r. So make the TmpBE as (r + p).
-  if (isa<IntegerLiteral>(TmpBE->getLHS()))
+  if (IsIntegerOperand(TmpBE->getLHS()))
     TmpBE->setLHS(RHS);
   // TmpBE is (p + j) and RHS is r. So make the TmpBE as (p + r).
   else

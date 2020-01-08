@@ -309,9 +309,9 @@ void f15(int i) {
   if (*(p - i)) {}
 
 // CHECK: In function: f15
-// CHECK:  [B5]
+// CHECK:  [B9]
 // CHECK:    2: *(p - i)
-// CHECK:  [B4]
+// CHECK:  [B8]
 // CHECK-NOT: upper_bound(p)
 
   _Nt_array_ptr<char> q : count(0) = "a";
@@ -319,12 +319,30 @@ void f15(int i) {
     if (*(q - 1))  // expected-error {{out-of-bounds memory access}}
   {}
 
-// CHECK:  [B3]
+// CHECK:  [B7]
 // CHECK:    2: *q
-// CHECK:  [B2]
+// CHECK:  [B6]
 // CHECK:    1: *(q - 1)
 // CHECK: upper_bound(q) = 1
-// CHECK:  [B1]
+// CHECK:  [B5]
 // CHECK: upper_bound(q) = 1
 // CHECK-NOT: upper_bound(q)
+
+  _Nt_array_ptr<char> r : bounds(r, r + +1) = "a";
+  if (*(r + +1))
+  {}
+
+// CHECK:  [B4]
+// CHECK:    2: *(r + +1)
+// CHECK:  [B3]
+// CHECK: upper_bound(r) = 1
+
+  _Nt_array_ptr<char> s : bounds(s, s + -1) = "a";
+  if (*(s + -1)) // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK:  [B2]
+// CHECK:    2: *(s + -1)
+// CHECK:  [B1]
+// CHECK: upper_bound(s) = 1
 }
