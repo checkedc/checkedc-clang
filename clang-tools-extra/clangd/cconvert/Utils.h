@@ -31,6 +31,8 @@ extern bool handleVARARGS;
 extern bool mergeMultipleFuncDecls;
 extern bool enablePropThruIType;
 extern bool considerAllocUnsafe;
+extern std::set<std::string> inputFilePaths;
+extern std::string BaseDir;
 
 const clang::Type *getNextTy(const clang::Type *Ty);
 
@@ -68,8 +70,14 @@ bool isStructOrUnionType(clang::VarDecl *VD);
 // Helper method to print a Type in a way that can be represented in the source.
 std::string tyToStr(const clang::Type *T);
 
+// get the end source location of the end of the provided function.
 clang::SourceLocation getFunctionDeclarationEnd(clang::FunctionDecl *FD, clang::SourceManager &S);
 
+// remove auxillary casts from the provided expression.
 clang::Expr* removeAuxillaryCasts(clang::Expr *srcExpr);
+
+// check if the provided file path belongs to the input project
+// and can be rewritten
+bool canWrite(const std::string &filePath);
 
 #endif

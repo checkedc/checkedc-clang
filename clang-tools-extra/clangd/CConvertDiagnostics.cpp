@@ -27,6 +27,10 @@ void CConvertDiagnostics::clearAllDiags() {
   AllFileDiagnostics.clear();
 }
 
+bool isValidSourceFile(DisjointSet &CCRes, std::string &filePath) {
+  return CCRes.validSourceFiles.find(filePath) != CCRes.validSourceFiles.end();
+}
+
 bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
   std::set<ConstraintKey> processedCKeys;
   processedCKeys.clear();
@@ -34,6 +38,10 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
     if (CCRes.PtrSourceMap.find(wReason.first) != CCRes.PtrSourceMap.end()) {
       auto *psInfo = CCRes.PtrSourceMap[wReason.first];
       std::string filePath = psInfo->getFileName();
+      // if this is not a file in a project? Then ignore.
+      if (!isValidSourceFile(CCRes, filePath))
+        continue;
+
       int line = psInfo->getLineNo()-1;
       int colNo = psInfo->getColNo();
       Diag newDiag;
@@ -67,9 +75,14 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
   // for non-direct wild pointers..update the reason and diag information.
   for (auto nonWildCK: CCRes.totalNonDirectWildPointers) {
     if (processedCKeys.find(nonWildCK) == processedCKeys.end()) {
+      processedCKeys.insert(nonWildCK);
       if (CCRes.PtrSourceMap.find(nonWildCK) != CCRes.PtrSourceMap.end()) {
         auto *psInfo = CCRes.PtrSourceMap[nonWildCK];
         std::string filePath = psInfo->getFileName();
+        // if this is not a file in a project? Then ignore.
+        if (!isValidSourceFile(CCRes, filePath))
+          continue;
+
         int line = psInfo->getLineNo() - 1;
         int colNo = psInfo->getColNo();
 
@@ -93,7 +106,7 @@ bool CConvertDiagnostics::populateDiagsFromDisjointSet(DisjointSet &CCRes) {
                               CCRes.allWildPtrs.begin(), CCRes.allWildPtrs.end(),
                               std::inserter(directWildPtrs, directWildPtrs.begin()));
 
-        unsigned maxPtrReasons = 3;
+        unsigned maxPtrReasons = 4;
         for (auto tC : directWildPtrs) {
           DiagnosticRelatedInformation diagRelInfo;
 

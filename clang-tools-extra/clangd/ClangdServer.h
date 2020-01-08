@@ -245,7 +245,8 @@ public:
 
   void executeCConvCommand(ExecuteCommandParams Params,
                            CConvLSPCallBack *ConvCB);
-  void cconvCollectAndBuildInitialConstraints();
+
+  void cconvCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB);
 
   CConvertDiagnostics CConvDiagInfo;
 
@@ -260,6 +261,8 @@ private:
              ArrayRef<tooling::Range> Ranges);
 
   tooling::CompileCommand getCompileCommand(PathRef File);
+
+  void reportCConvDiagsForAllFiles(DisjointSet &ccInfo, CConvLSPCallBack *ConvCB);
 
   const GlobalCompilationDatabase &CDB;
   const FileSystemProvider &FSProvider;

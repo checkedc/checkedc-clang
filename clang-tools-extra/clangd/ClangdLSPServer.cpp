@@ -310,7 +310,7 @@ void ClangdLSPServer::onInitialize(const InitializeParams &Params,
       Params.capabilities.HierarchicalDocumentSymbol;
   SupportFileStatus = Params.initializationOptions.FileStatus;
   // initialize our constraint building system.
-  Server->cconvCollectAndBuildInitialConstraints();
+  Server->cconvCollectAndBuildInitialConstraints(this);
   Reply(llvm::json::Object{
       {{"capabilities",
         llvm::json::Object{
@@ -890,12 +890,10 @@ void ClangdLSPServer::onDiagnosticsReady(PathRef File,
   DiagnosticToReplacementMap LocalFixIts; // Temporary storage
 
   //Diagnostics.clear();
-
-  log("Checking for file: {0}\n", File);
-  for (auto &s : Server->CConvDiagInfo.AllFileDiagnostics) {
+  /*for (auto &s : Server->CConvDiagInfo.AllFileDiagnostics) {
     log("File present: {0}\n", s.first);
     log("Number of diags: {0}\n", s.second.size());
-  }
+  }*/
   Diagnostics.clear();
   // cconv diagnostics.
   if (Server->CConvDiagInfo.AllFileDiagnostics.find(File) != Server->CConvDiagInfo.AllFileDiagnostics.end()) {

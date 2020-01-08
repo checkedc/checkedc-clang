@@ -83,6 +83,30 @@ struct DComp
 
 typedef std::set<DAndReplace, DComp> RSet;
 
+// class that maintains global variables according to the line numbers
+// this groups global variables according to the line numbers in source files.
+// All global variables that belong to the same file and are on the same line
+// will be in the same group.
+// e.g., int *a,*b; // both will be in same group
+// where as
+// int *c;
+// int *d
+// will be in different groups
+
+class GlobalVariableGroups {
+public:
+  GlobalVariableGroups(SourceManager &SourceMgr) : SM(SourceMgr) { }
+  void addGlobalDecl(VarDecl *decl, std::set<VarDecl*> *targetSet = nullptr);
+
+  std::set<VarDecl*> &getVarsOnSameLine(VarDecl *decl);
+
+  virtual ~GlobalVariableGroups();
+
+private:
+  SourceManager &SM;
+  std::map<VarDecl*, std::set<VarDecl*>*> globVarGroups;
+};
+
 void rewrite(ParmVarDecl *PV, Rewriter &R, std::string sRewrite);
 
 void rewrite( VarDecl               *VD,
@@ -92,7 +116,8 @@ void rewrite( VarDecl               *VD,
               RSet                  &skip,
               const DAndReplace     &N,
               RSet                  &toRewrite,
-              ASTContext            &A);
+              ASTContext            &A,
+              GlobalVariableGroups  &GP);
 
 // Visit each Decl in toRewrite and apply the appropriate pointer type
 // to that Decl. The state of the rewrite is contained within R, which
@@ -107,7 +132,8 @@ void rewrite( Rewriter              &R,
               RSet                  &skip,
               SourceManager         &S,
               ASTContext            &A,
-              std::set<FileID>      &Files);
+              std::set<FileID>      &Files,
+              GlobalVariableGroups  &GP);
 
 // Class that handles rewriting bounds information for all the
 // detected array variables.
@@ -156,9 +182,8 @@ private:
 
 class RewriteConsumer : public ASTConsumer {
 public:
-  explicit RewriteConsumer(ProgramInfo &I,
-                           std::set<std::string> &F, ASTContext *Context, std::string &OPostfix, std::string &bDir) :
-                           Info(I), InOutFiles(F), OutputPostfix(OPostfix), BaseDir(bDir) {}
+  explicit RewriteConsumer(ProgramInfo &I, ASTContext *Context, std::string &OPostfix) :
+                           Info(I), OutputPostfix(OPostfix) {}
 
   virtual void HandleTranslationUnit(ASTContext &Context);
 
@@ -168,10 +193,8 @@ private:
   static std::string getModifiedFuncSignature(std::string funcName);
   static bool hasModifiedSignature(std::string funcName);
   ProgramInfo &Info;
-  std::set<std::string> &InOutFiles;
   static std::map<std::string, std::string> ModifiedFuncSignatures;
   std::string &OutputPostfix;
-  std::string &BaseDir;
 };
 
 #endif //_REWRITEUTILS_H

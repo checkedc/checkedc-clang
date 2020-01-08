@@ -35,6 +35,7 @@ public:
   std::map<ConstraintKey, struct WildPointerInferenceInfo> realWildPtrsWithReasons;
   CVars allWildPtrs;
   CVars totalNonDirectWildPointers;
+  std::set<std::string> validSourceFiles;
   std::map<ConstraintKey, PersistentSourceLoc*> PtrSourceMap;
 };
 

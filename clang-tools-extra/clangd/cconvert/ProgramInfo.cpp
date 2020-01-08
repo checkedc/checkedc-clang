@@ -1262,6 +1262,12 @@ bool ProgramInfo::computePointerDisjointSet() {
 
   for ( const auto &I : Variables ) {
     PersistentSourceLoc L = I.first;
+    std::string filePath = L.getFileName();
+    if (canWrite(filePath)) {
+      ConstraintDisjointSet.validSourceFiles.insert(filePath);
+    } else {
+      continue;
+    }
     const std::set<ConstraintVariable *> &S = I.second;
     for (auto *CV: S) {
       if (PVConstraint *PV = dyn_cast<PVConstraint>(CV)) {

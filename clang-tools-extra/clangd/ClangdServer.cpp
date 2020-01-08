@@ -160,12 +160,21 @@ void ClangdServer::addDocument(PathRef File, llvm::StringRef Contents,
                        WantDiags);
 }
 
-void ClangdServer::cconvCollectAndBuildInitialConstraints() {
+void ClangdServer::reportCConvDiagsForAllFiles(DisjointSet &ccInfo, CConvLSPCallBack *ConvCB) {
+  // update the diag information for all the valid files.
+  for (auto &srcFileDiags: CConvDiagInfo.AllFileDiagnostics) {
+    ConvCB->ccConvResultsReady(srcFileDiags.first);
+  }
+}
+
+void ClangdServer::cconvCollectAndBuildInitialConstraints(CConvLSPCallBack *ConvCB) {
   auto Task = [=]() {
     CConvDiagInfo.clearAllDiags();
     buildInitialConstraints();
-    log("CConv: Built initial constraints sucessfully.\n");
-    CConvDiagInfo.populateDiagsFromDisjointSet(getWILDPtrsInfo());
+    log("CConv: Built initial constraints successfully.\n");
+    auto &ccInterfaceInfo = getWILDPtrsInfo();
+    CConvDiagInfo.populateDiagsFromDisjointSet(ccInterfaceInfo);
+    reportCConvDiagsForAllFiles(ccInterfaceInfo, ConvCB);
     log("CConv: Updated the diag information.\n");
   };
   WorkScheduler.run("CConv: Running Initial Constraints", Task);
@@ -179,9 +188,11 @@ void ClangdServer::executeCConvCommand(ExecuteCommandParams Params,
       log("CConv: File of the pointer {0}\n", ptrFileName);
       applyCCCommand(Params, replyMessage);
       this->CConvDiagInfo.clearAllDiags();
-      this->CConvDiagInfo.populateDiagsFromDisjointSet(getWILDPtrsInfo());
+      auto &ccInterfaceInfo = getWILDPtrsInfo();
+      this->CConvDiagInfo.populateDiagsFromDisjointSet(ccInterfaceInfo);
       log("CConv calling call-back\n");
-      ConvCB->ccConvResultsReady(ptrFileName);
+      // ConvCB->ccConvResultsReady(ptrFileName);
+      reportCConvDiagsForAllFiles(ccInterfaceInfo, ConvCB);
   };
   WorkScheduler.run("Applying on demand ptr modifications", Task);
 }

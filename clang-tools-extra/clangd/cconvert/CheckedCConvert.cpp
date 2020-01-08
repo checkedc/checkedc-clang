@@ -14,7 +14,6 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
@@ -27,7 +26,6 @@
 #include "ProgramInfo.h"
 #include "MappingVisitor.h"
 #include "RewriteUtils.h"
-#include "ArrayBoundsInferenceConsumer.h"
 #include "IterativeItypeHelper.h"
 #include "CConvInteractive.h"
 
@@ -75,20 +73,19 @@ private:
   V &Info;
 };
 
-template <typename T, typename V, typename U>
+template <typename T, typename V>
 class RewriteAction : public ASTFrontendAction {
 public:
-  RewriteAction(V &I, U &P) : Info(I),Files(P) {}
+  RewriteAction(V &I) : Info(I) {}
 
   virtual std::unique_ptr<ASTConsumer>
     CreateASTConsumer(CompilerInstance &Compiler, StringRef InFile) {
     return std::unique_ptr<ASTConsumer>
-      (new T(Info, Files, &Compiler.getASTContext(), OutputPostfix, BaseDir));
+      (new T(Info, &Compiler.getASTContext(), OutputPostfix));
   }
 
 private:
   V &Info;
-  U &Files;
 };
 
 template <typename T>
@@ -107,26 +104,6 @@ newFrontendActionFactoryA(ProgramInfo &I) {
   return std::unique_ptr<FrontendActionFactory>(
       new ArgFrontendActionFactory(I));
 }
-
-template <typename T>
-std::unique_ptr<FrontendActionFactory>
-newFrontendActionFactoryB(ProgramInfo &I, std::set<std::string> &PS) {
-  class ArgFrontendActionFactory : public FrontendActionFactory {
-  public:
-    explicit ArgFrontendActionFactory(ProgramInfo &I,
-      std::set<std::string> &PS) : Info(I),Files(PS) {}
-
-    FrontendAction *create() override { return new T(Info, Files); }
-
-  private:
-    ProgramInfo &Info;
-    std::set<std::string> &Files;
-  };
-
-  return std::unique_ptr<FrontendActionFactory>(
-    new ArgFrontendActionFactory(I, PS));
-}
-
 
 std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTyping(ProgramInfo &Info) {
 // solve the constrains by handling function sub-typing.
@@ -148,7 +125,7 @@ std::pair<Constraints::ConstraintSet, bool> solveConstraintsWithFunctionSubTypin
 }
 
 bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
-                                     std::set<std::string> &inoutPaths) {
+                                     std::set<std::string> &inputSourceFiles) {
   bool fixedPointReached = false;
   unsigned long iterationNum = 1;
   unsigned long numberOfEdgesRemoved = 0;
@@ -184,7 +161,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
     }
 
     if(DumpStats) {
-      Info.print_stats(inoutPaths, llvm::errs(), true);
+      Info.print_stats(inputSourceFiles, llvm::errs(), true);
     }
 
     // get all the functions whose constraints have been modified.
@@ -224,7 +201,7 @@ bool performIterativeItypeRefinement(Constraints &CS, ProgramInfo &Info,
   return fixedPointReached;
 }
 
-static std::set<std::string> inoutPaths;
+std::set<std::string> inputFilePaths;
 
 static CompilationDatabase *CurrCompDB = nullptr;
 
@@ -274,12 +251,12 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
   for (const auto &S : sourceFiles) {
     std::string abs_path;
     if (getAbsoluteFilePath(S, abs_path))
-      inoutPaths.insert(abs_path);
+      inputFilePaths.insert(abs_path);
   }
 
   CurrCompDB = &(OptionsParser.getCompilations());
 
-  if (OutputPostfix == "-" && inoutPaths.size() > 1) {
+  if (OutputPostfix == "-" && inputFilePaths.size() > 1) {
     errs() << "If rewriting more than one , can't output to stdout\n";
     return false;
   }
@@ -311,7 +288,7 @@ bool buildInitialConstraints() {
   Constraints &CS = Info.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS, Info, inoutPaths);
+  bool fPointReached = performIterativeItypeRefinement(CS, Info, inputFilePaths);
 
   assert(fPointReached);
   if (Verbose)
@@ -363,7 +340,7 @@ bool makeSinglePtrNonWild(ConstraintKey targetPtr) {
 
   Info.getConstraints().resetConstraints();
 
-  performIterativeItypeRefinement(Info.getConstraints(), Info, inoutPaths);
+  performIterativeItypeRefinement(Info.getConstraints(), Info, inputFilePaths);
   Info.computePointerDisjointSet();
 
   CVars &newWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
@@ -397,7 +374,7 @@ bool invalidateWildReasonGlobally(ConstraintKey targetPtr) {
 
   Info.getConstraints().resetConstraints();
 
-  performIterativeItypeRefinement(Info.getConstraints(), Info, inoutPaths);
+  performIterativeItypeRefinement(Info.getConstraints(), Info, inputFilePaths);
   Info.computePointerDisjointSet();
 
   CVars &newWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
@@ -419,9 +396,7 @@ bool writeConvertedFileToDisk(std::string filePath) {
         currSourceFiles.push_back(filePath);
         ClangTool Tool(*CurrCompDB, currSourceFiles);
         std::unique_ptr<ToolAction> RewriteTool =
-                newFrontendActionFactoryB
-                        <RewriteAction<RewriteConsumer, ProgramInfo, std::set<std::string>>>(
-                        Info, inoutPaths);
+                newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(Info);
 
         if (RewriteTool)
             Tool.run(RewriteTool.get());
@@ -511,9 +486,9 @@ int originalmain(int argc, const char **argv) {
 
   // 3. Re-write based on constraints.
   std::unique_ptr<ToolAction> RewriteTool =
-      newFrontendActionFactoryB
-      <RewriteAction<RewriteConsumer, ProgramInfo, std::set<std::string>>>(
-          Info, inoutPaths);
+      newFrontendActionFactoryA
+      <RewriteAction<RewriteConsumer, ProgramInfo>>(
+          Info);
   
   if (RewriteTool)
     Tool.run(RewriteTool.get());

@@ -11,6 +11,7 @@ void DisjointSet::clear() {
   PtrSourceMap.clear();
   allWildPtrs.clear();
   totalNonDirectWildPointers.clear();
+  validSourceFiles.clear();
 }
 void DisjointSet::addElements(ConstraintKey a, ConstraintKey b) {
   if (leaders.find(a) != leaders.end()) {
