@@ -1899,10 +1899,13 @@ namespace {
         S = E->IgnoreParens();
 
       switch (S->getStmtClass()) {
-        case Expr::UnaryOperatorClass:
-          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S),
-                                            CSS, Facts, SE);
-          break;
+        // CheckUnaryOperator traverses its subexpression,
+        // so there is no need to traverse its children below.
+        case Expr::UnaryOperatorClass: {
+          BoundsExpr *Bounds = CheckUnaryOperator(cast<UnaryOperator>(S),
+                                                  CSS, Facts, SE);
+          return AdjustRValueBounds(S, Bounds);
+        }
         case Expr::CallExprClass:
           ResultBounds = CheckCallExpr(cast<CallExpr>(S),
                                        CSS, Facts, SE);
@@ -2460,15 +2463,21 @@ namespace {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
-      // Recursively compute rvalue bounds for the subexpression,
-      // without performing bounds checking.  Since TraverseStmt still checks
-      // all substatements, enabling bounds checking here could cause
-      // duplicate side effects for an expression.  In future refactoring
-      // stages, this call to RValueBounds will be replaced with a call to
-      // TraverseStmt with side effects potentially enabled
-      // (once TraverseStmt no longer always checks substatements).
-      BoundsExpr *SubExprBounds = RValueBounds(SubExpr, CSS, Facts,
-                                               SideEffects::Disabled);
+      // If the lvalue bounds for the subexpression are needed, they must
+      // be computed before traversing the subexpression.
+      // Traversing the subexpression with side effects may cause a
+      // bounds expression to be set in AddBoundsCheck, which then causes
+      // an assertion failure when pruning temporary bindings in LValueBounds.
+      BoundsExpr *SubExprLValueBounds = nullptr;
+      if (Op == UnaryOperatorKind::UO_AddrOf) {
+        if (!SubExpr->getType()->isFunctionType())
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+      }
+
+      // Recursively infer rvalue bounds for the subexpression,
+      // performing side effects if enabled.  This prevents TraverseStmt from
+      // needing to recursively traverse the children of unary operators.
+      BoundsExpr *SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
 
       // Perform checking with side effects, if enabled.
       if (SE == SideEffects::Enabled) {
@@ -2505,7 +2514,7 @@ namespace {
         if (SubExpr->getType()->isFunctionType())
           return CreateBoundsEmpty();
 
-        return LValueBounds(SubExpr, CSS, Facts);
+        return SubExprLValueBounds;
       }
 
       // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
