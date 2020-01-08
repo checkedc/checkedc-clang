@@ -1885,36 +1885,41 @@ namespace {
     // Traverse methods iterate recursively over AST tree nodes, visiting all
     // children of the node too.
     //
-    // Visit methods do work on individual nodes, such as checking bounds
-    // declarations or inserting bounds checks.
-    void TraverseStmt(Stmt *S, CheckedScopeSpecifier CSS,
-                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
+    // Check methods infer bounds and do work on individual nodes, such as
+    // checking bounds declarations or inserting bounds checks.
+    BoundsExpr *TraverseStmt(Stmt *S, CheckedScopeSpecifier CSS,
+                             std::pair<ComparisonSet, ComparisonSet>& Facts) {
       if (!S)
-        return;
+        return CreateBoundsEmpty();
+
+      BoundsExpr *ResultBounds = CreateBoundsAlwaysUnknown();
+
+      if (Expr *E = dyn_cast<Expr>(S))
+        S = E->IgnoreParens();
 
       switch (S->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          CheckUnaryOperator(cast<UnaryOperator>(S), CSS, Facts,
-                             SideEffects::Enabled);
+          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S), CSS,
+                                            Facts, SideEffects::Enabled);
           break;
         case Expr::CallExprClass:
-          CheckCallExpr(cast<CallExpr>(S), CSS, Facts,
-                        SideEffects::Enabled);
+          ResultBounds = CheckCallExpr(cast<CallExpr>(S), CSS,
+                                       Facts, SideEffects::Enabled);
           break;
         case Expr::MemberExprClass:
-          CheckMemberExpr(cast<MemberExpr>(S), CSS, Facts,
-                          SideEffects::Enabled);
+          ResultBounds = CheckMemberExpr(cast<MemberExpr>(S), CSS,
+                                         Facts, SideEffects::Enabled);
           break;
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          CheckCastExpr(cast<CastExpr>(S), CSS, Facts,
-                        SideEffects::Enabled);
+          ResultBounds = CheckCastExpr(cast<CastExpr>(S), CSS,
+                                       Facts, SideEffects::Enabled);
           break;
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
-          CheckBinaryOperator(cast<BinaryOperator>(S), CSS, Facts,
-                              SideEffects::Enabled);
+          ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S), CSS,
+                                             Facts, SideEffects::Enabled);
           break;
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
@@ -1929,21 +1934,70 @@ namespace {
             // If an initializer expression is present, it is visited
             // during the traversal of children nodes.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
-              CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
+              ResultBounds = CheckVarDecl(VD, CSS, Facts,
+                                          SideEffects::Enabled);
           }
           break;
         }
         case Stmt::ReturnStmtClass: {
           ReturnStmt *RS = cast<ReturnStmt>(S);
-          CheckReturnStmt(RS, CSS, SideEffects::Enabled);
+          ResultBounds = CheckReturnStmt(RS, CSS, SideEffects::Enabled);
+          break;
+        }
+        case Stmt::CHKCBindTemporaryExprClass: {
+          // Suppress diagnostics.  Any intended diagnostics from bounds
+          // inference will be emitted from other calls to RValueBounds.
+          // Once calls to RValueBounds are replaced with calls to TraverseStmt,
+          // diagnostics can be emitted here.
+          Sema::ExprSubstitutionScope Scope(this->S);
+          CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(S);
+          Expr *Child = Binding->getSubExpr();
+          if (const CallExpr *CE = dyn_cast<CallExpr>(Child))
+            ResultBounds = CallExprBounds(CE, Binding);
+          else
+            ResultBounds = RValueBounds(Child, CSS, Facts,
+                                        SideEffects::Disabled);
+          break;
+        }
+        case Expr::ConditionalOperatorClass:
+        case Expr::BinaryConditionalOperatorClass:
+          // TODO: infer correct bounds for conditional operators
+          ResultBounds = CreateBoundsAllowedButNotComputed();
+          break;
+        case Expr::BoundsValueExprClass: {
+          // Suppress diagnostics.  Any intended diagnostics from bounds
+          // inference will be emitted from other calls to RValueBounds.
+          // Once calls to RValueBounds are replaced with calls to TraverseStmt,
+          // diagnostics can be emitted here.
+          Sema::ExprSubstitutionScope Scope(this->S);
+          BoundsValueExpr *BVE = cast<BoundsValueExpr>(S);
+          ResultBounds = RValueBounds(BVE->getTemporaryBinding(), CSS,
+                                      Facts, SideEffects::Disabled);
+          break;
         }
         default: 
           break;
       }
+
+      if (Expr *E = dyn_cast<Expr>(S)) {
+        if (!E->isRValue())
+          ResultBounds = CreateBoundsInferenceError();
+
+        // Null Ptrs always have bounds(any).
+        // This is the correct way to detect all the different ways that
+        // C can make a null ptr.
+        else if (!isa<BoundsExpr>(E)) {
+          if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent))
+            ResultBounds = CreateBoundsAny();
+        }
+      }
+      
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         TraverseStmt(*I, CSS, Facts);
       }
+
+      return ResultBounds;
     }
 
     // Traverse a top-level variable declaration.  If there is an
