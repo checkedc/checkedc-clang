@@ -1888,7 +1888,8 @@ namespace {
     // Check methods infer bounds and do work on individual nodes, such as
     // checking bounds declarations or inserting bounds checks.
     BoundsExpr *TraverseStmt(Stmt *S, CheckedScopeSpecifier CSS,
-                             std::pair<ComparisonSet, ComparisonSet>& Facts) {
+                             std::pair<ComparisonSet, ComparisonSet>& Facts,
+                             SideEffects SE = SideEffects::Enabled) {
       if (!S)
         return CreateBoundsEmpty();
 
@@ -1899,27 +1900,27 @@ namespace {
 
       switch (S->getStmtClass()) {
         case Expr::UnaryOperatorClass:
-          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S), CSS,
-                                            Facts, SideEffects::Enabled);
+          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S),
+                                            CSS, Facts, SE);
           break;
         case Expr::CallExprClass:
-          ResultBounds = CheckCallExpr(cast<CallExpr>(S), CSS,
-                                       Facts, SideEffects::Enabled);
+          ResultBounds = CheckCallExpr(cast<CallExpr>(S),
+                                       CSS, Facts, SE);
           break;
         case Expr::MemberExprClass:
-          ResultBounds = CheckMemberExpr(cast<MemberExpr>(S), CSS,
-                                         Facts, SideEffects::Enabled);
+          ResultBounds = CheckMemberExpr(cast<MemberExpr>(S),
+                                         CSS, Facts, SE);
           break;
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
-          ResultBounds = CheckCastExpr(cast<CastExpr>(S), CSS,
-                                       Facts, SideEffects::Enabled);
+          ResultBounds = CheckCastExpr(cast<CastExpr>(S),
+                                       CSS, Facts, SE);
           break;
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
-          ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S), CSS,
-                                             Facts, SideEffects::Enabled);
+          ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S),
+                                             CSS, Facts, SE);
           break;
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
@@ -1934,14 +1935,13 @@ namespace {
             // If an initializer expression is present, it is visited
             // during the traversal of children nodes.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
-              ResultBounds = CheckVarDecl(VD, CSS, Facts,
-                                          SideEffects::Enabled);
+              ResultBounds = CheckVarDecl(VD, CSS, Facts, SE);
           }
           break;
         }
         case Stmt::ReturnStmtClass: {
           ReturnStmt *RS = cast<ReturnStmt>(S);
-          ResultBounds = CheckReturnStmt(RS, CSS, SideEffects::Enabled);
+          ResultBounds = CheckReturnStmt(RS, CSS, SE);
           break;
         }
         case Stmt::CHKCBindTemporaryExprClass: {
@@ -1994,7 +1994,7 @@ namespace {
       
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
-        TraverseStmt(*I, CSS, Facts);
+        TraverseStmt(*I, CSS, Facts, SE);
       }
 
       return ResultBounds;
