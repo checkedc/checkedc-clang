@@ -179,8 +179,15 @@ namespace clang {
     // @param[in] Dest block for the edge for which the Gen set is updated.
     void FillGenSet(Expr *E, ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
 
-    void FillGenSet(const Expr *E, BoundsExpr *BE,
-                    ElevatedCFGBlock *EB, ElevatedCFGBlock *SuccEB);
+    // Uniformize the expr, fill Gen set and get variables used in bounds expr
+    // for the ntptr.
+    // @param[in] E is an ntptr dereference or array subscript expr.
+    // @param[in] BE is the bounds expr for the ntptr.
+    // @param[in] Source block for the edge for which the Gen set is updated.
+    // @param[in] Dest block for the edge for which the Gen set is updated.
+    void FillGenSetAndGetBoundsVars(const Expr *E, BoundsExpr *BE,
+                                    ElevatedCFGBlock *EB,
+                                    ElevatedCFGBlock *SuccEB);
 
     // Collect all variables used in bounds expr E.
     // @param[in] E represents the bounds expr for an ntptr.
