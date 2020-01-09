@@ -1920,11 +1920,14 @@ namespace {
           ResultBounds = CheckCastExpr(cast<CastExpr>(S),
                                        CSS, Facts, SE);
           break;
+        // CheckBinaryOperator traverses its subexpressions,
+        // so there is no need to traverse its children below.
         case Expr::BinaryOperatorClass:
-        case Expr::CompoundAssignOperatorClass:
-          ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S),
-                                             CSS, Facts, SE);
-          break;
+        case Expr::CompoundAssignOperatorClass: {
+          BoundsExpr *Bounds = CheckBinaryOperator(cast<BinaryOperator>(S),
+                                                   CSS, Facts, SE);
+          return AdjustRValueBounds(S, Bounds);
+        }
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
           CSS = CS->getCheckedSpecifier();
@@ -2018,6 +2021,13 @@ namespace {
 
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
+
+      // Recursively infer rvalue bounds for the subexpressions,
+      // performing side effects if enabled.  This prevents TraverseStmt from
+      // needing to recursively traverse the children of binary operators.
+      BoundsExpr *LHSBounds = TraverseStmt(LHS, CSS, Facts, SE);
+      BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS, Facts, SE);
+
       BinaryOperatorKind Op = E->getOpcode();
 
       // Bounds of the binary operator.
@@ -2033,12 +2043,12 @@ namespace {
 
       // `e1 = e2` has the bounds of `e2`. `e2` is an RValue.
       else if (Op == BinaryOperatorKind::BO_Assign)
-        ResultBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
+        ResultBounds = RHSBounds;
 
       // `e1, e2` has the bounds of `e2`. Both `e1` and `e2`
       // are RValues.
       else if (Op == BinaryOperatorKind::BO_Comma)
-        ResultBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
+        ResultBounds = RHSBounds;
       
       else {
         // Compound Assignments function like assignments mostly,
@@ -2058,14 +2068,14 @@ namespace {
             RHS->getType()->isIntegerType() &&
             BinaryOperator::isAdditiveOp(Op)) {
           ResultBounds = IsCompoundAssignment ?
-            LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS, Facts, SideEffects::Disabled);
+            LValueTargetBounds(LHS, CSS) : LHSBounds;
         }
         // `i + p` has the bounds of `p`. `p` is an RValue.
         // `i += p` has the bounds of `p`. `p` is an RValue.
         else if (LHS->getType()->isIntegerType() &&
             RHS->getType()->isPointerType() &&
             Op == BinaryOperatorKind::BO_Add) {
-          ResultBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
+          ResultBounds = RHSBounds;
         }
         // `e - p` has empty bounds, regardless of the bounds of p.
         // `e -= p` has empty bounds, regardless of the bounds of p.
@@ -2093,8 +2103,7 @@ namespace {
               BinaryOperator::isBitwiseOp(Op) ||
               BinaryOperator::isShiftOp(Op))) {
           BoundsExpr *LeftBounds = IsCompoundAssignment ?
-            LValueTargetBounds(LHS, CSS) : RValueBounds(LHS, CSS, Facts, SideEffects::Disabled);
-          BoundsExpr *RHSBounds = RValueBounds(RHS, CSS, Facts, SideEffects::Disabled);
+            LValueTargetBounds(LHS, CSS) : LHSBounds;
           if (LeftBounds->isUnknown() && !RHSBounds->isUnknown())
             ResultBounds = RHSBounds;
           else if (!LeftBounds->isUnknown() && RHSBounds->isUnknown())
