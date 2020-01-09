@@ -3353,17 +3353,8 @@ namespace {
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
           return CheckBinaryOperator(cast<BinaryOperator>(E), CSS, Facts, SE);
-        case Expr::CallExprClass: {
+        case Expr::CallExprClass:
           return CheckCallExpr(cast<CallExpr>(E), CSS, Facts, SE);
-          // Do not call CheckCallExpr here.  Since CheckCallExpr suppresses
-          // diagnostics emitted as part of CallExprBounds (to reduce unwanted
-          // duplicate diagnostics), calling CheckCallExpr here can result in
-          // wanted diagnostics from CallExprBounds being suppressed.
-          // Once TraverseStmt is fully refactored, calls to RValueBounds can
-          // be replaced with calls to TraverseStmt.
-          CallExpr *CE = cast<CallExpr>(E);
-          return CallExprBounds(CE, nullptr);
-        }
         case Expr::CHKCBindTemporaryExprClass: {
           CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
           Expr *Child = Binding->getSubExpr();
