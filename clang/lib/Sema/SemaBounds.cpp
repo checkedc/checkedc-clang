@@ -2170,17 +2170,7 @@ namespace {
     BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
                               std::pair<ComparisonSet, ComparisonSet>& Facts,
                               SideEffects SE) {
-
-      BoundsExpr *ResultBounds = nullptr;
-      {
-        // Suppress diagnostics that could be emitted in CallExprBounds.
-        // Since TraverseStmt still checks all subexpressions,
-        // bounds inference (including calls to CallExprBounds) may be
-        // performed multiple times on an expression.  Suppressing diagnostics
-        // here prevents duplicate diagnostic messages from being emitted.
-        Sema::ExprSubstitutionScope Scope(S);
-        ResultBounds = CallExprBounds(E, nullptr);
-      }
+      BoundsExpr *ResultBounds = CallExprBounds(E, nullptr);
 
       if (SE == SideEffects::Disabled)
         return ResultBounds;
@@ -3364,6 +3354,7 @@ namespace {
         case Expr::CompoundAssignOperatorClass:
           return CheckBinaryOperator(cast<BinaryOperator>(E), CSS, Facts, SE);
         case Expr::CallExprClass: {
+          return CheckCallExpr(cast<CallExpr>(E), CSS, Facts, SE);
           // Do not call CheckCallExpr here.  Since CheckCallExpr suppresses
           // diagnostics emitted as part of CallExprBounds (to reduce unwanted
           // duplicate diagnostics), calling CheckCallExpr here can result in
