@@ -66,7 +66,7 @@ if ERRORLEVEL 1 (goto cmdfailed)
 
 rem Set up sources for scripts for signing installer
 if "%SIGN_INSTALLER%" NEQ "No" (
-    cd %BUILD_SOURCESDIRECTORY%\automation\Windows\sign
+    cd %BUILD_SOURCESDIRECTORY%\clang\automation\Windows\sign
     if ERRORLEVEL 1 (goto cmdfailed)
     git -c http.extraheader="Authorization: bearer %SYSTEM_ACCESSTOKEN%" fetch origin
     if ERRORLEVEL 1 (goto cmdfailed)
