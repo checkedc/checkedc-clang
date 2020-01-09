@@ -2242,7 +2242,7 @@ namespace {
           continue;
 
         Expr *Arg = E->getArg(i);
-        BoundsExpr *ArgBounds = InferRValueBounds(Arg, CSS, Facts); // Analogous to BoundsExpr *ArgBounds = S.InferRValueBounds(Arg, CSS) in VisitCallExpr
+        BoundsExpr *ArgBounds = InferRValueBounds(Arg, CSS, Facts);
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getBeginLoc(),
                   diag::err_expected_bounds_for_argument) << (i + 1) <<
@@ -2705,17 +2705,12 @@ namespace {
     /// IncludeNullTerm controls whether a null terminator
     /// for an nt_array is included in the bounds (it gives
     /// us physical bounds, not logical bounds).
-    ///
-    /// ExistingBounds prevents duplicate calls to RValueBounds
-    /// in case the rvalue bounds have already been computed for e.
     BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
                                   std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                  bool IncludeNullTerm = false,
-                                  BoundsExpr *ExistingBounds = nullptr) {
+                                  bool IncludeNullTerm = false) {
       bool PrevIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
-      BoundsExpr *Bounds = ExistingBounds ? ExistingBounds :
-                           RValueBounds(E, CSS, Facts, SideEffects::Disabled);
+      BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
       IncludeNullTerminator = PrevIncludeNullTerminator;
       return S.CheckNonModifyingBounds(Bounds, E);
     }
