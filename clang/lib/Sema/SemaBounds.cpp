@@ -1893,6 +1893,9 @@ namespace {
       if (!S)
         return CreateBoundsEmpty();
 
+      // Suppress diagnostics if side effects are disabled.
+      Sema::ExprSubstitutionScope Scope(this->S, SE == SideEffects::Disabled);
+
       BoundsExpr *ResultBounds = CreateBoundsAlwaysUnknown();
 
       if (Expr *E = dyn_cast<Expr>(S))
@@ -2016,9 +2019,6 @@ namespace {
     // e is an rvalue.
     BoundsExpr *CheckBinaryOperator(BinaryOperator *E, CheckedScopeSpecifier CSS,
               std::pair<ComparisonSet, ComparisonSet>& Facts, SideEffects SE) {
-      // Suppress diagnostics if side effects are disabled.
-      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
-
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
       BinaryOperatorKind Op = E->getOpcode();
@@ -2304,9 +2304,6 @@ namespace {
     BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
                               std::pair<ComparisonSet, ComparisonSet>& Facts,
                               SideEffects SE) {
-      // Suppress diagnostics if side effects are disabled.
-      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
-
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
       BoundsExpr *ResultBounds = CreateBoundsUnknown();
@@ -2433,9 +2430,6 @@ namespace {
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
                                 std::pair<ComparisonSet, ComparisonSet>& Facts,
                                 SideEffects SE) {
-      // Suppress diagnostics if side effects are disabled.
-      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
-
       if (SE == SideEffects::Disabled)
         return CreateBoundsEmpty();
 
@@ -2451,9 +2445,6 @@ namespace {
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
                                    std::pair<ComparisonSet, ComparisonSet>& Facts,
                                    SideEffects SE) {
-      // Suppress diagnostics if side effects are disabled.
-      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
-
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
@@ -2581,9 +2572,6 @@ namespace {
 
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
                                 SideEffects SE) {
-      // Suppress diagnostics if side effects are disabled.
-      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
-
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
       if (SE == SideEffects::Disabled)
         return ResultBounds;
@@ -3354,6 +3342,9 @@ namespace {
       if (!E->isRValue()) return CreateBoundsInferenceError();
 
       E = E->IgnoreParens();
+
+      // Suppress diagnostics if side effects are disabled.
+      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
 
       // Null Ptrs always have bounds(any)
       // This is the correct way to detect all the different ways that
