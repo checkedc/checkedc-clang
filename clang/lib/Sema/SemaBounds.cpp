@@ -1953,16 +1953,19 @@ namespace {
           ResultBounds = CheckReturnStmt(RS, CSS, SE);
           break;
         }
+        // Since TraverseStmt still checks all children of temporary binding
+        // expressions, this case should perform bounds inference only,
+        // with no side effects.  In future refactoring stages, there will be
+        // a CheckTemporaryBinding method that performs bounds inference with
+        // side effects in a bottom-up manner.
         case Stmt::CHKCBindTemporaryExprClass: {
-          // Suppress diagnostics.  Any intended diagnostics from bounds
-          // inference will be emitted from other calls to RValueBounds.
-          // Once calls to RValueBounds are replaced with calls to TraverseStmt,
-          // diagnostics can be emitted here.
-          Sema::ExprSubstitutionScope Scope(this->S);
           CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(S);
           Expr *Child = Binding->getSubExpr();
-          if (const CallExpr *CE = dyn_cast<CallExpr>(Child))
+          if (const CallExpr *CE = dyn_cast<CallExpr>(Child)) {
+            // Suppress diagnostics that may be emiited from CallExprBounds.
+            Sema::ExprSubstitutionScope Scope(this->S);
             ResultBounds = CallExprBounds(CE, Binding);
+          }
           else
             ResultBounds = RValueBounds(Child, CSS, Facts,
                                         SideEffects::Disabled);
@@ -1973,15 +1976,15 @@ namespace {
           // TODO: infer correct bounds for conditional operators
           ResultBounds = CreateBoundsAllowedButNotComputed();
           break;
+        // Since TraverseStmt still checks all children of bounds value
+        // expressions, this case should perform bounds inference only,
+        // with no side effects.  In future refactoring stages, there will be
+        // a CheckBoundsValue method that performs bounds inference with
+        // side effects in a bottom-up manner.
         case Expr::BoundsValueExprClass: {
-          // Suppress diagnostics.  Any intended diagnostics from bounds
-          // inference will be emitted from other calls to RValueBounds.
-          // Once calls to RValueBounds are replaced with calls to TraverseStmt,
-          // diagnostics can be emitted here.
-          Sema::ExprSubstitutionScope Scope(this->S);
           BoundsValueExpr *BVE = cast<BoundsValueExpr>(S);
-          ResultBounds = RValueBounds(BVE->getTemporaryBinding(), CSS,
-                                      Facts, SideEffects::Disabled);
+          ResultBounds = RValueBounds(BVE->getTemporaryBinding(), CSS, Facts,
+                                      SideEffects::Disabled);
           break;
         }
         default: 
