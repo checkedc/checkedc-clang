@@ -137,6 +137,9 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
 }
 
 bool BoundsAnalysis::IsIntegerOperand(const Expr *E) const {
+  if (!E)
+    return false;
+
   // An IntegerLiteral could either be int, +int or -int.
   if (const auto *UO = dyn_cast<UnaryOperator>(E))
     if (UO->getOpcode() == UO_Plus ||
@@ -146,7 +149,7 @@ bool BoundsAnalysis::IsIntegerOperand(const Expr *E) const {
 }
 
 const llvm::APInt BoundsAnalysis::GetAPIntVal(const Expr *E) const {
-  if (!E) {
+  if (!IsIntegerOperand(E)) {
     const llvm::APInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
     return Zero;
   }
@@ -160,33 +163,70 @@ const llvm::APInt BoundsAnalysis::GetAPIntVal(const Expr *E) const {
   return dyn_cast<IntegerLiteral>(E)->getValue();
 }
 
-const VarDecl *BoundsAnalysis::GetNtArrayVarDecl(const Expr *E) {
-  if (IsDeclOperand(E)) {
-    DeclRefExpr *D = GetDeclOperand(E);
-    if (const auto *V = dyn_cast<VarDecl>(D->getDecl()))
-      if (IsNtArrayType(V))
-        return V;
-  }
+DeclSetTy BoundsAnalysis::GetNtPtrsInBlock(const CFGBlock *B) const {
+  DeclSetTy NtPtrsInBlock;
+  if (!B)
+    return NtPtrsInBlock;
 
-  if (const auto *BO = dyn_cast<BinaryOperator>(E)) {
-    const VarDecl *V = GetNtArrayVarDecl(BO->getLHS());
-    if (V)
-      return V;
-    return GetNtArrayVarDecl(BO->getRHS());
+  for (CFGElement Elem : *B) {
+    if (Elem.getKind() != CFGElement::Statement)
+      continue;
+
+    auto *S = Elem.castAs<CFGStmt>().getStmt();
+    if (auto *DS = dyn_cast<DeclStmt>(S))
+      if (DS->isSingleDecl())
+        if (const auto *V = dyn_cast<VarDecl>(DS->getSingleDecl()))
+          if (IsNtArrayType(V))
+            NtPtrsInBlock.insert(V);
   }
-  return nullptr;
+  return NtPtrsInBlock;
 }
 
-void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E, BoundsExpr *BE,
+void BoundsAnalysis::GetNtPtrsInScope(const CFGBlock *B,
+                                      DeclSetTy &NtPtrsInScope,
+                                      bool CheckParams) const {
+
+  // An ntptr is in scope in the current block if:
+  // 1. It is passed as a parameter to the current function OR
+  // 2. It is defined in any pred of the current block.
+
+  // If CheckParams is true, check for ntptr in the params of the current
+  // function.
+  if (CheckParams) {
+    for (const ParmVarDecl *PD : FD->parameters())
+      if (IsNtArrayType(PD))
+        NtPtrsInScope.insert(PD);
+  }
+
+  if (!B)
+    return;
+
+  // Get the ntptrs in scope for the current block.
+  DeclSetTy Decls = GetNtPtrsInBlock(B);
+  if (Decls.size())
+    NtPtrsInScope.insert(Decls.begin(), Decls.end());
+
+  // In order to get the ntptrs in scope in the current block, we recurse
+  // through all preds of the block. This algorithm can be optimized by
+  // memoizing the ntptrs in scope for all blocks so we can terminate the
+  // recursion earlier.
+
+  // TODO: Currently, we cannot widen a local ntptr which overrides a global
+  // ntptr of the same name.
+  for (const CFGBlock *pred : B->preds()) {
+    if (SkipBlock(pred))
+      continue;
+
+    GetNtPtrsInScope(pred, NtPtrsInScope);
+  }
+}
+
+void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
                                                 ElevatedCFGBlock *EB,
                                                 ElevatedCFGBlock *SuccEB) {
 
   // TODO: Handle accesses of the form:
   // "if (*(p + i) && *(p + j) && *(p + k))"
-
-  const auto *RBE = dyn_cast<RangeBoundsExpr>(BE);
-  if (!RBE)
-    return;
 
   // The deref expr can be of 2 forms:
   // 1. Ptr deref or array subscript: if (*p) or p[i]
@@ -210,87 +250,110 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E, BoundsExpr *BE,
   if (!DerefBase)
     return;
 
-  // Also make the upper bounds expr uniform.
-  const Expr *UE = RBE->getUpperExpr();
-  if (!UE)
-    return;
-
-  ExprPairTy UpperExprPair = SplitIntoBaseOffset(UE);
-  const Expr *UpperBase = UpperExprPair.first;
-  const Expr *UpperOffset = UpperExprPair.second;
-  if (!UpperBase)
-    return;
+  // Get all ntptrs in scope for the current block.
+  DeclSetTy NtPtrsInScope;
+  GetNtPtrsInScope(EB->Block, NtPtrsInScope,
+                   true /* Check ntptrs in params */);
 
   // For bounds widening, the base of the deref expr and the upper bounds expr
-  // should be the same.
+  // for all ntptrs in scope should be the same.
 
   // For example:
   // _Nt_array_ptr<T> p : bounds(p, p + i);
+  // _Nt_array_ptr<T> q : bounds(p, p + i);
+  // _Nt_array_ptr<T> r : bounds(r, r + i);
 
-  // if (*(p + i)) // widen by 1
-  //   if (*(p + i + 1)) // widen by 2
-  //     if (*(p + i + 2)) // widen by 3
+  // if (*(p + i)) // widen p and q by 1
+  //   if (*(p + i + 1)) // widen p and q by 2
+  //     if (*(p + i + 2)) // widen p and q by 3
 
-  // if (*(p + i)) // widen by 1
+  // if (*(p + i)) // widen p and q by 1
   //   if (*(p + i + 2)) // no widening
 
   // if (*p) // no widening
   //   if (*(p + 1)) // no widening
-  //     if (*(p + i)) // widen by 1
+  //     if (*(p + i)) // widen p and q by 1
 
   // TODO: Currently, Lexicographic::CompareExpr does not understand
   // commutativity of operations. Exprs like "p + e" and "e + p" are considered
   // unequal.
 
-  if (Lex.CompareExpr(DerefBase, UpperBase) !=
-      Lexicographic::Result::Equal)
-    return;
+  for (const VarDecl *V : NtPtrsInScope) {
+    // We try to be conservative in the sense that whenever we find a null
+    // VarDecl or an empty RangeBoundsExpr, we simply skip widening for that
+    // ntptr instead of asserting.
+    if (!V)
+      continue;
 
-  // Extract the ntptr from the lower bounds expr.
-  const VarDecl *V = GetNtArrayVarDecl(RBE->getLowerExpr());
-  if (!V)
-    return;
+    // In case the bounds expr for V is not a RangeBoundsExpr, invoke
+    // ExpandBoundsToRange to expand it to RangeBoundsExpr.
+    const BoundsExpr *BE = S.ExpandBoundsToRange(V, V->getBoundsExpr());
+    const auto *RBE = dyn_cast<RangeBoundsExpr>(BE);
 
-  // Update the bounds of p on the edge EB->SuccEB only if we haven't already
-  // updated them.
-  if (EB->Gen[SuccEB->Block].count(V))
-    return;
+    if (!RBE)
+      continue;
 
-  const llvm::APInt DerefOffsetVal = GetAPIntVal(DerefOffset);
-  const llvm::APInt UpperOffsetVal = GetAPIntVal(UpperOffset);
+    // Collect all variables involved in the upper and lower bounds exprs for
+    // the ntptr. An assignment to any such variable would kill the widenend
+    // bounds for the ntptr.
+    if (!SuccEB->BoundsVars.count(V)) {
+      DeclSetTy BoundsVars;
+      CollectBoundsVars(RBE, BoundsVars);
+      SuccEB->BoundsVars[V] = BoundsVars;
+    }
 
-  // We cannot widen the bounds if the offset in the deref expr is less than
-  // the offset in the upper bounds expr. For example:
-  // _Nt_array_ptr<T> p : bounds(p, p + i + 2); // Upper Bounds Offset (UBO) = 2.
+    // Update the bounds of p on the edge EB->SuccEB only if we haven't already
+    // updated them.
+    if (EB->Gen[SuccEB->Block].count(V))
+      continue;
 
-  // if (*(p + i)) // Offset = 0 < UBO ==> no widening
-  //   if (*(p + i + 1)) // Offset = 1 < UBO ==> no widening
-  //     if (*(p + i + 2)) // Offset = 2 == UBO ==> widen by 1
-  //       if (*(p + i + 3)) // Offset = 3 > UBO ==> widen by 2
-  if (Lex.CompareAPInt(DerefOffsetVal, UpperOffsetVal) ==
-      Lexicographic::Result::LessThan)
-    return;
+    const Expr *UE = RBE->getUpperExpr();
+    // Can this ever happen?
+    if (!UE)
+      continue;
 
-  // (DerefOffset - UpperOffset) gives us the amount by which the ntptr should
-  // be widened.
-  // TODO: Check to see if that difference overflows/underflows.
-  llvm::APInt OffsetDiff = DerefOffsetVal - UpperOffsetVal;
+    // Split the upper bounds expr into base and offset for matching with the
+    // DerefBase.
+    ExprPairTy UpperExprPair = SplitIntoBaseOffset(UE);
+    const Expr *UpperBase = UpperExprPair.first;
+    const Expr *UpperOffset = UpperExprPair.second;
+    if (!UpperBase)
+      continue;
 
-  EB->Gen[SuccEB->Block][V] = OffsetDiff.getLimitedValue();
+    if (Lex.CompareExpr(DerefBase, UpperBase) !=
+        Lexicographic::Result::Equal)
+      continue;
 
-  // Collect all variables involved in the upper and lower bounds exprs for
-  // the ntptr. An assignment to any such variable would kill the widenend
-  // bounds for the ntptr.
-  if (!SuccEB->BoundsVars.count(V)) {
-    DeclSetTy BoundsVars;
-    CollectBoundsVars(BE, BoundsVars);
-    SuccEB->BoundsVars[V] = BoundsVars;
+    const llvm::APInt DerefOffsetVal = GetAPIntVal(DerefOffset);
+    const llvm::APInt UpperOffsetVal = GetAPIntVal(UpperOffset);
+
+    // We cannot widen the bounds if the offset in the deref expr is less than
+    // the offset in the upper bounds expr. For example:
+    // _Nt_array_ptr<T> p : bounds(p, p + i + 2); // Upper Bounds Offset (UBO) = 2.
+
+    // if (*(p + i)) // Offset = 0 < UBO ==> no widening
+    //   if (*(p + i + 1)) // Offset = 1 < UBO ==> no widening
+    //     if (*(p + i + 2)) // Offset = 2 == UBO ==> widen by 1
+    //       if (*(p + i + 3)) // Offset = 3 > UBO ==> widen by 2
+    if (Lex.CompareAPInt(DerefOffsetVal, UpperOffsetVal) ==
+        Lexicographic::Result::LessThan)
+      continue;
+
+    // (DerefOffset - UpperOffset) gives us the amount by which the ntptr should
+    // be widened.
+    // TODO: Check to see if that difference overflows/underflows.
+    llvm::APInt OffsetDiff = DerefOffsetVal - UpperOffsetVal;
+
+    EB->Gen[SuccEB->Block][V] = OffsetDiff.getLimitedValue();
   }
 }
 
 ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // In order to make an expression uniform, we want to keep all DeclRefExprs
   // on the LHS and all IntegerLiterals on the RHS.
+
+  if (!E)
+    return std::make_pair(nullptr, nullptr);
 
   if (IsDeclOperand(E))
     return std::make_pair(GetDeclOperand(E), nullptr);
@@ -440,12 +503,12 @@ void BoundsAnalysis::FillGenSet(Expr *E,
                                AE->getValueKind(), AE->getObjectKind(),
                                AE->getExprLoc(), FPOptions());
 
-    FillGenSetAndGetBoundsVars(BO, AE->getBoundsExpr(), EB, SuccEB);
+    FillGenSetAndGetBoundsVars(BO, EB, SuccEB);
 
   } else if (auto *UO = dyn_cast<UnaryOperator>(E)) {
     if (UO->getOpcode() == UO_Deref) {
       const Expr *UE = IgnoreCasts(UO->getSubExpr());
-      FillGenSetAndGetBoundsVars(UE, UO->getBoundsExpr(), EB, SuccEB);
+      FillGenSetAndGetBoundsVars(UE, EB, SuccEB);
     }
   }
 }
@@ -683,7 +746,7 @@ bool BoundsAnalysis::SkipBlock(const CFGBlock *B) const {
   return !B || B == &Cfg->getEntry() || B == &Cfg->getExit();
 }
 
-void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
+void BoundsAnalysis::DumpWidenedBounds() {
   llvm::outs() << "--------------------------------------\n";
   llvm::outs() << "In function: " << FD->getName() << "\n";
 

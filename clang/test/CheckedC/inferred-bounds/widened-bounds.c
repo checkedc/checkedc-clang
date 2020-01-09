@@ -346,3 +346,96 @@ void f15(int i) {
 // CHECK:  [B1]
 // CHECK: upper_bound(s) = 1
 }
+
+void f16(_Nt_array_ptr<char> p : bounds(p, p)) {
+  _Nt_array_ptr<char> q : bounds(p, p) = "a";
+  _Nt_array_ptr<char> r : bounds(p, p + 1) = "a";
+
+  if (*(p))
+    if (*(p + 1)) // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK: In function: f16
+// CHECK:  [B3]
+// CHECK:    3: *(p)
+// CHECK:  [B2]
+// CHECK:    1: *(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK: upper_bound(q) = 1
+// CHECK:  [B1]
+// CHECK: upper_bound(p) = 2
+// CHECK: upper_bound(q) = 2
+// CHECK: upper_bound(r) = 1
+}
+
+void f17(char p _Nt_checked[] : count(1)) {
+  _Nt_array_ptr<char> q : bounds(p, p + 1) = "a";
+  _Nt_array_ptr<char> r : bounds(p, p) = "a";
+
+  if (*(p))
+    if (*(p + 1))
+  {}
+
+// CHECK: In function: f17
+// CHECK:  [B3]
+// CHECK:    3: *(p)
+// CHECK:  [B2]
+// CHECK:    1: *(p + 1)
+// CHECK: upper_bound(r) = 1
+// CHECK:  [B1]
+// CHECK: upper_bound(r) = 2
+// CHECK: upper_bound(p) = 1
+// CHECK: upper_bound(q) = 1
+}
+
+void f18() {
+  char p _Nt_checked[] = "a";
+  char q _Nt_checked[] = "ab";
+  char r _Nt_checked[] : count(0) = "ab";
+  char s _Nt_checked[] : count(1) = "ab";
+
+  if (p[0])
+    if (p[1])
+  {}
+
+// CHECK: In function: f18
+// CHECK:  [B12]
+// CHECK:    5: p[0]
+// CHECK:  [B11]
+// CHECK:    1: p[1]
+// CHECK:  [B10]
+// CHECK: upper_bound(p) = 1
+
+  if (q[0])
+    if (q[1])
+      if (q[2])
+  {}
+
+// CHECK:  [B9]
+// CHECK:    1: q[0]
+// CHECK:  [B8]
+// CHECK:    1: q[1]
+// CHECK:  [B7]
+// CHECK:    1: q[2]
+// CHECK:  [B6]
+// CHECK: upper_bound(q) = 1
+
+  if (r[0])
+  {}
+
+// CHECK:  [B5]
+// CHECK:    1: r[0]
+// CHECK:  [B4]
+// CHECK: upper_bound(r) = 1
+
+  if (s[0])
+    if (s[1])
+  {}
+
+// CHECK:  [B3]
+// CHECK:    1: s[0]
+// CHECK:  [B2]
+// CHECK:    1: s[1]
+// CHECK:  [B1]
+// CHECK: upper_bound(s) = 1
+}

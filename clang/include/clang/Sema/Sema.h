@@ -4989,6 +4989,12 @@ public:
   // will always fail.
   void WarnDynamicCheckAlwaysFails(const Expr *Condition);
 
+  // This is wrapper around CheckBoundsDeclaration::ExpandToRange. This
+  // provides an easy way to invoke this function from outside the class. Given
+  // a byte_count or count bounds expression for the VarDecl D, ExpandToRange
+  // will expand it to a range bounds expression.
+  BoundsExpr *ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B);
+
   //
   // Track variables that in-scope bounds declarations depend upon.
   // TODO: generalize this to other lvalue expressions.

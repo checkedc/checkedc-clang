@@ -89,11 +89,15 @@ namespace clang {
   // when an expression is split into a base and an offset.
   using ExprPairTy = std::pair<const Expr *, const Expr *>;
 
+  // A mapping from a block to variables declared in the block.
+  using BlockDeclMapTy = llvm::DenseMap<const CFGBlock *, DeclSetTy>;
+
   class BoundsAnalysis {
   private:
     Sema &S;
     CFG *Cfg;
     ASTContext &Ctx;
+    FunctionDecl *FD;
     Lexicographic Lex;
 
     // The final widened bounds will reside here. This is a map keyed by
@@ -122,7 +126,8 @@ namespace clang {
     using WorkListTy = QueueSet<ElevatedCFGBlock>;
 
   public:
-    BoundsAnalysis(Sema &S, CFG *Cfg) : S(S), Cfg(Cfg), Ctx(S.Context),
+    BoundsAnalysis(Sema &S, CFG *Cfg, FunctionDecl *FD) :
+      S(S), Cfg(Cfg), Ctx(S.Context), FD(FD),
       Lex(Lexicographic(Ctx, nullptr)) {}
 
     // Run the dataflow analysis to widen bounds for ntptr's.
@@ -136,7 +141,7 @@ namespace clang {
     // Pretty print the widen bounds analysis.
     // @param[in] FD is used to extract the name of the current function for
     // printing.
-    void DumpWidenedBounds(FunctionDecl *FD);
+    void DumpWidenedBounds();
 
   private:
     // Compute Gen set for each edge in the CFG. If there is an edge B1->B2 and
@@ -182,10 +187,9 @@ namespace clang {
     // Uniformize the expr, fill Gen set and get variables used in bounds expr
     // for the ntptr.
     // @param[in] E is an ntptr dereference or array subscript expr.
-    // @param[in] BE is the bounds expr for the ntptr.
     // @param[in] Source block for the edge for which the Gen set is updated.
     // @param[in] Dest block for the edge for which the Gen set is updated.
-    void FillGenSetAndGetBoundsVars(const Expr *E, BoundsExpr *BE,
+    void FillGenSetAndGetBoundsVars(const Expr *E,
                                     ElevatedCFGBlock *EB,
                                     ElevatedCFGBlock *SuccEB);
 
@@ -260,12 +264,6 @@ namespace clang {
     // and the second contains all IntegerLiterals of E.
     ExprPairTy SplitIntoBaseOffset(const Expr *E);
 
-    // Get the VarDecl for the ntptr from E if E is the lower bounds expr for
-    // an ntptr.
-    // @param[in] E is the expressions for the lower bounds for an ntptr.
-    // @return The VarDecl for the ntptr.
-    const VarDecl *GetNtArrayVarDecl(const Expr *E);
-
     // An IntegerLiteral can either be int, +int or -int.
     // @param[in] E is an expression.
     // @return Whether E contains an IntegerLiteral.
@@ -275,6 +273,23 @@ namespace clang {
     // @param[in] E represents an IntegerLiteral.
     // @return Return the APInt value for E. Return APInt(0) if E is nullptr.
     const llvm::APInt GetAPIntVal(const Expr *E) const;
+
+    // Check whether there is an ntptr defined in the current block.
+    // @param[in] B is the current block.
+    DeclSetTy GetNtPtrsInBlock(const CFGBlock *B) const;
+
+    // Get the ntptrs in scope. These will be the ntptrs declared in any pred
+    // of a block as well as those passed as function parameters to the current
+    // function. This function will recurse for all preds of a block.
+    // @param[in] B is the current CFGBlock.
+    // @param[out] NtPtrsInScope is a set of all ntptrs in scope in block B.
+    // @param[in] GetNtPtrsInScope recurses for all preds of a block. But the
+    // params to the current function remain the same for all blocks in this
+    // function. So we only need to check ntptrs in the params only once. This
+    // flag is false by default and is set to true for the first time this
+    // function is invoked.
+    void GetNtPtrsInScope(const CFGBlock *B, DeclSetTy &NtPtrsInScope,
+                          bool CheckParams = false) const;
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
