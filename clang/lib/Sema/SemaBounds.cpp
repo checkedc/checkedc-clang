@@ -2501,7 +2501,8 @@ namespace {
       if (Op == UnaryOperatorKind::UO_AddrOf) {
         if (!SubExpr->getType()->isFunctionType())
           SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
-      }
+      } else if (SE == SideEffects::Enabled && E->isIncrementDecrementOp())
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
 
       // Recursively infer rvalue bounds for the subexpression,
       // performing side effects if enabled.  This prevents TraverseStmt from
@@ -2516,7 +2517,8 @@ namespace {
         if (E->isIncrementDecrementOp()) {
           bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
                                                  OperationKind::Other,
-                                                 CSS, Facts);
+                                                 CSS, Facts,
+                                                 SubExprLValueBounds);
           if (NeedsBoundsCheck && DumpBounds)
             DumpExpression(llvm::outs(), E);
         }
