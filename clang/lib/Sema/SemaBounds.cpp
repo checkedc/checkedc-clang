@@ -468,8 +468,10 @@ namespace {
 
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics	
     ExprResult R = PruneTemporaryHelper(SemaRef).TransformExpr(E);	
-    assert(!R.isInvalid());	
-    return R.get();	
+    if (R.isInvalid())
+      return SemaRef.Context.getPrebuiltBoundsUnknown();
+    else
+      return R.get();
   }	
 }
 
@@ -586,13 +588,14 @@ namespace {
     };
 
     bool AddBoundsCheck(Expr *E, OperationKind OpKind, CheckedScopeSpecifier CSS,
-                        std::pair<ComparisonSet, ComparisonSet>& Facts) {
+                        std::pair<ComparisonSet, ComparisonSet>& Facts,
+                        BoundsExpr *ExistingLValueBounds = nullptr) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
       QualType PtrType;
       if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
         NeedsBoundsCheck = true;
-        BoundsExpr *LValueBounds = InferLValueBounds(E, CSS, Facts);
+        BoundsExpr *LValueBounds = InferLValueBounds(E, CSS, Facts, ExistingLValueBounds);
         BoundsCheckKind Kind = BCK_Normal;
         // Null-terminated array pointers have special semantics for
         // bounds checks.
@@ -2302,18 +2305,41 @@ namespace {
       BoundsExpr *ResultBounds = CreateBoundsUnknown();
 
       Expr *SubExpr = E->getSubExpr();
+      CastKind CK = E->getCastKind();
+
       bool IncludeNullTerm =
           E->getType()->getPointeeOrArrayElementType()->isNtCheckedArrayType();
+      bool PreviousIncludeNullTerminator = IncludeNullTerminator;
+      IncludeNullTerminator = IncludeNullTerm;
 
-      // Recursively infer rvalue bounds for the subexpression,
+      // If the lvalue target bounds and lvalue bounds for the
+      // subexpression are needed, they must be computed before
+      // performing potential side effects on the subexpression.
+      bool IsResultCastBounds = (E->getStmtClass() == Stmt::ImplicitCastExprClass ||
+                                 E->getStmtClass() == Stmt::CStyleCastExprClass) &&
+                                 !E->getType()->isCheckedPointerPtrType();
+      BoundsExpr *SubExprTargetBounds = nullptr;
+      BoundsExpr *SubExprLValueBounds = nullptr;
+      if (CK == CK_LValueToRValue) {
+        // SubExprTargetBounds is needed if RValueCastBounds
+        // is called on an LValueToRValue cast.
+        if (IsResultCastBounds)
+          SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
+        // SubExprLValueBounds is needed if a bounds check
+        // is added to the subexpression.
+        if (!E->getType()->isArrayType() && SE == SideEffects::Enabled)
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+      }
+      // SubExprLValueBounds is needed if RValueCastBounds
+      // is called on an ArrayToPointerDecay cast.
+      if (CK == CK_ArrayToPointerDecay && IsResultCastBounds)
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+
+      // Recursively infer the rvalue bounds for the subexpression,
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of cast expressions.
-      bool PrevIncludeNullTerminator = IncludeNullTerminator;
-      IncludeNullTerminator = IncludeNullTerm;
       BoundsExpr *SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
-      IncludeNullTerminator = PrevIncludeNullTerminator;
-
-      CastKind CK = E->getCastKind();
+      IncludeNullTerminator = PreviousIncludeNullTerminator;
 
       // Casts to _Ptr narrow the bounds.  If the cast to
       // _Ptr is invalid, that will be diagnosed separately.
@@ -2322,8 +2348,9 @@ namespace {
         if (E->getType()->isCheckedPointerPtrType())
           ResultBounds = CreateTypeBasedBounds(E, E->getType(), false, false);
         else
-          ResultBounds = InferRValueCastBounds(CK, SubExpr, Facts, CSS,
-                                               IncludeNullTerm, SubExprBounds);
+          ResultBounds = RValueCastBounds(CK, SubExprTargetBounds,
+                                          SubExprLValueBounds,
+                                          SubExprBounds);
       }
 
       if (SE == SideEffects::Enabled)
@@ -2332,7 +2359,8 @@ namespace {
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
         if (SE == SideEffects::Enabled) {
           bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
-                                                OperationKind::Read, CSS, Facts);
+                                                 OperationKind::Read, CSS,
+                                                 Facts, SubExprLValueBounds);
           if (NeedsBoundsCheck && DumpBounds)
             DumpExpression(llvm::outs(), E);
         }
@@ -2667,9 +2695,16 @@ namespace {
     /// Infer a bounds expression for an lvalue.
     /// The bounds determine whether the lvalue to which an
     /// expression evaluates in in range.
+    /// 
+    /// ExistingLValueBounds is used to prevent recomputing the
+    /// lvlaue bounds for an expression that may have had side
+    /// effects performed on it.  This prevents assertion failures
+    /// that could otherwise occur in PruneTemporaryBindings.
     BoundsExpr *InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      BoundsExpr *Bounds = LValueBounds(E, CSS, Facts);
+                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                  BoundsExpr *ExistingLValueBounds) {
+      BoundsExpr *Bounds = ExistingLValueBounds ?
+                            ExistingLValueBounds : LValueBounds(E, CSS, Facts);
       return S.CheckNonModifyingBounds(Bounds, E);
     }
 
@@ -2686,28 +2721,6 @@ namespace {
                                   std::pair<ComparisonSet, ComparisonSet>& Facts) {
       BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
       return S.CheckNonModifyingBounds(Bounds, E);
-    }
-
-    /// Infer the bounds of a cast operation that produces an rvalue.
-    ///
-    /// IncludeNullTerm controls whether a null terminator
-    /// for an nt_array is included in the bounds (it gives
-    /// us physical bounds, not logical bounds).
-    ///
-    /// ExistingRValueBounds prevents RValueCastBounds from recomputing
-    /// any previously computed rvalue bounds for the expression.
-    BoundsExpr *InferRValueCastBounds(CastKind CK, Expr *E,
-                                      std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                      CheckedScopeSpecifier CSS,
-                                      bool IncludeNullTerm,
-                                      BoundsExpr *ExistingRValueBounds) {
-      bool PrevIncludeNullTerminator = IncludeNullTerminator;
-      IncludeNullTerminator = IncludeNullTerm;
-      BoundsExpr *Bounds = RValueCastBounds(CK, E, Facts, CSS,
-                                            SideEffects::Disabled,
-                                            ExistingRValueBounds);
-      IncludeNullTerminator = PrevIncludeNullTerminator;
-      return Bounds;
     }
 
     /// Get the rvalue bounds of a statement,
@@ -3292,14 +3305,9 @@ namespace {
     }
 
     // Compute the bounds of a cast operation that produces an rvalue.
-    //
-    // ExistingRValueBounds prevents duplicate calls to RValueBounds
-    // for expressions where the rvalue bounds have already been computed.
-    BoundsExpr *RValueCastBounds(CastKind CK, Expr *E,
-                                 std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                 CheckedScopeSpecifier CSS,
-                                 SideEffects SE,
-                                 BoundsExpr *ExistingRValueBounds) {
+    BoundsExpr *RValueCastBounds(CastKind CK, BoundsExpr *TargetBounds,
+                                 BoundsExpr *LValueBounds,
+                                 BoundsExpr *RValueBounds) {
       switch (CK) {
         case CastKind::CK_BitCast:
         case CastKind::CK_NoOp:
@@ -3310,12 +3318,11 @@ namespace {
         case CastKind::CK_IntegralCast:
         case CastKind::CK_IntegralToBoolean:
         case CastKind::CK_BooleanToSignedIntegral:
-          return ExistingRValueBounds ?
-                  ExistingRValueBounds : RValueBounds(E, CSS, Facts, SE);
+          return RValueBounds;
         case CastKind::CK_LValueToRValue:
-          return LValueTargetBounds(E, CSS);
+          return TargetBounds;
         case CastKind::CK_ArrayToPointerDecay:
-          return LValueBounds(E, CSS, Facts);
+          return LValueBounds;
         case CastKind::CK_DynamicPtrBounds:
         case CastKind::CK_AssumePtrBounds:
           llvm_unreachable("unexpected rvalue bounds cast");
