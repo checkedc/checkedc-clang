@@ -468,8 +468,10 @@ namespace {
 
     Sema::ExprSubstitutionScope Scope(SemaRef); // suppress diagnostics	
     ExprResult R = PruneTemporaryHelper(SemaRef).TransformExpr(E);	
-    assert(!R.isInvalid());	
-    return R.get();	
+    if (R.isInvalid())
+      return SemaRef.Context.getPrebuiltBoundsUnknown();
+    else
+      return R.get();
   }	
 }
 
@@ -2022,6 +2024,10 @@ namespace {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
 
+      // The LHS target bounds must be inferred before
+      // any side effects are performed on the LHS.
+      BoundsExpr *LHSTargetBounds = LValueTargetBounds(LHS, CSS);
+
       // Recursively infer rvalue bounds for the subexpressions,
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of binary operators.
@@ -2068,7 +2074,7 @@ namespace {
             RHS->getType()->isIntegerType() &&
             BinaryOperator::isAdditiveOp(Op)) {
           ResultBounds = IsCompoundAssignment ?
-            LValueTargetBounds(LHS, CSS) : LHSBounds;
+            LHSTargetBounds : LHSBounds;
         }
         // `i + p` has the bounds of `p`. `p` is an RValue.
         // `i += p` has the bounds of `p`. `p` is an RValue.
@@ -2103,7 +2109,7 @@ namespace {
               BinaryOperator::isBitwiseOp(Op) ||
               BinaryOperator::isShiftOp(Op))) {
           BoundsExpr *LeftBounds = IsCompoundAssignment ?
-            LValueTargetBounds(LHS, CSS) : LHSBounds;
+            LHSTargetBounds : LHSBounds;
           if (LeftBounds->isUnknown() && !RHSBounds->isUnknown())
             ResultBounds = RHSBounds;
           else if (!LeftBounds->isUnknown() && RHSBounds->isUnknown())
@@ -2122,8 +2128,6 @@ namespace {
       if (SE == SideEffects::Enabled) {
         if (E->isAssignmentOp()) {
           QualType LHSType = LHS->getType();
-          // Bounds of the target of the lvalue
-          BoundsExpr *LHSTargetBounds = nullptr;
           // Bounds of the right-hand side of the assignment
           BoundsExpr *RightBounds = nullptr;
 
@@ -2137,7 +2141,7 @@ namespace {
                    IsBoundsSafeInterfaceAssignment(LHSType, RHS)) {
             // Check that the value being assigned has bounds if the
             // target of the LHS lvalue has bounds.
-            LHSTargetBounds = InferLValueTargetBounds(LHS, CSS);
+            LHSTargetBounds = S.CheckNonModifyingBounds(LHSTargetBounds, LHS);
             if (!LHSTargetBounds->isUnknown()) {
               if (E->isCompoundAssignmentOp())
                 RightBounds = S.CheckNonModifyingBounds(ResultBounds, E);
