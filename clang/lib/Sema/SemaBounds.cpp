@@ -3253,6 +3253,13 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
+    //
+    // LValueTargetBounds should only be called on an expression that has not
+    // had any side effects from bounds inference and checking performed on it.
+    // PruneTemporaryBindings (which may be called from LValueTargetBounds)
+    // expects its argument not to have had a bounds expression set on it.
+    // Side effects performed during bounds inference and checking may set
+    // a bounds expression on e.
     BoundsExpr *LValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
       if (!E->isLValue()) return CreateBoundsInferenceError();
       E = E->IgnoreParens();
