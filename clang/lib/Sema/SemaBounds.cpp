@@ -2476,6 +2476,13 @@ namespace {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
+      // If the lvalue target bounds for the subexpression are needed, they
+      // must be computed before performing any potential side effects on
+      // the subexpression to prevent asserts in PruneTemporaryBindings.
+      BoundsExpr *SubExprTargetBounds = nullptr;
+      if (E->isIncrementDecrementOp())
+        SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
+
       // If the lvalue bounds for the subexpression are needed, they must
       // be computed before traversing the subexpression.
       // Traversing the subexpression with side effects may cause a
@@ -2533,7 +2540,7 @@ namespace {
       // `++e`, `e++`, `--e`, `e--` all have bounds of `e`.
       // `e` is an lvalue, so its bounds are its lvalue target bounds.
       if (UnaryOperator::isIncrementDecrementOp(Op))
-        return LValueTargetBounds(SubExpr, CSS);
+        return SubExprTargetBounds;
 
       // `+e`, `-e`, `~e` all have bounds of `e`. `e` is an rvalue.
       if (Op == UnaryOperatorKind::UO_Plus ||
