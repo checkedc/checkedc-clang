@@ -588,13 +588,15 @@ namespace {
     };
 
     bool AddBoundsCheck(Expr *E, OperationKind OpKind, CheckedScopeSpecifier CSS,
-                        std::pair<ComparisonSet, ComparisonSet>& Facts) {
+                        std::pair<ComparisonSet, ComparisonSet>& Facts,
+                        BoundsExpr *ExistingLValueBounds = nullptr) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
       QualType PtrType;
       if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
         NeedsBoundsCheck = true;
-        BoundsExpr *LValueBounds = InferLValueBounds(E, CSS, Facts);
+        BoundsExpr *LValueBounds = InferLValueBounds(E, CSS, Facts,
+                                                     ExistingLValueBounds);
         BoundsCheckKind Kind = BCK_Normal;
         // Null-terminated array pointers have special semantics for
         // bounds checks.
@@ -2712,15 +2714,16 @@ namespace {
     /// Infer a bounds expression for an lvalue.
     /// The bounds determine whether the lvalue to which an
     /// expression evaluates in in range.
+    /// 
+    /// ExistingLValueBounds is used to prevent recomputing the
+    /// lvlaue bounds for an expression that may have had side
+    /// effects performed on it.  This prevents assertion failures
+    /// that could otherwise occur in PruneTemporaryBindings.
     BoundsExpr *InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      BoundsExpr *Bounds = LValueBounds(E, CSS, Facts);
-      return S.CheckNonModifyingBounds(Bounds, E);
-    }
-
-    /// Infer the bounds for the target of an lvalue.
-    BoundsExpr *InferLValueTargetBounds(Expr *E, CheckedScopeSpecifier CSS) {
-      BoundsExpr *Bounds = LValueTargetBounds(E, CSS);
+                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                  BoundsExpr *ExistingLValueBounds) {
+      BoundsExpr *Bounds = ExistingLValueBounds ?
+                            ExistingLValueBounds : LValueBounds(E, CSS, Facts);
       return S.CheckNonModifyingBounds(Bounds, E);
     }
 
@@ -3037,6 +3040,13 @@ namespace {
     // The returned bounds expression may contain a modifying expression within
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
+    //
+    // LValueBounds should only be called on an expression that has not had
+    // any side effects from bounds inference and checking performed on it.
+    // PruneTemporaryBindings (which may be called from LValueBounds)
+    // expects its argument not to have had a bounds expression set on it.
+    // Side effects performed during bounds inference and checking may set
+    // a bounds expression on e.
     BoundsExpr *LValueBounds(Expr *E, CheckedScopeSpecifier CSS,
                              std::pair<ComparisonSet, ComparisonSet>& Facts) {
       // E may not be an lvalue if there is a typechecking error when struct 
