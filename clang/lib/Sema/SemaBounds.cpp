@@ -2030,6 +2030,12 @@ namespace {
       // any side effects are performed on the LHS.
       BoundsExpr *LHSTargetBounds = LValueTargetBounds(LHS, CSS);
 
+      // The LHS lvalue bounds (if needed) must be inferred
+      // before any side effects are performed on the LHS.
+      BoundsExpr *LHSLValueBounds = nullptr;
+      if (SE == SideEffects::Enabled && E->isAssignmentOp())
+        LHSLValueBounds = LValueBounds(LHS, CSS, Facts);
+
       // Recursively infer rvalue bounds for the subexpressions,
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of binary operators.
@@ -2167,7 +2173,8 @@ namespace {
           bool LHSNeedsBoundsCheck = false;
           OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
             OperationKind::Assign : OperationKind::Other;
-          LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS, Facts);
+          LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS, Facts,
+                                               LHSLValueBounds);
           if (DumpBounds && (LHSNeedsBoundsCheck ||
                              (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
             DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RightBounds);
