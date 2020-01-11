@@ -351,6 +351,17 @@ void rewrite( VarDecl               *VD,
       DAndReplace N;
       bool found = false;
       VarDecl *VDL = dyn_cast<VarDecl>(DL);
+      if (VDL == NULL) {
+        // Example:
+        //        struct {
+        //           const wchar_t *start;
+        //            const wchar_t *end;
+        //        } field[6], name;
+        // we cannot handle this.
+        errs() << "Expected a variable declaration but got an invalid AST node\n";
+        DL->dump();
+        continue;
+      }
       assert(VDL != NULL);
 
       for (const auto &NLT : rewritesForThisDecl)

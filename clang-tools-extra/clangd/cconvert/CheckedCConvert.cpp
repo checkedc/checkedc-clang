@@ -205,7 +205,7 @@ std::set<std::string> inputFilePaths;
 
 static CompilationDatabase *CurrCompDB = nullptr;
 
-static ProgramInfo Info;
+ProgramInfo GlobalProgInfo;
 
 static tooling::CommandLineArguments sourceFiles;
 
@@ -263,20 +263,37 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
   return true;
 }
 
+bool writeConvertedFileToDisk(const std::string &filePath) {
+  if (std::find(sourceFiles.begin(), sourceFiles.end(), filePath) != sourceFiles.end()) {
+    std::vector<std::string> currSourceFiles;
+    currSourceFiles.clear();
+    currSourceFiles.push_back(filePath);
+    ClangTool Tool(*CurrCompDB, currSourceFiles);
+    std::unique_ptr<ToolAction> RewriteTool =
+        newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(GlobalProgInfo);
+
+    if (RewriteTool)
+      Tool.run(RewriteTool.get());
+    return true;
+  }
+  return false;
+
+}
+
 bool buildInitialConstraints() {
 
   ClangTool Tool(*CurrCompDB, sourceFiles);
 
   // 1. Gather constraints.
   std::unique_ptr<ToolAction> ConstraintTool = newFrontendActionFactoryA<
-      GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(Info);
+      GenericAction<ConstraintBuilderConsumer, ProgramInfo>>(GlobalProgInfo);
 
   if (ConstraintTool)
     Tool.run(ConstraintTool.get());
   else
     llvm_unreachable("No action");
 
-  if (!Info.link()) {
+  if (!GlobalProgInfo.link()) {
     errs() << "Linking failed!\n";
     return false;
   }
@@ -285,125 +302,29 @@ bool buildInitialConstraints() {
   if (Verbose)
     outs() << "Solving constraints\n";
 
-  Constraints &CS = Info.getConstraints();
+  Constraints &CS = GlobalProgInfo.getConstraints();
 
   // perform constraint solving by iteratively refining based on itypes.
-  bool fPointReached = performIterativeItypeRefinement(CS, Info, inputFilePaths);
+  bool fPointReached = performIterativeItypeRefinement(CS, GlobalProgInfo, inputFilePaths);
 
   assert(fPointReached);
   if (Verbose)
     outs() << "Constraints solved\n";
 
-  Info.computePointerDisjointSet();
+  GlobalProgInfo.computePointerDisjointSet();
   if (DumpIntermediate) {
     //Info.dump();
     errs() << "Writing json output to:" << ConstraintOutputJson << "\n";
     std::error_code ec;
     llvm::raw_fd_ostream output_json(ConstraintOutputJson, ec);
     if (!output_json.has_error()) {
-      Info.dump_json(output_json);
+      GlobalProgInfo.dump_json(output_json);
       output_json.close();
     } else {
-      Info.dump_json(llvm::errs());
+      GlobalProgInfo.dump_json(llvm::errs());
     }
   }
   return true;
-}
-
-DisjointSet& getWILDPtrsInfo() {
-  return Info.getPointerConstraintDisjointSet();
-}
-
-static void resetAllPointerConstraints() {
-  Constraints::EnvironmentMap &currEnvMap = Info.getConstraints().getVariables();
-  for (auto &CV : currEnvMap) {
-    CV.first->resetErasedConstraints();
-  }
-}
-
-bool makeSinglePtrNonWild(ConstraintKey targetPtr) {
-
-  CVars removePtrs;
-  removePtrs.clear();
-  CVars oldWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
-
-  resetAllPointerConstraints();
-
-  errs() << "After resetting\n";
-
-  VarAtom *VA = Info.getConstraints().getOrCreateVar(targetPtr);
-
-  Eq newE(VA, Info.getConstraints().getWild());
-
-  Info.getConstraints().getConstraints().erase(&newE);
-  VA->getAllConstraints().erase(&newE);
-
-  Info.getConstraints().resetConstraints();
-
-  performIterativeItypeRefinement(Info.getConstraints(), Info, inputFilePaths);
-  Info.computePointerDisjointSet();
-
-  CVars &newWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
-
-  std::set_difference(oldWILDPtrs.begin(), oldWILDPtrs.end(),
-                      newWILDPtrs.begin(),
-                      newWILDPtrs.end(),
-                      std::inserter(removePtrs, removePtrs.begin()));
-  errs() << "Returning\n";
-
-  return !removePtrs.empty();
-}
-
-
-bool invalidateWildReasonGlobally(ConstraintKey targetPtr) {
-
-  CVars removePtrs;
-  removePtrs.clear();
-  CVars oldWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
-
-  resetAllPointerConstraints();
-
-  errs() << "After resetting\n";
-
-  VarAtom *VA = Info.getConstraints().getOrCreateVar(targetPtr);
-
-  Eq newE(VA, Info.getConstraints().getWild());
-
-  Info.getConstraints().getConstraints().erase(&newE);
-  VA->getAllConstraints().erase(&newE);
-
-  Info.getConstraints().resetConstraints();
-
-  performIterativeItypeRefinement(Info.getConstraints(), Info, inputFilePaths);
-  Info.computePointerDisjointSet();
-
-  CVars &newWILDPtrs = Info.getPointerConstraintDisjointSet().allWildPtrs;
-
-  std::set_difference(oldWILDPtrs.begin(), oldWILDPtrs.end(),
-                      newWILDPtrs.begin(),
-                      newWILDPtrs.end(),
-                      std::inserter(removePtrs, removePtrs.begin()));
-
-  errs() << "Returning\n";
-
-  return !removePtrs.empty();
-}
-
-bool writeConvertedFileToDisk(std::string filePath) {
-    if (std::find(sourceFiles.begin(), sourceFiles.end(), filePath) != sourceFiles.end()) {
-        std::vector<std::string> currSourceFiles;
-        currSourceFiles.clear();
-        currSourceFiles.push_back(filePath);
-        ClangTool Tool(*CurrCompDB, currSourceFiles);
-        std::unique_ptr<ToolAction> RewriteTool =
-                newFrontendActionFactoryA<RewriteAction<RewriteConsumer, ProgramInfo>>(Info);
-
-        if (RewriteTool)
-            Tool.run(RewriteTool.get());
-        return true;
-    }
-    return false;
-
 }
 
 int originalmain(int argc, const char **argv) {

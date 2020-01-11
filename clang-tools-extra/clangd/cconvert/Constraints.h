@@ -27,6 +27,8 @@ class ConstraintVariable;
 class Constraints;
 class PersistentSourceLoc;
 
+#define DEFAULT_REASON "UNKNOWN_REASON"
+
 template<typename T>
 struct PComp
 {
@@ -363,7 +365,7 @@ public:
 private:
   const ConstraintKind Kind;
 public:
-  std::string REASON = "DEFAULT";
+  std::string REASON = DEFAULT_REASON;
   std::string sourceFileName = "";
   unsigned lineNo = 0;
   unsigned colStart = 0;
@@ -615,6 +617,7 @@ public:
 
   typedef std::map<std::string, std::set<ConstraintVariable*>> NameToConsMap;
 
+  bool removeConstraint(Constraint *C);
   bool addConstraint(Constraint *c);
   // It's important to return these by reference. Programs can have 
   // 10-100-100000 constraints and variables, and copying them each time
@@ -656,8 +659,14 @@ public:
   // check the sanity of environment map before solving the constraints.
   bool checkInitialEnvSanity();
 
+  // remove all constraints that were generated because of the
+  // provided reason.
+  bool removeAllConstraintsBasedOnThisReason(std::string &targetReason,
+                                             ConstraintSet &removedConstraints);
+
 private:
   ConstraintSet constraints;
+  std::map<std::string, ConstraintSet> constraintsByReason;
   EnvironmentMap environment;
   // map of constraint variables, which are identified
   // as itype pointers
@@ -685,6 +694,12 @@ private:
   template <typename T>
   bool
   propImp(Implies *, T*, ConstraintSet &, ConstAtom *);
+
+  // Managing constraints based on the underlying reason.
+  // add constraint to the map
+  bool addReasonBasedConstraint(Constraint *C);
+  // remove constraint from the map.
+  bool removeReasonBasedConstraint(Constraint *C);
 
   // These atoms can be singletons, so we'll store them in the 
   // Constraints class.
