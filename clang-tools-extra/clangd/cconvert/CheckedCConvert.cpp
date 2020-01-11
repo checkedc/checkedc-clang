@@ -327,7 +327,8 @@ bool buildInitialConstraints() {
   return true;
 }
 
-int originalmain(int argc, const char **argv) {
+#ifdef CCCONVSTANDALONE
+int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
   // Initialize targets for clang module support.
@@ -421,3 +422,4 @@ int originalmain(int argc, const char **argv) {
 
   return 0;
 }
+#endif
