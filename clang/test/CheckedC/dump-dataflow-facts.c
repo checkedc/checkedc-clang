@@ -1,3 +1,5 @@
+// UNSUPPORTED: system-windows
+
 // Tests for dumping of datafow analysis for collecting facts
 //
 // RUN: %clang_cc1 -fdump-extracted-comparison-facts %s 2>1 | FileCheck %s
