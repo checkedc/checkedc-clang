@@ -1943,11 +1943,11 @@ namespace {
           for (auto I = BeginDecls; I != EndDecls; ++I) {
             Decl *D = *I;
             // If an initializer expression is present, it is visited
-            // during the traversal of children nodes.
+            // during the traversal of the variable declaration.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
               ResultBounds = CheckVarDecl(VD, CSS, Facts, SE);
           }
-          break;
+          return AdjustRValueBounds(S, ResultBounds);
         }
         case Stmt::ReturnStmtClass: {
           ReturnStmt *RS = cast<ReturnStmt>(S);
@@ -1998,12 +1998,10 @@ namespace {
     }
 
     // Traverse a top-level variable declaration.  If there is an
-    // initializer, it has to be traversed explicitly.
+    // initializer, it will be traversed in CheckVarDecl.
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS,
                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
       CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
-      if (Expr *Init = VD->getInit())
-        TraverseStmt(Init, CSS, Facts);
     }
 
     bool IsBoundsSafeInterfaceAssignment(QualType DestTy, Expr *E) {
@@ -2569,6 +2567,11 @@ namespace {
                              SideEffects SE) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
+      Expr *Init = D->getInit();
+      BoundsExpr *InitBounds = nullptr;
+      if (Init)
+        InitBounds = TraverseStmt(Init, CSS, Facts, SE);
+
       if (SE == SideEffects::Disabled)
         return ResultBounds;
 
@@ -2595,10 +2598,9 @@ namespace {
       // requirements for the variable.  For non-scalar types (arrays, structs, and
       // unions), the amount of storage allocated depends on the type, so we don't
       // to check the initializer bounds.
-      Expr *Init = D->getInit();
       if (Init && D->getType()->isScalarType()) {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-        BoundsExpr *InitBounds = InferRValueBounds(Init, CSS, Facts);
+        InitBounds = S.CheckNonModifyingBounds(InitBounds, Init);
         if (InitBounds->isUnknown()) {
           // TODO: need some place to record the initializer bounds
           S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
