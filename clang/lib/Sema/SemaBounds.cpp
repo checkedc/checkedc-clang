@@ -1910,10 +1910,13 @@ namespace {
                                                   CSS, Facts, SE);
           return AdjustRValueBounds(S, Bounds);
         }
-        case Expr::CallExprClass:
-          ResultBounds = CheckCallExpr(cast<CallExpr>(S),
-                                       CSS, Facts, SE);
-          break;
+        // CheckCallExpr traverses its callee and arguments,
+        // so there is no need to traverse its children below.
+        case Expr::CallExprClass: {
+          BoundsExpr *Bounds = CheckCallExpr(cast<CallExpr>(S),
+                                             CSS, Facts, SE);
+          return AdjustRValueBounds(S, Bounds);
+        }
         case Expr::MemberExprClass:
           ResultBounds = CheckMemberExpr(cast<MemberExpr>(S),
                                          CSS, Facts, SE);
@@ -2194,7 +2197,6 @@ namespace {
     BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
                               std::pair<ComparisonSet, ComparisonSet>& Facts,
                               SideEffects SE) {
-
       BoundsExpr *ResultBounds = nullptr;
       {
         // Suppress diagnostics that could be emitted in CallExprBounds.
@@ -2205,11 +2207,6 @@ namespace {
         Sema::ExprSubstitutionScope Scope(S);
         ResultBounds = CallExprBounds(E, nullptr);
       }
-
-      if (SE == SideEffects::Disabled)
-        return ResultBounds;
-
-      // Perform checking of bounds declarations, if enabled.
 
       QualType CalleeType = E->getCallee()->getType();
       // Extract the pointee type.  The caller type could be a regular pointer
@@ -2227,10 +2224,29 @@ namespace {
       const FunctionType *FuncTy = PointeeType->getAs<FunctionType>();
       assert(FuncTy);
       const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
-      if (!FuncProtoTy)
+
+      // If the callee and arguments will not be traversed as part of the
+      // checking below, traverse them here.  This prevents TraverseStmt
+      // from needing to traverse the children of call expressions.
+      if (!FuncProtoTy) {
+        TraverseChildren(E, CSS, Facts, SE);
         return ResultBounds;
-      if (!FuncProtoTy->hasParamAnnots())
+      }
+      if (!FuncProtoTy->hasParamAnnots()) {
+        TraverseChildren(E, CSS, Facts, SE);
         return ResultBounds;
+      }
+      if (SE == SideEffects::Disabled) {
+        TraverseChildren(E, CSS, Facts, SE);
+        return ResultBounds;
+      }
+
+      // Perform checking of bounds declarations, if enabled.
+
+      // Recursively traverse the callee.  The arguments will be
+      // traversed below.  This prevents TraverseStmt from
+      // needing to traverse the children of call expressions.
+      TraverseStmt(E->getCallee(), CSS, Facts, SE);
 
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = E->getNumArgs();
@@ -2238,6 +2254,11 @@ namespace {
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(E->getArgs()), E->getNumArgs());
 
       for (unsigned i = 0; i < Count; i++) {
+        // Recursively traverse each argument.  This prevents TraverseStmt
+        // from needed to traverse the children of call expressions.
+        Expr *Arg = E->getArg(i);
+        BoundsExpr *ArgBounds = TraverseStmt(Arg, CSS, Facts, SE);
+
         QualType ParamType = FuncProtoTy->getParamType(i);
         // Skip checking bounds for unchecked pointer parameters, unless
         // the argument was subject to a bounds-safe interface cast.
@@ -2265,8 +2286,7 @@ namespace {
         if (ParamBounds->isUnknown())
           continue;
 
-        Expr *Arg = E->getArg(i);
-        BoundsExpr *ArgBounds = InferRValueBounds(Arg, CSS, Facts); // Analogous to BoundsExpr *ArgBounds = S.InferRValueBounds(Arg, CSS) in VisitCallExpr
+        ArgBounds = S.CheckNonModifyingBounds(ArgBounds, Arg);
         if (ArgBounds->isUnknown()) {
           S.Diag(Arg->getBeginLoc(),
                   diag::err_expected_bounds_for_argument) << (i + 1) <<
