@@ -640,7 +640,7 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 
   // Check if we are outputing to stdout or not, if we are, just output the
   // main file ID to stdout.
-  if (Verbose)
+  if (true)
     errs() << "Writing files out\n";
 
   SmallString<254> baseAbs(BaseDir);
@@ -702,6 +702,186 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
           }
         }
 }
+
+
+class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
+{
+  public:
+    explicit CheckedRegionAdder(ASTContext *_C, Rewriter& _R, ProgramInfo &_I, std::set<llvm::FoldingSetNodeID>& seen)
+      : Context(_C), Writer(_R), Info(_I), Seen(seen) {
+
+    }
+    int wild = 0;
+    int checked = 0;
+    int decls = 0;
+
+    bool VisitCompoundStmt(CompoundStmt *s) {
+      int localwild = 0;
+      for (const auto& subStmt : s->children()) {
+        CheckedRegionAdder sub(Context,Writer,Info,Seen);
+        sub.TraverseStmt(subStmt);
+        localwild += sub.wild;
+        checked += sub.checked;
+        decls += sub.decls;
+      }
+
+      addCheckedAnnotation(s, localwild);
+
+      wild = 0;
+
+      llvm::FoldingSetNodeID id;
+      s->Profile(id, *Context, true);
+      Seen.insert(id);
+
+      // Compound Statements should be the bottom of the visitor,
+      // as it creates it's own sub-visitor
+      return false;
+    }
+
+    // Check if this compound statement is the body
+    // to a function with unsafe parameters
+    bool hasUncheckedParameters(CompoundStmt *s) {
+      const auto& parents = Context->getParents(*s);
+      if (parents.empty()) {
+        return false;
+      }
+
+      auto parent = parents[0].get<FunctionDecl>();
+      if(!parent) {
+        return false;
+      }
+
+      int localwild = 0;
+      for (auto child : parent->parameters()) {
+        CheckedRegionAdder sub(Context,Writer,Info,Seen);
+        sub.TraverseParmVarDecl(child);
+        localwild += sub.wild;
+      }
+
+      return localwild != 0 || parent->isVariadic();
+    }
+
+    bool VisitUnaryOperator(UnaryOperator* u) {
+      //TODO handle computing pointers
+      if (u->getOpcode() == UO_AddrOf) {
+        // wild++;
+      }
+      return true;
+    }
+
+    bool VisitCallExpr(CallExpr *c) {
+      auto FD = c->getDirectCallee();
+      if (FD && FD->isVariadic()) {
+        wild++;
+      }
+      if (FD) {
+        auto type = FD->getReturnType();
+        if (type->isPointerType()) wild++;
+      }
+      return true;
+    }
+
+
+    bool VisitVarDecl(VarDecl *st) {
+      // Check if the variable is WILD
+      bool foundWild = false;
+      std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
+      for (auto cv : cvs) {
+        if (cv->hasWild(Info.getConstraints().getVariables())) {
+          foundWild = true;
+        }
+      }
+
+      if (foundWild) wild++;
+
+      auto t = st->getType();
+      t.dump();
+
+      // Check if the variable is a void*
+      if (isVoidPtr(st->getType())) wild++;
+      decls++;
+      return true;
+    }
+
+    bool VisitParmVarDecl(ParmVarDecl *st) {
+      // Check if the variable is WILD
+      bool foundWild = false;
+      std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
+      for (auto cv : cvs) {
+        if (cv->hasWild(Info.getConstraints().getVariables())) {
+          foundWild = true;
+        }
+      }
+
+      if (foundWild) wild++;
+
+      // Check if the variable is a void*
+      if (isVoidPtr(st->getType())) wild++;
+      decls++;
+      return true;
+    }
+
+    bool isVoidPtr(QualType t) {
+      if (t->isVoidType()) {
+        return true;
+      } if (t->isPointerType()) {
+        return isVoidPtr(t->getPointeeType());
+      } else {
+        return false;
+      }
+    }
+
+    void addCheckedAnnotation(CompoundStmt *s, int localwild) {
+      auto cur = s->getWrittenCheckedSpecifier();
+
+      llvm::FoldingSetNodeID id;
+      s->Profile(id, *Context, true);
+      auto search = Seen.find(id);
+
+      if (search == Seen.end()) {
+        auto loc = s->getBeginLoc();
+        bool checked = !hasUncheckedParameters(s) &&
+          cur == CheckedScopeSpecifier::CSS_None &&
+          localwild == 0;
+
+        Writer.InsertTextBefore(loc, checked ? "_Checked" : "_Unchecked");
+      }
+    }
+
+
+    bool VisitMemberExpr(MemberExpr *me){
+      ValueDecl* st = me->getMemberDecl();
+      if(st) {
+        // Check if the variable is WILD
+        bool foundWild = false;
+        std::set<ConstraintVariable*> cvs = Info.getVariable(st, Context);
+        for (auto cv : cvs) {
+          if (cv->hasWild(Info.getConstraints().getVariables())) {
+            foundWild = true;
+          }
+        }
+
+        if (foundWild) wild++;
+
+        // Check if the variable is a void*
+        if (isVoidPtr(st->getType())) wild++;
+        decls++;
+      }
+      return true;
+    }
+
+  private:
+    ASTContext*  Context;
+    Rewriter&    Writer;
+    ProgramInfo& Info;
+    std::set<llvm::FoldingSetNodeID>& Seen;
+};
+
+
+
+
+
+
 
 // This is a visitor that tries to find all the variables
 // inferred as arrayed by the checked-c-convert
@@ -913,9 +1093,12 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   MappingVisitor V(keys, Context);
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   StructVariableInitializer FV = StructVariableInitializer(&Context, Info, rewriteThese);
+  std::set<llvm::FoldingSetNodeID> seen;
+  CheckedRegionAdder CRA(&Context, R, Info, seen);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
+    CRA.TraverseDecl(D);
   }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();

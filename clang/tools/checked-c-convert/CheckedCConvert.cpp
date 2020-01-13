@@ -327,7 +327,7 @@ int main(int argc, const char **argv) {
       newFrontendActionFactoryB
       <RewriteAction<RewriteConsumer, ProgramInfo, std::set<std::string>>>(
           Info, inoutPaths);
-  
+
   if (RewriteTool)
     Tool.run(RewriteTool.get());
   else
