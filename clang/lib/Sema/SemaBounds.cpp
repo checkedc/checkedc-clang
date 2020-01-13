@@ -1989,12 +1989,17 @@ namespace {
           break;
       }
       
+      TraverseChildren(S, CSS, Facts, SE);
+      return AdjustRValueBounds(S, ResultBounds);
+    }
+
+    void TraverseChildren(Stmt *S, CheckedScopeSpecifier CSS,
+                          std::pair<ComparisonSet, ComparisonSet>& Facts,
+                          SideEffects SE) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         TraverseStmt(*I, CSS, Facts, SE);
       }
-
-      return AdjustRValueBounds(S, ResultBounds);
     }
 
     // Traverse a top-level variable declaration.  If there is an
