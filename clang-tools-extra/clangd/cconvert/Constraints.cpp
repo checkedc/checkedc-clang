@@ -24,7 +24,6 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
   unsigned removedConstraints = 0;
   std::set<Constraint*, PComp<Constraint*>> toRemoveConstraints;
   toRemoveConstraints.clear();
-  Constraints::ConstraintSet &globalConstraints = CS.getConstraints();
   std::set<Constraint*, PComp<Constraint*>> oldConstraints;
   oldConstraints.clear();
   oldConstraints.insert(Constraints.begin(), Constraints.end());
@@ -41,7 +40,7 @@ unsigned VarAtom::replaceEqConstraints(Constraints::EnvironmentMap &toRemoveVAto
         Eq *equalityConstraint = dyn_cast<Eq>(currC);
         // we will modify this constraint remove it
         // from the local and global sets.
-        globalConstraints.erase(currC);
+        CS.removeConstraint(currC);
         Constraints.erase(currC);
 
         // mark this constraint to be deleted.
@@ -92,6 +91,12 @@ Constraint::Constraint(ConstraintKind K, std::string &rsn, PersistentSourceLoc *
   }
 }
 
+// remove the constraint from the global constraint set.
+bool Constraints::removeConstraint(Constraint *C) {
+  removeReasonBasedConstraint(C);
+  constraints.erase(C);
+}
+
 // Add a constraint to the set of constraints. If the constraint is already 
 // present (by syntactic equality) return false. 
 bool Constraints::addConstraint(Constraint *C) {
@@ -101,6 +106,7 @@ bool Constraints::addConstraint(Constraint *C) {
   // Check if C is already in the set of constraints. 
   if (constraints.find(C) == constraints.end()) {
     constraints.insert(C);
+    addReasonBasedConstraint(C);
 
     // Update the variables that depend on this constraint
     if (Eq *E = dyn_cast<Eq>(C)) {
@@ -126,6 +132,24 @@ bool Constraints::addConstraint(Constraint *C) {
     return true;
   }
 
+  return false;
+}
+
+bool Constraints::addReasonBasedConstraint(Constraint *C) {
+  // only insert if this is an Eq constraint and has a valid reason.
+  if (Eq *e = dyn_cast<Eq>(C)) {
+    if (e->getReason() != DEFAULT_REASON && !e->getReason().empty())
+      return this->constraintsByReason[e->getReason()].insert(e).second;
+  }
+  return false;
+}
+
+bool Constraints::removeReasonBasedConstraint(Constraint *C) {
+  if (Eq *e = dyn_cast<Eq>(C)) {
+    // remove if the constraint is present.
+    if (this->constraintsByReason.find(e->getReason()) != this->constraintsByReason.end())
+      return this->constraintsByReason[e->getReason()].erase(e) > 0;
+  }
   return false;
 }
 
@@ -419,6 +443,21 @@ void Constraints::dump_json(llvm::raw_ostream &O) const {
   }
   O << "]}";
 
+}
+
+bool Constraints::removeAllConstraintsBasedOnThisReason(std::string &targetReason,
+                                                        ConstraintSet &removedConstraints) {
+  // Are there any constraints with this reason?
+  unsigned  long deletedCount = 0;
+  if (this->constraintsByReason.find(targetReason) != this->constraintsByReason.end()) {
+    removedConstraints.insert(this->constraintsByReason[targetReason].begin(),
+                  this->constraintsByReason[targetReason].end());
+    for (auto cToDel: removedConstraints) {
+      this->removeConstraint(cToDel);
+    }
+    return true;
+  }
+  return false;
 }
 
 VarAtom *Constraints::getOrCreateVar(uint32_t v) {
