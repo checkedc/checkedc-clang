@@ -795,7 +795,6 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       if (foundWild) wild++;
 
       auto t = st->getType();
-      t.dump();
 
       // Check if the variable is a void*
       if (isVoidPtr(st->getType())) wild++;
@@ -822,10 +821,36 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     }
 
     bool isVoidPtr(QualType t) {
-      if (t->isVoidType()) {
+      auto ct = t.getCanonicalType();
+      if (ct->isVoidType()) {
         return true;
-      } if (t->isPointerType()) {
-        return isVoidPtr(t->getPointeeType());
+      } if (ct->isPointerType()) {
+        return isVoidPtr(ct->getPointeeType());
+      } else if (ct->isRecordType()) {
+        return isUncheckedStruct(ct);
+      } else {
+        return false;
+      }
+    }
+
+    bool isUncheckedStruct(QualType t) {
+      auto rt = dyn_cast<RecordType>(t);
+      if (rt) {
+        auto decl = rt->getDecl();
+        if (decl) {
+          bool unsafe = false;
+          for (auto const&field : decl->fields()) {
+            auto field_type = field->getType();
+            unsafe |= isVoidPtr(field_type);
+            std::set<ConstraintVariable*> cvs = Info.getVariable(field, Context);
+            for (auto cv : cvs) {
+              unsafe |= cv->hasWild(Info.getConstraints().getVariables());
+            }
+          }
+          return unsafe;
+        } else {
+          return true;
+        }
       } else {
         return false;
       }
