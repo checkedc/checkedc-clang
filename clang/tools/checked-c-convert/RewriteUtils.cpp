@@ -794,8 +794,6 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
       if (foundWild) wild++;
 
-      auto t = st->getType();
-      t.dump();
 
       // Check if the variable is a void*
       if (isVoidPtr(st->getType())) wild++;
