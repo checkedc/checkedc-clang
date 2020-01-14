@@ -1937,6 +1937,8 @@ namespace {
           CSS = CS->getCheckedSpecifier();
           break;
         }
+        // CheckVarDecl traverses its initializers,
+        // so there is no need to traverse its children below.
         case Stmt::DeclStmtClass: {
           DeclStmt *DS = cast<DeclStmt>(S);
           auto BeginDecls = DS->decl_begin(), EndDecls = DS->decl_end();
@@ -2190,12 +2192,9 @@ namespace {
 
       BoundsExpr *ResultBounds = nullptr;
       {
-        // Suppress diagnostics that could be emitted in CallExprBounds.
-        // Since TraverseStmt still checks all subexpressions,
-        // bounds inference (including calls to CallExprBounds) may be
-        // performed multiple times on an expression.  Suppressing diagnostics
-        // here prevents duplicate diagnostic messages from being emitted.
-        Sema::ExprSubstitutionScope Scope(S);
+        // Suppress diagnostics that could be emitted in CallExprBounds
+        // if side effects are disabled.
+        Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
         ResultBounds = CallExprBounds(E, nullptr);
       }
 
@@ -3423,6 +3422,9 @@ namespace {
 
       E = E->IgnoreParens();
 
+      // Suppress diagnostics if side effects are disabled.
+      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
+
       // Null Ptrs always have bounds(any)
       // This is the correct way to detect all the different ways that
       // C can make a null ptr.
@@ -3440,16 +3442,8 @@ namespace {
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
           return CheckBinaryOperator(cast<BinaryOperator>(E), CSS, Facts, SE);
-        case Expr::CallExprClass: {
-          // Do not call CheckCallExpr here.  Since CheckCallExpr suppresses
-          // diagnostics emitted as part of CallExprBounds (to reduce unwanted
-          // duplicate diagnostics), calling CheckCallExpr here can result in
-          // wanted diagnostics from CallExprBounds being suppressed.
-          // Once TraverseStmt is fully refactored, calls to RValueBounds can
-          // be replaced with calls to TraverseStmt.
-          CallExpr *CE = cast<CallExpr>(E);
-          return CallExprBounds(CE, nullptr);
-        }
+        case Expr::CallExprClass:
+          return CheckCallExpr(cast<CallExpr>(E), CSS, Facts, SE);
         case Expr::CHKCBindTemporaryExprClass: {
           CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
           Expr *Child = Binding->getSubExpr();
