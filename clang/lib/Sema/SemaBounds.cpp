@@ -2566,13 +2566,15 @@ namespace {
                              SideEffects SE) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
+      if (SE == SideEffects::Disabled)
+        return ResultBounds;
+
+      // If there is an initializer, traverse it.  This prevents TraverseStmt
+      // from needing to traverse the children of variable declarations.
       Expr *Init = D->getInit();
       BoundsExpr *InitBounds = nullptr;
       if (Init)
         InitBounds = TraverseStmt(Init, CSS, Facts, SE);
-
-      if (SE == SideEffects::Disabled)
-        return ResultBounds;
 
       if (D->isInvalidDecl())
         return ResultBounds;
