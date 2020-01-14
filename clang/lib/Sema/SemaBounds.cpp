@@ -2334,6 +2334,13 @@ namespace {
         CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, CSS, nullptr, Facts);
       }
 
+      // Traverse any arguments that are beyond
+      // the number of function parameters.
+      for (unsigned i = Count; i < NumArgs; i++) {
+        Expr *Arg = E->getArg(i);
+        TraverseStmt(Arg, CSS, Facts, SE);
+      }
+
       return ResultBounds;
     }
 
