@@ -840,13 +840,15 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       } if (ct->isPointerType()) {
         return isUncheckedPtr(ct->getPointeeType());
       } else if (ct->isRecordType()) {
-        return isUncheckedStruct(ct);
+        return false;
+        //return isUncheckedStruct(ct);
       } else {
         return false;
       }
     }
 
     // Iterate through all fields of the struct and find unchecked types
+    // TODO doesn't handle recursive structs correctly
     bool isUncheckedStruct(QualType t) {
       auto rt = dyn_cast<RecordType>(t);
       if (rt) {
