@@ -1920,10 +1920,13 @@ namespace {
           ResultBounds = CheckCallExpr(cast<CallExpr>(S),
                                        CSS, Facts, SE);
           break;
-        case Expr::MemberExprClass:
-          ResultBounds = CheckMemberExpr(cast<MemberExpr>(S),
-                                         CSS, Facts, SE);
-          break;
+        // CheckMemberExpr traverses its base,
+        // so there is no need to traverse its children below.
+        case Expr::MemberExprClass: {
+          BoundsExpr *Bounds = CheckMemberExpr(cast<MemberExpr>(S),
+                                               CSS, Facts, SE);
+          return AdjustRValueBounds(S, Bounds);
+        }
         // CheckCastExpr traverses its subexpression,
         // so there is no need to traverse its children below.
         case Expr::ImplicitCastExprClass:
@@ -2475,7 +2478,25 @@ namespace {
       if (SE == SideEffects::Disabled)
         return CreateBoundsEmpty();
 
-      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts);
+      Expr *Base = E->getBase();
+
+      // If the lvalue bounds for the base are needed,
+      // they must be computed before performing any
+      // side effects on the base.
+      BoundsExpr *BaseLValueBounds = nullptr;
+      if (!E->isArrow()) {
+        if (Base->isLValue())
+          BaseLValueBounds = LValueBounds(Base, CSS, Facts);
+      }
+
+      // Recursively infer bounds for the base, performing side
+      // effects if enabled.  This prevents TraverseStmt from
+      // needing to traverse the children of member expressions.
+      BoundsExpr *BaseBounds = TraverseStmt(Base, CSS, Facts, SE);
+
+      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts,
+                                                       BaseLValueBounds,
+                                                       BaseBounds);
       if (NeedsBoundsCheck && DumpBounds)
         DumpExpression(llvm::outs(), E);
       return CreateBoundsEmpty();
