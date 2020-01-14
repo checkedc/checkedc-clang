@@ -89,9 +89,6 @@ namespace clang {
   // when an expression is split into a base and an offset.
   using ExprPairTy = std::pair<const Expr *, const Expr *>;
 
-  // A mapping from a block to variables declared in the block.
-  using BlockDeclMapTy = llvm::DenseMap<const CFGBlock *, DeclSetTy>;
-
   class BoundsAnalysis {
   private:
     Sema &S;

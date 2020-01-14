@@ -141,10 +141,13 @@ bool BoundsAnalysis::IsIntegerOperand(const Expr *E) const {
     return false;
 
   // An IntegerLiteral could either be int, +int or -int.
-  if (const auto *UO = dyn_cast<UnaryOperator>(E))
+  if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+    assert(UO->getSubExpr() && "invalid UnaryOperator expression");
+
     if (UO->getOpcode() == UO_Plus ||
         UO->getOpcode() == UO_Minus)
       return isa<IntegerLiteral>(UO->getSubExpr());
+  }
   return isa<IntegerLiteral>(E);
 }
 
@@ -155,6 +158,8 @@ const llvm::APInt BoundsAnalysis::GetAPIntVal(const Expr *E) const {
   }
 
   if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
+    assert(UO->getSubExpr() && "invalid UnaryOperator expression");
+
     if (UO->getOpcode() == UO_Plus)
       return dyn_cast<IntegerLiteral>(UO->getSubExpr())->getValue();
     if (UO->getOpcode() == UO_Minus)
@@ -211,8 +216,6 @@ void BoundsAnalysis::GetNtPtrsInScope(const CFGBlock *B,
   // memoizing the ntptrs in scope for all blocks so we can terminate the
   // recursion earlier.
 
-  // TODO: Currently, we cannot widen a local ntptr which overrides a global
-  // ntptr of the same name.
   for (const CFGBlock *pred : B->preds()) {
     if (SkipBlock(pred))
       continue;
