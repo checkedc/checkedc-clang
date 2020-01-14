@@ -2194,8 +2194,9 @@ namespace {
     // e is an rvalue.
     BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
                               std::pair<ComparisonSet, ComparisonSet>& Facts,
-                              SideEffects SE) {
-      BoundsExpr *ResultBounds = CallExprBounds(E, nullptr);
+                              SideEffects SE,
+                              CHKCBindTemporaryExpr *Binding = nullptr) {
+      BoundsExpr *ResultBounds = CallExprBounds(E, Binding);
 
       if (SE == SideEffects::Disabled)
         return ResultBounds;
