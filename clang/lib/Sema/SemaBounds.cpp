@@ -633,19 +633,22 @@ namespace {
     // always need bounds checks, even though their lvalues are only used for an
     // address computation.
     bool AddMemberBaseBoundsCheck(MemberExpr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
+                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                  BoundsExpr *BaseLValueBounds,
+                                  BoundsExpr *BaseBounds) {
       Expr *Base = E->getBase();
       // E.F
       if (!E->isArrow()) {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
-          return AddBoundsCheck(Base, OperationKind::Other, CSS, Facts);
+          return AddBoundsCheck(Base, OperationKind::Other, CSS, Facts,
+                                BaseLValueBounds);
         return false;
       }
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()) {
-        BoundsExpr *Bounds = InferRValueBounds(Base, CSS, Facts);
+        BoundsExpr *Bounds = S.CheckNonModifyingBounds(BaseBounds, Base);
         if (Bounds->isUnknown()) {
           S.Diag(Base->getBeginLoc(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
