@@ -2233,10 +2233,9 @@ namespace {
         TraverseChildren(E, CSS, Facts, SE);
         return ResultBounds;
       }
-      if (SE == SideEffects::Disabled) {
-        TraverseChildren(E, CSS, Facts, SE);
+
+      if (SE == SideEffects::Disabled)
         return ResultBounds;
-      }
 
       // Perform checking of bounds declarations, if enabled.
 
