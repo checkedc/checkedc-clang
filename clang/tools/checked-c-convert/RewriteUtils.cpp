@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <map>
 #include <sstream>
+#include <string.h>
 #include "clang/AST/Type.h"
 #include "RewriteUtils.h"
 #include "MappingVisitor.h"
@@ -704,6 +705,7 @@ static void emit(Rewriter &R, ASTContext &C, std::set<FileID> &Files,
 }
 
 
+// This Visitor adds _Checked and _UnChecked annotations to blocks
 class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 {
   public:
@@ -716,6 +718,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     int decls = 0;
 
     bool VisitCompoundStmt(CompoundStmt *s) {
+      // Visit all subblocks, find all unchecked types
       int localwild = 0;
       for (const auto& subStmt : s->children()) {
         CheckedRegionAdder sub(Context,Writer,Info,Seen);
@@ -727,6 +730,9 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
       addCheckedAnnotation(s, localwild);
 
+      // Compound Statements are always considered to have 0 wild types
+      // This is because a compound statement marked w/ _Unchecked can live
+      // inside a _Checked region
       wild = 0;
 
       llvm::FoldingSetNodeID id;
@@ -736,6 +742,13 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       // Compound Statements should be the bottom of the visitor,
       // as it creates it's own sub-visitor
       return false;
+    }
+
+    bool VisitCStyleCastExpr(CStyleCastExpr *e) {
+      // TODO This is over cautious
+      auto type = e->getTypeAsWritten();
+      wild++;
+      return true;
     }
 
     // Check if this compound statement is the body
@@ -796,7 +809,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
 
       // Check if the variable is a void*
-      if (isVoidPtr(st->getType())) wild++;
+      if (isUncheckedPtr(st->getType())) wild++;
       decls++;
       return true;
     }
@@ -814,17 +827,18 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       if (foundWild) wild++;
 
       // Check if the variable is a void*
-      if (isVoidPtr(st->getType())) wild++;
+      if (isUncheckedPtr(st->getType())) wild++;
       decls++;
       return true;
     }
 
-    bool isVoidPtr(QualType t) {
+    // Recursively determine if a type is unchecked
+    bool isUncheckedPtr(QualType t) {
       auto ct = t.getCanonicalType();
       if (ct->isVoidType()) {
         return true;
       } if (ct->isPointerType()) {
-        return isVoidPtr(ct->getPointeeType());
+        return isUncheckedPtr(ct->getPointeeType());
       } else if (ct->isRecordType()) {
         return isUncheckedStruct(ct);
       } else {
@@ -832,6 +846,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       }
     }
 
+    // Iterate through all fields of the struct and find unchecked types
     bool isUncheckedStruct(QualType t) {
       auto rt = dyn_cast<RecordType>(t);
       if (rt) {
@@ -840,7 +855,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
           bool unsafe = false;
           for (auto const&field : decl->fields()) {
             auto field_type = field->getType();
-            unsafe |= isVoidPtr(field_type);
+            unsafe |= isUncheckedPtr(field_type);
             std::set<ConstraintVariable*> cvs = Info.getVariable(field, Context);
             for (auto cv : cvs) {
               unsafe |= cv->hasWild(Info.getConstraints().getVariables());
@@ -888,7 +903,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
         if (foundWild) wild++;
 
         // Check if the variable is a void*
-        if (isVoidPtr(st->getType())) wild++;
+        if (isUncheckedPtr(st->getType())) wild++;
         decls++;
       }
       return true;
