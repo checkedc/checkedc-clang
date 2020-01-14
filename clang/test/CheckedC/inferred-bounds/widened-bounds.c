@@ -439,3 +439,28 @@ void f18() {
 // CHECK:  [B1]
 // CHECK: upper_bound(s) = 1
 }
+
+void f19() {
+  _Nt_array_ptr<char> p : count(0) = "a";
+
+  if (*p)
+    if (*(p + 1))
+      if (*(p + 3))
+        if (*(p + 2))
+  {}
+
+// CHECK: In function: f19
+// CHECK:  [B5]
+// CHECK:    2: *p
+// CHECK:  [B4]
+// CHECK:    1: *(p + 1)
+// CHECK: upper_bound(p) = 1
+// CHECK:  [B3]
+// CHECK:    1: *(p + 3)
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B2]
+// CHECK:    1: *(p + 2)
+// CHECK: upper_bound(p) = 2
+// CHECK:  [B1]
+// CHECK: upper_bound(p) = 3
+}
