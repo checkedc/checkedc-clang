@@ -1972,16 +1972,10 @@ namespace {
           // TODO: infer correct bounds for conditional operators
           ResultBounds = CreateBoundsAllowedButNotComputed();
           break;
-        // Since TraverseStmt still checks all children of bounds value
-        // expressions, this case should perform bounds inference only,
-        // with no side effects.  In future refactoring stages, there will be
-        // a CheckBoundsValue method that performs bounds inference with
-        // side effects in a bottom-up manner.
         case Expr::BoundsValueExprClass: {
-          BoundsValueExpr *BVE = cast<BoundsValueExpr>(S);
-          ResultBounds = RValueBounds(BVE->getTemporaryBinding(), CSS, Facts,
-                                      SideEffects::Disabled);
-          break;
+          BoundsExpr *Bounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S),
+                                                    CSS, Facts, SE);
+          return AdjustRValueBounds(S, Bounds);
         }
         default: 
           break;
@@ -2636,6 +2630,14 @@ namespace {
         return CheckCallExpr(CE, CSS, Facts, SE, E);
       else
         return TraverseStmt(Child, CSS, Facts, SE);
+    }
+
+    BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E,
+                                     CheckedScopeSpecifier CSS,
+                                     std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                     SideEffects SE) {
+      Expr *Binding = E->getTemporaryBinding();
+      return TraverseStmt(Binding, CSS, Facts, SE);
     }
 
     // Given an array type with constant dimension size, produce a count
@@ -3408,10 +3410,8 @@ namespace {
         case Expr::BinaryConditionalOperatorClass:
           // TODO: infer correct bounds for conditional operators
           return CreateBoundsAllowedButNotComputed();
-        case Expr::BoundsValueExprClass: {
-          BoundsValueExpr *BVE = cast<BoundsValueExpr>(E);
-          return RValueBounds(BVE->getTemporaryBinding(), CSS, Facts, SE);
-        }
+        case Expr::BoundsValueExprClass:
+          return CheckBoundsValueExpr(cast<BoundsValueExpr>(E), CSS, Facts, SE);
         default:
           // All other cases are unknowable
           return CreateBoundsAlwaysUnknown();
