@@ -2334,25 +2334,24 @@ namespace {
       // If the lvalue target bounds and lvalue bounds for the
       // subexpression are needed, they must be computed before
       // performing potential side effects on the subexpression.
-      bool IsResultCastBounds = (E->getStmtClass() == Stmt::ImplicitCastExprClass ||
-                                 E->getStmtClass() == Stmt::CStyleCastExprClass) &&
-                                 !E->getType()->isCheckedPointerPtrType();
       BoundsExpr *SubExprTargetBounds = nullptr;
       BoundsExpr *SubExprLValueBounds = nullptr;
-      if (CK == CK_LValueToRValue) {
-        // SubExprTargetBounds is needed if RValueCastBounds
-        // is called on an LValueToRValue cast.
-        if (IsResultCastBounds)
+      // SubExprTargetBounds or SubExprLValueBounds are be needed
+      // if RValueCastBounds is called on an LValueToRValue or an
+      // ArrayToPointerDecay cast, which are both always implicit casts.
+      if (E->getStmtClass() == Stmt::ImplicitCastExprClass &&
+          !E->getType()->isCheckedPointerPtrType()) {
+        if (CK == CK_LValueToRValue)
           SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
-        // SubExprLValueBounds is needed if a bounds check
-        // is added to the subexpression.
-        if (!E->getType()->isArrayType() && SE == SideEffects::Enabled)
+        if (CK == CK_ArrayToPointerDecay)
           SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
       }
-      // SubExprLValueBounds is needed if RValueCastBounds
-      // is called on an ArrayToPointerDecay cast.
-      if (CK == CK_ArrayToPointerDecay && IsResultCastBounds)
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+      // SubExprLValueBounds is needed if a bounds check
+      // is added to the subexpression.
+      if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
+        if (SE == SideEffects::Enabled)
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+      }
 
       // Recursively infer the rvalue bounds for the subexpression,
       // performing side effects if enabled.  This prevents TraverseStmt from
@@ -2725,7 +2724,7 @@ namespace {
     /// expression evaluates in in range.
     /// 
     /// ExistingLValueBounds is used to prevent recomputing the
-    /// lvlaue bounds for an expression that may have had side
+    /// lvalue bounds for an expression that may have had side
     /// effects performed on it.  This prevents assertion failures
     /// that could otherwise occur in PruneTemporaryBindings.
     BoundsExpr *InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS,
