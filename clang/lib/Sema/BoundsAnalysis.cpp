@@ -146,38 +146,6 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
   return false;
 }
 
-bool BoundsAnalysis::IsIntegerOperand(const Expr *E) const {
-  if (!E)
-    return false;
-
-  // An IntegerLiteral could either be int, +int or -int.
-  if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
-    assert(UO->getSubExpr() && "invalid UnaryOperator expression");
-
-    if (UO->getOpcode() == UO_Plus ||
-        UO->getOpcode() == UO_Minus)
-      return isa<IntegerLiteral>(UO->getSubExpr());
-  }
-  return isa<IntegerLiteral>(E);
-}
-
-const llvm::APInt BoundsAnalysis::GetAPIntVal(const Expr *E) const {
-  if (!IsIntegerOperand(E)) {
-    const llvm::APInt Zero(Ctx.getTypeSize(Ctx.IntTy), 0);
-    return Zero;
-  }
-
-  if (const auto *UO = dyn_cast<UnaryOperator>(E)) {
-    assert(UO->getSubExpr() && "invalid UnaryOperator expression");
-
-    if (UO->getOpcode() == UO_Plus)
-      return dyn_cast<IntegerLiteral>(UO->getSubExpr())->getValue();
-    if (UO->getOpcode() == UO_Minus)
-      return - dyn_cast<IntegerLiteral>(UO->getSubExpr())->getValue();
-  }
-  return dyn_cast<IntegerLiteral>(E)->getValue();
-}
-
 void BoundsAnalysis::CollectNtPtrsInScope(BlockMapTy BlockMap) {
   // TODO: Currently, we simply collect all ntptrs defined in the current
   // function. Ultimately, we need to do a liveness analysis of what ntptrs are
@@ -241,7 +209,12 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
   const Expr *DerefOffset = DerefExprPair.second;
   if (!DerefBase)
     return;
-  const llvm::APInt DerefOffsetVal = GetAPIntVal(DerefOffset);
+
+  llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
+  llvm::APSInt DerefOffsetVal;
+  if (!DerefOffset ||
+      !DerefOffset->isIntegerConstantExpr(DerefOffsetVal, Ctx))
+    DerefOffsetVal = Zero;
 
   // For bounds widening, the base of the deref expr and the upper bounds expr
   // for all ntptrs in scope should be the same.
@@ -304,7 +277,10 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
         Lexicographic::Result::Equal)
       continue;
 
-    const llvm::APInt UpperOffsetVal = GetAPIntVal(UpperOffset);
+    llvm::APSInt UpperOffsetVal;
+    if (!UpperOffset ||
+        !UpperOffset->isIntegerConstantExpr(UpperOffsetVal, Ctx))
+      UpperOffsetVal = Zero;
 
     // We cannot widen the bounds if the offset in the deref expr is less than
     // the offset in the upper bounds expr. For example:
@@ -330,8 +306,10 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
         Lexicographic::Result::LessThan)
       continue;
 
-    // (DerefOffset - UpperOffset) gives us the amount by which the ntptr
-    // should be widened.
+    // (DerefOffset - UpperOffset) gives the offset of the memory dereference
+    // relative to the declared upper bound expression. This offset is used in
+    // the widening computation in ComputeOutSets.
+
     // TODO: Check to see if that difference overflows/underflows.
     llvm::APInt OffsetDiff = DerefOffsetVal - UpperOffsetVal;
 
@@ -360,18 +338,22 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   Expr *LHS = BO->getLHS()->IgnoreParens();
   Expr *RHS = BO->getRHS()->IgnoreParens();
 
+  assert((LHS && RHS) && "invalid BinaryOperator expression");
+
   // Note: Assume p, q, r are DeclRefExprs and i, j are IntegerLiterals.
 
   // Case 1: LHS is DeclRefExpr and RHS is IntegerLiteral. This expr is already
   // uniform.
   // p + i ==> return (p, i)
-  if (IsDeclOperand(LHS) && IsIntegerOperand(RHS))
+  llvm::APSInt IntVal;
+
+  if (IsDeclOperand(LHS) && RHS->isIntegerConstantExpr(IntVal, Ctx))
     return std::make_pair(GetDeclOperand(LHS), RHS);
 
   // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
   // swap LHS and RHS to make expr uniform.
   // i + p ==> return (p, i)
-  if (IsIntegerOperand(LHS) && IsDeclOperand(RHS))
+  if (LHS->isIntegerConstantExpr(IntVal, Ctx) && IsDeclOperand(RHS))
     return std::make_pair(GetDeclOperand(RHS), LHS);
 
   // Case 3: LHS and RHS are both DeclRefExprs. This means there is no
@@ -410,7 +392,7 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // Expr is either Case 4 or Case 5 from above. ie: LHS is BinaryOperator
   // and RHS is IntegerLiteral.
   // (p + q) + i OR (p + j) + i
-  if (IsIntegerOperand(RHS)) {
+  if (RHS->isIntegerConstantExpr(IntVal, Ctx)) {
 
     // Expr is Case 4. ie: The BinaryOperator expr does not have an
     // IntegerLiteral on the RHS.
@@ -456,7 +438,9 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
                              BE->getFPFeatures());
 
   // TmpBE is (j + p) and RHS is r. So make the TmpBE as (r + p).
-  if (IsIntegerOperand(TmpBE->getLHS()))
+  assert(TmpBE->getLHS() && "invalid BinaryOperator expression");
+
+  if (TmpBE->getLHS()->isIntegerConstantExpr(IntVal, Ctx))
     TmpBE->setLHS(RHS);
   // TmpBE is (p + j) and RHS is r. So make the TmpBE as (p + r).
   else

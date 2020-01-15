@@ -265,16 +265,6 @@ namespace clang {
     // and the second contains all IntegerLiterals of E.
     ExprPairTy SplitIntoBaseOffset(const Expr *E);
 
-    // An IntegerLiteral can either be int, +int or -int.
-    // @param[in] E is an expression.
-    // @return Whether E contains an IntegerLiteral.
-    bool IsIntegerOperand(const Expr *E) const;
-
-    // Get the APInt value from an expression representing an IntegerLiteral.
-    // @param[in] E represents an IntegerLiteral.
-    // @return Return the APInt value for E. Return APInt(0) if E is nullptr.
-    const llvm::APInt GetAPIntVal(const Expr *E) const;
-
     // Collect all ntptrs in scope. Currently, this simply collects all ntptrs
     // defined in all blocks in the current function. This function inserts the
     // VarDecls for the ntptrs in NtPtrsInScope.
