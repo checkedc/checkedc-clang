@@ -2038,24 +2038,24 @@ namespace {
 
       // The LHS lvalue bounds (if needed) must be inferred
       // before any side effects are performed on the LHS.
+      // If calling LValueBounds also computes the rvalue bounds
+      // for the LHS, save them in LHSBounds.
       BoundsExpr *LHSLValueBounds = nullptr;
+      BoundsExpr *LHSBounds = nullptr;
       if (SE == SideEffects::Enabled && E->isAssignmentOp())
-        LHSLValueBounds = LValueBounds(LHS, CSS, Facts, SE);
+        LHSLValueBounds = LValueBounds(LHS, CSS, Facts, SE, LHSBounds);
 
       // Recursively infer rvalue bounds for the subexpressions,
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of binary operators.
-      BoundsExpr *LHSBounds = TraverseStmt(LHS, CSS, Facts, SE);
+      if (!LHSBounds)
+        LHSBounds = TraverseStmt(LHS, CSS, Facts, SE);
       BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS, Facts, SE);
 
       BinaryOperatorKind Op = E->getOpcode();
 
       // Bounds of the binary operator.
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
-
-      // To avoid duplicate calls to RValueBounds,
-      // infer the result bounds before performing bounds checking,
-      // since bounds checking may use the result bounds.
 
       // Floating point expressions have empty bounds.
       if (E->getType()->isFloatingType())
@@ -2361,7 +2361,8 @@ namespace {
       // performing potential side effects on the subexpression.
       BoundsExpr *SubExprTargetBounds = nullptr;
       BoundsExpr *SubExprLValueBounds = nullptr;
-      // SubExprTargetBounds or SubExprLValueBounds are be needed
+      BoundsExpr *SubExprBounds = nullptr;
+      // SubExprTargetBounds or SubExprLValueBounds are needed
       // if RValueCastBounds is called on an LValueToRValue or an
       // ArrayToPointerDecay cast, which are both always implicit casts.
       if (E->getStmtClass() == Stmt::ImplicitCastExprClass &&
@@ -2369,19 +2370,23 @@ namespace {
         if (CK == CK_LValueToRValue)
           SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
         if (CK == CK_ArrayToPointerDecay)
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE);
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE,
+                                             SubExprBounds);
       }
       // SubExprLValueBounds is needed if a bounds check
       // is added to the subexpression.
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
         if (SE == SideEffects::Enabled)
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE);
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE,
+                                             SubExprBounds);
       }
 
-      // Recursively infer the rvalue bounds for the subexpression,
+      // Recursively infer the rvalue bounds for the subexpression
+      // (if they were not already computed by calling LValueBounds),
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of cast expressions.
-      BoundsExpr *SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
+      if (!SubExprBounds)
+        SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
       // Casts to _Ptr narrow the bounds.  If the cast to
@@ -2503,15 +2508,18 @@ namespace {
       // they must be computed before performing any
       // side effects on the base.
       BoundsExpr *BaseLValueBounds = nullptr;
+      BoundsExpr *BaseBounds = nullptr;
       if (!E->isArrow()) {
         if (Base->isLValue())
-          BaseLValueBounds = LValueBounds(Base, CSS, Facts, SE);
+          BaseLValueBounds = LValueBounds(Base, CSS, Facts, SE, BaseBounds);
       }
 
-      // Recursively infer bounds for the base, performing side
+      // Recursively infer bounds for the base (if they were not already
+      // already computed by calling LValueBounds), performing side
       // effects if enabled.  This prevents TraverseStmt from
       // needing to traverse the children of member expressions.
-      BoundsExpr *BaseBounds = TraverseStmt(Base, CSS, Facts, SE);
+      if (!BaseBounds)
+        BaseBounds = TraverseStmt(Base, CSS, Facts, SE);
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts,
                                                        BaseLValueBounds,
@@ -2538,21 +2546,25 @@ namespace {
         SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
 
       // If the lvalue bounds for the subexpression are needed, they must
-      // be computed before traversing the subexpression.
-      // Traversing the subexpression with side effects may cause a
-      // bounds expression to be set in AddBoundsCheck, which then causes
-      // an assertion failure when pruning temporary bindings in LValueBounds.
+      // be computed before traversing the subexpression
+      // If calling LValueBounds also computes the rvalue bounds
+      // for the subexpression, save them in SubExprBounds.
       BoundsExpr *SubExprLValueBounds = nullptr;
+      BoundsExpr *SubExprBounds = nullptr;
       if (Op == UnaryOperatorKind::UO_AddrOf) {
         if (!SubExpr->getType()->isFunctionType())
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE);
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE,
+                                             SubExprBounds);
       } else if (SE == SideEffects::Enabled && E->isIncrementDecrementOp())
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE);
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE,
+                                           SubExprBounds);
 
-      // Recursively infer rvalue bounds for the subexpression,
+      // Recursively infer rvalue bounds for the subexpression
+      // (if they were not already computed by calling LValueBounds),
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of unary operators.
-      BoundsExpr *SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
+      if (!SubExprBounds)
+        SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
 
       // Perform checking with side effects, if enabled.
       if (SE == SideEffects::Enabled) {
@@ -2814,9 +2826,11 @@ namespace {
     BoundsExpr *InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS,
                                   std::pair<ComparisonSet, ComparisonSet>& Facts,
                                   BoundsExpr *ExistingLValueBounds) {
+      BoundsExpr *OutRValueBounds = nullptr;
       BoundsExpr *Bounds = ExistingLValueBounds ?
                             ExistingLValueBounds :
-                            LValueBounds(E, CSS, Facts, SideEffects::Disabled);
+                            LValueBounds(E, CSS, Facts, SideEffects::Disabled,
+                                         OutRValueBounds);
       return S.CheckNonModifyingBounds(Bounds, E);
     }
 
@@ -3099,6 +3113,10 @@ namespace {
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
     //
+    // OutRValueBounds stores the rvalue bounds of e (if they are computed
+    // while inferring the lvalue bounds for e).  This prevents callers of
+    // LValueBounds from needing to make duplicate calls to TraverseStmt for e.
+    //
     // LValueBounds should only be called on an expression that has not had
     // any side effects from bounds inference and checking performed on it.
     // PruneTemporaryBindings (which may be called from LValueBounds)
@@ -3107,7 +3125,8 @@ namespace {
     // a bounds expression on e.
     BoundsExpr *LValueBounds(Expr *E, CheckedScopeSpecifier CSS,
                              std::pair<ComparisonSet, ComparisonSet>& Facts,
-                             SideEffects SE) {
+                             SideEffects SE,
+                             BoundsExpr *&OutRValueBounds) {
       // E may not be an lvalue if there is a typechecking error when struct 
       // accesses member array incorrectly.
       if (!E->isLValue()) return CreateBoundsInferenceError();
@@ -3152,12 +3171,18 @@ namespace {
           return CreateBoundsInferenceError();
       }
       case Expr::ArraySubscriptExprClass: {
-        //  e1[e2] is a synonym for *(e1 + e2).  The bounds are
+        // e1[e2] is a synonym for *(e1 + e2).  The bounds are
         // the bounds of e1 + e2, which reduces to the bounds
         // of whichever subexpression has pointer type.
         ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
         // getBase returns the pointer-typed expression.
-        return TraverseStmt(AS->getBase(), CSS, Facts, SideEffects::Disabled);
+
+        // Ensure both the base and the index are traversed.
+        BoundsExpr *Bounds = TraverseStmt(AS->getBase(), CSS, Facts,
+                                          SideEffects::Disabled);
+        TraverseStmt(AS->getIdx(), CSS, Facts, SideEffects::Disabled);
+        OutRValueBounds = CreateBoundsUnknown();
+        return Bounds;
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = cast<MemberExpr>(E);
@@ -3212,7 +3237,8 @@ namespace {
         // TODO: when we add relative alignment support, we may need
         // to adjust the relative alignment of the bounds.
         if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-          return LValueBounds(ICE->getSubExpr(), CSS, Facts, SE);
+          return LValueBounds(ICE->getSubExpr(), CSS, Facts, SE,
+                              OutRValueBounds);
          return CreateBoundsAlwaysUnknown();
       }
       case Expr::CHKCBindTemporaryExprClass: {
