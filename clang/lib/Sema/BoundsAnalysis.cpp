@@ -239,6 +239,12 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
   // commutativity of operations. Exprs like "p + e" and "e + p" are considered
   // unequal.
 
+  // TODO: Currently, we iterate and re-compute info for all ntptrs in scope
+  // for each ntptr dereference. We can optimize this at the cost of space by
+  // storing the VarDecls, variables used in bounds exprs and base/offset for
+  // the declared upper bounds expr for the VarDecl. Then we simply have to
+  // look this up instead of re-computing.
+
   for (const VarDecl *V : NtPtrsInScope) {
     // In case the bounds expr for V is not a RangeBoundsExpr, invoke
     // ExpandBoundsToRange to expand it to RangeBoundsExpr.
