@@ -2697,7 +2697,6 @@ namespace {
 
   // Methods for inferring bounds expressions for C expressions.
 
-
   // C has an interesting semantics for expressions that differentiates between
   // lvalue and value expressions and inserts implicit conversions from lvalues
   // to values.  Value expressions are usually called rvalue expressions.  This

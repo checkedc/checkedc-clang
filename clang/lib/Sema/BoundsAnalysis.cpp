@@ -216,8 +216,8 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
       !DerefOffset->isIntegerConstantExpr(DerefOffsetVal, Ctx))
     DerefOffsetVal = Zero;
 
-  // For bounds widening, the base of the deref expr and the upper bounds expr
-  // for all ntptrs in scope should be the same.
+  // For bounds widening, the base of the deref expr and the declared upper
+  // bounds expr for all ntptrs in scope should be the same.
 
   // For example:
   // _Nt_array_ptr<T> p : bounds(p, p + i);

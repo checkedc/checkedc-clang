@@ -140,7 +140,6 @@ namespace clang {
     BoundsMapTy GetWidenedBounds(const CFGBlock *B);
 
     // Pretty print the widen bounds analysis.
-    // @param[in] FD is used to extract the name of the current function for
     // printing.
     void DumpWidenedBounds();
 
