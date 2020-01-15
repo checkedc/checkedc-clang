@@ -589,14 +589,13 @@ namespace {
 
     bool AddBoundsCheck(Expr *E, OperationKind OpKind, CheckedScopeSpecifier CSS,
                         std::pair<ComparisonSet, ComparisonSet>& Facts,
-                        BoundsExpr *ExistingLValueBounds = nullptr) {
+                        BoundsExpr *LValueBounds) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
       QualType PtrType;
       if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
         NeedsBoundsCheck = true;
-        BoundsExpr *LValueBounds = InferLValueBounds(E, CSS, Facts,
-                                                     ExistingLValueBounds);
+        LValueBounds = S.CheckNonModifyingBounds(LValueBounds, E);
         BoundsCheckKind Kind = BCK_Normal;
         // Null-terminated array pointers have special semantics for
         // bounds checks.
@@ -2815,25 +2814,6 @@ namespace {
   // Otherwise an expression denotes an rvalue.
 
   private:
-    /// Infer a bounds expression for an lvalue.
-    /// The bounds determine whether the lvalue to which an
-    /// expression evaluates in in range.
-    /// 
-    /// ExistingLValueBounds is used to prevent recomputing the
-    /// lvalue bounds for an expression that may have had side
-    /// effects performed on it.  This prevents assertion failures
-    /// that could otherwise occur in PruneTemporaryBindings.
-    BoundsExpr *InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                  BoundsExpr *ExistingLValueBounds) {
-      BoundsExpr *OutRValueBounds = nullptr;
-      BoundsExpr *Bounds = ExistingLValueBounds ?
-                            ExistingLValueBounds :
-                            LValueBounds(E, CSS, Facts, SideEffects::Disabled,
-                                         OutRValueBounds);
-      return S.CheckNonModifyingBounds(Bounds, E);
-    }
-
     /// Infer a bounds expression for an rvalue.
     /// The bounds determine whether the rvalue to which an
     /// expression evaluates is in range.
