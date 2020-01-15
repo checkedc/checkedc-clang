@@ -1963,15 +1963,16 @@ namespace {
         // CheckTemporaryBinding traverses its subexpression,
         // so there is no need to traverse its children below.
         case Stmt::CHKCBindTemporaryExprClass: {
-          BoundsExpr *Bounds = CheckTemporaryBinding(cast<CHKCBindTemporaryExpr>(S),
-                                                     CSS, Facts, SE);
+          CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(S);
+          BoundsExpr *Bounds = CheckTemporaryBinding(Binding, CSS, Facts, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         case Expr::ConditionalOperatorClass:
-        case Expr::BinaryConditionalOperatorClass:
-          // TODO: infer correct bounds for conditional operators
-          ResultBounds = CreateBoundsAllowedButNotComputed();
-          break;
+        case Expr::BinaryConditionalOperatorClass: {
+          AbstractConditionalOperator *ACO = cast<AbstractConditionalOperator>(S);
+          BoundsExpr *Bounds = CheckConditionalOperator(ACO, CSS, Facts, SE);
+          return AdjustRValueBounds(S, Bounds);
+        }
         case Expr::BoundsValueExprClass: {
           BoundsExpr *Bounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S),
                                                     CSS, Facts, SE);
@@ -1981,12 +1982,15 @@ namespace {
           break;
       }
       
+      TraverseChildren(S, CSS, Facts, SE);
+      return AdjustRValueBounds(S, ResultBounds);
+    }
+
+    void TraverseChildren(Stmt *S, CheckedScopeSpecifier CSS, std::pair<ComparisonSet, ComparisonSet>& Facts, SideEffects SE) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         TraverseStmt(*I, CSS, Facts, SE);
       }
-
-      return AdjustRValueBounds(S, ResultBounds);
     }
 
     // Traverse a top-level variable declaration.  If there is an
@@ -2638,6 +2642,16 @@ namespace {
                                      SideEffects SE) {
       Expr *Binding = E->getTemporaryBinding();
       return TraverseStmt(Binding, CSS, Facts, SE);
+    }
+
+    BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
+                                         CheckedScopeSpecifier CSS,
+                                         std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                         SideEffects SE) {
+      if (SE == SideEffects::Enabled)
+        TraverseChildren(E, CSS, Facts, SE);
+      // TODO: infer correct bounds for conditional operators
+      return CreateBoundsAllowedButNotComputed();
     }
 
     // Given an array type with constant dimension size, produce a count
@@ -3405,13 +3419,15 @@ namespace {
         case Expr::CallExprClass:
           return CheckCallExpr(cast<CallExpr>(E), CSS, Facts, SE);
         case Expr::CHKCBindTemporaryExprClass:
-          return CheckTemporaryBinding(cast<CHKCBindTemporaryExpr>(E), CSS, Facts, SE);
+          return CheckTemporaryBinding(cast<CHKCBindTemporaryExpr>(E),
+                                       CSS, Facts, SE);
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
-          // TODO: infer correct bounds for conditional operators
-          return CreateBoundsAllowedButNotComputed();
+          return CheckConditionalOperator(cast<AbstractConditionalOperator>(E),
+                                          CSS, Facts, SE);
         case Expr::BoundsValueExprClass:
-          return CheckBoundsValueExpr(cast<BoundsValueExpr>(E), CSS, Facts, SE);
+          return CheckBoundsValueExpr(cast<BoundsValueExpr>(E),
+                                      CSS, Facts, SE);
         default:
           // All other cases are unknowable
           return CreateBoundsAlwaysUnknown();
