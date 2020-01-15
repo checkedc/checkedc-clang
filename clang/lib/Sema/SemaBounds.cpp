@@ -633,19 +633,22 @@ namespace {
     // always need bounds checks, even though their lvalues are only used for an
     // address computation.
     bool AddMemberBaseBoundsCheck(MemberExpr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
+                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
+                                  BoundsExpr *BaseLValueBounds,
+                                  BoundsExpr *BaseBounds) {
       Expr *Base = E->getBase();
       // E.F
       if (!E->isArrow()) {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
-          return AddBoundsCheck(Base, OperationKind::Other, CSS, Facts);
+          return AddBoundsCheck(Base, OperationKind::Other, CSS, Facts,
+                                BaseLValueBounds);
         return false;
       }
 
       // E->F.  This is equivalent to (*E).F.
       if (Base->getType()->isCheckedPointerArrayType()) {
-        BoundsExpr *Bounds = InferRValueBounds(Base, CSS, Facts);
+        BoundsExpr *Bounds = S.CheckNonModifyingBounds(BaseBounds, Base);
         if (Bounds->isUnknown()) {
           S.Diag(Base->getBeginLoc(), diag::err_expected_bounds) << Base->getSourceRange();
           Bounds = S.CreateInvalidBoundsExpr();
@@ -1920,10 +1923,13 @@ namespace {
                                              CSS, Facts, SE);
           return AdjustRValueBounds(S, Bounds);
         }
-        case Expr::MemberExprClass:
-          ResultBounds = CheckMemberExpr(cast<MemberExpr>(S),
-                                         CSS, Facts, SE);
-          break;
+        // CheckMemberExpr traverses its base,
+        // so there is no need to traverse its children below.
+        case Expr::MemberExprClass: {
+          BoundsExpr *Bounds = CheckMemberExpr(cast<MemberExpr>(S),
+                                               CSS, Facts, SE);
+          return AdjustRValueBounds(S, Bounds);
+        }
         // CheckCastExpr traverses its subexpression,
         // so there is no need to traverse its children below.
         case Expr::ImplicitCastExprClass:
@@ -2491,7 +2497,25 @@ namespace {
       if (SE == SideEffects::Disabled)
         return CreateBoundsEmpty();
 
-      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts);
+      Expr *Base = E->getBase();
+
+      // If the lvalue bounds for the base are needed,
+      // they must be computed before performing any
+      // side effects on the base.
+      BoundsExpr *BaseLValueBounds = nullptr;
+      if (!E->isArrow()) {
+        if (Base->isLValue())
+          BaseLValueBounds = LValueBounds(Base, CSS, Facts);
+      }
+
+      // Recursively infer bounds for the base, performing side
+      // effects if enabled.  This prevents TraverseStmt from
+      // needing to traverse the children of member expressions.
+      BoundsExpr *BaseBounds = TraverseStmt(Base, CSS, Facts, SE);
+
+      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts,
+                                                       BaseLValueBounds,
+                                                       BaseBounds);
       if (NeedsBoundsCheck && DumpBounds)
         DumpExpression(llvm::outs(), E);
       return CreateBoundsEmpty();
