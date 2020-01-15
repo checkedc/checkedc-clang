@@ -316,7 +316,7 @@ void f15(int i) {
 
   _Nt_array_ptr<char> q : count(0) = "a";
   if (*q)
-    if (*(q - 1))  // expected-error {{out-of-bounds memory access}}
+    if (*(q - 1)) // expected-error {{out-of-bounds memory access}}
   {}
 
 // CHECK:  [B7]
@@ -383,9 +383,9 @@ void f17(char p _Nt_checked[] : count(1)) {
 // CHECK:    1: *(p + 1)
 // CHECK: upper_bound(r) = 1
 // CHECK:  [B1]
-// CHECK: upper_bound(r) = 2
 // CHECK: upper_bound(p) = 1
 // CHECK: upper_bound(q) = 1
+// CHECK: upper_bound(r) = 2
 }
 
 void f18() {
@@ -444,9 +444,9 @@ void f19() {
   _Nt_array_ptr<char> p : count(0) = "a";
 
   if (*p)
-    if (*(p + 1))
-      if (*(p + 3))
-        if (*(p + 2))
+    if (*(p + 1))     // expected-error {{out-of-bounds memory access}}
+      if (*(p + 3))   // expected-error {{out-of-bounds memory access}}
+        if (*(p + 2)) // expected-error {{out-of-bounds memory access}}
   {}
 
 // CHECK: In function: f19

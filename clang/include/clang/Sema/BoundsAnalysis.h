@@ -117,6 +117,10 @@ namespace clang {
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
 
+    // A set of all ntptrs in scope. Currently, we simply collect all ntptrs
+    // defined in the function.
+    DeclSetTy NtPtrsInScope;
+
     // BlockMapTy stores the mapping from CFGBlocks to ElevatedCFGBlocks.
     using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
     // A queue of unique ElevatedCFGBlocks to run the dataflow analysis on.
@@ -271,22 +275,11 @@ namespace clang {
     // @return Return the APInt value for E. Return APInt(0) if E is nullptr.
     const llvm::APInt GetAPIntVal(const Expr *E) const;
 
-    // Check whether there is an ntptr defined in the current block.
-    // @param[in] B is the current block.
-    DeclSetTy GetNtPtrsInBlock(const CFGBlock *B) const;
-
-    // Get the ntptrs in scope. These will be the ntptrs declared in any pred
-    // of a block as well as those passed as function parameters to the current
-    // function. This function will recurse for all preds of a block.
-    // @param[in] B is the current CFGBlock.
-    // @param[out] NtPtrsInScope is a set of all ntptrs in scope in block B.
-    // @param[in] GetNtPtrsInScope recurses for all preds of a block. But the
-    // params to the current function remain the same for all blocks in this
-    // function. So we only need to check ntptrs in the params only once. This
-    // flag is false by default and is set to true for the first time this
-    // function is invoked.
-    void GetNtPtrsInScope(const CFGBlock *B, DeclSetTy &NtPtrsInScope,
-                          bool CheckParams = false) const;
+    // Collect all ntptrs in scope. Currently, this simply collects all ntptrs
+    // defined in all blocks in the current function. This function inserts the
+    // VarDecls for the ntptrs in NtPtrsInScope.
+    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock.
+    void CollectNtPtrsInScope(BlockMapTy BlockMap);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
