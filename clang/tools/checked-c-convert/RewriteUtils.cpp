@@ -808,7 +808,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       if (foundWild) wild++;
 
 
-      // Check if the variable is a void*
+      // Check if the variable contains an unchecked type
       if (isUncheckedPtr(st->getType())) wild++;
       decls++;
       return true;
@@ -832,16 +832,30 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       return true;
     }
 
-    // Recursively determine if a type is unchecked
     bool isUncheckedPtr(QualType t) {
+      // TODO does a  more efficient representation exist?
+      std::set<llvm::FoldingSetNodeID> seen;
+      return isUncheckedPtrAcc(t, seen);
+    }
+
+    // Recursively determine if a type is unchecked
+    bool isUncheckedPtrAcc(QualType t, std::set<llvm::FoldingSetNodeID> &seen) {
       auto ct = t.getCanonicalType();
+      llvm:FoldingSetNodeID id;
+      ct.Profile(id);
+      auto search = seen.find(id);
+      if (search == seen.end()) {
+        return false;
+      } else {
+        seen.insert(id);
+      }
+
       if (ct->isVoidType()) {
         return true;
       } if (ct->isPointerType()) {
         return isUncheckedPtr(ct->getPointeeType());
       } else if (ct->isRecordType()) {
-        return false;
-        //return isUncheckedStruct(ct);
+        return isUncheckedStruct(ct);
       } else {
         return false;
       }
@@ -855,7 +869,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
         auto decl = rt->getDecl();
         if (decl) {
           bool unsafe = false;
-          for (auto const&field : decl->fields()) {
+          for (auto const &field : decl->fields()) {
             auto field_type = field->getType();
             unsafe |= isUncheckedPtr(field_type);
             std::set<ConstraintVariable*> cvs = Info.getVariable(field, Context);
@@ -1135,11 +1149,11 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   StructVariableInitializer FV = StructVariableInitializer(&Context, Info, rewriteThese);
   std::set<llvm::FoldingSetNodeID> seen;
-  CheckedRegionAdder CRA(&Context, R, Info, seen);
+  //CheckedRegionAdder CRA(&Context, R, Info, seen);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
-    CRA.TraverseDecl(D);
+    //CRA.TraverseDecl(D);
   }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();
