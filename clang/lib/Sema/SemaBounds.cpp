@@ -1911,8 +1911,10 @@ namespace {
         // CheckUnaryOperator traverses its subexpression,
         // so there is no need to traverse its children below.
         case Expr::UnaryOperatorClass: {
+          BoundsExpr *DerefSubExprBounds = nullptr;
           BoundsExpr *Bounds = CheckUnaryOperator(cast<UnaryOperator>(S),
-                                                  CSS, Facts, SE);
+                                                  CSS, Facts, SE,
+                                                  DerefSubExprBounds);
           return AdjustRValueBounds(S, Bounds);
         }
         // CheckCallExpr traverses its callee and arguments,
@@ -2531,9 +2533,14 @@ namespace {
     // If e is an rvalue, CheckUnaryOperator returns the bounds for
     // the value produced by e.
     // If e is an lvalue, it returns unknown bounds.
+    //
+    // If e is a dereference *e1, OutDerefSubExprBounds
+    // saves the rvalue bounds of e1 so that callers of
+    // CheckUnaryOperator do not need to recompute them.
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
                                    std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                   SideEffects SE) {
+                                   SideEffects SE,
+                                   BoundsExpr *&OutDerefSubExprBounds) {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
@@ -2541,7 +2548,7 @@ namespace {
       // must be computed before performing any potential side effects on
       // the subexpression to prevent asserts in PruneTemporaryBindings.
       BoundsExpr *SubExprTargetBounds = nullptr;
-      if (E->isIncrementDecrementOp())
+      if (UnaryOperator::isIncrementDecrementOp(Op))
         SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
 
       // If the lvalue bounds for the subexpression are needed, they must
@@ -2586,8 +2593,10 @@ namespace {
       // CheckUnaryOperator is not intended to be used to get
       // the bounds for an lvalue expression, but it may be called on an
       // lvalue expression in order to perform bounds checking.
-      if (Op == UnaryOperatorKind::UO_Deref)
+      if (Op == UnaryOperatorKind::UO_Deref) {
+        OutDerefSubExprBounds = SubExprBounds;
         return CreateBoundsInferenceError();
+      }
 
       // `!e` has empty bounds.
       if (Op == UnaryOperatorKind::UO_LNot)
@@ -3144,9 +3153,14 @@ namespace {
       }
       case Expr::UnaryOperatorClass: {
         UnaryOperator *UO = cast<UnaryOperator>(E);
-        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
-          return TraverseStmt(UO->getSubExpr(), CSS, Facts,
-                              SideEffects::Disabled);
+        if (UO->getOpcode() == UnaryOperatorKind::UO_Deref) {
+          // The lvalue bounds of *e are the rvalue bounds of e.
+          BoundsExpr *SubExprBounds = nullptr;
+          // Ensure that *e is traversed, while saving the rvalue bounds
+          // of e that CheckUnaryOperator computes in SubExprBounds.
+          OutRValueBounds = CheckUnaryOperator(UO, CSS, Facts, SE, SubExprBounds);
+          return SubExprBounds;
+        }
         else
           return CreateBoundsInferenceError();
       }
@@ -3154,13 +3168,16 @@ namespace {
         // e1[e2] is a synonym for *(e1 + e2).  The bounds are
         // the bounds of e1 + e2, which reduces to the bounds
         // of whichever subexpression has pointer type.
-        ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
         // getBase returns the pointer-typed expression.
+        ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
 
-        // Ensure both the base and the index are traversed.
-        BoundsExpr *Bounds = TraverseStmt(AS->getBase(), CSS, Facts,
-                                          SideEffects::Disabled);
-        TraverseStmt(AS->getIdx(), CSS, Facts, SideEffects::Disabled);
+        // Ensure both e1 and e2 are traversed here, since
+        // callers will not traverse the children of e1[e2].
+        BoundsExpr *Bounds = TraverseStmt(AS->getBase(), CSS, Facts, SE);
+        TraverseStmt(AS->getIdx(), CSS, Facts, SE);
+
+        // Prevent callers from traversing the children of e1[e2],
+        // since e1 and e2 were already traversed here.
         OutRValueBounds = CreateBoundsUnknown();
         return Bounds;
       }
