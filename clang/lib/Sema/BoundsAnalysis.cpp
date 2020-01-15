@@ -283,7 +283,7 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
       UpperOffsetVal = Zero;
 
     // We cannot widen the bounds if the offset in the deref expr is less than
-    // the offset in the upper bounds expr. For example:
+    // the offset in the declared upper bounds expr. For example:
     // _Nt_array_ptr<T> p : bounds(p, p + i + 2); // Upper Bounds Offset (UBO) = 2.
 
     // if (*(p + i)) // Offset = 0 < UBO ==> no widening
