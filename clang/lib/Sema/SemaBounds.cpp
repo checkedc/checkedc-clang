@@ -2824,7 +2824,7 @@ namespace {
     /// expression evaluates is in range.
     BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
                                   std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
+      BoundsExpr *Bounds = TraverseStmt(E, CSS, Facts, SideEffects::Disabled);
       return S.CheckNonModifyingBounds(Bounds, E);
     }
 
@@ -3144,7 +3144,7 @@ namespace {
       case Expr::UnaryOperatorClass: {
         UnaryOperator *UO = cast<UnaryOperator>(E);
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
-          return RValueBounds(UO->getSubExpr(), CSS, Facts,
+          return TraverseStmt(UO->getSubExpr(), CSS, Facts,
                               SideEffects::Disabled);
         else
           return CreateBoundsInferenceError();
@@ -3155,7 +3155,7 @@ namespace {
         // of whichever subexpression has pointer type.
         ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
         // getBase returns the pointer-typed expression.
-        return RValueBounds(AS->getBase(), CSS, Facts, SideEffects::Disabled);
+        return TraverseStmt(AS->getBase(), CSS, Facts, SideEffects::Disabled);
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = cast<MemberExpr>(E);
@@ -3446,56 +3446,6 @@ namespace {
         case CastKind::CK_AssumePtrBounds:
           llvm_unreachable("unexpected rvalue bounds cast");
         default:
-          return CreateBoundsAlwaysUnknown();
-      }
-    }
-
-    // Compute the bounds of an expression that produces an rvalue.
-    //
-    // The returned bounds expression may contain a modifying expression within
-    // it. It is the caller's responsibility to validate that the bounds
-    // expression is non-modifying.
-    BoundsExpr *RValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                             std::pair<ComparisonSet, ComparisonSet>& Facts,
-                             SideEffects SE) {
-      if (!E->isRValue()) return CreateBoundsInferenceError();
-
-      E = E->IgnoreParens();
-
-      // Suppress diagnostics if side effects are disabled.
-      Sema::ExprSubstitutionScope Scope(S, SE == SideEffects::Disabled);
-
-      // Null Ptrs always have bounds(any)
-      // This is the correct way to detect all the different ways that
-      // C can make a null ptr.
-      if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent)) {
-        return CreateBoundsAny();
-      }
-
-      switch (E->getStmtClass()) {
-        case Expr::BoundsCastExprClass:
-        case Expr::ImplicitCastExprClass:
-        case Expr::CStyleCastExprClass:
-          return CheckCastExpr(cast<CastExpr>(E), CSS, Facts, SE);
-        case Expr::UnaryOperatorClass:
-          return CheckUnaryOperator(cast<UnaryOperator>(E), CSS, Facts, SE);
-        case Expr::BinaryOperatorClass:
-        case Expr::CompoundAssignOperatorClass:
-          return CheckBinaryOperator(cast<BinaryOperator>(E), CSS, Facts, SE);
-        case Expr::CallExprClass:
-          return CheckCallExpr(cast<CallExpr>(E), CSS, Facts, SE);
-        case Expr::CHKCBindTemporaryExprClass:
-          return CheckTemporaryBinding(cast<CHKCBindTemporaryExpr>(E),
-                                       CSS, Facts, SE);
-        case Expr::ConditionalOperatorClass:
-        case Expr::BinaryConditionalOperatorClass:
-          return CheckConditionalOperator(cast<AbstractConditionalOperator>(E),
-                                          CSS, Facts, SE);
-        case Expr::BoundsValueExprClass:
-          return CheckBoundsValueExpr(cast<BoundsValueExpr>(E),
-                                      CSS, Facts, SE);
-        default:
-          // All other cases are unknowable
           return CreateBoundsAlwaysUnknown();
       }
     }
