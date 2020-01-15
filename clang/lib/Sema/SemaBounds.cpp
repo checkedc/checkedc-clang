@@ -1958,10 +1958,12 @@ namespace {
           }
           break;
         }
+        // CheckReturnStmt traverses its return value,
+        // so there is no need to traverse its children below.
         case Stmt::ReturnStmtClass: {
-          ReturnStmt *RS = cast<ReturnStmt>(S);
-          ResultBounds = CheckReturnStmt(RS, CSS, SE);
-          break;
+          BoundsExpr *Bounds = CheckReturnStmt(cast<ReturnStmt>(S),
+                                               CSS, Facts, SE);
+          return AdjustRValueBounds(S, Bounds);
         }
         // Since TraverseStmt still checks all children of temporary binding
         // expressions, this case should perform bounds inference only,
@@ -2651,16 +2653,27 @@ namespace {
     }
 
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
+                                std::pair<ComparisonSet, ComparisonSet>& Facts,
                                 SideEffects SE) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
+
       if (SE == SideEffects::Disabled)
         return ResultBounds;
-      if (!ReturnBounds)
-        return ResultBounds;
+
       Expr *RetValue = RS->getRetValue();
+
       if (!RetValue)
         // We already issued an error message for this case.
         return ResultBounds;
+
+      // Recursively traverse the return value if it exists.
+      // This prevents TraverseStmt from needing to traverse
+      // the children of return statements.
+      TraverseStmt(RetValue, CSS, Facts, SE);
+
+      if (!ReturnBounds)
+        return ResultBounds;
+
       // TODO: Actually check that the return expression bounds imply the 
       // return bounds.
       // TODO: Also check that any parameters used in the return bounds are
