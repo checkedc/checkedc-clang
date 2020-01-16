@@ -297,8 +297,7 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
     // We widen p by 1 only if the bounds of p in (In - Kill) == Gen[p].
     // See the comments in ComputeOutSets for more details.
 
-    if (Lex.CompareAPInt(DerefOffset, UpperOffset) ==
-        Lexicographic::Result::LessThan)
+    if (llvm::APSInt::compareValues(DerefOffset, UpperOffset) < 0)
       continue;
 
     // (DerefOffset - UpperOffset) gives the offset of the memory dereference
