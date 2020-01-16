@@ -1928,19 +1928,15 @@ namespace {
                                                CSS, Facts, SE);
           return AdjustRValueBounds(S, Bounds);
         }
-        // CheckCastExpr traverses its subexpression,
-        // so there is no need to traverse its children below.
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
-        case Expr::BoundsCastExprClass: {
-          BoundsExpr *Bounds = CheckCastExpr(cast<CastExpr>(S),
-                                             CSS, Facts, SE);
-          return AdjustRValueBounds(S, Bounds);
-        }
+        case Expr::BoundsCastExprClass:
+          ResultBounds = CheckCastExpr(cast<CastExpr>(S), CSS, Facts);
+          return AdjustRValueBounds(S, ResultBounds);
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
           ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S),
-                                                   CSS, Facts);
+                                             CSS, Facts);
           return AdjustRValueBounds(S, ResultBounds);
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
@@ -2040,7 +2036,7 @@ namespace {
       if (E->isAssignmentOp())
         LHSLValueBounds = LValueBounds(LHS, CSS, Facts, SideEffects::Enabled, LHSBounds);
 
-      // Recursively infer rvalue bounds for the subexpressions.
+      // Recursively infer the rvalue bounds for the subexpressions.
       if (!LHSBounds)
         LHSBounds = TraverseStmt(LHS, CSS, Facts, SideEffects::Enabled);
       BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS, Facts, SideEffects::Enabled);
@@ -2333,8 +2329,7 @@ namespace {
     // If e is an lvalue, it returns unknown bounds.
     // This includes both ImplicitCastExprs and CStyleCastExprs.
     BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
-                              std::pair<ComparisonSet, ComparisonSet>& Facts,
-                              SideEffects SE) {
+                              std::pair<ComparisonSet, ComparisonSet>& Facts) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
       BoundsExpr *ResultBounds = CreateBoundsUnknown();
@@ -2361,23 +2356,20 @@ namespace {
         if (CK == CK_LValueToRValue)
           SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
         if (CK == CK_ArrayToPointerDecay)
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE,
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
                                              SubExprBounds);
       }
       // SubExprLValueBounds is needed if a bounds check
       // is added to the subexpression.
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        if (SE == SideEffects::Enabled)
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE,
-                                             SubExprBounds);
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
+                                           SubExprBounds);
       }
 
       // Recursively infer the rvalue bounds for the subexpression
-      // (if they were not already computed by calling LValueBounds),
-      // performing side effects if enabled.  This prevents TraverseStmt from
-      // needing to recursively traverse the children of cast expressions.
+      // (if they were not already computed by calling LValueBounds).
       if (!SubExprBounds)
-        SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
+        SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SideEffects::Enabled);
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
       // Casts to _Ptr narrow the bounds.  If the cast to
@@ -2392,17 +2384,14 @@ namespace {
                                           SubExprBounds);
       }
 
-      if (SE == SideEffects::Enabled)
-        CheckDisallowedFunctionPtrCasts(E);
+      CheckDisallowedFunctionPtrCasts(E);
 
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        if (SE == SideEffects::Enabled) {
-          bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
-                                                 OperationKind::Read, CSS,
-                                                 Facts, SubExprLValueBounds);
-          if (NeedsBoundsCheck && DumpBounds)
-            DumpExpression(llvm::outs(), E);
-        }
+        bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
+                                                OperationKind::Read, CSS,
+                                                Facts, SubExprLValueBounds);
+        if (NeedsBoundsCheck && DumpBounds)
+          DumpExpression(llvm::outs(), E);
         return ResultBounds;
       }
 
@@ -2426,33 +2415,28 @@ namespace {
                                                 CastKind::CK_BitCast,
                                                 TempUse, true);
 
-        if (CK == CK_AssumePtrBounds)
-          return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
+      if (CK == CK_AssumePtrBounds)
+        return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
 
-        if (SE == SideEffects::Enabled) {
-          BoundsExpr *DeclaredBounds = E->getBoundsExpr();
-          BoundsExpr *NormalizedBounds = ExpandToRange(SubExprAtNewType,
-                                                        DeclaredBounds);
+        BoundsExpr *DeclaredBounds = E->getBoundsExpr();
+        BoundsExpr *NormalizedBounds = ExpandToRange(SubExprAtNewType,
+                                                      DeclaredBounds);
 
-          SubExprBounds = S.CheckNonModifyingBounds(SubExprBounds, SubExpr);
-          if (SubExprBounds->isUnknown()) {
-            S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
-          }
-
-          assert(NormalizedBounds);
-
-          E->setNormalizedBoundsExpr(NormalizedBounds);
-          E->setSubExprBoundsExpr(SubExprBounds);
-
-          if (DumpBounds)
-            DumpBoundsCastBounds(llvm::outs(), E, DeclaredBounds, NormalizedBounds, SubExprBounds);
+        SubExprBounds = S.CheckNonModifyingBounds(SubExprBounds, SubExpr);
+        if (SubExprBounds->isUnknown()) {
+          S.Diag(SubExpr->getBeginLoc(), diag::err_expected_bounds);
         }
+
+        assert(NormalizedBounds);
+
+        E->setNormalizedBoundsExpr(NormalizedBounds);
+        E->setSubExprBoundsExpr(SubExprBounds);
+
+        if (DumpBounds)
+          DumpBoundsCastBounds(llvm::outs(), E, DeclaredBounds, NormalizedBounds, SubExprBounds);
         
         return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
       }
-
-      if (SE == SideEffects::Disabled)
-        return ResultBounds;
 
       // Casts to _Ptr type must have a source for which we can infer bounds.
       if ((CK == CK_BitCast || CK == CK_IntegralToPointer) &&
@@ -2553,7 +2537,8 @@ namespace {
         SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
                                            SubExprBounds);
 
-      // Recursively infer rvalue bounds for the subexpression.
+      // Recursively infer the rvalue bounds for the subexpression
+      // (if they were not already computed by calling LValueBounds).
       if (!SubExprBounds)
         SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SideEffects::Enabled);
 
