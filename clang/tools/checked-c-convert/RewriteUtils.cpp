@@ -1149,11 +1149,11 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   StructVariableInitializer FV = StructVariableInitializer(&Context, Info, rewriteThese);
   std::set<llvm::FoldingSetNodeID> seen;
-  //CheckedRegionAdder CRA(&Context, R, Info, seen);
+  CheckedRegionAdder CRA(&Context, R, Info, seen);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
-    //CRA.TraverseDecl(D);
+    CRA.TraverseDecl(D);
   }
 
   std::tie(PSLMap, VDLToStmtMap) = V.getResults();
