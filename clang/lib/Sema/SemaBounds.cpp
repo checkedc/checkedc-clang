@@ -1917,13 +1917,9 @@ namespace {
         case Expr::CallExprClass:
           ResultBounds = CheckCallExpr(cast<CallExpr>(S), CSS, Facts);
           return AdjustRValueBounds(S, ResultBounds);
-        // CheckMemberExpr traverses its base,
-        // so there is no need to traverse its children below.
-        case Expr::MemberExprClass: {
-          BoundsExpr *Bounds = CheckMemberExpr(cast<MemberExpr>(S),
-                                               CSS, Facts, SE);
-          return AdjustRValueBounds(S, Bounds);
-        }
+        case Expr::MemberExprClass:
+          ResultBounds = CheckMemberExpr(cast<MemberExpr>(S), CSS, Facts);
+          return AdjustRValueBounds(S, ResultBounds);
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass:
@@ -2461,11 +2457,7 @@ namespace {
     // where T is the type of the member.
     // CheckMemberExpr returns empty bounds.  e is an lvalue.
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
-                                std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                SideEffects SE) {
-      if (SE == SideEffects::Disabled)
-        return CreateBoundsEmpty();
-
+                                std::pair<ComparisonSet, ComparisonSet>& Facts) {
       Expr *Base = E->getBase();
 
       // If the lvalue bounds for the base are needed,
@@ -2475,15 +2467,13 @@ namespace {
       BoundsExpr *BaseBounds = nullptr;
       if (!E->isArrow()) {
         if (Base->isLValue())
-          BaseLValueBounds = LValueBounds(Base, CSS, Facts, SE, BaseBounds);
+          BaseLValueBounds = LValueBounds(Base, CSS, Facts, SideEffects::Enabled, BaseBounds);
       }
 
-      // Recursively infer bounds for the base (if they were not already
-      // already computed by calling LValueBounds), performing side
-      // effects if enabled.  This prevents TraverseStmt from
-      // needing to traverse the children of member expressions.
+      // Recursively infer the rvalue bounds for the base
+      // (if they were not already computed by calling LValueBounds).
       if (!BaseBounds)
-        BaseBounds = TraverseStmt(Base, CSS, Facts, SE);
+        BaseBounds = TraverseStmt(Base, CSS, Facts, SideEffects::Enabled);
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts,
                                                        BaseLValueBounds,
