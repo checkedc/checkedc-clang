@@ -1937,14 +1937,11 @@ namespace {
                                              CSS, Facts, SE);
           return AdjustRValueBounds(S, Bounds);
         }
-        // CheckBinaryOperator traverses its subexpressions,
-        // so there is no need to traverse its children below.
         case Expr::BinaryOperatorClass:
-        case Expr::CompoundAssignOperatorClass: {
-          BoundsExpr *Bounds = CheckBinaryOperator(cast<BinaryOperator>(S),
-                                                   CSS, Facts, SE);
-          return AdjustRValueBounds(S, Bounds);
-        }
+        case Expr::CompoundAssignOperatorClass:
+          ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S),
+                                                   CSS, Facts);
+          return AdjustRValueBounds(S, ResultBounds);
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
           CSS = CS->getCheckedSpecifier();
@@ -2026,7 +2023,7 @@ namespace {
     // CheckBinaryOperator returns the bounds for the value produced by e.
     // e is an rvalue.
     BoundsExpr *CheckBinaryOperator(BinaryOperator *E, CheckedScopeSpecifier CSS,
-              std::pair<ComparisonSet, ComparisonSet>& Facts, SideEffects SE) {
+                                    std::pair<ComparisonSet, ComparisonSet>& Facts) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
 
@@ -2040,15 +2037,13 @@ namespace {
       // for the LHS, save them in LHSBounds.
       BoundsExpr *LHSLValueBounds = nullptr;
       BoundsExpr *LHSBounds = nullptr;
-      if (SE == SideEffects::Enabled && E->isAssignmentOp())
-        LHSLValueBounds = LValueBounds(LHS, CSS, Facts, SE, LHSBounds);
+      if (E->isAssignmentOp())
+        LHSLValueBounds = LValueBounds(LHS, CSS, Facts, SideEffects::Enabled, LHSBounds);
 
-      // Recursively infer rvalue bounds for the subexpressions,
-      // performing side effects if enabled.  This prevents TraverseStmt from
-      // needing to recursively traverse the children of binary operators.
+      // Recursively infer rvalue bounds for the subexpressions.
       if (!LHSBounds)
-        LHSBounds = TraverseStmt(LHS, CSS, Facts, SE);
-      BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS, Facts, SE);
+        LHSBounds = TraverseStmt(LHS, CSS, Facts, SideEffects::Enabled);
+      BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS, Facts, SideEffects::Enabled);
 
       BinaryOperatorKind Op = E->getOpcode();
 
@@ -2136,53 +2131,51 @@ namespace {
         }
       }
 
-      // Perform checking with side effects, if enabled.
-      if (SE == SideEffects::Enabled) {
-        if (E->isAssignmentOp()) {
-          QualType LHSType = LHS->getType();
-          // Bounds of the right-hand side of the assignment
-          BoundsExpr *RightBounds = nullptr;
+      // Perform checking with side effects.
+      if (E->isAssignmentOp()) {
+        QualType LHSType = LHS->getType();
+        // Bounds of the right-hand side of the assignment
+        BoundsExpr *RightBounds = nullptr;
 
-          if (!E->isCompoundAssignmentOp() &&
-              LHSType->isCheckedPointerPtrType() &&
-              RHS->getType()->isCheckedPointerPtrType()) {
-            // ptr<T> to ptr<T> assignment, no obligation to check assignment bounds
-          }
-          else if (LHSType->isCheckedPointerType() ||
-                   LHSType->isIntegerType() ||
-                   IsBoundsSafeInterfaceAssignment(LHSType, RHS)) {
-            // Check that the value being assigned has bounds if the
-            // target of the LHS lvalue has bounds.
-            LHSTargetBounds = S.CheckNonModifyingBounds(LHSTargetBounds, LHS);
-            if (!LHSTargetBounds->isUnknown()) {
-              if (E->isCompoundAssignmentOp())
-                RightBounds = S.CheckNonModifyingBounds(ResultBounds, E);
-              else
-                RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
-
-              if (RightBounds->isUnknown()) {
-                 S.Diag(RHS->getBeginLoc(),
-                        diag::err_expected_bounds_for_assignment)
-                        << RHS->getSourceRange();
-                 RightBounds = S.CreateInvalidBoundsExpr();
-              }
-
-              CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
-                                          RHS, RightBounds, CSS, Facts);
-            }
-          }
-
-          // Check that the LHS lvalue of the assignment has bounds, if it is an
-          // lvalue that was produced by dereferencing an _Array_ptr.
-          bool LHSNeedsBoundsCheck = false;
-          OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
-            OperationKind::Assign : OperationKind::Other;
-          LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS, Facts,
-                                               LHSLValueBounds);
-          if (DumpBounds && (LHSNeedsBoundsCheck ||
-                             (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
-            DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RightBounds);
+        if (!E->isCompoundAssignmentOp() &&
+            LHSType->isCheckedPointerPtrType() &&
+            RHS->getType()->isCheckedPointerPtrType()) {
+          // ptr<T> to ptr<T> assignment, no obligation to check assignment bounds
         }
+        else if (LHSType->isCheckedPointerType() ||
+                  LHSType->isIntegerType() ||
+                  IsBoundsSafeInterfaceAssignment(LHSType, RHS)) {
+          // Check that the value being assigned has bounds if the
+          // target of the LHS lvalue has bounds.
+          LHSTargetBounds = S.CheckNonModifyingBounds(LHSTargetBounds, LHS);
+          if (!LHSTargetBounds->isUnknown()) {
+            if (E->isCompoundAssignmentOp())
+              RightBounds = S.CheckNonModifyingBounds(ResultBounds, E);
+            else
+              RightBounds = S.CheckNonModifyingBounds(ResultBounds, RHS);
+
+            if (RightBounds->isUnknown()) {
+                S.Diag(RHS->getBeginLoc(),
+                      diag::err_expected_bounds_for_assignment)
+                      << RHS->getSourceRange();
+                RightBounds = S.CreateInvalidBoundsExpr();
+            }
+
+            CheckBoundsDeclAtAssignment(E->getExprLoc(), LHS, LHSTargetBounds,
+                                        RHS, RightBounds, CSS, Facts);
+          }
+        }
+
+        // Check that the LHS lvalue of the assignment has bounds, if it is an
+        // lvalue that was produced by dereferencing an _Array_ptr.
+        bool LHSNeedsBoundsCheck = false;
+        OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
+          OperationKind::Assign : OperationKind::Other;
+        LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS, Facts,
+                                              LHSLValueBounds);
+        if (DumpBounds && (LHSNeedsBoundsCheck ||
+                            (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
+          DumpAssignmentBounds(llvm::outs(), E, LHSTargetBounds, RightBounds);
       }
 
       return ResultBounds;
@@ -2540,15 +2533,14 @@ namespace {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
-      // If the lvalue target bounds for the subexpression are needed, they
-      // must be computed before performing any potential side effects on
-      // the subexpression to prevent asserts in PruneTemporaryBindings.
+      // The subexpression target bounds (if needed) must be computed
+      // before performing any side effects on the subexpression.
       BoundsExpr *SubExprTargetBounds = nullptr;
       if (UnaryOperator::isIncrementDecrementOp(Op))
         SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
 
-      // If the lvalue bounds for the subexpression are needed, they must
-      // be computed before traversing the subexpression
+      // The subexpression lvalue bounds (if needed) must be computed
+      // before performing any side effects on the subexpression.
       // If calling LValueBounds also computes the rvalue bounds
       // for the subexpression, save them in SubExprBounds.
       BoundsExpr *SubExprLValueBounds = nullptr;
@@ -2561,10 +2553,7 @@ namespace {
         SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
                                            SubExprBounds);
 
-      // Recursively infer rvalue bounds for the subexpression
-      // (if they were not already computed by calling LValueBounds),
-      // performing side effects if enabled.  This prevents TraverseStmt from
-      // needing to recursively traverse the children of unary operators.
+      // Recursively infer rvalue bounds for the subexpression.
       if (!SubExprBounds)
         SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SideEffects::Enabled);
 
