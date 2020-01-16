@@ -2764,6 +2764,101 @@ namespace {
       return CE;
     }
 
+    ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
+                                         Expr *E) {
+      return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
+                                       ExprValueKind::VK_RValue);
+    }
+
+    // Given a byte_count or count bounds expression for the expression Base,
+    // expand it to a range bounds expression:
+    //  E : Count(C) expands to Bounds(E, E + C)
+    //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
+    //                                      (array_ptr<char>) E + C)
+    BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
+      assert(Base->isRValue() && "expected rvalue expression");
+      BoundsExpr::Kind K = B->getKind();
+      switch (K) {
+        case BoundsExpr::Kind::ByteCount:
+        case BoundsExpr::Kind::ElementCount: {
+          CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
+          if (!BC) {
+            llvm_unreachable("unexpected cast failure");
+            return CreateBoundsInferenceError();
+          }
+          Expr *Count = BC->getCountExpr();
+          QualType ResultTy;
+          Expr *LowerBound;
+          Base = S.MakeAssignmentImplicitCastExplicit(Base);
+          if (K == BoundsExpr::ByteCount) {
+            ResultTy = Context.getPointerType(Context.CharTy,
+                                              CheckedPointerKind::Array);
+            // When bounds are pretty-printed as source code, the cast needs
+            // to appear in the source code for the code to be correct, so
+            // use an explicit cast operation.
+            //
+            // The bounds-safe interface argument is false because casts
+            // to checked pointer types are always allowed by type checking.
+            LowerBound =
+              CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
+          } else {
+            ResultTy = Base->getType();
+            LowerBound = Base;
+            if (ResultTy->isCheckedPointerPtrType()) {
+              ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
+                CheckedPointerKind::Array);
+              // The bounds-safe interface argument is false because casts
+              // between checked pointer types are always allowed by type
+              // checking.
+              LowerBound =
+                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
+            }
+          }
+          Expr *UpperBound =
+            new (Context) BinaryOperator(LowerBound, Count,
+                                          BinaryOperatorKind::BO_Add,
+                                          ResultTy,
+                                          ExprValueKind::VK_RValue,
+                                          ExprObjectKind::OK_Ordinary,
+                                          SourceLocation(),
+                                          FPOptions());
+          RangeBoundsExpr *R = new (Context) RangeBoundsExpr(LowerBound, UpperBound,
+                                               SourceLocation(),
+                                               SourceLocation());
+          return R;
+        }
+        default:
+          return B;
+      }
+    }
+
+    BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B) {
+      QualType QT = D->getType();
+      ExprResult ER = S.BuildDeclRefExpr(D, QT,
+                                       clang::ExprValueKind::VK_LValue, SourceLocation());
+      if (ER.isInvalid())
+        return nullptr;
+      Expr *Base = ER.get();
+      if (!QT->isArrayType())
+        Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, Base);
+      return ExpandToRange(Base, B);
+    }
+
+    // Compute bounds for a variable expression or member reference expression
+    // with an array type.
+    BoundsExpr *ArrayExprBounds(Expr *E) {
+      DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
+      assert((DR && dyn_cast<VarDecl>(DR->getDecl())) || isa<MemberExpr>(E));
+      BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
+      if (BE->isUnknown())
+        return BE;
+
+      Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
+                                      CastKind::CK_ArrayToPointerDecay,
+                                      E);
+      return ExpandToRange(Base, BE);
+    }
+
   // Methods for inferring bounds expressions for C expressions.
 
   // C has an interesting semantics for expressions that differentiates between
@@ -2906,12 +3001,6 @@ namespace {
       return ExpandToRange(LowerBounds, Context.getPrebuiltCountOne());
     }
 
-    ImplicitCastExpr *CreateImplicitCast(QualType Target, CastKind CK,
-                                         Expr *E) {
-      return ImplicitCastExpr::Create(Context, Target, CK, E, nullptr,
-                                       ExprValueKind::VK_RValue);
-    }
-
     Expr *CreateTemporaryUse(CHKCBindTemporaryExpr *Binding) {
       return new (Context) BoundsValueExpr(SourceLocation(), Binding);
     }
@@ -2967,95 +3056,6 @@ namespace {
       IntegerLiteral *Lit = IntegerLiteral::Create(Context, ResultVal, Ty,
                                                    SourceLocation());
       return Lit;
-    }
-
-    // Given a byte_count or count bounds expression for the expression Base,
-    // expand it to a range bounds expression:
-    //  E : Count(C) expands to Bounds(E, E + C)
-    //  E : ByteCount(C)  expands to Bounds((array_ptr<char>) E,
-    //                                      (array_ptr<char>) E + C)
-    BoundsExpr *ExpandToRange(Expr *Base, BoundsExpr *B) {
-      assert(Base->isRValue() && "expected rvalue expression");
-      BoundsExpr::Kind K = B->getKind();
-      switch (K) {
-        case BoundsExpr::Kind::ByteCount:
-        case BoundsExpr::Kind::ElementCount: {
-          CountBoundsExpr *BC = dyn_cast<CountBoundsExpr>(B);
-          if (!BC) {
-            llvm_unreachable("unexpected cast failure");
-            return CreateBoundsInferenceError();
-          }
-          Expr *Count = BC->getCountExpr();
-          QualType ResultTy;
-          Expr *LowerBound;
-          Base = S.MakeAssignmentImplicitCastExplicit(Base);
-          if (K == BoundsExpr::ByteCount) {
-            ResultTy = Context.getPointerType(Context.CharTy,
-                                              CheckedPointerKind::Array);
-            // When bounds are pretty-printed as source code, the cast needs
-            // to appear in the source code for the code to be correct, so
-            // use an explicit cast operation.
-            //
-            // The bounds-safe interface argument is false because casts
-            // to checked pointer types are always allowed by type checking.
-            LowerBound =
-              CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
-          } else {
-            ResultTy = Base->getType();
-            LowerBound = Base;
-            if (ResultTy->isCheckedPointerPtrType()) {
-              ResultTy = Context.getPointerType(ResultTy->getPointeeType(),
-                CheckedPointerKind::Array);
-              // The bounds-safe interface argument is false because casts
-              // between checked pointer types are always allowed by type
-              // checking.
-              LowerBound =
-                CreateExplicitCast(ResultTy, CastKind::CK_BitCast, Base, false);
-            }
-          }
-          Expr *UpperBound =
-            new (Context) BinaryOperator(LowerBound, Count,
-                                          BinaryOperatorKind::BO_Add,
-                                          ResultTy,
-                                          ExprValueKind::VK_RValue,
-                                          ExprObjectKind::OK_Ordinary,
-                                          SourceLocation(),
-                                          FPOptions());
-          RangeBoundsExpr *R = new (Context) RangeBoundsExpr(LowerBound, UpperBound,
-                                               SourceLocation(),
-                                               SourceLocation());
-          return R;
-        }
-        default:
-          return B;
-      }
-    }
-
-    BoundsExpr *ExpandToRange(VarDecl *D, BoundsExpr *B) {
-      QualType QT = D->getType();
-      ExprResult ER = S.BuildDeclRefExpr(D, QT,
-                                       clang::ExprValueKind::VK_LValue, SourceLocation());
-      if (ER.isInvalid())
-        return nullptr;
-      Expr *Base = ER.get();
-      if (!QT->isArrayType())
-        Base = CreateImplicitCast(QT, CastKind::CK_LValueToRValue, Base);
-      return ExpandToRange(Base, B);
-    }
-
-    // Compute bounds for a variable expression or member reference expression
-    // with an array type.
-    BoundsExpr *ArrayExprBounds(Expr *E) {
-      DeclRefExpr *DR = dyn_cast<DeclRefExpr>(E);
-      assert((DR && dyn_cast<VarDecl>(DR->getDecl())) || isa<MemberExpr>(E));
-      BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
-      if (BE->isUnknown())
-        return BE;
-
-      Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
-                                      CastKind::CK_ArrayToPointerDecay,
-                                      E);
-      return ExpandToRange(Base, BE);
     }
 
     // Infer bounds for string literals.
@@ -3932,10 +3932,10 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   }
 
   if (Cfg != nullptr) {
-    BoundsAnalysis Collector(*this, Cfg.get());
+    BoundsAnalysis Collector(*this, Cfg.get(), FD);
     Collector.WidenBounds();
     if (getLangOpts().DumpWidenedBounds)
-      Collector.DumpWidenedBounds(FD);
+      Collector.DumpWidenedBounds();
   }
 
 #if TRACE_CFG
@@ -4096,4 +4096,35 @@ void Sema::WarnDynamicCheckAlwaysFails(const Expr *Condition) {
         << Condition->getSourceRange();
     }
   }
+}
+
+// This is wrapper around CheckBoundsDeclaration::ExpandToRange. This provides
+// an easy way to invoke this function from outside the class. Given a
+// byte_count or count bounds expression for the VarDecl D, ExpandToRange will
+// expand it to a range bounds expression.
+BoundsExpr *Sema::ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B) {
+  // If the bounds expr is already a RangeBoundsExpr, simply return it.
+  if (B && isa<RangeBoundsExpr>(B))
+    return const_cast<BoundsExpr *>(B);
+
+  CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this);
+
+  if (D->getType()->isArrayType()) {
+    ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
+                                     clang::ExprValueKind::VK_LValue,
+                                     SourceLocation());
+    if (ER.isInvalid())
+      return nullptr;
+    Expr *Base = ER.get();
+
+    // Declared bounds override the bounds based on the array type.
+    if (!B)
+      return CBD.ArrayExprBounds(Base);
+    Base = CBD.CreateImplicitCast(Context.getDecayedType(Base->getType()),
+                                  CastKind::CK_ArrayToPointerDecay,
+                                  Base);
+    return CBD.ExpandToRange(Base, const_cast<BoundsExpr *>(B));
+  }
+  return CBD.ExpandToRange(const_cast<VarDecl *>(D),
+                           const_cast<BoundsExpr *>(B));
 }
