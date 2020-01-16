@@ -1914,13 +1914,9 @@ namespace {
                                             CSS, Facts, DerefSubExprBounds);
           return AdjustRValueBounds(S, ResultBounds);
         }
-        // CheckCallExpr traverses its callee and arguments,
-        // so there is no need to traverse its children below.
-        case Expr::CallExprClass: {
-          BoundsExpr *Bounds = CheckCallExpr(cast<CallExpr>(S),
-                                             CSS, Facts, SE);
-          return AdjustRValueBounds(S, Bounds);
-        }
+        case Expr::CallExprClass:
+          ResultBounds = CheckCallExpr(cast<CallExpr>(S), CSS, Facts);
+          return AdjustRValueBounds(S, ResultBounds);
         // CheckMemberExpr traverses its base,
         // so there is no need to traverse its children below.
         case Expr::MemberExprClass: {
@@ -2181,7 +2177,6 @@ namespace {
     // e is an rvalue.
     BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
                               std::pair<ComparisonSet, ComparisonSet>& Facts,
-                              SideEffects SE,
                               CHKCBindTemporaryExpr *Binding = nullptr) {
       BoundsExpr *ResultBounds = CallExprBounds(E, Binding);
 
@@ -2202,27 +2197,22 @@ namespace {
       assert(FuncTy);
       const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
 
-      // If the callee and arguments will not be traversed as part of the
-      // checking below, traverse them here.  This prevents TraverseStmt
-      // from needing to traverse the children of call expressions.
+      // If the callee and arguments will not be traversed
+      // as part of the checking below, traverse them here.
       if (!FuncProtoTy) {
-        TraverseChildren(E, CSS, Facts, SE);
+        TraverseChildren(E, CSS, Facts, SideEffects::Enabled);
         return ResultBounds;
       }
       if (!FuncProtoTy->hasParamAnnots()) {
-        TraverseChildren(E, CSS, Facts, SE);
+        TraverseChildren(E, CSS, Facts, SideEffects::Enabled);
         return ResultBounds;
       }
 
-      if (SE == SideEffects::Disabled)
-        return ResultBounds;
+      // Perform checking of bounds declarations.
 
-      // Perform checking of bounds declarations, if enabled.
-
-      // Recursively traverse the callee.  The arguments will be
-      // traversed below.  This prevents TraverseStmt from
-      // needing to traverse the children of call expressions.
-      TraverseStmt(E->getCallee(), CSS, Facts, SE);
+      // Traverse the callee since CheckCallExpr should traverse
+      // all its children.  The arguments will be traversed below.
+      TraverseStmt(E->getCallee(), CSS, Facts, SideEffects::Enabled);
 
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = E->getNumArgs();
@@ -2230,10 +2220,9 @@ namespace {
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(E->getArgs()), E->getNumArgs());
 
       for (unsigned i = 0; i < Count; i++) {
-        // Recursively traverse each argument.  This prevents TraverseStmt
-        // from needed to traverse the children of call expressions.
+        // Recursively traverse each argument.
         Expr *Arg = E->getArg(i);
-        BoundsExpr *ArgBounds = TraverseStmt(Arg, CSS, Facts, SE);
+        BoundsExpr *ArgBounds = TraverseStmt(Arg, CSS, Facts, SideEffects::Enabled);
 
         QualType ParamType = FuncProtoTy->getParamType(i);
         // Skip checking bounds for unchecked pointer parameters, unless
@@ -2318,7 +2307,7 @@ namespace {
       // the number of function parameters.
       for (unsigned i = Count; i < NumArgs; i++) {
         Expr *Arg = E->getArg(i);
-        TraverseStmt(Arg, CSS, Facts, SE);
+        TraverseStmt(Arg, CSS, Facts, SideEffects::Enabled);
       }
 
       return ResultBounds;
@@ -2691,7 +2680,7 @@ namespace {
       Expr *Child = E->getSubExpr();
 
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
-        return CheckCallExpr(CE, CSS, Facts, SE, E);
+        return CheckCallExpr(CE, CSS, Facts, E);
       else
         return TraverseStmt(Child, CSS, Facts, SE);
     }
