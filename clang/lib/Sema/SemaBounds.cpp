@@ -1952,17 +1952,19 @@ namespace {
           CSS = CS->getCheckedSpecifier();
           break;
         }
+        // CheckVarDecl traverses its initializers,
+        // so there is no need to traverse its children below.
         case Stmt::DeclStmtClass: {
           DeclStmt *DS = cast<DeclStmt>(S);
           auto BeginDecls = DS->decl_begin(), EndDecls = DS->decl_end();
           for (auto I = BeginDecls; I != EndDecls; ++I) {
             Decl *D = *I;
             // If an initializer expression is present, it is visited
-            // during the traversal of children nodes.
+            // during the traversal of the variable declaration.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
               ResultBounds = CheckVarDecl(VD, CSS, Facts, SE);
           }
-          break;
+          return AdjustRValueBounds(S, ResultBounds);
         }
         // CheckReturnStmt traverses its return value,
         // so there is no need to traverse its children below.
@@ -2007,12 +2009,10 @@ namespace {
     }
 
     // Traverse a top-level variable declaration.  If there is an
-    // initializer, it has to be traversed explicitly.
+    // initializer, it will be traversed in CheckVarDecl.
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS,
                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
       CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
-      if (Expr *Init = VD->getInit())
-        TraverseStmt(Init, CSS, Facts);
     }
 
     bool IsBoundsSafeInterfaceAssignment(QualType DestTy, Expr *E) {
@@ -2617,6 +2617,13 @@ namespace {
       if (SE == SideEffects::Disabled)
         return ResultBounds;
 
+      // If there is an initializer, traverse it.  This prevents TraverseStmt
+      // from needing to traverse the children of variable declarations.
+      Expr *Init = D->getInit();
+      BoundsExpr *InitBounds = nullptr;
+      if (Init)
+        InitBounds = TraverseStmt(Init, CSS, Facts, SE);
+
       if (D->isInvalidDecl())
         return ResultBounds;
 
@@ -2640,10 +2647,9 @@ namespace {
       // requirements for the variable.  For non-scalar types (arrays, structs, and
       // unions), the amount of storage allocated depends on the type, so we don't
       // to check the initializer bounds.
-      Expr *Init = D->getInit();
       if (Init && D->getType()->isScalarType()) {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-        BoundsExpr *InitBounds = InferRValueBounds(Init, CSS, Facts);
+        InitBounds = S.CheckNonModifyingBounds(InitBounds, Init);
         if (InitBounds->isUnknown()) {
           // TODO: need some place to record the initializer bounds
           S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
