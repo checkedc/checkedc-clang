@@ -1908,14 +1908,11 @@ namespace {
         S = E->IgnoreParens();
 
       switch (S->getStmtClass()) {
-        // CheckUnaryOperator traverses its subexpression,
-        // so there is no need to traverse its children below.
         case Expr::UnaryOperatorClass: {
           BoundsExpr *DerefSubExprBounds = nullptr;
-          BoundsExpr *Bounds = CheckUnaryOperator(cast<UnaryOperator>(S),
-                                                  CSS, Facts, SE,
-                                                  DerefSubExprBounds);
-          return AdjustRValueBounds(S, Bounds);
+          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S),
+                                            CSS, Facts, DerefSubExprBounds);
+          return AdjustRValueBounds(S, ResultBounds);
         }
         // CheckCallExpr traverses its callee and arguments,
         // so there is no need to traverse its children below.
@@ -2539,7 +2536,6 @@ namespace {
     // CheckUnaryOperator do not need to recompute them.
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
                                    std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                   SideEffects SE,
                                    BoundsExpr *&OutDerefSubExprBounds) {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
@@ -2559,10 +2555,10 @@ namespace {
       BoundsExpr *SubExprBounds = nullptr;
       if (Op == UnaryOperatorKind::UO_AddrOf) {
         if (!SubExpr->getType()->isFunctionType())
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE,
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
                                              SubExprBounds);
-      } else if (SE == SideEffects::Enabled && E->isIncrementDecrementOp())
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SE,
+      } else if (E->isIncrementDecrementOp())
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
                                            SubExprBounds);
 
       // Recursively infer rvalue bounds for the subexpression
@@ -2570,21 +2566,19 @@ namespace {
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of unary operators.
       if (!SubExprBounds)
-        SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
+        SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SideEffects::Enabled);
 
-      // Perform checking with side effects, if enabled.
-      if (SE == SideEffects::Enabled) {
-        if (Op == UO_AddrOf)
-          S.CheckAddressTakenMembers(E);
+      // Perform checking with side effects.
+      if (Op == UO_AddrOf)
+        S.CheckAddressTakenMembers(E);
 
-        if (E->isIncrementDecrementOp()) {
-          bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
-                                                 OperationKind::Other,
-                                                 CSS, Facts,
-                                                 SubExprLValueBounds);
-          if (NeedsBoundsCheck && DumpBounds)
-            DumpExpression(llvm::outs(), E);
-        }
+      if (E->isIncrementDecrementOp()) {
+        bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
+                                                OperationKind::Other,
+                                                CSS, Facts,
+                                                SubExprLValueBounds);
+        if (NeedsBoundsCheck && DumpBounds)
+          DumpExpression(llvm::outs(), E);
       }
 
       // `*e` is not an rvalue.
@@ -3164,7 +3158,7 @@ namespace {
           BoundsExpr *SubExprBounds = nullptr;
           // Ensure that *e is traversed, while saving the rvalue bounds
           // of e that CheckUnaryOperator computes in SubExprBounds.
-          OutRValueBounds = CheckUnaryOperator(UO, CSS, Facts, SE, SubExprBounds);
+          OutRValueBounds = CheckUnaryOperator(UO, CSS, Facts, SubExprBounds);
           return SubExprBounds;
         }
         else
