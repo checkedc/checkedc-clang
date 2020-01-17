@@ -1853,7 +1853,7 @@ namespace {
      StmtSet BoundsCheckedStmts;
      IdentifyChecked(Body, MemoryCheckedStmts, BoundsCheckedStmts, CheckedScopeSpecifier::CSS_Unchecked);
      PostOrderCFGView POView = PostOrderCFGView(Cfg);
-     std::pair<ComparisonSet, ComparisonSet> Facts;
+     ResetFacts();
      for (const CFGBlock *Block : POView) {
        AFA.GetFacts(Facts);
        for (CFGElement Elem : *Block) {
@@ -2011,11 +2011,16 @@ namespace {
 
     // Traverse a top-level variable declaration.  If there is an
     // initializer, it has to be traversed explicitly.
-    void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS,
-                                 std::pair<ComparisonSet, ComparisonSet>& Facts) {
+    void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS) {
+      ResetFacts();
       CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
       if (Expr *Init = VD->getInit())
         TraverseStmt(Init, CSS, Facts);
+    }
+
+    void ResetFacts() {
+      std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+      Facts = EmptyFacts;
     }
 
     bool IsBoundsSafeInterfaceAssignment(QualType DestTy, Expr *E) {
@@ -3933,7 +3938,6 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // __finally or may encounter a malformed AST.  Fall back on to non-flow 
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
-    std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
     Checker.TraverseStmt(Body, CheckedScopeSpecifier::CSS_Unchecked, EmptyFacts);
   }
 
@@ -3953,7 +3957,7 @@ void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
     std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
     CheckBoundsDeclarations Checker(*this, nullptr, nullptr, nullptr, EmptyFacts);
-    Checker.TraverseTopLevelVarDecl(D, GetCheckedScopeInfo(), EmptyFacts);
+    Checker.TraverseTopLevelVarDecl(D, GetCheckedScopeInfo());
   }
 }
 
