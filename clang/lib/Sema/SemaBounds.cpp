@@ -3077,11 +3077,11 @@ namespace {
         ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
 
         // Ensure both e1 and e2 are traversed here, since
-        // callers will not traverse the children of e1[e2].
+        // callers will not traverse the children of e.
         BoundsExpr *Bounds = TraverseStmt(AS->getBase(), CSS, Facts);
         TraverseStmt(AS->getIdx(), CSS, Facts);
 
-        // Prevent callers from traversing the children of e1[e2],
+        // Prevent callers from traversing the children of e,
         // since e1 and e2 were already traversed here.
         OutRValueBounds = CreateBoundsUnknown();
         return Bounds;
