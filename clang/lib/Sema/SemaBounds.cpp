@@ -1286,7 +1286,6 @@ namespace {
                                         const BoundsExpr *SrcBounds,
                                         ProofFailure &Cause,
                                         EquivExprSets *EquivExprs,
-                                        std::pair<ComparisonSet, ComparisonSet>& Facts,
                                         ProofStmtKind Kind =
                                           ProofStmtKind::BoundsDeclaration) {
       assert(BoundsUtil::IsStandardForm(DeclaredBounds) &&
@@ -1532,7 +1531,7 @@ namespace {
 
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds, SrcBounds,
-                                                   Cause, &EquivExprs, Facts);
+                                                   Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1564,7 +1563,7 @@ namespace {
       SourceLocation ArgLoc = Arg->getBeginLoc();
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(ExpectedArgBounds,
-                                                   ArgBounds, Cause, EquivExprs, Facts);
+                                                   ArgBounds, Cause, EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_argument_bounds_invalid :
@@ -1629,7 +1628,7 @@ namespace {
       }
       ProofFailure Cause;
       ProofResult Result = ProveBoundsDeclValidity(DeclaredBounds,
-                                                   SrcBounds, Cause, &EquivExprs, Facts);
+                                                   SrcBounds, Cause, &EquivExprs);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_bounds_declaration_invalid :
@@ -1651,7 +1650,6 @@ namespace {
     // Given a static cast to a Ptr type, where the Ptr type has
     // TargetBounds and the source has SrcBounds, make sure that (1) SrcBounds
     // implies Targetbounds or (2) the SrcBounds is at least as wide as
-
     // the TargetBounds.
     void CheckBoundsDeclAtStaticPtrCast(CastExpr *Cast,
                                         BoundsExpr *TargetBounds,
@@ -1665,7 +1663,7 @@ namespace {
       ProofStmtKind Kind = IsStaticPtrCast ? ProofStmtKind::StaticBoundsCast :
                              ProofStmtKind::BoundsDeclaration;
       ProofResult Result =
-        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Facts, Kind);
+        ProveBoundsDeclValidity(TargetBounds, SrcBounds, Cause, nullptr, Kind);
       if (Result != ProofResult::True) {
         unsigned DiagId = (Result == ProofResult::False) ?
           diag::error_static_cast_bounds_invalid :
