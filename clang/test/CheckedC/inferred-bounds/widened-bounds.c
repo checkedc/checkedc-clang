@@ -2,6 +2,8 @@
 //
 // RUN: %clang_cc1 -fdump-widened-bounds -verify -verify-ignore-unexpected=note -verify-ignore-unexpected=warning %s 2>&1 | FileCheck %s
 
+#include <limits.h>
+
 void f1() {
   _Nt_array_ptr<char> p : count(0) = "a";
 
@@ -463,4 +465,73 @@ void f19() {
 // CHECK: upper_bound(p) = 2
 // CHECK:  [B1]
 // CHECK: upper_bound(p) = 3
+}
+
+void f20() {
+  // Declared bounds and deref offset INT_MAX. Valid widenening.
+  _Nt_array_ptr<char> p : count(INT_MAX) = "";      // expected-error {{declared bounds for 'p' are invalid after initialization}}
+  if (*(p + INT_MAX))
+  {}
+
+// CHECK: In function: f20
+// CHECK:  [B12]
+// CHECK:    1: _Nt_array_ptr<char> p : count(2147483647) = "";
+// CHECK:    2: *(p + 2147483647)
+// CHECK:  [B11]
+// CHECK: upper_bound(p) = 1
+
+  // Declared bounds and deref offset INT_MIN. Valid widenening.
+  _Nt_array_ptr<char> q : count(INT_MIN) = "";
+  if (*(q + INT_MIN))                               // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK:  [B10]
+// CHECK:    1: _Nt_array_ptr<char> q : count((-2147483647 - 1)) = "";
+// CHECK:    2: *(q + (-2147483647 - 1))
+// CHECK:  [B9]
+// CHECK: upper_bound(q) = 1
+
+  // Declared bounds (INT_MIN) and deref offset (INT_MAX). No sequential deref tests. No widenening.
+  _Nt_array_ptr<char> r : count(INT_MIN) = "";
+  if (*(r + INT_MAX))                               // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK:  [B8]
+// CHECK:    1: _Nt_array_ptr<char> r : count((-2147483647 - 1)) = "";
+// CHECK:    2: *(r + 2147483647)
+// CHECK:  [B7]
+// CHECK-NOT: upper_bound(r)
+
+  // Declared bounds and deref offset (INT_MAX + 1). Integer overflow. No widenening.
+  _Nt_array_ptr<char> s : count(INT_MAX + 1) = "";
+  if (*(s + INT_MAX + 1))                           // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK:  [B6]
+// CHECK:    1: _Nt_array_ptr<char> s : count(2147483647 + 1) = "";
+// CHECK:    2: *(s + 2147483647 + 1)
+// CHECK:  [B5]
+// CHECK-NOT: upper_bound(s)
+
+  // Declared bounds and deref offset (INT_MIN + 1). Valid widenening.
+  _Nt_array_ptr<char> t : count(INT_MIN + 1) = "";
+  if (*(t + INT_MIN + 1))                           // expected-error {{out-of-bounds memory access}}
+  {}
+
+// CHECK:  [B4]
+// CHECK:    1: _Nt_array_ptr<char> t : count((-2147483647 - 1) + 1) = "";
+// CHECK:    2: *(t + (-2147483647 - 1) + 1)
+// CHECK:  [B3]
+// CHECK: upper_bound(t) = 1
+
+  // Declared bounds and deref offset (INT_MIN + -1). Integer underflow. No widenening.
+  _Nt_array_ptr<char> u : count(INT_MIN + -1) = ""; // expected-error {{declared bounds for 'u' are invalid after initialization}}
+  if (*(u + INT_MIN + -1))
+  {}
+
+// CHECK:  [B2]
+// CHECK:    1: _Nt_array_ptr<char> u : count((-2147483647 - 1) + -1) = "";
+// CHECK:    2: *(u + (-2147483647 - 1) + -1)
+// CHECK:  [B1]
+// CHECK-NOT: upper_bound(u)
 }
