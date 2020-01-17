@@ -486,6 +486,7 @@ namespace {
     BoundsExpr *ReturnBounds; // return bounds expression for enclosing
                               // function, if any.
     ASTContext &Context;
+    std::pair<ComparisonSet, ComparisonSet> &Facts;
     // When this flag is set to true, include the null terminator in the
     // bounds of a null-terminated array.  This is used when calculating
     // physical sizes during casts to pointers to null-terminated arrays.
@@ -1727,22 +1728,24 @@ namespace {
 
 
   public:
-    CheckBoundsDeclarations(Sema &SemaRef, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, Stmt *Body, CFG *Cfg, BoundsExpr *ReturnBounds, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(Body),
       Cfg(Cfg),
       ReturnBounds(ReturnBounds),
       Context(SemaRef.Context),
+      Facts(Facts),
       IncludeNullTerminator(false) {}
 
-    CheckBoundsDeclarations(Sema &SemaRef) : S(SemaRef),
+    CheckBoundsDeclarations(Sema &SemaRef, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
       PointerWidth(SemaRef.Context.getTargetInfo().getPointerWidth(0)),
       Body(nullptr),
       Cfg(nullptr),
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
+      Facts(Facts),
       IncludeNullTerminator(false) {}
 
     typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
@@ -3857,7 +3860,8 @@ BoundsExpr *Sema::CheckNonModifyingBounds(BoundsExpr *B, Expr *E) {
 }
 
 BoundsExpr *Sema::CreateCountForArrayType(QualType QT) {
-  return CheckBoundsDeclarations(*this).CreateBoundsForArrayType(QT);
+  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+  return CheckBoundsDeclarations(*this, EmptyFacts).CreateBoundsForArrayType(QT);
 }
 
 Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
@@ -3895,7 +3899,8 @@ Expr *Sema::MakeAssignmentImplicitCastExplicit(Expr *E) {
   if (isUsualUnaryConversion)
     return E;
 
-  return CheckBoundsDeclarations(*this).CreateExplicitCast(TargetTy, CK, SE,
+  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+  return CheckBoundsDeclarations(*this, EmptyFacts).CreateExplicitCast(TargetTy, CK, SE,
                                                    ICE->isBoundsSafeInterface());
 }
 
@@ -3914,7 +3919,8 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   // based traversal.
   ComputeBoundsDependencies(Tracker, FD, Body);
   std::unique_ptr<CFG> Cfg = CFG::buildCFG(nullptr, Body, &getASTContext(), CFG::BuildOptions());
-  CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr());
+  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+  CheckBoundsDeclarations Checker(*this, Body, Cfg.get(), FD->getBoundsExpr(), EmptyFacts);
   if (Cfg != nullptr) {
     AvailableFactsAnalysis Collector(*this, Cfg.get());
     Collector.Analyze();
@@ -3945,8 +3951,8 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
 
 void Sema::CheckTopLevelBoundsDecls(VarDecl *D) {
   if (!D->isLocalVarDeclOrParm()) {
-    CheckBoundsDeclarations Checker(*this, nullptr, nullptr, nullptr);
     std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+    CheckBoundsDeclarations Checker(*this, nullptr, nullptr, nullptr, EmptyFacts);
     Checker.TraverseTopLevelVarDecl(D, GetCheckedScopeInfo(), EmptyFacts);
   }
 }
@@ -4107,7 +4113,8 @@ BoundsExpr *Sema::ExpandBoundsToRange(const VarDecl *D, const BoundsExpr *B) {
   if (B && isa<RangeBoundsExpr>(B))
     return const_cast<BoundsExpr *>(B);
 
-  CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this);
+  std::pair<ComparisonSet, ComparisonSet> EmptyFacts;
+  CheckBoundsDeclarations CBD = CheckBoundsDeclarations(*this, EmptyFacts);
 
   if (D->getType()->isArrayType()) {
     ExprResult ER = BuildDeclRefExpr(const_cast<VarDecl *>(D), D->getType(),
