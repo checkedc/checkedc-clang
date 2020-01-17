@@ -373,6 +373,26 @@ void AddArrayHeuristics(ASTContext *C, ProgramInfo &I, FunctionDecl *FD) {
               CS.getOrCreateVar(cVar)->setNtArrayIfArray();
             }
           }
+      } else if(FD->getNameInfo().getAsString() == std::string("main") && FT->getNumParams() == 2) {
+        // If the function is `main` then we know second arg is _Array_ptr
+        ParmVarDecl *argv = FD->getParamDecl(1);
+        assert(argv != NULL);
+        auto &CS = I.getConstraints();
+        auto &envMap = CS.getVariables();
+        std::set<ConstraintVariable*> defsCVar = I.getVariable(argv, C, true);
+        for(auto constraintVar : defsCVar) {
+          if(PVConstraint *PV = dyn_cast<PVConstraint>(constraintVar)) {
+            auto &cVars = PV->getCvars();
+            llvm::errs() << cVars.size() << "\n";
+            if(cVars.size() == 2) {
+              std::vector<ConstraintKey> vars(cVars.begin(), cVars.end());
+              auto outerCVar = CS.getOrCreateVar(vars[0]);
+              auto innerCVar = CS.getOrCreateVar(vars[1]);
+              outerCVar->setShouldBeArr();
+              innerCVar->setShouldBeNtArr();
+            }
+          }
+        }
       }
     }
   }
