@@ -285,7 +285,7 @@ void rewrite( VarDecl               *VD,
     sRewrite = sRewrite + " = ";
   } else {
     // There is no initializer, lets add it.
-    if (isPointerType(VD))
+    if (isPointerType(VD) && (VD->getStorageClass() != StorageClass::SC_Extern))
       sRewrite = sRewrite + " = NULL";
   }
 
