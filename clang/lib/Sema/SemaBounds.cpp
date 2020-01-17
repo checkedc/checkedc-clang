@@ -1958,14 +1958,13 @@ namespace {
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass: {
           AbstractConditionalOperator *ACO = cast<AbstractConditionalOperator>(S);
-          BoundsExpr *Bounds = CheckConditionalOperator(ACO, CSS, Facts);
-          return AdjustRValueBounds(S, Bounds);
+          ResultBounds = CheckConditionalOperator(ACO, CSS, Facts);
+          return AdjustRValueBounds(S, ResultBounds);
         }
-        case Expr::BoundsValueExprClass: {
-          BoundsExpr *Bounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S),
-                                                    CSS, Facts, SE);
-          return AdjustRValueBounds(S, Bounds);
-        }
+        case Expr::BoundsValueExprClass:
+          ResultBounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S),
+                                              CSS, Facts);
+          return AdjustRValueBounds(S, ResultBounds);
         default: 
           break;
       }
@@ -2657,10 +2656,9 @@ namespace {
 
     BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E,
                                      CheckedScopeSpecifier CSS,
-                                     std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                     SideEffects SE) {
+                                     std::pair<ComparisonSet, ComparisonSet>& Facts) {
       Expr *Binding = E->getTemporaryBinding();
-      return TraverseStmt(Binding, CSS, Facts, SE);
+      return TraverseStmt(Binding, CSS, Facts, SideEffects::Enabled);
     }
 
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
