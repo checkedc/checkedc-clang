@@ -2012,7 +2012,7 @@ namespace {
       BoundsExpr *LHSLValueBounds = nullptr;
       BoundsExpr *LHSBounds = nullptr;
       if (E->isAssignmentOp())
-        LHSLValueBounds = LValueBounds(LHS, CSS, Facts, SideEffects::Enabled, LHSBounds);
+        LHSLValueBounds = LValueBounds(LHS, CSS, Facts, LHSBounds);
 
       // Recursively infer the rvalue bounds for the subexpressions.
       if (!LHSBounds)
@@ -2327,14 +2327,12 @@ namespace {
         if (CK == CK_LValueToRValue)
           SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
         if (CK == CK_ArrayToPointerDecay)
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
-                                             SubExprBounds);
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SubExprBounds);
       }
       // SubExprLValueBounds is needed if a bounds check
       // is added to the subexpression.
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
-                                           SubExprBounds);
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SubExprBounds);
       }
 
       // Recursively infer the rvalue bounds for the subexpression
@@ -2453,7 +2451,7 @@ namespace {
       BoundsExpr *BaseBounds = nullptr;
       if (!E->isArrow()) {
         if (Base->isLValue())
-          BaseLValueBounds = LValueBounds(Base, CSS, Facts, SideEffects::Enabled, BaseBounds);
+          BaseLValueBounds = LValueBounds(Base, CSS, Facts, BaseBounds);
       }
 
       // Recursively infer the rvalue bounds for the base
@@ -2496,11 +2494,9 @@ namespace {
       BoundsExpr *SubExprBounds = nullptr;
       if (Op == UnaryOperatorKind::UO_AddrOf) {
         if (!SubExpr->getType()->isFunctionType())
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
-                                             SubExprBounds);
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SubExprBounds);
       } else if (E->isIncrementDecrementOp())
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SideEffects::Enabled,
-                                           SubExprBounds);
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts, SubExprBounds);
 
       // Recursively infer the rvalue bounds for the subexpression
       // (if they were not already computed by calling LValueBounds).
@@ -3038,7 +3034,6 @@ namespace {
     // a bounds expression on e.
     BoundsExpr *LValueBounds(Expr *E, CheckedScopeSpecifier CSS,
                              std::pair<ComparisonSet, ComparisonSet>& Facts,
-                             SideEffects SE,
                              BoundsExpr *&OutRValueBounds) {
       // E may not be an lvalue if there is a typechecking error when struct 
       // accesses member array incorrectly.
@@ -3158,8 +3153,7 @@ namespace {
         // TODO: when we add relative alignment support, we may need
         // to adjust the relative alignment of the bounds.
         if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-          return LValueBounds(ICE->getSubExpr(), CSS, Facts, SE,
-                              OutRValueBounds);
+          return LValueBounds(ICE->getSubExpr(), CSS, Facts, OutRValueBounds);
          return CreateBoundsAlwaysUnknown();
       }
       case Expr::CHKCBindTemporaryExprClass: {
