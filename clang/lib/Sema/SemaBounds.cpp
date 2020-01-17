@@ -1935,8 +1935,6 @@ namespace {
           CSS = CS->getCheckedSpecifier();
           break;
         }
-        // CheckVarDecl traverses its initializers,
-        // so there is no need to traverse its children below.
         case Stmt::DeclStmtClass: {
           DeclStmt *DS = cast<DeclStmt>(S);
           auto BeginDecls = DS->decl_begin(), EndDecls = DS->decl_end();
@@ -1945,7 +1943,7 @@ namespace {
             // If an initializer expression is present, it is visited
             // during the traversal of the variable declaration.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
-              ResultBounds = CheckVarDecl(VD, CSS, Facts, SE);
+              ResultBounds = CheckVarDecl(VD, CSS, Facts);
           }
           return AdjustRValueBounds(S, ResultBounds);
         }
@@ -1991,7 +1989,7 @@ namespace {
     // initializer, it will be traversed in CheckVarDecl.
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS,
                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
+      CheckVarDecl(VD, CSS, Facts);
     }
 
     bool IsBoundsSafeInterfaceAssignment(QualType DestTy, Expr *E) {
@@ -2573,19 +2571,14 @@ namespace {
 
     // CheckVarDecl returns empty bounds.
     BoundsExpr *CheckVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
-                             std::pair<ComparisonSet, ComparisonSet>& Facts,
-                             SideEffects SE) {
+                             std::pair<ComparisonSet, ComparisonSet>& Facts) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
-      if (SE == SideEffects::Disabled)
-        return ResultBounds;
-
-      // If there is an initializer, traverse it.  This prevents TraverseStmt
-      // from needing to traverse the children of variable declarations.
+      // If there is an initializer, traverse it.
       Expr *Init = D->getInit();
       BoundsExpr *InitBounds = nullptr;
       if (Init)
-        InitBounds = TraverseStmt(Init, CSS, Facts, SE);
+        InitBounds = TraverseStmt(Init, CSS, Facts, SideEffects::Enabled);
 
       if (D->isInvalidDecl())
         return ResultBounds;
