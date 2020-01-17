@@ -840,10 +840,11 @@ public:
   bool VisitVarDecl(VarDecl *G) {
     
     if (G->hasGlobalStorage())
-      if (G->getType()->isPointerType() || G->getType()->isArrayType())
+      if (G->getType()->isPointerType() || G->getType()->isArrayType()) {
         Info.addVariable(G, nullptr, Context);
 
-    Info.seeGlobalDecl(G);
+        Info.seeGlobalDecl(G, Context);
+      }
 
     return true;
   }

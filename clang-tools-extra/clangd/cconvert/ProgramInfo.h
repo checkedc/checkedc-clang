@@ -72,7 +72,7 @@ public:
   // These functions make the linker aware of function and global variables
   // declared in the program. 
   void seeFunctionDecl(clang::FunctionDecl *, clang::ASTContext *);
-  void seeGlobalDecl(clang::VarDecl *);
+  void seeGlobalDecl(clang::VarDecl *, clang::ASTContext *);
 
   // This is a bit of a hack. What we need to do is traverse the AST in a 
   // bottom-up manner, and, for a given expression, decide which,
@@ -183,8 +183,8 @@ private:
   // names of external functions, the value is whether the body has been
   // seen before.
   std::map<std::string, bool> ExternFunctions;
-  std::map<std::string, std::set<FVConstraint*>> GlobalSymbols;
-
+  std::map<std::string, std::set<FVConstraint*>> GlobalFunctionSymbols;
+  std::map<std::string, std::set<PVConstraint*>> GlobalVariableSymbols;
   // object that contains all the bounds information of various
   // array variables.
   ArrayBoundsInformation *ArrBoundsInfo;

@@ -38,6 +38,62 @@ static cl::OptionCategory ConvertCategory("checked-c-convert options");
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp("");
 
+#ifdef CCCONVSTANDALONE
+
+cl::opt<bool> DumpIntermediate( "dump-intermediate",
+                                cl::desc("Dump intermediate information"),
+                                cl::init(false),
+                                cl::cat(ConvertCategory));
+
+cl::opt<bool> Verbose("verbose",
+                      cl::desc("Print verbose information"),
+                      cl::init(false),
+                      cl::cat(ConvertCategory));
+
+cl::opt<bool> mergeMultipleFuncDecls("mergefds",
+                                     cl::desc("Merge multiple declarations of functions."),
+                                     cl::init(false),
+                                     cl::cat(ConvertCategory));
+
+static cl::opt<std::string>
+    OutputPostfix("output-postfix",
+                  cl::desc("Postfix to add to the names of rewritten files, if "
+                           "not supplied writes to STDOUT"),
+                  cl::init("-"), cl::cat(ConvertCategory));
+
+static cl::opt<std::string>
+  ConstraintOutputJson("constraint-output",
+                       cl::desc("Path to the file where all the analysis information will be dumped as json"),
+                       cl::init("constraint_output.json"), cl::cat(ConvertCategory));
+
+static cl::opt<bool> DumpStats( "dump-stats",
+                                cl::desc("Dump statistics"),
+                                cl::init(false),
+                                cl::cat(ConvertCategory));
+
+cl::opt<bool> handleVARARGS( "handle-varargs",
+                             cl::desc("Enable handling of varargs in a sound manner"),
+                             cl::init(false),
+                             cl::cat(ConvertCategory));
+
+cl::opt<bool> enablePropThruIType( "enable-itypeprop",
+                                   cl::desc("Enable propagation of constraints through ityped parameters/returns."),
+                                   cl::init(false),
+                                   cl::cat(ConvertCategory));
+
+cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
+                                   cl::desc("Consider the allocators (i.e., malloc/calloc) as unsafe."),
+                                   cl::init(false),
+                                   cl::cat(ConvertCategory));
+
+cl::opt<std::string>
+BaseDir("base-dir",
+  cl::desc("Base directory for the code we're translating"),
+  cl::init(""),
+  cl::cat(ConvertCategory));
+
+#else
+
 bool DumpIntermediate;
 
 bool Verbose;
@@ -57,6 +113,8 @@ bool enablePropThruIType;
 bool considerAllocUnsafe;
 
 std::string BaseDir;
+
+#endif
 
 
 template <typename T, typename V>

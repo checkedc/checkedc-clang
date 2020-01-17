@@ -308,7 +308,25 @@ bool ProgramInfo::link() {
     }
   }
 
-  for (const auto &S : GlobalSymbols) {
+  // equate the constraints for all global variables. This is needed for variables
+  // that are defined as extern.
+  for (const auto &V: GlobalVariableSymbols) {
+    const std::set<PVConstraint*> &C = V.second;
+
+    if (C.size() > 1) {
+      std::set<PVConstraint*>::iterator I = C.begin();
+      std::set<PVConstraint*>::iterator J = C.begin();
+      ++J;
+      llvm::errs() << "Global variables:" << V.first << "\n";
+      while (J != C.end()) {
+        constrainEq(*I, *J, *this, nullptr, nullptr);
+        ++I;
+        ++J;
+      }
+    }
+  }
+
+  for (const auto &S : GlobalFunctionSymbols) {
     std::string fname = S.first;
     std::set<FVConstraint*> P = S.second;
     
@@ -362,8 +380,8 @@ bool ProgramInfo::link() {
       // malloc and free. Check those here and skip if we find them. 
       std::string UnkSymbol = U.first;
       std::map<std::string, std::set<FVConstraint*> >::iterator I =
-        GlobalSymbols.find(UnkSymbol);
-      assert(I != GlobalSymbols.end());
+          GlobalFunctionSymbols.find(UnkSymbol);
+      assert(I != GlobalFunctionSymbols.end());
       const std::set<FVConstraint*> &Gs = (*I).second;
 
       for (const auto &G : Gs) {
@@ -418,11 +436,11 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
 
   assert(toAdd.size() > 0);
 
-  std::map<std::string, std::set<FVConstraint*> >::iterator it = 
-    GlobalSymbols.find(fn);
+  std::map<std::string, std::set<FVConstraint*> >::iterator it =
+      GlobalFunctionSymbols.find(fn);
   
-  if (it == GlobalSymbols.end()) {
-    GlobalSymbols.insert(std::pair<std::string, std::set<FVConstraint*> >
+  if (it == GlobalFunctionSymbols.end()) {
+    GlobalFunctionSymbols.insert(std::pair<std::string, std::set<FVConstraint*> >
       (fn, toAdd));
   } else {
     (*it).second.insert(toAdd.begin(), toAdd.end());
@@ -455,19 +473,40 @@ void ProgramInfo::seeFunctionDecl(FunctionDecl *F, ASTContext *C) {
 
   // Add this to the map of global symbols. 
   std::map<std::string, std::set<GlobalSymbol*> >::iterator it = 
-    GlobalSymbols.find(fn);
+    GlobalFunctionSymbols.find(fn);
   
-  if (it == GlobalSymbols.end()) {
+  if (it == GlobalFunctionSymbols.end()) {
     std::set<GlobalSymbol*> N;
     N.insert(GF);
-    GlobalSymbols.insert(std::pair<std::string, std::set<GlobalSymbol*> >
+    GlobalFunctionSymbols.insert(std::pair<std::string, std::set<GlobalSymbol*> >
       (fn, N));
   } else {
     (*it).second.insert(GF);
   }*/
 }
 
-void ProgramInfo::seeGlobalDecl(clang::VarDecl *G) {
+void ProgramInfo::seeGlobalDecl(clang::VarDecl *G, ASTContext *C) {
+  std::string variableName = G->getName();
+
+  // Add this to the map of global symbols.
+  std::set<PVConstraint*> toAdd;
+  // get the constraint variable directly.
+  std::set<ConstraintVariable*> K;
+  VariableMap::iterator I = Variables.find(PersistentSourceLoc::mkPSL(G, *C));
+  if (I != Variables.end()) {
+    K = I->second;
+  }
+  for (const auto &J : K)
+    if(PVConstraint *FJ = dyn_cast<PVConstraint>(J))
+      toAdd.insert(FJ);
+
+  assert(toAdd.size() > 0);
+
+  if (GlobalVariableSymbols.find(variableName) != GlobalVariableSymbols.end()) {
+    GlobalVariableSymbols[variableName].insert(toAdd.begin(), toAdd.end());
+  } else {
+    GlobalVariableSymbols[variableName] = toAdd;
+  }
 
 }
 
