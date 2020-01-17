@@ -2832,15 +2832,6 @@ namespace {
   // Otherwise an expression denotes an rvalue.
 
   private:
-    /// Infer a bounds expression for an rvalue.
-    /// The bounds determine whether the rvalue to which an
-    /// expression evaluates is in range.
-    BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      BoundsExpr *Bounds = TraverseStmt(E, CSS, Facts);
-      return S.CheckNonModifyingBounds(Bounds, E);
-    }
-
     /// Get the rvalue bounds of a statement,
     /// accounting for non-rvalue expressions and null ptrs.
     BoundsExpr *AdjustRValueBounds(Stmt *S, BoundsExpr *Bounds) {
