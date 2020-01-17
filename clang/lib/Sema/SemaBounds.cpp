@@ -2517,7 +2517,7 @@ namespace {
       // the bounds for an lvalue expression, but it may be called on an
       // lvalue expression in order to perform bounds checking.
       if (Op == UnaryOperatorKind::UO_Deref) {
-        OutDerefSubExprBounds = AdjustRValueBounds(SubExpr, SubExprBounds);
+        OutDerefSubExprBounds = SubExprBounds;
         return CreateBoundsInferenceError();
       }
 
