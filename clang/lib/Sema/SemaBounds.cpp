@@ -1949,13 +1949,9 @@ namespace {
           }
           return AdjustRValueBounds(S, ResultBounds);
         }
-        // CheckReturnStmt traverses its return value,
-        // so there is no need to traverse its children below.
-        case Stmt::ReturnStmtClass: {
-          BoundsExpr *Bounds = CheckReturnStmt(cast<ReturnStmt>(S),
-                                               CSS, Facts, SE);
-          return AdjustRValueBounds(S, Bounds);
-        }
+        case Stmt::ReturnStmtClass:
+          ResultBounds = CheckReturnStmt(cast<ReturnStmt>(S), CSS, Facts);
+          return AdjustRValueBounds(S, ResultBounds);
         // CheckTemporaryBinding traverses its subexpression,
         // so there is no need to traverse its children below.
         case Stmt::CHKCBindTemporaryExprClass: {
@@ -2635,12 +2631,8 @@ namespace {
     }
 
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
-                                std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                SideEffects SE) {
+                                std::pair<ComparisonSet, ComparisonSet>& Facts) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
-
-      if (SE == SideEffects::Disabled)
-        return ResultBounds;
 
       Expr *RetValue = RS->getRetValue();
 
@@ -2649,9 +2641,7 @@ namespace {
         return ResultBounds;
 
       // Recursively traverse the return value if it exists.
-      // This prevents TraverseStmt from needing to traverse
-      // the children of return statements.
-      TraverseStmt(RetValue, CSS, Facts, SE);
+      TraverseStmt(RetValue, CSS, Facts, SideEffects::Enabled);
 
       if (!ReturnBounds)
         return ResultBounds;
