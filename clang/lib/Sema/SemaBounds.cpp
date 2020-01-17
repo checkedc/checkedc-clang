@@ -1958,7 +1958,7 @@ namespace {
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass: {
           AbstractConditionalOperator *ACO = cast<AbstractConditionalOperator>(S);
-          BoundsExpr *Bounds = CheckConditionalOperator(ACO, CSS, Facts, SE);
+          BoundsExpr *Bounds = CheckConditionalOperator(ACO, CSS, Facts);
           return AdjustRValueBounds(S, Bounds);
         }
         case Expr::BoundsValueExprClass: {
@@ -2665,10 +2665,8 @@ namespace {
 
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
                                          CheckedScopeSpecifier CSS,
-                                         std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                         SideEffects SE) {
-      if (SE == SideEffects::Enabled)
-        TraverseChildren(E, CSS, Facts, SE);
+                                         std::pair<ComparisonSet, ComparisonSet>& Facts) {
+      TraverseChildren(E, CSS, Facts, SideEffects::Enabled);
       // TODO: infer correct bounds for conditional operators
       return CreateBoundsAllowedButNotComputed();
     }
