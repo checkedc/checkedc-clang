@@ -1995,12 +1995,11 @@ namespace {
           break;
       }
       
-      TraverseChildren(S, CSS, Facts, SE);
+      TraverseChildren(S, CSS, SE);
       return AdjustRValueBounds(S, ResultBounds);
     }
 
     void TraverseChildren(Stmt *S, CheckedScopeSpecifier CSS,
-                          std::pair<ComparisonSet, ComparisonSet>& Facts,
                           SideEffects SE) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
@@ -2226,11 +2225,11 @@ namespace {
       // checking below, traverse them here.  This prevents TraverseStmt
       // from needing to traverse the children of call expressions.
       if (!FuncProtoTy) {
-        TraverseChildren(E, CSS, Facts, SE);
+        TraverseChildren(E, CSS, SE);
         return ResultBounds;
       }
       if (!FuncProtoTy->hasParamAnnots()) {
-        TraverseChildren(E, CSS, Facts, SE);
+        TraverseChildren(E, CSS, SE);
         return ResultBounds;
       }
 
@@ -2722,7 +2721,7 @@ namespace {
                                          std::pair<ComparisonSet, ComparisonSet>& Facts,
                                          SideEffects SE) {
       if (SE == SideEffects::Enabled)
-        TraverseChildren(E, CSS, Facts, SE);
+        TraverseChildren(E, CSS, SE);
       // TODO: infer correct bounds for conditional operators
       return CreateBoundsAllowedButNotComputed();
     }
