@@ -2517,7 +2517,7 @@ namespace {
       // the bounds for an lvalue expression, but it may be called on an
       // lvalue expression in order to perform bounds checking.
       if (Op == UnaryOperatorKind::UO_Deref) {
-        OutDerefSubExprBounds = SubExprBounds;
+        OutDerefSubExprBounds = AdjustRValueBounds(SubExpr, SubExprBounds);
         return CreateBoundsInferenceError();
       }
 
@@ -3062,7 +3062,8 @@ namespace {
           BoundsExpr *SubExprBounds = nullptr;
           // Ensure that *e is traversed, while saving the rvalue bounds
           // of e that CheckUnaryOperator computes in SubExprBounds.
-          OutRValueBounds = CheckUnaryOperator(UO, CSS, Facts, SubExprBounds);
+          BoundsExpr *Bounds = CheckUnaryOperator(UO, CSS, Facts, SubExprBounds);
+          OutRValueBounds = AdjustRValueBounds(UO, Bounds);
           return SubExprBounds;
         }
         else
