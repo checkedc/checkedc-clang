@@ -1885,7 +1885,7 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            TraverseStmt(S, CSS, Facts);
+            TraverseStmt(S, CSS);
          }
        }
        AFA.Next();
@@ -1898,7 +1898,6 @@ namespace {
     // Check methods infer bounds and do work on individual nodes, such as
     // checking bounds declarations or inserting bounds checks.
     BoundsExpr *TraverseStmt(Stmt *S, CheckedScopeSpecifier CSS,
-                             std::pair<ComparisonSet, ComparisonSet>& Facts,
                              SideEffects SE = SideEffects::Enabled) {
       if (!S)
         return CreateBoundsEmpty();
@@ -2005,7 +2004,7 @@ namespace {
                           SideEffects SE) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
-        TraverseStmt(*I, CSS, Facts, SE);
+        TraverseStmt(*I, CSS, SE);
       }
     }
 
@@ -2015,7 +2014,7 @@ namespace {
       ResetFacts();
       CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
       if (Expr *Init = VD->getInit())
-        TraverseStmt(Init, CSS, Facts);
+        TraverseStmt(Init, CSS);
     }
 
     void ResetFacts() {
@@ -2053,8 +2052,8 @@ namespace {
       // Recursively infer rvalue bounds for the subexpressions,
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of binary operators.
-      BoundsExpr *LHSBounds = TraverseStmt(LHS, CSS, Facts, SE);
-      BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS, Facts, SE);
+      BoundsExpr *LHSBounds = TraverseStmt(LHS, CSS, SE);
+      BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS, SE);
 
       BinaryOperatorKind Op = E->getOpcode();
 
@@ -2243,7 +2242,7 @@ namespace {
       // Recursively traverse the callee.  The arguments will be
       // traversed below.  This prevents TraverseStmt from
       // needing to traverse the children of call expressions.
-      TraverseStmt(E->getCallee(), CSS, Facts, SE);
+      TraverseStmt(E->getCallee(), CSS, SE);
 
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = E->getNumArgs();
@@ -2254,7 +2253,7 @@ namespace {
         // Recursively traverse each argument.  This prevents TraverseStmt
         // from needed to traverse the children of call expressions.
         Expr *Arg = E->getArg(i);
-        BoundsExpr *ArgBounds = TraverseStmt(Arg, CSS, Facts, SE);
+        BoundsExpr *ArgBounds = TraverseStmt(Arg, CSS, SE);
 
         QualType ParamType = FuncProtoTy->getParamType(i);
         // Skip checking bounds for unchecked pointer parameters, unless
@@ -2339,7 +2338,7 @@ namespace {
       // the number of function parameters.
       for (unsigned i = Count; i < NumArgs; i++) {
         Expr *Arg = E->getArg(i);
-        TraverseStmt(Arg, CSS, Facts, SE);
+        TraverseStmt(Arg, CSS, SE);
       }
 
       return ResultBounds;
@@ -2389,7 +2388,7 @@ namespace {
       // Recursively infer the rvalue bounds for the subexpression,
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of cast expressions.
-      BoundsExpr *SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
+      BoundsExpr *SubExprBounds = TraverseStmt(SubExpr, CSS, SE);
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
       // Casts to _Ptr narrow the bounds.  If the cast to
@@ -2519,7 +2518,7 @@ namespace {
       // Recursively infer bounds for the base, performing side
       // effects if enabled.  This prevents TraverseStmt from
       // needing to traverse the children of member expressions.
-      BoundsExpr *BaseBounds = TraverseStmt(Base, CSS, Facts, SE);
+      BoundsExpr *BaseBounds = TraverseStmt(Base, CSS, SE);
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts,
                                                        BaseLValueBounds,
@@ -2560,7 +2559,7 @@ namespace {
       // Recursively infer rvalue bounds for the subexpression,
       // performing side effects if enabled.  This prevents TraverseStmt from
       // needing to recursively traverse the children of unary operators.
-      BoundsExpr *SubExprBounds = TraverseStmt(SubExpr, CSS, Facts, SE);
+      BoundsExpr *SubExprBounds = TraverseStmt(SubExpr, CSS, SE);
 
       // Perform checking with side effects, if enabled.
       if (SE == SideEffects::Enabled) {
@@ -2686,7 +2685,7 @@ namespace {
       // Recursively traverse the return value if it exists.
       // This prevents TraverseStmt from needing to traverse
       // the children of return statements.
-      TraverseStmt(RetValue, CSS, Facts, SE);
+      TraverseStmt(RetValue, CSS, SE);
 
       if (!ReturnBounds)
         return ResultBounds;
@@ -2707,7 +2706,7 @@ namespace {
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
         return CheckCallExpr(CE, CSS, Facts, SE, E);
       else
-        return TraverseStmt(Child, CSS, Facts, SE);
+        return TraverseStmt(Child, CSS, SE);
     }
 
     BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E,
@@ -2715,7 +2714,7 @@ namespace {
                                      std::pair<ComparisonSet, ComparisonSet>& Facts,
                                      SideEffects SE) {
       Expr *Binding = E->getTemporaryBinding();
-      return TraverseStmt(Binding, CSS, Facts, SE);
+      return TraverseStmt(Binding, CSS, SE);
     }
 
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
@@ -3938,7 +3937,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // __finally or may encounter a malformed AST.  Fall back on to non-flow 
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
-    Checker.TraverseStmt(Body, CheckedScopeSpecifier::CSS_Unchecked, EmptyFacts);
+    Checker.TraverseStmt(Body, CheckedScopeSpecifier::CSS_Unchecked);
   }
 
   if (Cfg != nullptr) {
