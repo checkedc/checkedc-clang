@@ -491,15 +491,6 @@ namespace {
     // physical sizes during casts to pointers to null-terminated arrays.
     bool IncludeNullTerminator;
 
-    // Used to control whether side effects resulting from bounds checking
-    // are performed during combined bounds inference and checking methods.
-    // Side effects can include inserting bounds checks,
-    // setting bounds expressions, and emitting errors or warnings.
-    enum class SideEffects {
-      Disabled = 0,
-      Enabled
-    };
-
     void DumpAssignmentBounds(raw_ostream &OS, BinaryOperator *E,
                               BoundsExpr *LValueTargetBounds,
                               BoundsExpr *RHSBounds) {
