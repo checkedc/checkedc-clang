@@ -118,14 +118,18 @@ namespace clang {
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
 
-    // A set of all ntptrs in scope. Currently, we simply collect all ntptrs
-    // defined in the function.
-    DeclSetTy NtPtrsInScope;
-
     // BlockMapTy stores the mapping from CFGBlocks to ElevatedCFGBlocks.
     using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
     // A queue of unique ElevatedCFGBlocks to run the dataflow analysis on.
     using WorkListTy = QueueSet<ElevatedCFGBlock>;
+
+    // BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
+    // to lookup ElevatedCFGBlock from CFGBlock.
+    BlockMapTy BlockMap;
+
+    // A set of all ntptrs in scope. Currently, we simply collect all ntptrs
+    // defined in the function.
+    DeclSetTy NtPtrsInScope;
 
   public:
     BoundsAnalysis(Sema &S, CFG *Cfg, FunctionDecl *FD) :
@@ -148,33 +152,24 @@ namespace clang {
     // Compute Gen set for each edge in the CFG. If there is an edge B1->B2 and
     // the edge condition is of the form "if (*(p + i))" then Gen[B1] = {B2,
     // p:i} . The actual computation of i is done in FillGenSet.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to lookup ElevatedCFGBlock from CFGBlock.
-    void ComputeGenSets(BlockMapTy BlockMap);
+    void ComputeGenSets();
 
     // Compute Kill set for each block in BlockMap. For a block B, a variable V
     // is added to Kill[B] if V is assigned to in B.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to lookup ElevatedCFGBlock from CFGBlock.
-    void ComputeKillSets(BlockMapTy BlockMap);
+    void ComputeKillSets();
 
     // Compute In set for each block in BlockMap. In[B1] = n Out[B*->B1], where
     // B* are all preds of B1.
     // @param[in] EB is the block to compute the In set for.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to lookup ElevatedCFGBlock from CFGBlock.
-    void ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
+    void ComputeInSets(ElevatedCFGBlock *EB);
 
     // Compute Out set for each outgoing edge of EB. If the Out set on any edge
     // of EB changes then the successor of EB on that edge is added to
     // Worklist.
     // @param[in] EB is the block to compute the Out set for.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to lookup ElevatedCFGBlock from CFGBlock.
     // @param[out] The successors of EB are added to WorkList if the Out set of
     // EB changes.
-    void ComputeOutSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap,
-                        WorkListTy &Worklist);
+    void ComputeOutSets(ElevatedCFGBlock *EB, WorkListTy &Worklist);
 
     // Perform checks, handles conditional expressions, extracts the
     // ntptr offset and fills the Gen set for the edge.
@@ -210,9 +205,7 @@ namespace clang {
                             DeclSetTy &DefinedVars);
 
     // Assign the widened bounds from the ElevatedBlock to the CFG Block.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to associate the widened bounds from the ElevatedCFGBlock to the CFGBlock.
-    void CollectWidenedBounds(BlockMapTy BlockMap);
+    void CollectWidenedBounds();
 
     // Get the terminating condition for a block. This could be an if condition
     // of the form "if(*(p + i))".
@@ -269,8 +262,7 @@ namespace clang {
     // Collect all ntptrs in scope. Currently, this simply collects all ntptrs
     // defined in all blocks in the current function. This function inserts the
     // VarDecls for the ntptrs in NtPtrsInScope.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock.
-    void CollectNtPtrsInScope(BlockMapTy BlockMap);
+    void CollectNtPtrsInScope();
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
