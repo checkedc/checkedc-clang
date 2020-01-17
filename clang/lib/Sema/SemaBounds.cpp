@@ -1915,21 +1915,21 @@ namespace {
         // so there is no need to traverse its children below.
         case Expr::UnaryOperatorClass: {
           BoundsExpr *Bounds = CheckUnaryOperator(cast<UnaryOperator>(S),
-                                                  CSS, Facts, SE);
+                                                  CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         // CheckCallExpr traverses its callee and arguments,
         // so there is no need to traverse its children below.
         case Expr::CallExprClass: {
           BoundsExpr *Bounds = CheckCallExpr(cast<CallExpr>(S),
-                                             CSS, Facts, SE);
+                                             CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         // CheckMemberExpr traverses its base,
         // so there is no need to traverse its children below.
         case Expr::MemberExprClass: {
           BoundsExpr *Bounds = CheckMemberExpr(cast<MemberExpr>(S),
-                                               CSS, Facts, SE);
+                                               CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         // CheckCastExpr traverses its subexpression,
@@ -1938,7 +1938,7 @@ namespace {
         case Expr::CStyleCastExprClass:
         case Expr::BoundsCastExprClass: {
           BoundsExpr *Bounds = CheckCastExpr(cast<CastExpr>(S),
-                                             CSS, Facts, SE);
+                                             CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         // CheckBinaryOperator traverses its subexpressions,
@@ -1946,7 +1946,7 @@ namespace {
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass: {
           BoundsExpr *Bounds = CheckBinaryOperator(cast<BinaryOperator>(S),
-                                                   CSS, Facts, SE);
+                                                   CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         case Stmt::CompoundStmtClass: {
@@ -1962,7 +1962,7 @@ namespace {
             // If an initializer expression is present, it is visited
             // during the traversal of children nodes.
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
-              ResultBounds = CheckVarDecl(VD, CSS, Facts, SE);
+              ResultBounds = CheckVarDecl(VD, CSS, SE);
           }
           break;
         }
@@ -1970,25 +1970,25 @@ namespace {
         // so there is no need to traverse its children below.
         case Stmt::ReturnStmtClass: {
           BoundsExpr *Bounds = CheckReturnStmt(cast<ReturnStmt>(S),
-                                               CSS, Facts, SE);
+                                               CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         // CheckTemporaryBinding traverses its subexpression,
         // so there is no need to traverse its children below.
         case Stmt::CHKCBindTemporaryExprClass: {
           CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(S);
-          BoundsExpr *Bounds = CheckTemporaryBinding(Binding, CSS, Facts, SE);
+          BoundsExpr *Bounds = CheckTemporaryBinding(Binding, CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass: {
           AbstractConditionalOperator *ACO = cast<AbstractConditionalOperator>(S);
-          BoundsExpr *Bounds = CheckConditionalOperator(ACO, CSS, Facts, SE);
+          BoundsExpr *Bounds = CheckConditionalOperator(ACO, CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         case Expr::BoundsValueExprClass: {
           BoundsExpr *Bounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S),
-                                                    CSS, Facts, SE);
+                                                    CSS, SE);
           return AdjustRValueBounds(S, Bounds);
         }
         default: 
@@ -2011,7 +2011,7 @@ namespace {
     // initializer, it has to be traversed explicitly.
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS) {
       ResetFacts();
-      CheckVarDecl(VD, CSS, Facts, SideEffects::Enabled);
+      CheckVarDecl(VD, CSS, SideEffects::Enabled);
       if (Expr *Init = VD->getInit())
         TraverseStmt(Init, CSS);
     }
@@ -2033,8 +2033,7 @@ namespace {
 
     // CheckBinaryOperator returns the bounds for the value produced by e.
     // e is an rvalue.
-    BoundsExpr *CheckBinaryOperator(BinaryOperator *E, CheckedScopeSpecifier CSS,
-              std::pair<ComparisonSet, ComparisonSet>& Facts, SideEffects SE) {
+    BoundsExpr *CheckBinaryOperator(BinaryOperator *E, CheckedScopeSpecifier CSS, SideEffects SE) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
 
@@ -2199,7 +2198,6 @@ namespace {
     // CheckCallExpr returns the bounds for the value produced by e.
     // e is an rvalue.
     BoundsExpr *CheckCallExpr(CallExpr *E, CheckedScopeSpecifier CSS,
-                              std::pair<ComparisonSet, ComparisonSet>& Facts,
                               SideEffects SE,
                               CHKCBindTemporaryExpr *Binding = nullptr) {
       BoundsExpr *ResultBounds = CallExprBounds(E, Binding);
@@ -2348,7 +2346,6 @@ namespace {
     // If e is an lvalue, it returns unknown bounds.
     // This includes both ImplicitCastExprs and CStyleCastExprs.
     BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
-                              std::pair<ComparisonSet, ComparisonSet>& Facts,
                               SideEffects SE) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
@@ -2498,7 +2495,6 @@ namespace {
     // where T is the type of the member.
     // CheckMemberExpr returns empty bounds.  e is an lvalue.
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS,
-                                std::pair<ComparisonSet, ComparisonSet>& Facts,
                                 SideEffects SE) {
       if (SE == SideEffects::Disabled)
         return CreateBoundsEmpty();
@@ -2531,7 +2527,6 @@ namespace {
     // the value produced by e.
     // If e is an lvalue, it returns unknown bounds.
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
-                                   std::pair<ComparisonSet, ComparisonSet>& Facts,
                                    SideEffects SE) {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
@@ -2616,7 +2611,6 @@ namespace {
 
     // CheckVarDecl returns empty bounds.
     BoundsExpr *CheckVarDecl(VarDecl *D, CheckedScopeSpecifier CSS,
-                             std::pair<ComparisonSet, ComparisonSet>& Facts,
                              SideEffects SE) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -2668,7 +2662,6 @@ namespace {
     }
 
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS, CheckedScopeSpecifier CSS,
-                                std::pair<ComparisonSet, ComparisonSet>& Facts,
                                 SideEffects SE) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -2698,19 +2691,17 @@ namespace {
 
     BoundsExpr *CheckTemporaryBinding(CHKCBindTemporaryExpr *E,
                                       CheckedScopeSpecifier CSS,
-                                      std::pair<ComparisonSet, ComparisonSet>& Facts,
                                       SideEffects SE) {
       Expr *Child = E->getSubExpr();
 
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
-        return CheckCallExpr(CE, CSS, Facts, SE, E);
+        return CheckCallExpr(CE, CSS, SE, E);
       else
         return TraverseStmt(Child, CSS, SE);
     }
 
     BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E,
                                      CheckedScopeSpecifier CSS,
-                                     std::pair<ComparisonSet, ComparisonSet>& Facts,
                                      SideEffects SE) {
       Expr *Binding = E->getTemporaryBinding();
       return TraverseStmt(Binding, CSS, SE);
@@ -2718,7 +2709,6 @@ namespace {
 
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E,
                                          CheckedScopeSpecifier CSS,
-                                         std::pair<ComparisonSet, ComparisonSet>& Facts,
                                          SideEffects SE) {
       if (SE == SideEffects::Enabled)
         TraverseChildren(E, CSS, SE);
@@ -3482,24 +3472,24 @@ namespace {
         case Expr::BoundsCastExprClass:
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
-          return CheckCastExpr(cast<CastExpr>(E), CSS, Facts, SE);
+          return CheckCastExpr(cast<CastExpr>(E), CSS, SE);
         case Expr::UnaryOperatorClass:
-          return CheckUnaryOperator(cast<UnaryOperator>(E), CSS, Facts, SE);
+          return CheckUnaryOperator(cast<UnaryOperator>(E), CSS, SE);
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
-          return CheckBinaryOperator(cast<BinaryOperator>(E), CSS, Facts, SE);
+          return CheckBinaryOperator(cast<BinaryOperator>(E), CSS, SE);
         case Expr::CallExprClass:
-          return CheckCallExpr(cast<CallExpr>(E), CSS, Facts, SE);
+          return CheckCallExpr(cast<CallExpr>(E), CSS, SE);
         case Expr::CHKCBindTemporaryExprClass:
           return CheckTemporaryBinding(cast<CHKCBindTemporaryExpr>(E),
-                                       CSS, Facts, SE);
+                                       CSS, SE);
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass:
           return CheckConditionalOperator(cast<AbstractConditionalOperator>(E),
-                                          CSS, Facts, SE);
+                                          CSS, SE);
         case Expr::BoundsValueExprClass:
           return CheckBoundsValueExpr(cast<BoundsValueExpr>(E),
-                                      CSS, Facts, SE);
+                                      CSS, SE);
         default:
           // All other cases are unknowable
           return CreateBoundsAlwaysUnknown();
