@@ -589,7 +589,6 @@ namespace {
     };
 
     bool AddBoundsCheck(Expr *E, OperationKind OpKind, CheckedScopeSpecifier CSS,
-                        std::pair<ComparisonSet, ComparisonSet>& Facts,
                         BoundsExpr *ExistingLValueBounds = nullptr) {
       assert(E->isLValue());
       bool NeedsBoundsCheck = false;
@@ -633,7 +632,6 @@ namespace {
     // always need bounds checks, even though their lvalues are only used for an
     // address computation.
     bool AddMemberBaseBoundsCheck(MemberExpr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
                                   BoundsExpr *BaseLValueBounds,
                                   BoundsExpr *BaseBounds) {
       Expr *Base = E->getBase();
@@ -641,7 +639,7 @@ namespace {
       if (!E->isArrow()) {
         // The base expression only needs a bounds check if it is an lvalue.
         if (Base->isLValue())
-          return AddBoundsCheck(Base, OperationKind::Other, CSS, Facts,
+          return AddBoundsCheck(Base, OperationKind::Other, CSS,
                                 BaseLValueBounds);
         return false;
       }
@@ -2183,7 +2181,7 @@ namespace {
           bool LHSNeedsBoundsCheck = false;
           OperationKind OpKind = (E->getOpcode() == BO_Assign) ?
             OperationKind::Assign : OperationKind::Other;
-          LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS, Facts,
+          LHSNeedsBoundsCheck = AddBoundsCheck(LHS, OpKind, CSS,
                                                LHSLValueBounds);
           if (DumpBounds && (LHSNeedsBoundsCheck ||
                              (LHSTargetBounds && !LHSTargetBounds->isUnknown())))
@@ -2405,7 +2403,7 @@ namespace {
         if (SE == SideEffects::Enabled) {
           bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
                                                  OperationKind::Read, CSS,
-                                                 Facts, SubExprLValueBounds);
+                                                 SubExprLValueBounds);
           if (NeedsBoundsCheck && DumpBounds)
             DumpExpression(llvm::outs(), E);
         }
@@ -2514,7 +2512,7 @@ namespace {
       // needing to traverse the children of member expressions.
       BoundsExpr *BaseBounds = TraverseStmt(Base, CSS, SE);
 
-      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS, Facts,
+      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
                                                        BaseLValueBounds,
                                                        BaseBounds);
       if (NeedsBoundsCheck && DumpBounds)
@@ -2562,8 +2560,7 @@ namespace {
         if (E->isIncrementDecrementOp()) {
           bool NeedsBoundsCheck = AddBoundsCheck(SubExpr,
                                                  OperationKind::Other,
-                                                 CSS, Facts,
-                                                 SubExprLValueBounds);
+                                                 CSS, SubExprLValueBounds);
           if (NeedsBoundsCheck && DumpBounds)
             DumpExpression(llvm::outs(), E);
         }
