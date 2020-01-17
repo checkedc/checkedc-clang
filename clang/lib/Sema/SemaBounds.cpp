@@ -596,8 +596,7 @@ namespace {
       QualType PtrType;
       if (Expr *Deref = S.GetArrayPtrDereference(E, PtrType)) {
         NeedsBoundsCheck = true;
-        BoundsExpr *LValueBounds = InferLValueBounds(E, CSS, Facts,
-                                                     ExistingLValueBounds);
+        BoundsExpr *LValueBounds = InferLValueBounds(E, CSS, ExistingLValueBounds);
         BoundsCheckKind Kind = BCK_Normal;
         // Null-terminated array pointers have special semantics for
         // bounds checks.
@@ -2045,7 +2044,7 @@ namespace {
       // before any side effects are performed on the LHS.
       BoundsExpr *LHSLValueBounds = nullptr;
       if (SE == SideEffects::Enabled && E->isAssignmentOp())
-        LHSLValueBounds = LValueBounds(LHS, CSS, Facts);
+        LHSLValueBounds = LValueBounds(LHS, CSS);
 
       // Recursively infer rvalue bounds for the subexpressions,
       // performing side effects if enabled.  This prevents TraverseStmt from
@@ -2372,13 +2371,13 @@ namespace {
         if (CK == CK_LValueToRValue)
           SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
         if (CK == CK_ArrayToPointerDecay)
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS);
       }
       // SubExprLValueBounds is needed if a bounds check
       // is added to the subexpression.
       if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
         if (SE == SideEffects::Enabled)
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS);
       }
 
       // Recursively infer the rvalue bounds for the subexpression,
@@ -2507,7 +2506,7 @@ namespace {
       BoundsExpr *BaseLValueBounds = nullptr;
       if (!E->isArrow()) {
         if (Base->isLValue())
-          BaseLValueBounds = LValueBounds(Base, CSS, Facts);
+          BaseLValueBounds = LValueBounds(Base, CSS);
       }
 
       // Recursively infer bounds for the base, performing side
@@ -2546,9 +2545,9 @@ namespace {
       BoundsExpr *SubExprLValueBounds = nullptr;
       if (Op == UnaryOperatorKind::UO_AddrOf) {
         if (!SubExpr->getType()->isFunctionType())
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+          SubExprLValueBounds = LValueBounds(SubExpr, CSS);
       } else if (SE == SideEffects::Enabled && E->isIncrementDecrementOp())
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS, Facts);
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS);
 
       // Recursively infer rvalue bounds for the subexpression,
       // performing side effects if enabled.  This prevents TraverseStmt from
@@ -2643,7 +2642,7 @@ namespace {
       Expr *Init = D->getInit();
       if (Init && D->getType()->isScalarType()) {
         assert(D->getInitStyle() == VarDecl::InitializationStyle::CInit);
-        BoundsExpr *InitBounds = InferRValueBounds(Init, CSS, Facts);
+        BoundsExpr *InitBounds = InferRValueBounds(Init, CSS);
         if (InitBounds->isUnknown()) {
           // TODO: need some place to record the initializer bounds
           S.Diag(Init->getBeginLoc(), diag::err_expected_bounds_for_initializer)
@@ -2903,19 +2902,17 @@ namespace {
     /// effects performed on it.  This prevents assertion failures
     /// that could otherwise occur in PruneTemporaryBindings.
     BoundsExpr *InferLValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts,
                                   BoundsExpr *ExistingLValueBounds) {
       BoundsExpr *Bounds = ExistingLValueBounds ?
-                            ExistingLValueBounds : LValueBounds(E, CSS, Facts);
+                            ExistingLValueBounds : LValueBounds(E, CSS);
       return S.CheckNonModifyingBounds(Bounds, E);
     }
 
     /// Infer a bounds expression for an rvalue.
     /// The bounds determine whether the rvalue to which an
     /// expression evaluates is in range.
-    BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                                  std::pair<ComparisonSet, ComparisonSet>& Facts) {
-      BoundsExpr *Bounds = RValueBounds(E, CSS, Facts, SideEffects::Disabled);
+    BoundsExpr *InferRValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
+      BoundsExpr *Bounds = RValueBounds(E, CSS, SideEffects::Disabled);
       return S.CheckNonModifyingBounds(Bounds, E);
     }
 
@@ -3100,8 +3097,7 @@ namespace {
     // expects its argument not to have had a bounds expression set on it.
     // Side effects performed during bounds inference and checking may set
     // a bounds expression on e.
-    BoundsExpr *LValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                             std::pair<ComparisonSet, ComparisonSet>& Facts) {
+    BoundsExpr *LValueBounds(Expr *E, CheckedScopeSpecifier CSS) {
       // E may not be an lvalue if there is a typechecking error when struct 
       // accesses member array incorrectly.
       if (!E->isLValue()) return CreateBoundsInferenceError();
@@ -3140,8 +3136,7 @@ namespace {
       case Expr::UnaryOperatorClass: {
         UnaryOperator *UO = cast<UnaryOperator>(E);
         if (UO->getOpcode() == UnaryOperatorKind::UO_Deref)
-          return RValueBounds(UO->getSubExpr(), CSS, Facts,
-                              SideEffects::Disabled);
+          return RValueBounds(UO->getSubExpr(), CSS, SideEffects::Disabled);
         else
           return CreateBoundsInferenceError();
       }
@@ -3151,7 +3146,7 @@ namespace {
         // of whichever subexpression has pointer type.
         ArraySubscriptExpr *AS = cast<ArraySubscriptExpr>(E);
         // getBase returns the pointer-typed expression.
-        return RValueBounds(AS->getBase(), CSS, Facts, SideEffects::Disabled);
+        return RValueBounds(AS->getBase(), CSS, SideEffects::Disabled);
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = cast<MemberExpr>(E);
@@ -3206,7 +3201,7 @@ namespace {
         // TODO: when we add relative alignment support, we may need
         // to adjust the relative alignment of the bounds.
         if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-          return LValueBounds(ICE->getSubExpr(), CSS, Facts);
+          return LValueBounds(ICE->getSubExpr(), CSS);
          return CreateBoundsAlwaysUnknown();
       }
       case Expr::CHKCBindTemporaryExprClass: {
@@ -3452,7 +3447,6 @@ namespace {
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
     BoundsExpr *RValueBounds(Expr *E, CheckedScopeSpecifier CSS,
-                             std::pair<ComparisonSet, ComparisonSet>& Facts,
                              SideEffects SE) {
       if (!E->isRValue()) return CreateBoundsInferenceError();
 
