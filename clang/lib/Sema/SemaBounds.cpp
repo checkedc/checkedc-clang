@@ -1950,12 +1950,10 @@ namespace {
         case Stmt::ReturnStmtClass:
           ResultBounds = CheckReturnStmt(cast<ReturnStmt>(S), CSS, Facts);
           return AdjustRValueBounds(S, ResultBounds);
-        // CheckTemporaryBinding traverses its subexpression,
-        // so there is no need to traverse its children below.
         case Stmt::CHKCBindTemporaryExprClass: {
           CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(S);
-          BoundsExpr *Bounds = CheckTemporaryBinding(Binding, CSS, Facts, SE);
-          return AdjustRValueBounds(S, Bounds);
+          ResultBounds = CheckTemporaryBinding(Binding, CSS, Facts);
+          return AdjustRValueBounds(S, ResultBounds);
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass: {
@@ -2648,14 +2646,13 @@ namespace {
 
     BoundsExpr *CheckTemporaryBinding(CHKCBindTemporaryExpr *E,
                                       CheckedScopeSpecifier CSS,
-                                      std::pair<ComparisonSet, ComparisonSet>& Facts,
-                                      SideEffects SE) {
+                                      std::pair<ComparisonSet, ComparisonSet>& Facts) {
       Expr *Child = E->getSubExpr();
 
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
         return CheckCallExpr(CE, CSS, Facts, E);
       else
-        return TraverseStmt(Child, CSS, Facts, SE);
+        return TraverseStmt(Child, CSS, Facts, SideEffects::Enabled);
     }
 
     BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E,
