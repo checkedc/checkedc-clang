@@ -1879,11 +1879,14 @@ namespace {
      }
     }
 
-    // Traverse methods iterate recursively over AST tree nodes, visiting all
-    // children of the node too.
+    // Traverse methods iterate recursively over AST tree nodes, visiting
+    // all children of any node not visited by a Check method.
     //
-    // Check methods infer bounds and do work on individual nodes, such as
-    // checking bounds declarations or inserting bounds checks.
+    // Check methods do the following for a node:
+    // 1. Recursively traverse all its children
+    // 2. Infer its (rvalue) bounds
+    // 3. Do work such as checking bounds declarations
+    //    or inserting bounds checks
     BoundsExpr *TraverseStmt(Stmt *S, CheckedScopeSpecifier CSS,
                              std::pair<ComparisonSet, ComparisonSet>& Facts) {
       if (!S)
