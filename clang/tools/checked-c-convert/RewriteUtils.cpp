@@ -834,28 +834,29 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
     bool isUncheckedPtr(QualType t) {
       // TODO does a  more efficient representation exist?
-      std::set<llvm::FoldingSetNodeID> seen;
+      std::set<std::string> seen;
       return isUncheckedPtrAcc(t, seen);
     }
 
     // Recursively determine if a type is unchecked
-    bool isUncheckedPtrAcc(QualType t, std::set<llvm::FoldingSetNodeID> &seen) {
+    bool isUncheckedPtrAcc(QualType t, std::set<std::string> &seen) {
       auto ct = t.getCanonicalType();
-      llvm:FoldingSetNodeID id;
-      ct.Profile(id);
+      auto id = ct.getAsString();
       auto search = seen.find(id);
       if (search == seen.end()) {
-        return false;
-      } else {
         seen.insert(id);
+      } else {
+        return false;
       }
 
-      if (ct->isVoidType()) {
+      if (ct->isVoidPointerType()) {
+        return true;
+      } else if (ct->isVoidType()) {
         return true;
       } if (ct->isPointerType()) {
-        return isUncheckedPtr(ct->getPointeeType());
+        return isUncheckedPtrAcc(ct->getPointeeType(), seen);
       } else if (ct->isRecordType()) {
-        return isUncheckedStruct(ct);
+        return isUncheckedStruct(ct, seen);
       } else {
         return false;
       }
@@ -863,7 +864,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
     // Iterate through all fields of the struct and find unchecked types
     // TODO doesn't handle recursive structs correctly
-    bool isUncheckedStruct(QualType t) {
+    bool isUncheckedStruct(QualType t, std::set<std::string> &seen) {
       auto rt = dyn_cast<RecordType>(t);
       if (rt) {
         auto decl = rt->getDecl();
@@ -871,7 +872,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
           bool unsafe = false;
           for (auto const &field : decl->fields()) {
             auto field_type = field->getType();
-            unsafe |= isUncheckedPtr(field_type);
+            unsafe |= isUncheckedPtrAcc(field_type, seen);
             std::set<ConstraintVariable*> cvs = Info.getVariable(field, Context);
             for (auto cv : cvs) {
               unsafe |= cv->hasWild(Info.getConstraints().getVariables());
