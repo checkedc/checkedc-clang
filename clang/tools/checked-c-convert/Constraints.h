@@ -87,6 +87,8 @@ class VarAtom : public Atom {
 public:
   VarAtom(uint32_t D) : Atom(A_Var), Loc(D) {
     ifArrThenNtArray = false;
+    shouldBeArr = false;
+    shouldBeNtArr = false;
   }
 
   static bool classof(const Atom *S) {
@@ -182,6 +184,22 @@ public:
     ifArrThenNtArray = true;
   }
 
+  void setShouldBeArr() {
+    shouldBeArr = true;
+  }
+
+  void setShouldBeNtArr() {
+    shouldBeNtArr = true;
+  }
+
+  bool getShouldBeArr() {
+    return shouldBeArr;
+  }
+
+  bool getShouldBeNtArr() {
+    return shouldBeNtArr;
+  }
+
   bool couldBeNtArr(ConstAtom *cVal) {
     return ifArrThenNtArray && cVal->getKind() == A_Arr;
   }
@@ -191,6 +209,8 @@ private:
   // flag that indicates that if this atom is an array then
   // should be tried to promote to NtArr.
   bool ifArrThenNtArray;
+  bool shouldBeArr;
+  bool shouldBeNtArr;
   uint32_t  Loc;
   // these are the constraints erased during constraint solving.
   std::set<Constraint*, PComp<Constraint*>> ErasedConstraints;

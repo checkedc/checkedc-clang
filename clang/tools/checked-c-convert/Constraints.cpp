@@ -318,6 +318,14 @@ bool Constraints::step_solve(EnvironmentMap &env) {
       changedEnvironment |= addConstraint(createEq(Var, getNTArr()));
     }
 
+    if (Var->getShouldBeArr()) {
+      changedEnvironment |= addConstraint(createEq(Var, getArr()));
+    }
+
+    if (Var->getShouldBeNtArr()) {
+      changedEnvironment |= addConstraint(createEq(Var, getNTArr()));
+    }
+
     for (const auto &RC : rmConstraints)
       Var->eraseConstraint(RC);
 
