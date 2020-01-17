@@ -491,6 +491,11 @@ namespace {
     // physical sizes during casts to pointers to null-terminated arrays.
     bool IncludeNullTerminator;
 
+    // Having a BoundsAnalysis object here allows us to easily invoke methods
+    // for bounds-widening and get back the bounds-widening info needed for
+    // bounds inference/checking.
+    BoundsAnalysis WidenBounds;
+
     // Used to control whether side effects resulting from bounds checking
     // are performed during combined bounds inference and checking methods.
     // Side effects can include inserting bounds checks,
@@ -1734,7 +1739,8 @@ namespace {
       Cfg(Cfg),
       ReturnBounds(ReturnBounds),
       Context(SemaRef.Context),
-      IncludeNullTerminator(false) {}
+      IncludeNullTerminator(false),
+      WidenBounds(BoundsAnalysis(SemaRef, Cfg)) {}
 
     CheckBoundsDeclarations(Sema &SemaRef) : S(SemaRef),
       DumpBounds(SemaRef.getLangOpts().DumpInferredBounds),
@@ -1743,7 +1749,8 @@ namespace {
       Cfg(nullptr),
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
-      IncludeNullTerminator(false) {}
+      IncludeNullTerminator(false),
+      WidenBounds(BoundsAnalysis(SemaRef, nullptr)) {}
 
     typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
 
@@ -2859,6 +2866,8 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
+    BoundsAnalysis getBoundsAnalysis() { return WidenBounds; }
+
   // Methods for inferring bounds expressions for C expressions.
 
   // C has an interesting semantics for expressions that differentiates between
@@ -3931,11 +3940,11 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     Checker.TraverseStmt(Body, CheckedScopeSpecifier::CSS_Unchecked, EmptyFacts);
   }
 
-  if (Cfg != nullptr) {
-    BoundsAnalysis Collector(*this, Cfg.get());
-    Collector.WidenBounds(FD);
+  if (Cfg) {
+    BoundsAnalysis WB = Checker.getBoundsAnalysis();
+    WB.WidenBounds(FD);
     if (getLangOpts().DumpWidenedBounds)
-      Collector.DumpWidenedBounds(FD);
+      WB.DumpWidenedBounds(FD);
   }
 
 #if TRACE_CFG
