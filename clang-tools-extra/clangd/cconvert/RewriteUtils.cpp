@@ -590,8 +590,8 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
         // if definition is more precise
         // than declaration emit an itype
         std::string ctype = Defn->mkString(Info.getConstraints().getVariables(), false, true);
-        std::string bi =  Defn->getRewritableOriginalTy() + Defn->getName() + " : itype("+ctype +
-                          ABRewriter.getBoundsString(Definition->getParamDecl(i), true)+") ";
+        std::string bi =  Defn->getRewritableOriginalTy() + Defn->getName() + " : itype("+ctype + ")" +
+                          ABRewriter.getBoundsString(Definition->getParamDecl(i), true);
         parmStrs.push_back(bi);
       } else if (anyConstrained) {
         // both the declaration and definition are same
