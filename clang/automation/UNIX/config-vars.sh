@@ -120,7 +120,12 @@ fi
 
 if [ -z "$BUILD_CPU_COUNT" ]; then
   declare -i NPROC=$(nproc);
-  export BUILD_CPU_COUNT=$(($NPROC*3/4))
+  if [ "$BUILDCONFIGURATION" = "Release" ]; then
+    export BUILD_CPU_COUNT=$(($NPROC*3/4))
+  else
+    # Reduce build parallelism for debug builds.
+    export BUILD_CPU_COUNT=$(($NPROC*3/8))
+  fi
 fi
 
 if [ -z "$RUN_LOCAL" ]; then
