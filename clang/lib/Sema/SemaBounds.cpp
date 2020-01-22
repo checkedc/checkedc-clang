@@ -1906,9 +1906,12 @@ namespace {
           return AdjustRValueBounds(S, ResultBounds);
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
-        case Expr::BoundsCastExprClass:
-          ResultBounds = CheckCastExpr(cast<CastExpr>(S), CSS);
+        case Expr::BoundsCastExprClass: {
+          BoundsExpr *SubExprLValueBounds = nullptr;
+          ResultBounds = CheckCastExpr(cast<CastExpr>(S), CSS,
+                                       SubExprLValueBounds);
           return AdjustRValueBounds(S, ResultBounds);
+        }
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
           ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S),
@@ -2283,7 +2286,11 @@ namespace {
     // the value produced by e.
     // If e is an lvalue, it returns unknown bounds.
     // This includes both ImplicitCastExprs and CStyleCastExprs.
-    BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS) {
+    //
+    // OutSubExprLValueBounds saves the lvalue bounds of the subexpression
+    // of e so that callers of CheckCastExpr do not need to recompute them.
+    BoundsExpr *CheckCastExpr(CastExpr *E, CheckedScopeSpecifier CSS,
+                              BoundsExpr *&OutSubExprLValueBounds) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
       BoundsExpr *ResultBounds = CreateBoundsUnknown();
@@ -2314,6 +2321,8 @@ namespace {
         SubExprLValueBounds = LValueBounds(SubExpr, CSS);
       else if (SubExpr->isRValue())
         SubExprBounds = TraverseStmt(SubExpr, CSS);
+
+      OutSubExprLValueBounds = SubExprLValueBounds;
 
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
@@ -3100,10 +3109,17 @@ namespace {
         // the bounds are not changed.
         // TODO: when we add relative alignment support, we may need
         // to adjust the relative alignment of the bounds.
-        if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
-          return LValueBounds(ICE->getSubExpr(), CSS);
-        TraverseStmt(E, CSS);
-        return CreateBoundsAlwaysUnknown();
+        if (ICE->getCastKind() == CastKind::CK_LValueBitCast) {
+          // The lvalue bounds of LValueBitCast(e) are the lvalue bounds of e.
+          BoundsExpr *SubExprLValueBounds = nullptr;
+          // Traverse LValueBitCast(e), saving the lvalue bounds of e
+          // that CheckCastExpr computes in SubExprLValueBounds.
+          CheckCastExpr(ICE, CSS, SubExprLValueBounds);
+          return SubExprLValueBounds;
+        } else {
+          TraverseStmt(E, CSS);
+          return CreateBoundsAlwaysUnknown();
+        }
       }
       case Expr::CHKCBindTemporaryExprClass: {
         TraverseStmt(E, CSS);
