@@ -3046,62 +3046,12 @@ namespace {
       }
       case Expr::MemberExprClass: {
         MemberExpr *ME = cast<MemberExpr>(E);
-        FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
-        if (!FD) {
-          TraverseStmt(E, CSS);
-          return CreateBoundsInferenceError();
-        }
-
-        if (ME->getType()->isArrayType()) {
-          // Declared bounds override the bounds based on the array type.
-          BoundsExpr *B = FD->getBoundsExpr();
-          if (B) {
-            B = S.MakeMemberBoundsConcrete(ME->getBase(), ME->isArrow(), B);
-            if (!B) {
-               assert(ME->getBase()->isRValue());
-              // This can happen if the base expression is an rvalue expression.
-              // It could be a function call that returns a struct, for example.
-              CreateBoundsNotAllowedYet();
-            }
-            if (B->isElementCount() || B->isByteCount()) {
-              Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
-                                              CastKind::CK_ArrayToPointerDecay,
-                                              E);
-              BoundsExpr *ResultBounds = cast<BoundsExpr>(PruneTemporaryBindings(S, ExpandToRange(Base, B), CSS));
-              TraverseStmt(E, CSS);
-              return ResultBounds;
-            } else {
-              BoundsExpr *ResultBounds = cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
-              TraverseStmt(E, CSS);
-              return ResultBounds;
-            }
-          }
-
-          // If B is an interop type annotation, the type must be identical
-          // to the declared type, modulo checkedness.  So it is OK to
-          // compute the array bounds based on the original type.
-          BoundsExpr *ResultBounds = cast<BoundsExpr>(PruneTemporaryBindings(S, ArrayExprBounds(ME), CSS));
-          TraverseStmt(E, CSS);
-          return ResultBounds;
-        }
-
-        // It is an error for a member to have function type
-        if (ME->getType()->isFunctionType()) {
-          TraverseStmt(E, CSS);
-          return CreateBoundsInferenceError();
-        }
-
-        // If E is an L-value, the ME must be an L-value too.
-        if (ME->isRValue()) {
-          llvm_unreachable("unexpected MemberExpr r-value");
-          return CreateBoundsInferenceError();
-        }
-
-        Expr *AddrOf = CreateAddressOfOperator(ME);
-        BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
-        BoundsExpr *ResultBounds = cast<BoundsExpr>(PruneTemporaryBindings(S, Bounds, CSS));
+        // The lvalue bounds of a member expression must be computed
+        // before performing any side effects on the expression
+        // since MemberExprLValueBounds calls PruneTemporaryBindings.
+        BoundsExpr *Bounds = MemberExprLValueBounds(ME, CSS);
         TraverseStmt(E, CSS);
-        return ResultBounds;
+        return Bounds;
       }
       case Expr::ImplicitCastExprClass: {
         ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
@@ -3149,6 +3099,54 @@ namespace {
         return CreateBoundsAlwaysUnknown();
       }
       }
+    }
+
+    // Returns the lvalue bounds for a member expression.
+    BoundsExpr *MemberExprLValueBounds(MemberExpr *ME,
+                                       CheckedScopeSpecifier CSS) {
+      FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
+      if (!FD)
+        return CreateBoundsInferenceError();
+
+      if (ME->getType()->isArrayType()) {
+        // Declared bounds override the bounds based on the array type.
+        BoundsExpr *B = FD->getBoundsExpr();
+        if (B) {
+          B = S.MakeMemberBoundsConcrete(ME->getBase(), ME->isArrow(), B);
+          if (!B) {
+            assert(ME->getBase()->isRValue());
+            // This can happen if the base expression is an rvalue expression.
+            // It could be a function call that returns a struct, for example.
+            CreateBoundsNotAllowedYet();
+          }
+          if (B->isElementCount() || B->isByteCount()) {
+            Expr *Base = CreateImplicitCast(Context.getDecayedType(ME->getType()),
+                                            CastKind::CK_ArrayToPointerDecay,
+                                            ME);
+            return cast<BoundsExpr>(PruneTemporaryBindings(S, ExpandToRange(Base, B), CSS));
+          } else
+            return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
+        }
+
+        // If B is an interop type annotation, the type must be identical
+        // to the declared type, modulo checkedness.  So it is OK to
+        // compute the array bounds based on the original type.
+        return cast<BoundsExpr>(PruneTemporaryBindings(S, ArrayExprBounds(ME), CSS));
+      }
+
+      // It is an error for a member to have function type.
+      if (ME->getType()->isFunctionType())
+        return CreateBoundsInferenceError();
+
+      // If E is an L-value, the ME must be an L-value too.
+      if (ME->isRValue()) {
+        llvm_unreachable("unexpected MemberExpr r-value");
+        return CreateBoundsInferenceError();
+      }
+
+      Expr *AddrOf = CreateAddressOfOperator(ME);
+      BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
+      return cast<BoundsExpr>(PruneTemporaryBindings(S, Bounds, CSS));
     }
 
     // Given a Ptr type or a bounds-safe interface type, create the bounds
