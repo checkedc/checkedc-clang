@@ -2992,6 +2992,9 @@ namespace {
     // it. It is the caller's responsibility to validate that the bounds
     // expression is non-modifying.
     //
+    // For most expression types, LValueBounds traverses the expression
+    // in order to perform any necessary side effects on it.
+    //
     // OutRValueBounds stores the rvalue bounds of e (if they are computed
     // while inferring the lvalue bounds for e).  This prevents callers of
     // LValueBounds from needing to make duplicate calls to TraverseStmt for e.
@@ -3010,6 +3013,7 @@ namespace {
       E = E->IgnoreParens();
       switch (E->getStmtClass()) {
       case Expr::DeclRefExprClass: {
+        TraverseStmt(E, CSS);
         DeclRefExpr *DR = cast<DeclRefExpr>(E);
         if (DR->getType()->isArrayType()) {
           VarDecl *VD = dyn_cast<VarDecl>(DR->getDecl());
@@ -3050,8 +3054,10 @@ namespace {
           OutRValueBounds = AdjustRValueBounds(UO, Bounds);
           return SubExprBounds;
         }
-        else
+        else {
+          TraverseStmt(E, CSS);
           return CreateBoundsInferenceError();
+        }
       }
       case Expr::ArraySubscriptExprClass: {
         // e1[e2] is a synonym for *(e1 + e2).  The bounds are
@@ -3073,8 +3079,10 @@ namespace {
       case Expr::MemberExprClass: {
         MemberExpr *ME = cast<MemberExpr>(E);
         FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
-        if (!FD)
+        if (!FD) {
+          TraverseStmt(E, CSS);
           return CreateBoundsInferenceError();
+        }
 
         if (ME->getType()->isArrayType()) {
           // Declared bounds override the bounds based on the array type.
@@ -3091,20 +3099,29 @@ namespace {
               Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
                                               CastKind::CK_ArrayToPointerDecay,
                                               E);
-              return cast<BoundsExpr>(PruneTemporaryBindings(S, ExpandToRange(Base, B), CSS));
-            } else
-              return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
+              BoundsExpr *ResultBounds = cast<BoundsExpr>(PruneTemporaryBindings(S, ExpandToRange(Base, B), CSS));
+              TraverseStmt(E, CSS);
+              return ResultBounds;
+            } else {
+              BoundsExpr *ResultBounds = cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
+              TraverseStmt(E, CSS);
+              return ResultBounds;
+            }
           }
 
           // If B is an interop type annotation, the type must be identical
           // to the declared type, modulo checkedness.  So it is OK to
           // compute the array bounds based on the original type.
-          return cast<BoundsExpr>(PruneTemporaryBindings(S, ArrayExprBounds(ME), CSS));
+          BoundsExpr *ResultBounds = cast<BoundsExpr>(PruneTemporaryBindings(S, ArrayExprBounds(ME), CSS));
+          TraverseStmt(E, CSS);
+          return ResultBounds;
         }
 
         // It is an error for a member to have function type
-        if (ME->getType()->isFunctionType())
+        if (ME->getType()->isFunctionType()) {
+          TraverseStmt(E, CSS);
           return CreateBoundsInferenceError();
+        }
 
         // If E is an L-value, the ME must be an L-value too.
         if (ME->isRValue()) {
@@ -3114,7 +3131,9 @@ namespace {
 
         Expr *AddrOf = CreateAddressOfOperator(ME);
         BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
-        return cast<BoundsExpr>(PruneTemporaryBindings(S, Bounds, CSS));
+        BoundsExpr *ResultBounds = cast<BoundsExpr>(PruneTemporaryBindings(S, Bounds, CSS));
+        TraverseStmt(E, CSS);
+        return ResultBounds;
       }
       case Expr::ImplicitCastExprClass: {
         ImplicitCastExpr *ICE = cast<ImplicitCastExpr>(E);
@@ -3124,9 +3143,11 @@ namespace {
         // to adjust the relative alignment of the bounds.
         if (ICE->getCastKind() == CastKind::CK_LValueBitCast)
           return LValueBounds(ICE->getSubExpr(), CSS, OutRValueBounds);
-         return CreateBoundsAlwaysUnknown();
+        TraverseStmt(E, CSS);
+        return CreateBoundsAlwaysUnknown();
       }
       case Expr::CHKCBindTemporaryExprClass: {
+        TraverseStmt(E, CSS);
         CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(E);
         Expr *SE = Binding->getSubExpr()->IgnoreParens();
 
@@ -3148,8 +3169,10 @@ namespace {
           return InferBoundsForStringLiteral(E, SL, Binding);
         }
       }
-      default:
+      default: {
+        TraverseStmt(E, CSS);
         return CreateBoundsAlwaysUnknown();
+      }
       }
     }
 
