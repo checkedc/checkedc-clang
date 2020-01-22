@@ -468,7 +468,7 @@ void f19() {
 }
 
 void f20() {
-  // Declared bounds and deref offset INT_MAX. Valid widenening.
+  // Declared bounds and deref offset are both INT_MAX. Valid widening.
   _Nt_array_ptr<char> p : count(INT_MAX) = "";      // expected-error {{declared bounds for 'p' are invalid after initialization}}
   if (*(p + INT_MAX))
   {}
@@ -480,7 +480,7 @@ void f20() {
 // CHECK:  [B11]
 // CHECK: upper_bound(p) = 1
 
-  // Declared bounds and deref offset INT_MIN. Valid widenening.
+  // Declared bounds and deref offset are both INT_MIN. Valid widening.
   _Nt_array_ptr<char> q : count(INT_MIN) = "";
   if (*(q + INT_MIN))                               // expected-error {{out-of-bounds memory access}}
   {}
@@ -491,7 +491,7 @@ void f20() {
 // CHECK:  [B9]
 // CHECK: upper_bound(q) = 1
 
-  // Declared bounds (INT_MIN) and deref offset (INT_MAX). No sequential deref tests. No widenening.
+  // Declared bounds (INT_MIN) and deref offset (INT_MAX). No sequential deref tests. No widening.
   _Nt_array_ptr<char> r : count(INT_MIN) = "";
   if (*(r + INT_MAX))                               // expected-error {{out-of-bounds memory access}}
   {}
@@ -502,7 +502,7 @@ void f20() {
 // CHECK:  [B7]
 // CHECK-NOT: upper_bound(r)
 
-  // Declared bounds and deref offset (INT_MAX + 1). Integer overflow. No widenening.
+  // Declared bounds and deref offset are both (INT_MAX + 1). Integer overflow. No widening.
   _Nt_array_ptr<char> s : count(INT_MAX + 1) = "";
   if (*(s + INT_MAX + 1))                           // expected-error {{out-of-bounds memory access}}
   {}
@@ -513,7 +513,7 @@ void f20() {
 // CHECK:  [B5]
 // CHECK-NOT: upper_bound(s)
 
-  // Declared bounds and deref offset (INT_MIN + 1). Valid widenening.
+  // Declared bounds and deref offset are both (INT_MIN + 1). Valid widening.
   _Nt_array_ptr<char> t : count(INT_MIN + 1) = "";
   if (*(t + INT_MIN + 1))                           // expected-error {{out-of-bounds memory access}}
   {}
@@ -524,7 +524,7 @@ void f20() {
 // CHECK:  [B3]
 // CHECK: upper_bound(t) = 1
 
-  // Declared bounds and deref offset (INT_MIN + -1). Integer underflow. No widenening.
+  // Declared bounds and deref offset are both (INT_MIN + -1). Integer underflow. No widening.
   _Nt_array_ptr<char> u : count(INT_MIN + -1) = ""; // expected-error {{declared bounds for 'u' are invalid after initialization}}
   if (*(u + INT_MIN + -1))
   {}
