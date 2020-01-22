@@ -2368,8 +2368,8 @@ namespace {
                                                 CastKind::CK_BitCast,
                                                 TempUse, true);
 
-      if (CK == CK_AssumePtrBounds)
-        return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
+        if (CK == CK_AssumePtrBounds)
+          return ExpandToRange(SubExprAtNewType, E->getBoundsExpr());
 
         BoundsExpr *DeclaredBounds = E->getBoundsExpr();
         BoundsExpr *NormalizedBounds = ExpandToRange(SubExprAtNewType,
