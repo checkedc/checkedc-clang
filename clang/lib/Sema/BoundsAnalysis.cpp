@@ -64,6 +64,8 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
     ComputeInSets(EB);
     ComputeOutSets(EB, WorkList);
   }
+
+  CollectWidenedBounds();
 }
 
 void BoundsAnalysis::ComputeGenSets() {
@@ -513,15 +515,15 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
 
         // If the variable being assigned to is an ntptr, add the Stmt:V pair
-        // to to the Kill set for the block.
+        // to the Kill set for the block.
         if (IsNtArrayType(V))
           EB->Kill[S].insert(V);
 
         else {
           // Else look for the variable in BoundsVars.
 
-	  // BoundsVars is a mapping from ntptrs to all the variables used in
-	  // their bounds exprs. For example:
+          // BoundsVars is a mapping from an ntptr to all the variables used in
+          // its upper and lower bounds exprs. For example:
 
           // _Nt_array_ptr<char> p : bounds(p + i, i + p + j + 10);
           // _Nt_array_ptr<char> q : bounds(i + q, i + p + q + m);
@@ -532,8 +534,8 @@ void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
             const VarDecl *NtPtr = item.first;
             DeclSetTy Vars = item.second;
 
-            // If the variable exists in the bounds declaration for the NtPtr,
-            // then add the Stmt:NtPtr pair to the Kill set for the block.
+            // If the variable exists in the bounds declaration for the ntptr,
+            // then add the Stmt:ntptr pair to the Kill set for the block.
             if (Vars.count(V))
               EB->Kill[S].insert(NtPtr);
           }
@@ -572,7 +574,7 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
                                     WorkListTy &WorkList) {
   // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
 
-  // EB->Kill is a mapping from Stmt to NtPtrs. We extract just the NtPtrs for
+  // EB->Kill is a mapping from Stmt to ntptrs. We extract just the ntptrs for
   // the block and then use that to compute (In - Kill).
   DeclSetTy KilledVars;
   for (auto item : EB->Kill) {
@@ -616,9 +618,17 @@ StmtDeclSetTy BoundsAnalysis::GetKillSet(const CFGBlock *B) {
   return EB->Kill;
 }
 
+void BoundsAnalysis::CollectWidenedBounds() {
+  for (auto item : BlockMap) {
+    const CFGBlock *B = item.first;
+    ElevatedCFGBlock *EB = item.second;
+    WidenedBounds[B] = EB->In;
+    delete EB;
+  }
+}
+
 BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
-  ElevatedCFGBlock *EB = BlockMap[B];
-  return EB->In;
+  return WidenedBounds[B];
 }
 
 Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
@@ -715,7 +725,7 @@ OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
   // blocks. The block IDs decrease from entry to exit. So we sort in the
   // reverse order.
   OrderedBlocksTy OrderedBlocks;
-  for (auto item : BlockMap) {
+  for (auto item : WidenedBounds) {
     // item.first is the CFGBlock.
     OrderedBlocks.push_back(item.first);
   }
@@ -735,7 +745,7 @@ void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
     llvm::outs() << "--------------------------------------";
     B->print(llvm::outs(), Cfg, S.getLangOpts(), /* ShowColors */ true);
 
-    BoundsMapTy Vars = GetWidenedBounds(B);
+    BoundsMapTy Vars = WidenedBounds[B];
     using VarPairTy = std::pair<const VarDecl *, unsigned>;
 
     std::sort(Vars.begin(), Vars.end(), [](VarPairTy A, VarPairTy B) {

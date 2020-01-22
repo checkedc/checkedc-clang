@@ -90,9 +90,9 @@ namespace clang {
 
   // StmtDeclSetTy denotes a mapping between a Stmt and a set of VarDecls. This
   // is used to store the Kill set for a block.
-  // A VarDecl V is killed if by a Stmt S if:
-  // 1. In Stmt S, V is assigned to in, or
-  // 2. any variable used in the bounds expr of V is assigned to by S.
+  // A VarDecl V is killed in a Stmt S if:
+  // 1. V is assigned to in S, or
+  // 2. any variable used in the bounds expr of V is assigned to in S.
   using StmtDeclSetTy = llvm::DenseMap<const Stmt *, DeclSetTy>;
 
   class BoundsAnalysis {
@@ -101,6 +101,10 @@ namespace clang {
     CFG *Cfg;
     ASTContext &Ctx;
     Lexicographic Lex;
+
+    // The final widened bounds will reside here. This is a map keyed by
+    // CFGBlock.
+    EdgeBoundsTy WidenedBounds;
 
     class ElevatedCFGBlock {
     public:
@@ -260,12 +264,12 @@ namespace clang {
     void CollectNtPtrsInScope(FunctionDecl *FD);
 
     // Get the Kill set for the current block. The Kill set is a mapping of
-    // Stmts to ntptr bounds killed by each Stmt in the block.
+    // Stmts to variables whose bounds killed by each Stmt in the block.
     // @param[in] B is the current CFGBlock.
-    // return A mapping of Stmts and the ntptr bounds killed by each Stmt.
+    // return A mapping of Stmts to variables whose bounds killed by the Stmt.
     StmtDeclSetTy GetKillSet(const clang::CFGBlock *B);
 
-    // If ntptr V is killed by Stmt S in Block B, add S:V pair to EB->Kill.
+    // If variable V is killed by Stmt S in Block B, add S:V pair to EB->Kill.
     // @param[in] EB is the ElevatedCFGBlock for the current block.
     // @param[in] S is the current Stmt in the block.
     void FillKillSet(ElevatedCFGBlock *EB, const Stmt *S);
