@@ -1996,18 +1996,15 @@ namespace {
       // any side effects are performed on the LHS.
       BoundsExpr *LHSTargetBounds = LValueTargetBounds(LHS, CSS);
 
-      // The LHS lvalue bounds (if needed) must be inferred
-      // before any side effects are performed on the LHS.
-      // If calling LValueBounds also computes the rvalue bounds
-      // for the LHS, save them in LHSBounds.
-      BoundsExpr *LHSLValueBounds = nullptr;
-      BoundsExpr *LHSBounds = nullptr;
-      if (E->isAssignmentOp())
+      // Recursively infer the lvalue or rvalue bounds of the LHS.
+      BoundsExpr *LHSLValueBounds = CreateBoundsUnknown();
+      BoundsExpr *LHSBounds = CreateBoundsUnknown();
+      if (LHS->isLValue())
         LHSLValueBounds = LValueBounds(LHS, CSS, LHSBounds);
-
-      // Recursively infer the rvalue bounds for the subexpressions.
-      if (!LHSBounds)
+      else if (E->isRValue())
         LHSBounds = TraverseStmt(LHS, CSS);
+
+      // Recursively infer the rvalue bounds of the RHS.
       BoundsExpr *RHSBounds = TraverseStmt(RHS, CSS);
 
       BinaryOperatorKind Op = E->getOpcode();
@@ -2096,7 +2093,6 @@ namespace {
         }
       }
 
-      // Perform checking with side effects.
       if (E->isAssignmentOp()) {
         QualType LHSType = LHS->getType();
         // Bounds of the right-hand side of the assignment
@@ -2179,8 +2175,6 @@ namespace {
         TraverseChildren(E, CSS);
         return ResultBounds;
       }
-
-      // Perform checking of bounds declarations.
 
       // Traverse the callee since CheckCallExpr should traverse
       // all its children.  The arguments will be traversed below.
@@ -2302,32 +2296,25 @@ namespace {
       bool PreviousIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
 
-      // If the lvalue target bounds and lvalue bounds for the
-      // subexpression are needed, they must be computed before
-      // performing potential side effects on the subexpression.
+      // The subexpression target bounds (if needed) must be computed
+      // before performing any side effects on the subexpression.
       BoundsExpr *SubExprTargetBounds = nullptr;
-      BoundsExpr *SubExprLValueBounds = nullptr;
-      BoundsExpr *SubExprBounds = nullptr;
-      // SubExprTargetBounds or SubExprLValueBounds are needed
-      // if RValueCastBounds is called on an LValueToRValue or an
-      // ArrayToPointerDecay cast, which are both always implicit casts.
+      // The subexpression target bounds are needed if RValueCastBounds is
+      // called on an LValueToRValue cast, which is always an implicit cast.
       if (E->getStmtClass() == Stmt::ImplicitCastExprClass &&
           !E->getType()->isCheckedPointerPtrType()) {
         if (CK == CK_LValueToRValue)
           SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
-        if (CK == CK_ArrayToPointerDecay)
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, SubExprBounds);
-      }
-      // SubExprLValueBounds is needed if a bounds check
-      // is added to the subexpression.
-      if (CK == CK_LValueToRValue && !E->getType()->isArrayType()) {
-        SubExprLValueBounds = LValueBounds(SubExpr, CSS, SubExprBounds);
       }
 
-      // Recursively infer the rvalue bounds for the subexpression
-      // (if they were not already computed by calling LValueBounds).
-      if (!SubExprBounds)
+      // Infer the lvalue or rvalue bounds of the subexpression.
+      BoundsExpr *SubExprLValueBounds = CreateBoundsUnknown();
+      BoundsExpr *SubExprBounds = CreateBoundsUnknown();
+      if (SubExpr->isLValue())
+        SubExprLValueBounds = LValueBounds(SubExpr, CSS, SubExprBounds);
+      else if (SubExpr->isRValue())
         SubExprBounds = TraverseStmt(SubExpr, CSS);
+
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
       // Casts to _Ptr narrow the bounds.  If the cast to
@@ -2431,19 +2418,12 @@ namespace {
     BoundsExpr *CheckMemberExpr(MemberExpr *E, CheckedScopeSpecifier CSS) {
       Expr *Base = E->getBase();
 
-      // If the lvalue bounds for the base are needed,
-      // they must be computed before performing any
-      // side effects on the base.
-      BoundsExpr *BaseLValueBounds = nullptr;
-      BoundsExpr *BaseBounds = nullptr;
-      if (!E->isArrow()) {
-        if (Base->isLValue())
-          BaseLValueBounds = LValueBounds(Base, CSS, BaseBounds);
-      }
-
-      // Recursively infer the rvalue bounds for the base
-      // (if they were not already computed by calling LValueBounds).
-      if (!BaseBounds)
+      // Infer the lvalue or rvalue bounds of the base.
+      BoundsExpr *BaseLValueBounds = CreateBoundsUnknown();
+      BoundsExpr *BaseBounds = CreateBoundsUnknown();
+      if (Base->isLValue())
+        BaseLValueBounds = LValueBounds(Base, CSS, BaseBounds);
+      else if (Base->isRValue())
         BaseBounds = TraverseStmt(Base, CSS);
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, CSS,
@@ -2472,24 +2452,14 @@ namespace {
       if (UnaryOperator::isIncrementDecrementOp(Op))
         SubExprTargetBounds = LValueTargetBounds(SubExpr, CSS);
 
-      // The subexpression lvalue bounds (if needed) must be computed
-      // before performing any side effects on the subexpression.
-      // If calling LValueBounds also computes the rvalue bounds
-      // for the subexpression, save them in SubExprBounds.
-      BoundsExpr *SubExprLValueBounds = nullptr;
-      BoundsExpr *SubExprBounds = nullptr;
-      if (Op == UnaryOperatorKind::UO_AddrOf) {
-        if (!SubExpr->getType()->isFunctionType())
-          SubExprLValueBounds = LValueBounds(SubExpr, CSS, SubExprBounds);
-      } else if (E->isIncrementDecrementOp())
+      // Infer the lvalue or rvalue bounds of the subexpression.
+      BoundsExpr *SubExprLValueBounds = CreateBoundsUnknown();
+      BoundsExpr *SubExprBounds = CreateBoundsUnknown();
+      if (SubExpr->isLValue())
         SubExprLValueBounds = LValueBounds(SubExpr, CSS, SubExprBounds);
-
-      // Recursively infer the rvalue bounds for the subexpression
-      // (if they were not already computed by calling LValueBounds).
-      if (!SubExprBounds)
+      else if (SubExpr->isRValue())
         SubExprBounds = TraverseStmt(SubExpr, CSS);
 
-      // Perform checking with side effects.
       if (Op == UO_AddrOf)
         S.CheckAddressTakenMembers(E);
 
