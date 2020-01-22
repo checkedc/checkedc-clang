@@ -203,17 +203,11 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
   // p + i + j ==> (p, i + j)
   // i + p + j + q ==> (p + q, i + j)
 
-  ExprPairTy DerefExprPair = SplitIntoBaseOffset(E);
-  const Expr *DerefBase = DerefExprPair.first;
-  const Expr *DerefOffset = DerefExprPair.second;
+  ExprIntPairTy DerefExprIntPair = SplitIntoBaseOffset(E);
+  const Expr *DerefBase = DerefExprIntPair.first;
   if (!DerefBase)
     return;
-
-  llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
-  llvm::APSInt DerefOffsetVal;
-  if (!DerefOffset ||
-      !DerefOffset->isIntegerConstantExpr(DerefOffsetVal, Ctx))
-    DerefOffsetVal = Zero;
+  llvm::APSInt DerefOffset = DerefExprIntPair.second;
 
   // For bounds widening, the base of the deref expr and the declared upper
   // bounds expr for all ntptrs in scope should be the same.
@@ -272,20 +266,15 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
 
     // Split the upper bounds expr into base and offset for matching with the
     // DerefBase.
-    ExprPairTy UpperExprPair = SplitIntoBaseOffset(UE);
-    const Expr *UpperBase = UpperExprPair.first;
-    const Expr *UpperOffset = UpperExprPair.second;
+    ExprIntPairTy UpperExprIntPair = SplitIntoBaseOffset(UE);
+    const Expr *UpperBase = UpperExprIntPair.first;
     if (!UpperBase)
       continue;
+    llvm::APSInt UpperOffset = UpperExprIntPair.second;
 
     if (Lex.CompareExpr(DerefBase, UpperBase) !=
         Lexicographic::Result::Equal)
       continue;
-
-    llvm::APSInt UpperOffsetVal;
-    if (!UpperOffset ||
-        !UpperOffset->isIntegerConstantExpr(UpperOffsetVal, Ctx))
-      UpperOffsetVal = Zero;
 
     // We cannot widen the bounds if the offset in the deref expr is less than
     // the offset in the declared upper bounds expr. For example:
@@ -307,8 +296,7 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
     // We widen p by 1 only if the bounds of p in (In - Kill) == Gen[p].
     // See the comments in ComputeOutSets for more details.
 
-    if (Lex.CompareAPInt(DerefOffsetVal, UpperOffsetVal) ==
-        Lexicographic::Result::LessThan)
+    if (llvm::APSInt::compareValues(DerefOffset, UpperOffset) < 0)
       continue;
 
     // (DerefOffset - UpperOffset) gives the offset of the memory dereference
@@ -316,29 +304,29 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
     // the widening computation in ComputeOutSets.
 
     // TODO: Check to see if that difference overflows/underflows.
-    llvm::APInt OffsetDiff = DerefOffsetVal - UpperOffsetVal;
-
-    EB->Gen[SuccEB->Block][V] = OffsetDiff.getLimitedValue();
+    EB->Gen[SuccEB->Block][V] = (DerefOffset - UpperOffset).getLimitedValue();
   }
 }
 
-ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
+ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // In order to make an expression uniform, we want to keep all DeclRefExprs
   // on the LHS and all IntegerLiterals on the RHS.
 
+  llvm::APSInt Zero (Ctx.getTypeSize(Ctx.IntTy), 0);
+
   if (!E)
-    return std::make_pair(nullptr, nullptr);
+    return std::make_pair(nullptr, Zero);;
 
   if (IsDeclOperand(E))
-    return std::make_pair(GetDeclOperand(E), nullptr);
+    return std::make_pair(GetDeclOperand(E), Zero);
 
   if (!isa<BinaryOperator>(E))
-    return std::make_pair(nullptr, nullptr);
+    return std::make_pair(nullptr, Zero);;
 
   const BinaryOperator *BO = dyn_cast<BinaryOperator>(E);
   // TODO: Currently we only handle exprs containing additive operations.
   if (BO->getOpcode() != BO_Add)
-    return std::make_pair(nullptr, nullptr);
+    return std::make_pair(nullptr, Zero);;
 
   Expr *LHS = BO->getLHS()->IgnoreParens();
   Expr *RHS = BO->getRHS()->IgnoreParens();
@@ -353,20 +341,20 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   llvm::APSInt IntVal;
 
   if (IsDeclOperand(LHS) && RHS->isIntegerConstantExpr(IntVal, Ctx))
-    return std::make_pair(GetDeclOperand(LHS), RHS);
+    return std::make_pair(GetDeclOperand(LHS), IntVal);
 
   // Case 2: LHS is IntegerLiteral and RHS is DeclRefExpr. We simply need to
   // swap LHS and RHS to make expr uniform.
   // i + p ==> return (p, i)
   if (LHS->isIntegerConstantExpr(IntVal, Ctx) && IsDeclOperand(RHS))
-    return std::make_pair(GetDeclOperand(RHS), LHS);
+    return std::make_pair(GetDeclOperand(RHS), IntVal);
 
   // Case 3: LHS and RHS are both DeclRefExprs. This means there is no
   // IntegerLiteral in the expr. In this case, we return the incoming
   // BinaryOperator expr with a nullptr for the RHS.
   // p + q ==> return (p + q, nullptr)
   if (IsDeclOperand(LHS) && IsDeclOperand(RHS))
-    return std::make_pair(BO, nullptr);
+    return std::make_pair(BO, Zero);
 
   // To make parsing simpler, we always try to keep BinaryOperator on the LHS.
   if (!isa<BinaryOperator>(LHS) && isa<BinaryOperator>(RHS))
@@ -376,7 +364,7 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // was a BinaryOperator, or because the RHS was a BinaryOperator and was
   // swapped with the LHS.
   if (!isa<BinaryOperator>(LHS))
-    return std::make_pair(nullptr, nullptr);
+    return std::make_pair(nullptr, Zero);;
 
   // If we reach here, the expr is one of these:
   // Case 4: (p + q) + i
@@ -390,9 +378,9 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   auto *BE = dyn_cast<BinaryOperator>(LHS);
 
   // Recursively, make the LHS uniform.
-  ExprPairTy ExprPair = SplitIntoBaseOffset(BE);
-  const Expr *BinOpLHS = ExprPair.first;
-  const Expr *BinOpRHS = ExprPair.second;
+  ExprIntPairTy ExprIntPair = SplitIntoBaseOffset(BE);
+  const Expr *BinOpLHS = ExprIntPair.first;
+  llvm::APSInt BinOpRHS = ExprIntPair.second;
 
   // Expr is either Case 4 or Case 5 from above. ie: LHS is BinaryOperator
   // and RHS is IntegerLiteral.
@@ -402,22 +390,16 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
     // Expr is Case 4. ie: The BinaryOperator expr does not have an
     // IntegerLiteral on the RHS.
     // (p + q) + i ==> return (p + q, i)
-    if (!BinOpRHS)
-      return std::make_pair(BE, RHS);
+    if (BinOpRHS == Zero)
+      return std::make_pair(BE, IntVal);
 
     // Expr is Case 5. ie: The BinaryOperator expr has an IntegerLiteral on
     // the RHS.
     // (p + j) + i ==> return (p, j + i)
-    Expr::EvalResult R1, R2;
-    RHS->EvaluateAsInt(R1, Ctx);
-    BinOpRHS->EvaluateAsInt(R2, Ctx);
 
-    // TODO: Since we are reasociating integers here, check if the value
+    // TODO: Since we are reassociating integers here, check if the value
     // overflows/underflows.
-    llvm::APInt Val = R1.Val.getInt() + R2.Val.getInt();
-
-    auto *I = new (Ctx) IntegerLiteral(Ctx, Val, Ctx.IntTy, SourceLocation());
-    return std::make_pair(BinOpLHS, I);
+    return std::make_pair(BinOpLHS, IntVal + BinOpRHS);
   }
 
   // If we are here it means expr is either Case 6 or Case 7 from above. ie:
@@ -427,8 +409,8 @@ ExprPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // Expr is Case 6. ie: The BinaryOperator expr does not have an
   // IntegerLiteral on the RHS.
   // (p + q) + r ==> return (p + q + r, nullptr)
-  if (!BinOpRHS)
-    return std::make_pair(BO, nullptr);
+  if (BinOpRHS == Zero)
+    return std::make_pair(BO, Zero);
 
   // Expr is Case 7. ie: The BinaryOperator expr has an IntegerLiteral on
   // the RHS.

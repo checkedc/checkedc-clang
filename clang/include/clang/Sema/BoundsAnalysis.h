@@ -85,9 +85,10 @@ namespace clang {
   // for printing the blocks in a deterministic order.
   using OrderedBlocksTy = std::vector<const CFGBlock *>;
 
-  // ExprPairTy denotes a pair of expressions. This is used as a return type
-  // when an expression is split into a base and an offset.
-  using ExprPairTy = std::pair<const Expr *, const Expr *>;
+  // ExprIntPairTy denotes a pair of an expression and an integer constant.
+  // This is used as a return type when an expression is split into a base and
+  // an offset.
+  using ExprIntPairTy = std::pair<const Expr *, llvm::APSInt>;
 
   class BoundsAnalysis {
   private:
@@ -254,9 +255,10 @@ namespace clang {
     // Make an expression uniform by moving all DeclRefExpr to the LHS and all
     // IntegerLiterals to the RHS.
     // @param[in] E is the expression which should be made uniform.
-    // @return A pair of expressions. The first contains all DeclRefExprs of E
-    // and the second contains all IntegerLiterals of E.
-    ExprPairTy SplitIntoBaseOffset(const Expr *E);
+    // @return A pair of an expression and an integer constant. The expression
+    // contains all DeclRefExprs of E and the integer constant contains all
+    // IntegerLiterals of E.
+    ExprIntPairTy SplitIntoBaseOffset(const Expr *E);
 
     // Collect all ntptrs in scope. Currently, this simply collects all ntptrs
     // defined in all blocks in the current function. This function inserts the
