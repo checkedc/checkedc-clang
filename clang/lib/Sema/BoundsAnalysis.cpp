@@ -19,7 +19,6 @@ void BoundsAnalysis::WidenBounds() {
   assert(Cfg && "expected CFG to exist");
 
   WorkListTy WorkList;
-  BlockMapTy BlockMap;
 
   // Add each block to WorkList and create a mapping from Block to
   // ElevatedCFGBlock.
@@ -51,25 +50,25 @@ void BoundsAnalysis::WidenBounds() {
   }
 
   // Collect all ntptrs in scope.
-  CollectNtPtrsInScope(BlockMap);
+  CollectNtPtrsInScope();
 
   // Compute Gen and Kill sets.
-  ComputeGenSets(BlockMap);
-  ComputeKillSets(BlockMap);
+  ComputeGenSets();
+  ComputeKillSets();
 
   // Compute In and Out sets.
   while (!WorkList.empty()) {
     ElevatedCFGBlock *EB = WorkList.next();
     WorkList.remove(EB);
 
-    ComputeInSets(EB, BlockMap);
-    ComputeOutSets(EB, BlockMap, WorkList);
+    ComputeInSets(EB);
+    ComputeOutSets(EB, WorkList);
   }
 
-  CollectWidenedBounds(BlockMap);
+  CollectWidenedBounds();
 }
 
-void BoundsAnalysis::ComputeGenSets(BlockMapTy BlockMap) {
+void BoundsAnalysis::ComputeGenSets() {
   // If there is an edge B1->B2 and the edge condition is of the form
   // "if (*(p + i))" then Gen[B1] = {B2, p:i} .
 
@@ -146,7 +145,7 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
   return false;
 }
 
-void BoundsAnalysis::CollectNtPtrsInScope(BlockMapTy BlockMap) {
+void BoundsAnalysis::CollectNtPtrsInScope() {
   // TODO: Currently, we simply collect all ntptrs defined in the current
   // function. Ultimately, we need to do a liveness analysis of what ntptrs are
   // in scope for a block.
@@ -496,7 +495,7 @@ void BoundsAnalysis::FillGenSet(Expr *E,
   }
 }
 
-void BoundsAnalysis::ComputeKillSets(BlockMapTy BlockMap) {
+void BoundsAnalysis::ComputeKillSets() {
   // For a block B, a variable v is added to Kill[B] if v is assigned to in B.
 
   for (const auto item : BlockMap) {
@@ -556,7 +555,7 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
     CollectDefinedVars(St, EB, DefinedVars);
 }
 
-void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
+void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
   // In[B1] = n Out[B*->B1], where B* are all preds of B1.
 
   BoundsMapTy Intersections;
@@ -579,7 +578,6 @@ void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap) {
 }
 
 void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
-                                    BlockMapTy BlockMap,
                                     WorkListTy &WorkList) {
   // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
 
@@ -614,7 +612,7 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
   }
 }
 
-void BoundsAnalysis::CollectWidenedBounds(BlockMapTy BlockMap) {
+void BoundsAnalysis::CollectWidenedBounds() {
   for (auto item : BlockMap) {
     const CFGBlock *B = item.first;
     ElevatedCFGBlock *EB = item.second;
