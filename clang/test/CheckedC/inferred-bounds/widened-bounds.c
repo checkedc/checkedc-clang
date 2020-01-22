@@ -475,7 +475,6 @@ void f20() {
 
 // CHECK: In function: f20
 // CHECK:  [B12]
-// CHECK:    1: _Nt_array_ptr<char> p : count(2147483647) = "";
 // CHECK:    2: *(p + {{.*}})
 // CHECK:  [B11]
 // CHECK: upper_bound(p) = 1
@@ -486,8 +485,7 @@ void f20() {
   {}
 
 // CHECK:  [B10]
-// CHECK:    1: _Nt_array_ptr<char> q : count((-2147483647 - 1)) = "";
-// CHECK:    2: *(q + (-{{.*}} - 1))
+// CHECK:    2: *(q + {{.*}})
 // CHECK:  [B9]
 // CHECK: upper_bound(q) = 1
 
@@ -497,7 +495,6 @@ void f20() {
   {}
 
 // CHECK:  [B8]
-// CHECK:    1: _Nt_array_ptr<char> r : count((-2147483647 - 1)) = "";
 // CHECK:    2: *(r + {{.*}})
 // CHECK:  [B7]
 // CHECK-NOT: upper_bound(r)
@@ -508,8 +505,7 @@ void f20() {
   {}
 
 // CHECK:  [B6]
-// CHECK:    1: _Nt_array_ptr<char> s : count(2147483647 + 1) = "";
-// CHECK:    2: *(s + {{.*}} + 1)
+// CHECK:    2: *(s + {{.*}})
 // CHECK:  [B5]
 // CHECK-NOT: upper_bound(s)
 
@@ -519,8 +515,7 @@ void f20() {
   {}
 
 // CHECK:  [B4]
-// CHECK:    1: _Nt_array_ptr<char> t : count((-2147483647 - 1) + 1) = "";
-// CHECK:    2: *(t + (-{{.*}} - 1) + 1)
+// CHECK:    2: *(t + {{.*}})
 // CHECK:  [B3]
 // CHECK: upper_bound(t) = 1
 
@@ -530,8 +525,7 @@ void f20() {
   {}
 
 // CHECK:  [B2]
-// CHECK:    1: _Nt_array_ptr<char> u : count((-2147483647 - 1) + -1) = "";
-// CHECK:    2: *(u + (-{{.*}} - 1) + -1)
+// CHECK:    2: *(u + {{.*}})
 // CHECK:  [B1]
 // CHECK-NOT: upper_bound(u)
 }
