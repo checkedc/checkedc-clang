@@ -1893,9 +1893,9 @@ namespace {
 
       switch (S->getStmtClass()) {
         case Expr::UnaryOperatorClass: {
-          BoundsExpr *DerefSubExprBounds = nullptr;
+          BoundsExpr *SubExprBounds = nullptr;
           ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S),
-                                            CSS, DerefSubExprBounds);
+                                            CSS, SubExprBounds);
           return AdjustRValueBounds(S, ResultBounds);
         }
         case Expr::CallExprClass:
@@ -2438,11 +2438,10 @@ namespace {
     // the value produced by e.
     // If e is an lvalue, it returns unknown bounds.
     //
-    // If e is a dereference *e1, OutDerefSubExprBounds
-    // saves the rvalue bounds of e1 so that callers of
-    // CheckUnaryOperator do not need to recompute them.
+    // OutSubExprBounds saves the rvalue bounds of the subexpression of e
+    // so that callers of CheckUnaryOperator do not need to recompute them.
     BoundsExpr *CheckUnaryOperator(UnaryOperator *E, CheckedScopeSpecifier CSS,
-                                   BoundsExpr *&OutDerefSubExprBounds) {
+                                   BoundsExpr *&OutSubExprBounds) {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
@@ -2460,6 +2459,8 @@ namespace {
       else if (SubExpr->isRValue())
         SubExprBounds = TraverseStmt(SubExpr, CSS);
 
+      OutSubExprBounds = SubExprBounds;
+
       if (Op == UO_AddrOf)
         S.CheckAddressTakenMembers(E);
 
@@ -2476,10 +2477,8 @@ namespace {
       // CheckUnaryOperator is not intended to be used to get
       // the bounds for an lvalue expression, but it may be called on an
       // lvalue expression in order to perform bounds checking.
-      if (Op == UnaryOperatorKind::UO_Deref) {
-        OutDerefSubExprBounds = SubExprBounds;
+      if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
-      }
 
       // `!e` has empty bounds.
       if (Op == UnaryOperatorKind::UO_LNot)
