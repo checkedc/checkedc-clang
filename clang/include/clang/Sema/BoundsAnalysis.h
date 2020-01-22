@@ -95,7 +95,6 @@ namespace clang {
     Sema &S;
     CFG *Cfg;
     ASTContext &Ctx;
-    FunctionDecl *FD;
     Lexicographic Lex;
 
     // The final widened bounds will reside here. This is a map keyed by
@@ -132,12 +131,13 @@ namespace clang {
     DeclSetTy NtPtrsInScope;
 
   public:
-    BoundsAnalysis(Sema &S, CFG *Cfg, FunctionDecl *FD) :
-      S(S), Cfg(Cfg), Ctx(S.Context), FD(FD),
+    BoundsAnalysis(Sema &S, CFG *Cfg) :
+      S(S), Cfg(Cfg), Ctx(S.Context),
       Lex(Lexicographic(Ctx, nullptr)) {}
 
     // Run the dataflow analysis to widen bounds for ntptr's.
-    void WidenBounds();
+    // @param[in] FD is the current function.
+    void WidenBounds(FunctionDecl *FD);
 
     // Get the widened bounds for block B.
     // @param[in] B is the block for which the widened bounds are needed.
@@ -146,7 +146,8 @@ namespace clang {
 
     // Pretty print the widen bounds analysis.
     // printing.
-    void DumpWidenedBounds();
+    // @param[in] FD is the current function.
+    void DumpWidenedBounds(FunctionDecl *FD);
 
   private:
     // Compute Gen set for each edge in the CFG. If there is an edge B1->B2 and
@@ -262,7 +263,8 @@ namespace clang {
     // Collect all ntptrs in scope. Currently, this simply collects all ntptrs
     // defined in all blocks in the current function. This function inserts the
     // VarDecls for the ntptrs in NtPtrsInScope.
-    void CollectNtPtrsInScope();
+    // @param[in] FD is the current function.
+    void CollectNtPtrsInScope(FunctionDecl *FD);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.

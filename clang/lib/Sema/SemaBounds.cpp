@@ -3915,10 +3915,10 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   }
 
   if (Cfg != nullptr) {
-    BoundsAnalysis Collector(*this, Cfg.get(), FD);
-    Collector.WidenBounds();
+    BoundsAnalysis Collector(*this, Cfg.get());
+    Collector.WidenBounds(FD);
     if (getLangOpts().DumpWidenedBounds)
-      Collector.DumpWidenedBounds();
+      Collector.DumpWidenedBounds(FD);
   }
 
 #if TRACE_CFG

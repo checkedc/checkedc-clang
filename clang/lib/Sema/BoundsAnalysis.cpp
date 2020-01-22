@@ -15,7 +15,7 @@
 
 namespace clang {
 
-void BoundsAnalysis::WidenBounds() {
+void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
   assert(Cfg && "expected CFG to exist");
 
   WorkListTy WorkList;
@@ -50,7 +50,7 @@ void BoundsAnalysis::WidenBounds() {
   }
 
   // Collect all ntptrs in scope.
-  CollectNtPtrsInScope();
+  CollectNtPtrsInScope(FD);
 
   // Compute Gen and Kill sets.
   ComputeGenSets();
@@ -145,7 +145,7 @@ bool BoundsAnalysis::IsDeclOperand(const Expr *E) {
   return false;
 }
 
-void BoundsAnalysis::CollectNtPtrsInScope() {
+void BoundsAnalysis::CollectNtPtrsInScope(FunctionDecl *FD) {
   // TODO: Currently, we simply collect all ntptrs defined in the current
   // function. Ultimately, we need to do a liveness analysis of what ntptrs are
   // in scope for a block.
@@ -713,7 +713,7 @@ OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
   return OrderedBlocks;
 }
 
-void BoundsAnalysis::DumpWidenedBounds() {
+void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
   llvm::outs() << "--------------------------------------\n";
   llvm::outs() << "In function: " << FD->getName() << "\n";
 
