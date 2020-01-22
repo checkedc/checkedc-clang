@@ -154,6 +154,15 @@ namespace clang {
     // @param[in] FD is the current function.
     void DumpWidenedBounds(FunctionDecl *FD);
 
+    // Get the Kill set for the current block. The Kill set is a mapping of
+    // Stmts to variables whose bounds are killed by each Stmt in the block.
+    // Note: This method is intended to be invoked from CheckBoundsDeclaration
+    // or a similar place which does bounds inference/checking.
+    // @param[in] B is the current CFGBlock.
+    // return A mapping of Stmts to variables whose bounds are killed by the
+    // Stmt.
+    StmtDeclSetTy GetKillSet(const clang::CFGBlock *B);
+
   private:
     // Compute Gen set for each edge in the CFG. If there is an edge B1->B2 and
     // the edge condition is of the form "if (*(p + i))" then Gen[B1] = {B2,
@@ -262,12 +271,6 @@ namespace clang {
     // VarDecls for the ntptrs in NtPtrsInScope.
     // @param[in] FD is the current function.
     void CollectNtPtrsInScope(FunctionDecl *FD);
-
-    // Get the Kill set for the current block. The Kill set is a mapping of
-    // Stmts to variables whose bounds killed by each Stmt in the block.
-    // @param[in] B is the current CFGBlock.
-    // return A mapping of Stmts to variables whose bounds killed by the Stmt.
-    StmtDeclSetTy GetKillSet(const clang::CFGBlock *B);
 
     // If variable V is killed by Stmt S in Block B, add S:V pair to EB->Kill.
     // @param[in] EB is the ElevatedCFGBlock for the current block.
