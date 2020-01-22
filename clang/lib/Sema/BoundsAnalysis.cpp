@@ -390,7 +390,7 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
     // Expr is Case 4. ie: The BinaryOperator expr does not have an
     // IntegerLiteral on the RHS.
     // (p + q) + i ==> return (p + q, i)
-    if (BinOpRHS == Zero)
+    if (llvm::APSInt::compareValues(BinOpRHS, Zero) == 0)
       return std::make_pair(BE, IntVal);
 
     // Expr is Case 5. ie: The BinaryOperator expr has an IntegerLiteral on
@@ -409,7 +409,7 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
   // Expr is Case 6. ie: The BinaryOperator expr does not have an
   // IntegerLiteral on the RHS.
   // (p + q) + r ==> return (p + q + r, nullptr)
-  if (BinOpRHS == Zero)
+  if (llvm::APSInt::compareValues(BinOpRHS, Zero) == 0)
     return std::make_pair(BO, Zero);
 
   // Expr is Case 7. ie: The BinaryOperator expr has an IntegerLiteral on
