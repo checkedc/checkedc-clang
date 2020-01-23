@@ -478,23 +478,24 @@ void BoundsAnalysis::FillGenSet(Expr *E,
 }
 
 void BoundsAnalysis::ComputeKillSets() {
-  // For a block B, a variable v is added to Kill[B] if v is assigned to in B.
+  // For a block B, a variable v is added to Kill[B][S] if v is assigned to in
+  // B by Stmt S.
 
   for (const auto item : BlockMap) {
     ElevatedCFGBlock *EB = item.second;
-    DeclSetTy DefinedVars;
 
-    for (CFGElement Elem : *(EB->Block))
-      if (Elem.getKind() == CFGElement::Statement)
-        CollectDefinedVars(Elem.castAs<CFGStmt>().getStmt(), EB, DefinedVars);
-
-    for (const VarDecl *V : DefinedVars)
-      EB->Kill.insert(V);
+    for (CFGElement Elem : *(EB->Block)) {
+      if (Elem.getKind() == CFGElement::Statement) {
+        const Stmt *S = Elem.castAs<CFGStmt>().getStmt();
+        if (!S)
+          continue;
+        FillKillSet(EB, S);
+      }
+    }
   }
 }
 
-void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
-                                        DeclSetTy &DefinedVars) {
+void BoundsAnalysis::FillKillSet(ElevatedCFGBlock *EB, const Stmt *S) {
   if (!S)
     return;
 
@@ -512,12 +513,17 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
   if (E) {
     if (const auto *D = dyn_cast<DeclRefExpr>(E)) {
       if (const auto *V = dyn_cast<VarDecl>(D->getDecl())) {
-        if (IsNtArrayType(V))
-          DefinedVars.insert(V);
-        else {
 
-          // BoundsVars is a mapping from _Nt_array_ptrs to all the variables
-          // used in their bounds exprs. For example:
+        // If the variable being assigned to is an ntptr, add the Stmt:V pair
+        // to the Kill set for the block.
+        if (IsNtArrayType(V))
+          EB->Kill[S].insert(V);
+
+        else {
+          // Else look for the variable in BoundsVars.
+
+          // BoundsVars is a mapping from an ntptr to all the variables used in
+          // its upper and lower bounds exprs. For example:
 
           // _Nt_array_ptr<char> p : bounds(p + i, i + p + j + 10);
           // _Nt_array_ptr<char> q : bounds(i + q, i + p + q + m);
@@ -525,8 +531,13 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
           // EB->BoundsVars: {p: {p, i, j}, q: {i, q, p, m}}
 
           for (auto item : EB->BoundsVars) {
-            if (item.second.count(V))
-              DefinedVars.insert(item.first);
+            const VarDecl *NtPtr = item.first;
+            DeclSetTy Vars = item.second;
+
+            // If the variable exists in the bounds declaration for the ntptr,
+            // then add the Stmt:ntptr pair to the Kill set for the block.
+            if (Vars.count(V))
+              EB->Kill[S].insert(NtPtr);
           }
         }
       }
@@ -534,7 +545,7 @@ void BoundsAnalysis::CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
   }
 
   for (const Stmt *St : S->children())
-    CollectDefinedVars(St, EB, DefinedVars);
+    FillKillSet(EB, St);
 }
 
 void BoundsAnalysis::ComputeInSets(ElevatedCFGBlock *EB) {
@@ -563,7 +574,15 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
                                     WorkListTy &WorkList) {
   // Out[B1->B2] = (In[B1] - Kill[B1]) u Gen[B1->B2].
 
-  BoundsMapTy Diff = Difference(EB->In, EB->Kill);
+  // EB->Kill is a mapping from Stmt to ntptrs. We extract just the ntptrs for
+  // the block and then use that to compute (In - Kill).
+  DeclSetTy KilledVars;
+  for (auto item : EB->Kill) {
+    const DeclSetTy Vars = item.second;
+    KilledVars.insert(Vars.begin(), Vars.end());
+  }
+
+  BoundsMapTy Diff = Difference(EB->In, KilledVars);
   for (const CFGBlock *succ : EB->Block->succs()) {
     if (SkipBlock(succ))
       continue;
@@ -592,6 +611,11 @@ void BoundsAnalysis::ComputeOutSets(ElevatedCFGBlock *EB,
     if (Differ(OldOut, EB->Out[succ]))
       WorkList.append(BlockMap[succ]);
   }
+}
+
+StmtDeclSetTy BoundsAnalysis::GetKillSet(const CFGBlock *B) {
+  ElevatedCFGBlock *EB = BlockMap[B];
+  return EB->Kill;
 }
 
 void BoundsAnalysis::CollectWidenedBounds() {

@@ -70,9 +70,7 @@ namespace clang {
   // For each edge B1->B2, EdgeBoundsTy denotes the Gen and Out sets.
   using EdgeBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
 
-  // For each block B, DeclSetTy denotes the Kill set. A VarDecl V is killed if:
-  // 1. V is assigned to in the block, or
-  // 2. any variable used in the bounds expr of V is assigned to in the block.
+  // DeclSetTy denotes a set of VarDecls.
   using DeclSetTy = llvm::DenseSet<const VarDecl *>;
 
   // A mapping of VarDecl V to all the variables occuring in its bounds
@@ -89,6 +87,13 @@ namespace clang {
   // This is used as a return type when an expression is split into a base and
   // an offset.
   using ExprIntPairTy = std::pair<const Expr *, llvm::APSInt>;
+
+  // StmtDeclSetTy denotes a mapping between a Stmt and a set of VarDecls. This
+  // is used to store the Kill set for a block.
+  // A VarDecl V is killed in a Stmt S if:
+  // 1. V is assigned to in S, or
+  // 2. any variable used in the bounds expr of V is assigned to in S.
+  using StmtDeclSetTy = llvm::DenseMap<const Stmt *, DeclSetTy>;
 
   class BoundsAnalysis {
   private:
@@ -109,7 +114,7 @@ namespace clang {
       // The Gen and Out sets for the block.
       EdgeBoundsTy Gen, Out;
       // The Kill set for the block.
-      DeclSetTy Kill;
+      StmtDeclSetTy Kill;
       // The set of all variables used in bounds expr for each ntptr in the
       // block.
       BoundsVarTy BoundsVars;
@@ -149,14 +154,24 @@ namespace clang {
     // @param[in] FD is the current function.
     void DumpWidenedBounds(FunctionDecl *FD);
 
+    // Get the Kill set for the current block. The Kill set is a mapping of
+    // Stmts to variables whose bounds are killed by each Stmt in the block.
+    // Note: This method is intended to be invoked from CheckBoundsDeclaration
+    // or a similar place which does bounds inference/checking.
+    // @param[in] B is the current CFGBlock.
+    // return A mapping of Stmts to variables whose bounds are killed by the
+    // Stmt.
+    StmtDeclSetTy GetKillSet(const clang::CFGBlock *B);
+
   private:
     // Compute Gen set for each edge in the CFG. If there is an edge B1->B2 and
     // the edge condition is of the form "if (*(p + i))" then Gen[B1] = {B2,
     // p:i} . The actual computation of i is done in FillGenSet.
     void ComputeGenSets();
 
-    // Compute Kill set for each block in BlockMap. For a block B, a variable V
-    // is added to Kill[B] if V is assigned to in B.
+    // Compute Kill set for each block in BlockMap. For a block B, if a
+    // variable V is assigned to in B by Stmt S, then the pair S:V is added to
+    // the Kill set for the block.
     void ComputeKillSets();
 
     // Compute In set for each block in BlockMap. In[B1] = n Out[B*->B1], where
@@ -195,15 +210,6 @@ namespace clang {
     // @param[out] BoundsVars is a set of all variables used in the bounds expr
     // E.
     void CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars);
-
-    // Collect the variables assigned to in a block.
-    // @param[in] S is an assignment statement.
-    // @param[in] EB is used to access the BoundsVars for the block.
-    // @param[out] DefinedVars is the set of all ntptrs whose widened bounds
-    // are no longer valid as the ntptr has been assigned to, and hence it must
-    // be added to the Kill set of the block.
-    void CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
-                            DeclSetTy &DefinedVars);
 
     // Assign the widened bounds from the ElevatedBlock to the CFG Block.
     void CollectWidenedBounds();
@@ -265,6 +271,11 @@ namespace clang {
     // VarDecls for the ntptrs in NtPtrsInScope.
     // @param[in] FD is the current function.
     void CollectNtPtrsInScope(FunctionDecl *FD);
+
+    // If variable V is killed by Stmt S in Block B, add S:V pair to EB->Kill.
+    // @param[in] EB is the ElevatedCFGBlock for the current block.
+    // @param[in] S is the current Stmt in the block.
+    void FillKillSet(ElevatedCFGBlock *EB, const Stmt *S);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
