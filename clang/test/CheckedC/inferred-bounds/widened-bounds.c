@@ -489,9 +489,9 @@ void f20() {
 // CHECK:  [B9]
 // CHECK: upper_bound(q) = 1
 
-  // Declared bounds (INT_MIN) and deref offset (INT_MAX). No sequential deref tests. No widening.
+  // Declared bounds (INT_MIN) and deref offset (INT_MAX - 1). No sequential deref tests. No widening.
   _Nt_array_ptr<char> r : count(INT_MIN) = "";
-  if (*(r + INT_MAX))                               // expected-error {{out-of-bounds memory access}}
+  if (*(r + INT_MAX - 1))                               // expected-error {{out-of-bounds memory access}}
   {}
 
 // CHECK:  [B8]
