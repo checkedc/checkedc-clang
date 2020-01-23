@@ -149,11 +149,10 @@ private:
   ProgramInfo &Info;
 };
 
-// Class for visiting declarations during re-writing to find locations to
-// insert casts. Right now, it looks specifically for 'free'.
-class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
+// Class for visiting declarations of variables and adding type annotations
+class TypeRewritingVisitor : public RecursiveASTVisitor<TypeRewritingVisitor> {
 public:
-  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
+  explicit TypeRewritingVisitor(ASTContext *C, ProgramInfo &I,
                                 RSet &DR, std::set<std::string> &V,
                                 std::map<std::string, std::string> &newFuncSig, ArrayBoundsRewriter &ArrRewriter)
           : Context(C), Info(I), rewriteThese(DR), VisitedSet(V),
