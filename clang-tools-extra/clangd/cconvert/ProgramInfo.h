@@ -119,6 +119,9 @@ public:
   std::set<ConstraintVariable*>&
   getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTContext *C);
 
+  std::set<ConstraintVariable*>&
+  getFuncDefnConstraints(FunctionDecl *targetFunc, ASTContext *C);
+
   // get a unique key for a given function declaration node.
   std::string getUniqueFuncKey(FunctionDecl *funcDecl, ASTContext *C);
 

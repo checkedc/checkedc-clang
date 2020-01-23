@@ -472,7 +472,7 @@ void rewrite( Rewriter              &R,
 
 // For a given function name, what are the argument positions for that function
 // that we would want to treat specially and insert a cast into?
-std::set<unsigned int> CastPlacementVisitor::getParamsForExtern(std::string E) {
+std::set<unsigned int> TypeRewritingVisitor::getParamsForExtern(std::string E) {
   return StringSwitch<std::set<unsigned int>>(E)
           .Case("free", {0})
           .Default(std::set<unsigned int>());
@@ -481,7 +481,7 @@ std::set<unsigned int> CastPlacementVisitor::getParamsForExtern(std::string E) {
 // Checks the bindings in the environment for all of the constraints
 // associated with C and returns true if any of those constraints
 // are WILD.
-bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
+bool TypeRewritingVisitor::anyTop(std::set<ConstraintVariable*> C) {
   bool anyTopFound = false;
   Constraints &CS = Info.getConstraints();
   Constraints::EnvironmentMap &env = CS.getVariables();
@@ -498,7 +498,7 @@ bool CastPlacementVisitor::anyTop(std::set<ConstraintVariable*> C) {
   return anyTopFound;
 }
 
-std::string CastPlacementVisitor::getExistingIType(ConstraintVariable *decl,
+std::string TypeRewritingVisitor::getExistingIType(ConstraintVariable *decl,
                                                    ConstraintVariable *defn,
                                                    FunctionDecl *funcDecl) {
   std::string ret = "";
@@ -515,7 +515,7 @@ std::string CastPlacementVisitor::getExistingIType(ConstraintVariable *decl,
 }
 
 // This function checks how to re-write a function declaration.
-bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
+bool TypeRewritingVisitor::VisitFunctionDecl(FunctionDecl *FD) {
 
   // Get all of the constraint variables for the function.
   // Check and see if we have a definition in scope. If we do, then:
@@ -690,12 +690,12 @@ bool CastPlacementVisitor::VisitFunctionDecl(FunctionDecl *FD) {
   return true;
 }
 
-bool CastPlacementVisitor::VisitCallExpr(CallExpr *E) {
+bool TypeRewritingVisitor::VisitCallExpr(CallExpr *E) {
   return true;
 }
 
 // check if the function is handled by this visitor
-bool CastPlacementVisitor::isFunctionVisited(std::string funcName) {
+bool TypeRewritingVisitor::isFunctionVisited(std::string funcName) {
   return VisitedSet.find(funcName) != VisitedSet.end();
 }
 
@@ -1135,6 +1135,102 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     std::set<llvm::FoldingSetNodeID>& Seen;
 };
 
+// class for visiting variable usages and function calls to add
+// explicit casting if needed.
+class CastPlacementVisitor : public RecursiveASTVisitor<CastPlacementVisitor> {
+public:
+  explicit CastPlacementVisitor(ASTContext *C, ProgramInfo &I,
+                                Rewriter& R)
+      : Context(C), Info(I), Writer(R) {}
+
+  bool VisitCallExpr(CallExpr *CE) {
+    Decl *D = CE->getCalleeDecl();
+    if(D) {
+      PersistentSourceLoc psl = PersistentSourceLoc::mkPSL(CE, *Context);
+      if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
+        // get the constraint variable for the function
+        std::set<ConstraintVariable *> &V = Info.getFuncDefnConstraints(FD, Context);
+        if (V.size() > 0) {
+          // get the FV constraint for the Callee
+          FVConstraint *FV = nullptr;
+          for (const auto &C : V) {
+            if (PVConstraint * PVC = dyn_cast<PVConstraint>(C)) {
+              if (FVConstraint * F = PVC->getFV()) {
+                FV = F;
+                break;
+              }
+            } else if (FVConstraint * FVC = dyn_cast<FVConstraint>(C)) {
+              FV = FVC;
+              break;
+            }
+          }
+          // now we need to check the type of the arguments and corresponding
+          // parameters to see, if any explicit casting is needed.
+          if (FV) {
+            unsigned i = 0;
+            for (const auto &A : CE->arguments()) {
+              if (i < FD->getNumParams()) {
+                std::set<ConstraintVariable *> ArgumentConstraints =
+                    Info.getVariable(A, Context, true);
+                std::set<ConstraintVariable *> &ParameterConstraints =
+                    FV->getParamVar(i);
+                bool castInserted = false;
+                for (auto *argumentC: ArgumentConstraints) {
+                  castInserted = false;
+                  for (auto *parameterC: ParameterConstraints) {
+                    if (needCasting(argumentC, parameterC)) {
+                      // we expect the cast string to end with "("
+                      std::string castString = getCastString(argumentC, parameterC);
+                      Writer.InsertTextBefore(A->getBeginLoc(), castString);
+                      Writer.InsertTextAfterToken(A->getEndLoc(), ")");
+                      castInserted = true;
+                      break;
+                    }
+                  }
+                  // if we have already inserted a cast, then break.
+                  if (castInserted) break;
+                }
+
+              }
+              i++;
+            }
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  bool VisitBinAssign(BinaryOperator *O) {
+    // TODO: Aron try to add cast to RHS expression..if applicable.
+    return true;
+  }
+
+  
+private:
+  // Check whether an explicit casting is needed when the pointer represented
+  // by src variable is assigned to dst
+  bool needCasting(ConstraintVariable *src, ConstraintVariable *dst) {
+    auto &E = Info.getConstraints().getVariables();
+    // check if the src is a checked type and destination is not.
+    return src->anyChanges(E) && !dst->anyChanges(E);
+  }
+
+  // get the type name to insert for casting.
+  std::string getCastString(ConstraintVariable *src, ConstraintVariable *dst) {
+    assert(needCasting(src, dst) && "No casting needed.");
+    auto &E = Info.getConstraints().getVariables();
+    // the destination type should be a non-checked type.
+    assert(!dst->anyChanges(E));
+    return "((" + dst->getRewritableOriginalTy() + ")";
+  }
+  ASTContext            *Context;
+  ProgramInfo           &Info;
+  Rewriter&    Writer;
+
+};
+
+
 // This is a visitor that tries to find all the variables
 // inferred as arrayed by the checked-c-convert
 class DeclArrayVisitor : public clang::RecursiveASTVisitor<DeclArrayVisitor>
@@ -1326,10 +1422,10 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   RSet rewriteThese(DComp(Context.getSourceManager()));
   // Unification is done, so visit and see if we need to place any casts
   // in the program.
-  CastPlacementVisitor CPV = CastPlacementVisitor(&Context, Info, rewriteThese, v,
+  TypeRewritingVisitor TRV = TypeRewritingVisitor(&Context, Info, rewriteThese, v,
                                                   RewriteConsumer::ModifiedFuncSignatures, ABRewriter);
   for (const auto &D : Context.getTranslationUnitDecl()->decls())
-    CPV.TraverseDecl(D);
+    TRV.TraverseDecl(D);
 
   // Build a map of all of the PersistentSourceLoc's back to some kind of
   // Stmt, Decl, or Type.
@@ -1346,11 +1442,13 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   StructVariableInitializer FV = StructVariableInitializer(&Context, Info, rewriteThese);
   GlobalVariableGroups GVG(R.getSourceMgr());
+  CastPlacementVisitor ECPV(&Context, Info, R);
   std::set<llvm::FoldingSetNodeID> seen;
   CheckedRegionAdder CRA(&Context, R, Info, seen);
   for (auto &D : TUD->decls()) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
+    ECPV.TraverseDecl(D);
     CRA.TraverseDecl(D);
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
   }
@@ -1404,7 +1502,7 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
                             ABRewriter.getBoundsString(D);
         rewriteThese.insert(DAndReplace(D, DS, newTy));
       } else if (FV && RewriteConsumer::hasModifiedSignature(FV->getName()) &&
-                 !CPV.isFunctionVisited(FV->getName())) {
+                 !TRV.isFunctionVisited(FV->getName())) {
         // if this function already has a modified signature? and it is not
         // visited by our cast placement visitor then rewrite it.
         std::string newSig = RewriteConsumer::getModifiedFuncSignature(FV->getName());

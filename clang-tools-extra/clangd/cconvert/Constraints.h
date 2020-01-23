@@ -21,6 +21,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <set>
 #include <map>
+#include "Utils.h"
 
 class Constraint;
 class ConstraintVariable;
@@ -634,6 +635,8 @@ public:
   // The environment maps from Vars to Consts (one of Ptr, Arr, Wild).
   typedef std::map<VarAtom*, ConstAtom*, PComp<VarAtom*> > EnvironmentMap;
 
+  typedef Bimap<std::string, std::string> StringToStringBiMap;
+
   // Map from a unique key of a function to its constraint variables.
   typedef std::map<std::string, std::set<ConstraintVariable*>> FuncKeyToConsMap;
 
@@ -649,7 +652,7 @@ public:
 
   FuncKeyToConsMap &getFuncDeclVarMap() { return FuncDeclConstraints; }
   FuncKeyToConsMap &getFuncDefnVarMap() { return FuncDefnConstraints; }
-  std::map<std::string, std::string> &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
+  StringToStringBiMap &getFuncDefnDeclMap() { return FuncDefnDeclKeyMap; }
   
   EnvironmentMap &getitypeVarMap() { return itypeConstraintVars; }
   // Solve the system of constraints. Return true in the second position if
@@ -730,9 +733,9 @@ private:
   NTArrAtom *prebuiltNTArr;
   WildAtom *prebuiltWild;
 
-  // map that contains the mapping between the unique keys of function
-  // definition to its declaration.
-  std::map<std::string, std::string> FuncDefnDeclKeyMap;
+  // bi-directional map that contains the mapping between the unique keys of
+  // function definition to its declaration.
+  StringToStringBiMap FuncDefnDeclKeyMap;
 };
 
 typedef uint32_t ConstraintKey;

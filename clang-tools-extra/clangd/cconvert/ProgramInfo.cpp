@@ -624,7 +624,8 @@ bool ProgramInfo::addVariable(DeclaratorDecl *D, DeclStmt *St, ASTContext *C) {
       // get the declartion and store the unique key mapping
       FunctionDecl *FDecl = getDeclaration(UD);
       if(FDecl != nullptr) {
-        CS.getFuncDefnDeclMap()[funcKey] = getUniqueDeclKey(FDecl, C);
+        std::string fDeclKey = getUniqueDeclKey(FDecl, C);
+        CS.getFuncDefnDeclMap().set(funcKey, fDeclKey);
       }
     } else {
       // this is a declaration, just save the constraint variable.
@@ -906,6 +907,22 @@ ProgramInfo::getOnDemandFuncDeclarationConstraint(FunctionDecl *targetFunc, ASTC
   }
   return OnDemandFuncDeclConstraint[declKey];
 }
+
+std::set<ConstraintVariable*>&
+ProgramInfo::getFuncDefnConstraints(FunctionDecl *targetFunc, ASTContext *C) {
+  std::string funcKey = getUniqueFuncKey(targetFunc, C);
+  // if this is function declaration? see if we have definition.
+  if(targetFunc->isThisDeclarationADefinition() && targetFunc->hasBody()) {
+    // have we seen a definition of this function?
+    if (CS.getFuncDefnDeclMap().hasValue(funcKey)) {
+      auto fdefKey = *(CS.getFuncDefnDeclMap().valueMap().at(funcKey).begin());
+      return  CS.getFuncDefnVarMap()[fdefKey];
+    }
+    return CS.getFuncDeclVarMap()[funcKey];
+  }
+  return CS.getFuncDefnVarMap()[funcKey];
+
+}
 std::set<ConstraintVariable*>
 ProgramInfo::getVariable(clang::Decl *D, clang::ASTContext *C, FunctionDecl *FD, int parameterIndex) {
   // if this is a parameter.
@@ -1058,8 +1075,8 @@ std::set<ConstraintVariable*> *ProgramInfo::getFuncDeclConstraintSet(std::string
   auto &defnDeclKeyMap = CS.getFuncDefnDeclMap();
   auto &declConstrains = CS.getFuncDeclVarMap();
   // see if we do not have constraint variables for declaration
-  if(defnDeclKeyMap.find(funcDefKey) != defnDeclKeyMap.end()) {
-    auto funcDeclKey = defnDeclKeyMap[funcDefKey];
+  if(defnDeclKeyMap.hasKey(funcDefKey)) {
+    auto funcDeclKey = defnDeclKeyMap.keyMap().at(funcDefKey);
     // if this has a declaration constraint?
     // then fetch the constraint.
     if(declConstrains.find(funcDeclKey) != declConstrains.end()) {
