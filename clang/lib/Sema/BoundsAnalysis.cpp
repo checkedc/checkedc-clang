@@ -64,8 +64,6 @@ void BoundsAnalysis::WidenBounds(FunctionDecl *FD) {
     ComputeInSets(EB);
     ComputeOutSets(EB, WorkList);
   }
-
-  CollectWidenedBounds();
 }
 
 void BoundsAnalysis::ComputeGenSets() {
@@ -618,17 +616,9 @@ StmtDeclSetTy BoundsAnalysis::GetKillSet(const CFGBlock *B) {
   return EB->Kill;
 }
 
-void BoundsAnalysis::CollectWidenedBounds() {
-  for (auto item : BlockMap) {
-    const CFGBlock *B = item.first;
-    ElevatedCFGBlock *EB = item.second;
-    WidenedBounds[B] = EB->In;
-    delete EB;
-  }
-}
-
 BoundsMapTy BoundsAnalysis::GetWidenedBounds(const CFGBlock *B) {
-  return WidenedBounds[B];
+  ElevatedCFGBlock *EB = BlockMap[B];
+  return EB->In;
 }
 
 Expr *BoundsAnalysis::GetTerminatorCondition(const CFGBlock *B) const {
@@ -725,7 +715,7 @@ OrderedBlocksTy BoundsAnalysis::GetOrderedBlocks() {
   // blocks. The block IDs decrease from entry to exit. So we sort in the
   // reverse order.
   OrderedBlocksTy OrderedBlocks;
-  for (auto item : WidenedBounds) {
+  for (auto item : BlockMap) {
     // item.first is the CFGBlock.
     OrderedBlocks.push_back(item.first);
   }
@@ -745,7 +735,7 @@ void BoundsAnalysis::DumpWidenedBounds(FunctionDecl *FD) {
     llvm::outs() << "--------------------------------------";
     B->print(llvm::outs(), Cfg, S.getLangOpts(), /* ShowColors */ true);
 
-    BoundsMapTy Vars = WidenedBounds[B];
+    BoundsMapTy Vars = GetWidenedBounds(B);
     using VarPairTy = std::pair<const VarDecl *, unsigned>;
 
     std::sort(Vars.begin(), Vars.end(), [](VarPairTy A, VarPairTy B) {
