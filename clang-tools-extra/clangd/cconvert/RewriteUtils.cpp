@@ -826,6 +826,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     int checked = 0;
     int decls = 0;
 
+
     bool VisitCompoundStmt(CompoundStmt *s) {
       // Visit all subblocks, find all unchecked types
       int localwild = 0;
@@ -883,6 +884,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       return localwild != 0 || parent->isVariadic();
     }
 
+
     bool VisitUnaryOperator(UnaryOperator* u) {
       //TODO handle computing pointers
       if (u->getOpcode() == UO_AddrOf) {
@@ -894,6 +896,8 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     bool VisitCallExpr(CallExpr *c) {
       auto FD = c->getDirectCallee();
       if (FD && FD->isVariadic()) {
+        // Mark variadic function calls as unsafe!
+        // TODO surround variadic calls in unsafe blocks instead of polluting the whole block
         wild++;
       }
       if (FD) {
@@ -1009,8 +1013,20 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
           cur == CheckedScopeSpecifier::CSS_None &&
           localwild == 0;
 
-        Writer.InsertTextBefore(loc, checked ? "_Checked" : "_Unchecked");
+        // Don't add _Unchecked to top level functions
+        if (!(!checked && isFunctionBody(s))) {
+          Writer.InsertTextBefore(loc, checked ? "_Checked" : "_Unchecked");
+        }
       }
+    }
+
+    bool isFunctionBody(CompoundStmt *s) {
+      const auto& parents = Context->getParents(*s);
+      if (parents.empty()) {
+        return false;
+      }
+      auto parent = parents[0].get<FunctionDecl>();
+      return parent;
     }
 
 
