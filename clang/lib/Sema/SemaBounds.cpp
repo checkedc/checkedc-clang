@@ -487,6 +487,12 @@ namespace {
                               // function, if any.
     ASTContext &Context;
     std::pair<ComparisonSet, ComparisonSet> &Facts;
+
+    // Having a BoundsAnalysis object here allows us to easily invoke methods
+    // for bounds-widening and get back the bounds-widening info needed for
+    // bounds inference/checking.
+    BoundsAnalysis BoundsAnalyzer;
+
     // When this flag is set to true, include the null terminator in the
     // bounds of a null-terminated array.  This is used when calculating
     // physical sizes during casts to pointers to null-terminated arrays.
@@ -1727,6 +1733,7 @@ namespace {
       ReturnBounds(ReturnBounds),
       Context(SemaRef.Context),
       Facts(Facts),
+      BoundsAnalyzer(BoundsAnalysis(SemaRef, Cfg)),
       IncludeNullTerminator(false) {}
 
     CheckBoundsDeclarations(Sema &SemaRef, std::pair<ComparisonSet, ComparisonSet> &Facts) : S(SemaRef),
@@ -1737,6 +1744,7 @@ namespace {
       ReturnBounds(nullptr),
       Context(SemaRef.Context),
       Facts(Facts),
+      BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       IncludeNullTerminator(false) {}
 
     typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
@@ -2845,6 +2853,8 @@ namespace {
       return ExpandToRange(Base, BE);
     }
 
+    BoundsAnalysis getBoundsAnalyzer() { return BoundsAnalyzer; }
+
   // Methods for inferring bounds expressions for C expressions.
 
   // C has an interesting semantics for expressions that differentiates between
@@ -3915,10 +3925,10 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
   }
 
   if (Cfg != nullptr) {
-    BoundsAnalysis Collector(*this, Cfg.get());
-    Collector.WidenBounds(FD);
+    BoundsAnalysis BA = Checker.getBoundsAnalyzer();
+    BA.WidenBounds(FD);
     if (getLangOpts().DumpWidenedBounds)
-      Collector.DumpWidenedBounds(FD);
+      BA.DumpWidenedBounds(FD);
   }
 
 #if TRACE_CFG
