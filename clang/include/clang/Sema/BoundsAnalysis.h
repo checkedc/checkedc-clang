@@ -70,9 +70,7 @@ namespace clang {
   // For each edge B1->B2, EdgeBoundsTy denotes the Gen and Out sets.
   using EdgeBoundsTy = llvm::DenseMap<const CFGBlock *, BoundsMapTy>;
 
-  // For each block B, DeclSetTy denotes the Kill set. A VarDecl V is killed if:
-  // 1. V is assigned to in the block, or
-  // 2. any variable used in the bounds expr of V is assigned to in the block.
+  // DeclSetTy denotes a set of VarDecls.
   using DeclSetTy = llvm::DenseSet<const VarDecl *>;
 
   // A mapping of VarDecl V to all the variables occuring in its bounds
@@ -90,12 +88,18 @@ namespace clang {
   // an offset.
   using ExprIntPairTy = std::pair<const Expr *, llvm::APSInt>;
 
+  // StmtDeclSetTy denotes a mapping between a Stmt and a set of VarDecls. This
+  // is used to store the Kill set for a block.
+  // A VarDecl V is killed in a Stmt S if:
+  // 1. V is assigned to in S, or
+  // 2. any variable used in the bounds expr of V is assigned to in S.
+  using StmtDeclSetTy = llvm::DenseMap<const Stmt *, DeclSetTy>;
+
   class BoundsAnalysis {
   private:
     Sema &S;
     CFG *Cfg;
     ASTContext &Ctx;
-    FunctionDecl *FD;
     Lexicographic Lex;
 
     // The final widened bounds will reside here. This is a map keyed by
@@ -110,7 +114,7 @@ namespace clang {
       // The Gen and Out sets for the block.
       EdgeBoundsTy Gen, Out;
       // The Kill set for the block.
-      DeclSetTy Kill;
+      StmtDeclSetTy Kill;
       // The set of all variables used in bounds expr for each ntptr in the
       // block.
       BoundsVarTy BoundsVars;
@@ -118,22 +122,27 @@ namespace clang {
       ElevatedCFGBlock(const CFGBlock *B) : Block(B) {}
     };
 
-    // A set of all ntptrs in scope. Currently, we simply collect all ntptrs
-    // defined in the function.
-    DeclSetTy NtPtrsInScope;
-
     // BlockMapTy stores the mapping from CFGBlocks to ElevatedCFGBlocks.
     using BlockMapTy = llvm::DenseMap<const CFGBlock *, ElevatedCFGBlock *>;
     // A queue of unique ElevatedCFGBlocks to run the dataflow analysis on.
     using WorkListTy = QueueSet<ElevatedCFGBlock>;
 
+    // BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
+    // to lookup ElevatedCFGBlock from CFGBlock.
+    BlockMapTy BlockMap;
+
+    // A set of all ntptrs in scope. Currently, we simply collect all ntptrs
+    // defined in the function.
+    DeclSetTy NtPtrsInScope;
+
   public:
-    BoundsAnalysis(Sema &S, CFG *Cfg, FunctionDecl *FD) :
-      S(S), Cfg(Cfg), Ctx(S.Context), FD(FD),
+    BoundsAnalysis(Sema &S, CFG *Cfg) :
+      S(S), Cfg(Cfg), Ctx(S.Context),
       Lex(Lexicographic(Ctx, nullptr)) {}
 
     // Run the dataflow analysis to widen bounds for ntptr's.
-    void WidenBounds();
+    // @param[in] FD is the current function.
+    void WidenBounds(FunctionDecl *FD);
 
     // Get the widened bounds for block B.
     // @param[in] B is the block for which the widened bounds are needed.
@@ -142,39 +151,41 @@ namespace clang {
 
     // Pretty print the widen bounds analysis.
     // printing.
-    void DumpWidenedBounds();
+    // @param[in] FD is the current function.
+    void DumpWidenedBounds(FunctionDecl *FD);
+
+    // Get the Kill set for the current block. The Kill set is a mapping of
+    // Stmts to variables whose bounds are killed by each Stmt in the block.
+    // Note: This method is intended to be invoked from CheckBoundsDeclaration
+    // or a similar place which does bounds inference/checking.
+    // @param[in] B is the current CFGBlock.
+    // return A mapping of Stmts to variables whose bounds are killed by the
+    // Stmt.
+    StmtDeclSetTy GetKillSet(const clang::CFGBlock *B);
 
   private:
     // Compute Gen set for each edge in the CFG. If there is an edge B1->B2 and
     // the edge condition is of the form "if (*(p + i))" then Gen[B1] = {B2,
     // p:i} . The actual computation of i is done in FillGenSet.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to lookup ElevatedCFGBlock from CFGBlock.
-    void ComputeGenSets(BlockMapTy BlockMap);
+    void ComputeGenSets();
 
-    // Compute Kill set for each block in BlockMap. For a block B, a variable V
-    // is added to Kill[B] if V is assigned to in B.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to lookup ElevatedCFGBlock from CFGBlock.
-    void ComputeKillSets(BlockMapTy BlockMap);
+    // Compute Kill set for each block in BlockMap. For a block B, if a
+    // variable V is assigned to in B by Stmt S, then the pair S:V is added to
+    // the Kill set for the block.
+    void ComputeKillSets();
 
     // Compute In set for each block in BlockMap. In[B1] = n Out[B*->B1], where
     // B* are all preds of B1.
     // @param[in] EB is the block to compute the In set for.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to lookup ElevatedCFGBlock from CFGBlock.
-    void ComputeInSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap);
+    void ComputeInSets(ElevatedCFGBlock *EB);
 
     // Compute Out set for each outgoing edge of EB. If the Out set on any edge
     // of EB changes then the successor of EB on that edge is added to
     // Worklist.
     // @param[in] EB is the block to compute the Out set for.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to lookup ElevatedCFGBlock from CFGBlock.
     // @param[out] The successors of EB are added to WorkList if the Out set of
     // EB changes.
-    void ComputeOutSets(ElevatedCFGBlock *EB, BlockMapTy BlockMap,
-                        WorkListTy &Worklist);
+    void ComputeOutSets(ElevatedCFGBlock *EB, WorkListTy &Worklist);
 
     // Perform checks, handles conditional expressions, extracts the
     // ntptr offset and fills the Gen set for the edge.
@@ -200,19 +211,8 @@ namespace clang {
     // E.
     void CollectBoundsVars(const Expr *E, DeclSetTy &BoundsVars);
 
-    // Collect the variables assigned to in a block.
-    // @param[in] S is an assignment statement.
-    // @param[in] EB is used to access the BoundsVars for the block.
-    // @param[out] DefinedVars is the set of all ntptrs whose widened bounds
-    // are no longer valid as the ntptr has been assigned to, and hence it must
-    // be added to the Kill set of the block.
-    void CollectDefinedVars(const Stmt *S, ElevatedCFGBlock *EB,
-                            DeclSetTy &DefinedVars);
-
     // Assign the widened bounds from the ElevatedBlock to the CFG Block.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock. Used
-    // to associate the widened bounds from the ElevatedCFGBlock to the CFGBlock.
-    void CollectWidenedBounds(BlockMapTy BlockMap);
+    void CollectWidenedBounds();
 
     // Get the terminating condition for a block. This could be an if condition
     // of the form "if(*(p + i))".
@@ -269,8 +269,13 @@ namespace clang {
     // Collect all ntptrs in scope. Currently, this simply collects all ntptrs
     // defined in all blocks in the current function. This function inserts the
     // VarDecls for the ntptrs in NtPtrsInScope.
-    // @param[in] BlockMap is the map from CFGBlock to ElevatedCFGBlock.
-    void CollectNtPtrsInScope(BlockMapTy BlockMap);
+    // @param[in] FD is the current function.
+    void CollectNtPtrsInScope(FunctionDecl *FD);
+
+    // If variable V is killed by Stmt S in Block B, add S:V pair to EB->Kill.
+    // @param[in] EB is the ElevatedCFGBlock for the current block.
+    // @param[in] S is the current Stmt in the block.
+    void FillKillSet(ElevatedCFGBlock *EB, const Stmt *S);
 
     // Compute the intersection of sets A and B.
     // @param[in] A is a set.
