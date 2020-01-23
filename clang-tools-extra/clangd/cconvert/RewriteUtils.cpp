@@ -826,6 +826,71 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     int checked = 0;
     int decls = 0;
 
+    bool VisitForStmt(ForStmt *s) {
+      int localwild = 0;
+
+      for(const auto& subStmt : s->children()) {
+        CheckedRegionAdder sub(Context,Writer,Info,Seen);
+        sub.TraverseStmt(subStmt);
+        localwild += sub.wild;
+      }
+
+      wild += localwild;
+      return false;
+    }
+
+    bool VisitSwitchStmt(SwitchStmt *s) {
+      int localwild = 0;
+
+      for(const auto& subStmt : s->children()) {
+        CheckedRegionAdder sub(Context,Writer,Info,Seen);
+        sub.TraverseStmt(subStmt);
+        localwild += sub.wild;
+      }
+
+      wild += localwild;
+      return false;
+    }
+
+    bool VisitIfStmt(IfStmt *s) {
+      int localwild = 0;
+
+      for(const auto& subStmt : s->children()) {
+        CheckedRegionAdder sub(Context,Writer,Info,Seen);
+        sub.TraverseStmt(subStmt);
+        localwild += sub.wild;
+      }
+
+      wild += localwild;
+      return false;
+    }
+
+    bool VisitWhileStmt(WhileStmt *s) {
+      int localwild = 0;
+
+      for(const auto& subStmt : s->children()) {
+        CheckedRegionAdder sub(Context,Writer,Info,Seen);
+        sub.TraverseStmt(subStmt);
+        localwild += sub.wild;
+      }
+
+      wild += localwild;
+      return false;
+    }
+
+    bool VisitDoStmt(DoStmt *s) {
+      int localwild = 0;
+
+      for(const auto& subStmt : s->children()) {
+        CheckedRegionAdder sub(Context,Writer,Info,Seen);
+        sub.TraverseStmt(subStmt);
+        localwild += sub.wild;
+      }
+
+      wild += localwild;
+      return false;
+    }
+
 
     bool VisitCompoundStmt(CompoundStmt *s) {
       // Visit all subblocks, find all unchecked types
@@ -856,7 +921,6 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
 
     bool VisitCStyleCastExpr(CStyleCastExpr *e) {
       // TODO This is over cautious
-      auto type = e->getTypeAsWritten();
       wild++;
       return true;
     }
@@ -893,12 +957,26 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       return true;
     }
 
+    bool isInStatementPosition(CallExpr *c) {
+      //TODO this will be used to determine if a variadic call can be surrounded by a block
+      return false;
+    }
+
     bool VisitCallExpr(CallExpr *c) {
       auto FD = c->getDirectCallee();
       if (FD && FD->isVariadic()) {
-        // Mark variadic function calls as unsafe!
-        // TODO surround variadic calls in unsafe blocks instead of polluting the whole block
-        wild++;
+        // If this variadic call is in statement positon, we can wrap in it
+        // an unsafe block and avoid polluting the entire block as unsafe.
+        // If it's not (as in it is used in an expression) then we fall back to
+        // reporting an WILD value
+        if(isInStatementPosition(c)) {
+          auto begin = c->getBeginLoc();
+          Writer.InsertTextBefore(begin, "_Unchecked { ");
+          auto end = c->getEndLoc();
+          Writer.InsertTextAfterToken(end, "; }");
+        } else {
+          wild++;
+        }
       }
       if (FD) {
         auto type = FD->getReturnType();
@@ -946,7 +1024,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
     }
 
     bool isUncheckedPtr(QualType t) {
-      // TODO does a  more efficient representation exist?
+      // TODO does a more efficient representation exist?
       std::set<std::string> seen;
       return isUncheckedPtrAcc(t, seen);
     }
@@ -1025,8 +1103,7 @@ class CheckedRegionAdder : public clang::RecursiveASTVisitor<CheckedRegionAdder>
       if (parents.empty()) {
         return false;
       }
-      auto parent = parents[0].get<FunctionDecl>();
-      return parent;
+      return parents[0].get<FunctionDecl>();
     }
 
 
