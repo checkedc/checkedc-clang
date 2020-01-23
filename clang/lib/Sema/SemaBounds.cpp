@@ -3093,6 +3093,8 @@ namespace {
           auto *SL = PE->getFunctionName();
           return InferBoundsForStringLiteral(E, SL, Binding);
         }
+
+        return CreateBoundsAlwaysUnknown();
       }
       default: {
         TraverseStmt(E, CSS);
