@@ -102,10 +102,6 @@ namespace clang {
     ASTContext &Ctx;
     Lexicographic Lex;
 
-    // The final widened bounds will reside here. This is a map keyed by
-    // CFGBlock.
-    EdgeBoundsTy WidenedBounds;
-
     class ElevatedCFGBlock {
     public:
       const CFGBlock *Block;
