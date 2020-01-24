@@ -1914,8 +1914,7 @@ namespace {
         }
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
-          ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S),
-                                             CSS);
+          ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S), CSS);
           return AdjustRValueBounds(S, ResultBounds);
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
@@ -1949,8 +1948,7 @@ namespace {
           return AdjustRValueBounds(S, ResultBounds);
         }
         case Expr::BoundsValueExprClass:
-          ResultBounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S),
-                                              CSS);
+          ResultBounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S), CSS);
           return AdjustRValueBounds(S, ResultBounds);
         default: 
           break;
