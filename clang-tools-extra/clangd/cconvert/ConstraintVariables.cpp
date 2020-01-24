@@ -787,8 +787,10 @@ bool PointerVariableConstraint::anyChanges(Constraints::EnvironmentMap &E) {
     ConstAtom *CS = E[&V];
     assert(CS != nullptr);
     f |= isa<PtrAtom>(CS);
-    f |= isa<NTArrAtom>(CS);
-    f |= isa<ArrAtom>(CS);
+    if (allTypes) {
+      f |= isa<NTArrAtom>(CS);
+      f |= isa<ArrAtom>(CS);
+    }
   }
 
   if (FV)

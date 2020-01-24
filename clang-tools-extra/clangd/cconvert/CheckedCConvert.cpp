@@ -85,6 +85,10 @@ cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
                                    cl::desc("Consider the allocators (i.e., malloc/calloc) as unsafe."),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
+cl::opt<bool> allTypes( "alltypes",
+                         cl::desc("Consider all Checked C types for conversion"),
+                         cl::init(false),
+                         cl::cat(ConvertCategory));
 
 cl::opt<std::string>
 BaseDir("base-dir",
@@ -111,6 +115,8 @@ bool handleVARARGS;
 bool enablePropThruIType;
 
 bool considerAllocUnsafe;
+
+bool allTypes;
 
 std::string BaseDir;
 
@@ -293,6 +299,8 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
   considerAllocUnsafe = options.considerAllocUnsafe;
 
   BaseDir = options.BaseDir;
+
+  allTypes = true;
 
   if (BaseDir.empty()) {
     SmallString<256>  cp;
