@@ -2712,6 +2712,27 @@ namespace {
       return CreateBoundsInferenceError();
     }
 
+    // CheckArraySubscriptExpr returns the lvalue and target bounds of e.
+    // e is an lvalue.
+    BoundsExpr *CheckArraySubscriptExpr(ArraySubscriptExpr *E,
+                                        BoundsExpr *&OutTargetBounds) {
+      // Currently, we don't know the target bounds of a pointer returned
+      // by a subscripting operation, unless it is a _Ptr type (handled
+      // earlier) or an _Nt_array_ptr.
+      if (E->getType()->isCheckedPointerNtArrayType())
+        OutTargetBounds = CreateTypeBasedBounds(E, E->getType(), false, false);
+      else
+        OutTargetBounds = CreateBoundsAlwaysUnknown();
+
+      // e1[e2] is a synonym for *(e1 + e2).  The bounds are
+      // the bounds of e1 + e2, which reduces to the bounds
+      // of whichever subexpression has pointer type.
+      // getBase returns the pointer-typed expression.
+      BoundsExpr *Bounds = Check(E->getBase());
+      Check(E->getIdx());
+      return Bounds;
+    }
+
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
