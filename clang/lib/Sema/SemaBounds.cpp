@@ -2618,6 +2618,75 @@ namespace {
       return CreateBoundsAllowedButNotComputed();
     }
 
+    //
+    // Methods to infer bounds for an expression that produces an lvalue
+    // and bounds for the target of an lvalue.
+    //
+
+    // CheckDeclRefExpr returns the lvalue and target bounds of e.
+    // e is an lvalue.
+    BoundsExpr *CheckDeclRefExpr(DeclRefExpr *E, BoundsExpr *&OutTargetBounds) {
+      CheckChildren(E);
+
+      VarDecl *VD = dyn_cast<VarDecl>(E->getDecl());
+      BoundsExpr *B = nullptr;
+      InteropTypeExpr *IT = nullptr;
+      if (VD) {
+        B = VD->getBoundsExpr();
+        IT = VD->getInteropTypeExpr();
+      }
+
+      if (E->getType()->isArrayType()) {
+        // Variables with array type do not have target bounds.
+        OutTargetBounds = CreateBoundsAlwaysUnknown();
+
+        if (!VD) {
+          llvm_unreachable("declref with array type not a vardecl");
+          return CreateBoundsInferenceError();
+        }
+
+        // Declared bounds override the bounds based on the array type.
+        if (B) {
+          Expr *Base = CreateImplicitCast(Context.getDecayedType(E->getType()),
+                                          CastKind::CK_ArrayToPointerDecay, E);
+          return ExpandToRange(Base, B);
+        }
+
+        // If B is an interop type annotation, the type must be identical
+        // to the declared type, modulo checkedness.  So it is OK to
+        // compute the array bounds based on the original type.
+        return ArrayExprBounds(E);
+      }
+
+      // Infer the target bounds of e.
+      // e only has target bounds if e does not have array type.
+      bool IsParam = isa<ParmVarDecl>(E->getDecl());
+      if (E->getType()->isCheckedPointerPtrType())
+        OutTargetBounds = CreateTypeBasedBounds(E, E->getType(),
+                                                IsParam, false);
+      else if (!VD)
+        OutTargetBounds = CreateBoundsInferenceError();
+      else if (!B && IT)
+        OutTargetBounds = CreateTypeBasedBounds(E, IT->getType(),
+                                                IsParam, true);
+      else if (!B || B->isUnknown())
+        OutTargetBounds = CreateBoundsAlwaysUnknown();
+      else {
+        Expr *Base = CreateImplicitCast(E->getType(),
+                                        CastKind::CK_LValueToRValue, E);
+        OutTargetBounds = ExpandToRange(Base, B);
+      }
+
+      if (E->getType()->isFunctionType()) {
+        // Only function decl refs should have function type
+        assert(isa<FunctionDecl>(E->getDecl()));
+        return CreateBoundsEmpty();
+      }
+
+      Expr *AddrOf = CreateAddressOfOperator(E);
+      return CreateSingleElementBounds(AddrOf);
+    }
+
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
