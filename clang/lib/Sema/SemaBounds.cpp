@@ -2687,6 +2687,31 @@ namespace {
       return CreateSingleElementBounds(AddrOf);
     }
 
+    // If e is an lvalue, CheckUnaryLValue returns the
+    // lvalue and target bounds of e.
+    // If e is an rvalue, CheckUnaryOperator should be called instead.
+    BoundsExpr *CheckUnaryLValue(UnaryOperator *E,
+                                 BoundsExpr *&OutTargetBounds) {
+      BoundsExpr *SubExprBounds = Check(E->getSubExpr());
+
+      if (E->getOpcode() == UnaryOperatorKind::UO_Deref) {
+        // Currently, we don't know the target bounds of a pointer stored in a
+        // pointer dereference, unless it is a _Ptr type (handled
+        // earlier) or an _Nt_array_ptr.
+        if (E->getType()->isCheckedPointerNtArrayType())
+          OutTargetBounds = CreateTypeBasedBounds(E, E->getType(),
+                                                  false, false);
+        else
+          OutTargetBounds = CreateBoundsUnknown();
+
+        // The lvalue bounds of *e are the rvalue bounds of e.
+        return SubExprBounds;
+      }
+
+      OutTargetBounds = CreateBoundsInferenceError();
+      return CreateBoundsInferenceError();
+    }
+
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
