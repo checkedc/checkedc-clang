@@ -301,8 +301,12 @@ void BoundsAnalysis::FillGenSetAndGetBoundsVars(const Expr *E,
     // relative to the declared upper bound expression. This offset is used in
     // the widening computation in ComputeOutSets.
 
-    // TODO: Check to see if that difference overflows/underflows.
-    EB->Gen[SuccEB->Block][V] = (DerefOffset - UpperOffset).getLimitedValue();
+    // Check if the difference overflows.
+    bool Overflow;
+    UpperOffset = DerefOffset.ssub_ov(UpperOffset, Overflow);
+    if (Overflow)
+      continue;
+    EB->Gen[SuccEB->Block][V] = UpperOffset.getLimitedValue();
   }
 }
 
@@ -395,9 +399,14 @@ ExprIntPairTy BoundsAnalysis::SplitIntoBaseOffset(const Expr *E) {
     // the RHS.
     // (p + j) + i ==> return (p, j + i)
 
-    // TODO: Since we are reassociating integers here, check if the value
-    // overflows/underflows.
-    return std::make_pair(BinOpLHS, IntVal + BinOpRHS);
+    // Since we are reassociating integers here, check if the value
+    // overflows.
+    bool Overflow;
+    IntVal = IntVal.sadd_ov(BinOpRHS, Overflow);
+    if (Overflow)
+      return std::make_pair(nullptr, Zero);
+
+    return std::make_pair(BinOpLHS, IntVal);
   }
 
   // If we are here it means expr is either Case 6 or Case 7 from above. ie:
