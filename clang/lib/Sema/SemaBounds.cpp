@@ -2423,31 +2423,6 @@ namespace {
       return ResultBounds;
     }
 
-    // A member expression is a narrowing operator that shrinks the range of
-    // memory to which the base refers to a specific member.  We always bounds
-    // check the base.  That way we know that the lvalue produced by the
-    // member points to a valid range of memory given by
-    // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
-    // where T is the type of the member.
-    // CheckMemberExpr returns empty bounds.  e is an lvalue.
-    BoundsExpr *CheckMemberExpr(MemberExpr *E) {
-      Expr *Base = E->getBase();
-
-      // Infer the lvalue or rvalue bounds of the base.
-      BoundsExpr *BaseLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *BaseBounds = CreateBoundsUnknown();
-      if (Base->isLValue())
-        BaseLValueBounds = LValueBounds(Base);
-      else if (Base->isRValue())
-        BaseBounds = TraverseStmt(Base);
-
-      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, BaseLValueBounds,
-                                                       BaseBounds);
-      if (NeedsBoundsCheck && DumpBounds)
-        DumpExpression(llvm::outs(), E);
-      return CreateBoundsEmpty();
-    }
-
     // If e is an rvalue, CheckUnaryOperator returns the bounds for
     // the value produced by e.
     // If e is an lvalue, it returns unknown bounds.
@@ -2730,6 +2705,39 @@ namespace {
       // getBase returns the pointer-typed expression.
       BoundsExpr *Bounds = Check(E->getBase());
       Check(E->getIdx());
+      return Bounds;
+    }
+
+    // CheckMemberExpr returns the lvalue and target bounds of e.
+    // e is an lvalue.
+    //
+    // A member expression is a narrowing operator that shrinks the range of
+    // memory to which the base refers to a specific member.  We always bounds
+    // check the base.  That way we know that the lvalue produced by the
+    // member points to a valid range of memory given by
+    // (lvalue, lvalue + 1).   The lvalue is interpreted as a pointer to T,
+    // where T is the type of the member.
+    BoundsExpr *CheckMemberExpr(MemberExpr *E, BoundsExpr *&OutTargetBounds) {
+      // The lvalue and target bounds must be inferred before
+      // performing any side effects on the base, since
+      // inferring these bounds may call PruneTemporaryBindings.
+      OutTargetBounds = MemberExprTargetBounds(E);
+      BoundsExpr *Bounds = MemberExprBounds(E);
+
+      // Infer the lvalue or rvalue bounds of the base.
+      Expr *Base = E->getBase();
+      BoundsExpr *BaseTargetBounds = CreateBoundsUnknown();
+      BoundsExpr *BaseLValueBounds = CreateBoundsUnknown();
+      BoundsExpr *BaseBounds = CreateBoundsUnknown();
+      if (Base->isLValue())
+        BaseLValueBounds = CheckLValue(Base, BaseTargetBounds);
+      else if (Base->isRValue())
+        BaseBounds = Check(Base);
+
+      bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, BaseLValueBounds,
+                                                       BaseBounds);
+      if (NeedsBoundsCheck && DumpBounds)
+        DumpExpression(llvm::outs(), E);
       return Bounds;
     }
 
@@ -3090,6 +3098,8 @@ namespace {
     //
     // For most expression types, LValueBounds traverses the expression
     // in order to perform any necessary side effects on it.
+    // Infer the bounds for a member expression.
+    // A member expression is an lvalue.
     //
     // LValueBounds should only be called on an expression that has not had
     // any side effects from bounds inference and checking performed on it.
@@ -3221,8 +3231,11 @@ namespace {
       }
     }
 
-    // Returns the lvalue bounds for a member expression.
-    BoundsExpr *MemberExprLValueBounds(MemberExpr *ME) {
+    // MemberExprBounds should only be called on an
+    // expression that has not had any side effects performed
+    // on it, since PruneTemporaryBindings expects no bounds
+    // expressions to have been set.
+    BoundsExpr *MemberExprBounds(MemberExpr *ME) {
       FieldDecl *FD = dyn_cast<FieldDecl>(ME->getMemberDecl());
       if (!FD)
         return CreateBoundsInferenceError();
@@ -3266,6 +3279,56 @@ namespace {
       Expr *AddrOf = CreateAddressOfOperator(ME);
       BoundsExpr* Bounds = CreateSingleElementBounds(AddrOf);
       return cast<BoundsExpr>(PruneTemporaryBindings(S, Bounds, CSS));
+    }
+
+    // Infer the bounds for the target of a member expression.
+    // A member expression is an lvalue.
+    //
+    // MemberExprTargetBounds should only be called on an
+    // expression that has not had any side effects performed
+    // on it, since PruneTemporaryBindings expects no bounds
+    // expressions to have been set.
+    BoundsExpr *MemberExprTargetBounds(MemberExpr *ME) {
+      FieldDecl *F = dyn_cast<FieldDecl>(ME->getMemberDecl());
+      if (!F)
+        return CreateBoundsInferenceError();
+
+      BoundsExpr *B = F->getBoundsExpr();
+      InteropTypeExpr *IT = F->getInteropTypeExpr();
+      if (B && B->isUnknown())
+        return CreateBoundsAlwaysUnknown();
+
+      Expr *MemberBaseExpr = ME->getBase();
+      if (!B && IT) {
+        B = CreateTypeBasedBounds(ME, IT->getType(),
+                                      /*IsParam=*/false,
+                                      /*IsInteropTypeAnnotation=*/true);
+        return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
+      }
+            
+      if (!B)
+        return CreateBoundsAlwaysUnknown();
+
+      B = S.MakeMemberBoundsConcrete(MemberBaseExpr, ME->isArrow(), B);
+      if (!B) {
+        // This can happen when MemberBaseExpr is an rvalue expression.  An example
+        // of this a function call that returns a struct.  MakeMemberBoundsConcrete
+        // can't handle this yet.
+        return CreateBoundsNotAllowedYet();
+      }
+
+      if (B->isElementCount() || B->isByteCount()) {
+          Expr *MemberRValue;
+        if (ME->isLValue())
+          MemberRValue = CreateImplicitCast(ME->getType(),
+                                            CastKind::CK_LValueToRValue,
+                                            ME);
+        else
+          MemberRValue = ME;
+        B = ExpandToRange(MemberRValue, B);
+      }
+
+      return cast<BoundsExpr>(PruneTemporaryBindings(S, B, CSS));
     }
 
     // Given a Ptr type or a bounds-safe interface type, create the bounds
