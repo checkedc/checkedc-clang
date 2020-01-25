@@ -2741,6 +2741,25 @@ namespace {
       return Bounds;
     }
 
+    // If e is an lvalue, CheckCastLValue returns the
+    // lvalue and target bounds of e.
+    // If e is an rvalue, CheckCastExpr should be called instead.
+    BoundsExpr *CheckCastLValue(CastExpr *E, BoundsExpr *&OutTargetBounds) {
+      // An LValueBitCast adjusts the type of the lvalue, but
+      // the bounds are not changed.
+      // TODO: when we add relative alignment support, we may need
+      // to adjust the relative alignment of the bounds.
+      if (E->getCastKind() == CastKind::CK_LValueBitCast)
+        return CheckLValue(E->getSubExpr(), OutTargetBounds);
+
+      CheckChildren(E);
+
+      // Cast kinds other than LValueBitCast
+      // do not have lvalue or target bounds.
+      OutTargetBounds = CreateBoundsAlwaysUnknown();
+      return CreateBoundsAlwaysUnknown();
+    }
+
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
