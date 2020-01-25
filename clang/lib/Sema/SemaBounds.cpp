@@ -2623,22 +2623,29 @@ namespace {
       return ResultBounds;
     }
 
+    // If e is an rvalue, CheckTemporaryBinding returns the bounds for
+    // the value produced by e.
+    // If e is an lvalue, CheckTempBindingLValue should be called instead.
     BoundsExpr *CheckTemporaryBinding(CHKCBindTemporaryExpr *E) {
       Expr *Child = E->getSubExpr();
 
       if (CallExpr *CE = dyn_cast<CallExpr>(Child))
         return CheckCallExpr(CE, E);
       else
-        return TraverseStmt(Child);
+        return Check(Child);
     }
 
+    // CheckBoundsValueExpr returns the bounds for the value produced by e.
+    // e is an rvalue.
     BoundsExpr *CheckBoundsValueExpr(BoundsValueExpr *E) {
       Expr *Binding = E->getTemporaryBinding();
-      return TraverseStmt(Binding);
+      return Check(Binding);
     }
 
+    // CheckConditionalOperator returns the bounds for the value produced by e.
+    // e is an rvalue.
     BoundsExpr *CheckConditionalOperator(AbstractConditionalOperator *E) {
-      TraverseChildren(E);
+      CheckChildren(E);
       // TODO: infer correct bounds for conditional operators
       return CreateBoundsAllowedButNotComputed();
     }
