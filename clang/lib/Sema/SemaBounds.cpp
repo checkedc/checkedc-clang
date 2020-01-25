@@ -2489,29 +2489,19 @@ namespace {
 
     // If e is an rvalue, CheckUnaryOperator returns the bounds for
     // the value produced by e.
-    // If e is an lvalue, it returns unknown bounds.
-    //
-    // OutSubExprBounds saves the rvalue bounds of the subexpression of e
-    // so that callers of CheckUnaryOperator do not need to recompute them.
-    BoundsExpr *CheckUnaryOperator(UnaryOperator *E, BoundsExpr *&OutSubExprBounds) {
+    // If e is an lvalue, CheckUnaryLValue should be called instead.
+    BoundsExpr *CheckUnaryOperator(UnaryOperator *E) {
       UnaryOperatorKind Op = E->getOpcode();
       Expr *SubExpr = E->getSubExpr();
 
-      // The subexpression target bounds (if needed) must be computed
-      // before performing any side effects on the subexpression.
-      BoundsExpr *SubExprTargetBounds = nullptr;
-      if (UnaryOperator::isIncrementDecrementOp(Op))
-        SubExprTargetBounds = LValueTargetBounds(SubExpr);
-
       // Infer the lvalue or rvalue bounds of the subexpression.
+      BoundsExpr *SubExprTargetBounds = CreateBoundsUnknown();
       BoundsExpr *SubExprLValueBounds = CreateBoundsUnknown();
       BoundsExpr *SubExprBounds = CreateBoundsUnknown();
       if (SubExpr->isLValue())
-        SubExprLValueBounds = LValueBounds(SubExpr);
+        SubExprLValueBounds = CheckLValue(SubExpr, SubExprTargetBounds);
       else if (SubExpr->isRValue())
-        SubExprBounds = TraverseStmt(SubExpr);
-
-      OutSubExprBounds = SubExprBounds;
+        SubExprBounds = Check(SubExpr);
 
       if (Op == UO_AddrOf)
         S.CheckAddressTakenMembers(E);
@@ -2524,11 +2514,6 @@ namespace {
       }
 
       // `*e` is not an rvalue.
-      // TraverseStmt (and CheckUnaryOperator) may be called on non-rvalues,
-      // so this is not unexpected behavior.
-      // CheckUnaryOperator is not intended to be used to get
-      // the bounds for an lvalue expression, but it may be called on an
-      // lvalue expression in order to perform bounds checking.
       if (Op == UnaryOperatorKind::UO_Deref)
         return CreateBoundsInferenceError();
 
