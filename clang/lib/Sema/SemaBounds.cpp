@@ -2551,11 +2551,11 @@ namespace {
     BoundsExpr *CheckVarDecl(VarDecl *D) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
-      // If there is an initializer, traverse it.
+      // If there is an initializer, check it.
       Expr *Init = D->getInit();
       BoundsExpr *InitBounds = nullptr;
       if (Init)
-        InitBounds = TraverseStmt(Init);
+        InitBounds = Check(Init);
 
       if (D->isInvalidDecl())
         return ResultBounds;
@@ -2600,6 +2600,7 @@ namespace {
       return ResultBounds;
     }
 
+    // CheckReturnStmt returns empty bounds.
     BoundsExpr *CheckReturnStmt(ReturnStmt *RS) {
       BoundsExpr *ResultBounds = CreateBoundsEmpty();
 
@@ -2609,8 +2610,8 @@ namespace {
         // We already issued an error message for this case.
         return ResultBounds;
 
-      // Recursively traverse the return value if it exists.
-      TraverseStmt(RetValue);
+      // Check the return value if it exists.
+      Check(RetValue);
 
       if (!ReturnBounds)
         return ResultBounds;
