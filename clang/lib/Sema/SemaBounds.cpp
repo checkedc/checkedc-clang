@@ -3029,27 +3029,6 @@ namespace {
   // Otherwise an expression denotes an rvalue.
 
   private:
-    /// Get the rvalue bounds of a statement,
-    /// accounting for non-rvalue expressions and null ptrs.
-    BoundsExpr *AdjustRValueBounds(Stmt *S, BoundsExpr *Bounds) {
-      if (Expr *E = dyn_cast<Expr>(S)) {
-        if (!E->isRValue())
-          return CreateBoundsInferenceError();
-
-        // Bounds expressions are not null ptrs.
-        if (isa<BoundsExpr>(E))
-          return Bounds;
-
-        // Null Ptrs always have bounds(any).
-        // This is the correct way to detect all the different ways that
-        // C can make a null ptr.
-        if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent))
-          return CreateBoundsAny();
-      }
-
-      return Bounds;
-    }
-
     BoundsExpr *CreateBoundsUnknown() {
       return Context.getPrebuiltBoundsUnknown();
     }
