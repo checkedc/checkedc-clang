@@ -1963,7 +1963,6 @@ namespace {
       return AdjustRValueBounds(S, ResultBounds);
     }
 
-    void TraverseChildren(Stmt *S) {
     // Infer the bounds for an lvalue and the bounds for the target
     // of the lvalue.
     //
@@ -2025,9 +2024,12 @@ namespace {
       return Bounds;
     }
 
+    // Recursively check and perform any side effects on the children
+    // of an expression, throwing away the resulting rvalue bounds.
+    void CheckChildren(Stmt *S) {
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
-        TraverseStmt(*I);
+        Check(*I);
       }
     }
 
