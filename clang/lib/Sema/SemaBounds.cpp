@@ -1873,7 +1873,7 @@ namespace {
             S->dump(llvm::outs());
             llvm::outs().flush();
 #endif
-            TraverseStmt(S);
+            Check(S);
          }
        }
        AFA.Next();
@@ -4080,7 +4080,7 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
     Checker.SetCheckedScopeSpecifier(CheckedScopeSpecifier::CSS_Unchecked);
-    Checker.TraverseStmt(Body);
+    Checker.Check(Body);
   }
 
   if (Cfg != nullptr) {
