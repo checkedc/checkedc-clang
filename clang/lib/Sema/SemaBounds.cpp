@@ -2253,20 +2253,20 @@ namespace {
       assert(FuncTy);
       const FunctionProtoType *FuncProtoTy = FuncTy->getAs<FunctionProtoType>();
 
-      // If the callee and arguments will not be traversed
-      // as part of the checking below, traverse them here.
+      // If the callee and arguments will not be checked during
+      // the bounds declaration checking below, check them here.
       if (!FuncProtoTy) {
-        TraverseChildren(E);
+        CheckChildren(E);
         return ResultBounds;
       }
       if (!FuncProtoTy->hasParamAnnots()) {
-        TraverseChildren(E);
+        CheckChildren(E);
         return ResultBounds;
       }
 
       // Traverse the callee since CheckCallExpr should traverse
       // all its children.  The arguments will be traversed below.
-      TraverseStmt(E->getCallee());
+      Check(E->getCallee());
 
       unsigned NumParams = FuncProtoTy->getNumParams();
       unsigned NumArgs = E->getNumArgs();
@@ -2274,9 +2274,9 @@ namespace {
       ArrayRef<Expr *> ArgExprs = llvm::makeArrayRef(const_cast<Expr**>(E->getArgs()), E->getNumArgs());
 
       for (unsigned i = 0; i < Count; i++) {
-        // Recursively traverse each argument.
+        // Check each argument.
         Expr *Arg = E->getArg(i);
-        BoundsExpr *ArgBounds = TraverseStmt(Arg);
+        BoundsExpr *ArgBounds = Check(Arg);
 
         QualType ParamType = FuncProtoTy->getParamType(i);
         // Skip checking bounds for unchecked pointer parameters, unless
@@ -2357,11 +2357,11 @@ namespace {
         CheckBoundsDeclAtCallArg(i, SubstParamBounds, Arg, ArgBounds, nullptr);
       }
 
-      // Traverse any arguments that are beyond
+      // Check any arguments that are beyond
       // the number of function parameters.
       for (unsigned i = Count; i < NumArgs; i++) {
         Expr *Arg = E->getArg(i);
-        TraverseStmt(Arg);
+        Check(Arg);
       }
 
       return ResultBounds;
