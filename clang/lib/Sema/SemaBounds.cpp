@@ -1964,6 +1964,67 @@ namespace {
     }
 
     void TraverseChildren(Stmt *S) {
+    // Infer the bounds for an lvalue and the bounds for the target
+    // of the lvalue.
+    //
+    // The lvalue bounds determine whether it is valid to access memory
+    // using the lvalue.  The bounds should be the range of an object in
+    // memory or a subrange of an object.
+    // Values assigned through the lvalue must satisfy the target bounds.
+    // Values read through the lvalue will meet the target bounds.
+    //
+    // The returned bounds expressions may contain a modifying expression within
+    // them. It is the caller's responsibility to validate that the bounds
+    // expressions are non-modifying.
+    //
+    // CheckLValue recursively checks the children of e and performs any
+    // necessary side effects on e.  Check and CheckLValue work together
+    // to traverse each expression in a CFG exactly once.
+    BoundsExpr *CheckLValue(Expr *E, BoundsExpr *&OutTargetBounds) {
+      if (!E->isLValue())
+        return CreateBoundsInferenceError();
+
+      E = E->IgnoreParens();
+
+      OutTargetBounds = CreateBoundsAlwaysUnknown();
+      BoundsExpr *Bounds = CreateBoundsAlwaysUnknown();
+
+      switch (E->getStmtClass()) {
+        case Expr::DeclRefExprClass:
+          Bounds = CheckDeclRefExpr(cast<DeclRefExpr>(E), OutTargetBounds);
+          break;
+        case Expr::UnaryOperatorClass:
+          Bounds = CheckUnaryLValue(cast<UnaryOperator>(E), OutTargetBounds);
+          break;
+        case Expr::ArraySubscriptExprClass:
+          Bounds = CheckArraySubscriptExpr(cast<ArraySubscriptExpr>(E),
+                                           OutTargetBounds);
+          break;
+        case Expr::MemberExprClass:
+          Bounds = CheckMemberExpr(cast<MemberExpr>(E), OutTargetBounds);
+          break;
+        case Expr::ImplicitCastExprClass:
+          Bounds = CheckCastLValue(cast<CastExpr>(E), OutTargetBounds);
+          break;
+        case Expr::CHKCBindTemporaryExprClass:
+          Bounds = CheckTempBindingLValue(cast<CHKCBindTemporaryExpr>(E),
+                                          OutTargetBounds);
+          break;
+        default:
+          CheckChildren(E);
+          break;
+      }
+
+      // The type for inferring the target bounds cannot ever be an array
+      // type, as these are dealt with by an array conversion, not an lvalue
+      // conversion. The bounds for an array conversion are the same as the
+      // lvalue bounds of the array-typed expression.
+      if (E->getType()->isArrayType())
+        OutTargetBounds = CreateBoundsInferenceError();
+
+      return Bounds;
+    }
+
       auto Begin = S->child_begin(), End = S->child_end();
       for (auto I = Begin; I != End; ++I) {
         TraverseStmt(*I);
