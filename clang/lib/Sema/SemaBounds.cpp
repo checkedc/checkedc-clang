@@ -2085,13 +2085,8 @@ namespace {
       Expr *RHS = E->getRHS();
 
       // Infer the lvalue or rvalue bounds of the LHS.
-      BoundsExpr *LHSTargetBounds = CreateBoundsUnknown();
-      BoundsExpr *LHSLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *LHSBounds = CreateBoundsUnknown();
-      if (LHS->isLValue())
-        LHSLValueBounds = CheckLValue(LHS, LHSTargetBounds);
-      else if (LHS->isRValue())
-        LHSBounds = Check(LHS);
+      BoundsExpr *LHSTargetBounds, *LHSLValueBounds, *LHSBounds;
+      InferBounds(LHS, LHSTargetBounds, LHSLValueBounds, LHSBounds);
 
       // Infer the rvalue bounds of the RHS.
       BoundsExpr *RHSBounds = Check(RHS);
@@ -2386,13 +2381,9 @@ namespace {
       IncludeNullTerminator = IncludeNullTerm;
 
       // Infer the lvalue or rvalue bounds of the subexpression.
-      BoundsExpr *SubExprTargetBounds = CreateBoundsUnknown();
-      BoundsExpr *SubExprLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *SubExprBounds = CreateBoundsUnknown();
-      if (SubExpr->isLValue())
-        SubExprLValueBounds = CheckLValue(SubExpr, SubExprTargetBounds);
-      else if (SubExpr->isRValue())
-        SubExprBounds = Check(SubExpr);
+      BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
+      InferBounds(SubExpr, SubExprTargetBounds,
+                  SubExprLValueBounds, SubExprBounds);
 
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
@@ -2495,13 +2486,9 @@ namespace {
       Expr *SubExpr = E->getSubExpr();
 
       // Infer the lvalue or rvalue bounds of the subexpression.
-      BoundsExpr *SubExprTargetBounds = CreateBoundsUnknown();
-      BoundsExpr *SubExprLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *SubExprBounds = CreateBoundsUnknown();
-      if (SubExpr->isLValue())
-        SubExprLValueBounds = CheckLValue(SubExpr, SubExprTargetBounds);
-      else if (SubExpr->isRValue())
-        SubExprBounds = Check(SubExpr);
+      BoundsExpr *SubExprTargetBounds, *SubExprLValueBounds, *SubExprBounds;
+      InferBounds(SubExpr, SubExprTargetBounds,
+                  SubExprLValueBounds, SubExprBounds);
 
       if (Op == UO_AddrOf)
         S.CheckAddressTakenMembers(E);
@@ -2783,13 +2770,8 @@ namespace {
 
       // Infer the lvalue or rvalue bounds of the base.
       Expr *Base = E->getBase();
-      BoundsExpr *BaseTargetBounds = CreateBoundsUnknown();
-      BoundsExpr *BaseLValueBounds = CreateBoundsUnknown();
-      BoundsExpr *BaseBounds = CreateBoundsUnknown();
-      if (Base->isLValue())
-        BaseLValueBounds = CheckLValue(Base, BaseTargetBounds);
-      else if (Base->isRValue())
-        BaseBounds = Check(Base);
+      BoundsExpr *BaseTargetBounds, *BaseLValueBounds, *BaseBounds;
+      InferBounds(Base, BaseTargetBounds, BaseLValueBounds, BaseBounds);
 
       bool NeedsBoundsCheck = AddMemberBaseBoundsCheck(E, BaseLValueBounds,
                                                        BaseBounds);
@@ -3029,6 +3011,19 @@ namespace {
   // Otherwise an expression denotes an rvalue.
 
   private:
+    // Sets the bounds expressions based on
+    // whether e is an lvalue or an rvalue.
+    void InferBounds(Expr *E, BoundsExpr *&TargetBounds,
+                     BoundsExpr *&LValueBounds, BoundsExpr *&RValueBounds) {
+      TargetBounds = CreateBoundsUnknown();
+      LValueBounds = CreateBoundsUnknown();
+      RValueBounds = CreateBoundsUnknown();
+      if (E->isLValue())
+        LValueBounds = CheckLValue(E, TargetBounds);
+      else if (E->isRValue())
+        RValueBounds = Check(E);
+    }
+
     BoundsExpr *CreateBoundsUnknown() {
       return Context.getPrebuiltBoundsUnknown();
     }
