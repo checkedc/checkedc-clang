@@ -1880,47 +1880,49 @@ namespace {
      }
     }
 
-    // Traverse methods iterate recursively over AST tree nodes, visiting
-    // all children of any node not visited by a Check method.
+    // If e is an rvalue, Check returns the bounds for the value produced by e.
+    // If e is an lvalue, Check checks e and its children, performing any
+    // necessary side effects, and returns unknown bounds.
     //
-    // Check methods do the following for a node:
-    // 1. Recursively traverse all its children
-    // 2. Infer its (rvalue) bounds
-    // 3. Do work such as checking bounds declarations
-    //    or inserting bounds checks
-    BoundsExpr *TraverseStmt(Stmt *S) {
+    // The returned bounds expression may contain a modifying expression within
+    // it. It is the caller's responsibility to validate that the bounds
+    // expression is non-modifying.
+    //
+    // Check recursively checks the children of e and performs any
+    // necessary side effects on e.  Check and CheckLValue work together
+    // to traverse each expression in a CFG exactly once.
+    BoundsExpr *Check(Stmt *S) {
       if (!S)
         return CreateBoundsEmpty();
 
+      if (Expr *E = dyn_cast<Expr>(S)) {
+        E = E->IgnoreParens();
+        S = E;
+        if (E->isLValue()) {
+          BoundsExpr *TargetBounds = nullptr;
+          CheckLValue(E, TargetBounds);
+          return CreateBoundsAlwaysUnknown();
+        }
+      }
+
       BoundsExpr *ResultBounds = CreateBoundsAlwaysUnknown();
 
-      if (Expr *E = dyn_cast<Expr>(S))
-        S = E->IgnoreParens();
-
       switch (S->getStmtClass()) {
-        case Expr::UnaryOperatorClass: {
-          BoundsExpr *SubExprBounds = nullptr;
-          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S),
-                                            SubExprBounds);
-          return AdjustRValueBounds(S, ResultBounds);
-        }
+        case Expr::UnaryOperatorClass:
+          ResultBounds = CheckUnaryOperator(cast<UnaryOperator>(S));
+          break;
         case Expr::CallExprClass:
           ResultBounds = CheckCallExpr(cast<CallExpr>(S));
-          return AdjustRValueBounds(S, ResultBounds);
-        case Expr::MemberExprClass:
-          ResultBounds = CheckMemberExpr(cast<MemberExpr>(S));
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         case Expr::ImplicitCastExprClass:
         case Expr::CStyleCastExprClass:
-        case Expr::BoundsCastExprClass: {
-          BoundsExpr *SubExprLValueBounds = nullptr;
-          ResultBounds = CheckCastExpr(cast<CastExpr>(S), SubExprLValueBounds);
-          return AdjustRValueBounds(S, ResultBounds);
-        }
+        case Expr::BoundsCastExprClass:
+          ResultBounds = CheckCastExpr(cast<CastExpr>(S));
+          break;
         case Expr::BinaryOperatorClass:
         case Expr::CompoundAssignOperatorClass:
           ResultBounds = CheckBinaryOperator(cast<BinaryOperator>(S));
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         case Stmt::CompoundStmtClass: {
           CompoundStmt *CS = cast<CompoundStmt>(S);
           CSS = CS->getCheckedSpecifier();
@@ -1936,31 +1938,43 @@ namespace {
             if (VarDecl *VD = dyn_cast<VarDecl>(D))
               ResultBounds = CheckVarDecl(VD);
           }
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         }
         case Stmt::ReturnStmtClass:
           ResultBounds = CheckReturnStmt(cast<ReturnStmt>(S));
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         case Stmt::CHKCBindTemporaryExprClass: {
           CHKCBindTemporaryExpr *Binding = cast<CHKCBindTemporaryExpr>(S);
           ResultBounds = CheckTemporaryBinding(Binding);
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         }
         case Expr::ConditionalOperatorClass:
         case Expr::BinaryConditionalOperatorClass: {
           AbstractConditionalOperator *ACO = cast<AbstractConditionalOperator>(S);
           ResultBounds = CheckConditionalOperator(ACO);
-          return AdjustRValueBounds(S, ResultBounds);
+          break;
         }
         case Expr::BoundsValueExprClass:
           ResultBounds = CheckBoundsValueExpr(cast<BoundsValueExpr>(S));
-          return AdjustRValueBounds(S, ResultBounds);
-        default: 
+          break;
+        default:
+          CheckChildren(S);
           break;
       }
-      
-      TraverseChildren(S);
-      return AdjustRValueBounds(S, ResultBounds);
+
+      if (Expr *E = dyn_cast<Expr>(S)) {
+        // Bounds expressions are not null ptrs.
+        if (isa<BoundsExpr>(E))
+          return ResultBounds;
+
+        // Null ptrs always have bounds(any).
+        // This is the correct way to detect all the different ways that
+        // C can make a null ptr.
+        if (E->isNullPointerConstant(Context, Expr::NPC_NeverValueDependent))
+          return CreateBoundsAny();
+      }
+
+      return ResultBounds;
     }
 
     // Infer the bounds for an lvalue and the bounds for the target
