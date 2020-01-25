@@ -2760,6 +2760,38 @@ namespace {
       return CreateBoundsAlwaysUnknown();
     }
 
+    // If e is an lvalue, CheckTempBindingLValue returns the
+    // lvalue and target bounds of e.
+    // If e is an rvalue, CheckTemporaryBinding should be called instead.
+    BoundsExpr *CheckTempBindingLValue(CHKCBindTemporaryExpr *E,
+                                       BoundsExpr *&OutTargetBounds) {
+      OutTargetBounds = CreateBoundsAlwaysUnknown();
+
+      CheckChildren(E);
+
+      Expr *SubExpr = E->getSubExpr()->IgnoreParens();
+
+      if (isa<CompoundLiteralExpr>(SubExpr)) {
+        BoundsExpr *BE = CreateBoundsForArrayType(E->getType());
+        QualType PtrType = Context.getDecayedType(E->getType());
+        Expr *ArrLValue = CreateTemporaryUse(E);
+        Expr *Base = CreateImplicitCast(PtrType,
+                                        CastKind::CK_ArrayToPointerDecay,
+                                        ArrLValue);
+        return ExpandToRange(Base, BE);
+      }
+
+      if (auto *SL = dyn_cast<StringLiteral>(SubExpr))
+        return InferBoundsForStringLiteral(E, SL, E);
+
+      if (auto *PE = dyn_cast<PredefinedExpr>(SubExpr)) {
+        auto *SL = PE->getFunctionName();
+        return InferBoundsForStringLiteral(E, SL, E);
+      }
+
+      return CreateBoundsAlwaysUnknown();
+    }
+
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
