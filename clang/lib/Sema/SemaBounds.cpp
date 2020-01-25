@@ -2369,12 +2369,10 @@ namespace {
 
     // If e is an rvalue, CheckCastExpr returns the bounds for
     // the value produced by e.
-    // If e is an lvalue, it returns unknown bounds.
+    // If e is an lvalue, it returns unknown bounds (CheckCastLValue
+    // should be called instead).
     // This includes both ImplicitCastExprs and CStyleCastExprs.
-    //
-    // OutSubExprLValueBounds saves the lvalue bounds of the subexpression
-    // of e so that callers of CheckCastExpr do not need to recompute them.
-    BoundsExpr *CheckCastExpr(CastExpr *E, BoundsExpr *&OutSubExprLValueBounds) {
+    BoundsExpr *CheckCastExpr(CastExpr *E) {
       // If the rvalue bounds for e cannot be determined,
       // e may be an lvalue (or may have unknown rvalue bounds).
       BoundsExpr *ResultBounds = CreateBoundsUnknown();
@@ -2387,26 +2385,14 @@ namespace {
       bool PreviousIncludeNullTerminator = IncludeNullTerminator;
       IncludeNullTerminator = IncludeNullTerm;
 
-      // The subexpression target bounds (if needed) must be computed
-      // before performing any side effects on the subexpression.
-      BoundsExpr *SubExprTargetBounds = nullptr;
-      // The subexpression target bounds are needed if RValueCastBounds is
-      // called on an LValueToRValue cast, which is always an implicit cast.
-      if (E->getStmtClass() == Stmt::ImplicitCastExprClass &&
-          !E->getType()->isCheckedPointerPtrType()) {
-        if (CK == CK_LValueToRValue)
-          SubExprTargetBounds = LValueTargetBounds(SubExpr);
-      }
-
       // Infer the lvalue or rvalue bounds of the subexpression.
+      BoundsExpr *SubExprTargetBounds = CreateBoundsUnknown();
       BoundsExpr *SubExprLValueBounds = CreateBoundsUnknown();
       BoundsExpr *SubExprBounds = CreateBoundsUnknown();
       if (SubExpr->isLValue())
-        SubExprLValueBounds = LValueBounds(SubExpr);
+        SubExprLValueBounds = CheckLValue(SubExpr, SubExprTargetBounds);
       else if (SubExpr->isRValue())
-        SubExprBounds = TraverseStmt(SubExpr);
-
-      OutSubExprLValueBounds = SubExprLValueBounds;
+        SubExprBounds = Check(SubExpr);
 
       IncludeNullTerminator = PreviousIncludeNullTerminator;
 
