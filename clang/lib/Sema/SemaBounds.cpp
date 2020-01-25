@@ -2074,26 +2074,27 @@ namespace {
       return false;
     }
 
+    //
+    // Methods to infer bounds for an expression that produces an rvalue.
+    //
+
     // CheckBinaryOperator returns the bounds for the value produced by e.
     // e is an rvalue.
     BoundsExpr *CheckBinaryOperator(BinaryOperator *E) {
       Expr *LHS = E->getLHS();
       Expr *RHS = E->getRHS();
 
-      // The LHS target bounds must be inferred before
-      // any side effects are performed on the LHS.
-      BoundsExpr *LHSTargetBounds = LValueTargetBounds(LHS);
-
       // Infer the lvalue or rvalue bounds of the LHS.
+      BoundsExpr *LHSTargetBounds = CreateBoundsUnknown();
       BoundsExpr *LHSLValueBounds = CreateBoundsUnknown();
       BoundsExpr *LHSBounds = CreateBoundsUnknown();
       if (LHS->isLValue())
-        LHSLValueBounds = LValueBounds(LHS);
+        LHSLValueBounds = CheckLValue(LHS, LHSTargetBounds);
       else if (LHS->isRValue())
-        LHSBounds = TraverseStmt(LHS);
+        LHSBounds = Check(LHS);
 
-      // Recursively infer the rvalue bounds of the RHS.
-      BoundsExpr *RHSBounds = TraverseStmt(RHS);
+      // Infer the rvalue bounds of the RHS.
+      BoundsExpr *RHSBounds = Check(RHS);
 
       BinaryOperatorKind Op = E->getOpcode();
 
