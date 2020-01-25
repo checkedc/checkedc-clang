@@ -1880,6 +1880,43 @@ namespace {
      }
     }
 
+  // Methods for inferring bounds expressions for C expressions.
+
+  // C has an interesting semantics for expressions that differentiates between
+  // lvalue and value expressions and inserts implicit conversions from lvalues
+  // to values.  Value expressions are usually called rvalue expressions.  This
+  // semantics is represented directly in the clang IR by having some
+  // expressions evaluate to lvalues and having implicit conversions that convert
+  // those lvalues to rvalues.
+  //
+  // Using ths representation directly would make it clumsy to compute bounds
+  // expressions.  For an expression that evaluates to an lvalue, we would have
+  // to compute and carry along two bounds expressions: the bounds expression
+  // for the lvalue and the bounds expression for the value at which the lvalue
+  // points.
+  //
+  // We address this by having two methods for computing bounds.  One method
+  // (Check) computes the bounds for an rvalue expression. For lvalue
+  // expressions, we have one method that compute two kinds of bounds.
+  // CheckLValue computes the bounds for the lvalue produced by an expression
+  // and the bounds for the target of the lvalue produced by the expression.
+  //
+  // There are only a few contexts where an lvalue expression can occur, so it
+  // is straightforward to determine which method to use. Also, the clang IR
+  // makes it explicit when an lvalue is converted to an rvalue by an lvalue
+  // cast operation.
+  //
+  // An expression denotes an lvalue if it occurs in the following contexts:
+  // 1. As the left-hand side of an assignment operator.
+  // 2. As the operand to a postfix or prefix incrementation operators (which
+  //    implicitly do assignment).
+  // 3. As the operand of the address-of (&) operator.
+  // 4. If a member access operation e1.f denotes an lvalue, e1 denotes an
+  //    lvalue.
+  // 5. In clang IR, as an operand to an LValueToRValue cast operation.
+  // Otherwise an expression denotes an rvalue.
+
+  public:
     // If e is an rvalue, Check returns the bounds for the value produced by e.
     // If e is an lvalue, Check checks e and its children, performing any
     // necessary side effects, and returns unknown bounds.
@@ -2074,10 +2111,9 @@ namespace {
       return false;
     }
 
-    //
-    // Methods to infer bounds for an expression that produces an rvalue.
-    //
+  // Methods to infer bounds for an expression that produces an rvalue.
 
+  private:
     // CheckBinaryOperator returns the bounds for the value produced by e.
     // e is an rvalue.
     BoundsExpr *CheckBinaryOperator(BinaryOperator *E) {
@@ -2637,10 +2673,11 @@ namespace {
       return CreateBoundsAllowedButNotComputed();
     }
 
-    //
-    // Methods to infer bounds for an expression that produces an lvalue
-    // and bounds for the target of an lvalue.
-    //
+  // Methods to infer both:
+  // 1. Bounds for an expression that produces an lvalue, and
+  // 2. Bounds for the target of an expression that produces an lvalue.
+
+  private:
 
     // CheckDeclRefExpr returns the lvalue and target bounds of e.
     // e is an lvalue.
@@ -2831,6 +2868,8 @@ namespace {
       return CreateBoundsAlwaysUnknown();
     }
 
+  public:
+
     // Given an array type with constant dimension size, produce a count
     // expression with that size.
     BoundsExpr *CreateBoundsForArrayType(QualType QT) {
@@ -2971,44 +3010,6 @@ namespace {
     }
 
     BoundsAnalysis getBoundsAnalyzer() { return BoundsAnalyzer; }
-
-  // Methods for inferring bounds expressions for C expressions.
-
-  // C has an interesting semantics for expressions that differentiates between
-  // lvalue and value expressions and inserts implicit conversions from lvalues
-  // to values.  Value expressions are usually called rvalue expressions.  This
-  // semantics is represented directly in the clang IR by having some
-  // expressions evaluate to lvalues and having implicit conversions that convert
-  // those lvalues to rvalues.
-  //
-  // Using ths representation directly would make it clumsy to compute bounds
-  // expressions.  For an expression that evaluates to an lvalue, we would have
-  // to compute and carry along two bounds expressions: the bounds expression
-  // for the lvalue and the bounds expression for the value at which the lvalue
-  // points.
-  //
-  // We address this by having three methods for computing bounds.  One method
-  // (RValueBounds) computes the bounds for an rvalue expression. For lvalue
-  // expressions, we have two methods that compute the bounds.  LValueBounds
-  // computes the bounds for the lvalue produced by an expression.
-  // LValueTargetBounds computes the bounds for the target of the lvalue
-  // produced by the expression.  The method to use depends on the context in
-  // which the lvalue expression is used.
-  //
-  // There are only a few contexts where an lvalue expression can occur, so it
-  // is straightforward to determine which method to use. Also, the clang IR
-  // makes it explicit when an lvalue is converted to an rvalue by an lvalue
-  // cast operation.
-  //
-  // An expression denotes an lvalue if it occurs in the following contexts:
-  // 1. As the left-hand side of an assignment operator.
-  // 2. As the operand to a postfix or prefix incrementation operators (which
-  //    implicitly do assignment).
-  // 3. As the operand of the address-of (&) operator.
-  // 4. If a member access operation e1.f denotes on lvalue, e1 denotes an
-  //    lvalue.
-  // 5. In clang IR, as an operand to an LValueToRValue cast operation.
-  // Otherwise an expression denotes an rvalue.
 
   private:
     // Sets the bounds expressions based on
