@@ -217,43 +217,9 @@ bool canWrite(const std::string &filePath) {
   // Was this file explicitly provided on the command line?
   if (inputFilePaths.count(filePath) > 0)
     return true;
-  // Is this file contained within the base directory?
-
-  sys::path::const_iterator baseIt = sys::path::begin(BaseDir);
-  sys::path::const_iterator pathIt = sys::path::begin(filePath);
-  sys::path::const_iterator baseEnd = sys::path::end(BaseDir);
-  sys::path::const_iterator pathEnd = sys::path::end(filePath);
-  std::string baseSoFar = (*baseIt).str() + sys::path::get_separator().str();
-  std::string pathSoFar = (*pathIt).str() + sys::path::get_separator().str();
-  ++baseIt;
-  ++pathIt;
-
-  while ((baseIt != baseEnd) && (pathIt != pathEnd)) {
-    sys::fs::file_status baseStatus;
-    sys::fs::file_status pathStatus;
-    std::string s1 = (*baseIt).str();
-    std::string s2 = (*pathIt).str();
-
-    if (std::error_code ec = sys::fs::status(baseSoFar, baseStatus))
-      return false;
-
-    if (std::error_code ec = sys::fs::status(pathSoFar, pathStatus))
-      return false;
-
-    if (!sys::fs::equivalent(baseStatus, pathStatus))
-      break;
-
-    if (s1 != sys::path::get_separator().str())
-      baseSoFar += (s1 + sys::path::get_separator().str());
-    if (s2 != sys::path::get_separator().str())
-      pathSoFar += (s2 + sys::path::get_separator().str());
-
-    ++baseIt;
-    ++pathIt;
-  }
-
-  if (baseIt == baseEnd && baseSoFar == pathSoFar)
-    return true;
-  else
-    return false;
+  // get the absolute path of the file and check that
+  // the file path starts with the base directory.
+  std::string fileAbsPath = filePath;
+  getAbsoluteFilePath(filePath, fileAbsPath);
+  return fileAbsPath.rfind(BaseDir, 0) == 0;
 }

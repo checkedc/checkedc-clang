@@ -90,6 +90,11 @@ cl::opt<bool> allTypes( "alltypes",
                          cl::init(false),
                          cl::cat(ConvertCategory));
 
+cl::opt<bool> addCheckedRegions( "addcr",
+                                 cl::desc("Add Checked Regions"),
+                                 cl::init(false),
+                                 cl::cat(ConvertCategory));
+
 cl::opt<std::string>
 BaseDir("base-dir",
   cl::desc("Base directory for the code we're translating"),
@@ -300,6 +305,11 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
 
   BaseDir = options.BaseDir;
 
+  // get the absolute path of the base directory.
+  std::string tmpPath = BaseDir;
+  getAbsoluteFilePath(BaseDir, tmpPath);
+  BaseDir = tmpPath;
+
   allTypes = true;
 
   if (BaseDir.empty()) {
@@ -412,6 +422,11 @@ int main(int argc, const char **argv) {
 
     BaseDir = cp.str();
   }
+
+  // get the absolute path of the base directory.
+  std::string tmpPath = BaseDir;
+  getAbsoluteFilePath(BaseDir, tmpPath);
+  BaseDir = tmpPath;
 
   CommonOptionsParser OptionsParser(argc, argv, ConvertCategory);
 
