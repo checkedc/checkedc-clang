@@ -24,6 +24,8 @@ static bool hasNameMatch(std::string ptrName, std::string lenFieldName) {
   // if the name field starts with ptrName?
   if (lenFieldName.rfind(ptrName, 0) == 0)
     return true;
+
+  return false;
 }
 
 std::string commonPrefixUtil(std::string str1, std::string str2) {

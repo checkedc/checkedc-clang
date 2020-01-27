@@ -1426,6 +1426,10 @@ std::string ArrayBoundsRewriter::getBoundsString(Decl *decl, bool isitype) {
   return boundsString;
 }
 
+#ifdef CCCONVSTANDALONE
+extern cl::opt<bool> addCheckedRegions;
+#endif
+
 void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
   Info.enterCompilationUnit(Context);
 
@@ -1467,7 +1471,13 @@ void RewriteConsumer::HandleTranslationUnit(ASTContext &Context) {
     V.TraverseDecl(D);
     FV.TraverseDecl(D);
     ECPV.TraverseDecl(D);
+#ifdef CCCONVSTANDALONE
+    // adding checked regions enabled!?
+    if (addCheckedRegions)
+      CRA.TraverseDecl(D);
+#else
     CRA.TraverseDecl(D);
+#endif
     GVG.addGlobalDecl(dyn_cast<VarDecl>(D));
   }
 

@@ -85,6 +85,15 @@ cl::opt<bool> considerAllocUnsafe( "alloc-unsafe",
                                    cl::desc("Consider the allocators (i.e., malloc/calloc) as unsafe."),
                                    cl::init(false),
                                    cl::cat(ConvertCategory));
+cl::opt<bool> allTypes( "alltypes",
+                         cl::desc("Consider all Checked C types for conversion"),
+                         cl::init(false),
+                         cl::cat(ConvertCategory));
+
+cl::opt<bool> addCheckedRegions( "addcr",
+                                 cl::desc("Add Checked Regions"),
+                                 cl::init(false),
+                                 cl::cat(ConvertCategory));
 
 cl::opt<std::string>
 BaseDir("base-dir",
@@ -111,6 +120,8 @@ bool handleVARARGS;
 bool enablePropThruIType;
 
 bool considerAllocUnsafe;
+
+bool allTypes;
 
 std::string BaseDir;
 
@@ -294,6 +305,13 @@ bool initializeCConvert(CommonOptionsParser &OptionsParser, struct CConvertOptio
 
   BaseDir = options.BaseDir;
 
+  // get the absolute path of the base directory.
+  std::string tmpPath = BaseDir;
+  getAbsoluteFilePath(BaseDir, tmpPath);
+  BaseDir = tmpPath;
+
+  allTypes = true;
+
   if (BaseDir.empty()) {
     SmallString<256>  cp;
     if (std::error_code ec = sys::fs::current_path(cp)) {
@@ -404,6 +422,11 @@ int main(int argc, const char **argv) {
 
     BaseDir = cp.str();
   }
+
+  // get the absolute path of the base directory.
+  std::string tmpPath = BaseDir;
+  getAbsoluteFilePath(BaseDir, tmpPath);
+  BaseDir = tmpPath;
 
   CommonOptionsParser OptionsParser(argc, argv, ConvertCategory);
 
