@@ -957,8 +957,8 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
       }
     }
 
-    // Consume the identifier so that we can see if it is followed by a '(' or
-    // '.'.
+    // Consume the identifier so that we can see if it is followed by a '(',
+    // '.' or '<'.
     IdentifierInfo &II = *Tok.getIdentifierInfo();
     SourceLocation ILoc = ConsumeToken();
 
@@ -1235,7 +1235,13 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   case tok::kw_this:
     Res = ParseCXXThis();
     break;
-
+  case tok::kw__Assume_bounds_cast:
+  case tok::kw__Dynamic_bounds_cast:
+    Res = ParseBoundsCastExpression();
+    break;
+  case tok::kw__Return_value:
+    Res = ParseReturnValueExpression();
+    break;
   case tok::annot_typename:
     if (isStartOfObjCClassMessageMissingOpenBracket()) {
       ParsedType Type = getTypeAnnotation(Tok);
@@ -1477,7 +1483,6 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
   // Check to see whether Res is a function designator only. If it is and we
   // are compiling for OpenCL, we need to return an error as this implies
   // that the address of the function is being taken, which is illegal in CL.
-
   // These can be followed by postfix-expr pieces.
   PreferredType = SavedType;
   Res = ParsePostfixExpressionSuffix(Res);
@@ -1490,7 +1495,6 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
         return ExprError();
       }
     }
-
   return Res;
 }
 
@@ -1509,10 +1513,17 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
 ///         postfix-expression '--'
 ///         '(' type-name ')' '{' initializer-list '}'
 ///         '(' type-name ')' '{' initializer-list ',' '}'
+/// [Checked C] postfix-expression '<' type-argument-list '>'
+/// [Checked C] postfix-expression '<' '>'
 ///
 ///       argument-expression-list: [C99 6.5.2]
 ///         argument-expression ...[opt]
 ///         argument-expression-list ',' assignment-expression ...[opt]
+///
+/// [Checked C] type-argument-list:
+/// [Checked C]     type name
+/// [Checked C]     type name, type-argument-list
+////
 /// \endverbatim
 ExprResult
 Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
@@ -1723,6 +1734,8 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
         LHS = Actions.ActOnCallExpr(getCurScope(), LHS.get(), Loc,
                                     ArgExprs, Tok.getLocation(),
                                     ExecConfig);
+        if (getLangOpts().CheckedC)
+          LHS = Actions.CreateTemporaryForCallIfNeeded(LHS);
         PT.consumeClose();
       }
 
@@ -1851,6 +1864,30 @@ Parser::ParsePostfixExpressionSuffix(ExprResult LHS) {
       }
       ConsumeToken();
       break;
+    case tok::less: {
+       // This worked almost entirely, passing all but 0.1% of the clang
+       // regression test suite.  It altered some error behavior for
+       // clang C++, so bail out for now if we're not in Checked C.
+
+      if (!getLangOpts().CheckedC)
+        return LHS;
+
+      // Look for the start of a generic type argument list:
+      // '<' type name  ... , type name n '>'
+      bool IsAmbiguous;
+      Token LastToken = Tok;
+      SourceLocation Loc = ConsumeToken();
+      if (!isTypeIdInParens(IsAmbiguous) && !Tok.is(tok::greater)) {
+        UnconsumeToken(LastToken);
+        return LHS;
+      }
+
+      LHS = ParseGenericTypeArgumentList(LHS, Loc);
+      if (LHS.isInvalid())
+        LHS = ExprError();
+
+      break;
+    }
     }
   }
 }
@@ -1902,6 +1939,7 @@ Parser::ParseExprAfterUnaryExprOrTypeTrait(const Token &OpTok,
         ParseSpecifierQualifierList(DS);
         Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
         ParseDeclarator(DeclaratorInfo);
+        ExitQuantifiedTypeScope(DS);
 
         SourceLocation LParenLoc = PP.getLocForEndOfToken(OpTok.getLocation());
         SourceLocation RParenLoc = PP.getLocForEndOfToken(PrevTokLocation);
@@ -2494,8 +2532,13 @@ Parser::ParseParenExpression(ParenParseOption &ExprType, bool stopIfCastExpr,
     // Parse the type declarator.
     DeclSpec DS(AttrFactory);
     ParseSpecifierQualifierList(DS);
+
+    // Adjust checked scope properties if _Checked or _Unchecked was
+    // specified.
+    Sema::CheckedScopeRAII CheckedScope(Actions, DS);
     Declarator DeclaratorInfo(DS, DeclaratorContext::TypeNameContext);
     ParseDeclarator(DeclaratorInfo);
+    ExitQuantifiedTypeScope(DS);
 
     // If our type is followed by an identifier and either ':' or ']', then
     // this is probably an Objective-C message send where the leading '[' is
@@ -2976,16 +3019,582 @@ void Parser::ParseBlockId(SourceLocation CaretLoc) {
   // Parse the specifier-qualifier-list piece.
   DeclSpec DS(AttrFactory);
   ParseSpecifierQualifierList(DS);
+  // Adjust checked scope properties if _Checked or _Unchecked was
+  // specified.
+  Sema::CheckedScopeRAII CheckedScope(Actions, DS);
 
   // Parse the block-declarator.
   Declarator DeclaratorInfo(DS, DeclaratorContext::BlockLiteralContext);
   DeclaratorInfo.setFunctionDefinitionKind(FDK_Definition);
   ParseDeclarator(DeclaratorInfo);
+  ExitQuantifiedTypeScope(DS);
 
   MaybeParseGNUAttributes(DeclaratorInfo);
 
   // Inform sema that we are starting a block.
   Actions.ActOnBlockArguments(CaretLoc, DeclaratorInfo, getCurScope());
+}
+
+bool Parser::StartsBoundsExpression(const Token &T) {
+  if (T.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = T.getIdentifierInfo();
+    return (Ident == Ident_byte_count || Ident == Ident_count ||
+            Ident == Ident_bounds);
+  }
+  return false;
+}
+
+bool Parser::StartsInteropTypeAnnotation(const Token &T) {
+  if (T.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = T.getIdentifierInfo();
+    return (Ident == Ident_itype);
+  }
+  return false;
+}
+
+bool Parser::StartsRelativeBoundsClause(Token &T) {
+  if (T.getKind() == tok::identifier) {
+    IdentifierInfo *Ident = T.getIdentifierInfo();
+    return (Ident == Ident_rel_align || Ident == Ident_rel_align_value);
+  }
+  return false;
+}
+
+ExprResult Parser::ParseInteropTypeAnnotation(const Declarator &D, bool IsReturn) {
+  if (StartsInteropTypeAnnotation(Tok)) {
+    IdentifierInfo *Ident = Tok.getIdentifierInfo();
+    SourceLocation TypeKWLoc = Tok.getLocation();
+    ConsumeToken();
+    BalancedDelimiterTracker PT(*this, tok::l_paren);
+    if (PT.expectAndConsume(diag::err_expected_lparen_after,
+                            Ident->getNameStart()))
+      return ExprError();
+    // If we are parsing interop type annotations in a declarator that contains
+    // parameter declarators, we must be careful to not use the default context
+    // for parsing type names (TypeNameContext).  We must instead use a prototype
+    // context.  We just pass along the context from the declarator in that case.
+    // Within protoype contexts, array types can have static or a type qualifier
+    // declared as part of the first dimension. For example:
+    //     int a[static 10] : itype(int [static 10])
+    // This is not allowed in other contexts.
+    DeclaratorContext TypeContext = DeclaratorContext::TypeNameContext;
+    if (D.isPrototypeContext())
+       TypeContext = D.getContext();
+    TypeResult Ty = ParseTypeName(nullptr, TypeContext);
+    ExprResult Result;
+    if (Ty.isInvalid())
+      Result = ExprError();
+    else
+      Result = Actions.ActOnBoundsInteropType(TypeKWLoc, Ty.get(),
+                                              Tok.getLocation());
+    PT.consumeClose();
+    return Result;
+  }
+
+  Diag(Tok, diag::err_expected_bounds_interop_type);
+  return ExprError();
+}
+
+// Parse bounds annotations, which are an optional bounds expression and
+// and an optional interop type.  At least one of the two must appear.
+// The bounds expressions may optionally be deferred parsed.  This is done
+// when DeferredToks is non-null.
+//
+// Return true if there is an error, false if there is no error.   The
+// result is stored in Result.   The tokens for the deferred parsed bounds
+// expression are stored in DeferredTokens.
+//
+// When parsing deferred bounds,  store the tokens even if a
+// parsing error occurs so that ParseBoundsExpression can generate
+// the error message.  This way the error messages from parsing of bounds
+// expressions will be the same or very similar regardless of whether
+// parsing is deferred or not.
+bool Parser::ParseBoundsAnnotations(const Declarator &D,
+                                    SourceLocation ColonLoc,
+                                    BoundsAnnotations &Result,
+                                    std::unique_ptr<CachedTokens> *DeferredToks,
+                                    bool IsReturn) {
+  bool Error = false;
+  Result = BoundsAnnotations();
+  BoundsExpr *Bounds = nullptr;
+  InteropTypeExpr *InteropType = nullptr;
+  bool parsedSomething = false;
+  bool parsedDeferredBounds = false;
+
+  while (StartsBoundsExpression(Tok) ||
+         StartsInteropTypeAnnotation(Tok)) {
+    parsedSomething = true;
+    if (StartsBoundsExpression(Tok)) {
+      if (DeferredToks) {
+        bool ParsingError = !ConsumeAndStoreBoundsExpression(**DeferredToks);
+        int startPosition = (**DeferredToks).size();
+        if (ParsingError) {
+          Error = true;
+          SkipUntil(tok::comma, tok::r_paren, StopAtSemi | StopBeforeMatch);
+        }
+        if (parsedDeferredBounds) {
+           // If we've alrady parsed a bounds expression, issue a diagnostic
+           // message and discard the newly-parsed tokens.
+           Diag(Tok, diag::err_single_bounds_expr_allowed);
+           Error = true;
+           (**DeferredToks).set_size(startPosition);
+        } else
+          parsedDeferredBounds = true;
+      } else {
+        ExprResult ER = ParseBoundsExpression();
+        if (StartsRelativeBoundsClause(Tok))
+          if (ParseRelativeBoundsClauseForDecl(ER))
+            Error = true;
+
+        if (ER.isInvalid())
+          Error = true;
+        else {
+          BoundsExpr *NewBounds = dyn_cast<BoundsExpr>(ER.get());
+          if (NewBounds) {
+            if (!Bounds)
+              Bounds = NewBounds;
+            else
+             Diag(NewBounds->getBeginLoc(), diag::err_single_bounds_expr_allowed);  
+          } else
+            llvm_unreachable("unexpected case failure");
+      }
+      }
+    } else {
+      ExprResult ER = ParseInteropTypeAnnotation(D, IsReturn);
+      if (ER.isInvalid())
+        Error = true;
+      else {
+        InteropTypeExpr *NewAnnotation =
+          dyn_cast<InteropTypeExpr>(ER.get());
+        if (NewAnnotation) {
+          if (!InteropType)
+            InteropType = NewAnnotation;
+          else
+           Diag(NewAnnotation->getBeginLoc(), diag::err_single_itype_expr_allowed);
+        }
+      }
+     }
+  }
+
+  if (!parsedSomething) {
+    SkipInvalidBoundsExpr(ColonLoc);
+    Error = true;
+  }
+
+  if (DeferredToks)
+    assert(!Bounds);
+
+  Result.setBoundsExpr(Bounds);
+  Result.setInteropTypeExpr(InteropType);
+
+  return Error;
+}
+
+// Skip Invalid Bounds Expression such as boounds(), b0unds(e1,e2) and stop if
+// relative bounds clause is found.
+// TODO: we should skip the relative bounds clause too.
+void Parser::SkipInvalidBoundsExpr(SourceLocation CurrentLoc) {
+  SourceLocation Loc = PP.getLocForEndOfToken(CurrentLoc);
+  Diag(Loc, diag::err_expected_bounds_expr_or_interop_type);
+  if (Tok.is(tok::eof))
+    return;
+  if (Tok.isNot(tok::identifier))
+    return;
+  ConsumeToken();
+  BalancedDelimiterTracker Paren(*this, tok::l_paren, tok::r_paren);
+  if (Tok.getKind() == tok::l_paren) {
+    Paren.consumeOpen();
+    Paren.skipToEnd();
+  }
+}
+
+ExprResult Parser::ParseBoundsExpression() {
+  tok::TokenKind TokKind = Tok.getKind();
+  if (TokKind != tok::identifier) {
+    // This can't be a contextual keyword that begins a bounds expression,
+    // so stop now.
+    Diag(Tok, diag::err_expected_bounds_expr);
+    return ExprError();
+  }
+
+  IdentifierInfo *Ident = Tok.getIdentifierInfo();
+  SourceLocation BoundsKWLoc = Tok.getLocation();
+  ConsumeToken();
+
+  // Parse the body of a bounds expression. Set Result to ExprError() if
+  // something goes wrong.
+  BalancedDelimiterTracker PT(*this, tok::l_paren);
+  if (PT.expectAndConsume(diag::err_expected_lparen_after, Ident->getNameStart()))
+    return ExprError();
+
+  ExprResult Result;
+  if (Ident == Ident_byte_count || Ident == Ident_count) {
+    // Parse byte_count(e1) or count(e1)
+    Result = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+    BoundsExpr::Kind CountKind = Ident == Ident_count ?
+      BoundsExpr::Kind::ElementCount : BoundsExpr::Kind::ByteCount;
+    if (Result.isInvalid())
+      Result = ExprError();
+    else
+      Result = Actions.ActOnCountBoundsExpr(BoundsKWLoc, CountKind,
+                                            Result.get(),
+                                           Tok.getLocation());
+  } else if (Ident == Ident_bounds) {
+    // Parse bounds(unknown) or bounds(e1, e2)
+    bool FoundNullaryOperator = false;
+
+    // Start with "none"
+    if (Tok.getKind() == tok::identifier) {
+      IdentifierInfo *NextIdent = Tok.getIdentifierInfo();
+      if (NextIdent == Ident_unknown) {
+        FoundNullaryOperator = true;
+        ConsumeToken();
+        Result = Actions.ActOnNullaryBoundsExpr(BoundsKWLoc, 
+                                                BoundsExpr::Kind::Unknown,
+                                                Tok.getLocation());
+      }
+    }
+
+    if (!FoundNullaryOperator) {
+      // Look for e1 "," e2
+      ExprResult LowerBound =
+        Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+
+     if (Tok.getKind() == tok::comma) {
+       ConsumeToken();
+       ExprResult UpperBound =
+         Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+       if (LowerBound.isInvalid() || UpperBound.isInvalid())
+         Result = ExprError();
+       else
+         Result = Actions.ActOnRangeBoundsExpr(BoundsKWLoc, LowerBound.get(),
+                                               UpperBound.get(),
+                                               Tok.getLocation());
+     } else {
+       // We didn't find a comma. Only issue an error message if the
+       // LowerBound expression is valid.  Otherwise, we already issued an
+       // error message when parsing the lower bound. Emitting an error
+       // message here could be spurious or confusing.
+       if (!LowerBound.isInvalid()) {
+         Diag(Tok, diag::err_expected) << tok::comma;
+       }
+       Result = ExprError();
+     }
+    } // if (!FoundNullaryOperator)
+  } else {
+    // The identifier is not a valid contextual keyword for the start of a
+    // a bounds expression.
+    Diag(Tok, diag::err_expected_bounds_expr);
+    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+    Result = ExprError();
+  }
+
+  // Result could be invalid because of a syntax error or a semantic checking
+  // error.  We don't know which.  Skip tokens until a right paren is found.
+  // If this was only a semantic checking error, the input will already be at
+  // a right paren, so skipping will be do nothing.
+  if (Result.isInvalid())
+    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+
+  PT.consumeClose();
+
+  return Result;
+}
+
+// Parse a generic type argument list.  The suffix of postfix expression can
+// have the form '<' type name 1, ... type name n '>', in which case it is a
+// generic type argument list.
+//
+// For now, handle only the case where Res is a generic DeclRef.
+//
+// TODO: We need to handle the case where Res is an expression with
+// generic type.  However, we don't have the AST support for this yet.
+//
+// Returns false if parsing succeeded and true if an error occurred.
+ExprResult Parser::ParseGenericTypeArgumentList(ExprResult Res, SourceLocation Loc) {
+  SmallVector<DeclRefExpr::GenericInstInfo::TypeArgument, 4> typeArgumentInfos;
+  bool firstTypeArgument = true;
+  // Expect to see a list of type names, followed by a '>'.
+  while (Tok.getKind() != tok::greater) {
+    if (!firstTypeArgument) {
+      if (ExpectAndConsume(tok::comma,
+        diag::err_type_function_comma_or_greater_expected)) {
+        // We want to consume greater, but not consume semi
+        SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+        if (Tok.getKind() == tok::greater) ConsumeToken();
+        return ExprError();
+      }
+    } else
+      firstTypeArgument = false;
+
+    // Expect to see type name.
+    TypeResult Ty = ParseTypeName();
+    if (Ty.isInvalid()) {
+      // We do not need to write an error message since ParseTypeName does.
+      // We want to consume greater, but not consume semi
+      SkipUntil(tok::greater, StopAtSemi | StopBeforeMatch);
+      if (Tok.getKind() == tok::greater) ConsumeToken();
+      return ExprError();
+    }
+
+    TypeSourceInfo *TInfo;
+    QualType realType = Actions.GetTypeFromParser(Ty.get(), &TInfo);
+    typeArgumentInfos.push_back({ realType, TInfo });
+  }
+  ConsumeToken(); // consume '>' token
+
+  auto TypeArgs = ArrayRef<DeclRefExpr::GenericInstInfo::TypeArgument>(typeArgumentInfos);
+  return Actions.ActOnTypeApplication(Res, Loc, TypeArgs);
+}
+
+bool Parser::ParseRelativeBoundsClauseForDecl(ExprResult &Expr) {
+  bool isError = false;
+  IdentifierInfo *Ident = Tok.getIdentifierInfo();
+  SourceLocation BoundsKWLoc = Tok.getLocation();
+  RangeBoundsExpr *Range = nullptr;
+  Token TempTok = Tok;
+  ConsumeToken();
+  BalancedDelimiterTracker PT(*this, tok::l_paren);
+  if (PT.expectAndConsume(diag::err_expected_lparen_after,
+                          Ident->getNameStart())) {
+    SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+    isError = true;
+    return isError;
+  }
+
+  RelativeBoundsClause *RelativeClause =
+      ParseRelativeBoundsClause(isError, Ident, BoundsKWLoc);
+
+  if (Expr.isInvalid()) {
+    return isError;
+  }
+
+  if ((Range = dyn_cast<RangeBoundsExpr>(Expr.get()))) {
+    Range->setRelativeBoundsClause(RelativeClause);
+  } else {
+    Diag(TempTok, diag::err_expected_range_bounds_expr);
+  }
+
+  PT.consumeClose();
+  return isError;
+}
+
+RelativeBoundsClause *
+Parser::ParseRelativeBoundsClause(bool &isError, IdentifierInfo *Ident,
+                                   SourceLocation BoundsKWLoc) {
+  RelativeBoundsClause *RelativeClause = nullptr;
+  ExprResult ConstExpr;
+
+  if (Ident == Ident_rel_align) {
+    TypeResult ResultTy = ParseTypeName();
+    if (ResultTy.isInvalid()) {
+      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      isError = true;
+    } else
+      RelativeClause = Actions.ActOnRelativeTypeBoundsClause(
+          BoundsKWLoc, ResultTy.get(), Tok.getLocation());
+  } else if (Ident == Ident_rel_align_value) {
+    ConstExpr = ParseConstantExpression();
+    if (ConstExpr.isInvalid()) {
+      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      isError = true;
+    } else {
+      ConstExpr = Actions.VerifyIntegerConstantExpression(ConstExpr.get());
+      if (!ConstExpr.isInvalid())
+        RelativeClause = Actions.ActOnRelativeConstExprClause(
+            ConstExpr.get(), BoundsKWLoc, Tok.getLocation());
+    }
+  } else {
+    llvm_unreachable("unexpected relative alignment clause kind");
+    isError = true;
+  }
+
+  return RelativeClause;
+}
+
+ExprResult Parser::ParseBoundsCastExpression() {
+  tok::TokenKind Kind = Tok.getKind();
+  const char *CastName = nullptr;
+  switch (Kind) {
+  default:
+    llvm_unreachable("Unknown CheckedC Bounds Cast!");
+  case tok::kw__Assume_bounds_cast:
+    CastName = "_Assume_bounds_cast";
+    break;
+  case tok::kw__Dynamic_bounds_cast:
+    CastName = "_Dynamic_bounds_cast";
+    break;
+  }
+
+  SourceLocation OpLoc = ConsumeToken();
+  SourceLocation LAngleBracketLoc = Tok.getLocation();
+
+  if (ExpectAndConsume(tok::less, diag::err_expected_less_after, CastName))
+    return ExprError();
+
+  TypeResult Ty = ParseTypeName();
+
+  if (Ty.isInvalid()) {
+    SkipUntil(tok::greater, StopAtSemi);
+    return ExprError();
+  }
+
+  SourceLocation RAngleBracketLoc = Tok.getLocation();
+  if (ExpectAndConsume(tok::greater))
+    return ExprError(Diag(RAngleBracketLoc, diag::note_matching) << tok::less);
+
+  SourceLocation LParenLoc, RParenLoc;
+  BalancedDelimiterTracker T(*this, tok::l_paren);
+
+  if (T.expectAndConsume(diag::err_expected_lparen_after, CastName))
+    return ExprError();
+
+  LParenLoc = T.getOpenLocation();
+
+  // Parsing e1 or e1, bounds-expression
+  ExprResult E1(true);
+  BoundsExpr *Bounds = nullptr;
+
+  E1 = Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression());
+  if (E1.isInvalid()) {
+
+    return ExprError();
+  }
+
+  if (Tok.is(tok::comma)) {
+    ConsumeToken();
+    ExprResult ParsedBounds = ParseBoundsExpression();
+    bool Error = ParsedBounds.isInvalid();
+    if (!Error && StartsRelativeBoundsClause(Tok))
+      if (ParseRelativeBoundsClauseForDecl(ParsedBounds))
+        Error = true;
+
+    if (Error) {
+      SkipUntil(tok::r_paren, StopAtSemi | StopBeforeMatch);
+      return ExprError();
+    } else
+      Bounds = cast<BoundsExpr>(ParsedBounds.get());
+  }
+
+  // Match the ')'.
+  T.consumeClose();
+  RParenLoc = T.getCloseLocation();
+
+  ExprResult Result(true);
+  if (Bounds)
+    Result = Actions.ActOnBoundsCastExprBounds(
+        getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(),
+        RAngleBracketLoc, LParenLoc, RParenLoc, E1.get(), Bounds);
+  else
+    Result = Actions.ActOnBoundsCastExprSingle(
+        getCurScope(), OpLoc, Kind, LAngleBracketLoc, Ty.get(),
+        RAngleBracketLoc, LParenLoc, RParenLoc, E1.get());
+
+  return Result;
+}
+
+/// Consume and store tokens for an expression shaped like a bounds expression
+/// in the passed token container. Returns \c true if it reached the end of
+/// something bounds-expression shaped, \c false if a parsing error occurred,
+///
+/// Stop when the end of the expression is reached or a parsing error occurs
+/// for which ParseBoundsExpression doesn't know how to make forward progress.
+/// An expression is shaped like a bounds expression if it consists of
+///   identifier '(' sequence of tokens ')'
+/// where parentheses balance within the sequence of tokens.
+bool Parser::ConsumeAndStoreBoundsExpression(CachedTokens &Toks) {
+  bool result = false;
+  if (StartsBoundsExpression(Tok))
+    Toks.push_back(Tok);
+  else
+    return false;
+  ConsumeToken();
+  Toks.push_back(Tok);
+  if (Tok.getKind() != tok::l_paren) {
+    return false;
+  }
+  ConsumeParen();
+  result = ConsumeAndStoreUntil(tok::r_paren, Toks, /*StopAtSemi=*/true);
+  if (StartsRelativeBoundsClause(Tok)) {
+    Toks.push_back(Tok);
+    ConsumeToken();
+    Toks.push_back(Tok);
+    if (Tok.getKind() != tok::l_paren) {
+      return false;
+    }
+    ConsumeParen();
+    result = ConsumeAndStoreUntil(tok::r_paren, Toks, true);
+  }
+  return result;
+}
+
+/// Given a list of tokens that have the same shape as a bounds
+/// expression, parse them to create a bounds expression.  Delete
+/// the list of tokens at the end.
+///
+/// Return true if there was an error; false otherwise.  The resulting
+/// bounds expression is stored in Result.
+bool
+Parser::DeferredParseBoundsExpression(std::unique_ptr<CachedTokens> Toks,
+                                      BoundsAnnotations &Result,
+                                      const Declarator &D) {
+  Token LastBoundsExprToken = Toks->back();
+  Token BoundsExprEnd;
+  BoundsExprEnd.startToken();
+  BoundsExprEnd.setKind(tok::eof);
+  SourceLocation OrigLoc = LastBoundsExprToken.getEndLoc();
+  BoundsExprEnd.setLocation(OrigLoc);
+  Toks->push_back(BoundsExprEnd);
+
+  Toks->push_back(Tok); // Save the current token at the end of the new tokens
+                       // so it isn't lost.
+  PP.EnterTokenStream(*Toks, /*DisableMacroExpansion*/true, /*IsReinject*/true);
+  ConsumeAnyToken();   // Skip past the current token to the new tokens.
+  bool Error = ParseBoundsAnnotations(D, SourceLocation(), Result);
+
+  // There could be leftover tokens because of an error.
+  // Skip through them until we reach the eof token.
+  if (Tok.isNot(tok::eof)) {
+    assert(Error);
+    while (Tok.isNot(tok::eof))
+      ConsumeAnyToken();
+  }
+
+  // Clean up the remaining EOF token.
+  if (Tok.is(tok::eof) && Tok.getLocation() == OrigLoc)
+    ConsumeAnyToken();
+
+  return Error;
+}
+
+// Callback for parsing the return bounds expression in Toks.
+bool Parser::ParseBoundsCallback(void *P,
+                                 std::unique_ptr<CachedTokens> Toks,
+                                 ArrayRef<ParmVarDecl *> Params,
+                                 BoundsAnnotations &Result,
+                                 const Declarator &D) {
+  assert(P);
+  Parser *TheParser = (Parser *) P;
+
+  // Set up function prototype scope again and put parameters back in.
+  unsigned PrototypeScopeFlag =
+      Scope::FunctionPrototypeScope | Scope::DeclScope |
+      (D.isFunctionDeclaratorAFunctionDeclaration()
+            ? Scope::FunctionDeclarationScope
+            : 0);
+
+  ParseScope PrototypeScope(TheParser, PrototypeScopeFlag);
+  TheParser->Actions.ActOnSetupParametersAgain(TheParser->Actions.CurScope, Params);
+  bool Err = TheParser->DeferredParseBoundsExpression(std::move(Toks), Result, D);
+  PrototypeScope.Exit();
+  return Err;
+}
+
+ExprResult Parser::ParseReturnValueExpression() {
+  assert(Tok.is(tok::kw__Return_value) &&
+         "Not bounds value expression");
+  SourceLocation Loc = ConsumeToken();
+  return Actions.ActOnReturnValueExpr(Loc);
 }
 
 /// ParseBlockLiteralExpression - Parse a block literal, which roughly looks
@@ -3068,7 +3677,11 @@ ExprResult Parser::ParseBlockLiteralExpression() {
                                      /*NoexceptExpr=*/nullptr,
                                      /*ExceptionSpecTokens=*/nullptr,
                                      /*DeclsInPrototype=*/None, CaretLoc,
-                                     CaretLoc, ParamInfo),
+                                     CaretLoc,
+                                     /*ReturnAnnotsColon=*/NoLoc,
+                                     /*ReturnInteropTypeExpr=*/nullptr,
+                                     /*ReturnBounds=*/nullptr,
+                                     ParamInfo),
         CaretLoc);
 
     MaybeParseGNUAttributes(ParamInfo);

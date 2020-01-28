@@ -3254,9 +3254,9 @@ CFGBlock *CFGBuilder::VisitForStmt(ForStmt *F) {
 
     // Finish up the increment (or empty) block if it hasn't been already.
     if (Block) {
-      assert(Block == Succ);
       if (badCFG)
         return nullptr;
+      assert(Block == Succ);
       Block = nullptr;
     }
 

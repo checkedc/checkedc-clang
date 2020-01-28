@@ -728,6 +728,29 @@ void Sema::ActOnPragmaOptimize(bool On, SourceLocation PragmaLoc) {
     OptimizeOffPragmaLocation = PragmaLoc;
 }
 
+// Checked C - #pragma CHECKED_SCOPE action.  Adjust or save the current checked
+// scope information.
+void Sema::ActOnPragmaCheckedScope(PragmaCheckedScopeKind Kind,
+                                   SourceLocation Loc) {
+  switch (Kind) {
+    case PCSK_On: SetCheckedScopeInfo(CSS_Memory); break;
+    case PCSK_BoundsOnly: SetCheckedScopeInfo(CSS_Bounds); break;
+    case PCSK_Off: SetCheckedScopeInfo(CSS_Unchecked); break;
+    case PCSK_Push: PushCheckedScopeInfo(Loc); break;
+    case PCSK_Pop: {
+      if (PopCheckedScopeInfo())
+        Diags.Report(Loc, diag::err_pragma_pop_checked_scope_mismatch);
+      break;
+    }
+  }
+}
+
+void Sema::DiagnoseUnterminatedCheckedScope() {
+  if (CheckingKindStack.empty())
+    return;
+  Diag(CheckingKindStack.back().Loc, diag::err_pragma_checked_scope_no_pop_eof);
+}
+
 void Sema::AddRangeBasedOptnone(FunctionDecl *FD) {
   // In the future, check other pragmas if they're implemented (e.g. pragma
   // optimize 0 will probably map to this functionality too).

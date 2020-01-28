@@ -170,6 +170,9 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
                                                  DeclsInPrototype,
                                              SourceLocation LocalRangeBegin,
                                              SourceLocation LocalRangeEnd,
+                                             SourceLocation ReturnAnnotsColonLoc,
+                                             InteropTypeExpr *ReturnInteropTypeExpr,
+                                             std::unique_ptr<CachedTokens> ReturnBounds,
                                              Declarator &TheDeclarator,
                                              TypeResult TrailingReturnType,
                                              DeclSpec *MethodQualifiers) {
@@ -215,6 +218,9 @@ DeclaratorChunk DeclaratorChunk::getFunction(bool hasProto,
     I.Fun.MethodQualifiers->getAttributes().takeAllFrom(attrs);
     I.Fun.MethodQualifiers->getAttributePool().takeAllFrom(attrs.getPool());
   }
+  I.Fun.ReturnAnnotsColonLoc    = ReturnAnnotsColonLoc.getRawEncoding();
+  I.Fun.ReturnBounds            = ReturnBounds.release();
+  I.Fun.ReturnInteropType       = ReturnInteropTypeExpr;
 
   assert(I.Fun.ExceptionSpecType == ESpecType && "bitfield overflow");
 
@@ -358,6 +364,9 @@ bool Declarator::isDeclarationOfFunction() const {
     case TST_unspecified:
     case TST_void:
     case TST_wchar:
+    case TST_arrayPtr:
+    case TST_plainPtr:
+    case TST_ntarrayPtr:
 #define GENERIC_IMAGE_TYPE(ImgType, Id) case TST_##ImgType##_t:
 #include "clang/Basic/OpenCLImageTypes.def"
       return false;
@@ -446,9 +455,22 @@ unsigned DeclSpec::getParsedSpecifiers() const {
     Res |= PQ_TypeSpecifier;
 
   if (FS_inline_specified || FS_virtual_specified || hasExplicitSpecifier() ||
-      FS_noreturn_specified || FS_forceinline_specified)
+      FS_noreturn_specified || FS_forceinline_specified ||
+      FS_checked_specified)
     Res |= PQ_FunctionSpecifier;
   return Res;
+}
+
+void DeclSpec::setTypeVars(ASTContext &C,
+                           ArrayRef<TypedefDecl *> NewTypeVarInfo,
+                           unsigned NewNumTypeVars) {
+  assert(!TypeVarInfo && "Already has type variable info!");
+  assert(NewTypeVarInfo.size() == NewNumTypeVars && "Type variable count mismatch!");
+  NumTypeVars = NewNumTypeVars;
+
+  if (NewTypeVarInfo.empty()) return;
+  TypeVarInfo = new (C) TypedefDecl*[NewTypeVarInfo.size()];
+  std::copy(NewTypeVarInfo.begin(), NewTypeVarInfo.end(), TypeVarInfo);
 }
 
 template <class T> static bool BadSpecifier(T TNew, T TPrev,
@@ -555,6 +577,9 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   case DeclSpec::TST_underlyingType: return "__underlying_type";
   case DeclSpec::TST_unknown_anytype: return "__unknown_anytype";
   case DeclSpec::TST_atomic: return "_Atomic";
+  case DeclSpec::TST_arrayPtr: return "_Array_ptr";
+  case DeclSpec::TST_plainPtr: return "_Ptr";
+  case DeclSpec::TST_nt_arrayPtr: return "_Nt_array_ptr";
 #define GENERIC_IMAGE_TYPE(ImgType, Id) \
   case DeclSpec::TST_##ImgType##_t: \
     return #ImgType "_t";
@@ -1000,6 +1025,65 @@ bool DeclSpec::setFunctionSpecNoreturn(SourceLocation Loc,
   }
   FS_noreturn_specified = true;
   FS_noreturnLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setFunctionSpecChecked(SourceLocation Loc,
+                                      CheckedScopeSpecifier CSS,
+                                      const char *&PrevSpec,
+                                      unsigned &DiagID) {
+  if (FS_checked_specified != CSS_None) {
+    if (FS_checked_specified == CSS)
+      DiagID = diag::warn_duplicate_declspec;
+    else
+      DiagID = diag::err_invalid_decl_spec_combination;
+
+    switch (FS_checked_specified) {
+      case CSS_None: PrevSpec = ""; break;
+      case CSS_Unchecked: PrevSpec = "_Unchecked"; break;
+      case CSS_Bounds: PrevSpec = "_Checked _Bounds_only"; break;
+      case CSS_Memory: PrevSpec = "_Checked"; break;
+    }
+    return true;
+  }
+  FS_checked_specified = CSS;
+  FS_checkedLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setFunctionSpecForany(SourceLocation Loc,
+                                        const char *&PrevSpec,
+                                        unsigned &DiagID) {
+  if (FS_itypeforany_specified) {
+    PrevSpec = "_Itype_for_any";
+    DiagID = diag::err_invalid_decl_spec_combination;
+    return true;
+  }
+  if (FS_forany_specified) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "_For_any";
+    return true;
+  }
+  FS_forany_specified = true;
+  FS_foranyLoc = Loc;
+  return false;
+}
+
+bool DeclSpec::setFunctionSpecItypeforany(SourceLocation Loc,
+                                              const char *&PrevSpec,
+                                              unsigned &DiagID) {
+  if (FS_forany_specified) {
+    PrevSpec = "_For_any";
+    DiagID = diag::err_invalid_decl_spec_combination;
+    return true;
+  }
+  if (FS_itypeforany_specified) {
+    DiagID = diag::warn_duplicate_declspec;
+    PrevSpec = "_IType_For_any";
+    return true;
+  }
+  FS_itypeforany_specified = true;
+  FS_itypeforanyloc = Loc;
   return false;
 }
 

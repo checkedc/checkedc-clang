@@ -3,6 +3,7 @@ set(LLVM_LINK_COMPONENTS
   )
 
 if (MSVC)
+  set_source_files_properties(SemaBounds.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(SemaDeclAttr.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(SemaExpr.cpp PROPERTIES COMPILE_FLAGS /bigobj)
   set_source_files_properties(SemaExprCXX.cpp PROPERTIES COMPILE_FLAGS /bigobj)
@@ -16,6 +17,9 @@ clang_tablegen(OpenCLBuiltins.inc -gen-clang-opencl-builtins
 
 add_clang_library(clangSema
   AnalysisBasedWarnings.cpp
+  CheckedCAlias.cpp
+  CheckedCInterop.cpp
+  CheckedCSubst.cpp
   CodeCompleteConsumer.cpp
   DeclSpec.cpp
   DelayedDiagnostic.cpp
@@ -28,6 +32,7 @@ add_clang_library(clangSema
   Sema.cpp
   SemaAccess.cpp
   SemaAttr.cpp
+  SemaBounds.cpp
   SemaCXXScopeSpec.cpp
   SemaCast.cpp
   SemaChecking.cpp

@@ -935,6 +935,16 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                   cast<PipeType>(T2)->getElementType()))
       return false;
     break;
+
+  case Type::TypeVariable: {
+    const TypeVariableType *Tv1 = cast<TypeVariableType>(T1);
+    const TypeVariableType *Tv2 = cast<TypeVariableType>(T2);
+    if ((Tv1->GetDepth() != Tv2->GetDepth()) ||
+      (Tv1->GetIndex() != Tv2->GetIndex()))
+      return false;
+    break;
+  }
+
   } // end switch
 
   return true;

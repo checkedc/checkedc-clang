@@ -203,6 +203,7 @@ def err_invalid_token_after_declarator_suggest_equal : Error<
   "invalid %0 at end of declaration; did you mean '='?">;
 def err_expected_statement : Error<"expected statement">;
 def err_expected_lparen_after : Error<"expected '(' after '%0'">;
+def err_expected_lbracket_after : Error<"expected '[' after '%0'">;
 def err_expected_rparen_after : Error<"expected ')' after '%0'">;
 def err_expected_punc : Error<"expected ')' or ',' after '%0'">;
 def err_expected_less_after : Error<"expected '<' after '%0'">;
@@ -1294,5 +1295,57 @@ def ext_concept_legacy_bool_keyword : ExtWarn<
   "ISO C++2a does not permit the 'bool' keyword after 'concept'">,
   InGroup<DiagGroup<"concepts-ts-compat">>;
 }
+
+// Checked C parsing errors
+def err_expected_bounds_expr : Error<
+  "expected bounds expression">;
+
+def err_expected_range_bounds_expr : Error<
+  "expected range bounds expression">;
+
+def err_expected_relative_bounds_clause
+    : Error<"expected rel_align or rel_align_value">;
+
+def err_unexpected_bounds_expr_after_declarator: Error<
+  "unexpected bounds expression after declarator">;
+
+def note_place_for_return_bounds_declarator : Note<
+  "if this is a return bounds declaration for %0, place it after the ')'">;
+
+def err_expected_bounds_interop_type : Error<
+  "expected bounds-safe interface type">;
+
+def err_expected_bounds_expr_or_interop_type : Error<
+  "expected bounds expression or bounds-safe interface type">;
+
+def err_single_bounds_expr_allowed : Error<
+  "only one bounds expression allowed">;
+
+def err_single_itype_expr_allowed : Error<
+  "only one itype expression allowed">;
+
+// generic function declaration parsing error.
+def err_forany_type_variable_declaration_expected : Error<
+  "expected list of type variables">;
+
+def err_forany_type_variable_identifier_expected : Error<
+  "expected type variable identifier">;
+
+def err_generic_specifier_unexpected_token : Error<
+  "unexpected token in %0 specifier">;
+
+def err_generic_specifier_comma_or_parenthesis_expected : Error<
+  "expected , or )">;
+
+def err_expected_list_of_types_expr_for_generic_function : Error<
+  "expected a list of type arguments for a generic function">;
+
+def err_type_function_comma_or_greater_expected : Error<
+  "expected , or >">;
+
+ // Checked C pragmas
+def err_pragma_checked_scope_invalid_argument : Error<
+  "unexpected argument '%0' to '#pragma CHECKED_SCOPE'; "
+  "expected 'on','off', '_Bounds_only', 'push', or 'pop'">;
 
 } // end of Parser diagnostics

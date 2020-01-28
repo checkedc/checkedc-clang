@@ -198,7 +198,8 @@ static void CheckStringInit(Expr *Str, QualType &DeclT, const ArrayType *AT,
     // Return a new array type (C99 6.7.8p22).
     DeclT = S.Context.getConstantArrayType(IAT->getElementType(),
                                            ConstVal,
-                                           ArrayType::Normal, 0);
+                                           ArrayType::Normal, 0,
+                                           IAT->getKind());
     updateStringLiteralType(Str, DeclT);
     return;
   }
@@ -1855,7 +1856,8 @@ void InitListChecker::CheckArrayType(const InitializedEntity &Entity,
     }
 
     DeclType = SemaRef.Context.getConstantArrayType(elementType, maxElements,
-                                                     ArrayType::Normal, 0);
+                                                     ArrayType::Normal, 0,
+                                                    arrayType->getKind());
   }
   if (!hadError && VerifyOnly) {
     // If there are any members of the array that get value-initialized, check
@@ -3084,7 +3086,7 @@ ExprResult Sema::ActOnDesignatedInitializer(Designation &Desig,
 
 InitializedEntity::InitializedEntity(ASTContext &Context, unsigned Index,
                                      const InitializedEntity &Parent)
-  : Parent(&Parent), Index(Index)
+  : Parent(&Parent), Index(Index), Annots()
 {
   if (const ArrayType *AT = Context.getAsArrayType(Parent.getType())) {
     Kind = EK_ArrayElement;
@@ -7958,9 +7960,21 @@ ExprResult InitializationSequence::Perform(Sema &S,
       // Save off the initial CurInit in case we need to emit a diagnostic
       ExprResult InitialCurInit = CurInit;
       ExprResult Result = CurInit;
+
+      QualType LHSType = Step->Type;
+      QualType LHSInteropType;
+      if (S.getLangOpts().CheckedC && LHSType->isUncheckedPointerType()) {
+        if (const InteropTypeExpr *IB = Entity.getAnnots().getInteropTypeExpr()) {
+          bool IsParam = Entity.isParameterKind();
+          LHSInteropType = S.Context.getInteropTypeAndAdjust(IB, IsParam);
+        }
+      }
+
       Sema::AssignConvertType ConvTy =
-        S.CheckSingleAssignmentConstraints(Step->Type, Result, true,
-            Entity.getKind() == InitializedEntity::EK_Parameter_CF_Audited);
+        S.CheckSingleAssignmentConstraints(LHSType, Result, true,
+           Entity.getKind() == InitializedEntity::EK_Parameter_CF_Audited,
+                                           true, LHSInteropType);
+
       if (Result.isInvalid())
         return ExprError();
       CurInit = Result;
@@ -7977,6 +7991,16 @@ ExprResult InitializationSequence::Perform(Sema &S,
       CurInit = CurInitExprRes;
 
       bool Complained;
+
+      // This is a workaround for not having an implementation of instantiating
+      // generic types in generic functions. TODO : Implement instantiation of
+      // generic types in generic function declaration.
+      if (const TypedefType *td = dyn_cast<TypedefType>(LHSType.getTypePtr())) {
+        if (isa<TypeVariableType>(td->getDecl()->getUnderlyingType())) {
+          ConvTy = Sema::Compatible;
+        }
+      }
+
       if (S.DiagnoseAssignmentResult(ConvTy, Kind.getLocation(),
                                      Step->Type, SourceType,
                                      InitialCurInit.get(),
@@ -8043,7 +8067,8 @@ ExprResult InitializationSequence::Perform(Sema &S,
             *ResultType = S.Context.getConstantArrayType(
                                              IncompleteDest->getElementType(),
                                              ConstantSource->getSize(),
-                                             ArrayType::Normal, 0);
+                                             ArrayType::Normal, 0,
+                                             IncompleteDest->getKind());
           }
         }
       }

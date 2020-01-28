@@ -41,7 +41,7 @@ namespace serialization {
     /// Version 4 of AST files also requires that the version control branch and
     /// revision match exactly, since there is no backward compatibility of
     /// AST files at this time.
-    const unsigned VERSION_MAJOR = 7;
+    const unsigned VERSION_MAJOR = 8;
 
     /// AST file minor version number supported by this version of
     /// Clang.
@@ -1176,7 +1176,10 @@ namespace serialization {
       TYPE_DEPENDENT_SIZED_VECTOR = 48,
 
       /// A type defined in a macro.
-      TYPE_MACRO_QUALIFIED = 49
+      TYPE_MACRO_QUALIFIED = 49,
+
+      /// Checked C specific.
+      TYPE_TYPEVARIABLE = 50
     };
 
     /// The type IDs for special types constructed by semantic
@@ -1912,6 +1915,16 @@ namespace serialization {
 
       // CUDA
       EXPR_CUDA_KERNEL_CALL,       // CUDAKernelCallExpr
+
+      // Checked C
+      EXPR_COUNT_BOUNDS_EXPR,      // CountBoundsExpr
+      EXPR_NULLARY_BOUNDS_EXPR,    // NullaryBoundsExpr
+      EXPR_RANGE_BOUNDS_EXPR,      // RangeBoundsExpr
+      EXPR_INTEROPTYPE_BOUNDS_ANNOTATION,// InteropTypeBoundsAnnotation
+      EXPR_POSITIONAL_PARAMETER_EXPR, // PositionalParameterExpr
+      EXPR_BOUNDS_CAST,
+      EXPR_BOUNDS_VALUE_EXPR,        // BoundsValueExpr
+      EXPR_CHKC_BIND_TEMPORARY_EXPR, // CHKCBindTemporaryExpr
 
       // OpenCL
       EXPR_ASTYPE,                 // AsTypeExpr

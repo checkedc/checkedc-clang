@@ -1516,6 +1516,21 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (SemaBuiltinOSLogFormat(TheCall))
       return ExprError();
     break;
+  case Builtin::BI_Dynamic_check: {
+    // This disables any semantic analysis (in particular, errors or warnings)
+    // if Checked C is not enabled
+    if (!getLangOpts().CheckedC)
+      break;
+
+    Expr *Conditional = TheCall->getArg(0);
+
+    if (!CheckIsNonModifying(Conditional, NMC_Dynamic_Check))
+      return ExprError();
+
+    WarnDynamicCheckAlwaysFails(Conditional);
+
+    break;
+  }
   }
 
   // Since the target specific builtins for each arch overlap, only check those
@@ -13753,6 +13768,173 @@ void Sema::DiagnoseSelfMove(const Expr *LHSExpr, const Expr *RHSExpr,
     Diag(OpLoc, diag::warn_self_move) << LHSExpr->getType()
                                         << LHSExpr->getSourceRange()
                                         << RHSExpr->getSourceRange();
+}
+
+bool Sema::AllowedInCheckedScope(QualType Ty,
+                                 const InteropTypeExpr *InteropType,
+                                 bool IsParam, CheckedScopeTypeLocation Loc,
+                                 CheckedScopeTypeLocation &ProblemLoc,
+                                 QualType &ProblemTy) {
+  if (Ty.isNull())
+    return true;
+
+  CheckedScopeTypeLocation CurrentLoc = Loc;
+  if (Loc == CSTL_TopLevel)
+    Loc = CSTL_Nested;
+
+  if (Ty->isPointerType() || Ty->isArrayType()) {
+    if ((Ty->isUncheckedPointerType() || Ty->isUncheckedArrayType()) &&
+        !InteropType) {
+      ProblemLoc = CurrentLoc;
+      ProblemTy = Ty;
+      return false;
+    }
+
+    // Any interop type annotation must be "at least as checked" as the
+    // original type, so use that instead.
+    if (InteropType) {
+      Ty = Context.getInteropTypeAndAdjust(InteropType, IsParam);
+      Loc = CSTL_BoundsSafeInterface;
+      if (!(Ty->isPointerType() || Ty->isArrayType())) {
+        llvm_unreachable("unexpected interop type");
+        return false;
+      }
+    }
+    QualType ReferentType = QualType(Ty->getPointeeOrArrayElementType(), 0);
+    return AllowedInCheckedScope(ReferentType, nullptr, false, Loc,
+                                 ProblemLoc, ProblemTy);
+  } else if (const FunctionProtoType *fpt = Ty->getAs<FunctionProtoType>()) {
+    const BoundsAnnotations ReturnAnnots = fpt->getReturnAnnots();
+    InteropTypeExpr *ReturnInteropType = ReturnAnnots.getInteropTypeExpr();
+    if (!AllowedInCheckedScope(fpt->getReturnType(), ReturnInteropType,
+                               false, Loc, ProblemLoc, ProblemTy))
+      return false;
+    unsigned int paramCount = fpt->getNumParams();
+    for (unsigned int i = 0; i < paramCount; i++) {
+      const BoundsAnnotations ParamAnnots = fpt->getParamAnnots(i);
+      InteropTypeExpr *ParamInteropType = ParamAnnots.getInteropTypeExpr();
+      if (!AllowedInCheckedScope(fpt->getParamType(i), ParamInteropType,
+                                 true, Loc, ProblemLoc, ProblemTy))
+        return false;
+    }
+  }
+  else
+    assert(!InteropType && "unexpected bounds-safe interface type on type");
+
+  return true;
+}
+
+static bool DisplaysAsArrayOrPointer(QualType QT) {
+  QT = QT.IgnoreParens();
+  const Type *Ty = QT.getTypePtr();
+  return (isa<PointerType>(Ty) || isa<ArrayType>(Ty));
+}
+
+//===--- CHECK: Checked scope -------------------------===//
+// Checked C - type restrictions on declarations in checked scope.
+bool Sema::DiagnoseCheckedDecl(const ValueDecl *Decl, SourceLocation UseLoc) {
+
+  // We're not a checked scope.
+  if (!IsCheckedScope())
+    return true;
+
+  if (Decl->isInvalidDecl())
+    return true;
+
+  // Checked pointer type or unchecked pointer type with bounds-safe interface
+  // is only allowed in checked scope or function.
+  const DeclaratorDecl *TargetDecl = nullptr;
+  CheckedDeclKind DeclKind;
+  QualType Ty;
+  if (const ParmVarDecl *Parm = dyn_cast<ParmVarDecl>(Decl)) {
+    TargetDecl = Parm;
+    DeclKind = CDK_Parameter;
+    Ty = Parm->getType();
+  }
+  else if (const FunctionDecl *Func = dyn_cast<FunctionDecl>(Decl)) {
+    TargetDecl = Func;
+    DeclKind = CDK_FunctionReturn;
+    Ty = Func->getReturnType();
+  }
+  else if (const VarDecl *Var = dyn_cast<VarDecl>(Decl)) {
+    TargetDecl = Var;
+    DeclKind = Var->isLocalVarDecl() ? CDK_LocalVariable : CDK_GlobalVariable; // decl var
+    Ty = Var->getType();
+  }
+  else if (const FieldDecl *Field = dyn_cast<FieldDecl>(Decl)) {
+    TargetDecl = Field;
+    DeclKind = CDK_Member;
+    Ty = Field->getType();
+  }
+  else {
+    Ty = Decl->getType();
+  }
+
+  if (!TargetDecl)
+    return true;
+
+  unsigned IsUse = !UseLoc.isInvalid();
+  SourceLocation Loc = IsUse ? UseLoc : TargetDecl->getBeginLoc();
+  bool Result = true;
+  CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
+  QualType ProblemTy = Ty;
+  if (!AllowedInCheckedScope(Ty, TargetDecl->getInteropTypeExpr(),
+                             isa<ParmVarDecl>(TargetDecl), CSTL_TopLevel,
+                             ProblemLoc, ProblemTy)) {
+    Diag(Loc, diag::err_checked_scope_decl_type) << DeclKind << IsUse
+      << ProblemLoc;
+    if (IsUse) {
+      Diag(TargetDecl->getBeginLoc(), diag::note_checked_scope_declaration)
+        << DeclKind;
+    }
+
+    // Undo adjustments involving array types so that the error message
+    // displays the source-level type.  We leave adjustments from function 
+    // types alone, though. It is not obvious that the source-level function
+    // type is adjust to be an unchecked type.
+    if (const AdjustedType *AdjustedTy = dyn_cast<AdjustedType>(ProblemTy)) {
+      QualType Original = AdjustedTy->getOriginalType();
+      if (Original->isArrayType())
+        ProblemTy = Original;
+    }
+
+    // Print a note about the problem type if it might not be obvious.
+    if (ProblemLoc != CSTL_TopLevel || !DisplaysAsArrayOrPointer(ProblemTy))
+      Diag(Loc, diag::note_checked_scope_problem_type) << ProblemTy;
+    Result = false;
+  }
+
+  if (Ty->hasVariadicType()) {
+    Diag(Loc, diag::err_checked_scope_decl_variable_args) << DeclKind
+      << IsUse;
+    Result = false;
+  }
+
+  return Result;
+}
+
+bool Sema::DiagnoseTypeInCheckedScope(QualType Ty, SourceLocation StartLoc,
+                                      SourceLocation EndLoc) {
+  CheckedScopeTypeLocation ProblemLoc = CSTL_TopLevel;
+  QualType ProblemTy = Ty;
+  if (!AllowedInCheckedScope(Ty, nullptr, false, CSTL_TopLevel,
+                             ProblemLoc, ProblemTy)) {
+    Diag(StartLoc, diag::err_checked_scope_type) << ProblemLoc
+      << SourceRange(StartLoc, EndLoc);
+
+    // Print a note about the problem type if it might not be obvious.
+    if (ProblemLoc != CSTL_TopLevel || !DisplaysAsArrayOrPointer(ProblemTy))
+      Diag(StartLoc, diag::note_checked_scope_problem_type) << ProblemTy;
+    return false;
+  }
+
+  if (Ty->hasVariadicType()) {
+    Diag(StartLoc, diag::err_checked_scope_type_variable_args) <<
+      SourceRange(StartLoc, EndLoc);
+    return false;
+  }
+
+  return true;
 }
 
 //===--- Layout compatibility ----------------------------------------------//

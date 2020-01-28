@@ -824,6 +824,12 @@ void ASTDeclReader::VisitEnumConstantDecl(EnumConstantDecl *ECD) {
 void ASTDeclReader::VisitDeclaratorDecl(DeclaratorDecl *DD) {
   VisitValueDecl(DD);
   DD->setInnerLocStart(ReadSourceLocation());
+
+  if (Record.readInt()) { // hasBoundsAnotations.
+    BoundsAnnotations BA = Record.readBoundsAnnotations();
+    DD->setBoundsAnnotations(Reader.getContext(), BA);
+  }
+
   if (Record.readInt()) { // hasExtInfo
     auto *Info = new (Reader.getContext()) DeclaratorDecl::ExtInfo();
     ReadQualifierInfo(*Info);

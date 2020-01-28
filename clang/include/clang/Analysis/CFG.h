@@ -1180,6 +1180,14 @@ public:
     return synthetic_stmt_range(synthetic_stmt_begin(), synthetic_stmt_end());
   }
 
+  const DeclStmt *getSourceDeclStmt(const DeclStmt *DS) {
+    auto Iter = SyntheticDeclStmts.find(DS);
+    if (Iter != SyntheticDeclStmts.end())
+      return Iter->second;
+    else
+      return DS;
+  }
+
   //===--------------------------------------------------------------------===//
   // Member templates useful for various batch operations over CFGs.
   //===--------------------------------------------------------------------===//

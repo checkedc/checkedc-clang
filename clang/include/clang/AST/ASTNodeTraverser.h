@@ -300,8 +300,29 @@ public:
   void VisitFunctionType(const FunctionType *T) { Visit(T->getReturnType()); }
   void VisitFunctionProtoType(const FunctionProtoType *T) {
     VisitFunctionType(T);
-    for (const QualType &PT : T->getParamTypes())
-      Visit(PT);
+      unsigned numParams = T->getNumParams();
+      for (unsigned i = 0; i < numParams; i++) {
+        QualType PT = T->getParamType(i);
+        Visit(PT);
+        const BoundsAnnotations Annots = T->getParamAnnots(i);
+        if (const BoundsExpr *Bounds = Annots.getBoundsExpr())
+          getNodeDelegate().AddChild("Bounds", [=] {
+            getNodeDelegate().Visit(Bounds);
+          });
+        if (const InteropTypeExpr *IT = Annots.getInteropTypeExpr())
+          getNodeDelegate().AddChild("InteropType", [=] {
+            getNodeDelegate().Visit(IT);
+          });
+      }
+      BoundsAnnotations ReturnAnnots = T->getReturnAnnots();
+      if (const BoundsExpr *Bounds = ReturnAnnots.getBoundsExpr())
+        getNodeDelegate().AddChild("Return bounds", [=] {
+          getNodeDelegate().Visit(Bounds);
+        });
+      if (const InteropTypeExpr *IT = ReturnAnnots.getInteropTypeExpr())
+        getNodeDelegate().AddChild("Return interopType", [=] {
+          getNodeDelegate().Visit(IT);
+        });
   }
   void VisitTypeOfExprType(const TypeOfExprType *T) {
     Visit(T->getUnderlyingExpr());

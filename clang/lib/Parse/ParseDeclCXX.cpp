@@ -1676,6 +1676,24 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
 
   const PrintingPolicy &Policy = Actions.getASTContext().getPrintingPolicy();
   Sema::TagUseKind TUK;
+
+  // Checked C - checked scope keyword, possibly followed by checked scope modifier,
+  // followed by '{'.   Set the kind of checked scope and consume the checked scope-related
+  // keywords.
+  CheckedScopeSpecifier CSS = CSS_None;
+  if (Tok.is(tok::kw__Checked) && NextToken().is(tok::l_brace)) {
+    CSS = CSS_Memory;
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Checked) && NextToken().is(tok::kw__Bounds_only) &&
+    GetLookAheadToken(2).is(tok::l_brace)) {
+    CSS = CSS_Bounds;
+    ConsumeToken();
+    ConsumeToken();
+  } else if (Tok.is(tok::kw__Unchecked) && NextToken().is(tok::l_brace)) {
+   CSS = CSS_Unchecked;
+   ConsumeToken();
+  }
+
   if (DSC == DeclSpecContext::DSC_trailing)
     TUK = Sema::TUK_Reference;
   else if (Tok.is(tok::l_brace) ||
@@ -1741,6 +1759,9 @@ void Parser::ParseClassSpecifier(tok::TokenKind TagTokKind,
     }
   } else
     TUK = Sema::TUK_Reference;
+
+  // Checked C - mark the current scope as checked or unchecked if necessary.
+  Sema::CheckedScopeRAII CheckedScope(Actions, CSS);
 
   // Forbid misplaced attributes. In cases of a reference, we pass attributes
   // to caller to handle.

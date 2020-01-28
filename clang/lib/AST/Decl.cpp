@@ -1915,6 +1915,38 @@ void QualifierInfo::setTemplateParameterListsInfo(
   }
 }
 
+// Checked C bounds information
+
+bool DeclaratorDecl::hasBoundsExpr() const {
+  return getBoundsExpr() != nullptr;
+}
+
+bool DeclaratorDecl::hasBoundsDeclaration(const ASTContext &Ctx) const {
+  if (getBoundsExpr() != nullptr) {
+      QualType QT = getType();
+      if (QT.isNull())
+        return false;
+      if (const FunctionType *FT = QT->getAs<FunctionType>())
+        QT = FT->getReturnType();
+      return (QT->isCheckedPointerType() || QT->isCheckedArrayType() ||
+              QT->isIntegralType(Ctx));
+  }
+  return false;
+}
+
+bool DeclaratorDecl::hasBoundsSafeInterface(const ASTContext &Ctx) const {
+  return getBoundsExpr() != nullptr && !hasBoundsDeclaration(Ctx);
+}
+
+QualType DeclaratorDecl::getInteropType() {
+  InteropTypeExpr *BA = getInteropTypeExpr();
+  if (BA)
+    return BA->getType();
+  else
+    return QualType();
+}
+
+
 //===----------------------------------------------------------------------===//
 // VarDecl Implementation
 //===----------------------------------------------------------------------===//
@@ -2034,7 +2066,16 @@ static bool isDeclExternC(const T &D) {
   // language linkage or no language linkage.
   const DeclContext *DC = D.getDeclContext();
   if (DC->isRecord()) {
-    assert(D.getASTContext().getLangOpts().CPlusPlus);
+    // This commented-out assertion cause a compiler crash on incorrect C
+    // bitfield declarations.  Function calls aren't allowed in constant
+    // expressions by the C standard, but clang allows them in the parse tree.
+    // The following code with a call to an undefined function would hit the
+    // assert and cause a debug compiler crash:
+    // struct S {
+    //  int x : f(5);
+    // };
+    //
+    // assert(D.getASTContext().getLangOpts().CPlusPlus);
     return false;
   }
 
@@ -2184,6 +2225,9 @@ VarDecl::DefinitionKind VarDecl::hasDefinition(ASTContext &C) const {
 
   return Kind;
 }
+
+
+
 
 const Expr *VarDecl::getAnyInitializer(const VarDecl *&D) const {
   for (auto I : redecls()) {
@@ -2728,7 +2772,7 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
                            ConstexprSpecKind ConstexprKind)
     : DeclaratorDecl(DK, DC, NameInfo.getLoc(), NameInfo.getName(), T, TInfo,
                      StartLoc),
-      DeclContext(DK), redeclarable_base(C), ODRHash(0),
+      DeclContext(DK), redeclarable_base(C), TypeVarInfo(nullptr), ODRHash(0),
       EndRangeLoc(NameInfo.getEndLoc()), DNLoc(NameInfo.getInfo()) {
   assert(T.isNull() || T->isFunctionType());
   FunctionDeclBits.SClass = S;
@@ -2750,6 +2794,10 @@ FunctionDecl::FunctionDecl(Kind DK, ASTContext &C, DeclContext *DC,
   FunctionDeclBits.UsesSEHTry = false;
   FunctionDeclBits.HasSkippedBody = false;
   FunctionDeclBits.WillHaveBody = false;
+  FunctionDeclBits.IsGenericFunction - false;
+  FunctionDeclBits.IsItypeGenericFunction = false;
+  FunctionDeclBits.WrittenCheckedSpecifier = CSS_None;
+  FunctionDeclBits.CheckedSpecifier = CSS_None;
   FunctionDeclBits.IsMultiVersion = false;
   FunctionDeclBits.IsCopyDeductionCandidate = false;
   FunctionDeclBits.HasODRHash = false;
@@ -3138,6 +3186,23 @@ unsigned FunctionDecl::getBuiltinID(bool ConsiderWrapperFunctions) const {
 unsigned FunctionDecl::getNumParams() const {
   const auto *FPT = getType()->getAs<FunctionProtoType>();
   return FPT ? FPT->getNumParams() : 0;
+}
+
+unsigned FunctionDecl::getNumTypeVars() const {
+  const auto *FPT = getType()->getAs<FunctionProtoType>();
+  return FPT ? FPT->getNumTypeVars() : 0;
+}
+
+void FunctionDecl::setTypeVars(ASTContext &C, 
+                               ArrayRef<TypedefDecl *> NewTypeVarInfo) {
+  assert(!TypeVarInfo && "Already has type variable info!");
+  assert(NewTypeVarInfo.size() == getNumTypeVars() && "Type variable count mismatch!");
+
+  // Zero params -> null pointer.
+  if (!NewTypeVarInfo.empty()) {
+    TypeVarInfo = new (C) TypedefDecl*[NewTypeVarInfo.size()];
+    std::copy(NewTypeVarInfo.begin(), NewTypeVarInfo.end(), TypeVarInfo);
+  }
 }
 
 void FunctionDecl::setParams(ASTContext &C,

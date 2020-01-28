@@ -806,6 +806,8 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   case CK_AddressSpaceConversion:
      return Visit(E->getSubExpr());
 
+  case CK_DynamicPtrBounds:
+  case CK_AssumePtrBounds:
   case CK_LValueToRValue:
     // If we're loading from a volatile type, force the destination
     // into existence.

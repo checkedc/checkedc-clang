@@ -173,6 +173,18 @@ Retry:
     cutOffParsing();
     return StmtError();
 
+  case tok::kw__Checked:
+  case tok::kw__Unchecked: {
+    // See if this is the start of a checked scope.  Otherwise it may be the
+    // start of a function or struct declaration.
+    Token Next = NextToken();
+    if (Next.is(tok::l_brace))
+      return ParseCompoundStatement();
+    if (Next.is(tok::kw__Bounds_only) &&
+        GetLookAheadToken(2).is(tok::l_brace))
+      return ParseCompoundStatement();
+    goto FallThrough;
+  }
   case tok::identifier: {
     Token Next = NextToken();
     if (Next.is(tok::colon)) { // C99 6.8.1: labeled-statement
@@ -205,6 +217,7 @@ Retry:
   }
 
   default: {
+    FallThrough:
     if ((getLangOpts().CPlusPlus || getLangOpts().MicrosoftExt ||
          (StmtCtx & ParsedStmtContext::AllowDeclarationsInC) !=
              ParsedStmtContext()) &&
@@ -390,6 +403,10 @@ Retry:
 
   case tok::annot_pragma_attribute:
     HandlePragmaAttribute();
+    return StmtEmpty();
+
+  case tok::annot_pragma_checked_scope:
+    HandlePragmaCheckedScope();
     return StmtEmpty();
   }
 
@@ -851,6 +868,7 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 ///       compound-statement: [C99 6.8.2]
 ///         { block-item-list[opt] }
 /// [GNU]   { label-declarations block-item-list } [TODO]
+/// [CHECKED C] checked-spec[opt] { block-item-list[opt] }
 ///
 ///       block-item-list:
 ///         block-item
@@ -868,16 +886,35 @@ StmtResult Parser::ParseCompoundStatement(bool isStmtExpr) {
 /// [GNU] label-declaration:
 /// [GNU]   '__label__' identifier-list ';'
 ///
-StmtResult Parser::ParseCompoundStatement(bool isStmtExpr,
-                                          unsigned ScopeFlags) {
-  assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
+/// [CHECKED C] checked-spec:
+///            '_Checked'
+///            '_Checked' '_Bounds_only
+///            '_Unchecked'
+StmtResult Parser::ParseCompoundStatement(bool isStmtExpr, unsigned ScopeFlags) {
+  // Checked C - process optional checked scope information.
+  CheckedScopeSpecifier CSS = CSS_None;
+  SourceLocation CSSLoc;
+  SourceLocation CSMLoc;
+  if (Tok.is(tok::kw__Checked)) {
+    CSS = CSS_Memory;
+    CSSLoc = ConsumeToken();
+    if (Tok.is(tok::kw__Bounds_only)) {
+      CSS = CSS_Bounds;
+      CSMLoc = ConsumeToken();
+    }
+  } else if (Tok.is(tok::kw__Unchecked)) {
+    CSS = CSS_Unchecked;
+    CSSLoc = ConsumeToken();
+  }
 
+  assert(Tok.is(tok::l_brace) && "Not a compount stmt!");
   // Enter a scope to hold everything within the compound stmt.  Compound
   // statements can always hold declarations.
+
   ParseScope CompoundScope(this, ScopeFlags);
 
   // Parse the statements in the body.
-  return ParseCompoundStatementBody(isStmtExpr);
+  return ParseCompoundStatementBody(isStmtExpr, CSS, CSSLoc, CSMLoc);
 }
 
 /// Parse any pragmas at the start of the compound expression. We handle these
@@ -931,6 +968,9 @@ void Parser::ParseCompoundStatementLeadingPragmas() {
       break;
     case tok::annot_pragma_dump:
       HandlePragmaDump();
+      break;
+    case tok::annot_pragma_checked_scope:
+      HandlePragmaCheckedScope();
       break;
     default:
       checkForPragmas = false;
@@ -993,7 +1033,10 @@ StmtResult Parser::handleExprStmt(ExprResult E, ParsedStmtContext StmtCtx) {
 /// ActOnCompoundStmt action.  This expects the '{' to be the current token, and
 /// consume the '}' at the end of the block.  It does not manipulate the scope
 /// stack.
-StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
+StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr,
+                                              CheckedScopeSpecifier WrittenCSS,
+                                              SourceLocation CSSLoc,
+                                              SourceLocation CSMLoc) {
   PrettyStackTraceLoc CrashInfo(PP.getSourceManager(),
                                 Tok.getLocation(),
                                 "in compound statement ('{}')");
@@ -1007,7 +1050,7 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
   if (T.consumeOpen())
     return StmtError();
 
-  Sema::CompoundScopeRAII CompoundScope(Actions, isStmtExpr);
+  Sema::CompoundScopeRAII CompoundScope(Actions, isStmtExpr, WrittenCSS);
 
   // Parse any pragmas at the beginning of the compound statement.
   ParseCompoundStatementLeadingPragmas();
@@ -1115,7 +1158,8 @@ StmtResult Parser::ParseCompoundStatementBody(bool isStmtExpr) {
     CloseLoc = T.getCloseLocation();
 
   return Actions.ActOnCompoundStmt(T.getOpenLocation(), CloseLoc,
-                                   Stmts, isStmtExpr);
+                                   Stmts, isStmtExpr, WrittenCSS,
+                                   CSSLoc, CSMLoc);
 }
 
 /// ParseParenExprOrCondition:
@@ -2057,7 +2101,8 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
   return S;
 }
 
-Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
+Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope,
+                                         CheckedScopeSpecifier Kind) {
   assert(Tok.is(tok::l_brace));
   SourceLocation LBraceLoc = Tok.getLocation();
 
@@ -2068,12 +2113,12 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   bool IsCXXMethod =
       getLangOpts().CPlusPlus && Decl && isa<CXXMethodDecl>(Decl);
   Sema::PragmaStackSentinelRAII
-    PragmaStackSentinel(Actions, "InternalPragmaState", IsCXXMethod);
+    PragmaStackSentinel(Actions, "InternalPragmaState", IsCXXMethod );
 
   // Do not enter a scope for the brace, as the arguments are in the same scope
   // (the function body) as the body itself.  Instead, just read the statement
   // list and put it into a CompoundStmt for safe keeping.
-  StmtResult FnBody(ParseCompoundStatementBody());
+  StmtResult FnBody(ParseCompoundStatementBody(/*IsExpr=*/false, Kind));  // TODO: fill in missing information
 
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
@@ -2283,11 +2328,14 @@ StmtResult Parser::ParseCXXCatchBlock(bool FnCatch) {
     DeclSpec DS(AttrFactory);
     DS.takeAttributesFrom(Attributes);
 
-    if (ParseCXXTypeSpecifierSeq(DS))
+    if (ParseCXXTypeSpecifierSeq(DS)) {
+      ExitQuantifiedTypeScope(DS);
       return StmtError();
+    }
 
     Declarator ExDecl(DS, DeclaratorContext::CXXCatchContext);
     ParseDeclarator(ExDecl);
+    ExitQuantifiedTypeScope(DS);
     ExceptionDecl = Actions.ActOnExceptionDeclarator(getCurScope(), ExDecl);
   } else
     ConsumeToken();

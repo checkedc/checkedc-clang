@@ -1143,6 +1143,7 @@ void StmtProfiler::VisitCompoundLiteralExpr(const CompoundLiteralExpr *S) {
 
 void StmtProfiler::VisitCastExpr(const CastExpr *S) {
   VisitExpr(S);
+  ID.AddBoolean(S->isBoundsSafeInterface());
 }
 
 void StmtProfiler::VisitImplicitCastExpr(const ImplicitCastExpr *S) {
@@ -1291,6 +1292,49 @@ void StmtProfiler::VisitPseudoObjectExpr(const PseudoObjectExpr *S) {
     if (const OpaqueValueExpr *OVE = dyn_cast<OpaqueValueExpr>(*i))
       Visit(OVE->getSourceExpr());
 }
+
+void StmtProfiler::VisitCountBoundsExpr(const CountBoundsExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitNullaryBoundsExpr(const NullaryBoundsExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitRangeBoundsExpr(const RangeBoundsExpr *S) {
+  VisitExpr(S);
+  ID.AddInteger(S->getKind());
+}
+
+void StmtProfiler::VisitInteropTypeExpr(
+  const InteropTypeExpr *S) {
+  VisitExpr(S);
+  VisitType(S->getTypeAsWritten());
+}
+
+void StmtProfiler::VisitBoundsCastExpr(const BoundsCastExpr *S) {
+  VisitExplicitCastExpr(S);
+}
+
+void StmtProfiler::VisitPositionalParameterExpr(
+  const PositionalParameterExpr *P) {
+  VisitExpr(P);
+  VisitType(P->getType());
+  ID.AddInteger(P->getIndex());
+}
+
+void StmtProfiler::VisitBoundsValueExpr(const BoundsValueExpr *S) {
+  // Uses of expression temporaries are only synthesized by the compiler during
+  // bounds inference. We shouldn't be profiling expressions with such uses.
+  if (S->getKind() == BoundsValueExpr::Kind::Temporary)
+    llvm_unreachable("Should not profile expression with use of bounds temporary.");
+  VisitExpr(S);
+  VisitType(S->getType());
+  ID.AddInteger(S->getKind());
+}
+
 
 void StmtProfiler::VisitAtomicExpr(const AtomicExpr *S) {
   VisitExpr(S);
@@ -1637,6 +1681,10 @@ void StmtProfiler::VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *S) {
   VisitExpr(S);
   VisitDecl(
          const_cast<CXXDestructorDecl *>(S->getTemporary()->getDestructor()));
+}
+
+void StmtProfiler::VisitCHKCBindTemporaryExpr(const CHKCBindTemporaryExpr *S) {
+  VisitExpr(S);
 }
 
 void StmtProfiler::VisitCXXConstructExpr(const CXXConstructExpr *S) {
