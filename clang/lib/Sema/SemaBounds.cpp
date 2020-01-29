@@ -2821,10 +2821,10 @@ namespace {
     // lvalue and target bounds of e.
     // If e is an rvalue, CheckCastExpr should be called instead.
     BoundsExpr *CheckCastLValue(CastExpr *E, BoundsExpr *&OutTargetBounds) {
-      // An LValueBitCast adjusts the type of the lvalue, but
-      // the bounds are not changed.
-      // TODO: when we add relative alignment support, we may need
-      // to adjust the relative alignment of the bounds.
+      // An LValueBitCast adjusts the type of the lvalue.  The bounds are not
+      // changed, except that their relative alignment may change (the bounds 
+      // may only cover a partial object).  TODO: When we add relative
+      // alignment support to the compiler, adjust the relative alignment.
       if (E->getCastKind() == CastKind::CK_LValueBitCast)
         return CheckLValue(E->getSubExpr(), OutTargetBounds);
 
