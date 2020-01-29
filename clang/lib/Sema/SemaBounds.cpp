@@ -1736,6 +1736,23 @@ namespace {
       BoundsAnalyzer(BoundsAnalysis(SemaRef, nullptr)),
       IncludeNullTerminator(false) {}
 
+    /// A RAII object to store a checked scope specifier.
+    class CheckedScopeRAII {
+      CheckBoundsDeclarations &Checker;
+      CheckedScopeSpecifier PrevCheckingKind;
+
+    public:
+      CheckedScopeRAII(CheckBoundsDeclarations &Checker, CheckedScopeSpecifier CSS)
+          : Checker(Checker),
+            PrevCheckingKind(Checker.CSS) {
+        Checker.CSS = CSS;
+      }
+
+      ~CheckedScopeRAII() {
+        Checker.CSS = PrevCheckingKind;
+      }
+    };
+
     typedef llvm::SmallPtrSet<const Stmt *, 16> StmtSet;
 
     void IdentifyChecked(Stmt *S, StmtSet &MemoryCheckedStmts, StmtSet &BoundsCheckedStmts, CheckedScopeSpecifier CSS) {
@@ -2089,13 +2106,9 @@ namespace {
     // Traverse a top-level variable declaration.  If there is an
     // initializer, it will be traversed in CheckVarDecl.
     void TraverseTopLevelVarDecl(VarDecl *VD, CheckedScopeSpecifier CSS) {
-      SetCheckedScopeSpecifier(CSS);
+      CheckedScopeRAII CheckedScope(*this, CSS);
       ResetFacts();
       CheckVarDecl(VD);
-    }
-
-    void SetCheckedScopeSpecifier(CheckedScopeSpecifier Scope) {
-      CSS = Scope;
     }
 
     void ResetFacts() {
@@ -3786,7 +3799,8 @@ void Sema::CheckFunctionBodyBoundsDecls(FunctionDecl *FD, Stmt *Body) {
     // __finally or may encounter a malformed AST.  Fall back on to non-flow 
     // based analysis.  The CSS parameter is ignored because the checked
     // scope information is obtained from Body, which is a compound statement.
-    Checker.SetCheckedScopeSpecifier(CheckedScopeSpecifier::CSS_Unchecked);
+    CheckBoundsDeclarations::CheckedScopeRAII CheckedScope(Checker,
+      CheckedScopeSpecifier::CSS_Unchecked);
     Checker.Check(Body);
   }
 
