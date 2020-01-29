@@ -2767,9 +2767,9 @@ namespace {
 
       if (E->getOpcode() == UnaryOperatorKind::UO_Deref) {
         // Currently, we don't know the target bounds of a pointer stored in a
-        // pointer dereference, unless it is a _Ptr type (handled
-        // earlier) or an _Nt_array_ptr.
-        if (E->getType()->isCheckedPointerNtArrayType())
+        // pointer dereference, unless it is a _Ptr type or an _Nt_array_ptr.
+        if (E->getType()->isCheckedPointerPtrType() ||
+            E->getType()->isCheckedPointerNtArrayType())
           OutTargetBounds = CreateTypeBasedBounds(E, E->getType(),
                                                   false, false);
         else
@@ -2787,10 +2787,10 @@ namespace {
     // e is an lvalue.
     BoundsExpr *CheckArraySubscriptExpr(ArraySubscriptExpr *E,
                                         BoundsExpr *&OutTargetBounds) {
-      // Currently, we don't know the target bounds of a pointer returned
-      // by a subscripting operation, unless it is a _Ptr type (handled
-      // earlier) or an _Nt_array_ptr.
-      if (E->getType()->isCheckedPointerNtArrayType())
+      // Currently, we don't know the target bounds of a pointer returned by a
+      // subscripting operation, unless it is a _Ptr type or an _Nt_array_ptr.
+      if (E->getType()->isCheckedPointerPtrType() ||
+          E->getType()->isCheckedPointerNtArrayType())
         OutTargetBounds = CreateTypeBasedBounds(E, E->getType(), false, false);
       else
         OutTargetBounds = CreateBoundsAlwaysUnknown();
