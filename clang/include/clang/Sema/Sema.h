@@ -4513,17 +4513,17 @@ public:
   /// return a reason explaining why. Otherwise, return NOUR_None.
   NonOdrUseReason getNonOdrUseReasonInCurrentContext(ValueDecl *D);
 
-  DeclRefExpr *BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
-                                SourceLocation Loc,
-                                const CXXScopeSpec *SS = nullptr);
-  DeclRefExpr *
+  ExprResult BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
+                              SourceLocation Loc,
+                              const CXXScopeSpec *SS = nullptr);
+  ExprResult
   BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                    const DeclarationNameInfo &NameInfo,
                    const CXXScopeSpec *SS = nullptr,
                    NamedDecl *FoundD = nullptr,
                    SourceLocation TemplateKWLoc = SourceLocation(),
                    const TemplateArgumentListInfo *TemplateArgs = nullptr);
-  DeclRefExpr *
+  ExprResult
   BuildDeclRefExpr(ValueDecl *D, QualType Ty, ExprValueKind VK,
                    const DeclarationNameInfo &NameInfo,
                    NestedNameSpecifierLoc NNS,
