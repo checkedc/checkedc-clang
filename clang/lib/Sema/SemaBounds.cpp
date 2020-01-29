@@ -1917,7 +1917,9 @@ namespace {
   // Otherwise an expression denotes an rvalue.
 
   public:
-    // If e is an rvalue, Check returns the bounds for the value produced by e.
+    // If e is an rvalue, Check checks e and its children, performing any
+    // necessary side effects, and returns the bounds for the value
+    // produced by e.
     // If e is an lvalue, Check checks e and its children, performing any
     // necessary side effects, and returns unknown bounds.
     //
