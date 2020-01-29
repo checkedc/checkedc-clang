@@ -13888,10 +13888,13 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
       TemplateArgs = &TemplateArgsBuffer;
     }
 
-    DeclRefExpr *DRE =
+    ExprResult ER =
         BuildDeclRefExpr(Fn, Fn->getType(), VK_LValue, ULE->getNameInfo(),
                          ULE->getQualifierLoc(), Found.getDecl(),
                          ULE->getTemplateKeywordLoc(), TemplateArgs);
+    if (ER.isInvalid())
+      return nullptr;
+    DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ER.get());
     DRE->setHadMultipleCandidates(ULE->getNumDecls() > 1);
     return DRE;
   }
@@ -13910,10 +13913,13 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
     // implicit member access, rewrite to a simple decl ref.
     if (MemExpr->isImplicitAccess()) {
       if (cast<CXXMethodDecl>(Fn)->isStatic()) {
-        DeclRefExpr *DRE = BuildDeclRefExpr(
+        ExprResult ER = BuildDeclRefExpr(
             Fn, Fn->getType(), VK_LValue, MemExpr->getNameInfo(),
             MemExpr->getQualifierLoc(), Found.getDecl(),
             MemExpr->getTemplateKeywordLoc(), TemplateArgs);
+        if (ER.isInvalid())
+          return nullptr;
+        DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(ER.get());
         DRE->setHadMultipleCandidates(MemExpr->getNumDecls() > 1);
         return DRE;
       } else {
