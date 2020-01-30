@@ -829,6 +829,11 @@ void ASTStmtReader::VisitMemberExpr(MemberExpr *E) {
     ReadTemplateKWAndArgsInfo(
         *E->getTrailingObjects<ASTTemplateKWAndArgsInfo>(),
         E->getTrailingObjects<TemplateArgumentLoc>(), NumTemplateArgs);
+
+  // Checked C specific.
+  bool HasBoundsExpr = Record.readInt();
+  if (HasBoundsExpr)
+    E->setBoundsExpr(Record.readBoundsExpr());
 }
 
 void ASTStmtReader::VisitObjCIsaExpr(ObjCIsaExpr *E) {
@@ -2741,19 +2746,10 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
       break;
 
     case EXPR_MEMBER:
-      {
-      bool HadBoundsExpr = Record.readInt();
-      BoundsExpr *Bounds = nullptr;
-      if (HadBoundsExpr)
-        Bounds = Record.readBoundsExpr();
-
       S = MemberExpr::CreateEmpty(Context, Record[ASTStmtReader::NumExprFields],
                                   Record[ASTStmtReader::NumExprFields + 1],
                                   Record[ASTStmtReader::NumExprFields + 2],
                                   Record[ASTStmtReader::NumExprFields + 3]);
-      if (HadBoundsExpr)
-        cast<MemberExpr>(S)->setBoundsExpr(Bounds);
-      }
       break;
 
     case EXPR_BINARY_OPERATOR:
