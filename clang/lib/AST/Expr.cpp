@@ -2950,9 +2950,6 @@ static Expr *IgnoreParensSingleStep(Expr *E) {
   else if (auto *CE = dyn_cast<ConstantExpr>(E))
     return CE->getSubExpr();
 
-  else if (CHKCBindTemporaryExpr *Binding = dyn_cast<CHKCBindTemporaryExpr>(E))
-    return Binding->getSubExpr();
-
   return E;
 }
 
