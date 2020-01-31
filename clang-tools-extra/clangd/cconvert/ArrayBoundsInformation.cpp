@@ -180,6 +180,9 @@ ArrayBoundsInformation::BOUNDSINFOTYPE ArrayBoundsInformation::getExprBoundsInfo
       UETE->printPretty(rawStr, nullptr, PrintingPolicy(LangOptions()));
       return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, rawStr.str());
     }
+  } else if (StringLiteral *SL = dyn_cast<StringLiteral>(expr)) {
+    std::string boundsInfo = "" + std::to_string(SL->getLength());
+    return std::make_pair(ArrayBoundsInformation::BoundsKind::ConstantBound, boundsInfo);
   }
   expr->dump();
   assert(false && "Unable to handle expression type");
